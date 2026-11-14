@@ -218,6 +218,8 @@ export async function readSyncStatus(electricUrl = process.env.ELECTRIC_URL ?? '
 }
 
 export type AdminHealth = {
+  /** LiveKit is set in .env (LIVEKIT_URL): call audio is set up, whether or not it answers. */
+  livekitConfigured: boolean
   api: ServiceStatus
   readSync: ServiceStatus
   livekit: ServiceStatus
@@ -239,6 +241,7 @@ async function emailHealth(): Promise<ServiceStatus> {
 export async function adminHealth(): Promise<AdminHealth> {
   const [livekit, email, readSync] = await Promise.all([livekitStatus(), emailHealth(), readSyncStatus()])
   return {
+    livekitConfigured: !!livekit.url,
     api: { ok: true, message: 'Answering.' },
     readSync,
     livekit: livekit.server,

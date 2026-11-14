@@ -91,7 +91,7 @@ function Unavailable({
           Connect your number later: it stays in your go-live checklist.{' '}
           {/* The same as Settings › Phone numbers: admins get the place to fix it, everyone else whom to ask. */}
           {admin ? (
-            <a className="k-link" href="#admin/providers" title={detail ?? undefined}>
+            <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
               Connect a carrier in Admin › Providers
             </a>
           ) : (

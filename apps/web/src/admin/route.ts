@@ -1,5 +1,15 @@
-// Where admin mode is: `#admin/<section>` and `#admin/<section>/<id>` (a workspace or a user).
+// Where admin mode is: `#admin/<section>` and `#admin/<section>/<id>` (a workspace, a user, or on Providers a group
+// or a provider).
 // Kept in the hash like the rest of the app, so reload and the browser's Back work.
+import {
+  groupOfCategory,
+  isProviderGroupId,
+  type ProviderCategory,
+  providerCategories,
+  type ProviderGroupId,
+  type ProviderName,
+  providers as providerRegistry,
+} from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 
 export const adminSections = [
@@ -43,4 +53,16 @@ export function useAdminPlace() {
     window.location.hash = adminHash(next)
   }
   return { place, go }
+}
+
+/** What `#admin/providers/<id>` points at: a group to scroll to, or a provider whose dialog opens. */
+export function providersTarget(id: string | null): { group: ProviderGroupId } | { provider: ProviderName } | null {
+  if (!id) return null
+  if (isProviderGroupId(id)) return { group: id }
+  if (id in providerRegistry) return { provider: id as ProviderName }
+  if (id in providerCategories) return { group: groupOfCategory(id as ProviderCategory) }
+  // Links from before the groups: the setup checklist's parts.
+  if (id === 'livekit') return { group: 'call-audio' }
+  if (id === 'ai') return { group: 'answering' }
+  return null
 }

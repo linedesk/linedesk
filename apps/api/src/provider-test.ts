@@ -57,8 +57,12 @@ const basic = (user: string, password: string) => `Basic ${Buffer.from(`${user}:
 type Json = Record<string, any>
 type Answer = { ok: true; body: Json; res: Response } | { ok: false; problem: ProviderProblem; status: number }
 
-/** Requests of one test: the timeout, no redirects, and the failure as a problem of this provider. */
-function httpFor(provider: ProviderName, doFetch: typeof fetch) {
+/**
+ * Requests of one test: the timeout, no redirects, and the failure as a problem of this provider. `free`: the
+ * background health check (provider-health-check.ts) — only requests that cost nothing (reading an account, a key, a
+ * model list), no tokens, no speech, no transcription.
+ */
+function httpFor(provider: ProviderName, doFetch: typeof fetch, free = false) {
   const send = (url: string, init: RequestInit = {}) =>
     doFetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) })
   /** A JSON answer, or what its failure means. `what` names the step in the message. */
@@ -67,7 +71,7 @@ function httpFor(provider: ProviderName, doFetch: typeof fetch) {
     if (!res.ok) return { ok: false, problem: await problemOfResponse(provider, res, what), status: res.status }
     return { ok: true, body: ((await res.json().catch(() => null)) ?? {}) as Json, res }
   }
-  return { send, json }
+  return { send, json, free }
 }
 type Http = ReturnType<typeof httpFor>
 type Check = (values: Values, http: Http) => Promise<ProviderTestData>
@@ -223,6 +227,14 @@ export function silentWav(seconds = 0.2, rate = 16000): Uint8Array<ArrayBuffer> 
 const OPENAI_STT_MODEL = 'gpt-4o-mini-transcribe'
 const openaiStt: Check = async (values, http) => {
   const model = values.model || OPENAI_STT_MODEL
+  if (http.free) {
+    const found = await http.json(
+      `https://api.openai.com/v1/models/${encodeURIComponent(model)}`,
+      { headers: { authorization: `Bearer ${values.api_key}` } },
+      `the model ${model}`,
+    )
+    return found.ok ? ok() : failed(found.problem)
+  }
   const form = new FormData()
   form.append('model', model)
   form.append('file', new Blob([silentWav()], { type: 'audio/wav' }), 'test.wav')
@@ -242,6 +254,15 @@ const firstModel = (value: string | undefined, fallback: string) => value?.split
 
 /** A chat request of a few tokens: the key, the model and the account's quota in one. */
 async function tinyCompletion(provider: ProviderName, http: Http, baseUrl: string, apiKey: string, model: string) {
+  // The free check: the key reads the model list (Anthropic with its own headers), no tokens.
+  if (http.free) {
+    const headers: Record<string, string> =
+      provider === 'anthropic'
+        ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+        : { authorization: `Bearer ${apiKey}` }
+    const res = await http.send(`${baseUrl}/models`, { headers })
+    return res.ok ? null : await problemOfResponse(provider, res, 'the key')
+  }
   const limit =
     provider === 'openai' || provider === 'openai_realtime' ? { max_completion_tokens: 16 } : { max_tokens: 5 }
   const res = await http.send(`${baseUrl}/chat/completions`, {
@@ -337,8 +358,8 @@ const elevenlabs: Check = async (values, http) => {
     if (ids.length && !ids.includes(values.model))
       return error('not_found', `ElevenLabs has no model "${values.model}". Clear the model field for the default.`)
   }
-  // The quota could not be read with this key: one character of speech shows whether it can speak.
-  if (!quota) {
+  // The quota could not be read with this key: one character of speech shows whether it can speak (not in the free check).
+  if (!quota && !http.free) {
     const res = await http.send(
       `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=pcm_16000`,
       {
@@ -364,6 +385,8 @@ const cartesia: Check = async (values, http) => {
       ? error('not_found', `The voice ${voice} is not available to this Cartesia key. Pick another or clear the field.`)
       : failed(found.problem)
   // Cartesia does not tell the credit left: one character of speech shows whether it can speak (402 when used up).
+  // The free check stops at the voice: the key works.
+  if (http.free) return ok()
   const res = await http.send('https://api.cartesia.ai/tts/bytes', {
     method: 'POST',
     headers: { ...headers, 'content-type': 'application/json' },
@@ -600,12 +623,16 @@ export function missingFields(provider: ProviderName, config: ProviderConfig): s
   return Object.keys(fields).filter(field => !fields[field]!.optional && !config[field]?.value)
 }
 
-/** `config` holds the keys in effect. `doFetch` is replaced in tests. */
+/**
+ * `config` holds the keys in effect. `doFetch` is replaced in tests. `free`: only requests that cost nothing (the
+ * background health check): the key, the account and its balance where the provider tells, never tokens or speech.
+ */
 export async function testProvider(
   provider: ProviderName,
   config: ProviderConfig,
   doFetch: typeof fetch = fetch,
   env: Record<string, string | undefined> = process.env,
+  { free = false }: { free?: boolean } = {},
 ): Promise<ProviderTestData> {
   const { label, fields } = providerSpec(provider)
   const values: Values = Object.fromEntries(
@@ -632,7 +659,7 @@ export async function testProvider(
       .reduce((t, value) => t.replaceAll(value, '[redacted]'), text)
       .slice(0, MAX_MESSAGE)
   try {
-    const result = await checks[provider](values, httpFor(provider, doFetch))
+    const result = await checks[provider](values, httpFor(provider, doFetch, free))
     return { ...result, message: scrub(result.message) }
   } catch (e) {
     if (e instanceof Error && e.name === 'TimeoutError')

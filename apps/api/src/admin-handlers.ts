@@ -161,7 +161,7 @@ export const adminHandlers: Record<string, Handler> = {
     // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
     const recent = await recentTest(tx, input.provider, config)
     if (recent) return { rows: {}, data: recent }
-    const result = await testProvider(input.provider, config)
+    const result = await testProvider(input.provider, config, fetch, process.env, { free: input.free ?? false })
     await rememberTest(tx, input.provider, config, result)
     // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
     // without the email: the admin sees it). One that is not set up is not failing, only missing.

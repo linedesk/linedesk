@@ -1261,7 +1261,9 @@ describe('overview', () => {
 
   test('health names each part; the agent shows up once it has asked for its settings', async () => {
     const before = (await request(operator, 'GET', '/v1/admin/health')).body
-    expect(Object.keys(before).sort()).toEqual(['agent', 'api', 'email', 'livekit', 'readSync', 'sip'])
+    expect(Object.keys(before).sort()).toEqual(['agent', 'api', 'email', 'livekit', 'livekitConfigured', 'readSync', 'sip'])
+    // Whether LiveKit is set in .env at all: the overview's Call audio row says "Not set up" instead of "Failing".
+    expect(typeof before.livekitConfigured).toBe('boolean')
     expect(before.api.ok).toBe(true)
     await request(agent(), 'GET', AGENT_ROUTE)
     expect((await request(operator, 'GET', '/v1/admin/health')).body.agent).toMatchObject({ ok: true })

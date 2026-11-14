@@ -56,7 +56,7 @@ describe('OpenRouter connect (PKCE)', () => {
     const url = new URL(await startOpenRouterConnect(storage, () => {}, 'http://x.localhost'))
     const { verifier } = JSON.parse(storage.getItem('linedesk.openrouter.pending')!)
     const state = url.searchParams.get('state')
-    expect(captureOpenRouterReturn(`?code=abc&state=${state}`, storage)).toBe('#admin/providers')
+    expect(captureOpenRouterReturn(`?code=abc&state=${state}`, storage)).toBe('#admin/providers/answering')
     expect(storage.getItem('linedesk.openrouter.pending')).toBeNull()
     expect(takeOpenRouterReturn(storage)).toEqual({ code: 'abc', verifier })
     expect(takeOpenRouterReturn(storage)).toBeNull()

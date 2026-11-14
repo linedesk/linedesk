@@ -9,11 +9,11 @@ const root = new URL('.', import.meta.url).pathname
 const SERVER_SETTING =
   /\b(LIVEKIT_[A-Z_]+|SMTP_URL|EMAIL_TO_LOG|EMAIL_FROM|SECRETS_KEY|DATABASE_URL|AGENT_API_TOKEN|TELEPHONY_PROVIDER|RECORDING_STORE|RECORDINGS_DIR|JOBS_ENABLED|S3_[A-Z_]+|[A-Z]+_API_KEY|[A-Z]+_PROVIDER|AUTH_[A-Z_]+)\b/
 
-/** Screens outside admin mode that only the instance admin sees. */
-const FOR_THE_INSTANCE_ADMIN = new Set([
-  // The install walkthrough: the person installing Linedesk sets up its .env.
-  'onboarding/InstallSetup.tsx',
-])
+/**
+ * Screens outside admin mode that only the instance admin sees and that may name server settings. None now: the install
+ * walkthrough shows the provider groups of admin mode (admin/ProviderGroup.tsx) and names no setting itself.
+ */
+const FOR_THE_INSTANCE_ADMIN = new Set<string>()
 
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {

@@ -1,20 +1,23 @@
-// The instance setup checklist in the terminal, for headless installs and AI agents (`scripts/setup.sh --check`):
+// Providers in the terminal, for headless installs and AI agents (`scripts/setup.sh --check`):
 //   node --env-file-if-exists=.env apps/api/src/setup-check.ts      (docker: docker compose exec api node apps/api/src/setup-check.ts)
-// Tests every provider that has keys (provider.test as the operator, once per provider, logged like any admin
-// action) and prints what is missing with the steps to set it up. Exit code 0 when every part works, 1 when
-// something is missing or failing, 2 when the check itself could not run. Never prints a key.
+// Tests every provider that is set up (provider.test as the operator, once per provider, logged like any admin
+// action: the free key check, never a paid round trip) and prints each group the way Admin › Providers shows it,
+// with the steps for what is missing. Exit code 0 when every group a call needs works, 1 when something is missing or
+// failing, 2 when the check itself could not run. Never prints a key.
 import {
+  callAudioGuide,
+  type GroupStatus,
   oneKey,
-  type ProviderName,
+  type ProviderGuide,
   providerSpec,
-  providersIn,
-  type SetupChecklistItem,
-  setupItemSpec,
+  providersOfGroup,
+  recommendedProviders,
+  statusText,
 } from '@linedesk/actions'
 import type { Actor } from './context.ts'
 import { db, pool } from './db.ts'
 import { runAction } from './run-action.ts'
-import { setupChecklist } from './setup-checklist.ts'
+import { providerFacts, setupChecklist } from './setup-checklist.ts'
 
 const operator: Actor = {
   actorId: 'cli',
@@ -24,54 +27,59 @@ const operator: Actor = {
   passkeyConfirmed: true,
 }
 
-const marks: Record<SetupChecklistItem['state'], string> = {
-  ok: '[ok]     ',
-  set_up: '[untested]',
+const marks: Record<GroupStatus['state'], string> = {
+  works: '[works]',
   failing: '[failing]',
-  missing: '[missing]',
+  missing: '[not set up]',
+  partly: '[partly]',
+  checking: '[checking]',
+  untested: '[not tested]',
+  not_needed: '[not needed]',
+  off: '[off]',
 }
 
-function print(item: SetupChecklistItem) {
-  const spec = setupItemSpec(item.id)
-  const label = item.providerLabel
-  const what = label && !item.coveredBy && !item.message?.startsWith(label) ? `${label}: ` : ''
-  const mark = item.id === 'livekit' && item.state === 'set_up' ? '[partly]' : marks[item.state]
-  console.log(`${mark.padEnd(10)} ${item.label.padEnd(16)} ${what}${item.message ?? 'not set up'}`)
-  if (item.state === 'ok') return
-  // Covered by the realtime model: its key is the one to fix.
-  console.log(`           ${item.coveredBy ? oneKey.url : spec.guide.url}`)
-  // The steps for a part that is not there yet; a failing one only needs the place to fix it.
-  if (item.state !== 'missing') return
-  spec.guide.steps.forEach((step, i) => console.log(`           ${i + 1}. ${step}`))
-  console.log(`           Cost: ${spec.guide.cost}`)
-  const others = spec.category ? providersIn(spec.category).filter(p => p !== spec.guide.provider) : []
-  if (others.length)
-    console.log(`           Or: ${others.map(p => providerSpec(p).label).join(', ')} (Admin, Providers)`)
+/** The steps of the provider we recommend for a group (call audio: the server's own). */
+function guideOf(group: GroupStatus): { label: string | null; guide: ProviderGuide } {
+  if (group.id === 'call-audio') return { label: null, guide: callAudioGuide }
+  const category = providerSpec(providersOfGroup(group.id)[0]!).category
+  const recommended = group.id === 'answering' ? recommendedProviders.stt : recommendedProviders[category]
+  return { label: providerSpec(recommended).label, guide: providerSpec(recommended).guide }
+}
+
+function print(group: GroupStatus) {
+  const what = group.providerLabel ? `${group.providerLabel}: ` : ''
+  console.log(
+    `${marks[group.state].padEnd(13)} ${group.label.padEnd(18)} ${what}${statusText(group)}${group.message ? `. ${group.message}` : ''}`,
+  )
+  if (!group.needed || group.state === 'works') return
+  if (group.state !== 'missing') return
+  // The steps for a group that is not there yet; a failing one only needs its message (the fix).
+  if (group.id === 'answering') {
+    console.log(`              One key: ${oneKey.label} (${oneKey.url}). ${oneKey.cost}`)
+    console.log('              Or speech to text, a language model and a voice, e.g.:')
+  }
+  const { label, guide } = guideOf(group)
+  if (guide.url) console.log(`              ${label ? `${label}: ` : ''}${guide.url}`)
+  guide.steps.forEach((step, i) => console.log(`              ${i + 1}. ${step}`))
+  console.log(`              Cost: ${guide.cost}`)
 }
 
 async function main() {
-  const before = await setupChecklist(db)
-  // One test per provider: rows covered by the realtime model share its result.
-  const providers = new Set<ProviderName>()
-  for (const item of before.items) if (item.provider && item.state !== 'missing') providers.add(item.provider)
-  for (const provider of providers) {
-    // A refused test (SECRETS_KEY missing or wrong) already shows on its row.
-    await runAction('provider.test', { provider }, operator)
-  }
-  const checklist = await setupChecklist(db)
-  console.log(`Instance setup: ${checklist.ready} of ${checklist.items.length} parts work.\n`)
-  for (const item of checklist.items) print(item)
-  const voiceMissing = checklist.items.some(i => ['stt', 'llm', 'tts'].includes(i.id) && i.state === 'missing')
-  if (voiceMissing)
-    console.log(
-      `\nOne key instead: an ${oneKey.label} key covers speech, model and voice (${oneKey.url}). Connect it in Admin, Overview, or as OpenAI Realtime under Admin, Providers.`,
-    )
+  // One free key check per provider that is set up and in use.
+  for (const fact of await providerFacts(db))
+    if (fact.configured && fact.active) await runAction('provider.test', { provider: fact.provider }, operator)
+  const { groups, ready } = await setupChecklist(db)
+  const needed = groups.filter(g => g.needed)
   console.log(
-    checklist.complete
-      ? '\nEverything works. Next: open the app and set up the business.'
-      : '\nKeys go in the app: Admin, Providers (or Admin, Overview).',
+    `Providers: ${needed.filter(g => g.state === 'works').length} of ${needed.length} that calls need work.\n`,
   )
-  process.exitCode = checklist.complete ? 0 : 1
+  for (const group of groups) print(group)
+  console.log(
+    ready
+      ? '\nReady for calls. Next: open the app and set up the business.'
+      : '\nKeys go in the app: Admin › Providers.',
+  )
+  process.exitCode = ready ? 0 : 1
 }
 
 main()

@@ -446,7 +446,7 @@ test('done says live only when calls are really answered', () => {
   ])
   expect(
     doneState({ ...base, admin: true, number: { ...forwarded, mode: 'new' }, voiceMissing: true }).left[0]!.href,
-  ).toBe('#admin/providers')
+  ).toBe('#admin/providers/answering')
 })
 
 test('the phone options read the same in onboarding and Settings › Phone numbers', () => {

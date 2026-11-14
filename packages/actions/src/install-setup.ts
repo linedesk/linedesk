@@ -1,42 +1,46 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
-import type { SetupItemId } from './setup-checklist.ts'
+import type { ProviderGroupId } from './provider-status.ts'
 
 // Install setup by hand (LIN-128, docs/self-host-first-run.md): the small alternative to setting up with an AI agent
-// (agent-setup.ts). One screen per part in the order a first answered call needs them, each with the same guide and
-// keys as the setup checklist (setup-checklist.ts) and a real round trip (`provider.tryOut`). Where the admin got to
-// is one instance setting, so signing in again (or another admin) resumes there.
+// (agent-setup.ts). One screen per group a first answered call needs, in that order, each showing the same group panel
+// as Admin › Providers (provider-status.ts) and a real round trip in the provider's dialog (`provider.tryOut`). Where
+// the admin got to is one instance setting, so signing in again (or another admin) resumes there.
 
-export const installSteps = ['welcome', 'email', 'llm', 'stt', 'tts', 'telephony', 'extras', 'done'] as const
+export const installSteps = ['welcome', 'email', 'answering', 'telephony', 'call-audio', 'done'] as const
 export type InstallStep = (typeof installSteps)[number]
 
-/** The steps that set up a part of the setup checklist, and that part. */
-export const installStepItems: Partial<Record<InstallStep, SetupItemId>> = {
+/** The steps that set up a group, and that group (the same ids). */
+export const installStepGroups: Partial<Record<InstallStep, ProviderGroupId>> = {
   email: 'email',
-  llm: 'llm',
-  stt: 'stt',
-  tts: 'tts',
+  answering: 'answering',
   telephony: 'telephony',
+  'call-audio': 'call-audio',
+}
+
+/** Steps from before LIN-158 (one per category), as stored in older progress: the step that holds them now. */
+export const legacyInstallSteps: Record<string, InstallStep> = {
+  llm: 'answering',
+  stt: 'answering',
+  tts: 'answering',
+  extras: 'call-audio',
 }
 
 export const installStepLabels: Record<InstallStep, string> = {
   welcome: 'Welcome',
   email: 'Email',
-  llm: 'Language model',
-  stt: 'Speech to text',
-  tts: 'Voice',
+  answering: 'Answering calls',
   telephony: 'Phone carrier',
-  extras: 'Optional',
+  'call-audio': 'Call audio',
   done: 'Done',
 }
 
-/** What does not work when a part is skipped, said on its Skip button and in the summary. */
+/** What does not work when a step is skipped, said on its Skip button and in the summary. */
 export const installSkipEffects: Partial<Record<InstallStep, string>> = {
   email: 'Invitations and sign-in codes will not arrive.',
-  llm: 'The assistant cannot answer calls, websites cannot be read, and calls get no summary.',
-  stt: 'The assistant cannot hear callers.',
-  tts: 'The assistant cannot speak.',
+  answering: 'The assistant cannot answer calls, websites cannot be read, and calls get no summary.',
   telephony: 'Businesses cannot get a phone number; browser test calls still work.',
+  'call-audio': 'Real phone calls cannot reach this server; browser test calls still work.',
 }
 
 /** `setup.install` in instance_settings. */

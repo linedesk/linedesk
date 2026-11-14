@@ -240,7 +240,7 @@ function Summaries({
         <p className="ob2-note" role="status">
           Email isn't set up on this server yet.{' '}
           {admin ? (
-            <a className="k-link" href="#admin/providers">
+            <a className="k-link" href="#admin/providers/email">
               Set it up in Admin › Providers
             </a>
           ) : (

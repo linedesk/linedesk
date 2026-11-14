@@ -1,7 +1,8 @@
-// The instance setup checklist (docs/architecture.md §12): per part a first answered call needs (email, phone
-// carrier, speech, model, voice, LiveKit and SIP) whether it is set up and whether the last test of exactly these
-// keys passed. GET /v1/admin/setup-checklist, the install walkthrough, the setup MCP's setup_status and
-// `scripts/setup.sh --check` (setup-check.ts) all read it, so "Works" means the same everywhere.
+// Providers in one place (docs/architecture.md §12, LIN-158): what the server knows about each provider (set up, in
+// use, the last test of exactly these keys, recorded failures) turned into one status per group by statusGroups
+// (packages/actions/src/provider-status.ts). GET /v1/admin/setup-checklist, the setup MCP's setup_status and
+// `scripts/setup.sh --check` (setup-check.ts) read it; the web app computes the same from the admin data, so "Works"
+// means the same everywhere.
 //
 // Test results are stored per provider (provider_tests, LIN-141) with a fingerprint of the keys in effect, an HMAC keyed
 // with SECRETS_KEY: a changed key is untested again, a restart or update forgets nothing, and nothing about a key is
@@ -9,26 +10,27 @@
 // Reading the checklist never calls a provider.
 import { createHmac, randomBytes } from 'node:crypto'
 import {
-  checklistSummary,
+  isMultiCategory,
+  type ProviderFact,
   type ProviderName,
   type ProviderTestData,
+  providerNames,
   providerSpec,
-  type SetupChecklist,
-  type SetupChecklistItem,
-  type SetupItemSpec,
-  setupItems,
-  setupItemState,
+  type StatusGroups,
+  type StoredTest,
+  statusGroups,
+  type VoicePipeline,
 } from '@linedesk/actions'
-import { provider_tests, type Tx } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { assistants, provider_settings, provider_tests, type Tx } from '@linedesk/db'
+import { eq, isNull, max } from 'drizzle-orm'
 import { emailDelivery } from './auth-methods.ts'
 import { serverEnv } from './instance-env.ts'
 import { type LivekitStatus, livekitStatus } from './livekit-status.ts'
+import { listProviderFailures } from './provider-failures.ts'
 import { type ProviderConfig, providerStatus, resolveProvider } from './provider-settings.ts'
 import { hasSecretsKey, SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
-type TestResult = ProviderTestData & { at: string }
 
 /** Without SECRETS_KEY no key can be stored in the app; env keys then get a fingerprint for this process only. */
 const processKey = randomBytes(32)
@@ -56,7 +58,7 @@ export async function rememberTest(
 }
 
 /** The last test of exactly these keys, or null. */
-export async function lastTest(tx: Tx, provider: ProviderName, config: ProviderConfig): Promise<TestResult | null> {
+export async function lastTest(tx: Tx, provider: ProviderName, config: ProviderConfig): Promise<StoredTest | null> {
   const [row] = await tx.select().from(provider_tests).where(eq(provider_tests.provider, provider))
   if (!row || row.keys !== keysHash(config)) return null
   return { ok: row.ok, message: row.message, at: new Date(row.tested_at).toISOString() }
@@ -90,93 +92,99 @@ type Options = {
   livekit?: () => Promise<LivekitStatus>
 }
 
-// The OpenAI test lists the models with the key: it proves the key, not a call round trip.
-const keyOnlyChecks = new Set<ProviderName>(['openai_realtime', 'openai_stt', 'openai'])
-const testMessage = (provider: ProviderName, message: string) =>
-  keyOnlyChecks.has(provider) && message === 'Connected' ? 'Key accepted' : message
-
-type ProviderItem = { spec: SetupItemSpec; provider: ProviderName | null; coveredBy: ProviderName | null }
-
-async function providerItem(
-  tx: Tx,
-  { spec, provider, coveredBy }: ProviderItem,
-  env: Env,
-): Promise<SetupChecklistItem> {
-  const base = { id: spec.id, label: spec.label, coveredBy, testedAt: null }
-  if (!provider) return { ...base, state: 'missing', provider: null, providerLabel: null, message: null }
-  const providerLabel = providerSpec(provider).label
-  let config: ProviderConfig
-  try {
-    config = await resolveProvider(tx, provider, env)
-  } catch (e) {
-    if (!(e instanceof SecretsKeyError)) throw e
-    return { ...base, state: 'failing', provider, providerLabel, message: e.message }
+/**
+ * Every provider as the status function needs it: set up (all needed keys in the app or the server's env), in use,
+ * and the last test of exactly these keys. Stored keys that cannot be read (SECRETS_KEY missing or changed) count as
+ * set up and failing, with the reason. Never calls a provider.
+ */
+export async function providerFacts(tx: Tx, env: Env = serverEnv()): Promise<ProviderFact[]> {
+  const { active } = await providerStatus(tx, env)
+  const saved = await tx
+    .select({ provider: provider_settings.provider, at: max(provider_settings.updated_at) })
+    .from(provider_settings)
+    .where(isNull(provider_settings.workspace_id))
+    .groupBy(provider_settings.provider)
+  const keysAt = (p: ProviderName) => {
+    const at = saved.find(r => r.provider === p)?.at
+    return at ? new Date(at).toISOString() : null
   }
-  const setUp = isSetUp(provider, config)
-  const test = setUp ? await lastTest(tx, provider, config) : null
-  const state = setupItemState(setUp, test)
-  const tested = test ? testMessage(provider, test.message) : null
-  const message = coveredBy
-    ? `Covered by ${providerLabel}${tested ? `: ${tested}` : ''}. Separate providers again: Disconnect in the ${providerLabel} dialog`
-    : state === 'missing'
-      ? `${providerLabel} is picked but not all its keys are set`
-      : (tested ?? 'Keys set, not tested yet')
-  return { ...base, state, provider, providerLabel, message, testedAt: test?.at ?? null }
-}
-
-/** LiveKit is part of the install: reachable server, and an inbound SIP trunk so carriers' calls arrive. */
-function livekitItem(spec: SetupItemSpec, status: LivekitStatus): SetupChecklistItem {
-  const base = { id: spec.id, label: spec.label, provider: null, providerLabel: null, coveredBy: null }
-  const testedAt = new Date().toISOString()
-  if (!status.url) return { ...base, state: 'missing', message: status.server.message, testedAt: null }
-  if (!status.server.ok) return { ...base, state: 'failing', message: status.server.message, testedAt }
-  // The server answers: browser test calls work. Phone calls need the trunk, made once a number exists.
-  if (!status.sip.ok) return { ...base, state: 'set_up', message: status.sip.message, testedAt }
-  return { ...base, state: 'ok', message: `${status.server.message}; ${status.sip.message}`, testedAt }
-}
-
-type StatusRows = Awaited<ReturnType<typeof providerStatus>>['providers']
-/** The label of a carrier with all its needed keys set, in the app or in env. */
-const carrierWithKeys = (providers: StatusRows) =>
-  providers.find(
-    p =>
-      p.category === 'telephony' && p.fields.every(f => f.source || providerSpec(p.provider).fields[f.field]?.optional),
-  )?.label
-
-/** The dev carrier's line; a carrier whose keys are set (in the app or in env) waits for TELEPHONY_PROVIDER to change. */
-function devCarrierMessage(withKeys: string | undefined) {
-  const base = 'Development carrier (TELEPHONY_PROVIDER=dev): numbers and calls are simulated'
-  return withKeys ? `${base}. ${withKeys} keys are set: remove TELEPHONY_PROVIDER=dev to use them` : base
-}
-
-export async function setupChecklist(tx: Tx, options: Options = {}): Promise<SetupChecklist> {
-  const env = options.env ?? serverEnv()
-  const { active, providers } = await providerStatus(tx, env)
-  // A realtime model that is connected answers calls instead of speech, model and voice.
-  const realtime = active.realtime.provider
-  let realtimeReady = false
-  if (realtime) {
+  const facts: ProviderFact[] = []
+  for (const provider of providerNames) {
+    const { category } = providerSpec(provider)
+    let config: ProviderConfig
     try {
-      realtimeReady = isSetUp(realtime, await resolveProvider(tx, realtime, env))
+      config = await resolveProvider(tx, provider, env)
     } catch (e) {
       if (!(e instanceof SecretsKeyError)) throw e
-      realtimeReady = false
+      facts.push({
+        provider,
+        configured: true,
+        active: active[category].provider === provider,
+        test: { ok: false, message: e.message, at: new Date().toISOString() },
+      })
+      continue
     }
+    const configured = isSetUp(provider, config)
+    facts.push({
+      provider,
+      configured,
+      active: isMultiCategory(category) ? configured : active[category].provider === provider,
+      test: configured ? await lastTest(tx, provider, config) : null,
+      keysAt: keysAt(provider),
+    })
   }
-  const livekit = (options.livekit ?? (() => livekitStatus()))()
-  const items = await Promise.all(
-    setupItems.map(async spec => {
-      if (!spec.category) return livekitItem(spec, await livekit)
-      const covered = realtimeReady && (spec.id === 'stt' || spec.id === 'llm' || spec.id === 'tts')
-      const provider = covered ? realtime : active[spec.category].provider
-      const item = await providerItem(tx, { spec, provider, coveredBy: covered ? realtime : null }, env)
-      if (spec.id === 'email' && item.state === 'missing' && emailDelivery(env) === 'log')
-        return { ...item, message: 'Sign-in codes go to the API log (EMAIL_TO_LOG): for development only' }
-      // TELEPHONY_PROVIDER=dev is a working carrier for development: numbers and calls are simulated. Not missing.
-      if (spec.id === 'telephony' && !provider && env.TELEPHONY_PROVIDER === 'dev')
-        return { ...item, state: 'ok' as const, message: devCarrierMessage(carrierWithKeys(providers)) }
-      return item
-    }),
+  return facts
+}
+
+/** The last test of every provider that is set up (GET /v1/admin/providers `tests`), so every screen starts from it. */
+export async function storedTests(tx: Tx, env: Env = serverEnv()) {
+  const tests: Partial<Record<ProviderName, StoredTest>> = {}
+  for (const fact of await providerFacts(tx, env))
+    if (fact.test && fact.test !== 'running') tests[fact.provider] = fact.test
+  return tests
+}
+
+/** The dev carrier's line; a carrier whose keys are set (in the app or in env) waits for TELEPHONY_PROVIDER to change. */
+function devCarrierMessage(facts: readonly ProviderFact[]) {
+  const base = 'Development carrier (TELEPHONY_PROVIDER=dev): numbers and calls are simulated'
+  const withKeys = facts.find(f => f.configured && providerSpec(f.provider).category === 'telephony')
+  return withKeys
+    ? `${base}. ${providerSpec(withKeys.provider).label} keys are set: remove TELEPHONY_PROVIDER=dev to use them`
+    : base
+}
+
+/** Each assistant's choice of how its calls are answered (null: the install default), across the install. */
+async function assistantPipelines(tx: Tx): Promise<(VoicePipeline | null)[]> {
+  const rows = await tx.selectDistinct({ pipeline: assistants.voice_pipeline }).from(assistants)
+  return rows.map(r => r.pipeline)
+}
+
+/**
+ * What else the status needs besides the providers (GET /v1/admin/providers `status`, so the web app computes the same):
+ * how each assistant answers, whether email codes go to the log, and the development carrier's line.
+ */
+export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: readonly ProviderFact[]) {
+  const providers = facts ?? (await providerFacts(tx, env))
+  const telephonyInUse = providers.some(
+    f => f.active && f.configured && providerSpec(f.provider).category === 'telephony',
   )
-  return { items, ...checklistSummary(items) }
+  return {
+    assistantPipelines: await assistantPipelines(tx),
+    emailToLog: emailDelivery(env) === 'log',
+    devCarrier: !telephonyInUse && env.TELEPHONY_PROVIDER === 'dev' ? devCarrierMessage(providers) : null,
+  }
+}
+
+/** Every group's status, as Admin › Providers shows it. Asks LiveKit (cheap), never a paid provider. */
+export async function setupChecklist(tx: Tx, options: Options = {}): Promise<StatusGroups> {
+  const env = options.env ?? serverEnv()
+  const livekit = (options.livekit ?? (() => livekitStatus()))()
+  const providers = await providerFacts(tx, env)
+  const audio = await livekit
+  return statusGroups({
+    providers,
+    failures: await listProviderFailures(tx),
+    callAudio: { configured: !!audio.url, server: audio.server, sip: audio.sip },
+    ...(await statusContext(tx, env, providers)),
+  })
 }

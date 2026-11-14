@@ -46,8 +46,8 @@ export const openAgentSetup = () => {
 }
 
 const POLL_MS = 3000
-/** The install's own steps (setup-mcp.ts): by hand, they are done in Admin › Overview, the setup checklist. */
-const INSTALL_STEPS = ['ai', 'telephony', 'email', 'livekit']
+/** The install's own steps (setup-mcp.ts, the provider groups): by hand, they are done in Admin › Providers. */
+const INSTALL_STEPS = ['answering', 'telephony', 'email', 'call-audio']
 
 /**
  * The setup link made in this browser, kept until it ends: it expires, a new one is made, the admin ends agent access

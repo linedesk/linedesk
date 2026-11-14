@@ -220,9 +220,12 @@ test('a provider the step could not use says what happened and, for admins, wher
   const refused = providerProblem({ provider: 'business', reason: 'auth' }, 'search')
   expect(refused.text).toMatch(/Google refused this server's key\. Enter your business yourself\.$/)
   expect(refused.adminFix).toBe('Check the key under')
+  // The link goes to the group that fixes it.
+  expect(refused.group).toBe('business')
   expect(providerProblem({ provider: 'business', reason: 'config' }, 'listing').text).toMatch(/Fill in the rest below/)
   expect(providerProblem({ provider: 'llm', reason: 'config' }, 'search')).toEqual({
     text: 'Reading your website needs a language model.',
     adminFix: 'Set one up under',
+    group: 'answering',
   })
 })

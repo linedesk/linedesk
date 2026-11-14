@@ -206,7 +206,7 @@ function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) 
       {/* With its own carrier account only the server's side can be missing (where calls are sent). */}
       {ownCarrier ? 'This server cannot connect numbers yet.' : 'No phone carrier on this server yet.'}{' '}
       {isInstanceAdmin ? (
-        <a className="k-link" href="#admin/providers" title={detail ?? undefined}>
+        <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
           Connect one in Admin › Providers
         </a>
       ) : (

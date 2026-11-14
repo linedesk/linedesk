@@ -18,7 +18,7 @@ import { SecretsKeyError } from './secrets.ts'
 import { agentSetupState, setupActor } from './agent-setup.ts'
 import { installSetupState } from './install-setup.ts'
 import { setupProgress } from './setup-mcp.ts'
-import { setupChecklist } from './setup-checklist.ts'
+import { setupChecklist, storedTests, statusContext } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
 import { AT_RISK_MAX_DAYS, atRiskWorkspaces, workspacesOldEnough } from './setup-emails.ts'
 
@@ -201,9 +201,15 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
   app.get('/v1/admin/health', async c => c.json(await adminHealth()))
 
-  // The providers, which are in use, and which are failing now (provider-failures.ts).
+  // The providers, which are in use, which are failing now (provider-failures.ts) and the last test of each one's keys
+  // in effect (setup-checklist.ts): every screen starts from the stored result instead of testing again.
   app.get('/v1/admin/providers', async c =>
-    c.json({ ...(await providerStatus(db)), failures: await listProviderFailures(db) }),
+    c.json({
+      ...(await providerStatus(db)),
+      failures: await listProviderFailures(db),
+      tests: await storedTests(db),
+      status: await statusContext(db),
+    }),
   )
 
   // Agent setup (agent-setup.ts): the admin's working setup key (never the key) and where agents connect.
@@ -217,7 +223,7 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // Install setup by hand (install-setup.ts): where the walkthrough is, and whether a saved change waits for a restart.
   app.get('/v1/admin/install-setup', async c => c.json(await installSetupState()))
 
-  // The instance setup checklist (setup-checklist.ts), read-only: tests run through provider.test.
+  // Every provider group's status (setup-checklist.ts, statusGroups), read-only: tests run through provider.test.
   app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db)))
 
   // LiveKit is part of the install (keys in env): read-only status of the server and its SIP service.

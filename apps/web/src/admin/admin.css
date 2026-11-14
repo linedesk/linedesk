@@ -482,30 +482,6 @@
   line-height: 16px;
   color: var(--ink-muted);
 }
-.adm-tile-status::before {
-  content: none;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: currentColor;
-  flex: none;
-}
-.adm-dot-ink,
-.adm-dot-muted,
-.adm-dot-danger {
-  color: var(--ink);
-}
-.adm-dot-ink::before,
-.adm-dot-muted::before,
-.adm-dot-danger::before {
-  content: "";
-}
-.adm-dot-muted::before {
-  background: var(--ink-disabled);
-}
-.adm-dot-danger {
-  color: var(--danger);
-}
 .adm-facts .adm-server {
   margin-left: 6px;
   vertical-align: -1px;
@@ -747,19 +723,6 @@
 .adm-health-row b {
   font-weight: 500;
 }
-.adm-health-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--line-control);
-  transform: translateY(-1px);
-}
-.adm-health-dot.ok {
-  background: var(--ink);
-}
-.adm-health-dot.bad {
-  background: var(--danger);
-}
 .adm-scroll {
   overflow-x: auto;
 }
@@ -988,181 +951,6 @@
   vertical-align: -1px;
 }
 
-/* Instance setup checklist (SetupChecklist.tsx), on top of the overview. */
-.adm-setup-progress {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 4px;
-  max-width: 240px;
-  margin-top: 10px;
-}
-.adm-setup-progress span {
-  height: 4px;
-  border-radius: var(--radius-full);
-  background: var(--line);
-}
-.adm-setup-progress .ok {
-  background: var(--ink);
-}
-.adm-setup-progress .set_up {
-  background: var(--line-control);
-}
-.adm-setup-progress .failing {
-  background: var(--danger);
-}
-.adm-setup-list {
-  display: grid;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.adm-setup-row {
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-}
-.adm-setup-row:last-child {
-  padding-bottom: 0;
-}
-.adm-setup-line {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px 12px;
-  font-size: 13px;
-}
-/* The state at a glance: a tick when it works, "!" when it fails, a half ring when set up but not confirmed, the step's number when it is still to do. */
-.adm-mark {
-  box-sizing: border-box;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  margin-top: 0;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--ink-muted);
-}
-.adm-mark.ok {
-  background: var(--ink);
-  color: var(--on-action);
-}
-.adm-mark.failing {
-  background: var(--danger);
-  color: var(--on-danger);
-}
-.adm-mark.set_up {
-  border: 1.5px solid var(--ink-muted);
-  background: linear-gradient(90deg, var(--ink-muted) 50%, transparent 50%);
-  background-clip: content-box;
-  padding: 2px;
-}
-.adm-mark.missing {
-  border: 1.5px dashed var(--line-control);
-}
-.adm-mark.checking {
-  border: 1.5px solid var(--line);
-}
-.adm-setup-what {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.adm-setup-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  min-height: 20px;
-}
-.adm-setup-title b {
-  font-weight: 500;
-}
-.adm-setup-prov {
-  padding: 0 7px;
-  font-size: 11.5px;
-  line-height: 18px;
-  color: var(--ink-muted);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-}
-.adm-setup-what .help {
-  overflow-wrap: anywhere;
-}
-.adm-setup-what .help.adm-setup-bad {
-  color: var(--danger);
-}
-.adm-setup-actions {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.adm-setup-actions .k-btn > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.adm-setup-guide {
-  margin: 10px 0 0 32px;
-  padding: 10px 12px;
-  font-size: 13px;
-  background: var(--bg);
-  border-radius: var(--radius-md);
-}
-.adm-setup-guide > :last-child {
-  margin-bottom: 0;
-}
-.adm-setup-guide ol,
-.adm-setup-guide-steps {
-  margin: 0 0 6px;
-  padding-left: 18px;
-  display: grid;
-  gap: 3px;
-}
-.adm-setup-onekey {
-  margin: 14px 0 0;
-  font-size: 13px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 6px;
-}
-.adm-setup-onekey-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px;
-}
-.adm-setup-onekey-form .k-field {
-  flex: 1 1 240px;
-  margin: 0;
-}
-@media (min-width: 720px) {
-  .adm-setup-line {
-    /* The buttons in one column on the right: they line up in every row, with or without Edit keys. */
-    grid-template-columns: 20px minmax(0, 1fr) auto;
-  }
-  /* Fixed slots (Test, keys, Steps): each button sits in the same place in every row, whichever are shown. */
-  .adm-setup-actions {
-    grid-column: 3;
-    display: grid;
-    grid-template-columns: 52px 96px 76px;
-    column-gap: 4px;
-    justify-items: end;
-  }
-  .adm-setup-actions > .a-test {
-    grid-column: 1;
-  }
-  .adm-setup-actions > .a-keys {
-    grid-column: 2;
-  }
-  .adm-setup-actions > .a-steps {
-    grid-column: 3;
-  }
-}
 /* Onboarding: a workspace's milestones, folded under where it stopped. */
 .adm-steps {
   margin-top: 4px;
@@ -1183,7 +971,7 @@
 .adm-table tbody th a:hover {
   text-decoration: underline;
 }
-/* A provider's problem under its name (Admin › Providers), and the failing providers above the page and the overview. */
+/* A provider's problem under its name (Admin › Providers and its dialog). */
 .adm-prov-detail {
   display: block;
   font-size: 12.5px;
@@ -1193,44 +981,225 @@
 .adm-prov-detail-danger {
   color: var(--danger);
 }
-.adm-failing {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-  padding: 14px 16px;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-.adm-failing h2 {
-  margin: 0;
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--danger);
-}
-.adm-failing ul {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.adm-failing li {
-  display: grid;
-  gap: 2px;
-}
-.adm-failing-reason {
-  font-size: 12.5px;
-  color: var(--ink-muted);
-}
-.adm-failing-message {
-  font-size: 13px;
-  line-height: 18px;
-}
 /* A confirmation's list of what it affects (deleting a workspace). */
 .adm-confirm-list {
   margin: 0;
   padding-left: 18px;
   display: grid;
   gap: 3px;
+}
+
+/* Providers in one place (LIN-158): a group's status, its sub-lists (Answering calls), the quiet "Recommended" tag. */
+.adm-status-bad {
+  color: var(--danger);
+}
+.adm-group-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.adm-group-status .adm-prov-detail {
+  flex-basis: 100%;
+}
+.adm-provsub {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.adm-recommended {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.adm-provcat > .help {
+  margin: 0;
+}
+/* "How to get a key" in the dialog, "How to set it up" for call audio: open until it works. */
+.adm-guide {
+  padding: 10px 12px;
+  font-size: 13px;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+}
+.adm-guide summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.adm-guide[open] summary {
+  margin-bottom: 6px;
+}
+.adm-guide > :last-child {
+  margin-bottom: 0;
+}
+.adm-guide-steps {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+/* One key for Answering calls, its empty state. */
+.adm-onekey-card {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.adm-onekey {
+  font-size: 13px;
+  display: grid;
+  gap: 6px;
+}
+.adm-onekey-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.adm-onekey-form .k-field {
+  flex: 1 1 240px;
+  margin: 0;
+}
+/* The agent setup as a quiet line under the overview's status. */
+.adm-agent-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.adm-agent-line .help {
+  flex: 1 1 240px;
+}
+/* Try it (TryOut.tsx): a real round trip in the provider's dialog. */
+.adm-try {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.adm-try-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adm-try-head > div {
+  display: grid;
+  gap: 2px;
+  max-width: 44ch;
+  font-size: 13.5px;
+}
+.adm-try-head b {
+  font-weight: 600;
+}
+.adm-try-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.adm-try-code-input input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.adm-try-area {
+  width: 240px;
+  max-width: 100%;
+}
+.adm-try-code-input {
+  width: 128px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.adm-try-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13px;
+  line-height: 19px;
+}
+.adm-try-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-action);
+  font-size: 11px;
+  font-weight: 700;
+}
+.adm-try-result.bad .adm-try-mark {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.adm-try-body {
+  display: grid;
+  gap: 8px;
+}
+.adm-try-quote {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.adm-try-heard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 0;
+}
+.adm-try-heard dt {
+  color: var(--ink-muted);
+}
+.adm-try-heard dd {
+  margin: 0;
+}
+.adm-try-audio {
+  width: 100%;
+  max-width: 360px;
+  height: 36px;
+}
+.adm-try-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.adm-try-numbers li {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+}
+
+/* "Show more" under a long provider list (providerList.ts). */
+.adm-provlist-more {
+  margin-top: 6px;
+}
+
+/* Answering's two ways (one realtime model, or three parts), above their lists. */
+.adm-provway {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.adm-provway + .adm-provlist,
+.adm-provway + .adm-provsub {
+  margin-top: 4px;
 }

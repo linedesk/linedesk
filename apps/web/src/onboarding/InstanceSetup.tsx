@@ -1,9 +1,13 @@
-// For an instance admin on a fresh install: onboarding says which parts of the install are still missing and
-// opens the setup checklist (Admin, Overview) in place, since onboarding covers the whole app until it is done.
+// For an instance admin on a fresh install: onboarding says which provider groups a call needs are still missing or
+// failing (GET /v1/admin/setup-checklist, the same status as Admin › Providers) and links to Admin › Providers.
+import { listWords } from '@linedesk/actions'
 import { useEffect, useState } from 'react'
-import { ADMIN_SETUP_CHECKLIST, loadSetupChecklist } from '../admin/api.ts'
+import { loadSetupChecklist } from '../admin/api.ts'
 import type { Me } from '../auth.ts'
 import { useQuery } from '../cachedQuery.ts'
+
+/** Cache key of the server's group status (onboarding's notice). */
+const SETUP_STATUS = 'admin.setupStatus'
 
 export const isInstanceAdmin = (me: Me) => me.permissions.includes('instance:admin')
 
@@ -18,19 +22,15 @@ export function useHash() {
   return hash
 }
 
-/** "a, b or c" */
-const listOf = (words: readonly string[], last: 'or' | 'and') =>
-  words.length < 2 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} ${last} ${words.at(-1)}`
-
 /**
- * "This server has no phone carrier yet.": only while a part is missing or failing; nothing for everyone else. A
- * failed read says so and offers to try again instead of hiding the notice.
+ * "This server has no phone carrier yet.": only while a group calls need is missing or something fails; nothing for
+ * everyone else. A failed read says so and offers to try again instead of hiding the notice.
  */
 export function InstanceSetupNotice() {
-  const { data, error, reload } = useQuery(ADMIN_SETUP_CHECKLIST, () => loadSetupChecklist())
+  const { data, error, reload } = useQuery(SETUP_STATUS, () => loadSetupChecklist())
   const link = (
-    <a href="#admin" title="Admin › Overview: the steps for each part and a test">
-      Open the setup checklist
+    <a href="#admin/providers" title="Admin › Providers: every provider with its status, steps and a test">
+      Open Providers
     </a>
   )
   if (!data)
@@ -43,16 +43,15 @@ export function InstanceSetupNotice() {
         or {link}.
       </p>
     ) : null
-  if (data.complete) return null
-  const missing = data.items.filter(i => i.state === 'missing').map(i => i.label.toLowerCase())
-  // LIN-111: name the reason of a failing part (providerFailureReasonLabels[reason]) once the checklist items carry
-  // the recorded failure of GET /v1/admin/providers (`failures`); until then the state alone says it.
-  const failing = data.items.filter(i => i.state === 'failing').map(i => i.label.toLowerCase())
+  const missing = data.groups
+    .filter(g => g.needed && (g.state === 'missing' || g.state === 'partly'))
+    .map(g => g.label.toLowerCase())
+  const failing = data.groups.filter(g => g.state === 'failing').map(g => g.label.toLowerCase())
   if (!missing.length && !failing.length) return null
   return (
     <p className="ob-instance" role="note">
-      {missing.length > 0 && `This server has no ${listOf(missing, 'or')} yet. `}
-      {failing.length > 0 && `${capitalize(listOf(failing, 'and'))} ${failing.length > 1 ? 'are' : 'is'} failing. `}
+      {missing.length > 0 && `This server has no ${listWords(missing, 'or')} yet. `}
+      {failing.length > 0 && `${capitalize(listWords(failing))} ${failing.length > 1 ? 'are' : 'is'} failing. `}
       {link}
     </p>
   )

@@ -1,5 +1,5 @@
-// Pure helpers of the admin page: sorting, the usage grid, and the words for a provider's status.
-import { providers as providerSpecs, type ProviderTestData } from '@linedesk/actions'
+// Pure helpers of the admin page: sorting, the usage grid, and a provider's keys (the status: providerStatus.ts).
+import { providers as providerSpecs } from '@linedesk/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 
 export type SortDir = 'asc' | 'desc'
@@ -60,9 +60,11 @@ const SPENDING_CAP_MAX_USD = 100_000
 export function parseSpendingCap(text: string): { capUsd: number | null } | { problem: string } {
   const value = text.trim().replace(/^\$/, '').replace(/,/g, '')
   if (!value) return { capUsd: null }
-  if (!/^\d+(\.\d{1,2})?$/.test(value)) return { problem: 'Enter an amount in dollars, like 50 or 49.99, or leave it empty for no cap.' }
+  if (!/^\d+(\.\d{1,2})?$/.test(value))
+    return { problem: 'Enter an amount in dollars, like 50 or 49.99, or leave it empty for no cap.' }
   const capUsd = Number(value)
-  if (capUsd > SPENDING_CAP_MAX_USD) return { problem: `The cap can be at most ${formatUsd(SPENDING_CAP_MAX_USD)} a month.` }
+  if (capUsd > SPENDING_CAP_MAX_USD)
+    return { problem: `The cap can be at most ${formatUsd(SPENDING_CAP_MAX_USD)} a month.` }
   return { capUsd }
 }
 
@@ -83,16 +85,6 @@ export const isSwitch = (provider: ProviderStatus, field: ProviderField) => !!fi
 /** Every field a connection needs has a value, here or on the server. A provider without fields needs none. */
 export const isConfigured = (provider: ProviderStatus) =>
   provider.fields.every(f => f.source !== null || isOptional(provider, f))
-
-export type Connection = 'none' | 'checking' | 'connected' | 'error'
-export type TestState = ProviderTestData | 'running' | undefined
-
-/** What the row's badge says: set up and tested ok, set up and failing, still checking, or not set up. */
-export function connectionOf(provider: ProviderStatus, test: TestState): Connection {
-  if (!isConfigured(provider)) return 'none'
-  if (test === undefined || test === 'running') return 'checking'
-  return test.ok ? 'connected' : 'error'
-}
 
 /** The form's start: non-secret values as stored, secrets always empty (they never come back). */
 export const initialValues = (provider: ProviderStatus): Record<string, string> =>

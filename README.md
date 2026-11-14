@@ -60,7 +60,7 @@ docker compose logs api | grep -A3 "setup code"
 
 Then open `PUBLIC_URL` (default `http://localhost`) and enter the setup code from the log: you create the first account, which is the instance admin. Everything else is connected in the app, under Admin, Providers: the phone carrier (Telnyx or Twilio), speech, language model and voice (Deepgram, OpenRouter or OpenAI, ElevenLabs or Cartesia), email (any SMTP service), sign-in with Google, Microsoft, GitHub or your own OIDC provider (Google and Microsoft also connect calendars), and where call recordings go. Keys are stored encrypted with `SECRETS_KEY`; each one has a "Test connection". Push notifications need nothing: the first start makes their keys.
 
-Admin, Overview starts with a setup checklist: each part a first answered call needs, with the steps for the recommended provider, a rough cost and a Test; `scripts/setup.sh --check` prints the same list in the terminal.
+Admin › Overview starts with "Ready for calls": each provider group a first answered call needs (email, phone carrier, answering calls, call audio) with its status, linking to Admin › Providers, where every provider has its steps, a rough cost, Test again and Try it. A background check tests the keys every 6 hours and emails the instance admins when one stops working; `scripts/setup.sh --check` prints the same groups in the terminal.
 
 For scripted installs and AI agents: the same steps, non-interactive. `scripts/setup.sh` is safe to run again (it keeps every value that is set). Provider keys can also go into `.env` under the variable names in `packages/actions/src/admin.ts`; a value connected in the app wins. `docker compose exec api node apps/api/src/providers-import.ts` moves such variables into the app.
 

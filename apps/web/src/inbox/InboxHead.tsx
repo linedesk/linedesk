@@ -175,7 +175,7 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
       </span>
     )
   // The voice service: the same sentence as the go-live checklist's first step.
-  const fix = canFixVoice ? '#admin/providers' : null
+  const fix = canFixVoice ? '#admin/providers/answering' : null
   const failing = presence.reason === 'failing'
   return (
     <span

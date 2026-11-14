@@ -238,9 +238,10 @@ export function profileSave(
 
 /**
  * A provider the step could not use, in words: what happened (`text`) and, for instance admins, the start of the
- * sentence that ends with the link to Admin › Providers (`adminFix`). Members get "Ask whoever runs this server."
+ * sentence that ends with the link to its group in Admin › Providers (`adminFix`, `group`). Members get "Ask whoever
+ * runs this server."
  */
-export type ProviderProblem = { text: string; adminFix: string }
+export type ProviderProblem = { text: string; adminFix: string; group: 'answering' | 'business' }
 export function providerProblem(failure: BusinessLookupFailure, where: 'search' | 'listing'): ProviderProblem {
   if (failure.provider === 'llm')
     return {
@@ -249,14 +250,19 @@ export function providerProblem(failure: BusinessLookupFailure, where: 'search' 
           ? 'Nothing was filled in from your listing or website: that needs a language model on this server.'
           : 'Reading your website needs a language model.',
       adminFix: 'Set one up under',
+      group: 'answering',
     }
   const [lost, next] =
     where === 'search'
       ? ['Searching Google', 'Enter your business yourself.']
       : ['Reading your Google listing', 'Fill in the rest below.']
   return failure.reason === 'auth'
-    ? { text: `${lost} didn't work: Google refused this server's key. ${next}`, adminFix: 'Check the key under' }
-    : { text: `${lost} isn't set up on this server. ${next}`, adminFix: 'Set it up under' }
+    ? {
+        text: `${lost} didn't work: Google refused this server's key. ${next}`,
+        adminFix: 'Check the key under',
+        group: 'business',
+      }
+    : { text: `${lost} isn't set up on this server. ${next}`, adminFix: 'Set it up under', group: 'business' }
 }
 
 /** Where the proposal came from, for the line above the review. */

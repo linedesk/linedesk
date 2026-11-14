@@ -298,7 +298,7 @@ function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admi
       {admin ? (
         <>
           {problem.adminFix}{' '}
-          <a className="k-link" href="#admin/providers" target="_blank" rel="noopener">
+          <a className="k-link" href={`#admin/providers/${problem.group}`} target="_blank" rel="noopener">
             Admin › Providers
           </a>
           .

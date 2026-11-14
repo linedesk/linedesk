@@ -599,7 +599,7 @@ export function doneState(facts: {
 }): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
   const { number, voiceMissing, forwardingVerified, admin, assistant } = facts
   const voice: DoneLeft = admin
-    ? { label: 'Get the voice service working in Admin › Providers', href: '#admin/providers' }
+    ? { label: 'Get the voice service working in Admin › Providers', href: '#admin/providers/answering' }
     : { label: "The voice service isn't working yet: ask whoever runs this server", href: null }
   if (!number)
     return {

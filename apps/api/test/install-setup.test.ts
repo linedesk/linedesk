@@ -37,9 +37,15 @@ const tryOut = async (kind: string, extra: Record<string, unknown> = {}) => {
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body.data as TryOut
 }
-const checklistItem = async (id: string) => {
+const checklistGroup = async (id: string) => {
   const res = await request(operator, 'GET', '/v1/admin/setup-checklist')
-  return (res.body.items as { id: string; state: string; message: string | null }[]).find(i => i.id === id)!
+  return (res.body.groups as { id: string; state: string }[]).find(g => g.id === id)!
+}
+/** A provider's line in the setup checklist (its group: Answering calls). */
+const checklistLine = async (provider: string) => {
+  const res = await request(operator, 'GET', '/v1/admin/setup-checklist')
+  const groups = res.body.groups as { parts: { provider: string; state: string; message: string | null }[] }[]
+  return groups.flatMap(g => g.parts).find(p => p.provider === provider)!
 }
 const logged = async () => JSON.stringify(await db.select().from(commands))
 
@@ -90,11 +96,11 @@ describe('progress', () => {
       restart: { pending: false },
     })
 
-    await act(operator, 'install.setProgress', { step: 'llm', skip: 'email' })
+    await act(operator, 'install.setProgress', { step: 'answering', skip: 'email' })
     await act(operator, 'install.setProgress', { skip: 'email' })
     await act(operator, 'install.setProgress', { setAside: true })
     let progress = (await request(operator, 'GET', '/v1/admin/install-setup')).body.progress
-    expect(progress).toMatchObject({ step: 'llm', skipped: ['email'] })
+    expect(progress).toMatchObject({ step: 'answering', skipped: ['email'] })
     expect(progress.setAsideAt).toEqual(expect.any(String))
 
     await act(operator, 'install.setProgress', { setAside: false, finished: true, step: 'done' })
@@ -132,6 +138,15 @@ describe('progress', () => {
 
   test('an empty change is refused', async () => {
     expect((await act(operator, 'install.setProgress', {})).status).toBe(422)
+  })
+
+  test('a walkthrough left at a step from before the groups resumes at the step that holds it now', async () => {
+    const value = JSON.stringify({ step: 'tts', skipped: ['stt', 'llm', 'extras'], finishedAt: null, setAsideAt: null })
+    await db.insert(instance_settings).values({ key: 'setup.install', value })
+    const progress = (await request(operator, 'GET', '/v1/admin/install-setup')).body.progress
+    expect(progress).toMatchObject({ step: 'answering', skipped: ['answering', 'call-audio'] })
+    // The old step names are not accepted any more.
+    expect((await act(operator, 'install.setProgress', { step: 'llm' })).status).toBe(422)
   })
 
   test('off on Cloud: LINEDESK_INSTALL_SETUP=off', async () => {
@@ -174,7 +189,7 @@ describe('provider.tryOut', () => {
     expect(String(url)).toContain('/chat/completions')
     expect((init!.headers as Record<string, string>).authorization).toBe(`Bearer ${SECRET}`)
     expect(JSON.stringify(result)).not.toContain(SECRET)
-    expect((await checklistItem('llm')).state).toBe('ok')
+    expect((await checklistLine('openrouter')).state).toBe('works')
     expect(await logged()).not.toContain(SECRET)
   })
 
@@ -187,7 +202,7 @@ describe('provider.tryOut', () => {
     const result = await tryOut('llm')
     expect(result.ok).toBe(false)
     expect(result.message).not.toContain(SECRET)
-    expect((await checklistItem('llm')).state).toBe('failing')
+    expect((await checklistLine('openrouter')).state).toBe('failing')
   })
 
   test('stt: transcribes the bundled recording and compares it with what it says', async () => {
@@ -201,7 +216,7 @@ describe('provider.tryOut', () => {
     const [url, init] = fetchMock.mock.calls[0]!
     expect(String(url)).toContain('api.deepgram.com/v1/listen')
     expect((init!.body as Uint8Array).byteLength).toBeGreaterThan(1000)
-    expect((await checklistItem('stt')).state).toBe('ok')
+    expect((await checklistLine('deepgram')).state).toBe('works')
   })
 
   test('stt: words that do not match fail', async () => {
@@ -246,7 +261,7 @@ describe('email round trip', () => {
     expect(right).toMatchObject({ status: 200, body: { data: { ok: true } } })
     expect((await act(operator, 'provider.confirmEmail', { code })).status).toBe(409)
     // Sent to the API log (EMAIL_TO_LOG), not by a mail server: the checklist does not call email working.
-    expect((await checklistItem('email')).state).not.toBe('ok')
+    expect((await checklistGroup('email')).state).not.toBe('works')
     // The code is never kept in the command log.
     expect(await logged()).not.toContain(`"${code}"`)
   })

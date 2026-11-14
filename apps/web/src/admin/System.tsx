@@ -7,6 +7,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { brandName } from '../brand.ts'
 
@@ -17,10 +18,8 @@ function Service({ name, status }: { name: string; status: ServiceStatus | null 
     <div>
       <dt>{name}</dt>
       <dd>
-        <span
-          className={cx('adm-tile-status', status && (status.ok ? 'adm-dot-muted' : 'adm-dot-danger'))}
-          title={status?.message}
-        >
+        <span className={cx('adm-tile-status', status && !status.ok && 'adm-status-bad')}>
+          <StatusMark state={!status ? 'checking' : status.ok ? 'works' : 'failing'} label={status?.message} />
           {!status ? 'Checking…' : status.ok ? status.message : `Problem: ${status.message}`}
         </span>
       </dd>

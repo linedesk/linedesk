@@ -1,5 +1,5 @@
-// The instance setup checklist (GET /v1/admin/setup-checklist, setup-checklist.ts): who may read it, that reading
-// never calls a provider (tests run through provider.test), what each state means, that tests are remembered per
+// Provider groups (GET /v1/admin/setup-checklist, setup-checklist.ts, statusGroups): who may read it, that reading
+// never calls a provider (tests run through provider.test), what each status means, that tests are remembered per
 // set of keys, and that no key ever leaves. Sets provider keys and
 // instance admins, so it is one of the instance-wide files (vitest.config.ts).
 import { commands, instance_settings, provider_settings, provider_tests, user } from '@linedesk/db'
@@ -18,13 +18,17 @@ let other: Workspace
 let operator: User
 let member: User
 
-type Item = { id: string; state: string; provider: string | null; message: string | null; coveredBy: string | null }
+type Line = { provider: string; state: string; detail: string | null; message: string | null }
+type Group = Line & { id: string; provider: string | null; parts: Line[] }
 const checklist = async (query = '') => {
   const res = await request(operator, 'GET', `${ROUTE}${query}`)
   expect(res.status).toBe(200)
-  return res.body as { items: Item[]; ready: number; complete: boolean }
+  return res.body as { groups: Group[]; ready: boolean }
 }
-const item = (body: { items: Item[] }, id: string) => body.items.find(i => i.id === id)!
+const group = (body: { groups: Group[] }, id: string) => body.groups.find(g => g.id === id)!
+/** One provider's line inside Answering calls (the realtime model and the three stages). */
+const part = (body: { groups: Group[] }, provider: string) =>
+  group(body, 'answering').parts.find(p => p.provider === provider)!
 // A body every provider test reads as fine (Deepgram's looks for the key's project).
 const answering = (status = 200) =>
   vi.fn(
@@ -75,7 +79,7 @@ describe('access', () => {
     await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: SECRET } })
     const fetchMock = answering()
     vi.stubGlobal('fetch', fetchMock)
-    expect(item(await checklist('?test=all'), 'stt').state).toBe('set_up')
+    expect(part(await checklist('?test=all'), 'deepgram').state).toBe('untested')
     expect((await request(other.owner, 'GET', ROUTE)).status).toBe(403)
     expect((await act(other.owner, 'provider.test', { provider: 'deepgram' })).status).toBe(403)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -83,31 +87,46 @@ describe('access', () => {
 })
 
 describe('states', () => {
-  test('a fresh install: every part missing, in order, nothing tested', async () => {
+  test('the free check (the page and the health check): no tokens, no speech, no transcription; stored like any test', async () => {
+    await act(operator, 'provider.setKeys', { provider: 'openrouter', values: { api_key: SECRET } })
+    const fetchMock = vi.fn(async (_url?: unknown, _init?: RequestInit) =>
+      Response.json({ data: { limit_remaining: 10, total_credits: 50, total_usage: 1 } }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const res = await act(operator, 'provider.test', { provider: 'openrouter', free: true })
+    expect(res.body.data).toMatchObject({ ok: true })
+    expect(fetchMock.mock.calls.every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true)
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).join(' ')).not.toContain('chat/completions')
+    expect(part(await checklist(), 'openrouter').state).toBe('works')
+  })
+
+  test('a fresh install: needed groups not set up, optional ones off, in order, nothing tested', async () => {
     const fetchMock = answering()
     vi.stubGlobal('fetch', fetchMock)
     const body = await checklist()
-    expect(body.items.map(i => [i.id, i.state])).toEqual([
+    expect(body.groups.map(g => [g.id, g.state])).toEqual([
       ['email', 'missing'],
       ['telephony', 'missing'],
-      ['stt', 'missing'],
-      ['llm', 'missing'],
-      ['tts', 'missing'],
-      ['livekit', 'missing'],
+      ['answering', 'missing'],
+      ['call-audio', 'missing'],
+      ['sign-in', 'off'],
+      ['calendar', 'off'],
+      ['recording', 'off'],
+      ['business', 'off'],
     ])
-    expect(body).toMatchObject({ ready: 0, complete: false })
+    expect(body.ready).toBe(false)
     // No keys, no LiveKit in env: nothing to ask.
     expect(fetchMock).not.toHaveBeenCalled()
     // EMAIL_TO_LOG says so; TELEPHONY_PROVIDER=dev is a working development carrier, not a missing one.
-    expect(item(body, 'email').message).toContain('EMAIL_TO_LOG')
+    expect(group(body, 'email').message).toContain('EMAIL_TO_LOG')
     process.env.TELEPHONY_PROVIDER = 'dev'
     try {
-      expect(item(await checklist(), 'telephony')).toMatchObject({ state: 'ok' })
-      expect(item(await checklist(), 'telephony').message).toContain('TELEPHONY_PROVIDER=dev')
+      expect(group(await checklist(), 'telephony')).toMatchObject({ state: 'works' })
+      expect(group(await checklist(), 'telephony').message).toContain('TELEPHONY_PROVIDER=dev')
       // Carrier keys in env count as set up: the line says what to change to use them.
       process.env.TELNYX_API_KEY = 'KEY_test_env'
       process.env.TELNYX_PUBLIC_KEY = 'test-public-key'
-      expect(item(await checklist(), 'telephony').message).toContain('Telnyx keys are set')
+      expect(group(await checklist(), 'telephony').message).toContain('Telnyx keys are set')
     } finally {
       process.env.TELEPHONY_PROVIDER = ''
       delete process.env.TELNYX_API_KEY
@@ -115,14 +134,12 @@ describe('states', () => {
     }
   })
 
-  test('keys set: "set_up" until tested; a test passes or fails for exactly these keys; no key in the answer', async () => {
+  test('keys set: "Not tested" until tested; a test passes or fails for exactly these keys; no key in the answer', async () => {
     await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: SECRET } })
     const plain = await checklist()
-    expect(item(plain, 'stt')).toMatchObject({
-      state: 'set_up',
-      provider: 'deepgram',
-      message: 'Keys set, not tested yet',
-    })
+    expect(part(plain, 'deepgram')).toMatchObject({ state: 'untested', message: 'Keys set, not tested yet' })
+    // Speech to text alone does not answer calls: the group says what is missing.
+    expect(group(plain, 'answering')).toMatchObject({ state: 'partly', detail: 'language model and voice missing' })
 
     // Test (provider.test, the same action as Admin, Providers) records its result.
     vi.stubGlobal('fetch', answering(200))
@@ -130,7 +147,7 @@ describe('states', () => {
     const fetchMock = answering(500)
     vi.stubGlobal('fetch', fetchMock)
     const tested = await checklist()
-    expect(item(tested, 'stt')).toMatchObject({ state: 'ok', message: 'Connected' })
+    expect(part(tested, 'deepgram')).toMatchObject({ state: 'works', message: 'Connected' })
     // Remembered: reading asks no one.
     expect(fetchMock).not.toHaveBeenCalled()
     // Stored, so a restart or update keeps it; the row holds a fingerprint of the keys, never a key.
@@ -143,14 +160,16 @@ describe('states', () => {
     vi.stubGlobal('fetch', answering(401))
     expect((await testProvider('deepgram')).ok).toBe(false)
     const failing = await checklist()
-    expect(item(failing, 'stt')).toMatchObject({
+    // A failing test records the failure: its reason is the word, the test's text the message.
+    expect(part(failing, 'deepgram')).toMatchObject({
       state: 'failing',
+      detail: 'Key rejected',
       message: 'Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.',
     })
 
     // New keys are untested again.
     await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: OTHER_SECRET } })
-    expect(item(await checklist(), 'stt').state).toBe('set_up')
+    expect(part(await checklist(), 'deepgram').state).toBe('untested')
 
     const everything = JSON.stringify([plain, tested, failing, await checklist()])
     expect(everything).not.toContain(SECRET)
@@ -168,12 +187,12 @@ describe('states', () => {
     )
     const result = await testProvider('openrouter')
     const body = await checklist()
-    expect(item(body, 'llm').state).toBe('failing')
+    expect(part(body, 'openrouter').state).toBe('failing')
     expect(JSON.stringify(result)).not.toContain(SECRET)
     expect(JSON.stringify(body)).not.toContain(SECRET)
   })
 
-  test('a realtime model in use covers speech, model and voice: one test for all three, and the way back', async () => {
+  test('a realtime model in use answers calls: one test, one status; the stages it replaces are not needed', async () => {
     await act(operator, 'provider.setKeys', { provider: 'openai_realtime', values: { api_key: SECRET } })
     await act(operator, 'provider.setActive', { category: 'realtime', provider: 'openai_realtime' })
     const fetchMock = answering(200)
@@ -181,17 +200,24 @@ describe('states', () => {
     await testProvider('openai_realtime')
     expect(oneProvider(fetchMock)).toBe(1)
     const body = await checklist()
-    for (const id of ['stt', 'llm', 'tts'])
-      expect(item(body, id), id).toMatchObject({
-        state: 'ok',
-        provider: 'openai_realtime',
-        coveredBy: 'openai_realtime',
-        // The OpenAI test lists models: it proves the key, so it says so.
-        message: expect.stringMatching(/^Covered by OpenAI Realtime: Key accepted\. .*Disconnect.*OpenAI Realtime/),
-      })
+    expect(group(body, 'answering')).toMatchObject({
+      state: 'works',
+      provider: 'openai_realtime',
+      message: 'Answered by OpenAI Realtime.',
+    })
+    // The OpenAI test lists models: it proves the key, so it says so.
+    expect(part(body, 'openai_realtime')).toMatchObject({ state: 'works', message: 'Key accepted' })
+    expect(group(body, 'answering').parts.map(p => p.state)).toEqual([
+      'works',
+      'not_needed',
+      'not_needed',
+      'not_needed',
+    ])
+    // The old "Covered by … Disconnect …" text is gone: the realtime model is said once.
+    expect(JSON.stringify(body)).not.toContain('Covered by')
   })
 
-  test('LiveKit: reachable with a trunk is ok; without a trunk only the phone is missing; down is failing', async () => {
+  test('call audio: reachable with a trunk works; without a trunk only the phone is missing; down is failing', async () => {
     process.env.LIVEKIT_URL = 'ws://livekit.checklist.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'
     process.env.LIVEKIT_API_SECRET = 'made-up-livekit-secret-0123456789'
@@ -201,15 +227,15 @@ describe('states', () => {
           new Response(JSON.stringify(url.includes('SIP') ? { items: Array(trunks).fill({}) } : { rooms: [] })),
       )
     vi.stubGlobal('fetch', livekit(1))
-    expect(item(await checklist(), 'livekit')).toMatchObject({ state: 'ok' })
+    expect(group(await checklist(), 'call-audio')).toMatchObject({ state: 'works' })
     vi.stubGlobal('fetch', livekit(0))
-    expect(item(await checklist(), 'livekit')).toMatchObject({
-      state: 'set_up',
+    expect(group(await checklist(), 'call-audio')).toMatchObject({
+      state: 'partly',
       message: expect.stringContaining('setup-sip'),
     })
     vi.stubGlobal('fetch', answering(401))
     const down = await checklist()
-    expect(item(down, 'livekit').state).toBe('failing')
+    expect(group(down, 'call-audio').state).toBe('failing')
     expect(JSON.stringify(down)).not.toContain('made-up-livekit-secret')
   })
 })
@@ -277,7 +303,7 @@ describe('provider.connectOneKey', () => {
     expect((await resolveProvider(db, 'openai_stt')).api_key?.value).toBe(NEW_KEY)
     // Tested already: the checklist says so without asking again.
     const list = await checklist()
-    expect(['stt', 'llm', 'tts'].map(id => item(list, id).state)).toEqual(['ok', 'ok', 'ok'])
+    expect(group(list, 'answering')).toMatchObject({ state: 'works', provider: 'openai_realtime' })
     expect(oneProvider(fetchMock)).toBe(1)
     // The command log keeps the key redacted.
     expect(JSON.stringify(await db.select().from(commands))).not.toContain(NEW_KEY)

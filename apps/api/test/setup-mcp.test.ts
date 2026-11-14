@@ -155,17 +155,33 @@ describe('tools', () => {
     const { key } = await makeKey(fresh)
     const before = data(await call(key, 'setup_status')) as {
       next_step: string
-      steps: { id: string; state: string; how?: string[] }[]
-      app_links: { providers: string }
+      steps: { id: string; state: string; alias?: string; how?: string[] }[]
+      app_links: Record<string, string>
       install: { public: boolean; place?: string; note?: string }
     }
-    expect(before.steps.map(s => s.id).slice(0, 5)).toEqual(['ai', 'telephony', 'email', 'livekit', 'workspace'])
+    // The provider steps carry the group ids of Admin › Providers; the old names stay as aliases.
+    expect(before.steps.map(s => s.id).slice(0, 5)).toEqual([
+      'answering',
+      'telephony',
+      'email',
+      'call-audio',
+      'workspace',
+    ])
+    expect(before.steps.find(s => s.id === 'answering')?.alias).toBe('ai')
+    expect(before.steps.find(s => s.id === 'call-audio')?.alias).toBe('livekit')
+    // The same words as the app.
+    expect(before.steps.slice(0, 4).map(s => s.state)).toEqual(['todo', 'todo', 'todo', 'todo'])
+    expect((before.steps[0] as { detail?: string }).detail).toMatch(/^Not set up/)
     // The tests run on localhost: the agent hears that phone calls need a server, and how to move there.
     expect(before.install).toMatchObject({ public: false, place: 'this_computer' })
     expect(before.install.note).toContain('scripts/install.sh')
     // Only the next step carries its instructions.
     expect(before.steps.filter(s => s.how).map(s => s.id)).toEqual([before.next_step])
     expect(before.app_links.providers).toMatch(/#admin\/providers$/)
+    // One link per group.
+    expect(before.app_links.providers_email).toMatch(/#admin\/providers\/email$/)
+    expect(before.app_links.providers_call_audio).toMatch(/#admin\/providers\/call-audio$/)
+    expect(before.app_links.providers_sign_in).toMatch(/#admin\/providers\/sign-in$/)
 
     const made = data(await call(key, 'workspace_create', { name: 'Riverside Dental', timeZone: 'America/Chicago' }))
     expect(made).toMatchObject({ ok: true, workspace: { name: 'Riverside Dental' } })

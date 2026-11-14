@@ -232,7 +232,7 @@ describe('go-live checklist', () => {
       id: 'voice',
       label: 'Maya can answer calls',
       done: false,
-      href: '#admin/providers',
+      href: '#admin/providers/answering',
     })
     expect(admin[0]!.hint).toBe(
       "Maya can't answer calls yet: the voice service isn't set up. Set it up under Admin › Providers.",
@@ -242,7 +242,7 @@ describe('go-live checklist', () => {
     expect(goLiveItems({ ...none, voice: { ready: true, failing: false, canFix: false } }, 'Maya')[0]!.done).toBe(true)
     // Set up but failing (a used-up quota): not done, and the hint says so, in the header's words.
     const failing = goLiveItems({ ...none, voice: { ready: true, failing: true, canFix: true } }, 'Maya')[0]!
-    expect(failing).toMatchObject({ id: 'voice', done: false, href: '#admin/providers' })
+    expect(failing).toMatchObject({ id: 'voice', done: false, href: '#admin/providers/answering' })
     expect(failing.hint).toBe(
       "Maya can't answer calls: a service it needs is failing (a used-up quota or a rejected key). Fix it under Admin › Providers.",
     )

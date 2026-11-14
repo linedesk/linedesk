@@ -105,7 +105,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
         ? voiceFailing(assistant, facts.voice.canFix)
         : `${voiceNotSetUp(assistant)} ${voiceFix(facts.voice.canFix)}`,
       done: facts.voice.ready && !facts.voice.failing,
-      href: facts.voice.canFix ? '#admin/providers' : null,
+      href: facts.voice.canFix ? '#admin/providers/answering' : null,
     })
   if (facts.calendarConnected !== null)
     items.push({

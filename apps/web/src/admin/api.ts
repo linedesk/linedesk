@@ -13,7 +13,9 @@ import {
   type ProviderName,
   type ProviderTestData,
   providerCategories,
-  type SetupChecklist,
+  type StatusGroups,
+  type StatusInput,
+  type StoredTest,
   type TryOutKind,
   providers as providerRegistry,
 } from '@linedesk/actions'
@@ -124,7 +126,11 @@ export type AdminOverview = {
   /** Providers failing now (absent from an older API). */
   failures?: ProviderFailure[]
 }
-export type AdminHealth = Record<'api' | 'readSync' | 'livekit' | 'sip' | 'agent' | 'email', ServiceStatus>
+export type HealthPart = 'api' | 'readSync' | 'livekit' | 'sip' | 'agent' | 'email'
+export type AdminHealth = Record<HealthPart, ServiceStatus> & {
+  /** LiveKit is set in .env at all (absent from an older API: assumed set). */
+  livekitConfigured?: boolean
+}
 export type LivekitStatus = { url: string | null; server: ServiceStatus; sip: ServiceStatus }
 
 export type AdminData = {
@@ -137,7 +143,12 @@ export type AdminData = {
   canStoreKeys: boolean
   /** Providers failing now: quota used up, key rejected (the API's provider_failures). */
   providerFailures: ProviderFailure[]
+  /** The last test of each provider's keys in effect (provider_tests): every screen starts from it. */
+  tests: Partial<Record<ProviderName, StoredTest>>
+  /** What the status needs besides the providers: how assistants answer, email to the log, the dev carrier. */
+  statusContext: StatusContext
 }
+export type StatusContext = Pick<StatusInput, 'assistantPipelines' | 'emailToLog' | 'devCarrier'>
 
 /** Thrown when the admin area's sign-in has run out (more than 1 hour, 12 with a passkey) or the email is unconfirmed. */
 export class AdminSignInRequired extends Error {
@@ -196,9 +207,14 @@ export async function loadAdminData(): Promise<AdminData> {
     get<{ workspaces: AdminWorkspace[] }>('/v1/admin/workspaces'),
     get<{ users: AdminUser[] }>('/v1/admin/users'),
     get<{ months: number; usage: UsageRow[] }>('/v1/admin/usage'),
-    get<{ can_store: boolean; active: ActiveProviders; providers: ProviderStatus[]; failures?: ProviderFailure[] }>(
-      '/v1/admin/providers',
-    ),
+    get<{
+      can_store: boolean
+      active: ActiveProviders
+      providers: ProviderStatus[]
+      failures?: ProviderFailure[]
+      tests?: Partial<Record<ProviderName, StoredTest>>
+      status?: StatusContext
+    }>('/v1/admin/providers'),
   ])
   return {
     workspaces: w.workspaces,
@@ -209,6 +225,8 @@ export async function loadAdminData(): Promise<AdminData> {
     activeProviders: p.active,
     canStoreKeys: p.can_store,
     providerFailures: (p.failures ?? []).filter(f => f.provider in providerRegistry),
+    tests: p.tests ?? {},
+    statusContext: p.status ?? {},
   }
 }
 
@@ -216,7 +234,7 @@ type AdminInputs = {
   'provider.setKeys': { provider: ProviderName; values: Record<string, string> }
   'provider.clearKeys': { provider: ProviderName }
   'provider.setActive': { category: ProviderCategory; provider: ProviderName | null }
-  'provider.test': { provider: ProviderName }
+  'provider.test': { provider: ProviderName; free?: boolean }
   'provider.connectOneKey': { apiKey: string }
   'user.invite': { email: string; name: string; admin?: boolean }
   'user.disable': { userId: string }
@@ -294,8 +312,9 @@ export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminI
 export const keyUsersOf = (providers: readonly ProviderStatus[], provider: ProviderName) =>
   providers.filter(p => p.fields.some(f => f.key_from === provider))
 
-export const testProvider = async (provider: ProviderName) =>
-  (await runAdmin('provider.test', { provider })) as ProviderTestData
+/** provider.test; `free`: only what costs nothing (the page's own checks and Test again). */
+export const testProvider = async (provider: ProviderName, { free = false }: { free?: boolean } = {}) =>
+  (await runAdmin('provider.test', { provider, ...(free ? { free } : {}) })) as ProviderTestData
 
 /** LiveKit is part of the install: its status is read-only. Can take a few seconds when the server is down. */
 export const loadLivekitStatus = async () => (await get<{ livekit: LivekitStatus }>('/v1/admin/system')).livekit
@@ -377,7 +396,5 @@ export const loadAudit = (filter: AuditFilter) =>
 /** Waits for LiveKit and the mail server: can take a few seconds. */
 export const loadHealth = () => get<AdminHealth>('/v1/admin/health')
 
-/** GET /v1/admin/setup-checklist (apps/api/src/setup-checklist.ts); `test` makes one request per provider. */
-export const ADMIN_SETUP_CHECKLIST = 'admin.setupChecklist'
-/** Read-only: tests run through provider.test (testProvider). */
-export const loadSetupChecklist = () => get<SetupChecklist>('/v1/admin/setup-checklist')
+/** GET /v1/admin/setup-checklist (apps/api/src/setup-checklist.ts): every group's status as the server sees it. */
+export const loadSetupChecklist = () => get<StatusGroups>('/v1/admin/setup-checklist')

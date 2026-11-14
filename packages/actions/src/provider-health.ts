@@ -176,7 +176,7 @@ export type ProviderFailureEvent = {
 }
 
 /** Where a recorded failure came from. */
-export type ProviderFailureSource = 'test' | 'agent' | 'email' | 'llm' | 'voice' | 'calendar' | 'recording'
+export type ProviderFailureSource = 'test' | 'health' | 'agent' | 'email' | 'llm' | 'voice' | 'calendar' | 'recording'
 
 /**
  * A provider that is failing now (table provider_failures): the latest failure, since when, how often since the last

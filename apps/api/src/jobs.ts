@@ -16,6 +16,7 @@ import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { pruneOldCommands } from './command-log.ts'
+import { healthCheckCron, healthCheckHours, PROVIDER_HEALTH_CHECK, runProviderHealthCheck } from './provider-health-check.ts'
 import { syncDerivedDays, workspacesWithDerivedDays } from './public-holidays.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
@@ -129,6 +130,15 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ checkId: string }>(FORWARDING_CHECK, { localConcurrency: FORWARDING_CHECK_WORKERS }, async ([job]) => ({
     status: await runForwardingCheck(job!.data.checkId),
   }))
+  // The free key check of every provider that is set up (provider-health-check.ts); off with PROVIDER_HEALTH_CHECK_HOURS=0.
+  const healthHours = healthCheckHours(env)
+  if (healthHours) await instance.schedule(PROVIDER_HEALTH_CHECK, healthCheckCron(healthHours))
+  else await instance.unschedule(PROVIDER_HEALTH_CHECK)
+  await instance.work(PROVIDER_HEALTH_CHECK, async () => {
+    const result = await runProviderHealthCheck(db, { env })
+    if (result.failing.length) console.log(`provider health check: failing ${result.failing.join(', ')}`)
+    return result
+  })
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
@@ -175,6 +185,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(COMMAND_PRUNE)
   await instance.createQueue(HOLIDAY_SYNC)
   await instance.createQueue(SETUP_EMAILS)
+  // One run at a time, never retried: the next scheduled run is the retry.
+  await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   if (workHere) await runJobs(instance, env)

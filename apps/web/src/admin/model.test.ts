@@ -2,7 +2,6 @@ import { expect, test } from 'vitest'
 import type { ProviderField, ProviderStatus } from './api.ts'
 import {
   changedValues,
-  connectionOf,
   fieldErrors,
   initialValues,
   isConfigured,
@@ -85,14 +84,6 @@ test('a provider is set up once every needed field has a value, here or on the s
     true,
   )
   expect(isConfigured({ provider: 'file', label: 'Local disk', category: 'recording', fields: [] })).toBe(true)
-})
-
-test('the badge: not set up, checking, connected or error', () => {
-  const ready = provider(sid({ source: 'app', value: 'AC1' }), token({ source: 'app' }))
-  expect(connectionOf(provider(sid({}), token({})), undefined)).toBe('none')
-  expect(connectionOf(ready, 'running')).toBe('checking')
-  expect(connectionOf(ready, { ok: true, message: 'ok' })).toBe('connected')
-  expect(connectionOf(ready, { ok: false, message: 'Keys rejected' })).toBe('error')
 })
 
 test('Save sends only typed or changed values, never an emptied one', () => {

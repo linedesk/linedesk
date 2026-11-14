@@ -10,6 +10,7 @@ import {
   type InstallProgress,
   type InstallStep,
   installSteps,
+  legacyInstallSteps,
   type LlmProvider,
   llmEndpoints,
   type ProviderName,
@@ -49,10 +50,17 @@ export async function readInstallProgress(tx: Tx | typeof db = db): Promise<Inst
   if (!row) return fresh()
   try {
     const stored = JSON.parse(row.value) as Partial<InstallProgress>
-    const known = (s: unknown): s is InstallStep => (installSteps as readonly unknown[]).includes(s)
+    // Steps from before LIN-158 (one per category) resume at the step that holds them now.
+    const step = (s: unknown): InstallStep | null =>
+      (installSteps as readonly unknown[]).includes(s)
+        ? (s as InstallStep)
+        : typeof s === 'string'
+          ? (legacyInstallSteps[s] ?? null)
+          : null
+    const skipped = Array.isArray(stored.skipped) ? stored.skipped.map(step).filter(s => s !== null) : []
     return {
-      step: known(stored.step) ? stored.step : 'welcome',
-      skipped: Array.isArray(stored.skipped) ? stored.skipped.filter(known) : [],
+      step: step(stored.step) ?? 'welcome',
+      skipped: [...new Set(skipped)],
       finishedAt: typeof stored.finishedAt === 'string' ? stored.finishedAt : null,
       setAsideAt: typeof stored.setAsideAt === 'string' ? stored.setAsideAt : null,
       manualBy: Array.isArray(stored.manualBy) ? stored.manualBy.filter(id => typeof id === 'string') : [],

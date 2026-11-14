@@ -8,7 +8,7 @@ import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows } from '../ui/LoadStates.tsx'
 import type { ListKeys } from './AdminList.tsx'
-import { ADMIN_DATA, ADMIN_HEALTH, type AdminHealth, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
+import { ADMIN_DATA, ADMIN_HEALTH, type HealthPart, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
 import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { AuditLog } from './AuditLog.tsx'
@@ -17,7 +17,8 @@ import { errorText, type Notify } from './notify.ts'
 import { Onboarding } from './Onboarding.tsx'
 import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
-import { SetupChecklist } from './SetupChecklist.tsx'
+import { useProviderStatus } from './providerStatus.ts'
+import { StatusCard } from './StatusCard.tsx'
 import { type AdminSection, adminSections, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
 import { BrandingSettings } from './Branding.tsx'
@@ -86,7 +87,7 @@ function useAdminToast() {
   return { toast, notify, undo }
 }
 
-const partNames: Record<keyof AdminHealth, string> = {
+const partNames: Record<HealthPart, string> = {
   api: 'API',
   readSync: 'Read sync',
   livekit: 'LiveKit',
@@ -105,9 +106,7 @@ function useHealthProblems(): string[] {
   }, [])
   if (!health) return []
   // An API older than this page may not report every part yet.
-  return (Object.keys(partNames) as (keyof AdminHealth)[])
-    .filter(k => health[k] && !health[k].ok)
-    .map(k => partNames[k])
+  return (Object.keys(partNames) as HealthPart[]).filter(k => health[k] && !health[k].ok).map(k => partNames[k])
 }
 
 type Props = { currentUserId: string; onExit: () => void }
@@ -123,6 +122,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
   const problems = useHealthProblems()
+  // One status for the overview's card and Admin › Providers: tested once, shown the same on both.
+  const status = useProviderStatus(data)
   // The session stopped opening Admin while it was open (1 hour without a passkey): sign in again here.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
@@ -187,7 +188,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'overview')
       return (
         <>
-          <SetupChecklist data={data} {...shared} />
+          <StatusCard status={status} />
           <Overview onOpen={section => go({ section, id: null })} />
         </>
       )
@@ -200,7 +201,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           <SkeletonRows label="Loading" />
         </div>
       )
-    if (place.id && !detailTitle) return <p className="adm-notice">Not found.</p>
+    // Providers' ids are groups and providers (Providers.tsx), not rows.
+    if (place.id && !detailTitle && place.section !== 'providers') return <p className="adm-notice">Not found.</p>
     switch (place.section) {
       case 'workspaces':
         return workspace ? (
@@ -224,10 +226,10 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       case 'providers':
         return (
           <Providers
-            providers={data.providers}
-            active={data.activeProviders}
-            canStore={data.canStoreKeys}
-            failures={data.providerFailures}
+            data={data}
+            status={status}
+            id={place.id}
+            onClearId={() => go({ section: 'providers', id: null })}
             {...shared}
           />
         )
@@ -299,7 +301,11 @@ export function AdminMode({ currentUserId, onExit }: Props) {
               </>
             )}
           </header>
-          <div className="adm-body" key={`${place.section}/${place.id ?? ''}`}>
+          {/* A provider or group link on Providers stays on the same page: it scrolls or opens a dialog. */}
+          <div
+            className="adm-body"
+            key={place.section === 'providers' ? place.section : `${place.section}/${place.id ?? ''}`}
+          >
             {page()}
           </div>
         </div>

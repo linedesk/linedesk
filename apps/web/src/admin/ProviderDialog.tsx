@@ -1,17 +1,23 @@
-// Connect or manage one provider: its keys as a form. Save stores what changed (provider.setKeys) and
-// then tests the connection (provider.test), so the dialog ends with "Connected" or a short reason.
-// A stored secret never comes back from the API: secret inputs start empty and show "•••• 1234".
+// The one editor of a provider (LIN-158), wherever it opens (Admin › Providers, the install walkthrough): its status
+// with when it was tested, how to get a key (open until it works), the keys as a form (ProviderForm), Test again (the
+// free key check) and Try it (a real round trip, TryOut.tsx). Save stores what changed (provider.setKeys) and then
+// tests the keys, so the dialog ends with the result. A stored secret never comes back from the API: secret inputs
+// start empty and show "•••• 1234".
 import {
+  type ProviderLine,
   type ProviderPreset,
   type ProviderTestData,
   providerCategories,
+  providerSpec,
   providers as providerSpecs,
   restartCategories,
 } from '@linedesk/actions'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { brandName } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog, FormField, Input, SecretInput } from '../ui/form.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import {
   changedValues,
@@ -24,8 +30,10 @@ import {
 } from './model.ts'
 import { errorText } from './notify.ts'
 import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
+import { StatusWords } from './ProviderGroup.tsx'
 import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx'
-import { brandName } from '../brand.ts'
+import { testedAgo } from './providerStatus.ts'
+import { TryOut, tryKindOf } from './TryOut.tsx'
 
 export const SERVER_SETTING_TIP = 'Set on the server. A value saved here takes priority.'
 
@@ -40,15 +48,13 @@ export function ServerSet() {
 
 type Props = {
   provider: ProviderStatus
+  /** Its status, as every screen shows it (providerStatus.ts). */
+  line: ProviderLine
   inUse: boolean
   /** An admin picked this provider (not the default). */
   chosen: boolean
   /** "Use" makes sense: there is a choice, or recording is off without one. */
   canUse: boolean
-  /** Open on the "Delete the stored keys?" step (Disconnect in the provider list). */
-  confirmDisconnect?: boolean
-  /** The page's last test of these keys worked. */
-  connected: boolean
   canStore: boolean
   /** Providers that use this one's stored key (one-key mode): Disconnect removes it for them too. */
   keyUsers?: readonly ProviderStatus[]
@@ -71,24 +77,24 @@ const presetsOf = (provider: ProviderStatus) =>
   ((providerSpecs[provider.provider] as { presets?: readonly ProviderPreset[] }).presets ?? []) as ProviderPreset[]
 
 export function ProviderDialog(props: Props) {
-  const { provider, inUse, chosen, canUse, connected, canStore, oauthReturn, confirmDisconnect } = props
+  const { provider, line, inUse, chosen, canUse, canStore, oauthReturn } = props
   const { onTested, onUse, onStopUsing, reload, notify, onClose, keyUsers = [] } = props
   const meta = providerMeta[provider.provider]
   const [values, setValues] = useState(() => initialValues(provider))
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [phase, setPhase] = useState<Phase>(confirmDisconnect ? 'confirm-disconnect' : 'idle')
+  const [phase, setPhase] = useState<Phase>('idle')
   const [result, setResult] = useState<ProviderTestData | null>(null)
   const [preset, setPreset] = useState<ProviderPreset | null>(null)
   /** Keys were stored in this dialog: sign-in and email apply after the API restarts. */
   const [savedNow, setSavedNow] = useState(false)
   const configured = isConfigured(provider)
+  const connected = configured && line.state === 'works'
   // OpenRouter connects through its own sign-in; typing a key is the fallback.
   const oauth = provider.provider === 'openrouter'
   const [manual, setManual] = useState(!oauth || configured)
   const changes = changedValues(provider, values)
   const dirty = Object.keys(changes).length > 0
   const busy = phase === 'saving' || phase === 'testing' || phase === 'disconnecting'
-  const presets = presetsOf(provider)
 
   const set = (field: string, value: string) => {
     setValues(v => ({ ...v, [field]: value }))
@@ -113,7 +119,10 @@ export function ProviderDialog(props: Props) {
         setValues(v => ({ ...v, ...Object.fromEntries(provider.fields.filter(f => f.secret).map(f => [f.field, ''])) }))
       }
       setPhase('testing')
-      const tested = await testProvider(provider.provider).catch(err => ({ ok: false, message: errorText(err) }))
+      const tested = await testProvider(provider.provider, { free: true }).catch(err => ({
+        ok: false,
+        message: errorText(err),
+      }))
       setResult(tested)
       onTested(tested)
       if (dirty) await reload()
@@ -139,7 +148,10 @@ export function ProviderDialog(props: Props) {
         await runAdmin('provider.setKeys', { provider: provider.provider, values: { api_key: key } })
         void reload() // shows as connected now, not only after the test
         setPhase('testing')
-        const tested = await testProvider(provider.provider).catch(err => ({ ok: false, message: errorText(err) }))
+        const tested = await testProvider(provider.provider, { free: true }).catch(err => ({
+          ok: false,
+          message: errorText(err),
+        }))
         setResult(tested)
         onTested(tested)
         await reload()
@@ -170,6 +182,7 @@ export function ProviderDialog(props: Props) {
   }
 
   const fieldId = (field: string) => `prov-${provider.provider}-${field}`
+  const tryKind = tryKindOf(provider.category)
   const useLabel = provider.category === 'recording' ? 'Record here' : 'Use for calls'
   const keysUrl = preset ? presetMeta[preset.label]?.keysUrl : meta.keysUrl
   /** "Get a key" goes next to the first field the provider's key page hands out. */
@@ -183,7 +196,7 @@ export function ProviderDialog(props: Props) {
       : phase === 'testing'
         ? 'Testing…'
         : configured && !dirty
-          ? 'Test connection'
+          ? 'Test again'
           : configured
             ? 'Save'
             : 'Connect'
@@ -251,7 +264,13 @@ export function ProviderDialog(props: Props) {
                 type="submit"
                 variant="primary"
                 disabled={busy || (dirty && !canStore)}
-                title={dirty ? 'Save and test (⌘S)' : undefined}
+                title={
+                  dirty
+                    ? 'Save and test (⌘S)'
+                    : configured
+                      ? 'Check the keys again: free, nothing is spent (⌘S)'
+                      : undefined
+                }
               >
                 {primaryLabel}
               </Button>
@@ -273,6 +292,111 @@ export function ProviderDialog(props: Props) {
       {!canStore && provider.fields.length > 0 && (
         <Note tone="warning">No encryption key on the server, so keys can't be saved.</Note>
       )}
+      {configured && (
+        <p className="adm-group-status" role="status">
+          <StatusMark state={phase === 'testing' ? 'checking' : line.state} />{' '}
+          {phase === 'testing' ? 'Testing…' : <StatusWords status={line} />}
+          {phase !== 'testing' && testedAgo(line.testedAt) ? ` · ${testedAgo(line.testedAt)}` : ''}
+          {phase !== 'testing' && line.state === 'failing' && line.message && !result ? (
+            <span className="adm-prov-detail adm-prov-detail-danger">{line.message}</span>
+          ) : null}
+        </p>
+      )}
+      {provider.fields.length > 0 && <KeyGuide provider={provider} open={!connected} />}
+      <ProviderForm
+        provider={provider}
+        values={values}
+        errors={errors}
+        canStore={canStore}
+        busy={busy}
+        configured={configured}
+        manual={manual}
+        oauthDone={!!result?.ok}
+        preset={preset}
+        keysUrl={keysUrl}
+        keyField={keyField?.field ?? null}
+        redirects={redirects}
+        fieldId={fieldId}
+        onManual={() => setManual(true)}
+        onPreset={p => {
+          setPreset(p)
+          for (const [field, value] of Object.entries(p.values)) set(field, value)
+        }}
+        onChange={set}
+      />
+      {result && (
+        <Note tone={!result.ok ? 'danger' : result.status === 'warning' ? 'warning' : 'success'} role="status">
+          <span className="adm-result">
+            {result.ok
+              ? appliesOnRestart && savedNow
+                ? `Connected. ${brandName()} restarts in the background to apply it (a few seconds).`
+                : resultLine(result.message)
+              : result.message}
+          </span>
+        </Note>
+      )}
+      {tryKind && inUse && (connected || result?.ok) && !dirty && (
+        <TryOut kind={tryKind} primary={false} onTried={reload} />
+      )}
+    </Dialog>
+  )
+}
+
+/** How to get a key for this provider: the registry's steps, the page, what it costs. Open until it works. */
+function KeyGuide({ provider, open }: { provider: ProviderStatus; open: boolean }) {
+  const { guide, label } = providerSpec(provider.provider)
+  return (
+    <details className="adm-guide" open={open}>
+      <summary>How to get a key</summary>
+      <ol className="adm-guide-steps">
+        {guide.steps.map(step => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+      <p className="help">
+        {guide.url && (
+          <>
+            <a href={guide.url} target="_blank" rel="noreferrer" title="Opens in a new tab">
+              Open {label}
+            </a>
+            {' · '}
+          </>
+        )}
+        {guide.cost}
+      </p>
+    </details>
+  )
+}
+
+type FormProps = {
+  provider: ProviderStatus
+  values: Record<string, string>
+  errors: Record<string, string>
+  canStore: boolean
+  busy: boolean
+  configured: boolean
+  /** Typing keys (OpenRouter starts with its own sign-in instead). */
+  manual: boolean
+  /** OpenRouter's sign-in finished and the key works. */
+  oauthDone: boolean
+  preset: ProviderPreset | null
+  keysUrl?: string
+  /** The field the "Get a key" link goes next to. */
+  keyField: string | null
+  redirects: string[]
+  fieldId: (field: string) => string
+  onManual: () => void
+  onPreset: (preset: ProviderPreset) => void
+  onChange: (field: string, value: string) => void
+}
+
+/** The provider's keys: its help, the service presets, OpenRouter's sign-in, the fields and the redirect URIs. */
+export function ProviderForm(props: FormProps) {
+  const { provider, values, errors, canStore, busy, configured, manual, oauthDone, preset, keysUrl, keyField } = props
+  const { redirects, fieldId, onManual, onPreset, onChange } = props
+  const presets = presetsOf(provider)
+  return (
+    <>
       {helpOf(provider) && provider.category !== 'recording' && <p className="k-field-desc">{helpOf(provider)}</p>}
       {presets.length > 0 && (
         <FormField label="Service" description={preset?.help}>
@@ -285,10 +409,7 @@ export function ProviderDialog(props: Props) {
                 aria-checked={preset === p}
                 className="adm-preset"
                 disabled={!canStore}
-                onClick={() => {
-                  setPreset(p)
-                  for (const [field, value] of Object.entries(p.values)) set(field, value)
-                }}
+                onClick={() => onPreset(p)}
               >
                 {presetMeta[p.label] && <Logo mark={presetMeta[p.label]!.mark} size={28} />}
                 <span>{p.label}</span>
@@ -298,7 +419,7 @@ export function ProviderDialog(props: Props) {
         </FormField>
       )}
       {provider.fields.length === 0 && <p className="k-field-desc">Nothing to set up.</p>}
-      {!manual && !result?.ok && (
+      {!manual && !oauthDone && (
         <div className="adm-oauth">
           <Button
             busy={busy}
@@ -309,7 +430,7 @@ export function ProviderDialog(props: Props) {
           >
             {busy ? 'Connecting…' : 'Connect with OpenRouter'}
           </Button>
-          <button type="button" className="k-link" onClick={() => setManual(true)}>
+          <button type="button" className="k-link" onClick={onManual}>
             Enter a key instead
           </button>
         </div>
@@ -325,24 +446,13 @@ export function ProviderDialog(props: Props) {
             error={errors[field.field]}
             disabled={!canStore || busy}
             autoFocus={i === 0 && !configured}
-            keysUrl={field === keyField ? keysUrl : undefined}
+            keysUrl={field.field === keyField ? keysUrl : undefined}
             keysLabel={provider.category === 'sign_in' ? 'Create an app' : undefined}
-            onChange={value => set(field.field, value)}
+            onChange={value => onChange(field.field, value)}
           />
         ))}
       {manual && redirects.length > 0 && <RedirectUris uris={redirects} />}
-      {result && (
-        <Note tone={!result.ok ? 'danger' : result.status === 'warning' ? 'warning' : 'success'} role="status">
-          <span className="adm-result">
-            {result.ok
-              ? appliesOnRestart && savedNow
-                ? `Connected. ${brandName()} restarts in the background to apply it (a few seconds).`
-                : resultLine(result.message)
-              : result.message}
-          </span>
-        </Note>
-      )}
-    </Dialog>
+    </>
   )
 }
 

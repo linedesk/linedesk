@@ -27,9 +27,10 @@ export const typedAreaCode = (query: string): string => {
   return /^\d{3}$/.test(digits) && usAreaCode(digits) ? digits : ''
 }
 
-type Props = { id: string; value: string; onChange: (code: string) => void }
+/** `label` names the field for screen readers where no visible label points at `id` (Admin › Providers, Try it). */
+type Props = { id: string; value: string; onChange: (code: string) => void; label?: string }
 
-export function AreaCodeInput({ id, value, onChange }: Props) {
+export function AreaCodeInput({ id, value, onChange, label }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(() => areaCodeText(value))
   const [active, setActive] = useState(0)
@@ -94,6 +95,7 @@ export function AreaCodeInput({ id, value, onChange }: Props) {
     <div className={cx('k-select', 'cn-pick', open && 'open')} ref={root}>
       <Input
         id={id}
+        aria-label={label}
         value={query}
         placeholder="Search a city, state or area code"
         autoComplete="off"

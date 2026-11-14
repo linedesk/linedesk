@@ -21,6 +21,7 @@ import { SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Field, Section, SwitchRow } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
@@ -113,16 +114,21 @@ function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: P
 function StatusBadge({ endpoint }: { endpoint: WebhookEndpoint }) {
   if (endpoint.status === 'active')
     return (
-      <Badge tone="ok" dot>
+      <Badge tone="ok">
+        <StatusMark state="works" label="On" />
         On
       </Badge>
     )
   return endpoint.disabled_reason ? (
-    <Badge tone="danger" dot title={endpoint.disabled_reason}>
+    <Badge tone="danger" title={endpoint.disabled_reason}>
+      <StatusMark state="failing" label={`Switched off: ${endpoint.disabled_reason}`} />
       Switched off
     </Badge>
   ) : (
-    <Badge>Off</Badge>
+    <Badge>
+      <StatusMark state="off" />
+      Off
+    </Badge>
   )
 }
 

@@ -967,7 +967,7 @@ export const provider_failures = pgTable('provider_failures', {
 })
 
 // The last test of each provider (LIN-141): whether it passed, for exactly the keys in effect then, whoever ran it (an
-// admin, the setup agent, the automatic check when a setup page opens). `keys` is an HMAC of those values keyed with
+// admin, the setup agent, the free check when a setup page opens, the background health check). `keys` is an HMAC of those values keyed with
 // SECRETS_KEY, so a changed key reads as untested again and nothing about a key can be learned from it. Every setup
 // screen reads it (apps/api/src/setup-checklist.ts), so they agree and a restart forgets nothing. Install-wide, not synced.
 export const provider_tests = pgTable('provider_tests', {

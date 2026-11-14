@@ -55,13 +55,304 @@ export const categoryNames = Object.keys(providerCategories) as [ProviderCategor
 type ProviderField = { label: string; env: string; secret: boolean; optional?: true; hint?: string; switch?: true }
 /** Values the edit form can fill in for a known service (`<...>` parts are the operator's to replace). */
 export type ProviderPreset = { label: string; values: Record<string, string>; help: string }
+/**
+ * How to get the keys: where to sign up (`url`, null where there is no one place), the steps, and a rough cost
+ * ("about", list prices, no promises). Shown in the provider's dialog, the setup MCP and `scripts/setup.sh --check`.
+ */
+export type ProviderGuide = { url: string | null; steps: readonly string[]; cost: string }
 /** `help` is shown on the provider's card. */
 type ProviderSpec = {
   label: string
   category: ProviderCategory
   fields: Record<string, ProviderField>
+  guide: ProviderGuide
   help?: string
   presets?: readonly ProviderPreset[]
+}
+
+const openAiSteps = (rest: string) => [
+  'Sign up at platform.openai.com and add credit (Settings → Billing).',
+  'API keys → Create new secret key. Copy the key.',
+  rest,
+]
+const llmPaste = 'Paste it here. Empty model fields use the defaults.'
+const voicePaste = 'Paste it here. Leave the voice empty for the default; each assistant can pick its own.'
+
+/** Every provider's guide (ProviderGuide), keyed like `providers` below. */
+const guides = {
+  telnyx: {
+    url: 'https://portal.telnyx.com/',
+    steps: [
+      'Create an account at telnyx.com and add a payment method (numbers need a verified account).',
+      'Mission Control → Keys & Credentials → API Keys → Create API Key. Copy the key, it is shown once.',
+      'Same page, Public Key: copy it. Linedesk checks the signature of Telnyx’s webhooks with it.',
+      'Paste both here. The number itself is bought or connected later, in the business onboarding.',
+    ],
+    cost: 'About $1 a month per US number, plus about half a cent per call minute.',
+  },
+  twilio: {
+    url: 'https://console.twilio.com/',
+    steps: [
+      'Create an account at twilio.com and upgrade it (a trial account cannot buy numbers for others).',
+      'Console → Account Info: copy the Account SID and the Auth token.',
+      'Paste both here. The number itself is bought or connected later, in the business onboarding.',
+    ],
+    cost: 'About $1.15 a month per US number, plus about one cent per call minute.',
+  },
+  deepgram: {
+    url: 'https://console.deepgram.com/',
+    steps: [
+      'Sign up at console.deepgram.com.',
+      'API Keys → Create a New API Key, role Member. Copy the key.',
+      'Paste it here. Leave the model empty for the default.',
+    ],
+    cost: 'About $0.008 per call minute; new accounts start with free credit.',
+  },
+  elevenlabs_stt: {
+    url: 'https://elevenlabs.io/app/developers/api-keys',
+    steps: [
+      'Sign up at elevenlabs.io.',
+      'Developers → API Keys → Create Key with Speech to Text access. Copy the key.',
+      'Paste it here. Leave the model empty for the default.',
+    ],
+    cost: 'Billed per hour of audio on your ElevenLabs plan.',
+  },
+  openai_stt: {
+    url: 'https://platform.openai.com/api-keys',
+    steps: openAiSteps('Paste it here. Leave the model empty for the default.'),
+    cost: 'About $0.003 per call minute with gpt-4o-mini-transcribe.',
+  },
+  openrouter: {
+    url: 'https://openrouter.ai/settings/keys',
+    steps: [
+      'Sign up at openrouter.ai and buy a little credit (Settings → Credits).',
+      'Settings → API Keys → Create Key. Copy the key, or use Connect with OpenRouter.',
+      llmPaste,
+    ],
+    cost: 'About $0.003 per call minute with the default models.',
+  },
+  openai: {
+    url: 'https://platform.openai.com/api-keys',
+    steps: openAiSteps(llmPaste),
+    cost: 'Billed per token at OpenAI’s list prices.',
+  },
+  anthropic: {
+    url: 'https://console.anthropic.com/settings/keys',
+    steps: [
+      'Sign up at console.anthropic.com and add credit (Settings → Billing).',
+      'Settings → API keys → Create Key. Copy the key.',
+      llmPaste,
+    ],
+    cost: 'Billed per token at Anthropic’s list prices.',
+  },
+  gemini: {
+    url: 'https://aistudio.google.com/apikey',
+    steps: [
+      'Sign in at aistudio.google.com with a Google account.',
+      'Get API key → Create API key. Copy the key.',
+      llmPaste,
+    ],
+    cost: 'A free tier with limits, then billed per token.',
+  },
+  groq: {
+    url: 'https://console.groq.com/keys',
+    steps: ['Sign up at console.groq.com.', 'API Keys → Create API Key. Copy the key.', llmPaste],
+    cost: 'A free tier with rate limits, then billed per token.',
+  },
+  mistral: {
+    url: 'https://console.mistral.ai/api-keys',
+    steps: [
+      'Sign up at console.mistral.ai and choose a plan (Billing).',
+      'API Keys → Create new key. Copy the key.',
+      llmPaste,
+    ],
+    cost: 'Billed per token at Mistral’s list prices.',
+  },
+  elevenlabs: {
+    url: 'https://elevenlabs.io/app/developers/api-keys',
+    steps: [
+      'Sign up at elevenlabs.io.',
+      'Developers → API Keys → Create Key. A restricted key needs Text to Speech, Voices (read) and User (read).',
+      voicePaste,
+    ],
+    cost: 'About $0.02 per call minute at list price.',
+  },
+  cartesia: {
+    url: 'https://play.cartesia.ai/keys',
+    steps: ['Sign up at play.cartesia.ai.', 'API Keys → New. Copy the key.', voicePaste],
+    cost: 'Billed per character on your Cartesia plan.',
+  },
+  openai_realtime: {
+    url: 'https://platform.openai.com/api-keys',
+    steps: openAiSteps('Paste it here.'),
+    cost: 'About $0.05 per call minute with gpt-realtime-mini.',
+  },
+  file: {
+    url: null,
+    steps: [
+      'Nothing to sign up for: recordings stay on this server’s disk.',
+      'Connect it, then Record here.',
+      'Back up the recordings folder with the rest of the server.',
+    ],
+    cost: 'Nothing extra: disk space on this server.',
+  },
+  s3: {
+    url: null,
+    steps: [
+      'Create a bucket at your storage provider (AWS S3, Cloudflare R2, Hetzner, Backblaze B2 or MinIO).',
+      'Create an access key that can read and write that bucket.',
+      'Pick the service here, then fill in the endpoint, the bucket and both keys.',
+    ],
+    cost: 'Your storage provider’s price per GB stored.',
+  },
+  smtp: {
+    url: null,
+    steps: [
+      'Get the host, port, user and password of your mail server or service.',
+      'Write them as one URL: smtps://user:password@host:465 (port 587: smtp://user:password@host:587).',
+      'Paste it here, with a From address the server may send as.',
+    ],
+    cost: 'Your mail service’s price.',
+  },
+  resend: {
+    url: 'https://resend.com/api-keys',
+    steps: [
+      'Sign up at resend.com.',
+      'Domains → Add Domain. Add the DNS records it shows and wait until it says Verified.',
+      'API Keys → Create API Key, permission Sending access. Copy the key.',
+      'Paste it here. From is an address on the verified domain, e.g. desk@yourdomain.com.',
+    ],
+    cost: 'Free up to about 3,000 emails a month.',
+  },
+  postmark: {
+    url: 'https://account.postmarkapp.com/servers',
+    steps: [
+      'Sign up at postmarkapp.com and verify a sender signature or domain.',
+      'Servers → your server → API Tokens. Copy the Server API token.',
+      'Paste it here, with a verified From address.',
+    ],
+    cost: 'A small free allowance, then billed per email.',
+  },
+  sendgrid: {
+    url: 'https://app.sendgrid.com/settings/api_keys',
+    steps: [
+      'Sign up at sendgrid.com and verify a sender (Settings → Sender Authentication).',
+      'Settings → API Keys → Create API Key with Mail Send access. Copy the key.',
+      'Paste it here, with the verified From address.',
+    ],
+    cost: 'Billed on your SendGrid plan.',
+  },
+  brevo: {
+    url: 'https://app.brevo.com/settings/keys/smtp',
+    steps: [
+      'Sign up at brevo.com and verify your sender domain.',
+      'SMTP & API → SMTP: copy the SMTP login and generate an SMTP key.',
+      'Paste both here, with a From address on the verified domain.',
+    ],
+    cost: 'A free daily allowance, then billed on your Brevo plan.',
+  },
+  mailgun: {
+    url: 'https://app.mailgun.com/',
+    steps: [
+      'Sign up at mailgun.com and add a sending domain with its DNS records.',
+      'Sending → Domain settings → SMTP credentials: create a user and copy its password.',
+      'Paste both here. Region: eu for a domain in Mailgun’s EU region.',
+    ],
+    cost: 'Billed on your Mailgun plan.',
+  },
+  gmail: {
+    url: 'https://myaccount.google.com/apppasswords',
+    steps: [
+      'Turn on 2-Step Verification for the Google account.',
+      'Google account → Security → App passwords: create one. Copy it.',
+      'Paste the address and the app password here.',
+    ],
+    cost: 'Free; a few hundred emails a day at most.',
+  },
+  google: {
+    url: 'https://console.cloud.google.com/apis/credentials',
+    steps: [
+      'In Google Cloud, create a project and set up the OAuth consent screen.',
+      'Credentials → Create credentials → OAuth client ID (Web application), with the redirect URIs shown below.',
+      'Paste the client ID and the client secret here.',
+    ],
+    cost: 'Free.',
+  },
+  microsoft: {
+    url: 'https://entra.microsoft.com/',
+    steps: [
+      'In Microsoft Entra, App registrations → New registration (Web), with the redirect URIs shown below.',
+      'API permissions: Calendars.ReadWrite, offline_access and User.Read. Certificates & secrets → New client secret.',
+      'Paste the application ID and the secret here.',
+    ],
+    cost: 'Free.',
+  },
+  github: {
+    url: 'https://github.com/settings/developers',
+    steps: [
+      'GitHub → Settings → Developer settings → OAuth Apps → New OAuth App, with the callback URL shown below.',
+      'Generate a client secret.',
+      'Paste the client ID and the client secret here.',
+    ],
+    cost: 'Free.',
+  },
+  oidc: {
+    url: null,
+    steps: [
+      'In your identity provider (Okta, Entra, Keycloak, Authentik …), create an OpenID Connect web app with the redirect URI shown below.',
+      'Copy its discovery URL, client ID and client secret.',
+      'Paste them here. Add trusted email domains if it sends no email_verified.',
+    ],
+    cost: 'Your identity provider’s price.',
+  },
+  google_places: {
+    url: 'https://console.cloud.google.com/apis/library/places.googleapis.com',
+    steps: [
+      'In Google Cloud, enable the Places API (New) for a project with billing.',
+      'Credentials → Create credentials → API key; restrict it to the Places API (New).',
+      'Paste it here.',
+    ],
+    cost: 'Billed per search and per picked listing at Google’s prices.',
+  },
+} as const satisfies Record<string, ProviderGuide>
+
+/**
+ * The provider we suggest per category: a quiet "Recommended" tag on Admin › Providers, and the guide the setup MCP
+ * and `setup.sh --check` print first.
+ */
+export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
+  telephony: 'telnyx',
+  stt: 'deepgram',
+  llm: 'openai',
+  tts: 'elevenlabs',
+  realtime: 'openai_realtime',
+  email: 'resend',
+  sign_in: 'google',
+  recording: 'file',
+  business: 'google_places',
+}
+
+/**
+ * The short list of a category with many providers, in this order: the recommended one first, then the others most
+ * people pick. Admin › Providers and the install walkthrough show only these (and every provider that is already set
+ * up, being tested or failing) until "Show more". A category with more than three providers and no entry here shows
+ * its recommended one and its own-server option (SMTP, your own single sign-on), see `pinnedProvidersOf`.
+ */
+export const pinnedProviders: Partial<Record<ProviderCategory, readonly ProviderName[]>> = {
+  email: ['resend', 'smtp'],
+  llm: ['openai', 'openrouter', 'anthropic'],
+  sign_in: ['google', 'oidc'],
+}
+
+/** The option that runs on your own server or account rather than a hosted service. */
+export const ownServerProviders: readonly ProviderName[] = ['smtp', 'oidc']
+
+/** A category's short list: its pinned providers, or else its recommended one and its own-server option. */
+export function pinnedProvidersOf(category: ProviderCategory): readonly ProviderName[] {
+  const pinned = pinnedProviders[category]
+  if (pinned) return pinned
+  const own = providersIn(category).filter(p => ownServerProviders.includes(p))
+  return [recommendedProviders[category], ...own]
 }
 
 const apiKey = (env: string): ProviderField => ({ label: 'API key', env, secret: true })
@@ -150,6 +441,7 @@ export const providers = {
   telnyx: {
     label: 'Telnyx',
     category: 'telephony',
+    guide: guides.telnyx,
     fields: {
       api_key: apiKey('TELNYX_API_KEY'),
       public_key: { label: 'Webhook public key', env: 'TELNYX_PUBLIC_KEY', secret: false, optional: true },
@@ -160,6 +452,7 @@ export const providers = {
   twilio: {
     label: 'Twilio',
     category: 'telephony',
+    guide: guides.twilio,
     fields: {
       account_sid: { label: 'Account SID', env: 'TWILIO_ACCOUNT_SID', secret: false },
       auth_token: { label: 'Auth token', env: 'TWILIO_AUTH_TOKEN', secret: true },
@@ -170,6 +463,7 @@ export const providers = {
   deepgram: {
     label: 'Deepgram',
     category: 'stt',
+    guide: guides.deepgram,
     fields: { api_key: apiKey('DEEPGRAM_API_KEY'), model: model('STT_MODEL') },
   },
   // Streaming speech recognition with the provider's own end-of-turn detection. Own key variables: a key for the voice
@@ -177,18 +471,21 @@ export const providers = {
   elevenlabs_stt: {
     label: 'ElevenLabs Scribe',
     category: 'stt',
+    guide: guides.elevenlabs_stt,
     fields: { api_key: apiKey('ELEVENLABS_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'scribe_v2_realtime' } },
   },
   openai_stt: {
     label: 'OpenAI transcription',
     category: 'stt',
+    guide: guides.openai_stt,
     fields: { api_key: apiKey('OPENAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'gpt-4o-mini-transcribe' } },
   },
   // The default language model comes first: a category without a pick uses the first provider that is set up.
-  openai: { label: 'OpenAI', category: 'llm', fields: llmFields('OPENAI_API_KEY', 'openai') },
+  openai: { label: 'OpenAI', category: 'llm', guide: guides.openai, fields: llmFields('OPENAI_API_KEY', 'openai') },
   openrouter: {
     label: 'OpenRouter',
     category: 'llm',
+    guide: guides.openrouter,
     fields: {
       api_key: apiKey('OPENROUTER_API_KEY'),
       model: {
@@ -204,16 +501,37 @@ export const providers = {
       },
     },
   },
-  anthropic: { label: 'Anthropic', category: 'llm', fields: llmFields('ANTHROPIC_API_KEY', 'anthropic') },
-  gemini: { label: 'Google Gemini', category: 'llm', fields: llmFields('GEMINI_API_KEY', 'gemini') },
-  groq: { label: 'Groq', category: 'llm', fields: llmFields('GROQ_API_KEY', 'groq') },
-  mistral: { label: 'Mistral', category: 'llm', fields: llmFields('MISTRAL_API_KEY', 'mistral') },
+  anthropic: {
+    label: 'Anthropic',
+    category: 'llm',
+    guide: guides.anthropic,
+    fields: llmFields('ANTHROPIC_API_KEY', 'anthropic'),
+  },
+  gemini: {
+    label: 'Google Gemini',
+    category: 'llm',
+    guide: guides.gemini,
+    fields: llmFields('GEMINI_API_KEY', 'gemini'),
+  },
+  groq: { label: 'Groq', category: 'llm', guide: guides.groq, fields: llmFields('GROQ_API_KEY', 'groq') },
+  mistral: {
+    label: 'Mistral',
+    category: 'llm',
+    guide: guides.mistral,
+    fields: llmFields('MISTRAL_API_KEY', 'mistral'),
+  },
   elevenlabs: {
     label: 'ElevenLabs',
     category: 'tts',
+    guide: guides.elevenlabs,
     fields: { api_key: apiKey('ELEVENLABS_API_KEY'), ...voiceFields },
   },
-  cartesia: { label: 'Cartesia', category: 'tts', fields: { api_key: apiKey('CARTESIA_API_KEY'), ...voiceFields } },
+  cartesia: {
+    label: 'Cartesia',
+    category: 'tts',
+    guide: guides.cartesia,
+    fields: { api_key: apiKey('CARTESIA_API_KEY'), ...voiceFields },
+  },
   // A speech-to-speech model: hears the caller and answers in its own voice. Once connected it is the default for
   // assistants (each can pick the three stages above instead: `voice_pipeline`). The summary after the call goes to
   // OpenAI's chat API with the same key. Its own key variable: an OPENAI_API_KEY for the language model must not
@@ -221,6 +539,7 @@ export const providers = {
   openai_realtime: {
     label: 'OpenAI Realtime',
     category: 'realtime',
+    guide: guides.openai_realtime,
     fields: {
       api_key: apiKey('OPENAI_REALTIME_API_KEY'),
       model: { ...model('REALTIME_MODEL'), hint: 'gpt-realtime' },
@@ -241,12 +560,14 @@ export const providers = {
   file: {
     label: 'Local disk',
     category: 'recording',
+    guide: guides.file,
     fields: {},
     help: 'Recordings stay on this server.',
   },
   s3: {
     label: 'S3-compatible',
     category: 'recording',
+    guide: guides.s3,
     fields: {
       endpoint: {
         label: 'Endpoint URL',
@@ -310,6 +631,7 @@ export const providers = {
   smtp: {
     label: 'SMTP',
     category: 'email',
+    guide: guides.smtp,
     fields: {
       url: {
         label: 'SMTP URL',
@@ -333,12 +655,14 @@ export const providers = {
   resend: {
     label: 'Resend',
     category: 'email',
+    guide: guides.resend,
     fields: { api_key: apiKey('RESEND_API_KEY'), from: emailFrom },
     help: 'An API key with sending access. The From address must be on a domain verified in Resend.',
   },
   postmark: {
     label: 'Postmark',
     category: 'email',
+    guide: guides.postmark,
     fields: {
       server_token: { label: 'Server API token', env: 'POSTMARK_SERVER_TOKEN', secret: true },
       from: emailFrom,
@@ -348,12 +672,14 @@ export const providers = {
   sendgrid: {
     label: 'SendGrid',
     category: 'email',
+    guide: guides.sendgrid,
     fields: { api_key: apiKey('SENDGRID_API_KEY'), from: emailFrom },
     help: 'An API key with Mail Send access. The From address must be a verified sender in SendGrid.',
   },
   brevo: {
     label: 'Brevo',
     category: 'email',
+    guide: guides.brevo,
     fields: {
       login: { label: 'SMTP login', env: 'BREVO_SMTP_LOGIN', secret: false, hint: '1234ab001@smtp-brevo.com' },
       smtp_key: { label: 'SMTP key', env: 'BREVO_SMTP_KEY', secret: true },
@@ -364,6 +690,7 @@ export const providers = {
   mailgun: {
     label: 'Mailgun',
     category: 'email',
+    guide: guides.mailgun,
     fields: {
       smtp_user: { label: 'SMTP user', env: 'MAILGUN_SMTP_USER', secret: false, hint: 'postmaster@mg.example.com' },
       smtp_password: { label: 'SMTP password', env: 'MAILGUN_SMTP_PASSWORD', secret: true },
@@ -375,6 +702,7 @@ export const providers = {
   gmail: {
     label: 'Gmail',
     category: 'email',
+    guide: guides.gmail,
     fields: {
       address: { label: 'Gmail address', env: 'GMAIL_ADDRESS', secret: false, hint: 'desk@gmail.com' },
       app_password: { label: 'App password', env: 'GMAIL_APP_PASSWORD', secret: true },
@@ -386,6 +714,7 @@ export const providers = {
   google: {
     label: 'Google',
     category: 'sign_in',
+    guide: guides.google,
     fields: {
       client_id: { label: 'Client ID', env: 'GOOGLE_CLIENT_ID', secret: false },
       client_secret: { label: 'Client secret', env: 'GOOGLE_CLIENT_SECRET', secret: true },
@@ -395,6 +724,7 @@ export const providers = {
   microsoft: {
     label: 'Microsoft',
     category: 'sign_in',
+    guide: guides.microsoft,
     fields: {
       client_id: { label: 'Application (client) ID', env: 'MICROSOFT_CLIENT_ID', secret: false },
       client_secret: { label: 'Client secret', env: 'MICROSOFT_CLIENT_SECRET', secret: true },
@@ -405,6 +735,7 @@ export const providers = {
   github: {
     label: 'GitHub',
     category: 'sign_in',
+    guide: guides.github,
     fields: {
       client_id: { label: 'Client ID', env: 'GITHUB_CLIENT_ID', secret: false },
       client_secret: { label: 'Client secret', env: 'GITHUB_CLIENT_SECRET', secret: true },
@@ -414,6 +745,7 @@ export const providers = {
   oidc: {
     label: 'Single sign-on (OIDC)',
     category: 'sign_in',
+    guide: guides.oidc,
     fields: {
       discovery_url: {
         label: 'Discovery URL',
@@ -445,6 +777,7 @@ export const providers = {
   google_places: {
     label: 'Google Places',
     category: 'business',
+    guide: guides.google_places,
     fields: { api_key: apiKey('GOOGLE_PLACES_API_KEY') },
     help: 'An API key with the Places API (New) enabled, restricted to it. Onboarding uses it to find a business by name and city and prefill its address, phone, hours and website. Google bills each search as Text Search Pro and each picked listing as Place Details Enterprise (the hours and the website are in that tier). BUSINESS_LOOKUP_DAILY_CAP limits the requests per day.',
   },
@@ -517,8 +850,8 @@ export const providerSetActive = defineAction({
 export const providerTest = defineAction({
   name: 'provider.test',
   description:
-    'Check that a provider can do its job with the keys in effect: the key, and where the provider tells, quota or credit, the account, and that the configured model, voice or bucket exists.',
-  input: z.object({ provider }),
+    'Check that a provider can do its job with the keys in effect: the key, and where the provider tells, quota or credit, the account, and that the configured model, voice or bucket exists. free: only what costs nothing (no tokens, no speech, no transcription), as the background health check does.',
+  input: z.object({ provider, free: z.boolean().optional() }),
   permission: 'instance:admin',
   readOnly: true,
 })

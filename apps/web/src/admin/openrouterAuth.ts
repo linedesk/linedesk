@@ -85,7 +85,7 @@ export function captureOpenRouterReturn(search: string, storage: Storage = sessi
         ? { code, verifier: pending.verifier }
         : { error: 'Connecting with OpenRouter was cancelled.' }
   storage.setItem(RETURN_KEY, JSON.stringify(result))
-  return '#admin/providers'
+  return '#admin/providers/answering'
 }
 
 /** The answer waiting for the Providers page, if any. Reading leaves it; `clearOpenRouterReturn` removes it. */

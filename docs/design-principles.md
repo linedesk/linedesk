@@ -44,6 +44,7 @@ Every message in the app is one of these four. Don't add a new style; pick the k
 | **Note** | A state of the page that stays until something changes: a hint, a warning, an error loading or saving. | `<Note tone=… title=… action=…>` from `ui/kit.tsx`. |
 | **Field error** | One field that can't be saved as it is. | `error` on `FormField`, or `FormMessage`: one red line right under the field. |
 | **Badge** | The status of one item in a list ("Failing", "Off"). | `<Badge tone=…>`. |
+| **Status mark** | Whether something works: a provider, a group, a server part, a connection. | `<StatusMark state=…>` from `ui/StatusMark.tsx`, next to its words. |
 
 Note tones, from quiet to loud:
 
@@ -52,5 +53,7 @@ Note tones, from quiet to loud:
 - **success**: grey with a check. The result of a test or a check on the page ("Connected").
 - **warning**: amber with the triangle and an amber edge. It works, but something important is missing or won't work as expected ("Real phone calls can't reach this copy"). Give it a title that says the consequence, then the reason, then the fix as a link or button.
 - **danger**: red with the alert circle and a red edge, announced at once. Something failed or is blocked.
+
+Status uses StatusMark (check, warning, cross, empty); no bare dots for works/not-works. A check in an ink circle works, an exclamation mark in amber partly works, a cross in red fails, an empty ring is not set up (or off), the spinner is being checked. The shape always differs, so colour is never the only signal; the mark carries its words as label and tooltip. Dots stay for what is not a status of working: unread, live, presence, colour keys.
 
 Rules: red and amber appear only in these tones (and badges), never as plain coloured text. Muted grey helper text (`.help`) is for explaining a control, not for problems. The title is one short sentence; the body says why and what to do; a fix is a link or button inside the note, never a second note.

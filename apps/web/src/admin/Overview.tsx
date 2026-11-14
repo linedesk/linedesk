@@ -1,20 +1,11 @@
-// Admin, Overview: the first thing an operator sees. Usage (calls, minutes), roughly what it costs
-// per provider, whether the parts of the install work, and how many workspaces and people there are.
-// Numbers and health load separately: health waits for LiveKit and the mail server.
+// Admin, Overview: the first thing an operator sees, under the "Ready for calls" card (StatusCard.tsx, which says
+// whether the parts of the install work). Usage (calls, minutes), roughly what it costs per provider, and how many
+// workspaces and people there are.
 import { providerCategories } from '@linedesk/actions'
 import type { ReactNode } from 'react'
-import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { Button } from '../ui/kit.tsx'
+import { useQuery } from '../cachedQuery.ts'
 import { LoadProblem, Skeleton } from '../ui/LoadStates.tsx'
-import {
-  ADMIN_HEALTH,
-  type AdminHealth,
-  type AdminOverview,
-  loadHealth,
-  loadOverview,
-  type ServiceStatus,
-} from './api.ts'
-import { FailingProviders } from './FailingProviders.tsx'
+import { type AdminOverview, loadOverview } from './api.ts'
 import { ReplyDelay } from './ReplyDelay.tsx'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
@@ -27,8 +18,6 @@ function useLoad<T>(key: string, load: () => Promise<T>) {
     value: query.data ?? null,
     error: query.data ? null : query.error,
     retry: query.reload,
-    /** Before a check the operator asked for: show it as checking, not the old answer. */
-    reset: () => setQueryData<T | undefined>(key, undefined),
   }
 }
 
@@ -67,64 +56,11 @@ function Card({
   )
 }
 
-const healthRows: { key: keyof AdminHealth; label: string }[] = [
-  { key: 'api', label: 'API' },
-  { key: 'readSync', label: 'Read sync' },
-  { key: 'livekit', label: 'LiveKit' },
-  { key: 'sip', label: 'Phone (SIP)' },
-  { key: 'agent', label: 'Voice agent' },
-  { key: 'email', label: 'Email' },
-]
-
-function HealthRow({ label, status }: { label: string; status: ServiceStatus | undefined }) {
-  const state = !status ? 'wait' : status.ok ? 'ok' : 'bad'
-  return (
-    <div className="adm-health-row">
-      <span className={`adm-health-dot ${state}`} aria-hidden="true" />
-      <b>{label}</b>
-      <span className="help">{!status ? 'Checking…' : status.message}</span>
-    </div>
-  )
-}
-
-function Health() {
-  const health = useLoad(ADMIN_HEALTH, loadHealth)
-  const checking = !health.value && !health.error
-  return (
-    <Card
-      title="Health"
-      action={
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={checking}
-          onClick={() => {
-            health.reset()
-            void health.retry()
-          }}
-        >
-          Check again
-        </Button>
-      }
-    >
-      {health.error ? (
-        <LoadProblem what="Health" message={health.error} onRetry={() => void health.retry()} />
-      ) : (
-        <div className="adm-health" aria-live="polite">
-          {healthRows.map(row => (
-            <HealthRow key={row.key} label={row.label} status={health.value?.[row.key]} />
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
-
 function Costs({ overview }: { overview: AdminOverview }) {
   const total7d = overview.costs.reduce((sum, c) => sum + c.cost7d, 0)
   const totalMonth = overview.costs.reduce((sum, c) => sum + c.costMonth, 0)
   return (
-    <Card title="Providers" note="Estimated from list prices.">
+    <Card title="Costs" note="Estimated from list prices.">
       <div className="adm-scroll">
         <table className="adm-table">
           <thead>
@@ -182,7 +118,6 @@ export function Overview({ onOpen }: Props) {
     )
   return (
     <>
-      {o?.failures && <FailingProviders failures={o.failures} onOpen={() => onOpen('providers')} />}
       <div className="adm-stats">
         {o ? (
           <>
@@ -203,7 +138,6 @@ export function Overview({ onOpen }: Props) {
           ['a', 'b', 'c', 'd'].map(key => <Skeleton key={key} className="adm-stat" />)
         )}
       </div>
-      <Health />
       <ReplyDelay />
       {o ? <Costs overview={o} /> : <Skeleton className="adm-card adm-skel-card" />}
       {o && (

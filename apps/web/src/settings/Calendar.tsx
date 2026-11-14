@@ -13,6 +13,7 @@ import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { DeleteButton, EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Skeleton, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { useQuery } from '../cachedQuery.ts'
@@ -117,11 +118,13 @@ export function AccountRow({ connection, children }: { connection: CalendarConne
       sub={c.status === 'needs_reconnect' ? (c.last_error ?? 'Access was withdrawn.') : undefined}
       aside={
         c.status === 'connected' ? (
-          <Badge tone="ok" dot>
+          <Badge tone="ok">
+            <StatusMark state="works" label="Connected" />
             Connected
           </Badge>
         ) : (
-          <Badge tone="danger" dot>
+          <Badge tone="danger">
+            <StatusMark state="failing" label="Access withdrawn: connect again" />
             Connect again
           </Badge>
         )

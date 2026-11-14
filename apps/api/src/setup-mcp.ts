@@ -10,7 +10,9 @@
 import {
   type ActionDef,
   actions,
+  callAudioGuide,
   type ForwardingMode,
+  type GroupStatus,
   forwardingInstructions,
   installPlace,
   isMultiCategory,
@@ -18,11 +20,13 @@ import {
   oneKey,
   type ProviderCategory,
   providerCategories,
+  providerGroupIds,
+  type ProviderName,
   providerSpec,
-  type SetupChecklistItem,
+  recommendedProviders,
   SETUP_MCP_INSTRUCTIONS,
   searchForwardingGuides,
-  setupItemSpec,
+  statusText,
 } from '@linedesk/actions'
 import { assistants, member, organization, phone_numbers, user, workspace_settings } from '@linedesk/db'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
@@ -98,7 +102,7 @@ function inAppOnly(name: string, input: unknown): boolean {
   return (IN_APP_ONLY as readonly string[]).includes(category ?? '')
 }
 const IN_APP_ONLY_REFUSAL =
-  'The setup tools do not change email, sign-in or recording storage: ask the admin to do this in the app (app_links.providers), then check it with provider_test.'
+  'The setup tools do not change email, sign-in or recording storage: ask the admin to do this in the app (app_links.providers_email, providers_sign_in or providers_recording), then check it with provider_test.'
 
 /** Instance admin rights only for the provider actions; the business's own actions run as its owner would. */
 const actorFor = (name: string, actor: Actor): Actor =>
@@ -128,93 +132,98 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
 /** Links into the app for the steps only the admin can do there (a passkey, a test call with their microphone). */
 const appLinks = () => {
   const app = webAddress()
+  // One link per provider group (Admin › Providers scrolls to it): providers_email, providers_call_audio, …
+  const groups = Object.fromEntries(
+    providerGroupIds.map(id => [`providers_${id.replace('-', '_')}`, `${app}/#admin/providers/${id}`]),
+  )
   return {
     app,
     setup: `${app}/#admin/overview`,
     providers: `${app}/#admin/providers`,
+    ...groups,
     test_call: `${app}/#assistant`,
     onboarding: `${app}/`,
   }
 }
 
 type StepState = 'done' | 'todo' | 'failing' | 'admin_only'
-type Step = { id: string; label: string; state: StepState; detail?: string | null; how?: readonly string[] }
-
-const ITEM_STATE: Record<SetupChecklistItem['state'], StepState> = {
-  ok: 'done',
-  set_up: 'todo',
-  missing: 'todo',
-  failing: 'failing',
+/** `alias`: the id the step had before (LIN-158), for agents and notes that still use it. */
+type Step = {
+  id: string
+  alias?: string
+  label: string
+  state: StepState
+  detail?: string | null
+  how?: readonly string[]
 }
 
-/** One install step from the checklist item, with the guide of the provider we recommend when it is not done. */
-function installStep(item: SetupChecklistItem, how: readonly string[]): Step {
-  const state = ITEM_STATE[item.state]
-  // LiveKit has no keys to test: its state is the server check itself (setup_status runs it).
-  const tested = item.state === 'set_up' && item.provider ? ['Keys are set but not tested: run provider_test.'] : []
+const GROUP_STATE: Record<GroupStatus['state'], StepState> = {
+  works: 'done',
+  failing: 'failing',
+  missing: 'todo',
+  partly: 'todo',
+  checking: 'todo',
+  untested: 'todo',
+  not_needed: 'done',
+  off: 'done',
+}
+
+/** One install step from a provider group, with how to do it when it is not done. */
+function groupStep(group: GroupStatus, how: readonly string[], alias?: string): Step {
+  const state = GROUP_STATE[group.state]
+  const tested = group.state === 'untested' ? ['Keys are set but not tested: run provider_test.'] : []
+  const word = statusText(group)
   return {
-    id: item.id,
-    label: item.label,
+    id: group.id,
+    ...(alias ? { alias } : {}),
+    label: group.label,
     state,
-    detail: item.providerLabel ? `${item.providerLabel}: ${item.message ?? ''}` : item.message,
+    detail: [group.providerLabel, word, group.message].filter(Boolean).join(': '),
     ...(state === 'done' ? {} : { how: [...tested, ...how] }),
   }
 }
 
-const guideLines = (id: 'email' | 'telephony' | 'stt' | 'llm' | 'tts' | 'livekit') => {
-  const spec = setupItemSpec(id)
-  const provider = spec.guide.provider
+/** How to set up one provider: its guide from the registry, written for an agent. */
+const guideLines = (provider: ProviderName) => {
+  const { label, category, guide } = providerSpec(provider)
   return [
-    `${spec.why}${provider ? ` Recommended: ${providerSpec(provider).label} (provider "${provider}"), ${spec.guide.url}.` : ''}`,
-    // The checklist's steps are written for the app ("Paste it here"); an agent asks for the key instead.
-    ...spec.guide.steps.map(line => line.replace(/^Paste (it|both) here/, 'Ask the admin to paste $1 to you')),
-    `Cost: ${spec.guide.cost}`,
-    ...(provider
-      ? [
-          `Store with provider_setKeys { provider: "${provider}", values: { <field>: <value> } } (fields: providers_list), then provider_setActive { category: "${spec.category}", provider: "${provider}" } if another one is picked, then provider_test.`,
-        ]
-      : []),
+    `${label} (provider "${provider}")${guide.url ? `, ${guide.url}` : ''}.`,
+    // The guides are written for the app ("Paste it here"); an agent asks for the key instead.
+    ...guide.steps.map(line => line.replace(/^Paste (it|both|them) here/, 'Ask the admin to paste $1 to you')),
+    `Cost: ${guide.cost}`,
+    `Store with provider_setKeys { provider: "${provider}", values: { <field>: <value> } } (fields: providers_list), then provider_setActive { category: "${category}", provider: "${provider}" } if another one is picked, then provider_test.`,
   ]
 }
+const callAudioLines = () => [
+  'LiveKit and its SIP bridge carry the call audio; they run on this server.',
+  ...callAudioGuide.steps,
+  `Cost: ${callAudioGuide.cost}`,
+  'If you cannot run commands on the server, tell the admin these steps.',
+]
 
 /** What the agent reads first and after every step. */
 async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean } = {}) {
-  const checklist = await setupChecklist(db)
-  const item = (id: SetupChecklistItem['id']) => checklist.items.find(i => i.id === id)!
-  const ai = (['stt', 'llm', 'tts'] as const).map(item)
-  const aiState: StepState = ai.every(i => i.state === 'ok')
-    ? 'done'
-    : ai.some(i => i.state === 'failing')
-      ? 'failing'
-      : 'todo'
+  const { groups } = await setupChecklist(db)
+  const group = (id: GroupStatus['id']) => groups.find(g => g.id === id)!
   const steps: Step[] = [
-    {
-      id: 'ai',
-      label: 'AI: speech, model and voice',
-      state: aiState,
-      detail: ai.map(i => `${i.label}: ${i.providerLabel ?? 'none'}${i.message ? ` (${i.message})` : ''}`).join('; '),
-      ...(aiState === 'done'
-        ? {}
-        : {
-            how: [
-              'Two ways; ask the admin which they prefer.',
-              `Simplest, one account: OpenAI (${oneKey.url}). ${oneKey.steps.slice(0, 2).join(' ')} Ask the admin to paste the key to you, then provider_connectOneKey { apiKey }. ${oneKey.cost} ${oneKey.caveat}`,
-              'Best voice and every feature, three accounts:',
-              ...guideLines('stt'),
-              ...guideLines('llm'),
-              ...guideLines('tts'),
-            ],
-          }),
-    },
-    installStep(item('telephony'), guideLines('telephony')),
-    installStep(item('email'), [
-      ...guideLines('email'),
-      'The setup tools cannot change email: walk the admin through the account, then ask them to paste the key in the app (app_links.providers → Email). Check it with provider_test.',
+    groupStep(
+      group('answering'),
+      [
+        'Two ways; ask the admin which they prefer.',
+        `Simplest, one account: OpenAI (${oneKey.url}). ${oneKey.steps.slice(0, 2).join(' ')} Ask the admin to paste the key to you, then provider_connectOneKey { apiKey }. ${oneKey.cost} ${oneKey.caveat}`,
+        'Best voice and every feature, three accounts (speech to text, language model, voice):',
+        ...guideLines(recommendedProviders.stt),
+        ...guideLines(recommendedProviders.llm),
+        ...guideLines(recommendedProviders.tts),
+      ],
+      'ai',
+    ),
+    groupStep(group('telephony'), guideLines(recommendedProviders.telephony)),
+    groupStep(group('email'), [
+      ...guideLines(recommendedProviders.email),
+      'The setup tools cannot change email: walk the admin through the account, then ask them to paste the key in the app (app_links.providers_email). Check it with provider_test.',
     ]),
-    installStep(item('livekit'), [
-      ...guideLines('livekit'),
-      'If you cannot run commands on the server, tell the admin these steps.',
-    ]),
+    groupStep(group('call-audio'), callAudioLines(), 'livekit'),
     ...(await workspaceSteps(actor, advance)),
   ]
   const next = steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
