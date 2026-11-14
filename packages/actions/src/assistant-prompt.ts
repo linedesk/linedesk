@@ -13,7 +13,6 @@ export const PRICE_RULE =
 /** What the call has: booking and transfer on or off; left out (the evaluation judges calls of any setup): both cases. */
 export type CallSetup = { booking?: boolean; transfer?: boolean }
 
-const BOOK = 'Appointments: follow the booking steps.'
 const ASK_TIMES = 'ask which day and time suit the caller, put that in the message and say the team will confirm.'
 
 /**
@@ -28,21 +27,24 @@ export const EMERGENCY_RULE =
   'Emergencies (danger to people, fire, a break-in, a gas smell): tell the caller to hang up and call 911 right away, before anything else.'
 
 export function callRules({ booking, transfer }: CallSetup = {}): string {
+  // With booking the booking section says how; without it, the times go into the message.
   const appointments =
     booking === undefined
       ? `Appointments: if you can book, follow the booking steps. If not, ${ASK_TIMES}`
       : booking
-        ? BOOK
+        ? null
         : `Appointments: ${ASK_TIMES}`
   const canTransfer = transfer !== false
   return [
-    'Find out why the person is calling.',
     EMERGENCY_RULE,
-    'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. Then tell the caller the team will get back to them.',
+    // take_message's result tells the assistant to say the team will get back to the caller.
+    'Take a message for every request you cannot handle yourself: a callback, a visit, a quote.',
     appointments,
     `If the caller asks for a specific person: ${canTransfer ? 'put them through if a transfer contact covers it, otherwise ' : ''}take a message for that person and say they will call back.`,
     'If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.',
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /**

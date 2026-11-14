@@ -20,7 +20,9 @@ test('the call rules: no number or known name asked, booking per setup, emergenc
 })
 
 test('the call rules hold only the cases of this call, and leave name, number, prices and promises to their own parts', () => {
-  expect(callRules({ booking: true })).toContain('Appointments: follow the booking steps.')
+  // With booking the booking section says how: no appointment line here.
+  expect(callRules({ booking: true })).not.toContain('Appointments:')
+  expect(callRules({ booking: true })).not.toMatch(/Find out why the person is calling|Then tell the caller the team will get back/)
   expect(callRules({ booking: false })).toContain('Appointments: ask which day and time suit the caller')
   expect(callRules()).toContain('Appointments: if you can book, follow the booking steps. If not,')
   expect(callRules({ transfer: false })).not.toMatch(/put (the caller|them) through/)
