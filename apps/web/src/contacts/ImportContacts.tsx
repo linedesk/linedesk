@@ -6,6 +6,7 @@
 import { CONTACT_IMPORT_MAX_ROWS, type ContactImportData, contactImport } from '@linedesk/actions'
 import { useMemo, useRef, useState } from 'react'
 import { formatPhone } from '../inbox-model.ts'
+import { CSV_TYPE, saveFile, toCsv } from '../insights/spreadsheet.ts'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
@@ -15,6 +16,8 @@ import {
   type ColumnMap,
   type CsvTable,
   decodeCsvFile,
+  EXAMPLE_CONTACTS,
+  EXAMPLE_FILE_NAME,
   fileSizeProblem,
   guessColumns,
   IMPORT_FIELDS,
@@ -149,7 +152,24 @@ export function ImportContacts({ onClose, toast }: Props) {
   return (
     <Dialog
       title="Import contacts"
-      description={file ? file.name : 'A CSV file; its first row names the columns.'}
+      description={
+        file ? (
+          file.name
+        ) : (
+          <>
+            A CSV file; its first row names the columns.{' '}
+            <button
+              type="button"
+              className="k-link"
+              title={`Download ${EXAMPLE_FILE_NAME}`}
+              onClick={() => saveFile(EXAMPLE_FILE_NAME, toCsv(EXAMPLE_CONTACTS), CSV_TYPE)}
+            >
+              Download an example
+            </button>
+            .
+          </>
+        )
+      }
       onClose={onClose}
       footer={
         <>

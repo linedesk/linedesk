@@ -1,6 +1,16 @@
 import type { Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { guessColumns, importPhone, parseCsv, planImport } from './csvImport.ts'
+import { toCsv } from '../insights/spreadsheet.ts'
+import {
+  decodeCsvFile,
+  EXAMPLE_CONTACTS,
+  guessColumns,
+  IMPORT_FIELDS,
+  importPhone,
+  parseCsv,
+  planImport,
+  tableOf,
+} from './csvImport.ts'
 
 const contact = (over: Partial<Contact>) =>
   ({ id: 'k', phone: '+15035550142', email: null, deleted_at: null, ...over }) as Contact
@@ -99,5 +109,37 @@ describe('importPhone', () => {
         '+1 555',
       ].map(importPhone),
     ).toEqual(['+15035550142', '+15035550142', '+15035550142', '+49301234567', '+442079460958', null, null])
+  })
+})
+
+describe('the example file', () => {
+  it('imports cleanly with the real importer: every column mapped, every row a contact', () => {
+    const decoded = decodeCsvFile(new TextEncoder().encode(toCsv(EXAMPLE_CONTACTS)))
+    if ('problem' in decoded) throw new Error(decoded.problem)
+    const table = tableOf(parseCsv(decoded.text))
+    if ('problem' in table) throw new Error(table.problem)
+    const columns = guessColumns(table.header)
+    expect(columns).toEqual(['name', 'phone', 'company', 'email', 'address', 'note'])
+    expect([...columns].sort()).toEqual([...IMPORT_FIELDS].sort())
+    const plan = planImport(table.data, columns, [], table.firstRow)
+    expect(plan).toMatchObject({ added: 4, matched: 0, unreadable: [], repeated: 0, deleted: 0, shortened: 0 })
+    expect(plan.rows).toEqual([
+      {
+        phone: '+15035550111',
+        name: 'Sam Patel',
+        company: 'Patel Dental',
+        email: 'sam@example.com',
+        address: '1200 SW Main St, Portland, OR 97205',
+      },
+      { phone: '+15035550122', name: 'Dana Brooks', email: 'dana.brooks@example.com', note: 'Prefers a text message' },
+      {
+        phone: '+15035550133',
+        name: 'Luis Ortega',
+        company: 'Ortega Builders',
+        address: '845 NE Alberta St, Portland, OR 97211',
+        note: 'Gate code 4512, ring twice',
+      },
+      { phone: '+15035550144', name: 'Grace Kim', email: 'grace.kim@example.com' },
+    ])
   })
 })

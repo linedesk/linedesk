@@ -3,6 +3,7 @@
 // is tested without a browser; the dialog (ImportContacts.tsx) shows the plan and sends it with contact.import.
 import { CONTACT_IMPORT_LIMITS } from '@linedesk/actions'
 import type { Contact } from '@linedesk/db/types'
+import type { Table } from '../insights/spreadsheet.ts'
 import { formatNumber, toE164 } from '../onboarding/flow.ts'
 
 export const IMPORT_FIELDS = ['phone', 'name', 'company', 'email', 'address', 'note'] as const
@@ -11,6 +12,28 @@ export type ImportField = (typeof IMPORT_FIELDS)[number]
 export type ColumnMap = (ImportField | 'skip')[]
 export type ImportRow = { phone: string } & Partial<Record<Exclude<ImportField, 'phone'>, string>>
 type TextField = Exclude<ImportField, 'phone'>
+
+/**
+ * The example file the dialog offers to download: one column per field, named as guessColumns maps it
+ * (a test imports it), fictional US contacts; an empty cell and a value with commas show how those look.
+ */
+export const EXAMPLE_FILE_NAME = 'linedesk-contacts-example.csv'
+export const EXAMPLE_CONTACTS: Table = {
+  header: ['Name', 'Phone', 'Company', 'Email', 'Address', 'Note'],
+  rows: [
+    ['Sam Patel', '+1 503 555 0111', 'Patel Dental', 'sam@example.com', '1200 SW Main St, Portland, OR 97205', ''],
+    ['Dana Brooks', '+1 503 555 0122', '', 'dana.brooks@example.com', '', 'Prefers a text message'],
+    [
+      'Luis Ortega',
+      '+1 503 555 0133',
+      'Ortega Builders',
+      '',
+      '845 NE Alberta St, Portland, OR 97211',
+      'Gate code 4512, ring twice',
+    ],
+    ['Grace Kim', '+1 503 555 0144', '', 'grace.kim@example.com', '', ''],
+  ],
+}
 
 /** Fields several columns can fill: the first readable number wins; name parts and address parts are joined. */
 export const MULTI_COLUMN_FIELDS: readonly (ImportField | 'skip')[] = ['phone', 'name', 'address']
