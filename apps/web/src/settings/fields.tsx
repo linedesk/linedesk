@@ -1,7 +1,7 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import { type ReactNode, useCallback, useState } from 'react'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
-import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
+import { Card, FormField, HelpTip, Input, Textarea } from '../ui/form.tsx'
 
 type SectionProps = {
   id: string
@@ -139,6 +139,8 @@ type SelectRowProps<T extends string> = {
   id: string
   title: string
   description?: string
+  /** More about the setting: a "?" next to the title. */
+  help?: string
   /** A quiet line under the description (e.g. what callers hear). */
   note?: ReactNode
   value: T
@@ -151,6 +153,7 @@ export function SelectRow<T extends string>({
   id,
   title,
   description,
+  help,
   note,
   value,
   options,
@@ -159,7 +162,10 @@ export function SelectRow<T extends string>({
   return (
     <div className="selrow">
       <div className="selrow-text">
-        <b>{title}</b>
+        <b>
+          {title}
+          {help && <HelpTip text={help} />}
+        </b>
         {description && <span className="help">{description}</span>}
         {note && <span className="help selrow-note">{note}</span>}
       </div>

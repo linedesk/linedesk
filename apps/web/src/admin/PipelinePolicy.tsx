@@ -12,7 +12,6 @@ import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { SelectRow } from '../settings/fields.tsx'
 import type { SelectOption } from '../ui/controls.tsx'
-import { HelpTip } from '../ui/form.tsx'
 import { runAdmin } from './api.ts'
 
 const POLICY = 'admin.voicePipelinePolicy'
@@ -57,7 +56,7 @@ export function PipelinePolicy({ onChanged }: { onChanged: () => Promise<void> }
         id="adm-pipeline-policy"
         title="Which one answers calls"
         description={descriptions[policy]}
-        note={<HelpTip text={HELP} />}
+        help={HELP}
         value={policy}
         options={options}
         onChange={next => void change(next)}
