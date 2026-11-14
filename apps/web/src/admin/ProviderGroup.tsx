@@ -22,6 +22,7 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
+import { PipelinePolicy } from './PipelinePolicy.tsx'
 import { ServerSet } from './ProviderDialog.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
 import { visibleProviders } from './providerList.ts'
@@ -39,6 +40,10 @@ const answeringWays: Partial<Record<ProviderCategory, string>> = {
   stt: 'Or three parts: speech to text, a language model and a voice',
 }
 
+/** A realtime model and all three parts are connected: there is a choice of which one answers. */
+const bothWaysSetUp = (data: AdminData) =>
+  (['realtime', 'stt', 'llm', 'tts'] as const).every(c => !!data.activeProviders[c]?.provider)
+
 /** A group's section on the page: `#admin/providers/<group>` scrolls here. */
 export const groupAnchor = (id: GroupStatus['id']) => `adm-group-${id}`
 
@@ -50,11 +55,16 @@ type Props = {
   onOpen: (provider: ProviderName) => void
   /** One key stored for Answering. */
   onOneKey: () => Promise<void>
+  /**
+   * Answering with both ways set up: who decides which one answers (PipelinePolicy); the status is read again after a
+   * change. Left out in the install walkthrough.
+   */
+  onPipelinePolicy?: () => Promise<void>
   /** In the install walkthrough: no heading of its own (the step has it). */
   embedded?: boolean
 }
 
-export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, embedded }: Props) {
+export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, onPipelinePolicy, embedded }: Props) {
   const providers = providersOfGroup(group.id)
   // Answering lists its categories one under the other: the realtime model, then the three stages.
   const categories = [...new Set(providers.map(p => providerSpec(p).category))]
@@ -77,6 +87,9 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
         </p>
       )}
       {note && <p className="help">{note}</p>}
+      {group.id === 'answering' && onPipelinePolicy && bothWaysSetUp(data) && (
+        <PipelinePolicy onChanged={onPipelinePolicy} />
+      )}
       {group.id === 'answering' && group.state === 'missing' && (
         <div className="adm-onekey-card">
           <OneKey disabled={!data.canStoreKeys} onDone={onOneKey} />

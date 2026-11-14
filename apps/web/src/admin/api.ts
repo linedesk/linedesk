@@ -17,6 +17,7 @@ import {
   type StatusInput,
   type StoredTest,
   type TryOutKind,
+  type VoicePipelinePolicy,
   providers as providerRegistry,
 } from '@linedesk/actions'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -253,6 +254,8 @@ type AdminInputs = {
   'invitation.resend': { invitationId: string }
   'voiceCloning.get': Record<string, never>
   'voiceCloning.set': { on: boolean }
+  'voicePipelinePolicy.get': Record<string, never>
+  'voicePipelinePolicy.set': { policy: VoicePipelinePolicy }
   'setupEmails.get': Record<string, never>
   'setupEmails.set': { on: boolean }
   'branding.set': BrandingInput

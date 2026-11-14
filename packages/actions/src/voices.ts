@@ -56,7 +56,11 @@ export type VoiceOptionsData = {
    * Missing from an API of an older version: false.
    */
   realtime?: boolean
-  /** Which pipelines can answer calls; an assistant picks one (`voice_pipeline`). Missing from an older API. */
+  /**
+   * Which pipelines this workspace's calls can be answered with: those set up, narrowed to the one the instance admin
+   * picked for every workspace (pipelinesAllowed). With both, the assistant picks one (`voice_pipeline`). Missing
+   * from an older API.
+   */
   pipelines?: PipelinesSetUp
   voices: readonly CuratedVoice[]
   clones: readonly ClonedVoice[]

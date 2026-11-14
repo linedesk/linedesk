@@ -9,6 +9,8 @@ import {
   type PipelinesSetUp,
   type ProviderCategory,
   type ProviderName,
+  VOICE_PIPELINE_POLICIES,
+  type VoicePipelinePolicy,
 } from '@linedesk/actions'
 import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
 import { telephonyProviderFromEnv, type TelephonyProvider } from '@linedesk/telephony'
@@ -236,6 +238,22 @@ export async function pipelinesSetUp(tx: Tx, env: Env = serverEnv()): Promise<Pi
   let three_stage = true
   for (const category of voiceCategories) three_stage &&= await set(category)
   return { realtime: await set('realtime'), three_stage }
+}
+
+const PIPELINE_POLICY_KEY = 'voice_pipeline.policy'
+
+/** Who decides how calls are answered (Admin › Providers): `choice` (each assistant, the default) or one for all. */
+export async function voicePipelinePolicy(tx: Tx): Promise<VoicePipelinePolicy> {
+  const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, PIPELINE_POLICY_KEY))
+  const value = row?.value as VoicePipelinePolicy | undefined
+  return value && VOICE_PIPELINE_POLICIES.includes(value) ? value : 'choice'
+}
+
+export async function setVoicePipelinePolicy(tx: Tx, policy: VoicePipelinePolicy, actorId: string, now: string) {
+  await tx
+    .insert(instance_settings)
+    .values({ key: PIPELINE_POLICY_KEY, value: policy, updated_at: now, updated_by: actorId })
+    .onConflictDoUpdate({ target: instance_settings.key, set: { value: policy, updated_at: now, updated_by: actorId } })
 }
 
 /**

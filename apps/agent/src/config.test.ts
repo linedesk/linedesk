@@ -254,9 +254,9 @@ describe('configForAssistant: the pipeline an assistant chose', () => {
   test('the chosen one not set up: the other answers, with a line in the log', () => {
     const log = vi.fn()
     expect(isRealtime(configForAssistant(realtimeOnly, 'three_stage', log))).toBe(true)
-    expect(log).toHaveBeenLastCalledWith('assistant set to "Three stages", which is not set up: "Realtime model" takes the call')
+    expect(log).toHaveBeenLastCalledWith('assistant set to "Speech to text, model and voice", which is not set up: "Realtime model" takes the call')
     expect(isRealtime(configForAssistant(stagesOnly, 'realtime', log))).toBe(false)
-    expect(log).toHaveBeenLastCalledWith('assistant set to "Realtime model", which is not set up: "Three stages" takes the call')
+    expect(log).toHaveBeenLastCalledWith('assistant set to "Realtime model", which is not set up: "Speech to text, model and voice" takes the call')
   })
 
   test('no choice: whatever is set up, without a log line', () => {

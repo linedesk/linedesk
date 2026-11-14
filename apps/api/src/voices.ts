@@ -16,12 +16,15 @@ import {
   isCuratedVoice,
   providerDefaultVoices,
   providerFailureText,
+  pipelinesAllowed,
   providerSpec,
   type ProviderName,
   providersIn,
   type VoiceCloneData,
   type VoiceCloningData,
   type VoiceOptionsData,
+  type VoicePipelinePolicy,
+  type VoicePipelinePolicyData,
   voiceId as voiceIdSchema,
 } from '@linedesk/actions'
 import { assistants, instance_settings, type Tx, voice_clones } from '@linedesk/db'
@@ -33,7 +36,13 @@ import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
 import { problemOfStatus } from './provider-errors.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
-import { activeProvider, pipelinesSetUp, resolveProvider } from './provider-settings.ts'
+import {
+  activeProvider,
+  pipelinesSetUp,
+  resolveProvider,
+  setVoicePipelinePolicy,
+  voicePipelinePolicy,
+} from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
 import {
   createVoiceProvider,
@@ -254,7 +263,8 @@ export const voiceHandlers: Record<string, Handler> = {
     const provider = active?.provider ?? null
     const clones = provider ? await clonesOf(tx, actor.workspaceId, provider) : []
     const fallback = await installDefaultVoice(tx)
-    const pipelines = await pipelinesSetUp(tx)
+    // Only what this workspace may use: the one the instance admin picked for all, or both to choose from.
+    const pipelines = pipelinesAllowed(await pipelinesSetUp(tx), await voicePipelinePolicy(tx))
     const data: VoiceOptionsData = {
       provider,
       realtime: pipelines.realtime,
@@ -309,6 +319,16 @@ export const voiceHandlers: Record<string, Handler> = {
       .values({ key: CLONING_KEY, value, updated_at: now, updated_by: actor.actorId })
       .onConflictDoUpdate({ target: instance_settings.key, set: { value, updated_at: now, updated_by: actor.actorId } })
     return { rows: {}, data: { on: input.on } satisfies VoiceCloningData }
+  },
+
+  'voicePipelinePolicy.get': async ({ tx }) => ({
+    rows: {},
+    data: { policy: await voicePipelinePolicy(tx) } satisfies VoicePipelinePolicyData,
+  }),
+
+  'voicePipelinePolicy.set': async ({ tx, actor, now }, input: { policy: VoicePipelinePolicy }) => {
+    await setVoicePipelinePolicy(tx, input.policy, actor.actorId, now)
+    return { rows: {}, data: { policy: input.policy } satisfies VoicePipelinePolicyData }
   },
 }
 

@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -28,7 +28,7 @@ import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
-import { telephonyProvider } from './provider-settings.ts'
+import { telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
@@ -266,9 +266,11 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
   const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
+  // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace.
+  const answeredBy = assistant && { ...assistant, voice_pipeline: pipelineChoiceUnder(await voicePipelinePolicy(tx), assistant.voice_pipeline) }
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: assistant ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups },
   }
 }
 

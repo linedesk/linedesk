@@ -231,10 +231,63 @@ export const VOICE_PIPELINES = ['realtime', 'three_stage'] as const
 export type VoicePipeline = (typeof VOICE_PIPELINES)[number]
 export const VOICE_PIPELINE_LABELS: Record<VoicePipeline, string> = {
   realtime: 'Realtime model',
-  three_stage: 'Three stages',
+  three_stage: 'Speech to text, model and voice',
+}
+/** What each pipeline does, in words for someone who has never heard of either. */
+export const VOICE_PIPELINE_DESCRIPTIONS: Record<VoicePipeline, string> = {
+  realtime:
+    "One AI model hears the caller and speaks its reply itself. The fastest, most natural conversation, in the model's own voice.",
+  three_stage:
+    "The caller's words are written out, a language model writes the reply, and the voice you pick reads it out. A moment slower, but you choose the voice.",
 }
 /** Which pipelines the install has set up. */
 export type PipelinesSetUp = Record<VoicePipeline, boolean>
+
+/**
+ * Who decides how calls are answered when both pipelines are set up (Admin › Providers): each assistant (`choice`,
+ * the default), or the instance admin for every workspace (`realtime`, `three_stage`).
+ */
+export const VOICE_PIPELINE_POLICIES = ['choice', 'realtime', 'three_stage'] as const
+export type VoicePipelinePolicy = (typeof VOICE_PIPELINE_POLICIES)[number]
+export const VOICE_PIPELINE_POLICY_LABELS: Record<VoicePipelinePolicy, string> = {
+  choice: 'Each workspace chooses',
+  realtime: `Always the ${VOICE_PIPELINE_LABELS.realtime.toLowerCase()}`,
+  three_stage: `Always ${VOICE_PIPELINE_LABELS.three_stage.toLowerCase()}`,
+}
+
+/** The pipeline an assistant asks for under the install's policy: its own choice only when workspaces may choose. */
+export const pipelineChoiceUnder = (
+  policy: VoicePipelinePolicy,
+  choice: VoicePipeline | null | undefined,
+): VoicePipeline | null => (policy === 'choice' ? (choice ?? null) : policy)
+
+/**
+ * The pipelines a workspace may use: all that are set up while workspaces choose, else only the one the admin picked.
+ * When that one is not set up, what is set up (a call never goes unanswered over the policy).
+ */
+export function pipelinesAllowed(setUp: PipelinesSetUp, policy: VoicePipelinePolicy): PipelinesSetUp {
+  if (policy === 'choice' || !setUp[policy]) return setUp
+  return { realtime: policy === 'realtime', three_stage: policy === 'three_stage' }
+}
+
+/** Who decides how calls are answered when both pipelines are set up: each assistant, or the admin for all. */
+export const voicePipelinePolicyGet = defineAction({
+  name: 'voicePipelinePolicy.get',
+  description:
+    'How calls are answered when both a realtime model and speech to text, a language model and a voice are set up: `choice` (each assistant chooses, the default), `realtime` or `three_stage` (every workspace uses that one).',
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+export const voicePipelinePolicySet = defineAction({
+  name: 'voicePipelinePolicy.set',
+  description:
+    'Set how calls are answered for every workspace of this install: `choice` (each assistant chooses under Settings › Assistant), `realtime` or `three_stage` (every assistant uses that one, whatever it chose). When the one picked is not set up, the other answers.',
+  input: z.object({ policy: z.enum(VOICE_PIPELINE_POLICIES) }),
+  permission: 'instance:admin',
+})
+/** `data` of `voicePipelinePolicy.get` and `voicePipelinePolicy.set`. */
+export type VoicePipelinePolicyData = { policy: VoicePipelinePolicy }
 
 /**
  * The pipeline that answers an assistant's calls: its choice (null: the install default, the realtime model when one

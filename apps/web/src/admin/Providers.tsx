@@ -189,6 +189,7 @@ export function Providers({ data, status, id, onClearId, notify, reload }: Props
               await reload()
               notify('Calls are answered with OpenAI now.')
             }}
+            onPipelinePolicy={reload}
           />
         ))}
       {open && (

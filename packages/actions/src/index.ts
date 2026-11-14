@@ -119,6 +119,8 @@ const all = [
   voices.voiceClone,
   voices.voiceCloningGet,
   voices.voiceCloningSet,
+  settings.voicePipelinePolicyGet,
+  settings.voicePipelinePolicySet,
   branding.brandingSet,
   settings.phoneNumberSetup,
   settings.phoneNumberListCarrierNumbers,

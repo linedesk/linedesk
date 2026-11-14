@@ -27,7 +27,7 @@ import { emailDelivery } from './auth-methods.ts'
 import { serverEnv } from './instance-env.ts'
 import { type LivekitStatus, livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
-import { type ProviderConfig, providerStatus, resolveProvider } from './provider-settings.ts'
+import { type ProviderConfig, providerStatus, resolveProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { hasSecretsKey, SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
@@ -153,8 +153,13 @@ function devCarrierMessage(facts: readonly ProviderFact[]) {
     : base
 }
 
-/** Each assistant's choice of how its calls are answered (null: the install default), across the install. */
+/**
+ * Each assistant's choice of how its calls are answered (null: the install default), across the install; the instance
+ * admin's pick instead while workspaces may not choose.
+ */
 async function assistantPipelines(tx: Tx): Promise<(VoicePipeline | null)[]> {
+  const policy = await voicePipelinePolicy(tx)
+  if (policy !== 'choice') return [policy]
   const rows = await tx.selectDistinct({ pipeline: assistants.voice_pipeline }).from(assistants)
   return rows.map(r => r.pipeline)
 }

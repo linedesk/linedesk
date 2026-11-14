@@ -6,6 +6,7 @@
 import {
   type PipelinesSetUp,
   pipelineFor,
+  VOICE_PIPELINE_DESCRIPTIONS,
   VOICE_PIPELINE_LABELS,
   type VoiceOptionsData,
   type VoicePipeline,
@@ -100,7 +101,7 @@ function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
     <Section id="as-voice" title="Voice">
       <span className="help">
         The realtime model speaks in its own voice, set by an instance admin under Admin, Providers.
-        {canSwitch && ' To pick a voice here, answer calls with three stages above.'}
+        {canSwitch && ` To pick a voice here, set Answered by above to ${VOICE_PIPELINE_LABELS.three_stage}.`}
       </span>
     </Section>
   )
@@ -110,54 +111,49 @@ const pipelineOptions: SelectOption<VoicePipeline>[] = [
   {
     value: 'realtime',
     label: VOICE_PIPELINE_LABELS.realtime,
-    description: 'One model listens and speaks: the fastest replies, in its own voice',
+    description: "Fastest and most natural, in the model's own voice",
   },
   {
     value: 'three_stage',
     label: VOICE_PIPELINE_LABELS.three_stage,
-    description: 'Speech to text, a language model and the voice you pick',
+    description: 'A moment slower, in the voice you pick below',
   },
 ]
 
 /**
- * Which pipelines the install has set up; null while not known, and from an API of an older version (during an
- * update), which only says whether a realtime model is connected: then nothing is said about the three stages.
+ * Which pipelines this workspace may use (voice.options: those set up, narrowed to the instance admin's pick); null
+ * while not known, and from an API of an older version (during an update), which only says whether a realtime model
+ * is connected: then nothing is said about them.
  */
 const pipelinesOf = (options: VoiceOptionsData | undefined): PipelinesSetUp | null => options?.pipelines ?? null
 
 /**
- * How the assistant's calls are answered: a choice when both pipelines are set up, else which one answers and why.
- * Nothing while it is not known yet.
+ * How the assistant's calls are answered: a choice only while the workspace may use both (the instance admin lets
+ * workspaces choose, Admin › Providers), a warning while neither is set up, else nothing: there is nothing to decide.
  */
 function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: PipelinesSetUp | null }) {
-  if (!setUp) return null
-  const used = pipelineFor(draft.voice_pipeline, setUp)
-  if (setUp.realtime && setUp.three_stage) {
+  if (!setUp || setUp.realtime !== setUp.three_stage) return null
+  if (!setUp.realtime) {
     return (
       <Section id="as-pipeline" title="Answering calls">
-        <SelectRow
-          id="as-pipeline-select"
-          title="Answered by"
-          description={
-            used === 'realtime'
-              ? "Fastest replies, in the realtime model's own voice"
-              : 'Speech to text, a language model and the voice below'
-          }
-          value={used}
-          options={pipelineOptions}
-          onChange={pipeline => set('voice_pipeline', pipeline)}
-        />
+        <span className="help">
+          Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model
+          and a voice, under Admin, Providers.
+        </span>
       </Section>
     )
   }
-  const other: VoicePipeline = used === 'realtime' ? 'three_stage' : 'realtime'
-  const text =
-    !setUp.realtime && !setUp.three_stage
-      ? 'Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model and a voice, under Admin, Providers.'
-      : `Calls are answered by the ${VOICE_PIPELINE_LABELS[used].toLowerCase()}, because the ${VOICE_PIPELINE_LABELS[other].toLowerCase()} ${other === 'realtime' ? 'is' : 'are'} not set up${draft.voice_pipeline === other ? ' (chosen for this assistant: used once set up)' : ''}. An instance admin sets ${other === 'realtime' ? 'it' : 'them'} up under Admin, Providers.`
+  const used = pipelineFor(draft.voice_pipeline, setUp)
   return (
     <Section id="as-pipeline" title="Answering calls">
-      <span className="help">{text}</span>
+      <SelectRow
+        id="as-pipeline-select"
+        title="Answered by"
+        description={VOICE_PIPELINE_DESCRIPTIONS[used]}
+        value={used}
+        options={pipelineOptions}
+        onChange={pipeline => set('voice_pipeline', pipeline)}
+      />
     </Section>
   )
 }

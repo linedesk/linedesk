@@ -1203,3 +1203,12 @@
 .adm-provway + .adm-provsub {
   margin-top: 4px;
 }
+
+/* Answering with both ways set up: which one answers calls (PipelinePolicy.tsx), above the two lists. */
+.adm-pipeline-policy {
+  margin: 8px 0 4px;
+}
+.adm-pipeline-policy > .selrow {
+  padding-top: 0;
+  border-top: 0;
+}
