@@ -1,7 +1,15 @@
 /* Contacts list. Loaded before styles.css (it comes in through the module graph), so rules carry
    three classes to win over the prototype's `.row:not(.cust-row)` and `.cust-row` rules. */
+/* Name · company · last call · calls · when, shared by the rows and the column headings
+   (ColumnHeads in ui/list.tsx, like the inbox's). */
+.ib-list.ct-list {
+  --ct-columns: minmax(120px, 200px) minmax(90px, 160px) minmax(0, 1fr) 56px 72px;
+}
+.row.cust-row.ct-row,
+.ib-list .ib-cols.ct-cols {
+  grid-template-columns: var(--ct-columns);
+}
 .row.cust-row.ct-row {
-  grid-template-columns: minmax(120px, 200px) minmax(90px, 160px) minmax(0, 1fr) 56px 72px;
   cursor: default;
 }
 .row.cust-row.ct-row .c-company,
@@ -12,9 +20,11 @@
 .row.cust-row.ct-row .r-name {
   color: var(--ink);
 }
+/* Every column, the count and the time included, starts at its left edge, under its heading. */
 .row.cust-row.ct-row .c-count,
 .row.cust-row.ct-row .c-last {
-  text-align: right;
+  text-align: left;
+  white-space: nowrap;
 }
 .row.cust-row.ct-row:hover .c-last,
 .row.cust-row.ct-row.is-cursor .c-last {
@@ -36,6 +46,7 @@
    is the list's own: no margin, else the rows jump right by half the panel's width. */
 @media (min-width: 720px) {
   .cust-main.has-rec .ib-list .row.cust-row.ct-row,
+  .cust-main.has-rec .ib-list .ib-cols.ct-cols,
   .cust-main.has-rec .ib-list .ib-day {
     width: auto;
     max-width: none;

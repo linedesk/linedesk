@@ -7,6 +7,7 @@ import { useContact } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'
 import { cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { ColumnHeads } from '../ui/list.tsx'
 import type { BulkActions } from './BulkBar.tsx'
 import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
 import { InboxZero } from './InboxZero.tsx'
@@ -82,8 +83,8 @@ function ListHead({
 }) {
   const all = bulk.count > 0 && bulk.count >= total
   const some = bulk.count > 0 && !all
-  return (
-    <div className="ib-cols" role="presentation" ref={ref}>
+  const lead = (
+    <>
       {/* Like a row's box: the click is handled here, so the box only shows the selection. */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: the checkbox inside is the control; its click (and Space) arrive here */}
       <span
@@ -106,12 +107,14 @@ function ListHead({
           <span className="ib-cols-all">{all ? 'All selected' : 'Select all'}</span>
         </Checkbox>
       </span>
-      <span aria-hidden="true">Time</span>
-      <span aria-hidden="true">Caller</span>
-      <span aria-hidden="true">Call</span>
-      <span aria-hidden="true">{(!searching && statusHeading[tab]) || 'Status'}</span>
-      <span aria-hidden="true">Duration</span>
-    </div>
+    </>
+  )
+  return (
+    <ColumnHeads
+      ref={ref}
+      lead={lead}
+      labels={['Time', 'Caller', 'Call', (!searching && statusHeading[tab]) || 'Status', 'Duration']}
+    />
   )
 }
 

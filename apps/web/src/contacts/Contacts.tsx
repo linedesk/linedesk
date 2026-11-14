@@ -6,6 +6,7 @@ import { callTitle } from '../inbox-model.ts'
 import { parseTs, timeLabel } from '../time.ts'
 import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LoadProblem, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
+import { ColumnHeads } from '../ui/list.tsx'
 import { ContactDetail } from './ContactDetail.tsx'
 import './contacts.css'
 import { ImportContacts } from './ImportContacts.tsx'
@@ -92,6 +93,9 @@ function Row({
     </div>
   )
 }
+
+/** One heading per cell of a row, in the row's order (name, company, last call, calls, when). */
+const CONTACT_COLUMNS = ['Name', 'Company', 'Last call', 'Calls', 'When'] as const
 
 function Empty({ query }: { query: string }) {
   return (
@@ -200,7 +204,8 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
               </Button>
             </div>
           )}
-          <div className="ib-list" ref={listRef} role="list" aria-label="Contacts">
+          <div className="ib-list ct-list" ref={listRef} role="list" aria-label="Contacts">
+            {rows.length > 0 && <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS} />}
             {rows.map(row => (
               <Row
                 key={row.contact.id}

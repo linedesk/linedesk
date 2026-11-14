@@ -2,7 +2,7 @@
 // one compact row per item (lead mark, title with a muted line, quiet status, actions at the right),
 // a one-line empty state, and a small menu for a row's or a section's less frequent actions.
 // Styles in list.css (k-list, k-row, k-menu).
-import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useRef, useState } from 'react'
 import { useAnchoredList } from './floating.ts'
 import { Button, cx } from './kit.tsx'
 import type { IconName } from './icons.ts'
@@ -46,6 +46,36 @@ export function ListRow({ lead, title, sub, aside, actions, below, off, classNam
       </div>
       {below}
     </li>
+  )
+}
+
+/**
+ * Column headings above a page's list of grid rows (inbox calls, contacts): muted, sticky while the
+ * list scrolls, on the rows' own grid (the list sets `grid-template-columns` for both; styles under
+ * `.ib-cols` in styles.css and app.css). Phones stack the rows, so the headings are hidden there.
+ * Screen readers skip them: each row already says what it is. `lead` sits in the rows' gutter, where
+ * their checkboxes are (the inbox's select-all box).
+ */
+export function ColumnHeads({
+  labels,
+  lead,
+  className,
+  ref,
+}: {
+  labels: readonly string[]
+  lead?: ReactNode
+  className?: string
+  ref?: Ref<HTMLDivElement>
+}) {
+  return (
+    <div className={cx('ib-cols', className)} role="presentation" ref={ref}>
+      {lead}
+      {labels.map(label => (
+        <span key={label} aria-hidden="true">
+          {label}
+        </span>
+      ))}
+    </div>
   )
 }
 
