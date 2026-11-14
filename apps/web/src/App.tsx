@@ -300,6 +300,7 @@ export function App() {
           leave()
           void refresh()
         }}
+        workspace={{ id: session.me.workspace!.id, account: session.me.actorId }}
       />
     )
   }

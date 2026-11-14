@@ -63,6 +63,7 @@ describe('audit labels', () => {
   test('API keys and webhooks', () => {
     expect(label('apiKey.create', { name: 'Zapier', role: 'member' })).toBe('Created API key “Zapier”')
     expect(label('apiKey.revoke', { apiKeyId: 'k' })).toBe('Revoked an API key')
+    expect(label('agentSetup.endOwnAccess', {})).toBe('AI agent ended its own setup link')
     // Only the host: a webhook URL's path or query can carry a bearer token.
     expect(label('webhook.create', { url: 'https://hooks.example.com/x?token=secret' })).toBe(
       'Added a webhook to hooks.example.com',

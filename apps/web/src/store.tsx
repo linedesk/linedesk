@@ -42,11 +42,14 @@ export function StoreProvider({
   workspaceId,
   account,
   readOnly,
+  fallback,
   children,
 }: {
   workspaceId: string
   account: string
   readOnly?: string
+  /** Shown while the store opens instead of the full-page loading line (a store opened for one control on a page). */
+  fallback?: ReactNode
   children: ReactNode
 }) {
   const [boot, setBoot] = useState<Boot>({ state: 'loading' })
@@ -110,7 +113,7 @@ export function StoreProvider({
       </div>
     )
   }
-  return <BootScreen line="Loading your calls…" />
+  return fallback ?? <BootScreen line="Loading your calls…" />
 }
 
 /** Empties this workspace's local copy (unsent changes stay) and reloads, so everything syncs fresh. */

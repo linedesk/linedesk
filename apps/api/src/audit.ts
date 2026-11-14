@@ -204,6 +204,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'agentSetup.confirmPasskey': 'integrations',
   'agentSetup.withdrawPasskey': 'integrations',
   'agentSetup.revoke': 'integrations',
+  // The agent ending its own setup link at the end of the setup (marked with the key, viaSetupKey).
+  'agentSetup.endOwnAccess': 'integrations',
 }
 
 /**

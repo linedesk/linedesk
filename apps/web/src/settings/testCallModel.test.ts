@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   AGENT_LEFT_GRACE_MS,
@@ -127,4 +128,12 @@ describe('watchPickup', () => {
     vi.advanceTimersByTime(TEST_CALL_TIMEOUT_MS)
     expect(on.noPickup).not.toHaveBeenCalled()
   })
+})
+
+test('the waiting lines of the test call panel are muted, not red: waiting is no error (Settings and the setup page)', () => {
+  const css = readFileSync(new URL('./test-call-panel.css', import.meta.url), 'utf8')
+  const start = css.indexOf('.tcp-wait {')
+  const rule = css.slice(start, css.indexOf('}', start))
+  expect(rule).toContain('color: var(--ink-muted)')
+  expect(rule).not.toContain('--danger')
 })

@@ -3,7 +3,7 @@
 import { mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useState } from 'react'
-import { staleGreetingName } from '../settings/assistantDraft.ts'
+import { ASSISTANT_NAME_MAX, staleGreetingName } from '../settings/assistantDraft.ts'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
@@ -45,7 +45,12 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const [message, setMessage] = useState<string | null>(null)
   const name = draft.name.trim()
   const changes = assistantChanges(assistant, draft)
-  const nameProblem = name ? null : 'Give your assistant a name.'
+  // The same limit as the server's (assistant.update) and Settings › Assistant.
+  const nameProblem = !name
+    ? 'Give your assistant a name.'
+    : name.length > ASSISTANT_NAME_MAX
+      ? `At most ${ASSISTANT_NAME_MAX} characters.`
+      : null
   const greetingProblem = draft.greeting.trim() ? null : 'The greeting cannot be empty.'
   const problem = nameProblem ?? greetingProblem
   // The greeting still names the saved name after a rename: saving renames it there; the hint says so and offers it now.

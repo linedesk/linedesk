@@ -171,6 +171,7 @@ describe('access', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'agentSetup.confirmPasskey',
       'agentSetup.createKey',
+      'agentSetup.endOwnAccess',
       'agentSetup.revoke',
       'agentSetup.withdrawPasskey',
       'branding.set',

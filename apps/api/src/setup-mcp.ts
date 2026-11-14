@@ -3,7 +3,7 @@
 // URL (/mcp/setup/<key>, for clients that cannot send headers: claude.ai, ChatGPT) or as Bearer. Stateless like /mcp.
 //
 // The tools: setup_status (what is done, the next step and how), providers_list, workspace_create, forwarding_guide,
-// and the registry actions in SETUP_ACTIONS, run through runAction as the admin (same permissions and command log,
+// setup_endAccess (the agent ends its own link at the end, agentSetup.endOwnAccess), and the registry actions in SETUP_ACTIONS, run through runAction as the admin (same permissions and command log,
 // marked as done with the setup key). Nothing else: no users, admins, other workspaces, API keys, impersonation or
 // deleting. Every provider key can be set here (LIN-182: the admin never pastes a key into the app); provider_setKeys
 // runs the free provider test right after saving and returns it, and answers with "set" and the last 4 of a secret,
@@ -39,9 +39,11 @@ import {
 import {
   agent_setup_keys,
   assistants,
+  calls,
   member,
   organization,
   phone_numbers,
+  transcript_segments,
   user,
   workspace_settings,
 } from '@linedesk/db'
@@ -244,7 +246,8 @@ const appLinks = () => {
     agent_setup: `${app}/#setup-agent`,
     providers: `${app}/#admin/providers`,
     ...groups,
-    test_call: `${app}/#assistant`,
+    // The test call is made on the setup page too ("Call <assistant> now" on its row), so the admin stays there.
+    test_call: `${app}/#setup-agent`,
     onboarding: `${app}/`,
   }
 }
@@ -398,20 +401,38 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
   if (advance && installPartDone(steps) && !(await readInstallProgress()).finishedAt)
     await runAction('install.setProgress', { finished: true }, actor)
   const next = steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
+  const waiting = steps.filter(s => s.state === 'admin_only')
   return {
     you_act_as: await whoAmI(actor),
     install: whereItRuns(),
-    // The next step's how-to, and the passkey's while the admin has none (it comes first; only they can add it).
-    steps: steps.map(({ how, ...s }) =>
-      s.id === next?.id || (s.id === 'passkey' && s.state !== 'done') ? { ...s, how } : s,
-    ),
+    // The next step's how-to, and those of the admin's own steps while open (the passkey, the test call).
+    steps: steps.map(({ how, ...s }) => (s.id === next?.id || s.state === 'admin_only' ? { ...s, how } : s)),
     next_step: next ? next.id : null,
     all_done: !next,
+    // How to finish, ending this setup link with setup_endAccess.
+    wrap_up: wrapUp(!next, waiting),
     // Whether provider_setKeys may store email and sign-in keys with this link now: the admin's Allow with passkey.
     email_and_sign_in_allowed: emailAndSignIn,
     optional: optionalSteps(groups, emailAndSignInNote(actor, emailAndSignIn)),
     app_links: appLinks(),
   }
+}
+
+/**
+ * How the agent finishes: a short summary, then setup_endAccess as its last call. With the test call still open, the
+ * admin makes it on the setup page first; with other steps open, the agent asks before ending its access.
+ */
+export function wrapUp(agentDone: boolean, waiting: readonly Pick<Step, 'id'>[]): string {
+  const end =
+    'then call setup_endAccess as your last call: this setup link stops working at once, and the setup page tells the admin you ended it.'
+  if (!agentDone)
+    return `Not finished yet. If you stop before every step is done, ask the admin first whether to end your access; if they agree, give a short summary of what is set up and what is left, ${end}`
+  const open = waiting.map(s => s.id)
+  if (open.includes('test_call'))
+    return `Your part is done. Ask the admin to make the test call now, right on the setup page (${webAddress()}/#setup-agent): the button on the Test call row calls the assistant with their microphone. Call setup_status { read_only: true } every ${ALLOW_POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
+  if (open.length)
+    return `Your part is done; only the admin can do what is still open (${open.join(', ')}). Give a short summary of what is set up and what is left for them, ask whether to end your access now, and if they agree, ${end}`
+  return `Everything is set up. Give the admin a short summary of what is set up and what is left for them (other workspaces, the optional steps), ${end}`
 }
 
 /** Where an OAuth app sends people back to: the same list as the provider's dialog (web ProviderLogo.tsx). */
@@ -501,7 +522,35 @@ export async function setupProgress(actor: Actor) {
     nextStep: status.next_step,
     allDone: status.all_done,
     otherWorkspaces: await otherWorkspaces(actor),
+    workspace: actor.workspaceId
+      ? { id: actor.workspaceId, assistantName: (await firstAssistant(actor.workspaceId))?.name ?? 'Maya' }
+      : null,
   }
+}
+
+/** The business's first assistant: the one the setup sets up and the test call talks to. */
+async function firstAssistant(workspaceId: string) {
+  const [assistant] = await db
+    .select()
+    .from(assistants)
+    .where(eq(assistants.workspace_id, workspaceId))
+    .orderBy(asc(assistants.created_at))
+    .limit(1)
+  return assistant
+}
+
+/**
+ * Whether the business's assistant answered a browser test call (the voice agent files it with source "test"): it said
+ * something. A test call the agent could not answer (providers not set up: a missed call) does not count.
+ */
+async function testCallMade(workspaceId: string): Promise<boolean> {
+  const [call] = await db
+    .select({ id: calls.id })
+    .from(calls)
+    .innerJoin(transcript_segments, eq(transcript_segments.call_id, calls.id))
+    .where(and(eq(calls.workspace_id, workspaceId), eq(calls.source, 'test'), eq(transcript_segments.speaker, 'agent')))
+    .limit(1)
+  return Boolean(call)
 }
 
 /** The admin's businesses besides the one the setup works in (oldest first): shown under "Your business". */
@@ -553,12 +602,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const workspaceId = actor.workspaceId
   const [ws] = await db.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
   const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
-  const [assistant] = await db
-    .select()
-    .from(assistants)
-    .where(eq(assistants.workspace_id, workspaceId))
-    .orderBy(asc(assistants.created_at))
-    .limit(1)
+  const assistant = await firstAssistant(workspaceId)
   const numbers = await db
     .select({ id: phone_numbers.id, e164: phone_numbers.e164, mode: phone_numbers.mode })
     .from(phone_numbers)
@@ -613,9 +657,10 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       id: 'assistant',
       label: 'The assistant: name, greeting, voice',
       state: done(assistantDone),
-      detail: assistant ? `${assistant.name}: "${assistant.greeting}"` : null,
+      detail: assistant ? `${JSON.stringify(assistant.name)}: ${JSON.stringify(assistant.greeting)}` : null,
       how: [
-        `It is called ${assistant?.name ?? 'Maya'} and greets with "${assistant?.greeting ?? ''}". Ask whether to keep that; change it with assistant_update.`,
+        // Quoted: the name and greeting are a member's text, put into the agent's instructions as data.
+        `It is called ${JSON.stringify(assistant?.name ?? 'Maya')} and greets with ${JSON.stringify(assistant?.greeting ?? '')}. Ask whether to keep that; change it with assistant_update.`,
         'Then onboarding_setStep { step: "pickup" }.',
       ],
     },
@@ -660,6 +705,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
             how: [
               `Ask for the business line's carrier, then forwarding_guide { carrier, mode: "${forwarding.mode}" } for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
               `After the admin dialed them: phoneNumber_checkForwarding { phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck every few seconds while it says dialing.`,
+              `The admin can also do all of it on the setup page (${webAddress()}/#setup-agent): "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`,
             ],
           } satisfies StepBase,
         ]
@@ -667,9 +713,12 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
     {
       id: 'test_call',
       label: 'Hear the assistant',
-      state: golive.firstRealCall ? 'done' : 'admin_only',
+      // Done once the admin talked to the assistant (a browser test call, from the setup page or the app) or a real
+      // caller got through. Only the admin can do it: they talk.
+      state: golive.firstRealCall || (await testCallMade(workspaceId)) ? 'done' : 'admin_only',
       how: [
-        `The admin talks to the assistant in the browser (${appLinks().test_call} → Start test call) or calls the number from another phone.`,
+        `Only the admin can do this: they talk to the assistant. Ask them to stay on the setup page (${webAddress()}/#setup-agent) and click ${JSON.stringify(`Call ${assistant?.name ?? 'Maya'} now`)} on the Test call row: it calls the assistant with their microphone, right there, and the step is done once the assistant answered.${numbers[0] ? ` Or they call ${numbers[0].e164} from another phone.` : ''}`,
+        `Call setup_status { read_only: true } every ${ALLOW_POLL_SECONDS} seconds or when they say they talked to it, until test_call is done.`,
       ],
     },
   ]
@@ -797,6 +846,26 @@ function registerTools(server: McpServer, actor: Actor, from: RequestOrigin) {
             name: guide.name,
             instructions: forwardingInstructions(guide, mode as ForwardingMode, number.e164),
           })),
+        })
+      }),
+  )
+  server.registerTool(
+    'setup_endAccess',
+    {
+      description:
+        'End your access at the end of the setup: the setup link you are using stops working at once (only this one; with its permission for email and sign-in). Call it last, after your summary to the admin. setup_status.wrap_up says when; with steps still open, ask the admin first. Every later call with this link is refused. The admin can make a new link at any time.',
+      inputSchema: z.object({}),
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async () =>
+      guard('setup_endAccess', async () => {
+        const { body } = await runAction('agentSetup.endOwnAccess', {}, actor)
+        if (!body.ok) return refusal(body.error)
+        return answer({
+          ok: true,
+          ended: true,
+          message:
+            'Your access has ended: this setup link no longer works. The setup page tells the admin; they can make a new link at any time. Tell them in one line that you ended it.',
         })
       }),
   )

@@ -3,6 +3,8 @@
 // setup key and does the setup with them; this page makes the key, says how to connect each agent, gives the prompt,
 // and shows the agent's progress as it works. Setting up by hand stays one small link away.
 // Step 1 is the admin's passkey (agent-setup-passkey.ts): only they can add it, on this device, so it comes first.
+// Every step the admin does themselves is finished here, never sent into the app: the passkey, the call forwarding and
+// the test call (SetupRowActions.tsx). The agent ends its own access at the end; the page then says when.
 import {
   AGENT_SETUP_HASH,
   type AgentClient,
@@ -23,7 +25,7 @@ import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { SETUP_LINK_KEY } from '../localData.ts'
-import { untilLabel } from '../time.ts'
+import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import {
@@ -37,6 +39,7 @@ import { AgentPicker } from './AgentPicker.tsx'
 import { AllowDialog, AllowedNote, AllowRequestNote, useAllow } from './AllowEmailAndSignIn.tsx'
 import { installPartsMissing, passkeyStepOf, withPasskeyAdded } from './agent-setup-passkey.ts'
 import { CopyButton } from './Frame.tsx'
+import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
 import './agent-setup.css'
 
@@ -103,9 +106,14 @@ type Props = {
   onDone: () => void
   /** Called once the agent has created the admin's business (the page around this one needs a workspace to go on). */
   onWorkspaceReady?: () => void
+  /**
+   * The workspace this tab works in, once there is one: the test call and the forwarding check run in it, right on
+   * this page, when it is the one the setup is about.
+   */
+  workspace?: SetupWorkspace
 }
 
-export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
+export function AgentSetup({ onManual, onDone, onWorkspaceReady, workspace }: Props) {
   const [state, setState] = useState<AgentSetupState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [created, setShown] = useState<AgentSetupKeyCreated | null>(stillShown)
@@ -345,6 +353,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
                 </>
               ) : (
                 <div className="as-step">
+                  {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
                   <div>
                     <Button
                       variant={linkFirst ? 'primary' : 'secondary'}
@@ -386,6 +395,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady }: Props) {
           connected={connected}
           onDone={onDone}
           passkey={passkey}
+          workspace={workspace}
+          reload={load}
         />
 
         <div className="as-foot">
@@ -440,15 +451,29 @@ function Progress({
   connected,
   onDone,
   passkey,
+  workspace,
+  reload,
 }: {
   state: AgentSetupState | null
   loadError: string | null
   connected: boolean
   onDone: () => void
   passkey: PasskeyHere
+  workspace?: SetupWorkspace
+  reload: () => Promise<void>
 }) {
+  // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
+  const [calledHere, setCalledHere] = useState(false)
+  const onCalled = useCallback(() => {
+    setCalledHere(true)
+    void reload()
+  }, [reload])
   if (!state) return loadError ? <Note tone="danger">{loadError}</Note> : null
-  const { steps, allDone } = state.progress
+  const { allDone } = state.progress
+  const steps = withTestCallMade(state.progress.steps, calledHere)
+  // The setup's business, when this tab works in it: its own steps are done right here.
+  const business = state.progress.workspace
+  const here = business && workspace?.id === business.id ? workspace : null
   const done = steps.filter(s => s.state === 'done').length
   return (
     <section className="as-card as-progress" aria-label="Setup progress" aria-live="polite">
@@ -489,13 +514,15 @@ function Progress({
                     {step.hint && <span className="as-hint"> · {step.hint}</span>}
                   </span>
                   {step.state === 'failing' && <span className="as-small">failing</span>}
-                  {step.id === 'passkey' && step.state !== 'done' ? (
-                    <span className="as-item-action">
-                      <AddPasskeyButton passkey={passkey} from="list" size="sm" />
-                    </span>
-                  ) : (
-                    step.state === 'admin_only' && <span className="as-small">do this in the app</span>
-                  )}
+                  <StepAction
+                    step={step}
+                    passkey={passkey}
+                    workspace={here}
+                    hasBusiness={Boolean(business)}
+                    assistantName={business?.assistantName ?? 'your assistant'}
+                    onCalled={onCalled}
+                    reload={reload}
+                  />
                 </li>
                 {step.id === 'passkey' && step.state !== 'done' && <PasskeyProblem passkey={passkey} from="list" />}
               </Fragment>
@@ -513,6 +540,76 @@ function Progress({
       )}
     </section>
   )
+}
+
+/** The agent ended its own access at the end of the setup (setup_endAccess): when, in this browser's time. */
+export function AgentEndedNote({ at }: { at: string }) {
+  return (
+    <span className="as-small" role="status">
+      Your agent ended its access at {dateTimeLabel(new Date(at))}. Create a new link any time to let it in again.
+    </span>
+  )
+}
+
+/** A test call answered here a moment ago: the step is done before the next read of the progress says so. */
+export function withTestCallMade<S extends { id: string; state: string }>(
+  steps: readonly S[],
+  calledHere: boolean,
+): S[] {
+  return steps.map(s => (calledHere && s.id === 'test_call' ? { ...s, state: 'done' } : s))
+}
+
+/**
+ * How the admin finishes a step on this page (never "do this in the app"): the passkey, the call forwarding (the
+ * agent can also run it) and the test call. Steps the agent does have none.
+ */
+export function StepAction({
+  step,
+  passkey,
+  workspace,
+  hasBusiness,
+  assistantName,
+  onCalled,
+  reload,
+}: {
+  step: AgentSetupState['progress']['steps'][number]
+  passkey: PasskeyHere
+  /** The setup's business, when this tab works in it; null otherwise. */
+  workspace: SetupWorkspace | null
+  hasBusiness: boolean
+  assistantName: string
+  onCalled: () => void
+  reload: () => Promise<void>
+}) {
+  if (step.id === 'passkey')
+    return step.state === 'done' ? null : (
+      <span className="as-item-action">
+        <AddPasskeyButton passkey={passkey} from="list" size="sm" />
+      </span>
+    )
+  if (step.id === 'test_call')
+    // Also once done ("Call again"), so a call in progress keeps its panel when the row turns done.
+    return workspace ? (
+      <span className="as-item-action">
+        <SetupTestCall
+          workspace={workspace}
+          assistantName={assistantName}
+          done={step.state === 'done'}
+          onCalled={onCalled}
+        />
+      </span>
+    ) : step.state === 'done' ? null : (
+      <span className="as-small">
+        {hasBusiness ? 'here, from the tab of your first workspace' : 'here, once your business is set up'}
+      </span>
+    )
+  if (step.id === 'forwarding' && step.state !== 'done' && workspace)
+    return (
+      <span className="as-item-action">
+        <SetupForwarding workspace={workspace} onClosed={() => void reload()} />
+      </span>
+    )
+  return null
 }
 
 /** One command or link per agent where it can connect itself (it carries the prompt); the prompt to copy where pasting it is the way in. */

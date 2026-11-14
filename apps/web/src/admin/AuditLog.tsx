@@ -123,6 +123,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return 'Removed a webhook'
     case 'webhook.test':
       return 'Sent a test to a webhook'
+    case 'agentSetup.endOwnAccess':
+      return 'AI agent ended its own setup link'
     default:
       return e.what
   }

@@ -970,6 +970,8 @@ export const provider_settings = pgTable(
 export type SetupKeyEndReason =
   | 'replaced'
   | 'ended_by_admin'
+  /** The agent ended its own link at the end of the setup (agentSetup.endOwnAccess). */
+  | 'ended_by_agent'
   | 'passkeys_reset'
   | 'account_disabled'
   | 'password_reset'

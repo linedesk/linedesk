@@ -11,7 +11,8 @@
 // disabling them or ending all their sessions revokes their keys (passkey-enrolment.ts revokeSetupKeysOf); a code for
 // the admin's first passkey (user.issuePasskeyEnrolment, user:passkeys --enrol) does not. A revoked or expired key's
 // row and hash stay: an agent still using it gets 401 SETUP_KEY_ENDED with a coarse reason (setupKeyAccess), which
-// does not count towards the address's limit on unknown keys. Removing the admin role ends them too.
+// does not count towards the address's limit on unknown keys. Removing the admin role ends them too. At the end of the
+// setup the agent ends its own key (agentSetup.endOwnAccess, setup MCP setup_endAccess): that key only, nothing else.
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AgentSetupAllowRequest,
@@ -100,12 +101,15 @@ export async function setupActor(
 
 /** Answered for a key that existed and ended; `reason` never says more than the key's holder could already know. */
 export const SETUP_KEY_ENDED = 'SETUP_KEY_ENDED'
-export type SetupKeyEndedReason = 'replaced' | 'expired' | 'ended'
+export type SetupKeyEndedReason = 'replaced' | 'expired' | 'ended' | 'ended_by_agent'
 
 const endedMessages: Record<SetupKeyEndedReason, string> = {
   replaced:
     'This setup link was replaced: the admin made a newer one, and only the newest works. Ask the admin for the new link.',
   ended: 'This setup link was ended and no longer works. Ask the admin for a new one (Linedesk, Set up with an agent).',
+  // Only the key's holder ended it this way (agentSetup.endOwnAccess), so saying so tells it nothing new.
+  ended_by_agent:
+    'You ended this setup link yourself (setup_endAccess), so it no longer works. If the admin wants more changes, they make a new link (Linedesk, Set up with an agent).',
   expired: `This setup link expired (a link works for ${SETUP_KEY_HOURS} hours). Ask the admin for a new one (Linedesk, Set up with an agent).`,
 }
 export const setupKeyEndedMessage = (reason: SetupKeyEndedReason) => endedMessages[reason]
@@ -148,7 +152,7 @@ export async function setupKeyAccess(key: string, ip: string | null): Promise<Se
     .where(eq(agent_setup_keys.key_hash, hashSetupKey(key)))
   if (!row) return unknown()
   if (!allowRequest(row.id)) return { kind: 'limited' }
-  if (row.revoked_at) return { kind: 'ended', reason: row.ended_reason === 'replaced' ? 'replaced' : 'ended' }
+  if (row.revoked_at) return { kind: 'ended', reason: shownEndReason(row.ended_reason) }
   const now = new Date().toISOString()
   if (new Date(row.expires_at).getTime() <= Date.parse(now)) return { kind: 'ended', reason: 'expired' }
   const actor = await setupActor(row.created_by, row.id, row.passkey_confirmed_until)
@@ -161,6 +165,10 @@ export async function setupKeyAccess(key: string, ip: string | null): Promise<Se
       .catch(e => console.error(`could not note the use of setup key ${row.id}: ${e instanceof Error ? e.message : e}`))
   return { kind: 'ok', actor }
 }
+
+/** What an ended key's holder is told: replaced, ended by itself, or a plain `ended` for everything else. */
+const shownEndReason = (reason: string | null): SetupKeyEndedReason =>
+  reason === 'replaced' ? 'replaced' : reason === 'ended_by_agent' ? 'ended_by_agent' : 'ended'
 
 /** Only a signed-in admin hands out a setup key: never a key, an agent or an admin signed in as someone else. */
 function refuseNonPerson(actor: Actor) {
@@ -187,6 +195,9 @@ async function grantFrom(tx: Tx, actor: Actor, keyExpiresAt: string, now: string
   const until = at.getTime() + PASSKEY_CONFIRM_HOURS * 3_600_000
   return { passkey_confirmed_until: new Date(Math.min(until, Date.parse(keyExpiresAt))).toISOString() }
 }
+
+const NOT_WORKING_KEY =
+  'That setup link is not your working one: it ended, expired or is not yours. Nothing was allowed; open the newest link from your agent.'
 
 export const agentSetupHandlers: Record<string, Handler> = {
   'agentSetup.createKey': async ({ tx, actor, now }) => {
@@ -238,10 +249,7 @@ export const agentSetupHandlers: Record<string, Handler> = {
           gt(agent_setup_keys.expires_at, now),
         ),
       )
-    if (!key)
-      throw new Reject(
-        'That setup link is not your working one: it ended, expired or is not yours. Nothing was allowed; open the newest link from your agent.',
-      )
+    if (!key) throw new Reject(NOT_WORKING_KEY)
     const expiresAt = new Date(key.expires_at).toISOString()
     // Checked before the handler too (run-action.ts); here once more, so no other way in skips it. One passkey sign-in
     // gives one grant: Withdraw and Allow again needs a new passkey prompt.
@@ -249,11 +257,16 @@ export const agentSetupHandlers: Record<string, Handler> = {
       ? await grantFrom(tx, actor, expiresAt, now)
       : { passkey_confirmed_until: expiresAt }
     if (!grant) throw new Forbidden('Confirm with your passkey to do this.')
-    // The request it allows is answered.
-    await tx
+    // The request it allows is answered. The key must still be working when the grant lands: ended meanwhile (the
+    // agent's setup_endAccess, End access, a newer link) leaves the ended row without a grant, and nothing is allowed.
+    const [allowed] = await tx
       .update(agent_setup_keys)
       .set({ ...grant, allow_request: null })
-      .where(eq(agent_setup_keys.id, key.id))
+      .where(
+        and(eq(agent_setup_keys.id, key.id), isNull(agent_setup_keys.revoked_at), gt(agent_setup_keys.expires_at, now)),
+      )
+      .returning({ id: agent_setup_keys.id })
+    if (!allowed) throw new Reject(NOT_WORKING_KEY)
     return { rows: {}, data: { keyId: key.id, emailAndSignInUntil: grant.passkey_confirmed_until } }
   },
 
@@ -276,6 +289,27 @@ export const agentSetupHandlers: Record<string, Handler> = {
       .where(and(eq(agent_setup_keys.created_by, actor.actorId), isNull(agent_setup_keys.revoked_at)))
       .returning({ id: agent_setup_keys.id })
     return { rows: {}, data: { ended: ended.length } }
+  },
+
+  // The agent at the end of the setup (setup MCP setup_endAccess): only the key it calls with, never another key of the
+  // admin's (a newer one made meanwhile keeps working), and its email and sign-in grant with it. Nobody else may: a
+  // person signed in ends access with agentSetup.revoke. The command log keeps it with the key (audit log).
+  'agentSetup.endOwnAccess': async ({ tx, actor, now }) => {
+    if (!actor.setupKeyId || actor.apiKeyId || actor.callId || actor.impersonation)
+      throw new Forbidden('Only an AI agent ends its own setup link this way. To end agent access, use End access.')
+    const [ended] = await tx
+      .update(agent_setup_keys)
+      .set({ revoked_at: now, ended_reason: 'ended_by_agent', passkey_confirmed_until: null, allow_request: null })
+      .where(
+        and(
+          eq(agent_setup_keys.id, actor.setupKeyId),
+          eq(agent_setup_keys.created_by, actor.actorId),
+          isNull(agent_setup_keys.revoked_at),
+        ),
+      )
+      .returning({ id: agent_setup_keys.id, prefix: agent_setup_keys.prefix })
+    if (!ended) throw new Reject('This setup link has already ended.')
+    return { rows: {}, data: { ended: ended.prefix, at: now } }
   },
 }
 
@@ -300,6 +334,7 @@ export async function agentSetupState(userId: string): Promise<Omit<AgentSetupSt
   return {
     mcpUrl: setupMcpUrl(),
     reachableFromCloud: reachableFromCloud(webAddress()),
+    endedByAgentAt: row ? null : await endedByAgentAt(userId),
     key: row
       ? {
           id: row.id,
@@ -320,6 +355,19 @@ export async function agentSetupState(userId: string): Promise<Omit<AgentSetupSt
         }
       : null,
   }
+}
+
+/** When the agent ended the admin's newest setup link itself, in the last 24 hours; null otherwise (agentSetupState). */
+async function endedByAgentAt(userId: string): Promise<string | null> {
+  const [newest] = await db
+    .select({ reason: agent_setup_keys.ended_reason, at: agent_setup_keys.revoked_at })
+    .from(agent_setup_keys)
+    .where(eq(agent_setup_keys.created_by, userId))
+    .orderBy(desc(agent_setup_keys.created_at))
+    .limit(1)
+  if (newest?.reason !== 'ended_by_agent' || !newest.at) return null
+  const at = new Date(newest.at)
+  return Date.now() - at.getTime() < SETUP_KEY_HOURS * 3_600_000 ? at.toISOString() : null
 }
 
 /** Where a setup MCP request came from, as the server saw it: shown to the admin with a request that waits for Allow. */

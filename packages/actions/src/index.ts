@@ -182,6 +182,7 @@ const all = [
   installSetup.providerConfirmEmail,
   agentSetup.agentSetupCreateKey,
   agentSetup.agentSetupRevoke,
+  agentSetup.agentSetupEndOwnAccess,
   agentSetup.agentSetupConfirmPasskey,
   agentSetup.agentSetupWithdrawPasskey,
   admin.providerSetKeys,

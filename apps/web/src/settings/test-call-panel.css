@@ -59,8 +59,14 @@
   align-content: start;
   gap: 8px;
 }
+/* Waiting (connecting, the assistant answering, the summary): a muted line with its spinner, never red. */
 .tcp-wait {
-  color: var(--danger);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
 }
 .tcp-f {
   display: flex;

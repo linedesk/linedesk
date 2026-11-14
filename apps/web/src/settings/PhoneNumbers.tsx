@@ -230,8 +230,11 @@ type ManageProps = {
   onClose: () => void
 }
 
-/** Everything about one number: how it is used, who answers it, the forwarding codes, and disconnecting it. */
-function ManageNumber({ number, assistants, canEdit, release = false, onClose }: ManageProps) {
+/**
+ * Everything about one number: how it is used, who answers it, the forwarding codes, and disconnecting it. Also opened
+ * from the agent setup page's Call forwarding row (onboarding/SetupRowActions.tsx).
+ */
+export function ManageNumber({ number, assistants, canEdit, release = false, onClose }: ManageProps) {
   const run = useRun()
   const [releasing, setReleasing] = useState(canEdit && release)
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
