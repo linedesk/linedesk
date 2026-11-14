@@ -536,7 +536,7 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
   const props = account ? { account, reload } : null
   return (
     <div className="page">
-      <SettingsLayout page="account" title="Account" sections={shown} current={current}>
+      <SettingsLayout page="account" title="Account settings" sections={shown} current={current}>
         {!props &&
           current !== 'notifications' &&
           (query.error ? (

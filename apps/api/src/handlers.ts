@@ -252,7 +252,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
-  // The business's time zone (Settings › Assistant › Advanced): the assistant is told the date and time in it.
+  // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
   const [zone] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
   const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })

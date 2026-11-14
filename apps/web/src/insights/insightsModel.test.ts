@@ -2,6 +2,8 @@ import type { InsightDay } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
   busiestTime,
+  CURRENCY_OPTIONS,
+  currencyLabel,
   formatMoney,
   parseMoney,
   change,
@@ -121,6 +123,17 @@ test('money is shown in the appointment value currency, in whole units', () => {
   expect(formatMoney(35_000, 'CHF')).toBe('CHF\u00a0350')
   expect(parseMoney('€1,250.50')).toBe(125_050)
   expect(parseMoney('£90')).toBe(9_000)
+})
+
+test('the currency menu shows each code with its symbol, the code alone where the symbol is the code', () => {
+  expect(currencyLabel('USD')).toBe('USD · $')
+  expect(currencyLabel('EUR')).toBe('EUR · €')
+  expect(currencyLabel('GBP')).toBe('GBP · £')
+  expect(currencyLabel('CAD')).toBe('CAD · CA$')
+  expect(currencyLabel('AUD')).toBe('AUD · A$')
+  expect(currencyLabel('CHF')).toBe('CHF')
+  expect(CURRENCY_OPTIONS.map(o => o.value)).toEqual(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF'])
+  expect(CURRENCY_OPTIONS[0]).toEqual({ value: 'USD', label: 'USD · $' })
 })
 
 test('the totals table names the currency of the value', () => {

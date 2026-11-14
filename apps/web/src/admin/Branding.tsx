@@ -100,7 +100,7 @@ function LogoField({
     <FormField
       id="brand-logo"
       label="Logo"
-      description={`Square works best. Shown in the menu, on the sign-in page, as the browser and app icon and in emails. Saved as a PNG of at most ${LOGO_SIZE}×${LOGO_SIZE} pixels.`}
+      description={`Square works best. Shown on the sign-in page and while the app loads, as the browser tab and app icon, and next to the name in emails. Saved as a PNG of at most ${LOGO_SIZE}×${LOGO_SIZE} pixels.`}
       error={problem}
     >
       <div className="adm-brand-logo">
@@ -170,7 +170,7 @@ function ColorField({ text, onChange }: { text: string; onChange: (text: string)
   )
 }
 
-/** How the menu and a primary button look with the draft. */
+/** How the logo next to the name (as at the top of emails) and a primary button look with the draft. */
 function Preview({ draft, saved }: { draft: Draft; saved: Branding }) {
   const logo = draft.logo === undefined ? saved.logoUrl : draft.logo
   const color = parsedColor(draft.color) ?? DEFAULT_COLOR

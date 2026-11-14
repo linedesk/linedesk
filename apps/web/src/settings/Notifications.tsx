@@ -1,4 +1,4 @@
-// Account › Notifications: your own new-call notifications in this workspace (email per call, and one switch for
+// Account settings › Notifications: your own new-call notifications in this workspace (email per call, and one switch for
 // notifications on this device: push where the browser and server can, else while Linedesk is open). The device
 // switch asks for the browser's permission itself. NotificationDefaults: for owners and admins, the email default for
 // teammates who never changed theirs (at the end of Workspace settings › Team).
@@ -271,7 +271,7 @@ export function NotificationDefaults({ toast }: { toast: (text: string) => void 
         />
       </div>
       <p className="help">
-        Your own notifications: <a href={OWN_NOTIFICATIONS_HASH}>Account › Notifications</a>
+        Your own notifications: <a href={OWN_NOTIFICATIONS_HASH}>Account settings › Notifications</a>
       </p>
     </Section>
   )

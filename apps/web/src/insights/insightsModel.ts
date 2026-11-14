@@ -206,8 +206,19 @@ export const formatMoney = (cents: number, currency: JobValueCurrency = 'USD') =
     Math.round(cents / 100),
   )
 
+/**
+ * A currency in the menu: its code and symbol ("USD · $", "EUR · €", "CAD · CA$"), the symbol as formatMoney
+ * writes it; just the code where the symbol is the code ("CHF").
+ */
+export function currencyLabel(currency: JobValueCurrency): string {
+  const symbol = new Intl.NumberFormat('en-US', { style: 'currency', currency })
+    .formatToParts(0)
+    .find(p => p.type === 'currency')?.value
+  return symbol && symbol !== currency ? `${currency} · ${symbol}` : currency
+}
+
 /** The currencies offered next to the appointment value, in the order of the menu. */
-export const CURRENCY_OPTIONS = jobValueCurrencies.map(c => ({ value: c, label: c }))
+export const CURRENCY_OPTIONS = jobValueCurrencies.map(c => ({ value: c, label: currencyLabel(c) }))
 
 /** "380", "$1,250.50", "€90" → cents; "" → null (clears it); anything else → undefined (not a value). */
 export function parseMoney(text: string): number | null | undefined {
