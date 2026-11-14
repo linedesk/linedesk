@@ -66,6 +66,7 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'phoneNumber.lookupLine',
   'calendar.connectStart',
   'calendar.connectFinish',
+  'calendar.connectWithPassword',
   // Deletes the workspace and the accounts of members who have no other one.
   'workspace.deleteOwn',
 ])

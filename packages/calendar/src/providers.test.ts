@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'vitest'
 import { createGoogleCalendar, createGoogleOAuth, GOOGLE_CALENDAR_SCOPES } from './google.ts'
 import { createMicrosoftCalendar, createMicrosoftOAuth } from './microsoft.ts'
-import { type AccessTokenSource, CalendarError, type CalendarProvider, mergeBusy, pkcePair } from './provider.ts'
+import { type AccessTokenSource, CalendarError, type CalendarProvider, mergeBusy, pkcePair, sameSite } from './provider.ts'
 import { calendarOAuthFromEnv, configuredCalendarProviders } from './providers.ts'
 
 type Stored = { id: string; title: string; start: string; end: string; free?: boolean; cancelled?: boolean; description?: string }
@@ -355,4 +355,16 @@ test('mergeBusy sorts, merges touching intervals and drops empty ones', () => {
     { start: '2030-01-01T00:00:00.000Z', end: '2030-01-01T01:00:00.000Z' },
     { start: '2030-01-01T09:00:00.000Z', end: '2030-01-01T11:00:00.000Z' },
   ])
+})
+
+test('sameSite: a login goes only to the host the member named (iCloud: its per-account hosts), over the same scheme', () => {
+  const icloud = new URL('https://caldav.icloud.com/')
+  expect(sameSite(icloud, new URL('https://p42-caldav.icloud.com:443/123/calendars/'))).toBe(true)
+  expect(sameSite(icloud, new URL('https://icloud.com.evil.example/'))).toBe(false)
+  expect(sameSite(icloud, new URL('https://evilicloud.com/'))).toBe(false)
+  expect(sameSite(icloud, new URL('http://p42-caldav.icloud.com/'))).toBe(false)
+  expect(sameSite(new URL('https://a.synology.me/'), new URL('https://b.synology.me/'))).toBe(false)
+  expect(sameSite(new URL('https://dav.example.co.uk/'), new URL('https://cal.example.co.uk/'))).toBe(false)
+  expect(sameSite(new URL('https://dav.example.com/'), new URL('https://dav.example.com:8443/'))).toBe(false)
+  expect(sameSite(new URL('http://radicale:5232/'), new URL('http://radicale:5232/mike/'))).toBe(true)
 })

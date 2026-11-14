@@ -541,7 +541,9 @@ export const calendar_connections = pgTable(
   {
     id: id(),
     workspace_id: workspaceId(),
-    provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+    /** `caldav`: connected with a user name and an app-specific password (calendar_credentials holds the login). */
+    provider: text('provider', { enum: ['google', 'microsoft', 'caldav'] }).notNull(),
+    /** The account's address; for a CalDAV login without one, `<user name>@<server host>`. */
     account_email: text('account_email').notNull(),
     /** `needs_reconnect`: the provider refused the grant (revoked, expired); someone has to connect it again. */
     status: text('status', { enum: ['connected', 'needs_reconnect'] })
@@ -561,6 +563,8 @@ export const calendar_connections = pgTable(
 )
 
 // OAuth tokens of a calendar connection, AES-256-GCM with SECRETS_KEY (apps/api/src/secrets.ts). Never synced.
+// A connection by password (CalDAV) keeps its login (JSON: server, user name, password) where the access token goes,
+// an empty refresh token and no real expiry (PASSWORD_LOGIN_EXPIRES in apps/api/src/calendar-connections.ts).
 export const calendar_credentials = pgTable('calendar_credentials', {
   connection_id: text('connection_id')
     .primaryKey()

@@ -2,7 +2,7 @@
 import type { AppointmentType, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 
 export type ProviderId = CalendarConnection['provider']
-export const PROVIDER_LABEL: Record<ProviderId, string> = { google: 'Google', microsoft: 'Microsoft' }
+export const PROVIDER_LABEL: Record<ProviderId, string> = { google: 'Google', microsoft: 'Microsoft', caldav: 'CalDAV' }
 
 /** The assistant a connect started from: the callback returns to #assistant/calendar and the page goes back to it. */
 export const CONNECT_RETURN_KEY = 'linedesk.calendarConnectFor'

@@ -164,6 +164,7 @@ const all = [
   calendar.appointmentTypeDelete,
   calendar.calendarConnectStart,
   calendar.calendarConnectFinish,
+  calendar.calendarConnectWithPassword,
   calendar.calendarListCalendars,
   calendar.calendarDisconnect,
   calendar.assistantCalendarAdd,
