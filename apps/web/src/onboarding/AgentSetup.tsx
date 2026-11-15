@@ -44,7 +44,7 @@ import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
-import { INSTALL_SETUP_HASH } from './InstallSetup.tsx'
+import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
 import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
@@ -207,11 +207,12 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     onManual(state ? installPartsMissing(state.progress.steps) : false)
   }
   // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
-  // overview, nothing is reset; off on Cloud, where Server admin › Providers is the way by hand).
+  // first part, nothing saved is reset; off on Cloud, where Server admin › Providers is the way by hand).
   const allDone = state?.progress.allDone ?? false
   const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
   const stepByStep = () => {
-    window.location.hash = install?.enabled === false ? '#admin/providers' : INSTALL_SETUP_HASH
+    if (install?.enabled === false) window.location.hash = '#admin/providers'
+    else openInstallSetup({ from: 'start' })
   }
 
   const connected = Boolean(state?.key?.lastUsedAt)

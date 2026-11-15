@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '../cachedQuery.ts'
 import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
-import { openInstallSetup } from '../onboarding/InstallSetup.tsx'
+import { type InstallSetupFrom, openInstallSetup } from '../onboarding/InstallSetup.tsx'
 import { HelpTip } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { type AdminData, keyUsersOf, loadInstallSetup, runAdmin } from './api.ts'
@@ -36,7 +36,8 @@ export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
 /**
  * The two ways to set up or change the install, always offered: "Set up with an AI agent" first (once everything is set
  * up, "Change with an AI agent": the agent setup page gives it a new link), and "Step by step", the install
- * walkthrough, next to it (once finished, it opens at its overview; nothing is reset). On Cloud the walkthrough is off
+ * walkthrough, next to it: "Step by step" always opens at its first part, "Continue step by step" (started, not
+ * finished, not everything set up) where the admin left it; nothing saved is reset. On Cloud the walkthrough is off
  * (`enabled` false, it would only open Server admin › Providers), so only the agent is offered there. On top of Server
  * admin › Providers as a note; on the overview's card as a quiet line.
  */
@@ -62,7 +63,7 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
         <Button
           size="sm"
           variant="ghost"
-          onClick={openInstallSetup}
+          onClick={() => openInstallSetup({ from: label.stepsFrom })}
           title="Go through each group yourself, one screen at a time, with a real test for each"
         >
           {label.steps}
@@ -86,16 +87,19 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
 
 /**
  * AgentFirst's buttons: the agent's ("Change …" once everything is set up) and the walkthrough's, or none for the
- * walkthrough while its state is not read yet or it is off (Cloud).
+ * walkthrough while its state is not read yet or it is off (Cloud). "Continue step by step" resumes where the admin
+ * left the walkthrough; "Step by step" opens it at its first part.
  */
 export function agentFirstLabels(
   install: Pick<InstallSetupState, 'enabled' | 'progress'> | undefined,
   complete = false,
-): { agent: string; steps: string | null } {
+): { agent: string; steps: string | null; stepsFrom: InstallSetupFrom } {
   const agent = complete ? 'Change with an AI agent' : 'Set up with an AI agent'
-  if (!install?.enabled) return { agent, steps: null }
+  if (!install?.enabled) return { agent, steps: null, stepsFrom: 'start' }
   const started = install.progress.step !== 'welcome' && !install.progress.finishedAt
-  return { agent, steps: !complete && started ? 'Continue step by step' : 'Step by step' }
+  return !complete && started
+    ? { agent, steps: 'Continue step by step', stepsFrom: 'left' }
+    : { agent, steps: 'Step by step', stepsFrom: 'start' }
 }
 
 type DialogForProps = {

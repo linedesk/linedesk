@@ -54,8 +54,23 @@ import './agent-setup.css'
 import './install-setup.css'
 
 export const INSTALL_SETUP_HASH = '#setup-install'
-export const openInstallSetup = () => {
+/**
+ * Where the walkthrough opens: `start`, its first part (Email), for "Step by step", which always starts over on the
+ * screens and changes nothing saved; `left` (default), where the admin left it ("Continue step by step"), or its
+ * overview once finished.
+ */
+export type InstallSetupFrom = 'start' | 'left'
+// Read by the walkthrough when it opens (the address stays `#setup-install`).
+let openFrom: InstallSetupFrom = 'left'
+export const openInstallSetup = ({ from = 'left' }: { from?: InstallSetupFrom } = {}) => {
+  openFrom = from
   window.location.hash = INSTALL_SETUP_HASH
+}
+
+/** The screen the walkthrough opens on. The welcome screen is the first run's intro; Back from Email still reaches it. */
+export function openingStep(progress: InstallSetupState['progress'], from: InstallSetupFrom): InstallStep {
+  if (from === 'start') return partSteps[0]!
+  return progress.finishedAt ? 'done' : progress.step
 }
 
 /** The steps that set up a group, in order (the welcome and done screens around them). */
@@ -69,6 +84,10 @@ type Props = {
 }
 
 export function InstallSetup({ onExit }: Props) {
+  const from = useRef(openFrom)
+  useEffect(() => {
+    openFrom = 'left'
+  }, [])
   const [setup, setSetup] = useState<InstallSetupState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [step, setStep] = useState<InstallStep | null>(null)
@@ -94,7 +113,7 @@ export function InstallSetup({ onExit }: Props) {
       s => {
         // Off on this install (Cloud): Server admin › Providers is the way by hand.
         if (!s.enabled) window.location.hash = '#admin/providers'
-        setStep(current => current ?? (s.progress.finishedAt ? 'done' : s.progress.step))
+        setStep(current => current ?? openingStep(s.progress, from.current))
       },
       e => setLoadError(problemText(errorText(e))),
     )
