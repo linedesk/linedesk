@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   AGENT_LEFT_GRACE_MS,
+  ANSWER_TIMEOUT_MS,
   agentLeftText,
   noJoinText,
   noPickupText,
   PICKUP_TIMEOUT_MS,
+  SLOW_JOIN_MS,
   TEST_CALL_TIMEOUT_MS,
   TimedOut,
   testCallErrorText,
@@ -66,23 +68,37 @@ test('no agent joined: the operator learns the voice agent is down or the server
   expect(noJoinText('Maya', false)).not.toMatch(/agent|Admin|LiveKit|overloaded/)
 })
 
+test('a member who does not run the server is told to ask the server admin', () => {
+  for (const text of [noJoinText('Maya', false), noPickupText('Maya', false)]) {
+    expect(text).toMatch(/ask your server admin/)
+    expect(text).not.toMatch(/whoever/)
+  }
+})
+
 describe('watchPickup', () => {
   beforeEach(() => void vi.useFakeTimers())
   afterEach(() => void vi.useRealTimers())
   const watch = () => {
-    const on = { noJoin: vi.fn(), noPickup: vi.fn(), agentLeft: vi.fn() }
+    const on = { noJoin: vi.fn(), noPickup: vi.fn(), agentLeft: vi.fn(), slow: vi.fn() }
     return { on, w: watchPickup(on) }
   }
 
-  test('nobody joins: "didn\'t join" after 8 seconds, once, and nothing else', () => {
+  test('nobody joins: "still connecting" after 8 seconds, "didn\'t join" after 20, once, and nothing else', () => {
     const { on, w } = watch()
     w.start()
-    expect(PICKUP_TIMEOUT_MS).toBe(8_000)
-    vi.advanceTimersByTime(PICKUP_TIMEOUT_MS - 1)
+    expect(SLOW_JOIN_MS).toBe(8_000)
+    expect(PICKUP_TIMEOUT_MS).toBe(20_000)
+    vi.advanceTimersByTime(SLOW_JOIN_MS - 1)
+    expect(on.slow).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(on.slow).toHaveBeenLastCalledWith(true)
+    expect(on.noJoin).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(PICKUP_TIMEOUT_MS - SLOW_JOIN_MS - 1)
     expect(on.noJoin).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
     expect(on.noJoin).toHaveBeenCalledTimes(1)
-    vi.advanceTimersByTime(TEST_CALL_TIMEOUT_MS)
+    expect(on.slow).toHaveBeenLastCalledWith(false)
+    vi.advanceTimersByTime(ANSWER_TIMEOUT_MS)
     expect(on.noJoin).toHaveBeenCalledTimes(1)
     expect(on.noPickup).not.toHaveBeenCalled()
     expect(on.agentLeft).not.toHaveBeenCalled()
@@ -100,9 +116,26 @@ describe('watchPickup', () => {
     w.joined()
     vi.advanceTimersByTime(PICKUP_TIMEOUT_MS)
     expect(on.noPickup).not.toHaveBeenCalled()
-    vi.advanceTimersByTime(TEST_CALL_TIMEOUT_MS - PICKUP_TIMEOUT_MS)
+    vi.advanceTimersByTime(ANSWER_TIMEOUT_MS - PICKUP_TIMEOUT_MS)
     expect(on.noPickup).toHaveBeenCalledTimes(1)
     expect(on.noJoin).not.toHaveBeenCalled()
+    expect(on.slow).not.toHaveBeenCalled()
+  })
+
+  test('a slow join (as on a busy server) is no failure: "still connecting", then the call goes on', () => {
+    const { on, w } = watch()
+    w.start()
+    vi.advanceTimersByTime(PICKUP_TIMEOUT_MS - 1_000)
+    expect(on.slow).toHaveBeenLastCalledWith(true)
+    w.joined()
+    expect(on.slow).toHaveBeenLastCalledWith(false)
+    // A late join still leaves time for the greeting: heard 8 seconds after it, past the 20 s join limit.
+    vi.advanceTimersByTime(8_000)
+    w.heard()
+    vi.advanceTimersByTime(ANSWER_TIMEOUT_MS)
+    expect(on.noJoin).not.toHaveBeenCalled()
+    expect(on.noPickup).not.toHaveBeenCalled()
+    expect(on.slow).toHaveBeenCalledTimes(2)
   })
 
   test('heard, even before the start: nothing fires', () => {

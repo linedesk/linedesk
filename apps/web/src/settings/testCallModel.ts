@@ -5,8 +5,15 @@ import { whoSetsUp } from '../providerAudience.ts'
 /** How long connecting, and then the assistant picking up, may take before the test call gives up. */
 export const TEST_CALL_TIMEOUT_MS = 20_000
 
-/** How long the assistant may take to join the room once the browser is in it. */
-export const PICKUP_TIMEOUT_MS = 8_000
+/**
+ * How long the assistant may take to join the room once the browser is in it. On a busy server the agent takes 5 to
+ * 8 seconds to join, so this leaves room; after SLOW_JOIN_MS the panel says it is still connecting.
+ */
+export const PICKUP_TIMEOUT_MS = 20_000
+/** Not joined after this long: the panel says "Still connecting…" (not a verdict; that comes at PICKUP_TIMEOUT_MS). */
+export const SLOW_JOIN_MS = 8_000
+/** How long, from the start, the assistant may take to say something: a late join still leaves time for the greeting. */
+export const ANSWER_TIMEOUT_MS = PICKUP_TIMEOUT_MS + 10_000
 /** A normal hang-up closes the room right after the assistant leaves; still open this much later, it dropped out. */
 export const AGENT_LEFT_GRACE_MS = 3_000
 
@@ -17,13 +24,13 @@ export const AGENT_LEFT_GRACE_MS = 3_000
 export const noJoinText = (name: string, operator: boolean) =>
   operator
     ? `${name} didn't join. The voice agent is not running or the server is overloaded. Check Server admin › Overview (Voice agent, Answering calls).`
-    : `${name} didn't join. Try again in a moment, or ask whoever runs this server if it keeps happening.`
+    : `${name} didn't join. Try again in a moment, or ask your server admin if it keeps happening.`
 
 /** The assistant joined but stayed silent. `operator`: the member runs the server and can fix it. */
 export const noPickupText = (name: string, operator: boolean) =>
   operator
     ? `${name} didn't pick up. The voice agent may not be running: Server admin › Overview shows its health.`
-    : `${name} didn't pick up. Try again in a moment, or ask whoever runs this server if it keeps happening.`
+    : `${name} didn't pick up. Try again in a moment, or ask your server admin if it keeps happening.`
 
 /** The assistant left while the call was still on. */
 export const agentLeftText = (name: string, operator: boolean) =>
@@ -47,17 +54,20 @@ export type PickupWatch = {
 /**
  * Whether the assistant picks up a test call and stays: `noJoin` when it has not joined `pickupMs` after the start,
  * `noPickup` when nothing came from it after `answerMs`; `agentLeft` when it left and the call did not end within
- * `leftGraceMs`. At most one of them fires, once.
+ * `leftGraceMs`. At most one of them fires, once. `slow(true)` when it has not joined `slowMs` after the start (no
+ * verdict, the call goes on), and `slow(false)` once that is over.
  */
 export function watchPickup(
-  on: { noJoin: () => void; noPickup: () => void; agentLeft: () => void },
-  ms = { pickup: PICKUP_TIMEOUT_MS, answer: TEST_CALL_TIMEOUT_MS, leftGrace: AGENT_LEFT_GRACE_MS },
+  on: { noJoin: () => void; noPickup: () => void; agentLeft: () => void; slow?: (slow: boolean) => void },
+  ms = { slow: SLOW_JOIN_MS, pickup: PICKUP_TIMEOUT_MS, answer: ANSWER_TIMEOUT_MS, leftGrace: AGENT_LEFT_GRACE_MS },
 ): PickupWatch {
   let started = false
   let done = false
   let joined = false
   let heard = false
-  const timers: Record<'pickup' | 'answer' | 'left', ReturnType<typeof setTimeout> | undefined> = {
+  let slow = false
+  const timers: Record<'slow' | 'pickup' | 'answer' | 'left', ReturnType<typeof setTimeout> | undefined> = {
+    slow: undefined,
     pickup: undefined,
     answer: undefined,
     left: undefined,
@@ -66,9 +76,16 @@ export function watchPickup(
     clearTimeout(timers[name])
     timers[name] = undefined
   }
+  const notSlow = () => {
+    clear('slow')
+    if (!slow) return
+    slow = false
+    on.slow?.(false)
+  }
   const stop = () => {
     done = true
-    for (const name of ['pickup', 'answer', 'left'] as const) clear(name)
+    for (const name of ['slow', 'pickup', 'answer', 'left'] as const) clear(name)
+    notSlow()
   }
   const verdict = (fire: () => void) => () => {
     if (done) return
@@ -79,20 +96,31 @@ export function watchPickup(
     start: () => {
       if (started || done) return
       started = true
-      if (!joined && !heard) timers.pickup = setTimeout(verdict(on.noJoin), ms.pickup)
+      if (!joined && !heard) {
+        timers.pickup = setTimeout(verdict(on.noJoin), ms.pickup)
+        timers.slow = setTimeout(() => {
+          timers.slow = undefined
+          if (done || joined || heard) return
+          slow = true
+          on.slow?.(true)
+        }, ms.slow)
+      }
       if (!heard) timers.answer = setTimeout(verdict(on.noPickup), ms.answer)
     },
     joined: () => {
       joined = true
       clear('pickup')
+      notSlow()
     },
     heard: () => {
       heard = true
       clear('pickup')
       clear('answer')
+      notSlow()
     },
     left: () => {
       if (done || timers.left) return
+      notSlow()
       clear('pickup')
       clear('answer')
       timers.left = setTimeout(verdict(on.agentLeft), ms.leftGrace)

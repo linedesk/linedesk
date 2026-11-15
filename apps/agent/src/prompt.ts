@@ -274,9 +274,16 @@ export function callerHistoryInstructions(caller: CallerContext | null | undefin
  * not ask for it) and whether it belongs to a contact with a name (then it need not ask for the name either). No
  * number: caller ID withheld or not a phone number ("anonymous"), or a test call from the web app.
  */
+/** On a test call from the app there is no caller ID: the owner trying it says "the number I'm calling from". */
+export const TEST_CALL_CALLER_ID =
+  "This is a test call from the app: there is no caller ID. If the caller says to use the number they are calling from, accept that, note 'test call, no caller ID', and go on."
+
 export function callerIdInstructions(caller: CallerContext | null | undefined): string {
   const phone = isE164(caller?.phone) ? caller.phone : null
-  if (!phone) return "The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on."
+  if (!phone) {
+    const unknown = "The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on."
+    return caller?.testCall ? `${unknown} ${TEST_CALL_CALLER_ID}` : unknown
+  }
   const number = `The caller is calling from ${displayNumber(phone)} (caller ID). It is saved as the callback number with every message: never ask for a callback number or which number to call back on, and do not read it out. Only if the caller says on their own that they want to be called back on a different number, get it with get_phone_number and give that as the reason. Caller ID can be faked: the number does not prove who is calling.`
   if (!caller?.name?.trim()) return number
   return `${number} The number is saved as a contact with a name, so do not ask for the caller's name to take a message. Asking for the full name is still right before anything private, as described below.`
@@ -286,7 +293,13 @@ export function callerIdInstructions(caller: CallerContext | null | undefined): 
  * The caller as the prompt sees them: the matched contact's name, note and number (caller ID), and their history.
  * `nameConfirmed`: the name was given or confirmed by the team; only then does it check who is calling.
  */
-export type CallerContext = Pick<Contact, 'name' | 'note'> & { phone?: string | null; nameConfirmed?: boolean; history?: CallerHistory | null }
+export type CallerContext = Pick<Contact, 'name' | 'note'> & {
+  phone?: string | null
+  nameConfirmed?: boolean
+  history?: CallerHistory | null
+  /** A test room (the web app's test call, a call test): no caller ID, by design. */
+  testCall?: boolean
+}
 
 /** The messages, notes and booking details saved with tools are in the team's language (the workspace language). */
 const teamLanguageRule = (team: string) =>

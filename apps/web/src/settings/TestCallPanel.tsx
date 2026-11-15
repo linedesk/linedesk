@@ -92,7 +92,7 @@ export function TestCallPanel({
   /** Runs for Call again instead of `session.start` (onboarding saves the assistant first). */
   onStart?: () => void
 }) {
-  const { phase, problem, failure, notSetUp, call, name, lines, pending } = session
+  const { phase, problem, failure, notSetUp, call, name, lines, pending, stillConnecting } = session
   const open = phase !== 'idle' || !!problem
   const closable = phase === 'ended' || phase === 'idle'
   const { ref, onScroll } = useFollowLive(
@@ -137,7 +137,11 @@ export function TestCallPanel({
               {!message && !call && phase !== 'ended' && (
                 <p className="tcp-wait">
                   <span className="st-spin" aria-hidden="true" />
-                  {phase === 'starting' ? 'Connecting your microphone…' : `Waiting for ${name} to answer…`}
+                  {phase === 'starting'
+                    ? 'Connecting your microphone…'
+                    : stillConnecting
+                      ? 'Still connecting…'
+                      : `Waiting for ${name} to answer…`}
                 </p>
               )}
               {summarizing && (

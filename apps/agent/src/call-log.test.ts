@@ -4,8 +4,8 @@ import type { CallSession } from './call-session.ts'
 import type { CompleteJson } from './summary.ts'
 
 const noWait = { wait: async () => {} }
-const fakeCall = (finish = vi.fn(async () => {})) =>
-  ({ callId: 'call_1', workspaceId: 'ws_1', append: vi.fn(async () => {}), finish }) as unknown as CallSession & { finish: typeof finish }
+const fakeCall = (finish = vi.fn(async () => {}), phone: string | null = null) =>
+  ({ callId: 'call_1', workspaceId: 'ws_1', contact: phone ? { phone } : null, append: vi.fn(async () => {}), finish }) as unknown as CallSession & { finish: typeof finish }
 
 const answer = JSON.stringify({ title: 'Leak', summary: 'A leak.', outcome: 'callback', urgency: 'normal', action_items: ['Send a plumber'] })
 
@@ -55,7 +55,7 @@ test('without a message taken, a failed summary finishes the call as answered', 
 })
 
 test('a silent call after the voice failed is a call back, not a hang-up', async () => {
-  const call = fakeCall()
+  const call = fakeCall(undefined, '+15035550142')
   const log = new CallLog(call)
   log.record('agent', 'Thanks for calling. How can I help?')
   log.voiceFailed = 'voice'
@@ -65,6 +65,15 @@ test('a silent call after the voice failed is a call back, not a hang-up', async
   expect(call.finish).toHaveBeenCalledWith(expect.objectContaining({
     title: "Missed: the assistant's voice failed", outcome: 'callback',
     actionItems: [{ text: "Call the caller back: the assistant's voice failed on this call." }],
+  }))
+  // Without caller ID there is no number to call back on: the item says so, and keeps what failed.
+  const withheld = fakeCall()
+  const silent = new CallLog(withheld)
+  silent.voiceFailed = 'voice'
+  await finishCall(withheld, silent, complete, noWait)
+  expect(withheld.finish).toHaveBeenCalledWith(expect.objectContaining({
+    outcome: 'callback',
+    actionItems: [{ text: "No callback number: caller didn't give one. The assistant's voice failed on this call." }],
   }))
 })
 

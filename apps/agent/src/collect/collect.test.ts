@@ -110,6 +110,7 @@ describe('a collection step', () => {
 
   it('gives up after the tries and hands back the best guess', () => {
     const step = new Collection(phoneCollector())
+    step.heardCaller() // the caller answers the step's question
     step.record({ phone_number: '555 0142' })
     step.record({ phone_number: '5035550142' })
     step.reject()
@@ -126,7 +127,9 @@ describe('a collection step', () => {
     step.record({ phone_number: '5035550142' })
     const done = step.confirm()
     expect(outcomeEvent(done.outcome!)).toBe('Callback number confirmed')
-    const declined = new Collection(emailCollector).decline('has no email')
+    const email = new Collection(emailCollector)
+    email.heardCaller()
+    const declined = email.decline('has no email')
     expect(describeOutcome(declined.outcome!)).toMatch(/did not want to give the email address \(has no email\)/)
   })
 })

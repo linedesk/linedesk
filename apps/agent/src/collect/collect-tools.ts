@@ -65,7 +65,7 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
     if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)
     nudgeIfQuiet(run.session)
-    return describeOutcome(outcome) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
+    return describeOutcome(outcome, { callerId: ctx.callerId ?? null }) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
   } catch (e) {
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`

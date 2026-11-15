@@ -2,6 +2,7 @@
 import type { CallSession, CallTimings, Speaker } from './call-session.ts'
 import type { ReplyTimes } from './turn-metrics.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
+import { callerIdOf, hasCallbackNumber } from './callback-number.ts'
 import { mergeToolResults, summarizeCall, unsummarizedResult, voiceFailedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -58,11 +59,13 @@ export async function finishCall(call: CallSession, log: CallLog, complete: Comp
     void call.recordTimings({ ...log.timing, replies: log.replies }).catch(e => console.warn(`could not store the reply times of call ${call.callId}: ${message(e)}`))
   // Silent because the voice pipeline failed: a caller to call back, not a hang-up (nothing to summarize either).
   const silent = !log.lines.some(l => l.speaker === 'caller')
-  const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed) : await summarizeWithRetry(call, log, complete, retry).catch(e => {
+  // No caller ID and no number given: no action item asks the owner to call back (B4).
+  const callbackKnown = hasCallbackNumber(callerIdOf(call), { confirmed: log.confirmedNumbers, saved: log.messages, country: call.country })
+  const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed) : await summarizeWithRetry(call, log, complete, callbackKnown, retry).catch(e => {
     console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
     return unsummarizedResult(log.lines, log.messages)
   })
-  await withRetry(() => call.finish(mergeToolResults(summary, log)), retry)
+  await withRetry(() => call.finish(mergeToolResults(summary, log, callbackKnown)), retry)
 }
 
 /** A timed-out request is not repeated: a second one would not fit into the hang-up budget. */
@@ -70,15 +73,15 @@ const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutErro
 export const SUMMARY_RETRY_DELAY_MS = 2000
 
 /** Summarizes; a failed request (a rate limit, a bad answer) is tried once more after a short pause. */
-async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
+async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, callbackKnown: boolean, retry?: RetryOptions) {
   try {
-    return await summarizeCall(log.lines, complete, log.messages, call.teamLanguage)
+    return await summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown })
   } catch (e) {
     if (isTimeout(e)) throw e
     console.warn(`summary of call ${call.callId} failed, trying once more: ${message(e)}`)
     const pause = retry?.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
     await pause(SUMMARY_RETRY_DELAY_MS)
-    return summarizeCall(log.lines, complete, log.messages, call.teamLanguage)
+    return summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown })
   }
 }
 

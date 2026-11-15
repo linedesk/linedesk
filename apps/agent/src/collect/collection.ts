@@ -17,10 +17,15 @@ export type CollectOutcome =
 /** What a tool call returns to the collecting model, and whether the step is over. */
 export type StepReply = { say: string; outcome?: CollectOutcome }
 
+/** What decline and wrong_* say before the caller said anything in the step: the step's question comes first. */
+export const ASK_FIRST = 'Ask the caller first.'
+
 export class Collection<Args extends Record<string, unknown>, T> {
   private pending: { value: T } | null = null
   private lastHeard: string | null = null
   private failures = 0
+  /** The caller's turns since the step asked its question. */
+  private callerTurns = 0
   outcome: CollectOutcome | null = null
   readonly collector: Collector<Args, T>
   readonly maxAttempts: number
@@ -32,6 +37,11 @@ export class Collection<Args extends Record<string, unknown>, T> {
 
   get attemptsLeft() {
     return this.maxAttempts - this.failures
+  }
+
+  /** The caller finished a turn during the step (after its question). */
+  heardCaller() {
+    this.callerTurns++
   }
 
   /** A new hypothesis about the value, from what the caller said. */
@@ -56,15 +66,21 @@ export class Collection<Args extends Record<string, unknown>, T> {
     return this.finish({ status: 'confirmed', label: this.collector.label, value: this.collector.display(value) })
   }
 
-  /** The caller said the read-back is wrong. */
+  /** The caller said the read-back is wrong. Not before the caller said anything in the step: that is no try. */
   reject(): StepReply {
     if (this.outcome) return { say: 'This step is over.' }
+    if (!this.callerTurns) return { say: ASK_FIRST }
     this.pending = null
     return this.fail(`The caller says that is not right. Ask for the ${this.collector.label} again${this.attemptsLeft <= 2 ? ', one part at a time' : ''}.`)
   }
 
-  /** The caller does not want to give it. */
+  /**
+   * The caller does not want to give it. Only once they answered the step's question: words from earlier in the call
+   * (filler, "yes") are no refusal.
+   */
   decline(reason: string): StepReply {
+    if (this.outcome) return { say: 'This step is over.' }
+    if (!this.callerTurns) return { say: ASK_FIRST }
     return this.finish({ status: 'declined', label: this.collector.label, reason })
   }
 
@@ -95,14 +111,22 @@ const describeArgs = (args: Record<string, unknown>) =>
     .filter(v => typeof v === 'string' && v.trim())
     .join(', ') || null
 
-/** What the main assistant is told when the step is over. */
-export function describeOutcome(outcome: CollectOutcome): string {
+/** Whether a step's label is a phone number the team calls back on (phoneCollector's default label, or one like it). */
+const isCallbackNumber = (label: string) => /\b(phone|callback|call-back|number)\b/i.test(label) && !/account|zip|member|policy|order/i.test(label)
+
+/**
+ * What the main assistant is told when the step is over. `callerId`: the caller's number from caller ID; without it
+ * a declined callback number leaves the team no way to call back, so the assistant says so and asks once more.
+ */
+export function describeOutcome(outcome: CollectOutcome, { callerId }: { callerId?: string | null } = {}): string {
   switch (outcome.status) {
     case 'confirmed':
       return `The caller confirmed the ${outcome.label}: ${outcome.value}. Use exactly this (in take_message or the booking); do not ask for it again.`
     case 'incomplete':
       return `Could not get a confirmed ${outcome.label}${outcome.partial ? `; best guess (not confirmed): ${outcome.partial}` : ''}. Tell the caller you will note what you have and someone will call them back. Put it in take_message${outcome.partial ? ' marked as unconfirmed' : ''}, and do not ask for it again.`
     case 'declined':
+      if (!callerId && isCallbackNumber(outcome.label))
+        return `The caller did not give the ${outcome.label} (${outcome.reason}). Tell the caller the team cannot call back without a number, and ask once more.`
       return `The caller did not want to give the ${outcome.label} (${outcome.reason}). Go on without it.`
     case 'question':
       return `While you were getting the ${outcome.label}, the caller asked: "${outcome.question}". Answer that now, in a sentence or two${outcome.partial ? ` (heard so far, not confirmed: ${outcome.partial})` : ''}. Then, if you still need the ${outcome.label}, get it again with the same tool.`

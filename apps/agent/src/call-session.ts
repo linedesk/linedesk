@@ -144,10 +144,21 @@ export function withWorkspaceLanguage(assistant: Assistant | null, workspaceLang
  * name the team gave or confirmed (contacts.name_source) checks who is calling; with any other the history is left
  * out, whatever an API of an older version sent.
  */
-export function callerOf(contact: Contact | null, history: CallerHistory | null | undefined): CallerContext | null {
+export function callerOf(
+  contact: Contact | null,
+  history: CallerHistory | null | undefined,
+  { testCall = false }: { testCall?: boolean } = {},
+): CallerContext | null {
   if (!contact) return null
   const nameConfirmed = !!contact.name?.trim() && contact.name_source === 'member'
-  return { name: contact.name, note: contact.note, phone: contact.phone, nameConfirmed, history: nameConfirmed ? (history ?? null) : null }
+  return {
+    name: contact.name,
+    note: contact.note,
+    phone: contact.phone,
+    nameConfirmed,
+    history: nameConfirmed ? (history ?? null) : null,
+    ...(testCall ? { testCall } : {}),
+  }
 }
 
 /** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */
@@ -291,7 +302,8 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     withAiNote(forHours(inMainLanguage(configured), businessHours)),
     started.recordingNotice,
   )
-  const caller = callerOf(contact, started.callerHistory)
+  // A test room (the web app's test call, a call test): there is no caller ID, and the prompt says so (B4).
+  const caller = callerOf(contact, started.callerHistory, { testCall: origin.kind === 'test' })
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {

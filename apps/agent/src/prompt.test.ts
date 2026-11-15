@@ -2,7 +2,7 @@ import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules, EMERGENCY_RULE } from 
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
+import { bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, TEST_CALL_CALLER_ID, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
@@ -229,6 +229,18 @@ test('caller ID: a known number is in the prompt and not asked for, a saved name
   for (const unknown of [null, { name: null, note: null }, { ...known, phone: 'anonymous' }, { name: 'Test call', note: null, phone: 'test' }]) {
     expect(callerIdInstructions(unknown)).toBe("The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on.")
   }
+})
+
+test('a test call from the app: the prompt says there is no caller ID and "the number I am calling from" is accepted; real calls never get that line', () => {
+  const testCaller = { name: 'Test call', note: null, phone: 'test', testCall: true }
+  expect(callerIdInstructions(testCaller)).toContain(TEST_CALL_CALLER_ID)
+  expect(TEST_CALL_CALLER_ID).toBe(
+    "This is a test call from the app: there is no caller ID. If the caller says to use the number they are calling from, accept that, note 'test call, no caller ID', and go on.",
+  )
+  expect(buildInstructions(assistant(), null, null, [], testCaller)).toContain(TEST_CALL_CALLER_ID)
+  for (const real of [{ name: null, note: null }, { name: null, note: null, phone: '+15035550142' }, { name: null, note: null, phone: 'anonymous' }])
+    expect(buildInstructions(assistant(), null, null, [], real)).not.toContain('This is a test call')
+  expect(buildInstructions(assistant(), null, null, [], null)).not.toContain('This is a test call')
 })
 
 test('a contact that takes calls only during business hours: while closed the assistant says so, never "I cannot transfer"', () => {

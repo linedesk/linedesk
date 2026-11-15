@@ -24,6 +24,17 @@ export function phoneNumbersIn(text: string, country = 'US'): string[] {
   return found
 }
 
+/**
+ * Whether the team has a number to call the caller back on: caller ID, a number the caller confirmed with
+ * get_phone_number, or one in a message the assistant saved. Without one the summary asks for no call back.
+ */
+export function hasCallbackNumber(
+  callerId: string | null,
+  { confirmed, saved, country = 'US' }: { confirmed: readonly string[]; saved: readonly string[]; country?: string },
+): boolean {
+  return !!callerId || confirmed.length > 0 || saved.some(text => phoneNumbersIn(text, country).length > 0)
+}
+
 /** The longest message call.takeMessage takes. */
 const MESSAGE_MAX = 500
 

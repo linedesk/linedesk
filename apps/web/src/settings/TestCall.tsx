@@ -64,6 +64,8 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
   const [failure, setFailure] = useState<string | null>(null)
   const [roomName, setRoomName] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
+  /** The assistant has not joined after a few seconds: still waiting, not failed yet. */
+  const [stillConnecting, setStillConnecting] = useState(false)
   const room = useRef<Room | null>(null)
   /** Whether the assistant picks up and stays, for the call in `room`. */
   const pickup = useRef<PickupWatch | null>(null)
@@ -99,6 +101,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     setFailure(null)
     setRoomName(null)
     setMuted(false)
+    setStillConnecting(false)
     live.clear()
     setPhase('starting')
     // A permission prompt nobody answers must not hang either.
@@ -124,6 +127,8 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
       noJoin: () => endWith(noJoinText(name, operator), 'idle'),
       noPickup: () => endWith(noPickupText(name, operator), 'idle'),
       agentLeft: () => endWith(agentLeftText(name, operator), 'ended'),
+      // A stopped watch never reports slow again, so an abandoned attempt cannot set it.
+      slow: setStillConnecting,
     })
     pickup.current?.stop()
     pickup.current = watch
@@ -211,12 +216,13 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     /** Lines still being spoken, after `lines`. */
     pending: live.pending,
     muted,
+    stillConnecting,
     audio,
     /** Why Start is off, for its tooltip; null when it can start. */
     blockedReason: !canStart
       ? 'Only admins can start a test call'
       : voiceDown
-        ? `${name} can't take calls yet: the voice service isn't set up. ${operator ? 'Set it up under Server admin › Providers.' : 'Ask whoever runs this server.'}`
+        ? `${name} can't take calls yet: the voice service isn't set up. ${operator ? 'Set it up under Server admin › Providers.' : 'Ask your server admin.'}`
         : null,
     start: () => void start(),
     stop: async () => {

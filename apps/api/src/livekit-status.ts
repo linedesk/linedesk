@@ -79,6 +79,27 @@ export async function deleteLivekitRoom(room: string, env: Env = process.env, do
   return res.ok || res.status === 404
 }
 
+/**
+ * The names of the rooms open on the LiveKit server right now (ListRooms answers all of them at once, no pages).
+ * Null when LiveKit is not set up, refuses or does not answer: the caller cannot tell then which rooms are gone.
+ */
+export async function listLivekitRooms(env: Env = process.env, doFetch: typeof fetch = fetch): Promise<Set<string> | null> {
+  const { LIVEKIT_URL: url, LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret } = env
+  if (!url || !key || !secret) return null
+  try {
+    const { status, body } = await call(
+      doFetch,
+      `${twirpBase(url)}/livekit.RoomService/ListRooms`,
+      livekitToken(key, secret, { video: { roomList: true } }),
+    )
+    if (status !== 200 || (body.rooms !== undefined && !Array.isArray(body.rooms))) return null
+    const rooms = (body.rooms ?? []) as { name?: unknown }[]
+    return new Set(rooms.map(r => r.name).filter((name): name is string => typeof name === 'string'))
+  } catch {
+    return null
+  }
+}
+
 /** The rooms inbound phone calls land in: the dispatch rule's prefix (apps/agent/src/setup-sip.ts). */
 export const INBOUND_ROOM_PREFIX = 'call-'
 
