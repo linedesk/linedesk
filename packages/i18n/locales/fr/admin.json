@@ -1,5 +1,14 @@
 {
+  "audit.invitationReassigned": "Invitation à {email} transférée au propriétaire de l'espace de travail : le compte de son expéditeur a été supprimé",
+  "audit.invitationReassignedTo": "Invitation à {email} transférée au propriétaire de l'espace de travail, {owner} : le compte de son expéditeur a été supprimé",
+  "audit.invitationWithdrawn": "Invitation à {email} annulée : son expéditeur a été retiré de l'espace de travail",
   "example.business": "Riverside Electric",
   "example.ownerEmail": "owner@riverside-electric.example",
-  "impersonation.confirm": "Vous verrez {brand} exactement comme {name} le voit. Tout ce que vous faites est enregistré comme fait par vous en son nom. Prend fin au bout d'une heure."
+  "frame.back": "Retour à {brand}",
+  "frame.backTo": "Retour à {section}",
+  "impersonation.confirm": "Vous verrez {brand} exactement comme {name} le voit. Tout ce que vous faites est enregistré comme fait par vous en son nom. Prend fin au bout d'une heure.",
+  "users.filter.all": "Tous les utilisateurs",
+  "users.filter.label": "Afficher les utilisateurs",
+  "users.filter.noWorkspace": "Sans espace de travail",
+  "users.noWorkspaceEmpty": "Tous les utilisateurs font partie d'un espace de travail."
 }

@@ -775,6 +775,21 @@
       "out": "edefae59356c8031997658b24b4cbf90af280423266245297f41cd01d891c2ca",
       "src": "dbb5f6371b6a2a677f09c24d17fdc581132a41881a818469a92b58588e8764bc"
     },
+    "admin.audit.invitationReassigned": {
+      "by": "ai",
+      "out": "5a11929d6cb4aa4ec777f1f842c07161f1b23ff09d5a6cd10083fd1d115a3051",
+      "src": "6b0b05c68a10e597139aaafbc0de09ee7201c0a0dbc2016bc60e02717e1bfc53"
+    },
+    "admin.audit.invitationReassignedTo": {
+      "by": "ai",
+      "out": "8fddfedae730bd70c2539eeb61ea1f6d62e346c447f97eddd73a62432bd02c91",
+      "src": "2482322978431816db908402785630e9dc831d9b921e028939de3c704d7a3093"
+    },
+    "admin.audit.invitationWithdrawn": {
+      "by": "ai",
+      "out": "cb8811cf668905409dc9a3bca896ffb2fbcabb82a9d1ef015a6562c6c9c44a60",
+      "src": "c2fdbbd6b8b44ce9fa555c74d793ead7683ff178429c843afa872245b7f91165"
+    },
     "admin.example.business": {
       "by": "ai",
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
@@ -785,10 +800,40 @@
       "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
       "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
     },
+    "admin.frame.back": {
+      "by": "ai",
+      "out": "5b4c8e49dfb6ed1fe2eb2a6d0f1c7456097451b0f60c56cc1c46e649cd2d2160",
+      "src": "065ffb993d0da544b10439945bbef129f6d7fbf0879d640fc6fdff770ee2c78d"
+    },
+    "admin.frame.backTo": {
+      "by": "ai",
+      "out": "0fd39c4094a291d204712e66a4ff06b239ae0ee884b9fae09a4341bd15020e33",
+      "src": "5939d409e577d681a4bd8702f7cdf8936682147338100e9d919bc83e3b447520"
+    },
     "admin.impersonation.confirm": {
       "by": "ai",
       "out": "754777000223fbdd7168621346f91682150b513abca848f711c6918b787897da",
       "src": "95ddffb9ea2a924a24570874f274d8f5ee7638d62fb6a29ace386a8c4f92297d"
+    },
+    "admin.users.filter.all": {
+      "by": "ai",
+      "out": "798ecb809c6f2c3d640b795202e2a16bcbfea6e26ceeb64921c7468436ad9a39",
+      "src": "f7898130e55771fc2b90866249a10b0da6cc8e24c83eeb7ef0f30f76d4f47c5a"
+    },
+    "admin.users.filter.label": {
+      "by": "ai",
+      "out": "1831ec11a2c894593d5480786ac5a7de34ae2d0e486f2ac66bb68601b7448255",
+      "src": "d083d37554c28333f2a1f1f13230d46821948ab8b35bced2d9070225e278d74d"
+    },
+    "admin.users.filter.noWorkspace": {
+      "by": "ai",
+      "out": "ea9e557cb41299f9cfc4ab55b5c21c906ee9200fed7ddd217e9a391ffad8596c",
+      "src": "fce263d326818c6258e1db247a3b5b9e2c828c2259589915440bb7cf9a67e65a"
+    },
+    "admin.users.noWorkspaceEmpty": {
+      "by": "ai",
+      "out": "987f4b6d126c8f347dc087eb7f1d91c0c4be53cc94db845cb87441edc5d04f58",
+      "src": "e1d6bb7586b24ebeeedd9ab74a87a513ce46f6baf7b0534e7dfd11dce7824d78"
     },
     "auth.addPasskey.add": {
       "by": "ai",
@@ -1569,6 +1614,11 @@
       "by": "ai",
       "out": "a22cfc4aa3da7c107759646649d2c2ad857f967104037c09d5ff4c05f009ba7c",
       "src": "6ccb3f7ff37d0a6d4102ba24fb7a5f0f7e799c023474268becf06be2cf2afe8a"
+    },
+    "auth.signedOutOf": {
+      "by": "ai",
+      "out": "f3a05b32600cfffceb937e94220fe57b11efc8a96f5b56b0ea65abaed860f362",
+      "src": "eec25303b83f8bc906b42cfd9cbab0d0ffeda6e9fec691c93b7c3036ccdabc6a"
     },
     "auth.signingIn": {
       "by": "ai",
@@ -4005,6 +4055,36 @@
       "out": "0735403bbba803c54bf7b023d4c625140e3ab2436a1591bca51953bc4c14fb47",
       "src": "4dedfba99085e7ca9d75c50890d8badb4fdb369b8a0f9fa075fa7283cce16662"
     },
+    "email.workspaceRemoved.accountDeleted": {
+      "by": "ai",
+      "out": "55dc6ba64a0f00487b256a016c3d79f1c3edd0624be0dc59010988add8d4f5ea",
+      "src": "ec7b46ac128961804b0b544bbb378f5ba4f98ecc7b47685337a5630b1107d406"
+    },
+    "email.workspaceRemoved.heading": {
+      "by": "ai",
+      "out": "7320650bb4b34b8575d14a8a587c05144bbebbda4a204cdfba82a2307bd05b7c",
+      "src": "b35b0acbf44671160ddaf41c004e1b8478d3e5678c33d0234933c470527f9e06"
+    },
+    "email.workspaceRemoved.preheader": {
+      "by": "ai",
+      "out": "e7fb059fe8e484fda1fb849ba6592ca9923656ce0137306eee523862ee24c7ea",
+      "src": "6a978eb02580d937a8fd52b90df1d8674f5cde43dbc7cb7d26e294f9b783bf2c"
+    },
+    "email.workspaceRemoved.subject": {
+      "by": "ai",
+      "out": "9741097aaabffec2b934a619e171b7a6008e3b2fc2ff0abf3dc5872d0a67a948",
+      "src": "dc75d41b1f4c9a27b81489329fa8971265a39d4c4db9857892cca10627ad76d3"
+    },
+    "email.workspaceRemoved.text": {
+      "by": "ai",
+      "out": "59051e47fd6e3914fef1f39ce402c57ad0566fe389b77889871ead20f89f69f9",
+      "src": "b7344b57bf983f91705c0590168def72cb64a691d447a4fc071d1e27874c354b"
+    },
+    "email.workspaceRemoved.unexpected": {
+      "by": "ai",
+      "out": "bfbf9f801ef2dea75eb2603835116a25ab514dc42847f03727dbbcad87d91237",
+      "src": "83b7256d6b220caae0299958d8f13fe7aff137e23424fed9c3a3fed5f7822290"
+    },
     "errors.couldNot.appointmentType.delete": {
       "by": "ai",
       "out": "290bf9ec2e61ae528c92c8b3de1c6c847bbd8e7551fe1ee8eb81af2c7db4178e",
@@ -5785,6 +5865,11 @@
       "out": "b992824ae5880d5aa8b80c61d58021773fbf1d92be38498421f95a14eb945f3a",
       "src": "955e08746778ad09d20989546ded766dcabe5e5bc9451b95bb8300c8bd327300"
     },
+    "settings.assistant.languages.anyNote": {
+      "by": "ai",
+      "out": "9c10baf016f0d0eeab11fac5cc613138a7d702dc9151a780e8fe7978a1de449d",
+      "src": "60f05215946de4c23bcd5180908dbbd037ced8504ef62b58acd05bbc346613f3"
+    },
     "settings.missingProvider.answering.add": {
       "by": "ai",
       "out": "cbb86157da73deaa819d9379f72760e098169e7cce6c05be499c78e0512a6757",
@@ -6362,8 +6447,8 @@
     },
     "shell.help.row.nextView": {
       "by": "ai",
-      "out": "8cfb86cdb66e995c79f991ae93b35b75f3ae12e5e214de5c1fda9c3d6216e774",
-      "src": "37d655edd1fec225bdea4e95eb2281bc9e1cd87e958316fc5653ef5b052ef590"
+      "out": "27537dea01775912225591467308107b7bf1d63181ed01f7a0e6451164e436c2",
+      "src": "b0716e9f99fb5c9a3a5b85205f976548855ab5cf92345f8c2ba94fd60a0b47f9"
     },
     "shell.help.row.openCall": {
       "by": "ai",
@@ -6387,8 +6472,8 @@
     },
     "shell.help.row.previousView": {
       "by": "ai",
-      "out": "83ebb696a4a7fe291ae6f00712caa8e95f480755aac90f64e466ccbf075a2a49",
-      "src": "7c57bf9dbb757fd6f2795a648e59695b1df208822aa320a374546fc901a9bc87"
+      "out": "5add42d5ef24603a73b68f93a94daf4eb968d55616dbc78eb1027c80b2e165c8",
+      "src": "80648cddeed161e4de79dc1e8aa6148c20480a251a9179380fd292b0f315356c"
     },
     "shell.help.row.remindMe": {
       "by": "ai",
@@ -6635,6 +6720,16 @@
       "out": "ab8ea6e04382a076486195de3c33b1805b1cc87f00d54ef892f39dbb2abf1d11",
       "src": "4b892277843cba34d0da423a97b578774f9f2f2d1b5e3893d2ce2736254ad607"
     },
+    "shell.newWorkspace.created.added": {
+      "by": "ai",
+      "out": "14664a5b90b25f0643de5b9dee1ce8a4201e46ad1791586a60caac9f68d79a9f",
+      "src": "cb7763a342380837d16d3748cd46cffc48fc7444392f4ed3642c86a275c7aad8"
+    },
+    "shell.newWorkspace.created.invited": {
+      "by": "ai",
+      "out": "0c5f8558bfb9979ffb803ae199de9c176dcb17acf53ea34eeb0b30f33a5c995a",
+      "src": "1f065b5bbcae1a6887bcd77e8953e970df24e896c6befaeb79593bfeb126181b"
+    },
     "shell.newWorkspace.creating": {
       "by": "ai",
       "out": "8b4d715d8366e05a19b3e025bd2179262c0f1bda1a7ee1711f860a4ef7ddee7f",
@@ -6644,6 +6739,16 @@
       "by": "ai",
       "out": "501f9daf3c05d95dfe535fa9673d253c4f3ab4c705aa3071b5063290c3782f0a",
       "src": "d26a0f262b576984f2ee4b6da8a38fe52a7713dbf73c062b8fa4dfcdf73bba16"
+    },
+    "shell.newWorkspace.descriptionForOwner": {
+      "by": "ai",
+      "out": "a428d158848a92f9f0f180c53133fb90e6938b896f73edb472a059c8939775ff",
+      "src": "f5237f2855e3727f3e7aa9a87fcf9295358662b82878d58dfdabf0862a460e34"
+    },
+    "shell.newWorkspace.done": {
+      "by": "ai",
+      "out": "25d52d7e8665036474497ba91fea3d28f9d1eb218824575541cc0992c63f16c5",
+      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
     },
     "shell.newWorkspace.name": {
       "by": "ai",
@@ -6660,10 +6765,65 @@
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
       "src": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa"
     },
+    "shell.newWorkspace.open": {
+      "by": "ai",
+      "out": "b95a031a7948c4369b262e7cd66eb2f5cca35cf2caf5f82cdbe236b0e1278dd4",
+      "src": "df0caf1b27bd40d19bb36970d408911f7547c633590eab2fa70a6daad4338a96"
+    },
+    "shell.newWorkspace.openTip": {
+      "by": "ai",
+      "out": "33c188f219103a7763b045f7bd52c97d685993a19528fe00436e49ae36dfd447",
+      "src": "e0922aa6e8dfd3f1114435e8b99f988ceaa4acd552fab2ecf653c20324743a4a"
+    },
     "shell.newWorkspace.opening": {
       "by": "ai",
       "out": "a5228bbc719b02cf6c090501dc59b0caee5c6eb74ddee3f8d5836b202e77098e",
       "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
+    "shell.newWorkspace.owner": {
+      "by": "ai",
+      "out": "32902b2c275981eaaae8d051645f8997e85849ba80b9525e3ce39b731d9a43e0",
+      "src": "4b1b8aa3608a26da451ae0630d75b60ab1bc2dd229c41a80838fc7993e835c46"
+    },
+    "shell.newWorkspace.owner.me": {
+      "by": "ai",
+      "out": "ca089bd7b1371e37b52c85c2243a4277f75608a0c4b696bbeccaeb5035909f91",
+      "src": "d30af076b0dc85cc5b0074b403f74770b73af84a70c2f77f7a3609d0db23112e"
+    },
+    "shell.newWorkspace.owner.meHelp": {
+      "by": "ai",
+      "out": "95395d7b47e7dbc7be5d23bca23cffb89b79d9fe0485c568a7ff7625c8da6f5b",
+      "src": "033350143badfdfc9bb96a264ea537654a74111076b5275c237f397cf4543aa6"
+    },
+    "shell.newWorkspace.owner.other": {
+      "by": "ai",
+      "out": "ee41745bd0b163e5ce959df35a6a50c2421d25f3c0c528331452e3cf9c60fecb",
+      "src": "3233cb049ab7f4ed5c6eccc11a4c9b6e02d0ed8e74e159d5e6baddd525b9febb"
+    },
+    "shell.newWorkspace.owner.otherHelp": {
+      "by": "ai",
+      "out": "e7b34ee1a3aa1ae17c0e8b526e48fc8902eecb87350a1ad8c4350a29401c308b",
+      "src": "daf178dfa448c89c856cdc445cc2bee4eec182c04fba4919c06795aabb6c3eb1"
+    },
+    "shell.newWorkspace.ownerEmail": {
+      "by": "ai",
+      "out": "9d70cc628834d8fa2e1b0e51ff9774afa16eea52919582dad3a42f783acac066",
+      "src": "0d7a4b35a04732dab37b7a09fc9d2aaa3effe806e4dccdbe32285f73c8cef082"
+    },
+    "shell.newWorkspace.ownerEmailHelp": {
+      "by": "ai",
+      "out": "daaf07e39b7594ea77389475140a5132caf8f7ae6f60211c34f8be313764492c",
+      "src": "82c0b594ab9c1691e20d06d2bef5834db7af8b62c40bb5f2864f81d593c4ec66"
+    },
+    "shell.newWorkspace.ownerName": {
+      "by": "ai",
+      "out": "e23a79effb0678edc18144e4541615685144f33e7f34bf80f7051326876c1776",
+      "src": "b809f32054ecbeeecb1e073676de6369c62abec40e6fde43a48a47a1ca5efdbc"
+    },
+    "shell.newWorkspace.ownerNameHelp": {
+      "by": "ai",
+      "out": "98c1dbc2a9298417f753ead2d96580269db4f2ac07e8bb929bea6a216397e3e7",
+      "src": "a067fa32d7cce74cf6cbc9d4705c2a1483b377431707a98c8289b8c116242800"
     },
     "shell.newWorkspace.passkey.button.confirm": {
       "by": "ai",
@@ -7500,6 +7660,16 @@
       "out": "3712272bd3a2a7521613a53424c07f72fdfb3e60a84dd5936fd74175ff29199d",
       "src": "1de350a51b1197bd325092358087cf12f07213ce6645d39eb6887692fbe3627b"
     },
+    "team.leave.signInFirst.text": {
+      "by": "ai",
+      "out": "c4b765484ec6e6f26c25d981dbba80f04c0b3f3d98ca9bcdd6ba5ac7c1bfe63e",
+      "src": "5d7ce69acc8eb311ae33736a8a75567f909b499e31972f116e256e4d50298784"
+    },
+    "team.leave.signInFirst.title": {
+      "by": "ai",
+      "out": "6e18f27246c900e7d0a120ddcfa8449a8dbe12ad64bd62219a4409f3deef04bc",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
+    },
     "team.leave.title": {
       "by": "ai",
       "out": "3aa2c0c53c5bd316f7ec4512f7e8b8e1d9d3a087075df6361a31a881825dd271",
@@ -7595,6 +7765,11 @@
       "out": "85432a0b62d309a38b16df9648a4cd7acfd9090ff49269c83adbe47403c5b52e",
       "src": "0bfdab22af868cb00f1cfde76882eef4d9aa140702a6c5d6be2c64ccf3371f13"
     },
+    "team.remove.accountStays": {
+      "by": "ai",
+      "out": "92301884887daeb79e6448359816513cad4fcde3b167a73529f6185a41f3b168",
+      "src": "27d0960f2c78a7e3af0014f1a3ff1b805531b53569b41da5ff03f384444608c6"
+    },
     "team.remove.action": {
       "by": "ai",
       "out": "3828375a2d45384bdec08982937014b61da700bb3503ecb859b8f97398f8c198",
@@ -7605,6 +7780,16 @@
       "out": "b879e84efc5672734eeab8cc707fbe0a6a36a317f741a4a82b7f49f3c3ac50d1",
       "src": "d4b09919ec929f15c19802296a06e97a0d0862e29e23c453d638fc0c3b87c641"
     },
+    "team.remove.deleteAccount": {
+      "by": "ai",
+      "out": "f2c35092e4c873f24647cbcd7c1ead6270d116d621633d6bbe9ba669894fb192",
+      "src": "1301800cc8fa15cb1c91bc59f73dd0615a54bdc87eb7b63f678222f2c1b2d0f8"
+    },
+    "team.remove.invitationsCanceled": {
+      "by": "ai",
+      "out": "6455aa3faf13fffae4d98abfbf6199db017496f89b436d1896df77bfa63872e0",
+      "src": "f184efc1e8d756c360f3c2686c2279209d94b21faf83943fcb25db1a50dc7c3d"
+    },
     "team.remove.keepAccount": {
       "by": "ai",
       "out": "a8d32fa0d91f5aae9aaf1a4f4579006a8e30eba8ac07d69a4b702bfbd0fe2c66",
@@ -7614,6 +7799,21 @@
       "by": "ai",
       "out": "927d5415849094c7fe73da4fd53be69911eee7e8b3dd6a51519476b5d4435ad2",
       "src": "ccf9cbdb2ae27725eb1607744dd93ae37ddbec31b6172a205658d108b95f1659"
+    },
+    "team.remove.ownerAccountStays": {
+      "by": "ai",
+      "out": "7dd8a789b7cd5b36eb1ec8bf476e7b692e2af6fcb6ed04ade112ae0f2153b05a",
+      "src": "4219cf9b40da5abcb61a7d596d904713dc233b4127e2a747aaadecbc3b85873c"
+    },
+    "team.remove.signInFirst.text": {
+      "by": "ai",
+      "out": "ab2e2fd5d0a05ab49d99ad0c559df2b0219677ec3b5e4adb36f5359b2a9d4247",
+      "src": "172b1b961ecbbd0ea8de41f558f1160b28321e09fe0a7b3115201adcb2e78cde"
+    },
+    "team.remove.signInFirst.title": {
+      "by": "ai",
+      "out": "6e18f27246c900e7d0a120ddcfa8449a8dbe12ad64bd62219a4409f3deef04bc",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
     },
     "team.remove.text": {
       "by": "ai",
@@ -8437,6 +8637,21 @@
       "out": "d30c5ae09ef074b68a842ee172b30aab71c5f0957daf818509e118b5ace12363",
       "src": "dbb5f6371b6a2a677f09c24d17fdc581132a41881a818469a92b58588e8764bc"
     },
+    "admin.audit.invitationReassigned": {
+      "by": "ai",
+      "out": "786af65712b079338a09bcae094f3905cc52e2304c23f9566f73c77e6ee9c072",
+      "src": "6b0b05c68a10e597139aaafbc0de09ee7201c0a0dbc2016bc60e02717e1bfc53"
+    },
+    "admin.audit.invitationReassignedTo": {
+      "by": "ai",
+      "out": "7e3c491e378d21f0213604fc581326803ec7a077915c1d72627900bbdc4968e2",
+      "src": "2482322978431816db908402785630e9dc831d9b921e028939de3c704d7a3093"
+    },
+    "admin.audit.invitationWithdrawn": {
+      "by": "ai",
+      "out": "03c72d28e502e7e91f5a2edf181b49929a676f880a9f53c2b6ef89432fd883b0",
+      "src": "c2fdbbd6b8b44ce9fa555c74d793ead7683ff178429c843afa872245b7f91165"
+    },
     "admin.example.business": {
       "by": "ai",
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
@@ -8447,10 +8662,40 @@
       "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
       "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
     },
+    "admin.frame.back": {
+      "by": "ai",
+      "out": "4e9529f4a9cf24afe4968d892aba9256b698717b678b56545159d8a6687809bc",
+      "src": "065ffb993d0da544b10439945bbef129f6d7fbf0879d640fc6fdff770ee2c78d"
+    },
+    "admin.frame.backTo": {
+      "by": "ai",
+      "out": "4f33942b556410f0469b95f552dc8c09af8a60dca1e2c9f2f89ce14309786eb1",
+      "src": "5939d409e577d681a4bd8702f7cdf8936682147338100e9d919bc83e3b447520"
+    },
     "admin.impersonation.confirm": {
       "by": "ai",
       "out": "41f0511feb416bb1995b3d93a24489bf6dcf2760d858f156eef9374ea6bcb1ac",
       "src": "95ddffb9ea2a924a24570874f274d8f5ee7638d62fb6a29ace386a8c4f92297d"
+    },
+    "admin.users.filter.all": {
+      "by": "ai",
+      "out": "16e41d6059e6c52d338f86a598cfdea65558d50e3e43f4fc5dbbe9015468e8ac",
+      "src": "f7898130e55771fc2b90866249a10b0da6cc8e24c83eeb7ef0f30f76d4f47c5a"
+    },
+    "admin.users.filter.label": {
+      "by": "ai",
+      "out": "c358fba0f715e5e243ada26e9c05da1d0db82814cf01a4c597f468c18f8cf97e",
+      "src": "d083d37554c28333f2a1f1f13230d46821948ab8b35bced2d9070225e278d74d"
+    },
+    "admin.users.filter.noWorkspace": {
+      "by": "ai",
+      "out": "c9fd5f293bc08f760de57e365fe98928354fd99b1a5a730d92a69e1c906aaaf4",
+      "src": "fce263d326818c6258e1db247a3b5b9e2c828c2259589915440bb7cf9a67e65a"
+    },
+    "admin.users.noWorkspaceEmpty": {
+      "by": "ai",
+      "out": "6896d6f63518e41d4610d648d5d40d3b7b7d07f04b3d08f053a724eefdda82bd",
+      "src": "e1d6bb7586b24ebeeedd9ab74a87a513ce46f6baf7b0534e7dfd11dce7824d78"
     },
     "auth.addPasskey.add": {
       "by": "ai",
@@ -9231,6 +9476,11 @@
       "by": "ai",
       "out": "f5da7bbb6c574c41f31633d28620a55cb16e3727a7e82590dee62aa109bdce13",
       "src": "6ccb3f7ff37d0a6d4102ba24fb7a5f0f7e799c023474268becf06be2cf2afe8a"
+    },
+    "auth.signedOutOf": {
+      "by": "ai",
+      "out": "d49a34357456d3154a409974822209859a65ba6bddccb17b2f437620bba297b2",
+      "src": "eec25303b83f8bc906b42cfd9cbab0d0ffeda6e9fec691c93b7c3036ccdabc6a"
     },
     "auth.signingIn": {
       "by": "ai",
@@ -11667,6 +11917,36 @@
       "out": "e07d1b77239eb5120ad007856f65d1f790d0d523b7a6b25f2c93398d2fd8a83c",
       "src": "4dedfba99085e7ca9d75c50890d8badb4fdb369b8a0f9fa075fa7283cce16662"
     },
+    "email.workspaceRemoved.accountDeleted": {
+      "by": "ai",
+      "out": "8bfc7b0fc7ba1cbe41b908dbab31287ea3c7a11609aa2dbb3490793a89c79123",
+      "src": "ec7b46ac128961804b0b544bbb378f5ba4f98ecc7b47685337a5630b1107d406"
+    },
+    "email.workspaceRemoved.heading": {
+      "by": "ai",
+      "out": "981c979055e84cd3eea0fad11226c26d9816725ccb5ccb7f004a1e9bb66590e4",
+      "src": "b35b0acbf44671160ddaf41c004e1b8478d3e5678c33d0234933c470527f9e06"
+    },
+    "email.workspaceRemoved.preheader": {
+      "by": "ai",
+      "out": "cd05fb44d8236c28c335c94111c74959bc937051ebb863851909b0307645bae3",
+      "src": "6a978eb02580d937a8fd52b90df1d8674f5cde43dbc7cb7d26e294f9b783bf2c"
+    },
+    "email.workspaceRemoved.subject": {
+      "by": "ai",
+      "out": "2a304b54dd99ba4c3e6e83accff006537266e8ef1cfe6eda19fa98714334afde",
+      "src": "dc75d41b1f4c9a27b81489329fa8971265a39d4c4db9857892cca10627ad76d3"
+    },
+    "email.workspaceRemoved.text": {
+      "by": "ai",
+      "out": "b183a31588ebc8c7938edd92e2a4e16136387664a04d92dd2b538dd043ba7549",
+      "src": "b7344b57bf983f91705c0590168def72cb64a691d447a4fc071d1e27874c354b"
+    },
+    "email.workspaceRemoved.unexpected": {
+      "by": "ai",
+      "out": "b9cd167398002bd70f31247b5b92fb3898a75641d18fed3d4323153e9a6c0e03",
+      "src": "83b7256d6b220caae0299958d8f13fe7aff137e23424fed9c3a3fed5f7822290"
+    },
     "errors.couldNot.appointmentType.delete": {
       "by": "ai",
       "out": "9733e01f107d5a3d8cd1d86110024bd6fc3a1e2552a1f9b107719c0f22b1aa4f",
@@ -13447,6 +13727,11 @@
       "out": "f68872676179f89394e914c1041cf0018cbacacdd4fc052f7f33da330a422ab0",
       "src": "955e08746778ad09d20989546ded766dcabe5e5bc9451b95bb8300c8bd327300"
     },
+    "settings.assistant.languages.anyNote": {
+      "by": "ai",
+      "out": "747c339e82ec62256151cdc9c129eebdaaecbbc95da2cc0ddae43a2b32c241c0",
+      "src": "60f05215946de4c23bcd5180908dbbd037ced8504ef62b58acd05bbc346613f3"
+    },
     "settings.missingProvider.answering.add": {
       "by": "ai",
       "out": "5110c29b0a5ab7b49f0ff113f75eb6d827ebf198d49a791112273851f8dfe41e",
@@ -14024,8 +14309,8 @@
     },
     "shell.help.row.nextView": {
       "by": "ai",
-      "out": "f3127818e75ad88723d59fbd4c7f97294e1d2c444f98f5ac1e6ce3db3d2c9529",
-      "src": "37d655edd1fec225bdea4e95eb2281bc9e1cd87e958316fc5653ef5b052ef590"
+      "out": "09fe256b55051bbc9d2e6affbd0dd3aa7900d51b11b13b70cdec153bd5cbd884",
+      "src": "b0716e9f99fb5c9a3a5b85205f976548855ab5cf92345f8c2ba94fd60a0b47f9"
     },
     "shell.help.row.openCall": {
       "by": "ai",
@@ -14049,8 +14334,8 @@
     },
     "shell.help.row.previousView": {
       "by": "ai",
-      "out": "17e6385b09b1bf7f63bff4fb338092333e9889fa27da3e5baac35bb296ae5350",
-      "src": "7c57bf9dbb757fd6f2795a648e59695b1df208822aa320a374546fc901a9bc87"
+      "out": "f29513d7eafcb63c81514a30f5424b612818addf8038eeaeefa140188adedbbe",
+      "src": "80648cddeed161e4de79dc1e8aa6148c20480a251a9179380fd292b0f315356c"
     },
     "shell.help.row.remindMe": {
       "by": "ai",
@@ -14297,6 +14582,16 @@
       "out": "490311f09d18f72239aa1e3614a43139e69cf8bc64905bbd6dcf6e7749fc69ec",
       "src": "4b892277843cba34d0da423a97b578774f9f2f2d1b5e3893d2ce2736254ad607"
     },
+    "shell.newWorkspace.created.added": {
+      "by": "ai",
+      "out": "c18cb79f2d01d6054c0ded4257ddd343e6d77c6905d5db3921ed468a8d279e01",
+      "src": "cb7763a342380837d16d3748cd46cffc48fc7444392f4ed3642c86a275c7aad8"
+    },
+    "shell.newWorkspace.created.invited": {
+      "by": "ai",
+      "out": "41fdb1102e889607745546900346cc97d0501cd3ed04d8c5997fa4a8a021796a",
+      "src": "1f065b5bbcae1a6887bcd77e8953e970df24e896c6befaeb79593bfeb126181b"
+    },
     "shell.newWorkspace.creating": {
       "by": "ai",
       "out": "7b5825e6fdd079cb53512dcd8b391a04954755fed4213a617a768f7ac1ec0f98",
@@ -14306,6 +14601,16 @@
       "by": "ai",
       "out": "06c14849f5e2be491c11d0ff4f49d0cb4ce9c20f1199d312035ac52afdbe92f9",
       "src": "d26a0f262b576984f2ee4b6da8a38fe52a7713dbf73c062b8fa4dfcdf73bba16"
+    },
+    "shell.newWorkspace.descriptionForOwner": {
+      "by": "ai",
+      "out": "8dc0ded3db6d768d30e94b22721c4f640aaea627878065593aa32fa5c301e4d7",
+      "src": "f5237f2855e3727f3e7aa9a87fcf9295358662b82878d58dfdabf0862a460e34"
+    },
+    "shell.newWorkspace.done": {
+      "by": "ai",
+      "out": "b5fa51d564a9d8809f67c15dd6aef17cb1ebffbaa416b42978e079134adf568e",
+      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
     },
     "shell.newWorkspace.name": {
       "by": "ai",
@@ -14322,10 +14627,65 @@
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
       "src": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa"
     },
+    "shell.newWorkspace.open": {
+      "by": "ai",
+      "out": "9b549502fe677546a3682aea18f2019feff07c4f468a6451aba1251e129c3adb",
+      "src": "df0caf1b27bd40d19bb36970d408911f7547c633590eab2fa70a6daad4338a96"
+    },
+    "shell.newWorkspace.openTip": {
+      "by": "ai",
+      "out": "9ac102b247c1a51457ff37ca8c931fafad1123ce0e65634f65ed0f118f887ca9",
+      "src": "e0922aa6e8dfd3f1114435e8b99f988ceaa4acd552fab2ecf653c20324743a4a"
+    },
     "shell.newWorkspace.opening": {
       "by": "ai",
       "out": "2d5bf11d9a53dfa0e4accbc4967a7e872406023638704c045e5e769a273589ad",
       "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
+    "shell.newWorkspace.owner": {
+      "by": "ai",
+      "out": "82001fa2ec57ac59a4fa21f1ccdf7f5c9e353e268f6e440b62e02532c0cc3bd1",
+      "src": "4b1b8aa3608a26da451ae0630d75b60ab1bc2dd229c41a80838fc7993e835c46"
+    },
+    "shell.newWorkspace.owner.me": {
+      "by": "ai",
+      "out": "4eeac15ae345b99db2b063be34cfa006fd7d551f5805a296e5f9fc72ff6efcad",
+      "src": "d30af076b0dc85cc5b0074b403f74770b73af84a70c2f77f7a3609d0db23112e"
+    },
+    "shell.newWorkspace.owner.meHelp": {
+      "by": "ai",
+      "out": "3f5ac8e4336b9e0082136e8b770865b8032a49fd9b61858ebbf8086ba2489ccb",
+      "src": "033350143badfdfc9bb96a264ea537654a74111076b5275c237f397cf4543aa6"
+    },
+    "shell.newWorkspace.owner.other": {
+      "by": "ai",
+      "out": "27e02648948def3f3e34ca91270f1cf9d0d20d198d873fadc13908806428d9a1",
+      "src": "3233cb049ab7f4ed5c6eccc11a4c9b6e02d0ed8e74e159d5e6baddd525b9febb"
+    },
+    "shell.newWorkspace.owner.otherHelp": {
+      "by": "ai",
+      "out": "e9f4a6259015c2f6bd790230a698f92fccaff610d80bd756c8ec8db6b3e21e15",
+      "src": "daf178dfa448c89c856cdc445cc2bee4eec182c04fba4919c06795aabb6c3eb1"
+    },
+    "shell.newWorkspace.ownerEmail": {
+      "by": "ai",
+      "out": "b00069dda08140546c366891f5c6b10ff344a5567735963a89add8b4341b06eb",
+      "src": "0d7a4b35a04732dab37b7a09fc9d2aaa3effe806e4dccdbe32285f73c8cef082"
+    },
+    "shell.newWorkspace.ownerEmailHelp": {
+      "by": "ai",
+      "out": "351bd0ac7ababbde582d356c6bd710b3311728ad15ecf356d843c178d0fb3a72",
+      "src": "82c0b594ab9c1691e20d06d2bef5834db7af8b62c40bb5f2864f81d593c4ec66"
+    },
+    "shell.newWorkspace.ownerName": {
+      "by": "ai",
+      "out": "2a311dccdc5d67227c1f94da7684c0894ae47733b19e73fbef551f636029fb51",
+      "src": "b809f32054ecbeeecb1e073676de6369c62abec40e6fde43a48a47a1ca5efdbc"
+    },
+    "shell.newWorkspace.ownerNameHelp": {
+      "by": "ai",
+      "out": "099676a53e8444a18b37a8829e949e4ded88a19915d10db064400e804b93f2a8",
+      "src": "a067fa32d7cce74cf6cbc9d4705c2a1483b377431707a98c8289b8c116242800"
     },
     "shell.newWorkspace.passkey.button.confirm": {
       "by": "ai",
@@ -15162,6 +15522,16 @@
       "out": "e2fafa1fc994171d139bd86e7738248dfa5b85836298eb1c1c0552adce2126db",
       "src": "1de350a51b1197bd325092358087cf12f07213ce6645d39eb6887692fbe3627b"
     },
+    "team.leave.signInFirst.text": {
+      "by": "ai",
+      "out": "3b66e424d55514484e2178b8feaeac347fcf06d0501b4734ca0462a825388b6f",
+      "src": "5d7ce69acc8eb311ae33736a8a75567f909b499e31972f116e256e4d50298784"
+    },
+    "team.leave.signInFirst.title": {
+      "by": "ai",
+      "out": "5c9b6e68dc2ccd7b9292ecf96cfcf960ac291c769ebdcf3289a0e14d81ed4c81",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
+    },
     "team.leave.title": {
       "by": "ai",
       "out": "fac95e7410e2e3a3da3ff4f6d0f75b6e70bd36b03cda32f8302a1bfd67c126ed",
@@ -15257,6 +15627,11 @@
       "out": "114e0e05517c6be5c167c8af20a218e51b00bb5db754d6dfcd3cd2c8e091d0e0",
       "src": "0bfdab22af868cb00f1cfde76882eef4d9aa140702a6c5d6be2c64ccf3371f13"
     },
+    "team.remove.accountStays": {
+      "by": "ai",
+      "out": "3eb99c54958aa790b9809992ac9e104834e4b70a2ddc567e1e94613b0c9d4dc8",
+      "src": "27d0960f2c78a7e3af0014f1a3ff1b805531b53569b41da5ff03f384444608c6"
+    },
     "team.remove.action": {
       "by": "ai",
       "out": "f039f4a8c9759318cc3ee9c91607d97c020c8a45c6fb90b096c97f78118841da",
@@ -15267,6 +15642,16 @@
       "out": "b23d2bba5c2fcae20b83003233480ed3b54115c9be401f21a9053eff966f295d",
       "src": "d4b09919ec929f15c19802296a06e97a0d0862e29e23c453d638fc0c3b87c641"
     },
+    "team.remove.deleteAccount": {
+      "by": "ai",
+      "out": "c61e1b403aaaa92eb5d3d263e274ef6771113808e9c9e208f4f22204e852b361",
+      "src": "1301800cc8fa15cb1c91bc59f73dd0615a54bdc87eb7b63f678222f2c1b2d0f8"
+    },
+    "team.remove.invitationsCanceled": {
+      "by": "ai",
+      "out": "92eff5286693f52df830765a69e2ab276aa6d30e6f534625413de7ee7484e7df",
+      "src": "f184efc1e8d756c360f3c2686c2279209d94b21faf83943fcb25db1a50dc7c3d"
+    },
     "team.remove.keepAccount": {
       "by": "ai",
       "out": "0f1e107adc577bd1fdeeef505e8ade9e9eb09a7938ff0e09cd1c2b74c5c2c209",
@@ -15276,6 +15661,21 @@
       "by": "ai",
       "out": "bceae316a47e0bd766184e6a3af1fb2667fb96a1a873e6f217e4117c32f68794",
       "src": "ccf9cbdb2ae27725eb1607744dd93ae37ddbec31b6172a205658d108b95f1659"
+    },
+    "team.remove.ownerAccountStays": {
+      "by": "ai",
+      "out": "46376c2298e2754bf17132ad02ccc0a4d16ce8c77d3d046ffb4f0ce93befbec3",
+      "src": "4219cf9b40da5abcb61a7d596d904713dc233b4127e2a747aaadecbc3b85873c"
+    },
+    "team.remove.signInFirst.text": {
+      "by": "ai",
+      "out": "385a55ab89bf7e805774d5fb641c66a4e61aefe72e76939b05b2bdb4d3b7dd19",
+      "src": "172b1b961ecbbd0ea8de41f558f1160b28321e09fe0a7b3115201adcb2e78cde"
+    },
+    "team.remove.signInFirst.title": {
+      "by": "ai",
+      "out": "5c9b6e68dc2ccd7b9292ecf96cfcf960ac291c769ebdcf3289a0e14d81ed4c81",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
     },
     "team.remove.text": {
       "by": "ai",
@@ -16099,6 +16499,21 @@
       "out": "3eb6222a0265d3819f1c94b6217f31173c287cdc7b42abda28a3dcd52b8f51ba",
       "src": "dbb5f6371b6a2a677f09c24d17fdc581132a41881a818469a92b58588e8764bc"
     },
+    "admin.audit.invitationReassigned": {
+      "by": "ai",
+      "out": "75e86bd2b0245d6640f208126dc139cae4a632fdb469724001fea0fb4a20116a",
+      "src": "6b0b05c68a10e597139aaafbc0de09ee7201c0a0dbc2016bc60e02717e1bfc53"
+    },
+    "admin.audit.invitationReassignedTo": {
+      "by": "ai",
+      "out": "37337295d62de6da5c4cc85bd1000e95a8c4843c5a7146f82e2ed657bae9a685",
+      "src": "2482322978431816db908402785630e9dc831d9b921e028939de3c704d7a3093"
+    },
+    "admin.audit.invitationWithdrawn": {
+      "by": "ai",
+      "out": "4b1a3a60a8f7ca611b108ba28ec242cc9e5a7015470df70b45d53e26bed65a36",
+      "src": "c2fdbbd6b8b44ce9fa555c74d793ead7683ff178429c843afa872245b7f91165"
+    },
     "admin.example.business": {
       "by": "ai",
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
@@ -16109,10 +16524,40 @@
       "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
       "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
     },
+    "admin.frame.back": {
+      "by": "ai",
+      "out": "bf94bc22fe04de6deff991e41ddb0db24c1354997e31de727f87f33628172741",
+      "src": "065ffb993d0da544b10439945bbef129f6d7fbf0879d640fc6fdff770ee2c78d"
+    },
+    "admin.frame.backTo": {
+      "by": "ai",
+      "out": "2bb5150f6a7cfbe52815efbd9cf75d2e96903213e23309d59ed7d9ea73bdaf18",
+      "src": "5939d409e577d681a4bd8702f7cdf8936682147338100e9d919bc83e3b447520"
+    },
     "admin.impersonation.confirm": {
       "by": "ai",
       "out": "02a4b24abdd8ea032474f208a8926b9d0395b73504a60cc80cdcbc4ebae5100d",
       "src": "95ddffb9ea2a924a24570874f274d8f5ee7638d62fb6a29ace386a8c4f92297d"
+    },
+    "admin.users.filter.all": {
+      "by": "ai",
+      "out": "e17a170f1384bd443f56e73525578cb4b17d40c97da460c9c3e1a661ab228eb7",
+      "src": "f7898130e55771fc2b90866249a10b0da6cc8e24c83eeb7ef0f30f76d4f47c5a"
+    },
+    "admin.users.filter.label": {
+      "by": "ai",
+      "out": "17b9a5e57fa35effcfb4a454639c2e2b1a31eb0038ba49bf4d26d4785028b08b",
+      "src": "d083d37554c28333f2a1f1f13230d46821948ab8b35bced2d9070225e278d74d"
+    },
+    "admin.users.filter.noWorkspace": {
+      "by": "ai",
+      "out": "a67bb5b8379b0ef3f9ae3709a95ea2732ccb7202dd0314e99ad7c0edba117b47",
+      "src": "fce263d326818c6258e1db247a3b5b9e2c828c2259589915440bb7cf9a67e65a"
+    },
+    "admin.users.noWorkspaceEmpty": {
+      "by": "ai",
+      "out": "bc100c5c42c4ef6be2f5e86841f5c3b738a70c6a9e40ec2e6f881ad26b07c14d",
+      "src": "e1d6bb7586b24ebeeedd9ab74a87a513ce46f6baf7b0534e7dfd11dce7824d78"
     },
     "auth.addPasskey.add": {
       "by": "ai",
@@ -16893,6 +17338,11 @@
       "by": "ai",
       "out": "db4261672a4b67a13b7ec77297276276fc7479d8fc8e215595811ec9515e54ca",
       "src": "6ccb3f7ff37d0a6d4102ba24fb7a5f0f7e799c023474268becf06be2cf2afe8a"
+    },
+    "auth.signedOutOf": {
+      "by": "ai",
+      "out": "ed6d0f0a516828de725cc42c141871f462108a897334b2bc232f71e3f90d0813",
+      "src": "eec25303b83f8bc906b42cfd9cbab0d0ffeda6e9fec691c93b7c3036ccdabc6a"
     },
     "auth.signingIn": {
       "by": "ai",
@@ -19329,6 +19779,36 @@
       "out": "265bbb78211c9fea4e575ec3b0340548d85d40f0582a8b16769c9a75ec8b03c9",
       "src": "4dedfba99085e7ca9d75c50890d8badb4fdb369b8a0f9fa075fa7283cce16662"
     },
+    "email.workspaceRemoved.accountDeleted": {
+      "by": "ai",
+      "out": "f75a03806cb8c0689dc6f82f95288f253ab71227c1c000ebaf366d810c441fc0",
+      "src": "ec7b46ac128961804b0b544bbb378f5ba4f98ecc7b47685337a5630b1107d406"
+    },
+    "email.workspaceRemoved.heading": {
+      "by": "ai",
+      "out": "78ef813253714d284ea49077cbc53fc763fb403744dd63590b2a5b45cff99ef0",
+      "src": "b35b0acbf44671160ddaf41c004e1b8478d3e5678c33d0234933c470527f9e06"
+    },
+    "email.workspaceRemoved.preheader": {
+      "by": "ai",
+      "out": "81637c6cc0f13e84de02223a42f179a22fd862d9ba7155b3069bafb29f1289f8",
+      "src": "6a978eb02580d937a8fd52b90df1d8674f5cde43dbc7cb7d26e294f9b783bf2c"
+    },
+    "email.workspaceRemoved.subject": {
+      "by": "ai",
+      "out": "c573bf96c35b6154f9efc4f4bc05f20e59f2e26269a410da06fe0c12cc16a1c0",
+      "src": "dc75d41b1f4c9a27b81489329fa8971265a39d4c4db9857892cca10627ad76d3"
+    },
+    "email.workspaceRemoved.text": {
+      "by": "ai",
+      "out": "63965358d6dba2d0604f535aa3ef0eafbe30f5e27a2c87fa136585dd3572eeed",
+      "src": "b7344b57bf983f91705c0590168def72cb64a691d447a4fc071d1e27874c354b"
+    },
+    "email.workspaceRemoved.unexpected": {
+      "by": "ai",
+      "out": "0ba33b8daa34f2de1baef2a7730081526608fc3586488d794fd285b2355e27ae",
+      "src": "83b7256d6b220caae0299958d8f13fe7aff137e23424fed9c3a3fed5f7822290"
+    },
     "errors.couldNot.appointmentType.delete": {
       "by": "ai",
       "out": "848e9c48e8406e4d86324639234a1f1995cf86a1ff34cdbecd01b11084bd4c76",
@@ -21109,6 +21589,11 @@
       "out": "d57bd947316e9b09cd99aba085efcec9890787f0e96a171cfd27560392ef7ae6",
       "src": "955e08746778ad09d20989546ded766dcabe5e5bc9451b95bb8300c8bd327300"
     },
+    "settings.assistant.languages.anyNote": {
+      "by": "ai",
+      "out": "8c5675435f7432adebee3dffc8df5a31926c6f38a4a85073cf815051985d26c0",
+      "src": "60f05215946de4c23bcd5180908dbbd037ced8504ef62b58acd05bbc346613f3"
+    },
     "settings.missingProvider.answering.add": {
       "by": "ai",
       "out": "87fd4e0d7c65b314676a5e4ec7d4e8d70d17eb976d6de88f3ddf3d35e91a560b",
@@ -21686,8 +22171,8 @@
     },
     "shell.help.row.nextView": {
       "by": "ai",
-      "out": "537eee7010fa421e313a292573d5b290c20a49f69d90d80988b5e5c1807568bc",
-      "src": "37d655edd1fec225bdea4e95eb2281bc9e1cd87e958316fc5653ef5b052ef590"
+      "out": "571183190d3007abf9547f4199730ab610eda5d6fddc8d59f425fad094b3f5ca",
+      "src": "b0716e9f99fb5c9a3a5b85205f976548855ab5cf92345f8c2ba94fd60a0b47f9"
     },
     "shell.help.row.openCall": {
       "by": "ai",
@@ -21711,8 +22196,8 @@
     },
     "shell.help.row.previousView": {
       "by": "ai",
-      "out": "c767177589483a651a1de845e5c87bf0737a9ab577247a64ac0c6f9f817bf2b0",
-      "src": "7c57bf9dbb757fd6f2795a648e59695b1df208822aa320a374546fc901a9bc87"
+      "out": "28929c36ea995639e3cb6db08682439d1733408868c732dc9fdcc8bb13fda888",
+      "src": "80648cddeed161e4de79dc1e8aa6148c20480a251a9179380fd292b0f315356c"
     },
     "shell.help.row.remindMe": {
       "by": "ai",
@@ -21959,6 +22444,16 @@
       "out": "400d2ea322b9f56d033415741ba89a566f3ee5d82034b8263733024fa9ae38bf",
       "src": "4b892277843cba34d0da423a97b578774f9f2f2d1b5e3893d2ce2736254ad607"
     },
+    "shell.newWorkspace.created.added": {
+      "by": "ai",
+      "out": "6efbdacfebf0f46ec22e3eb87c3162c10765edd742e1cfd355bfd7bcde3515c5",
+      "src": "cb7763a342380837d16d3748cd46cffc48fc7444392f4ed3642c86a275c7aad8"
+    },
+    "shell.newWorkspace.created.invited": {
+      "by": "ai",
+      "out": "cef0d38b04feb18c09752c8976caf2313c73937c548566c3b191b4fabf7d8497",
+      "src": "1f065b5bbcae1a6887bcd77e8953e970df24e896c6befaeb79593bfeb126181b"
+    },
     "shell.newWorkspace.creating": {
       "by": "ai",
       "out": "90efa124e53ab45724f231f3e1d8cb3e33f9b22637106e40e161156016a12b35",
@@ -21968,6 +22463,16 @@
       "by": "ai",
       "out": "ed47ed497f67ab2d803d1d3f7e21bd3a29e74e1e0c3ec1ef552dc51cb7eec34a",
       "src": "d26a0f262b576984f2ee4b6da8a38fe52a7713dbf73c062b8fa4dfcdf73bba16"
+    },
+    "shell.newWorkspace.descriptionForOwner": {
+      "by": "ai",
+      "out": "a53d2422bddec216de22e0895502d543e601d9d194fc3d750b425d0b7990e231",
+      "src": "f5237f2855e3727f3e7aa9a87fcf9295358662b82878d58dfdabf0862a460e34"
+    },
+    "shell.newWorkspace.done": {
+      "by": "ai",
+      "out": "f28acc85bfcb0e7da15bfe19070aceb61e8d1730237370ff0d21cf6563928192",
+      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
     },
     "shell.newWorkspace.name": {
       "by": "ai",
@@ -21984,10 +22489,65 @@
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
       "src": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa"
     },
+    "shell.newWorkspace.open": {
+      "by": "ai",
+      "out": "22693d2647dd0a028bdc69175d9848b21023ab3192491308f7a47f17d347efe1",
+      "src": "df0caf1b27bd40d19bb36970d408911f7547c633590eab2fa70a6daad4338a96"
+    },
+    "shell.newWorkspace.openTip": {
+      "by": "ai",
+      "out": "954110e60c05383685a2218d1b15c0d7ba268b857d491f74f71c237a621d9287",
+      "src": "e0922aa6e8dfd3f1114435e8b99f988ceaa4acd552fab2ecf653c20324743a4a"
+    },
     "shell.newWorkspace.opening": {
       "by": "ai",
       "out": "3806c054832bfea92b3709316d178d0d997c269bdfe4fd2ae152be558cac7ab7",
       "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
+    "shell.newWorkspace.owner": {
+      "by": "ai",
+      "out": "b406881e070bf1d550bec15e57b5a31847235a290c615243ed1b52a91567e4d9",
+      "src": "4b1b8aa3608a26da451ae0630d75b60ab1bc2dd229c41a80838fc7993e835c46"
+    },
+    "shell.newWorkspace.owner.me": {
+      "by": "ai",
+      "out": "a32799c816cc8b94e93645ae6720f29ccc2dc267558d305b811f14582bc0fb5d",
+      "src": "d30af076b0dc85cc5b0074b403f74770b73af84a70c2f77f7a3609d0db23112e"
+    },
+    "shell.newWorkspace.owner.meHelp": {
+      "by": "ai",
+      "out": "b4373b8de9ef23103affc40578cac5806869d07e60210d437796ee7b9e4e92d8",
+      "src": "033350143badfdfc9bb96a264ea537654a74111076b5275c237f397cf4543aa6"
+    },
+    "shell.newWorkspace.owner.other": {
+      "by": "ai",
+      "out": "5e6b4d87d9b3f97b3e602640bfae3a0e3eec691146e81f20af429efc7b6fd4d6",
+      "src": "3233cb049ab7f4ed5c6eccc11a4c9b6e02d0ed8e74e159d5e6baddd525b9febb"
+    },
+    "shell.newWorkspace.owner.otherHelp": {
+      "by": "ai",
+      "out": "b28958c4a1b1492961988f69e2a8a06801ca80ed840b840a886ae01028a00d04",
+      "src": "daf178dfa448c89c856cdc445cc2bee4eec182c04fba4919c06795aabb6c3eb1"
+    },
+    "shell.newWorkspace.ownerEmail": {
+      "by": "ai",
+      "out": "6130ec3ff54220a9bbbca88efddb5c119cba354f81c48f30ad988bca10fd94e6",
+      "src": "0d7a4b35a04732dab37b7a09fc9d2aaa3effe806e4dccdbe32285f73c8cef082"
+    },
+    "shell.newWorkspace.ownerEmailHelp": {
+      "by": "ai",
+      "out": "7f2fdc72f2823d0bc9aae3fe0f464e1839bed6e5730187b25dfc15a0469e6d45",
+      "src": "82c0b594ab9c1691e20d06d2bef5834db7af8b62c40bb5f2864f81d593c4ec66"
+    },
+    "shell.newWorkspace.ownerName": {
+      "by": "ai",
+      "out": "fdc3c10e088b8608bd167654f8500e408ccf3a124e7a80e8aa2c38c5415e741e",
+      "src": "b809f32054ecbeeecb1e073676de6369c62abec40e6fde43a48a47a1ca5efdbc"
+    },
+    "shell.newWorkspace.ownerNameHelp": {
+      "by": "ai",
+      "out": "cd73481aba20b23fd6f743ce9e62b409923c347972572b60fb02cdee7e33e85e",
+      "src": "a067fa32d7cce74cf6cbc9d4705c2a1483b377431707a98c8289b8c116242800"
     },
     "shell.newWorkspace.passkey.button.confirm": {
       "by": "ai",
@@ -22824,6 +23384,16 @@
       "out": "5ad40316515f745422674922ad300bbcb8d0389079d932ef452e2ccce3db131c",
       "src": "1de350a51b1197bd325092358087cf12f07213ce6645d39eb6887692fbe3627b"
     },
+    "team.leave.signInFirst.text": {
+      "by": "ai",
+      "out": "4ea15a35c87fa777601b2c6700856e1ae6e7041718f258d2bfb4f58b8fa5afbe",
+      "src": "5d7ce69acc8eb311ae33736a8a75567f909b499e31972f116e256e4d50298784"
+    },
+    "team.leave.signInFirst.title": {
+      "by": "ai",
+      "out": "2ad38f7dbeda901ed9649c04bb7808424fa734ac241bb9bd621542d4f6132641",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
+    },
     "team.leave.title": {
       "by": "ai",
       "out": "d4d31058097ef33e5255d4591ee1271923a90650c9dac4a62af1e77968b4f0bd",
@@ -22919,6 +23489,11 @@
       "out": "5e2031655b570e334796ac8b3038f1cec279ab4f428371112957957b0a666f65",
       "src": "0bfdab22af868cb00f1cfde76882eef4d9aa140702a6c5d6be2c64ccf3371f13"
     },
+    "team.remove.accountStays": {
+      "by": "ai",
+      "out": "310c682159886d4de087dc829a0c89fb54d66db3b727db6176c32eb3eb27804b",
+      "src": "27d0960f2c78a7e3af0014f1a3ff1b805531b53569b41da5ff03f384444608c6"
+    },
     "team.remove.action": {
       "by": "ai",
       "out": "41e22ed93372748ec6f28cb0080868958a1b860f6c0e1bf0405c636d72a9d7d6",
@@ -22929,6 +23504,16 @@
       "out": "adb501676cdc3d0e65a7aba93be601f6fbbcbd76ec9abbd6385970c9cd1f61f2",
       "src": "d4b09919ec929f15c19802296a06e97a0d0862e29e23c453d638fc0c3b87c641"
     },
+    "team.remove.deleteAccount": {
+      "by": "ai",
+      "out": "234df90b82e4d1485de1d08af6cc24253f0dc27488f150e4eb00bd280c23a9d0",
+      "src": "1301800cc8fa15cb1c91bc59f73dd0615a54bdc87eb7b63f678222f2c1b2d0f8"
+    },
+    "team.remove.invitationsCanceled": {
+      "by": "ai",
+      "out": "86491cf71d7258c56e687ca087341021642afc8afd1778c75cf80cc51cef4599",
+      "src": "f184efc1e8d756c360f3c2686c2279209d94b21faf83943fcb25db1a50dc7c3d"
+    },
     "team.remove.keepAccount": {
       "by": "ai",
       "out": "7e3d6d01d49c1453d5d570cd7b5a349ac0c7b06a45dd1dd352d390c1cd00cbdf",
@@ -22938,6 +23523,21 @@
       "by": "ai",
       "out": "4be07c61d348c22d980aed99f36f39ca3e1acf28a00507c081a54fc07beea393",
       "src": "ccf9cbdb2ae27725eb1607744dd93ae37ddbec31b6172a205658d108b95f1659"
+    },
+    "team.remove.ownerAccountStays": {
+      "by": "ai",
+      "out": "8fc2070bcc5049ee1926d60120bac3b5ea6b50fb057e768809e1f571ad4bc322",
+      "src": "4219cf9b40da5abcb61a7d596d904713dc233b4127e2a747aaadecbc3b85873c"
+    },
+    "team.remove.signInFirst.text": {
+      "by": "ai",
+      "out": "ea86fca7e08828d31ad579b8db56d0dd0d2efadeb3a8e1524dc14300ee2096d9",
+      "src": "172b1b961ecbbd0ea8de41f558f1160b28321e09fe0a7b3115201adcb2e78cde"
+    },
+    "team.remove.signInFirst.title": {
+      "by": "ai",
+      "out": "2ad38f7dbeda901ed9649c04bb7808424fa734ac241bb9bd621542d4f6132641",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
     },
     "team.remove.text": {
       "by": "ai",
@@ -23761,6 +24361,21 @@
       "out": "f74f2247c76cf7e0ba968717e11650c2b106b02356dac304a22d9d37141cf7ce",
       "src": "dbb5f6371b6a2a677f09c24d17fdc581132a41881a818469a92b58588e8764bc"
     },
+    "admin.audit.invitationReassigned": {
+      "by": "ai",
+      "out": "4570b5c1b264df6ddfd07f3f7b38bbeac87c3d089431ff1f492390231c583af2",
+      "src": "6b0b05c68a10e597139aaafbc0de09ee7201c0a0dbc2016bc60e02717e1bfc53"
+    },
+    "admin.audit.invitationReassignedTo": {
+      "by": "ai",
+      "out": "aa538429d8a7134c2aa077b7979c0f081a1e47717a4b0dd098f02da99e04a49f",
+      "src": "2482322978431816db908402785630e9dc831d9b921e028939de3c704d7a3093"
+    },
+    "admin.audit.invitationWithdrawn": {
+      "by": "ai",
+      "out": "60c7248bf9a54b3d0dd53b83ae8479b0add4be906763b42517e85f0df14e0f05",
+      "src": "c2fdbbd6b8b44ce9fa555c74d793ead7683ff178429c843afa872245b7f91165"
+    },
     "admin.example.business": {
       "by": "ai",
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
@@ -23771,10 +24386,40 @@
       "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
       "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
     },
+    "admin.frame.back": {
+      "by": "ai",
+      "out": "96ea6113b3c6ba9ff0b63ca6a5361e22194a25109fbd304939ab077b18024726",
+      "src": "065ffb993d0da544b10439945bbef129f6d7fbf0879d640fc6fdff770ee2c78d"
+    },
+    "admin.frame.backTo": {
+      "by": "ai",
+      "out": "bc88df153faa01e7e7ebdb26c0bfdddb71234ff0a1135a253b70bfe03796801e",
+      "src": "5939d409e577d681a4bd8702f7cdf8936682147338100e9d919bc83e3b447520"
+    },
     "admin.impersonation.confirm": {
       "by": "ai",
       "out": "170e149942e9134ec79a1ea0c84f336beeba2cb326f09bb0d9b2d097f59c10ce",
       "src": "95ddffb9ea2a924a24570874f274d8f5ee7638d62fb6a29ace386a8c4f92297d"
+    },
+    "admin.users.filter.all": {
+      "by": "ai",
+      "out": "d47f245530c6243650c7198dd2bc2ed8dc773f3f62bacf1551c4f6c983b9c6ab",
+      "src": "f7898130e55771fc2b90866249a10b0da6cc8e24c83eeb7ef0f30f76d4f47c5a"
+    },
+    "admin.users.filter.label": {
+      "by": "ai",
+      "out": "1d0e06aefb419afbb5485fef738801d4740f5a9cd0a438e6f3b5c9e459818bae",
+      "src": "d083d37554c28333f2a1f1f13230d46821948ab8b35bced2d9070225e278d74d"
+    },
+    "admin.users.filter.noWorkspace": {
+      "by": "ai",
+      "out": "49dad1a74421c1fce57feb5e3feb13e895ad9a1896d6aded5d1245393d133dc7",
+      "src": "fce263d326818c6258e1db247a3b5b9e2c828c2259589915440bb7cf9a67e65a"
+    },
+    "admin.users.noWorkspaceEmpty": {
+      "by": "ai",
+      "out": "c4d2c9eacb9e5cb64d0aeadc01d9d5517d1811b721ac1e211323f17fbe091cc7",
+      "src": "e1d6bb7586b24ebeeedd9ab74a87a513ce46f6baf7b0534e7dfd11dce7824d78"
     },
     "auth.addPasskey.add": {
       "by": "ai",
@@ -24555,6 +25200,11 @@
       "by": "ai",
       "out": "7daac56a9597f40bf2708600090eaef90484388877ebf32caca0842d112deba1",
       "src": "6ccb3f7ff37d0a6d4102ba24fb7a5f0f7e799c023474268becf06be2cf2afe8a"
+    },
+    "auth.signedOutOf": {
+      "by": "ai",
+      "out": "dd466c714105f6e3149dc5277f35ca8d41c8bded32072bca0fd6ceb08675d6ca",
+      "src": "eec25303b83f8bc906b42cfd9cbab0d0ffeda6e9fec691c93b7c3036ccdabc6a"
     },
     "auth.signingIn": {
       "by": "ai",
@@ -26991,6 +27641,36 @@
       "out": "c4730df58c88298d75d48b574b6945b61de116747a4db068a24c91e3205bc742",
       "src": "4dedfba99085e7ca9d75c50890d8badb4fdb369b8a0f9fa075fa7283cce16662"
     },
+    "email.workspaceRemoved.accountDeleted": {
+      "by": "ai",
+      "out": "b883d7437033190778ec91ca787e46f0c2b9b10a44c3a671ed45f0efce39132f",
+      "src": "ec7b46ac128961804b0b544bbb378f5ba4f98ecc7b47685337a5630b1107d406"
+    },
+    "email.workspaceRemoved.heading": {
+      "by": "ai",
+      "out": "1cf2533fd53563e99d9e6f8647382afdcb2482ffbf15a2164d350a45c8281e08",
+      "src": "b35b0acbf44671160ddaf41c004e1b8478d3e5678c33d0234933c470527f9e06"
+    },
+    "email.workspaceRemoved.preheader": {
+      "by": "ai",
+      "out": "255d26f6fc0b2775eca0ea1fe0226b12c1f1fc60f14c0800f788662e4ec219b1",
+      "src": "6a978eb02580d937a8fd52b90df1d8674f5cde43dbc7cb7d26e294f9b783bf2c"
+    },
+    "email.workspaceRemoved.subject": {
+      "by": "ai",
+      "out": "8331aef86be5cc8fba7dd3b4da8b94a248999763225398ff24fbb4edb1045dca",
+      "src": "dc75d41b1f4c9a27b81489329fa8971265a39d4c4db9857892cca10627ad76d3"
+    },
+    "email.workspaceRemoved.text": {
+      "by": "ai",
+      "out": "ac67ab98f5867e66bcaffb12aa6799db1c7e935014f430d4c214fd5024b89971",
+      "src": "b7344b57bf983f91705c0590168def72cb64a691d447a4fc071d1e27874c354b"
+    },
+    "email.workspaceRemoved.unexpected": {
+      "by": "ai",
+      "out": "afb9d7b52d11fdbacde3056a0a880112d34f5c86b2ae215268dd3c1c1b9666a4",
+      "src": "83b7256d6b220caae0299958d8f13fe7aff137e23424fed9c3a3fed5f7822290"
+    },
     "errors.couldNot.appointmentType.delete": {
       "by": "ai",
       "out": "a6eb87d04fff2f91dea9b7f415574001f08168e243002fab733a2832d7c4d28c",
@@ -28771,6 +29451,11 @@
       "out": "88cf79840e4bcf30095efe21e0bfd57930e79272c35d68841aa51013222b2895",
       "src": "955e08746778ad09d20989546ded766dcabe5e5bc9451b95bb8300c8bd327300"
     },
+    "settings.assistant.languages.anyNote": {
+      "by": "ai",
+      "out": "84b886b96518d320ccb203944cc68bcbd529a86f821a5b5149c4312fd93cf905",
+      "src": "60f05215946de4c23bcd5180908dbbd037ced8504ef62b58acd05bbc346613f3"
+    },
     "settings.missingProvider.answering.add": {
       "by": "ai",
       "out": "5663feb01a2f9b56c140875f2817d8963cdd09bec434b28c4a7050d605ef5b49",
@@ -29348,8 +30033,8 @@
     },
     "shell.help.row.nextView": {
       "by": "ai",
-      "out": "c9bb6ca55ee0f9643ffa20602942fa4cda586aff18088737a9c4439c66dfb94f",
-      "src": "37d655edd1fec225bdea4e95eb2281bc9e1cd87e958316fc5653ef5b052ef590"
+      "out": "8c5c58e194e191052e15760ce5bcc1b215773724ee84fa9072d3fb97d62bd287",
+      "src": "b0716e9f99fb5c9a3a5b85205f976548855ab5cf92345f8c2ba94fd60a0b47f9"
     },
     "shell.help.row.openCall": {
       "by": "ai",
@@ -29373,8 +30058,8 @@
     },
     "shell.help.row.previousView": {
       "by": "ai",
-      "out": "2383b52a64447f51a95c623412fdb25d2de2c801d93e62ebda455fb9451c86bd",
-      "src": "7c57bf9dbb757fd6f2795a648e59695b1df208822aa320a374546fc901a9bc87"
+      "out": "d80e84edad2a773b26a533152ac7a0cd6a6e59a400021a47204aa11b3b99afc2",
+      "src": "80648cddeed161e4de79dc1e8aa6148c20480a251a9179380fd292b0f315356c"
     },
     "shell.help.row.remindMe": {
       "by": "ai",
@@ -29621,6 +30306,16 @@
       "out": "c1d38ed0136e6c0f680a6aa8256f5e1263abfc85b8497f020f7bc1e938c89572",
       "src": "4b892277843cba34d0da423a97b578774f9f2f2d1b5e3893d2ce2736254ad607"
     },
+    "shell.newWorkspace.created.added": {
+      "by": "ai",
+      "out": "cdaf6d9135687f7faf8ac2ba39a279e137aea5d9feac29552de2ec9f5a90e818",
+      "src": "cb7763a342380837d16d3748cd46cffc48fc7444392f4ed3642c86a275c7aad8"
+    },
+    "shell.newWorkspace.created.invited": {
+      "by": "ai",
+      "out": "39cef02b1b11a6b3705e4d0c0c78d83a98a9c31c58586d19f386a6dd2b405b09",
+      "src": "1f065b5bbcae1a6887bcd77e8953e970df24e896c6befaeb79593bfeb126181b"
+    },
     "shell.newWorkspace.creating": {
       "by": "ai",
       "out": "4fa99b5cb2a0e589b4641058b3a8a0f10eb95174e72808a9687938e70778dd0b",
@@ -29630,6 +30325,16 @@
       "by": "ai",
       "out": "1d57ce6e95bfc8518ec0d7f79ae45a1a81a57ee9014de3805af77c4ec9e01a25",
       "src": "d26a0f262b576984f2ee4b6da8a38fe52a7713dbf73c062b8fa4dfcdf73bba16"
+    },
+    "shell.newWorkspace.descriptionForOwner": {
+      "by": "ai",
+      "out": "cd8e7f84958d5f1f6d55579d8e9c46a98735b970144d4dc76b910b8bc5955f9a",
+      "src": "f5237f2855e3727f3e7aa9a87fcf9295358662b82878d58dfdabf0862a460e34"
+    },
+    "shell.newWorkspace.done": {
+      "by": "ai",
+      "out": "f6c244f98893cd951392f88864ef16a239999b2e95a6cebf5f6aa8d670460637",
+      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
     },
     "shell.newWorkspace.name": {
       "by": "ai",
@@ -29646,10 +30351,65 @@
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
       "src": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa"
     },
+    "shell.newWorkspace.open": {
+      "by": "ai",
+      "out": "385b2695e7346e449b2c8b8eaa4ee590ea53a25cedf3d8d274fb879d078d5884",
+      "src": "df0caf1b27bd40d19bb36970d408911f7547c633590eab2fa70a6daad4338a96"
+    },
+    "shell.newWorkspace.openTip": {
+      "by": "ai",
+      "out": "9bf45616da79932970733ed27846f47ab25acf0fdd96b6db097f7fb6b8dac4ca",
+      "src": "e0922aa6e8dfd3f1114435e8b99f988ceaa4acd552fab2ecf653c20324743a4a"
+    },
     "shell.newWorkspace.opening": {
       "by": "ai",
       "out": "d4f923bce01974bc9f6a04d9c32e63e5c470f228c2657002b35ed394753ee79d",
       "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
+    "shell.newWorkspace.owner": {
+      "by": "ai",
+      "out": "1829389479e43c78c4ff0af97314c4220179cdcd1e514108b35e71c7a86e152e",
+      "src": "4b1b8aa3608a26da451ae0630d75b60ab1bc2dd229c41a80838fc7993e835c46"
+    },
+    "shell.newWorkspace.owner.me": {
+      "by": "ai",
+      "out": "a83b8bc2853ab707dfd533fcc3e6a5b5b4eb1cdb523135aa28068b73331bde59",
+      "src": "d30af076b0dc85cc5b0074b403f74770b73af84a70c2f77f7a3609d0db23112e"
+    },
+    "shell.newWorkspace.owner.meHelp": {
+      "by": "ai",
+      "out": "073696ab465435fdd5adb4a08f3bb3f9a43e23718467e43a60831f30e1543de3",
+      "src": "033350143badfdfc9bb96a264ea537654a74111076b5275c237f397cf4543aa6"
+    },
+    "shell.newWorkspace.owner.other": {
+      "by": "ai",
+      "out": "e8e28f9a001312b0365be515d3410e31693764c6941ef51371356be808607145",
+      "src": "3233cb049ab7f4ed5c6eccc11a4c9b6e02d0ed8e74e159d5e6baddd525b9febb"
+    },
+    "shell.newWorkspace.owner.otherHelp": {
+      "by": "ai",
+      "out": "fdf852d61485ae72cbb066252f9122ba34e56f0287b901cc0bff123517b48e4b",
+      "src": "daf178dfa448c89c856cdc445cc2bee4eec182c04fba4919c06795aabb6c3eb1"
+    },
+    "shell.newWorkspace.ownerEmail": {
+      "by": "ai",
+      "out": "5bdb66adc09d7200eafa0512735c2797da6e5b7d6c3fea4acecb11adb2f5160d",
+      "src": "0d7a4b35a04732dab37b7a09fc9d2aaa3effe806e4dccdbe32285f73c8cef082"
+    },
+    "shell.newWorkspace.ownerEmailHelp": {
+      "by": "ai",
+      "out": "bcc003c9638d93a8f832a8b5abf3c44e6b836f51510d69bb14068dc05970dccf",
+      "src": "82c0b594ab9c1691e20d06d2bef5834db7af8b62c40bb5f2864f81d593c4ec66"
+    },
+    "shell.newWorkspace.ownerName": {
+      "by": "ai",
+      "out": "293ccf38a0542624bed12074cc0a35f27a0bcc5b63d9e4ed80f0b8525d8a8d83",
+      "src": "b809f32054ecbeeecb1e073676de6369c62abec40e6fde43a48a47a1ca5efdbc"
+    },
+    "shell.newWorkspace.ownerNameHelp": {
+      "by": "ai",
+      "out": "0547d49ad230cf60afb05ef15e5264985baeeb80d789be2874ee91171206ade7",
+      "src": "a067fa32d7cce74cf6cbc9d4705c2a1483b377431707a98c8289b8c116242800"
     },
     "shell.newWorkspace.passkey.button.confirm": {
       "by": "ai",
@@ -30486,6 +31246,16 @@
       "out": "3a0db61a8d649540b9dee4be2ac96ada6484c906c0c30f42a83c358d975af131",
       "src": "1de350a51b1197bd325092358087cf12f07213ce6645d39eb6887692fbe3627b"
     },
+    "team.leave.signInFirst.text": {
+      "by": "ai",
+      "out": "54a995c088d410f39873345bc5f3b5748e5419ce2df696cee71efba1a899e184",
+      "src": "5d7ce69acc8eb311ae33736a8a75567f909b499e31972f116e256e4d50298784"
+    },
+    "team.leave.signInFirst.title": {
+      "by": "ai",
+      "out": "149ca6a7fe11ea55efadcf02dd90a89f31bf5849178ea98e7f341007922aeeec",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
+    },
     "team.leave.title": {
       "by": "ai",
       "out": "19ce545b5b136ea0dd88f4a753cf020ac8c8f507d675f4b38e2d180c7039c482",
@@ -30581,6 +31351,11 @@
       "out": "ce41b543ddc07d45db71d1a25c632941755ec36491fe1746dd0d34a18f0270e4",
       "src": "0bfdab22af868cb00f1cfde76882eef4d9aa140702a6c5d6be2c64ccf3371f13"
     },
+    "team.remove.accountStays": {
+      "by": "ai",
+      "out": "0fb5d419496fe66087a9eb1abfde81edb4f877228b033105bb4c0386cef8da5c",
+      "src": "27d0960f2c78a7e3af0014f1a3ff1b805531b53569b41da5ff03f384444608c6"
+    },
     "team.remove.action": {
       "by": "ai",
       "out": "e9653dc3edcbc072d033d200b3aa56539fde84e9b7cc80287fedc9f91cbe03ad",
@@ -30591,6 +31366,16 @@
       "out": "4f53faa2b67151a9062125cc7440025aaabb0b7f5022c31422843a4f6c7f4cc3",
       "src": "d4b09919ec929f15c19802296a06e97a0d0862e29e23c453d638fc0c3b87c641"
     },
+    "team.remove.deleteAccount": {
+      "by": "ai",
+      "out": "c7fac0ab25f8a5a84169699a68cf2b7f019c29b97c960b524cb11e52c40c6e9c",
+      "src": "1301800cc8fa15cb1c91bc59f73dd0615a54bdc87eb7b63f678222f2c1b2d0f8"
+    },
+    "team.remove.invitationsCanceled": {
+      "by": "ai",
+      "out": "e312e15985b27e5730c29588a9fd77fe136f59d44c2c1cfd41cdb95fec1731ed",
+      "src": "f184efc1e8d756c360f3c2686c2279209d94b21faf83943fcb25db1a50dc7c3d"
+    },
     "team.remove.keepAccount": {
       "by": "ai",
       "out": "e4340709c8915b0c0ac1a04a18b027a5605a6263a4de7a0bce18120377d6b3e3",
@@ -30600,6 +31385,21 @@
       "by": "ai",
       "out": "a6a0ae94befa20c3603a99d9d592ff759a750cedfa7940ec33aae2e0754c7ff5",
       "src": "ccf9cbdb2ae27725eb1607744dd93ae37ddbec31b6172a205658d108b95f1659"
+    },
+    "team.remove.ownerAccountStays": {
+      "by": "ai",
+      "out": "6db6016fd6224c18bda37141d09fecce8c2ff1af96b610b844413871d3536108",
+      "src": "4219cf9b40da5abcb61a7d596d904713dc233b4127e2a747aaadecbc3b85873c"
+    },
+    "team.remove.signInFirst.text": {
+      "by": "ai",
+      "out": "87a8a82bc0fa5e70df6cb475888f36c4c6389ee580d36a3954d6af0e001ee21a",
+      "src": "172b1b961ecbbd0ea8de41f558f1160b28321e09fe0a7b3115201adcb2e78cde"
+    },
+    "team.remove.signInFirst.title": {
+      "by": "ai",
+      "out": "149ca6a7fe11ea55efadcf02dd90a89f31bf5849178ea98e7f341007922aeeec",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
     },
     "team.remove.text": {
       "by": "ai",
@@ -31423,6 +32223,21 @@
       "out": "e81f7b8f54b1686664befd18d04315ba37b2b3aaf1f3ca0cf630cd41b1a26d2f",
       "src": "dbb5f6371b6a2a677f09c24d17fdc581132a41881a818469a92b58588e8764bc"
     },
+    "admin.audit.invitationReassigned": {
+      "by": "ai",
+      "out": "6ba318883a785674b6c8ee1b999006621290cab846049eedadac9213131e3816",
+      "src": "6b0b05c68a10e597139aaafbc0de09ee7201c0a0dbc2016bc60e02717e1bfc53"
+    },
+    "admin.audit.invitationReassignedTo": {
+      "by": "ai",
+      "out": "34aecc79313f7196cb1952d62585c44cf8a006a53d64b5baace666a1ed76d595",
+      "src": "2482322978431816db908402785630e9dc831d9b921e028939de3c704d7a3093"
+    },
+    "admin.audit.invitationWithdrawn": {
+      "by": "ai",
+      "out": "e8606f014a5941e98b8896813719607fdb2e76ed5720bb3478004cf59e1e3da4",
+      "src": "c2fdbbd6b8b44ce9fa555c74d793ead7683ff178429c843afa872245b7f91165"
+    },
     "admin.example.business": {
       "by": "ai",
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
@@ -31433,10 +32248,40 @@
       "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
       "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
     },
+    "admin.frame.back": {
+      "by": "ai",
+      "out": "483ef5f83b6f12ae9b8bc2afe8bf89ace4b53248336c7026d4c16c7271c06db8",
+      "src": "065ffb993d0da544b10439945bbef129f6d7fbf0879d640fc6fdff770ee2c78d"
+    },
+    "admin.frame.backTo": {
+      "by": "ai",
+      "out": "9600cac72c5322aad37a0d9b9cc59942564f2f92cfcf5412b80e819941ff5d57",
+      "src": "5939d409e577d681a4bd8702f7cdf8936682147338100e9d919bc83e3b447520"
+    },
     "admin.impersonation.confirm": {
       "by": "ai",
       "out": "c426d0408c0f8ceb87b8130629166c13139ccc2bfea3cc622ef5634ff1e878d9",
       "src": "95ddffb9ea2a924a24570874f274d8f5ee7638d62fb6a29ace386a8c4f92297d"
+    },
+    "admin.users.filter.all": {
+      "by": "ai",
+      "out": "73728eb781f13d694b1cb43232e12042e094f15ce8b75cc0d356c5fb34e4322b",
+      "src": "f7898130e55771fc2b90866249a10b0da6cc8e24c83eeb7ef0f30f76d4f47c5a"
+    },
+    "admin.users.filter.label": {
+      "by": "ai",
+      "out": "a51fe525b2c9fcce40440653ee9618f32f24ca1d81c3786c18285a1040364960",
+      "src": "d083d37554c28333f2a1f1f13230d46821948ab8b35bced2d9070225e278d74d"
+    },
+    "admin.users.filter.noWorkspace": {
+      "by": "ai",
+      "out": "b86b48cc045567a49d5c006345c164c4619b3f637f5205c59fdccaa88b99a135",
+      "src": "fce263d326818c6258e1db247a3b5b9e2c828c2259589915440bb7cf9a67e65a"
+    },
+    "admin.users.noWorkspaceEmpty": {
+      "by": "ai",
+      "out": "7d06ce11faa59faa4723d17f93b39e1d3c98ba12f2783ea2f6a686c77711f5f6",
+      "src": "e1d6bb7586b24ebeeedd9ab74a87a513ce46f6baf7b0534e7dfd11dce7824d78"
     },
     "auth.addPasskey.add": {
       "by": "ai",
@@ -32217,6 +33062,11 @@
       "by": "ai",
       "out": "5de9c470a221b6a485b3f2fb5444a173cb2ef0be88b010efe6b5937eb8f488f4",
       "src": "6ccb3f7ff37d0a6d4102ba24fb7a5f0f7e799c023474268becf06be2cf2afe8a"
+    },
+    "auth.signedOutOf": {
+      "by": "ai",
+      "out": "aa8f9fd48555837ff3a842d468be350d825aafe225bb64c23d6383f38e585734",
+      "src": "eec25303b83f8bc906b42cfd9cbab0d0ffeda6e9fec691c93b7c3036ccdabc6a"
     },
     "auth.signingIn": {
       "by": "ai",
@@ -34653,6 +35503,36 @@
       "out": "1d0bb953eabf57897bd2af2f6f7c365e9ba5f1d818694d108479eb494a4dcc5a",
       "src": "4dedfba99085e7ca9d75c50890d8badb4fdb369b8a0f9fa075fa7283cce16662"
     },
+    "email.workspaceRemoved.accountDeleted": {
+      "by": "ai",
+      "out": "9e206ff194669fad248fec05beb2493153da5cd84de007ef5fa5e69720b1d1de",
+      "src": "ec7b46ac128961804b0b544bbb378f5ba4f98ecc7b47685337a5630b1107d406"
+    },
+    "email.workspaceRemoved.heading": {
+      "by": "ai",
+      "out": "1837adc784acfd8c47b4404b6a125abb0cf9e5251e462c3420bcf296def1b352",
+      "src": "b35b0acbf44671160ddaf41c004e1b8478d3e5678c33d0234933c470527f9e06"
+    },
+    "email.workspaceRemoved.preheader": {
+      "by": "ai",
+      "out": "9039af15b52c6244b4c9217a846f64a2d75894b2797be0eaee73ad300e3e3e2e",
+      "src": "6a978eb02580d937a8fd52b90df1d8674f5cde43dbc7cb7d26e294f9b783bf2c"
+    },
+    "email.workspaceRemoved.subject": {
+      "by": "ai",
+      "out": "320b21842dfac9acccab959c72999b1b939f003b35fcacc4d3f92da6f60eb3ef",
+      "src": "dc75d41b1f4c9a27b81489329fa8971265a39d4c4db9857892cca10627ad76d3"
+    },
+    "email.workspaceRemoved.text": {
+      "by": "ai",
+      "out": "1d65ce664f96956e86df0b77e63a227d6a1d126e57bdde5752c45a6182a4181b",
+      "src": "b7344b57bf983f91705c0590168def72cb64a691d447a4fc071d1e27874c354b"
+    },
+    "email.workspaceRemoved.unexpected": {
+      "by": "ai",
+      "out": "08a8eb9d398e61d82522ce602a037a18392563a29070bb5085ef063c31ef87af",
+      "src": "83b7256d6b220caae0299958d8f13fe7aff137e23424fed9c3a3fed5f7822290"
+    },
     "errors.couldNot.appointmentType.delete": {
       "by": "ai",
       "out": "ff98d4b25fa3538ff43da1440383764f926ab1c705b60586afea58f61879a79b",
@@ -36433,6 +37313,11 @@
       "out": "b64aeb6fdc08c556fe8c797d57b25a41a5c9f515250f375c1aec41b0d4588260",
       "src": "955e08746778ad09d20989546ded766dcabe5e5bc9451b95bb8300c8bd327300"
     },
+    "settings.assistant.languages.anyNote": {
+      "by": "ai",
+      "out": "d87359b765f2aa40adf01845ae34d9d360aad223236e55080a5bbbfb6a74289d",
+      "src": "60f05215946de4c23bcd5180908dbbd037ced8504ef62b58acd05bbc346613f3"
+    },
     "settings.missingProvider.answering.add": {
       "by": "ai",
       "out": "4cf75949d55eabcf7fa297fba0285d3f550d8052328ebe89ebb107016c25986e",
@@ -37010,8 +37895,8 @@
     },
     "shell.help.row.nextView": {
       "by": "ai",
-      "out": "5c1c8b3d10ce79d05b6881e2c9f342613ddbacb87fe0c2d9e6023781e093959e",
-      "src": "37d655edd1fec225bdea4e95eb2281bc9e1cd87e958316fc5653ef5b052ef590"
+      "out": "9b2259a6a3081e5142e5b631625363538e93dfa2b307e7f99a829edb7a83fbb0",
+      "src": "b0716e9f99fb5c9a3a5b85205f976548855ab5cf92345f8c2ba94fd60a0b47f9"
     },
     "shell.help.row.openCall": {
       "by": "ai",
@@ -37035,8 +37920,8 @@
     },
     "shell.help.row.previousView": {
       "by": "ai",
-      "out": "bccdc3253897f349d734ea78ded3616ebb909b69b78dd1f732a5670a4f7a2b25",
-      "src": "7c57bf9dbb757fd6f2795a648e59695b1df208822aa320a374546fc901a9bc87"
+      "out": "1c5c736b17836800ee3c4208aa2ece0ee8d4ef596d203560658cca0f3377affd",
+      "src": "80648cddeed161e4de79dc1e8aa6148c20480a251a9179380fd292b0f315356c"
     },
     "shell.help.row.remindMe": {
       "by": "ai",
@@ -37283,6 +38168,16 @@
       "out": "a6f6db8b3d32ffe59facdf9c86c3af4ed5227aba75ffb694427d0b4be8cada40",
       "src": "4b892277843cba34d0da423a97b578774f9f2f2d1b5e3893d2ce2736254ad607"
     },
+    "shell.newWorkspace.created.added": {
+      "by": "ai",
+      "out": "680137a97096b9bb62c51bb382e9686b843170fbb20bc74e76383cd618ce5528",
+      "src": "cb7763a342380837d16d3748cd46cffc48fc7444392f4ed3642c86a275c7aad8"
+    },
+    "shell.newWorkspace.created.invited": {
+      "by": "ai",
+      "out": "72c7fe06902937f4c0f567d56f23d6ff08ddd106e427abe13a53c9896e590ec4",
+      "src": "1f065b5bbcae1a6887bcd77e8953e970df24e896c6befaeb79593bfeb126181b"
+    },
     "shell.newWorkspace.creating": {
       "by": "ai",
       "out": "c2bfeb573530a4e2399a63cef303ebaec3202fb8a39d26ce0ac407c92cd9cdf4",
@@ -37292,6 +38187,16 @@
       "by": "ai",
       "out": "09e776b497ab1cf0195368df457db8ae08bb27b3f1ce48c70c870ec70918fb00",
       "src": "d26a0f262b576984f2ee4b6da8a38fe52a7713dbf73c062b8fa4dfcdf73bba16"
+    },
+    "shell.newWorkspace.descriptionForOwner": {
+      "by": "ai",
+      "out": "d3b75b00d84a148c2242350c25bcca1d98333db6e4ea57201ebe60b950a7903f",
+      "src": "f5237f2855e3727f3e7aa9a87fcf9295358662b82878d58dfdabf0862a460e34"
+    },
+    "shell.newWorkspace.done": {
+      "by": "ai",
+      "out": "6e91752edf51a9a41217e1fb75c52415f8268d5a85e3bcfa0ad97de1bc8aa7a6",
+      "src": "11a6767d5674c7e45f7e00dc525762275b3a48491ad6045427d2609cc496c516"
     },
     "shell.newWorkspace.name": {
       "by": "ai",
@@ -37308,10 +38213,65 @@
       "out": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa",
       "src": "adab53078cea178490574e333999217da6a26e775028eeff2aceed166d3bf4aa"
     },
+    "shell.newWorkspace.open": {
+      "by": "ai",
+      "out": "158dc417bc6af2b6e6059e4e4cb0ede59359c67e64d04223b95b10cda2feae52",
+      "src": "df0caf1b27bd40d19bb36970d408911f7547c633590eab2fa70a6daad4338a96"
+    },
+    "shell.newWorkspace.openTip": {
+      "by": "ai",
+      "out": "096916e727cf1b521fb2127070ae35f315a1783977ecf1e8091df69701c9c60f",
+      "src": "e0922aa6e8dfd3f1114435e8b99f988ceaa4acd552fab2ecf653c20324743a4a"
+    },
     "shell.newWorkspace.opening": {
       "by": "ai",
       "out": "0911dfa616da4c003896fe70cdfe965c573a932c57dc35633cb90cc3591b8d7b",
       "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
+    "shell.newWorkspace.owner": {
+      "by": "ai",
+      "out": "f4605a583678945b73958ad4a4f7d98d889c5e7c56a098ba6450ccdb10f95c6f",
+      "src": "4b1b8aa3608a26da451ae0630d75b60ab1bc2dd229c41a80838fc7993e835c46"
+    },
+    "shell.newWorkspace.owner.me": {
+      "by": "ai",
+      "out": "ff22e6c0c3053228ef541243f51d3fa76d7ea499881ed954397ac0a073795d63",
+      "src": "d30af076b0dc85cc5b0074b403f74770b73af84a70c2f77f7a3609d0db23112e"
+    },
+    "shell.newWorkspace.owner.meHelp": {
+      "by": "ai",
+      "out": "81daf0f62f3feefb437c80e6d48675a80f3322ad31142b054a1079bf009dc605",
+      "src": "033350143badfdfc9bb96a264ea537654a74111076b5275c237f397cf4543aa6"
+    },
+    "shell.newWorkspace.owner.other": {
+      "by": "ai",
+      "out": "3454494bebc142158e7cf3e9389fad1693b1f158f0a525bf033472c93c7a79cc",
+      "src": "3233cb049ab7f4ed5c6eccc11a4c9b6e02d0ed8e74e159d5e6baddd525b9febb"
+    },
+    "shell.newWorkspace.owner.otherHelp": {
+      "by": "ai",
+      "out": "fe85477ee66c681edb7cf50501cbe9cde51bd1e76f1e59f5cb36ae457894d2c9",
+      "src": "daf178dfa448c89c856cdc445cc2bee4eec182c04fba4919c06795aabb6c3eb1"
+    },
+    "shell.newWorkspace.ownerEmail": {
+      "by": "ai",
+      "out": "615561f58ad56e6bc0de0ae3e45af5af748b6fe05c6bee3c52f820342043b5b0",
+      "src": "0d7a4b35a04732dab37b7a09fc9d2aaa3effe806e4dccdbe32285f73c8cef082"
+    },
+    "shell.newWorkspace.ownerEmailHelp": {
+      "by": "ai",
+      "out": "64a3282466a727a0c5aad43b1abb4e47d50f10645565afdbd85de4a55aa74121",
+      "src": "82c0b594ab9c1691e20d06d2bef5834db7af8b62c40bb5f2864f81d593c4ec66"
+    },
+    "shell.newWorkspace.ownerName": {
+      "by": "ai",
+      "out": "6608d3cd1aa15242171c790c4a387a4439d1eb2099ff52cdf534c6a8a47bf9d9",
+      "src": "b809f32054ecbeeecb1e073676de6369c62abec40e6fde43a48a47a1ca5efdbc"
+    },
+    "shell.newWorkspace.ownerNameHelp": {
+      "by": "ai",
+      "out": "99839df80e5fdf7a067d4af170c437e2ad4d429f1ca338507eaf26161e81e4ac",
+      "src": "a067fa32d7cce74cf6cbc9d4705c2a1483b377431707a98c8289b8c116242800"
     },
     "shell.newWorkspace.passkey.button.confirm": {
       "by": "ai",
@@ -38148,6 +39108,16 @@
       "out": "2cd8f3d0cec8147a81552312b1d9846986bf48a0467ac16f8c8458f403529047",
       "src": "1de350a51b1197bd325092358087cf12f07213ce6645d39eb6887692fbe3627b"
     },
+    "team.leave.signInFirst.text": {
+      "by": "ai",
+      "out": "7d7fd648a836e6a9fc276d7197cd4c5debeaffda738f5ad4335afa6c535c815f",
+      "src": "5d7ce69acc8eb311ae33736a8a75567f909b499e31972f116e256e4d50298784"
+    },
+    "team.leave.signInFirst.title": {
+      "by": "ai",
+      "out": "c9bc4bf71f19093a41ff912a6a121e8262e8f00d6fd660902da45f0dbc0e05b0",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
+    },
     "team.leave.title": {
       "by": "ai",
       "out": "0d2d7af8b01115582d0144bfc6b1fe57c0a308a2c7cc1c86af23284947204117",
@@ -38243,6 +39213,11 @@
       "out": "2b02058077029b08f4d0dcfc56aa0b30e7dc8dccadfec575d89a8127a71422bb",
       "src": "0bfdab22af868cb00f1cfde76882eef4d9aa140702a6c5d6be2c64ccf3371f13"
     },
+    "team.remove.accountStays": {
+      "by": "ai",
+      "out": "1010915ca6e16e04c730307d418b38cca1c98c4af557db57860e8edc71edbb5a",
+      "src": "27d0960f2c78a7e3af0014f1a3ff1b805531b53569b41da5ff03f384444608c6"
+    },
     "team.remove.action": {
       "by": "ai",
       "out": "a3037dc71a43fa40bb1e03b5844b83474819caeffa882d2e7793e31daf092939",
@@ -38253,6 +39228,16 @@
       "out": "48ecab380407a07584ca85d9064fdffefa66d2765915bb1c943cd4285b099c5e",
       "src": "d4b09919ec929f15c19802296a06e97a0d0862e29e23c453d638fc0c3b87c641"
     },
+    "team.remove.deleteAccount": {
+      "by": "ai",
+      "out": "a982bfc02640636b62ce4220e1abb4061093fe64396fbec98d1eaf74791d95b1",
+      "src": "1301800cc8fa15cb1c91bc59f73dd0615a54bdc87eb7b63f678222f2c1b2d0f8"
+    },
+    "team.remove.invitationsCanceled": {
+      "by": "ai",
+      "out": "eeefc9a193a15cbe73daddf0d0d4718646e9bb4eb3c280687d4358014e78e534",
+      "src": "f184efc1e8d756c360f3c2686c2279209d94b21faf83943fcb25db1a50dc7c3d"
+    },
     "team.remove.keepAccount": {
       "by": "ai",
       "out": "127a957e934593080fc26844fcd7c0534f46d14f26af909f0fd0b054d6bf5a67",
@@ -38262,6 +39247,21 @@
       "by": "ai",
       "out": "92bb85a73addef56141bf8edbab7748bec9ec7b0eba67b83226b6e834e2d59bb",
       "src": "ccf9cbdb2ae27725eb1607744dd93ae37ddbec31b6172a205658d108b95f1659"
+    },
+    "team.remove.ownerAccountStays": {
+      "by": "ai",
+      "out": "934ce8519347d740031851701fb448e728d35beba07cb191b477975b90dcee8e",
+      "src": "4219cf9b40da5abcb61a7d596d904713dc233b4127e2a747aaadecbc3b85873c"
+    },
+    "team.remove.signInFirst.text": {
+      "by": "ai",
+      "out": "c12d9d52a26da81dc59c916182fc2a4bec51702b4ab38d118818b8751c14bef0",
+      "src": "172b1b961ecbbd0ea8de41f558f1160b28321e09fe0a7b3115201adcb2e78cde"
+    },
+    "team.remove.signInFirst.title": {
+      "by": "ai",
+      "out": "c9bc4bf71f19093a41ff912a6a121e8262e8f00d6fd660902da45f0dbc0e05b0",
+      "src": "1063af3a55e1426852c00a99b7f91a3404034614d164f2d49c1aca61b6ce6026"
     },
     "team.remove.text": {
       "by": "ai",

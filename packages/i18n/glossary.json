@@ -147,6 +147,30 @@
       "fr": "clé d'accès",
       "de": "Passkey",
       "ja": "パスキー"
+    },
+    "Invitation": {
+      "note": "An invitation to join a workspace.",
+      "es": "invitación",
+      "pt-BR": "convite",
+      "fr": "invitation",
+      "de": "Einladung",
+      "ja": "招待"
+    },
+    "Sign in / Sign out": {
+      "note": "Starting and ending a session in Linedesk.",
+      "es": "iniciar sesión / cerrar sesión",
+      "pt-BR": "entrar / sair",
+      "fr": "se connecter / se déconnecter",
+      "de": "anmelden / abmelden",
+      "ja": "サインイン / サインアウト"
+    },
+    "User": {
+      "note": "An account on the install (Server admin › Users).",
+      "es": "usuario",
+      "pt-BR": "usuário",
+      "fr": "utilisateur",
+      "de": "Nutzer",
+      "ja": "ユーザー"
     }
   },
   "identical": {

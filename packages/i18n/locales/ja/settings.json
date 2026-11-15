@@ -1,4 +1,5 @@
 {
+  "assistant.languages.anyNote": "主要10言語に対応しています。それ以外の言語は「これらの言語」で選ぶか、メイン言語に設定してください。",
   "missingProvider.answering.add": "<link>サーバー管理 › プロバイダー</link>で、リアルタイムモデル、または音声認識・言語モデル・音声を追加してください。",
   "missingProvider.answering.title": "まだ通話に応答できません",
   "missingProvider.ask": "サーバー管理者に依頼してください。",

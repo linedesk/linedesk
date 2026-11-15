@@ -186,5 +186,11 @@
   "workspaceDeleted.reason": "Vous recevez cet e-mail car vous étiez membre de {workspace} sur {site}. Nous l'envoyons toujours.",
   "workspaceDeleted.subject": "{workspace} a été supprimé sur {brand}",
   "workspaceDeleted.text": "{by} a supprimé l'espace de travail {workspace} le {when}. Ses appels, contacts, enregistrements et réglages ont disparu, et personne ne peut plus l'ouvrir.",
-  "workspaceDeleted.unexpected": "Si vous ne vous y attendiez pas, contactez le propriétaire de l'espace de travail."
+  "workspaceDeleted.unexpected": "Si vous ne vous y attendiez pas, contactez le propriétaire de l'espace de travail.",
+  "workspaceRemoved.accountDeleted": "Votre compte {brand} sur {site} a aussi été supprimé, car vous ne faisiez partie d'aucun autre espace de travail. Vous ne pouvez plus vous y connecter.",
+  "workspaceRemoved.heading": "Votre accès à {workspace} a été retiré",
+  "workspaceRemoved.preheader": "{by} a retiré votre accès le {when}.",
+  "workspaceRemoved.subject": "Votre accès à {workspace} sur {brand} a été retiré",
+  "workspaceRemoved.text": "{by} a retiré votre accès à l'espace de travail {workspace} le {when}. Vous n'avez plus accès à ses appels, ses contacts et ses réglages.",
+  "workspaceRemoved.unexpected": "Si vous ne vous y attendiez pas, demandez une nouvelle invitation au propriétaire de l'espace de travail."
 }

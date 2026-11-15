@@ -1,5 +1,14 @@
 {
+  "audit.invitationReassigned": "{email}への招待をワークスペースのオーナーに引き継ぎました：送信者のアカウントが削除されたため",
+  "audit.invitationReassignedTo": "{email}への招待をワークスペースのオーナー（{owner}）に引き継ぎました：送信者のアカウントが削除されたため",
+  "audit.invitationWithdrawn": "{email}への招待を取り消しました：送信者がワークスペースから削除されたため",
   "example.business": "Riverside Electric",
   "example.ownerEmail": "owner@riverside-electric.example",
-  "impersonation.confirm": "{name}と同じ画面で{brand}を表示します。操作はすべて、あなたが代理で行ったものとして記録されます。1時間後に終了します。"
+  "frame.back": "{brand}に戻る",
+  "frame.backTo": "{section}に戻る",
+  "impersonation.confirm": "{name}と同じ画面で{brand}を表示します。操作はすべて、あなたが代理で行ったものとして記録されます。1時間後に終了します。",
+  "users.filter.all": "すべてのユーザー",
+  "users.filter.label": "表示するユーザー",
+  "users.filter.noWorkspace": "ワークスペースなし",
+  "users.noWorkspaceEmpty": "すべてのユーザーがワークスペースに所属しています。"
 }

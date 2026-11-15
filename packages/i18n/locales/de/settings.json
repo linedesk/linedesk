@@ -1,4 +1,5 @@
 {
+  "assistant.languages.anyNote": "Umfasst die 10 Kernsprachen. Andere wählst du unter „Diese Sprachen“ oder als Hauptsprache.",
   "missingProvider.answering.add": "Füge unter <link>Server-Admin › Anbieter</link> ein Echtzeitmodell hinzu, oder Spracherkennung, ein Sprachmodell und eine Stimme.",
   "missingProvider.answering.title": "Anrufe werden noch nicht angenommen",
   "missingProvider.ask": "Frag deinen Server-Admin.",

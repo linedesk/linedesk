@@ -186,5 +186,11 @@
   "workspaceDeleted.reason": "あなたは{site}の{workspace}のメンバーだったため、このメールをお送りしています。このメールは必ず送信されます。",
   "workspaceDeleted.subject": "{brand}の{workspace}が削除されました",
   "workspaceDeleted.text": "{by}が{when}にワークスペース{workspace}を削除しました。通話、連絡先、録音、設定はすべて削除され、今後は誰も開けません。",
-  "workspaceDeleted.unexpected": "心当たりがない場合は、ワークスペースのオーナーに確認してください。"
+  "workspaceDeleted.unexpected": "心当たりがない場合は、ワークスペースのオーナーに確認してください。",
+  "workspaceRemoved.accountDeleted": "他のワークスペースに所属していなかったため、{site}の{brand}アカウントも削除されました。今後はサインインできません。",
+  "workspaceRemoved.heading": "{workspace}から削除されました",
+  "workspaceRemoved.preheader": "{by}が{when}にあなたを削除しました。",
+  "workspaceRemoved.subject": "{brand}の{workspace}から削除されました",
+  "workspaceRemoved.text": "{by}が{when}にワークスペース{workspace}からあなたを削除しました。今後はその通話、連絡先、設定にアクセスできません。",
+  "workspaceRemoved.unexpected": "心当たりがない場合は、ワークスペースのオーナーに新しい招待を依頼してください。"
 }

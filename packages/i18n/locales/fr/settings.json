@@ -1,4 +1,5 @@
 {
+  "assistant.languages.anyNote": "Couvre les 10 langues de base. Choisissez les autres sous « Ces langues » ou comme langue principale.",
   "missingProvider.answering.add": "Ajoutez un modèle temps réel, ou bien une transcription vocale, un modèle de langage et une voix, dans <link>Administration du serveur › Fournisseurs</link>.",
   "missingProvider.answering.title": "Les appels ne sont pas encore pris",
   "missingProvider.ask": "Demandez à votre administrateur du serveur.",
