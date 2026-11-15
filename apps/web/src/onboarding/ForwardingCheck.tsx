@@ -11,6 +11,7 @@ import type { PhoneNumber } from '@linedesk/db/types'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { Field } from '../settings/fields.tsx'
+import { refreshGoLiveChecklist } from '../inbox/GoLiveChecklist.tsx'
 import { rejectionText } from '../shell/rejections.ts'
 import { useAssistantName, useRun } from '../store.tsx'
 import { Button, cx, Icon, Note } from '../ui/kit.tsx'
@@ -134,6 +135,14 @@ export function ForwardingCheck({
       clearTimeout(timer)
     }
   }, [number.id, dialing, canCheck, reread])
+
+  // A check that just worked verified the number: the go-live checklist's forwarding row ticks at once.
+  const lastStatus = useRef(check?.status)
+  useEffect(() => {
+    const status = check?.status
+    if (status === 'works' && lastStatus.current === 'dialing' && !check?.simulated) void refreshGoLiveChecklist()
+    lastStatus.current = status
+  }, [check?.status, check?.simulated])
 
   // The number's use changed (one of the fixes below, or the field above): the last result was about the old one.
   const mode = useRef(number.mode)

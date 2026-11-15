@@ -5,7 +5,7 @@ import { assistant_calendars, assistants, organization, phone_numbers, type Tx }
 import { recordVersion } from './assistant-versions.ts'
 import { releaseUnusedClones } from './voices.ts'
 import { type Assistant, DEFAULT_TRANSFERS } from '@linedesk/db/types'
-import { DEFAULT_AI_DISCLOSURE } from '@linedesk/actions'
+import { DEFAULT_AI_DISCLOSURE, forwardsCalls } from '@linedesk/actions'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -83,7 +83,13 @@ export const assistantHandlers: Record<string, Handler> = {
           created_at: undefined,
           version: undefined,
         }
-      : { id: newId(), workspace_id: workspaceId, name, greeting: greetingFor(org?.name ?? 'us', name), ai_disclosure: DEFAULT_AI_DISCLOSURE }
+      : {
+          id: newId(),
+          workspace_id: workspaceId,
+          name,
+          greeting: greetingFor(org?.name ?? 'us', name),
+          ai_disclosure: DEFAULT_AI_DISCLOSURE,
+        }
     const rows = await tx.insert(assistants).values(values).returning()
     await recordVersion(tx, workspaceId, rows[0]!.id, { by: actor.actorId, created: true })
     return { rows: { assistants: rows }, data: { assistantId: rows[0]!.id } }
@@ -107,7 +113,10 @@ export const assistantHandlers: Record<string, Handler> = {
       .where(and(eq(phone_numbers.workspace_id, workspaceId), eq(phone_numbers.assistant_id, doomed!.id)))
       .returning()
     // Its calendars go with it (foreign key cascade).
-    const calendars = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars).where(eq(assistant_calendars.assistant_id, doomed!.id))
+    const calendars = await tx
+      .select({ id: assistant_calendars.id })
+      .from(assistant_calendars)
+      .where(eq(assistant_calendars.assistant_id, doomed!.id))
     await tx.delete(assistants).where(and(eq(assistants.id, doomed!.id), eq(assistants.workspace_id, workspaceId)))
     // A cloned voice only it used goes too, at the provider as well.
     await releaseUnusedClones(tx, workspaceId)
@@ -122,7 +131,20 @@ export const assistantHandlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspaceId = actor.workspaceId
     const assistant = input.assistantId ? await assistantIn(tx, workspaceId, input.assistantId) : null
-    const set = { ...(input.mode ? { mode: input.mode } : {}), ...(assistant ? { assistant_id: assistant.id } : {}) }
+    // A new pick-up mode (into forwarding, or between missed calls and every call) has its own codes: the number
+    // counts as verified again only after a check or a forwarded call in the new mode.
+    const [current] = input.mode
+      ? await tx
+          .select({ mode: phone_numbers.mode })
+          .from(phone_numbers)
+          .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, workspaceId)))
+      : []
+    const unverify = Boolean(current && input.mode !== current.mode && forwardsCalls(input.mode))
+    const set = {
+      ...(input.mode ? { mode: input.mode } : {}),
+      ...(assistant ? { assistant_id: assistant.id } : {}),
+      ...(unverify ? { verified_at: null } : {}),
+    }
     const rows = await tx
       .update(phone_numbers)
       .set(set)

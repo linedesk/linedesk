@@ -848,7 +848,7 @@ const handlers: Record<string, Handler> = {
       // target, the product's default, and counts as verified only after a test call.
       mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),
       purchased: !existing,
-      verified_at: existing ? null : now,
+      verified_at: !existing && (input.mode ?? 'new') === 'new' ? now : null,
     }).returning()
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace')

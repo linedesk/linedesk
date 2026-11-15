@@ -24,7 +24,7 @@ const forwardingVerified = (workspaceId: string) =>
     at: new Date().toISOString(),
   })
 
-test('shown once onboarding is over; forwarding and the first real call come from the setup milestones', async () => {
+test('shown once onboarding is over; forwarding comes from the setup number, the first real call from the milestones', async () => {
   const ws = await workspace('Checklist Plumbing')
   expect(await checklist(ws.owner)).toEqual({
     shown: false,
@@ -47,7 +47,41 @@ test('shown once onboarding is over; forwarding and the first real call come fro
     dismissed: false,
     steps: [],
   })
+  // The forwarding_verified milestone alone is only for Server admin › Onboarding; the number's check is what counts.
   await forwardingVerified(ws.id)
+  expect((await checklist(ws.owner)).forwardingVerified).toBe(false)
+  await db.update(phone_numbers).set({ verified_at: new Date().toISOString() }).where(eq(phone_numbers.e164, ws.number))
+  expect((await checklist(ws.owner)).forwardingVerified).toBe(true)
+})
+
+test('a milestone or a check from a previous number does not tick it for the new one', async () => {
+  const ws = await workspace('Replaced Number Plumbing')
+  await act(ws.owner, 'onboarding.setStep', { step: 'done' })
+  // The first number was checked (verified_at and the milestone), then released.
+  await db.update(phone_numbers).set({ verified_at: new Date().toISOString() }).where(eq(phone_numbers.e164, ws.number))
+  await forwardingVerified(ws.id)
+  expect((await checklist(ws.owner)).forwardingVerified).toBe(true)
+  await db.delete(phone_numbers).where(eq(phone_numbers.e164, ws.number))
+  // Its replacement forwards too and was never checked.
+  await db.insert(phone_numbers).values({
+    id: `pn_${crypto.randomUUID().slice(0, 12)}`,
+    workspace_id: ws.id,
+    e164: randomNumber(),
+    provider: 'dev',
+    mode: 'forward_conditional',
+  })
+  expect((await checklist(ws.owner)).forwardingVerified).toBe(false)
+})
+
+test('a spam call or an outgoing call to the forwarding number proves nothing', async () => {
+  const ws = await workspace('Spam Checklist Plumbing')
+  await act(ws.owner, 'onboarding.setStep', { step: 'done' })
+  const callId = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId as string
+  await db.update(calls).set({ outcome: 'spam' }).where(eq(calls.id, callId))
+  expect((await checklist(ws.owner)).forwardingVerified).toBe(false)
+  await db.update(calls).set({ outcome: null, direction: 'out' }).where(eq(calls.id, callId))
+  expect((await checklist(ws.owner)).forwardingVerified).toBe(false)
+  await db.update(calls).set({ direction: 'in' }).where(eq(calls.id, callId))
   expect((await checklist(ws.owner)).forwardingVerified).toBe(true)
 })
 

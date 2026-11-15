@@ -4,7 +4,9 @@
 // Steps set aside (golive_checklist_steps): "Not needed" is the workspace's for a workspace-scoped step and the
 // caller's own for a person-scoped one (goLiveStepScope); "Remind me" is always the caller's own.
 // Live (firstRealCall) is the shared definition (isLive, @linedesk/actions setup-state.ts), as in the setup emails.
+// Forwarding (forwardingVerified) is about the setup number (setupNumber) alone: forwardingVerifiedFor.
 import {
+  forwardsCalls,
   type GoLiveChecklistData,
   type GoLiveStep,
   type GoLiveStepState,
@@ -12,11 +14,13 @@ import {
   goLiveSteps,
   isLive,
   liveMilestones,
+  setupNumber,
   skippableGoLiveSteps,
 } from '@linedesk/actions'
 import {
   golive_checklist_dismissals,
   golive_checklist_steps,
+  phone_numbers,
   setup_events,
   type Tx,
   workspace_settings,
@@ -40,12 +44,7 @@ export async function goLiveChecklist(tx: Tx, actor: Actor): Promise<GoLiveCheck
   const events = await tx
     .select({ event: setup_events.event })
     .from(setup_events)
-    .where(
-      and(
-        eq(setup_events.workspace_id, workspaceId),
-        inArray(setup_events.event, ['forwarding_verified', ...liveMilestones]),
-      ),
-    )
+    .where(and(eq(setup_events.workspace_id, workspaceId), inArray(setup_events.event, [...liveMilestones])))
   const [dismissal] = await tx
     .select({ at: golive_checklist_dismissals.dismissed_at })
     .from(golive_checklist_dismissals)
@@ -56,7 +55,7 @@ export async function goLiveChecklist(tx: Tx, actor: Actor): Promise<GoLiveCheck
   return {
     // Workspaces from before onboarding (no step) were set up by hand and never get it.
     shown: settings?.step === 'done' || settings?.step === 'skipped',
-    forwardingVerified: reached.has('forwarding_verified') || (await forwardedCallArrived(tx, workspaceId)),
+    forwardingVerified: await forwardingVerifiedFor(tx, workspaceId),
     // isLive; the calls are only looked at when no milestone says so already.
     firstRealCall: isLive(reached, false) || (await realCallArrived(tx, workspaceId)),
     dismissed: Boolean(dismissal),
@@ -120,12 +119,33 @@ async function realCallArrived(tx: Tx, workspaceId: string): Promise<boolean> {
   return rows[0]?.yes === true
 }
 
-/** Whether a real caller (not the business's own phones) reached one of its numbers that is in a forwarding mode. */
-async function forwardedCallArrived(tx: Tx, workspaceId: string): Promise<boolean> {
+/**
+ * Whether forwarding works for the workspace's setup number (setupNumber, the one setup is about): a check verified it
+ * (`verified_at`, which a new pick-up mode or a new number starts without), or a real caller (isRealCall: incoming,
+ * not the business's own phones, not spam) reached it while it forwards. Not the forwarding_verified milestone: that
+ * is once per workspace and stays after the number or its mode changed, so it only feeds Server admin › Onboarding.
+ */
+export async function forwardingVerifiedFor(tx: Tx, workspaceId: string): Promise<boolean> {
+  const numbers = await tx
+    .select({
+      id: phone_numbers.id,
+      e164: phone_numbers.e164,
+      mode: phone_numbers.mode,
+      verified_at: phone_numbers.verified_at,
+      created_at: phone_numbers.created_at,
+    })
+    .from(phone_numbers)
+    .where(eq(phone_numbers.workspace_id, workspaceId))
+  const number = setupNumber(numbers)
+  if (!number) return false
+  if (number.verified_at) return true
+  if (!forwardsCalls(number.mode)) return false
+  // Only calls since the number was set up here: one to the same number before it was released and set up again says nothing.
   const { rows } = await tx.execute<{ yes: boolean }>(sql`select exists (
-    select 1 from calls c join phone_numbers p on p.e164 = c.to_number and p.workspace_id = c.workspace_id
-    where c.workspace_id = ${workspaceId} and c.source = 'phone' and not c.from_own_number
-      and p.mode in ('forward_conditional', 'forward_all')) as yes`)
+    select 1 from calls c
+    where c.workspace_id = ${workspaceId} and c.to_number = ${number.e164} and c.started_at >= ${number.created_at}
+      and c.source = 'phone' and c.direction = 'in' and not c.from_own_number
+      and c.outcome is distinct from 'spam') as yes`)
   return rows[0]?.yes === true
 }
 
