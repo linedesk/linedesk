@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   AGENT_LEFT_GRACE_MS,
   agentLeftText,
+  noJoinText,
   noPickupText,
   PICKUP_TIMEOUT_MS,
   TEST_CALL_TIMEOUT_MS,
@@ -57,21 +58,34 @@ test('no pickup and dropping out: the operator is pointed at the agent, nobody e
     expect(text).not.toMatch(/agent|Admin|LiveKit/)
 })
 
+test('no agent joined: the operator learns the voice agent is down or the server overloaded, and where to look', () => {
+  expect(noJoinText('Maya', true)).toBe(
+    "Maya didn't join. The voice agent is not running or the server is overloaded. Check Server admin › Overview (Voice agent, Answering calls).",
+  )
+  expect(noJoinText('Maya', false)).toMatch(/^Maya didn't join\./)
+  expect(noJoinText('Maya', false)).not.toMatch(/agent|Admin|LiveKit|overloaded/)
+})
+
 describe('watchPickup', () => {
   beforeEach(() => void vi.useFakeTimers())
   afterEach(() => void vi.useRealTimers())
   const watch = () => {
-    const on = { noPickup: vi.fn(), agentLeft: vi.fn() }
+    const on = { noJoin: vi.fn(), noPickup: vi.fn(), agentLeft: vi.fn() }
     return { on, w: watchPickup(on) }
   }
 
-  test('nobody joins: no pickup after a few seconds, once', () => {
+  test('nobody joins: "didn\'t join" after 8 seconds, once, and nothing else', () => {
     const { on, w } = watch()
     w.start()
+    expect(PICKUP_TIMEOUT_MS).toBe(8_000)
     vi.advanceTimersByTime(PICKUP_TIMEOUT_MS - 1)
-    expect(on.noPickup).not.toHaveBeenCalled()
+    expect(on.noJoin).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(on.noJoin).toHaveBeenCalledTimes(1)
     vi.advanceTimersByTime(TEST_CALL_TIMEOUT_MS)
-    expect(on.noPickup).toHaveBeenCalledTimes(1)
+    expect(on.noJoin).toHaveBeenCalledTimes(1)
+    expect(on.noPickup).not.toHaveBeenCalled()
+    expect(on.agentLeft).not.toHaveBeenCalled()
   })
 
   test('the clocks start with start(), not before', () => {
@@ -88,6 +102,7 @@ describe('watchPickup', () => {
     expect(on.noPickup).not.toHaveBeenCalled()
     vi.advanceTimersByTime(TEST_CALL_TIMEOUT_MS - PICKUP_TIMEOUT_MS)
     expect(on.noPickup).toHaveBeenCalledTimes(1)
+    expect(on.noJoin).not.toHaveBeenCalled()
   })
 
   test('heard, even before the start: nothing fires', () => {
@@ -127,6 +142,7 @@ describe('watchPickup', () => {
     w.stop()
     vi.advanceTimersByTime(TEST_CALL_TIMEOUT_MS)
     expect(on.noPickup).not.toHaveBeenCalled()
+    expect(on.noJoin).not.toHaveBeenCalled()
   })
 })
 

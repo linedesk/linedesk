@@ -23,6 +23,7 @@ import { callOrigin, parseTestMetadata, startCall, type CallSession } from './ca
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withRealtimeModel } from './config.ts'
 import { requireLivekitEnv, workerAgentName } from './env.ts'
+import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
@@ -743,15 +744,19 @@ async function main() {
   // How long a new process may take to load the agent. Under a running call on a small box this takes
   // well over the library's 10 s, and a process that times out is killed and started again in a loop.
   const initializeProcessTimeout = Number(process.env.AGENT_INIT_TIMEOUT_MS) || 60_000
-  // The worker reports itself full above this CPU load. LiveKit has its own limit (agents.target_load, 0.7 by
-  // default), which docker-compose.yml sets from the same AGENT_LOAD_THRESHOLD: at 0.7 a small single-box install
-  // refuses calls, and the second job of a call test, while one call runs.
-  const loadThreshold = Number(process.env.AGENT_LOAD_THRESHOLD) || 0.95
+  // Whether the worker ever reports itself full because of CPU load (worker-load.ts): by default never, since the load
+  // is the whole machine's and one worker that is "full" leaves every call unanswered. AGENT_LOAD_THRESHOLD turns it
+  // on for installs with more than one worker; docker-compose.yml gives LiveKit's agents.target_load the same value.
+  const load = loadPolicy(process.env.AGENT_LOAD_THRESHOLD)
+  console.log(describeLoadPolicy(load))
   // On SIGTERM (an update) the worker takes no new calls and finishes the ones it has. A call put through to a
   // person lasts up to CALL_MAX_MINUTES, longer than the library's 60 minutes; the container's
   // stop_grace_period (LINEDESK_AGENT_DRAIN) is a little longer again, so this limit is the one that applies.
   const drainTimeout = (CALL_MAX_MINUTES + 5) * 60_000
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: workerAgentName(), numIdleProcesses, loadThreshold, initializeProcessTimeout, drainTimeout }))
+  const options = new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: workerAgentName(), numIdleProcesses, loadThreshold: load.threshold, initializeProcessTimeout, drainTimeout })
+  // The SDK's own measure (its default loadFunc), with the overload warning and the cap LiveKit needs (worker-load.ts).
+  options.loadFunc = reportedLoad(options.loadFunc, load, line => console.warn(line))
+  cli.runApp(options)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) void main()

@@ -14,6 +14,7 @@ import { microphoneAllowed } from '../call/microphone.ts'
 import { useLiveLines } from '../call/useLiveLines.ts'
 import {
   agentLeftText,
+  noJoinText,
   noPickupText,
   type PickupWatch,
   TEST_CALL_TIMEOUT_MS,
@@ -120,6 +121,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
       setPhase(then)
     }
     const watch = watchPickup({
+      noJoin: () => endWith(noJoinText(name, operator), 'idle'),
       noPickup: () => endWith(noPickupText(name, operator), 'idle'),
       agentLeft: () => endWith(agentLeftText(name, operator), 'ended'),
     })

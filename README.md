@@ -183,6 +183,8 @@ CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent
 
 Whole stack at rest: 880 MB to 1 GB, measured on three runs. Each call in progress adds memory in the agent, so the default is sized for one or two calls at a time; raise `LINEDESK_AGENT_MEM` for more. Every memory limit has a variable `LINEDESK_<SERVICE>_MEM`, every quota `LINEDESK_<SERVICE>_CPUS` (`POSTGRES`, `ELECTRIC`, `API`, `WEB`, `REDIS`, `LIVEKIT`, `SIP`, `AGENT`, `EGRESS`).
 
+One agent worker answers every call, however busy the machine is: the agent's CPU load is the whole machine's (a build, Postgres next to it), and a single worker that called itself full would leave calls unanswered ("no servers available" in the LiveKit log). Above 95% load the agent logs a warning instead, at most once a minute. `AGENT_LOAD_THRESHOLD` (between 0 and 1, e.g. `0.8`) makes a worker take no new call from that load on, and LiveKit (`agents.target_load`) gets the same value: only set this when more than one agent worker runs, so another worker takes the call.
+
 ### Push notifications
 
 Members can get a push for new calls (urgent ones first) on their phone or computer, even when Linedesk is closed: Settings, Notifications, "Push notifications on this device". Nothing to set up: the first start makes the install's key pair (VAPID) and stores it, the private key encrypted with `SECRETS_KEY`. `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in `.env` still win (an install that made its own pair before keeps it; `providers-import.ts` moves it into the app).

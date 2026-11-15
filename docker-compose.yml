@@ -177,11 +177,13 @@ services:
             includes: [MEDIA_INTERFACE] # set by the entrypoint above
         redis:
           address: redis:6379
-        # LiveKit hands a call to a worker only while the worker's reported CPU load is below target_load (default
-        # 0.7): above it, no job is dispatched ("no servers available") and the call gets no agent. The same limit
-        # as the agent's own AGENT_LOAD_THRESHOLD (default 0.95, apps/agent/src/worker.ts), so both agree.
+        # LiveKit hands a call to a worker only while the worker's reported CPU load is below target_load (its own
+        # default 0.7): above it, no job is dispatched ("no servers available") and the call gets no agent. The same
+        # value as the agent's AGENT_LOAD_THRESHOLD, with the same default (1.01, apps/agent/src/worker-load.ts):
+        # above any load, so a single worker never refuses a call. Set AGENT_LOAD_THRESHOLD only when more than one
+        # agent worker runs.
         agents:
-          target_load: ${AGENT_LOAD_THRESHOLD:-0.95}
+          target_load: ${AGENT_LOAD_THRESHOLD:-1.01}
         keys:
           ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
     ports:

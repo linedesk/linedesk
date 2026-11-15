@@ -10,7 +10,16 @@ export const PICKUP_TIMEOUT_MS = 8_000
 /** A normal hang-up closes the room right after the assistant leaves; still open this much later, it dropped out. */
 export const AGENT_LEFT_GRACE_MS = 3_000
 
-/** The assistant never joined, or joined and stayed silent. `operator`: the member runs the server and can fix it. */
+/**
+ * No agent joined the room within PICKUP_TIMEOUT_MS: the voice agent is not running, or LiveKit sent the call to no
+ * worker (overloaded). `operator`: the member runs the server and can fix it.
+ */
+export const noJoinText = (name: string, operator: boolean) =>
+  operator
+    ? `${name} didn't join. The voice agent is not running or the server is overloaded. Check Server admin › Overview (Voice agent, Answering calls).`
+    : `${name} didn't join. Try again in a moment, or ask whoever runs this server if it keeps happening.`
+
+/** The assistant joined but stayed silent. `operator`: the member runs the server and can fix it. */
 export const noPickupText = (name: string, operator: boolean) =>
   operator
     ? `${name} didn't pick up. The voice agent may not be running: Server admin › Overview shows its health.`
@@ -36,12 +45,12 @@ export type PickupWatch = {
 }
 
 /**
- * Whether the assistant picks up a test call and stays: `noPickup` when it has not joined `pickupMs` after the start,
- * or nothing came from it after `answerMs`; `agentLeft` when it left and the call did not end within `leftGraceMs`.
- * At most one of them fires, once.
+ * Whether the assistant picks up a test call and stays: `noJoin` when it has not joined `pickupMs` after the start,
+ * `noPickup` when nothing came from it after `answerMs`; `agentLeft` when it left and the call did not end within
+ * `leftGraceMs`. At most one of them fires, once.
  */
 export function watchPickup(
-  on: { noPickup: () => void; agentLeft: () => void },
+  on: { noJoin: () => void; noPickup: () => void; agentLeft: () => void },
   ms = { pickup: PICKUP_TIMEOUT_MS, answer: TEST_CALL_TIMEOUT_MS, leftGrace: AGENT_LEFT_GRACE_MS },
 ): PickupWatch {
   let started = false
@@ -70,7 +79,7 @@ export function watchPickup(
     start: () => {
       if (started || done) return
       started = true
-      if (!joined && !heard) timers.pickup = setTimeout(verdict(on.noPickup), ms.pickup)
+      if (!joined && !heard) timers.pickup = setTimeout(verdict(on.noJoin), ms.pickup)
       if (!heard) timers.answer = setTimeout(verdict(on.noPickup), ms.answer)
     },
     joined: () => {
