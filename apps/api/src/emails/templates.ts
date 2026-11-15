@@ -61,21 +61,31 @@ export const SIGN_IN_CODE_MINUTES = 10
 const codeNote = (locale: EmailLocale) =>
   getT(locale).t('email.code.note', { minutes: SIGN_IN_CODE_MINUTES, brand: brandName() })
 
-/** The code in the subject and the body, and no link: a link in a code email teaches people to click them. */
-export function signInCodeEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+/**
+ * The code in the subject and the body. With `link` (the code was asked for in a browser, sign-in-link.ts), a button
+ * signs in with one click first and the code is the way for any other browser or device. The button only opens the
+ * site the email names, which asks to Continue and works only in the browser that asked for the code: a copied or
+ * phished link signs nobody in.
+ */
+export function signInCodeEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale, link?: string): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
   const brand = brandName()
+  const blocks: Block[] = link
+    ? [
+        { kind: 'text', text: t('email.signInCode.linkText', { brand, site }) },
+        { kind: 'button', label: t('email.signInCode.button', { brand }), url: link },
+        { kind: 'text', text: t('email.signInCode.orCode', { site }) },
+      ]
+    : [{ kind: 'text', text: t('email.signInCode.text', { brand, site }) }]
   return renderEmail({
     locale: lang,
     subject: t('email.signInCode.subject', { code, brand }),
-    preheader: t('email.signInCode.preheader', { site, minutes: SIGN_IN_CODE_MINUTES }),
-    heading: t('email.signInCode.heading'),
-    blocks: [
-      { kind: 'text', text: t('email.signInCode.text', { brand, site }) },
-      { kind: 'code', code },
-      { kind: 'text', tone: 'muted', text: codeNote(locale) },
-    ],
+    preheader: link
+      ? t('email.signInCode.linkPreheader', { site, minutes: SIGN_IN_CODE_MINUTES })
+      : t('email.signInCode.preheader', { site, minutes: SIGN_IN_CODE_MINUTES }),
+    heading: link ? t('email.signInCode.linkHeading', { brand }) : t('email.signInCode.heading'),
+    blocks: [...blocks, { kind: 'code', code }, { kind: 'text', tone: 'muted', text: codeNote(locale) }],
     reason: t('email.signInCode.reason', { site }),
     origin,
   })

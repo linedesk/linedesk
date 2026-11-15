@@ -49,7 +49,7 @@ const signIn = (email: string, otp: string) =>
 const ownerEmail = async () => (await db.select().from(user).where(eq(user.id, ws.owner.userId)))[0]!.email
 
 describe('signing in with a code', () => {
-  test('the email carries the 6-digit code in subject and body and no link; the code signs in and verifies the address', async () => {
+  test('the email carries the 6-digit code in subject and body, and one link (the sign-in button); the code signs in and verifies the address', async () => {
     const { sentTo, codeFor } = mailbox()
     const email = await ownerEmail()
     expect((await requestCode(email)).status).toBe(200)
@@ -58,7 +58,8 @@ describe('signing in with a code', () => {
     const mail = sentTo(email).at(-1)!
     expect(mail.subject).toBe(`${code} is your Linedesk sign-in code`)
     expect(mail.text).toContain(code)
-    expect(mail.text).not.toMatch(/https?:\/\//)
+    // The only link is the button to this install's sign-in link page (sign-in-link.test.ts); the code works without it.
+    expect(mail.text.match(/https?:\/\/\S+/g)).toEqual([expect.stringMatching(/^http:\/\/localhost:5173\/#sign-in=[A-Za-z0-9_-]{43}$/)])
     expect(await accountOf(email)).toMatchObject({ emailVerified: false })
 
     expect(await signIn(email, code === '000000' ? '111111' : '000000')).toMatchObject({ status: 400, body: { code: 'INVALID_OTP' } })

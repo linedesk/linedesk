@@ -297,7 +297,10 @@ describe('partner directory', () => {
 })
 
 describe('sign-in code', () => {
-  it('shows the code large, says not to share it and when it expires, and has no link', () => {
+  const LINK = `${ORIGIN}/#sign-in=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ`
+  afterEach(() => setBrandingInMemory({}))
+
+  it('without a link: shows the code large, says not to share it and when it expires, and has no link', () => {
     const email = signInCodeEmail('482913', ORIGIN)
     expect(email.subject).toBe('482913 is your Linedesk sign-in code')
     expect(email.html).toMatch(/font-size:34px[^>]*>482913</)
@@ -305,6 +308,29 @@ describe('sign-in code', () => {
     expect(email.text).toContain('expires in 10 minutes')
     expect(email.text).not.toMatch(/https?:\/\//)
     expect(email.html).not.toMatch(/href=/)
+  })
+
+  it('with a link: the button first, then "Or enter this code", the code, expiry and the do-not-share line', () => {
+    const email = signInCodeEmail('482913', ORIGIN, 'en', LINK)
+    expect(email.subject).toBe('482913 is your Linedesk sign-in code')
+    // The only link in the card is the button, to the site the email names.
+    expect([...email.html.matchAll(/href="([^"]*)"/g)].map(m => m[1])).toEqual([LINK])
+    expect(email.html).toContain('>Sign in to Linedesk</a>')
+    const button = email.html.indexOf('>Sign in to Linedesk</a>')
+    const orCode = email.html.indexOf('Or enter this code on the sign-in page at desk.example.com:')
+    const code = email.html.search(/font-size:34px[^>]*>482913</)
+    const note = email.html.lastIndexOf('expires in 10 minutes')
+    expect(button).toBeGreaterThan(0)
+    expect(orCode).toBeGreaterThan(button)
+    expect(code).toBeGreaterThan(orCode)
+    expect(note).toBeGreaterThan(code)
+    expect(email.text).toContain(`Sign in to Linedesk:\n${LINK}`)
+    expect(email.text).toContain("Don't share this code")
+  })
+
+  it('the button names the install\'s own product name', () => {
+    setBrandingInMemory({ name: 'Front Desk Pro' })
+    expect(signInCodeEmail('482913', ORIGIN, 'en', LINK).html).toContain('>Sign in to Front Desk Pro</a>')
   })
 })
 

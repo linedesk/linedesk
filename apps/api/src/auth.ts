@@ -35,6 +35,7 @@ import {
   sendPasswordResetCode,
 } from './password-reset.ts'
 import { maySendSignInCode } from './signup-gate.ts'
+import { browserNonceFor, createSignInLink, linkOrigin, signInLinkUrl } from './sign-in-link.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
 import { personNameHooks } from './team-member-edit.ts'
 import { userLocaleFields, userLocaleHooks } from './user-locale.ts'
@@ -210,13 +211,24 @@ async function sendSignInCode({ email, otp, type }: { email: string; otp: string
   }
   if (type === 'forget-password') return sendPasswordResetCode(email, otp, locale)
   if (type !== 'sign-in') return
+  // Before the account check: every address gets the browser cookie alike (sign-in-link.ts).
+  const browser = browserNonceFor(ctx)
   // Closed sign-up: no code to an address that cannot sign in.
   if (!(await maySendSignInCode(db, email))) return
-  // Not awaited: waiting for SMTP only for real accounts would tell anyone which addresses have one.
-  void emailSender
-    .send({ to: email, ...signInCodeEmail(otp, undefined, locale) })
-    .catch(err => console.error('sign-in email failed', err))
+  // The email's button and "sign-in page at <site>" name the origin the code was asked from, when it is one of ours.
+  const origin = linkOrigin(originOf(ctx), TRUSTED_ORIGINS, normaliseOrigin(WEB_ORIGIN))
+  // Not awaited: waiting for SMTP (or storing the link) only for real accounts would tell anyone which addresses have one.
+  void (async () => {
+    const link = browser ? signInLinkUrl(origin, await createSignInLink(email, otp, browser)) : undefined
+    await emailSender.send({ to: email, ...signInCodeEmail(otp, origin, locale, link) })
+  })().catch(err => console.error('sign-in email failed', err))
 }
+
+/** The Origin of the request that asked for a code (the browser sends it with every POST). */
+const originOf = (ctx: unknown) =>
+  (ctx as { headers?: Headers } | undefined)?.headers?.get('origin') ??
+  (ctx as { request?: Request } | undefined)?.request?.headers.get('origin') ??
+  null
 
 // Workspace = Better Auth organization. Sign-in methods: see auth-methods.ts.
 export const auth = betterAuth({

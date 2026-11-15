@@ -220,6 +220,29 @@ Linedesk · desk.example.com
   [
     "sign-in-code",
     "482913 is your Linedesk sign-in code",
+    "Sign in to Linedesk
+
+Click the button to sign in to Linedesk at desk.example.com. It works in the browser where you asked for the code.
+
+Sign in to Linedesk:
+https://desk.example.com/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
+
+Or enter this code on the sign-in page at desk.example.com:
+
+    482913
+
+It works once and expires in 10 minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.
+
+--
+
+You got this email because someone asked to sign in to desk.example.com with this address. If it wasn't you, you can ignore it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "sign-in-code-only",
+    "482913 is your Linedesk sign-in code",
     "Your sign-in code
 
 Enter this code on the Linedesk sign-in page at desk.example.com.
@@ -948,6 +971,29 @@ Linedesk · desk.example.com
   ],
   [
     "sign-in-code",
+    "482913 es tu código de inicio de sesión de Linedesk",
+    "Sign in to Linedesk
+
+Click the button to sign in to Linedesk at desk.example.com. It works in the browser where you asked for the code.
+
+Sign in to Linedesk:
+https://desk.example.com/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
+
+Or enter this code on the sign-in page at desk.example.com:
+
+    482913
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de Linedesk ni de tu equipo te lo pedirá nunca.
+
+--
+
+Recibes este correo porque alguien pidió iniciar sesión en desk.example.com con esta dirección. Si no fuiste tú, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "sign-in-code-only",
     "482913 es tu código de inicio de sesión de Linedesk",
     "Tu código de inicio de sesión
 

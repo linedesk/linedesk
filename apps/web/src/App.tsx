@@ -26,6 +26,7 @@ import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
 import { AddPasskeyPage } from './AddPasskey.tsx'
+import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
 import { brandName } from './brand.ts'
@@ -108,6 +109,17 @@ export function App() {
   const [fromDevice] = useState(() => rememberedSession(link))
   const [session, setSession] = useState<Session>(() => fromDevice ?? { state: 'loading' })
   const [inviteId, setInviteId] = useState(readInviteId)
+  // The sign-in email's button (`#sign-in=<token>`): its page comes first, until Continue or leaving it.
+  const [signInLink, setSignInLink] = useState(takeSignInLinkToken)
+  useEffect(() => {
+    // Also when the link is opened in a tab that has the app open already (only the hash changes).
+    const follow = () => {
+      const token = takeSignInLinkToken()
+      if (token) setSignInLink(token)
+    }
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
   // Finishing onboarding is a queued command; the app moves on without waiting for it.
   const [onboarded, setOnboarded] = useState(false)
   const adminHash = useAdminHash()
@@ -236,6 +248,15 @@ export function App() {
   useMemberLocale(session.state === 'ready' || session.state === 'needsWorkspace' ? session.me : null)
   const t = useT()
 
+  if (signInLink) {
+    const signedIn = async () => {
+      // The account may have changed (another one was signed in here): the page loads fresh for the new one.
+      expectSessionChange()
+      window.location.reload()
+      await new Promise(() => {})
+    }
+    return <SignInLink token={signInLink} onDone={signedIn} onLeave={() => setSignInLink(null)} />
+  }
   if (inviteId) {
     const leaveInvite = () => {
       clearInviteId()

@@ -49,6 +49,7 @@ import { COOKIE_ACTIONS } from './impersonation.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { registerAuthenticatorRoutes } from './authenticator-routes.ts'
+import { registerSignInLinkRoutes } from './sign-in-link-routes.ts'
 import { AUTHENTICATOR_ROUTE_ACTIONS, hasAuthenticator } from './authenticator.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
@@ -170,6 +171,9 @@ app.post('/v1/setup', async c => {
 
 // Public: the invitation link shows whom it is for and which workspace, before sign-in.
 app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.param('id'))))
+
+// Public: the page the sign-in email's button opens, and its Continue (sign-in-link.ts).
+registerSignInLinkRoutes(app)
 
 export { WORKSPACE_CREATION_CLOSED }
 

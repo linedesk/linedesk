@@ -19,6 +19,7 @@ import {
 } from './alerts.ts'
 import type { RenderedEmail } from './layout.ts'
 import { setupUnsubscribePage } from './pages.ts'
+import { signInCodeEmail } from './templates.ts'
 import { assignedPushText, callPushTitle } from './push-text.ts'
 
 const ORIGIN = 'https://desk.example.com'
@@ -100,6 +101,15 @@ describe('in the pseudo-locale nothing is left in English', () => {
     )
     expect(text).toMatch(/Time: Nov 14, 2026, 5:05\sPM UTC\nBrowser: Chrome on macOS\nAddress: 203\.0\.113\.9/)
     expect(text).toContain('If this was them, nothing to do.')
+  })
+
+  it('the sign-in code email with its button, and without one', () => {
+    const link = `${ORIGIN}/#sign-in=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ`
+    for (const email of [signInCodeEmail('482913', ORIGIN, pseudo, link), signInCodeEmail('482913', ORIGIN, pseudo)]) {
+      expectTranslated(email, ['482913'])
+      expect(email.html).toContain('<html lang="en-XA"')
+    }
+    expect(signInCodeEmail('482913', ORIGIN, pseudo, link).html).toContain(`href="${link}"`)
   })
 
   it('every other admin alert', () => {

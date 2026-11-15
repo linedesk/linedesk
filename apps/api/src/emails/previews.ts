@@ -143,7 +143,11 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         locale,
       ),
     },
-    { name: 'sign-in-code', email: signInCodeEmail('482913', origin, locale) },
+    {
+      name: 'sign-in-code',
+      email: signInCodeEmail('482913', origin, locale, `${origin}/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg`),
+    },
+    { name: 'sign-in-code-only', email: signInCodeEmail('482913', origin, locale) },
     { name: 'password-reset-code', email: passwordResetCodeEmail('815302', origin, locale) },
     { name: 'confirmation-code', email: confirmationCodeEmail('730514', origin, origin, locale) },
     {
