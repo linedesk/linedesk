@@ -109,7 +109,7 @@ describe('labels: which of the assistant’s languages a voice performs', () => 
     const pool: PickerVoice[] = voices
     expect(coverageNote(pool, 'de', ['en'], null)).toBeNull()
     expect(coverageNote(pool, 'de', ['en', 'nl'], null)).toBe(
-      'No voice is verified in all of German, English and Dutch; the closest are shown.',
+      'No voice is verified in all of German, English, and Dutch; the closest are shown.',
     )
     expect(coverageNote(pool, 'de', ['ja'], 'ElevenLabs')).toBe(
       'No voice from ElevenLabs is verified in Japanese; the closest are shown.',
@@ -202,7 +202,7 @@ describe('switching the assistant’s languages several times in a row', () => {
     step = change(voice, 'de', ['en', 'nl'])
     expect(step).toEqual({ voice, notice: null })
     const three = suggested(voice, 'de', ['en', 'nl'])
-    expect(three.note).toBe('No voice is verified in all of German, English and Dutch; the closest are shown.')
+    expect(three.note).toBe('No voice is verified in all of German, English, and Dutch; the closest are shown.')
     expect(three.rows.slice(0, 2)).toEqual([
       { name: 'Lena - Customer Support', facts: 'Female · Native German · English', checked: true },
       { name: 'Alexandra', facts: 'Female · Austrian · Native German · Dutch', checked: false },

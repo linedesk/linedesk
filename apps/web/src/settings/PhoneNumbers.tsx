@@ -5,6 +5,7 @@
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 
 type PhoneNumberMode = PhoneNumber['mode']
+import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { ForwardingCheck } from '../onboarding/ForwardingCheck.tsx'
@@ -47,6 +48,7 @@ import { Field, Section } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
+import { i18n } from '../i18n/index.tsx'
 
 const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode => ({
   value: mode,
@@ -64,6 +66,7 @@ const answeredBy = (number: PhoneNumber, assistants: Assistant[]) =>
   assistants.find(a => a.id === number.assistant_id) ?? assistants[0]
 
 export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }: Props) {
+  const t = useT()
   // A workspace with its own carrier account can add numbers there, whatever the install has; the
   // session's status may be from before the carrier was changed here.
   const carrier = useCarrierStatus(canEdit)
@@ -101,11 +104,11 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
   return (
     <Section
       id="st-phone"
-      title="Phone numbers"
+      title={t('settings.phone.title')}
       actions={
         canAdd && (
           <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
-            Add number
+            {t('settings.phone.add')}
           </Button>
         )
       }
@@ -119,18 +122,21 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
         />
       )}
       <Loading
-        what="Phone numbers"
+        what={t('settings.phone.what')}
         loading={numbersLoad !== 'ready'}
         error={numbersLoad === 'slow'}
         skeleton={<SkeletonList rows={1} aside action />}
       >
         {numbers.length > 0 ? (
-          <List label="Phone numbers">
+          <List label={t('settings.phone.title')}>
             {numbers.map(n => (
               <ListRow
                 key={n.id}
                 title={<span className="st-mono">{formatNumber(n.e164)}</span>}
-                sub={`${answeredBy(n, assistants)?.name ?? 'The assistant'} · ${numberModeLabel[n.mode]}`}
+                sub={t('settings.phone.row.sub', {
+                  assistant: answeredBy(n, assistants)?.name ?? t('settings.phone.row.theAssistant'),
+                  mode: numberModeLabel[n.mode],
+                })}
                 aside={
                   // Forwarding nobody has seen work yet (the go-live checklist's rule): not "Answering" until it is,
                   // and the check is in the number's dialog.
@@ -138,40 +144,42 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
                     <button
                       type="button"
                       className="pn-status-link"
-                      title="Check the forwarding of this number"
+                      title={t('settings.phone.row.checkTip')}
                       onClick={() => setManaging({ id: n.id, release: false })}
                     >
                       <Badge>
-                        <StatusMark state="untested" label="Forwarding not verified" />
-                        Forwarding not verified
+                        <StatusMark state="untested" label={t('settings.phone.row.unverified')} />
+                        {t('settings.phone.row.unverified')}
                       </Badge>
                     </button>
                   ) : answering ? (
                     <Badge tone="ok">
-                      <StatusMark state="works" label="Answering" />
-                      Answering
+                      <StatusMark state="works" label={t('settings.phone.row.answering')} />
+                      {t('settings.phone.row.answering')}
                     </Badge>
                   ) : (
                     <Badge>
-                      <StatusMark state="off" label="Not answering" />
-                      Not answering
+                      <StatusMark state="off" label={t('settings.phone.row.notAnswering')} />
+                      {t('settings.phone.row.notAnswering')}
                     </Badge>
                   )
                 }
                 actions={
                   <MenuButton
-                    title={`Actions for ${formatNumber(n.e164)}`}
+                    title={t('settings.phone.row.actions', { number: formatNumber(n.e164) })}
                     items={[
                       {
                         id: 'manage',
-                        label: canEdit ? 'Manage…' : 'Details…',
+                        label: canEdit ? t('settings.phone.row.manage') : t('settings.phone.row.details'),
                         onSelect: () => setManaging({ id: n.id, release: false }),
                       },
                       ...(canEdit
                         ? [
                             {
                               id: 'release',
-                              label: n.purchased ? 'Release…' : 'Disconnect…',
+                              label: n.purchased
+                                ? t('settings.phone.release.menu')
+                                : t('settings.phone.disconnect.menu'),
                               danger: true,
                               onSelect: () => setManaging({ id: n.id, release: true }),
                             },
@@ -184,11 +192,11 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
             ))}
           </List>
         ) : (
-          <ListEmpty>{canEdit ? 'No number yet.' : 'No number yet. Only admins can add one.'}</ListEmpty>
+          <ListEmpty>{canEdit ? t('settings.phone.empty') : t('settings.phone.emptyMember')}</ListEmpty>
         )}
       </Loading>
       {adding && (
-        <Dialog title="Add a number" size="md" onClose={() => setAdding(false)}>
+        <Dialog title={t('settings.phone.addTitle')} size="md" onClose={() => setAdding(false)}>
           <ConnectNumber
             status={status}
             onDone={added => {
@@ -221,16 +229,17 @@ type UnavailableProps = {
 }
 
 function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) {
+  const t = useT()
   return (
     <p className="help" role="status">
       {/* With its own carrier account only the server's side can be missing (where calls are sent). */}
-      {ownCarrier ? 'This server cannot connect numbers yet.' : 'No phone carrier on this server yet.'}{' '}
+      {ownCarrier ? t('settings.phone.unavailable.ownCarrier') : t('settings.phone.unavailable.noCarrier')}{' '}
       {isInstanceAdmin ? (
         <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
-          Connect one in Server admin › Providers
+          {t('settings.phone.unavailable.connect')}
         </a>
       ) : (
-        'Ask whoever runs this server.'
+        t('settings.phone.unavailable.ask')
       )}
     </p>
   )
@@ -250,6 +259,7 @@ type ManageProps = {
  * from the agent setup page's Call forwarding row (onboarding/SetupRowActions.tsx).
  */
 export function ManageNumber({ number, assistants, canEdit, release = false, onClose }: ManageProps) {
+  const t = useT()
   const run = useRun()
   const [releasing, setReleasing] = useState(canEdit && release)
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
@@ -261,7 +271,12 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
       title={formatNumber(number.e164)}
       description={
         carrier
-          ? `${carrier}${number.carrier_account === 'workspace' ? ' · your own account' : ''}${number.purchased ? ` · bought through ${brandName()}` : ''}`
+          ? t('settings.phone.manage.description', {
+              carrier,
+              own: number.carrier_account === 'workspace',
+              bought: number.purchased,
+              brand: brandName(),
+            })
           : undefined
       }
       onClose={onClose}
@@ -270,11 +285,11 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
           <>
             {canEdit && (
               <Button variant="ghost" className="k-dialog-foot-start pn-release" onClick={() => setReleasing(true)}>
-                {number.purchased ? 'Release…' : 'Disconnect…'}
+                {number.purchased ? t('settings.phone.release.menu') : t('settings.phone.disconnect.menu')}
               </Button>
             )}
             <Button variant="primary" onClick={onClose}>
-              Done
+              {t('settings.phone.manage.done')}
             </Button>
           </>
         )
@@ -285,12 +300,16 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
       ) : (
         <>
           {assistants.length > 1 && (
-            <Field id="pn-who" label="Assistant" tip="Which assistant answers this number.">
+            <Field
+              id="pn-who"
+              label={t('settings.phone.manage.assistant')}
+              tip={t('settings.phone.manage.assistantTip')}
+            >
               <div>
                 <Select
                   id="pn-who"
                   value={who?.id ?? ''}
-                  label="Assistant"
+                  label={t('settings.phone.manage.assistant')}
                   disabled={!canEdit}
                   options={assistants.map(a => ({
                     value: a.id,
@@ -306,12 +325,12 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
               </div>
             </Field>
           )}
-          <Field id="pn-mode" label="How it's used">
+          <Field id="pn-mode" label={t('settings.phone.manage.mode')}>
             <div>
               <Select
                 id="pn-mode"
                 value={number.mode}
-                label="How it's used"
+                label={t('settings.phone.manage.mode')}
                 disabled={!canEdit}
                 options={modeOptions}
                 onChange={mode =>
@@ -332,11 +351,11 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
             >
               <Field
                 id="pn-codes"
-                label="Call forwarding"
+                label={t('settings.phone.manage.forwarding')}
                 tip={
                   number.mode === 'forward_all'
-                    ? 'Set it up once on your business phone or phone system. From then on, every call goes to your assistant.'
-                    : "Set it up once on your business phone or phone system. From then on, calls you don't answer or can't take because you're on the line go to your assistant."
+                    ? t('settings.phone.manage.forwardingAllTip')
+                    : t('settings.phone.manage.forwardingConditionalTip')
                 }
               >
                 <Forwarding
@@ -383,6 +402,7 @@ function CheckWhenEditing({
  * back, so the number has to be typed. The row disappears through sync once the server is done.
  */
 function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: () => void }) {
+  const t = useT()
   const defaultCountry = useDefaultPhoneCountry()
   const run = useRun()
   const name = useAssistantName()
@@ -392,7 +412,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
   const phoneCountry = countryOfNumber(number.e164) ?? defaultCountry
   const [sent, setSent] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const carrier = carrierName(number.provider) ?? 'the carrier'
+  const carrier = carrierName(number.provider)
   const formatted = formatNumber(number.e164)
   // Shown here, not also as a toast.
   const { rejection, clearRejection } = useClaimedRejection('phoneNumber.release', sent)
@@ -429,13 +449,29 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
         }
       }}
     >
-      <b id={`rel-${number.id}`}>{bought ? `Release ${formatted}?` : `Disconnect ${formatted}?`}</b>
+      <b id={`rel-${number.id}`}>
+        {bought
+          ? t('settings.phone.release.title', { number: formatted })
+          : t('settings.phone.disconnect.title', { number: formatted })}
+      </b>
       <span className="help">
         {bought
-          ? `${name} stops answering it and the number goes back to ${carrier}. Its monthly cost stops, and you cannot get the number back.`
-          : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.carrier_account === 'workspace' ? ` It is taken off ${brandName()}'s routing there and stops answering until you route it again.` : ''}${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
+          ? carrier
+            ? t('settings.phone.release.help', { name, carrier })
+            : t('settings.phone.release.helpNoCarrier', { name })
+          : [
+              carrier
+                ? t('settings.phone.disconnect.help', { name, carrier })
+                : t('settings.phone.disconnect.helpNoCarrier', { name }),
+              ...(number.carrier_account === 'workspace'
+                ? [t('settings.phone.disconnect.ownAccount', { brand: brandName() })]
+                : []),
+              ...(number.mode === 'forward_conditional' || number.mode === 'forward_all'
+                ? [t('settings.phone.disconnect.forwarding')]
+                : []),
+            ].join(' ')}
       </span>
-      <Field id={`rel-in-${number.id}`} label="Type the number to confirm">
+      <Field id={`rel-in-${number.id}`} label={t('settings.phone.release.confirmLabel')}>
         <PhoneInput
           id={`rel-in-${number.id}`}
           value={typed}
@@ -451,7 +487,7 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
       {problem && <Note tone="danger">{problem}</Note>}
       <div className="st-connect-foot">
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={sent}>
-          Cancel
+          {t('common.action.cancel')}
         </Button>
         <Button
           busy={sent}
@@ -460,7 +496,13 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
           variant="danger"
           disabled={sent || !confirmsNumber(typed, number.e164)}
         >
-          {sent ? (bought ? 'Releasing…' : 'Disconnecting…') : bought ? 'Release number' : 'Disconnect number'}
+          {sent
+            ? bought
+              ? t('settings.phone.release.busy')
+              : t('settings.phone.disconnect.busy')
+            : bought
+              ? t('settings.phone.release.button')
+              : t('settings.phone.disconnect.button')}
         </Button>
       </div>
     </form>
@@ -469,10 +511,13 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
 
 /** A `phoneNumber.release` refusal in plain words. */
 function releaseErrorText(error: string): string {
+  const { t } = i18n()
   if (/is the carrier in use/i.test(error))
-    return `This number belongs to another carrier than the one this server uses now. ${providerAudience() === 'admin' ? 'Switch the carrier back under Server admin › Providers to release it.' : 'Ask whoever runs it.'}`
-  if (/to confirm/i.test(error)) return 'The number you typed does not match.'
-  return `The carrier did not release the number. Nothing changed. (${error})`
+    return providerAudience() === 'admin'
+      ? t('settings.phone.release.error.otherCarrierAdmin')
+      : t('settings.phone.release.error.otherCarrier')
+  if (/to confirm/i.test(error)) return t('settings.phone.release.error.mismatch')
+  return t('settings.phone.release.error.failed', { error })
 }
 
 /** The forwarding instructions for the number's mode (conditional or all calls), per carrier or phone system. */
@@ -485,12 +530,13 @@ function Forwarding({
   e164: string
   mode: 'forward_conditional' | 'forward_all'
 }) {
+  const t = useT()
   const { guide, country } = pick
   return (
     <div className="st-codes">
       <GuidePickers
         id={`pn-carrier-${e164}`}
-        label="Your carrier or phone system"
+        label={t('settings.phone.forwarding.carrier')}
         country={country}
         onCountry={pick.setCountry}
         guideId={pick.guideId}
@@ -500,7 +546,7 @@ function Forwarding({
       {guide ? (
         <ForwardingSteps guide={guide} mode={mode} e164={e164} country={country} compact />
       ) : (
-        <p className="help">Pick your carrier or phone system to see how to forward.</p>
+        <p className="help">{t('settings.phone.forwarding.pick')}</p>
       )}
     </div>
   )
@@ -519,6 +565,7 @@ function ConnectNumber({
   onDone: (added: PhoneNumber) => void
   onCancel?: () => void
 }) {
+  const t = useT()
   const run = useRun()
   const name = useAssistantName()
   const numbers = useRows('phone_numbers')
@@ -602,7 +649,7 @@ function ConnectNumber({
         </div>
       ) : (
         <>
-          <div className="k-radios" role="radiogroup" aria-label="Phone number">
+          <div className="k-radios" role="radiogroup" aria-label={t('settings.phone.connect.kind')}>
             {connectOptions.map(o => (
               <RadioCard
                 key={o}
@@ -624,7 +671,10 @@ function ConnectNumber({
       )}
       {nothingToConnect ? null : option === 'existing' ? (
         <>
-          <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
+          <Field
+            id="st-pn-number"
+            label={carrier ? t('settings.phone.connect.numberIn', { carrier }) : t('settings.phone.connect.number')}
+          >
             <CarrierNumberInput
               id="st-pn-number"
               value={typed}
@@ -635,11 +685,11 @@ function ConnectNumber({
               defaultCountry={phoneCountry}
             />
           </Field>
-          {dev && <p className="help">Development mode: any number works, nothing is called.</p>}
+          {dev && <p className="help">{t('settings.phone.connect.dev')}</p>}
           {buyable && (
             <div>
               <Button size="sm" variant="ghost" onClick={() => pick(connectOptions[0]!)}>
-                Back to the choices
+                {t('settings.phone.connect.back')}
               </Button>
             </div>
           )}
@@ -648,7 +698,11 @@ function ConnectNumber({
         <>
           <Field
             id="st-pn-area"
-            label={option === 'forward' ? `Area code for ${name}'s number` : 'Area code'}
+            label={
+              option === 'forward'
+                ? t('settings.phone.connect.areaCodeFor', { name })
+                : t('settings.phone.connect.areaCode')
+            }
             help={priceNote(status?.provider ?? null)}
           >
             <AreaCodeInput
@@ -666,10 +720,14 @@ function ConnectNumber({
               <span>{buyQuestion(status?.provider ?? null, areaCode)}</span>
               <span className="ob2-row">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
-                  Cancel
+                  {t('common.action.cancel')}
                 </Button>
                 <Button busy={busy} size="sm" variant="primary" disabled={busy} onClick={() => send(true)}>
-                  {busy ? 'Buying…' : dev ? 'Add test number' : 'Buy number'}
+                  {busy
+                    ? t('settings.phone.connect.buying')
+                    : dev
+                      ? t('settings.phone.connect.addTest')
+                      : t('settings.phone.connect.buy')}
                 </Button>
               </span>
             </div>
@@ -681,11 +739,17 @@ function ConnectNumber({
         <div className="st-connect-foot">
           {onCancel && (
             <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
-              Cancel
+              {t('common.action.cancel')}
             </Button>
           )}
           <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy || nothingToConnect}>
-            {busy ? 'Connecting…' : buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'}
+            {busy
+              ? t('settings.phone.connect.connecting')
+              : buying
+                ? dev
+                  ? t('settings.phone.connect.addATest')
+                  : t('settings.phone.connect.get')
+                : t('settings.phone.connect.connect')}
           </Button>
         </div>
       )}

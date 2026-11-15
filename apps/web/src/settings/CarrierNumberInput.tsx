@@ -3,6 +3,7 @@
 // (phoneNumber.listCarrierNumbers, free). Typing a number that is not listed still works, and without a list (no
 // access, carrier not reachable) it is the plain phone field.
 import type { CarrierNumbersData } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { formatNumber } from '../onboarding/flow.ts'
@@ -34,6 +35,7 @@ type Props = {
 }
 
 export function CarrierNumberInput({ id, value, onChange, defaultCountry, invalid }: Props) {
+  const t = useT()
   const { data } = useQuery('phoneNumber.carrierNumbers', loadCarrierNumbers)
   const numbers = data?.numbers ?? []
   const [open, setOpen] = useState(false)
@@ -92,7 +94,7 @@ export function CarrierNumberInput({ id, value, onChange, defaultCountry, invali
         defaultCountry={defaultCountry}
         invalid={invalid}
         autoComplete="off"
-        placeholder={numbers.length ? 'Pick a number or type it' : undefined}
+        placeholder={numbers.length ? t('settings.carrier.numbers.placeholder') : undefined}
         onChange={e164 => {
           onChange(e164)
           setActive(0)
@@ -121,7 +123,7 @@ export function CarrierNumberInput({ id, value, onChange, defaultCountry, invali
           id={listId}
           popover="manual"
           role="listbox"
-          aria-label="Numbers in the carrier account"
+          aria-label={t('settings.carrier.numbers.list')}
           className="k-select-list cn-list k-float"
         >
           {matches.map((n, i) => (
@@ -139,10 +141,8 @@ export function CarrierNumberInput({ id, value, onChange, defaultCountry, invali
               <span className="k-select-opt-t">{formatNumber(n)}</span>
             </div>
           ))}
-          {!matches.length && (
-            <div className="cn-empty">No number in the account matches. Type it in full to use it.</div>
-          )}
-          {data?.more && <div className="cn-empty">The account has more numbers than shown: search or type one.</div>}
+          {!matches.length && <div className="cn-empty">{t('settings.carrier.numbers.noMatch')}</div>}
+          {data?.more && <div className="cn-empty">{t('settings.carrier.numbers.more')}</div>}
         </div>
       )}
     </div>

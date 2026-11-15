@@ -149,7 +149,10 @@ export const behavioursToSave = (d: Pick<Draft, 'behaviours'>): Partial<Record<B
  * The stored setting with only known codes; without a main language, the workspace language when calls can be
  * answered in it. A row synced before the column existed: the main language only.
  */
-function languagesOf(stored: Assistant['languages'] | undefined, workspaceLanguage?: string | null): AssistantLanguages {
+function languagesOf(
+  stored: Assistant['languages'] | undefined,
+  workspaceLanguage?: string | null,
+): AssistantLanguages {
   if (!stored) return { ...ENGLISH_ONLY, main: mainLanguageOf(null, workspaceLanguage) }
   return {
     main: mainLanguageOf(stored, workspaceLanguage),
@@ -251,8 +254,16 @@ const transferDraftOf = (c: TransferDraft): TransferDraft => ({
 const wholeIn = (typed: string, min: number, max: number) =>
   /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
 
+/** Which silence field a problem is about, so the form shows it under that field. */
+export type SilenceField = 'gap' | 'times' | 'hangUp' | 'longest' | 'reminder' | 'closing'
+
 /** Why the silence settings cannot be saved, or null. */
-export function silenceProblem(
+export function silenceProblem(d: Parameters<typeof silenceIssue>[0]): string | null {
+  return silenceIssue(d)?.message ?? null
+}
+
+/** The first problem of the silence settings and the field it is about, or null. */
+export function silenceIssue(
   d: Pick<
     Draft,
     | 'silence_first_gap_s'
@@ -262,20 +273,30 @@ export function silenceProblem(
     | 'silence_closing'
     | 'silence_reminder'
   >,
-): string | null {
+): { field: SilenceField; message: string } | null {
+  const { t } = i18n()
+  const issue = (field: SilenceField, message: string) => ({ field, message })
   if (!wholeIn(d.silence_first_gap_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_FIRST_GAP_MAX_S))
-    return `The first wait is ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_FIRST_GAP_MAX_S} seconds.`
-  if (!wholeIn(d.silence_reminders, 0, SILENCE_REMINDERS_MAX)) return `Ask 0 to ${SILENCE_REMINDERS_MAX} times.`
+    return issue(
+      'gap',
+      t('settings.assistant.draft.firstWait', { min: SILENCE_FIRST_GAP_MIN_S, max: SILENCE_FIRST_GAP_MAX_S }),
+    )
+  if (!wholeIn(d.silence_reminders, 0, SILENCE_REMINDERS_MAX))
+    return issue('times', t('settings.assistant.draft.reminders', { max: SILENCE_REMINDERS_MAX }))
   const lastAsk = Number(d.silence_first_gap_s) * Number(d.silence_reminders)
   if (!wholeIn(d.silence_hang_up_s, SILENCE_FIRST_GAP_MIN_S, SILENCE_HANG_UP_MAX_S))
-    return `Hang up after ${SILENCE_FIRST_GAP_MIN_S} to ${SILENCE_HANG_UP_MAX_S} seconds.`
-  if (Number(d.silence_hang_up_s) <= lastAsk) return `Hang up after the last question: more than ${lastAsk} seconds.`
+    return issue(
+      'hangUp',
+      t('settings.assistant.draft.hangUpRange', { min: SILENCE_FIRST_GAP_MIN_S, max: SILENCE_HANG_UP_MAX_S }),
+    )
+  if (Number(d.silence_hang_up_s) <= lastAsk)
+    return issue('hangUp', t('settings.assistant.draft.hangUpAfterLast', { seconds: lastAsk }))
   if (!wholeIn(d.max_call_minutes, 1, ASSISTANT_CALL_MAX_MINUTES))
-    return `The longest call is 1 to ${ASSISTANT_CALL_MAX_MINUTES} minutes.`
+    return issue('longest', t('settings.assistant.draft.longestCall', { max: ASSISTANT_CALL_MAX_MINUTES }))
   if (d.silence_reminder.trim().length > SILENCE_CLOSING_MAX)
-    return `The reminder is at most ${SILENCE_CLOSING_MAX} characters.`
+    return issue('reminder', t('settings.assistant.draft.reminderTooLong', { max: SILENCE_CLOSING_MAX }))
   if (d.silence_closing.trim().length > SILENCE_CLOSING_MAX)
-    return `The closing line is at most ${SILENCE_CLOSING_MAX} characters.`
+    return issue('closing', t('settings.assistant.draft.closingTooLong', { max: SILENCE_CLOSING_MAX }))
   return null
 }
 
@@ -302,16 +323,22 @@ export const silenceToSave = (d: Draft) => {
 export function silenceSummary(
   d: Pick<Draft, 'silence_first_gap_s' | 'silence_reminders' | 'silence_reminder'>,
 ): string {
+  const { t, format } = i18n()
   const gap = Number(d.silence_first_gap_s)
   const asks = Array.from({ length: Number(d.silence_reminders) }, (_, i) => gap * (i + 1))
-  if (!asks.length) return 'Never asks: it only hangs up after the silence below.'
-  const when = asks.length > 1 ? `${asks.slice(0, -1).join(', ')} and ${asks.at(-1)}` : `${asks[0]}`
-  return `Asks "${d.silence_reminder.trim() || DEFAULT_SILENCE_REMINDER}" after ${when} seconds of silence. Never while a call is transferred.`
+  if (!asks.length) return t('settings.assistant.draft.silenceNever')
+  return t('settings.assistant.draft.silenceAsks', {
+    reminder: d.silence_reminder.trim() || DEFAULT_SILENCE_REMINDER,
+    times: format.list(asks.map(n => format.number(n))),
+  })
 }
 
 /** When the assistant ends a call itself, in words for the help line. */
 export function hangUpSummary(d: Pick<Draft, 'silence_hang_up_s' | 'max_call_minutes'>): string {
-  return `Says this and hangs up at ${Number(d.silence_hang_up_s)} seconds of silence. At ${Number(d.max_call_minutes)} minutes it says goodbye and hangs up. A call put through to a person goes on.`
+  return i18n().t('settings.assistant.draft.hangUpSummary', {
+    seconds: Number(d.silence_hang_up_s),
+    minutes: Number(d.max_call_minutes),
+  })
 }
 
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
@@ -330,7 +357,7 @@ export function numberProblem(typed: string, countries: OutboundCountries = 'any
   if (e164) return onCallNumberProblem(e164, countries)
   // The phone field's value (E.164 as typed): an unfinished number says so for its country.
   const unfinished = typed.trim().startsWith('+') ? phoneNumberProblem(typed) : null
-  return unfinished ?? 'Enter the number with its country code and area code, like +1 503 555 0100.'
+  return unfinished ?? i18n().t('settings.assistant.draft.numberFormat', { example: '+1 503 555 0100' })
 }
 
 /** Whether the contact's number is refused only for its country: shown at once, also on a contact saved earlier. */
@@ -347,19 +374,26 @@ export function transferProblem(
   d: Pick<Draft, 'transfers'>,
   countries: OutboundCountries = 'any',
 ): TransferProblem | null {
+  const { t } = i18n()
   const names = new Set<string>()
   for (const [index, c] of d.transfers.entries()) {
     const name = c.name.trim()
-    if (!name) return { index, field: 'name', message: 'Give the contact a name.' }
+    if (!name) return { index, field: 'name', message: t('settings.assistant.draft.transferNameMissing') }
     if (name.length > TRANSFER_NAME_MAX)
-      return { index, field: 'name', message: `At most ${TRANSFER_NAME_MAX} characters.` }
-    if (names.has(name.toLowerCase())) return { index, field: 'name', message: `Another contact is called "${name}".` }
+      return { index, field: 'name', message: t('settings.assistant.draft.tooLong', { max: TRANSFER_NAME_MAX }) }
+    if (names.has(name.toLowerCase()))
+      return { index, field: 'name', message: t('settings.assistant.draft.transferNameTaken', { name }) }
     names.add(name.toLowerCase())
     const number = numberProblem(c.number, countries)
     if (number) return { index, field: 'number', message: number }
-    if (!c.condition.trim()) return { index, field: 'condition', message: 'Say when calls go to this contact.' }
+    if (!c.condition.trim())
+      return { index, field: 'condition', message: t('settings.assistant.draft.transferConditionMissing') }
     if (c.condition.trim().length > TRANSFER_CONDITION_MAX)
-      return { index, field: 'condition', message: `At most ${TRANSFER_CONDITION_MAX} characters.` }
+      return {
+        index,
+        field: 'condition',
+        message: t('settings.assistant.draft.tooLong', { max: TRANSFER_CONDITION_MAX }),
+      }
   }
   return null
 }
@@ -370,22 +404,26 @@ export const transfersToSave = (d: Pick<Draft, 'transfers'>): TransferContact[] 
 
 /** Starting points for a new contact: blank, or someone for callers who ask for a person. */
 export type TransferPreset = 'blank' | 'person'
-const PRESETS: Record<TransferPreset, Pick<TransferDraft, 'name' | 'condition' | 'hours_only' | 'if_no_answer'>> = {
+/** In the UI language: the condition is a starting text the owner edits. */
+const presets = (): Record<
+  TransferPreset,
+  Pick<TransferDraft, 'name' | 'condition' | 'hours_only' | 'if_no_answer'>
+> => ({
   blank: { name: '', condition: '', hours_only: false, if_no_answer: 'message' },
   person: {
-    name: 'Owner',
-    condition: 'The caller asks to speak to a person',
+    name: i18n().t('settings.assistant.draft.transferPresetName'),
+    condition: i18n().t('settings.assistant.draft.transferPresetCondition'),
     hours_only: true,
     if_no_answer: 'message',
   },
-}
+})
 
 /** A new contact from a preset, with an id and a name no other contact of the list has. */
 export function newTransferContact(list: readonly TransferDraft[], preset: TransferPreset): TransferDraft {
   const ids = new Set(list.map(c => c.id))
   let n = list.length + 1
   while (ids.has(`tc_${n}`)) n++
-  const base = PRESETS[preset]
+  const base = presets()[preset]
   const taken = new Set(list.map(c => c.name.trim().toLowerCase()))
   let name = base.name
   for (let i = 2; name && taken.has(name.toLowerCase()); i++) name = `${base.name} ${i}`
@@ -405,8 +443,8 @@ export function moveTransfer<T>(list: readonly T[], index: number, by: -1 | 1): 
 
 /** Why a contact is not used on calls right now, in a few words; null when it is. */
 export function transferInactive(c: Pick<TransferDraft, 'enabled' | 'number'>): string | null {
-  if (!c.enabled) return 'Off'
-  if (!c.number.trim()) return 'Add a number to use it'
+  if (!c.enabled) return i18n().t('settings.assistant.draft.transferOff')
+  if (!c.number.trim()) return i18n().t('settings.assistant.draft.transferNoNumber')
   return null
 }
 
@@ -424,27 +462,29 @@ export function keepDraft(assistantId: string, draft: Draft | null) {
 /** How long the greeting takes to say, as words for the help line. */
 export function spokenLength(greeting: string): string {
   const words = greeting.trim().split(/\s+/).filter(Boolean).length
-  if (!words) return 'nothing to say yet'
+  if (!words) return i18n().t('settings.assistant.draft.spokenNothing')
   const seconds = Math.max(1, Math.round(words / 2.5))
-  return `about ${seconds} ${seconds === 1 ? 'second' : 'seconds'} spoken`
+  return i18n().t('settings.assistant.draft.spoken', { seconds })
 }
 
 export const ASSISTANT_NAME_MAX = 60
 
 /** Why the assistant's name cannot be saved, in words for the user; null when it can. */
 export function nameProblem(name: string): string | null {
-  if (!name.trim()) return 'Enter a name. Callers hear it.'
-  return name.trim().length > ASSISTANT_NAME_MAX ? `At most ${ASSISTANT_NAME_MAX} characters.` : null
+  if (!name.trim()) return i18n().t('settings.assistant.draft.nameMissing')
+  return name.trim().length > ASSISTANT_NAME_MAX
+    ? i18n().t('settings.assistant.draft.tooLong', { max: ASSISTANT_NAME_MAX })
+    : null
 }
 
 /** Why the draft cannot be saved yet, in words for the user; null when it can. */
 export function draftProblem(draft: Draft, countries: OutboundCountries = 'any'): string | null {
   const name = nameProblem(draft.name)
   if (name) return name
-  if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
+  if (!draft.greeting.trim()) return i18n().t('settings.assistant.draft.greetingEmpty')
   const length = draft.instructions.trim().length
   if (length > INSTRUCTIONS_MAX)
-    return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
+    return i18n().t('settings.assistant.draft.instructionsTooLong', { length, max: INSTRUCTIONS_MAX })
   return transferProblem(draft, countries)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
 }
 

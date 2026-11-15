@@ -12,6 +12,7 @@ import {
   type VoiceCloneData,
   type VoiceOptionsData,
 } from '@linedesk/actions'
+import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
@@ -84,6 +85,7 @@ async function loadPreview(
  * assistant's main language, which samples are spoken in). `progress` (0–1) of the one playing, for its ring.
  */
 function usePreview(activeProvider: string | null, language: string) {
+  const t = useT()
   const audio = useRef<HTMLAudioElement | null>(null)
   const loaded = useRef(new Map<string, string>())
   /** The voice the last click asked for; a sample that arrives after another click is not played. */
@@ -141,7 +143,7 @@ function usePreview(activeProvider: string | null, language: string) {
     next.onended = stop
     next.onerror = () => {
       stop()
-      setFailed({ key, message: 'The sample could not be played.' })
+      setFailed({ key, message: t('settings.voice.preview.notPlayed') })
     }
     void next.play().catch(stop)
   }
@@ -163,6 +165,7 @@ type PlayProps = {
 
 /** Play, or while it plays: a moving waveform with the progress around it; hover or focus shows stop. */
 function PlayButton({ voice, preview, label, playKey, unavailable }: PlayProps) {
+  const t = useT()
   const name = label ?? voice?.name ?? ''
   if (!voice)
     return (
@@ -171,7 +174,7 @@ function PlayButton({ voice, preview, label, playKey, unavailable }: PlayProps) 
         type="button"
         className="vp-play is-off"
         aria-disabled="true"
-        aria-label={`Play ${name}`}
+        aria-label={t('settings.voice.play', { name })}
         title={unavailable}
       >
         <svg className="vp-ring" viewBox="0 0 30 30" aria-hidden="true">
@@ -188,9 +191,9 @@ function PlayButton({ voice, preview, label, playKey, unavailable }: PlayProps) 
     <button
       type="button"
       className={cx('vp-play', playing && 'is-playing', loading && 'is-loading')}
-      aria-label={`${busy ? 'Stop' : 'Play'} ${name}`}
+      aria-label={busy ? t('settings.voice.stop', { name }) : t('settings.voice.play', { name })}
       aria-busy={loading || undefined}
-      title={busy ? `Stop the sample of ${name}` : `Play a sample of ${name}`}
+      title={busy ? t('settings.voice.stopTip', { name }) : t('settings.voice.playTip', { name })}
       onClick={() => void preview.toggle(voice, key)}
     >
       <svg className="vp-ring" viewBox="0 0 30 30" aria-hidden="true">
@@ -237,7 +240,10 @@ type RowProps = {
 }
 
 function VoiceRow({ voice, defaultSample, defaultNote, checked, onPick, disabled, preview, facts }: RowProps) {
-  const defaultName = defaultSample?.name ? `${defaultSample.name} (default)` : 'Default voice'
+  const t = useT()
+  const defaultName = defaultSample?.name
+    ? t('settings.voice.defaultNamed', { name: defaultSample.name })
+    : t('settings.voice.default')
   const description = voice ? voice.description : (defaultNote ?? null)
   return (
     <div className={cx('vp-row', checked && 'on')}>
@@ -262,7 +268,7 @@ function VoiceRow({ voice, defaultSample, defaultNote, checked, onPick, disabled
           label={defaultName}
           playKey="default"
           preview={preview}
-          unavailable="No default voice to play: the voice provider in use has none set (Server admin › Providers)"
+          unavailable={t('settings.voice.noDefaultSample')}
         />
       )}
     </div>
@@ -307,6 +313,7 @@ export function MoreVoices({
   disabled,
   preview,
 }: MoreProps) {
+  const t = useT()
   const [filter, setFilter] = useState<VoiceFilter>(ASSISTANT_FILTER)
   const [shown, setShown] = useState(PAGE)
   const set = (change: Partial<VoiceFilter>) => {
@@ -327,7 +334,7 @@ export function MoreVoices({
   if (!catalog)
     return (
       <Loading
-        what="The voices"
+        what={t('settings.voice.loadWhat')}
         loading
         error={error}
         onRetry={onRetry}
@@ -342,23 +349,36 @@ export function MoreVoices({
   const filters = [
     {
       key: 'provider' as const,
-      label: 'Provider',
+      label: t('settings.voice.filter.provider'),
       options: filterOptions(
-        'All providers',
+        t('settings.voice.filter.allProviders'),
         configured.map(p => ({ value: p.provider, label: p.label })),
       ),
     },
     {
       key: 'language' as const,
-      label: 'Language',
+      label: t('common.language.label'),
       options: [
-        { value: ASSISTANT_LANGUAGES, label: others.length ? `${assistantName}'s languages` : languageName(main) },
-        { value: '', label: 'All languages' },
+        {
+          value: ASSISTANT_LANGUAGES,
+          label: others.length
+            ? t('settings.voice.filter.assistantLanguages', { name: assistantName })
+            : languageName(main),
+        },
+        { value: '', label: t('settings.voice.filter.allLanguages') },
         ...facetValues(voices, 'language'),
       ],
     },
-    { key: 'gender' as const, label: 'Gender', options: filterOptions('Any gender', facetValues(voices, 'gender')) },
-    { key: 'accent' as const, label: 'Accent', options: filterOptions('Any accent', facetValues(voices, 'accent')) },
+    {
+      key: 'gender' as const,
+      label: t('settings.voice.filter.gender'),
+      options: filterOptions(t('settings.voice.filter.anyGender'), facetValues(voices, 'gender')),
+    },
+    {
+      key: 'accent' as const,
+      label: t('settings.voice.filter.accent'),
+      options: filterOptions(t('settings.voice.filter.anyAccent'), facetValues(voices, 'accent')),
+    },
   ]
   return (
     <div className="vp-more-body">
@@ -368,8 +388,8 @@ export function MoreVoices({
           <TextInput
             id="vp-search"
             size="sm"
-            label="Search voices"
-            placeholder="Search voices"
+            label={t('settings.voice.search')}
+            placeholder={t('settings.voice.search')}
             value={filter.query}
             onChange={query => set({ query })}
           />
@@ -392,14 +412,14 @@ export function MoreVoices({
             size="sm"
             variant="ghost"
             onClick={() => set({ language: '' })}
-            title="Show the voices of every language, not only the ones the assistant speaks"
+            title={t('settings.voice.showAllLanguagesTip')}
           >
-            Show all languages
+            {t('settings.voice.showAllLanguages')}
           </Button>
         )}
       </div>
       {matches.length ? (
-        <div className="vp-list" role="radiogroup" aria-label="More voices">
+        <div className="vp-list" role="radiogroup" aria-label={t('settings.voice.more')}>
           {matches.slice(0, shown).map(v => (
             <VoiceRow
               key={voiceKey(v.provider, v.id)}
@@ -413,11 +433,14 @@ export function MoreVoices({
           ))}
         </div>
       ) : (
-        <p className="help">{voices.length ? 'No voice matches.' : 'No voices yet.'}</p>
+        <p className="help">{voices.length ? t('settings.voice.noMatch') : t('settings.voice.none')}</p>
       )}
       {matches.length > shown && (
         <Button size="sm" variant="ghost" onClick={() => setShown(n => n + PAGE)}>
-          Show {Math.min(PAGE, matches.length - shown)} more of {matches.length - shown}
+          {t('settings.voice.showMore', {
+            count: Math.min(PAGE, matches.length - shown),
+            rest: matches.length - shown,
+          })}
         </Button>
       )}
       <ProviderHints providers={catalog.providers} />
@@ -427,6 +450,8 @@ export function MoreVoices({
 
 /** A line per provider whose voices are missing: no key, or the list could not be read. */
 function ProviderHints({ providers }: { providers: readonly CatalogProvider[] }) {
+  const t = useT()
+  const format = useFormat()
   const missing = providers.filter(p => !p.configured).map(p => p.label)
   const failed = providers.filter(p => p.error)
   return (
@@ -436,8 +461,7 @@ function ProviderHints({ providers }: { providers: readonly CatalogProvider[] })
       ))}
       {missing.length > 0 && (
         <p className="help">
-          {missing.join(' and ')} voices show here once {missing.length > 1 ? 'they have' : 'it has'} a key (Server
-          admin › Providers).
+          {t('settings.voice.providersMissing', { providers: format.list(missing), count: missing.length })}
         </p>
       )}
     </>
@@ -473,6 +497,7 @@ function CloneVoice({
   toast: Props['toast']
   disabled: boolean
 }) {
+  const t = useT()
   const write = useWriteAction()
   const [name, setName] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -494,24 +519,33 @@ function CloneVoice({
         mimeType: file.type,
       })
       void refreshQuery(VOICE_OPTIONS) // the new voice is in the list at once, not at the next focus
-      toast(`Cloned "${name.trim()}". It is the assistant's voice now.`)
+      toast(t('settings.voice.clone.done', { name: name.trim() }))
       setName('')
       setFile(null)
       setConsent(false)
       setTried(false)
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'The voice could not be cloned.')
+      toast(e instanceof Error ? e.message : t('settings.voice.clone.failed'))
     } finally {
       setBusy(false)
     }
   }
   return (
     <details className="vc-clone">
-      <summary>Clone a voice</summary>
-      <Field id="vc-clone-name" label="Name">
-        <TextInput id="vc-clone-name" value={name} onChange={setName} placeholder="Mike's voice" />
+      <summary>{t('settings.voice.clone.title')}</summary>
+      <Field id="vc-clone-name" label={t('settings.voice.clone.name')}>
+        <TextInput
+          id="vc-clone-name"
+          value={name}
+          onChange={setName}
+          placeholder={t('settings.voice.clone.namePlaceholder')}
+        />
       </Field>
-      <Field id="vc-clone-file" label="Recording" help="1–2 minutes of clear speech, at most 10 MB.">
+      <Field
+        id="vc-clone-file"
+        label={t('settings.voice.clone.recording')}
+        help={t('settings.voice.clone.recordingHelp')}
+      >
         <input id="vc-clone-file" type="file" accept="audio/*" onChange={e => setFile(e.target.files?.[0] ?? null)} />
       </Field>
       <Checkbox checked={consent} onChange={setConsent}>
@@ -524,11 +558,11 @@ function CloneVoice({
           size="sm"
           disabled={disabled || busy}
           onClick={() => void clone()}
-          title="Send the recording to the voice provider and use the new voice"
+          title={t('settings.voice.clone.buttonTip')}
         >
-          {busy ? 'Cloning…' : 'Clone voice'}
+          {busy ? t('settings.voice.clone.busy') : t('settings.voice.clone.button')}
         </Button>
-        <span className="help">Sent to the voice provider, not kept.</span>
+        <span className="help">{t('settings.voice.clone.notKept')}</span>
       </div>
     </details>
   )
@@ -544,12 +578,13 @@ export function VoiceSettings({
   otherLanguages,
   assistantName,
 }: Props) {
+  const t = useT()
   const { data: options } = useVoiceOptions()
   const provider = options?.provider ?? null
   const preview = usePreview(provider, language)
   const [moreOpen, setMoreOpen] = useState(false)
   const clones: PickerVoice[] = provider
-    ? (options?.clones ?? []).map(v => ({ provider, id: v.id, name: v.name, description: 'Your cloned voice' }))
+    ? (options?.clones ?? []).map(v => ({ provider, id: v.id, name: v.name, description: t('settings.voice.cloned') }))
     : []
   const curated: PickerVoice[] = provider ? (options?.voices ?? []).map(v => ({ provider, ...v })) : []
   const isCurated = [...curated, ...clones].some(v => v.provider === voice.provider && v.id === voice.voice_id)
@@ -630,7 +665,7 @@ export function VoiceSettings({
       ? (catalogVoices.find(v => voiceKey(v.provider, v.id) === current) ?? {
           provider: voice.provider,
           id: voice.voice_id,
-          name: 'Chosen voice',
+          name: t('settings.voice.chosen'),
           description: voice.voice_id,
         })
       : null
@@ -641,7 +676,7 @@ export function VoiceSettings({
           curated.find(v => v.id === options.defaultVoice?.id) ?? {
             provider,
             id: options.defaultVoice.id,
-            name: options.defaultVoice.name ?? 'Default voice',
+            name: options.defaultVoice.name ?? t('settings.voice.default'),
             description: null,
           },
         )
@@ -674,18 +709,14 @@ export function VoiceSettings({
 
   if (options && !provider)
     return (
-      <Section id="as-voice" title="Voice">
+      <Section id="as-voice" title={t('settings.voice.title')}>
         <MissingProviderNote kind="voice" />
       </Section>
     )
   return (
-    <Section
-      id="as-voice"
-      title="Voice"
-      help="Applies from the next call. Play a sample to hear how a voice sounds on the phone."
-    >
+    <Section id="as-voice" title={t('settings.voice.title')} help={t('settings.voice.help')}>
       <div className="vp-group-label" id="vp-suggested">
-        Suggested
+        {t('settings.voice.suggested')}
       </div>
       <div className="vp-list" role="radiogroup" aria-labelledby="vp-suggested">
         {fromCatalog && (
@@ -707,7 +738,7 @@ export function VoiceSettings({
         {!forLanguage.length && (
           <VoiceRow
             voice={null}
-            defaultNote={`${assistantName} speaks with it unless you pick another.`}
+            defaultNote={t('settings.voice.defaultNote', { name: assistantName })}
             defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
             checked={current === ''}
             onPick={() => pick(null)}
@@ -743,21 +774,21 @@ export function VoiceSettings({
               setFollowed(null)
             }}
           >
-            Undo
+            {t('common.action.undo')}
           </Button>
         </p>
       )}
       {coverage && <p className="help vp-native-note">{coverage}</p>}
       {nativeNote && (
         <p className="help vp-native-note">
-          {nativeNote.text} <HelpTip label="Why there are no native voices" text={nativeNote.help} />
+          {nativeNote.text} <HelpTip label={t('settings.voice.native.why')} text={nativeNote.help} />
         </p>
       )}
       {failure && <FormMessage>{failure.message}</FormMessage>}
       <details className="vp-more" onToggle={e => setMoreOpen(e.currentTarget.open)}>
-        <summary title="Every voice of your voice providers, with search and filters">
+        <summary title={t('settings.voice.moreTip')}>
           <Icon name="down" size={14} className="vp-chevron" />
-          More voices
+          {t('settings.voice.more')}
         </summary>
         {moreOpen && (
           <MoreVoices

@@ -2,6 +2,7 @@
 // under the field, built like CarrierNumberInput. Search by code, city or state ("503", "portland", "OR"). Only a
 // code from the list is taken: the value is the three digits, or empty while what is typed is not one of them.
 import { areaCodeLabel, searchAreaCodes, US_AREA_CODES, usAreaCode } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Input } from '../ui/form.tsx'
 import { useAnchoredList } from '../ui/floating.ts'
@@ -33,6 +34,7 @@ export const typedAreaCode = (query: string): string => {
 type Props = { id: string; value: string; onChange: (code: string) => void; label?: string }
 
 export function AreaCodeInput({ id, value, onChange, label }: Props) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(() => areaCodeText(value))
   const [active, setActive] = useState(0)
@@ -99,7 +101,7 @@ export function AreaCodeInput({ id, value, onChange, label }: Props) {
         id={id}
         aria-label={label}
         value={query}
-        placeholder="Search a city, state or area code"
+        placeholder={t('settings.areaCode.search')}
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
@@ -128,7 +130,7 @@ export function AreaCodeInput({ id, value, onChange, label }: Props) {
           id={listId}
           popover="manual"
           role="listbox"
-          aria-label="US area codes"
+          aria-label={t('settings.areaCode.list')}
           className="k-select-list cn-list k-float"
         >
           {matches.map((a, i) => (
@@ -147,7 +149,7 @@ export function AreaCodeInput({ id, value, onChange, label }: Props) {
               {a.code === value && <Icon name="check" size={14} />}
             </div>
           ))}
-          {!matches.length && <div className="cn-empty">No US area code matches. Try a nearby city or the state.</div>}
+          {!matches.length && <div className="cn-empty">{t('settings.areaCode.noMatch')}</div>}
         </div>
       )}
     </div>

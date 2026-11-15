@@ -2,9 +2,7 @@
 // functions of the server's preview (workspace.deletePreview), so the words are tested without a browser.
 import type { WorkspaceDeletePreviewData } from '@linedesk/actions'
 import type { DangerConfirmation } from '../ui/DangerConfirmDialog.tsx'
-import { fmt } from '../i18n/format.ts'
-
-const count = (n: number, one: string, many = `${one}s`) => `${fmt().number(n)} ${n === 1 ? one : many}`
+import { i18n } from '../i18n/index.tsx'
 
 /**
  * What deleting a workspace takes with it, one line per kind of data: the one list for an owner (Danger zone) and a
@@ -21,40 +19,34 @@ export type WorkspaceDeleteFacts = {
 }
 
 export function workspaceDeleteList(f: WorkspaceDeleteFacts): string[] {
+  const { t } = i18n()
   return [
-    `${count(f.calls, 'call')}, with their transcripts and recordings`,
-    count(f.contacts, 'contact'),
+    t('settings.danger.list.calls', { count: f.calls }),
+    t('settings.danger.list.contacts', { count: f.contacts }),
     ...f.numbers,
-    'Its bookings, settings and invitations',
-    ...(f.otherMembers
-      ? [`The access of ${count(f.otherMembers, 'other member')}; each of them gets an email that it was deleted`]
-      : []),
-    ...(f.accountsDeleted
-      ? [
-          `${count(f.accountsDeleted, 'account')} will be deleted because ${f.accountsDeleted === 1 ? 'it has' : 'they have'} no other workspace`,
-        ]
-      : []),
+    t('settings.danger.list.rest'),
+    ...(f.otherMembers ? [t('settings.danger.list.members', { count: f.otherMembers })] : []),
+    ...(f.accountsDeleted ? [t('settings.danger.list.accounts', { count: f.accountsDeleted })] : []),
   ]
 }
 
 /** The phone number lines when nothing is known but how many there are (a server admin's delete). */
 export function numberLines(numbers: number, brand: string): string[] {
+  const { t } = i18n()
   return [
     numbers
-      ? `${count(numbers, 'phone number')}: numbers bought through ${brand} are released at the carrier, the others stop reaching ${brand}`
-      : count(0, 'phone number'),
+      ? t('settings.danger.numbers.admin', { count: numbers, brand })
+      : t('settings.danger.numbers.count', { count: 0 }),
   ]
 }
 
 /** The owner's list (Danger zone), from the server's preview. */
 export function deleteOwnList(p: WorkspaceDeletePreviewData, brand: string): string[] {
+  const { t } = i18n()
   const { bought, attached } = p.numbers
-  const numbers = !bought && !attached ? [count(0, 'phone number')] : []
-  if (bought) numbers.push(`${count(bought, 'phone number')} bought through ${brand}: released at the carrier`)
-  if (attached)
-    numbers.push(
-      `${count(attached, 'phone number')} you brought or connected: ${attached === 1 ? 'it stops' : 'they stop'} reaching ${brand} and ${attached === 1 ? 'stays' : 'stay'} yours`,
-    )
+  const numbers = !bought && !attached ? [t('settings.danger.numbers.count', { count: 0 })] : []
+  if (bought) numbers.push(t('settings.danger.numbers.bought', { count: bought, brand }))
+  if (attached) numbers.push(t('settings.danger.numbers.attached', { count: attached, brand }))
   return workspaceDeleteList({
     calls: p.calls,
     contacts: p.contacts,
@@ -69,18 +61,21 @@ export function deleteOwnList(p: WorkspaceDeletePreviewData, brand: string): str
  * own too): off by default, so they are deleted; kept accounts wait for an invitation. None when no account goes.
  */
 export function keepAccountsOption(p: Pick<WorkspaceDeletePreviewData, 'accountsDeleted' | 'ownAccountDeleted'>) {
-  if (p.accountsDeleted) return p.ownAccountDeleted ? 'Keep these accounts, yours included' : 'Keep their accounts'
-  return p.ownAccountDeleted ? 'Keep my account' : undefined
+  const { t } = i18n()
+  if (p.accountsDeleted)
+    return p.ownAccountDeleted ? t('settings.danger.keep.theseAndMine') : t('settings.danger.keep.theirs')
+  return p.ownAccountDeleted ? t('settings.danger.keep.mine') : undefined
 }
 
 /** The dialog's words; the keep box only when an account would go (keepAccountsOption). */
 export function deleteOwnConfirmation(p: WorkspaceDeletePreviewData, brand: string): DangerConfirmation {
+  const { t } = i18n()
   return {
-    text: `This deletes ${p.name} and all its data for good.`,
+    text: t('settings.danger.delete.text', { name: p.name }),
     list: deleteOwnList(p, brand),
-    after: 'This cannot be undone.',
-    action: 'Delete workspace',
-    busyAction: 'Deleting…',
+    after: t('settings.danger.delete.after'),
+    action: t('settings.danger.delete.action'),
+    busyAction: t('settings.danger.delete.busy'),
     typed: p.name,
     option: keepAccountsOption(p),
   }
@@ -89,16 +84,17 @@ export function deleteOwnConfirmation(p: WorkspaceDeletePreviewData, brand: stri
 /** The separate warning about the owner's own account (DangerZone.tsx): null when it stays anyway. */
 export function ownAccountWarning(p: Pick<WorkspaceDeletePreviewData, 'ownAccountDeleted'>, keep: boolean) {
   if (!p.ownAccountDeleted) return null
+  const { t } = i18n()
   return keep
     ? {
         tone: 'neutral' as const,
-        title: 'Your account stays.',
-        text: 'You land on the page that waits for an invitation to another workspace.',
+        title: t('settings.danger.own.stays.title'),
+        text: t('settings.danger.own.stays.text'),
       }
     : {
         tone: 'danger' as const,
-        title: 'Your own account will be deleted too.',
-        text: "You have no other workspace, so your account goes with this one. You'll be signed out and can't sign in again.",
+        title: t('settings.danger.own.deleted.title'),
+        text: t('settings.danger.own.deleted.text'),
       }
 }
 

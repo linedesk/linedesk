@@ -4,6 +4,7 @@ import type { ClosedDay, DerivedDay } from '@linedesk/actions'
 import type { Closure, HolidayCalendar, HolidayChange } from '@linedesk/db/types'
 import { timeOptionLabel } from './businessHoursModel.ts'
 import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 
 /** Today's date (YYYY-MM-DD) in a time zone. */
 export function todayIn(timeZone: string, now = Date.now()): string {
@@ -32,7 +33,9 @@ export function shortDate(date: string, today: string): string {
 
 /** "Closed" or "Open 8:00 AM–12:00 PM". */
 export const dayHoursLabel = (d: ClosedDay) =>
-  d.start && d.end ? `Open ${timeOptionLabel(d.start)}–${timeOptionLabel(d.end)}` : 'Closed'
+  d.start && d.end
+    ? i18n().t('settings.holidays.openHours', { start: timeOptionLabel(d.start), end: timeOptionLabel(d.end) })
+    : i18n().t('settings.holidays.closed')
 
 export type ClosureState = 'on' | 'scheduled' | 'ended'
 
@@ -43,12 +46,17 @@ export function closureState(c: Closure, today: string): ClosureState {
 
 /** Where a closure stands, in one line: "Closed now, back on Mon, Jan 5." */
 export function closureSummary(c: Closure, today: string): string {
+  const { t } = i18n()
   const back = shortDate(addDays(c.until, 1), today)
-  const range = `${shortDate(c.from, today)} – ${shortDate(c.until, today)}`
   const state = closureState(c, today)
-  if (state === 'on') return `Closed now, back on ${back}.`
-  if (state === 'scheduled') return `Closed ${range}, back on ${back}.`
-  return `Ended ${shortDate(c.until, today)}.`
+  if (state === 'on') return t('settings.holidays.closure.now', { back })
+  if (state === 'scheduled')
+    return t('settings.holidays.closure.scheduled', {
+      from: shortDate(c.from, today),
+      until: shortDate(c.until, today),
+      back,
+    })
+  return t('settings.holidays.closure.ended', { date: shortDate(c.until, today) })
 }
 
 /** "Monday, January 5". */
@@ -62,13 +70,13 @@ const longDate = (date: string) =>
 
 /** What the assistant says while closed, until the owner writes their own. */
 export const defaultClosureGreeting = (until: string) =>
-  `Thanks for calling. We're closed for a break and back on ${longDate(addDays(until, 1))}. Leave a message and we'll call you back then.`
+  i18n().t('settings.holidays.closure.defaultGreeting', { back: longDate(addDays(until, 1)) })
 
 /** Why the closure cannot be saved; null when it can. */
 export function closureProblem(c: Closure): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(c.from) || !/^\d{4}-\d{2}-\d{2}$/.test(c.until))
-    return 'Pick the first and the last day.'
-  if (c.until < c.from) return 'The last day cannot be before the first.'
+    return i18n().t('settings.holidays.closure.pickDays')
+  if (c.until < c.from) return i18n().t('settings.holidays.closure.lastBeforeFirst')
   return null
 }
 
@@ -154,8 +162,8 @@ export function calendarSummary(calendar: HolidayCalendar, countryName: string, 
   const open = calendar.off.length
   return [
     countryName,
-    stateName ?? 'Nationwide',
-    open ? `open on ${open === 1 ? '1 holiday' : `${open} holidays`}` : null,
+    stateName ?? i18n().t('settings.holidays.nationwide'),
+    open ? i18n().t('settings.holidays.openOn', { count: open }) : null,
   ]
     .filter(Boolean)
     .join(' · ')

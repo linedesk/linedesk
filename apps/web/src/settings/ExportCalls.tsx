@@ -1,5 +1,6 @@
 // Settings, Export: the calls of a date range as a CSV file (call.export, owners and admins).
 import type { CallExportData } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { DateInput } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
@@ -22,16 +23,18 @@ function download(filename: string, text: string) {
 }
 
 export function ExportCalls({ canEdit, toast }: Props) {
+  const t = useT()
   if (!canEdit)
     return (
-      <Section id="st-export" title="Export calls">
-        <p className="help">Only admins can export calls.</p>
+      <Section id="st-export" title={t('settings.export.title')}>
+        <p className="help">{t('settings.export.onlyAdmins')}</p>
       </Section>
     )
   return <ExportForm toast={toast} />
 }
 
 function ExportForm({ toast }: Pick<Props, 'toast'>) {
+  const t = useT()
   const today = new Date()
   const [from, setFrom] = useState(() => isoDay(new Date(today.getFullYear(), today.getMonth(), 1)))
   const [to, setTo] = useState(() => isoDay(today))
@@ -43,8 +46,8 @@ function ExportForm({ toast }: Pick<Props, 'toast'>) {
       download(data.filename, data.csv ?? '')
       toast(
         data.truncated
-          ? `Exported the newest ${data.count} calls. Pick a shorter range for the rest.`
-          : `Exported ${data.count} call${data.count === 1 ? '' : 's'}.`,
+          ? t('settings.export.truncated', { count: data.count })
+          : t('settings.export.done', { count: data.count }),
       )
     } catch (e) {
       toast((e as Error).message)
@@ -53,20 +56,16 @@ function ExportForm({ toast }: Pick<Props, 'toast'>) {
     }
   }
   return (
-    <Section
-      id="st-export"
-      title="Export calls"
-      description="A CSV file with each call's caller, urgency, outcome and summary, for a spreadsheet or your CRM."
-    >
+    <Section id="st-export" title={t('settings.export.title')} description={t('settings.export.description')}>
       <div className="cf-export">
-        <Field id="ex-from" label="From">
+        <Field id="ex-from" label={t('settings.export.from')}>
           <DateInput id="ex-from" value={from} max={to} onChange={setFrom} />
         </Field>
-        <Field id="ex-to" label="To">
+        <Field id="ex-to" label={t('settings.export.to')}>
           <DateInput id="ex-to" value={to} min={from} onChange={setTo} />
         </Field>
         <Button busy={busy} disabled={busy || !from || !to} onClick={run}>
-          {busy ? 'Exporting…' : 'Export CSV'}
+          {busy ? t('settings.export.exporting') : t('settings.export.button')}
         </Button>
       </div>
     </Section>

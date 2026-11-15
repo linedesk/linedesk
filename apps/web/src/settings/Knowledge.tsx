@@ -3,6 +3,7 @@
 // asked that it could not answer are answered in How <assistant> did (review/AssistantReview.tsx).
 import { INSTRUCTIONS_MAX } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { Button } from '../ui/kit.tsx'
 import type { Draft } from './assistantDraft.ts'
@@ -24,9 +25,10 @@ type Props = {
 const count = (n: number) => fmt().number(n)
 
 export function Knowledge(props: Props) {
+  const t = useT()
   const { draft } = props
   const empty = !hasKnowledge(draft)
-  const name = draft.name.trim() || 'The assistant'
+  const name = draft.name.trim() || t('settings.knowledge.theAssistant')
   return <AboutCard {...props} name={name} empty={empty} />
 }
 
@@ -34,16 +36,13 @@ export function Knowledge(props: Props) {
 
 function AboutCard(props: Props & { name: string; empty: boolean }) {
   const { draft, set, name, empty, canEdit } = props
+  const t = useT()
   const [helping, setHelping] = useState(false)
   return (
     <Section
       id="as-instructions"
-      title="About the business"
-      description={
-        empty
-          ? 'Not sure where to start? Write with help asks a few questions and drafts it for you.'
-          : 'Write it like you would brief a new hire.'
-      }
+      title={t('settings.knowledge.title')}
+      description={empty ? t('settings.knowledge.emptyDescription') : t('settings.knowledge.description')}
       actions={
         <Button
           size="sm"
@@ -51,25 +50,26 @@ function AboutCard(props: Props & { name: string; empty: boolean }) {
           icon="spark"
           disabled={!canEdit}
           onClick={() => setHelping(true)}
-          title="Answer a few questions and get a draft to review"
+          title={t('settings.knowledge.writeWithHelpTip')}
         >
-          Write with help
+          {t('settings.knowledge.writeWithHelp')}
         </Button>
       }
-      help={`What ${name} should know and how to answer: what you do, the area you cover, how you handle prices, what to ask callers. Opening hours and holidays go under Hours & holidays; ${name} reads them from there.`}
+      help={t('settings.knowledge.help', { name })}
     >
-      <Field id="as-instr" label={`What ${name} should know`}>
+      <Field id="as-instr" label={t('settings.knowledge.label', { name })}>
         <TextArea
           id="as-instr"
           tall
           value={draft.instructions}
           onChange={v => set('instructions', v)}
-          placeholder={
-            'We are a family-run plumbing company in Portland.\nWe cover Portland, Beaverton and Lake Oswego.\nWe give free estimates on site.'
-          }
+          placeholder={t('settings.knowledge.placeholder')}
         />
         <span className="help">
-          {count(draft.instructions.trim().length)} / {count(INSTRUCTIONS_MAX)}
+          {t('settings.knowledge.length', {
+            count: count(draft.instructions.trim().length),
+            max: count(INSTRUCTIONS_MAX),
+          })}
         </span>
       </Field>
       {helping && <WriteWithHelp {...props} onClose={() => setHelping(false)} />}

@@ -1,5 +1,8 @@
 // Settings › Assistant › Calendar without React: what the OAuth callback said, durations, labels.
 import type { AppointmentType, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { shortDuration } from '../time.ts'
 
 export type ProviderId = CalendarConnection['provider']
@@ -22,27 +25,37 @@ export function connectResult(hash: string): { ok: boolean; text: string; connec
   if (result === 'connected')
     return {
       ok: true,
-      text: 'Calendar connected. Pick the calendars the assistant books into.',
+      text: i18n().t('settings.calendar.connected'),
       ...(connectionId ? { connectionId } : {}),
     }
-  if (result === 'error') return { ok: false, text: params.get('reason') || 'The calendar could not be connected.' }
+  if (result === 'error')
+    return { ok: false, text: params.get('reason') || i18n().t('settings.calendar.connectFailed') }
   return null
 }
 
 export const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240] as const
 
-/** 90 → "1h 30m": compact like every duration shown as data (time.ts `shortDuration`, which stops at minutes). */
-export function durationLabel(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (!h) return shortDuration(m * 60)
-  return m ? `${h}h ${shortDuration(m * 60)}` : `${h}h`
-}
+/** 90 → "1h 30m": compact like every duration shown as data (time.ts `shortDuration`). */
+export const durationLabel = (minutes: number): string => shortDuration(minutes * 60)
 
 /** What the assistant can ask for before booking a type, in the order the form shows them. */
 export const BOOKING_FIELDS = ['name', 'phone', 'email', 'address'] as const
 export type BookingFieldId = (typeof BOOKING_FIELDS)[number]
-export const FIELD_LABEL: Record<BookingFieldId, string> = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address' }
+/** "Name": the checkbox label of a detail. */
+export const fieldLabel = (field: BookingFieldId): string => i18n().t(FIELD_KEY[field])
+const FIELD_KEY = {
+  name: msg('settings.calendar.field.name'),
+  phone: msg('settings.calendar.field.phone'),
+  email: msg('settings.calendar.field.email'),
+  address: msg('settings.calendar.field.address'),
+} satisfies Record<BookingFieldId, MessageKey>
+/** "name": the detail inside a sentence ("Asks for name, address"). */
+const FIELD_IN_SENTENCE_KEY = {
+  name: msg('settings.calendar.askField.name'),
+  phone: msg('settings.calendar.askField.phone'),
+  email: msg('settings.calendar.askField.email'),
+  address: msg('settings.calendar.askField.address'),
+} satisfies Record<BookingFieldId, MessageKey>
 
 /** The details a type asks for, the name first (it is stored as name_required). */
 export function typeFields(type: Pick<AppointmentType, 'required_fields' | 'name_required'>): BookingFieldId[] {
@@ -51,29 +64,46 @@ export function typeFields(type: Pick<AppointmentType, 'required_fields' | 'name
 
 /** Free time a type keeps before and after itself, in minutes. */
 export const BUFFERS = [0, 5, 10, 15, 30, 60] as const
-export const bufferLabel = (minutes: number) => (minutes ? `${minutes} min` : 'None')
+export const bufferLabel = (minutes: number) =>
+  minutes ? i18n().t('settings.calendar.buffer.minutes', { minutes }) : i18n().t('settings.calendar.buffer.none')
 
 export type BookWhen = AppointmentType['book_when']
-export const BOOK_WHEN_LABEL: Record<BookWhen, string> = {
-  business_hours: 'During business hours',
-  outside_business_hours: 'Outside business hours',
-  any_time: 'Any time',
-}
+export const BOOK_WHEN: BookWhen[] = ['business_hours', 'outside_business_hours', 'any_time']
+const BOOK_WHEN_KEY = {
+  business_hours: msg('settings.calendar.bookWhen.businessHours'),
+  outside_business_hours: msg('settings.calendar.bookWhen.outsideBusinessHours'),
+  any_time: msg('settings.calendar.bookWhen.anyTime'),
+} satisfies Record<BookWhen, MessageKey>
+/** "During business hours". */
+export const bookWhenLabel = (when: BookWhen): string => i18n().t(BOOK_WHEN_KEY[when])
 
 /** "15 min before, 10 min after · Outside business hours": the type's booking rules, only what is not the default. */
-export function rulesLabel(type: Pick<AppointmentType, 'buffer_before_min' | 'buffer_after_min' | 'book_when'>): string {
+export function rulesLabel(
+  type: Pick<AppointmentType, 'buffer_before_min' | 'buffer_after_min' | 'book_when'>,
+): string {
+  const { t } = i18n()
   const { buffer_before_min: before, buffer_after_min: after } = type
   const buffers =
     before && before === after
-      ? `${before} min buffer`
-      : [before && `${before} min before`, after && `${after} min after`].filter(Boolean).join(', ')
-  return [buffers, type.book_when !== 'business_hours' && BOOK_WHEN_LABEL[type.book_when]].filter(Boolean).join(' · ')
+      ? t('settings.calendar.rules.buffer', { minutes: before })
+      : before && after
+        ? t('settings.calendar.rules.beforeAndAfter', { before, after })
+        : before
+          ? t('settings.calendar.rules.before', { minutes: before })
+          : after
+            ? t('settings.calendar.rules.after', { minutes: after })
+            : ''
+  return [buffers, type.book_when !== 'business_hours' && bookWhenLabel(type.book_when)].filter(Boolean).join(' · ')
 }
 
 /** "Asks for name, address": what the assistant asks before booking this type, besides the reason. */
 export function requiredLabel(type: Pick<AppointmentType, 'required_fields' | 'name_required'>): string {
-  const fields = typeFields(type)
-  return fields.length ? `Asks for ${fields.map(f => FIELD_LABEL[f].toLowerCase()).join(', ')}` : 'Asks only for the reason'
+  const { t } = i18n()
+  const fields = typeFields(type).map(f => t(FIELD_IN_SENTENCE_KEY[f]))
+  // A plain comma list ("name, email, address"), no "and".
+  return fields.length
+    ? t('settings.calendar.asksFor', { fields: fmt().list(fields, { type: 'unit', style: 'short' }) })
+    : t('settings.calendar.asksOnlyReason')
 }
 
 /** The assistant's calendars, the default first, then in the order they were added. */

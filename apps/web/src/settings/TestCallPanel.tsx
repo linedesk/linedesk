@@ -2,6 +2,7 @@
 // top, then what the assistant did and the conversation as it happens (the same transcript, event
 // lines and booking cards as the call view), and the summary once the call is filed. It does not
 // cover the page with a backdrop: the instructions stay editable while you talk.
+import { useT } from '@linedesk/i18n/react'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { BookingCards } from '../call/BookingCard.tsx'
@@ -17,22 +18,33 @@ import './test-call-panel.css'
 
 /** Where the call stands, in a few words for the header. */
 function Status({ session }: { session: TestCallSession }) {
+  const t = useT()
   const { phase, call, problem } = session
   if (problem)
-    return <span className="tcp-sub tcp-sub-problem">{phase === 'ended' ? 'Call dropped' : "Couldn't start"}</span>
-  if (phase === 'starting') return <span className="tcp-sub">Connecting…</span>
+    return (
+      <span className="tcp-sub tcp-sub-problem">
+        {phase === 'ended' ? t('settings.testCall.status.dropped') : t('settings.testCall.status.couldNotStart')}
+      </span>
+    )
+  if (phase === 'starting') return <span className="tcp-sub">{t('settings.testCall.status.connecting')}</span>
   if (phase === 'live' && call) return <LiveIndicator since={parseTs(call.started_at)} />
-  if (phase === 'live') return <span className="tcp-sub">Ringing…</span>
-  if (call?.duration_sec) return <span className="tcp-sub">Ended · {longDuration(call.duration_sec)}</span>
-  return <span className="tcp-sub">Ended</span>
+  if (phase === 'live') return <span className="tcp-sub">{t('settings.testCall.status.ringing')}</span>
+  if (call?.duration_sec)
+    return (
+      <span className="tcp-sub">
+        {t('settings.testCall.status.endedAfter', { duration: longDuration(call.duration_sec) })}
+      </span>
+    )
+  return <span className="tcp-sub">{t('settings.testCall.status.ended')}</span>
 }
 
 function Controls({ session }: { session: TestCallSession }) {
+  const t = useT()
   const { phase, muted } = session
   if (phase === 'starting')
     return (
       <Button size="sm" variant="ghost" onClick={session.cancel}>
-        Cancel
+        {t('common.action.cancel')}
       </Button>
     )
   if (phase === 'live')
@@ -43,17 +55,30 @@ function Controls({ session }: { session: TestCallSession }) {
           variant="ghost"
           icon={muted ? 'micOff' : 'mic'}
           aria-pressed={muted}
-          aria-label={muted ? 'Unmute' : 'Mute'}
-          title={muted ? 'Unmute your microphone' : 'Mute your microphone'}
+          aria-label={muted ? t('settings.testCall.unmute') : t('settings.testCall.mute')}
+          title={muted ? t('settings.testCall.unmuteTip') : t('settings.testCall.muteTip')}
           onClick={session.toggleMute}
         />
-        <Button size="sm" variant="danger" icon="phone-off" title="Hang up" onClick={() => void session.stop()}>
-          Hang up
+        <Button
+          size="sm"
+          variant="danger"
+          icon="phone-off"
+          title={t('settings.testCall.hangUp')}
+          onClick={() => void session.stop()}
+        >
+          {t('settings.testCall.hangUp')}
         </Button>
       </>
     )
   return (
-    <Button size="sm" variant="ghost" icon="close" aria-label="Close" title="Close (esc)" onClick={session.dismiss} />
+    <Button
+      size="sm"
+      variant="ghost"
+      icon="close"
+      aria-label={t('common.action.close')}
+      title={t('common.action.closeWithKey', { key: 'esc' })}
+      onClick={session.dismiss}
+    />
   )
 }
 
@@ -64,17 +89,21 @@ const openInInbox = (callId: string) => {
 
 /** The conversation so far: the same transcript as a finished call, plus the lines still being spoken. */
 function Conversation({ session }: { session: TestCallSession }) {
+  const t = useT()
   const { call, lines, pending, name, phase } = session
   const running = phase === 'live' || call?.status === 'live'
-  const end = call && call.status !== 'live' ? { time: clock(call.duration_sec ?? 0), label: 'Call ended' } : null
+  const end =
+    call && call.status !== 'live'
+      ? { time: clock(call.duration_sec ?? 0), label: t('settings.testCall.transcript.ended') }
+      : null
   return (
     <Transcript
       segments={lines}
       pending={pending}
-      callerName="You"
+      callerName={t('settings.testCall.transcript.you')}
       assistantName={name}
       search={null}
-      start={{ time: clock(0), label: `Test call, ${name} answered` }}
+      start={{ time: clock(0), label: t('settings.testCall.transcript.answered', { name }) }}
       end={running ? null : end}
     />
   )
@@ -92,6 +121,7 @@ export function TestCallPanel({
   /** Runs for Call again instead of `session.start` (onboarding saves the assistant first). */
   onStart?: () => void
 }) {
+  const t = useT()
   const { phase, problem, failure, notSetUp, call, name, lines, pending, stillConnecting } = session
   const open = phase !== 'idle' || !!problem
   const closable = phase === 'ended' || phase === 'idle'
@@ -115,17 +145,17 @@ export function TestCallPanel({
   }, [open, closable])
 
   const message =
-    problem ?? failure ?? (notSetUp ? `${name} can't talk yet: the ${notSetUp} service isn't set up.` : null)
+    problem ?? failure ?? (notSetUp ? t('settings.testCall.serviceNotSetUp', { name, service: notSetUp }) : null)
   const summarizing = phase === 'ended' && call?.status === 'live'
   return (
     <>
       <AudioSink target={session.audio} />
       {open &&
         createPortal(
-          <aside className="tcp cv" aria-label="Test call">
+          <aside className="tcp cv" aria-label={t('settings.testCall.panel')}>
             <header className="tcp-h">
               <div className="tcp-title" role="status">
-                <b>Test call with {name}</b>
+                <b>{t('settings.testCall.with', { name })}</b>
                 <Status session={session} />
               </div>
               <div className="tcp-ctl">
@@ -138,16 +168,16 @@ export function TestCallPanel({
                 <p className="tcp-wait">
                   <span className="st-spin" aria-hidden="true" />
                   {phase === 'starting'
-                    ? 'Connecting your microphone…'
+                    ? t('settings.testCall.wait.microphone')
                     : stillConnecting
-                      ? 'Still connecting…'
-                      : `Waiting for ${name} to answer…`}
+                      ? t('settings.testCall.wait.stillConnecting')
+                      : t('settings.testCall.wait.answer', { name })}
                 </p>
               )}
               {summarizing && (
                 <p className="tcp-wait">
                   <span className="st-spin" aria-hidden="true" />
-                  Writing the summary…
+                  {t('settings.testCall.wait.summary')}
                 </p>
               )}
               {call && call.status !== 'live' && <SummaryCard call={call} />}
@@ -158,11 +188,11 @@ export function TestCallPanel({
               <footer className="tcp-f">
                 {onOpenCall && (
                   <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={() => onOpenCall(call.id)}>
-                    Open in inbox
+                    {t('settings.testCall.openInInbox')}
                   </Button>
                 )}
                 <Button size="sm" variant="primary" icon="phone-in" onClick={onStart}>
-                  Call again
+                  {t('settings.testCall.callAgain')}
                 </Button>
               </footer>
             )}

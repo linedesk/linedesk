@@ -7,14 +7,15 @@
 // hours). The server keeps the next twelve months written (holidays.set, closedDays.set, public-holidays.ts).
 import type { ClosedDay, HolidayLookupData, WorkspaceSettingsData } from '@linedesk/actions'
 import type { Closure, HolidayCalendar } from '@linedesk/db/types'
+import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useRun } from '../store.tsx'
-import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
+import { Checkbox, Select, Switch } from '../ui/controls.tsx'
 import { DateInput, Dialog, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton, type MenuItem } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
-import { timeOptions } from './businessHoursModel.ts'
+import { endTimeOptions, startTimeOptions } from './businessHoursModel.ts'
 import {
   addDays,
   calendarSummary,
@@ -44,8 +45,6 @@ type Props = { canEdit: boolean; toast: (text: string) => void }
 
 /** How many closed days show before "Show all". */
 const FIRST_DAYS = 5
-const startOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '24:00')
-const endOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '00:00')
 
 /**
  * The workspace's closed days and closure: what is saved, and how to change it. A change shows at once (as far
@@ -94,6 +93,7 @@ function useClosedDays(toast?: (text: string) => void) {
 }
 
 export function Holidays({ canEdit, toast }: Props) {
+  const t = useT()
   const { loaded, today, own, derived, calendar, setOwn, setCalendar } = useClosedDays(toast)
   // Without weekly hours there are none to apply: the empty list says only that there are no closed days.
   const hoursOn = useWorkspaceSettings().data?.businessHoursOn ?? false
@@ -120,41 +120,41 @@ export function Holidays({ canEdit, toast }: Props) {
   function itemsFor(day: UpcomingDay): MenuItem[] {
     const label = day.name || shortDate(day.date, today)
     const hours: MenuItem = day.start
-      ? { id: 'closed', label: 'Closed all day', onSelect: () => setHours(day, null) }
-      : { id: 'hours', label: 'Shorter hours…', onSelect: () => setEditing(day.date) }
+      ? { id: 'closed', label: t('settings.holidays.menu.closedAllDay'), onSelect: () => setHours(day, null) }
+      : { id: 'hours', label: t('settings.holidays.menu.shorterHours'), onSelect: () => setEditing(day.date) }
     if (day.kind === 'own') {
       return [
         hours,
         day.yearly
           ? {
               id: 'once',
-              label: 'Only this year',
+              label: t('settings.holidays.menu.onlyThisYear'),
               onSelect: () => setOwn(own.map(d => (d.date === day.date ? { ...d, yearly: false } : d))),
             }
           : {
               id: 'yearly',
-              label: 'Every year',
+              label: t('settings.holidays.everyYear'),
               onSelect: () => setOwn(own.map(d => (d.date === day.date ? { ...d, yearly: true } : d))),
             },
         {
           id: 'remove',
-          label: day.yearly ? 'Remove, every year' : 'Remove',
+          label: day.yearly ? t('settings.holidays.menu.removeEveryYear') : t('settings.holidays.menu.remove'),
           danger: true,
           onSelect: () => {
             setOwn(own.filter(d => d.date !== day.date))
-            toast(`Removed ${label}.`)
+            toast(t('settings.holidays.toast.removed', { label }))
           },
         },
       ]
     }
     const openThisYear: MenuItem = {
       id: 'open',
-      label: 'Open this year',
+      label: t('settings.holidays.openThisYear'),
       onSelect: () => {
         setCalendar(
           withChange(calendarOrOff(), day.date, { date: day.date, name: day.name, open: true, start: null, end: null }),
         )
-        toast(`Open on ${label} this year.`)
+        toast(t('settings.holidays.toast.openThisYear', { label }))
       },
     }
     if (day.kind === 'holiday' && calendar) {
@@ -162,14 +162,14 @@ export function Holidays({ canEdit, toast }: Props) {
         openThisYear,
         {
           id: 'always',
-          label: `Open every year on ${day.key}`,
+          label: t('settings.holidays.menu.openEveryYear', { name: day.key }),
           onSelect: () => {
             setCalendar({
               ...calendar,
               off: [...calendar.off, day.key],
               changes: calendar.changes.filter(c => c.date !== day.date),
             })
-            toast(`Open every year on ${day.key}.`)
+            toast(t('settings.holidays.toast.openEveryYear', { name: day.key }))
           },
         },
         hours,
@@ -180,11 +180,11 @@ export function Holidays({ canEdit, toast }: Props) {
       hours,
       {
         id: 'remove',
-        label: 'Remove, every year',
+        label: t('settings.holidays.menu.removeEveryYear'),
         danger: true,
         onSelect: () => {
           setOwn(own.filter(d => d.date !== day.key))
-          toast(`Removed ${label}, every year.`)
+          toast(t('settings.holidays.toast.removedEveryYear', { label }))
         },
       },
     ]
@@ -192,23 +192,30 @@ export function Holidays({ canEdit, toast }: Props) {
 
   function sub(day: UpcomingDay) {
     const from = {
-      own: day.yearly ? 'Every year' : 'Your day',
-      holiday: 'Public holiday',
-      repeat: 'Every year',
-      opened: 'Open this year',
+      own: day.yearly ? t('settings.holidays.everyYear') : t('settings.holidays.yourDay'),
+      holiday: t('settings.holidays.publicHoliday'),
+      repeat: t('settings.holidays.everyYear'),
+      opened: t('settings.holidays.openThisYear'),
     }[day.kind]
-    return `${shortDate(day.date, today)} · ${from}${day.changed && day.kind !== 'opened' ? ', hours this year' : ''}`
+    const date = shortDate(day.date, today)
+    return day.changed && day.kind !== 'opened'
+      ? t('settings.holidays.subChanged', { date, from })
+      : t('settings.holidays.sub', { date, from })
   }
 
   return (
     <Section
       id="as-holidays"
-      title="Holidays and closures"
-      description="Days you are closed, whatever the weekly hours say."
-      help="On these days the assistant tells callers you are closed and when you open again, and books no appointments. It also mentions holidays in the next two weeks when callers ask about your hours. Public holidays and days you mark Every year come back by themselves each year."
+      title={t('settings.holidays.title')}
+      description={t('settings.holidays.description')}
+      help={t('settings.holidays.help')}
     >
-      <Loading what="Public holidays" loading={!loaded} skeleton={<SkeletonList rows={1} action />}>
-        <List label="Public holidays" className="hd-calendar">
+      <Loading
+        what={t('settings.holidays.publicHolidays')}
+        loading={!loaded}
+        skeleton={<SkeletonList rows={1} action />}
+      >
+        <List label={t('settings.holidays.publicHolidays')} className="hd-calendar">
           <CalendarRow
             calendar={calendar}
             canEdit={canEdit}
@@ -225,15 +232,19 @@ export function Holidays({ canEdit, toast }: Props) {
           onSave={next => {
             setCalendar(next)
             setChoosing(false)
-            toast(calendar ? 'Public holidays saved.' : 'Public holidays are on. They come back every year.')
+            toast(calendar ? t('settings.holidays.toast.saved') : t('settings.holidays.toast.on'))
           }}
         />
       )}
-      <h3 className="hd-heading">Next closed days</h3>
-      <Loading what="Closed days" loading={!loaded} skeleton={<SkeletonList rows={2} aside action />}>
+      <h3 className="hd-heading">{t('settings.holidays.next')}</h3>
+      <Loading
+        what={t('settings.holidays.closedDays')}
+        loading={!loaded}
+        skeleton={<SkeletonList rows={2} aside action />}
+      >
         {days.length ? (
           <>
-            <List label="Next closed days">
+            <List label={t('settings.holidays.next')}>
               {shown.map(d => (
                 <ListRow
                   key={d.date}
@@ -249,10 +260,13 @@ export function Holidays({ canEdit, toast }: Props) {
                         variant="ghost"
                         onClick={() => calendar && setCalendar(withChange(calendar, d.date, null))}
                       >
-                        Close again
+                        {t('settings.holidays.closeAgain')}
                       </Button>
                     ) : (
-                      <MenuButton title={`More for ${d.name || shortDate(d.date, today)}`} items={itemsFor(d)} />
+                      <MenuButton
+                        title={t('settings.holidays.moreFor', { name: d.name || shortDate(d.date, today) })}
+                        items={itemsFor(d)}
+                      />
                     ))
                   }
                   below={
@@ -265,14 +279,12 @@ export function Holidays({ canEdit, toast }: Props) {
             </List>
             {days.length > FIRST_DAYS && (
               <Button size="sm" variant="ghost" className="hd-more" onClick={() => setAll(!all)}>
-                {all ? 'Show fewer' : `Show all ${days.length}`}
+                {all ? t('settings.holidays.showFewer') : t('settings.holidays.showAll', { count: days.length })}
               </Button>
             )}
           </>
         ) : (
-          <ListEmpty>
-            {hoursOn ? 'No closed days yet: the weekly hours apply every day.' : 'No closed days yet.'}
-          </ListEmpty>
+          <ListEmpty>{hoursOn ? t('settings.holidays.emptyWithHours') : t('settings.holidays.empty')}</ListEmpty>
         )}
       </Loading>
       {canEdit && <AddDay own={own} today={today} toast={toast} onAdd={day => setOwn(withDays(own, [day]))} />}
@@ -292,16 +304,17 @@ function CalendarRow({
   onChoose: () => void
   onToggle: (on: boolean) => void
 }) {
+  const t = useT()
   const names = usePlaceNames(calendar)
   if (!calendar) {
     return (
       <ListRow
-        title="Public holidays"
-        sub="Closed on your public holidays, every year by itself."
+        title={t('settings.holidays.publicHolidays')}
+        sub={t('settings.holidays.calendar.notSet')}
         actions={
           canEdit && (
             <Button size="sm" icon="calendar" onClick={onChoose}>
-              Choose holidays
+              {t('settings.holidays.calendar.choose')}
             </Button>
           )
         }
@@ -311,22 +324,27 @@ function CalendarRow({
   return (
     <ListRow
       off={!calendar.on}
-      title="Public holidays"
+      title={t('settings.holidays.publicHolidays')}
       sub={
         calendar.on
           ? names
             ? calendarSummary(calendar, names.country, names.state)
             : '…'
-          : 'Off: public holidays are not closed days.'
+          : t('settings.holidays.calendar.off')
       }
       actions={
         <>
           {canEdit && (
             <Button size="sm" variant="ghost" onClick={onChoose}>
-              Change
+              {t('common.action.change')}
             </Button>
           )}
-          <Switch on={calendar.on} onChange={onToggle} label="Public holidays" disabled={!canEdit} />
+          <Switch
+            on={calendar.on}
+            onChange={onToggle}
+            label={t('settings.holidays.publicHolidays')}
+            disabled={!canEdit}
+          />
         </>
       }
     />
@@ -365,18 +383,31 @@ function ShorterHours({
   onSave: (hours: { start: string; end: string }) => void
   onCancel: () => void
 }) {
+  const t = useT()
   const [start, setStart] = useState('08:00')
   const [end, setEnd] = useState('12:00')
   return (
     <div className="hd-hours">
-      <Select size="sm" label="Opens" value={start} options={startOptions} onChange={setStart} />
-      <span className="help">to</span>
-      <Select size="sm" label="Closes" value={end} options={endOptions} onChange={setEnd} />
+      <Select
+        size="sm"
+        label={t('settings.holidays.opens')}
+        value={start}
+        options={startTimeOptions()}
+        onChange={setStart}
+      />
+      <span className="help">{t('settings.hours.to')}</span>
+      <Select
+        size="sm"
+        label={t('settings.holidays.closes')}
+        value={end}
+        options={endTimeOptions()}
+        onChange={setEnd}
+      />
       <Button size="sm" variant="ghost" onClick={onCancel}>
-        Cancel
+        {t('common.action.cancel')}
       </Button>
       <Button size="sm" variant="primary" disabled={end <= start} onClick={() => onSave({ start, end })}>
-        Save hours
+        {t('settings.holidays.saveHours')}
       </Button>
     </div>
   )
@@ -394,13 +425,15 @@ function AddDay({
   toast: (text: string) => void
   onAdd: (day: ClosedDay) => void
 }) {
+  const t = useT()
   const [date, setDate] = useState('')
   const [name, setName] = useState('')
   const [yearly, setYearly] = useState(false)
   function add(e: FormEvent) {
     e.preventDefault()
-    if (!date || date < today) return toast('Pick a day from today on.')
-    if (own.some(d => d.date === date)) return toast(`${shortDate(date, today)} is in the list already.`)
+    if (!date || date < today) return toast(t('settings.holidays.add.pickFromToday'))
+    if (own.some(d => d.date === date))
+      return toast(t('settings.holidays.add.already', { date: shortDate(date, today) }))
     onAdd({ date, name: name.trim(), start: null, end: null, yearly })
     setDate('')
     setName('')
@@ -408,19 +441,25 @@ function AddDay({
   }
   return (
     <form className="st-inline hd-add" onSubmit={add}>
-      <DateInput value={date} min={today} onChange={setDate} aria-label="Day" className="hd-date" />
+      <DateInput
+        value={date}
+        min={today}
+        onChange={setDate}
+        aria-label={t('settings.holidays.add.day')}
+        className="hd-date"
+      />
       <Input
         value={name}
         onChange={e => setName(e.target.value)}
-        placeholder="Staff training"
-        aria-label="Name"
+        placeholder={t('settings.holidays.add.namePlaceholder')}
+        aria-label={t('settings.holidays.add.name')}
         maxLength={80}
       />
       <Checkbox checked={yearly} onChange={setYearly} className="hd-yearly">
-        Every year
+        {t('settings.holidays.everyYear')}
       </Checkbox>
       <Button type="submit" disabled={!date}>
-        Add day
+        {t('settings.holidays.add.button')}
       </Button>
     </form>
   )
@@ -439,6 +478,7 @@ type CalendarDialogProps = {
  * year. Unchecked holidays stay unchecked in later years too.
  */
 function CalendarDialog({ calendar, today, onClose, onSave }: CalendarDialogProps) {
+  const t = useT()
   const [place, setPlace] = useState<{ country?: string; state?: string }>(
     calendar ? { country: calendar.country, state: calendar.state ?? undefined } : {},
   )
@@ -481,40 +521,45 @@ function CalendarDialog({ calendar, today, onClose, onSave }: CalendarDialogProp
   }
   return (
     <Dialog
-      title="Public holidays"
-      description="Closed on these every year. Uncheck the holidays you are open on; that stays so in later years."
+      title={t('settings.holidays.publicHolidays')}
+      description={t('settings.holidays.calendar.description')}
       onClose={onClose}
       onSubmit={submit}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.action.cancel')}
           </Button>
-          <Button variant="primary" type="submit" disabled={loading || !data} title="Save (⌘S)">
-            {calendar?.on ? 'Save' : `Close on ${closedCount} holidays`}
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={loading || !data}
+            title={t('common.action.saveWithKey', { key: '⌘S' })}
+          >
+            {calendar?.on ? t('common.action.save') : t('settings.holidays.calendar.closeOn', { count: closedCount })}
           </Button>
         </>
       }
     >
       {data && (
         <div className="hd-place">
-          <Field id="hd-country" label="Country">
+          <Field id="hd-country" label={t('settings.holidays.calendar.country')}>
             <Select
               id="hd-country"
-              label="Country"
+              label={t('settings.holidays.calendar.country')}
               value={data.country}
               options={data.countries.map(c => ({ value: c.code, label: c.name }))}
               onChange={country => setPlace({ country })}
             />
           </Field>
           {data.states.length > 0 && (
-            <Field id="hd-state" label="State or region">
+            <Field id="hd-state" label={t('settings.holidays.calendar.state')}>
               <Select
                 id="hd-state"
-                label="State or region"
+                label={t('settings.holidays.calendar.state')}
                 value={data.state ?? ''}
                 options={[
-                  { value: '', label: 'Nationwide only' },
+                  { value: '', label: t('settings.holidays.calendar.nationwideOnly') },
                   ...data.states.map(s => ({ value: s.code, label: s.name })),
                 ]}
                 onChange={state => setPlace({ country: data.country, state: state || undefined })}
@@ -524,14 +569,14 @@ function CalendarDialog({ calendar, today, onClose, onSave }: CalendarDialogProp
         </div>
       )}
       <Loading
-        what="Public holidays"
+        what={t('settings.holidays.publicHolidays')}
         loading={!data || Boolean(error)}
         error={error}
         onRetry={() => setPlace(p => ({ ...p }))}
         skeleton={<SkeletonList rows={6} sub={false} aside />}
       >
         {data?.holidays.length ? (
-          <List label="Public holidays">
+          <List label={t('settings.holidays.publicHolidays')}>
             {data.holidays.map(h => (
               <ListRow
                 key={h.key}
@@ -545,7 +590,7 @@ function CalendarDialog({ calendar, today, onClose, onSave }: CalendarDialogProp
             ))}
           </List>
         ) : (
-          <ListEmpty>No public holidays known for the next twelve months.</ListEmpty>
+          <ListEmpty>{t('settings.holidays.calendar.empty')}</ListEmpty>
         )}
       </Loading>
     </Dialog>
@@ -554,6 +599,7 @@ function CalendarDialog({ calendar, today, onClose, onSave }: CalendarDialogProp
 
 /** Vacation or closure mode: off, being set up, or on (scheduled, running or ended) with Edit and Turn off. */
 export function VacationMode({ canEdit, toast }: Props) {
+  const t = useT()
   const { loaded, today, closure, setClosure } = useClosedDays()
   const [draft, setDraft] = useState<Closure | null>(null)
   const active = closure && closureState(closure, today) !== 'ended' ? closure : null
@@ -572,12 +618,16 @@ export function VacationMode({ canEdit, toast }: Props) {
     if (problem) return toast(problem)
     setClosure({ ...draft, greeting: draft.greeting.trim() })
     setDraft(null)
-    toast(closureState(draft, today) === 'on' ? 'Vacation mode is on.' : 'Vacation mode is scheduled.')
+    toast(
+      closureState(draft, today) === 'on'
+        ? t('settings.holidays.vacation.toastOn')
+        : t('settings.holidays.vacation.toastScheduled'),
+    )
   }
   function turnOff() {
     setClosure(null)
     setDraft(null)
-    toast('Vacation mode is off.')
+    toast(t('settings.holidays.vacation.toastOff'))
   }
   /** Moving the last day keeps a greeting the owner did not write in step. */
   function setUntil(until: string) {
@@ -589,14 +639,14 @@ export function VacationMode({ canEdit, toast }: Props) {
   return (
     <Section
       id="as-vacation"
-      title="Vacation mode"
-      description={active ? closureSummary(active, today) : 'Closed for a few days or weeks, with its own greeting.'}
-      help="While it is on, the assistant greets callers with the vacation greeting, says when you are back, takes messages and books nothing. Nobody is put through; urgent calls are marked urgent. It ends by itself after the last day."
+      title={t('settings.holidays.vacation.title')}
+      description={active ? closureSummary(active, today) : t('settings.holidays.vacation.description')}
+      help={t('settings.holidays.vacation.help')}
       actions={
         <Switch
           on={on}
           onChange={next => (next ? start() : active ? turnOff() : setDraft(null))}
-          label="Vacation mode"
+          label={t('settings.holidays.vacation.title')}
           disabled={!canEdit || !loaded}
         />
       }
@@ -604,41 +654,49 @@ export function VacationMode({ canEdit, toast }: Props) {
       {draft ? (
         <form className="hd-vac" onSubmit={save}>
           <div className="hd-range">
-            <Field id="hd-from" label="First day closed">
+            <Field id="hd-from" label={t('settings.holidays.vacation.from')}>
               <DateInput id="hd-from" value={draft.from} min={today} onChange={from => setDraft({ ...draft, from })} />
             </Field>
-            <Field id="hd-until" label="Last day closed">
+            <Field id="hd-until" label={t('settings.holidays.vacation.until')}>
               <DateInput id="hd-until" value={draft.until} min={draft.from || today} onChange={setUntil} />
             </Field>
           </div>
-          <Field id="hd-greeting" label="Greeting while closed" aside="Optional">
+          <Field
+            id="hd-greeting"
+            label={t('settings.holidays.vacation.greeting')}
+            aside={t('settings.holidays.vacation.optional')}
+          >
             <TextArea
               id="hd-greeting"
               value={draft.greeting}
               onChange={greeting => setDraft({ ...draft, greeting })}
-              placeholder="Empty: the outside-hours greeting"
+              placeholder={t('settings.holidays.vacation.greetingPlaceholder')}
             />
           </Field>
           <div className="hd-actions">
             <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-              Cancel
+              {t('common.action.cancel')}
             </Button>
             <Button size="sm" variant="primary" type="submit">
-              {active ? 'Save' : 'Turn on'}
+              {active ? t('common.action.save') : t('settings.holidays.vacation.turnOn')}
             </Button>
           </div>
         </form>
       ) : active ? (
         <div className="hd-on">
-          <p className="hd-quote">"{active.greeting || 'The outside-hours greeting'}"</p>
-          <span className="help">Every call gets a message, nobody is called.</span>
+          <p className="hd-quote">
+            {t('settings.holidays.vacation.quote', {
+              greeting: active.greeting || t('settings.holidays.vacation.outsideHoursGreeting'),
+            })}
+          </p>
+          <span className="help">{t('settings.holidays.vacation.onNote')}</span>
           {canEdit && (
             <div className="hd-actions">
               <Button size="sm" variant="ghost" onClick={turnOff}>
-                Turn off
+                {t('settings.holidays.vacation.turnOff')}
               </Button>
               <Button size="sm" onClick={start}>
-                Edit
+                {t('settings.holidays.vacation.edit')}
               </Button>
             </div>
           )}

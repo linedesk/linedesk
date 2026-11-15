@@ -1,9 +1,9 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
 // the workspace icon (WorkspaceIconField), the country and language (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
-import { ONLY_ADMINS } from './readOnly.ts'
+import { onlyAdmins } from './readOnly.ts'
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
-import { useLocale } from '@linedesk/i18n/react'
+import { useLocale, useT } from '@linedesk/i18n/react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
@@ -17,8 +17,6 @@ import { renameCheck } from './workspaceGeneral.ts'
 import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
 
-const READ_ONLY = ONLY_ADMINS
-
 type Props = {
   canEdit: boolean
   name: string
@@ -28,10 +26,11 @@ type Props = {
 }
 
 export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
+  const t = useT()
   return (
-    <Section id="ws-general" title="General">
+    <Section id="ws-general" title={t('settings.workspace.nav.general.label')}>
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
-      <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={READ_ONLY} toast={toast} />
+      <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={onlyAdmins()} toast={toast} />
       <Country canEdit={canEdit} />
       <Language canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
@@ -42,6 +41,7 @@ export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
 
 /** The business name (the workspace's name): saved on Enter or when the field loses focus; Esc puts it back. */
 function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
+  const t = useT()
   const run = useRun()
   const [draft, setDraft] = useState(name)
   // Renamed elsewhere (another tab, onboarding): the field follows.
@@ -53,7 +53,7 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
     void run('workspace.rename', { name: next })
     onRenamed(next)
     setDraft(next)
-    toast(`Renamed to ${next}.`)
+    toast(t('settings.general.name.renamed', { name: next }))
   }
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
@@ -68,9 +68,9 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
   return (
     <Field
       id="ws-name"
-      label="Business name"
-      help={canEdit ? undefined : READ_ONLY}
-      tip="Shown in the menu, the workspace switcher and emails."
+      label={t('settings.general.name.label')}
+      help={canEdit ? undefined : onlyAdmins()}
+      tip={t('settings.general.name.tip')}
       error={problem}
     >
       <Input
@@ -107,6 +107,7 @@ async function saveLocale(change: { country?: string | null; language?: string |
  * the holiday calendar, else the United States. Saves at once.
  */
 function Country({ canEdit }: { canEdit: boolean }) {
+  const t = useT()
   const settings = useWorkspaceSettings()
   const data = settings.data
   const resolved = data?.resolvedCountry ?? 'US'
@@ -122,12 +123,12 @@ function Country({ canEdit }: { canEdit: boolean }) {
   return (
     <Field
       id="ws-country"
-      label="Country"
-      help={canEdit ? undefined : READ_ONLY}
-      tip="Where the business is. Phone numbers, the forwarding guide, holidays and the currency start with it, and the assistant reads the numbers callers say the way they are written there."
+      label={t('settings.general.country.label')}
+      help={canEdit ? undefined : onlyAdmins()}
+      tip={t('settings.general.country.tip')}
     >
       <Loading
-        what="The country"
+        what={t('settings.general.country.what')}
         loading={!data}
         error={settings.error}
         onRetry={() => void settings.reload()}
@@ -136,11 +137,11 @@ function Country({ canEdit }: { canEdit: boolean }) {
         {data && (
           <SearchSelect
             id="ws-country"
-            label="Country"
+            label={t('settings.general.country.label')}
             value={data.country ?? AUTOMATIC}
             options={options}
             search={searchCountries}
-            placeholder="Search a country"
+            placeholder={t('settings.general.country.search')}
             onChange={change}
             disabled={!canEdit}
           />
@@ -158,6 +159,7 @@ function Language({ canEdit }: { canEdit: boolean }) {
   const settings = useWorkspaceSettings()
   const data = settings.data
   const country = data?.resolvedCountry ?? 'US'
+  const t = useT()
   const ui = useLocale()
   const options = useMemo(() => languageOptions(country, ui), [country, ui])
   const change = (value: string) => {
@@ -168,12 +170,12 @@ function Language({ canEdit }: { canEdit: boolean }) {
   return (
     <Field
       id="ws-language"
-      label="Language"
-      help={canEdit ? undefined : READ_ONLY}
-      tip="Your assistant greets callers in it unless it has its own main language (Settings › Assistant › Languages), and call summaries are written in it. Every voice speaks every language listed; Settings › Assistant › Voice suggests voices native in it."
+      label={t('settings.general.language.label')}
+      help={t(canEdit ? 'settings.general.language.help' : 'settings.general.language.helpReadOnly')}
+      tip={t('settings.general.language.tip')}
     >
       <Loading
-        what="The language"
+        what={t('settings.general.language.what')}
         loading={!data}
         error={settings.error}
         onRetry={() => void settings.reload()}
@@ -182,10 +184,10 @@ function Language({ canEdit }: { canEdit: boolean }) {
         {data && (
           <SearchSelect
             id="ws-language"
-            label="Language"
+            label={t('settings.general.language.label')}
             value={data.language ?? AUTOMATIC}
             options={options}
-            placeholder="Search a language"
+            placeholder={t('settings.general.language.search')}
             onChange={change}
             disabled={!canEdit}
           />
@@ -197,6 +199,7 @@ function Language({ canEdit }: { canEdit: boolean }) {
 
 /** The workspace's time zone: the date and time the assistant is told, and what business hours mean. Saves at once. */
 function TimeZone({ canEdit }: { canEdit: boolean }) {
+  const t = useT()
   const run = useRun()
   const settings = useWorkspaceSettings()
   const zone = settings.data?.timeZone
@@ -207,12 +210,12 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
   return (
     <Field
       id="ws-time-zone"
-      label="Time zone"
-      help={canEdit ? undefined : READ_ONLY}
-      tip="Where the business is. The assistant is told today's date and the time here; business hours and bookings use it too."
+      label={t('settings.general.timeZone.label')}
+      help={canEdit ? undefined : onlyAdmins()}
+      tip={t('settings.general.timeZone.tip')}
     >
       <Loading
-        what="The time zone"
+        what={t('settings.general.timeZone.what')}
         loading={!zone}
         error={settings.error}
         onRetry={() => void settings.reload()}
@@ -226,17 +229,18 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
 
 /** What one booked appointment is worth on average: Insights multiplies it by the booked appointments. */
 function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
+  const t = useT()
   const query = useWorkspaceSettings()
   const settings = query.data
   return (
     <Field
       id="ws-appointment-value"
-      label="Appointment value"
-      help={canEdit ? undefined : READ_ONLY}
-      tip="What one booked appointment is worth to you on average. Insights shows what the booked appointments are worth."
+      label={t('settings.general.value.label')}
+      help={canEdit ? undefined : onlyAdmins()}
+      tip={t('settings.general.value.tip')}
     >
       <Loading
-        what="The appointment value"
+        what={t('settings.general.value.what')}
         loading={!settings}
         error={query.error}
         onRetry={() => void query.reload()}

@@ -2,6 +2,8 @@
 // shows at once from the last answer; creating shows the key once with Copy, revoking asks first.
 // Keys reach /v1 (docs/api.md, GET /v1/openapi.json) with the role they were created with.
 import type { ApiKeyCreated, ApiKeyListData, ApiKeySummary } from '@linedesk/actions'
+import { msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
@@ -18,48 +20,60 @@ const API_KEYS = 'apiKey.list'
 const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
 
 type Role = ApiKeySummary['role']
-const roles: SelectOption<Role>[] = [
-  { value: 'member', label: 'Member', description: 'Calls, contacts and bookings' },
-  { value: 'admin', label: 'Admin', description: 'Also deleting, cancelling, blocking and spam in MCP tools' },
-]
+const ROLES = [
+  {
+    value: 'member',
+    label: msg('settings.developers.role.member'),
+    description: msg('settings.developers.role.memberHelp'),
+  },
+  {
+    value: 'admin',
+    label: msg('settings.developers.role.admin'),
+    description: msg('settings.developers.role.adminHelp'),
+  },
+] as const
 
-const day = (iso: string) =>
-  fmt().dateTime(new Date(iso), { month: 'short', day: 'numeric', year: 'numeric' })
+const day = (iso: string) => fmt().dateTime(new Date(iso), { month: 'short', day: 'numeric', year: 'numeric' })
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
 export function Developers({ canEdit, toast }: Props) {
+  const t = useT()
   const keys = useQuery(canEdit ? API_KEYS : null, loadKeys, { persist: true })
   const [creating, setCreating] = useState(false)
   if (!canEdit)
     return (
-      <Section id="st-api-keys" title="API keys">
-        <p className="help">Only admins can manage API keys.</p>
+      <Section id="st-api-keys" title={t('settings.developers.title')}>
+        <p className="help">{t('settings.developers.onlyAdmins')}</p>
       </Section>
     )
   const active = keys.data?.keys.filter(k => !k.revoked_at) ?? []
   return (
     <Section
       id="st-api-keys"
-      title="API keys"
-      help="A key lets another program, like your CRM, a script or an AI app, read and update your calls, contacts and appointments. Send it as Authorization: Bearer. REST API: /v1/openapi.json, MCP server: /mcp."
+      title={t('settings.developers.title')}
+      help={t('settings.developers.help', {
+        header: 'Authorization: Bearer',
+        openapi: '/v1/openapi.json',
+        mcp: '/mcp',
+      })}
       actions={
         <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
-          Create key
+          {t('settings.developers.create')}
         </Button>
       }
     >
       <Loading
-        what="API keys"
+        what={t('settings.developers.title')}
         loading={keys.data === undefined}
         error={keys.error}
         onRetry={() => void keys.reload()}
         skeleton={<SkeletonList rows={1} aside action />}
       >
         {active.length === 0 ? (
-          <ListEmpty>No keys yet.</ListEmpty>
+          <ListEmpty>{t('settings.developers.empty')}</ListEmpty>
         ) : (
-          <List label="API keys">
+          <List label={t('settings.developers.title')}>
             {active.map(k => (
               <KeyRow key={k.id} apiKey={k} toast={toast} />
             ))}
@@ -72,6 +86,7 @@ export function Developers({ canEdit, toast }: Props) {
 }
 
 function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'] }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   /** Revoke asks once in place (click again), like revoking an invitation: no browser dialog. */
   const [confirming, setConfirming] = useState(false)
@@ -83,7 +98,7 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
       setQueryData<ApiKeyListData | undefined>(API_KEYS, d => d && { keys: d.keys.filter(k => k.id !== apiKey.id) }, {
         persist: true,
       })
-      toast(`${apiKey.name} is revoked.`)
+      toast(t('settings.developers.revoked', { name: apiKey.name }))
     } catch (e) {
       toast((e as Error).message)
       setBusy(false)
@@ -94,11 +109,17 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
       title={apiKey.name}
       sub={
         <>
-          <code className="dev-prefix">{apiKey.prefix}…</code> · created {day(apiKey.created_at)} ·{' '}
-          {apiKey.last_used_at ? `last used ${day(apiKey.last_used_at)}` : 'never used'}
+          <code className="dev-prefix">{apiKey.prefix}…</code> ·{' '}
+          {apiKey.last_used_at
+            ? t('settings.developers.usedOn', { created: day(apiKey.created_at), used: day(apiKey.last_used_at) })
+            : t('settings.developers.neverUsed', { created: day(apiKey.created_at) })}
         </>
       }
-      aside={<Badge tone="outline">{apiKey.role === 'admin' ? 'Admin' : 'Member'}</Badge>}
+      aside={
+        <Badge tone="outline">
+          {apiKey.role === 'admin' ? t('settings.developers.role.admin') : t('settings.developers.role.member')}
+        </Badge>
+      }
       actions={
         <Button
           size="sm"
@@ -108,11 +129,11 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
           onBlur={() => setConfirming(false)}
           title={
             confirming
-              ? 'Click again to revoke. Tools using this key stop working right away.'
-              : `Revoke ${apiKey.name}`
+              ? t('settings.developers.revokeConfirmTip')
+              : t('settings.developers.revokeTip', { name: apiKey.name })
           }
         >
-          {confirming ? 'Revoke key' : 'Revoke'}
+          {confirming ? t('settings.developers.revokeKey') : t('settings.developers.revoke')}
         </Button>
       }
     />
@@ -120,6 +141,12 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
 }
 
 function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toast'] }) {
+  const t = useT()
+  const roles: SelectOption<Role>[] = ROLES.map(r => ({
+    value: r.value,
+    label: t(r.label),
+    description: t(r.description),
+  }))
   const [name, setName] = useState('')
   const [role, setRole] = useState<Role>('member')
   const [error, setError] = useState<string | null>(null)
@@ -157,26 +184,31 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
     return (
       <Dialog
         key="created" // a new dialog, so focus moves into it (Esc, Tab)
-        title="Your API key"
-        description="Shown only once. Copy it now."
+        title={t('settings.developers.created.title')}
+        description={t('settings.developers.created.description')}
         onClose={onClose}
         footer={
           <Button variant="primary" onClick={onClose}>
-            Done
+            {t('settings.developers.created.done')}
           </Button>
         }
       >
         <div className="dev-secret">
-          <Input readOnly value={created} aria-label="API key" onFocus={e => e.currentTarget.select()} />
+          <Input
+            readOnly
+            value={created}
+            aria-label={t('settings.developers.created.key')}
+            onFocus={e => e.currentTarget.select()}
+          />
           <Button
             onClick={() =>
               navigator.clipboard.writeText(created).then(
-                () => toast('Key copied.'),
-                () => toast('Copy failed. Select the key instead.'),
+                () => toast(t('settings.developers.created.copied')),
+                () => toast(t('settings.developers.created.copyFailed')),
               )
             }
           >
-            Copy
+            {t('common.copy.copy')}
           </Button>
         </div>
       </Dialog>
@@ -184,31 +216,37 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
 
   return (
     <Dialog
-      title="Create API key"
+      title={t('settings.developers.dialog.title')}
       onClose={onClose}
       onSubmit={submit}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.action.cancel')}</Button>
           <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
-            {saving ? 'Creating…' : 'Create'}
+            {saving ? t('settings.developers.dialog.creating') : t('settings.developers.dialog.create')}
           </Button>
         </>
       }
     >
-      <Field id="dev-key-name" label="Name" error={error}>
+      <Field id="dev-key-name" label={t('settings.developers.dialog.name')} error={error}>
         <Input
           id="dev-key-name"
           maxLength={60}
-          placeholder="Zapier"
+          placeholder={t('settings.developers.dialog.namePlaceholder')}
           value={name}
           invalid={Boolean(error)}
           onChange={e => setName(e.target.value)}
         />
       </Field>
-      <Field id="dev-key-role" label="Access">
+      <Field id="dev-key-role" label={t('settings.developers.dialog.access')}>
         <div>
-          <Select id="dev-key-role" value={role} options={roles} onChange={setRole} label="Access" />
+          <Select
+            id="dev-key-role"
+            value={role}
+            options={roles}
+            onChange={setRole}
+            label={t('settings.developers.dialog.access')}
+          />
         </div>
       </Field>
     </Dialog>

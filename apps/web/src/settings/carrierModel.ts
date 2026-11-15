@@ -1,6 +1,7 @@
 // The Carrier form without React: what it sends to carrier.set and what it says is missing.
 import type { CarrierStatusData, WorkspaceCarrier } from '@linedesk/actions'
 import { brandName } from '../brand.ts'
+import { i18n } from '../i18n/index.tsx'
 import { carrierName } from '../onboarding/flow.ts'
 
 export type TwilioAuth = 'api_key' | 'auth_token'
@@ -10,12 +11,17 @@ export type CarrierDraft = {
   values: Record<string, string>
 }
 
+/** The carriers' names in the active language (getters: the language can change after this module loads). */
 export const carrierLabel: Record<WorkspaceCarrier, string> = {
   get default() {
-    return `${brandName()} default`
+    return i18n().t('settings.carrier.label.default', { brand: brandName() })
   },
-  twilio: 'Your own Twilio',
-  telnyx: 'Your own Telnyx',
+  get twilio() {
+    return i18n().t('settings.carrier.label.own', { name: 'Twilio' })
+  },
+  get telnyx() {
+    return i18n().t('settings.carrier.label.own', { name: 'Telnyx' })
+  },
 }
 
 /** The form as it opens: the saved carrier, the account SID filled in, secrets empty (they never come back). */
@@ -57,13 +63,14 @@ const SID = { account_sid: /^AC[0-9a-fA-F]{32}$/, api_key_sid: /^SK[0-9a-fA-F]{3
 
 /** Per field what is wrong with it, before anything is sent. Credentials are always given as a whole. */
 export function draftErrors(draft: CarrierDraft): Record<string, string> {
+  const { t } = i18n()
   const errors: Record<string, string> = {}
   for (const field of visibleFields(draft)) {
     const value = (draft.values[field] ?? '').trim()
     if (!value) {
-      if (field !== 'public_key') errors[field] = 'Required'
+      if (field !== 'public_key') errors[field] = t('settings.carrier.error.required')
     } else if (SID[field] && !SID[field]!.test(value))
-      errors[field] = `Starts with ${field === 'account_sid' ? 'AC' : 'SK'} and 32 letters and digits`
+      errors[field] = t('settings.carrier.error.sid', { prefix: field === 'account_sid' ? 'AC' : 'SK' })
   }
   return errors
 }
@@ -87,22 +94,19 @@ export function carrierSummary(status: CarrierStatusData): string {
 }
 
 /** What the Carrier setting decides, under its title. */
-export const CARRIER_PURPOSE = 'Where new phone numbers are bought, and who bills for them and for call minutes.'
+export const carrierPurpose = () => i18n().t('settings.carrier.purpose')
 
 /**
  * When to pick each carrier, in one line. `serverProvider` is the carrier this server is set up with (`dev` in
  * development mode), when known: it is named for the default.
  */
 export function carrierChoiceText(carrier: WorkspaceCarrier, serverProvider: string | null): string {
-  if (carrier === 'twilio' || carrier === 'telnyx') {
-    const name = carrierName(carrier) ?? carrier
-    return `You have a ${name} account already. New numbers are bought there, and ${name} bills you. Needs your ${name} API key, entered here.`
-  }
-  if (serverProvider === 'dev') return 'Simplest, nothing to set up. Development mode: test numbers, nothing is bought.'
+  const { t } = i18n()
+  if (carrier === 'twilio' || carrier === 'telnyx')
+    return t('settings.carrier.choice.own', { name: carrierName(carrier) ?? carrier })
+  if (serverProvider === 'dev') return t('settings.carrier.choice.defaultDev')
   const server = carrierName(serverProvider)
-  return server
-    ? `Simplest, nothing to set up. Numbers come from ${server}, set up by whoever runs this server.`
-    : 'Simplest, nothing to set up. Numbers come from the carrier whoever runs this server set up.'
+  return server ? t('settings.carrier.choice.defaultNamed', { server }) : t('settings.carrier.choice.default')
 }
 
 /**
@@ -110,11 +114,8 @@ export function carrierChoiceText(carrier: WorkspaceCarrier, serverProvider: str
  * own account keep it, so switching is refused until they are disconnected; the others stay as they are.
  */
 export function existingNumbersText(current: WorkspaceCarrier, ownAccountNumbers: number): string {
-  if (current !== 'default' && ownAccountNumbers > 0) {
-    const name = carrierName(current) ?? current
-    return ownAccountNumbers === 1
-      ? `Your number stays in your ${name} account. To switch, disconnect it first.`
-      : `Your ${ownAccountNumbers} numbers stay in your ${name} account. To switch, disconnect them first.`
-  }
-  return 'Numbers you already have stay connected as they are. The choice only applies to new numbers.'
+  const { t } = i18n()
+  if (current !== 'default' && ownAccountNumbers > 0)
+    return t('settings.carrier.existing.own', { count: ownAccountNumbers, name: carrierName(current) ?? current })
+  return t('settings.carrier.existing.other')
 }

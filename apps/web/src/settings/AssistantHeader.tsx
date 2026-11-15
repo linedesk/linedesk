@@ -1,6 +1,7 @@
 // The top of Settings > Assistant: the assistant's name, which opens the menu of the workspace's assistants
 // (switch, New, Duplicate, Delete), and the numbers it answers. The name is changed under General.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { formatNumber } from '../onboarding/flow.ts'
 import { useRun } from '../store.tsx'
@@ -20,6 +21,7 @@ type MenuProps = {
 
 /** The name with a chevron: opens every assistant of the workspace, then New, Duplicate and Delete. */
 function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate, onDelete }: MenuProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const items = () => [
@@ -62,14 +64,14 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
         className="as-name as-switch"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Switch, add or copy an assistant"
+        title={t('settings.assistantHeader.switchTip')}
         onClick={() => setOpen(o => !o)}
       >
         <span>{assistant.name}</span>
         <Icon name="down" size={16} className="as-name-chevron" />
       </button>
       {open && (
-        <div className="as-menu" role="menu" aria-label="Assistants">
+        <div className="as-menu" role="menu" aria-label={t('settings.assistantHeader.menu')}>
           {assistants.map(a => (
             <button
               key={a.id}
@@ -88,16 +90,16 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
               <hr className="k-sep" />
               <button type="button" role="menuitem" className="nav-item" onClick={choose(onNew)}>
                 <Icon name="plus" size={15} />
-                <span className="lbl">New assistant</span>
+                <span className="lbl">{t('settings.assistantHeader.new')}</span>
               </button>
               <button type="button" role="menuitem" className="nav-item" onClick={choose(onDuplicate)}>
                 <Icon name="copy" size={15} />
-                <span className="lbl">Duplicate {assistant.name}</span>
+                <span className="lbl">{t('settings.assistantHeader.duplicate', { name: assistant.name })}</span>
               </button>
               {assistants.length > 1 && (
                 <button type="button" role="menuitem" className="nav-item as-menu-danger" onClick={choose(onDelete)}>
                   <Icon name="trash" size={15} />
-                  <span className="lbl">Delete {assistant.name}…</span>
+                  <span className="lbl">{t('settings.assistantHeader.deleteMenu', { name: assistant.name })}</span>
                 </button>
               )}
             </>
@@ -123,6 +125,7 @@ function NumberChips({
   numbers: PhoneNumber[]
   canEdit: boolean
 }) {
+  const t = useT()
   const mine = numbers.filter(n => n.assistant_id === assistant.id || (!n.assistant_id && isDefault))
   return (
     <div className="as-numbers">
@@ -131,7 +134,7 @@ function NumberChips({
           key={n.id}
           className="as-chip"
           href={`#workspace/phone/${n.id}`}
-          title="Open this number: which assistant answers it, how it's used"
+          title={t('settings.assistantHeader.numberTip')}
         >
           {formatNumber(n.e164)}
         </a>
@@ -141,12 +144,12 @@ function NumberChips({
           <a
             className="help"
             href="#workspace/phone"
-            title="Choose which assistant answers a number in Workspace settings › Phone numbers"
+            title={t('settings.assistantHeader.noNumberTip')}
           >
-            Answers no number yet. Choose one in Phone numbers
+            {t('settings.assistantHeader.noNumberChoose')}
           </a>
         ) : (
-          <span className="help">Answers no number yet</span>
+          <span className="help">{t('settings.assistantHeader.noNumber')}</span>
         ))}
     </div>
   )
@@ -162,6 +165,7 @@ type Props = {
 }
 
 export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPick, toast }: Props) {
+  const t = useT()
   const run = useRun()
   const [deleting, setDeleting] = useState(false)
   // A new or copied assistant arrives by sync: open it as soon as it is there.
@@ -172,8 +176,8 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
     if (!added) return
     setAwaiting(null)
     onPick(added.id)
-    toast(`${added.name} added.`)
-  }, [assistants, awaiting, onPick, toast])
+    toast(t('settings.assistantHeader.added', { name: added.name }))
+  }, [assistants, awaiting, onPick, toast, t])
   const known = () => new Set(assistants.map(a => a.id))
   const isDefault = assistants[0]?.id === assistant.id
   const fallback = assistants.find(a => a.id !== assistant.id)
@@ -200,7 +204,7 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
       {numbers.length === 0 ? (
         <div className="as-numbers">
           <a className="help" href="#workspace/phone">
-            No phone number yet
+            {t('settings.assistantHeader.noPhoneNumber')}
           </a>
         </div>
       ) : (
@@ -208,14 +212,16 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
       )}
       {deleting && fallback && (
         <Dialog
-          title={`Delete ${assistant.name}?`}
-          description={`Its numbers are answered by ${(isDefault ? fallback : assistants[0]!).name} from then on.`}
+          title={t('settings.assistantHeader.deleteTitle', { name: assistant.name })}
+          description={t('settings.assistantHeader.deleteDescription', {
+            name: (isDefault ? fallback : assistants[0]!).name,
+          })}
           size="sm"
           onClose={() => setDeleting(false)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setDeleting(false)}>
-                Cancel
+                {t('common.action.cancel')}
               </Button>
               <Button
                 variant="danger"
@@ -223,10 +229,10 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
                   setDeleting(false)
                   onPick(fallback.id)
                   void run('assistant.delete', { assistantId: assistant.id })
-                  toast(`${assistant.name} deleted.`)
+                  toast(t('settings.assistantHeader.deleted', { name: assistant.name }))
                 }}
               >
-                Delete
+                {t('common.action.delete')}
               </Button>
             </>
           }

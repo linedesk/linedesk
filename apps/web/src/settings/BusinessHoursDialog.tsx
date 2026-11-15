@@ -2,6 +2,7 @@
 // instructions, transfer, when an appointment type may be booked): the same editor as Settings ›
 // Business hours in a dialog, so the hours can be changed without leaving the page. As there, the
 // switch and the time zone save at once and the weekly grid is a draft with Cancel / Save (⌘S).
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Switch } from '../ui/controls.tsx'
@@ -23,7 +24,9 @@ type Props = {
 }
 
 /** Opens the business hours in a dialog. */
-export function EditBusinessHours({ canEdit, label = 'Edit business hours', variant = 'icon' }: Props) {
+export function EditBusinessHours({ canEdit, label: given, variant = 'icon' }: Props) {
+  const t = useT()
+  const label = given ?? t('settings.hours.edit')
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -38,7 +41,13 @@ export function EditBusinessHours({ canEdit, label = 'Edit business hours', vari
           aria-label={label}
         />
       ) : (
-        <Button size="sm" variant="ghost" icon="clock" onClick={() => setOpen(true)} title="Change your business hours">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="clock"
+          onClick={() => setOpen(true)}
+          title={t('settings.hours.changeTip')}
+        >
           {label}
         </Button>
       )}
@@ -48,6 +57,7 @@ export function EditBusinessHours({ canEdit, label = 'Edit business hours', vari
 }
 
 function BusinessHoursDialog({ canEdit, onClose }: { canEdit: boolean; onClose: () => void }) {
+  const t = useT()
   const run = useRun()
   const hours = useBusinessHours()
   const { saved, days, timeZone, on, dirty, problem } = hours
@@ -71,17 +81,23 @@ function BusinessHoursDialog({ canEdit, onClose }: { canEdit: boolean; onClose: 
   }
   return (
     <Dialog
-      title="Business hours"
-      description="For every assistant: what callers hear, transfers and bookings."
+      title={t('settings.hours.title')}
+      description={t('settings.hours.dialogDescription')}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            {dirty ? 'Cancel' : 'Close'}
+            {dirty ? t('common.action.cancel') : t('common.action.close')}
           </Button>
           {canEdit && (
-            <Button variant="primary" disabled={!dirty} shortcut={['⌘', 'S']} title="Save (⌘S)" onClick={save}>
-              Save
+            <Button
+              variant="primary"
+              disabled={!dirty}
+              shortcut={['⌘', 'S']}
+              title={t('common.action.saveWithKey', { key: '⌘S' })}
+              onClick={save}
+            >
+              {t('common.action.save')}
             </Button>
           )}
         </>
@@ -90,22 +106,22 @@ function BusinessHoursDialog({ canEdit, onClose }: { canEdit: boolean; onClose: 
       {/* biome-ignore lint/a11y/noStaticElementInteractions: catches ⌘S from the fields inside */}
       <div className="bh-dialog" onKeyDown={onKeyDown}>
         <Loading
-          what="Business hours"
+          what={t('settings.hours.title')}
           loading={!saved}
           error={hours.loadError}
           onRetry={() => void hours.retry()}
           skeleton={<SkeletonRows rows={7} columns={3} />}
         >
           <span className="bh-main">
-            <span className="help">Use business hours</span>
-            <Switch on={on} onChange={hours.setOn} label="Use business hours" disabled={!canEdit} />
+            <span className="help">{t('settings.hours.use')}</span>
+            <Switch on={on} onChange={hours.setOn} label={t('settings.hours.use')} disabled={!canEdit} />
           </span>
           {on ? (
             <>
               <HoursGrid days={days} set={hours.set} canEdit={canEdit} />
               <span className="st-tz">
                 <span className="help" style={{ whiteSpace: 'nowrap' }}>
-                  Times in
+                  {t('settings.hours.timesIn')}
                 </span>
                 <TimeZoneSelect value={timeZone} onChange={changeTimeZone} disabled={!canEdit} />
               </span>
@@ -116,9 +132,7 @@ function BusinessHoursDialog({ canEdit, onClose }: { canEdit: boolean; onClose: 
               )}
             </>
           ) : (
-            <p className="help">
-              Off: bookings use Monday to Friday, 9 to 5; transfers and greetings do not depend on the time.
-            </p>
+            <p className="help">{t('settings.hours.offNote')}</p>
           )}
         </Loading>
       </div>

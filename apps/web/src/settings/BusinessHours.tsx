@@ -2,30 +2,29 @@
 // call (open now or not, when that changes) and the greeting may have an outside-hours variant. Off, the
 // assistant says nothing about hours. Edited in BusinessHoursDialog (its grid and time zone are here);
 // Assistant › Hours & holidays shows them in one line.
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { useRun } from '../store.tsx'
-import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
+import { Select, Switch } from '../ui/controls.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Section } from './fields.tsx'
 import {
   type DayHours,
   dayRows,
   DEFAULT_SPAN,
+  endTimeOptions,
   hoursChanged,
   hoursProblem,
   spansOf,
-  timeOptions,
+  startTimeOptions,
   WEEK_ORDER,
+  weekdayName,
   weekSummary,
 } from './businessHoursModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { TimeZonePicker } from './TimeZonePicker.tsx'
 import { timeZoneLabel } from './timeZones.ts'
-
-const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const startOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '24:00')
-const endOptions: SelectOption<string>[] = timeOptions.filter(o => o.value !== '00:00')
 
 /** The hours as part of a page draft: loaded once, edited locally, saved with the rest of the page. */
 export type HoursDraft = ReturnType<typeof useBusinessHours>
@@ -83,17 +82,21 @@ type GridProps = {
 
 /** The week, Monday first: a switch per day and its opening and closing time. Used in Settings and onboarding. */
 export function HoursGrid({ days, set, canEdit }: GridProps) {
+  const t = useT()
+  const startOptions = startTimeOptions()
+  const endOptions = endTimeOptions()
   return (
-    <div className="st-list" role="group" aria-label="Opening hours by day">
+    <div className="st-list" role="group" aria-label={t('settings.hours.byDay')}>
       {WEEK_ORDER.map(weekday => {
         const day = days.find(d => d.weekday === weekday)!
+        const name = weekdayName(weekday)
         return (
           <div key={weekday} className="st-li st-day">
-            <b>{DAY[weekday]}</b>
+            <b>{name}</b>
             <Switch
               on={day.open}
               onChange={open => set(weekday, openChange(days, weekday, open))}
-              label={`Open on ${DAY[weekday]}`}
+              label={t('settings.hours.openOn', { day: name })}
               disabled={!canEdit}
             />
             {day.open ? (
@@ -103,21 +106,21 @@ export function HoursGrid({ days, set, canEdit }: GridProps) {
                   value={day.start}
                   options={startOptions}
                   onChange={start => set(weekday, { start })}
-                  label={`${DAY[weekday]} opens`}
+                  label={t('settings.hours.dayOpens', { day: name })}
                   disabled={!canEdit}
                 />
-                <span className="help">to</span>
+                <span className="help">{t('settings.hours.to')}</span>
                 <Select
                   size="sm"
                   value={day.end}
                   options={endOptions}
                   onChange={end => set(weekday, { end })}
-                  label={`${DAY[weekday]} closes`}
+                  label={t('settings.hours.dayCloses', { day: name })}
                   disabled={!canEdit}
                 />
               </span>
             ) : (
-              <span className="help">Closed</span>
+              <span className="help">{t('settings.hours.closed')}</span>
             )}
           </div>
         )
@@ -146,24 +149,25 @@ export function TimeZoneSelect({
  * opens the same editor as everywhere else that depends on them (BusinessHoursDialog).
  */
 export function BusinessHours({ canEdit }: { canEdit: boolean }) {
+  const t = useT()
   const hours = useBusinessHours()
   const { saved, days, timeZone, loadError, on } = hours
   return (
     <Section
       id="st-hours"
-      title="Business hours"
-      description={on ? undefined : 'Off'}
-      help="Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointments are only booked inside these hours unless a type says otherwise, and the greeting can be different outside them."
+      title={t('settings.hours.title')}
+      description={on ? undefined : t('settings.hours.off')}
+      help={t('settings.hours.help')}
       actions={
         <EditBusinessHours
           canEdit={canEdit}
           variant="button"
-          label={on ? 'Edit business hours' : 'Set business hours'}
+          label={on ? t('settings.hours.edit') : t('settings.hours.set')}
         />
       }
     >
       <Loading
-        what="Business hours"
+        what={t('settings.hours.title')}
         loading={!saved}
         error={loadError}
         onRetry={() => void hours.retry()}
@@ -174,13 +178,7 @@ export function BusinessHours({ canEdit }: { canEdit: boolean }) {
           </>
         }
       >
-        {on ? (
-          <p className="bh-summary">{weekSummary(days)}</p>
-        ) : (
-          <p className="help">
-            Not used: bookings use Monday to Friday, 9 to 5, and greetings and transfers do not depend on the time.
-          </p>
-        )}
+        {on ? <p className="bh-summary">{weekSummary(days)}</p> : <p className="help">{t('settings.hours.notUsed')}</p>}
         {timeZone && <TimeZoneLine zone={timeZone} canEdit={canEdit} />}
       </Loading>
     </Section>
@@ -189,16 +187,23 @@ export function BusinessHours({ canEdit }: { canEdit: boolean }) {
 
 /** The workspace's time zone in one quiet line; it is set in Workspace settings › General. */
 function TimeZoneLine({ zone, canEdit }: { zone: string; canEdit: boolean }) {
+  const t = useT()
   return (
     <p className="help bh-zone">
-      Time zone: {timeZoneLabel(zone)}
-      {canEdit && (
-        <>
-          {' · '}
-          <a className="k-link" href="#workspace/general">
-            Change
-          </a>
-        </>
+      {canEdit ? (
+        <T
+          k="settings.hours.timeZoneChange"
+          values={{
+            zone: timeZoneLabel(zone),
+            link: chunks => (
+              <a className="k-link" href="#workspace/general">
+                {chunks}
+              </a>
+            ),
+          }}
+        />
+      ) : (
+        t('settings.hours.timeZone', { zone: timeZoneLabel(zone) })
       )}
     </p>
   )

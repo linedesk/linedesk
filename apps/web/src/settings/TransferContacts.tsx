@@ -4,6 +4,8 @@
 // shows once the field was left or a save was tried, never on a row just added.
 import { countryList, RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
 import type { TransferFallback } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useRef, useState } from 'react'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Input, Textarea } from '../ui/form.tsx'
@@ -25,29 +27,35 @@ import {
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section } from './fields.tsx'
 import { brandName } from '../brand.ts'
+import { i18n } from '../i18n/index.tsx'
+import { fmt, intlLocale } from '../i18n/format.ts'
 import { shortDuration } from '../time.ts'
 
-const fallbackOptions: SelectOption<TransferFallback>[] = [
-  { value: 'message', label: 'Take a message' },
-  { value: 'next', label: 'Try the next contact that fits' },
+const FALLBACKS: { value: TransferFallback; label: MessageKey }[] = [
+  { value: 'message', label: msg('settings.transfer.fallback.message') },
+  { value: 'next', label: msg('settings.transfer.fallback.next') },
 ]
-const fallbackShort: Record<TransferFallback, string> = {
-  message: 'then a message',
-  next: 'then the next contact',
-}
-const ringOptions: SelectOption<string>[] = [10, 15, 20, 25, 30, 45, 60]
-  .filter(s => s >= RING_SECONDS_MIN && s <= RING_SECONDS_MAX)
-  .map(s => ({ value: String(s), label: `${s} seconds` }))
+const RING_SECONDS = [10, 15, 20, 25, 30, 45, 60].filter(s => s >= RING_SECONDS_MIN && s <= RING_SECONDS_MAX)
 
 /** The number in the contact's row: E.164, a North American one spaced out ("+1 503 555 0100"). */
 const numberLabel = (typed: string) => {
   const e164 = outboundE164(typed)
-  return e164 ? formatNumber(e164) : typed.trim() || 'No number'
+  return e164 ? formatNumber(e164) : typed.trim() || i18n().t('settings.transfer.noNumber')
+}
+
+/** "the United States", "Canada and Mexico" in English (countryList); the region names in the active language otherwise. */
+function countryNames(countries: readonly string[]): string {
+  const locale = intlLocale()
+  if (locale === 'en') return countryList(countries)
+  const names = new Intl.DisplayNames(locale, { type: 'region' })
+  return fmt().list(countries.map(c => names.of(c) ?? c))
 }
 
 /** The number field's tip: where calls may be put through (the workspace's countries), never a Linedesk number. */
 const numberTip = (countries: readonly string[] | 'any') =>
-  `A mobile or landline${countries !== 'any' && countries.length ? ` in ${countryList(countries)}` : ''}: the person's own phone, not a ${brandName()} number.`
+  countries !== 'any' && countries.length
+    ? i18n().t('settings.transfer.numberTipIn', { countries: countryNames(countries), brand: brandName() })
+    : i18n().t('settings.transfer.numberTip', { brand: brandName() })
 
 /** The id of a contact's field, for the label and for putting the cursor there after a failed save. */
 export const transferFieldId = (index: number, field: TransferProblem['field']) => `tc-${index}-${field}`
@@ -63,12 +71,13 @@ type Props = {
 }
 
 /** Condition examples under an empty condition. */
-const EXAMPLES: { label: string; patch: Partial<TransferDraft> }[] = [
-  { label: 'Asks for a person', patch: { condition: 'The caller asks to speak to a person' } },
-  { label: 'Billing questions', patch: { condition: 'Billing questions' } },
+const EXAMPLES: { label: MessageKey; condition: MessageKey }[] = [
+  { label: msg('settings.transfer.example.person'), condition: msg('settings.transfer.example.personCondition') },
+  { label: msg('settings.transfer.example.billing'), condition: msg('settings.transfer.example.billingCondition') },
 ]
 
 export function TransferContacts({ transfers, onChange, hoursOn, assistantName, showErrors = false }: Props) {
+  const t = useT()
   const [open, setOpen] = useState<string | null>(null)
   /** Fields left at least once, as `<contact id>:<field>`: their errors show. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
@@ -86,14 +95,14 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
   return (
     <Section
       id="as-transfer"
-      title="Transfers"
-      description="Who callers are put through to, and when. When several fit, they are tried from the top."
+      title={t('settings.transfer.title')}
+      description={t('settings.transfer.description')}
       actions={
         <Button size="sm" icon="plus" disabled={!canAddTransfer({ transfers })} onClick={add}>
-          Add contact
+          {t('settings.transfer.add')}
         </Button>
       }
-      help={`${assistantName} calls the contact first and tells whoever answers who is calling and why. If they press 1 or say yes, ${assistantName} connects the caller; that conversation isn't recorded. If no one picks up in time or they decline, ${assistantName} does what the contact says: take a message (urgent or not) or try the next contact that fits. ${assistantName} always tells the caller what is happening.`}
+      help={t('settings.transfer.help', { name: assistantName })}
     >
       {transfers.length ? (
         <ol className="tc-list">
@@ -120,7 +129,7 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
                 defaultCountry={country}
                 onToggle={() => setOpen(open === c.id ? null : c.id)}
                 onClose={() => setOpen(null)}
-                onLeave={field => setTouched(t => new Set(t).add(`${c.id}:${field}`))}
+                onLeave={field => setTouched(seen => new Set(seen).add(`${c.id}:${field}`))}
                 onChange={patch => update(i, patch)}
                 onMove={by => onChange(moveTransfer(transfers, i, by))}
                 onRemove={() => onChange(transfers.filter((_, j) => j !== i))}
@@ -129,7 +138,7 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
           })}
         </ol>
       ) : (
-        <p className="tc-empty">No transfer contacts: {assistantName} takes a message on every call.</p>
+        <p className="tc-empty">{t('settings.transfer.empty', { name: assistantName })}</p>
       )}
     </Section>
   )
@@ -157,9 +166,11 @@ type RowProps = {
 
 /** The muted line under a contact's name: ring time, fallback, hours. */
 function summaryOf(c: TransferDraft, hoursOn: boolean): string {
-  return [`Rings ${shortDuration(c.ring_seconds)}`, fallbackShort[c.if_no_answer], hoursOn && c.hours_only ? 'business hours only' : null]
-    .filter(Boolean)
-    .join(', ')
+  return i18n().t('settings.transfer.summary', {
+    duration: shortDuration(c.ring_seconds),
+    fallback: c.if_no_answer,
+    hoursOnly: hoursOn && c.hours_only ? 'yes' : 'no',
+  })
 }
 
 /** Grows the condition box with its text, from two lines up to the CSS max-height. */
@@ -186,8 +197,14 @@ function ContactRow(props: RowProps) {
     onMove,
     onRemove,
   } = props
+  const t = useT()
   const inactive = transferInactive(c)
-  const name = c.name.trim() || 'New contact'
+  const name = c.name.trim() || t('settings.transfer.newContact')
+  const ringOptions: SelectOption<string>[] = RING_SECONDS.map(s => ({
+    value: String(s),
+    label: t('settings.transfer.ringSeconds', { count: s }),
+  }))
+  const fallbackOptions: SelectOption<TransferFallback>[] = FALLBACKS.map(o => ({ value: o.value, label: t(o.label) }))
   const id = (field: TransferProblem['field']) => transferFieldId(index, field)
   const error = (field: TransferProblem['field']) => (problem?.field === field ? problem.message : null)
   const condition = useRef<HTMLTextAreaElement>(null)
@@ -197,36 +214,36 @@ function ContactRow(props: RowProps) {
         <span className="tc-order" aria-hidden>
           {index + 1}
         </span>
-        <button type="button" className="tc-main" onClick={onToggle} aria-expanded={open} title={open ? 'Close' : 'Edit'}>
+        <button type="button" className="tc-main" onClick={onToggle} aria-expanded={open} title={open ? t('common.action.close') : t('settings.transfer.edit')}>
           <span className="tc-title">
             <b>{name}</b>
             <span className="tc-number">{numberLabel(c.number)}</span>
             {inactive && <span className="tc-status">{inactive}</span>}
           </span>
-          <span className="tc-cond">{c.condition.trim() || 'No condition yet'}</span>
+          <span className="tc-cond">{c.condition.trim() || t('settings.transfer.noCondition')}</span>
           <span className="tc-meta">{summaryOf(c, hoursOn)}</span>
         </button>
         <span className="tc-actions">
-          <Button size="sm" variant="ghost" icon="up" title="Move up" aria-label={`Move ${name} up`} disabled={index === 0} onClick={() => onMove(-1)} />
-          <Button size="sm" variant="ghost" icon="down" title="Move down" aria-label={`Move ${name} down`} disabled={index === count - 1} onClick={() => onMove(1)} />
-          <Button size="sm" variant="ghost" icon="trash" title="Remove" aria-label={`Remove ${name}`} onClick={onRemove} />
-          <Switch on={c.enabled} onChange={on => onChange({ enabled: on })} label={`Transfer to ${name}`} />
+          <Button size="sm" variant="ghost" icon="up" title={t('settings.transfer.moveUp')} aria-label={t('settings.transfer.moveUpName', { name })} disabled={index === 0} onClick={() => onMove(-1)} />
+          <Button size="sm" variant="ghost" icon="down" title={t('settings.transfer.moveDown')} aria-label={t('settings.transfer.moveDownName', { name })} disabled={index === count - 1} onClick={() => onMove(1)} />
+          <Button size="sm" variant="ghost" icon="trash" title={t('settings.transfer.remove')} aria-label={t('settings.transfer.removeName', { name })} onClick={onRemove} />
+          <Switch on={c.enabled} onChange={on => onChange({ enabled: on })} label={t('settings.transfer.toggle', { name })} />
         </span>
       </div>
       {open && (
         <div className="tc-edit">
           <div className="tc-grid tc-grid-who">
-            <Field id={id('name')} label="Name" error={error('name')}>
+            <Field id={id('name')} label={t('settings.transfer.name')} error={error('name')}>
               <Input
                 id={id('name')}
                 value={c.name}
                 onChange={e => onChange({ name: e.target.value })}
                 onBlur={() => onLeave('name')}
-                placeholder="Mike (on-call)"
+                placeholder={t('settings.transfer.namePlaceholder')}
                 invalid={!!error('name')}
               />
             </Field>
-            <Field id={id('number')} label="Phone number" error={error('number')} tip={numberTip}>
+            <Field id={id('number')} label={t('settings.transfer.number')} error={error('number')} tip={numberTip}>
               <PhoneInput
                 id={id('number')}
                 value={c.number}
@@ -238,7 +255,7 @@ function ContactRow(props: RowProps) {
               />
             </Field>
           </div>
-          <Field id={id('condition')} label="When to put the caller through" error={error('condition')}>
+          <Field id={id('condition')} label={t('settings.transfer.condition')} error={error('condition')}>
             <Textarea
               id={id('condition')}
               ref={el => {
@@ -253,34 +270,34 @@ function ContactRow(props: RowProps) {
                 grow(e.target)
               }}
               onBlur={() => onLeave('condition')}
-              placeholder="The caller asks for a person"
+              placeholder={t('settings.transfer.conditionPlaceholder')}
               invalid={!!error('condition')}
             />
             {!c.condition.trim() && (
               <span className="tc-examples">
-                Examples:
+                {t('settings.transfer.examples')}
                 {EXAMPLES.map(example => (
                   <button
                     key={example.label}
                     type="button"
                     className="tc-example"
                     onClick={() => {
-                      onChange(example.patch)
+                      onChange({ condition: t(example.condition) })
                       setTimeout(() => condition.current?.focus(), 0)
                     }}
                   >
-                    {example.label}
+                    {t(example.label)}
                   </button>
                 ))}
               </span>
             )}
           </Field>
           <div className="tc-grid tc-grid-then">
-            <Field id={`tc-${index}-ring`} label="Ring for">
-              <Select id={`tc-${index}-ring`} label="Ring for" value={String(c.ring_seconds)} options={ringOptions} onChange={v => onChange({ ring_seconds: Number(v) })} />
+            <Field id={`tc-${index}-ring`} label={t('settings.transfer.ringFor')}>
+              <Select id={`tc-${index}-ring`} label={t('settings.transfer.ringFor')} value={String(c.ring_seconds)} options={ringOptions} onChange={v => onChange({ ring_seconds: Number(v) })} />
             </Field>
-            <Field id={`tc-${index}-fallback`} label="If nobody accepts">
-              <Select id={`tc-${index}-fallback`} label="If nobody accepts" value={c.if_no_answer} options={fallbackOptions} onChange={v => onChange({ if_no_answer: v })} />
+            <Field id={`tc-${index}-fallback`} label={t('settings.transfer.ifNobody')}>
+              <Select id={`tc-${index}-fallback`} label={t('settings.transfer.ifNobody')} value={c.if_no_answer} options={fallbackOptions} onChange={v => onChange({ if_no_answer: v })} />
             </Field>
           </div>
           <div className="tc-foot">
@@ -288,18 +305,18 @@ function ContactRow(props: RowProps) {
             {hoursOn ? (
               <span className="bh-with">
                 <Checkbox checked={c.hours_only} onChange={on => onChange({ hours_only: on })}>
-                  Only during business hours
+                  {t('settings.transfer.hoursOnly')}
                 </Checkbox>
                 <EditBusinessHours canEdit />
               </span>
             ) : (
               <span className="bh-with tc-anytime">
-                Any time (no business hours set)
-                <EditBusinessHours canEdit label="Set business hours" />
+                {t('settings.transfer.anyTime')}
+                <EditBusinessHours canEdit label={t('settings.transfer.setHours')} />
               </span>
             )}
-            <Button size="sm" className="tc-done" onClick={onClose} title="Close this contact; Save keeps the changes">
-              Done
+            <Button size="sm" className="tc-done" onClick={onClose} title={t('settings.transfer.doneTip')}>
+              {t('settings.transfer.done')}
             </Button>
           </div>
         </div>

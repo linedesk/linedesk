@@ -1,5 +1,6 @@
 // The test call without React: how long it may take and what its failures say.
 
+import { i18n } from '../i18n/index.tsx'
 import { whoSetsUp } from '../providerAudience.ts'
 
 /** How long connecting, and then the assistant picking up, may take before the test call gives up. */
@@ -22,21 +23,15 @@ export const AGENT_LEFT_GRACE_MS = 3_000
  * worker (overloaded). `operator`: the member runs the server and can fix it.
  */
 export const noJoinText = (name: string, operator: boolean) =>
-  operator
-    ? `${name} didn't join. The voice agent is not running or the server is overloaded. Check Server admin › Overview (Voice agent, Answering calls).`
-    : `${name} didn't join. Try again in a moment, or ask your server admin if it keeps happening.`
+  i18n().t(operator ? 'settings.testCall.noJoinOperator' : 'settings.testCall.noJoin', { name })
 
 /** The assistant joined but stayed silent. `operator`: the member runs the server and can fix it. */
 export const noPickupText = (name: string, operator: boolean) =>
-  operator
-    ? `${name} didn't pick up. The voice agent may not be running: Server admin › Overview shows its health.`
-    : `${name} didn't pick up. Try again in a moment, or ask your server admin if it keeps happening.`
+  i18n().t(operator ? 'settings.testCall.noPickupOperator' : 'settings.testCall.noPickup', { name })
 
 /** The assistant left while the call was still on. */
 export const agentLeftText = (name: string, operator: boolean) =>
-  operator
-    ? `${name} left the call unexpectedly. The voice agent may have stopped: Server admin › Overview shows its health.`
-    : `${name} left the call unexpectedly. Try again in a moment.`
+  i18n().t(operator ? 'settings.testCall.agentLeftOperator' : 'settings.testCall.agentLeft', { name })
 
 export type PickupWatch = {
   /** Starts the clocks: once the browser is in the room. What was seen before counts. */
@@ -131,14 +126,14 @@ export function watchPickup(
 
 /** The server's refusal in words for the business; LiveKit and other internals stay out. */
 export function testCallErrorText(error: string): string {
-  if (/not set up|not configured/i.test(error))
-    return `Test calls aren't set up on this server yet. ${whoSetsUp('voice')}`
+  const { t } = i18n()
+  if (/not set up|not configured/i.test(error)) return t('settings.testCall.notSetUp', { who: whoSetsUp('voice') })
   // Nobody would answer (apps/api/src/test-call.ts): the why for the operator, a plain sentence for everyone else.
   if (/voice agent|test calls aren't available/i.test(error)) return error
-  if (/too many test calls/i.test(error)) return 'Too many test calls in a short time. Try again in a few minutes.'
+  if (/too many test calls/i.test(error)) return t('settings.testCall.tooMany')
   // The daily limits (apps/api/src/test-call.ts) are written for people: shown as they are.
   if (/test calls today|as many test calls today|monthly spending cap/i.test(error)) return error
-  return "The test call couldn't start. Try again in a moment."
+  return t('settings.testCall.couldNotStart')
 }
 
 export class TimedOut extends Error {}

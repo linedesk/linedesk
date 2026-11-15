@@ -7,7 +7,6 @@ import {
   CALL_END_DELAY_SEC,
   CALL_START_TIMEOUT_MS,
   DURING_CALL_TIMEOUT_MS,
-  hookLabel,
   newWebhookSecret,
   type WebhookDeliveriesData,
   type WebhookDeliverySummary,
@@ -15,6 +14,8 @@ import {
   webhookHooks,
 } from '@linedesk/actions'
 import type { CallerDetails, WebhookEndpoint, WebhookHook } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, Fragment, useEffect, useState } from 'react'
 import { useRows, useRun } from '../store.tsx'
 import { Loading, SkeletonList, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
@@ -31,61 +32,83 @@ import './webhooks.css'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
 
-const HOOK_HELP: Record<WebhookHook, string> = {
-  call_start: `${brandName()} sends the caller's number and waits up to ${CALL_START_TIMEOUT_MS / 1000} second. Answer with JSON like {"name": "Sam"}: the assistant knows it, and the greeting can say {{name}}.`,
-  during_call: `The assistant asks one of its lookups (below) with what the caller said, and waits up to ${DURING_CALL_TIMEOUT_MS / 1000} seconds. Answer with JSON like {"answer": "Order 1234 shipped Monday."}.`,
-  call_end: `About ${CALL_END_DELAY_SEC} seconds after the call: number, summary, transcript, next steps, bookings, links to the call and the recording.`,
+/** Each hook's name (the switch, the Send checkbox) and its test item in the row's menu. */
+const HOOK_LABEL: Record<WebhookHook, MessageKey> = {
+  call_start: msg('settings.webhooks.hook.callStart'),
+  during_call: msg('settings.webhooks.hook.duringCall'),
+  call_end: msg('settings.webhooks.hook.callEnd'),
 }
-const SENT_LABEL: Record<string, string> = {
-  call_start: 'Call start',
-  during_call: 'During the call',
-  call_end: 'After the call',
-  'webhook.test': 'Test',
+const HOOK_TEST: Record<WebhookHook, MessageKey> = {
+  call_start: msg('settings.webhooks.test.callStart'),
+  during_call: msg('settings.webhooks.test.duringCall'),
+  call_end: msg('settings.webhooks.test.callEnd'),
 }
-const HELP =
-  'One address for this assistant. Each request says which hook it is (the "hook" field and the Linedesk-Hook header) and is signed with the secret. If an after-call request fails, Linedesk keeps trying for about an hour; after 5 failures in a row the webhook is switched off.'
+/** What a hook's switch says it sends; JSON and the greeting's {{name}} come in as arguments. */
+function hookHelp(t: ReturnType<typeof useT>, hook: WebhookHook): string {
+  if (hook === 'call_start')
+    return t('settings.webhooks.hookHelp.callStart', {
+      brand: brandName(),
+      seconds: CALL_START_TIMEOUT_MS / 1000,
+      json: '{"name": "Sam"}',
+      placeholder: '{{name}}',
+    })
+  if (hook === 'during_call')
+    return t('settings.webhooks.hookHelp.duringCall', {
+      seconds: DURING_CALL_TIMEOUT_MS / 1000,
+      json: '{"answer": "Order 1234 shipped Monday."}',
+    })
+  return t('settings.webhooks.hookHelp.callEnd', { seconds: CALL_END_DELAY_SEC })
+}
+/** The Request column of the log, by the delivery's event. */
+const SENT_LABEL: Record<string, MessageKey> = {
+  call_start: msg('settings.webhooks.log.callStart'),
+  during_call: msg('settings.webhooks.log.duringCall'),
+  call_end: msg('settings.webhooks.log.callEnd'),
+  'webhook.test': msg('settings.webhooks.log.test'),
+}
 
 type Props = { assistantId: string; canEdit: boolean; toast: (text: string) => void }
 
 export function Webhooks({ assistantId, canEdit, toast }: Props) {
+  const t = useT()
   const endpoint = useRows('webhook_endpoints').find(e => e.assistant_id === assistantId) ?? null
   const load = useLoadState('webhook_endpoints')
   const [editing, setEditing] = useState(false)
   if (!canEdit)
     return (
-      <Section id="as-webhooks" title="Webhook">
-        <p className="help">Only admins can manage webhooks.</p>
+      <Section id="as-webhooks" title={t('settings.webhooks.title')}>
+        <p className="help">{t('settings.webhooks.onlyAdmins')}</p>
       </Section>
     )
   return (
     <Section
       id="as-webhooks"
-      title="Webhook"
-      help={HELP}
+      title={t('settings.webhooks.title')}
+      help={t('settings.webhooks.help', { field: '"hook"', header: 'Linedesk-Hook', brand: brandName() })}
       actions={
         !endpoint &&
         load === 'ready' && (
           <Button size="sm" icon="plus" onClick={() => setEditing(true)}>
-            Add webhook
+            {t('settings.webhooks.add')}
           </Button>
         )
       }
     >
       <Loading
-        what="The webhook"
+        what={t('settings.webhooks.loading')}
         loading={load !== 'ready' && !endpoint}
         error={load === 'slow'}
         skeleton={<SkeletonList rows={1} aside action />}
       >
         {endpoint ? (
           <>
-            <List label="Webhook">
+            <List label={t('settings.webhooks.title')}>
               <EndpointRow endpoint={endpoint} onEdit={() => setEditing(true)} toast={toast} />
             </List>
             <HookSwitches endpoint={endpoint} toast={toast} />
           </>
         ) : (
-          <ListEmpty>No webhook yet.</ListEmpty>
+          <ListEmpty>{t('settings.webhooks.empty')}</ListEmpty>
         )}
       </Loading>
       {editing && (
@@ -97,6 +120,7 @@ export function Webhooks({ assistantId, canEdit, toast }: Props) {
 
 /** One switch per hook: which requests the webhook gets. Under During the call, while it is on, its lookups. */
 function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: Props['toast'] }) {
+  const t = useT()
   const run = useRun()
   const set = (hook: WebhookHook, on: boolean) =>
     void run('webhook.update', {
@@ -108,8 +132,8 @@ function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: P
       {webhookHooks.map(hook => (
         <Fragment key={hook}>
           <SwitchRow
-            title={hookLabel[hook]}
-            description={HOOK_HELP[hook]}
+            title={t(HOOK_LABEL[hook])}
+            description={hookHelp(t, hook)}
             on={endpoint.hooks.includes(hook)}
             onChange={on => set(hook, on)}
           />
@@ -123,22 +147,26 @@ function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: P
 }
 
 function StatusBadge({ endpoint }: { endpoint: WebhookEndpoint }) {
+  const t = useT()
   if (endpoint.status === 'active')
     return (
       <Badge tone="ok">
-        <StatusMark state="works" label="On" />
-        On
+        <StatusMark state="works" label={t('settings.webhooks.status.on')} />
+        {t('settings.webhooks.status.on')}
       </Badge>
     )
   return endpoint.disabled_reason ? (
     <Badge tone="danger" title={endpoint.disabled_reason}>
-      <StatusMark state="failing" label={`Switched off: ${endpoint.disabled_reason}`} />
-      Switched off
+      <StatusMark
+        state="failing"
+        label={t('settings.webhooks.status.switchedOffBecause', { reason: endpoint.disabled_reason })}
+      />
+      {t('settings.webhooks.status.switchedOff')}
     </Badge>
   ) : (
     <Badge>
       <StatusMark state="off" />
-      Off
+      {t('settings.webhooks.status.off')}
     </Badge>
   )
 }
@@ -160,6 +188,7 @@ function EndpointRow({
   onEdit: () => void
   toast: Props['toast']
 }) {
+  const t = useT()
   const run = useRun()
   const write = useWriteAction()
   const [busy, setBusy] = useState(false)
@@ -171,16 +200,16 @@ function EndpointRow({
     setBusy(true)
     try {
       const result = await callAction<WebhookTestData>('webhook.test', { endpointId: endpoint.id, hook })
-      if (!result.ok) toast(`Test failed: ${result.error}`)
+      if (!result.ok) toast(t('settings.webhooks.testResult.failed', { error: result.error }))
       else if (hook === 'call_start') {
         const details = detailsText(result.details)
         toast(
           details
-            ? `Answered ${result.responseStatus} with ${details}.`
-            : `Answered ${result.responseStatus}, but with no caller details.`,
+            ? t('settings.webhooks.testResult.details', { status: result.responseStatus, details })
+            : t('settings.webhooks.testResult.noDetails', { status: result.responseStatus }),
         )
       } else if (hook === 'during_call') toast(lookupTestText(result))
-      else toast(`Test delivered (${result.responseStatus}).`)
+      else toast(t('settings.webhooks.testResult.delivered', { status: result.responseStatus }))
       setLogVersion(v => v + 1)
     } catch (e) {
       toast((e as Error).message)
@@ -192,7 +221,7 @@ function EndpointRow({
   // Errors show in the dialog (DangerConfirmDialog); it stays busy until the row is gone.
   async function remove() {
     await write('webhook.delete', { endpointId: endpoint.id })
-    toast('Webhook deleted.')
+    toast(t('settings.webhooks.deleted'))
   }
 
   return (
@@ -203,31 +232,35 @@ function EndpointRow({
       actions={
         <>
           <Switch
-            label={`Send to ${endpoint.url}`}
+            label={t('settings.webhooks.sendTo', { url: endpoint.url })}
             on={endpoint.status === 'active'}
             onChange={on => void run('webhook.update', { endpointId: endpoint.id, enabled: on })}
           />
           <MenuButton
-            title={`Actions for ${endpoint.url}`}
+            title={t('settings.webhooks.actionsFor', { url: endpoint.url })}
             disabled={busy}
             items={[
               ...webhookHooks.map(hook => ({
                 id: `test-${hook}`,
-                label: `Test: ${hookLabel[hook].toLowerCase()}`,
-                title: 'Send a signed example request now',
+                label: t(HOOK_TEST[hook]),
+                title: t('settings.webhooks.test.tip'),
                 onSelect: () => void sendTest(hook),
               })),
-              { id: 'log', label: showLog ? 'Hide log' : 'Log', onSelect: () => setShowLog(s => !s) },
-              { id: 'edit', label: 'Edit address', onSelect: onEdit },
-              { id: 'delete', label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) },
+              {
+                id: 'log',
+                label: showLog ? t('settings.webhooks.log.hide') : t('settings.webhooks.log.show'),
+                onSelect: () => setShowLog(s => !s),
+              },
+              { id: 'edit', label: t('settings.webhooks.editAddress'), onSelect: onEdit },
+              { id: 'delete', label: t('common.action.delete'), danger: true, onSelect: () => setConfirmDelete(true) },
             ]}
           />
           {confirmDelete && (
             <DangerConfirmDialog
               confirm={{
-                action: 'Delete webhook',
-                busyAction: 'Deleting…',
-                text: `Nothing more is sent to ${endpoint.url}, and its log is deleted.`,
+                action: t('settings.webhooks.delete.action'),
+                busyAction: t('settings.webhooks.delete.busy'),
+                text: t('settings.webhooks.delete.text', { url: endpoint.url }),
               }}
               run={remove}
               onClose={() => setConfirmDelete(false)}
@@ -240,10 +273,14 @@ function EndpointRow({
   )
 }
 
+/** An address as the placeholder shows it: a URL, the same in every language. */
+const URL_EXAMPLE = 'https://example.com/linedesk'
+
 /** The last loaded log per endpoint, so opening it again shows it at once while it refreshes. */
 const logCache = new Map<string, WebhookDeliverySummary[]>()
 
 function DeliveryLog({ endpointId, version }: { endpointId: string; version: number }) {
+  const t = useT()
   const [rows, setRows] = useState(() => logCache.get(endpointId) ?? null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -264,7 +301,7 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
   }, [endpointId, version, attempt])
   return (
     <Loading
-      what="Deliveries"
+      what={t('settings.webhooks.log.loading')}
       loading={!rows}
       error={error}
       onRetry={() => setAttempt(a => a + 1)}
@@ -276,25 +313,26 @@ function DeliveryLog({ endpointId, version }: { endpointId: string; version: num
 }
 
 function DeliveryTable({ rows }: { rows: WebhookDeliverySummary[] }) {
-  if (!rows.length) return <p className="help wh-log">No deliveries yet.</p>
+  const t = useT()
+  if (!rows.length) return <p className="help wh-log">{t('settings.webhooks.log.empty')}</p>
   return (
     <table className="wh-log">
       <thead>
         <tr>
-          <th>Request</th>
-          <th>Result</th>
-          <th>Tries</th>
-          <th>When</th>
+          <th>{t('settings.webhooks.log.request')}</th>
+          <th>{t('settings.webhooks.log.result')}</th>
+          <th>{t('settings.webhooks.log.tries')}</th>
+          <th>{t('settings.webhooks.log.when')}</th>
         </tr>
       </thead>
       <tbody>
         {rows.map(d => (
           <tr key={d.id}>
-            <td>{SENT_LABEL[d.event] ?? d.event}</td>
+            <td>{SENT_LABEL[d.event] ? t(SENT_LABEL[d.event]!) : d.event}</td>
             <td>
               <DeliveryResult delivery={d} />
             </td>
-            <td>{d.attempts}</td>
+            <td>{fmt().number(d.attempts)}</td>
             <td>
               {fmt().dateTime(new Date(d.last_attempt_at ?? d.created_at), {
                 month: 'short',
@@ -311,12 +349,18 @@ function DeliveryTable({ rows }: { rows: WebhookDeliverySummary[] }) {
 }
 
 function DeliveryResult({ delivery }: { delivery: WebhookDeliverySummary }) {
-  if (delivery.status === 'delivered') return <Badge tone="ok">{delivery.response_status ?? 'OK'}</Badge>
+  const t = useT()
+  if (delivery.status === 'delivered')
+    return <Badge tone="ok">{delivery.response_status ?? t('settings.webhooks.log.ok')}</Badge>
   if (delivery.status === 'pending')
-    return <Badge title={delivery.error ?? undefined}>{delivery.attempts ? 'Retrying' : 'Queued'}</Badge>
+    return (
+      <Badge title={delivery.error ?? undefined}>
+        {delivery.attempts ? t('settings.webhooks.log.retrying') : t('settings.webhooks.log.queued')}
+      </Badge>
+    )
   return (
     <Badge tone="danger" title={delivery.error ?? undefined}>
-      {delivery.response_status ?? 'Failed'}
+      {delivery.response_status ?? t('settings.webhooks.log.failed')}
     </Badge>
   )
 }
@@ -333,6 +377,7 @@ function EndpointDialog({
   onClose: () => void
   toast: Props['toast']
 }) {
+  const t = useT()
   const run = useRun()
   const write = useWriteAction()
   const [url, setUrl] = useState(endpoint?.url ?? '')
@@ -371,59 +416,68 @@ function EndpointDialog({
     return (
       <Dialog
         key="secret" // a new dialog, so focus moves into it (Esc, Tab)
-        title="Signing secret"
-        description="Shown only once. Copy it now."
+        title={t('settings.webhooks.secret.title')}
+        description={t('settings.webhooks.secret.description')}
         onClose={onClose}
         footer={
           <Button variant="primary" onClick={onClose}>
-            Done
+            {t('settings.webhooks.secret.done')}
           </Button>
         }
       >
         <div className="wh-secret">
-          <Input readOnly value={secret} aria-label="Signing secret" onFocus={e => e.currentTarget.select()} />
+          <Input
+            readOnly
+            value={secret}
+            aria-label={t('settings.webhooks.secret.title')}
+            onFocus={e => e.currentTarget.select()}
+          />
           <Button
             onClick={() =>
               navigator.clipboard.writeText(secret).then(
-                () => toast('Secret copied.'),
-                () => toast('Copy failed. Select the secret instead.'),
+                () => toast(t('settings.webhooks.secret.copied')),
+                () => toast(t('settings.webhooks.secret.copyFailed')),
               )
             }
           >
-            Copy
+            {t('common.copy.copy')}
           </Button>
         </div>
-        <p className="help">Verifies the Linedesk-Signature header.</p>
+        <p className="help">{t('settings.webhooks.secret.verifies', { header: 'Linedesk-Signature' })}</p>
       </Dialog>
     )
 
   return (
     <Dialog
-      title={endpoint ? 'Edit webhook address' : 'Add webhook'}
+      title={endpoint ? t('settings.webhooks.dialog.editTitle') : t('settings.webhooks.add')}
       onClose={onClose}
       onSubmit={submit}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.action.cancel')}</Button>
           <Button busy={saving} type="submit" variant="primary" disabled={saving || !url.trim()}>
-            {endpoint ? 'Save' : saving ? 'Adding…' : 'Add'}
+            {endpoint
+              ? t('common.action.save')
+              : saving
+                ? t('settings.webhooks.dialog.adding')
+                : t('settings.webhooks.dialog.add')}
           </Button>
         </>
       }
     >
-      <Field id="wh-url" label="URL" error={error}>
+      <Field id="wh-url" label={t('settings.webhooks.dialog.url')} error={error}>
         <Input
           id="wh-url"
           type="url"
           required
-          placeholder="https://example.com/linedesk"
+          placeholder={URL_EXAMPLE}
           value={url}
           invalid={Boolean(error)}
           onChange={e => setUrl(e.target.value)}
         />
       </Field>
       {!endpoint && (
-        <Field label="Send">
+        <Field label={t('settings.webhooks.dialog.send')}>
           <div className="wh-hook-picks">
             {webhookHooks.map(hook => (
               <Checkbox
@@ -431,7 +485,7 @@ function EndpointDialog({
                 checked={hooks.includes(hook)}
                 onChange={on => setHooks(list => webhookHooks.filter(h => (h === hook ? on : list.includes(h))))}
               >
-                {hookLabel[hook]}
+                {t(HOOK_LABEL[hook])}
               </Checkbox>
             ))}
           </div>

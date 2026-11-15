@@ -2,6 +2,7 @@
 // (assistant.startTestCall); the voice agent joins it and files the call in the inbox as "Test call".
 // Settings > Assistant and onboarding show a Start button and the call in a side panel (TestCallPanel).
 import { parseVoiceFailure, type TestCallData, VOICE_FAILURE_ATTRIBUTE, voiceFailureText } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import type { Participant, Room } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
@@ -56,6 +57,7 @@ function useRoomCall(room: string | null) {
  * in, and the controls. `operator`: an instance admin, who is told what to fix on the server when nobody answers.
  */
 export function useTestCall(canStart: boolean, assistant?: { id: string; name: string }, operator = false) {
+  const t = useT()
   const defaultName = useAssistantName()
   const name = assistant?.name ?? defaultName
   const [phase, setPhase] = useState<Phase>('idle')
@@ -105,8 +107,8 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     live.clear()
     setPhase('starting')
     // A permission prompt nobody answers must not hang either.
-    const blocked = await within(microphoneAllowed(), TEST_CALL_TIMEOUT_MS).catch(
-      () => "The microphone didn't respond. Allow it for this site, then try again.",
+    const blocked = await within(microphoneAllowed(), TEST_CALL_TIMEOUT_MS).catch(() =>
+      t('settings.testCall.micNoResponse'),
     )
     if (mine !== attempt.current) return
     if (blocked) return fail(blocked)
@@ -190,10 +192,10 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
       if (mine !== attempt.current) return
       fail(
         e instanceof TimedOut
-          ? `Couldn't reach ${name} within ${TEST_CALL_TIMEOUT_MS / 1000} seconds. Try again in a moment.`
+          ? t('settings.testCall.timedOut', { name, seconds: TEST_CALL_TIMEOUT_MS / 1000 })
           : e instanceof Error
             ? e.message
-            : "The test call couldn't start. Try again in a moment.",
+            : t('settings.testCall.couldNotStart'),
       )
     }
   }
@@ -220,9 +222,9 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     audio,
     /** Why Start is off, for its tooltip; null when it can start. */
     blockedReason: !canStart
-      ? 'Only admins can start a test call'
+      ? t('settings.testCall.onlyAdmins')
       : voiceDown
-        ? `${name} can't take calls yet: the voice service isn't set up. ${operator ? 'Set it up under Server admin › Providers.' : 'Ask your server admin.'}`
+        ? t(operator ? 'settings.testCall.voiceDownOperator' : 'settings.testCall.voiceDown', { name })
         : null,
     start: () => void start(),
     stop: async () => {
@@ -263,6 +265,7 @@ export function TestCallButton({
   /** Runs instead of `session.start` (onboarding saves the assistant first, then starts). */
   onStart?: () => void
 }) {
+  const t = useT()
   const busy = session.phase === 'starting' || session.phase === 'live'
   return (
     <span title={session.blockedReason ?? undefined} className="tc-btn-wrap">
@@ -271,9 +274,9 @@ export function TestCallButton({
         icon="phone-in"
         onClick={onStart}
         disabled={!!session.blockedReason || busy}
-        title={session.blockedReason ? undefined : 'Start test call: talk to the assistant with your microphone'}
+        title={session.blockedReason ? undefined : t('settings.testCall.startTip')}
       >
-        {session.phase === 'ended' ? 'Call again' : 'Start test call'}
+        {session.phase === 'ended' ? t('settings.testCall.callAgain') : t('settings.testCall.start')}
       </Button>
     </span>
   )

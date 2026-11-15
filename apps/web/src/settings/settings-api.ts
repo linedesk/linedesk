@@ -16,7 +16,7 @@ export async function readAction<T>(name: string, input: object = {}): Promise<T
     body: JSON.stringify(input),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; data?: T } | null
-  if (!res.ok || !body?.ok) throw new Error('These settings could not be loaded. Check the connection and try again.')
+  if (!res.ok || !body?.ok) throw new Error(i18n().t('settings.load.failed'))
   return body.data as T
 }
 

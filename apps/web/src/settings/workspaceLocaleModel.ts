@@ -2,16 +2,16 @@
 // of the phone field (flags, common ones first) and the languages calls can be answered in, each list opened by
 // "Automatic (…)": the country or language worked out when none is set (workspace-locale.ts in @linedesk/actions).
 import {
-  automaticCountryLabel,
-  automaticLanguageLabel,
   COUNTRY_LANGUAGES,
   isVoiceLanguage,
   LANGUAGES,
   languageCodes,
+  phoneCountryName,
   type WorkspaceCountrySource,
   workspaceLanguageName,
 } from '@linedesk/actions'
-import { type ActiveLocale, languageLabel } from '@linedesk/i18n'
+import { type ActiveLocale, intlLocaleOf, languageLabel, SOURCE } from '@linedesk/i18n'
+import { i18n } from '../i18n/index.tsx'
 import { phoneCountryOptions, searchPhoneCountries } from '../ui/phoneInputModel.ts'
 import { type SearchOption, searchOptions } from '../ui/SearchSelect.tsx'
 
@@ -24,8 +24,8 @@ export function countryOptions(resolvedCountry: string, source: WorkspaceCountry
     value: AUTOMATIC,
     label:
       source === 'explicit'
-        ? 'Automatic (from your numbers and holidays)'
-        : automaticCountryLabel(resolvedCountry, source),
+        ? i18n().t('settings.general.locale.automaticCountryExplicit')
+        : i18n().t('settings.general.locale.automaticCountry', { country: phoneCountryName(resolvedCountry), source }),
   }
   return [
     automatic,
@@ -52,6 +52,18 @@ export function searchCountries(options: readonly SearchOption[], query: string)
 /** The language a country speaks (COUNTRY_LANGUAGES), the one "Automatic" stands for. */
 export const countryLanguage = (country: string): string => COUNTRY_LANGUAGES[country] ?? 'en'
 
+/** A language's name in the UI language: the English name the API uses in English, Intl's in any other. */
+function languageNameIn(language: string, ui: ActiveLocale): string {
+  if (ui === SOURCE) return workspaceLanguageName(language)
+  try {
+    return (
+      new Intl.DisplayNames([intlLocaleOf(ui)], { type: 'language' }).of(language) ?? workspaceLanguageName(language)
+    )
+  } catch {
+    return workspaceLanguageName(language)
+  }
+}
+
 /**
  * "Automatic (Deutsch · German, from your country)"; for a country whose language calls cannot be answered in yet,
  * what they are answered in instead: "Automatic (Korean summaries; calls in English)". `ui`: the UI language.
@@ -61,8 +73,8 @@ export function automaticLanguageOption(country: string, ui: ActiveLocale): Sear
   return {
     value: AUTOMATIC,
     label: isVoiceLanguage(language)
-      ? automaticLanguageLabel(language, languageLabel(language, ui))
-      : `Automatic (${workspaceLanguageName(language)} summaries; calls in English)`,
+      ? i18n().t('settings.general.locale.automaticLanguage', { language: languageLabel(language, ui) })
+      : i18n().t('settings.general.locale.automaticSummariesOnly', { language: languageNameIn(language, ui) }),
   }
 }
 

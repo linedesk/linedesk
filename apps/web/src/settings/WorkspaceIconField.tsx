@@ -4,6 +4,7 @@
 // browser, sent directly, not through the outbox (up to half a megabyte), and shown everywhere at once
 // (changedWorkspaceIcon): the cropped image while it saves, the server's address after. Only the square is stored.
 import { LOGO_MAX_BYTES, LOGO_SIZE, type WorkspaceIconData } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { useRef, useState } from 'react'
 import { changedWorkspaceIcon } from '../session.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
@@ -23,6 +24,7 @@ type Props = {
 }
 
 export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props) {
+  const t = useT()
   const id = tabWorkspace() ?? ''
   const iconUrl = workspaceIconOf(useWorkspaces(), id)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -38,7 +40,7 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
       toast(done)
     } catch (e) {
       changedWorkspaceIcon(id, before)
-      setProblem(e instanceof Error ? e.message : 'Could not save the icon. Try again.')
+      setProblem(e instanceof Error ? e.message : t('settings.icon.saveFailed'))
     } finally {
       setBusy(null)
     }
@@ -54,22 +56,22 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
   async function saveCropped(icon: string) {
     setCropping(null)
     setBusy('upload')
-    await save(() => callAction<WorkspaceIconData>('workspace.setIcon', { icon }), icon, 'Workspace icon saved.')
+    await save(() => callAction<WorkspaceIconData>('workspace.setIcon', { icon }), icon, t('settings.icon.saved'))
   }
 
   function remove() {
     if (busy) return
     setProblem(null)
     setBusy('remove')
-    void save(() => callAction<WorkspaceIconData>('workspace.removeIcon'), null, 'Workspace icon removed.')
+    void save(() => callAction<WorkspaceIconData>('workspace.removeIcon'), null, t('settings.icon.removed'))
   }
 
   return (
     <Field
       id="ws-icon"
-      label="Workspace icon"
-      help={canEdit ? 'A square image works best.' : readOnlyNote}
-      tip="Shown on the workspace button, in the workspace menu and as the browser tab icon."
+      label={t('settings.icon.label')}
+      help={canEdit ? t('settings.icon.help') : readOnlyNote}
+      tip={t('settings.icon.tip')}
       error={problem}
     >
       <div className="st-ws-icon">
@@ -91,10 +93,10 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
               <ImageCrop
                 file={cropping}
                 shape="rounded-square"
-                title="Crop the workspace icon"
+                title={t('settings.icon.cropTitle')}
                 size={LOGO_SIZE}
                 maxBytes={LOGO_MAX_BYTES}
-                what="The icon"
+                what={t('settings.icon.what')}
                 onCancel={() => setCropping(null)}
                 onSave={saveCropped}
               />
@@ -105,9 +107,9 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
               busy={busy === 'upload'}
               disabled={!!busy}
               onClick={() => fileRef.current?.click()}
-              title="Choose an image for the workspace icon"
+              title={t('settings.icon.chooseTip')}
             >
-              {iconUrl ? 'Replace…' : 'Upload…'}
+              {iconUrl ? t('settings.icon.replace') : t('settings.icon.upload')}
             </Button>
             {iconUrl && (
               <Button
@@ -116,9 +118,9 @@ export function WorkspaceIconField({ canEdit, name, readOnlyNote, toast }: Props
                 busy={busy === 'remove'}
                 disabled={!!busy}
                 onClick={remove}
-                title="Show the initial of the name instead"
+                title={t('settings.icon.removeTip')}
               >
-                Remove
+                {t('settings.icon.remove')}
               </Button>
             )}
           </>

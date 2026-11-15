@@ -10,6 +10,9 @@ import {
   type Language,
   type VoiceLanguage,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { fmt, intlLocale } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export type VoiceChoice = { provider: string; voice_id: string }
 
@@ -182,24 +185,43 @@ export function facetValues(voices: readonly PickerVoice[], field: 'language' | 
       ? voices.flatMap(v => languagesOf(v).map(l => l.code))
       : voices.map(v => norm(v[field])).filter(Boolean),
   )
-  const label = field === 'language' ? languageName : capitalize
+  const label = field === 'language' ? languageName : field === 'gender' ? genderName : capitalize
   return [...values].map(value => ({ value, label: label(value) })).sort((a, b) => a.label.localeCompare(b.label))
 }
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+
+/** The genders providers give, in the reader's language; another value is shown as the provider wrote it. */
+const GENDERS: Record<string, MessageKey> = {
+  female: msg('settings.voice.gender.female'),
+  male: msg('settings.voice.gender.male'),
+  neutral: msg('settings.voice.gender.neutral'),
+}
+
+/** "female" → "Female" (translated where known). */
+export function genderName(value: string): string {
+  const key = GENDERS[norm(value)]
+  return key ? i18n().t(key) : capitalize(value)
+}
 const titleCase = (value: string) =>
   value.replace(/(^|[\s-])(\p{L})/gu, (_, gap: string, c: string) => gap + c.toUpperCase())
-let languageNames: Intl.DisplayNames | null = null
+const languageNames = new Map<string, Intl.DisplayNames>()
 
-/** "en" → "English"; an unknown code stays as it is. */
+/** "en" → "English" in the reader's language ("Englisch" in German); an unknown code stays as it is. */
 export function languageName(code: string | null | undefined): string {
   if (!code) return ''
-  if (Object.hasOwn(LANGUAGES, code)) return LANGUAGES[code as Language]
+  const locale = intlLocale()
+  const known = Object.hasOwn(LANGUAGES, code) ? LANGUAGES[code as Language] : null
+  if (known && locale === 'en') return known
   try {
-    languageNames ??= new Intl.DisplayNames(['en'], { type: 'language' })
-    return languageNames.of(code) ?? code
+    let names = languageNames.get(locale)
+    if (!names) {
+      names = new Intl.DisplayNames([locale], { type: 'language' })
+      languageNames.set(locale, names)
+    }
+    return names.of(code) ?? known ?? code
   } catch {
-    return code
+    return known ?? code
   }
 }
 
@@ -230,23 +252,29 @@ function accentFor(v: PickerVoice, main: string): string | null {
  */
 export function languageLabel(v: PickerVoice, main: string, others: readonly string[] = []): string | null {
   if (!languagesKnown(v)) return null
+  const { t } = i18n()
   const own = ownLanguage(v)
-  const named = (code: string) => (code === own ? `Native ${languageName(code)}` : languageName(code))
+  const named = (code: string) =>
+    code === own ? t('settings.voice.language.native', { language: languageName(code) }) : languageName(code)
   let first = named(main)
   if (!canPerform(v, main)) {
     const accent = accentFor(v, main)
     first = accent
-      ? `${languageName(main)} with ${/^[aeiou]/i.test(accent) ? 'an' : 'a'} ${accent} accent`
-      : `${languageName(main)}, non-native`
+      ? t('settings.voice.language.withAccent', {
+          language: languageName(main),
+          accent,
+          // English needs "an" before a vowel; other languages ignore it.
+          article: /^[aeiou]/i.test(accent) ? 'an' : 'a',
+        })
+      : t('settings.voice.language.nonNative', { language: languageName(main) })
   }
   const more = others.filter(code => code !== main && canPerform(v, code)).map(named)
   return [first, ...more].join(' · ')
 }
 
-/** "German", "German and English", "German, Dutch and English". */
+/** "German", "German and English", "German, Dutch, and English", in the reader's language. */
 export function listLanguages(codes: readonly string[]): string {
-  const names = codes.map(languageName)
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '')
+  return fmt().list(codes.map(languageName))
 }
 
 /**
@@ -262,7 +290,7 @@ export function voiceFacts(
 ): string {
   const accent = canPerform(v, main) ? norm(languagesOf(v).find(l => l.code === main)?.accent) : ''
   return [
-    v.gender && capitalize(v.gender),
+    v.gender && genderName(v.gender),
     accent && !PLAIN_ACCENTS.has(accent) ? titleCase(accent) : null,
     languageLabel(v, main, others),
     providerLabel,
@@ -276,15 +304,16 @@ export function voiceFacts(
  * error text (`status` 0: no answer at all).
  */
 export function previewProblem(status: number, serverError?: string, providerMessage?: string): string {
-  if (status === 0) return "Can't reach the server. Check your connection and try again."
-  if (status === 401) return 'You were signed out. Sign in again to hear samples.'
-  if (status === 409) return 'Add a voice provider key in Server admin › Providers to hear samples.'
-  if (status === 429) return 'Too many new samples this hour. Try again later.'
-  if (status === 404) return 'The voice provider does not know this voice.'
+  const { t } = i18n()
+  if (status === 0) return t('common.load.noAnswer')
+  if (status === 401) return t('settings.voice.preview.signedOut')
+  if (status === 409) return t('settings.voice.preview.noKey')
+  if (status === 429) return t('settings.voice.preview.tooMany')
+  if (status === 404) return t('settings.voice.preview.unknownVoice')
   if (status === 403 && serverError) return serverError
   // The provider failed: the server says why in the shared provider-failure words (LIN-111), for admin or member.
   if (status === 502 && providerMessage) return providerMessage
-  return 'The voice provider did not answer. Try again.'
+  return t('settings.voice.preview.noAnswer')
 }
 
 const MB = 1024 * 1024
@@ -295,13 +324,16 @@ export function cloneProblem(input: {
   file: { size: number; type: string } | null
   consent: boolean
 }): string | null {
-  if (!input.name.trim()) return 'Give the voice a name.'
-  if (!input.file) return 'Choose a recording of the voice: one to two minutes of clear speech.'
-  if (!(cloneAudioTypes as readonly string[]).includes(input.file.type))
-    return 'Use an MP3, WAV, M4A, WebM or OGG recording.'
+  const { t, format } = i18n()
+  if (!input.name.trim()) return t('settings.voice.clone.noName')
+  if (!input.file) return t('settings.voice.clone.noFile')
+  if (!(cloneAudioTypes as readonly string[]).includes(input.file.type)) return t('settings.voice.clone.badType')
   if (input.file.size > CLONE_AUDIO_MAX_BYTES)
-    return `The recording is ${(input.file.size / MB).toFixed(1)} MB; at most 10 MB.`
-  if (!input.consent) return 'Confirm that the speaker agreed to their voice being cloned.'
+    return t('settings.voice.clone.tooLarge', {
+      size: format.number(input.file.size / MB, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      max: format.number(CLONE_AUDIO_MAX_BYTES / MB, { maximumFractionDigits: 1 }),
+    })
+  if (!input.consent) return t('settings.voice.clone.noConsent')
   return null
 }
 
@@ -398,10 +430,17 @@ export function coverageNote(
   const all = [main, ...others.filter(code => code !== main)]
   const missing = all.filter(code => !canPerform(closest, code))
   const nowhere = missing.every(code => !voices.some(v => canPerform(v, code)))
-  const from = provider ? ` from ${provider}` : ''
-  return nowhere
-    ? `No voice${from} is verified in ${listLanguages(missing)}; the closest are shown.`
-    : `No voice${from} is verified in all of ${listLanguages(all)}; the closest are shown.`
+  const { t } = i18n()
+  if (nowhere) {
+    const languages = listLanguages(missing)
+    return provider
+      ? t('settings.voice.coverage.missingFrom', { provider, languages })
+      : t('settings.voice.coverage.missing', { languages })
+  }
+  const languages = listLanguages(all)
+  return provider
+    ? t('settings.voice.coverage.notAllFrom', { provider, languages })
+    : t('settings.voice.coverage.notAll', { languages })
 }
 
 /**
@@ -413,14 +452,18 @@ export function missingNativeNote(
   active: Pick<CatalogProvider, 'label' | 'freePlan'> | null | undefined,
 ): { text: string; help: string } | null {
   if (main === 'en' || !active) return null
+  const { t } = i18n()
   const language = languageName(main)
-  const speaks = `Every voice here speaks ${language}, in its own accent.`
+  const provider = active.label
   if (active.freePlan)
     return {
-      text: `Native voices need a paid ${active.label} plan.`,
-      help: `On the free plan, ${active.label} has only English voices. ${speaks} A paid plan adds voices made for ${language}.`,
+      text: t('settings.voice.native.paidPlan', { provider }),
+      help: t('settings.voice.native.paidPlanHelp', { provider, language }),
     }
-  return { text: `${active.label} has no native ${language} voice.`, help: speaks }
+  return {
+    text: t('settings.voice.native.none', { provider, language }),
+    help: t('settings.voice.native.speaks', { language }),
+  }
 }
 
 /** A voice switch made because the assistant's languages changed: the voice now, its name, what it performs. */
@@ -459,5 +502,5 @@ export function followLanguages(input: {
 /** The notice after a switch: "Voice changed to Lena: speaks German and English natively." */
 export const followedNotice = (followed: FollowedVoice) =>
   followed.speaks.length
-    ? `Voice changed to ${followed.name}: speaks ${listLanguages(followed.speaks)} natively.`
-    : `Voice changed to ${followed.name}.`
+    ? i18n().t('settings.voice.followed.speaks', { name: followed.name, languages: listLanguages(followed.speaks) })
+    : i18n().t('settings.voice.followed.changed', { name: followed.name })

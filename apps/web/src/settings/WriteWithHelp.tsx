@@ -4,6 +4,8 @@
 // it goes into the draft, never saved without Save.
 import { type AssistantGoal, BUSINESS_TEXT_MAX, type KnowledgeImportData } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Dialog, Input } from '../ui/form.tsx'
@@ -22,11 +24,11 @@ import { callAction } from './settings-api.ts'
 import { brandName } from '../brand.ts'
 
 /** The goals in the order the wizard offers them, in plain words. */
-const GOALS: { id: AssistantGoal; label: string }[] = [
-  { id: 'messages', label: 'Take messages and callback requests' },
-  { id: 'booking', label: 'Book appointments' },
-  { id: 'prices', label: 'Answer prices and common questions' },
-  { id: 'spam', label: 'Screen out sales calls and spam' },
+const GOALS: { id: AssistantGoal; label: MessageKey }[] = [
+  { id: 'messages', label: msg('settings.writeHelp.goal.messages') },
+  { id: 'booking', label: msg('settings.writeHelp.goal.booking') },
+  { id: 'prices', label: msg('settings.writeHelp.goal.prices') },
+  { id: 'spam', label: msg('settings.writeHelp.goal.spam') },
 ]
 
 type Step = 'website' | 'business' | 'goals' | 'result'
@@ -40,7 +42,8 @@ type Props = {
 }
 
 export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Props) {
-  const name = draft.name.trim() || 'the assistant'
+  const t = useT()
+  const name = draft.name.trim() || t('settings.writeHelp.theAssistant')
   const [step, setStep] = useState<Step>('website')
   const [business, setBusiness] = useState('')
   const [url, setUrl] = useState(draft.website)
@@ -60,7 +63,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
       setSite(data)
       if (!business.trim()) setBusiness(data.about.slice(0, BUSINESS_TEXT_MAX))
     } catch (e) {
-      toast(`${(e as Error).message} Describe the business instead.`)
+      toast(t('settings.writeHelp.readFailed', { error: (e as Error).message }))
     } finally {
       setBusy(false)
       setStep('business')
@@ -92,58 +95,58 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
     step === 'website' ? (
       <>
         <Button key="cancel" variant="ghost" disabled={busy} onClick={onClose}>
-          Cancel
+          {t('common.action.cancel')}
         </Button>
-        <Button key="skip" variant="ghost" disabled={busy} onClick={() => { setUrl(''); setSite(null); setStep('business') }} title="No website: describe the business yourself">
-          No website
+        <Button key="skip" variant="ghost" disabled={busy} onClick={() => { setUrl(''); setSite(null); setStep('business') }} title={t('settings.writeHelp.noWebsiteTip')}>
+          {t('settings.writeHelp.noWebsite')}
         </Button>
         <Button busy={busy} key="read" variant="primary" disabled={busy || !url.trim()} onClick={() => void readWebsite()}>
-          {busy ? 'Reading…' : 'Next'}
+          {busy ? t('settings.writeHelp.reading') : t('settings.writeHelp.next')}
         </Button>
       </>
     ) : step === 'business' ? (
       <>
         <Button key="back-site" variant="ghost" onClick={() => setStep('website')}>
-          Back
+          {t('settings.writeHelp.back')}
         </Button>
         <Button
           key="next"
           variant="primary"
           disabled={!canGoOn}
           onClick={() => setStep('goals')}
-          title="Next: what should it do"
+          title={t('settings.writeHelp.nextTip')}
         >
-          Next
+          {t('settings.writeHelp.next')}
         </Button>
       </>
     ) : step === 'goals' ? (
       <>
         <Button key="back" variant="ghost" disabled={busy} onClick={() => setStep('business')}>
-          Back
+          {t('settings.writeHelp.back')}
         </Button>
         <Button busy={busy}
           key="write"
           variant="primary"
           disabled={busy}
           onClick={() => void propose()}
-          title="Write a proposal to review"
+          title={t('settings.writeHelp.writeTip')}
         >
-          {busy ? 'Writing…' : 'Write it'}
+          {busy ? t('settings.writeHelp.writing') : t('settings.writeHelp.write')}
         </Button>
       </>
     ) : null
 
   return createPortal(
     <Dialog
-      title="Write with help"
+      title={t('settings.writeHelp.title')}
       description={
         step === 'website'
-          ? 'Step 1 of 4 · Your website'
+          ? t('settings.writeHelp.step.website')
           : step === 'business'
-            ? 'Step 2 of 4 · Your business'
+            ? t('settings.writeHelp.step.business')
             : step === 'goals'
-              ? `Step 3 of 4 · What ${name} should do`
-              : 'Step 4 of 4 · Pick what to keep'
+              ? t('settings.writeHelp.step.goals', { name })
+              : t('settings.writeHelp.step.result')
       }
       onClose={onClose}
       footer={footer}
@@ -152,14 +155,14 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
         <div className="ww-step">
           <Field
             id="ww-url"
-            label="Website"
-            tip={`${brandName()} reads a few of its pages for what you do, your services and prices, and what callers ask.`}
+            label={t('settings.writeHelp.website')}
+            tip={t('settings.writeHelp.websiteTip', { brand: brandName() })}
           >
             <Input
               id="ww-url"
               autoFocus
               value={url}
-              placeholder="yourbusiness.com"
+              placeholder={t('settings.writeHelp.websitePlaceholder')}
               onChange={e => { setUrl(e.target.value); setSite(null) }}
               onKeyDown={e => {
                 if (e.key === 'Enter' && url.trim() && !busy) {
@@ -169,21 +172,21 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
               }}
             />
           </Field>
-          {busy && <p className="help">Reading your website. This takes up to a minute.</p>}
+          {busy && <p className="help">{t('settings.writeHelp.readingWebsite')}</p>}
         </div>
       )}
       {step === 'business' && (
         <div className="ww-step">
           <Field
             id="ww-business"
-            label="What does the business do?"
-            help={site ? 'From your website. Fix anything that is wrong.' : 'Your trade, what you offer and the area you serve.'}
+            label={t('settings.writeHelp.business')}
+            help={site ? t('settings.writeHelp.businessFromSite') : t('settings.writeHelp.businessHelp')}
           >
             <TextArea
               id="ww-business"
               value={business}
               onChange={v => setBusiness(v.slice(0, BUSINESS_TEXT_MAX))}
-              placeholder="Family-run plumbing and heating in Portland, Beaverton and Lake Oswego. Repairs, water heaters, drain cleaning, 24/7 emergencies."
+              placeholder={t('settings.writeHelp.businessPlaceholder')}
             />
           </Field>
         </div>
@@ -191,7 +194,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
       {step === 'goals' && (
         <div className="ww-step">
           <fieldset className="ww-goals">
-            <legend>{`On calls, ${name} should`}</legend>
+            <legend>{t('settings.writeHelp.goals', { name })}</legend>
             {GOALS.map(g => (
               <label key={g.id} className="kn-pick">
                 <input
@@ -206,21 +209,21 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
                     })
                   }
                 />
-                <span>{g.label}</span>
+                <span>{t(g.label)}</span>
               </label>
             ))}
           </fieldset>
-          <Field id="ww-note" label="Anything else?" aside="Optional">
+          <Field id="ww-note" label={t('settings.writeHelp.note')} aside={t('settings.writeHelp.optional')}>
             <TextArea
               id="ww-note"
               value={goalsNote}
               onChange={setGoalsNote}
-              placeholder="We never give prices on the phone. New customers should leave their address."
+              placeholder={t('settings.writeHelp.notePlaceholder')}
             />
           </Field>
           {busy && (
             <p className="help">
-              Writing a proposal{url.trim() && !site ? ' and reading your website' : ''}. This takes up to a minute.
+              {url.trim() && !site ? t('settings.writeHelp.writingAndReading') : t('settings.writeHelp.writingProposal')}
             </p>
           )}
         </div>
@@ -233,7 +236,7 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
           onBack={() => setStep('goals')}
           onApply={next => {
             replace(next)
-            toast('Added to the draft. Check it, then save.')
+            toast(t('settings.writeHelp.added'))
             onClose()
           }}
         />
@@ -266,6 +269,7 @@ function Result({
   onBack: () => void
   onApply: (next: Draft) => void
 }) {
+  const t = useT()
   const [review] = useState<ImportReview>(() => reviewImport(draft, proposal))
   const [picks, setPicks] = useState<ImportPicks>(() => defaultPicks(review, proposal))
   const toggle = (list: 'useCases', i: number) =>
@@ -282,10 +286,10 @@ function Result({
       <div className="ww-step ww-scroll">
         {proposal.pages.length > 0 && (
           <p className="help">
-            Read {proposal.pages.length} page{proposal.pages.length === 1 ? '' : 's'} of your website.
+            {t('settings.writeHelp.pagesRead', { count: proposal.pages.length })}
           </p>
         )}
-        {nothing && <p className="help">Nothing new to add: it is all here already.</p>}
+        {nothing && <p className="help">{t('settings.writeHelp.nothingNew')}</p>}
         {review.about !== 'same' && (
           <div className="kn-review-block">
             <label className="kn-pick">
@@ -294,10 +298,10 @@ function Result({
                 checked={picks.about}
                 onChange={e => setPicks(p => ({ ...p, about: e.target.checked }))}
               />
-              <b>{review.about === 'empty' ? 'Use as About the business' : 'Replace your About text with this one'}</b>
+              <b>{review.about === 'empty' ? t('settings.writeHelp.useAbout') : t('settings.writeHelp.replaceAbout')}</b>
             </label>
             <p className="help kn-about-note">
-              This text becomes {name}'s instructions on every call. Read it and fix anything wrong before you save.
+              {t('settings.writeHelp.aboutNote', { name })}
             </p>
             <p className="kn-about-text">
               {review.about === 'empty'
@@ -315,8 +319,8 @@ function Result({
         )}
         {proposal.useCases.length > 0 && (
           <div className="kn-review-block">
-            <b className="kn-review-h">Common calls</b>
-            <span className="help">Added to About the business as how to handle them.</span>
+            <b className="kn-review-h">{t('settings.writeHelp.commonCalls')}</b>
+            <span className="help">{t('settings.writeHelp.commonCallsHelp')}</span>
             {proposal.useCases.map((u, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list for this review
               <label key={i} className="kn-pick">
@@ -329,15 +333,15 @@ function Result({
       </div>
       <div className="kn-foot">
         <Button variant="ghost" onClick={onBack}>
-          Back
+          {t('settings.writeHelp.back')}
         </Button>
         <Button
           variant="primary"
           disabled={!picked}
           onClick={() => onApply(applyImport(draft, proposal, picks))}
-          title="Put the picked parts into the draft; nothing is saved until you save"
+          title={t('settings.writeHelp.addTip')}
         >
-          Add to draft
+          {t('settings.writeHelp.add')}
         </Button>
       </div>
     </div>

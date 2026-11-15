@@ -4,10 +4,12 @@
 // last 10 minutes ("Sign in again" comes back here and opens the dialog again). Afterwards the tab moves on like
 // after leaving: into the next workspace, the no-workspace page, or the sign-in page when the account went too.
 import type { OwnerStepUp, WorkspaceDeleteOwnData, WorkspaceDeletePreviewData } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
 import { auth } from '../auth.ts'
 import { brandName } from '../brand.ts'
+import { i18n } from '../i18n/index.tsx'
 import { signInAgain, signOutAndForget } from '../localData.ts'
 import { markDeleted } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
@@ -37,10 +39,11 @@ async function post<T>(name: string, input: object): Promise<T> {
     stepUp?: unknown
     data?: T
   } | null
+  const { t } = i18n()
   const stepUp = stepUpOf(body)
-  if (stepUp) throw new StepUpRequired(body?.error ?? 'Confirm with your passkey.', stepUp)
-  if (body?.code === 'SIGN_IN_AGAIN') throw new SignInFirst(body.error ?? 'Sign in again to delete this workspace.')
-  if (!res.ok || !body?.ok) throw new Error(body?.error ?? `The server answered ${res.status}`)
+  if (stepUp) throw new StepUpRequired(body?.error ?? t('settings.danger.error.passkey'), stepUp)
+  if (body?.code === 'SIGN_IN_AGAIN') throw new SignInFirst(body.error ?? t('settings.danger.error.signInAgain'))
+  if (!res.ok || !body?.ok) throw new Error(body?.error ?? t('settings.danger.error.status', { status: res.status }))
   return body.data as T
 }
 
@@ -49,14 +52,15 @@ async function post<T>(name: string, input: object): Promise<T> {
  * on no workspace yet): the retry first makes this workspace the session's again.
  */
 function deleteOwn(workspaceId: string, name: string, keepAccounts: boolean) {
+  const { t } = i18n()
   let attempt = 0
   return withPasskeyStepUp(async () => {
     if (attempt++ > 0) {
       const r = await auth.organization.setActive({ organizationId: workspaceId })
-      if (r.error) throw new Error(r.error.message ?? 'Could not open the workspace again. Reload and try again.')
+      if (r.error) throw new Error(r.error.message ?? t('settings.danger.error.reopen'))
     }
     return post<WorkspaceDeleteOwnData>('workspace.deleteOwn', { name, keepAccounts })
-  }, 'delete this workspace')
+  }, t('settings.danger.delete.stepUpWhat'))
 }
 
 /** Where the tab goes once the workspace is gone; the next screen says what happened (session.ts, markDeleted). */
@@ -75,13 +79,14 @@ async function leaveDeleted(name: string, data: WorkspaceDeleteOwnData) {
 type Props = { workspaceName: string; isInstanceAdmin: boolean }
 
 export function DangerZone({ workspaceName, isInstanceAdmin }: Props) {
+  const t = useT()
   const team = useTeam()
   const data = team.data ?? null
   if (!data)
     return (
-      <Section id="team-leave" title="Leave workspace">
+      <Section id="team-leave" title={t('settings.danger.leave.title')}>
         <Loading
-          what="The team"
+          what={t('settings.danger.leave.loading')}
           loading
           error={team.error}
           onRetry={() => void team.reload()}
@@ -95,8 +100,8 @@ export function DangerZone({ workspaceName, isInstanceAdmin }: Props) {
       <LeaveWorkspace data={data} isInstanceAdmin={isInstanceAdmin} />
       {role === 'owner' && <DeleteWorkspace workspaceName={workspaceName} />}
       {role === 'admin' && (
-        <Section id="ws-delete" title="Delete workspace">
-          <span className="help">Only an owner can delete this workspace.</span>
+        <Section id="ws-delete" title={t('settings.danger.delete.action')}>
+          <span className="help">{t('settings.danger.delete.onlyOwner')}</span>
         </Section>
       )}
     </>
@@ -109,6 +114,7 @@ type Preview =
   | { state: 'ready'; preview: WorkspaceDeletePreviewData }
 
 function DeleteWorkspace({ workspaceName }: Pick<Props, 'workspaceName'>) {
+  const t = useT()
   const workspaceId = tabWorkspace()
   const [open, setOpen] = useState(false)
   // Back from "Sign in again": the dialog opens again.
@@ -116,16 +122,12 @@ function DeleteWorkspace({ workspaceName }: Pick<Props, 'workspaceName'>) {
     if (workspaceId && takeReopen(workspaceId)) setOpen(true)
   }, [workspaceId])
   return (
-    <Section id="ws-delete" title="Delete workspace">
+    <Section id="ws-delete" title={t('settings.danger.delete.action')}>
       <div className="team-leave">
-        <Button
-          variant="danger-outline"
-          title="Deletes it with all its calls, contacts, numbers and settings"
-          onClick={() => setOpen(true)}
-        >
-          Delete workspace…
+        <Button variant="danger-outline" title={t('settings.danger.delete.buttonTip')} onClick={() => setOpen(true)}>
+          {t('settings.danger.delete.button')}
         </Button>
-        <span className="help">Deletes {workspaceName} and all its data for good.</span>
+        <span className="help">{t('settings.danger.delete.help', { name: workspaceName })}</span>
       </div>
       {open && workspaceId && <DeleteDialog workspaceId={workspaceId} onClose={() => setOpen(false)} />}
     </Section>
@@ -133,6 +135,7 @@ function DeleteWorkspace({ workspaceName }: Pick<Props, 'workspaceName'>) {
 }
 
 function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+  const t = useT()
   const [preview, setPreview] = useState<Preview>({ state: 'loading' })
   // What the server asks for before deleting: from the preview, or from a refusal while the dialog was open.
   const [stepUp, setStepUp] = useState<OwnerStepUp | null>(null)
@@ -156,7 +159,7 @@ function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
     // Until the counts are known: the same dialog, nothing to confirm yet.
     return (
       <DangerConfirmDialog
-        confirm={{ text: 'Finding out what this deletes…', action: 'Delete workspace' }}
+        confirm={{ text: t('settings.danger.delete.finding'), action: t('settings.danger.delete.action') }}
         run={async () => {}}
         onClose={onClose}
         blocked
@@ -201,19 +204,17 @@ function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
             {stepUp === 'signIn' && (
               <Note
                 tone="warning"
-                title="Sign in again first."
+                title={t('settings.danger.signIn.title')}
                 action={
-                  <Button size="sm" title="Sign out, sign in again and come back to this dialog" onClick={signInFirst}>
-                    Sign in again
+                  <Button size="sm" title={t('settings.danger.signIn.buttonTip')} onClick={signInFirst}>
+                    {t('settings.danger.signIn.button')}
                   </Button>
                 }
               >
-                Deleting a workspace needs a sign-in from the last 10 minutes. You come back here afterwards.
+                {t('settings.danger.signIn.text')}
               </Note>
             )}
-            {stepUp === 'passkey' && (
-              <Note tone="info">You confirm with your passkey after you click Delete workspace.</Note>
-            )}
+            {stepUp === 'passkey' && <Note tone="info">{t('settings.danger.passkeyNote')}</Note>}
           </>
         )
       }}

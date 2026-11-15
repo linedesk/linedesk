@@ -4,19 +4,17 @@
 // Advanced (how calls are answered, talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { ONLY_ADMINS } from './readOnly.ts'
+import { onlyAdmins } from './readOnly.ts'
 import {
   type PipelinesSetUp,
   pipelineFor,
-  VOICE_PIPELINE_DESCRIPTIONS,
-  VOICE_PIPELINE_LABELS,
   type VoiceOptionsData,
   type VoicePipeline,
-  AI_DISCLOSURE_LABELS,
   AI_DISCLOSURE_MODES,
   type AiDisclosure,
   BEHAVIOURS,
-  COMMUNICATION_STYLE_LABELS,
+  type BehaviourId,
+  type CommunicationStyle,
   COMMUNICATION_STYLES,
   disclosesAtStart,
   greetingWithDisclosure,
@@ -26,7 +24,6 @@ import {
   TALKING_SPEED_PCT_DEFAULT,
   TALKING_SPEED_PCT_MAX,
   TALKING_SPEED_PCT_MIN,
-  talkingSpeedLabel,
   templateNames,
   type AssistantLanguages,
   type Language,
@@ -34,8 +31,8 @@ import {
   otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
-import { languageInSentence, languageLabel } from '@linedesk/i18n'
-import { useLocale, useT } from '@linedesk/i18n/react'
+import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
+import { useFormat, useLocale, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
@@ -63,7 +60,9 @@ import {
   mergeDraft,
   normalized,
   profileOf,
+  silenceIssue,
   silenceProblem,
+  type SilenceField,
   hangUpSummary,
   silenceSummary,
   silenceToSave,
@@ -104,24 +103,37 @@ type SectionId =
   | 'booking'
   | 'webhooks'
   | 'advanced'
-const sections: readonly PageSection<SectionId>[] = [
-  { id: 'general', label: 'General', description: 'Name, greeting, languages and voice' },
+const SECTION_IDS: readonly SectionId[] = [
+  'general',
   // Named after the assistant on the page (sectionsFor); owners and admins only.
-  { id: 'review', label: 'How the assistant did', description: 'Calls to look at, questions callers asked' },
-  { id: 'business', label: 'Business info', description: 'What you do and your prices' },
-  { id: 'hours', label: 'Hours & holidays', description: 'Weekly hours, holidays, vacation mode' },
-  { id: 'rules', label: 'Rules', description: 'AI disclosure, tone and how calls are handled' },
-  { id: 'transfers', label: 'Transfers', description: 'Who calls are put through to' },
-  { id: 'booking', label: 'Booking & calendar', description: 'Calendars and appointment types' },
-  { id: 'webhooks', label: 'Webhook', description: 'Your system at the start of a call, during it and after it' },
-  { id: 'advanced', label: 'Advanced', description: 'Talking speed, silence, hanging up' },
+  'review',
+  'business',
+  'hours',
+  'rules',
+  'transfers',
+  'booking',
+  'webhooks',
+  'advanced',
 ]
+/** Each section's name and line in the nav, in the active language. */
+// i18n-dynamic: settings.assistant.section.*
+const sectionsIn = (t: ReturnType<typeof useT>): readonly PageSection<SectionId>[] =>
+  SECTION_IDS.map(id => ({
+    id,
+    label: t(`settings.assistant.section.${id}.label`),
+    description: t(`settings.assistant.section.${id}.description`),
+  }))
 
 /**
  * The sections this member sees: How <name> did only for owners and admins (it reads evaluations), named after the
  * assistant, with its open calls and questions as a count.
  */
-function sectionsFor(name: string, canEdit: boolean, openItems: number): readonly PageSection<SectionId>[] {
+function sectionsFor(
+  sections: readonly PageSection<SectionId>[],
+  name: string,
+  canEdit: boolean,
+  openItems: number,
+): readonly PageSection<SectionId>[] {
   return sections
     .filter(s => s.id !== REVIEW_SECTION || canEdit)
     .map(s => (s.id === REVIEW_SECTION ? { ...s, label: reviewTitle(name), count: openItems } : s))
@@ -129,28 +141,38 @@ function sectionsFor(name: string, canEdit: boolean, openItems: number): readonl
 
 /** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
 function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
+  const t = useT()
   return (
-    <Section id="as-voice" title="Voice">
+    <Section id="as-voice" title={t('settings.assistant.realtimeVoice.title')}>
       <span className="help">
-        The realtime model speaks in its own voice, set by an instance admin under Server admin › Providers.
-        {canSwitch && ` To pick a voice here, set Answered by under Advanced to ${VOICE_PIPELINE_LABELS.three_stage}.`}
+        {t('settings.assistant.realtimeVoice.body')}
+        {canSwitch &&
+          ` ${t('settings.assistant.realtimeVoice.switch', { pipeline: t(PIPELINE_TEXT.three_stage.label) })}`}
       </span>
     </Section>
   )
 }
 
-const pipelineOptions: SelectOption<VoicePipeline>[] = [
-  {
-    value: 'realtime',
-    label: VOICE_PIPELINE_LABELS.realtime,
-    description: "Fastest and most natural, in the model's own voice",
+/** Each way of answering: its name, a short line for the picker and the longer help under it. */
+const PIPELINE_TEXT: Record<VoicePipeline, { label: MessageKey; short: MessageKey; help: MessageKey }> = {
+  realtime: {
+    label: msg('settings.assistant.pipeline.realtime'),
+    short: msg('settings.assistant.pipeline.realtimeShort'),
+    help: msg('settings.assistant.pipeline.realtimeHelp'),
   },
-  {
-    value: 'three_stage',
-    label: VOICE_PIPELINE_LABELS.three_stage,
-    description: 'A moment slower, in the voice you pick below',
+  three_stage: {
+    label: msg('settings.assistant.pipeline.threeStage'),
+    short: msg('settings.assistant.pipeline.threeStageShort'),
+    help: msg('settings.assistant.pipeline.threeStageHelp'),
   },
-]
+}
+
+const pipelineOptions = (t: ReturnType<typeof useT>): SelectOption<VoicePipeline>[] =>
+  (['realtime', 'three_stage'] as const).map(value => ({
+    value,
+    label: t(PIPELINE_TEXT[value].label),
+    description: t(PIPELINE_TEXT[value].short),
+  }))
 
 /**
  * Which pipelines this workspace may use (voice.options: those set up, narrowed to the instance admin's pick); null
@@ -161,9 +183,10 @@ const pipelinesOf = (options: VoiceOptionsData | undefined): PipelinesSetUp | nu
 
 /** Neither way of answering is set up: said in General, where the assistant is set up, not tucked away in Advanced. */
 function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
+  const t = useT()
   if (!setUp || setUp.realtime || setUp.three_stage) return null
   return (
-    <Section id="as-not-answered" title="Answering calls">
+    <Section id="as-not-answered" title={t('settings.assistant.answering.title')}>
       <MissingProviderNote kind="answering" />
     </Section>
   )
@@ -174,16 +197,17 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
  * admin lets workspaces choose, Server admin › Providers); else nothing, there is nothing to decide.
  */
 function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: PipelinesSetUp | null }) {
+  const t = useT()
   if (!setUp?.realtime || !setUp.three_stage) return null
   const used = pipelineFor(draft.voice_pipeline, setUp)
   return (
-    <Section id="as-pipeline" title="Answering calls">
+    <Section id="as-pipeline" title={t('settings.assistant.answering.title')}>
       <SelectRow
         id="as-pipeline-select"
-        title="Answered by"
-        description={VOICE_PIPELINE_DESCRIPTIONS[used]}
+        title={t('settings.assistant.answering.by')}
+        description={t(PIPELINE_TEXT[used].help)}
         value={used}
-        options={pipelineOptions}
+        options={pipelineOptions(t)}
         onChange={pipeline => set('voice_pipeline', pipeline)}
       />
     </Section>
@@ -221,9 +245,11 @@ const OLD_SECTIONS: Record<string, SectionId> = {
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
-const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
+const assistantName = (draft: Draft, t: ReturnType<typeof useT>) =>
+  draft.name.trim() || t('settings.assistant.name.fallback')
 /** The name inside a sentence: "The tone Maya uses", or "your assistant" before it has one. */
-const nameInSentence = (draft: Draft) => draft.name.trim() || 'your assistant'
+const nameInSentence = (draft: Draft, t: ReturnType<typeof useT>) =>
+  draft.name.trim() || t('settings.assistant.name.inSentence')
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 
@@ -252,15 +278,15 @@ function useOptionalGreeting(value: string, clear: () => void, start: () => void
 }
 
 /** The quiet × next to an optional greeting's label. */
-function RemoveGreeting({ what, onRemove }: { what: string; onRemove: () => void }) {
+function RemoveGreeting({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <Button
       size="sm"
       variant="ghost"
       icon="close"
       className="as-greet-remove"
-      aria-label={`Remove ${what}`}
-      title={`Remove ${what}`}
+      aria-label={label}
+      title={label}
       onClick={onRemove}
     />
   )
@@ -268,10 +294,11 @@ function RemoveGreeting({ what, onRemove }: { what: string; onRemove: () => void
 
 /** The assistant's name, saved with the rest of the draft; the menu at the top only switches assistants. */
 function AssistantNameSection({ draft, set }: SectionProps) {
+  const t = useT()
   const problem = nameProblem(draft.name)
   return (
     <Section id="as-name-section">
-      <Field id="as-name" label="Assistant name" error={problem}>
+      <Field id="as-name" label={t('settings.assistant.name.label')} error={problem}>
         <TextInput
           id="as-name"
           value={draft.name}
@@ -291,8 +318,9 @@ function Greeting({
   hoursOn,
   canEdit,
 }: SectionProps & { savedName: string; hoursOn: boolean; canEdit: boolean }) {
+  const t = useT()
   const stale = staleGreetingName(draft.greeting, savedName, draft.name)
-  const name = assistantName(draft)
+  const name = assistantName(draft, t)
   const outsideGreeting = useOptionalGreeting(
     draft.greeting_outside,
     () => set('greeting_outside', ''),
@@ -306,27 +334,27 @@ function Greeting({
     <Section id="as-greeting">
       <Field
         id="as-greet"
-        label={outsideShown ? 'Greeting (first sentence), during business hours' : 'Greeting (first sentence)'}
+        label={t(outsideShown ? 'settings.assistant.greeting.labelDuringHours' : 'settings.assistant.greeting.label')}
         aside={draft.greeting.trim() ? spokenLength(draft.greeting) : undefined}
-        error={draft.greeting.trim() ? null : 'The greeting cannot be empty.'}
+        error={draft.greeting.trim() ? null : t('settings.assistant.greeting.empty')}
       >
         <TextArea
           id="as-greet"
           value={draft.greeting}
           onChange={v => set('greeting', v)}
           invalid={!draft.greeting.trim()}
-          placeholder={`Thanks for calling. This is ${name}. How can I help?`}
+          placeholder={t('settings.assistant.greeting.placeholder', { name })}
         />
         <CallerDetailsHint greeting={draft.greeting} />
         {stale && (
           <span className="help as-stale">
-            Still says "{stale}".
+            {t('settings.assistant.greeting.stale', { name: stale })}
             <Button
               size="sm"
               variant="ghost"
               onClick={() => set('greeting', renameInGreeting(draft.greeting, stale, draft.name.trim()))}
             >
-              Use {draft.name.trim()}
+              {t('settings.assistant.greeting.useName', { name: draft.name.trim() })}
             </Button>
           </span>
         )}
@@ -334,12 +362,15 @@ function Greeting({
       {outsideShown && (
         <Field
           id="as-greet-out"
-          label="Outside business hours"
+          label={t('settings.assistant.greeting.outside')}
           labelAfter={<EditBusinessHours canEdit={canEdit} />}
           aside={
             <>
               {draft.greeting_outside.trim() && spokenLength(draft.greeting_outside)}
-              <RemoveGreeting what="the greeting for outside business hours" onRemove={outsideGreeting.remove} />
+              <RemoveGreeting
+                label={t('settings.assistant.greeting.removeOutside')}
+                onRemove={outsideGreeting.remove}
+              />
             </>
           }
         >
@@ -350,7 +381,7 @@ function Greeting({
             placeholder={draft.greeting}
           />
           {!draft.greeting_outside.trim() && (
-            <span className="help">Empty: the same greeting as during business hours.</span>
+            <span className="help">{t('settings.assistant.greeting.outsideEmpty')}</span>
           )}
           <CallerDetailsHint greeting={draft.greeting_outside} />
         </Field>
@@ -358,7 +389,7 @@ function Greeting({
       {canAddOutside && (
         <div className="as-greet-add">
           <Button size="sm" variant="ghost" icon="plus" onClick={outsideGreeting.add}>
-            Different greeting when closed
+            {t('settings.assistant.greeting.addOutside')}
           </Button>
         </div>
       )}
@@ -371,38 +402,36 @@ function Greeting({
  * caller ID can be faked: the owner should only put in what anyone calling from that number may hear.
  */
 function CallerDetailsHint({ greeting }: { greeting: string }) {
+  const t = useT()
   if (!templateNames(greeting).length) return null
-  return (
-    <span className="help">
-      Said before the caller says who they are, to anyone calling from that number: use only details they may hear.
-    </span>
-  )
+  return <span className="help">{t('settings.assistant.greeting.callerDetails')}</span>
 }
 
 /** The behaviour checklist: plain-language switches that add a line to the assistant's instructions. */
 function Behaviours({ draft, set }: SectionProps) {
+  const t = useT()
   return (
     <Section
       id="as-behaviour"
-      title="Rules"
-      description="How calls are handled"
-      help={`Each switch adds a sentence to ${assistantName(draft)}'s instructions.`}
+      title={t('settings.assistant.rules.title')}
+      description={t('settings.assistant.rules.description')}
+      help={t('settings.assistant.rules.help', { name: assistantName(draft, t) })}
     >
       <div className="as-checklist">
         <AiDisclosureRow draft={draft} set={set} />
         <SelectRow
           id="as-style"
-          title="Communication style"
-          description={`The tone ${nameInSentence(draft)} uses`}
+          title={t('settings.assistant.rules.style')}
+          description={t('settings.assistant.rules.styleDescription', { name: nameInSentence(draft, t) })}
           value={draft.communication_style}
-          options={styleOptions}
+          options={COMMUNICATION_STYLES.map(style => ({ value: style, label: t(STYLE_LABELS[style]) }))}
           onChange={style => set('communication_style', style)}
         />
         {BEHAVIOURS.map(b => (
           <SwitchRow
             key={b.id}
-            title={b.label}
-            aside={draft.behaviours[b.id] === b.on ? undefined : 'Changed'}
+            title={t(BEHAVIOUR_LABELS[b.id])}
+            aside={draft.behaviours[b.id] === b.on ? undefined : t('settings.assistant.rules.changed')}
             on={draft.behaviours[b.id]}
             onChange={on => set('behaviours', { ...draft.behaviours, [b.id]: on })}
           />
@@ -412,14 +441,32 @@ function Behaviours({ draft, set }: SectionProps) {
   )
 }
 
-const disclosureOptions = AI_DISCLOSURE_MODES.map(mode => ({ value: mode, label: AI_DISCLOSURE_LABELS[mode] }))
-const styleOptions = COMMUNICATION_STYLES.map(style => ({ value: style, label: COMMUNICATION_STYLE_LABELS[style] }))
+/** The checklist's switches as the page names them. */
+const BEHAVIOUR_LABELS: Record<BehaviourId, MessageKey> = {
+  ask_name: msg('settings.assistant.behaviour.askName'),
+  offer_callback: msg('settings.assistant.behaviour.offerCallback'),
+  confirm_number: msg('settings.assistant.behaviour.confirmNumber'),
+}
+const DISCLOSURE_LABELS: Record<AiDisclosure, MessageKey> = {
+  never: msg('settings.assistant.disclosure.never'),
+  when_asked: msg('settings.assistant.disclosure.whenAsked'),
+  at_start: msg('settings.assistant.disclosure.atStart'),
+  at_start_consent: msg('settings.assistant.disclosure.atStartConsent'),
+}
+const STYLE_LABELS: Record<CommunicationStyle, MessageKey> = {
+  standard: msg('settings.assistant.style.standard'),
+  professional: msg('settings.assistant.style.professional'),
+  casual: msg('settings.assistant.style.casual'),
+  formal: msg('settings.assistant.style.formal'),
+  empathetic: msg('settings.assistant.style.empathetic'),
+}
 
 /**
  * AI disclosure, the first row of the checklist. Picking a mode that says it at the start adds the note to
  * the greeting (so the field shows what callers hear); the others take it out.
  */
 function AiDisclosureRow({ draft, set }: SectionProps) {
+  const t = useT()
   function pick(mode: AiDisclosure) {
     set('ai_disclosure', mode)
     set(
@@ -436,11 +483,11 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
   return (
     <SelectRow
       id="as-ai-disclosure"
-      title="AI disclosure"
-      description={`Whether and when ${nameInSentence(draft)} mentions it's an AI`}
-      note={heard && `Callers hear: "${heard}"`}
+      title={t('settings.assistant.disclosure.title')}
+      description={t('settings.assistant.disclosure.description', { name: nameInSentence(draft, t) })}
+      note={heard && t('settings.assistant.disclosure.heard', { greeting: heard })}
       value={draft.ai_disclosure}
-      options={disclosureOptions}
+      options={AI_DISCLOSURE_MODES.map(mode => ({ value: mode, label: t(DISCLOSURE_LABELS[mode]) }))}
       onChange={pick}
     />
   )
@@ -502,7 +549,10 @@ export function Languages({
     <Section
       id="as-languages"
       title={t('settings.assistant.languages.title')}
-      help={t('settings.assistant.languages.help', { named: draft.name.trim() ? 'yes' : 'no', name: draft.name.trim() })}
+      help={t('settings.assistant.languages.help', {
+        named: draft.name.trim() ? 'yes' : 'no',
+        name: draft.name.trim(),
+      })}
     >
       {/* Both selects right under their labels, so they line up; the note on "Any" goes under its select. */}
       <div className="as-languages-row">
@@ -527,7 +577,11 @@ export function Languages({
         </Field>
       </div>
       {mode !== 'english' && (
-        <div className="as-languages" role="group" aria-label={t('settings.assistant.languages.others', { language: mainName })}>
+        <div
+          className="as-languages"
+          role="group"
+          aria-label={t('settings.assistant.languages.others', { language: mainName })}
+        >
           {offered
             .filter(code => code !== main)
             .map(code => (
@@ -554,13 +608,22 @@ export function Languages({
 
 /** How fast the assistant talks: a slider from 20% slower to 20% faster than the voice's own pace, Normal in the middle. */
 function TalkingSpeedSection({ draft, set }: SectionProps) {
+  const t = useT()
+  const format = useFormat()
   const pct = draft.talking_speed_pct
-  const label = talkingSpeedLabel(pct)
+  // "Normal", "8% slower", "15% faster".
+  const by = format.number(Math.abs(pct - TALKING_SPEED_PCT_DEFAULT) / 100, { style: 'percent' })
+  const label =
+    pct === TALKING_SPEED_PCT_DEFAULT
+      ? t('settings.assistant.speed.normal')
+      : t(pct < TALKING_SPEED_PCT_DEFAULT ? 'settings.assistant.speed.slowerBy' : 'settings.assistant.speed.fasterBy', {
+          percent: by,
+        })
   return (
     <Section
       id="as-speed"
-      title="Talking speed"
-      help="Applies from the next call. Normal is the voice's own pace; arrow keys move the slider by 1%."
+      title={t('settings.assistant.speed.title')}
+      help={t('settings.assistant.speed.help')}
       // The value only once: at the default the "Normal" stop under the slider already says it.
       actions={pct !== TALKING_SPEED_PCT_DEFAULT && <span className="as-speed-value is-changed">{label}</span>}
     >
@@ -572,22 +635,22 @@ function TalkingSpeedSection({ draft, set }: SectionProps) {
           max={TALKING_SPEED_PCT_MAX}
           step={1}
           value={pct}
-          aria-label="Talking speed"
+          aria-label={t('settings.assistant.speed.title')}
           aria-valuetext={label}
           onChange={e => set('talking_speed_pct', Number(e.target.value))}
         />
         <div className="as-speed-stops">
-          <span aria-hidden="true">Slower</span>
+          <span aria-hidden="true">{t('settings.assistant.speed.slower')}</span>
           <button
             type="button"
             className={pct === TALKING_SPEED_PCT_DEFAULT ? 'is-on' : undefined}
             disabled={pct === TALKING_SPEED_PCT_DEFAULT}
-            title="Back to the voice's own pace"
+            title={t('settings.assistant.speed.back')}
             onClick={() => set('talking_speed_pct', TALKING_SPEED_PCT_DEFAULT)}
           >
-            Normal
+            {t('settings.assistant.speed.normal')}
           </button>
-          <span aria-hidden="true">Faster</span>
+          <span aria-hidden="true">{t('settings.assistant.speed.faster')}</span>
         </div>
       </div>
     </Section>
@@ -595,25 +658,26 @@ function TalkingSpeedSection({ draft, set }: SectionProps) {
 }
 
 function Advanced({ draft, set }: SectionProps) {
-  const problem = silenceProblem(draft)
-  const errorFor = (start: string) => (problem?.startsWith(start) ? problem : null)
-  const name = assistantName(draft)
+  const t = useT()
+  const problem = silenceIssue(draft)
+  const errorFor = (field: SilenceField) => (problem?.field === field ? problem.message : null)
+  const name = assistantName(draft, t)
   return (
     <>
       <Section
         id="as-advanced"
-        title="Silence on the line"
-        help={`When nobody speaks, ${name} asks whether the caller is still there, again after the same wait.`}
+        title={t('settings.assistant.silence.title')}
+        help={t('settings.assistant.silence.help', { name })}
       >
         <div className="as-silence-row">
-          <Field id="as-silence-gap" label="Ask after, seconds" error={errorFor('The first wait')}>
+          <Field id="as-silence-gap" label={t('settings.assistant.silence.gap')} error={errorFor('gap')}>
             <TextInput
               id="as-silence-gap"
               value={draft.silence_first_gap_s}
               onChange={v => set('silence_first_gap_s', v)}
             />
           </Field>
-          <Field id="as-silence-times" label="Times to ask" error={errorFor('Ask')}>
+          <Field id="as-silence-times" label={t('settings.assistant.silence.times')} error={errorFor('times')}>
             <TextInput
               id="as-silence-times"
               value={draft.silence_reminders}
@@ -621,7 +685,7 @@ function Advanced({ draft, set }: SectionProps) {
             />
           </Field>
         </div>
-        <Field id="as-silence-reminder" label="What it asks" error={errorFor('The reminder')}>
+        <Field id="as-silence-reminder" label={t('settings.assistant.silence.reminder')} error={errorFor('reminder')}>
           <TextInput
             id="as-silence-reminder"
             value={draft.silence_reminder}
@@ -633,22 +697,22 @@ function Advanced({ draft, set }: SectionProps) {
       </Section>
       <Section
         id="as-hang-up"
-        title="Hanging up"
-        help={`${name} ends a call itself when the line stays silent, or when the call gets too long (what the assistant costs). Never once a call was put through to a person.`}
+        title={t('settings.assistant.hangUp.title')}
+        help={t('settings.assistant.hangUp.help', { name })}
       >
         <div className="as-silence-row">
-          <Field id="as-silence-hang-up" label="After silence, seconds" error={errorFor('Hang up')}>
+          <Field id="as-silence-hang-up" label={t('settings.assistant.hangUp.afterSilence')} error={errorFor('hangUp')}>
             <TextInput
               id="as-silence-hang-up"
               value={draft.silence_hang_up_s}
               onChange={v => set('silence_hang_up_s', v)}
             />
           </Field>
-          <Field id="as-max-call" label="Longest call, minutes" error={errorFor('The longest call')}>
+          <Field id="as-max-call" label={t('settings.assistant.hangUp.longest')} error={errorFor('longest')}>
             <TextInput id="as-max-call" value={draft.max_call_minutes} onChange={v => set('max_call_minutes', v)} />
           </Field>
         </div>
-        <Field id="as-silence-closing" label="What it says before hanging up" error={errorFor('The closing')}>
+        <Field id="as-silence-closing" label={t('settings.assistant.hangUp.closing')} error={errorFor('closing')}>
           <TextArea id="as-silence-closing" value={draft.silence_closing} onChange={v => set('silence_closing', v)} />
         </Field>
         <span className="help">{hangUpSummary(draft)}</span>
@@ -668,6 +732,8 @@ type FormProps = Props & {
 }
 
 function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstanceAdmin = false }: FormProps) {
+  const t = useT()
+  const format = useFormat()
   const run = useRun()
   const page = `assistant/${assistant.id}`
   const voiceOptions = useVoiceOptions().data
@@ -697,7 +763,10 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
     q => q.assistant_id === assistant.id && q.status === 'open',
   ).length
   const openItems = (openReview.data?.total ?? 0) + openQuestions
-  const shown = useMemo(() => sectionsFor(assistant.name, canEdit, openItems), [assistant.name, canEdit, openItems])
+  const shown = useMemo(
+    () => sectionsFor(sectionsIn(t), assistant.name, canEdit, openItems),
+    [t, assistant.name, canEdit, openItems],
+  )
   const current = useSection(page, shown)
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
@@ -762,7 +831,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
-    toast('Assistant settings saved.')
+    toast(t('settings.assistant.saved'))
   }
   /**
    * A new main language: its default texts. The voice follows in VoiceSettings, which switches it when it can't
@@ -776,9 +845,15 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
     setDraft(saved)
   }
   const elsewhere = [...unsaved].filter(id => id !== current)
+  const elsewhereNames = format.list(
+    elsewhere.map(id => shown.find(s => s.id === id)!.label),
+    { type: 'unit', style: 'short' },
+  )
   const note =
     elsewhere.length > 0
-      ? `Unsaved changes in ${elsewhere.map(id => shown.find(s => s.id === id)!.label).join(', ')}${unsaved.has(current) ? ' and here' : ''}`
+      ? t(unsaved.has(current) ? 'settings.assistant.unsavedInAndHere' : 'settings.assistant.unsavedIn', {
+          sections: elsewhereNames,
+        })
       : undefined
 
   // Hours and holidays have forms of their own; everything else is inside the draft's form.
@@ -811,7 +886,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
                 toast={toast}
                 language={mainOf(draft)}
                 otherLanguages={otherLanguagesOf(draft.languages)}
-                assistantName={assistantName(draft)}
+                assistantName={assistantName(draft, t)}
               />
             )}
           </>
@@ -823,7 +898,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
               transfers={draft.transfers}
               onChange={list => set('transfers', list)}
               hoursOn={hoursOn}
-              assistantName={assistantName(draft)}
+              assistantName={assistantName(draft, t)}
               showErrors={transferSaveTried}
             />
           </>
@@ -844,7 +919,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
   return (
     <SettingsLayout
       page={page}
-      title="Assistant"
+      title={t('settings.assistant.title')}
       heading={
         <AssistantHeader
           assistant={assistant}
@@ -855,7 +930,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
           toast={toast}
         />
       }
-      description={canEdit ? undefined : ONLY_ADMINS}
+      description={canEdit ? undefined : onlyAdmins()}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
       sections={shown}
@@ -956,9 +1031,9 @@ function sectionInHash(): SectionId {
   const [, ...parts] = window.location.hash.replace(/^#/, '').split('?')[0]!.split('/')
   for (const part of parts.slice(0, 2)) {
     const id = OLD_SECTIONS[part] ?? part
-    if (sections.some(s => s.id === id)) return id as SectionId
+    if (SECTION_IDS.includes(id as SectionId)) return id as SectionId
   }
-  return sections[0]!.id
+  return SECTION_IDS[0]!
 }
 
 /**
@@ -966,12 +1041,13 @@ function sectionInHash(): SectionId {
  * real one's shape (the name, the row of number chips, the test call button) and the section one card per real card.
  */
 function AssistantSkeleton({ slow }: { slow: boolean }) {
-  if (slow) return <LoadProblem what="The assistant" />
+  const t = useT()
+  if (slow) return <LoadProblem what={t('settings.assistant.load')} />
   const current = sectionInHash()
   return (
     <SettingsLayout
       page="assistant"
-      title="Assistant"
+      title={t('settings.assistant.title')}
       heading={
         <div className="as-head">
           <div className="as-title">
@@ -985,11 +1061,11 @@ function AssistantSkeleton({ slow }: { slow: boolean }) {
         </div>
       }
       actions={<Skeleton width={136} height={32} />}
-      sections={sections}
+      sections={sectionsIn(t)}
       current={current}
     >
       <Loading
-        what="The assistant"
+        what={t('settings.assistant.load')}
         loading
         skeleton={Array.from({ length: SECTION_CARDS[current] }, (_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: placeholder cards never reorder
@@ -1001,6 +1077,7 @@ function AssistantSkeleton({ slow }: { slow: boolean }) {
 }
 
 export function AssistantSettings(props: Props) {
+  const t = useT()
   const assistants = useAssistants()
   const loadState = useLoadState('assistants')
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -1018,7 +1095,7 @@ export function AssistantSettings(props: Props) {
   // The skeleton stays until the gate lets it go (no flash, no blink), then the assistant's page takes its place.
   const held = useLoading(!assistant && loadState === 'loading').phase !== 'content'
   const onPick = useCallback((id: string) => {
-    window.location.hash = `#assistant/${id}/${sections[0]!.id}`
+    window.location.hash = `#assistant/${id}/${SECTION_IDS[0]!}`
   }, [])
   return (
     <div className="page">
@@ -1035,7 +1112,7 @@ export function AssistantSettings(props: Props) {
         <AssistantSkeleton slow={loadState === 'slow'} />
       ) : (
         <div className="empty">
-          <b>No assistant yet</b>
+          <b>{t('settings.assistant.empty')}</b>
         </div>
       )}
     </div>

@@ -1,5 +1,14 @@
 import { expect, test } from 'vitest'
-import { dayRows, hoursChanged, hoursProblem, spansOf, timeOptionLabel, timeOptions } from './businessHoursModel.ts'
+import {
+  dayRows,
+  hoursChanged,
+  hoursProblem,
+  spansOf,
+  timeOptionLabel,
+  timeOptions,
+  weekdayName,
+  weekSummary,
+} from './businessHoursModel.ts'
 
 const weekdays = [1, 2, 3, 4, 5].map(weekday => ({ weekday, start: '07:00', end: '18:00' }))
 
@@ -29,12 +38,22 @@ test('changed only when the open hours differ', () => {
 })
 
 test('half-hour options from midnight to midnight', () => {
-  expect(timeOptions).toHaveLength(49)
-  expect(timeOptions[0]).toEqual({ value: '00:00', label: 'Midnight' })
-  expect(timeOptions[48]).toEqual({ value: '24:00', label: 'Midnight' })
+  const options = timeOptions()
+  expect(options).toHaveLength(49)
+  expect(options[0]).toEqual({ value: '00:00', label: 'Midnight' })
+  expect(options[48]).toEqual({ value: '24:00', label: 'Midnight' })
   expect(timeOptionLabel('12:00')).toBe('Noon')
-  expect(timeOptionLabel('07:30')).toBe('7:30 AM')
-  expect(timeOptionLabel('18:00')).toBe('6:00 PM')
+  // Intl puts a narrow no-break space before AM/PM.
+  expect(timeOptionLabel('07:30')).toMatch(/^7:30\sAM$/)
+  expect(timeOptionLabel('18:00')).toMatch(/^6:00\sPM$/)
+})
+
+test('weekday names and the week in one line', () => {
+  expect(weekdayName(0)).toBe('Sunday')
+  expect(weekdayName(1, 'short')).toBe('Mon')
+  const summary = weekSummary(dayRows(weekdays)).replace(/\s/g, ' ')
+  expect(summary).toBe('Mon–Fri 7:00 AM–6:00 PM')
+  expect(weekSummary(dayRows([]))).toBe('Closed every day')
 })
 
 test('an open day must close after it opens; closed days are not checked', () => {

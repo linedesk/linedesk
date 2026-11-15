@@ -1,5 +1,6 @@
 // The business's time zone as a searchable list: each zone with its GMT offset and the time there now. Search by
 // city, region, zone name or offset ("berlin", "eastern", "gmt+1", "utc-5").
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAnchoredList } from '../ui/floating.ts'
 import { cx, Icon } from '../ui/kit.tsx'
@@ -29,6 +30,7 @@ const SHOWN_MAX = 120
 type Props = { value: string; onChange: (zone: string) => void; disabled?: boolean; id?: string }
 
 export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
+  const t = useT()
   const now = useNow()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -104,8 +106,8 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
         type="button"
         className="k-select-btn"
         disabled={disabled}
-        title="Time zone"
-        aria-label={`Time zone: ${timeZoneLabel(value)}, ${offset}, now ${clock}`}
+        title={t('settings.timeZone.label')}
+        aria-label={t('settings.timeZone.button', { zone: timeZoneLabel(value), offset, clock })}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => (open ? close() : show())}
@@ -127,8 +129,10 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
           <input
             autoFocus
             className="tz-search"
-            placeholder={`Search a city, region or ${timeZoneSearchExample(browserTimeZone(), now)}`}
-            aria-label="Search time zones"
+            placeholder={t('settings.timeZone.searchPlaceholder', {
+              example: timeZoneSearchExample(browserTimeZone(), now),
+            })}
+            aria-label={t('settings.timeZone.search')}
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
             value={query}
@@ -138,7 +142,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
             }}
             onKeyDown={onSearchKey}
           />
-          <div id={listId} role="listbox" aria-label="Time zones" className="tz-options">
+          <div id={listId} role="listbox" aria-label={t('settings.timeZone.list')} className="tz-options">
             {matches.map((o, i) => (
               <div
                 key={o.value}
@@ -158,7 +162,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
                 {o.value === value && <Icon name="check" size={14} />}
               </div>
             ))}
-            {!matches.length && <div className="tz-empty">No time zone matches "{query}".</div>}
+            {!matches.length && <div className="tz-empty">{t('settings.timeZone.noMatch', { query })}</div>}
           </div>
         </div>
       )}
