@@ -2,6 +2,7 @@
 // everything says so and leads to the phone setup; gone once a number is there, and while the go-live checklist
 // (whose first step this is) is on screen. The inbox header's "can't answer calls yet" (voice service) is the other cause.
 import { useAssistantName, useRows } from '../store.tsx'
+import { AppLink } from '../ui/AppLink.tsx'
 import { Icon } from '../ui/kit.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
 import { useT } from '@linedesk/i18n/react'
@@ -22,9 +23,9 @@ export function SetupBanner({ canEdit }: { canEdit: boolean }) {
         <b>{t('shell.setupBanner.noNumber', { assistant: name })}</b>
         {' · '}
         {canEdit ? (
-          <a href={PHONE_SETUP_HASH} title={t('shell.setupBanner.connectTip')}>
+          <AppLink to={PHONE_SETUP_HASH} title={t('shell.setupBanner.connectTip')}>
             {t('shell.setupBanner.connect')}
-          </a>
+          </AppLink>
         ) : (
           t('shell.setupBanner.askAdmin')
         )}

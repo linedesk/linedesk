@@ -29,7 +29,7 @@ type FieldProps = {
   id?: string
   label: string
   /** Muted line under the label, only when the label is not enough. */
-  help?: string
+  help?: ReactNode
   error?: string | null
   /** Next to the label, e.g. "Optional". */
   aside?: ReactNode

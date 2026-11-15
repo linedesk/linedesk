@@ -2,6 +2,7 @@
 // It leads with keeping the business's number: a new number to give out reaches the assistant only when dialled.
 import type { PhoneNumber } from '@linedesk/db/types'
 import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
@@ -102,11 +103,7 @@ function Unavailable({
             <T
               k="onboarding.phone.unavailable.ledeAdmin"
               values={{
-                link: chunks => (
-                  <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
-                    {chunks}
-                  </a>
-                ),
+                link: appLink('#admin/providers/telephony', { title: detail ?? undefined }),
               }}
             />
           ) : (

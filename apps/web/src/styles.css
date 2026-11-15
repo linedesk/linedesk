@@ -89,7 +89,8 @@ body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: v
 .k-note-icon { flex: none; margin-top: 1px; }
 .k-note-body { flex: 1 1 240px; min-width: 0; display: grid; gap: 2px; }
 .k-note-title { font-weight: 600; }
-.k-note-text a:not(.k-btn), .k-note-text .k-link { color: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+/* A link in a note is the shared in-app link (ui/AppLink.tsx, .k-link): underlined, in the note's own ink. */
+.k-note-text a:not(.k-btn), .k-note-text .k-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 /* A note with actions: the icon, the text's first line and the buttons share one centre line; when the text needs the
    room, the buttons move below it, at the right. */
 .k-note-action { flex: none; margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); }

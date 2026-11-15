@@ -3,11 +3,13 @@
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
 import { onlyAdmins } from './readOnly.ts'
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
-import { useLocale, useT } from '@linedesk/i18n/react'
+import { T, useLocale, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
 import { SearchSelect } from '../ui/SearchSelect.tsx'
+import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
@@ -16,6 +18,9 @@ import { callAction, patchWorkspaceSettings, refreshWorkspaceSettings, useWorksp
 import { renameCheck } from './workspaceGeneral.ts'
 import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
+
+/** Where an assistant's languages and voice are (the workspace's first assistant, AssistantSettings.tsx). */
+const ASSISTANT_GENERAL = sectionHash('assistant', 'general')
 
 type Props = {
   canEdit: boolean
@@ -171,8 +176,20 @@ function Language({ canEdit }: { canEdit: boolean }) {
     <Field
       id="ws-language"
       label={t('settings.general.language.label')}
-      help={t(canEdit ? 'settings.general.language.help' : 'settings.general.language.helpReadOnly')}
-      tip={t('settings.general.language.tip')}
+      help={
+        <T
+          k={canEdit ? 'settings.general.language.help' : 'settings.general.language.helpReadOnly'}
+          values={{ link: appLink(sectionHash('account', 'preferences')) }}
+        />
+      }
+      tip={{
+        text: (
+          <T
+            k="settings.general.language.tip"
+            values={{ languages: appLink(ASSISTANT_GENERAL), voice: appLink(ASSISTANT_GENERAL) }}
+          />
+        ),
+      }}
     >
       <Loading
         what={t('settings.general.language.what')}

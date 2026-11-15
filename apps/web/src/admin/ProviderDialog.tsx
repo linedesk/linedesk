@@ -17,6 +17,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog, FormField, Input, SecretInput } from '../ui/form.tsx'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
@@ -442,9 +443,7 @@ export function ProviderForm(props: FormProps) {
           >
             {busy ? t('admin.providerDialog.openrouter.connecting') : t('admin.providerDialog.openrouter.connect')}
           </Button>
-          <button type="button" className="k-link" onClick={onManual}>
-            {t('admin.providerDialog.openrouter.manual')}
-          </button>
+          <LinkButton onClick={onManual}>{t('admin.providerDialog.openrouter.manual')}</LinkButton>
         </div>
       )}
       {manual &&

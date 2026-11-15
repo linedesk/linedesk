@@ -5,6 +5,7 @@ import { parseTs, shortDuration, timeLabel } from '../time.ts'
 import { Avatar, Badge, Button, Icon } from '../ui/kit.tsx'
 import { EditableFact } from './EditableFact.tsx'
 import { T, useT } from '@linedesk/i18n/react'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 
 type Props = {
@@ -37,14 +38,12 @@ export function ConfirmCallerName({ contact }: { contact: Contact }) {
       k="call.contact.nameFromCaller"
       values={{
         confirm: chunks => (
-          <button
-            type="button"
-            className="k-link"
+          <LinkButton
             title={t('call.contact.confirmTitle')}
             onClick={() => void run('contact.update', { contactId: contact.id, name: contact.name })}
           >
             {chunks}
-          </button>
+          </LinkButton>
         ),
       }}
     />

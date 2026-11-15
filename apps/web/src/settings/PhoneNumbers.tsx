@@ -35,6 +35,7 @@ import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
+import { AppLink } from '../ui/AppLink.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
@@ -235,9 +236,9 @@ function Unavailable({ detail, isInstanceAdmin, ownCarrier }: UnavailableProps) 
       {/* With its own carrier account only the server's side can be missing (where calls are sent). */}
       {ownCarrier ? t('settings.phone.unavailable.ownCarrier') : t('settings.phone.unavailable.noCarrier')}{' '}
       {isInstanceAdmin ? (
-        <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
+        <AppLink to="#admin/providers/telephony" title={detail ?? undefined}>
           {t('settings.phone.unavailable.connect')}
-        </a>
+        </AppLink>
       ) : (
         t('settings.phone.unavailable.ask')
       )}

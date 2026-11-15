@@ -32,7 +32,8 @@ import {
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
-import { useFormat, useLocale, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
+import { adminLink, appLink } from '../ui/AppLink.tsx'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
@@ -139,15 +140,25 @@ function sectionsFor(
     .map(s => (s.id === REVIEW_SECTION ? { ...s, label: reviewTitle(name), count: openItems } : s))
 }
 
-/** In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. */
-function RealtimeVoice({ canSwitch }: { canSwitch: boolean }) {
+/**
+ * In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. `advanced`: the
+ * hash of this assistant's Advanced section, where Answered by is.
+ */
+function RealtimeVoice({ canSwitch, advanced }: { canSwitch: boolean; advanced: string }) {
   const t = useT()
   return (
     <Section id="as-voice" title={t('settings.assistant.realtimeVoice.title')}>
       <span className="help">
-        {t('settings.assistant.realtimeVoice.body')}
-        {canSwitch &&
-          ` ${t('settings.assistant.realtimeVoice.switch', { pipeline: t(PIPELINE_TEXT.three_stage.label) })}`}
+        <T k="settings.assistant.realtimeVoice.body" values={{ link: adminLink('#admin/providers/answering') }} />
+        {canSwitch && (
+          <>
+            {' '}
+            <T
+              k="settings.assistant.realtimeVoice.switch"
+              values={{ pipeline: t(PIPELINE_TEXT.three_stage.label), link: appLink(advanced) }}
+            />
+          </>
+        )}
       </span>
     </Section>
   )
@@ -551,10 +562,18 @@ export function Languages({
     <Section
       id="as-languages"
       title={t('settings.assistant.languages.title')}
-      help={t('settings.assistant.languages.help', {
-        named: draft.name.trim() ? 'yes' : 'no',
-        name: draft.name.trim(),
-      })}
+      help={{
+        text: (
+          <T
+            k="settings.assistant.languages.help"
+            values={{
+              named: draft.name.trim() ? 'yes' : 'no',
+              name: draft.name.trim(),
+              link: appLink(sectionHash('workspace', 'general')),
+            }}
+          />
+        ),
+      }}
     >
       {/* Both selects right under their labels, so they line up; the note on "Any" goes under its select. */}
       <div className="as-languages-row">
@@ -878,7 +897,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
             />
             <NotAnswered setUp={setUp} />
             {realtime ? (
-              <RealtimeVoice canSwitch={setUp?.three_stage === true} />
+              <RealtimeVoice canSwitch={setUp?.three_stage === true} advanced={sectionHash(page, 'advanced')} />
             ) : (
               <VoiceSettings
                 assistantId={assistant.id}

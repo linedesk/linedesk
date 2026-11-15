@@ -60,22 +60,6 @@
 .in-muted {
   color: var(--ink-muted);
 }
-.in-link {
-  all: unset;
-  cursor: pointer;
-  color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: var(--line-control);
-  text-underline-offset: 2px;
-}
-.in-link:hover {
-  text-decoration-color: var(--ink);
-}
-.in-link:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
 
 /* The four numbers: tabs above one chart */
 .in-numbers {

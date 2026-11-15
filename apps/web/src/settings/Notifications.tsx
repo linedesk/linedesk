@@ -19,6 +19,7 @@ import { Loading } from '../ui/LoadStates.tsx'
 import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
 import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 
 /** Your own notifications, linked from the team defaults (Workspace settings › Team). */
@@ -321,7 +322,7 @@ export function NotificationDefaults({ toast }: { toast: (text: string) => void 
       <p className="help">
         <T
           k="account.notify.ownLink"
-          values={{ link: chunks => <a href={OWN_NOTIFICATIONS_HASH}>{chunks}</a> }}
+          values={{ link: appLink(OWN_NOTIFICATIONS_HASH) }}
         />
       </p>
     </Section>

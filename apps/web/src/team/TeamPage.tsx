@@ -20,6 +20,7 @@ import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
+import { appLink } from '../ui/AppLink.tsx'
 import { Avatar, Badge, Button, Note } from '../ui/kit.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
@@ -398,7 +399,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
         </Button>
         {lastOwner && (
           <span className="help">
-            <T k="team.leave.ownerHelp" values={{ link: chunks => <a href="#workspace/team">{chunks}</a> }} />
+            <T k="team.leave.ownerHelp" values={{ link: appLink('#workspace/team') }} />
           </span>
         )}
       </div>

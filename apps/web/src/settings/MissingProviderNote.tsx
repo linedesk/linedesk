@@ -1,4 +1,5 @@
 import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { providerAudience } from '../providerAudience.ts'
 import { Note } from '../ui/kit.tsx'
 
@@ -25,11 +26,7 @@ export function MissingProviderNote({ kind }: { kind: MissingProviderKind }) {
         <T
           k={`settings.missingProvider.${kind}.add`}
           values={{
-            link: chunks => (
-              <a className="k-link" href={`#admin/providers/${group}`}>
-                {chunks}
-              </a>
-            ),
+            link: appLink(`#admin/providers/${group}`),
           }}
         />
       ) : (

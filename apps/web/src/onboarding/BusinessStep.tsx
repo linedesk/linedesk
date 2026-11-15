@@ -15,6 +15,7 @@ import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from 'react'
 import { T, useLocale, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
 import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from '../settings/workspaceLocaleModel.ts'
@@ -339,11 +340,7 @@ function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admi
         <T
           k={problem.adminFix}
           values={{
-            link: chunks => (
-              <a className="k-link" href={`#admin/providers/${problem.group}`} target="_blank" rel="noopener">
-                {chunks}
-              </a>
-            ),
+            link: appLink(`#admin/providers/${problem.group}`, { newTab: true }),
           }}
         />
       ) : (

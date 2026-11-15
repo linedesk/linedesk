@@ -2,6 +2,7 @@
 // failing (GET /v1/admin/setup-checklist, the same status as Server admin › Providers) and links to Server admin ›
 // Providers.
 import { T, useFormat, useT } from '@linedesk/i18n/react'
+import { AppLink, appLink, LinkButton } from '../ui/AppLink.tsx'
 import { useEffect, useState } from 'react'
 import { loadSetupChecklist } from '../admin/api.ts'
 import type { Me } from '../auth.ts'
@@ -32,9 +33,9 @@ export function InstanceSetupNotice() {
   const format = useFormat()
   const { data, error, reload } = useQuery(SETUP_STATUS, () => loadSetupChecklist())
   const link = (
-    <a href="#admin/providers" title={t('onboarding.instance.openTip')}>
+    <AppLink to="#admin/providers" title={t('onboarding.instance.openTip')}>
       {t('onboarding.instance.open')}
-    </a>
+    </AppLink>
   )
   if (!data)
     return error ? (
@@ -43,20 +44,11 @@ export function InstanceSetupNotice() {
           k="onboarding.instance.checkFailed"
           values={{
             retry: chunks => (
-              <button
-                type="button"
-                className="k-link"
-                onClick={() => void reload()}
-                title={t('onboarding.instance.retryTip')}
-              >
+              <LinkButton onClick={() => void reload()} title={t('onboarding.instance.retryTip')}>
                 {chunks}
-              </button>
+              </LinkButton>
             ),
-            link: chunks => (
-              <a href="#admin/providers" title={t('onboarding.instance.openTip')}>
-                {chunks}
-              </a>
-            ),
+            link: appLink('#admin/providers', { title: t('onboarding.instance.openTip') }),
           }}
         />
       </p>

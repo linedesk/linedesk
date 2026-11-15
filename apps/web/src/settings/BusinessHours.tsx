@@ -3,6 +3,7 @@
 // assistant says nothing about hours. Edited in BusinessHoursDialog (its grid and time zone are here);
 // Assistant › Hours & holidays shows them in one line.
 import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { useRun } from '../store.tsx'
 import { Select, Switch } from '../ui/controls.tsx'
@@ -195,11 +196,7 @@ function TimeZoneLine({ zone, canEdit }: { zone: string; canEdit: boolean }) {
           k="settings.hours.timeZoneChange"
           values={{
             zone: timeZoneLabel(zone),
-            link: chunks => (
-              <a className="k-link" href="#workspace/general">
-                {chunks}
-              </a>
-            ),
+            link: appLink('#workspace/general'),
           }}
         />
       ) : (

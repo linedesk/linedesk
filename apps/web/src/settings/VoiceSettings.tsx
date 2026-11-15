@@ -12,7 +12,8 @@ import {
   type VoiceCloneData,
   type VoiceOptionsData,
 } from '@linedesk/actions'
-import { useFormat, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
+import { adminLink } from '../ui/AppLink.tsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
@@ -461,7 +462,14 @@ function ProviderHints({ providers }: { providers: readonly CatalogProvider[] })
       ))}
       {missing.length > 0 && (
         <p className="help">
-          {t('settings.voice.providersMissing', { providers: format.list(missing), count: missing.length })}
+          <T
+            k="settings.voice.providersMissing"
+            values={{
+              providers: format.list(missing),
+              count: missing.length,
+              link: adminLink('#admin/providers/answering'),
+            }}
+          />
         </p>
       )}
     </>

@@ -12,6 +12,7 @@ import { useWriteAction } from '../settings/settings-api.ts'
 import { useRows, useTable } from '../store.tsx'
 import { listTime, parseTs } from '../time.ts'
 import { Input } from '../ui/form.tsx'
+import { AppLink } from '../ui/AppLink.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { loadQuestions, loadReviewList, questionsKey, reviewListKey, setEvaluationDone } from './reviewData.ts'
@@ -296,9 +297,9 @@ function QuestionRow({
             return (
               <span key={id}>
                 {i === 0 ? ' · ' : ', '}
-                <a href={`#call/${id}`} title={t('settings.review.openCall')}>
+                <AppLink to={`#call/${id}`} title={t('settings.review.openCall')}>
                   {listTime(parseTs(call.started_at))}
-                </a>
+                </AppLink>
               </span>
             )
           })}

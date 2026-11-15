@@ -2,6 +2,7 @@
 // page): only they can add it, on this device, so it comes before anything an agent or the walkthrough does. The same
 // registration as Account › Sign-in & security (settings/account/add-passkey.ts), with its words and errors.
 import { T, useT } from '@linedesk/i18n/react'
+import { AppLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { passkeySupported } from '../auth.ts'
 import { signInAgain as startSignInAgain } from '../localData.ts'
@@ -169,14 +170,8 @@ export function PasskeyProblem({ passkey, from }: { passkey: PasskeyHere; from: 
 function AccountSecurityLink() {
   const t = useT()
   return (
-    <a
-      className="as-quiet-link"
-      href="#account/security"
-      target="_blank"
-      rel="noreferrer"
-      title={t('onboarding.passkey.securityLinkTitle')}
-    >
+    <AppLink to="#account/security" newTab title={t('onboarding.passkey.securityLinkTitle')}>
       {t('onboarding.passkey.securityLink')}
-    </a>
+    </AppLink>
   )
 }

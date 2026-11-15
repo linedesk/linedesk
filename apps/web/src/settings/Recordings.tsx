@@ -5,6 +5,7 @@
 import { onlyAdmins } from './readOnly.ts'
 import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { providerAudience } from '../providerAudience.ts'
 import { useRun } from '../store.tsx'
@@ -47,11 +48,7 @@ export function RecordingOffNote() {
         <T
           k="settings.recordings.offAdmin"
           values={{
-            link: chunks => (
-              <a className="k-link" href="#admin/providers/recording">
-                {chunks}
-              </a>
-            ),
+            link: appLink('#admin/providers/recording'),
           }}
         />
       ) : (

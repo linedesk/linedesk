@@ -360,9 +360,14 @@
   background: color-mix(in srgb, var(--bg) 18%, transparent);
 }
 .k-help-copy:focus-visible,
-.k-help-more:focus-visible {
+.k-help-more:focus-visible,
+.k-help-pop .k-link:focus-visible {
   outline: 2px solid var(--bg);
   outline-offset: 1px;
+}
+/* A place named in the help (ui/AppLink.tsx) on the dark tip: the tip's own ink, the same underline. */
+.k-help-pop .k-link {
+  color: inherit;
 }
 .k-help-more {
   justify-self: start;

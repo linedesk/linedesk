@@ -4,6 +4,7 @@
 // not with the page: most admins never need it here.
 import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
+import { AppLink, LinkButton } from '../ui/AppLink.tsx'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { ManageNumber } from '../settings/PhoneNumbers.tsx'
 import { useTestCall } from '../settings/TestCall.tsx'
@@ -215,15 +216,11 @@ export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing
       {missing === 'none' ? t('onboarding.rowActions.noForwarded') : t('onboarding.rowActions.numbersNotLoaded')}{' '}
       {missing === 'not_loaded' && (
         <>
-          <button type="button" className="k-link" onClick={onRetry}>
-            {t('common.action.tryAgain')}
-          </button>
+          <LinkButton onClick={onRetry}>{t('common.action.tryAgain')}</LinkButton>
           {' · '}
         </>
       )}
-      <a className="k-link" href={sectionHash('workspace', 'phone')}>
-        {t('onboarding.rowActions.phoneNumbersLink')}
-      </a>
+      <AppLink to={sectionHash('workspace', 'phone')}>{t('onboarding.rowActions.phoneNumbersLink')}</AppLink>
     </span>
   )
 }

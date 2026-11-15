@@ -5,6 +5,7 @@
 import type { CarrierStatusData, CarrierTestData, WorkspaceCarrier } from '@linedesk/actions'
 import { carrierFields } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
+import { appLink } from '../ui/AppLink.tsx'
 import { type FormEvent, useState } from 'react'
 import { RadioCard } from '../ui/controls.tsx'
 import { Dialog, SecretInput } from '../ui/form.tsx'
@@ -209,7 +210,11 @@ function CarrierDialog({
         )}
         {!status.canStore && own && (
           <Note tone="warning" title={t('settings.carrier.noStore.title')}>
-            {providerAudience() === 'admin' ? t('settings.carrier.noStore.admin') : t('settings.carrier.noStore.ask')}
+            {providerAudience() === 'admin' ? (
+              <T k="settings.carrier.noStore.admin" values={{ link: appLink('#admin/providers') }} />
+            ) : (
+              t('settings.carrier.noStore.ask')
+            )}
           </Note>
         )}
         {draft.carrier === 'twilio' && (

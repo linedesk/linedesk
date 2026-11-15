@@ -37,6 +37,7 @@ import { fmt } from '../i18n/format.ts'
 import { timeZoneLabel } from '../settings/timeZones.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
+import { LinkButton } from '../ui/AppLink.tsx'
 
 type Choice = InsightPeriod | 'custom'
 type Range = { from: string; to: string }
@@ -256,9 +257,7 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
             {canEdit && (
               <>
                 {' · '}
-                <button type="button" className="in-link" onClick={() => setEditing(true)}>
-                  {t('common.action.change')}
-                </button>
+                <LinkButton onClick={() => setEditing(true)}>{t('common.action.change')}</LinkButton>
               </>
             )}
           </span>
@@ -269,11 +268,7 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
             <T
               k="insights.value.set"
               values={{
-                link: chunks => (
-                  <button type="button" className="in-link" onClick={() => setEditing(true)}>
-                    {chunks}
-                  </button>
-                ),
+                link: chunks => <LinkButton onClick={() => setEditing(true)}>{chunks}</LinkButton>,
               }}
             />
           </p>

@@ -35,6 +35,7 @@ import {
 import { fmt } from '../i18n/format.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 
 const FIELD_LABEL = {
@@ -157,14 +158,12 @@ export function ImportContacts({ onClose, toast }: Props) {
             k="contacts.import.description"
             values={{
               example: chunks => (
-                <button
-                  type="button"
-                  className="k-link"
+                <LinkButton
                   title={t('contacts.import.downloadTitle', { file: EXAMPLE_FILE_NAME })}
                   onClick={() => saveFile(EXAMPLE_FILE_NAME, toCsv(EXAMPLE_CONTACTS), CSV_TYPE)}
                 >
                   {chunks}
-                </button>
+                </LinkButton>
               ),
             }}
           />

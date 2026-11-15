@@ -6,6 +6,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { formatNumber } from '../onboarding/flow.ts'
 import { useRun } from '../store.tsx'
 import { Dialog } from '../ui/form.tsx'
+import { AppLink } from '../ui/AppLink.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import './assistant.css'
 
@@ -141,11 +142,7 @@ function NumberChips({
       ))}
       {!mine.length &&
         (canEdit ? (
-          <a
-            className="help"
-            href="#workspace/phone"
-            title={t('settings.assistantHeader.noNumberTip')}
-          >
+          <a className="help" href="#workspace/phone" title={t('settings.assistantHeader.noNumberTip')}>
             {t('settings.assistantHeader.noNumberChoose')}
           </a>
         ) : (
@@ -203,9 +200,9 @@ export function AssistantHeader({ assistant, assistants, numbers, canEdit, onPic
       </div>
       {numbers.length === 0 ? (
         <div className="as-numbers">
-          <a className="help" href="#workspace/phone">
-            {t('settings.assistantHeader.noPhoneNumber')}
-          </a>
+          <span className="help">
+            <AppLink to="#workspace/phone">{t('settings.assistantHeader.noPhoneNumber')}</AppLink>
+          </span>
         </div>
       ) : (
         <NumberChips assistant={assistant} isDefault={isDefault} numbers={numbers} canEdit={canEdit} />

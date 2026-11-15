@@ -1030,13 +1030,6 @@ a.k-btn {
   flex: 1 1 240px;
 }
 
-.setup-bar a {
-  color: var(--ink);
-  font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* The inbox body: the calls and, while there is one, the go-live checklist (inbox/GoLiveChecklist.tsx). */
 .ib-body {
   flex: 1;
@@ -1461,6 +1454,7 @@ a.k-btn {
 .ib-maya.is-off .ib-dot {
   background: var(--line-control);
 }
+/* The one link inside text (ui/AppLink.tsx: AppLink, LinkButton; docs/design-principles.md, rule 18). */
 .ib-maya-fix,
 .k-link {
   color: var(--ink);

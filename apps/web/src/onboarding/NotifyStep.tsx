@@ -8,6 +8,7 @@ import { type NotificationSettingsData, setsTransferNumber } from '@linedesk/act
 import type { Assistant } from '@linedesk/db/types'
 import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
+import { AppLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { brandName } from '../brand.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
@@ -248,9 +249,7 @@ function Summaries({
         <p className="ob2-note" role="status">
           {t('onboarding.notify.emailMissing')}{' '}
           {admin ? (
-            <a className="k-link" href="#admin/providers/email">
-              {t('onboarding.notify.emailMissingFix')}
-            </a>
+            <AppLink to="#admin/providers/email">{t('onboarding.notify.emailMissingFix')}</AppLink>
           ) : (
             t('onboarding.notify.emailMissingAsk')
           )}

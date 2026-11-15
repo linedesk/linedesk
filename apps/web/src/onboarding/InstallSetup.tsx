@@ -16,6 +16,7 @@ import {
   type ProviderName,
 } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import {
   ADMIN_DATA,
@@ -369,9 +370,9 @@ function Welcome({
       </section>
       <Note tone="info">
         <T k="onboarding.install.agentNote" values={BOLD} />{' '}
-        <button type="button" className="k-link" onClick={openAgentSetup} title={t('onboarding.install.agentTip')}>
+        <LinkButton onClick={openAgentSetup} title={t('onboarding.install.agentTip')}>
           {t('onboarding.install.agentButton')}
-        </button>
+        </LinkButton>
       </Note>
       <Foot onNext={onStart} nextLabel={t('onboarding.install.welcome.start')} nextPrimary={passkeyStep !== 'todo'} />
     </>
@@ -631,11 +632,7 @@ function Done({
                 values={{
                   part: installStepLabels[s],
                   effect: installSkipEffects[s],
-                  link: chunks => (
-                    <button type="button" className="k-link" onClick={() => onOpen(s)}>
-                      {chunks}
-                    </button>
-                  ),
+                  link: chunks => <LinkButton onClick={() => onOpen(s)}>{chunks}</LinkButton>,
                 }}
               />
             </li>
