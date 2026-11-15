@@ -119,7 +119,7 @@ export function ProviderButton({ method, label, lastUsed, busy, busyText, disabl
   return (
     <button type="button" className="k-btn k-btn-secondary auth-provider" disabled={disabled} onClick={onClick}>
       <SignInMark method={method} />
-      <span>{busy ? (busyText ?? t('auth.provider.opening', { provider: label })) : method === 'password'
+      <span className="auth-provider-label">{busy ? (busyText ?? t('auth.provider.opening', { provider: label })) : method === 'password'
             ? t('auth.provider.continuePassword')
             : t('auth.provider.continue', { provider: label })}</span>
       {lastUsed && <LastUsed />}

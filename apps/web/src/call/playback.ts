@@ -15,6 +15,21 @@ export function recordingLength(reported: number, callDurationSec: number | null
   return Number.isFinite(reported) && reported > 0 ? reported : callDurationSec ?? 0
 }
 
+/**
+ * After the audio element failed: whether the call simply has no recording file (the API answers 404: the recording
+ * never arrived or is gone from the store) rather than a recording that could not be played. Asks for one byte; a
+ * network error or any other answer counts as a failure to show.
+ */
+export async function recordingMissing(url: string, fetchFn: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const response = await fetchFn(url, { headers: { range: 'bytes=0-0' }, credentials: 'same-origin' })
+    void response.body?.cancel()
+    return response.status === 404
+  } catch {
+    return false
+  }
+}
+
 let toggleMounted: (() => void) | null = null
 
 /** The mounted player registers its toggle here; returns how to unregister. */

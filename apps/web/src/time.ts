@@ -48,6 +48,11 @@ export function shortDuration(seconds: number): string {
   return i18n().format.duration(seconds, 'narrow')
 }
 
+/** "01:20" for the inbox's duration column: as short in every language ("1 Min., 20 Sek." would wrap there). */
+export function listDuration(seconds: number): string {
+  return i18n().format.duration(seconds, 'digital')
+}
+
 /** "1 min, 20 sec" for the call header. */
 export function longDuration(seconds: number): string {
   return i18n().format.duration(seconds, 'short')

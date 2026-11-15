@@ -101,6 +101,15 @@ export function languageLabel(code: string, uiLocale: ActiveLocale): string {
   return !inUi || inUi === own ? own : `${own} · ${inUi}`
 }
 
+/** A language's name in the UI language as a sentence writes it ("Spanish" in en, "Spanisch" in de, "inglés" in es). */
+export function languageInSentence(code: string, uiLocale: ActiveLocale): string {
+  try {
+    return new Intl.DisplayNames([intlLocaleOf(uiLocale)], { type: 'language' }).of(code) ?? code
+  } catch {
+    return code
+  }
+}
+
 export interface Formatters {
   /** A date ("Nov 14, 2026" in en, "14 nov 2026" in es). Default: medium date. */
   date(value: Date | number, options?: Intl.DateTimeFormatOptions): string
@@ -115,8 +124,11 @@ export interface Formatters {
   currency(value: number, currency: string, options?: Intl.NumberFormatOptions): string
   /** "A, B and C" in the active language. */
   list(items: readonly string[], options?: Intl.ListFormatOptions): string
-  /** A length of time from seconds: "1 min, 20 sec" (short) or "1m 20s" (narrow). */
-  duration(seconds: number, style?: 'long' | 'short' | 'narrow'): string
+  /**
+   * A length of time from seconds: "1 min, 20 sec" (short), "1m 20s" (narrow) or "01:20" (digital: as short in every
+   * language, for narrow columns; hours only when there are any, "1:03:01").
+   */
+  duration(seconds: number, style?: 'long' | 'short' | 'narrow' | 'digital'): string
 }
 
 const intlCache = new Map<string, unknown>()
@@ -132,7 +144,7 @@ function cached<T>(kind: string, locale: string, options: object | undefined, ma
 
 type DurationFormatCtor = new (
   locale: string,
-  options: { style: string },
+  options: { style: string; hoursDisplay?: 'auto' | 'always' },
 ) => { format(duration: { hours?: number; minutes?: number; seconds?: number }): string }
 
 /** Locale-aware formatting; every formatter is built once per locale and options (they are costly to build). */
@@ -165,6 +177,17 @@ export function createFormatters(active: ActiveLocale): Formatters {
         ...(secs || !total ? { seconds: secs } : {}),
       }
       const DurationFormat = (Intl as unknown as { DurationFormat?: DurationFormatCtor }).DurationFormat
+      if (style === 'digital') {
+        if (DurationFormat)
+          return cached('df', locale, { style }, () => new DurationFormat(locale, { style, hoursDisplay: 'auto' })).format(
+            { hours, minutes, seconds: secs },
+          )
+        const two = (value: number) =>
+          cached('nf', locale, { minimumIntegerDigits: 2 }, () => new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 })).format(
+            value,
+          )
+        return [...(hours ? [String(hours)] : []), two(minutes), two(secs)].join(':')
+      }
       if (DurationFormat)
         return cached('df', locale, { style }, () => new DurationFormat(locale, { style })).format(parts)
       // No Intl.DurationFormat (older browsers): units through NumberFormat, joined as a list.

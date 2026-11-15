@@ -238,7 +238,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
       <button type="submit" className={cx('k-btn auth-provider', start.passkeyFirst ? 'k-btn-secondary' : 'k-btn-primary', busy === 'email' && 'is-busy')}
         disabled={busy !== null} aria-busy={busy === 'email' || undefined}>
         {busy === 'email' && <Spinner />}
-        <span>{busy === 'email' ? t('auth.sending') : t('auth.provider.continueEmail')}</span>
+        <span className="auth-provider-label">{busy === 'email' ? t('auth.sending') : t('auth.provider.continueEmail')}</span>
         {lastUsed === 'email' && <LastUsed />}
       </button>
       {errorPanel('auth-error')}
@@ -259,7 +259,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           <button type="button" className={cx('k-btn k-btn-primary auth-provider', passkeyBusy && 'is-busy')} disabled={busy !== null}
             aria-busy={passkeyBusy || undefined} autoFocus={!emailOpen} onClick={continueWithPasskey}>
             {passkeyBusy ? <Spinner /> : <SignInMark method="passkey" />}
-            <span>{passkeyBusy ? t('auth.signingIn') : t('auth.withPasskey')}</span>
+            <span className="auth-provider-label">{passkeyBusy ? t('auth.signingIn') : t('auth.withPasskey')}</span>
             {lastUsed === 'passkey' && <LastUsed />}
           </button>
           {!methods.emailCode && errorPanel()}

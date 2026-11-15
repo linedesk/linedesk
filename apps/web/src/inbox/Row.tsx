@@ -2,7 +2,7 @@ import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import { memo, type MouseEvent, type Ref } from 'react'
 import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
-import { clock, formatDate, listTime, parseTs, shortDuration } from '../time.ts'
+import { clock, formatDate, listDuration, listTime, parseTs } from '../time.ts'
 
 const fullTime = (date: Date) =>
   formatDate(date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -270,7 +270,7 @@ export const Row = memo(function Row({
       <span className="r-status">
         <Status call={call} tab={tab} markDone={done && search !== null} segments={segments} />
       </span>
-      <span className="r-dur">{live || !call.duration_sec ? '—' : shortDuration(call.duration_sec)}</span>
+      <span className="r-dur">{live || !call.duration_sec ? '—' : listDuration(call.duration_sec)}</span>
       <span className="r-acts">
         {on.onToggleDone && (
           <RowAction

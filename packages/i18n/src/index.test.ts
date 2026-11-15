@@ -80,6 +80,8 @@ describe('formatters', () => {
     expect(createFormatters('fr').number(1234.5)).toBe('1 234,5')
     expect(createFormatters('en-XA').number(1234.5)).toBe('1,234.5')
     expect(createFormatters('en').duration(80)).toMatch(/1 min,? 20 sec/)
+    expect(createFormatters('de').duration(181, 'digital')).toBe('03:01')
+    expect(createFormatters('en').duration(3781, 'digital')).toBe('1:03:01')
   })
 })
 

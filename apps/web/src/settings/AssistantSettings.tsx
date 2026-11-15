@@ -30,12 +30,11 @@ import {
   templateNames,
   type AssistantLanguages,
   type Language,
-  LANGUAGES,
   answeredQuestionLine,
   otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
-import { languageLabel } from '@linedesk/i18n'
+import { languageInSentence, languageLabel } from '@linedesk/i18n'
 import { useLocale, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
@@ -447,14 +446,25 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
   )
 }
 
-const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
+const alsoModes = (
+  t: ReturnType<typeof useT>,
+  main: string,
+): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
   {
     value: 'english',
-    label: 'None',
-    description: `Other languages: answered in ${main}, with an offer to take a message`,
+    label: t('settings.assistant.languages.mode.none'),
+    description: t('settings.assistant.languages.mode.noneDescription', { language: main }),
   },
-  { value: 'allowed', label: 'These languages', description: 'Switches only to the ones you pick' },
-  { value: 'any', label: 'Any supported language', description: 'Every language listed below' },
+  {
+    value: 'allowed',
+    label: t('settings.assistant.languages.mode.allowed'),
+    description: t('settings.assistant.languages.mode.allowedDescription'),
+  },
+  {
+    value: 'any',
+    label: t('settings.assistant.languages.mode.any'),
+    description: t('settings.assistant.languages.mode.anyDescription'),
+  },
 ]
 
 export function Languages({
@@ -473,6 +483,7 @@ export function Languages({
   const t = useT()
   const { mode } = draft.languages
   const main = mainOf(draft)
+  const mainName = languageInSentence(main, ui)
   // Only languages a connected voice provider speaks (voice.options), and the ones already picked.
   const offered = offeredLanguages(installed, draft)
   // Each language in its own name and in the UI language ("Español · Spanish"), in the registry's order.
@@ -490,35 +501,33 @@ export function Languages({
   return (
     <Section
       id="as-languages"
-      title="Languages"
-      help={`${assistantName(draft)} greets and speaks in the main language; the greeting, goodbye and other fixed lines are said in it (a greeting that is still the default changes with it). When a caller speaks another language you allow, it answers in that language from then on; otherwise it goes on in the main language. Without a main language of its own it follows the workspace language (Workspace settings › General). Summaries and messages for the team are in the workspace language, transcripts stay in the language spoken. Every voice speaks every language listed; Voice suggests ones native in it. Same price per minute; the first reply after a switch can take a moment longer.`}
+      title={t('settings.assistant.languages.title')}
+      help={t('settings.assistant.languages.help', { named: draft.name.trim() ? 'yes' : 'no', name: draft.name.trim() })}
     >
+      {/* Both selects right under their labels, so they line up; the note on "Any" goes under its select. */}
       <div className="as-languages-row">
-        <Field id="as-languages-main" label="Main language">
+        <Field id="as-languages-main" label={t('settings.assistant.languages.main')}>
           <Select
             id="as-languages-main"
-            label="Main language"
+            label={t('settings.assistant.languages.main')}
             value={main}
             options={languageOptions}
             onChange={onMainLanguage}
           />
         </Field>
-        <Field
-          id="as-languages-mode"
-          label="Also speak"
-          help={anyLimited ? t('settings.assistant.languages.anyNote') : undefined}
-        >
+        <Field id="as-languages-mode" label={t('settings.assistant.languages.also')}>
           <Select
             id="as-languages-mode"
-            label="Also speak"
+            label={t('settings.assistant.languages.also')}
             value={mode}
-            options={alsoModes(LANGUAGES[main])}
+            options={alsoModes(t, mainName)}
             onChange={m => set('languages', { ...draft.languages, mode: m })}
           />
+          {anyLimited && <p className="k-field-desc as-languages-note">{t('settings.assistant.languages.anyNote')}</p>}
         </Field>
       </div>
       {mode !== 'english' && (
-        <div className="as-languages" role="group" aria-label={`Languages besides ${LANGUAGES[main]}`}>
+        <div className="as-languages" role="group" aria-label={t('settings.assistant.languages.others', { language: mainName })}>
           {offered
             .filter(code => code !== main)
             .map(code => (

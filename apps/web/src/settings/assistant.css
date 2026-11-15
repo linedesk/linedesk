@@ -413,10 +413,15 @@ a.as-chip:hover {
   display: grid;
   /* Main language and Also speak side by side; below ~380px they stack. */
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: start;
   gap: 12px 16px;
 }
 .as-languages-row > * {
   min-width: 0;
+}
+/* Under the "Also speak" select, not between label and select: the two selects stay on one line. */
+.as-languages-row .as-languages-note {
+  margin: 0;
 }
 .as-languages {
   display: grid;

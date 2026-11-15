@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { nextSpeed, recordingLength, registerPlayer, seekSeconds, togglePlayback } from './playback.ts'
+import { nextSpeed, recordingLength, recordingMissing, registerPlayer, seekSeconds, togglePlayback } from './playback.ts'
 
 describe('recording playback', () => {
   it('cycles the speed 1, 1.5, 2 and back', () => {
@@ -15,6 +15,16 @@ describe('recording playback', () => {
     expect(recordingLength(42.5, 96)).toBe(42.5)
     expect(recordingLength(Number.POSITIVE_INFINITY, 96)).toBe(96)
     expect(recordingLength(Number.NaN, null)).toBe(0)
+  })
+  it('tells a call without a recording file (404) from a recording that failed to load', async () => {
+    const answering = (status: number) => vi.fn(async () => new Response(null, { status })) as unknown as typeof fetch
+    expect(await recordingMissing('/v1/calls/c1/recording', answering(404))).toBe(true)
+    expect(await recordingMissing('/v1/calls/c1/recording', answering(409))).toBe(false)
+    expect(await recordingMissing('/v1/calls/c1/recording', answering(206))).toBe(false)
+    const offline = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }) as unknown as typeof fetch
+    expect(await recordingMissing('/v1/calls/c1/recording', offline)).toBe(false)
   })
 })
 

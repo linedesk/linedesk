@@ -3,12 +3,15 @@ import { clock } from '../time.ts'
 import { RECORDINGS_NOT_KEPT } from '@linedesk/actions'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { Icon } from '../ui/kit.tsx'
-import { nextSpeed, recordingLength, registerPlayer, SEEK_STEP_SECONDS, seekSeconds } from './playback.ts'
+import { nextSpeed, recordingLength, recordingMissing, registerPlayer, SEEK_STEP_SECONDS, seekSeconds } from './playback.ts'
 import { useT } from '@linedesk/i18n/react'
 
 type Props = { callId: string; callDurationSec: number | null }
 
-/** Plays the call's recording: play or pause (Space), seek, speed, elapsed and total time. */
+/**
+ * Plays the call's recording: play or pause (Space), seek, speed, elapsed and total time. Nothing at all when the call
+ * turns out to have no recording file (404); "could not be loaded" only for other failures.
+ */
 export function RecordingPlayer({ callId, callDurationSec }: Props) {
   const t = useT()
   const audio = useRef<HTMLAudioElement>(null)
@@ -17,18 +20,24 @@ export function RecordingPlayer({ callId, callDurationSec }: Props) {
   const [reportedLength, setReportedLength] = useState(Number.NaN)
   const [speed, setSpeed] = useState(1)
   const [dragging, setDragging] = useState(false)
-  const [failed, setFailed] = useState(false)
+  // Why the audio failed, for the call it failed for: 'checking' until the API says whether there is a file at all.
+  const [failure, setFailure] = useState<{ callId: string; kind: 'checking' | 'failed' | 'missing' } | null>(null)
+  const failedAs = failure?.callId === callId ? failure.kind : null
+  const failed = failedAs !== null
+  const src = `/v1/calls/${callId}/recording`
   const length = recordingLength(reportedLength, callDurationSec)
 
   function toggle() {
     const el = audio.current
     if (!el || failed) return
-    if (el.paused) void el.play().catch(() => setFailed(true))
+    if (el.paused) void el.play().catch(() => setFailure({ callId, kind: 'failed' }))
     else el.pause()
   }
   const toggleRef = useRef(toggle)
   toggleRef.current = toggle
-  useEffect(() => registerPlayer(() => toggleRef.current()), [])
+  // No file: Space keeps its normal meaning, as on a call without a player.
+  const missing = failedAs === 'missing'
+  useEffect(() => (missing ? undefined : registerPlayer(() => toggleRef.current())), [missing])
 
   function seek(seconds: number) {
     const to = Math.max(0, Math.min(length, seconds))
@@ -56,21 +65,30 @@ export function RecordingPlayer({ callId, callDurationSec }: Props) {
     else if (e.key === 'End') seek(length)
   }
 
+  function onAudioError() {
+    setPlaying(false)
+    setFailure({ callId, kind: 'checking' })
+    void recordingMissing(src).then(none =>
+      setFailure(now => (now?.callId === callId ? { callId, kind: none ? 'missing' : 'failed' } : now)),
+    )
+  }
+
   const played = length ? Math.min(1, position / length) : 0
+  if (missing) return null
   return (
     <section className="vn" aria-label={t('call.recording.label')}>
       {/* biome-ignore lint/a11y/useMediaCaption: the transcript below is the text of this recording */}
-      <audio ref={audio} src={`/v1/calls/${callId}/recording`} preload="metadata"
-        onLoadedMetadata={e => { setFailed(false); setReportedLength(e.currentTarget.duration) }}
+      <audio ref={audio} src={src} preload="metadata"
+        onLoadedMetadata={e => { setFailure(null); setReportedLength(e.currentTarget.duration) }}
         onDurationChange={e => setReportedLength(e.currentTarget.duration)}
         onTimeUpdate={e => { if (!dragging) setPosition(e.currentTarget.currentTime) }}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
-        onError={() => { setFailed(true); setPlaying(false) }} />
+        onError={onAudioError} />
       <button type="button" className="vn-btn" disabled={failed} aria-label={playing ? t('call.recording.pause') : t('call.recording.play')} title={t('common.withKey', { label: playing ? t('call.recording.pause') : t('call.recording.playShort'), key: 'Space' })} onClick={toggle}>
         <Icon name={playing ? 'pause' : 'play'} size={14} />
       </button>
       <div className="vn-body">
-        {failed ? <span className="help">{t('call.recording.loadFailed')}</span> : (
+        {failedAs === 'failed' ? <span className="help">{t('call.recording.loadFailed')}</span> : (
           <div className="vn-track" role="slider" tabIndex={0} aria-label={t('call.recording.position')} aria-valuemin={0} aria-valuemax={Math.round(length)}
             aria-valuenow={Math.round(position)} aria-valuetext={t('call.recording.positionValue', { position: clock(position), length: clock(length) })}
             onPointerDown={onPointerDown} onPointerMove={e => { if (dragging && e.buttons & 1) seekTo(e) }}

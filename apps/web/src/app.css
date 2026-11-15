@@ -91,10 +91,18 @@ body,
   height: var(--control-h-lg);
   font-size: 14px;
 }
-/* "Continue with ...": the mark at the left edge, the label centred, "Last used" at the right edge. */
+/* "Continue with ...": the mark at the left edge, the label centred, "Last used" at the right edge.
+   Three columns: the label stays centred while the outer two can be equal; when "Last used" needs
+   more room (long languages, narrow phones) the label moves left instead of running under it. */
 .auth-card .auth-provider {
   position: relative;
   width: 100%;
+  display: grid;
+  grid-template-columns: minmax(20px, 1fr) minmax(0, auto) 1fr;
+  align-items: center;
+}
+.auth-provider > * {
+  grid-row: 1;
 }
 .auth-provider .auth-logo {
   position: absolute;
@@ -102,16 +110,25 @@ body,
   top: 50%;
   transform: translateY(-50%);
 }
+.auth-provider > .k-spin {
+  grid-column: 1;
+  justify-self: end;
+}
+.auth-provider-label {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .auth-last-used {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
+  grid-column: 3;
+  justify-self: end;
   padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: 11.5px;
   font-weight: 500;
   line-height: 16px;
+  white-space: nowrap;
   background: var(--surface-hover);
   color: var(--ink-muted);
 }
@@ -791,9 +808,10 @@ body,
   padding-right: var(--gutter);
   grid-template-columns: var(--ib-columns);
 }
-/* The time says the day and the clock time on one line ("Yesterday 11:40 PM"). Every column,
+/* The time says the day and the clock time on one line ("Yesterday 11:40 PM"), the duration too. Every column,
    time and duration included, starts at its left edge, under its heading. */
-.ib-list .row .r-time {
+.ib-list .row .r-time,
+.ib-list .row .r-dur {
   white-space: nowrap;
 }
 .ib-list .row:not(.cust-row) .r-time,

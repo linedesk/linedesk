@@ -44,7 +44,7 @@
   "apps/web/src/review/AssistantReview.tsx": 21,
   "apps/web/src/settings/AreaCodeInput.tsx": 3,
   "apps/web/src/settings/AssistantHeader.tsx": 15,
-  "apps/web/src/settings/AssistantSettings.tsx": 43,
+  "apps/web/src/settings/AssistantSettings.tsx": 37,
   "apps/web/src/settings/BusinessHours.tsx": 11,
   "apps/web/src/settings/BusinessHoursDialog.tsx": 8,
   "apps/web/src/settings/Calendar.tsx": 44,

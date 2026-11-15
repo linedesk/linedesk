@@ -34,12 +34,13 @@ import {
   ENGLISH_ONLY,
   type Language,
   languageCodes,
-  LANGUAGES,
   mainLanguageOf,
   swapDefault,
   type VoicePipeline,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
+import { languageInSentence } from '@linedesk/i18n'
+import { i18n } from '../i18n/index.tsx'
 import { formatNumber, outboundE164, renameInGreeting } from '../onboarding/flow.ts'
 
 /** `greeting_outside`: used outside business hours; empty = the same as during hours. */
@@ -165,7 +166,7 @@ export const pickedOthers = (d: Pick<Draft, 'languages'>): Language[] =>
 /** Why the languages cannot be saved, or null. */
 export function languagesProblem(d: Pick<Draft, 'languages'>): string | null {
   return d.languages.mode === 'allowed' && !pickedOthers(d).length
-    ? `Pick at least one language besides ${LANGUAGES[mainOf(d)]}, or choose None.`
+    ? i18n().t('settings.assistant.languages.problem', { language: languageInSentence(mainOf(d), i18n().locale) })
     : null
 }
 

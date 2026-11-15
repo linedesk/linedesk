@@ -5,6 +5,7 @@ import {
   dateTimeLabel,
   dayFieldLabel,
   formatDate,
+  listDuration,
   listTime,
   longDuration,
   parseTs,
@@ -34,6 +35,9 @@ describe('time labels', () => {
     expect(shortDuration(96)).toBe('1m 36s')
     expect(shortDuration(60)).toBe('1m')
     expect(clock(65)).toBe('01:05')
+    expect(listDuration(181)).toBe('03:01')
+    expect(listDuration(48)).toBe('00:48')
+    expect(listDuration(3781)).toBe('1:03:01')
   })
   it('parses Postgres and ISO timestamps to the same instant', () => {
     expect(parseTs('2026-11-10 12:00:00+00').getTime()).toBe(parseTs('2026-11-10T12:00:00.000Z').getTime())
