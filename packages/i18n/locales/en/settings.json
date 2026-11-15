@@ -467,7 +467,7 @@
   "keyConnect.calcom.help": "Made in Cal.com under Settings, Developer, API keys. It starts with cal_.",
   "keyConnect.calcom.keyLabel": "API key",
   "keyConnect.calcom.linkLabel": "Open Cal.com API keys",
-  "keyConnect.calcom.note": "Each event type becomes a calendar the assistant can book into. Keep its length the same as the appointment type's.",
+  "keyConnect.calcom.note": "Each event type becomes a calendar the assistant can book into. Its length, free times and buffers come from the event type in Cal.com.",
   "keyConnect.calcom.step1": "Sign in to Cal.com with the account whose event types the assistant should book.",
   "keyConnect.calcom.step2": "Open Settings › Developer › API keys (the button above takes you there).",
   "keyConnect.calcom.step3": "Click “New”, name the key “Linedesk”, choose “Never expires” (or a date you will remember) and save.",
