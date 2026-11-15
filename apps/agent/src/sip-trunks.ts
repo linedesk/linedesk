@@ -2,7 +2,7 @@
 // limited to the carriers' signaling addresses. Outbound: one for the phone call test
 // ("linedesk-test-caller") and one for warm transfers ("linedesk-outbound"), each through the carrier's
 // credentials (OutboundSip).
-import { ListUpdate, type SIPDispatchRuleInfo, SIPInboundTrunkInfo, SIPTransport } from '@livekit/protocol'
+import { ListUpdate, type SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPTransport } from '@livekit/protocol'
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { TRANSFER_OUTBOUND_NAME, type OutboundSip } from '@linedesk/telephony'
 import { SipClient } from 'livekit-server-sdk'
@@ -67,21 +67,25 @@ export async function ensureInboundTrunk(
     })
     trunkId = existing.sipTrunkId
   } else trunkId = (await sip.createSipInboundTrunk(name, numbers, { allowedAddresses })).sipTrunkId
-  if (maxCallMinutes) await limitCallDuration(sip, trunkId, numbers, allowedAddresses, maxCallMinutes)
+  await writeTrunkSettings(sip, trunkId, numbers, allowedAddresses, maxCallMinutes)
   return trunkId
 }
 
 /**
- * Sets the trunk's maximum call length. LiveKit only takes it in a whole new trunk (a replace), so the trunk as it
- * is now is written back with it, carrying exactly the numbers and addresses just set: a replace with fewer
- * numbers would take the missing ones offline, so it is refused before anything is sent.
+ * Sets what only a whole new trunk (a replace) takes: every SIP header of the INVITE copied into the caller's
+ * attributes (`sip.h.*`: the carrier's caller-ID attestation and spam flag, caller-attestation.ts), and the maximum
+ * call length when given. The trunk as it is now is written back with them, carrying exactly the numbers and
+ * addresses just set: a replace with fewer numbers would take the missing ones offline, so it is refused before
+ * anything is sent.
  */
-async function limitCallDuration(sip: InboundSip, trunkId: string, numbers: string[], allowedAddresses: string[], minutes: number) {
+async function writeTrunkSettings(sip: InboundSip, trunkId: string, numbers: string[], allowedAddresses: string[], minutes?: number) {
   const current = (await sip.listSipInboundTrunk()).find(trunk => trunk.sipTrunkId === trunkId)
-  if (!current) throw new Error(`inbound trunk ${trunkId} is gone: its call length was not set`)
+  if (!current) throw new Error(`inbound trunk ${trunkId} is gone: its settings were not written`)
   const replacement = SIPInboundTrunkInfo.fromJson({
     ...(current.toJson() as Record<string, unknown>),
-    numbers, allowedAddresses, maxCallDuration: `${minutes * 60}s`,
+    numbers, allowedAddresses,
+    includeHeaders: SIPHeaderOptions[SIPHeaderOptions.SIP_ALL_HEADERS],
+    ...(minutes ? { maxCallDuration: `${minutes * 60}s` } : {}),
   })
   const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i])
   if (!same(replacement.numbers, numbers) || !same(replacement.allowedAddresses, allowedAddresses)) {

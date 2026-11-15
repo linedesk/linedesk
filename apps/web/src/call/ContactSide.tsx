@@ -187,6 +187,10 @@ export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
           </Button>
         )}
         {contact?.blocked_at && <Badge>{t('call.contact.blocked')}</Badge>}
+        {call.spam_likely && <Badge title={t('call.contact.spamLikelyTitle')}>{t('call.contact.spamLikely')}</Badge>}
+        {call.caller_attestation && call.caller_attestation !== 'A' && (
+          <Badge title={t('call.contact.notVerifiedTitle')}>{t('call.contact.notVerified')}</Badge>
+        )}
       </div>
       {contact ? (
         <Facts contact={contact} toast={toast} />

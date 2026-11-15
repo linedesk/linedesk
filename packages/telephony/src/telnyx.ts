@@ -129,6 +129,23 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     for (const stale of fqdns.filter(f => f.fqdn !== sipEndpoint)) await request('DELETE', `/fqdns/${stale.id}`)
   }
 
+  /**
+   * Inbound call screening in flag mode: Telnyx marks a call it rates as spam (number reputation, a failed STIR/SHAKEN
+   * signature) with `X-Telnyx-Call-Screening: SPAM LIKELY` and never rejects one; free since March 2026. Only a number
+   * with screening off is changed, so an owner's own choice (reject) stays. A failure leaves the routing done: the
+   * flag is a help for the inbox, not something a call needs.
+   */
+  async function flagSpamCalls(numberId: string) {
+    try {
+      const { data } = await request('GET', `/phone_numbers/${numberId}/voice`)
+      if ((data?.inbound_call_screening ?? 'disabled') === 'disabled') {
+        await request('PATCH', `/phone_numbers/${numberId}/voice`, { inbound_call_screening: 'flag_calls' })
+      }
+    } catch (e) {
+      console.warn(`telnyx: could not turn on call screening for number ${numberId}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   function verifySignature(headers: Record<string, string | undefined>, rawBody: string) {
     if (!publicKey) throw fail('TELNYX_PUBLIC_KEY is not set, cannot verify webhooks')
     const signature = headers['telnyx-signature-ed25519']
@@ -182,6 +199,7 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       const connection_id = await ensureConnection()
       await ensureFqdn(connection_id, sipEndpoint)
       await request('PATCH', `/phone_numbers/${number.providerRef}`, { connection_id })
+      await flagSpamCalls(number.providerRef)
     },
 
     async unrouteNumber(number) {

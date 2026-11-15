@@ -146,6 +146,8 @@
   "row.sample": "Sample",
   "row.select": "Select",
   "row.selectedUnselect": "Selected, unselect",
+  "row.spamLikely": "Spam likely",
+  "row.spamLikelyTitle": "The phone carrier's spam check flagged this number",
   "row.unread": "unread",
   "row.unreadMarkRead": "Unread, mark read",
   "sample.line": "<b>Sample calls.</b> {count, plural, one {# example} other {# examples}} of how calls land here. Try {done}, {assign} and {open} on them.",

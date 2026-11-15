@@ -54,6 +54,7 @@ export function rowLabel(call: Call, contact: Contact | undefined, group: Call[]
     callerName(call, contact),
     callTitle(call),
     group && t('inbox.row.calls', { count: group.length }),
+    call.spam_likely && t('inbox.row.spamLikely'),
     unread && t('inbox.row.unread'),
     call.inbox_state === 'done' && t('inbox.row.done'),
   ]
@@ -265,6 +266,11 @@ export const Row = memo(function Row({
         )}
         {call.assignee_id && on.onAssign && <AssigneeMark userId={call.assignee_id} />}
         {call.source === 'sample' && <span className="r-sample">{t('inbox.row.sample')}</span>}
+        {call.spam_likely && (
+          <span className="r-sample" title={t('inbox.row.spamLikelyTitle')}>
+            {t('inbox.row.spamLikely')}
+          </span>
+        )}
       </span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">

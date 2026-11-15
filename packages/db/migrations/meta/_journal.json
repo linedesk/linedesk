@@ -729,6 +729,13 @@
       "when": 1794765080042,
       "tag": "0103_assistant_realtime_voice",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1794771237962,
+      "tag": "0104_caller_attestation",
+      "breakpoints": true
     }
   ]
 }

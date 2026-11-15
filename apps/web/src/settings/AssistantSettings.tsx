@@ -435,6 +435,7 @@ const BEHAVIOUR_LABELS: Record<BehaviourId, MessageKey> = {
   confirm_number: msg('settings.assistant.behaviour.confirmNumber'),
   caller_history: msg('settings.assistant.behaviour.callerHistory'),
   ask_booking_name: msg('settings.assistant.behaviour.askBookingName'),
+  verified_caller_only: msg('settings.assistant.behaviour.verifiedCallerOnly'),
 }
 const DISCLOSURE_LABELS: Record<AiDisclosure, MessageKey> = {
   never: msg('settings.assistant.disclosure.never'),

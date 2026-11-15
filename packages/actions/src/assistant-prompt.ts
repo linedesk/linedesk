@@ -99,6 +99,15 @@ export const BEHAVIOURS = [
     on: false,
     say: null,
   },
+  {
+    // Not a line: with it on, a phone caller is matched to their contact (name, notes, history, bookings, the
+    // business's own caller lookup) only when the caller's carrier vouched for the number (STIR/SHAKEN attestation
+    // A); any other call is handled like one from an unknown number. Caller ID is easy to fake. On by default (Tim, 2026-11-15).
+    id: 'verified_caller_only',
+    label: 'Recognize callers only when their carrier verified the number',
+    on: true,
+    say: null,
+  },
 ] as const satisfies readonly { id: string; label: string; on: boolean; say: string | null; sayOff?: string }[]
 
 export type BehaviourId = (typeof BEHAVIOURS)[number]['id']

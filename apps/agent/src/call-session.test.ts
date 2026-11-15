@@ -23,6 +23,17 @@ test('a call test may make the assistant speak only one language; an unknown one
   expect(test({ mainLanguage: 'xx' })).not.toHaveProperty('mainLanguage')
 })
 
+test("a phone call carries what the caller's carrier said: the attestation and the spam flag", () => {
+  const headers = {
+    ...sip,
+    'sip.h.p-asserted-identity': '"+15035550191"<sip:+15035550191@sip.telnyx.com;verstat=TN-Validation-Passed-B>',
+    'sip.h.x-telnyx-call-screening': 'SPAM LIKELY',
+  }
+  expect(callOrigin('', headers, 'call-1')).toEqual({
+    kind: 'phone', from: '+15035550191', to: '+15035550142', room: 'call-1', attestation: 'B', spamLikely: true,
+  })
+})
+
 test('a room that is neither is refused', () => {
   expect(() => callOrigin('', {}, 'room')).toThrow('participant has no sip.trunkPhoneNumber attribute')
 })

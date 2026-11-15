@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineAction, type PatchSpec } from './define.ts'
+import { behaviourOn } from './assistant-prompt.ts'
 import type { Call } from '@linedesk/db/types'
 
 const callId = z.object({ callId: z.string().min(1) })
@@ -134,6 +135,26 @@ export const ASSISTANT_CALL_MAX_MINUTES = 25
 /** The longest any call lasts, one put through to a person included: the inbound trunk hangs up then. */
 export const CALL_MAX_MINUTES = 120
 
+/** How a caller's carrier vouched for the caller ID (calls.caller_attestation). */
+export const CALLER_ATTESTATIONS = ['A', 'B', 'C', 'failed', 'none'] as const
+export type CallerAttestation = (typeof CALLER_ATTESTATIONS)[number]
+
+/**
+ * Whether a call's caller ID is trusted to name the caller (their contact's name, notes, history and bookings, the
+ * business's caller lookup). Calls without a phone line (test, simulated) always. A phone call unless the carrier
+ * said explicitly that it did not vouch for the number (an attestation other than A) and the assistant's owner left
+ * "Recognize callers only when their carrier verified the number" on. No attestation at all (a trunk that passes no
+ * SIP headers, an older agent) is handled as before the check; headers without a verstat arrive as `none`.
+ */
+export function callerRecognized(
+  source: 'phone' | 'test' | 'sample' | 'simulated',
+  attestation: CallerAttestation | null | undefined,
+  behaviours: Readonly<Record<string, boolean>> | null | undefined,
+): boolean {
+  if (source !== 'phone') return true
+  return attestation == null || attestation === 'A' || !behaviourOn(behaviours, 'verified_caller_only')
+}
+
 export const callStart = defineAction({
   name: 'call.start',
   description: 'Register an incoming call. The workspace is resolved from the dialled number.',
@@ -143,6 +164,10 @@ export const callStart = defineAction({
     room: z.string().optional(),
     /** `simulated`: a scripted call from the call simulator; filed like a phone call, never counted as a real one. */
     source: z.enum(['phone', 'simulated']).optional(),
+    /** STIR/SHAKEN attestation the carrier sent with the call (callerAttestation in apps/agent); missing: not read (older agent). */
+    attestation: z.enum(CALLER_ATTESTATIONS).optional(),
+    /** The carrier's spam screening flagged the call. */
+    spamLikely: z.boolean().optional(),
   }),
   permission: 'agent',
   secretResult: ['callToken'],

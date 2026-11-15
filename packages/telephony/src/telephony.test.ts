@@ -27,7 +27,7 @@ function mockTelnyx(routes: Route) {
   return { provider, calls }
 }
 
-type Account = { owned?: boolean; connection?: boolean; routedTo?: string | null; fqdns?: { id: string; connection_id: string; fqdn: string }[] }
+type Account = { owned?: boolean; connection?: boolean; routedTo?: string | null; fqdns?: { id: string; connection_id: string; fqdn: string }[]; screening?: string }
 
 /** A Telnyx account in memory: the order puts the number on the account, connections and FQDNs persist. */
 const telnyxAccount = (account: Account = {}): Route => ({ method, path, body }) => {
@@ -56,6 +56,11 @@ const telnyxAccount = (account: Account = {}): Route => ({ method, path, body })
   if (method === 'DELETE' && path.startsWith('/fqdns/')) {
     account.fqdns = account.fqdns?.filter(f => `/fqdns/${f.id}` !== path)
     return { json: { data: {} } }
+  }
+  if (method === 'GET' && path === '/phone_numbers/num_1/voice') return { json: { data: { inbound_call_screening: account.screening ?? 'disabled' } } }
+  if (method === 'PATCH' && path === '/phone_numbers/num_1/voice') {
+    account.screening = body.inbound_call_screening
+    return { json: { data: { inbound_call_screening: account.screening } } }
   }
   if (method === 'GET' && path === '/phone_numbers/num_1') return { json: { data: { id: 'num_1', connection_id: account.routedTo ?? null } } }
   if (method === 'PATCH' && path === '/phone_numbers/num_1') {
@@ -180,14 +185,19 @@ describe('telnyx adapter', () => {
     const account: Account = { owned: true }
     const first = mockTelnyx(telnyxAccount(account))
     await first.provider.routeToSip(routed, SIP)
-    expect(steps(first.calls)).toEqual(['GET /fqdn_connections', 'POST /fqdn_connections', 'GET /fqdns', 'POST /fqdns', 'PATCH /phone_numbers/num_1'])
+    expect(steps(first.calls)).toEqual([
+      'GET /fqdn_connections', 'POST /fqdn_connections', 'GET /fqdns', 'POST /fqdns', 'PATCH /phone_numbers/num_1',
+      'GET /phone_numbers/num_1/voice', 'PATCH /phone_numbers/num_1/voice',
+    ])
     expect(first.calls[1]!.body).toMatchObject({ connection_name: 'linedesk-livekit', transport_protocol: 'TCP', inbound: { dnis_number_format: '+e164' } })
     expect(first.calls[3]!.body).toEqual({ connection_id: 'conn_1', fqdn: SIP, port: 5060, dns_record_type: 'a' })
     expect(first.calls[4]!.body).toEqual({ connection_id: 'conn_1' })
+    expect(first.calls[6]!.body).toEqual({ inbound_call_screening: 'flag_calls' })
+    expect(account.screening).toBe('flag_calls')
 
     const second = mockTelnyx(telnyxAccount(account))
     await second.provider.routeToSip(routed, SIP)
-    expect(steps(second.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1'])
+    expect(steps(second.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice'])
   })
 
   test('LINEDESK_CARRIER_SUFFIX names the connection per install, so a second install in the account never repoints the first', async () => {
@@ -215,7 +225,7 @@ describe('telnyx adapter', () => {
       return telnyxAccount(account)(call)
     })
     await big.provider.routeToSip(routed, SIP)
-    expect(steps(big.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1'])
+    expect(steps(big.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice', 'PATCH /phone_numbers/num_1/voice'])
     expect(big.calls[2]!.body).toEqual({ connection_id: BIG_ID })
   })
 
@@ -227,7 +237,21 @@ describe('telnyx adapter', () => {
     const moved = mockTelnyx(telnyxAccount(account))
     await moved.provider.routeToSip(routed, 'sip.new.test')
     expect(account.fqdns?.map(f => f.fqdn)).toEqual(['sip.new.test'])
-    expect(steps(moved.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'POST /fqdns', `DELETE /fqdns/fqdn_${SIP}`, 'PATCH /phone_numbers/num_1'])
+    expect(steps(moved.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'POST /fqdns', `DELETE /fqdns/fqdn_${SIP}`, 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice'])
+  })
+
+  test("spam screening in flag mode: turned on when off, an owner's own choice kept, a failure never fails routing", async () => {
+    const off: Account = { owned: true, connection: true }
+    await mockTelnyx(telnyxAccount(off)).provider.routeToSip(routed, SIP)
+    expect(off.screening).toBe('flag_calls')
+    const rejecting: Account = { owned: true, connection: true, screening: 'reject_calls' }
+    await mockTelnyx(telnyxAccount(rejecting)).provider.routeToSip(routed, SIP)
+    expect(rejecting.screening).toBe('reject_calls')
+    const account: Account = { owned: true, connection: true }
+    const base = telnyxAccount(account)
+    const refused = mockTelnyx(c => (c.path.endsWith('/voice') ? { status: 403, json: { errors: [{ detail: 'no' }] } } : base(c)))
+    await expect(refused.provider.routeToSip(routed, SIP)).resolves.toBeUndefined()
+    expect(account.routedTo).toBe('conn_1')
   })
 
   test('a failed FQDN request fails routing and the next run completes it', async () => {

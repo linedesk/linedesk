@@ -9,6 +9,7 @@
   "assistant.behaviour.callerHistory": "Know the caller's previous calls",
   "assistant.behaviour.confirmNumber": "Confirm the callback number",
   "assistant.behaviour.offerCallback": "Offer a callback when you can't answer",
+  "assistant.behaviour.verifiedCallerOnly": "Recognize callers only when their carrier verified the number",
   "assistant.disclosure.atStart": "At the start of the call",
   "assistant.disclosure.atStartConsent": "At the start, caller must agree",
   "assistant.disclosure.description": "Whether and when {name} mentions it's an AI",

@@ -83,9 +83,12 @@ const deliveriesOf = (endpointId: string) => db.select().from(webhook_deliveries
 const endpointRow = async (endpointId: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, endpointId)))[0]!
 const callRow = async (callId: string) => (await db.select().from(calls).where(eq(calls.id, callId)))[0]!
 
-/** A new phone call from the workspace's contact; finished with a summary and a message when `finish`. */
-async function newCall({ finish = false } = {}) {
-  const started = await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number })
+/**
+ * A new phone call from the workspace's contact, its number vouched for by the carrier unless `attestation` says
+ * otherwise; finished with a summary and a message when `finish`.
+ */
+async function newCall({ finish = false, attestation = 'A' }: { finish?: boolean; attestation?: string | null } = {}) {
+  const started = await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number, ...(attestation ? { attestation } : {}) })
   expect(started.status, JSON.stringify(started.body)).toBe(200)
   const { callId } = started.body.data as { callId: string }
   if (finish) await finishCall(callId)
@@ -258,6 +261,25 @@ describe('when a call starts', () => {
     expect(await deliveriesOf(endpointId)).toMatchObject([{ event: 'call_start', status: 'delivered', attempts: 1, payload: { call_id: callId, reply: { name: 'Sam', plan: 'Premium' } } }])
   })
 
+  test('a caller ID the carrier did not vouch for is not looked up: the business is not asked about its owner', async () => {
+    const { endpointId } = await addHook(['call_start'])
+    replyBody = JSON.stringify({ name: 'Sam', plan: 'Premium' })
+    for (const attestation of ['B', 'none']) {
+      const callId = await newCall({ attestation })
+      expect((await act(agent(ws.id), 'call.lookUpCaller', { callId })).body.data).toEqual({ details: null })
+    }
+    expect(received).toEqual([])
+    expect(await deliveriesOf(endpointId)).toEqual([])
+    // With "Recognize callers only when their carrier verified the number" off, it is asked as before.
+    await db.update(assistants).set({ behaviours: { verified_caller_only: false } }).where(eq(assistants.id, ws.assistant.id))
+    try {
+      const callId = await newCall({ attestation: 'B' })
+      expect((await act(agent(ws.id), 'call.lookUpCaller', { callId })).body.data).toEqual({ details: { name: 'Sam', plan: 'Premium' } })
+    } finally {
+      await db.update(assistants).set({ behaviours: {} }).where(eq(assistants.id, ws.assistant.id))
+    }
+  })
+
   test('caller.name_confirmed is true only for a name the team gave or confirmed', async () => {
     await addHook(['call_start'])
     const callerAfter = async (name_source: 'member' | 'caller' | null) => {
@@ -341,10 +363,19 @@ describe('during the call', () => {
       hook: 'during_call', lookup: 'order_status', values: { order_number: '1234', items: 2 }, call_id: callId,
       assistant_id: ws.assistant.id, from_number: ws.contact.phone, test: false, caller: { contact_id: ws.contact.id },
     })
+    expect(JSON.parse(request!.body)).toMatchObject({ caller_verified: true })
     expect(JSON.parse(request!.body).values).not.toHaveProperty('color')
     expect(await deliveriesOf(endpointId)).toMatchObject([
       { event: 'during_call', status: 'delivered', payload: { call_id: callId, lookup: 'order_status', reply: 'Order 1234 shipped on Monday. Arrives Thursday.' } },
     ])
+  })
+
+  test('a caller ID the carrier did not vouch for: the lookup is asked without the contact and says caller_verified false', async () => {
+    await addLookups()
+    replyBody = JSON.stringify({ answer: 'Shipped.' })
+    const callId = await newCall({ attestation: 'C' })
+    expect((await ask(callId)).body.data).toEqual({ answer: 'Shipped.', problem: null })
+    expect(JSON.parse(received[0]!.body)).toMatchObject({ caller: null, caller_verified: false, from_number: ws.contact.phone })
   })
 
   test('call.start tells the agent the lookups only while the webhook is on and gets the hook', async () => {

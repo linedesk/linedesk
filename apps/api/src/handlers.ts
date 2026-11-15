@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, behaviourOn, languageNames, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, behaviourOn, callerRecognized, type CallerAttestation, languageNames, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -225,7 +225,19 @@ function withUpcomingClosure(hours: CallHours, closure: Closure | null | undefin
   return { ...hours, summary: `${hours.summary} The business will be closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.` }
 }
 
-type OpenCall = { from: string; to: string; room?: string; source?: 'phone' | 'test' | 'simulated'; label: string; assistant: Assistant | null }
+type OpenCall = {
+  from: string; to: string; room?: string; source?: 'phone' | 'test' | 'simulated'; label: string; assistant: Assistant | null
+  /** What the caller's carrier said about the caller ID (phone calls; missing from an older agent). */
+  attestation?: CallerAttestation; spamLikely?: boolean
+}
+
+/**
+ * The contact as the assistant may see it: on a call whose caller ID is not trusted (callerRecognized), nothing the
+ * team wrote about the number's owner, only the number itself (the callback number).
+ */
+export function contactForAssistant<C extends { name: string | null; note: string | null; name_source: string | null }>(contact: C, recognized: boolean): C {
+  return recognized ? contact : { ...contact, name: null, note: null, name_source: null }
+}
 
 /** The agent's token for the call it just opened (agent-token.ts); the command log keeps it redacted. */
 function withCallToken<R extends { data: { callId: string; workspaceId: string } }>(result: R) {
@@ -237,7 +249,7 @@ function withCallToken<R extends { data: { callId: string; workspaceId: string }
  * the greeting, so it does nothing else: stale calls and unreported recordings are the API's minute
  * sweeps (stale-calls.ts, orphan-recordings.ts).
  */
-async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_id: string, { from, to, room, source = 'phone', label, assistant }: OpenCall) {
+async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_id: string, { from, to, room, source = 'phone', label, assistant, attestation, spamLikely }: OpenCall) {
   const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
   // A phone number always has its workspace; a test call names it, so it has to exist.
   if (!workspace && source === 'test') throw new Reject('no such workspace')
@@ -268,6 +280,8 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
     from_own_number: fromOwnNumber,
+    caller_attestation: source === 'phone' ? (attestation ?? null) : null,
+    spam_likely: source === 'phone' && spamLikely === true,
     assistant_id: assistant?.id ?? null,
     assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
     ...(spam ? blockedCall(now, t) : overCap ? overCapCall(now, t) : busy ? busyCall(now, t) : {}),
@@ -278,14 +292,18 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
-  const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
+  // Caller ID is cheap to fake: unless the carrier vouched for the number (or the owner turned the check off), the
+  // caller is handled like one from an unknown number (no booking changes, no history, no name or note). The contact
+  // stays linked to the call for the team.
+  const recognized = callerRecognized(source, attestation, assistant?.behaviours)
+  const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: recognized ? (contact?.row.id ?? null) : null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
   // "Don't keep" recordings: the agent does not record at all (the transcript comes from live speech recognition).
   const keepRecording = await keepsRecordings(tx, workspace_id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact, and only when the
   // assistant's owner leaves "Know the caller's previous calls" on.
-  const history = source !== 'test' && contact && !blocked && behaviourOn(assistant?.behaviours, 'caller_history')
+  const history = source !== 'test' && contact && recognized && !blocked && behaviourOn(assistant?.behaviours, 'caller_history')
     ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
     : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
@@ -294,7 +312,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const answeredBy = assistant && { ...assistant, voice_pipeline: pipelineChoiceUnder(await voicePipelinePolicy(tx), assistant.voice_pipeline) }
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups, workspaceCountry: locale.resolvedCountry, workspaceLanguage: locale.resolvedLanguage },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact ? contactForAssistant(contact.row, recognized) : null, callerRecognized: recognized, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups, workspaceCountry: locale.resolvedCountry, workspaceLanguage: locale.resolvedLanguage },
   }
 }
 
@@ -586,7 +604,9 @@ const handlers: Record<string, Handler> = {
     // Our own forwarding check arriving: not answered, not filed, never a real call (forwarding-check.ts).
     const check = await claimForwardingCheck(tx, { from, to, now })
     if (check) return forwardingCheckStart(check)
-    return withCallToken(await openCall({ tx, now }, number.workspace_id, { from, to, room: input.room, source: input.source, label: to, assistant }))
+    return withCallToken(await openCall({ tx, now }, number.workspace_id, {
+      from, to, room: input.room, source: input.source, label: to, assistant, attestation: input.attestation, spamLikely: input.spamLikely,
+    }))
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).

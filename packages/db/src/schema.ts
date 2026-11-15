@@ -217,6 +217,14 @@ export const calls = pgTable(
      * Linedesk numbers): the owner trying it out, not a caller. Set by call.start; such calls don't count as real.
      */
     from_own_number: boolean('from_own_number').notNull().default(false),
+    /**
+     * How the caller's carrier vouched for the caller ID (STIR/SHAKEN, from the SIP INVITE): `A` the carrier knows the
+     * caller may use this number; `B`/`C` weaker; `failed` the check failed; `none` no check (calls from outside
+     * North America, many forwarded calls). null: not a phone call, or an agent that did not read it.
+     */
+    caller_attestation: text('caller_attestation', { enum: ['A', 'B', 'C', 'failed', 'none'] }),
+    /** The carrier's spam screening marked the call "Spam likely" (Telnyx inbound call screening, flag mode). */
+    spam_likely: boolean('spam_likely').notNull().default(false),
     started_at: ts('started_at').notNull().defaultNow(),
     ended_at: ts('ended_at'),
     duration_sec: integer('duration_sec'),

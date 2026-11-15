@@ -395,6 +395,9 @@ export const duringCallRequestSchema = z.object({
   started_at: z.string(),
   test: z.boolean().describe('A test call from the app, not a phone call.'),
   caller: callerSchema,
+  caller_verified: z
+    .boolean()
+    .describe("False when the caller's carrier did not vouch for from_number (it may be faked) and the assistant's owner left \"Recognize callers only when their carrier verified the number\" on; `caller` is null then."),
 })
 /** What a during-call webhook answers. */
 export const duringCallReplySchema = z

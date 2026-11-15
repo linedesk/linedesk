@@ -34,6 +34,8 @@ The voice agent asks as soon as the call is registered (`call.lookUpCaller`, age
   "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null } }
 ```
 
+Only a caller the assistant recognizes is looked up: with the assistant's switch "Recognize callers only when their carrier verified the number" on (the default), a phone call whose caller ID the carrier did not vouch for (STIR/SHAKEN attestation other than A; it may be faked) sends no call-start request.
+
 `from_number` is not a number when the caller withheld it ("anonymous"); `caller` is null without a saved contact. `caller.name_confirmed` is true only when your team gave or confirmed the name; false when a caller said it on a call (anyone can say a name), so do not treat it as proof of who is calling. Times are ISO 8601 in UTC.
 
 Answer with a JSON object of caller details, e.g. `{"name": "Sam", "plan": "Premium"}`, or `{}` for an unknown caller. Kept: top-level names of letters, digits and `_` (a letter first, at most 40 characters) with a text, number or true/false value; at most 20 of them, texts on one line and cut to 200 characters (`callerDetailsFrom`). Nested objects, lists and null are left out.
@@ -57,9 +59,11 @@ The owner describes what the assistant can look up (Webhook, During the call; `w
 ```json
 { "hook": "during_call", "lookup": "order_status", "values": { "order_number": "1234" },
   "call_id": "call_…", "workspace_id": "…", "assistant_id": "…", "assistant_name": "Maya",
-  "from_number": "+15035550123", "to_number": "+15035550100", "started_at": "…", "test": false,
+  "from_number": "+15035550123", "to_number": "+15035550100", "started_at": "…", "test": false, "caller_verified": true,
   "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null } }
 ```
+
+`caller_verified` is false when the caller's carrier did not vouch for `from_number` and the assistant's owner left "Recognize callers only when their carrier verified the number" on; `caller` is null then. Never answer with anything about the number's owner on such a request.
 
 `values` holds only the lookup's own fields, each as its type (`lookupValuesFrom`: "2" for a number is 2, "yes" for a boolean is true; a value that is not of its type is left out). A required field the assistant did not fill in sends nothing: the assistant is told to ask the caller for it first.
 

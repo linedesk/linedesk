@@ -1,7 +1,7 @@
 // Booking: free slots (working hours, exceptions, appointment type, existing bookings and the
 // calendar's busy times at the provider), booking into one of the assistant's calendars, cancelling,
 // and the appointment types. Also what call.start tells the agent about booking.
-import { type BookData, type BookingContext, type BookingFieldInput, type CallTestFinding, type FindSlotsData, isE164 } from '@linedesk/actions'
+import { type BookData, type BookingContext, type BookingFieldInput, type CallTestFinding, callerRecognized, type FindSlotsData, isE164 } from '@linedesk/actions'
 import { addDays, type BookWhen, buffersOf, CalendarError, type CalendarProvider, findSlots, type FindSlotsInput, type HoursException, hoursFor, type Interval, type WorkingHours, zonedTimeToInstant } from '@linedesk/calendar'
 import {
   appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts, 
@@ -367,7 +367,8 @@ async function describingCaller(tx: Tx, workspaceId: string, input: WhichBooking
   const [call] = await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId)))
   if (!call) throw new Reject('call not found')
   if (!input.bookingDate || !input.bookedName) throw new Reject('ask the caller for the day of the appointment and the name it is booked under')
-  if (!call.contact_id) throw new Reject('this caller cannot change bookings by phone (no caller number): take a message instead')
+  // A caller ID the carrier did not vouch for may be faked: like a call without a number, no booking changes.
+  if (!call.contact_id || !(await recognizedCaller(tx, call))) throw new Reject('this caller cannot change bookings by phone (no caller number): take a message instead')
   // One caller's changes run one at a time until their transaction ends, so two calls at once cannot both pass
   // the check below before either counts its miss.
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking-misses:${workspaceId}:${call.contact_id}`}))`)
@@ -375,6 +376,14 @@ async function describingCaller(tx: Tx, workspaceId: string, input: WhichBooking
     return { refused: { rows: {}, data: { changed: false, refused: BOOKING_CHANGES_LOCKED } } }
   }
   return { call }
+}
+
+/** Whether the call's caller ID names the caller (callerRecognized), with the switch of the assistant that answered. */
+async function recognizedCaller(tx: Tx, call: CallRow): Promise<boolean> {
+  const [assistant] = call.assistant_id
+    ? await tx.select({ behaviours: assistants.behaviours }).from(assistants).where(eq(assistants.id, call.assistant_id))
+    : []
+  return callerRecognized(call.source, call.caller_attestation, assistant?.behaviours)
 }
 
 /** The one upcoming booking of the call's caller on the day described whose name matches, or null. */
@@ -553,7 +562,9 @@ export const bookingHandlers: Record<string, Handler> = {
     // A withheld caller ID ("anonymous") is no phone number to put on a booking.
     const phone = input.callerPhone ?? (isE164(call?.from_number) ? call.from_number : null)
     const [contact] = call?.contact_id ? await tx.select({ email: contacts.email, name: contacts.name }).from(contacts).where(eq(contacts.id, call.contact_id)) : []
-    const email = input.callerEmail ?? contact?.email ?? null
+    // The contact's saved email only for a caller the number names (callerRecognized): never a faked number's owner.
+    const savedEmail = call && contact?.email && (await recognizedCaller(tx, call)) ? contact.email : null
+    const email = input.callerEmail ?? savedEmail
     const missing = missingDetails(type, { name: input.callerName, phone, email, address: input.address })
     if (missing.length) throw new Reject(`A ${type.name} needs the caller's ${missing.join(' and ')}: ask for it, then book.`)
     const title = input.callerName ? `${type.name} · ${withoutLinks(input.callerName)}` : type.name

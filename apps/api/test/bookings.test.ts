@@ -417,6 +417,31 @@ describe('booking', () => {
     })
   })
 
+  test('a caller ID the carrier did not vouch for changes no booking and gets no saved email, like an unknown number', async () => {
+    const { services, events } = fakeCalendar()
+    await inRollback(async tx => {
+      await run(tx, owner, services, 'appointment.book', book(at('09:00')))
+      const [caller] = await tx.select().from(calls).where(eq(calls.id, ws.call.id))
+      await tx.update(contacts).set({ email: 'sam@brightwater.example', name: 'Sam Patel', name_source: 'member' }).where(eq(contacts.id, caller!.contact_id!))
+      const started = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number, attestation: 'B' })
+      const callId = started.data!.callId as string
+      expect(started.data!.booking).toMatchObject({ canChangeBookings: false })
+      const described = { callId, bookingDate: MONDAY, bookedName: 'Sam Patel', readsRefusals: true }
+      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', described)).rejects.toThrow(/cannot change bookings by phone/)
+      expect(await missesOf(tx, callId)).toBe(0)
+      expect(events.size).toBe(1)
+      // A new booking on that call: the contact's saved email is not used, so no confirmation reaches the number's owner.
+      const { rows } = await run(tx, agent_(ws.id), services, 'appointment.book', book(at('11:00'), { callId, callerName: 'Mallory Stone' }))
+      expect(rows.bookings).toMatchObject([{ caller_email: null }])
+      // Nor does the name the caller gave replace the contact's.
+      expect(rows.contacts).toBeUndefined()
+      expect((await tx.select().from(contacts).where(eq(contacts.id, caller!.contact_id!)))[0]).toMatchObject({ name: 'Sam Patel', name_source: 'member' })
+      // The same carrier answer with A: the booking can be changed as usual.
+      const verified = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number, attestation: 'A' })
+      expect(verified.data!.booking).toMatchObject({ canChangeBookings: true })
+    })
+  })
+
   test('every refusal is the same miss: wrong name, surname only, wrong day, another caller, two matches', async () => {
     let { services } = fakeCalendar()
     await inRollback(async tx => {

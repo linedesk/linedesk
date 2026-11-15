@@ -9,6 +9,7 @@ import { createHmac } from 'node:crypto'
 import type { LookupAddress } from 'node:dns'
 import { isIP } from 'node:net'
 import {
+  callerRecognized,
   CALL_END_DELAY_SEC,
   CALL_START_TIMEOUT_MS,
   type CallAskWebhookData,
@@ -247,7 +248,11 @@ async function askLive<T>(tx: Tx, found: ActiveHook, request: { hook: WebhookHoo
 }
 
 const assistantOf = async (tx: Tx, assistantId: string) =>
-  (await tx.select({ id: assistants.id, name: assistants.name }).from(assistants).where(eq(assistants.id, assistantId)))[0]!
+  (await tx.select({ id: assistants.id, name: assistants.name, behaviours: assistants.behaviours }).from(assistants).where(eq(assistants.id, assistantId)))[0]!
+
+/** Whether the call's caller ID names the caller (callerRecognized): only then is the matched contact sent or looked up. */
+const recognizedOn = (call: Call, assistant: { behaviours: Record<string, boolean> | null }) =>
+  callerRecognized(call.source, call.caller_attestation, assistant.behaviours)
 
 /**
  * call.lookUpCaller: asks the assistant's call-start webhook about the caller and keeps what it answered on
@@ -257,7 +262,10 @@ export async function lookUpCaller(tx: Tx, call: Call, env: Env = process.env): 
   if (call.source !== 'phone') return { details: null }
   const found = await activeHook(tx, call.assistant_id, 'call_start')
   if (!found) return { details: null }
-  const request = callStartRequest(call, await assistantOf(tx, call.assistant_id!), callerOf(await callerContact(tx, call)))
+  const assistant = await assistantOf(tx, call.assistant_id!)
+  // A caller ID the carrier did not vouch for may be faked: the business's system is not asked about its owner.
+  if (!recognizedOn(call, assistant)) return { details: null }
+  const request = callStartRequest(call, assistant, callerOf(await callerContact(tx, call)))
   const details = await askLive(tx, found, request, CALL_START_TIMEOUT_MS, callerDetailsFrom, env)
   if (details) await tx.update(calls).set({ caller_details: details }).where(eq(calls.id, call.id))
   return { details }
@@ -270,10 +278,10 @@ export async function duringCallLookups(tx: Tx, assistantId: string | null | und
 }
 
 /** What the during-call webhook is sent for one lookup. */
-export function duringCallRequest(call: Call, assistant: Pick<Assistant, 'id' | 'name'>, caller: ReturnType<typeof callerOf>, lookup: string, values: DuringCallRequest['values']): DuringCallRequest {
+export function duringCallRequest(call: Call, assistant: Pick<Assistant, 'id' | 'name'>, caller: ReturnType<typeof callerOf>, lookup: string, values: DuringCallRequest['values'], callerVerified = true): DuringCallRequest {
   return {
     hook: 'during_call', lookup, values, call_id: call.id, workspace_id: call.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
-    from_number: call.from_number, to_number: call.to_number, started_at: iso(call.started_at), test: call.source === 'test', caller,
+    from_number: call.from_number, to_number: call.to_number, started_at: iso(call.started_at), test: call.source === 'test', caller, caller_verified: callerVerified,
   }
 }
 
@@ -292,7 +300,9 @@ export async function askWebhook(tx: Tx, call: Call, input: { lookup: string; va
     eq(webhook_deliveries.endpoint_id, found.endpoint.id), eq(webhook_deliveries.event, 'during_call'), sql`${webhook_deliveries.payload} ->> 'call_id' = ${call.id}`,
   ))
   if (asked >= DURING_CALL_MAX_PER_CALL) return { answer: null, problem: 'limit' }
-  const request = duringCallRequest(call, await assistantOf(tx, call.assistant_id!), callerOf(await callerContact(tx, call)), lookup.name, filled.values)
+  const assistant = await assistantOf(tx, call.assistant_id!)
+  const recognized = recognizedOn(call, assistant)
+  const request = duringCallRequest(call, assistant, recognized ? callerOf(await callerContact(tx, call)) : null, lookup.name, filled.values, recognized)
   const answer = await askLive(tx, found, request, DURING_CALL_TIMEOUT_MS, lookupAnswerFrom, env)
   return answer ? { answer, problem: null } : { answer: null, problem: 'failed' }
 }
@@ -453,7 +463,7 @@ function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { 
     caller: { contact_id: 'ct_test', name: 'Sam Taylor', name_confirmed: true, company: null, email: 'sam@example.com' },
   }
   if (hook === 'call_start') return { hook: 'call_start', ...call }
-  if (hook === 'during_call' && lookup) return { hook: 'during_call', lookup: lookup.name, values: exampleLookupValues(lookup), ...call, test: true }
+  if (hook === 'during_call' && lookup) return { hook: 'during_call', lookup: lookup.name, values: exampleLookupValues(lookup), ...call, test: true, caller_verified: true }
   const lines = [
     { speaker: 'agent' as const, text: `Thanks for calling, this is ${assistant.name}. How can I help?`, at_ms: 0 },
     { speaker: 'caller' as const, text: 'Hi, this is Sam. My water heater is leaking, can someone come by tomorrow?', at_ms: 4200 },

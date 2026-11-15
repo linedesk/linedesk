@@ -1,5 +1,6 @@
 // One call as the agent sees it: start, append transcript segments, finish.
 import {
+  type CallerAttestation,
   BEHAVIOUR_IDS,
   type BookingContext,
   type CallerHistory,
@@ -33,6 +34,7 @@ import {
 } from '@linedesk/db/types'
 import type { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
+import { callerAttestation, spamLikely, warnIfNoSipHeaders } from './caller-attestation.ts'
 import { type SimulatedAnswer, simulatedAnswers } from './on-call-dialer.ts'
 import { type CallerContext, forHours } from './prompt.ts'
 
@@ -216,7 +218,7 @@ export function announceRecording(call: CallSession, canRecord: boolean): CallSe
  * (the call test sets "closed" for its after-hours scenario without touching the real settings).
  */
 export type CallOrigin =
-  | { kind: 'phone'; from: string; to: string; room?: string; simulated?: boolean }
+  | { kind: 'phone'; from: string; to: string; room?: string; simulated?: boolean; attestation?: CallerAttestation; spamLikely?: boolean }
   | ({ kind: 'test'; room: string } & TestMetadata)
 
 /**
@@ -307,7 +309,12 @@ export const isRealtimeModelId = (value: unknown): value is string =>
 export async function startCall(api: ApiClient, origin: CallOrigin): Promise<CallSession> {
   const { data } =
     origin.kind === 'phone'
-      ? await api.run(callStart, { from: origin.from, to: origin.to, room: origin.room, ...(origin.simulated ? { source: 'simulated' as const } : {}) })
+      ? await api.run(callStart, {
+          from: origin.from, to: origin.to, room: origin.room,
+          ...(origin.simulated ? { source: 'simulated' as const } : {}),
+          ...(origin.attestation ? { attestation: origin.attestation } : {}),
+          ...(origin.spamLikely ? { spamLikely: true } : {}),
+        })
       : await api.run(
           callStartTest,
           { room: origin.room, ...(origin.assistantId ? { assistantId: origin.assistantId } : {}) },
@@ -413,7 +420,9 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
   if (!to) throw new Error('participant has no sip.trunkPhoneNumber attribute')
   // A withheld number may come without any caller ID: it is registered as such, never as someone's number.
   const from = attributes['sip.phoneNumber'] || 'anonymous'
-  return { kind: 'phone', from, to, room }
+  warnIfNoSipHeaders(attributes)
+  const attestation = callerAttestation(attributes)
+  return { kind: 'phone', from, to, room, ...(attestation ? { attestation } : {}), ...(spamLikely(attributes) ? { spamLikely: true } : {}) }
 }
 
 /** The workspace (and the assistant picked in the web app) of a test room the API signed, or null for any other room. */
