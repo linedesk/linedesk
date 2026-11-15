@@ -115,16 +115,33 @@ const describeArgs = (args: Record<string, unknown>) =>
 const isCallbackNumber = (label: string) => /\b(phone|callback|call-back|number)\b/i.test(label) && !/account|zip|member|policy|order/i.test(label)
 
 /**
- * What the main assistant is told when the step is over. `callerId`: the caller's number from caller ID; without it
- * a declined callback number leaves the team no way to call back, so the assistant says so and asks once more.
+ * What a phone number step adds to its instructions on a call without caller ID: callers say "the number I'm calling
+ * from", which the step cannot see. On a test call from the app there is no such number at all, so the step ends
+ * (LIN-277); on a phone call with a withheld number the caller is asked to say it.
  */
-export function describeOutcome(outcome: CollectOutcome, { callerId }: { callerId?: string | null } = {}): string {
+export function noCallerIdRule(testCall: boolean): string {
+  return testCall
+    ? `This is a test call from the app: there is no caller ID, so there is no number the caller is calling from. If the caller says to use the number they are calling from (or this number), do not ask again: call decline with the reason "${TEST_CALL_NO_NUMBER}".`
+    : 'There is no caller ID on this call: you cannot see the number the caller is calling from. If they say to use that number, tell them you cannot see it, and ask them to say it.'
+}
+
+/** The decline reason of a number step on a test call when the caller means the number they are calling from. */
+export const TEST_CALL_NO_NUMBER = 'test call, no caller ID'
+
+/**
+ * What the main assistant is told when the step is over. `callerId`: the caller's number from caller ID; without it
+ * a declined callback number leaves the team no way to call back, so the assistant says so and asks once more. On a
+ * test call from the app (`testCall`) there is no number to ask for: the assistant notes that and goes on.
+ */
+export function describeOutcome(outcome: CollectOutcome, { callerId, testCall = false }: { callerId?: string | null; testCall?: boolean } = {}): string {
   switch (outcome.status) {
     case 'confirmed':
       return `The caller confirmed the ${outcome.label}: ${outcome.value}. Use exactly this (in take_message or the booking); do not ask for it again.`
     case 'incomplete':
       return `Could not get a confirmed ${outcome.label}${outcome.partial ? `; best guess (not confirmed): ${outcome.partial}` : ''}. Tell the caller you will note what you have and someone will call them back. Put it in take_message${outcome.partial ? ' marked as unconfirmed' : ''}, and do not ask for it again.`
     case 'declined':
+      if (!callerId && testCall && isCallbackNumber(outcome.label))
+        return `This is a test call from the app, with no caller ID: there is no ${outcome.label} to get (${outcome.reason}). Do not ask for it again; put "${TEST_CALL_NO_NUMBER}" in take_message and go on.`
       if (!callerId && isCallbackNumber(outcome.label))
         return `The caller did not give the ${outcome.label} (${outcome.reason}). Tell the caller the team cannot call back without a number, and ask once more.`
       return `The caller did not want to give the ${outcome.label} (${outcome.reason}). Go on without it.`

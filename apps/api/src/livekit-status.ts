@@ -80,10 +80,12 @@ export async function deleteLivekitRoom(room: string, env: Env = process.env, do
 }
 
 /**
- * The names of the rooms open on the LiveKit server right now (ListRooms answers all of them at once, no pages).
+ * The rooms open on the LiveKit server right now (ListRooms answers all of them at once, no pages), each with how many
+ * participants are in it. A room stays open with nobody in it after its agent died (LiveKit keeps it for the job), so
+ * an open room alone does not mean anyone is on the call. A room without a participant count counts as occupied.
  * Null when LiveKit is not set up, refuses or does not answer: the caller cannot tell then which rooms are gone.
  */
-export async function listLivekitRooms(env: Env = process.env, doFetch: typeof fetch = fetch): Promise<Set<string> | null> {
+export async function listLivekitRooms(env: Env = process.env, doFetch: typeof fetch = fetch): Promise<Map<string, number> | null> {
   const { LIVEKIT_URL: url, LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret } = env
   if (!url || !key || !secret) return null
   try {
@@ -93,8 +95,10 @@ export async function listLivekitRooms(env: Env = process.env, doFetch: typeof f
       livekitToken(key, secret, { video: { roomList: true } }),
     )
     if (status !== 200 || (body.rooms !== undefined && !Array.isArray(body.rooms))) return null
-    const rooms = (body.rooms ?? []) as { name?: unknown }[]
-    return new Set(rooms.map(r => r.name).filter((name): name is string => typeof name === 'string'))
+    const rooms = (body.rooms ?? []) as { name?: unknown; num_participants?: unknown }[]
+    return new Map(
+      rooms.flatMap(r => (typeof r.name === 'string' ? [[r.name, r.num_participants === undefined ? 1 : Number(r.num_participants) || 0] as const] : [])),
+    )
   } catch {
     return null
   }

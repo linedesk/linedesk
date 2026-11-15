@@ -4,7 +4,7 @@ import { llm } from '@livekit/agents'
 import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
-import { type CollectOutcome, describeOutcome, outcomeEvent } from './collection.ts'
+import { type CollectOutcome, describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector, upcomingDates } from './collectors.ts'
 import { phoneStepRefusal } from '../callback-number.ts'
 
@@ -28,6 +28,8 @@ export type CollectContext = {
   addToMessage?: (detail: string) => Promise<boolean>
   /** The caller's number from caller ID (callerIdOf); null or missing: unknown. Then it is the callback number. */
   callerId?: string | null
+  /** A test call from the app (CallerContext.testCall): no caller ID by design, so no number to call back on. */
+  testCall?: boolean
   /** What a step may answer a short question from (stepFacts); missing: only the value. */
   facts?: () => string
   /** The workspace's country: phone numbers are read as written there (CallSession.country); missing: US. */
@@ -73,7 +75,7 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
     if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)
     nudgeIfQuiet(run.session)
-    return describeOutcome(outcome, { callerId: ctx.callerId ?? null }) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
+    return describeOutcome(outcome, { callerId: ctx.callerId ?? null, testCall: ctx.testCall === true }) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
   } catch (e) {
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`
@@ -125,6 +127,13 @@ export function saidMeanwhile(items: readonly llm.ChatItem[]): string {
   return ` While you got it the caller said: ${lines.map(line => `"${line}"`).join(' ')} If they asked or wanted anything else, answer that now before you go on.`
 }
 
+/** The phone number step; without caller ID it knows that "the number I'm calling from" is not known (noCallerIdRule). */
+export function phoneStep(ctx: Pick<CollectContext, 'callerId' | 'testCall' | 'country'>, label: string): AnyCollector {
+  const collector = phoneCollector(label, ctx.country)
+  if (ctx.callerId) return collector
+  return { ...collector, instructions: `${collector.instructions}\n${noCallerIdRule(ctx.testCall === true)}` }
+}
+
 export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
@@ -148,7 +157,7 @@ export function collectTools(ctx: CollectContext) {
         if (refusal) return refusal
         // Only with caller ID is a callback number "another" one, and the reason worth a line for the team.
         if (ctx.callerId && reason?.trim()) ctx.log.record('system', `Asked for another ${label}: ${reason.trim()}`)
-        return runStep(ctx, opts, phoneCollector(label, ctx.country))
+        return runStep(ctx, opts, phoneStep(ctx, label))
       },
     }),
     get_address: llm.tool({

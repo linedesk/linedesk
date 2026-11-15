@@ -145,7 +145,7 @@ test('a call whose LiveKit room is gone ends after a minute of quiet; one whose 
   const ended = await finishStaleCalls(db, {
     now,
     staleAfterMin: 10,
-    listRooms: async () => new Set([openRoom, 'call-somebody-else']),
+    listRooms: async () => new Map([[openRoom, 1], ['call-somebody-else', 2]]),
     endRoom: async r => {
       deleted.push(r)
       return true
@@ -157,6 +157,33 @@ test('a call whose LiveKit room is gone ends after a minute of quiet; one whose 
   expect(await getCall(gone)).toMatchObject({ status: 'completed', outcome: 'callback', duration_sec: 180 })
   expect(await getCall(open)).toMatchObject({ status: 'live' })
   expect(deleted).toEqual([]) // a room LiveKit no longer has needs no delete; an open one is never deleted
+})
+
+test('a call whose agent died ends after a minute of quiet: LiveKit keeps its room open with nobody in it, and the room is deleted (LIN-277)', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const room = () => `call-${uid('room')}`
+  // The agent process was killed 3 minutes ago: its room is still listed, with no participant.
+  const deadAgent = await liveCall(ws.id, 5, [['agent', 0], ['caller', 2]], room(), 'phone')
+  // Empty too, but the last line only 30 seconds ago: not yet.
+  const justQuiet = await liveCall(ws.id, 5, [['caller', 4.5]], room(), 'test')
+  // Somebody is still in the room (on hold, thinking): live, however quiet.
+  const occupied = await liveCall(ws.id, 40, [['caller', 1]], room(), 'phone')
+  const [deadRoom, quietRoom, occupiedRoom] = await Promise.all([deadAgent, justQuiet, occupied].map(async id => (await getCall(id))!.room!))
+  const deleted: string[] = []
+  const ended = await finishStaleCalls(db, {
+    now,
+    staleAfterMin: 10,
+    listRooms: async () => new Map([[deadRoom!, 0], [quietRoom!, 0], [occupiedRoom!, 1]]),
+    endRoom: async r => {
+      deleted.push(r)
+      return true
+    },
+  })
+  expect(ended).toContain(deadAgent)
+  expect(ended).not.toContain(justQuiet)
+  expect(ended).not.toContain(occupied)
+  expect(await getCall(deadAgent)).toMatchObject({ status: 'completed', outcome: 'callback', duration_sec: 120 })
+  expect(deleted).toEqual([deadRoom])
 })
 
 test('without an answer from LiveKit, a test call ends after 2 quiet minutes and a phone call after the full limit', async () => {
@@ -183,7 +210,7 @@ test('without an answer from LiveKit, a test call ends after 2 quiet minutes and
 test('a simulated call has no LiveKit room: only its quiet time counts', async () => {
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const simulated = await liveCall(ws.id, 5, [['caller', 3]], uid('call'), 'simulated')
-  const ended = await finishStaleCalls(db, { now, staleAfterMin: 10, listRooms: async () => new Set(), endRoom: noRoom })
+  const ended = await finishStaleCalls(db, { now, staleAfterMin: 10, listRooms: async () => new Map(), endRoom: noRoom })
   expect(ended).not.toContain(simulated)
 })
 
@@ -203,11 +230,13 @@ test('a call that ran a while without any caller line says its transcript was lo
   expect(cutOffResult(1, 0)).toMatchObject({ outcome: 'callback', action_items: [{ text: 'Call back' }] })
 })
 
-test('listLivekitRooms: the open room names, or null when LiveKit is not set up or does not answer', async () => {
+test('listLivekitRooms: the open rooms with their participant count, or null when LiveKit is not set up or does not answer', async () => {
   const env = { LIVEKIT_URL: 'wss://livekit.example.test', LIVEKIT_API_KEY: 'APImadeup', LIVEKIT_API_SECRET: 'made-up-secret-0123456789' }
   const answer = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
-  expect(await listLivekitRooms(env, answer(200, { rooms: [{ name: 'call-a' }, { name: 'test-b' }] }))).toEqual(new Set(['call-a', 'test-b']))
-  expect(await listLivekitRooms(env, answer(200, {}))).toEqual(new Set())
+  const rooms = [{ name: 'call-a', num_participants: 2 }, { name: 'test-b', num_participants: 0 }, { name: 'call-c' }]
+  // A room without a count counts as occupied: the sweep never ends a call on a guess.
+  expect(await listLivekitRooms(env, answer(200, { rooms }))).toEqual(new Map([['call-a', 2], ['test-b', 0], ['call-c', 1]]))
+  expect(await listLivekitRooms(env, answer(200, {}))).toEqual(new Map())
   expect(await listLivekitRooms(env, answer(401, {}))).toBeNull()
   expect(await listLivekitRooms({}, answer(200, { rooms: [] }))).toBeNull()
   const down = (async () => {

@@ -489,6 +489,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     languageRule: () => collectLanguageRule(callAssistant, spokenNow()) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
     callerId: callerIdOf(call),
+    testCall: call.caller?.testCall === true,
     country: call.country,
     facts: () => stepFacts({ today: collect.today(), hours: call.businessHours?.summary, address: call.assistant?.business_profile?.address }),
   }
