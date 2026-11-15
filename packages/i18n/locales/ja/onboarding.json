@@ -97,7 +97,6 @@
   "assistant.staleGreeting": "まだ「{name}」と言っています。",
   "assistant.talkHint": "マイクを使って、お客様が聞きそうなことを質問してみてください。",
   "assistant.useName": "{name}を使う",
-  "assistant.voiceServer": "音声：このサーバーで設定済み（サーバー管理 › プロバイダー › 通話応答）",
   "business.field.about": "概要",
   "business.field.aboutHelp": "{assistant}が発信者にあなたについて伝える内容です。",
   "business.field.aboutPlaceholder": "事業内容、対象のお客様、よくある質問。",

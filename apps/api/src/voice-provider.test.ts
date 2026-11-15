@@ -14,6 +14,7 @@ import {
   LIBRARY_PER_LANGUAGE,
   type ProviderVoice,
   cartesiaSampleModel,
+  REALTIME_PREVIEW_MODEL,
 } from './voice-provider.ts'
 
 const KEY = 'xi-test-key'
@@ -469,4 +470,58 @@ test("a Cartesia sample without a model set uses Sonic 3 for a language Sonic 2 
   expect(cartesiaSampleModel('ko')).toBe('sonic-2')
   expect(cartesiaSampleModel('vi')).toBe('sonic-3')
   expect(cartesiaSampleModel('hu')).toBe('sonic-3')
+})
+
+describe('the realtime model voices', () => {
+  it("make a sample with OpenAI's speech model and the realtime key, in the voice by its name", async () => {
+    const calls: { url: string; init?: RequestInit }[] = []
+    const doFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init })
+      return new Response(new Uint8Array([0xff, 0xfb, 0, 0]))
+    }) as unknown as typeof fetch
+    const adapter = createVoiceProvider('openai_realtime', { api_key: 'sk-rt', model: 'gpt-realtime' }, doFetch)!
+    expect(adapter.model).toBe(REALTIME_PREVIEW_MODEL)
+    expect(adapter.cloneVoice).toBeUndefined()
+    const audio = await adapter.synthesize('cedar', 'Hallo', 'de')
+    expect(audio.contentType).toBe('audio/mpeg')
+    expect(calls[0]!.url).toBe('https://api.openai.com/v1/audio/speech')
+    expect((calls[0]!.init!.headers as Record<string, string>).authorization).toBe('Bearer sk-rt')
+    // Not the realtime model: that one needs a session; the speech model speaks the same voices.
+    expect(JSON.parse(String(calls[0]!.init!.body))).toEqual({
+      model: 'gpt-4o-mini-tts',
+      voice: 'cedar',
+      input: 'Hallo',
+      response_format: 'mp3',
+    })
+  })
+
+  it("say OpenAI's error, never the key", async () => {
+    const doFetch = (async () =>
+      Response.json({ error: { message: 'Incorrect API key provided' } }, { status: 401 })) as unknown as typeof fetch
+    const adapter = createVoiceProvider('openai_realtime', { api_key: 'sk-secret' }, doFetch)!
+    const failure = (await adapter.synthesize('marin', 'Hi').then(
+      () => null,
+      (e: unknown) => e,
+    )) as Error & { status: number }
+    expect(failure.status).toBe(401)
+    expect(failure.message).toContain('Incorrect API key provided')
+    expect(failure.message).not.toContain('sk-secret')
+  })
+
+  it('list the ten realtime voices, named by their id, native in English, nothing more claimed', async () => {
+    const { voices } = await createVoiceProvider('openai_realtime', { api_key: 'k' })!.listVoices()
+    expect(voices.map(v => v.name)).toEqual([
+      'Marin',
+      'Cedar',
+      'Alloy',
+      'Ash',
+      'Ballad',
+      'Coral',
+      'Echo',
+      'Sage',
+      'Shimmer',
+      'Verse',
+    ])
+    for (const v of voices) expect(v).toMatchObject({ gender: null, accent: null, language: 'en', clone: false })
+  })
 })

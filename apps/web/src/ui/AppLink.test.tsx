@@ -42,9 +42,7 @@ test('a Server admin place is a link for instance admins and plain words for eve
     renderToStaticMarkup(
       <T k="settings.assistant.realtimeVoice.body" values={{ link: adminLink('#admin/providers/answering') }} />,
     )
-  expect(render()).toBe(
-    'The realtime model speaks in its own voice, set by an instance admin under Server admin › Providers.',
-  )
+  expect(render()).toBe('The default voice is set by an instance admin under Server admin › Providers.')
   setProviderAudience('admin')
   expect(render()).toContain('<a class="k-link" href="#admin/providers/answering">Server admin › Providers</a>')
   expect(

@@ -67,6 +67,59 @@ export const providerDefaultVoices: Record<string, string> = {
 export const isCuratedVoice = (provider: string, voiceId: string) =>
   (curatedVoices[provider] ?? []).some(v => v.id === voiceId)
 
+/** The realtime model's provider, as the voice picker and the preview route name it. */
+export const REALTIME_VOICE_PROVIDER = 'openai_realtime'
+
+/**
+ * The voices of OpenAI's Realtime API (gpt-realtime family), as OpenAI's realtime conversations guide lists them
+ * (checked 2026-11-15); OpenAI recommends marin and cedar "for best quality", so they come first. OpenAI gives no
+ * gender or style per voice, so neither is claimed here. The text-to-speech guide says its voices "are currently
+ * optimized for English": native English, every other language spoken with the voice's own accent. The same names
+ * work with gpt-4o-mini-tts, which says a realtime call's fixed lines and makes the previews.
+ */
+export const REALTIME_VOICE_IDS = [
+  'marin',
+  'cedar',
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'sage',
+  'shimmer',
+  'verse',
+] as const
+export type RealtimeVoiceId = (typeof REALTIME_VOICE_IDS)[number]
+/** OpenAI's recommended voices ("For best quality, we recommend using marin or cedar"). */
+export const RECOMMENDED_REALTIME_VOICES: readonly RealtimeVoiceId[] = ['marin', 'cedar']
+/** The voice when neither the assistant nor the server (Server admin › Providers › OpenAI Realtime) picks one. */
+export const REALTIME_DEFAULT_VOICE: RealtimeVoiceId = 'marin'
+const REALTIME_VOICE_LANGUAGES: readonly VoiceLanguage[] = [{ code: 'en', accent: null, native: true }]
+
+/** One realtime voice: its id (also its name, capitalized), whether OpenAI recommends it, its languages. */
+export type RealtimeVoice = { id: RealtimeVoiceId; recommended: boolean; languages: readonly VoiceLanguage[] }
+export const realtimeVoices: readonly RealtimeVoice[] = REALTIME_VOICE_IDS.map(id => ({
+  id,
+  recommended: RECOMMENDED_REALTIME_VOICES.includes(id),
+  languages: REALTIME_VOICE_LANGUAGES,
+}))
+
+export const isRealtimeVoice = (value: unknown): value is RealtimeVoiceId =>
+  typeof value === 'string' && (REALTIME_VOICE_IDS as readonly string[]).includes(value)
+
+/** An assistant's realtime voice: one of REALTIME_VOICE_IDS, or '' for the server's default voice. */
+export const realtimeVoiceChoice = z.union([z.literal(''), z.enum(REALTIME_VOICE_IDS)])
+
+/**
+ * The voice a realtime call speaks with: the assistant's own when it is one of the realtime voices, else the server's
+ * default (when that is one), else REALTIME_DEFAULT_VOICE.
+ */
+export function realtimeVoiceFor(assistantVoice: string | null | undefined, serverVoice: string | null | undefined) {
+  if (isRealtimeVoice(assistantVoice)) return assistantVoice
+  const server = serverVoice?.trim()
+  return server || REALTIME_DEFAULT_VOICE
+}
+
 /** Providers whose API can clone a voice from a recording (behind the API's voice provider interface). */
 export const cloningProviders: readonly string[] = ['elevenlabs']
 
@@ -102,6 +155,12 @@ export type VoiceOptionsData = {
    * provider's own. `name` when it is a curated voice. null when it cannot be told.
    */
   defaultVoice: { id: string; name: string | null } | null
+  /**
+   * The realtime voice an assistant speaks with when it picks none (`assistants.realtime_voice` ''): the server's
+   * default voice (Server admin › Providers › OpenAI Realtime), else REALTIME_DEFAULT_VOICE. Missing from an older API,
+   * and while no realtime model is set up.
+   */
+  realtimeDefaultVoice?: string
   /**
    * The languages calls can be answered in on this install: those a voice provider set up speaks (spokenLanguages);
    * an assistant may pick only these. Missing from an older API: every one of LANGUAGES.
@@ -176,7 +235,7 @@ export const voiceCatalog = defineAction({
   readOnly: true,
 })
 
-/** A provider voice id: letters, digits, dashes and underscores (ElevenLabs ids, Cartesia UUIDs). */
+/** A provider voice id: letters, digits, dashes and underscores (ElevenLabs ids, Cartesia UUIDs). Realtime voices: realtimeVoiceChoice. */
 export const voiceId = z
   .string()
   .trim()

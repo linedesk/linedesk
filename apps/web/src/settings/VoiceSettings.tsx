@@ -8,12 +8,15 @@
 import {
   CLONE_CONSENT_TEXT,
   type CatalogProvider,
+  providerSpec,
+  REALTIME_DEFAULT_VOICE,
+  REALTIME_VOICE_PROVIDER,
   type VoiceCatalogData,
   type VoiceCloneData,
   type VoiceOptionsData,
 } from '@linedesk/actions'
 import { T, useFormat, useT } from '@linedesk/i18n/react'
-import { adminLink } from '../ui/AppLink.tsx'
+import { adminLink, appLink } from '../ui/AppLink.tsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
@@ -44,6 +47,7 @@ import {
   type PickerVoice,
   previewProblem,
   previewUrl,
+  realtimePickerVoices,
   suggestedForLanguage,
   type VoiceFilter,
   voiceFacts,
@@ -295,6 +299,11 @@ type MoreProps = {
   onPick: (voice: PickerVoice) => void
   disabled: boolean
   preview: Preview
+  /**
+   * The language filter it opens on (and goes back to when the assistant's languages change): the assistant's languages
+   * (ASSISTANT_LANGUAGES, the default), or '' for every language (the realtime voices, which are all native English).
+   */
+  openOn?: string
 }
 
 /**
@@ -313,9 +322,10 @@ export function MoreVoices({
   onPick,
   disabled,
   preview,
+  openOn = ASSISTANT_LANGUAGES,
 }: MoreProps) {
   const t = useT()
-  const [filter, setFilter] = useState<VoiceFilter>(ASSISTANT_FILTER)
+  const [filter, setFilter] = useState<VoiceFilter>({ ...ASSISTANT_FILTER, language: openOn })
   const [shown, setShown] = useState(PAGE)
   const set = (change: Partial<VoiceFilter>) => {
     setFilter(f => ({ ...f, ...change }))
@@ -326,7 +336,7 @@ export function MoreVoices({
   const [filterFor, setFilterFor] = useState(languagesKey)
   if (filterFor !== languagesKey) {
     setFilterFor(languagesKey)
-    set({ language: ASSISTANT_LANGUAGES })
+    set({ language: openOn })
   }
   const voices = useMemo(() => [...listed].sort(byLanguageFit(main, others)), [listed, main, others])
   const configured = (catalog?.providers ?? []).filter(p => p.configured)
@@ -815,6 +825,135 @@ export function VoiceSettings({
         )}
       </details>
       {options?.canClone && <CloneVoice assistantId={assistantId} toast={toast} disabled={!canEdit} />}
+    </Section>
+  )
+}
+
+type RealtimeProps = {
+  /** The assistant's realtime voice (`realtime_voice`); '' for the server's default voice. */
+  voice: string
+  onPick: (voice: string) => void
+  canEdit: boolean
+  language: string
+  otherLanguages: readonly string[]
+  assistantName: string
+  /** The Advanced section's hash (Answered by), when the assistant may switch to the three stages; else null. */
+  switchTo: string | null
+  /** The three stages' name, for the line that says where to switch. */
+  threeStageName: string
+}
+
+/** The realtime voices as More voices takes them: one provider, set up, in effect. */
+const realtimeCatalog = (voices: readonly PickerVoice[]): VoiceCatalogData => ({
+  providers: [
+    {
+      provider: REALTIME_VOICE_PROVIDER,
+      label: providerSpec(REALTIME_VOICE_PROVIDER).label,
+      active: true,
+      configured: true,
+      error: null,
+    },
+  ],
+  voices: voices.map(v => ({ ...v, language: 'en', gender: null, accent: null })),
+})
+
+/**
+ * Settings › Assistant › Voice while the realtime model answers the assistant's calls: the model's own voices
+ * (realtimeVoices in @linedesk/actions) with the same rows, samples and More voices as the voice providers' picker.
+ * Suggested: the default voice (the server's, Server admin › Providers) and the voices OpenAI recommends; More voices:
+ * all of them. The pick is part of the page's draft (Save) and applies from the next call.
+ */
+export function RealtimeVoiceSettings({
+  voice,
+  onPick,
+  canEdit,
+  language,
+  otherLanguages,
+  assistantName,
+  switchTo,
+  threeStageName,
+}: RealtimeProps) {
+  const t = useT()
+  const { data: options } = useVoiceOptions()
+  // Every sample names its provider (openai_realtime): never the voice provider in effect for the three stages.
+  const preview = usePreview(null, language)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const voices = useMemo(() => realtimePickerVoices(t('settings.voice.realtime.recommended')), [t])
+  const catalog = useMemo(() => realtimeCatalog(voices), [voices])
+  const defaultId = options?.realtimeDefaultVoice ?? REALTIME_DEFAULT_VOICE
+  const defaultVoice = voices.find(v => v.id === defaultId) ?? null
+  const current = voice ? voiceKey(REALTIME_VOICE_PROVIDER, voice) : ''
+  const defaultKey = voiceKey(REALTIME_VOICE_PROVIDER, defaultId)
+  const recommended = voices.filter(v => v.description)
+  const picked = voices.find(v => voiceKey(v.provider, v.id) === current)
+  // The default row stands for the default voice: not listed again unless it was picked by name.
+  const suggested = [...recommended, ...(picked && !recommended.includes(picked) ? [picked] : [])].filter(
+    v => current === defaultKey || voiceKey(v.provider, v.id) !== defaultKey,
+  )
+  const failure = preview.failed
+  return (
+    <Section id="as-voice" title={t('settings.assistant.realtimeVoice.title')} help={t('settings.voice.realtime.help')}>
+      <div className="vp-group-label" id="vp-suggested">
+        {t('settings.voice.suggested')}
+      </div>
+      <div className="vp-list" role="radiogroup" aria-labelledby="vp-suggested">
+        <VoiceRow
+          voice={null}
+          defaultNote={t('settings.voice.defaultNote', { name: assistantName })}
+          defaultSample={defaultVoice}
+          checked={current === ''}
+          onPick={() => onPick('')}
+          disabled={!canEdit}
+          preview={preview}
+          facts={(defaultVoice && languageLabel(defaultVoice, language, otherLanguages)) || undefined}
+        />
+        {suggested.map(v => (
+          <VoiceRow
+            key={voiceKey(v.provider, v.id)}
+            voice={v}
+            checked={current === voiceKey(v.provider, v.id)}
+            onPick={() => onPick(v.id)}
+            disabled={!canEdit}
+            preview={preview}
+            facts={voiceFacts(v, language, otherLanguages)}
+          />
+        ))}
+      </div>
+      {failure && <FormMessage>{failure.message}</FormMessage>}
+      <details className="vp-more" onToggle={e => setMoreOpen(e.currentTarget.open)}>
+        <summary title={t('settings.voice.realtime.moreTip')}>
+          <Icon name="down" size={14} className="vp-chevron" />
+          {t('settings.voice.more')}
+        </summary>
+        {moreOpen && (
+          <MoreVoices
+            catalog={catalog}
+            voices={voices}
+            main={language}
+            others={otherLanguages}
+            assistantName={assistantName}
+            error={null}
+            onRetry={() => {}}
+            selected={current}
+            onPick={v => onPick(v.id)}
+            disabled={!canEdit}
+            preview={preview}
+            openOn=""
+          />
+        )}
+      </details>
+      <p className="help">
+        <T k="settings.assistant.realtimeVoice.body" values={{ link: adminLink('#admin/providers/answering') }} />
+        {switchTo && (
+          <>
+            {' '}
+            <T
+              k="settings.assistant.realtimeVoice.switch"
+              values={{ pipeline: threeStageName, link: appLink(switchTo) }}
+            />
+          </>
+        )}
+      </p>
     </Section>
   )
 }

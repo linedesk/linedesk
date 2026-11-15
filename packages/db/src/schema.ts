@@ -154,6 +154,11 @@ export const assistants = pgTable(
      * one when the chosen one is not set up.
      */
     voice_pipeline: text('voice_pipeline', { enum: ['realtime', 'three_stage'] }),
+    /**
+     * The voice while the realtime model answers its calls (REALTIME_VOICE_IDS in @linedesk/actions); '': the server's
+     * default voice (Server admin › Providers › OpenAI Realtime). `voice` is the three stages' voice; each keeps its own.
+     */
+    realtime_voice: text('realtime_voice').notNull().default(''),
     created_at: createdAt(),
     version: version(),
   },

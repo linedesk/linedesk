@@ -33,7 +33,7 @@ import {
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
 import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
-import { adminLink, appLink } from '../ui/AppLink.tsx'
+import { appLink } from '../ui/AppLink.tsx'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
@@ -84,7 +84,7 @@ import { AssistantReview } from '../review/AssistantReview.tsx'
 import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
 import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
 import { useQuery } from '../cachedQuery.ts'
-import { useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
@@ -138,30 +138,6 @@ function sectionsFor(
   return sections
     .filter(s => s.id !== REVIEW_SECTION || canEdit)
     .map(s => (s.id === REVIEW_SECTION ? { ...s, label: reviewTitle(name), count: openItems } : s))
-}
-
-/**
- * In place of the voice picker while a realtime model answers the calls: it speaks in its own voice. `advanced`: the
- * hash of this assistant's Advanced section, where Answered by is.
- */
-function RealtimeVoice({ canSwitch, advanced }: { canSwitch: boolean; advanced: string }) {
-  const t = useT()
-  return (
-    <Section id="as-voice" title={t('settings.assistant.realtimeVoice.title')}>
-      <span className="help">
-        <T k="settings.assistant.realtimeVoice.body" values={{ link: adminLink('#admin/providers/answering') }} />
-        {canSwitch && (
-          <>
-            {' '}
-            <T
-              k="settings.assistant.realtimeVoice.switch"
-              values={{ pipeline: t(PIPELINE_TEXT.three_stage.label), link: appLink(advanced) }}
-            />
-          </>
-        )}
-      </span>
-    </Section>
-  )
 }
 
 /** Each way of answering: its name, a short line for the picker and the longer help under it. */
@@ -230,7 +206,7 @@ type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice', 'realtime_voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   advanced: [
@@ -847,6 +823,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
           ? languagesToSave(clean)
           : {}),
         voice: clean.voice,
+        // Only when changed: an API of the release before does not know it.
+        ...(clean.realtime_voice !== normalized(saved).realtime_voice ? { realtime_voice: clean.realtime_voice } : {}),
         talking_speed_pct: clean.talking_speed_pct,
         voice_pipeline: clean.voice_pipeline,
       })
@@ -897,7 +875,16 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
             />
             <NotAnswered setUp={setUp} />
             {realtime ? (
-              <RealtimeVoice canSwitch={setUp?.three_stage === true} advanced={sectionHash(page, 'advanced')} />
+              <RealtimeVoiceSettings
+                voice={draft.realtime_voice}
+                onPick={v => set('realtime_voice', v)}
+                canEdit={canEdit}
+                language={mainOf(draft)}
+                otherLanguages={otherLanguagesOf(draft.languages)}
+                assistantName={assistantName(draft, t)}
+                switchTo={setUp?.three_stage === true ? sectionHash(page, 'advanced') : null}
+                threeStageName={t(PIPELINE_TEXT.three_stage.label)}
+              />
             ) : (
               <VoiceSettings
                 assistantId={assistant.id}

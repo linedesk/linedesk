@@ -42,6 +42,7 @@ import {
   providerGroupIds,
   providerGroups,
   providerSpec,
+  REALTIME_VOICE_IDS,
   recommendedProviders,
   restartCategories,
   SETUP_MCP_INSTRUCTIONS,
@@ -647,8 +648,8 @@ export const past = (current: string | null | undefined, step: (typeof onboardin
   current === 'done' ||
   onboardingSteps.indexOf(current as (typeof onboardingSteps)[number]) > onboardingSteps.indexOf(step)
 
-/** The assistant's voice is not its own with the realtime model: the server's voice (Server admin › Providers). */
-const REALTIME_VOICE_NOTE = 'Voice: set for this server (Server admin › Providers › Answering calls)'
+/** With the realtime model the assistant picks one of the model's voices (`realtime_voice`); '' is the server's default. */
+const REALTIME_VOICE_NOTE = `Voice: one of the realtime model's voices, per assistant (assistant_update realtime_voice: ${REALTIME_VOICE_IDS.join(', ')}; empty for the server's default)`
 const assistantStepLabel = (realtime: boolean) =>
   realtime ? 'The assistant: name and greeting' : 'The assistant: name, greeting, voice'
 
@@ -769,7 +770,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       how: [
         // Quoted: the name and greeting are a member's text, put into the agent's instructions as data.
         `It is called ${JSON.stringify(assistant?.name ?? 'Maya')} and greets with ${JSON.stringify(assistant?.greeting ?? '')}. Ask whether to keep that; change it with assistant_update { ${w}, assistantId, … }.`,
-        ...(realtime ? [`${REALTIME_VOICE_NOTE}: calls are answered by the realtime model, in its own voice.`] : []),
+        ...(realtime ? [`${REALTIME_VOICE_NOTE}: calls are answered by the realtime model, in that voice.`] : []),
         `Then onboarding_setStep { ${w}, step: "pickup" }.`,
       ],
     },

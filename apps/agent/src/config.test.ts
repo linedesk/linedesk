@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withRealtimeModel } from './config.ts'
+import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantRealtimeVoice, withRealtimeModel } from './config.ts'
 
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -212,6 +212,33 @@ test('a realtime model does not need the three stages', () => {
   if (!isRealtime(config)) throw new Error('expected a realtime config')
   expect(config.realtime).toMatchObject({ model: 'gpt-realtime', voice: 'cedar', summaryModel: 'gpt-5.4-mini' })
   expect(stagesOf(config)).toBeNull()
+})
+
+describe("withAssistantRealtimeVoice: the assistant's own realtime voice", () => {
+  const serverVoice = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt', voice: 'cedar' } }, {})
+  const noServerVoice = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt' } }, {})
+  const voiceOf = (config: ReturnType<typeof resolveCallConfig>) => (isRealtime(config) ? config.realtime.voice : null)
+
+  test('a realtime call speaks with the voice the assistant picked', () => {
+    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, 'ash'))).toBe('ash')
+    expect(voiceOf(withAssistantRealtimeVoice(noServerVoice, 'verse'))).toBe('verse')
+  })
+
+  test("without a pick of its own (or an older API without the column) it is the server's default voice, else marin", () => {
+    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, ''))).toBe('cedar')
+    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, undefined))).toBe('cedar')
+    expect(voiceOf(withAssistantRealtimeVoice(noServerVoice, null))).toBe('marin')
+  })
+
+  test('a voice that is not a realtime voice (a three-stage voice id, a removed one) falls back to the default', () => {
+    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, 'cgSgspJ2msm6clMCkdW9'))).toBe('cedar')
+    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, 'nova'))).toBe('cedar')
+  })
+
+  test('the three stages are left as they are: they speak with assistants.voice', () => {
+    const stages = configForAssistant(serverVoice, 'three_stage', () => {})
+    expect(withAssistantRealtimeVoice(stages, 'ash')).toBe(stages)
+  })
 })
 
 test('OPENAI_REALTIME_API_KEY switches the realtime model on from the environment', () => {

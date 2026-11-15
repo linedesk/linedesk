@@ -103,7 +103,6 @@
   "assistant.staleGreeting": "Still says \"{name}\".",
   "assistant.talkHint": "Use your microphone and ask what a customer would ask.",
   "assistant.useName": "Use {name}",
-  "assistant.voiceServer": "Voice: set for this server (Server admin › Providers › Answering calls)",
   "business.field.about": "About",
   "business.field.aboutHelp": "What {assistant} tells callers about you.",
   "business.field.aboutPlaceholder": "What you do, for whom, and what callers often ask.",

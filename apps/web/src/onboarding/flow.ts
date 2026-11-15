@@ -411,7 +411,13 @@ export function renameInGreeting(greeting: string, oldName: string, newName: str
 }
 
 /** What the assistant step edits. */
-export type AssistantDraft = { name: string; greeting: string; voice: { provider: string; voice_id: string } }
+export type AssistantDraft = {
+  name: string
+  greeting: string
+  voice: { provider: string; voice_id: string }
+  /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': the server's default. Missing: not edited. */
+  realtime_voice?: string
+}
 
 /**
  * The `assistant.update` fields that differ from the saved assistant, or null when nothing changed. Names and
@@ -419,7 +425,7 @@ export type AssistantDraft = { name: string; greeting: string; voice: { provider
  * saved name in the greeting, once, on save ("This is Maya" → "This is Ava").
  */
 export function assistantChanges(
-  saved: Pick<Assistant, 'name' | 'greeting' | 'voice'>,
+  saved: Pick<Assistant, 'name' | 'greeting' | 'voice'> & { realtime_voice?: string },
   draft: AssistantDraft,
 ): Partial<AssistantDraft> | null {
   const changes: Partial<AssistantDraft> = {}
@@ -430,6 +436,8 @@ export function assistantChanges(
   if (greeting && greeting !== saved.greeting) changes.greeting = greeting
   if (draft.voice.provider !== saved.voice.provider || draft.voice.voice_id !== saved.voice.voice_id)
     changes.voice = draft.voice
+  if (draft.realtime_voice !== undefined && draft.realtime_voice !== (saved.realtime_voice ?? ''))
+    changes.realtime_voice = draft.realtime_voice
   return Object.keys(changes).length ? changes : null
 }
 

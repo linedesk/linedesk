@@ -722,6 +722,13 @@
       "when": 1794762526383,
       "tag": "0102_agent_setup_keys_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1794765080042,
+      "tag": "0103_assistant_realtime_voice",
+      "breakpoints": true
     }
   ]
 }

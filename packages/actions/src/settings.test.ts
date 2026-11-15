@@ -27,6 +27,14 @@ import {
   talkingSpeedLabel,
   talkingSpeedPctOf,
 } from './settings.ts'
+import {
+  isRealtimeVoice,
+  REALTIME_DEFAULT_VOICE,
+  REALTIME_VOICE_IDS,
+  RECOMMENDED_REALTIME_VOICES,
+  realtimeVoiceFor,
+  realtimeVoices,
+} from './voices.ts'
 
 describe('assistant.update', () => {
   it('keeps the free-text instructions the voice agent reads', () => {
@@ -55,6 +63,22 @@ describe('assistant.update', () => {
     update({ talking_speed: 'fast' })
     expect(assistants.get('as1')).toMatchObject({ talking_speed_pct: 110, talking_speed: 'fast' })
     for (const pct of [79, 121, 100.5]) expect(() => assistantUpdate.input.parse({ assistantId: 'as1', talking_speed_pct: pct })).toThrow()
+  })
+
+  it("takes the assistant's realtime voice: one of the realtime model's voices, or '' for the server's default", () => {
+    const assistants = new Map([['as1', { id: 'as1', realtime_voice: '' }]])
+    const parse = (realtime_voice: unknown) => assistantUpdate.input.parse({ assistantId: 'as1', realtime_voice })
+    applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, parse('cedar'), '2026-11-15T00:00:00Z')
+    expect(assistants.get('as1')).toMatchObject({ realtime_voice: 'cedar' })
+    applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, parse(''), '2026-11-15T00:00:00Z')
+    expect(assistants.get('as1')).toMatchObject({ realtime_voice: '' })
+    // A three-stage voice id, a TTS-only OpenAI voice and anything else are refused.
+    for (const bad of ['cgSgspJ2msm6clMCkdW9', 'nova', 'fable', 'Marin', 42]) expect(() => parse(bad)).toThrow()
+  })
+
+  it('a version from before realtime voices restores without touching the realtime voice', () => {
+    expect(storedSnapshot({ name: 'Maya', calendars: [] })).not.toHaveProperty('realtime_voice')
+    expect(storedSnapshot({ name: 'Maya', realtime_voice: 'ash', calendars: [] })).toMatchObject({ realtime_voice: 'ash' })
   })
 
   it('says the talking speed in a few words', () => {
@@ -340,5 +364,27 @@ describe('the instance policy for how calls are answered', () => {
     const onlyStages = { realtime: false, three_stage: true }
     expect(pipelinesAllowed(onlyStages, 'realtime')).toEqual(onlyStages)
     expect(pipelineFor(pipelineChoiceUnder('realtime', null), onlyStages)).toBe('three_stage')
+  })
+})
+
+describe('realtime voices', () => {
+  it('are the ten voices OpenAI lists for the Realtime API, marin and cedar (recommended) first', () => {
+    expect([...REALTIME_VOICE_IDS].sort()).toEqual(['alloy', 'ash', 'ballad', 'cedar', 'coral', 'echo', 'marin', 'sage', 'shimmer', 'verse'])
+    expect(REALTIME_VOICE_IDS.slice(0, 2)).toEqual(RECOMMENDED_REALTIME_VOICES)
+    expect(realtimeVoices.filter(v => v.recommended).map(v => v.id)).toEqual(['marin', 'cedar'])
+    // OpenAI gives no gender or accent, only that the voices are optimized for English.
+    for (const v of realtimeVoices) expect(v.languages).toEqual([{ code: 'en', accent: null, native: true }])
+  })
+
+  it('isRealtimeVoice knows only those', () => {
+    expect(isRealtimeVoice('verse')).toBe(true)
+    for (const other of ['nova', 'onyx', '', null, undefined, 'MARIN']) expect(isRealtimeVoice(other)).toBe(false)
+  })
+
+  it("a call's voice: the assistant's, else the server's default, else marin", () => {
+    expect(realtimeVoiceFor('ash', 'cedar')).toBe('ash')
+    expect(realtimeVoiceFor('', 'cedar')).toBe('cedar')
+    expect(realtimeVoiceFor(null, '  ')).toBe(REALTIME_DEFAULT_VOICE)
+    expect(realtimeVoiceFor('not-a-voice', null)).toBe('marin')
   })
 })

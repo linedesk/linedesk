@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "realtime_voice" text DEFAULT '' NOT NULL;

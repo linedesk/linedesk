@@ -21,7 +21,7 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { announceRecording, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withRealtimeModel } from './config.ts'
+import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantRealtimeVoice, withRealtimeModel } from './config.ts'
 import { requireLivekitEnv, workerAgentName } from './env.ts'
 import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
@@ -657,11 +657,15 @@ async function entry(ctx: JobContext) {
   setup.mark('providers')
   // The assistant's pipeline (Settings › Assistant); the other one when that is not set up.
   // A call test may compare realtime models without changing the install's (call-test --realtime-model).
+  // A realtime call speaks with the assistant's own realtime voice (the server's default when it picked none).
   const config = withRealtimeModel(
-    configForAssistant(readiness.config, registered.assistant?.voice_pipeline, line => console.warn(`call ${registered.callId}: ${line}`)),
+    withAssistantRealtimeVoice(
+      configForAssistant(readiness.config, registered.assistant?.voice_pipeline, line => console.warn(`call ${registered.callId}: ${line}`)),
+      registered.assistant?.realtime_voice,
+    ),
     registered.realtimeModel,
   )
-  if (isRealtime(config)) console.log(`call ${registered.callId}: realtime model ${config.realtime.model}`)
+  if (isRealtime(config)) console.log(`call ${registered.callId}: realtime model ${config.realtime.model}, voice ${config.realtime.voice}`)
   const recorder = livekitRecorder(config.recording, process.env, async () =>
     (await api.run(callStartRecording, { callId: registered.callId }, registered)).data!.egressId as string)
   // The recording notice is said only when this agent can record: with no recording store, nothing is recorded.
@@ -697,7 +701,7 @@ const BUSY_CALLER_WAIT_MS = 5000
 async function tellCaller(ctx: JobContext, call: CallSession, line: string, ready: Promise<Readiness>, callerJoined: Promise<RemoteParticipant>) {
   const readiness = await ready
   if (!readiness.ready) return
-  const config = configForAssistant(readiness.config, call.assistant?.voice_pipeline, () => {})
+  const config = withAssistantRealtimeVoice(configForAssistant(readiness.config, call.assistant?.voice_pipeline, () => {}), call.assistant?.realtime_voice)
   const joined = await Promise.race([callerJoined.then(() => true, () => false), sleep(BUSY_CALLER_WAIT_MS).then(() => false)])
   if (joined) await playLine(ctx.room, lineVoiceOf(config, call.assistant), call, line)
 }

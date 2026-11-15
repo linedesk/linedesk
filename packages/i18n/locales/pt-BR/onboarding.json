@@ -97,7 +97,6 @@
   "assistant.staleGreeting": "Ainda diz “{name}”.",
   "assistant.talkHint": "Use seu microfone e pergunte o que um cliente perguntaria.",
   "assistant.useName": "Usar {name}",
-  "assistant.voiceServer": "Voz: definida para este servidor (Administração do servidor › Provedores › Atendimento de chamadas)",
   "business.field.about": "Sobre",
   "business.field.aboutHelp": "O que {assistant} conta sobre você para quem liga.",
   "business.field.aboutPlaceholder": "O que você faz, para quem, e o que quem liga costuma perguntar.",

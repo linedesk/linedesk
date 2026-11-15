@@ -9,6 +9,8 @@ import {
   llmEndpoints,
   type PipelinesSetUp,
   pipelineFor,
+  REALTIME_DEFAULT_VOICE,
+  realtimeVoiceFor,
   VOICE_PIPELINE_LABELS,
   type VoicePipeline,
 } from '@linedesk/actions'
@@ -71,7 +73,11 @@ export const stagesOf = (config: CallConfig): AgentConfig | null => (isRealtime(
  * (LIN-92 follow-up, staging comparison 2026-11-13). REALTIME_MODEL or the model field in Server admin › Providers
  * picks another.
  */
-export const realtimeDefaults = { model: 'gpt-realtime', voice: 'marin', summaryModel: 'gpt-4.1-mini' } as const
+export const realtimeDefaults = {
+  model: 'gpt-realtime',
+  voice: REALTIME_DEFAULT_VOICE,
+  summaryModel: 'gpt-4.1-mini',
+} as const
 
 type Env = Record<string, string | undefined>
 
@@ -359,6 +365,21 @@ export function resolveCallConfig(settings: ProviderSettings | null, env: Env = 
 /** The config with another realtime model (a call test comparing models); unchanged without one or without realtime. */
 export const withRealtimeModel = (config: CallConfig, model: string | undefined): CallConfig =>
   model && isRealtime(config) ? { ...config, realtime: { ...config.realtime, model } } : config
+
+/**
+ * The config with the assistant's own realtime voice (`assistants.realtime_voice`, Settings › Assistant › Voice) when
+ * a realtime model answers: the session is opened with it (session.update voice) and the fixed lines are said in it.
+ * '' or a voice that is not a realtime one: the server's default voice (`realtime.voice`). The Realtime API fixes the
+ * voice once the model has spoken in a session, so it is set here, before the call starts, and never changed during it.
+ * Unchanged for the three stages, which speak with `assistants.voice`.
+ */
+export const withAssistantRealtimeVoice = (
+  config: CallConfig,
+  assistantVoice: string | null | undefined,
+): CallConfig =>
+  isRealtime(config)
+    ? { ...config, realtime: { ...config.realtime, voice: realtimeVoiceFor(assistantVoice, config.realtime.voice) } }
+    : config
 
 /** Which pipelines a call config can answer with. */
 export const pipelinesOf = (config: CallConfig): PipelinesSetUp => ({

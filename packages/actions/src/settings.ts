@@ -14,7 +14,7 @@ import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from '
 import { assistantLanguages, languageCodes } from './languages.ts'
 import { type WorkspaceCountrySource, workspaceCountrySchema, workspaceLanguageSchema } from './workspace-locale.ts'
 import { transferContacts } from './transfer.ts'
-import { voiceId } from './voices.ts'
+import { realtimeVoiceChoice, voiceId } from './voices.ts'
 import type { WorkspaceDeleteData } from './admin.ts'
 
 const defined = <T extends object>(o: T) =>
@@ -237,9 +237,9 @@ export const VOICE_PIPELINE_LABELS: Record<VoicePipeline, string> = {
 /** What each pipeline does, in words for someone who has never heard of either. */
 export const VOICE_PIPELINE_DESCRIPTIONS: Record<VoicePipeline, string> = {
   realtime:
-    "One AI model hears the caller and speaks its reply itself. The fastest, most natural conversation, in the model's own voice.",
+    "One AI model hears the caller and speaks its reply itself, in the voice of the model you pick. The fastest, most natural conversation.",
   three_stage:
-    "The caller's words are written out, a language model writes the reply, and the voice you pick reads it out. A moment slower, but you choose the voice.",
+    "The caller's words are written out, a language model writes the reply, and the voice you pick reads it out. A moment slower, with every voice of your voice providers.",
 }
 /** Which pipelines the install has set up. */
 export type PipelinesSetUp = Record<VoicePipeline, boolean>
@@ -314,7 +314,7 @@ const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers.",
+    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own.",
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().trim().min(1).max(60).optional(),
@@ -362,6 +362,8 @@ export const assistantUpdate = defineAction({
     voice_pipeline: z.enum(VOICE_PIPELINES).nullable().optional(),
     /** An empty voice_id: the provider's default voice. */
     voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
+    /** The voice while the realtime model answers its calls (REALTIME_VOICE_IDS); '': the server's default voice. */
+    realtime_voice: realtimeVoiceChoice.optional(),
     business_profile: z
       .object({
         instructions: z.string().max(INSTRUCTIONS_MAX).optional(),

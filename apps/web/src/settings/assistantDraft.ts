@@ -76,6 +76,8 @@ export type Draft = {
   languages: AssistantLanguages
   /** How calls are answered; null: the install default (the realtime model when one is set up). */
   voice_pipeline: VoicePipeline | null
+  /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': the server's default voice. */
+  realtime_voice: string
 }
 
 /** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet). */
@@ -134,6 +136,8 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     languages: languagesOf(a.languages, workspaceLanguage),
     // A row synced before the column existed has none: the install default.
     voice_pipeline: a.voice_pipeline ?? null,
+    // A row synced before the column existed has none: the server's default voice.
+    realtime_voice: a.realtime_voice ?? '',
   }
 }
 

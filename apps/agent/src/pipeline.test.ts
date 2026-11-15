@@ -1,6 +1,6 @@
 import { initializeLogger } from '@livekit/agents'
 import { beforeAll, expect, test, vi } from 'vitest'
-import { type AgentConfig, configFromEnv, type RealtimeCallConfig } from './config.ts'
+import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
 import { callLanguagesOf, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
@@ -88,6 +88,16 @@ test('a realtime call has only the model: no speech to text, no voice provider',
   expect(options.llm).toMatchObject({ _options: { inputAudioNoiseReduction: { type: 'near_field' }, inputAudioTranscription: { language: 'en' } } })
   const spanishOrEnglish = createRealtimePipeline(realtime, 7, 100, { main: 'es', others: ['en'] })
   expect((spanishOrEnglish.llm as unknown as { _options: { inputAudioTranscription: { language?: string } } })._options.inputAudioTranscription.language).toBeUndefined()
+})
+
+test("the realtime session is opened with the assistant's voice, and its fixed lines are said in it", () => {
+  const config: RealtimeCallConfig = { realtime, recording: { store: 'off' }, stages: null }
+  const own = withAssistantRealtimeVoice(config, 'coral') as RealtimeCallConfig
+  expect(createRealtimePipeline(own.realtime).llm).toMatchObject({ _options: { voice: 'coral' } })
+  expect(lineVoiceOf(own, null).key).toMatchObject({ provider: 'openai_tts', voiceId: 'coral' })
+  // None picked: the server's default (marin here).
+  const fallback = withAssistantRealtimeVoice(config, '') as RealtimeCallConfig
+  expect(createRealtimePipeline(fallback.realtime).llm).toMatchObject({ _options: { voice: 'marin' } })
 })
 
 // The speech recognition and voice of the three stages log through LiveKit's logger when they are made.

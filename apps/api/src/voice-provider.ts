@@ -7,6 +7,7 @@ import {
   languageCodes,
   providerLanguageCode,
   type ProviderName,
+  realtimeVoices,
   type VoiceLanguage,
   voiceSpeaks,
 } from '@linedesk/actions'
@@ -568,6 +569,56 @@ function cartesia({ api_key, model }: Values, doFetch: typeof fetch): VoiceProvi
   }
 }
 
+/**
+ * The model a realtime voice's sample is made with: OpenAI's speech model, which speaks the realtime voices by the same
+ * names and is what says a realtime call's fixed lines (REALTIME_LINE_TTS in apps/agent/src/pipeline.ts), so the sample
+ * sounds like the call. Not the realtime model itself: a sample over the Realtime API needs a WebSocket session.
+ */
+export const REALTIME_PREVIEW_MODEL = 'gpt-4o-mini-tts'
+
+/**
+ * The realtime model's voices as the preview needs them: samples through OpenAI's speech endpoint with the realtime
+ * model's key; the list is the fixed one OpenAI documents (realtimeVoices in @linedesk/actions).
+ */
+function openaiRealtime({ api_key }: Values, doFetch: typeof fetch): VoiceProvider {
+  return {
+    name: 'openai_realtime',
+    model: REALTIME_PREVIEW_MODEL,
+    async synthesize(voiceId, text) {
+      const res = await doFetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${api_key}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: REALTIME_PREVIEW_MODEL, voice: voiceId, input: text, response_format: 'mp3' }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
+      if (!res.ok) throw await openAiFailure(res)
+      return { bytes: Buffer.from(await res.arrayBuffer()), contentType: 'audio/mpeg' }
+    },
+    async listVoices() {
+      return {
+        voices: realtimeVoices.map(v => ({
+          id: v.id,
+          name: v.id.charAt(0).toUpperCase() + v.id.slice(1),
+          description: null,
+          languages: [...v.languages],
+          language: v.languages[0]?.code ?? null,
+          gender: null,
+          accent: null,
+          previewUrl: null,
+          clone: false,
+        })),
+      }
+    },
+  }
+}
+
+/** OpenAI's error text (`error.message`), short; never the key. */
+async function openAiFailure(res: Response): Promise<VoiceProviderError> {
+  const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+  const detail = body?.error?.message ?? res.statusText
+  return new VoiceProviderError(`voice preview failed (${res.status}): ${String(detail).slice(0, 200)}`, res.status)
+}
+
 /** The adapter for a text-to-speech provider of the registry, with its key; null for one it does not know. */
 export function createVoiceProvider(
   name: ProviderName,
@@ -575,7 +626,13 @@ export function createVoiceProvider(
   doFetch: typeof fetch = fetch,
 ): VoiceProvider | null {
   const provider =
-    name === 'elevenlabs' ? elevenlabs(values, doFetch) : name === 'cartesia' ? cartesia(values, doFetch) : null
+    name === 'elevenlabs'
+      ? elevenlabs(values, doFetch)
+      : name === 'cartesia'
+        ? cartesia(values, doFetch)
+        : name === 'openai_realtime'
+          ? openaiRealtime(values, doFetch)
+          : null
   // The registry says who clones (the picker shows it); an adapter only clones when listed there.
   if (provider && !cloningProviders.includes(name)) {
     delete provider.cloneVoice

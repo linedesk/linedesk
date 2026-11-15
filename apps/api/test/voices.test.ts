@@ -122,6 +122,41 @@ test('a sample in another language counts against the hourly limit like any new 
   expect((await servePreview(member, JESSICA, { provider, cache, budget, language: 'de' })).status).toBe(200) // cached
 })
 
+test("a realtime voice's sample is made with the realtime model's key, in the main language, cached and counted", async () => {
+  const { provider, made, languages } = fakeProvider()
+  const realtime: VoiceProvider = { ...provider, name: 'openai_realtime', model: 'gpt-4o-mini-tts' }
+  const cache = previewCache(await cacheDir())
+  const budget = previewBudget(2)
+  const options = { providerName: 'openai_realtime', provider: realtime, cache, budget }
+  const cedar = await servePreview(member, 'cedar', options)
+  expect(cedar.status).toBe(200)
+  expect(cedar.headers.get('content-type')).toBe('audio/mpeg')
+  expect((await servePreview(member, 'cedar', options)).status).toBe(200) // cached, not counted
+  expect((await servePreview(member, 'ash', { ...options, language: 'de' })).status).toBe(200)
+  expect(made).toEqual([`cedar:${PREVIEW_TEXTS.en}`, `ash:${PREVIEW_TEXTS.de}`])
+  expect(languages).toEqual(['en', 'de'])
+  expect((await servePreview(member, 'verse', options)).status).toBe(429) // the hour's two new samples are used
+})
+
+test('only the realtime voices get a realtime sample; without the realtime model there is none to make', async () => {
+  const { provider, made } = fakeProvider()
+  const realtime: VoiceProvider = { ...provider, name: 'openai_realtime', model: 'gpt-4o-mini-tts' }
+  const options = {
+    providerName: 'openai_realtime',
+    provider: realtime,
+    cache: previewCache(await cacheDir()),
+    budget: unlimited(),
+  }
+  for (const other of ['nova', JESSICA, 'MARIN', '../x'])
+    expect((await servePreview(member, other, options)).status, other).toBe(404)
+  expect(made).toEqual([])
+  const none = await servePreview(member, 'marin', { ...options, provider: null })
+  expect(none.status).toBe(409)
+  // No call:read: nothing at all.
+  const outsider: Actor = { ...member, permissions: [] }
+  expect((await servePreview(outsider, 'marin', options)).status).toBe(403)
+})
+
 test('a sample that has to be made without a provider says how to add one', async () => {
   const res = await servePreview(member, 'MyOwnClone12345', { provider: null, ownClone: true, bundledDir: NONE })
   expect(res.status).toBe(409)

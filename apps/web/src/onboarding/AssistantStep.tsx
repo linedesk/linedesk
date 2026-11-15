@@ -1,5 +1,5 @@
-// Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (not with the realtime model: that
-// speaks in the server's voice), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
+// Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (with the realtime model, one of the
+// model's own voices), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
 import { localizedDefault, mainLanguageOf, otherLanguagesOf, pipelineFor } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
@@ -9,7 +9,7 @@ import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
-import { useVoiceOptions, VoiceSettings } from '../settings/VoiceSettings.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistant, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { Button, Note } from '../ui/kit.tsx'
@@ -46,6 +46,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
     name: assistant.name,
     greeting: assistant.languages?.main ? assistant.greeting : localizedDefault(assistant.greeting, main),
     voice: assistant.voice,
+    // A row synced before the column existed has none: the server's default voice.
+    realtime_voice: assistant.realtime_voice ?? '',
   }))
   // The test call's lines ("Maya can't take calls yet") use the name on screen, not the saved one.
   const session = useTestCall(true, { id: assistant.id, name: draft.name.trim() || assistant.name }, operator)
@@ -62,8 +64,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const problem = nameProblem ?? greetingProblem
   // The greeting still names the saved name after a rename: saving renames it there; the hint says so and offers it now.
   const stale = staleGreetingName(draft.greeting, assistant.name, draft.name)
-  // Like Assistant settings: the realtime model speaks in the voice set for the server, so no voice picker then. An API
-  // of an older version (during an update) only says whether a realtime model is connected.
+  // Like Assistant settings: with the realtime model the picker lists the model's own voices. An API of an older version
+  // (during an update) only says whether a realtime model is connected.
   const voiceOptions = useVoiceOptions().data
   const realtime = voiceOptions?.pipelines
     ? pipelineFor(assistant.voice_pipeline, voiceOptions.pipelines) === 'realtime'
@@ -134,7 +136,16 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
           )}
         </Field>
         {realtime ? (
-          <p className="ob2-note">{t('onboarding.assistant.voiceServer')}</p>
+          <RealtimeVoiceSettings
+            voice={draft.realtime_voice ?? ''}
+            onPick={realtime_voice => setDraft(d => ({ ...d, realtime_voice }))}
+            canEdit
+            language={main}
+            otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
+            assistantName={name || assistant.name}
+            switchTo={null}
+            threeStageName=""
+          />
         ) : (
           <VoiceSettings
             assistantId={assistant.id}

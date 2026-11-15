@@ -267,7 +267,7 @@ async function tryVoice(tx: Tx): Promise<Tried> {
       return {
         ok: true,
         provider: labelOf(realtime.provider),
-        message: `${labelOf(realtime.provider)} uses its own voice on calls. Hear it in a test call.`,
+        message: `${labelOf(realtime.provider)} speaks with its own voices on calls; each assistant picks one. Hear it in a test call.`,
       }
     return failed(null, 'No voice is set up yet.')
   }

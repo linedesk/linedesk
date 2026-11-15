@@ -579,7 +579,14 @@ export const providers = {
     fields: {
       api_key: apiKey('OPENAI_REALTIME_API_KEY'),
       model: { ...model('REALTIME_MODEL'), hint: 'gpt-realtime' },
-      voice: { label: 'Voice', env: 'REALTIME_VOICE', secret: false, optional: true, hint: 'marin' },
+      // The default voice: assistants that pick none speak with it (Settings › Assistant › Voice picks per assistant).
+      voice: {
+        label: 'Default voice',
+        env: 'REALTIME_VOICE',
+        secret: false,
+        optional: true,
+        hint: 'marin; each assistant can pick its own',
+      },
       summary_model: {
         label: 'Summary model',
         env: 'REALTIME_SUMMARY_MODEL',
@@ -588,7 +595,7 @@ export const providers = {
         hint: 'gpt-4.1-mini',
       },
     },
-    help: 'Once connected, it answers calls with one speech-to-speech model in its own voice, instead of speech to text, language model and voice; disconnect it to go back. Warm transfer, the assistant’s voice and the cached greeting are not available then.',
+    help: 'Once connected, it answers calls with one speech-to-speech model in its own voice, instead of speech to text, language model and voice; disconnect it to go back. Warm transfer and the cached greeting are not available then; each assistant picks one of the model’s voices.',
   },
   // Recording storage: where LiveKit egress writes call audio and the API reads it. Not a paid API, but
   // the same model: one active store, keys stored encrypted, env as fallback. No first-set-up fallback:

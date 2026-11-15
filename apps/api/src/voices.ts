@@ -15,6 +15,7 @@ import {
   cloningProviders,
   curatedVoices,
   isCuratedVoice,
+  isRealtimeVoice,
   type Language,
   languageCodes,
   providerDefaultVoices,
@@ -23,6 +24,8 @@ import {
   providerSpec,
   type ProviderName,
   providersIn,
+  REALTIME_VOICE_PROVIDER,
+  realtimeVoiceFor,
   type VoiceCloneData,
   type VoiceCloningData,
   type VoiceOptionsData,
@@ -122,14 +125,26 @@ export async function installDefaultVoice(tx: Tx): Promise<{ provider: string; v
   return voiceId ? { provider: active.provider, voiceId } : null
 }
 
-/** A text-to-speech provider by name, with its key (a clone's, or a voice of another provider than the one in effect). */
+/**
+ * A text-to-speech provider by name, with its key (a clone's, or a voice of another provider than the one in effect);
+ * also the realtime model, whose voices are previewed with its key.
+ */
 async function voiceProviderNamed(tx: Tx, name: string, doFetch: typeof fetch = fetch): Promise<VoiceProvider | null> {
-  if (!(providersIn('tts') as string[]).includes(name)) return null
+  if (!(providersIn('tts') as string[]).includes(name) && name !== REALTIME_VOICE_PROVIDER) return null
   const config = await resolveProvider(tx, name as ProviderName).catch(() => null)
   const apiKey = config?.api_key?.value
   return apiKey
     ? createVoiceProvider(name as ProviderName, { api_key: apiKey, model: config?.model?.value }, doFetch)
     : null
+}
+
+/**
+ * The realtime voice an assistant that picks none speaks with: the server's default voice (Server admin › Providers ›
+ * OpenAI Realtime, or REALTIME_VOICE), else REALTIME_DEFAULT_VOICE. null while no realtime model is set up.
+ */
+export async function realtimeDefaultVoice(tx: Tx): Promise<string | null> {
+  const active = await activeProvider(tx, 'realtime').catch(() => null)
+  return active ? realtimeVoiceFor(null, active.config.voice?.value) : null
 }
 
 /** The workspace's clones at this provider. */
@@ -301,6 +316,7 @@ export const voiceHandlers: Record<string, Handler> = {
     const fallback = await installDefaultVoice(tx)
     // Only what this workspace may use: the one the instance admin picked for all, or both to choose from.
     const pipelines = pipelinesAllowed(await pipelinesSetUp(tx), await voicePipelinePolicy(tx))
+    const realtimeDefault = pipelines.realtime ? await realtimeDefaultVoice(tx) : null
     const data: VoiceOptionsData = {
       provider,
       realtime: pipelines.realtime,
@@ -312,6 +328,7 @@ export const voiceHandlers: Record<string, Handler> = {
         id: fallback.voiceId,
         name: (curatedVoices[fallback.provider] ?? []).find(v => v.id === fallback.voiceId)?.name ?? null,
       },
+      ...(realtimeDefault ? { realtimeDefaultVoice: realtimeDefault } : {}),
       ...(await installLanguageOptions(tx)),
     }
     return { rows: {}, data }
@@ -529,10 +546,12 @@ export async function hostedSample(provider: string, url: string, doFetch: typeo
  */
 export async function servePreview(actor: Actor, rawVoiceId: string, options: PreviewOptions = {}): Promise<Response> {
   if (!actor.workspaceId || !actor.permissions.includes('call:read')) return error(403, 'missing permission call:read')
+  const language = options.language ?? 'en'
+  if (options.providerName === REALTIME_VOICE_PROVIDER)
+    return serveRealtimePreview(actor, actor.workspaceId, rawVoiceId, language, options)
   const parsed = voiceIdSchema.safeParse(rawVoiceId)
   if (!parsed.success) return error(400, 'not a voice id')
   const voiceId = parsed.data
-  const language = options.language ?? 'en'
   // The shipped samples are English; in another language the curated voices are synthesized like any other.
   const shipped = language === 'en' ? await bundledPreview(voiceId, options.bundledDir) : null
   if (shipped) return audioResponse(shipped)
@@ -555,7 +574,40 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
       : await catalogVoice(db, actor.workspaceId, provider.name, voiceId, { doFetch: options.doFetch })
   if (!ownOrCurated && !listed)
     return error(404, "not one of the voice providers' voices or this workspace's cloned voices")
-  const hosted = listed?.previewUrl ?? null
+  return cachedSample(actor, actor.workspaceId, provider, voiceId, language, listed?.previewUrl ?? null, options)
+}
+
+/**
+ * A sample of one of the realtime model's voices (`?provider=openai_realtime`): made with OpenAI's speech model and the
+ * realtime model's key (voice-provider.ts, REALTIME_PREVIEW_MODEL), in the assistant's main language, cached like any
+ * other synthesized sample and counted against PREVIEWS_PER_HOUR. Only the voices OpenAI lists for realtime.
+ */
+async function serveRealtimePreview(
+  actor: Actor,
+  workspaceId: string,
+  rawVoiceId: string,
+  language: Language,
+  options: PreviewOptions,
+): Promise<Response> {
+  if (!isRealtimeVoice(rawVoiceId)) return error(404, 'not one of the realtime model voices')
+  const provider =
+    options.provider !== undefined
+      ? options.provider
+      : await voiceProviderNamed(db, REALTIME_VOICE_PROVIDER, options.doFetch)
+  if (!provider) return error(409, NO_PROVIDER_FOR_PREVIEW)
+  return cachedSample(actor, workspaceId, provider, rawVoiceId, language, null, options)
+}
+
+/** The sample from the cache, else made once (the provider's hosted one, else synthesized) and kept. */
+async function cachedSample(
+  actor: Actor,
+  workspaceId: string,
+  provider: VoiceProvider,
+  voiceId: string,
+  language: Language,
+  hosted: string | null,
+  options: PreviewOptions,
+): Promise<Response> {
   const cache = options.cache ?? previewCache()
   const key = hosted
     ? createHash('sha256').update(hosted).digest('hex').slice(0, 32)
@@ -565,7 +617,7 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
   try {
     let pending = making.get(key)
     if (!pending) {
-      if (!hosted && !(options.budget ?? defaultBudget).take(actor.workspaceId))
+      if (!hosted && !(options.budget ?? defaultBudget).take(workspaceId))
         return error(429, `at most ${PREVIEWS_PER_HOUR} new voice samples an hour`)
       const made = hosted
         ? hostedSample(provider.name, hosted, options.doFetch ?? fetch)

@@ -8,6 +8,8 @@ import {
   cloneAudioTypes,
   LANGUAGES,
   type Language,
+  REALTIME_VOICE_PROVIDER,
+  realtimeVoices,
   type VoiceLanguage,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -28,6 +30,22 @@ export type PickerVoice = {
   gender?: string | null
   accent?: string | null
 }
+
+/**
+ * The realtime model's voices as the picker lists them (realtimeVoices in @linedesk/actions), OpenAI's recommended ones
+ * first: named by their id ("marin" → "Marin"); `recommended` is the line under the ones OpenAI recommends. OpenAI says
+ * nothing about gender or accent, so the picker shows neither.
+ */
+export const realtimePickerVoices = (recommended: string): PickerVoice[] =>
+  realtimeVoices.map(v => ({
+    provider: REALTIME_VOICE_PROVIDER,
+    id: v.id,
+    name: v.id.charAt(0).toUpperCase() + v.id.slice(1),
+    description: v.recommended ? recommended : null,
+    languages: v.languages,
+    gender: null,
+    accent: null,
+  }))
 
 /** A voice's identity in the picker: the same id can exist at two providers. */
 export const voiceKey = (provider: string, voiceId: string) => `${provider}:${voiceId}`

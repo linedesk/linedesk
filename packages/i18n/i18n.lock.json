@@ -9830,11 +9830,6 @@
       "out": "f6f673d9d6355aecfd43ee1e70eadcc82d6e493ba5c35a5c58a285a5d7888953",
       "src": "a622e464b08664475d2cccf10202eecf29ee394ecd71c7b95e9f368550f6c586"
     },
-    "onboarding.assistant.voiceServer": {
-      "by": "ai",
-      "out": "f633a17fa3ba05f0180062d02e5b900cc0363caf2bd51ebbccb45ff5a0021377",
-      "src": "c58afe0d21661507da76842bffc0391b2cb3022eaa81f2a0deec51e436c4620f"
-    },
     "onboarding.business.field.about": {
       "by": "ai",
       "out": "8750b74ea54ced4aa88239c51ade784e94b00099c2de5fc4e99e368366d276a3",
@@ -27876,11 +27871,6 @@
       "by": "ai",
       "out": "4d86f2eda64a56ea87c7da19e87683e7b7f4826670c516584c3e8772d1ea072d",
       "src": "a622e464b08664475d2cccf10202eecf29ee394ecd71c7b95e9f368550f6c586"
-    },
-    "onboarding.assistant.voiceServer": {
-      "by": "ai",
-      "out": "951085a72258f3f0bb5ca1749b9905901ef832e26bf4f85eecae9934ec2daaeb",
-      "src": "c58afe0d21661507da76842bffc0391b2cb3022eaa81f2a0deec51e436c4620f"
     },
     "onboarding.business.field.about": {
       "by": "ai",
@@ -45924,11 +45914,6 @@
       "out": "33ebb4bc1177fa0d96a8efb1130063521768dfb7ae08d6820221a57b5b566579",
       "src": "a622e464b08664475d2cccf10202eecf29ee394ecd71c7b95e9f368550f6c586"
     },
-    "onboarding.assistant.voiceServer": {
-      "by": "ai",
-      "out": "c197194339e1792110033b81b829433bf10fcbc5008fa7367772c955ba9c58f9",
-      "src": "c58afe0d21661507da76842bffc0391b2cb3022eaa81f2a0deec51e436c4620f"
-    },
     "onboarding.business.field.about": {
       "by": "ai",
       "out": "307ef284ba576615fa72dc9a25e2102cd12ea9f7e1aa36f3843232dd6265c5ea",
@@ -63971,11 +63956,6 @@
       "out": "28f21137eaf2a29dc431bf3f1b21a273795d337baf74fcc3d13728bd58d3e346",
       "src": "a622e464b08664475d2cccf10202eecf29ee394ecd71c7b95e9f368550f6c586"
     },
-    "onboarding.assistant.voiceServer": {
-      "by": "ai",
-      "out": "f8e684d91c09c8686d0752c2737600b5256c0c8687d65a211b28b2f5e30bf43b",
-      "src": "c58afe0d21661507da76842bffc0391b2cb3022eaa81f2a0deec51e436c4620f"
-    },
     "onboarding.business.field.about": {
       "by": "ai",
       "out": "aaaf449bd4eac9c5629ab332244ab95c20fab59150ca0428592b44e1ffeba446",
@@ -82017,11 +81997,6 @@
       "by": "ai",
       "out": "4d86f2eda64a56ea87c7da19e87683e7b7f4826670c516584c3e8772d1ea072d",
       "src": "a622e464b08664475d2cccf10202eecf29ee394ecd71c7b95e9f368550f6c586"
-    },
-    "onboarding.assistant.voiceServer": {
-      "by": "ai",
-      "out": "71642a825bea65e6bcbd9281609ecd35b5ecab14454a8db2d1dee8cf385486a7",
-      "src": "c58afe0d21661507da76842bffc0391b2cb3022eaa81f2a0deec51e436c4620f"
     },
     "onboarding.business.field.about": {
       "by": "ai",
