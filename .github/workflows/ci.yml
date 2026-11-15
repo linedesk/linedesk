@@ -66,7 +66,7 @@ jobs:
           exit "$status"
 
   # Fast checks only: typecheck, lint, the language check, the scrub tests and the release receiver's tests (~20 s). The
-  # test suite runs only locally, when wanted (docs/ci.md).
+  # full test suite runs beside the deploys in tests.yml, never in front of them (docs/ci.md, "Tests").
   check:
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
