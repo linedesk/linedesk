@@ -32,6 +32,7 @@ import {
   devNumberLine,
   forAgent,
   installPartDone,
+  numberSetupHow,
   SETUP_ACTIONS,
   SETUP_LINK_WORKSPACE_CAP,
   wrapUp,
@@ -1633,5 +1634,32 @@ describe('what is done follows the data (B6)', () => {
       .from(workspace_settings)
       .where(eq(workspace_settings.workspace_id, workspaceId))
     expect(settings!.step).toBe('skipped')
+  })
+})
+
+describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
+  const w = 'workspaceId: "ws_1"'
+  test('in the US, Canada and Puerto Rico: buy by an area code of that country, or attach', () => {
+    for (const country of ['US', 'CA', 'PR']) {
+      const how = numberSetupHow(w, country)
+      expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
+      expect(how).toContain(`in the workspace's country (${country}; numbers can be bought in US, CA, PR)`)
+      expect(how).toContain(`{ ${w}, e164, purchase: false, mode }`)
+    }
+  })
+
+  test('elsewhere: buying is refused, so attach a number the business has', () => {
+    const how = numberSetupHow(w, 'DE')
+    expect(how).not.toContain('purchase: true')
+    expect(how).toContain('Numbers can be bought only for workspaces in US, CA, PR; this one is in DE')
+    expect(how).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
+  })
+
+  test('nothing names the country yet: an area code where the business is, and the number sets the country', () => {
+    const how = numberSetupHow(w, null)
+    expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
+    expect(how).toContain("the workspace's country is not set yet, so the number sets it")
+    expect(how).toContain(`workspace_updateSettings { ${w}, country }`)
+    expect(how).not.toContain('(US;')
   })
 })

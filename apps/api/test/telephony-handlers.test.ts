@@ -10,7 +10,7 @@ import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
 import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import {
-  BUY_US_ONLY, INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_SETUP_BUSY, US_ONLY,
+  BUY_COUNTRIES_ONLY, BY_AREA_CODE_ONLY, INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_NOT_ACTIVATED, NUMBER_SETUP_BUSY, NUMBERS_NEED_DOCUMENTS,
 } from '../src/number-purchases.ts'
 
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
@@ -116,10 +116,10 @@ describe('telephony handlers', () => {
       }
     })
 
-    test('only by US area code for owners; instance admins may name a number; every purchase is logged', () => withSipEndpoint(async tx => {
+    test('only by area code for owners; instance admins may name a number; every purchase is logged', () => withSipEndpoint(async tx => {
       const install = installCarrier()
-      await expect(setup(tx, { e164: '+442071234567', purchase: true }, install)).rejects.toThrow(US_ONLY)
-      await expect(setup(tx, { e164: '+15035550979', purchase: true }, install)).rejects.toThrow(US_ONLY)
+      await expect(setup(tx, { e164: '+442071234567', purchase: true }, install)).rejects.toThrow(BY_AREA_CODE_ONLY)
+      await expect(setup(tx, { e164: '+15035550979', purchase: true }, install)).rejects.toThrow(BY_AREA_CODE_ONLY)
       expect(install.buyNumber).not.toHaveBeenCalled()
       await setup(tx, { areaCode: '503', purchase: true }, install)
       await setup(tx, { e164: '+15035550979', purchase: true }, install, admin)
@@ -308,7 +308,7 @@ describe('telephony handlers', () => {
     expect(failing.routeToSip).not.toHaveBeenCalled()
   }))
 
-  describe('buying outside the US (NUMBER_BUY_COUNTRIES)', () => {
+  describe('buying outside the US, Canada and Puerto Rico (NUMBER_BUY_COUNTRIES)', () => {
     const inCountry = (tx: Tx, country: string | null) =>
       tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'Europe/Berlin', country })
         .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country } })
@@ -321,7 +321,7 @@ describe('telephony handlers', () => {
       for (const [input, actor] of [[{ areaCode: '503', purchase: true }, owner], [{ e164: '+15035550901', purchase: true }, owner], [{ areaCode: '503', purchase: true }, admin]] as const) {
         const error = await setup(tx, input, account, actor).catch(e => e)
         expect(error).toBeInstanceOf(Reject)
-        expect(error.message).toMatch(new RegExp(`^${BUY_US_ONLY}; this workspace is in DE`))
+        expect(error.message).toMatch(new RegExp(`^${BUY_COUNTRIES_ONLY}; this workspace is in DE`))
       }
       expect(search).not.toHaveBeenCalled()
       expect(account.buyNumber).not.toHaveBeenCalled()
@@ -333,7 +333,93 @@ describe('telephony handlers', () => {
 
     test('no country set: worked out from the workspace, so a German number it answers counts as Germany', () => inRollback(async tx => {
       await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164: '+493012345679', provider: 'dev', provider_ref: 'ref_de' })
-      await expect(setup(tx, { areaCode: '503', purchase: true }, carrier())).rejects.toThrow(BUY_US_ONLY)
+      await expect(setup(tx, { areaCode: '503', purchase: true }, carrier())).rejects.toThrow(BUY_COUNTRIES_ONLY)
+    }))
+
+    test('a workspace in Canada or Puerto Rico buys by its own area codes, searched in its own country (LIN-300)', () => inRollback(async tx => {
+      for (const [country, areaCode] of [['CA', '416'], ['PR', '787'], ['PR', '939'], ['US', '503']] as const) {
+        await inCountry(tx, country)
+        const account = carrier()
+        const search = vi.spyOn(account, 'searchNumbers')
+        const { rows } = await setup(tx, { areaCode, purchase: true }, account)
+        expect(search).toHaveBeenCalledWith({ country, areaCode, limit: 5 })
+        expect(rows.phone_numbers?.[0]).toMatchObject({ e164: `+1${areaCode}5550100`, purchased: true, mode: 'new' })
+        expect(account.buyNumber).toHaveBeenCalledWith(`+1${areaCode}5550100`)
+      }
+    }))
+
+    test("an area code of another buying country than the workspace's is refused before the carrier is asked", () => inRollback(async tx => {
+      for (const [country, areaCode, message] of [
+        ['US', '416', 'Area code 416 is in Canada, but this workspace is in the United States'],
+        ['CA', '503', 'Area code 503 is in the United States, but this workspace is in Canada'],
+        ['CA', '787', 'Area code 787 is in Puerto Rico, but this workspace is in Canada'],
+        ['PR', '212', 'Area code 212 is in the United States, but this workspace is in Puerto Rico'],
+      ] as const) {
+        await inCountry(tx, country)
+        const account = carrier()
+        const search = vi.spyOn(account, 'searchNumbers')
+        const error = await setup(tx, { areaCode, purchase: true }, account).catch(e => e)
+        expect(error).toBeInstanceOf(Reject)
+        expect(error.message).toMatch(new RegExp(`^${message}`))
+        expect(search).not.toHaveBeenCalled()
+        expect(account.buyNumber).not.toHaveBeenCalled()
+      }
+      expect(await tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))).toEqual([])
+    }))
+
+    test('a Caribbean or other territory area code is no input at all', () => {
+      for (const areaCode of ['876', '809', '242', '340', '671'])
+        expect(actions.get('phoneNumber.setup')!.input.safeParse({ areaCode, purchase: true }).success, areaCode).toBe(false)
+    })
+
+    test('a workspace in Canada attaches a number it already has, as anywhere', () => inRollback(async tx => {
+      await inCountry(tx, 'CA')
+      const { rows } = await setup(tx, { e164: '+16135550177', purchase: false }, carrier(['+16135550177']))
+      expect(rows.phone_numbers?.[0]).toMatchObject({ e164: '+16135550177', purchased: false })
+    }))
+
+    test('the country is worked out from a Puerto Rican number the workspace answers', () => inRollback(async tx => {
+      await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164: '+17875550190', provider: 'dev', provider_ref: 'ref_pr' })
+      const account = carrier()
+      const search = vi.spyOn(account, 'searchNumbers')
+      await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow(/^Area code 503 is in the United States, but this workspace is in Puerto Rico/)
+      await setup(tx, { areaCode: '939', purchase: true }, account)
+      expect(search).toHaveBeenCalledWith({ country: 'PR', areaCode: '939', limit: 5 })
+    }))
+
+    test('a typed number is bought only in the workspace\'s own country too (LIN-300)', () => inRollback(async tx => {
+      await inCountry(tx, 'CA')
+      const account = carrier()
+      for (const [e164, message] of [
+        ['+18765550100', "Number +18765550100 is in Jamaica, but this workspace is in Canada: buy a number there, or change the workspace's country first."],
+        ['+15035550904', "Number +15035550904 is in the United States, but this workspace is in Canada: buy a number there, or change the workspace's country first."],
+        ['+17875550104', "Number +17875550104 is in Puerto Rico, but this workspace is in Canada: buy a number there, or change the workspace's country first."],
+      ] as const) {
+        const error = await setup(tx, { e164, purchase: true }, account).catch(e => e)
+        expect(error).toBeInstanceOf(Reject)
+        expect(error.message).toBe(message)
+      }
+      expect(account.buyNumber).not.toHaveBeenCalled()
+      expect(await tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))).toEqual([])
+      expect((await setup(tx, { e164: '+14165550104', purchase: true }, account)).rows.phone_numbers?.[0]).toMatchObject({ e164: '+14165550104', purchased: true })
+    }))
+
+    test('nothing names the country yet: the area code does, and the number bought then sets it (not a US default)', () => inRollback(async tx => {
+      const account = carrier()
+      const search = vi.spyOn(account, 'searchNumbers')
+      expect((await setup(tx, { areaCode: '787', purchase: true }, account)).rows.phone_numbers?.[0]).toMatchObject({ e164: '+17875550100', purchased: true })
+      expect(search).toHaveBeenCalledWith({ country: 'PR', areaCode: '787', limit: 5 })
+      // Now a Puerto Rico workspace: a US code is refused like for any workspace there.
+      await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow(/^Area code 503 is in the United States, but this workspace is in Puerto Rico/)
+    }))
+
+    test('nothing names the country yet: a typed Puerto Rican number is bought; one outside the buying countries is refused', () => inRollback(async tx => {
+      const account = carrier()
+      await expect(setup(tx, { e164: '+18765550101', purchase: true }, account)).rejects.toThrow(
+        "Number +18765550101 is in Jamaica, but this workspace is in the United States: buy a number there, or change the workspace's country first.",
+      )
+      expect(account.buyNumber).not.toHaveBeenCalled()
+      expect((await setup(tx, { e164: '+17875550105', purchase: true }, account)).rows.phone_numbers?.[0]).toMatchObject({ e164: '+17875550105', purchased: true })
     }))
 
     test('a workspace in the US, or with nothing known (the US), buys as before', () => inRollback(async tx => {
@@ -342,6 +428,53 @@ describe('telephony handlers', () => {
       await inCountry(tx, 'US')
       expect((await setup(tx, { e164: '+15035550902', purchase: true }, account)).rows.phone_numbers?.[0]?.purchased).toBe(true)
       expect(account.buyNumber).toHaveBeenCalledTimes(2)
+    }))
+  })
+
+  describe('carrier refusals in the app\'s own words (LIN-300)', () => {
+    const purchases = (tx: Tx) => tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))
+    afterEach(() => vi.restoreAllMocks())
+
+    test('an order that did not complete (cancelled by the adapter): a neutral refusal, no number row, the purchase counts', () => inRollback(async tx => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const account = carrier([], {
+        buyNumber: async e164 => {
+          throw new TelephonyError('telnyx', `number order order_9 for ${e164} waits for regulatory requirements (address or documents)`, undefined, 'not_activated')
+        },
+      })
+      const error = await setup(tx, { areaCode: '416', purchase: true }, account).catch(e => e)
+      expect(error).toBeInstanceOf(Reject)
+      expect(error.message).toBe(NUMBER_NOT_ACTIVATED)
+      expect(error.message).not.toMatch(/order_9|telnyx|portal/i)
+      expect(account.routeToSip).not.toHaveBeenCalled()
+      expect(await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, '+14165550100'))).toEqual([])
+      // Logged before the carrier was asked: a failed attempt still counts toward the purchase limits.
+      expect(await purchases(tx)).toMatchObject([{ e164: '+14165550100' }])
+      // The carrier's words stay in the server log.
+      expect(logged).toHaveBeenCalledWith('phone setup: telnyx: number order order_9 for +14165550100 waits for regulatory requirements (address or documents)')
+    }))
+
+    test('a country whose numbers need documents: a refusal that says so, without the requirement names, before any purchase', () => inRollback(async tx => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      await tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'America/Puerto_Rico', country: 'PR' })
+      const account = carrier([], {
+        searchNumbers: async () => {
+          throw new TelephonyError('telnyx', 'local numbers in PR need Address, document_id at Telnyx, which Linedesk cannot submit yet', undefined, 'country_requirements')
+        },
+      })
+      const error = await setup(tx, { areaCode: '787', purchase: true }, account).catch(e => e)
+      expect(error.message).toBe(NUMBERS_NEED_DOCUMENTS)
+      expect(account.buyNumber).not.toHaveBeenCalled()
+      expect(await purchases(tx)).toEqual([])
+    }))
+
+    test('other carrier failures keep their text and HTTP status, so the app can say what they mean', () => inRollback(async tx => {
+      const account = carrier([], {
+        buyNumber: async () => {
+          throw new TelephonyError('telnyx', 'POST /number_orders: Insufficient balance', 402)
+        },
+      })
+      await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow('telnyx: POST /number_orders: Insufficient balance (HTTP 402)')
     }))
   })
 

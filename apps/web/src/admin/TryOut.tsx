@@ -2,7 +2,7 @@
 // the install walkthrough): a code emailed to the admin and typed back, a caller's question to the model, a sample call
 // transcribed, the voice played, numbers listed without buying. It costs a little (a few tokens, a second of speech),
 // unlike Test again, the free key check.
-import { type ProviderCategory, type TryOutData, type TryOutKind, usAreaCode } from '@linedesk/actions'
+import { type ProviderCategory, type TryOutData, type TryOutKind, buyableAreaCode } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useId, useState } from 'react'
@@ -36,7 +36,8 @@ const tryHelp: Record<TryOutKind, MessageKey> = {
 }
 
 /** Try it can run: the numbers lookup needs an area code from the list (the picker leaves it empty until then). */
-export const canTry = (kind: TryOutKind, areaCode: string): boolean => kind !== 'telephony' || !!usAreaCode(areaCode)
+export const canTry = (kind: TryOutKind, areaCode: string): boolean =>
+  kind !== 'telephony' || !!buyableAreaCode(areaCode)
 
 /** The round trip of a part: one button, and what came back. */
 export function TryOut({

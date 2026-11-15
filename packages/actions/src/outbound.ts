@@ -89,9 +89,28 @@ const EMERGENCY = new Set([
 /** A national number shorter than this is a short code or a service number, never a person's phone. */
 const SHORT_NATIONAL = 6
 
-const NANP = /^\+1([2-9]\d{2})([2-9]\d{2})\d{4}$/
-/** NANP area codes that are no place for a call: premium rate, personal and carrier services. */
-const BLOCKED_AREA_CODES = new Set(['900', '976', '500', '533', '544', '566', '577', '588', '700'])
+const NANP = /^\+1([2-9]\d{2})([2-9]\d{2})(\d{4})$/
+/**
+ * NANP area codes that are no place for a call: premium rate, personal and carrier services, and Canada's
+ * non-geographic service codes (600, 622, 633), listed here so the rule does not depend on how libphonenumber types
+ * them (it calls 600 VoIP).
+ */
+const BLOCKED_AREA_CODES = new Set([
+  '900',
+  '976',
+  '500',
+  '533',
+  '544',
+  '566',
+  '577',
+  '588',
+  '700',
+  '600',
+  '622',
+  '633',
+])
+/** Directory assistance behind any NANP area code (NXX-555-1212, 555-4334): billed per call. */
+const DIRECTORY_LINES = new Set(['1212', '4334'])
 
 /** The calling code and the national part of digits in E.164 (without "+"); null when no country has the code. */
 function splitCallingCode(digits: string): { code: string; national: string } | null {
@@ -115,7 +134,8 @@ const cannot = (use: OutboundUse) => (use === 'transfer' ? 'cannot take transfer
 /**
  * Why Linedesk may not call this number, with a message for the owner that names the country; null when it may.
  * The rules, in order: E.164; never emergency, short or service numbers (in any country, also as "+<code> 112");
- * NANP: never N11, 976 (behind any area code) or premium/personal area codes; the number must be valid and have a
+ * NANP: never N11, 976 or 555-1212/555-4334 (behind any area code) or premium, personal and
+ * non-geographic area codes; the number must be valid and have a
  * country (not +800, satellite or other numbers without one); only landlines, mobiles and VoIP lines; and the country
  * must be in `allowed` (unless `any`). North American regions are countries of their own: Canada, Puerto Rico and
  * the Caribbean are not the US.
@@ -147,8 +167,8 @@ export function outboundNumberProblem(
   if (split.code === '1') {
     const m = NANP.exec(value)
     if (!m) return problem('format', 'Enter the number with its area code, like +1 503 555 0100.')
-    const [, area, exchange] = m as unknown as [string, string, string]
-    if (/^[2-9]11$/.test(area) || /^[2-9]11$/.test(exchange))
+    const [, area, exchange, line] = m as unknown as [string, string, string, string]
+    if (/^[2-9]11$/.test(area) || /^[2-9]11$/.test(exchange) || (exchange === '555' && DIRECTORY_LINES.has(line)))
       return problem('service', `Service numbers (like 411) ${cannot(use)}.`)
     // 976 is premium rate behind any area code (212-976-…)
     if (BLOCKED_AREA_CODES.has(area) || exchange === '976')

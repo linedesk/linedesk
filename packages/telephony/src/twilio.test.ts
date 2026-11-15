@@ -37,7 +37,7 @@ function mockTwilio(
     const path = url.pathname
     const json = (body: unknown, status = 200) => Response.json(body, { status })
 
-    if (method === 'GET' && path === `${ACCOUNT}/AvailablePhoneNumbers/US/Local.json`) {
+    if (method === 'GET' && /^\/2010-04-01\/Accounts\/AC1\/AvailablePhoneNumbers\/(US|CA|PR)\/Local\.json$/.test(path)) {
       return json({ available_phone_numbers: [{ phone_number: NUMBER, locality: 'Portland', region: 'OR' }] })
     }
     if (method === 'GET' && path === `${ACCOUNT}/IncomingPhoneNumbers.json`) {
@@ -118,6 +118,14 @@ describe('twilio adapter', () => {
     expect(await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 5 })).toEqual([{ e164: NUMBER, locality: 'Portland', region: 'OR' }])
     expect(calls[0]).toMatchObject({ host: 'api.twilio.com', path: `${ACCOUNT}/AvailablePhoneNumbers/US/Local.json?VoiceEnabled=true&PageSize=5&AreaCode=503` })
     expect(calls[0]!.auth).toBe(`Basic ${Buffer.from(`AC1:${TOKEN}`).toString('base64')}`)
+  })
+
+  test('searches Canada and Puerto Rico under their own country code (no address needed for local numbers there)', async () => {
+    const { provider, calls } = mockTwilio()
+    for (const [country, areaCode] of [['CA', '416'], ['PR', '787']] as const) {
+      expect(await provider.searchNumbers({ country, areaCode, limit: 5 })).toHaveLength(1)
+      expect(calls.at(-1)!.path).toBe(`${ACCOUNT}/AvailablePhoneNumbers/${country}/Local.json?VoiceEnabled=true&PageSize=5&AreaCode=${areaCode}`)
+    }
   })
 
   test('an API key authenticates as the key, in the account given by its SID', async () => {

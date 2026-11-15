@@ -1,10 +1,10 @@
 // Buying numbers on the install's carrier account: the operator pays for every one, and anyone can sign up,
-// so whoever is not an instance admin gets a few US numbers and no more. A workspace's own carrier account
+// so whoever is not an instance admin gets a few numbers (US, Canada, Puerto Rico) and no more. A workspace's own carrier account
 // is its own money and has no limits here. Every purchase is logged in `number_purchases`, which outlives
 // the number, so buying and releasing in a loop counts too; the row is committed before the carrier is
 // asked, so a purchase whose action fails afterwards (and is released again) still counts.
 import { number_purchases, phone_numbers, type Tx } from '@linedesk/db'
-import { canBuyNumbersIn } from '@linedesk/actions'
+import { buyableAreaCode, canBuyNumbersIn, countryOfNumber, nameInSentence } from '@linedesk/actions'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { ownCommitDb } from './db.ts'
@@ -36,24 +36,65 @@ const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 const since = (now: string, ms: number) => new Date(Date.parse(now) - ms).toISOString()
 
-export const US_ONLY = 'Numbers on this server are bought by US area code: give an area code instead of a number.'
+export const BY_AREA_CODE_ONLY = 'Numbers on this server are bought by area code: give an area code instead of a number.'
 export const NOT_WITH_API_KEY = 'Numbers on this server are bought in the app, not with an API key.'
 export const NUMBER_SETUP_BUSY = 'Another number is being set up, try again in a moment.'
 export const INSTALL_CAP_REACHED = 'This server has given out as many numbers as it allows for now: try again later, or ask whoever runs it.'
 const ASK_ADMIN = 'ask whoever runs this server, or use your own carrier account'
 
+/**
+ * When the carrier needs an address or documents for local numbers in the country (TelephonyError
+ * `country_requirements`). Its own words, never the carrier's: those name the operator's requirements. The web app
+ * matches the start (phoneSetupErrorText).
+ */
+export const NUMBERS_NEED_DOCUMENTS = "Numbers in this country can't be bought here yet: connect a number the business already has."
+/** When a number order did not complete and was cancelled (`not_activated`); the operator has an ALERT in the log. */
+export const NUMBER_NOT_ACTIVATED = 'This number could not be activated: try another area code.'
+
 /** The start of the refusal for a purchase outside NUMBER_BUY_COUNTRIES; the web app matches it (phoneSetupErrorText). */
-export const BUY_US_ONLY = 'Buying numbers is available in the US for now'
+export const BUY_COUNTRIES_ONLY = 'Buying numbers is available in the US, Canada and Puerto Rico for now'
 
 /**
- * Why the workspace may not buy a number at all, or null: only workspaces in NUMBER_BUY_COUNTRIES can (its country as
- * set, else worked out; nothing known: the US). Any carrier account, any actor: elsewhere a business connects a number
- * it already has. Q6, 2026-11-15.
+ * The country a purchase is in: the workspace's, as set or worked out (a number, the business phone, holidays). When
+ * nothing names it yet, the area code or the number being bought does, not a US default: a new business in Puerto
+ * Rico buys a 787 number and the number then sets the workspace's country (workspaceCountryOf). `wanted` is that area
+ * code or number; one outside the buying countries names nothing. LIN-300.
  */
-export async function buyCountryRefusal(tx: Tx, workspaceId: string): Promise<string | null> {
-  const { resolvedCountry } = await workspaceLocale(tx, workspaceId)
-  if (canBuyNumbersIn(resolvedCountry)) return null
-  return `${BUY_US_ONLY}; this workspace is in ${resolvedCountry}. Connect a number already in the carrier account instead: give its number (e164) without purchase.`
+export async function purchaseCountry(tx: Tx, workspaceId: string, wanted: { areaCode?: string; e164?: string }): Promise<string> {
+  const locale = await workspaceLocale(tx, workspaceId)
+  if (locale.countrySource !== 'default') return locale.resolvedCountry
+  const named = wanted.e164 ? countryOfNumber(wanted.e164) : wanted.areaCode ? buyableAreaCode(wanted.areaCode)?.country : null
+  return named && canBuyNumbersIn(named) ? named : locale.resolvedCountry
+}
+
+/**
+ * Why a workspace in `country` may not buy a number at all, or null: only workspaces in NUMBER_BUY_COUNTRIES can.
+ * Any carrier account, any actor: elsewhere a business connects a number it already has. Q6, 2026-11-15; LIN-300.
+ */
+export function buyCountryRefusal(country: string): string | null {
+  if (canBuyNumbersIn(country)) return null
+  return `${BUY_COUNTRIES_ONLY}; this workspace is in ${country}. Connect a number already in the carrier account instead: give its number (e164) without purchase.`
+}
+
+/**
+ * Why the workspace may not buy in `areaCode`, or null: a number is bought in the workspace's own country, so a
+ * Canadian area code is for a workspace in Canada (LIN-300). The area code is one of AREA_CODES (checked by the input).
+ */
+export function areaCodeCountryRefusal(areaCode: string, country: string): string | null {
+  const area = buyableAreaCode(areaCode)
+  if (!area || area.country === country) return null
+  return `Area code ${areaCode} is in ${nameInSentence(area.country)}, but this workspace is in ${nameInSentence(country)}: pick an area code there, or change the workspace's country first.`
+}
+
+/**
+ * Why the workspace may not buy the number `e164` typed in, or null: like an area code, a number is bought in the
+ * workspace's own country (LIN-300), so a Canadian workspace cannot buy a Jamaican number on its own account either.
+ */
+export function numberCountryRefusal(e164: string, country: string): string | null {
+  const of = countryOfNumber(e164)
+  if (of === country) return null
+  const where = of ? `is in ${nameInSentence(of)}` : 'has no country'
+  return `Number ${e164} ${where}, but this workspace is in ${nameInSentence(country)}: buy a number there, or change the workspace's country first.`
 }
 
 async function countPurchases(tx: Tx, where: ReturnType<typeof and>) {
@@ -70,8 +111,8 @@ export async function installPurchaseRefusal(tx: Tx, actor: Actor, workspaceId: 
   if (actor.permissions.includes('instance:admin')) return null
   // A key is a script: nobody looks at what it buys. Buying on the operator's account is for people in the app.
   if (actor.apiKeyId) return NOT_WITH_API_KEY
-  // A search by area code is a US search (country: 'US'); a number typed in could be anywhere.
-  if (byNumber) return US_ONLY
+  // A search by area code stays in the area code's country (AREA_CODES); a number typed in could be anywhere.
+  if (byNumber) return BY_AREA_CODE_ONLY
   // Serialised, so parallel purchases cannot all pass the counts below.
   const { rows } = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtext('number_purchases:install')) as locked`)
   if (rows[0]?.locked !== true) return NUMBER_SETUP_BUSY

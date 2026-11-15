@@ -1,6 +1,6 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
 const CONNECTION_NAME = 'linedesk-livekit'
@@ -34,7 +34,7 @@ const statusByEvent: Record<string, CallStatus> = {
   'call.hangup': 'hangup',
 }
 
-const fail = (message: string, status?: number) => new TelephonyError('telnyx', message, status)
+const fail = (message: string, status?: number, code?: TelephonyErrorCode) => new TelephonyError('telnyx', message, status, code)
 
 /** Telnyx's carrier type ("mobile", "fixed line", "voip", "toll free") or portability line type ("wireless", "landline"). */
 export function telnyxLineType(type: unknown): LineType {
@@ -157,10 +157,42 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     if (!valid) throw fail('webhook signature is not valid')
   }
 
+  /** What Telnyx needs before it activates a local number in `country` (an address, documents), by name; none: []. */
+  async function orderingRequirements(country: string): Promise<string[]> {
+    const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[phone_number_type]': 'local', 'filter[action]': 'ordering' })
+    const { data } = await request('GET', `/regulatory_requirements?${query}`)
+    return ((data ?? []) as Json[]).flatMap(r => ((r.regulatory_requirements ?? []) as Json[]).map(q => String(q.name ?? q.field_type)))
+  }
+
+  /**
+   * A number order that did not complete: its sub-orders are cancelled, so no number lands on the account later
+   * without a row in Linedesk, and the operator gets an ALERT with the order (the user gets none of it: the error is
+   * `not_activated`). Cancelling is best effort; the ALERT says when it failed.
+   */
+  async function notActivated(order: Json, e164: string, why: string): Promise<TelephonyError> {
+    const ids = ((order.sub_number_orders_ids ?? []) as unknown[]).map(String)
+    const results = await Promise.allSettled(ids.map(id => request('PATCH', `/sub_number_orders/${id}/cancel`)))
+    const failed = results.flatMap(r => (r.status === 'rejected' ? [r.reason instanceof Error ? r.reason.message : String(r.reason)] : []))
+    const outcome = !ids.length
+      ? 'it has no sub-order to cancel: cancel it in the Telnyx portal'
+      : failed.length
+        ? `cancelling it failed (${failed.join('; ')}): cancel it in the Telnyx portal, or release ${e164} once it is on the account`
+        : 'it was cancelled'
+    console.error(`ALERT number order ${order.id} for ${e164} ${why} at Telnyx; ${outcome}`)
+    return fail(`number order ${order.id} for ${e164} ${why}`, undefined, 'not_activated')
+  }
+
   return {
     name: 'telnyx',
 
     async searchNumbers({ country, areaCode, limit = 10 }) {
+      // Outside the US, a country can need an address or documents before Telnyx activates a local number (a
+      // requirement group). Linedesk submits none yet, so such a number would stay pending: refused before buying.
+      if (country !== 'US') {
+        const needs = await orderingRequirements(country)
+        if (needs.length)
+          throw fail(`local numbers in ${country} need ${needs.join(', ')} at Telnyx, which Linedesk cannot submit yet`, undefined, 'country_requirements')
+      }
       const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[features][]': 'voice', 'filter[limit]': String(limit) })
       if (areaCode) query.set('filter[national_destination_code]', areaCode)
       const { data } = await request('GET', `/available_phone_numbers?${query}`)
@@ -186,13 +218,19 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     async buyNumber(e164): Promise<OwnedNumber> {
       const { data } = await request('POST', '/number_orders', { phone_numbers: [{ phone_number: e164 }] })
       if (data.status === 'failure') throw fail(`number order ${data.id} for ${e164} failed`)
+      // An order whose regulatory requirements are not met stays pending until they are, at Telnyx: cancelled.
+      if (data.requirements_met === false) throw await notActivated(data, e164, 'waits for regulatory requirements (address or documents)')
       // The order completes asynchronously; the number has an id once it is on the account.
       for (let attempt = 0; attempt < ORDER_LOOKUPS; attempt++) {
         await wait(1000)
         const id = await findNumberId(e164)
         if (id) return { e164, providerRef: id }
       }
-      throw fail(`number order ${data.id} for ${e164} is still pending at the carrier; set up ${e164} again in a minute to finish`)
+      const error = await notActivated(data, e164, 'is still pending')
+      // Completed while it was being cancelled: bought after all (the caller releases it if the setup fails).
+      const late = await findNumberId(e164)
+      if (late) return { e164, providerRef: late }
+      throw error
     },
 
     async routeToSip(number, sipEndpoint) {

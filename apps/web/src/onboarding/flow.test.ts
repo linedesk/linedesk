@@ -4,12 +4,14 @@ import { describe, expect, it, test } from 'vitest'
 import {
   EMERGENCY_NOTE,
   ALSO_PERSON,
+  areaCodeIn,
   areaCodeOf,
   assistantChanges,
   doneState,
   rejectionStep,
   urgentCasesFrom,
   buyQuestion,
+  buyingCountry,
   buyUnavailableText,
   carrierName,
   DEFAULT_URGENT_CONDITION,
@@ -21,6 +23,8 @@ import {
   firstWhoHears,
   formatNumber,
   phoneSetupErrorText,
+  priceCountry,
+  priceNote,
   forwardingOffer,
   mobileErrorText,
   NO_PICKUP_MEMORY,
@@ -429,18 +433,33 @@ test('"Urgent means" starts from the urgent cases the common calls name', () => 
 })
 
 test('the area code comes from a number the owner gave, never an example', () => {
-  expect(areaCodeOf(null, '+15035550142')).toBe('503')
-  expect(areaCodeOf('(206) 555-0100', '+15035550142')).toBe('206')
-  expect(areaCodeOf(undefined, 'not a number')).toBe('')
+  expect(areaCodeOf('US', null, '+15035550142')).toBe('503')
+  expect(areaCodeOf('US', '(206) 555-0100', '+15035550142')).toBe('206')
+  expect(areaCodeOf('US', undefined, 'not a number')).toBe('')
   // A toll-free business number has no area code a number can be bought in: the next number gives it.
-  expect(areaCodeOf('+18005550100', '+15035550142')).toBe('503')
-  expect(areaCodeOf('+18885550100')).toBe('')
+  expect(areaCodeOf('US', '+18005550100', '+15035550142')).toBe('503')
+  expect(areaCodeOf('US', '+18885550100')).toBe('')
   // Another country's number is never read as a US one: +49 30 123456 has ten digits, but no area code 493.
-  expect(areaCodeOf('+4930123456')).toBe('')
-  expect(areaCodeOf('+4930123456', '+15035550142')).toBe('503')
-  expect(areaCodeOf('+442071838750')).toBe('')
-  // A Canadian number is North American, but no US area code a number can be bought in.
-  expect(areaCodeOf('+14165550100')).toBe('')
+  expect(areaCodeOf('US', '+4930123456')).toBe('')
+  expect(areaCodeOf('US', '+4930123456', '+15035550142')).toBe('503')
+  expect(areaCodeOf('US', '+442071838750')).toBe('')
+  // Only the workspace country's codes: a Canadian number gives none in the US, its code in Canada.
+  expect(areaCodeOf('US', '+14165550100')).toBe('')
+  expect(areaCodeOf('CA', '+14165550100')).toBe('416')
+  expect(areaCodeOf('CA', '+15035550142', '+16135550100')).toBe('613')
+  expect(areaCodeOf('PR', '+17875550100')).toBe('787')
+  // Jamaica's 876 is in no list.
+  expect(areaCodeOf(null, '+18765550100')).toBe('')
+  // While the country loads, any code a number can be bought in.
+  expect(areaCodeOf(null, '+14165550100')).toBe('416')
+  expect(areaCodeIn('416', 'CA')).toBe(true)
+  expect(areaCodeIn('416', 'US')).toBe(false)
+  expect(areaCodeIn('939', 'pr')).toBe(true)
+  expect(areaCodeIn('416', null)).toBe(true)
+  expect(areaCodeIn('876', null)).toBe(false)
+  expect(phoneOptionSetup('new', { number: '', areaCode: '416', confirmed: true }, undefined as never)).toEqual({
+    input: { areaCode: '416', purchase: true, mode: 'new' },
+  })
   expect(phoneOptionSetup('new', { number: '', areaCode: '', confirmed: true }, undefined as never)).toEqual({
     problem: 'Pick an area code for the new number from the list.',
   })
@@ -499,22 +518,61 @@ test('a carrier failure says what it is and who fixes it (LIN-111)', () => {
   )
 })
 
-test('buying a number is offered only in the US, and as before while the country loads (Q6)', () => {
-  expect(offersBuying('US')).toBe(true)
-  expect(offersBuying('us')).toBe(true)
+test('buying a number is offered in the US, Canada and Puerto Rico, and as before while the country loads (LIN-300)', () => {
+  for (const country of ['US', 'us', 'CA', 'PR']) expect(offersBuying(country), country).toBe(true)
   expect(offersBuying(null)).toBe(true)
-  for (const country of ['DE', 'CA', 'GB', 'MX']) expect(offersBuying(country), country).toBe(false)
+  for (const country of ['DE', 'GB', 'MX', 'JM']) expect(offersBuying(country), country).toBe(false)
   expect(buyUnavailableText('Telnyx', true)).toBe(
-    'Buying numbers is available in the US for now. Connect a number you already have in Telnyx.',
+    'Buying numbers is available in the US, Canada and Puerto Rico for now. Connect a number you already have in Telnyx.',
   )
   expect(buyUnavailableText(null, true)).toMatch(/Connect a number you already have with your carrier\.$/)
   expect(buyUnavailableText('Telnyx', false)).toMatch(/connect your own carrier account in Settings › Phone numbers\.$/)
   // The server's refusal (apps/api/src/number-purchases.ts) in the same words.
   expect(
     phoneSetupErrorText(
-      'Buying numbers is available in the US for now; this workspace is in DE. Connect a number already in the carrier account instead: give its number (e164) without purchase.',
+      'Buying numbers is available in the US, Canada and Puerto Rico for now; this workspace is in DE. Connect a number already in the carrier account instead: give its number (e164) without purchase.',
     ),
   ).toBe(buyUnavailableText(null, true))
+  expect(
+    phoneSetupErrorText(
+      "Area code 416 is in Canada, but this workspace is in the United States: pick an area code there, or change the workspace's country first.",
+    ),
+  ).toBe('That area code is in another country than this workspace. Pick one from the list.')
+  expect(
+    phoneSetupErrorText(
+      "Number +18765550100 is in Jamaica, but this workspace is in Canada: buy a number there, or change the workspace's country first.",
+    ),
+  ).toBe("That number is in another country than this workspace, so it can't be bought here. Pick an area code from the list.")
+  // Carrier refusals in the server's own words (NUMBERS_NEED_DOCUMENTS, NUMBER_NOT_ACTIVATED): honest, no "try again".
+  expect(
+    phoneSetupErrorText("Numbers in this country can't be bought here yet: connect a number the business already has."),
+  ).toBe("Numbers in this country can't be bought here yet. Connect a number the business already has.")
+  expect(phoneSetupErrorText('This number could not be activated: try another area code.')).toBe(
+    "That number couldn't be activated. Try another area code.",
+  )
+})
+
+test('with no country set yet, the picker offers every buyable area code and the picked one sets the price', () => {
+  expect(buyingCountry(null)).toBeNull()
+  expect(buyingCountry({ country: 'US', known: false })).toBeNull()
+  expect(buyingCountry({ country: 'CA', known: true })).toBe('CA')
+  expect(areaCodeIn('787', buyingCountry({ country: 'US', known: false }))).toBe(true)
+  expect(areaCodeIn('787', buyingCountry({ country: 'US', known: true }))).toBe(false)
+  expect(priceCountry('787', null)).toBe('PR')
+  expect(priceCountry('416', 'US')).toBe('CA')
+  expect(priceCountry('', 'CA')).toBe('CA')
+  expect(priceCountry('', null)).toBeNull()
+})
+
+test("the price note is the carrier's list price in the workspace's country", () => {
+  expect(priceNote('telnyx')).toBe('About $1 a month plus call minutes, billed by Telnyx.')
+  expect(priceNote('telnyx', 'CA')).toBe('About $1 a month plus call minutes, billed by Telnyx.')
+  expect(priceNote('telnyx', 'PR')).toBe('About $3 a month plus call minutes, billed by Telnyx.')
+  expect(priceNote('twilio', 'US')).toBe('About $1.15 a month plus call minutes, billed by Twilio.')
+  expect(priceNote('twilio', 'PR')).toBe('About $3.25 a month plus call minutes, billed by Twilio.')
+  expect(priceNote('twilio', 'DE')).toBe('A monthly fee plus call minutes, billed by Twilio.')
+  expect(priceNote('dev', 'CA')).toBe('Development mode: nothing is bought, the number is not real.')
+  expect(priceNote(null, 'CA')).toBe('A monthly fee plus call minutes, billed by your carrier.')
 })
 
 test('a missing phone carrier sends admins to Server admin › Providers (LIN-111)', () => {

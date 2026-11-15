@@ -35,6 +35,25 @@ describe('holiday data', () => {
     expect(holidayList('DE', 'BY', '2027-01-01').some(h => h.date === '2027-01-06')).toBe(true)
   })
 
+  test('Canada (with its provinces) and Puerto Rico have calendars of their own, in English', () => {
+    const dates = (country: string, state: string | null) => holidayDates(country, state, '2027-01-01', '2027-12-31')
+    const ca = dates('CA', null)
+    expect(ca).toContainEqual({ key: 'Canada Day', date: '2027-07-01', name: 'Canada Day' })
+    expect(ca.some(d => d.date === '2027-07-05')).toBe(false)
+    // Quebec's Fête nationale on 24 June, only in Quebec.
+    expect(ca.some(d => d.date === '2027-06-24')).toBe(false)
+    expect(dates('CA', 'QC').some(d => d.date === '2027-06-24')).toBe(true)
+    const pr = dates('PR', null)
+    // Constitution Day and Discovery of Puerto Rico Day, which the US calendar does not have.
+    for (const date of ['2027-07-25', '2027-11-19'])
+      expect(
+        pr.some(d => d.date === date),
+        date,
+      ).toBe(true)
+    expect(pr.find(d => d.date === '2027-07-25')?.name).toBe('Puerto Rico Constitution Day')
+    expect(dates('US', null).some(d => d.date === '2027-07-25')).toBe(false)
+  })
+
   test('the time zone suggests the country', () => {
     expect(countryOfTimeZone('Europe/Berlin')).toBe('DE')
     expect(countryOfTimeZone('America/Chicago')).toBe('US')

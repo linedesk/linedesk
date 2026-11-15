@@ -18,8 +18,10 @@ import { ForwardingCheck } from './ForwardingCheck.tsx'
 import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from './ForwardingGuide.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
+  areaCodeIn,
   areaCodeOf,
   buyQuestion,
+  buyingCountry,
   buyUnavailableText,
   carrierName,
   existingLinkText,
@@ -32,6 +34,7 @@ import {
   phoneOptions,
   phoneOptionText,
   pickupNumberMode,
+  priceCountry,
   priceNote,
   turnOffFirst,
   URGENT_CONTACT_ID,
@@ -76,7 +79,7 @@ export function PhoneStep(p: Props) {
     )
   if (!p.status.available)
     return <Unavailable detail={p.status.detail} admin={p.admin} onBack={p.onBack} onNext={p.onNext} />
-  return <Choose {...p} firstAreaCode={areaCodeOf(businessPhone, mobile)} />
+  return <Choose {...p} firstAreaCode={areaCodeOf(null, businessPhone, mobile)} />
 }
 
 function Unavailable({
@@ -124,7 +127,9 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
   // Outside the countries numbers can be bought in, only a number the business already has (offersBuying).
-  const buyable = offersBuying(useWorkspaceCountry()?.country ?? null)
+  // Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
+  const country = buyingCountry(useWorkspaceCountry())
+  const buyable = offersBuying(country)
   const [chosen, setOption] = useState<PhoneOption>(phoneOptions[0]!)
   const option: PhoneOption = buyable ? chosen : 'existing'
   // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
@@ -133,7 +138,9 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   const [typed, setTyped] = useState('')
   const phoneCountry = useDefaultPhoneCountry()
   // Prefilled from a number the owner already gave; empty otherwise (no example that looks filled in).
-  const [areaCode, setAreaCode] = useState(firstAreaCode)
+  const [picked, setAreaCode] = useState(firstAreaCode)
+  // Only a code of the workspace's country (its list): a prefilled one of another country is dropped.
+  const areaCode = areaCodeIn(picked, country) ? picked : ''
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -265,6 +272,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
             >
               <AreaCodeInput
                 id="ob-area"
+                country={country}
                 value={areaCode}
                 onChange={v => {
                   setAreaCode(v)
@@ -274,7 +282,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
                 }}
               />
             </Field>
-            <p className="ob2-note">{priceNote(status.provider)}</p>
+            <p className="ob2-note">{priceNote(status.provider, priceCountry(areaCode, country))}</p>
             {confirming && (
               <div className="ob-prompt" role="alert">
                 <span>{buyQuestion(status.provider, areaCode)}</span>

@@ -66,14 +66,23 @@ export function installCarrierName(base: string, suffix = process.env.LINEDESK_C
   return `${base}-${suffix}`
 }
 
+/**
+ * A carrier failure the app explains in its own words instead of the carrier's (which can name orders and requirements
+ * of the operator's account): `country_requirements`, local numbers in that country need an address or documents
+ * Linedesk cannot submit; `not_activated`, a number order did not complete and was cancelled.
+ */
+export type TelephonyErrorCode = 'country_requirements' | 'not_activated'
+
 export class TelephonyError extends Error {
   readonly provider: ProviderName
   readonly status?: number
+  readonly code?: TelephonyErrorCode
 
-  constructor(provider: ProviderName, message: string, status?: number) {
+  constructor(provider: ProviderName, message: string, status?: number, code?: TelephonyErrorCode) {
     super(`${provider}: ${message}`)
     this.provider = provider
     this.status = status
+    this.code = code
   }
 }
 

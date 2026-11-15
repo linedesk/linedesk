@@ -1,6 +1,6 @@
 // Contract: every provider behaves the same through TelephonyProvider. Telnyx runs against mocked HTTP.
 import { generateKeyPairSync, sign } from 'node:crypto'
-import { describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { describeProviderContract } from './contract.ts'
 import { createTelnyxProvider, devProvider, installCarrierName, telephonyProviderFromEnv, TelephonyError } from './index.ts'
 import { telnyxLineType } from './telnyx.ts'
@@ -145,6 +145,106 @@ describe('telnyx adapter', () => {
     expect(calls[0]!.auth).toBe('Bearer KEY')
   })
 
+  test('searches Canada and Puerto Rico by their own country code, after checking Telnyx asks nothing for them', async () => {
+    for (const [country, areaCode] of [['CA', '416'], ['PR', '787']] as const) {
+      const { provider, calls } = mockTelnyx(c =>
+        c.path.startsWith('/regulatory_requirements') ? { json: { data: [{ country_code: country, phone_number_type: 'local', action: 'ordering', regulatory_requirements: [] }] } } : telnyxAccount()(c),
+      )
+      expect(await provider.searchNumbers({ country, areaCode, limit: 5 })).toHaveLength(1)
+      expect(calls.map(c => c.path)).toEqual([
+        `/regulatory_requirements?filter[country_code]=${country}&filter[phone_number_type]=local&filter[action]=ordering`,
+        `/available_phone_numbers?filter[country_code]=${country}&filter[features][]=voice&filter[limit]=5&filter[national_destination_code]=${areaCode}`,
+      ])
+    }
+  })
+
+  test('a country whose local numbers need an address or documents is refused before any search or order', async () => {
+    const { provider, calls } = mockTelnyx(c =>
+      c.path.startsWith('/regulatory_requirements')
+        ? { json: { data: [{ country_code: 'CA', regulatory_requirements: [{ name: 'Address matching the DID area code', field_type: 'address_id' }, { field_type: 'document_id' }] }] } }
+        : telnyxAccount()(c),
+    )
+    const refused = provider.searchNumbers({ country: 'CA', areaCode: '416' })
+    await expect(refused).rejects.toThrow(
+      'telnyx: local numbers in CA need Address matching the DID area code, document_id at Telnyx, which Linedesk cannot submit yet',
+    )
+    // The app tells this in its own words: the requirement names stay in the log.
+    await expect(refused).rejects.toMatchObject({ code: 'country_requirements' })
+    expect(calls.map(c => c.path.split('?')[0])).toEqual(['/regulatory_requirements'])
+  })
+
+  test('a requirements check that fails at Telnyx fails the search, nothing is searched or ordered', async () => {
+    const { provider, calls } = mockTelnyx(c =>
+      c.path.startsWith('/regulatory_requirements') ? { status: 500, json: { errors: [{ detail: 'Internal error' }] } } : telnyxAccount()(c),
+    )
+    const failed = provider.searchNumbers({ country: 'PR', areaCode: '787' })
+    await expect(failed).rejects.toThrow(/^telnyx: /)
+    await expect(failed).rejects.toMatchObject({ status: 500, code: undefined })
+    expect(calls.map(c => c.path.split('?')[0])).toEqual(['/regulatory_requirements'])
+  })
+
+  test('a US search asks for no requirements', async () => {
+    const { provider, calls } = mockTelnyx(telnyxAccount())
+    await provider.searchNumbers({ country: 'US', areaCode: '503' })
+    expect(calls.map(c => c.path.split('?')[0])).toEqual(['/available_phone_numbers'])
+  })
+
+  describe('an order that does not complete is cancelled, with an ALERT for the operator', () => {
+    let alerts: string[]
+    beforeEach(() => {
+      alerts = []
+      vi.spyOn(console, 'error').mockImplementation((message: unknown) => void alerts.push(String(message)))
+    })
+    afterEach(() => vi.restoreAllMocks())
+
+    const order = (extra: Record<string, unknown>) => ({ json: { data: { id: 'order_2', status: 'pending', sub_number_orders_ids: ['sub_1'], ...extra } } })
+
+    test('waiting for regulatory requirements: its sub-order is cancelled at once, the error is not_activated', async () => {
+      const { provider, calls } = mockTelnyx(c =>
+        c.path === '/number_orders' ? order({ requirements_met: false }) : c.path === '/sub_number_orders/sub_1/cancel' ? { json: { data: { id: 'sub_1', status: 'cancelled' } } } : { json: { data: [] } },
+      )
+      const bought = provider.buyNumber('+14165550100')
+      await expect(bought).rejects.toThrow('telnyx: number order order_2 for +14165550100 waits for regulatory requirements (address or documents)')
+      await expect(bought).rejects.toMatchObject({ code: 'not_activated' })
+      expect(calls.map(c => `${c.method} ${c.path}`)).toEqual(['POST /number_orders', 'PATCH /sub_number_orders/sub_1/cancel'])
+      expect(alerts).toEqual(['ALERT number order order_2 for +14165550100 waits for regulatory requirements (address or documents) at Telnyx; it was cancelled'])
+    })
+
+    test('a cancel that fails is in the ALERT, with what the operator does', async () => {
+      const { provider } = mockTelnyx(c =>
+        c.path === '/number_orders' ? order({ requirements_met: false }) : c.path.startsWith('/sub_number_orders') ? { status: 422, json: { errors: [{ detail: 'Order cannot be cancelled' }] } } : { json: { data: [] } },
+      )
+      await expect(provider.buyNumber('+17875550100')).rejects.toMatchObject({ code: 'not_activated' })
+      expect(alerts).toHaveLength(1)
+      expect(alerts[0]).toMatch(/^ALERT number order order_2 for \+17875550100 waits for regulatory requirements .* cancelling it failed \(.*Order cannot be cancelled.*\): cancel it in the Telnyx portal, or release \+17875550100 once it is on the account$/)
+    })
+
+    test('still pending after the lookups: cancelled; one that completed meanwhile is bought after all', async () => {
+      const stuck = mockTelnyx(c => (c.path === '/number_orders' ? order({}) : { json: { data: [] } }))
+      await expect(stuck.provider.buyNumber(NUMBER)).rejects.toMatchObject({ code: 'not_activated', message: `telnyx: number order order_2 for ${NUMBER} is still pending` })
+      expect(stuck.calls.filter(c => c.method === 'PATCH').map(c => c.path)).toEqual(['/sub_number_orders/sub_1/cancel'])
+      expect(alerts).toEqual([`ALERT number order order_2 for ${NUMBER} is still pending at Telnyx; it was cancelled`])
+
+      let cancelled = false
+      const late = mockTelnyx(c => {
+        if (c.path === '/number_orders') return order({})
+        if (c.method === 'PATCH') {
+          cancelled = true
+          return { status: 422, json: { errors: [{ detail: 'Order already completed' }] } }
+        }
+        return { json: { data: cancelled ? [{ id: 'num_9', phone_number: NUMBER }] : [] } }
+      })
+      expect(await late.provider.buyNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_9' })
+    })
+
+    test('an order without sub-orders cannot be cancelled here: the ALERT says so', async () => {
+      const { provider, calls } = mockTelnyx(c => (c.path === '/number_orders' ? { json: { data: { id: 'order_3', status: 'pending', requirements_met: false } } } : { json: { data: [] } }))
+      await expect(provider.buyNumber('+14165550100')).rejects.toMatchObject({ code: 'not_activated' })
+      expect(calls.map(c => c.path)).toEqual(['/number_orders'])
+      expect(alerts).toEqual(['ALERT number order order_3 for +14165550100 waits for regulatory requirements (address or documents) at Telnyx; it has no sub-order to cancel: cancel it in the Telnyx portal'])
+    })
+  })
+
   test('buys a number with an order and returns the phone number id', async () => {
     const { provider, calls } = mockTelnyx(telnyxAccount())
     expect(await provider.buyNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_1' })
@@ -175,7 +275,9 @@ describe('telnyx adapter', () => {
     const failed = mockTelnyx(c => c.path === '/number_orders' ? { json: { data: { id: 'order_1', status: 'failure' } } } : { json: { data: [] } })
     await expect(failed.provider.buyNumber(NUMBER)).rejects.toThrow('number order order_1 for +15035550100 failed')
     const pending = mockTelnyx(c => c.path === '/number_orders' ? { json: { data: { id: 'order_1', status: 'pending' } } } : { json: { data: [] } })
-    await expect(pending.provider.buyNumber(NUMBER)).rejects.toThrow(`still pending at the carrier; set up ${NUMBER} again`)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(pending.provider.buyNumber(NUMBER)).rejects.toThrow(`number order order_1 for ${NUMBER} is still pending`)
+    vi.restoreAllMocks()
   })
 
   const routed = { e164: NUMBER, providerRef: 'num_1' }

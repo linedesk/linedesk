@@ -30,6 +30,52 @@ describe('destination policy', () => {
     expect(reason('+4930123456789', 'any')).toBeNull()
   })
 
+  test('North America: Canada and Puerto Rico (787, 939) are callable once allowed; the Caribbean never through them', () => {
+    const launch = ['CA', 'PR', 'US']
+    for (const ok of ['+12125550123', '+14165550123', '+16045550123', '+17875550123', '+19395550123'])
+      expect(reason(ok, launch), ok).toBeNull()
+    // Jamaica, the Dominican Republic, the Bahamas, Barbados, Trinidad, the US Virgin Islands, Guam: other countries.
+    for (const other of [
+      '+18762345678',
+      '+18092345678',
+      '+18292345678',
+      '+12422345678',
+      '+12462345678',
+      '+18682345678',
+      '+13402345678',
+      '+16712345678',
+    ])
+      expect(reason(other, launch), other).toBe('country')
+    // A US number alone does not open Canada or Puerto Rico.
+    expect(reason('+14165550123', ['US'])).toBe('country')
+    expect(reason('+17875550123', ['US'])).toBe('country')
+    expect(onCallNumberProblem('+17875550123', ['US', 'CA'])).toMatch(/^Only numbers in the United States and Canada /)
+  })
+
+  test("Canada's non-geographic codes (600, 622, 633) and NANP premium codes are refused even with Canada allowed", () => {
+    const launch = ['CA', 'PR', 'US']
+    for (const blocked of [
+      '+16002345678',
+      '+16222345678',
+      '+16332345678',
+      '+19002345678',
+      '+19762345678',
+      '+14169765678',
+      '+17879765678',
+    ]) {
+      expect(reason(blocked, launch), blocked).toBe('premium')
+      expect(reason(blocked, 'any'), blocked).toBe('premium')
+    }
+  })
+
+  test('directory assistance (NXX-555-1212, 555-4334) is refused behind any area code; other 555 lines are not', () => {
+    const launch = ['CA', 'PR', 'US']
+    for (const directory of ['+14165551212', '+17875551212', '+15035551212', '+12125554334', '+19395554334'])
+      expect(reason(directory, launch), directory).toBe('service')
+    expect(reason('+15035550142', launch)).toBeNull()
+    expect(reason('+14165550123', launch)).toBeNull()
+  })
+
   test('real German business numbers when Germany is allowed: Berlin landline, mobile, 032 national number', () => {
     for (const ok of ['+4930123456789', '+493012345678', '+4915123456789', '+4917012345678', '+4932212345678'])
       expect(reason(ok, ['DE'])).toBeNull()
@@ -116,6 +162,14 @@ describe('allowed countries', () => {
       'DE',
       'US',
     ])
+  })
+
+  test('a Canadian or Puerto Rican number opens its own country, not the US', () => {
+    const install = (...numbers: string[]) => ({ install: numbers, workspace: [] })
+    expect(allowedOutboundCountries(install('+14165550142'), [])).toEqual(['CA'])
+    expect(allowedOutboundCountries(install('+17875550142'), [])).toEqual(['PR'])
+    expect(allowedOutboundCountries(install('+19395550142'), [])).toEqual(['PR'])
+    expect(countriesOfNumbers(['+17875550142', '+14165550142', '+15035550142'])).toEqual(['CA', 'PR', 'US'])
   })
 
   test('per route: the install route never gets the countries of own-account numbers, nor the reverse', () => {

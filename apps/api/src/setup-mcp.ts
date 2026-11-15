@@ -22,6 +22,7 @@ import {
   type ActionDef,
   actions,
   callAudioGuide,
+  canBuyNumbersIn,
   type ForwardingMode,
   forwardingCountries,
   forwardingInstructions,
@@ -32,6 +33,7 @@ import {
   installPlace,
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
+  NUMBER_BUY_COUNTRIES,
   oneKey,
   onboardingSteps,
   pipelineFor,
@@ -127,7 +129,7 @@ export const SETUP_ACTIONS = [
 /** Tools a client should confirm with the person first: they cost money or undo work. */
 const ASK_FIRST: Record<string, string> = {
   'phoneNumber.setup':
-    'With purchase: true this buys a phone number on the carrier account (about $1 a month on Telnyx): ask the admin first and say the cost. With purchase: false it attaches a number the account already has.',
+    'With purchase: true this buys a phone number on the carrier account (only for a workspace in the US, Canada or Puerto Rico; about $1 a month on Telnyx in the US and Canada, $3 in Puerto Rico): ask the admin first and say the cost. With purchase: false it attaches a number the account already has.',
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
   'provider.tryOut':
     'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
@@ -698,6 +700,21 @@ const noWorkspaceSteps = (): StepBase[] => [
 ]
 
 /** One workspace's steps; `actor` acts in it as its owner or admin (setupActorIn). */
+/**
+ * How the phone step gets a number, by the workspace's country: buying by an area code of that country in the US,
+ * Canada and Puerto Rico (NUMBER_BUY_COUNTRIES); elsewhere attaching a number the business already has. `w` is the
+ * workspace argument the tool calls carry; `country` null: nothing names the workspace's country yet.
+ */
+export function numberSetupHow(w: string, country: string | null): string {
+  const countries = NUMBER_BUY_COUNTRIES.join(', ')
+  // Nothing names the workspace's country yet: the area code picks it, and the bought number sets it.
+  if (country === null)
+    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code where the business is (numbers can be bought in ${countries}; the workspace's country is not set yet, so the number sets it). If the business is elsewhere, set its country first (workspace_updateSettings { ${w}, country }); say the cost and ask first. A number the carrier account already has: { ${w}, e164, purchase: false, mode }.`
+  if (canBuyNumbersIn(country))
+    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code in the workspace's country (${country}; numbers can be bought in ${countries}); say the cost and ask first. A number the carrier account already has: { ${w}, e164, purchase: false, mode }.`
+  return `Numbers can be bought only for workspaces in ${countries}; this one is in ${country}, so buying is refused. Ask for a number the business already has in its carrier account and attach it: phoneNumber_setup { ${w}, e164, purchase: false, mode }. If the country is wrong, fix it first (workspace_updateSettings { ${w}, country }).`
+}
+
 async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[]> {
   const workspaceId = actor.workspaceId!
   // Every business tool names this workspace.
@@ -814,7 +831,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: [
         'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new").',
-        `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one; say the cost and ask first. A number the carrier account already has: { ${w}, e164, purchase: false, mode }.`,
+        numberSetupHow(w, locale.countrySource === 'default' ? null : locale.resolvedCountry),
         `Then onboarding_setStep { ${w}, step: "done" }.`,
       ],
     },

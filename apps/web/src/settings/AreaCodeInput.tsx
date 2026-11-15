@@ -1,7 +1,15 @@
-// The area code of a new number: the US area codes a number can be bought in (US_AREA_CODES), as a searchable list
-// under the field, built like CarrierNumberInput. Search by code, city or state ("503", "portland", "OR"). Only a
-// code from the list is taken: the value is the three digits, or empty while what is typed is not one of them.
-import { areaCodeLabel, searchAreaCodes, US_AREA_CODES, usAreaCode } from '@linedesk/actions'
+// The area code of a new number: the area codes a number can be bought in, of the workspace's country (AREA_CODES:
+// the US, Canada, Puerto Rico), as a searchable list under the field, built like CarrierNumberInput. Search by code,
+// city, state or province ("503", "portland", "OR", "ontario"). Only a code from the list is taken: the value is the
+// three digits, or empty while what is typed is not one of them.
+import {
+  type AreaCode,
+  areaCodeLabel,
+  areaCodesIn,
+  BUYABLE_AREA_CODES,
+  buyableAreaCode,
+  searchAreaCodes,
+} from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Input } from '../ui/form.tsx'
@@ -10,30 +18,35 @@ import { cx, Icon } from '../ui/kit.tsx'
 
 /** "503 · Portland, OR" for a code in the list; the code itself otherwise. */
 export const areaCodeText = (code: string): string => {
-  const a = usAreaCode(code)
+  const a = buyableAreaCode(code)
   return a ? areaCodeLabel(a) : code
 }
+
+/** The codes a workspace in `country` picks from; no country (Server admin › Providers, Try it): every buyable one. */
+export const areaCodeList = (country?: string | null): readonly AreaCode[] =>
+  country ? areaCodesIn(country) : BUYABLE_AREA_CODES
 
 /**
  * The area codes to show for what is in the field. The label of the picked code (shown when the field opens) is no
  * search: the whole list shows, so another code is one arrow key away.
  */
-export function areaCodeMatches(query: string, value: string) {
-  return value && query === areaCodeText(value) ? [...US_AREA_CODES] : searchAreaCodes(US_AREA_CODES, query)
+export function areaCodeMatches(query: string, value: string, list: readonly AreaCode[] = BUYABLE_AREA_CODES) {
+  return value && query === areaCodeText(value) ? [...list] : searchAreaCodes(list, query)
 }
 
 /** The code typed in full ("503", " 503 "), when it is in the list: taken without picking it. */
-export const typedAreaCode = (query: string): string => {
+export const typedAreaCode = (query: string, list: readonly AreaCode[] = BUYABLE_AREA_CODES): string => {
   const digits = query.trim()
-  return /^\d{3}$/.test(digits) && usAreaCode(digits) ? digits : ''
+  return /^\d{3}$/.test(digits) && list.some(a => a.code === digits) ? digits : ''
 }
 
 /**
  * `label` names the field for screen readers where no visible label points at `id` (Server admin › Providers, Try it).
+ * `country`: the workspace's, whose area codes are listed; none: every country's numbers can be bought in.
  */
-type Props = { id: string; value: string; onChange: (code: string) => void; label?: string }
+type Props = { id: string; value: string; onChange: (code: string) => void; label?: string; country?: string | null }
 
-export function AreaCodeInput({ id, value, onChange, label }: Props) {
+export function AreaCodeInput({ id, value, onChange, label, country }: Props) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(() => areaCodeText(value))
@@ -41,7 +54,8 @@ export function AreaCodeInput({ id, value, onChange, label }: Props) {
   const root = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const listId = useId()
-  const matches = useMemo(() => areaCodeMatches(query, value), [query, value])
+  const codes = useMemo(() => areaCodeList(country), [country])
+  const matches = useMemo(() => areaCodeMatches(query, value, codes), [query, value, codes])
   useAnchoredList(open, root, list, { match: true })
 
   // Closed, the field shows the picked code with its city (or nothing): what was typed and not picked is dropped.
@@ -67,7 +81,7 @@ export function AreaCodeInput({ id, value, onChange, label }: Props) {
     setActive(
       Math.max(
         0,
-        US_AREA_CODES.findIndex(a => a.code === value),
+        codes.findIndex(a => a.code === value),
       ),
     )
     setOpen(true)
@@ -118,7 +132,7 @@ export function AreaCodeInput({ id, value, onChange, label }: Props) {
           setQuery(next)
           setActive(0)
           setOpen(true)
-          const typed = typedAreaCode(next)
+          const typed = typedAreaCode(next, codes)
           if (typed !== value) onChange(typed)
         }}
         onKeyDown={onKey}

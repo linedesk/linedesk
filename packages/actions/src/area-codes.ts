@@ -1,13 +1,24 @@
-// The US area codes a new number can be bought in: every geographic area code in service in the 50 states and DC,
-// with a main city and the state. Taken from NANPA's public NPA report (reports.nanpa.com/public/npa_report.csv,
-// 13 Nov 2026: General Purpose Codes, use G, country US, in service; Puerto Rico and the other territories left
-// out, since numbers are searched with country US). Toll-free (8XX), N11, 555, the 5XX personal codes, 710 and
-// codes not in service yet are not in it. An overlay code has the city of the code it overlays. To update: take the
-// codes from a newer report the same way and give a new code the city of its overlay complex.
+// The area codes a new number can be bought in, per country: every geographic area code in service in the US (the
+// 50 states and DC), Canada and Puerto Rico, with a main city and the state, province or territory. Taken from
+// NANPA's public NPA report (reports.nanpa.com/public/npa_report.csv): General Purpose Codes, use G, in service;
+// US codes from the report of 13 Nov 2026 (country US, Puerto Rico and the other territories left out), Canadian
+// codes (country CANADA) and Puerto Rico's (country US, location PR) from the report of 15 Nov 2026. Toll-free
+// (8XX), N11, 555, the 5XX personal codes, Canada's non-geographic 600/622/633 and codes not in service yet are not
+// in it, nor the Caribbean (Jamaica, the Dominican Republic, the Bahamas …) and the other US territories. An
+// overlay code has the city of the code it overlays. NANP area codes are unique across countries, so a code alone
+// names its country. To update: take the codes from a newer report the same way and give a new code the city of
+// its overlay complex.
 
-export type AreaCode = { code: string; city: string; state: string }
+/** The countries numbers can be bought in (ISO 3166-1 alpha-2). */
+export const NUMBER_BUY_COUNTRIES = ['US', 'CA', 'PR'] as const
+export type NumberBuyCountry = (typeof NUMBER_BUY_COUNTRIES)[number]
 
-const ROWS: readonly (readonly [code: string, city: string, state: string])[] = [
+/** `state`: the two letters of the US state, Canadian province or territory, or PR. */
+export type AreaCode = { code: string; city: string; state: string; country: NumberBuyCountry }
+
+type Row = readonly [code: string, city: string, state: string]
+
+const US_ROWS: readonly Row[] = [
   ['201', 'Jersey City', 'NJ'],
   ['202', 'Washington', 'DC'],
   ['203', 'New Haven', 'CT'],
@@ -382,29 +393,108 @@ const ROWS: readonly (readonly [code: string, city: string, state: string])[] = 
   ['989', 'Saginaw', 'MI'],
 ]
 
-/** All of them, sorted by code. */
-export const US_AREA_CODES: readonly AreaCode[] = ROWS.map(([code, city, state]) => ({ code, city, state }))
+const CA_ROWS: readonly Row[] = [
+  ['204', 'Winnipeg', 'MB'],
+  ['226', 'London', 'ON'],
+  ['236', 'Vancouver', 'BC'],
+  ['249', 'Sudbury', 'ON'],
+  ['250', 'Victoria', 'BC'],
+  ['257', 'Vancouver', 'BC'],
+  ['263', 'Montreal', 'QC'],
+  ['289', 'Hamilton', 'ON'],
+  ['306', 'Saskatoon', 'SK'],
+  ['343', 'Ottawa', 'ON'],
+  ['354', 'Laval', 'QC'],
+  ['365', 'Hamilton', 'ON'],
+  ['367', 'Quebec City', 'QC'],
+  ['368', 'Edmonton', 'AB'],
+  ['382', 'London', 'ON'],
+  ['403', 'Calgary', 'AB'],
+  ['416', 'Toronto', 'ON'],
+  ['418', 'Quebec City', 'QC'],
+  ['428', 'Moncton', 'NB'],
+  ['431', 'Winnipeg', 'MB'],
+  ['437', 'Toronto', 'ON'],
+  ['438', 'Montreal', 'QC'],
+  ['450', 'Laval', 'QC'],
+  ['468', 'Gatineau', 'QC'],
+  ['474', 'Saskatoon', 'SK'],
+  ['506', 'Moncton', 'NB'],
+  ['514', 'Montreal', 'QC'],
+  ['519', 'London', 'ON'],
+  ['548', 'London', 'ON'],
+  ['579', 'Laval', 'QC'],
+  ['581', 'Quebec City', 'QC'],
+  ['584', 'Winnipeg', 'MB'],
+  ['587', 'Edmonton', 'AB'],
+  ['604', 'Vancouver', 'BC'],
+  ['613', 'Ottawa', 'ON'],
+  ['639', 'Saskatoon', 'SK'],
+  ['647', 'Toronto', 'ON'],
+  ['672', 'Vancouver', 'BC'],
+  ['683', 'Sudbury', 'ON'],
+  ['705', 'Sudbury', 'ON'],
+  ['709', "St. John's", 'NL'],
+  ['742', 'Hamilton', 'ON'],
+  ['753', 'Ottawa', 'ON'],
+  ['778', 'Vancouver', 'BC'],
+  ['780', 'Edmonton', 'AB'],
+  ['782', 'Halifax', 'NS'],
+  ['807', 'Thunder Bay', 'ON'],
+  ['819', 'Gatineau', 'QC'],
+  ['825', 'Edmonton', 'AB'],
+  ['867', 'Whitehorse', 'YT'],
+  ['873', 'Gatineau', 'QC'],
+  ['879', "St. John's", 'NL'],
+  ['902', 'Halifax', 'NS'],
+  ['905', 'Hamilton', 'ON'],
+  ['942', 'Toronto', 'ON'],
+]
 
-const BY_CODE = new Map(US_AREA_CODES.map(a => [a.code, a]))
+const PR_ROWS: readonly Row[] = [
+  ['787', 'San Juan', 'PR'],
+  ['939', 'San Juan', 'PR'],
+]
 
-/** The area code from the list, or undefined for one a new number can't be bought in. */
-export const usAreaCode = (code: string): AreaCode | undefined => BY_CODE.get(code)
+const rows = (country: NumberBuyCountry, list: readonly Row[]): readonly AreaCode[] =>
+  list.map(([code, city, state]) => ({ code, city, state, country }))
+
+/** Each country's area codes, sorted by code. */
+export const AREA_CODES: Readonly<Record<NumberBuyCountry, readonly AreaCode[]>> = {
+  US: rows('US', US_ROWS),
+  CA: rows('CA', CA_ROWS),
+  PR: rows('PR', PR_ROWS),
+}
+
+/** Every area code a number can be bought in, sorted by code. */
+export const BUYABLE_AREA_CODES: readonly AreaCode[] = Object.values(AREA_CODES)
+  .flat()
+  .sort((a, b) => a.code.localeCompare(b.code))
+
+const BY_CODE = new Map(BUYABLE_AREA_CODES.map(a => [a.code, a]))
+
+/** The area code from the lists (with its country), or undefined for one a new number can't be bought in. */
+export const buyableAreaCode = (code: string): AreaCode | undefined => BY_CODE.get(code)
+
+/** Whether numbers can be bought in `country` (ISO 3166-1 alpha-2, any case): the US, Canada and Puerto Rico. */
+export const canBuyNumbersIn = (country: string): boolean =>
+  (NUMBER_BUY_COUNTRIES as readonly string[]).includes(country.trim().toUpperCase())
 
 /**
- * The countries a workspace can buy a number in (workspace_settings.country, resolveWorkspaceCountry): numbers are
- * searched by US area code only, so the US alone for now. Elsewhere the business connects a number it already has
- * in its carrier account (phoneNumber.setup without purchase); the server refuses a purchase (Q6, 2026-11-15).
+ * The area codes a workspace in `country` buys a number in (workspace_settings.country, resolveWorkspaceCountry):
+ * its own country's; none outside NUMBER_BUY_COUNTRIES, where the business connects a number it already has in its
+ * carrier account (phoneNumber.setup without purchase), and the server refuses a purchase.
  */
-export const NUMBER_BUY_COUNTRIES: readonly string[] = ['US']
+export const areaCodesIn = (country: string): readonly AreaCode[] => {
+  const code = country.trim().toUpperCase()
+  return canBuyNumbersIn(code) ? AREA_CODES[code as NumberBuyCountry] : []
+}
 
-/** Whether a workspace in `country` (ISO 3166-1 alpha-2) can buy a number. */
-export const canBuyNumbersIn = (country: string): boolean => NUMBER_BUY_COUNTRIES.includes(country.trim().toUpperCase())
-
-/** "503 · Portland, OR" */
+/** "503 · Portland, OR", "416 · Toronto, ON", "787 · San Juan, PR" */
 export const areaCodeLabel = (a: AreaCode): string => `${a.code} · ${a.city}, ${a.state}`
 
-/** The states by their two letters, so a search for "oregon" finds OR. */
-export const US_STATE_NAMES: Readonly<Record<string, string>> = {
+/** The places by their two letters, so a search for "oregon" finds OR and "ontario" ON. */
+export const REGION_NAMES: Readonly<Record<string, string>> = {
   AK: 'Alaska',
   AL: 'Alabama',
   AR: 'Arkansas',
@@ -456,6 +546,20 @@ export const US_STATE_NAMES: Readonly<Record<string, string>> = {
   WI: 'Wisconsin',
   WV: 'West Virginia',
   WY: 'Wyoming',
+  AB: 'Alberta',
+  BC: 'British Columbia',
+  MB: 'Manitoba',
+  NB: 'New Brunswick',
+  NL: 'Newfoundland and Labrador',
+  NS: 'Nova Scotia',
+  NT: 'Northwest Territories',
+  NU: 'Nunavut',
+  ON: 'Ontario',
+  PE: 'Prince Edward Island',
+  QC: 'Quebec',
+  SK: 'Saskatchewan',
+  YT: 'Yukon',
+  PR: 'Puerto Rico',
 }
 
 const words = (text: string) =>
@@ -468,7 +572,7 @@ const words = (text: string) =>
 function fits(a: AreaCode, word: string): boolean {
   if (/^\d+$/.test(word)) return a.code.startsWith(word)
   if (word === a.state.toLowerCase()) return true
-  return [...words(a.city), ...words(US_STATE_NAMES[a.state] ?? '')].some(w => w.startsWith(word))
+  return [...words(a.city), ...words(REGION_NAMES[a.state] ?? '')].some(w => w.startsWith(word))
 }
 
 /**

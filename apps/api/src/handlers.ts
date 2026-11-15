@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, behaviourOn, callerRecognized, type CallerAttestation, languageNames, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -36,7 +36,7 @@ import { installLanguages, telephonyProvider, voicePipelinePolicy } from './prov
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
-import { buyCountryRefusal, installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
+import { areaCodeCountryRefusal, buyCountryRefusal, installPurchaseRefusal, logPurchase, NUMBER_NOT_ACTIVATED, NUMBER_SETUP_BUSY, NUMBERS_NEED_DOCUMENTS, numberCountryRefusal, purchaseCountry } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
 import { workspaceCreationHandlers } from './workspace-creation-handlers.ts'
 import { teamMemberEditHandlers } from './team-member-edit.ts'
@@ -164,6 +164,12 @@ async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
     return await request()
   } catch (e) {
     if (!(e instanceof TelephonyError)) throw e
+    // Failures with a code are told in the app's words: the carrier's name orders and requirements of the operator's
+    // account, which stay in the server log (LIN-300).
+    if (e.code) {
+      console.error(`phone setup: ${e.message}`)
+      throw new Reject(e.code === 'country_requirements' ? NUMBERS_NEED_DOCUMENTS : NUMBER_NOT_ACTIVATED)
+    }
     throw new Reject(e.status ? `${e.message} (HTTP ${e.status})` : e.message)
   }
 }
@@ -878,20 +884,26 @@ const handlers: Record<string, Handler> = {
     if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     const onInstallAccount = carrier_account === 'install' && provider.name !== 'dev'
-    // Only workspaces in a country numbers can be bought in may buy (NUMBER_BUY_COUNTRIES). Asked once, when a
-    // purchase is allowed by the input; refused before the carrier is searched for an area code.
-    const countryRefusal = input.purchase ? await buyCountryRefusal(tx, workspace_id) : null
+    // Only workspaces in a country numbers can be bought in may buy (NUMBER_BUY_COUNTRIES), and by area code only in
+    // their own country (LIN-300). Asked once, when a purchase is allowed by the input; refused before the carrier is
+    // searched for an area code.
+    const country = input.purchase ? await purchaseCountry(tx, workspace_id, input) : null
+    const countryRefusal = country ? buyCountryRefusal(country) : null
     if (countryRefusal && !input.e164) throw new Reject(countryRefusal)
-    // A purchase by area code is a US purchase: its limits are checked before the carrier is searched, so a
-    // refused one makes no carrier request (and takes the install-wide purchase lock before it does).
+    const areaRefusal = country && input.areaCode && !input.e164 ? areaCodeCountryRefusal(input.areaCode, country) : null
+    if (areaRefusal) throw new Reject(areaRefusal)
+    // A purchase by area code: its limits are checked before the carrier is searched, so a refused one makes no
+    // carrier request (and takes the install-wide purchase lock before it does).
     if (onInstallAccount && input.purchase && !input.e164) {
       const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: false, now })
       if (refusal) throw new Reject(refusal)
     }
     // Only a purchase may search: attaching always names the number.
     // A few candidates, so a number that is already set up here (dev's are always the same) is passed over.
+    // The search is in the area code's own country (US, CA or PR: the carriers file Puerto Rico's numbers under PR).
+    const searchCountry = (input.areaCode && buyableAreaCode(input.areaCode)?.country) || 'US'
     const e164: string | undefined =
-      input.e164 ?? (await firstFreeNumber(tx, await atCarrier(() => provider.searchNumbers({ country: 'US', areaCode: input.areaCode, limit: 5 }))))
+      input.e164 ?? (await firstFreeNumber(tx, await atCarrier(() => provider.searchNumbers({ country: searchCountry, areaCode: input.areaCode, limit: 5 }))))
     if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
     const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
     if (taken) throw new Reject(`${e164} is already set up`)
@@ -906,13 +918,15 @@ const handlers: Record<string, Handler> = {
       throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     }
     const buying = !existing
-    // A number typed in that is not in the account would be bought: the same country rule.
+    // A number typed in that is not in the account would be bought: the same country rules, also its own country.
     if (buying && countryRefusal) throw new Reject(countryRefusal)
     // A number typed in (checked above when searched by area code).
     if (buying && onInstallAccount && input.e164) {
       const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: true, now })
       if (refusal) throw new Reject(refusal)
     }
+    const numberRefusal = buying && country && input.e164 ? numberCountryRefusal(input.e164, country) : null
+    if (numberRefusal) throw new Reject(numberRefusal)
     // Logged (committed) before the carrier is asked: a purchase that fails later still counts.
     if (buying) await logPurchase(actor, { workspaceId: workspace_id, e164, provider: provider.name, carrierAccount: carrier_account })
     const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))

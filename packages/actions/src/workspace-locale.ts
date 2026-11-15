@@ -49,9 +49,11 @@ export function workspaceCountryOf(input: WorkspaceCountryInput): { country: str
 export const resolveWorkspaceCountry = (input: WorkspaceCountryInput): string => workspaceCountryOf(input).country
 
 /**
- * The main language of a country (BCP 47 primary tag). Belgium is Dutch-speaking by majority, Switzerland has French
- * and Italian regions: both get the language most businesses there use with customers across the country (fr, de),
- * and the owner sets another one in Workspace settings › General.
+ * The main language of a country (BCP 47 primary tag, as LANGUAGES writes it: Norwegian is `no`). Belgium is
+ * Dutch-speaking by majority, Switzerland has French and Italian regions: both get the language most businesses there
+ * use with customers across the country (fr, de), and the owner sets another one in Workspace settings › General.
+ * Canada is English (French for a business in Quebec, set by the owner), Puerto Rico Spanish (English is its second
+ * official language).
  */
 export const COUNTRY_LANGUAGES: Readonly<Record<string, string>> = {
   US: 'en',
@@ -78,13 +80,14 @@ export const COUNTRY_LANGUAGES: Readonly<Record<string, string>> = {
   CL: 'es',
   CO: 'es',
   PE: 'es',
+  PR: 'es',
   IT: 'it',
   SM: 'it',
   PT: 'pt',
   BR: 'pt',
   NL: 'nl',
   SE: 'sv',
-  NO: 'nb',
+  NO: 'no',
   DK: 'da',
   FI: 'fi',
   PL: 'pl',

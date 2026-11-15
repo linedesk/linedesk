@@ -1,6 +1,7 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import {
   type BusinessHoursSpan,
+  buyableAreaCode,
   canBuyNumbersIn,
   completePhone,
   emergencyNumberOf,
@@ -25,7 +26,6 @@ import {
   TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX,
   TRANSFER_NAME_MAX,
-  usAreaCode,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
@@ -213,7 +213,7 @@ export function phoneSetupInput(
       problem: (international && phoneNumberProblem(typed)) || i18n().t('onboarding.flow.problem.enterNumber'),
     }
   }
-  if (!usAreaCode(choice.areaCode)) return { problem: i18n().t('onboarding.flow.problem.pickAreaCode') }
+  if (!buyableAreaCode(choice.areaCode)) return { problem: i18n().t('onboarding.flow.problem.pickAreaCode') }
   if (!choice.confirmed) return { problem: i18n().t('onboarding.flow.problem.confirmCost') }
   return { input: { areaCode: choice.areaCode, purchase: true, mode: forwarding ?? 'new' } }
 }
@@ -234,6 +234,19 @@ export const phoneOptions: readonly PhoneOption[] = ['forward', 'new']
  * in (NUMBER_BUY_COUNTRIES; the server refuses the rest). While the workspace country loads (null): yes, as before.
  */
 export const offersBuying = (country: string | null): boolean => country === null || canBuyNumbersIn(country)
+
+/**
+ * The country the number picker buys in: the workspace's, once something names it (country, a number, the business
+ * phone, holidays). Before that, null: every buyable area code is offered and the one picked names the country, as on
+ * the server (purchaseCountry); the bought number then sets the workspace's country. Not the US by default, so a
+ * business in Puerto Rico or Canada with nothing set yet still finds its own codes.
+ */
+export const buyingCountry = (place: { country: string; known: boolean } | null): string | null =>
+  place?.known ? place.country : null
+
+/** The country whose price the note shows: that of the picked area code, else the workspace's. */
+export const priceCountry = (areaCode: string, country: string | null): string | null =>
+  buyableAreaCode(areaCode)?.country ?? country
 
 /**
  * The line shown instead of buying outside those countries. `canAttach` false: the install's carrier account is for
@@ -319,7 +332,19 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
       : t('onboarding.flow.setupError.notConfigured')
   if (/is already set up/i.test(error)) return t('onboarding.flow.setupError.alreadyConnected', { brand: brandName() })
   // Outside the countries numbers can be bought in (apps/api/src/number-purchases.ts, buyCountryRefusal).
-  if (/^Buying numbers is available in the US/i.test(error)) return buyUnavailableText(null, true)
+  if (/^Buying numbers is available in the US, Canada and Puerto Rico/i.test(error))
+    return buyUnavailableText(null, true)
+  // An area code of another country than the workspace's (areaCodeCountryRefusal).
+  if (/^Area code \d{3} is in .*, but this workspace is in /i.test(error))
+    return t('onboarding.flow.setupError.areaCodeCountry')
+  // A typed number of another country (numberCountryRefusal).
+  if (/^Number \+\d+ (is in .*|has no country), but this workspace is in /i.test(error))
+    return t('onboarding.flow.setupError.numberCountry')
+  // The carrier needs documents for the country, or an order did not complete (NUMBERS_NEED_DOCUMENTS,
+  // NUMBER_NOT_ACTIVATED): trying again does not help, so neither says to.
+  if (/^Numbers in this country can't be bought here yet/i.test(error))
+    return t('onboarding.flow.setupError.countryRequirements')
+  if (/^This number could not be activated/i.test(error)) return t('onboarding.flow.setupError.notActivated')
   if (/is not in the .* account/i.test(error)) return t('onboarding.flow.setupError.notInAccount')
   if (/no number available in area code/i.test(error)) return t('onboarding.flow.setupError.noneFree')
   // The limits on buying through the install's carrier account (apps/api/src/number-purchases.ts) are written for people: shown as they are.
@@ -349,18 +374,28 @@ export const numberModeLabel: Record<PhoneNumberMode, string> = {
   },
 }
 
-/** What a new number costs, as far as we know it. Prices are the carriers' list prices for a US local number. */
-export function priceNote(provider: string | null): string {
+/**
+ * The carriers' list prices for a local number a month, in USD, by country (telnyx.com/phone-numbers, Twilio's
+ * pricing pages, 15 Nov 2026). A country not listed: the carrier's own price, unnamed.
+ */
+const LIST_PRICES: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  telnyx: { US: 1, CA: 1, PR: 3 },
+  twilio: { US: 1.15, CA: 1.15, PR: 3.25 },
+}
+const CARRIER_LABELS: Readonly<Record<string, string>> = { telnyx: 'Telnyx', twilio: 'Twilio' }
+
+/** What a new number costs, as far as we know it: the carrier's list price for a local number in `country` (default the US). */
+export function priceNote(provider: string | null, country: string | null = null): string {
   const { t, format } = i18n()
-  const listPrice = (amount: number, carrier: string) =>
-    t('onboarding.flow.price.carrier', {
-      price: format.currency(amount, 'USD', { minimumFractionDigits: amount % 1 ? 2 : 0 }),
-      carrier,
-    })
-  if (provider === 'twilio') return listPrice(1.15, 'Twilio')
-  if (provider === 'telnyx') return listPrice(1, 'Telnyx')
   if (provider === 'dev') return t('onboarding.flow.price.dev')
-  return t('onboarding.flow.price.unknown')
+  const carrier = provider ? CARRIER_LABELS[provider] : undefined
+  const amount = provider ? LIST_PRICES[provider]?.[(country ?? 'US').toUpperCase()] : undefined
+  if (!carrier) return t('onboarding.flow.price.unknown')
+  if (amount === undefined) return t('onboarding.flow.price.carrierUnknown', { carrier })
+  return t('onboarding.flow.price.carrier', {
+    price: format.currency(amount, 'USD', { minimumFractionDigits: amount % 1 ? 2 : 0 }),
+    carrier,
+  })
 }
 
 /**
@@ -637,15 +672,22 @@ export function mobileErrorText(error: string, name: string): string {
 
 /**
  * The area code for a new number: from the first of the numbers the owner already gave (the business phone, their
- * mobile) that is a valid North American number with a US area code a number can be bought in (not toll-free); empty
- * without one, never a made-up example. Another country's number gives none (+4930123456 is not area code 493).
+ * mobile) that is a valid North American number with an area code a number can be bought in (not toll-free) in the
+ * workspace's `country` (null while it loads: any of them); empty without one, never a made-up example. Another
+ * country's number gives none (+4930123456 is not area code 493).
  */
-export function areaCodeOf(...numbers: (string | null | undefined)[]): string {
+export function areaCodeOf(country: string | null, ...numbers: (string | null | undefined)[]): string {
   for (const n of numbers) {
     const code = nanpAreaCode(n)
-    if (code && usAreaCode(code)) return code
+    if (code && areaCodeIn(code, country)) return code
   }
   return ''
+}
+
+/** Whether a number can be bought in `code` by a workspace in `country` (null while it loads: any buyable code). */
+export function areaCodeIn(code: string, country: string | null): boolean {
+  const area = buyableAreaCode(code)
+  return !!area && (country === null || area.country === country.toUpperCase())
 }
 
 /**

@@ -5,8 +5,10 @@ import { callRules, EMERGENCY_RULE, emergencyRule } from './assistant-prompt.ts'
 import { workspaceUpdateSettings } from './settings.ts'
 import {
   automaticCountryLabel,
+  COUNTRY_LANGUAGES,
   currencyOfCountry,
   emergencyNumberOf,
+  isVoiceLanguage,
   resolveWorkspaceCountry,
   resolveWorkspaceLanguage,
   voiceLanguageOf,
@@ -74,7 +76,8 @@ describe('resolveWorkspaceLanguage', () => {
       BR: 'pt',
       NL: 'nl',
       SE: 'sv',
-      NO: 'nb',
+      NO: 'no',
+      PR: 'es',
       DK: 'da',
       FI: 'fi',
       PL: 'pl',
@@ -87,6 +90,23 @@ describe('resolveWorkspaceLanguage', () => {
       expect(resolveWorkspaceLanguage({ country }), country).toBe(language)
     }
     expect(resolveWorkspaceLanguage({ country: 'TH' })).toBe('en')
+  })
+
+  test("every country's main language is one calls are answered in, or English stands in for it", () => {
+    // Norway was 'nb', which the voice pipeline does not know: Norwegian workspaces got English calls.
+    expect(voiceLanguageOf(resolveWorkspaceLanguage({ country: 'NO' }))).toBe('no')
+    expect(voiceLanguageOf(resolveWorkspaceLanguage({ country: 'PR' }))).toBe('es')
+    expect(voiceLanguageOf(resolveWorkspaceLanguage({ country: 'CA' }))).toBe('en')
+    // Only Hebrew is not spoken yet (Israel gets English calls, on purpose); a typo like 'nb' would show up here.
+    const unspoken = Object.entries(COUNTRY_LANGUAGES).filter(([, language]) => !isVoiceLanguage(language))
+    expect(unspoken).toEqual([['IL', 'he']])
+  })
+
+  test('Canada and Puerto Rico are worked out from their numbers: Puerto Rico is not the US', () => {
+    expect(workspaceCountryOf({ assistantNumbers: ['+17875550100'] })).toEqual({ country: 'PR', source: 'assistant_number' })
+    expect(workspaceCountryOf({ assistantNumbers: ['+19395550100'] })).toEqual({ country: 'PR', source: 'assistant_number' })
+    expect(workspaceCountryOf({ assistantNumbers: ['+14165550100'] })).toEqual({ country: 'CA', source: 'assistant_number' })
+    expect(currencyOfCountry('CA')).toBe('CAD')
   })
 
   test('calls are answered in it when the voice pipeline speaks it, else in English', () => {
@@ -175,6 +195,7 @@ describe('the emergency number of the workspace country', () => {
     ])
     expect(emergencyNumberOf('JP')).toBe('110 for the police or 119 for fire and an ambulance')
     expect(emergencyNumberOf('KR')).toBe('112 for the police or 119 for fire and an ambulance')
+    expect(emergencyNumberOf('PR')).toBe('911')
     expect(emergencyNumberOf('BR')).toBe('the local emergency number')
     expect(emergencyNumberOf(null)).toBe('the local emergency number')
   })

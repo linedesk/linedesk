@@ -700,7 +700,7 @@
   "system.url": "URL",
   "system.urlWhat": "The URL",
   "system.usage": "{transfers, plural, one {# transfer} other {# transfers}} ({minutes, number} min, {installMinutes, number} min of them through this server’s carrier account), {checks, plural, one {# forwarding check} other {# forwarding checks}}",
-  "tryOut.areaCode": "US area code",
+  "tryOut.areaCode": "Area code (US, Canada or Puerto Rico)",
   "tryOut.callerQuestion": "Caller: Hi, my water heater is leaking. Can someone come out today?",
   "tryOut.codeLabel": "The code from the email",
   "tryOut.codePlaceholder": "6-digit code",

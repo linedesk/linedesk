@@ -7,6 +7,7 @@ import { createHash, randomInt } from 'node:crypto'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import {
+  buyableAreaCode,
   type InstallProgress,
   type InstallStep,
   installSteps,
@@ -288,7 +289,9 @@ async function tryCarrier(tx: Tx, areaCode: string): Promise<Tried> {
   const label = carrier.name === 'dev' ? 'Development carrier' : labelOf(carrier.name)
   // Telnyx answers an empty search with an error ("No numbers found for the given filters"): that is an answer, not
   // a connection problem.
-  const found = await carrier.searchNumbers({ country: 'US', areaCode, limit: 3 }).catch((e: unknown) => {
+  // In the area code's own country (Canada's 416, Puerto Rico's 787); a code not in the lists is searched as a US one.
+  const country = buyableAreaCode(areaCode)?.country ?? 'US'
+  const found = await carrier.searchNumbers({ country, areaCode, limit: 3 }).catch((e: unknown) => {
     if (e instanceof Error && /no numbers found/i.test(e.message)) return []
     throw e
   })

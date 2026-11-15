@@ -12,8 +12,10 @@ import { ForwardingCheck } from '../onboarding/ForwardingCheck.tsx'
 import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from '../onboarding/ForwardingGuide.tsx'
 import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwarding-check.ts'
 import {
+  areaCodeIn,
   areaCodeOf,
   buyQuestion,
+  buyingCountry,
   buyUnavailableText,
   carrierName,
   existingLinkText,
@@ -26,6 +28,7 @@ import {
   phoneOptionText,
   phoneSetupErrorText,
   pickupNumberMode,
+  priceCountry,
   priceNote,
 } from '../onboarding/flow.ts'
 import { confirmsNumber, countryOfNumber, phoneFromValue, phoneNumberModes } from '@linedesk/actions'
@@ -574,7 +577,9 @@ function ConnectNumber({
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
   // Outside the countries numbers can be bought in, only a number the business already has (offersBuying).
-  const buyable = offersBuying(useWorkspaceCountry()?.country ?? null)
+  // Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
+  const country = buyingCountry(useWorkspaceCountry())
+  const buyable = offersBuying(country)
   const [chosen, setOption] = useState<PhoneOption>(connectOptions[0]!)
   const option: PhoneOption = buyable ? chosen : 'existing'
   // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
@@ -584,7 +589,9 @@ function ConnectNumber({
   const phoneCountry = useDefaultPhoneCountry()
   const businessPhone = (useAssistants()[0]?.business_profile as { phone?: string } | undefined)?.phone
   // Like onboarding: the business phone's area code, else that of a number the workspace already has.
-  const [areaCode, setAreaCode] = useState(() => areaCodeOf(businessPhone, ...numbers.map(n => n.e164)))
+  const [picked, setAreaCode] = useState(() => areaCodeOf(country, businessPhone, ...numbers.map(n => n.e164)))
+  // Only a code of the workspace's country (its list): one prefilled while the country loaded is dropped.
+  const areaCode = areaCodeIn(picked, country) ? picked : ''
   const [confirming, setConfirming] = useState(false)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -704,10 +711,11 @@ function ConnectNumber({
                 ? t('settings.phone.connect.areaCodeFor', { name })
                 : t('settings.phone.connect.areaCode')
             }
-            help={priceNote(status?.provider ?? null)}
+            help={priceNote(status?.provider ?? null, priceCountry(areaCode, country))}
           >
             <AreaCodeInput
               id="st-pn-area"
+              country={country}
               value={areaCode}
               onChange={v => {
                 setAreaCode(v)

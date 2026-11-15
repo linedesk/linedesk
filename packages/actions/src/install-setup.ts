@@ -84,10 +84,10 @@ export const providerTryOut = defineAction({
     'Try a part of the install for real with the provider in use: email sends a six-digit code to your own address (confirm it with provider.confirmEmail), llm asks the live model one short question, stt transcribes a bundled recording, tts speaks a sentence, telephony lists three available numbers for an area code without buying any.',
   input: z.object({
     kind: z.enum(tryOutKinds),
-    /** telephony: the US area code to search. */
+    /** telephony: the area code to search (US, Canada or Puerto Rico; searched in its own country). */
     areaCode: z
       .string()
-      .regex(/^[2-9]\d\d$/, 'a three-digit US area code')
+      .regex(/^[2-9]\d\d$/, 'a three-digit area code')
       .optional(),
   }),
   permission: 'instance:admin',

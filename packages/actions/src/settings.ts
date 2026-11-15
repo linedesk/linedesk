@@ -8,7 +8,7 @@ import {
 import type { Closure, HolidayCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
 import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
-import { usAreaCode } from './area-codes.ts'
+import { buyableAreaCode } from './area-codes.ts'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
 import { assistantLanguages, languageCodes } from './languages.ts'
@@ -839,18 +839,20 @@ export const phoneNumberModes = ['forward_conditional', 'forward_all', 'new', 'p
 export const phoneNumberSetup = defineAction({
   name: 'phoneNumber.setup',
   description:
-    'Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in the US can buy (NUMBER_BUY_COUNTRIES), elsewhere attach a number the business already has. Repeating it for the same number finishes a setup that failed halfway.',
+    'Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in the US, Canada or Puerto Rico can buy (NUMBER_BUY_COUNTRIES), a number or an area code of its own country (none set yet: the country of the area code, which the number then sets); elsewhere attach a number the business already has. Repeating it for the same number finishes a setup that failed halfway.',
   input: z
     .object({
       e164: z
         .string()
         .regex(/^\+[1-9]\d{6,14}$/)
         .optional(),
-      /** A US area code a number can be bought in (US_AREA_CODES). */
+      /** An area code a number can be bought in (AREA_CODES: US, Canada, Puerto Rico), in the workspace's country. */
       areaCode: z
         .string()
         .regex(/^\d{3}$/)
-        .refine(code => usAreaCode(code) !== undefined, { message: 'not a US area code a number can be bought in' })
+        .refine(code => buyableAreaCode(code) !== undefined, {
+          message: 'not an area code a number can be bought in (US, Canada, Puerto Rico)',
+        })
         .optional(),
       /** Buying is never implied: without this, a number that is not in the account is rejected. */
       purchase: z.boolean().default(false),
