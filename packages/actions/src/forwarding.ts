@@ -52,7 +52,8 @@ export type ForwardingCheckView = {
 
 export type LineType = 'mobile' | 'landline' | 'voip' | 'toll_free' | 'unknown'
 /**
- * carrierId: the forwarding guide for the looked-up carrier (forwardingGuideForCarrier), or null when none matches.
+ * carrierId: the forwarding guide for the looked-up carrier (forwardingGuideForCarrier, a guide of the number's own
+ * country first), or null when none matches.
  * simulated: answered by the development carrier (`dev`), the same made-up carrier for every number.
  */
 export type LineLookupData = {

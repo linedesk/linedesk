@@ -307,8 +307,8 @@ export function buyQuestion(provider: string | null, areaCode: string): string {
  * The line that asks to turn an earlier forwarding off before the new one (the pick-up choice changed after the code
  * was shown), with that forwarding's off codes or where to change it.
  */
-export function turnOffFirst(guide: ForwardingGuide, earlier: ForwardingMode, e164: string): string {
-  const steps = forwardingInstructions(guide, earlier, e164)
+export function turnOffFirst(guide: ForwardingGuide, earlier: ForwardingMode, e164: string, country?: string): string {
+  const steps = forwardingInstructions(guide, earlier, e164, country)
   if (!steps) return 'Turned on forwarding earlier? Turn it off first.'
   if (steps.how === 'dial')
     return `Dialled the earlier code already? Turn that forwarding off first with ${steps.off.map(c => c.code).join(', ')}.`

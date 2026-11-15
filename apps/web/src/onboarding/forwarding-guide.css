@@ -1,8 +1,30 @@
-/* The forwarding guide (ForwardingGuide.tsx): carrier search, codes with Dial or QR, settings steps. */
+/* The forwarding guide (ForwardingGuide.tsx): country and carrier search, codes with Dial or QR, settings steps. */
 .fg-picker {
   display: block;
   width: 100%;
   max-width: 420px;
+}
+/* Country, then carrier, in the width the carrier picker alone had. */
+.fg-pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+.fg-pickers .fg-picker {
+  min-width: 0;
+}
+.fg-abroad {
+  margin: 0;
+  max-width: 420px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* The carrier forwards only within its country: forwarding won't work, not just cost more. */
+.fg-abroad.blocked {
+  color: var(--ink);
+  font-weight: 500;
 }
 .fg-search {
   height: 36px;

@@ -13,11 +13,16 @@
 // never the secret. One access level: the key was made in a session that passed the admin's passkey check, so it sets
 // email and sign-in too, with no second Allow step (Janik, 2026-11-15). The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
 import {
+  abroadWarning,
   type ActionDef,
   actions,
   callAudioGuide,
   type ForwardingMode,
+  forwardingCountries,
   forwardingInstructions,
+  guidesForCountry,
+  hasForwardingCountry,
+  OTHER_COUNTRY,
   type GroupStatus,
   installPlace,
   isMultiCategory,
@@ -705,7 +710,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
             label: 'Forwarding from the business line',
             state: done(golive.forwardingVerified),
             how: [
-              `Ask for the business line's carrier, then forwarding_guide { ${w}, carrier, mode: "${forwarding.mode}" } for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
+              `Ask for the business line's carrier, then forwarding_guide { ${w}, carrier, country, mode: "${forwarding.mode}" } (country: where the business line is, e.g. "US") for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
               `After the admin dialed them: phoneNumber_checkForwarding { ${w}, phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck { ${w}, … } every few seconds while it says dialing.`,
               `The admin can also do all of it on the setup page (${webAddress()}/#setup-agent): with this workspace picked in the dropdown, "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`,
             ],
@@ -836,7 +841,7 @@ function registerTools(server: McpServer, actor: Actor) {
     'forwarding_guide',
     {
       description:
-        "How to forward a workspace's business line to its assistant's number: codes to dial (or settings to change) for the line's carrier or phone system, to turn forwarding on and off. Needs a number in a forwarding mode in that workspace.",
+        "How to forward a workspace's business line to its assistant's number: codes to dial (or settings to change) for the line's carrier or phone system, to turn forwarding on and off. Pass the business line's country (ISO 3166-1 alpha-2, e.g. \"US\", \"DE\"; default US): the guides are that country's carriers and phone systems, and the number is written the way that country dials it. A country without guides of its own gets the standard GSM codes and the phone's own settings (the answer's `countries` lists the countries with guides). Needs a number in a forwarding mode in that workspace.",
       inputSchema: z.object({
         carrier: z
           .string()
@@ -844,12 +849,19 @@ function registerTools(server: McpServer, actor: Actor) {
           .min(2)
           .max(60)
           .describe('The business line\'s carrier or phone system, e.g. "Verizon", "RingCentral"'),
+        country: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z]{2}$/, 'a two-letter country code (ISO 3166-1 alpha-2), e.g. US or DE')
+          .transform(c => c.toUpperCase())
+          .optional()
+          .describe('The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "GB", "DE"); default US'),
         mode: z.enum(['forward_conditional', 'forward_all']).default('forward_conditional'),
         workspaceId: workspaceIdField,
       }),
       annotations: read,
     },
-    async ({ carrier, mode, workspaceId }) =>
+    async ({ carrier, country: asked, mode, workspaceId }) =>
       guard('forwarding_guide', async () => {
         const inWs = await setupActorIn(actor, workspaceId)
         if (!inWs?.workspaceId) return refusal(NOT_YOUR_WORKSPACE)
@@ -859,15 +871,40 @@ function registerTools(server: McpServer, actor: Actor) {
           .where(and(eq(phone_numbers.workspace_id, inWs.workspaceId), eq(phone_numbers.mode, mode)))
           .limit(1)
         if (!number) return refusal(`no number in mode ${mode} yet: phoneNumber_setup first`)
-        const guides = searchForwardingGuides(carrier).slice(0, 3)
-        if (!guides.length)
-          return refusal(`no guide for "${carrier}": ask for the carrier's name, or a mobile/landline/phone system`)
+        // A country without guides of its own gets the "Other country" guides (standard GSM codes, phone settings).
+        const requested = asked ?? 'US'
+        const country = hasForwardingCountry(requested) ? requested : OTHER_COUNTRY
+        const countries = forwardingCountries.map(c => c.code)
+        // The country's carriers, or the "Other country" ones, and the phone systems sold in the country asked for.
+        const guides = searchForwardingGuides(carrier, requested).slice(0, 3)
+        const shown = guides.length ? guides : guidesForCountry(country).slice(0, country === OTHER_COUNTRY ? 2 : 0)
+        if (!shown.length)
+          return refusal(
+            `no guide for "${carrier}" in ${requested}: ask for the carrier's name, or a mobile/landline/phone system. Countries with guides: ${countries.join(', ')}; any other country gets the standard codes.`,
+          )
+        // The best match decides: a carrier that forwards only within its country can't reach a number abroad.
+        const warning = abroadWarning(number.e164, requested, shown[0])
         return answer({
           forward_to: number.e164,
-          guides: guides.map(guide => ({
+          country: requested,
+          ...(country === OTHER_COUNTRY
+            ? {
+                note: `No guides for ${requested} yet: these are the standard GSM codes (the number written internationally) and the phone's own settings. Codes can differ by carrier.`,
+              }
+            : {}),
+          ...(warning
+            ? {
+                warning:
+                  warning.kind === 'blocked'
+                    ? `${warning.text} Suggest a number in the business's country.`
+                    : `The assistant's number is not in ${requested}: forwarding goes abroad and can cost extra or be blocked. Suggest a number in the business's country.`,
+              }
+            : {}),
+          countries,
+          guides: shown.map(guide => ({
             id: guide.id,
             name: guide.name,
-            instructions: forwardingInstructions(guide, mode as ForwardingMode, number.e164),
+            instructions: forwardingInstructions(guide, mode as ForwardingMode, number.e164, requested),
           })),
         })
       }),

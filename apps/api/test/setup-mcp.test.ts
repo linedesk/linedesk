@@ -17,13 +17,15 @@ import {
   user,
 } from '@linedesk/db'
 import { and, desc, eq } from 'drizzle-orm'
+import nodemailer from 'nodemailer'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { agentSetupHandlers, hashSetupKey, setupKeyAccess } from '../src/agent-setup.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { refuseOtherAccountsPasskey } from '../src/passkeys.ts'
 import { emailSender } from '../src/email.ts'
-import nodemailer from 'nodemailer'
+import { refuseOtherAccountsPasskey } from '../src/passkeys.ts'
 import type * as RunActionModule from '../src/run-action.ts'
+import { runAction } from '../src/run-action.ts'
 import {
   devNumberLine,
   forAgent,
@@ -32,8 +34,6 @@ import {
   SETUP_LINK_WORKSPACE_CAP,
   wrapUp,
 } from '../src/setup-mcp.ts'
-import { agentSetupHandlers, hashSetupKey, setupKeyAccess } from '../src/agent-setup.ts'
-import { runAction } from '../src/run-action.ts'
 import {
   act,
   appRequest,
@@ -657,6 +657,57 @@ describe('tools', () => {
     }
     expect(guide.forward_to).toBe(ws.number)
     expect(guide.guides[0]!.instructions.on[0]!.code).toContain(ws.number.slice(2))
+  })
+
+  test("forwarding_guide takes the business line's country and lists the countries with guides", async () => {
+    const { key } = await makeKey(ws.owner)
+    await db.update(phone_numbers).set({ mode: 'forward_conditional' }).where(eq(phone_numbers.workspace_id, ws.id))
+    type Guide = {
+      country: string
+      countries: string[]
+      note?: string
+      warning?: string
+      guides: { id: string; instructions: { how: string; on: ({ code: string } | string)[] } }[]
+    }
+    const us = data(
+      await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'Verizon', country: 'us' }),
+    ) as Guide
+    expect(us.country).toBe('US')
+    expect(us.countries).toContain('US')
+    expect(us.guides[0]!.id).toBe('verizon')
+    expect(us.warning).toBeUndefined()
+    // A country without guides yet: the standard GSM codes with the number written internationally, and a warning
+    // that forwarding to the (US) assistant number goes abroad.
+    const kr = data(
+      await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'SK Telecom', country: 'KR' }),
+    ) as Guide
+    expect(kr.country).toBe('KR')
+    expect(kr.countries).not.toContain('KR')
+    expect(kr.note).toMatch(/standard GSM codes/)
+    expect(kr.warning).toMatch(/abroad/)
+    expect(kr.guides.map(g => g.id)).toEqual(['zz-other-mobile', 'zz-phone-settings'])
+    expect(kr.guides[0]!.instructions.on[0]).toMatchObject({ code: expect.stringContaining(`*${ws.number}`) })
+    // A country with guides: its own carrier, the number written internationally (it is a US number).
+    const fr = data(
+      await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'Orange', country: 'FR' }),
+    ) as Guide
+    expect(fr.countries).toEqual(expect.arrayContaining(['FR', 'DE', 'GB', 'JP']))
+    expect(fr.note).toBeUndefined()
+    expect(fr.guides[0]!.id).toBe('fr-orange')
+    expect(fr.warning).toMatch(/abroad/)
+    // A carrier that forwards only within its country: the warning says it won't work.
+    const ee = data(await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'EE', country: 'GB' })) as Guide
+    expect(ee.guides[0]!.id).toBe('gb-ee')
+    expect(ee.warning).toMatch(/won’t work/)
+    // A US carrier is not offered for another country: no French carrier matches, so the tool asks for another name.
+    const verizonFr = (await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'Verizon', country: 'FR' }))
+      .body.result as { isError?: boolean; content: { text: string }[] }
+    expect(verizonFr.isError).toBe(true)
+    expect(verizonFr.content[0]!.text).toMatch(/no guide for "Verizon" in FR/)
+    // Not a two-letter code: refused by the input schema.
+    const bad = (await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'Verizon', country: 'USA' }))
+      .body as { error?: unknown; result?: { isError?: boolean } }
+    expect(bad.error ?? bad.result?.isError).toBeTruthy()
   })
 })
 

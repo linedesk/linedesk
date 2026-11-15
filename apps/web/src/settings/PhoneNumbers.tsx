@@ -8,7 +8,7 @@ type PhoneNumberMode = PhoneNumber['mode']
 import { type ReactNode, useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { ForwardingCheck } from '../onboarding/ForwardingCheck.tsx'
-import { CarrierPicker, ForwardingSteps, useForwardingGuide } from '../onboarding/ForwardingGuide.tsx'
+import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from '../onboarding/ForwardingGuide.tsx'
 import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwarding-check.ts'
 import {
   areaCodeOf,
@@ -25,7 +25,7 @@ import {
   pickupNumberMode,
   priceNote,
 } from '../onboarding/flow.ts'
-import { confirmsNumber, forwardingGuideById, phoneNumberModes } from '@linedesk/actions'
+import { confirmsNumber, phoneNumberModes } from '@linedesk/actions'
 import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
@@ -240,7 +240,7 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
   const forwards = number.mode === 'forward_conditional' || number.mode === 'forward_all'
   const carrier = carrierName(number.provider)
   const who = answeredBy(number, assistants)
-  const [guideId, setGuideId, pickedByOwner] = useForwardingGuide(number.id)
+  const pick = useForwardingPick(number)
   return (
     <Dialog
       title={formatNumber(number.e164)}
@@ -309,7 +309,12 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
             </div>
           </Field>
           {forwards && (
-            <CheckWhenEditing number={number} canEdit={canEdit} onCarrier={setGuideId} pickedByOwner={pickedByOwner}>
+            <CheckWhenEditing
+              number={number}
+              canEdit={canEdit}
+              onCarrier={pick.setGuide}
+              pickedByOwner={pick.pickedByOwner}
+            >
               <Field
                 id="pn-codes"
                 label="Call forwarding"
@@ -320,8 +325,7 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
                 }
               >
                 <Forwarding
-                  guideId={guideId}
-                  onGuide={setGuideId}
+                  pick={pick}
                   e164={number.e164}
                   mode={number.mode === 'forward_all' ? 'forward_all' : 'forward_conditional'}
                 />
@@ -452,27 +456,28 @@ function releaseErrorText(error: string): string {
 
 /** The forwarding instructions for the number's mode (conditional or all calls), per carrier or phone system. */
 function Forwarding({
-  guideId,
-  onGuide,
+  pick,
   e164,
   mode,
 }: {
-  guideId: string | null
-  onGuide: (guideId: string) => void
+  pick: ReturnType<typeof useForwardingPick>
   e164: string
   mode: 'forward_conditional' | 'forward_all'
 }) {
-  const guide = guideId ? forwardingGuideById(guideId) : undefined
+  const { guide, country } = pick
   return (
     <div className="st-codes">
-      <CarrierPicker
+      <GuidePickers
         id={`pn-carrier-${e164}`}
         label="Your carrier or phone system"
-        value={guideId}
-        onChange={onGuide}
+        country={country}
+        onCountry={pick.setCountry}
+        guideId={pick.guideId}
+        onGuide={pick.setGuide}
       />
+      <AbroadWarning e164={e164} country={country} guide={guide} />
       {guide ? (
-        <ForwardingSteps guide={guide} mode={mode} e164={e164} compact />
+        <ForwardingSteps guide={guide} mode={mode} e164={e164} country={country} compact />
       ) : (
         <p className="help">Pick your carrier or phone system to see how to forward.</p>
       )}

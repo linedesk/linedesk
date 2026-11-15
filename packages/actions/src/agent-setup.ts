@@ -401,7 +401,7 @@ What to do:
    - For my business: ask for its name and website (or find it with business_search), draft the assistant's profile with business_import, show me a short summary, and save it once I agree.
    - Ask me once whether I run more than one business or location. Each one gets its own workspace (workspace_create); we set them up one after the other.
    - Ask before anything that costs money (buying a phone number) or that I cannot undo, and say what it costs.
-4. When the phone number works, help me forward my business line (forwarding_guide), check it (phoneNumber_checkForwarding), and have me call it once.
+4. When the phone number works, help me forward my business line (forwarding_guide, with the country the line is in), check it (phoneNumber_checkForwarding), and have me call it once.
 5. Ask me to make the test call right on the setup page ("Call <assistant> now" on the Test call row) and wait until setup_status shows it done.
 6. Finish with a short summary of what is set up and what is left for me, then end your own access with setup_endAccess (if steps are still open, ask me first).
 

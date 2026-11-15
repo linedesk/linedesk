@@ -1,6 +1,5 @@
 // The phone step: connect a number the assistant answers, then (for a number the business keeps) the forwarding code.
 // It leads with keeping the business's number: a new number to give out reaches the assistant only when dialled.
-import { forwardingGuideById } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
@@ -12,7 +11,7 @@ import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
-import { CarrierPicker, ForwardingSteps, useForwardingGuide } from './ForwardingGuide.tsx'
+import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from './ForwardingGuide.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
   areaCodeOf,
@@ -283,14 +282,22 @@ function Connected({
   onBack: () => void
   onNext: () => void
 }) {
-  const [carrierId, setCarrierId, pickedByOwner] = useForwardingGuide(number.id)
   // No carrier is assumed: until the owner picks one or the lookup finds it, the picker is empty and no codes show.
-  const carrier = carrierId ? forwardingGuideById(carrierId) : undefined
+  const {
+    country,
+    setCountry,
+    guide: carrier,
+    guideId: carrierId,
+    setGuide: setCarrierId,
+    pickedByOwner,
+  } = useForwardingPick(number)
   const all = number.mode === 'forward_all'
   const forwards = all || number.mode === 'forward_conditional'
   // The pick-up choice changed after the code was shown: an old forwarding that is still on must go first.
   const oldOff =
-    carrier && oldForwarding && oldForwarding !== number.mode ? turnOffFirst(carrier, oldForwarding, number.e164) : null
+    carrier && oldForwarding && oldForwarding !== number.mode
+      ? turnOffFirst(carrier, oldForwarding, number.e164, country)
+      : null
   const name = useAssistantName()
   const run = useRun()
   const write = useWriteAction()
@@ -356,8 +363,15 @@ function Connected({
                 <label htmlFor="ob-carrier" className="ob-label">
                   Your carrier or phone system
                 </label>
-                <CarrierPicker id="ob-carrier" value={carrierId} onChange={setCarrierId} />
+                <GuidePickers
+                  id="ob-carrier"
+                  country={country}
+                  onCountry={setCountry}
+                  guideId={carrierId}
+                  onGuide={setCarrierId}
+                />
               </div>
+              <AbroadWarning e164={number.e164} country={country} guide={carrier} />
               {oldOff && (
                 <p className="ob2-note" role="status">
                   {oldOff}
@@ -368,6 +382,7 @@ function Connected({
                   guide={carrier}
                   mode={all ? 'forward_all' : 'forward_conditional'}
                   e164={number.e164}
+                  country={country}
                 />
               ) : (
                 <p className="ob2-note">Pick your carrier or phone system to see how to forward.</p>

@@ -18,6 +18,7 @@ import {
   FORWARDING_NUMBERS_PER_WORKSPACE_DAY,
   FORWARDING_RING_SECONDS,
   forwardingGuideForCarrier,
+  phoneCountry,
   type ForwardingCheckView,
   isCheckableBusinessNumber,
   LINE_LOOKUPS_PER_10_MIN,
@@ -778,7 +779,8 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
         const data: LineLookupData = {
           lineType: found.lineType,
           carrier: found.carrier,
-          carrierId: forwardingGuideForCarrier(found.carrier)?.id ?? null,
+          // A guide of the business line's own country first (a carrier name can exist in several countries).
+          carrierId: forwardingGuideForCarrier(found.carrier, phoneCountry(input.number))?.id ?? null,
           // `dev` answers the same made-up carrier for every number.
           simulated: provider.name === 'dev',
         }

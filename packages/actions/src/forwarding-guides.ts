@@ -6,57 +6,48 @@
 // Rule for this file: a code is only here when the carrier's own page (or, for the standard GSM codes, the 3GPP
 // standard plus a carrier of the same network) says it. What isn't documented is left out, not guessed: the guide
 // then offers what it has (often forwarding every call, or the phone's own settings) and says so in `note`.
+//
+// Countries: every guide names the countries it is for (ISO 3166-1 alpha-2, or 'any' for an app usable everywhere).
+// Guides outside the US have ids '<cc>-<slug>' ('de-telekom'), and every country has a '<cc>-other-mobile' fallback
+// for any other cell carrier ('other-mobile' for the US, kept for stored picks): the standard GSM codes where a
+// carrier of that country documents them, else the phone's own settings. A country with no guides, or "Other
+// country" (OTHER_COUNTRY), gets the GSM codes with the number written internationally, and the phone's own settings.
+// The US guides are below; the other countries are in ./forwarding-guides/, one file per region, and the phone
+// systems (with the countries each sells numbers in) in ./forwarding-guides/phone-systems.ts.
+import { getCountryCallingCode, parsePhoneNumberFromString } from 'libphonenumber-js/max'
 
-/** How the business's own number reaches the assistant: only the calls it misses, or every call. */
-export type ForwardingMode = 'forward_conditional' | 'forward_all'
-export type GuideKind = 'mobile' | 'landline' | 'phone_system'
+import { americasGuides } from './forwarding-guides/americas.ts'
+import { apacMeaGuides } from './forwarding-guides/apac-mea.ts'
+import { europeNorthWestGuides } from './forwarding-guides/europe-north-west.ts'
+import { europeSouthNordicsGuides } from './forwarding-guides/europe-south-nordics.ts'
+import { phoneSystemGuides } from './forwarding-guides/phone-systems.ts'
+import {
+  type DialCode,
+  type DialGuide,
+  type ForwardingGuide,
+  type ForwardingMode,
+  GSM_CHECK,
+  GSM_STANDARD,
+  type GuideKind,
+  gsmModes,
+  type NumberFormat,
+  OTHER_COUNTRY,
+  phoneMenuModes,
+} from './forwarding-guides/shared.ts'
 
-/** One code to dial. `{number}` stands for the assistant's number in the guide's `numberFormat`. */
-export type DialCode = { code: string; when?: string }
-export type DialSteps = { on: readonly DialCode[]; off: readonly DialCode[] }
-/**
- * Numbered steps in an app, a web portal or the phone's settings. `{number}` is the assistant's number written out,
- * (503) 555-0142; `{digits}` is digits only with the country code, 15035550142, for systems that expect that.
- */
-export type SettingSteps = { on: readonly string[]; off: readonly string[] }
-
-type GuideBase = {
-  id: string
-  name: string
-  kind: GuideKind
-  /** Lowercase names a carrier lookup or a search may use for it (former names, the company behind it). */
-  aliases: readonly string[]
-  /** For a brand on another carrier's network: that network, in words. */
-  network?: string
-  /** What goes wrong with this line, in plain words for the owner. */
-  pitfalls: readonly string[]
-  /** Where the codes or steps come from: the carrier's own page first. */
-  sources: readonly { url: string; label: string }[]
-  /** Said next to the instructions, e.g. that a mode isn't offered and what to do instead. */
-  note?: string
-}
-
-export type DialGuide = GuideBase & {
-  how: 'dial'
-  /** `ten`: 5035550142; `eleven`: 15035550142 (T-Mobile writes the 1 in front). */
-  numberFormat: 'ten' | 'eleven'
-  modes: Partial<Record<ForwardingMode, DialSteps>>
-  /** Codes that show whether forwarding is on (the network answers on screen). */
-  check?: readonly DialCode[]
-  /** Seconds the phone rings before a missed call forwards, when the code sets it. */
-  ringSeconds?: number
-}
-
-export type SettingsGuide = GuideBase & {
-  how: 'settings'
-  /** Where the setting lives, e.g. "the RingCentral app or admin portal". */
-  where: string
-  modes: Partial<Record<ForwardingMode, SettingSteps>>
-  /** Where to see whether it is on. */
-  check?: string
-}
-
-export type ForwardingGuide = DialGuide | SettingsGuide
+export type {
+  DialCode,
+  DialGuide,
+  DialSteps,
+  ForwardingGuide,
+  ForwardingMode,
+  GuideBase,
+  GuideKind,
+  NumberFormat,
+  SettingSteps,
+  SettingsGuide,
+} from './forwarding-guides/shared.ts'
+export { OTHER_COUNTRY }
 
 export const guideKindLabels: Record<GuideKind, string> = {
   mobile: 'Cell phone',
@@ -65,10 +56,6 @@ export const guideKindLabels: Record<GuideKind, string> = {
 }
 
 // Sources used by several guides.
-const GSM_STANDARD = {
-  url: 'https://www.3gpp.org/DynaReport/22030.htm',
-  label: '3GPP TS 22.030 (the GSM forwarding codes)',
-}
 const TMOBILE_CODES = {
   url: 'https://www.t-mobile.com/support/plans-features/self-service-short-codes',
   label: 'T-Mobile self-service short codes',
@@ -94,45 +81,6 @@ const VERIZON_PITFALLS = [
   'The confirmation tone can sound like a busy signal. That’s normal: hang up after it.',
 ] as const
 
-/** The GSM codes (AT&T, T-Mobile and their brands): no answer with a ring time, busy, unreachable; every call. */
-const gsmModes = (ringSeconds: number | null, all: DialSteps): DialGuide['modes'] => ({
-  forward_conditional: {
-    on: [
-      ringSeconds
-        ? { code: `**61*{number}**${ringSeconds}#`, when: `Not answered within ${ringSeconds} seconds` }
-        : { code: '**61*{number}#', when: 'Not answered' },
-      { code: '**67*{number}#', when: 'Busy' },
-      { code: '**62*{number}#', when: 'Phone off or no signal' },
-    ],
-    off: [{ code: '##61#' }, { code: '##67#' }, { code: '##62#' }],
-  },
-  forward_all: all,
-})
-const GSM_CHECK: readonly DialCode[] = [
-  { code: '*#61#', when: 'Not answered' },
-  { code: '*#21#', when: 'Every call' },
-]
-
-/** The phone's own call forwarding menu, for carriers that publish no codes. */
-const phoneMenuModes: SettingsGuide['modes'] = {
-  forward_conditional: {
-    on: [
-      'Android: open the Phone app › ⋮ › Settings › Calling accounts (or Supplementary services) › Call forwarding.',
-      'Tap “When unanswered”, enter {number} and turn it on. Do the same for “When busy” and “When unreachable”.',
-      'iPhone has no setting for missed calls only: use Every call, or ask your carrier for its “conditional call forwarding” code.',
-    ],
-    off: ['Turn “When unanswered”, “When busy” and “When unreachable” off in the same place.'],
-  },
-  forward_all: {
-    on: [
-      'iPhone: Settings › Apps › Phone › Call Forwarding (older iPhones: Settings › Phone › Call Forwarding).',
-      'Turn Call Forwarding on, tap Forward To and enter {number}.',
-      'Android: Phone app › ⋮ › Settings › Calling accounts › Call forwarding › “Always forward” › {number}.',
-    ],
-    off: ['Turn Call Forwarding (or “Always forward”) off in the same place.'],
-  },
-}
-
 /** Every guide, mobile first, then landlines, then phone systems. The first one is the default choice. */
 export const forwardingGuides: readonly ForwardingGuide[] = [
   // ---- Mobile: Verizon and brands on its network ----
@@ -140,6 +88,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'verizon',
     name: 'Verizon',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['verizon wireless', 'cellco', 'vzw'],
     how: 'dial',
     numberFormat: 'ten',
@@ -157,6 +106,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'visible',
     name: 'Visible',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['visible wireless'],
     network: 'Verizon',
     how: 'dial',
@@ -172,6 +122,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'spectrum-mobile',
     name: 'Spectrum Mobile',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['charter mobile', 'spectrum wireless'],
     network: 'Verizon',
     how: 'dial',
@@ -193,6 +144,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'xfinity-mobile',
     name: 'Xfinity Mobile',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['comcast mobile'],
     network: 'Verizon',
     how: 'dial',
@@ -211,6 +163,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'total-wireless',
     name: 'Total Wireless',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['total by verizon', 'total'],
     network: 'Verizon',
     how: 'dial',
@@ -229,6 +182,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'straight-talk',
     name: 'Straight Talk',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['tracfone', 'straighttalk'],
     network: 'Verizon',
     how: 'dial',
@@ -248,6 +202,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'att',
     name: 'AT&T',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['at&t wireless', 'at&t mobility', 'att mobility', 'at and t', 'cingular', 'new cingular wireless'],
     how: 'dial',
     numberFormat: 'ten',
@@ -273,6 +228,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'cricket',
     name: 'Cricket Wireless',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['cricket'],
     network: 'AT&T',
     how: 'settings',
@@ -291,6 +247,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'tmobile',
     name: 'T-Mobile',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['t-mobile usa', 't mobile', 'tmobile', 'sprint', 'omnipoint', 'powertel'],
     how: 'dial',
     numberFormat: 'eleven',
@@ -308,6 +265,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'metro',
     name: 'Metro by T-Mobile',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['metropcs', 'metro pcs', 'metro'],
     network: 'T-Mobile',
     how: 'dial',
@@ -323,6 +281,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'mint',
     name: 'Mint Mobile',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['mint'],
     network: 'T-Mobile',
     how: 'dial',
@@ -346,6 +305,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'us-mobile-warp',
     name: 'US Mobile (Warp)',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['us mobile', 'usmobile'],
     network: 'Verizon',
     how: 'dial',
@@ -366,6 +326,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'us-mobile-light-speed',
     name: 'US Mobile (Light Speed)',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['us mobile', 'usmobile'],
     network: 'AT&T',
     how: 'dial',
@@ -388,6 +349,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'us-mobile-dark-star',
     name: 'US Mobile (Dark Star)',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['us mobile', 'usmobile'],
     network: 'T-Mobile',
     how: 'dial',
@@ -418,6 +380,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'us-cellular',
     name: 'UScellular',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['us cellular', 'u.s. cellular', 'united states cellular'],
     how: 'settings',
     where: 'your phone’s settings',
@@ -430,6 +393,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'google-fi',
     name: 'Google Fi',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['fi', 'project fi', 'google fi wireless'],
     how: 'settings',
     where: 'the Google Fi app or fi.google.com',
@@ -452,6 +416,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'boost',
     name: 'Boost Mobile',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['boost', 'dish wireless'],
     how: 'settings',
     where: 'your phone’s settings',
@@ -464,6 +429,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'consumer-cellular',
     name: 'Consumer Cellular',
     kind: 'mobile',
+    countries: ['US'],
     aliases: [],
     how: 'settings',
     where: 'your phone’s settings',
@@ -476,6 +442,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'other-mobile',
     name: 'Another cell carrier',
     kind: 'mobile',
+    countries: ['US'],
     aliases: ['other', 'mobile', 'cell'],
     how: 'settings',
     where: 'your phone’s settings',
@@ -484,11 +451,43 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     pitfalls: [],
     sources: [ATT_IPHONE, ATT_ANDROID],
   },
+  // ---- Mobile: "Other country" (and any country without its own guides yet) ----
+  {
+    id: 'zz-other-mobile',
+    name: 'Cell phone: standard codes',
+    kind: 'mobile',
+    countries: [OTHER_COUNTRY],
+    aliases: ['other', 'mobile', 'cell', 'gsm'],
+    how: 'dial',
+    numberFormat: 'international',
+    modes: gsmModes(null, { on: [{ code: '**21*{number}#' }], off: [{ code: '##21#' }] }),
+    check: GSM_CHECK,
+    note: 'These are the standard GSM codes most cell networks use; your carrier’s codes can differ. If a code is refused, use your phone’s settings instead.',
+    pitfalls: [
+      'Dial the codes from the phone itself, one after the other, and wait for the confirmation on screen.',
+      'Forwarding to a number in another country can cost extra, or your carrier may block it.',
+    ],
+    sources: [GSM_STANDARD],
+  },
+  {
+    id: 'zz-phone-settings',
+    name: 'Cell phone: phone settings',
+    kind: 'mobile',
+    countries: [OTHER_COUNTRY],
+    aliases: ['other', 'mobile', 'cell', 'settings'],
+    how: 'settings',
+    where: 'your phone’s settings',
+    modes: phoneMenuModes,
+    note: 'The menu names can differ by phone and carrier.',
+    pitfalls: ['Forwarding to a number in another country can cost extra, or your carrier may block it.'],
+    sources: [ATT_IPHONE, ATT_ANDROID],
+  },
   // ---- Landline and cable business lines: dialled from the desk phone ----
   {
     id: 'comcast-business',
     name: 'Comcast Business Voice',
     kind: 'landline',
+    countries: ['US'],
     aliases: ['comcast business', 'voiceedge'],
     how: 'dial',
     numberFormat: 'ten',
@@ -522,6 +521,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'att-business-line',
     name: 'AT&T business landline',
     kind: 'landline',
+    countries: ['US'],
     aliases: [
       'at&t phone',
       'at&t local',
@@ -560,6 +560,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'verizon-landline',
     name: 'Verizon Fios or business landline',
     kind: 'landline',
+    countries: ['US'],
     aliases: ['verizon fios', 'fios', 'verizon business', 'verizon landline', 'fios digital voice'],
     how: 'dial',
     numberFormat: 'ten',
@@ -590,6 +591,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'cox-business',
     name: 'Cox Business Voice',
     kind: 'landline',
+    countries: ['US'],
     aliases: ['cox business'],
     how: 'dial',
     numberFormat: 'ten',
@@ -618,6 +620,7 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
     id: 'spectrum-business',
     name: 'Spectrum Business Voice',
     kind: 'landline',
+    countries: ['US'],
     aliases: ['spectrum business', 'charter business'],
     how: 'settings',
     where: 'SpectrumBusiness.net',
@@ -652,316 +655,12 @@ export const forwardingGuides: readonly ForwardingGuide[] = [
       },
     ],
   },
-  // ---- Phone systems and apps: a setting, not a code ----
-  {
-    id: 'ringcentral',
-    name: 'RingCentral',
-    kind: 'phone_system',
-    aliases: ['ringcentral', 'ringex', 'ring central'],
-    how: 'settings',
-    where: 'the RingCentral app or admin portal',
-    modes: {
-      forward_conditional: {
-        on: [
-          'RingCentral app › Settings › Phone › Incoming call rules › Incoming calls (admins: Admin Portal › Users › the user › Phone › Incoming call rules).',
-          'Ring settings: 4 rings (about 20 seconds) on your devices.',
-          '“If no one answers” › “Forward the call” › {number}.',
-          'Save.',
-        ],
-        off: ['Set “If no one answers” back to voicemail in the same place.'],
-      },
-      forward_all: {
-        on: ['RingCentral app › your profile › Call rules › “Forward all calls” › {number}.'],
-        off: ['Turn “Forward all calls” off in the same place.'],
-      },
-    },
-    check: 'RingCentral app › Settings › Phone › Incoming call rules',
-    pitfalls: [
-      'Turn off “Screen callers” / “Ask me if I want to answer”: its press-1 prompt stops your assistant.',
-      '“Forward all calls” only shows when your admin allows call handling changes.',
-    ],
-    sources: [
-      {
-        url: 'https://support.ringcentral.com/article-v2/Setting-up-how-incoming-calls-are-handled.html?brand=RingCentral&product=RingEX&language=en_US',
-        label: 'RingCentral: incoming call rules',
-      },
-    ],
-  },
-  {
-    id: 'google-voice',
-    name: 'Google Voice',
-    kind: 'phone_system',
-    aliases: ['google voice', 'gv', 'google'],
-    how: 'settings',
-    where: 'voice.google.com',
-    modes: {
-      forward_all: {
-        on: [
-          'voice.google.com › Settings › Account › Linked numbers › New linked number › {number}.',
-          'Verify it: your assistant answers the verification call.',
-          'Settings › Calls › Call forwarding: turn the linked number on.',
-        ],
-        off: ['Settings › Calls › Call forwarding: turn the linked number off.'],
-      },
-    },
-    check: 'voice.google.com › Settings › Calls › Call forwarding',
-    note: 'Google Voice rings linked numbers together; it can’t forward only the calls you miss. Forward every call, or give your assistant its own new number.',
-    pitfalls: ['Google doesn’t support forwarding to automated systems; turn off call screening, or use a new number.'],
-    sources: [{ url: 'https://support.google.com/voice/answer/165221?hl=en', label: 'Google Voice: forward calls' }],
-  },
-  {
-    id: 'grasshopper',
-    name: 'Grasshopper',
-    kind: 'phone_system',
-    aliases: ['grasshopper'],
-    how: 'settings',
-    where: 'the Grasshopper admin portal',
-    modes: {
-      forward_conditional: {
-        on: [
-          'Grasshopper admin portal › Extensions (or Call management › Extensions) › Edit on the extension.',
-          'Add a forwarding number › {number}.',
-          '“How should Grasshopper handle calls?” › “Calls will connect to you as soon as you pick up”.',
-          'Options › ring order “In order”: your own phone first, then {number} › Save.',
-        ],
-        off: ['Remove {number} from the forwarding numbers in the same place.'],
-      },
-      forward_all: {
-        on: [
-          'Grasshopper admin portal › Extensions › Edit on the extension.',
-          'Add a forwarding number › {number}, and make it the only one turned on.',
-          '“Calls will connect to you as soon as you pick up” › Save.',
-        ],
-        off: ['Turn your own forwarding number back on and remove {number} in the same place.'],
-      },
-    },
-    check: 'Grasshopper admin portal › Extensions',
-    pitfalls: [
-      'The “announce” options add a “press 1 to accept” prompt your assistant can’t answer: use “connect as soon as you pick up”.',
-    ],
-    sources: [
-      {
-        url: 'https://support.grasshopper.com/help/forward-incoming-calls-for-an-extension',
-        label: 'Grasshopper: forward calls for an extension',
-      },
-    ],
-  },
-  {
-    id: 'ooma-office',
-    name: 'Ooma Office',
-    kind: 'phone_system',
-    aliases: ['ooma', 'ooma office'],
-    how: 'settings',
-    where: 'the Ooma Office portal or app',
-    modes: {
-      forward_all: {
-        on: [
-          'Ooma Office portal › Settings › Call Handling (desktop app: your name › Settings › Devices).',
-          '“When a call comes in” › “Forward it immediately”.',
-          '“Forward to” › “My forwarding number” › {number}.',
-          'Leave “Require key press on answer” off › Save.',
-        ],
-        off: ['Set “When a call comes in” back to ringing your devices in the same place. From an Ooma phone: *74.'],
-      },
-    },
-    note: 'Ooma documents forwarding every call; for missed calls only, ask Ooma or forward every call.',
-    pitfalls: ['“Require key press on answer” adds a press-1 prompt your assistant can’t answer.'],
-    sources: [
-      {
-        url: 'https://www.ooma.com/small-business-phone-systems/how-to/how-to-turn-call-forwarding-on-and-off/',
-        label: 'Ooma Office: call forwarding',
-      },
-    ],
-  },
-  {
-    id: 'vonage',
-    name: 'Vonage Business',
-    kind: 'phone_system',
-    aliases: ['vonage', 'vonage business communications', 'nexmo'],
-    how: 'settings',
-    where: 'the Vonage Admin Portal or app.vonage.com',
-    modes: {
-      forward_conditional: {
-        on: [
-          'Admin Portal › Phone System › Extensions › pencil on the extension.',
-          'Call Forwarding › Forward Calls on › “Follow Me”.',
-          'Step 1: the extension, 20 seconds. Step 2: {number}, 30 seconds or more.',
-          'Caller ID: “Originating Caller ID” › Save.',
-        ],
-        off: ['In the same place, turn Forward Calls off › Save.'],
-      },
-      forward_all: {
-        on: [
-          'Admin Portal › Phone System › Extensions › pencil › Call Forwarding › Forward Calls on › {number} › Save.',
-        ],
-        off: ['In the same place, turn Forward Calls off › Save.'],
-      },
-    },
-    check: 'Admin Portal › Phone System › Extensions › Call Forwarding',
-    pitfalls: ['Choose “Originating Caller ID”, so your assistant sees who is calling.'],
-    sources: [
-      { url: 'https://businesssupport.vonage.com/articles/answer/Follow-Me-24816', label: 'Vonage: Follow Me' },
-      {
-        url: 'https://businesssupport.vonage.com/articles/answer/Call-Forwarding-24813',
-        label: 'Vonage: call forwarding',
-      },
-    ],
-  },
-  {
-    id: 'dialpad',
-    name: 'Dialpad',
-    kind: 'phone_system',
-    aliases: ['dialpad'],
-    how: 'settings',
-    where: 'Dialpad settings',
-    modes: {
-      forward_conditional: {
-        on: [
-          'Dialpad › Office Settings › Main Line › Business Hours & Call Routing › Edit Call Routing.',
-          'Fallback Options › forward to {number}.',
-          'An outside number as fallback is turned on by Dialpad support: ask them first.',
-        ],
-        off: ['Set the fallback back to voicemail in the same place.'],
-      },
-    },
-    note: 'Dialpad has no setting for a person’s missed calls to an outside number; the main line’s fallback is the way.',
-    pitfalls: [
-      'Dialpad asks “press 1” when a forwarded call is answered within 5 seconds, and it can’t be fully turned off. Your assistant answers fast, so test it.',
-    ],
-    sources: [
-      { url: 'https://help.dialpad.com/docs/call-forwarding', label: 'Dialpad: call forwarding' },
-      { url: 'https://help.dialpad.com/docs/forwarding-number-faqs', label: 'Dialpad: forwarding number FAQs' },
-    ],
-  },
-  {
-    id: '8x8',
-    name: '8x8',
-    kind: 'phone_system',
-    aliases: ['8x8 work', 'eight by eight'],
-    how: 'settings',
-    where: 'the 8x8 Admin Console',
-    modes: {
-      forward_conditional: {
-        on: [
-          '8x8 Admin Console › Users › pencil next to the user.',
-          'Call forwarding rules › Edit.',
-          '“When User does not Answer the Call”: ring time 20 seconds › “Forward Directly To” › {digits}.',
-          'The same for “When User is Busy” and “When Internet Connection is Down” › Save.',
-        ],
-        off: ['In the same place, set the rules back to voicemail › Save.'],
-      },
-      forward_all: {
-        on: ['8x8 Admin Console › Users › pencil › Call forwarding rules › “Forward all Calls” › {digits} › Save.'],
-        off: ['In the same place, turn “Forward all Calls” off › Save.'],
-      },
-    },
-    check: '8x8 Admin Console › Users › the user › Call forwarding rules',
-    pitfalls: [
-      'Forwarding set on a desk phone overrides the Admin Console.',
-      'Enter the number with the 1 in front, as shown.',
-    ],
-    sources: [
-      {
-        url: 'https://help.8x8.com/docs/set-up-call-forwarding-in-8x8-admin-console.md',
-        label: '8x8: call forwarding in Admin Console',
-      },
-    ],
-  },
-  {
-    id: 'nextiva',
-    name: 'Nextiva',
-    kind: 'phone_system',
-    aliases: ['nextiva', 'nextivaone'],
-    how: 'settings',
-    where: 'the Nextiva voice portal or NextivaONE',
-    modes: {
-      forward_conditional: {
-        on: [
-          'Voice portal › Users › the user › Actions › Voice Settings (NextivaONE: your picture › My settings › Calls › When unanswered).',
-          'Forwarding › “Call forwarding (unanswered)”.',
-          '{number}, 4 rings › Save.',
-        ],
-        off: ['Turn “Call forwarding (unanswered)” off in the same place.'],
-      },
-      forward_all: {
-        on: [
-          'Voice portal › Users › the user › Voice Settings › Forwarding › “Call forwarding always” › {number} › Save.',
-        ],
-        off: ['Turn “Call forwarding always” off in the same place.'],
-      },
-    },
-    check: 'Voice portal › Users › the user › Voice Settings › Forwarding',
-    pitfalls: ['It forwards calls to the user, not calls to a call group or call center.'],
-    sources: [
-      { url: 'https://help.nextiva.com/article/call-forward-no-answer', label: 'Nextiva: call forward no answer' },
-      { url: 'https://help.nextiva.com/article/call-forwarding-always', label: 'Nextiva: call forwarding always' },
-    ],
-  },
-  {
-    id: 'quo',
-    name: 'Quo (OpenPhone)',
-    kind: 'phone_system',
-    aliases: ['openphone', 'open phone', 'quo'],
-    how: 'settings',
-    where: 'Quo settings',
-    modes: {
-      forward_conditional: {
-        on: [
-          'Quo › Settings › Workspace › Phone numbers › your number › Call flow › Edit call flow.',
-          '“Ring users”: 20 seconds.',
-          'Add a “Forward call” step after it › {number}.',
-          'Save and enable the call flow.',
-        ],
-        off: ['In the same place, remove the “Forward call” step or enable the default call flow.'],
-      },
-      forward_all: {
-        on: [
-          'Quo › Settings › Workspace › Phone numbers › your number › Call flow.',
-          '“Forward all calls” › {number} › enable the call flow.',
-        ],
-        off: ['Enable the default call flow in the same place.'],
-      },
-    },
-    check: 'Quo › Settings › Workspace › Phone numbers › your number › Call flow',
-    pitfalls: ['Forwarded calls aren’t recorded in Quo and don’t fall back to Quo voicemail.'],
-    sources: [
-      {
-        url: 'https://support.quo.com/core-concepts/administration/call-flows/call-forwarding',
-        label: 'Quo: call forwarding',
-      },
-    ],
-  },
-  {
-    id: 'zoom-phone',
-    name: 'Zoom Phone',
-    kind: 'phone_system',
-    aliases: ['zoom', 'zoom phone', 'zoom workplace'],
-    how: 'settings',
-    where: 'the Zoom Workplace app',
-    modes: {
-      forward_conditional: {
-        on: [
-          'Add {number} as an external contact in Zoom first.',
-          'Zoom Workplace app › your picture › Settings › Phone › Voicemail and forwarding › Business hours.',
-          '“When a call goes unanswered” › Forward to external contact › {number}. The same for “When I’m busy on another call”.',
-          'The same under Closed hours.',
-        ],
-        off: ['Set “When a call goes unanswered” back to voicemail in the same place.'],
-      },
-    },
-    check: 'Zoom Workplace › Settings › Phone › Voicemail and forwarding',
-    note: 'Zoom documents forwarding unanswered and busy calls; for every call, ask your Zoom admin.',
-    pitfalls: [
-      'Leave “Send unanswered calls to my voicemail” off: it makes the forwarded call ask for a key press.',
-      'Your Zoom user needs its own phone number to forward outside.',
-    ],
-    sources: [
-      {
-        url: 'https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0083324',
-        label: 'Zoom Phone: call forwarding',
-      },
-    ],
-  },
+  // ---- Other countries (one file per region) and phone systems ----
+  ...americasGuides,
+  ...europeNorthWestGuides,
+  ...europeSouthNordicsGuides,
+  ...apacMeaGuides,
+  ...phoneSystemGuides,
 ]
 
 /**
@@ -976,6 +675,150 @@ export const phoneChecklist: readonly string[] = [
 
 export const forwardingGuideById = (id: string | null | undefined): ForwardingGuide | undefined =>
   forwardingGuides.find(g => g.id === id)
+/** The guide with this id, of any country. */
+export const findGuide = forwardingGuideById
+
+// ---- Countries ----
+
+/** Whether a guide is for `country` (an app or phone system with 'any' is for every country). */
+export const guideInCountry = (guide: ForwardingGuide, country: string): boolean =>
+  guide.countries === 'any' || guide.countries.includes(country.toUpperCase())
+
+/** The one country a guide is for, or null for a guide of several countries or 'any'. */
+export const guideCountry = (guide: ForwardingGuide): string | null =>
+  guide.countries !== 'any' && guide.countries.length === 1 ? guide.countries[0]! : null
+
+const regionNames = (() => {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' })
+  } catch {
+    return null
+  }
+})()
+/** A country's name in English ("DE": "Germany"); the code itself when the runtime has no names. */
+export const countryName = (code: string): string =>
+  code === OTHER_COUNTRY ? 'Other country' : (regionNames?.of(code) ?? code)
+
+/**
+ * The countries with carrier guides of their own (cell phones and landlines; a phone system selling numbers in a
+ * country doesn't make it one), by name. "Other country" is not in it.
+ */
+export const forwardingCountries: readonly { code: string; name: string }[] = [
+  ...new Set(forwardingGuides.flatMap(g => (g.countries === 'any' || g.kind === 'phone_system' ? [] : g.countries))),
+]
+  .filter(code => code !== OTHER_COUNTRY)
+  .map(code => ({ code, name: countryName(code) }))
+  .sort((a, b) => a.name.localeCompare(b.name))
+
+/** The "Other country" choice, listed after forwardingCountries. */
+export const otherCountryOption = { code: OTHER_COUNTRY, name: countryName(OTHER_COUNTRY) } as const
+
+/** Whether `code` is a country with guides of its own. */
+export const hasForwardingCountry = (code: string | null | undefined): boolean =>
+  !!code && forwardingCountries.some(c => c.code === code.toUpperCase())
+
+const KIND_ORDER: readonly GuideKind[] = ['mobile', 'landline', 'phone_system']
+
+/**
+ * The guides for a country: its carriers and the phone systems sold there, and the apps for every country ('any');
+ * cell phones first, then landlines, then phone systems. A country without carrier guides of its own (or
+ * OTHER_COUNTRY) gets the "Other country" guides (the standard GSM codes and the phone's own settings) and the phone
+ * systems sold in it.
+ */
+export function guidesForCountry(code: string): ForwardingGuide[] {
+  const asked = code.toUpperCase()
+  const carriers = hasForwardingCountry(asked) ? asked : OTHER_COUNTRY
+  return forwardingGuides
+    .map((g, i) => ({ g, i }))
+    .filter(({ g }) => guideInCountry(g, g.kind === 'phone_system' ? asked : carriers))
+    .sort((a, b) => KIND_ORDER.indexOf(a.g.kind) - KIND_ORDER.indexOf(b.g.kind) || a.i - b.i)
+    .map(({ g }) => g)
+}
+
+/** The country of a number in E.164 ("+4930…": "DE"), or null when it can't be told. */
+export function phoneCountry(e164: string | null | undefined): string | null {
+  if (!e164) return null
+  const parsed = parsePhoneNumberFromString(e164)
+  // A North American number libphonenumber can't place (a 555 test number) is taken as a US one.
+  return parsed?.country ?? (parsed?.countryCallingCode === '1' || /^\+1\d{10}$/.test(e164) ? 'US' : null)
+}
+
+/** The region of a locale ("de-DE": "DE", "en": null). */
+function localeCountry(locale: string | null | undefined): string | null {
+  if (!locale) return null
+  try {
+    return new Intl.Locale(locale).maximize().region ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The country the forwarding guide opens with, most likely first: the assistant number's country, else the
+ * workspace's country (its holiday calendar, else the business's own number), else the browser's locale, else the
+ * US. A number or workspace in a country without guides of its own opens "Other country"; a locale only picks a
+ * country that has guides.
+ */
+export function preselectForwardingCountry(from: {
+  assistantNumber?: string | null
+  workspaceCountry?: string | null
+  businessNumber?: string | null
+  locale?: string | null
+}): string {
+  for (const strong of [phoneCountry(from.assistantNumber), from.workspaceCountry, phoneCountry(from.businessNumber)]) {
+    if (strong) return hasForwardingCountry(strong) ? strong.toUpperCase() : OTHER_COUNTRY
+  }
+  const locale = localeCountry(from.locale)
+  return locale && hasForwardingCountry(locale) ? locale : 'US'
+}
+
+/**
+ * Whether forwarding to the assistant's number goes abroad from `country`: the number belongs to another country
+ * (by its calling code, so a Canadian number from the US is not abroad). False for "Other country" and unknown numbers.
+ */
+export function forwardsAbroad(e164: string, country: string): boolean {
+  if (!country || country === OTHER_COUNTRY) return false
+  const parsed = parsePhoneNumberFromString(e164)
+  if (!parsed) return false
+  return parsed.countryCallingCode !== callingCode(country)
+}
+
+/**
+ * What to tell the owner when the assistant's number is in another country than the business line, or null:
+ * `blocked` when the guide's carrier forwards only within its own country (domesticOnly: it won't work), else
+ * `abroad` (it can cost extra or be blocked).
+ */
+export function abroadWarning(
+  e164: string,
+  country: string,
+  guide?: ForwardingGuide | null,
+): { kind: 'blocked' | 'abroad'; text: string } | null {
+  if (!country || country === OTHER_COUNTRY) return null
+  const where = countryName(country)
+  // A carrier that forwards only within its country refuses a number of another country even on the same calling
+  // code (a US number from a Canadian line).
+  const own = phoneCountry(e164)
+  if (guide?.domesticOnly && own && own !== country.toUpperCase())
+    return {
+      kind: 'blocked',
+      text: `${guide.name} forwards only to numbers in ${where}, so forwarding to your assistant’s number won’t work. Give your assistant a number in ${where}.`,
+    }
+  if (!forwardsAbroad(e164, country)) return null
+  return {
+    kind: 'abroad',
+    text: `Your assistant’s number is in another country, so forwarding goes abroad: it can cost extra or be blocked. A number in ${where} avoids that.`,
+  }
+}
+
+function callingCode(country: string): string | null {
+  try {
+    return getCountryCallingCode(country.toUpperCase() as Parameters<typeof getCountryCallingCode>[0])
+  } catch {
+    return null
+  }
+}
+
+// ---- Matching a carrier name and searching ----
 
 const normalize = (name: string) =>
   name
@@ -985,33 +828,51 @@ const normalize = (name: string) =>
     .trim()
 
 /**
+ * The catch-all guides ("Another cell carrier", '<cc>-other-mobile', the "Other country" ones): a carrier lookup
+ * never picks one, and the picker search lists one only after every real carrier that matches.
+ */
+export const isFallbackGuide = (g: ForwardingGuide) =>
+  g.id === 'other-mobile' || /-other-mobile$/.test(g.id) || g.id.startsWith('zz-')
+
+/**
  * The guide for a carrier name as a lookup or the owner writes it ("Verizon Wireless", "T-Mobile USA, Inc.",
  * "OpenPhone"), or undefined. Matches the name or an alias as whole words, the longest match first, so
- * "Spectrum Mobile" finds Spectrum Mobile and not Spectrum Business.
+ * "Spectrum Mobile" finds Spectrum Mobile and not Spectrum Business. With `country`, a guide of that country wins;
+ * only when none matches there is every country tried.
  */
-export function forwardingGuideForCarrier(name: string | null | undefined): ForwardingGuide | undefined {
+export function forwardingGuideForCarrier(
+  name: string | null | undefined,
+  country?: string | null,
+): ForwardingGuide | undefined {
   const text = ` ${normalize(name ?? '')} `
   if (!text.trim()) return undefined
-  let best: { guide: ForwardingGuide; length: number } | undefined
-  for (const guide of forwardingGuides) {
-    if (guide.id === 'other-mobile') continue
-    for (const candidate of [guide.name, ...guide.aliases]) {
-      const words = normalize(candidate)
-      if (words && text.includes(` ${words} `) && words.length > (best?.length ?? 0))
-        best = { guide, length: words.length }
+  const match = (guides: readonly ForwardingGuide[]) => {
+    let best: { guide: ForwardingGuide; length: number } | undefined
+    for (const guide of guides) {
+      if (isFallbackGuide(guide)) continue
+      for (const candidate of [guide.name, ...guide.aliases]) {
+        const words = normalize(candidate)
+        if (words && text.includes(` ${words} `) && words.length > (best?.length ?? 0))
+          best = { guide, length: words.length }
+      }
     }
+    return best?.guide
   }
-  return best?.guide
+  return (country ? match(guidesForCountry(country)) : undefined) ?? match(forwardingGuides)
 }
 
 /**
- * Guides matching what was typed in the picker, best first: the name starting with it, then a word of the name,
- * then a former name or alias, then the network or kind ("verizon network", "landline"). Matches start at a word,
- * so "t-mob" finds T-Mobile and its brands, not "AT&T Mobility". All guides for an empty search.
+ * Guides of `country` (default the US) matching what was typed in the picker, best first: the name starting with
+ * it, then a word of the name, then a former name or alias, then the network or kind ("verizon network",
+ * "landline"). Matches start at a word, so "t-mob" finds T-Mobile and its brands, not "AT&T Mobility". A fallback
+ * ("Another cell carrier", '<cc>-other-mobile') comes after every real carrier that matches, so its aliases ("other",
+ * "mobile", "cell", or a small brand on it) never put it first. All the country's guides (guidesForCountry) for an
+ * empty search.
  */
-export function searchForwardingGuides(typed: string): ForwardingGuide[] {
+export function searchForwardingGuides(typed: string, country = 'US'): ForwardingGuide[] {
+  const guides = guidesForCountry(country)
   const query = normalize(typed)
-  if (!query) return [...forwardingGuides]
+  if (!query) return guides
   const startsWord = (text: string) => ` ${normalize(text)}`.includes(` ${query}`)
   const rank = (g: ForwardingGuide) => {
     if (normalize(g.name).startsWith(query)) return 0
@@ -1020,17 +881,50 @@ export function searchForwardingGuides(typed: string): ForwardingGuide[] {
     if (startsWord(g.network ?? '') || startsWord(guideKindLabels[g.kind])) return 3
     return null
   }
-  return forwardingGuides
-    .map((g, i) => ({ g, i, r: rank(g) }))
+  const ranked = (g: ForwardingGuide) => {
+    const r = rank(g)
+    return r === null ? null : isFallbackGuide(g) ? r + 10 : r
+  }
+  return guides
+    .map((g, i) => ({ g, i, r: ranked(g) }))
     .filter((m): m is { g: ForwardingGuide; i: number; r: number } => m.r !== null)
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .map(m => m.g)
 }
 
-/** The assistant's number as the guide's codes expect it: 10 digits, or 11 with the 1 in front. */
-export function guideNumber(guide: DialGuide, e164: string): string {
-  const ten = e164.replace(/^\+1/, '').replace(/\D/g, '')
-  return guide.numberFormat === 'eleven' ? `1${ten}` : ten
+// ---- Writing the number ----
+
+/**
+ * The assistant's number (E.164) as a dialling guide's codes expect it, dialled from `country`:
+ * - `ten` / `eleven`: the 10 digits of a North American number, with the 1 in front for `eleven`;
+ * - `national`: the national format, digits only with the trunk prefix (+493012345678: 03012345678);
+ * - `nsn`: the national significant number, digits only, no trunk prefix (+5511987654321: 11987654321);
+ * - `international`: + and the country code (+493012345678).
+ * A number of another calling code than `country`'s (or, without `country`, a non-North American number for `ten`
+ * and `eleven`) is written internationally, since only that reaches it from abroad. A number libphonenumber can't
+ * read keeps its digits.
+ */
+export function formatGuideNumber(e164: string, format: NumberFormat, country?: string | null): string {
+  const digits = e164.replace(/\D/g, '')
+  const international = `+${digits}`
+  if (format === 'international') return international
+  const parsed = parsePhoneNumberFromString(e164)
+  const code = parsed?.countryCallingCode ?? (e164.startsWith('+1') ? '1' : null)
+  const home = country && country !== OTHER_COUNTRY ? callingCode(country) : null
+  if (home && code !== home) return international
+  if (format === 'ten' || format === 'eleven') {
+    if (code !== '1') return international
+    const ten = digits.slice(1)
+    return format === 'eleven' ? `1${ten}` : ten
+  }
+  if (!parsed) return international
+  if (format === 'nsn') return String(parsed.nationalNumber)
+  return parsed.formatNational().replace(/\D/g, '')
+}
+
+/** The assistant's number as the guide's codes expect it; `country` is the one selected (default: the guide's own). */
+export function guideNumber(guide: DialGuide, e164: string, country?: string | null): string {
+  return formatGuideNumber(e164, guide.numberFormat, country ?? guideCountry(guide))
 }
 
 /** A `tel:` link that opens the phone's dialer with the code filled in (`#` must be written as %23). */
@@ -1043,17 +937,19 @@ export type ForwardingInstructions =
 
 /**
  * What to dial or change to forward to `e164` in `mode`, and how to undo and check it; null when the guide has no
- * way for that mode (its `note` says what to do instead).
+ * way for that mode (its `note` says what to do instead). `country`: the country the business line is in (the one
+ * picked), which decides how the number is written; default the guide's own.
  */
 export function forwardingInstructions(
   guide: ForwardingGuide,
   mode: ForwardingMode,
   e164: string,
+  country?: string | null,
 ): ForwardingInstructions | null {
   if (guide.how === 'dial') {
     const steps = guide.modes[mode]
     if (!steps) return null
-    const number = guideNumber(guide, e164)
+    const number = guideNumber(guide, e164, country)
     const resolve = (c: DialCode): ResolvedCode => {
       const code = c.code.replaceAll('{number}', number)
       return { code, href: dialHref(code), ...(c.when ? { when: c.when } : {}) }
@@ -1068,7 +964,7 @@ export function forwardingInstructions(
   const steps = guide.modes[mode]
   if (!steps) return null
   const written = writtenNumber(e164)
-  const digits = `1${e164.replace(/^\+1/, '').replace(/\D/g, '')}`
+  const digits = e164.replace(/\D/g, '')
   const fill = (s: string) => s.replaceAll('{number}', written).replaceAll('{digits}', digits)
   return {
     how: 'settings',
@@ -1079,10 +975,14 @@ export function forwardingInstructions(
   }
 }
 
-/** +15035550142 → (503) 555-0142, the way US settings pages take it. */
+/**
+ * +15035550142 → (503) 555-0142, the way US settings pages take it; any other number internationally
+ * (+49 30 12345678), which a settings page takes from every country.
+ */
 function writtenNumber(e164: string): string {
   const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
-  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : e164
+  if (m) return `(${m[1]}) ${m[2]}-${m[3]}`
+  return parsePhoneNumberFromString(e164)?.formatInternational() ?? e164
 }
 
 /** The modes a guide has instructions for. */
