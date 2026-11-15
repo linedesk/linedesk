@@ -34,8 +34,8 @@ import {
   twilioBlockedCountries,
 } from '@linedesk/telephony'
 import { and, eq, gte, isNotNull, sql } from 'drizzle-orm'
+import { CHECK_TRUNK_NAME } from './carrier-profile-names.ts'
 import { db } from './db.ts'
-import { CHECK_TRUNK_NAME } from './forwarding-check.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { installTelephony } from './provider-settings.ts'
 import { pruneSpendCaps, recordSpendCaps, unconfirmedSpendCaps, WORKSPACE_PROFILES } from './telnyx-spend-caps.ts'

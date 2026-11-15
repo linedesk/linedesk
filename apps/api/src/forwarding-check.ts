@@ -46,6 +46,7 @@ import {
   telnyxSpendLimits,
 } from '@linedesk/telephony'
 import { and, count, desc, eq, gt, gte, isNull, or, sql } from 'drizzle-orm'
+import { CHECK_TRUNK_NAME } from './carrier-profile-names.ts'
 import { db } from './db.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { deleteLivekitRoom, findSipCallerRoom } from './livekit-status.ts'
@@ -91,8 +92,6 @@ const LOOKUP_LOCK = 'forwarding-check:lookup'
 const TRUNK_LOCK = 'forwarding-check:trunk'
 /** The caller ID forwarding checks show under `dev`: never dialled, only matched. */
 export const DEV_CHECK_NUMBER = '+12025550199'
-/** The LiveKit outbound trunk and the carrier objects forwarding checks dial through. */
-export const CHECK_TRUNK_NAME = 'linedesk-forwarding-check'
 /** The LiveKit room of a check's outbound call is this and the check's id. */
 const CHECK_ROOM_PREFIX = 'fwdcheck-'
 
