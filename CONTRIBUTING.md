@@ -24,9 +24,9 @@ pnpm dev          # API on 3100, web app on 5173
 
 The demo sign-in uses a password. Email codes go nowhere until email is connected (Server admin › Providers): for local development uncomment `EMAIL_TO_LOG=true` in `.env` to print them to the API log. There is no open sign-up: people get an account through an invitation or a server admin.
 
-Test data that every new local stack and worktree starts with: fill your account's workspace once (`pnpm db:seed -- --user you@example.com`), then `pnpm dev:snapshot`. A new database restores the snapshot (`~/.linedesk/dev-snapshot.dump`) by itself; `pnpm dev:restore --force` replaces an existing one. Details in [CLAUDE.md](CLAUDE.md) (commands).
+Test data that every new local stack and worktree starts with: fill your account's workspace once (`pnpm db:seed -- --user you@example.com`), then `pnpm dev:snapshot`. A new database restores the snapshot (`~/.linedesk/dev-snapshot.dump`) by itself; `pnpm dev:restore --force` replaces an existing one. Details in [docs/commands.md](docs/commands.md).
 
-Simulate a call without any provider keys: `pnpm --filter @linedesk/agent simulate` (dials the install's only number; otherwise add `--to <your Linedesk number>` or set `SIM_TO_NUMBER`). Real calls, voice and recordings: see [CLAUDE.md](CLAUDE.md) (commands) and [docs/architecture.md](docs/architecture.md).
+Simulate a call without any provider keys: `pnpm --filter @linedesk/agent simulate` (dials the install's only number; otherwise add `--to <your Linedesk number>` or set `SIM_TO_NUMBER`). Real calls, voice and recordings: see [docs/commands.md](docs/commands.md) and [docs/architecture.md](docs/architecture.md).
 
 ## How the code is built
 
@@ -34,7 +34,7 @@ Read these first; pull requests that go against them are sent back:
 
 - [docs/architecture.md](docs/architecture.md): how the system works.
 - [docs/design-principles.md](docs/design-principles.md): UI rules.
-- [CLAUDE.md](CLAUDE.md): conventions and commands (written for every contributor, human or not).
+- [CLAUDE.md](CLAUDE.md) (also `AGENTS.md`): conventions and the main commands (written for every contributor, human or not); all commands in [docs/commands.md](docs/commands.md).
 
 The rules that matter most:
 
