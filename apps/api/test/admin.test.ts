@@ -1803,9 +1803,15 @@ describe('user.invite (Add user)', () => {
   /** Signs in with an email code the way the sign-in page does; null when no code was sent. */
   async function codeSignIn(send: ReturnType<typeof spySend>, email: string): Promise<User | null> {
     const headers = { origin: 'http://localhost:5173', [FROM]: randomIp() }
+    // Only a code sent for this request: the email goes out after the response, so an earlier code may still be the last one.
+    const before = send.mock.calls.length
     const asked = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, headers)
     expect(asked.status).toBe(200)
-    const code = () => send.mock.calls.map(([m]) => m).findLast(m => m.to === email && /^\d{6} /.test(m.subject))
+    const code = () =>
+      send.mock.calls
+        .slice(before)
+        .map(([m]) => m)
+        .findLast(m => m.to === email && /^\d{6} /.test(m.subject))
     await vi.waitFor(() => expect(code()).toBeDefined())
     const res = await appRequest('/api/auth/sign-in/email-otp', {
       method: 'POST',
