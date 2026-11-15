@@ -5,8 +5,17 @@
 // for the first admin of an install. Only the code's SHA-256 is stored; it works once and for ENROLMENT_HOURS.
 // Also here: removing every passkey of a user, the recovery path that does not need their passkeys.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { admin_authenticators, agent_setup_keys, passkey, type SetupKeyEndReason, session, type Tx, user } from '@linedesk/db'
-import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
+import {
+  admin_authenticators,
+  agent_setup_keys,
+  member,
+  passkey,
+  type SetupKeyEndReason,
+  session,
+  type Tx,
+  user,
+} from '@linedesk/db'
+import { and, eq, gt, inArray, isNotNull, isNull, notExists, sql } from 'drizzle-orm'
 import { forgetAdminDevices } from './admin-devices.ts'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
@@ -77,31 +86,124 @@ export async function clearPasskeyEnrolment(userId: string) {
 export { passkeysResetEmail }
 
 /**
+ * The per-person lock of setup links (security review #822 F3, N1): making a link (agent-setup.ts insertKey) and every
+ * revoke below take it first, inside their transaction, until it ends. So a revoke never misses a link made at the same
+ * moment: it waits for that mint to commit and then ends it too, or the mint waits and re-checks what the revoke
+ * changed (the session, the role) after it. Callers always lock one person, or several in id order (lockSetupKeysOfAll).
+ */
+export async function lockSetupKeysOf(tx: Tx, userId: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`agent-setup-key:${userId}`}))`)
+}
+
+/** lockSetupKeysOf for several people, always in the same (id) order, so two of these never wait on each other. */
+async function lockSetupKeysOfAll(tx: Tx, userIds: readonly string[]) {
+  for (const id of [...new Set(userIds)].sort()) await lockSetupKeysOf(tx, id)
+}
+
+/**
+ * Runs `revoke` holding the people's setup-link locks: in the caller's transaction (a savepoint there, the locks held
+ * until it ends) or in a transaction of its own when called with the database (a password change's after-hook).
+ */
+const withSetupKeyLocks = <T>(tx: Tx, userIds: readonly string[], revoke: (t: Tx) => Promise<T>): Promise<T> =>
+  tx.transaction(async t => {
+    await lockSetupKeysOfAll(t, userIds)
+    return revoke(t)
+  })
+
+/**
  * Ends every AI agent setup link of the user (agent-setup.ts) wherever all their sessions end: a link is a way in
  * that would outlast them, with email and sign-in too while its passkey confirmation lasts. `reason` is what an agent
  * still using one is told, coarsely (agent-setup.ts setupKeyAccess). Returns how many were working.
  */
 export async function revokeSetupKeysOf(tx: Tx, userId: string, reason: SetupKeyEndReason): Promise<number> {
-  const ended = await tx
-    .update(agent_setup_keys)
-    .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
-    .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
-    .returning({ id: agent_setup_keys.id })
-  return ended.length
+  return withSetupKeyLocks(tx, [userId], async t => {
+    const ended = await t
+      .update(agent_setup_keys)
+      .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
+      .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
+      .returning({ id: agent_setup_keys.id })
+    return ended.length
+  })
 }
 
 /**
  * Ends every working workspace setup link for one workspace (agent_setup_keys.workspace_id): when it is handed to
  * another owner or disabled. Ended for good, so a link never works again when the owner or the workspace comes back
- * within its hours. Install links are not touched. Returns how many were working.
+ * within its hours. Install links are not touched. Holds the lock of each owner and admin there (the only ones who make
+ * these links), so a link one of them is making right now ends too. Returns how many were working.
  */
 export async function revokeWorkspaceSetupKeys(tx: Tx, workspaceId: string, reason: SetupKeyEndReason): Promise<number> {
-  const ended = await tx
-    .update(agent_setup_keys)
-    .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
-    .where(and(eq(agent_setup_keys.workspace_id, workspaceId), isNull(agent_setup_keys.revoked_at)))
-    .returning({ id: agent_setup_keys.id })
-  return ended.length
+  const makers = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), inArray(member.role, ['owner', 'admin'])))
+  return withSetupKeyLocks(
+    tx,
+    makers.map(m => m.userId),
+    async t => {
+      const ended = await t
+        .update(agent_setup_keys)
+        .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
+        .where(and(eq(agent_setup_keys.workspace_id, workspaceId), isNull(agent_setup_keys.revoked_at)))
+        .returning({ id: agent_setup_keys.id })
+      return ended.length
+    },
+  )
+}
+
+/**
+ * Ends one person's workspace setup links for one workspace, for good: their role there changed (an admin made a member,
+ * or anyone made the owner) or they left or were removed. A link acts with its maker's role when it was made
+ * (agent_setup_keys.role), so it never outlives that role. Their links elsewhere and install links are not touched.
+ */
+export async function revokeMemberSetupKeys(
+  tx: Tx,
+  workspaceId: string,
+  userId: string,
+  reason: SetupKeyEndReason,
+): Promise<number> {
+  return withSetupKeyLocks(tx, [userId], async t => {
+    const ended = await t
+      .update(agent_setup_keys)
+      .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
+      .where(
+        and(
+          eq(agent_setup_keys.created_by, userId),
+          eq(agent_setup_keys.workspace_id, workspaceId),
+          isNull(agent_setup_keys.revoked_at),
+        ),
+      )
+      .returning({ id: agent_setup_keys.id })
+    return ended.length
+  })
+}
+
+/**
+ * Ends the person's setup links whose session is gone (security review #822 N2): after one device is signed out in
+ * Settings › Account › Sessions (Better Auth `/revoke-session`), or a plain sign-out. A link is tied to the session that
+ * made it (agent_setup_keys.session_id); setupKeyAccess ends it on use too, this ends it at once. Returns how many.
+ */
+export async function revokeSetupKeysOfEndedSessions(tx: Tx, userId: string): Promise<number> {
+  return withSetupKeyLocks(tx, [userId], async t => {
+    const ended = await t
+      .update(agent_setup_keys)
+      .set({ revoked_at: new Date().toISOString(), ended_reason: 'session_ended' })
+      .where(
+        and(
+          eq(agent_setup_keys.created_by, userId),
+          isNull(agent_setup_keys.revoked_at),
+          isNotNull(agent_setup_keys.session_id),
+          notExists(
+            t
+              .select({ one: sql`1` })
+              .from(session)
+              .where(and(eq(session.id, agent_setup_keys.session_id), gt(session.expiresAt, new Date()))),
+          ),
+        ),
+      )
+      .returning({ id: agent_setup_keys.id })
+    return ended.length
+  })
 }
 
 export type PasskeysRemoved = { removed: number; sessionsEnded: number; setupLinksEnded: number }

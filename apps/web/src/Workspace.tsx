@@ -54,6 +54,7 @@ import { useRoute } from './shell/useRoute.ts'
 import { useSignOut } from './shell/useSignOut.ts'
 import { useCallNotifications } from './shell/useCallNotifications.ts'
 import { useToast, type Source } from './shell/useToast.ts'
+import { mayChangeWithAgent } from './settings/agentChange.ts'
 import { preloadWorkspaceSettings } from './settings/settings-api.ts'
 import { memberLabel, useAssignableMembers } from './team/members.ts'
 import { preloadTeam } from './team/team-api.ts'
@@ -556,6 +557,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
               {page.render({
                 toast: toaster.show,
                 canEditSettings: me.permissions.includes('settings:write'),
+                agentChange: mayChangeWithAgent(me),
                 isInstanceAdmin: instanceAdmin,
                 userId: me.actorId,
                 menu,

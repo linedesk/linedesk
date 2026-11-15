@@ -22,7 +22,7 @@ import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { passwordChangedEmail, passwordResetCodeEmail } from './emails/templates.ts'
-import { revokeSetupKeysOf } from './passkey-enrolment.ts'
+import { revokeSetupKeysOf, revokeSetupKeysOfEndedSessions } from './passkey-enrolment.ts'
 import { countWrongCode } from './sign-in-limits.ts'
 import { localeForEmail } from './email-locale.ts'
 
@@ -125,8 +125,10 @@ export function sameAnswerForRefusedCodes(ctx: Ctx) {
 /**
  * The signed-in person's own endpoints that end their other sessions, and why each ends their setup links too
  * (security review #822 F2): a link acts as them for hours, so "sign out everywhere else" and a new password must end
- * it as well. Better Auth's `/revoke-session` (one device) is left alone. Setting a first password (account.ts) ends
- * them itself.
+ * it as well. Setting a first password (account.ts) ends them itself. A session that ends any other way (`/sign-out`,
+ * `/revoke-session` in Settings › Account › Sessions, any other deletion of the row) ends the links made in it:
+ * setupLinkSessionHooks (review N2, #832 N4); on use, setupKeyAccess ends any link whose session is gone, also one
+ * that expired.
  */
 const SETUP_LINKS_END_ON: Record<string, SetupKeyEndReason> = {
   '/change-password': 'password_changed',
@@ -139,7 +141,23 @@ export async function endSetupLinksAfterSessionChange(ctx: Ctx) {
   const reason = SETUP_LINKS_END_ON[ctx.path]
   if (!reason || isAPIError(ctx.context.returned)) return
   const userId = (ctx.context.session as { user?: { id?: string } } | null)?.user?.id
-  if (userId) await revokeSetupKeysOf(db, userId, reason)
+  if (!userId) return
+  await revokeSetupKeysOf(db, userId, reason)
+}
+
+/**
+ * Better Auth `session.delete.after`: every deleted session row (signing out, ending one session, all sessions)
+ * ends the setup links made in it at once, so no page shows a dead link as ready. `/sign-out` never sets
+ * `ctx.context.session`, so an endpoint after-hook cannot see whose session it was (#832 N4); the row can.
+ */
+export const setupLinkSessionHooks = {
+  session: {
+    delete: {
+      after: async (ended: { userId: string }) => {
+        await revokeSetupKeysOfEndedSessions(db, ended.userId)
+      },
+    },
+  },
 }
 
 /**

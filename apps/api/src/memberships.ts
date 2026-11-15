@@ -20,6 +20,7 @@ import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { revokeMemberSetupKeys } from './passkey-enrolment.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
 import type { UiLocale } from '@linedesk/i18n'
@@ -82,6 +83,8 @@ export async function ownerJoined(
  * for the remover's own store (CLAUDE.md rule 3).
  */
 export async function forgetMember(tx: Tx, workspaceId: string, userId: string) {
+  // Their workspace setup links there end for good (they no longer have a role to act with).
+  await revokeMemberSetupKeys(tx, workspaceId, userId, 'left_workspace')
   await dropWorkspacePush(tx, workspaceId, userId)
   const unassigned = await tx
     .update(calls)
@@ -436,6 +439,9 @@ export const membershipHandlers: Record<string, Handler> = {
     } else {
       keepTheOwner(target)
       await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
+      // A workspace setup link acts with the role it was made with: another role ends it for good.
+      if (target.role !== input.role)
+        await revokeMemberSetupKeys(tx, target.organizationId, target.userId, 'role_changed')
     }
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },

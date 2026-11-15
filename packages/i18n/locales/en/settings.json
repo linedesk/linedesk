@@ -1,4 +1,8 @@
 {
+  "agentChange.agentTip": "Let Claude, ChatGPT or another AI agent change these settings with you",
+  "agentChange.assistant": "An AI agent can change {name}’s settings with you. Tell it what to change, it does the rest.",
+  "agentChange.stepsTip": "Change the settings yourself in the form below",
+  "agentChange.workspace": "An AI agent can change these settings with you. Tell it what to change, it does the rest.",
   "areaCode.list": "US area codes",
   "areaCode.noMatch": "No US area code matches. Try a nearby city or the state.",
   "areaCode.search": "Search a city, state or area code",

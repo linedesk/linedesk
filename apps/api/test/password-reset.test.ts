@@ -182,7 +182,8 @@ describe('resetting a password with an emailed code', () => {
 
   test('when the cleanup fails, the change is still in the audit log and the error goes on (review L3)', async () => {
     const who = await member()
-    vi.spyOn(db, 'update').mockImplementationOnce(() => {
+    // The first write of the cleanup (ending setup links, in a transaction of its own under the person's lock).
+    vi.spyOn(db, 'transaction').mockImplementationOnce(() => {
       throw new Error('database gone')
     })
     vi.spyOn(console, 'error').mockImplementation(() => {})

@@ -50,6 +50,8 @@ function dangerDescription(canEdit: boolean, role: string | undefined): MessageK
 
 type Props = {
   canEdit: boolean
+  /** "Change with an AI agent" on top of General (owners and admins, agentChange.ts). */
+  agentChange?: boolean
   phoneSetup: PhoneSetupStatus | null
   isInstanceAdmin: boolean
   workspaceName: string
@@ -58,7 +60,15 @@ type Props = {
   toast: (text: string) => void
 }
 
-export function WorkspaceSettings({ canEdit, phoneSetup, isInstanceAdmin, workspaceName, onRenamed, toast }: Props) {
+export function WorkspaceSettings({
+  canEdit,
+  agentChange = false,
+  phoneSetup,
+  isInstanceAdmin,
+  workspaceName,
+  onRenamed,
+  toast,
+}: Props) {
   const t = useT()
   const team = useTeam().data
   const role = team?.members.find(m => m.userId === team.me)?.role
@@ -79,7 +89,13 @@ export function WorkspaceSettings({ canEdit, phoneSetup, isInstanceAdmin, worksp
         current={current}
       >
         {current === 'general' && (
-          <WorkspaceGeneral canEdit={canEdit} name={workspaceName} onRenamed={onRenamed} toast={toast} />
+          <WorkspaceGeneral
+            canEdit={canEdit}
+            agentChange={agentChange}
+            name={workspaceName}
+            onRenamed={onRenamed}
+            toast={toast}
+          />
         )}
         {current === 'team' && <TeamSection toast={toast} />}
         {current === 'phone' && (

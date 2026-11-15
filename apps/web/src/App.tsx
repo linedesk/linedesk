@@ -14,6 +14,8 @@ import {
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { ownerAgentSetupDue, ownerChoseByHand, rememberOwnerByHand } from './onboarding/setup-choice.ts'
+import { mayChangeWithAgent, useChangeWithAgent } from './settings/agentChange.ts'
+import { ChangeWithAgent } from './settings/ChangeWithAgent.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { Onboarding } from './onboarding/Onboarding.tsx'
@@ -21,7 +23,7 @@ import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { switchToWorkspace } from './shell/invitations.ts'
 import { linkNotice, linkWorkspace, linkWorkspaceTarget, withoutLinkWorkspace } from './shell/useRoute.ts'
 import { TabWorkspaceGuard } from './shell/TabWorkspaceNotice.tsx'
-import { disabledWorkspaceText, StoreProvider } from './store.tsx'
+import { disabledWorkspaceText, StoreProvider, useRun } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
@@ -125,6 +127,8 @@ export function App() {
   const adminHash = useAdminHash()
   const agentSetupHash = useHashIs(isAgentSetupHash)
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
+  // Workspace or Assistant settings › "Change with an AI agent" (#change-with-agent/…, agentChange.ts).
+  const changeTarget = useChangeWithAgent()
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
   // A workspace owner sets up their workspace with an AI agent first too (setup-choice.ts), unless they chose by hand.
@@ -373,10 +377,19 @@ export function App() {
       >
         <TabWorkspaceGuard me={session.me}>
           {ownerSetup ? (
-            <AgentSetup
-              scope="workspace"
-              workspaceName={session.me.workspace!.name}
+            <OwnerAgentSetup
               active={{ id: session.me.workspace!.id, account: session.me.actorId }}
+              // While the onboarding is open: finish it later, as the business onboarding's "Finish later" does.
+              onLater={
+                settingUp
+                  ? () => {
+                      rememberOwnerByHand(session.me.workspace!.id, true)
+                      setOwnerByHand(true)
+                      leaveOwnerSetup()
+                      setOnboarded(true)
+                    }
+                  : undefined
+              }
               onManual={() => {
                 rememberOwnerByHand(session.me.workspace!.id, true)
                 setOwnerByHand(true)
@@ -389,6 +402,12 @@ export function App() {
                 leaveOwnerSetup()
                 void refresh()
               }}
+            />
+          ) : changeTarget && mayChangeWithAgent(session.me) && !settingUp ? (
+            <ChangeWithAgent
+              target={changeTarget}
+              workspace={{ id: session.me.workspace!.id, name: session.me.workspace!.name }}
+              account={session.me.actorId}
             />
           ) : /* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */
           session.me.onboarding && !onboarded && !(adminHash && isInstanceAdmin(session.me)) ? (
@@ -414,5 +433,40 @@ export function App() {
         </TabWorkspaceGuard>
       </StoreProvider>
     </ImpersonationFrame>
+  )
+}
+
+/**
+ * The owner's agent setup page (AgentSetup, scope "workspace"). `onLater`: "Finish later" in its top bar, as in the
+ * business onboarding (Onboarding.tsx): the onboarding is set aside (step "skipped"), what is left waits in the go-live
+ * checklist.
+ */
+function OwnerAgentSetup({
+  active,
+  onManual,
+  onDone,
+  onLater,
+}: {
+  active: { id: string; account: string }
+  onManual: () => void
+  onDone: () => void
+  onLater?: () => void
+}) {
+  const run = useRun()
+  return (
+    <AgentSetup
+      scope="workspace"
+      active={active}
+      onManual={onManual}
+      onDone={onDone}
+      onLater={
+        onLater
+          ? () => {
+              void run('onboarding.setStep', { step: 'skipped' })
+              onLater()
+            }
+          : undefined
+      }
+    />
   )
 }

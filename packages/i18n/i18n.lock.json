@@ -10820,11 +10820,6 @@
       "out": "3d1d99cfa3c8d62e85e66837cc4caba9e0c46bbe71353ce52c6d197ac53b17b8",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
-    "onboarding.agentSetup.owner.changeTitle": {
-      "by": "ai",
-      "out": "5bfc49be30a16daa73cd5ee448db9c3e235b7793ac1a54d9217b2afcebe2fd5a",
-      "src": "2659e2671450142f5d676609dd614ef69fb1e7ceb266397de1cc08f4fea17db9"
-    },
     "onboarding.agentSetup.owner.lede": {
       "by": "ai",
       "out": "e749763fed234cb15f1e98ae106bf62f4f2901b914b961c19bca8c10006472f5",
@@ -10844,11 +10839,6 @@
       "by": "ai",
       "out": "c1f21cf7677c5fbca9b96b9925ac015ac603242af125ace53af5d960a315eea1",
       "src": "c88dfbf2f56fa77366b8ae2a84e54a1e228523f0d3febb5279ce9cd74b9185dc"
-    },
-    "onboarding.agentSetup.owner.title": {
-      "by": "ai",
-      "out": "7edca97364dc541628909ff2076697ead9cba784e28ac6d86e530db1d5859009",
-      "src": "9d5487f15cd9bfb5a616f52d5d11e18ff81506944a845d6e11c26e1abbc44aef"
     },
     "onboarding.agentSetup.progress.allDone": {
       "by": "ai",
@@ -30492,11 +30482,6 @@
       "out": "ddf6ca99d754cdf2748cf952597a5c8ccd5ea4f4df113afd2ee104ddc9df2e63",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
-    "onboarding.agentSetup.owner.changeTitle": {
-      "by": "ai",
-      "out": "32a17a1dbb683559f93636320b45d75c25a51d8603b737b9cb8e06f63bfc0216",
-      "src": "2659e2671450142f5d676609dd614ef69fb1e7ceb266397de1cc08f4fea17db9"
-    },
     "onboarding.agentSetup.owner.lede": {
       "by": "ai",
       "out": "93d7a3f389409f623a9a1f22250bcfcd8b38bb71ddc872b6889f4fed0ab0c589",
@@ -30516,11 +30501,6 @@
       "by": "ai",
       "out": "f2fa8d266e8cd953772236f5df085772775e5131ec9c584f316894ee5998e32e",
       "src": "c88dfbf2f56fa77366b8ae2a84e54a1e228523f0d3febb5279ce9cd74b9185dc"
-    },
-    "onboarding.agentSetup.owner.title": {
-      "by": "ai",
-      "out": "1ccef38ca1c79f036f6b937a9a0cb3c8853b417bd3d05224ef8fb51eaf89221c",
-      "src": "9d5487f15cd9bfb5a616f52d5d11e18ff81506944a845d6e11c26e1abbc44aef"
     },
     "onboarding.agentSetup.progress.allDone": {
       "by": "ai",
@@ -50164,11 +50144,6 @@
       "out": "db42d44bfd39580b87180eb7464c792af470f025bde85ab0a87d5433dcdf25cf",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
-    "onboarding.agentSetup.owner.changeTitle": {
-      "by": "ai",
-      "out": "8c2a8d8c2ce8f126da9be90538c28f28c2bce69a9c0b791925004ebe61b69f0b",
-      "src": "2659e2671450142f5d676609dd614ef69fb1e7ceb266397de1cc08f4fea17db9"
-    },
     "onboarding.agentSetup.owner.lede": {
       "by": "ai",
       "out": "5437e60fade5ca13e2ae6e1a4c8dfff90644f262377c2254702e18d814607974",
@@ -50188,11 +50163,6 @@
       "by": "ai",
       "out": "41766356ed16f2e6fc682958261f7784067ba88e70bfa2775435eb0a23bf8faa",
       "src": "c88dfbf2f56fa77366b8ae2a84e54a1e228523f0d3febb5279ce9cd74b9185dc"
-    },
-    "onboarding.agentSetup.owner.title": {
-      "by": "ai",
-      "out": "21122671a3324b2a2271ccafc2804dad3f50523dd759addc8d900a772901f613",
-      "src": "9d5487f15cd9bfb5a616f52d5d11e18ff81506944a845d6e11c26e1abbc44aef"
     },
     "onboarding.agentSetup.progress.allDone": {
       "by": "ai",
@@ -69836,11 +69806,6 @@
       "out": "f06ca61f09b6b8d1505653af3f743022839aa16349270a6c6426eba9bccdf999",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
-    "onboarding.agentSetup.owner.changeTitle": {
-      "by": "ai",
-      "out": "fb39808e93177b78cd0e72b0a7fde127a463c1214ebf186b4ffd284325982d65",
-      "src": "2659e2671450142f5d676609dd614ef69fb1e7ceb266397de1cc08f4fea17db9"
-    },
     "onboarding.agentSetup.owner.lede": {
       "by": "ai",
       "out": "bb71ad3e932428cdae763f4a494588af1d9cd066de5b4aecc097cea202740c33",
@@ -69860,11 +69825,6 @@
       "by": "ai",
       "out": "d71feab50584f8add27e6b2729b392482581fe06769691ffda0834c8a0fa4c3e",
       "src": "c88dfbf2f56fa77366b8ae2a84e54a1e228523f0d3febb5279ce9cd74b9185dc"
-    },
-    "onboarding.agentSetup.owner.title": {
-      "by": "ai",
-      "out": "923b9aa8120320b9dc77e36e0ef714e22e1b914e5e4234572f5d7fad4a9a981d",
-      "src": "9d5487f15cd9bfb5a616f52d5d11e18ff81506944a845d6e11c26e1abbc44aef"
     },
     "onboarding.agentSetup.progress.allDone": {
       "by": "ai",
@@ -89508,11 +89468,6 @@
       "out": "2838ce6b0ab7ec1b1a906d0772702710df5e34c2f5c50301ea1ae114974ab1e4",
       "src": "3a804808d60dbd9d45c0bc0ca09ff158a05c37418940f189424062019952b626"
     },
-    "onboarding.agentSetup.owner.changeTitle": {
-      "by": "ai",
-      "out": "ef5dfc9e928c6177023b373e6ba20fe92c8e33971881b3786a396f407bab4d89",
-      "src": "2659e2671450142f5d676609dd614ef69fb1e7ceb266397de1cc08f4fea17db9"
-    },
     "onboarding.agentSetup.owner.lede": {
       "by": "ai",
       "out": "8a791febd06fefe5ade116730da0a77c47c0c8a7d017f99857df06fb1243e731",
@@ -89532,11 +89487,6 @@
       "by": "ai",
       "out": "c1c864dbba27f5af62150fad1c90fa22507595bc235b33ceb84611d2635d8be4",
       "src": "c88dfbf2f56fa77366b8ae2a84e54a1e228523f0d3febb5279ce9cd74b9185dc"
-    },
-    "onboarding.agentSetup.owner.title": {
-      "by": "ai",
-      "out": "ca9a9f5bd589fdca22b85f590fc685d9ada35d279a07c5a9f1a1ce9822f8fa8c",
-      "src": "9d5487f15cd9bfb5a616f52d5d11e18ff81506944a845d6e11c26e1abbc44aef"
     },
     "onboarding.agentSetup.progress.allDone": {
       "by": "ai",

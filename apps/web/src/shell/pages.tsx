@@ -15,6 +15,8 @@ import { i18n } from '../i18n/index.tsx'
 export type PageProps = {
   toast: (text: string) => void
   canEditSettings: boolean
+  /** Owners and admins: "Change with an AI agent" on top of the workspace's and the assistant's settings. */
+  agentChange: boolean
   isInstanceAdmin: boolean
   userId: string
   menu: ReactNode
@@ -48,7 +50,14 @@ export const pages = {
       return i18n().t('shell.page.assistant')
     },
     sections: true,
-    render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} isInstanceAdmin={p.isInstanceAdmin} />,
+    render: p => (
+      <AssistantSettings
+        canEdit={p.canEditSettings}
+        agentChange={p.agentChange}
+        toast={p.toast}
+        isInstanceAdmin={p.isInstanceAdmin}
+      />
+    ),
   },
   // Everything about the workspace that is not the assistant: its name, the team, numbers, recordings, export,
   // API keys and leaving it (#workspace/<section>). Old #settings and #team links are rewritten (useRoute.ts).
@@ -60,6 +69,7 @@ export const pages = {
     render: p => (
       <WorkspaceSettings
         canEdit={p.canEditSettings}
+        agentChange={p.agentChange}
         phoneSetup={p.phoneSetup}
         isInstanceAdmin={p.isInstanceAdmin}
         workspaceName={p.workspaceName}

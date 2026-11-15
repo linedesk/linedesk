@@ -11,6 +11,7 @@ import { Input } from '../ui/form.tsx'
 import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { AgentChangeNote } from './AgentChange.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, Section } from './fields.tsx'
@@ -30,10 +31,22 @@ type Props = {
   toast: (text: string) => void
 }
 
-export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
+/**
+ * General: the business name, icon, country, language, time zone and appointment value. On top, for owners and admins
+ * (`agentChange`), the offer to change them with an AI agent (AgentChange.tsx): the section the page opens at, and the
+ * one whose settings an agent can change (the team, numbers, recordings, API keys and the danger zone it cannot).
+ */
+export function WorkspaceGeneral({
+  canEdit,
+  agentChange = false,
+  name,
+  onRenamed,
+  toast,
+}: Props & { agentChange?: boolean }) {
   const t = useT()
   return (
     <Section id="ws-general" title={t('settings.workspace.nav.general.label')}>
+      {agentChange && <AgentChangeNote target={{ kind: 'workspace' }} firstField="ws-name" />}
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
       <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={onlyAdmins()} toast={toast} />
       <Country canEdit={canEdit} />

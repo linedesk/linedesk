@@ -23,6 +23,7 @@ import { APIError } from 'better-auth/api'
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { recordAuthEvent } from './audit.ts'
 import { db } from './db.ts'
+import { lockSetupKeysOf } from './passkey-enrolment.ts'
 
 /** Microsoft's tenant for personal accounts (Outlook.com, Hotmail, Live): Microsoft verifies their addresses. */
 export const MICROSOFT_CONSUMER_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad'
@@ -103,6 +104,8 @@ export function mapOidcProfile(
  */
 export async function dropUnprovenAccessOf(userId: string, keepAccountId?: string) {
   const reset = await db.transaction(async tx => {
+    // The person's setup-link lock first, as every revoke (#832 N6): a link made at this moment is ended below.
+    await lockSetupKeysOf(tx, userId)
     await tx
       .delete(account)
       .where(

@@ -36,8 +36,8 @@ import {
   SETUP_KEY_HOURS,
   SETUP_KEY_PREFIX,
 } from '@linedesk/actions'
-import { agent_setup_keys, member, organization, user } from '@linedesk/db'
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { agent_setup_keys, member, organization, type SetupKeyEndReason, session, user } from '@linedesk/db'
+import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { addressBucket } from './client-ip.ts'
@@ -45,6 +45,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { lockSetupKeysOf } from './passkey-enrolment.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 
 /** Shown to tell keys apart: the prefix and 8 characters of the key. */
@@ -67,7 +68,7 @@ export const setupMcpUrl = () => `${webAddress()}/mcp/setup`
 /** Per key, working or ended, checked in setupKeyAccess before any other work on it. */
 const allowRequest = createRateLimiter({ max: SETUP_KEY_REQUESTS_PER_MINUTE, windowMs: 60_000 })
 /** Unknown setup keys per address: 10 in 10 minutes, then unknown keys from that address get a 429 (a working key never). */
-/** Workspace setup links one owner may make (security review #822 F6): each ends the one before, so this is only a brake. */
+/** Workspace setup links one person may make (security review #822 F6): each ends the one before, so this is only a brake. */
 const allowWorkspaceKeyMint = createRateLimiter({ max: 10, windowMs: 10 * 60_000 })
 const refused = createFailureLimiter({ max: 10, windowMs: 10 * 60_000 })
 export const tooManyRefusedSetupKeys = (ip: string | null) => refused.blocked(addressBucket(ip))
@@ -114,20 +115,33 @@ export async function setupActor(
   }
 }
 
+/** The workspace roles that make a workspace setup link (agentSetup.createWorkspaceKey): the owner and admins. */
+export const WORKSPACE_KEY_ROLES = ['owner', 'admin'] as const
+export type WorkspaceKeyRole = (typeof WORKSPACE_KEY_ROLES)[number]
+const isWorkspaceKeyRole = (role: string | null | undefined): role is WorkspaceKeyRole =>
+  role === 'owner' || role === 'admin'
+
 /**
- * The actor of a workspace key (agent_setup_keys.workspace_id): its maker, while still the owner of that workspace,
- * with no permission of its own besides ending its link. Like setupActor it is in no workspace: every business tool
- * names it (setupActorIn, which allows only this one). Null when the account is gone or disabled, the maker is no
- * longer that workspace's owner, or the workspace is disabled or gone: the key then answers as ended.
+ * The actor of a workspace key (agent_setup_keys.workspace_id): its maker, while their role in that workspace is still
+ * the one the key was made with (`role`, owner or admin), with no permission of its own besides ending its link. Like
+ * setupActor it is in no workspace: every business tool names it (setupActorIn, which allows only this one, with that
+ * role's rights). Null when the account is gone or disabled, the maker's role there is another (or none), the key has
+ * no role, or the workspace is disabled or gone: the key then answers as ended.
  */
-export async function workspaceSetupActor(userId: string, keyId: string, workspaceId: string): Promise<Actor | null> {
+export async function workspaceSetupActor(
+  userId: string,
+  keyId: string,
+  workspaceId: string,
+  role: string | null,
+): Promise<Actor | null> {
+  if (!isWorkspaceKeyRole(role)) return null
   const [found] = await db
     .select({ disabledAt: user.disabledAt, emailVerified: user.emailVerified, role: member.role })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId), isNull(organization.disabledAt)))
-  if (!found || found.disabledAt || found.role !== 'owner') return null
+  if (!found || found.disabledAt || found.role !== role) return null
   return {
     actorId: userId,
     role: 'member',
@@ -135,18 +149,19 @@ export async function workspaceSetupActor(userId: string, keyId: string, workspa
     permissions: ['setupLink:end'],
     setupKeyId: keyId,
     setupWorkspaceId: workspaceId,
+    setupWorkspaceRole: role,
     ...(mustConfirmEmail(found.emailVerified) ? { emailUnverified: true as const } : {}),
   }
 }
 
 /**
  * The workspaces a setup key may set up: for an install key, every one its admin manages (managedWorkspaces); for a
- * workspace key, only its own, and only while its maker is still the owner there.
+ * workspace key, only its own, and only while its maker still has the role the key was made with there.
  */
 export async function setupWorkspaces(actor: Actor): Promise<ManagedWorkspace[]> {
   const all = await managedWorkspaces(actor.actorId)
   if (!actor.setupWorkspaceId) return all
-  return all.filter(w => w.id === actor.setupWorkspaceId && w.role === 'owner')
+  return all.filter(w => w.id === actor.setupWorkspaceId && w.role === actor.setupWorkspaceRole)
 }
 
 /**
@@ -233,14 +248,17 @@ export async function setupKeyAccess(key: string, ip: string | null): Promise<Se
   const now = new Date().toISOString()
   if (new Date(row.expires_at).getTime() <= Date.parse(now)) return { kind: 'ended', reason: 'expired' }
   // A workspace owner's key: that workspace only, never instance admin rights, so the server's passkey rule is not its.
+  // Tied to the session that made it (security review #822 N2): signed out, signed out from another device or expired,
+  // the link ends for good with it.
+  if (!(await makerSessionLives(row))) {
+    await endForGood(row.id, now, 'session_ended')
+    return { kind: 'ended', reason: 'ended' }
+  }
   if (row.workspace_id) {
-    const actor = await workspaceSetupActor(row.created_by, row.id, row.workspace_id)
+    const actor = await workspaceSetupActor(row.created_by, row.id, row.workspace_id, row.role)
     if (!actor) {
-      // Ended for good: the link must not work again if the owner role or the workspace comes back (review #822 F1).
-      await db
-        .update(agent_setup_keys)
-        .set({ revoked_at: now, ended_reason: 'owner_lost' })
-        .where(and(eq(agent_setup_keys.id, row.id), isNull(agent_setup_keys.revoked_at)))
+      // Ended for good: the link must not work again if the role or the workspace comes back (review #822 F1).
+      await endForGood(row.id, now, await workspaceKeyEndReason(row.created_by, row.workspace_id))
       return { kind: 'ended', reason: 'ended' }
     }
     noteUse(row, now)
@@ -253,6 +271,41 @@ export async function setupKeyAccess(key: string, ip: string | null): Promise<Se
   if (!actor) return { kind: 'ended', reason: 'ended' }
   noteUse(row, now)
   return { kind: 'ok', actor }
+}
+
+/**
+ * Why a workspace key's maker may no longer use it there (workspaceSetupActor said no), for its `ended_reason`: the
+ * account or the workspace disabled, the maker gone from the workspace, or another role (#832 N10).
+ */
+async function workspaceKeyEndReason(userId: string, workspaceId: string): Promise<SetupKeyEndReason> {
+  const [found] = await db
+    .select({ accountDisabledAt: user.disabledAt, role: member.role, workspaceDisabledAt: organization.disabledAt })
+    .from(user)
+    .leftJoin(member, and(eq(member.userId, user.id), eq(member.organizationId, workspaceId)))
+    .leftJoin(organization, eq(organization.id, workspaceId))
+    .where(eq(user.id, userId))
+  if (!found || found.accountDisabledAt) return 'account_disabled'
+  if (found.workspaceDisabledAt) return 'workspace_disabled'
+  if (!found.role) return 'left_workspace'
+  return 'role_changed'
+}
+
+/** Ends a key found no longer valid on use, unless something ended it meanwhile (that reason stays). */
+async function endForGood(id: string, now: string, reason: SetupKeyEndReason) {
+  await db
+    .update(agent_setup_keys)
+    .set({ revoked_at: now, ended_reason: reason })
+    .where(and(eq(agent_setup_keys.id, id), isNull(agent_setup_keys.revoked_at)))
+}
+
+/** Whether the sign-in session that made the key still lives (its maker's, not expired). No session: never. */
+async function makerSessionLives(row: { session_id: string | null; created_by: string }): Promise<boolean> {
+  if (!row.session_id) return false
+  const [found] = await db
+    .select({ id: session.id })
+    .from(session)
+    .where(and(eq(session.id, row.session_id), eq(session.userId, row.created_by), gt(session.expiresAt, new Date())))
+  return Boolean(found)
 }
 
 /** Notes when a key was last used (the setup page's "connected"), at most once a minute. */
@@ -271,10 +324,50 @@ const shownEndReason = (reason: string | null): SetupKeyEndedReason =>
 
 /** Only a signed-in admin hands out a setup key: never a key, an agent or an admin signed in as someone else. */
 function refuseNonPerson(actor: Actor) {
-  if (actor.apiKeyId || actor.setupKeyId || actor.callId || actor.role === 'agent')
+  // A session too: a link lives as long as the session that made it (agent_setup_keys.session_id).
+  if (actor.apiKeyId || actor.setupKeyId || actor.callId || actor.role === 'agent' || !actor.sessionId)
     throw new Forbidden('Make a setup key in the app, signed in as an instance admin.')
   if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
 }
+
+/**
+ * After the lock (security review #822 N1): the session that asks still lives, and for a workspace key the person still
+ * has the role the request came with there, in a workspace that is not disabled (nor the account). A revoke that ran just before (a password change, a signed-out session, a
+ * role change, a removal) is committed by now, so this sees it and nothing is made.
+ */
+async function stillMayMake(tx: Parameters<Handler>[0]['tx'], actor: Actor, workspaceId: string | null) {
+  const [live] = await tx
+    .select({ id: session.id })
+    .from(session)
+    .innerJoin(user, eq(user.id, session.userId))
+    .where(
+      and(
+        eq(session.id, actor.sessionId!),
+        eq(session.userId, actor.actorId),
+        gt(session.expiresAt, new Date()),
+        isNull(user.disabledAt),
+      ),
+    )
+  if (!live) throw new Forbidden('Your session ended. Sign in again to create a setup link.')
+  if (!workspaceId) return
+  // The workspace too (#832 N5): a disable that committed while this request waited for the lock leaves no link that
+  // would work again once the workspace is enabled.
+  const [me] = await tx
+    .select({ role: member.role })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(
+      and(
+        eq(member.userId, actor.actorId),
+        eq(member.organizationId, workspaceId),
+        isNull(organization.disabledAt),
+      ),
+    )
+  if (!me || me.role !== actor.role) throw new Forbidden(ONLY_OWNER_OR_ADMIN)
+}
+
+/** agentSetup.createWorkspaceKey from someone who is not the workspace's owner or an admin there. */
+export const ONLY_OWNER_OR_ADMIN = "Only the workspace's owner or an admin makes a setup link for it."
 
 /**
  * Makes a setup key: an install key (workspaceId null) or a workspace key. One key at a time per person, whatever its
@@ -287,8 +380,10 @@ async function insertKey(
   workspaceId: string | null,
 ): Promise<AgentSetupKeyCreated> {
   // One maker at a time (security review #822 F3): two mints at once would otherwise both see no newer key and both
-  // stay working. Held until the transaction ends.
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`agent-setup-key:${actor.actorId}`}))`)
+  // stay working. Held until the transaction ends. Every revoke takes the same lock (passkey-enrolment.ts), so what
+  // it changed before is read below, and what it changes after sees this key (review N1).
+  await lockSetupKeysOf(tx, actor.actorId)
+  await stillMayMake(tx, actor, workspaceId)
   await tx
     .update(agent_setup_keys)
     .set({ revoked_at: now, ended_reason: 'replaced' })
@@ -303,6 +398,8 @@ async function insertKey(
       key_hash: hashSetupKey(key),
       created_by: actor.actorId,
       workspace_id: workspaceId,
+      role: workspaceId ? (actor.role as WorkspaceKeyRole) : null,
+      session_id: actor.sessionId!,
       expires_at: expiresAt,
       // Whether this session passed the passkey check: an install key made without it (the rule off) stops working
       // once the rule is on again (setupKeyAccess). A workspace key never carries it.
@@ -321,20 +418,24 @@ export const agentSetupHandlers: Record<string, Handler> = {
     return { rows: {}, data: await insertKey(tx, actor, now, null) }
   },
 
-  // A workspace owner's key for the session's workspace (workspace:own, checked by run-action.ts; disabled workspaces
-  // keep read permissions only). Only a person signed in as themselves: never a key, an agent or impersonation.
+  // A workspace key for the session's workspace, made by its owner or an admin (settings:write, checked by
+  // run-action.ts; disabled workspaces keep read permissions only). Only a person signed in as themselves: never a
+  // key, an agent or impersonation.
   'agentSetup.createWorkspaceKey': async ({ tx, actor, now }) => {
     refuseNonPerson(actor)
-    if (!actor.workspaceId || actor.role !== 'owner')
-      throw new Forbidden('Only the workspace owner makes a setup link for it.')
+    // The owner or an admin (settings:write, checked by run-action.ts); the key acts with that role, never more.
+    if (!actor.workspaceId || !isWorkspaceKeyRole(actor.role)) throw new Forbidden(ONLY_OWNER_OR_ADMIN)
     if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject('Too many setup links. Try again in a few minutes.')
     return { rows: {}, data: await insertKey(tx, actor, now, actor.workspaceId) }
   },
 
-  // End access on the owner's setup page: their keys for this workspace. Any session of the owner may.
+  // End access on the setup page: the caller's own keys for this workspace. Any session of theirs may.
   'agentSetup.revokeWorkspace': async ({ tx, actor, now }) => {
     refuseNonPerson(actor)
     if (!actor.workspaceId) throw new Reject('no workspace')
+    // The person's setup-link lock, as every revoke (#832 N6): a link being made at this moment is committed first and
+    // ended here, never left working after "End access".
+    await lockSetupKeysOf(tx, actor.actorId)
     const ended = await tx
       .update(agent_setup_keys)
       .set({ revoked_at: now, ended_reason: 'ended_by_admin' })
@@ -351,6 +452,7 @@ export const agentSetupHandlers: Record<string, Handler> = {
 
   'agentSetup.revoke': async ({ tx, actor, now }) => {
     refuseNonPerson(actor)
+    await lockSetupKeysOf(tx, actor.actorId) // as agentSetup.revokeWorkspace (#832 N6)
     const ended = await tx
       .update(agent_setup_keys)
       .set({ revoked_at: now, ended_reason: 'ended_by_admin' })
@@ -408,7 +510,14 @@ export async function agentSetupState(
     .limit(1)
   // A key made with the passkey rule off does not work while it is on (setupKeyAccess): the page offers a new one.
   // A workspace key never needs it.
-  const working = row && (workspaceId || keyPasskeyConfirmed(row) || !adminSecondFactorRequired()) ? row : undefined
+  // A key whose session ended or whose maker lost the role there is shown as ended too, before its next use ends it
+  // for good (#832 N10): the page offers a new link, never "Ready" for a dead one.
+  const usable =
+    row &&
+    (workspaceId || keyPasskeyConfirmed(row) || !adminSecondFactorRequired()) &&
+    (await makerSessionLives(row)) &&
+    (!row.workspace_id || (await workspaceSetupActor(row.created_by, row.id, row.workspace_id, row.role)) !== null)
+  const working = usable ? row : undefined
   return {
     mcpUrl: setupMcpUrl(),
     reachableFromCloud: reachableFromCloud(webAddress()),

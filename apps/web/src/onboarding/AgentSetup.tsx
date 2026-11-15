@@ -25,6 +25,7 @@ import {
   SETUP_KEY_HOURS,
   HOSTING_GUIDE_URL,
   installPlace,
+  type SetupChange,
   type SetupScope,
   type SetupWorkspaceSummary,
   setupStepGroups,
@@ -135,14 +136,25 @@ type Props = {
    */
   active?: SetupWorkspace
   /**
-   * `workspace`: a workspace owner's page for the active workspace (`active` is required then, `workspaceName` names
-   * it): their own link and that workspace's steps only. Default `install`: an instance admin's.
+   * `workspace`: a workspace owner's page for the active workspace (`active` is required then): their own link and
+   * that workspace's steps only, the title naming the software (brandName), never the business. Default `install`: an
+   * instance admin's.
    */
   scope?: SetupScope
-  workspaceName?: string
+  /**
+   * With `scope="workspace"`: change some settings of a workspace that is set up (Workspace or Assistant settings ›
+   * "Change with an AI agent"): the title and the prompt name the workspace (and the assistant), and the way back is
+   * "Back to settings" (`onManual`) in place of setting up by hand.
+   */
+  change?: SetupChange
+  /**
+   * The owner's onboarding: "Finish later" in the top bar (and Shift+Esc), as on the admin's install walkthrough and
+   * the business onboarding: what is left waits in the go-live checklist.
+   */
+  onLater?: () => void
 }
 
-export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope = 'install', workspaceName }: Props) {
+export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope = 'install', change, onLater }: Props) {
   const t = useT()
   const owner = scope === 'workspace'
   const [state, setState] = useState<AgentSetupState | null>(null)
@@ -180,6 +192,18 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   // Server admin's passkey check: not the owner's page, which is no part of Server admin.
   useEffect(() => (owner ? undefined : watchAdminSignIn(setSignInAgain)), [owner])
+  // Shift+Esc finishes later, as in the business onboarding (onboarding/Frame.tsx).
+  const laterRef = useRef(onLater)
+  laterRef.current = onLater
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || !e.shiftKey || e.isComposing || !laterRef.current) return
+      e.preventDefault()
+      laterRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -202,7 +226,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
     return () => clearInterval(id)
   }, [load])
 
-  const workspaceReady = state?.progress.steps.some(s => s.id === 'workspace' && s.state === 'done') ?? false
+  // There is a workspace once the progress has one (the business row stays open until its profile is saved too).
+  const workspaceReady = Boolean(state?.progress.workspace)
   const told = useRef(false)
   useEffect(() => {
     if (!workspaceReady || told.current) return
@@ -298,6 +323,11 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
         <BrandMark />
         <b>{brandName()}</b>
         <span className="ob-count">{t('onboarding.agentSetup.setup')}</span>
+        {onLater && (
+          <Button size="sm" variant="ghost" onClick={onLater} title={t('onboarding.frame.finishLaterTitle')}>
+            {t('onboarding.frame.finishLater')}
+          </Button>
+        )}
       </div>
       <div className="ob-main as-main">
         <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
@@ -314,22 +344,23 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
                 <Skeleton shape="text" width="18%" />
               </span>
             </SkeletonPart>
-          ) : allDone ? (
+          ) : change ? (
             <>
               <h1>
-                {owner
-                  ? t('onboarding.agentSetup.owner.changeTitle', { workspace: workspaceName ?? brandName() })
-                  : t('onboarding.agentSetup.changeTitle', { brand: brandName() })}
+                {change.assistant
+                  ? t('onboarding.agentSetup.change.assistantTitle', { name: change.assistant.name })
+                  : t('onboarding.agentSetup.change.workspaceTitle')}
               </h1>
+              <p className="ob-lede">{t('onboarding.agentSetup.change.lede', { workspace: change.workspaceName })}</p>
+            </>
+          ) : allDone ? (
+            <>
+              <h1>{t('onboarding.agentSetup.changeTitle', { brand: brandName() })}</h1>
               <p className="ob-lede">{t('onboarding.agentSetup.changeLede')}</p>
             </>
           ) : (
             <>
-              <h1>
-                {owner
-                  ? t('onboarding.agentSetup.owner.title', { workspace: workspaceName ?? brandName() })
-                  : t('onboarding.agentSetup.title', { brand: brandName() })}
-              </h1>
+              <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
               <p className="ob-lede">
                 <T
                   k={owner ? 'onboarding.agentSetup.owner.lede' : 'onboarding.agentSetup.lede'}
@@ -387,7 +418,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
                     </Button>
                   </div>
                   {created ? (
-                    <StartAgent client={client} url={created.url} scope={scope} />
+                    <StartAgent client={client} url={created.url} scope={scope} change={change} />
                   ) : (
                     <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
                   )}
@@ -451,6 +482,15 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
             <SkeletonPart reserved={reserved}>
               <Skeleton shape="text" width={132} />
             </SkeletonPart>
+          ) : change ? (
+            <button
+              type="button"
+              className="as-manual"
+              onClick={() => onManual(false)}
+              title={t('onboarding.agentSetup.change.backTitle')}
+            >
+              {t('onboarding.agentSetup.change.back')}
+            </button>
           ) : allDone && owner ? null : allDone ? (
             <button
               type="button"
@@ -484,7 +524,7 @@ const NO_WORKSPACE = ''
  */
 const SKELETON_GROUPS: Record<(typeof setupStepGroups)[number]['id'], readonly string[]> = {
   server: ['answering', 'telephony', 'email', 'call-audio'],
-  business: ['workspace', 'business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
+  business: ['business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
 }
 const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132 }
 
@@ -685,7 +725,7 @@ function Progress({
       ))}
       {switchError && <Note tone="danger">{switchError}</Note>}
       {/* Before the agent has created the business there is no workspace to open: the button would bring back this page. */}
-      {(allDone || connected) && steps.some(s => s.id === 'workspace' && s.state === 'done') && (
+      {(allDone || connected) && Boolean(state.progress.workspace) && (
         <div>
           <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
             {allDone
@@ -892,13 +932,16 @@ export function StartAgent({
   client,
   url,
   scope = 'install',
+  change,
 }: {
   client: AgentClient
   url: string
   scope?: SetupScope
+  /** Changing settings (AgentSetup's `change`): the prompt names what to change and reads it first. */
+  change?: SetupChange
 }) {
   const t = useT()
-  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url, scope)
+  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url, scope, change)
   const promptToCopy = (primary: boolean) => (
     <>
       <pre className="as-prompt">{prompt}</pre>

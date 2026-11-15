@@ -12,9 +12,9 @@ test('the setup page while its state loads: busy once, skeletons for the title, 
   expect(html.match(/role="status"/g)).toHaveLength(1)
   expect(html).toContain('Loading the setup')
   expect(html).not.toMatch(/Loading…|Loading\.\.\./)
-  // The checklist card is there with all its rows, not empty space that the steps pop into.
+  // The checklist card is there with all its rows (4 of the server, 7 of the business), not empty space that the steps pop into.
   expect(html).toContain('aria-label="Setup progress"')
-  expect(html.match(/class="sk-check as-item"/g)).toHaveLength(12)
+  expect(html.match(/class="sk-check as-item"/g)).toHaveLength(11)
   // Nothing that depends on the state is shown as if it were known.
   expect(html).not.toContain('Create a setup link')
   expect(html).not.toContain('Set up by hand instead')
@@ -28,7 +28,7 @@ test('the checklist skeleton has the shape of the steps: groups, workspace dropd
   const html = renderToStaticMarkup(<ProgressSkeleton reserved={false} />)
   expect(html).toContain('as-group as-group-ws')
   expect(html).toMatch(/as-ws-head.*Workspace.*class="sk sk-block"[^>]*height:28px/)
-  expect(html.match(/sk-round/g)).toHaveLength(12)
+  expect(html.match(/sk-round/g)).toHaveLength(11)
   expect(html.match(/sk-check-action/g)).toHaveLength(2)
 })
 

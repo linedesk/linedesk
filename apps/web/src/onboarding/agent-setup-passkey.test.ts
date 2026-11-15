@@ -5,7 +5,7 @@ describe('the way by hand', () => {
   it('starts with the server parts while one is not set up', () => {
     const step = (id: string, state: string) => ({ id, state })
     expect(installPartsMissing([step('answering', 'done'), step('email', 'todo')])).toBe(true)
-    expect(installPartsMissing([step('answering', 'done'), step('telephony', 'done'), step('workspace', 'todo')])).toBe(
+    expect(installPartsMissing([step('answering', 'done'), step('telephony', 'done'), step('business', 'todo')])).toBe(
       false,
     )
   })

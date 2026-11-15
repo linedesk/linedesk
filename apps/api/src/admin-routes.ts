@@ -239,15 +239,20 @@ export function registerAdminRoutes(app: Hono<Env>) {
     return c.json({ ...(await agentSetupState(actor.actorId)), progress })
   })
 
-  // A workspace owner's agent setup (agent-setup.ts, workspace keys): their working setup link for the session's
-  // workspace (never the key) and that workspace's steps as its agent sees them, nothing of the server's. Owner only
-  // (workspace:own; never through an API key, a setup key or the voice agent, none of which has it).
-  app.get('/v1/workspace/agent-setup', requirePermission('workspace:own'), async c => {
+  // A workspace's agent setup (agent-setup.ts, workspace keys): the caller's working setup link for the session's
+  // workspace (never the key) and that workspace's steps as its agent sees them, nothing of the server's. The owner
+  // and admins (settings:write; never through an API key, a setup key or the voice agent, refused below), each with
+  // their own link that acts with their own role.
+  app.get('/v1/workspace/agent-setup', requirePermission('settings:write'), async c => {
     const actor = c.get('actor')
     const workspaceId = actor.workspaceId
+    const person =
+      !actor.apiKeyId && !actor.setupKeyId && !actor.callId && !actor.impersonation && Boolean(actor.sessionId)
     const asAgent =
-      workspaceId && actor.role === 'owner' ? await workspaceSetupActor(actor.actorId, 'page', workspaceId) : null
-    if (!workspaceId || !asAgent) return c.json({ ok: false, error: 'only the workspace owner sets it up' }, 403)
+      person && workspaceId && (actor.role === 'owner' || actor.role === 'admin')
+        ? await workspaceSetupActor(actor.actorId, 'page', workspaceId, actor.role)
+        : null
+    if (!workspaceId || !asAgent) return c.json({ ok: false, error: 'only the workspace owner or an admin sets it up' }, 403)
     const progress = await setupProgress(asAgent, workspaceId)
     return c.json({ ...(await agentSetupState(actor.actorId, workspaceId)), progress })
   })

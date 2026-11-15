@@ -1072,6 +1072,12 @@ export type SetupKeyEndReason =
   | 'password_changed'
   /** The maker signed out their other sessions. */
   | 'sessions_ended'
+  /** The session that made the key ended (signed out, signed out from another device, expired). */
+  | 'session_ended'
+  /** A workspace key's maker got another role in that workspace (an admin made a member, or the owner). */
+  | 'role_changed'
+  /** A workspace key's maker left the workspace or was removed from it. */
+  | 'left_workspace'
 export const agent_setup_keys = pgTable(
   'agent_setup_keys',
   {
@@ -1088,6 +1094,17 @@ export const agent_setup_keys = pgTable(
      */
     // Its keys go with a deleted workspace.
     workspace_id: text('workspace_id').references(() => organization.id, { onDelete: 'cascade' }),
+    /**
+     * A workspace key's maker's role there when it was made ('owner' or 'admin'; null for an install key). The key acts
+     * with that role only while the maker still has exactly it: a role change ends the key for good
+     * (apps/api/src/agent-setup.ts workspaceSetupActor).
+     */
+    role: text('role').$type<'owner' | 'admin'>(),
+    /**
+     * The sign-in session that made the key (Better Auth session.id). The key ends for good once that session ends:
+     * signed out, signed out from another device, expired or revoked (agent-setup.ts setupKeyAccess).
+     */
+    session_id: text('session_id'),
     created_at: createdAt(),
     expires_at: ts('expires_at').notNull(),
     last_used_at: ts('last_used_at'),

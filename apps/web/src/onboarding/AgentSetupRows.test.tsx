@@ -106,7 +106,7 @@ test('the workspace dropdown lists every workspace with how far it got, and New 
 test('call forwarding opens its settings dialog on the page while it is open; the agent steps have no action', () => {
   expect(row(step('forwarding', 'todo'))).toContain('Set up forwarding')
   expect(row(step('forwarding', 'done'))).toBe('')
-  for (const id of ['answering', 'telephony', 'email', 'call-audio', 'workspace', 'business', 'phone'])
+  for (const id of ['answering', 'telephony', 'email', 'call-audio', 'business', 'phone'])
     expect(row(step(id, 'todo'))).toBe('')
 })
 

@@ -73,6 +73,7 @@ import {
   transferProblem,
   transfersToSave,
 } from './assistantDraft.ts'
+import { AgentChangeNote } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
@@ -720,7 +721,8 @@ function Advanced({ draft, set }: SectionProps) {
 }
 
 /** `isInstanceAdmin`: the member runs the server (a test call nobody answers says what to fix there). */
-type Props = { canEdit: boolean; toast: (text: string) => void; isInstanceAdmin?: boolean }
+/** `agentChange`: "Change with an AI agent" on top of General (owners and admins, AgentChange.tsx). */
+type Props = { canEdit: boolean; toast: (text: string) => void; isInstanceAdmin?: boolean; agentChange?: boolean }
 
 type FormProps = Props & {
   assistant: Assistant
@@ -729,7 +731,16 @@ type FormProps = Props & {
   onPick: (id: string) => void
 }
 
-function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstanceAdmin = false }: FormProps) {
+function Form({
+  assistant,
+  assistants,
+  numbers,
+  onPick,
+  canEdit,
+  toast,
+  isInstanceAdmin = false,
+  agentChange = false,
+}: FormProps) {
   const t = useT()
   const format = useFormat()
   const run = useRun()
@@ -865,6 +876,13 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
         )}
         {current === 'general' && (
           <>
+            {agentChange && (
+              <AgentChangeNote
+                target={{ kind: 'assistant', assistantId: assistant.id }}
+                assistantName={assistant.name}
+                firstField="as-name"
+              />
+            )}
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
             <Languages

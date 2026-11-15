@@ -36,6 +36,7 @@ import {
   onboardingSteps,
   pipelineFor,
   pipelinesAllowed,
+  rolePermissions,
   type ProviderCategory,
   type ProviderName,
   providerCategories,
@@ -636,7 +637,7 @@ async function whoAmI(actor: Actor) {
   return {
     name: me?.name ?? null,
     email: me?.email ?? null,
-    role: actor.setupWorkspaceId ? 'workspace owner' : 'instance admin',
+    role: actor.setupWorkspaceId ? `workspace ${actor.setupWorkspaceRole ?? 'admin'}` : 'instance admin',
   }
 }
 
@@ -659,25 +660,28 @@ const DEFAULT_ASSISTANT_NAME = 'Maya'
 const URGENT_CONTACT_ID = 'urgent'
 
 const BUSINESS_STEPS = [
-  ['business', 'What the assistant knows about the business'],
+  ['business', 'The business: its name, time zone, and what the assistant knows about it'],
   ['assistant', 'The assistant: name, greeting, voice'],
   ['pickup', 'When the assistant picks up'],
   ['notify', 'Who hears about calls'],
   ['phone', 'A phone number for the assistant'],
 ] as const
 
-/** Before the admin has a workspace: how to make the first, and what follows, so they see the whole way from the start. */
+/**
+ * Before the admin has a workspace: how to make the first, and what follows, so they see the whole way from the start.
+ * The business is one step (its name and time zone, then what the assistant knows about it).
+ */
 const noWorkspaceSteps = (): StepBase[] => [
   {
-    id: 'workspace',
-    label: 'The business (workspace)',
+    id: 'business',
+    label: BUSINESS_STEPS[0][1],
     state: 'todo',
     how: [
       "Ask for the business's name (and check its time zone). Ask once whether they run more than one business or location: each gets its own workspace.",
-      'workspace_create { name, timeZone } makes it, with its assistant, and returns its id; the other business steps follow in setup_status.workspaces.',
+      'workspace_create { name, timeZone } makes it, with its assistant, and returns its id; the rest of this step (what the assistant knows about the business) and the other business steps follow in setup_status.workspaces.',
     ],
   },
-  ...BUSINESS_STEPS.map(([id, label]) => ({ id, label, state: 'todo' as const })),
+  ...BUSINESS_STEPS.slice(1).map(([id, label]) => ({ id, label, state: 'todo' as const })),
 ]
 
 /** One workspace's steps; `actor` acts in it as its owner or admin (setupActorIn). */
@@ -741,20 +745,15 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const done = (yes: boolean): StepState => (yes ? 'done' : 'todo')
   return [
     {
-      id: 'workspace',
-      label: 'The business (workspace)',
-      state: 'done',
+      // The business as the person sees it, one step: the workspace (name, time zone, country, language) and what
+      // the assistant knows about it. Done once the profile is (the workspace exists whenever this list does).
+      id: 'business',
+      label: BUSINESS_STEPS[0][1],
+      state: done(businessDone),
       // The name is a member's text: quoted, as data.
       detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, country ${locale.resolvedCountry}${locale.country ? '' : ` (automatic, ${locale.countrySource})`}, language ${locale.resolvedLanguage}${locale.language ? '' : ' (automatic, from the country)'}, assistant ${assistant?.id ?? 'none'}`,
       how: [
-        `Check the country and language with the admin: workspace_updateSettings { ${w}, country: "US", language: "en" } (ISO country code and one of the listed language codes; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; the language is what the assistant greets in (unless it has its own main language) and what call summaries are written in.`,
-      ],
-    },
-    {
-      id: 'business',
-      label: 'What the assistant knows about the business',
-      state: done(businessDone),
-      how: [
+        `Check the name, time zone, country and language with the admin: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US", language: "en" } (ISO country code and one of the listed language codes; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; the language is what the assistant greets in (unless it has its own main language) and what call summaries are written in.`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
         `Show the admin a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
         `Then onboarding_setStep { ${w}, step: "assistant" }.`,
@@ -1018,13 +1017,18 @@ function registerTools(server: McpServer, actor: Actor) {
         })
       }),
   )
+  // A workspace key is offered only what its role may do (an admin's never an owner-only tool); setupActorIn and
+  // runAction refuse the rest anyway.
+  const role = actor.setupWorkspaceRole
   for (const name of SETUP_ACTIONS) {
     const def = actions.get(name)
-    if (def && (serverTools || !isServerAction(name))) registerAction(server, def, actor)
+    if (!def || (!serverTools && isServerAction(name))) continue
+    if (role && !rolePermissions[role].includes(def.permission)) continue
+    registerAction(server, def, actor)
   }
 }
 
-/** The setup tools for this setup key's admin (or, for a workspace key, its owner). */
+/** The setup tools for this setup key's admin (or, for a workspace key, its owner or admin, by that role). */
 export function setupMcpServerFor(actor: Actor) {
   const instructions = actor.setupWorkspaceId ? SETUP_MCP_WORKSPACE_INSTRUCTIONS : SETUP_MCP_INSTRUCTIONS
   const server = new McpServer({ name: 'linedesk-setup', version: '1' }, { instructions })

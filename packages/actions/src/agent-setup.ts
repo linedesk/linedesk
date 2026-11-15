@@ -23,28 +23,29 @@ export const agentSetupCreateKey = defineAction({
 })
 
 /**
- * The owner's way (2026-11-15): a workspace owner makes a setup key for their one workspace, the active one of the
- * session. It acts as the owner in that workspace only, with the same workspace tools as an install key (business
- * info, assistant, hours, notifications, number and forwarding, the test call), never the server's (providers, the
- * install, Server admin) or another workspace's. Same lifetime (SETUP_KEY_HOURS), one link at a time per person, End
- * access, the agent ends its own access, and every use is in the audit log. Owners need no passkey for it, like API
- * keys; a confirmed email address, like API keys.
+ * The workspace's way (2026-11-15): the workspace's owner or an admin makes a setup key for the active workspace of the
+ * session, to set it up or change its settings with an AI agent. It acts as that person with their role there (an
+ * admin's key never does what only the owner does), in that workspace only, with the same workspace tools as an
+ * install key (business info, assistant, hours, notifications, number and forwarding, the test call), never the
+ * server's (providers, the install, Server admin) or another workspace's. Same lifetime (SETUP_KEY_HOURS), one link at a
+ * time per person, End access, the agent ends its own access, and every use is in the audit log. No passkey, like API
+ * keys; a confirmed email address and a sign-in from the last 10 minutes.
  */
 export const agentSetupCreateWorkspaceKey = defineAction({
   name: 'agentSetup.createWorkspaceKey',
   description:
-    'Make a setup key for an AI agent that sets up this workspace with you: business info, assistant, hours, notifications, phone number and forwarding. It acts as you in this workspace only, never on the server or in another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once.',
+    'Make a setup key for an AI agent that sets up or changes this workspace with you: business info, assistant, hours, notifications, phone number and forwarding. It acts as you, with your role, in this workspace only, never on the server or in another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once.',
   input: z.object({}),
-  permission: 'workspace:own',
+  permission: 'settings:write',
   secretResult: ['key', 'url'],
 })
 
-/** Ends the owner's setup links for this workspace at once (End access on the owner's setup page). */
+/** Ends the caller's setup links for this workspace at once (End access on the setup page). */
 export const agentSetupRevokeWorkspace = defineAction({
   name: 'agentSetup.revokeWorkspace',
   description: 'End agent setup for this workspace: your setup keys for it stop working at once.',
   input: z.object({}),
-  permission: 'workspace:own',
+  permission: 'settings:write',
 })
 
 /** `data` of agentSetup.createKey: `key` and `url` (the MCP address with the key in it) are shown once. */
@@ -114,8 +115,9 @@ export const setupStepNames: Readonly<Record<string, { label: string; hint?: str
   telephony: { label: 'Phone carrier', hint: 'Telnyx or Twilio' },
   email: { label: 'Email', hint: 'Resend or SMTP' },
   'call-audio': { label: 'Call audio', hint: 'LiveKit voice server and its SIP bridge' },
-  workspace: { label: 'Workspace', hint: 'business name and time zone' },
-  business: { label: 'Business info', hint: 'services, area, prices' },
+  // One row for the person's business (Janik, 2026-11-15): its name and time zone together with what the assistant
+  // knows about it, never two rows for what is one thing to them.
+  business: { label: 'Your business', hint: 'name, time zone, services, area, prices' },
   assistant: { label: 'Assistant', hint: 'name, greeting, voice' },
   pickup: { label: 'When to answer', hint: 'calls you miss, after hours, or every call' },
   notify: { label: 'Notifications', hint: 'call summaries and urgent calls' },
@@ -132,6 +134,13 @@ export type SetupWorkspaceSummary = { id: string; name: string; done: number; to
  * `workspace` (an owner's: one workspace's own steps only).
  */
 export type SetupScope = 'install' | 'workspace'
+
+/**
+ * A workspace link made to change settings, not to set the workspace up (Workspace settings and Assistant settings,
+ * "Change with an AI agent"): which workspace, and on Assistant settings which assistant. The prompt then tells the
+ * agent to read the current settings first and change only what the person asks.
+ */
+export type SetupChange = { workspaceId: string; workspaceName: string; assistant?: { id: string; name: string } }
 
 /**
  * GET /v1/admin/agent-setup (an instance admin's install link) and GET /v1/workspace/agent-setup (an owner's link for
@@ -270,9 +279,10 @@ export function startPlan(
   client: AgentClient,
   url: string,
   scope: SetupScope = 'install',
+  change?: SetupChange,
 ): { open: OpenLink | null; otherWay?: string; steps: StartStep[]; prompt: string; promptFirst: boolean } {
-  const prompt = agentSetupPrompt(url, { scope })
-  const COMMAND_PROMPT = commandPrompt(scope)
+  const prompt = agentSetupPrompt(url, { scope, change })
+  const COMMAND_PROMPT = commandPrompt(scope, change)
   switch (client) {
     case 'claude_code':
       return {
@@ -356,7 +366,7 @@ export function startPlan(
         promptFirst: false,
       }
     case 'claude': {
-      const viaConnector = agentSetupPrompt(url, { connector: true, scope })
+      const viaConnector = agentSetupPrompt(url, { connector: true, scope, change })
       // The link works only once the connector is added, so it stays the last step (no `open`).
       return {
         open: null,
@@ -384,7 +394,7 @@ export function startPlan(
           { text: 'Create a connector: name Linedesk setup, this URL, authentication None:', code: url },
           { text: 'In a new chat, pick Developer mode, turn on Linedesk setup and paste the prompt below.' },
         ],
-        prompt: agentSetupPrompt(url, { connector: true, scope }),
+        prompt: agentSetupPrompt(url, { connector: true, scope, change }),
         promptFirst: true,
       }
     case 'other':
@@ -403,8 +413,10 @@ export function startPlan(
 
 const MCP_NAME = 'linedesk-setup'
 /** The first message of the one-command start: the setup server's own instructions carry the playbook. */
-const commandPrompt = (scope: SetupScope) =>
-  scope === 'workspace'
+const commandPrompt = (scope: SetupScope, change?: SetupChange) =>
+  change
+    ? `Help me change ${changeTarget(change)} in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, read the current settings, then ask me what to change and change only that.`
+    : scope === 'workspace'
     ? 'Help me set up my business in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
     : 'Help me set up Linedesk, the open-source AI receptionist, on my server through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
 /** A POSIX shell word: single quotes, a single quote inside written as '\''. */
@@ -418,8 +430,13 @@ export const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
  */
 export function agentSetupPrompt(
   url: string,
-  { connector = false, scope = 'install' }: { connector?: boolean; scope?: SetupScope } = {},
+  {
+    connector = false,
+    scope = 'install',
+    change,
+  }: { connector?: boolean; scope?: SetupScope; change?: SetupChange } = {},
 ): string {
+  if (change) return changeSettingsPrompt(url, connector, change)
   if (scope === 'workspace') return workspaceSetupPrompt(url, connector)
   const tools = connector
     ? `How to reach the tools:
@@ -490,13 +507,45 @@ What to do:
 Keep messages short and plain. Ask one question at a time. If a tool refuses, read its message: it says what to do.`
 }
 
+/** What a change is about, as the prompt names it: the assistant (and its workspace), or the workspace. */
+const changeTarget = (change: SetupChange) =>
+  change.assistant
+    ? `the settings of my assistant ${JSON.stringify(change.assistant.name)} in my workspace ${JSON.stringify(change.workspaceName)}`
+    : `the settings of my workspace ${JSON.stringify(change.workspaceName)}`
+
+/**
+ * The prompt for a link made from Workspace settings or Assistant settings ("Change with an AI agent"): the workspace
+ * is set up already; the agent reads what is set now and changes only what the person asks. The names are the
+ * person's own text, quoted as data; the ids say exactly which workspace and assistant.
+ */
+function changeSettingsPrompt(url: string, connector: boolean, change: SetupChange): string {
+  const which = change.assistant
+    ? `The assistant is ${JSON.stringify(change.assistant.name)} (assistantId ${change.assistant.id}) in the workspace ${JSON.stringify(change.workspaceName)} (workspaceId ${change.workspaceId}).`
+    : `The workspace is ${JSON.stringify(change.workspaceName)} (workspaceId ${change.workspaceId}).`
+  return `You are helping me change ${changeTarget(change)} in Linedesk, the open-source AI receptionist. Linedesk answers my business's phone calls with an AI assistant. It is set up already; I want to change some of its settings with you, through the Linedesk setup tools.
+
+${which}
+
+${toolsLines(url, connector, 'assistant_update, workspace_updateSettings')}
+
+What to do:
+1. Call setup_status first and read the current settings (setup_status, and the details it gives for this workspace${change.assistant ? ' and this assistant' : ''}). Do not change anything yet.
+2. Ask me what I want to change, in one short question. Tell me briefly what is set now where it helps.
+3. Change only what I ask for, nothing else, and only in this ${change.assistant ? 'assistant and ' : ''}workspace. Before you save, say in one line what will change. After saving, read it back and tell me it is done.
+   - Ask before anything that costs money (buying a phone number) or that I cannot undo, and say what it costs.
+   - If something cannot be changed with these tools, tell me where it is in the app instead.
+4. When I am done, give me a short summary of what changed, then end your own access with setup_endAccess.
+
+Keep messages short and plain. Ask one question at a time. If a tool refuses, read its message: it says what to do.`
+}
+
 /**
  * The setup MCP's `instructions` for a workspace owner's link: one workspace's steps, nothing of the server's. Its
  * providers (phone carrier, AI, email) are the server admin's; the agent never asks the owner for provider keys.
  */
-export const SETUP_MCP_WORKSPACE_INSTRUCTIONS = `Linedesk setup: you are setting up one business (a workspace) in Linedesk, an open-source AI receptionist that answers a business's phone calls, for its owner, the person you are talking to. You act as that owner in this one workspace only, with setup tools only, through a key that ends after ${SETUP_KEY_HOURS} hours. The server itself (phone carrier, AI providers, email) is run by the server admin, not by the owner: there are no provider steps for you, and you never ask the owner for provider keys.
+export const SETUP_MCP_WORKSPACE_INSTRUCTIONS = `Linedesk setup: you are setting up one business (a workspace) in Linedesk, an open-source AI receptionist that answers a business's phone calls, or changing its settings, for its owner or one of its admins, the person you are talking to (setup_status.you_act_as says which). You act as that person, with their role, in this one workspace only, with setup tools only, through a key that ends after ${SETUP_KEY_HOURS} hours. If they only want to change some settings of a workspace that is set up, read the current settings first and change only what they ask. The server itself (phone carrier, AI providers, email) is run by the server admin, not by the owner: there are no provider steps for you, and you never ask the owner for provider keys.
 
-Always start with setup_status and call it again after each step: it lists this workspace's steps in order with their state and, for the next one, exactly what to do: business info, assistant, when to answer, notifications, phone number, call forwarding, a test call. setup_status.workspaces has exactly one workspace; pass its id as workspaceId to every business tool. Any other id is refused. If setup_status.server_ready is false, the server cannot answer calls yet: set up everything else, and tell the owner once that their server admin still has to finish the server's part.
+Always start with setup_status and call it again after each step: it lists this workspace's steps in order with their state and, for the next one, exactly what to do: the business (its name, time zone, and what the assistant knows about it, one step), assistant, when to answer, notifications, phone number, call forwarding, a test call. setup_status.workspaces has exactly one workspace; pass its id as workspaceId to every business tool. Any other id is refused. If setup_status.server_ready is false, the server cannot answer calls yet: set up everything else, and tell the owner once that their server admin still has to finish the server's part.
 
 Working with the owner:
 - Short, plain messages; one question at a time; recommend a default and say why in one line.
@@ -512,7 +561,7 @@ Choices that work well (US): pick-up "when I can't answer" (no_answer) is the us
 /** The setup MCP's `instructions`: the playbook an agent follows (also when the copied prompt was shortened). */
 export const SETUP_MCP_INSTRUCTIONS = `Linedesk setup: you are setting up a Linedesk install (an open-source AI receptionist that answers a business's phone calls) for its admin, the person you are talking to. You act as that admin, with setup tools only, email and sign-in included, through a key that ends after ${SETUP_KEY_HOURS} hours.
 
-Always start with setup_status and call it again after each step: it lists the steps in order with their state and, for the next one, exactly what to do. The server's steps come once (setup_status.steps): AI (speech, model and voice), phone carrier, email, the voice server (LiveKit). Then each workspace (one business or location) has its own steps (setup_status.workspaces, each with its id): business info, assistant, when to answer, notifications, phone number, call forwarding, a test call. next_step and next_workspace_id say which comes next. setup_status.optional lists what a first call does not need (sign-in apps, calendar, recording storage, business lookup): offer it once the required steps are done, or business lookup before the business profile.
+Always start with setup_status and call it again after each step: it lists the steps in order with their state and, for the next one, exactly what to do. The server's steps come once (setup_status.steps): AI (speech, model and voice), phone carrier, email, the voice server (LiveKit). Then each workspace (one business or location) has its own steps (setup_status.workspaces, each with its id): the business (its name, time zone, and what the assistant knows about it, one step), assistant, when to answer, notifications, phone number, call forwarding, a test call. next_step and next_workspace_id say which comes next. setup_status.optional lists what a first call does not need (sign-in apps, calendar, recording storage, business lookup): offer it once the required steps are done, or business lookup before the business profile.
 
 You set every key and setting yourself through these tools; the admin never has to paste anything into the Linedesk app. Keys you will ask the admin for, in this order (the default first): an OpenAI API key (or Deepgram, OpenRouter and ElevenLabs keys), a Telnyx API key and its webhook public key (or Twilio's account SID and auth token), a Resend API key and a From address on a domain verified in Resend (or SMTP and other mail services), and optionally a Google Places API key, a Google (or Microsoft, GitHub, OIDC) OAuth client ID and secret, and S3 keys for recordings.
 

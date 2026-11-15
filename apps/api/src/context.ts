@@ -41,6 +41,11 @@ export interface Actor {
    * the server's providers or in another workspace (agent-setup.ts setupActorIn, run-action.ts).
    */
   setupWorkspaceId?: string
+  /**
+   * The role that workspace key acts with: its maker's role there when it was made (agent_setup_keys.role). An admin's
+   * key never gets the owner's rights, and it stops working once the maker's role is another (agent-setup.ts).
+   */
+  setupWorkspaceRole?: 'owner' | 'admin'
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
   /** When that session ends unless it is used again (Better Auth extends it as it is used). */

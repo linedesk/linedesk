@@ -18,8 +18,8 @@ export function rightOf(permission: Permission): Right {
   if (permission === 'instance:admin') return 'server-admin'
   // Ending setup links. Of signed-in sessions only instance admins hold it (context.ts), so the rights table files it
   // under server admin. Setup keys hold it too, install and workspace keys alike (agent-setup.ts), for one action
-  // only: the agent ending the very link it uses (agentSetup.endOwnAccess). A workspace owner ends their own link
-  // with agentSetup.revokeWorkspace (workspace:own) instead.
+  // only: the agent ending the very link it uses (agentSetup.endOwnAccess). A workspace owner
+  // or an admin ends their own link with agentSetup.revokeWorkspace (settings:write) instead.
   if (permission === 'setupLink:end') return 'server-admin'
   // An instance admin's own authenticator app (authenticator.ts): also only instance admins (context.ts).
   if (permission === 'secondFactor:own') return 'server-admin'

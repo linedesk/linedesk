@@ -56,6 +56,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'insights.get',
   ],
   admin: [
+    'agentSetup.createWorkspaceKey',
+    'agentSetup.revokeWorkspace',
     'call.export',
     'assistant.update',
     'assistant.create',
@@ -211,8 +213,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'workspace.deleteOwn',
     'workspace.deletePreview',
     'team.transferOwnership',
-    'agentSetup.createWorkspaceKey',
-    'agentSetup.revokeWorkspace',
   ],
   impersonation: ['impersonation.stop'],
   account: ['invitation.listMine', 'invitation.accept', 'invitation.decline'],
@@ -242,6 +242,12 @@ describe('workspace rights', () => {
     expect(WORKSPACE_ROLES).toEqual(['member', 'admin', 'owner'])
   })
 
+  it('the owner and admins give an AI agent a setup link for the workspace, members never', () => {
+    expect(expectedRights.admin).toEqual(
+      expect.arrayContaining(['agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace']),
+    )
+  })
+
   it('members change no workspace setting: settings, team, keys and webhooks are for admins', () => {
     for (const name of expectedRights.member) {
       const def = actions.get(name)!
@@ -249,10 +255,8 @@ describe('workspace rights', () => {
     }
   })
 
-  it('only the owner deletes the workspace, hands it over or gives an AI agent a setup link for it', () => {
+  it('only the owner deletes the workspace or hands it over', () => {
     expect([...expectedRights.owner].sort()).toEqual([
-      'agentSetup.createWorkspaceKey',
-      'agentSetup.revokeWorkspace',
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',

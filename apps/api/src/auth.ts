@@ -29,6 +29,7 @@ import {
   afterPasswordReset,
   endSessionsAfterReset,
   endSetupLinksAfterSessionChange,
+  setupLinkSessionHooks,
   guardPasswordReset,
   PASSWORD_RESET_PATHS,
   sameAnswerForRefusedCodes,
@@ -256,6 +257,7 @@ export const auth = betterAuth({
     auditHooks,
     starOnGrantHooks,
     adminAlertHooks,
+    setupLinkSessionHooks,
   ),
   socialProviders: {
     // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).

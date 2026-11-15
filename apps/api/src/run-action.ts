@@ -13,7 +13,7 @@ import {
   setupLinkNeedsFreshSignIn,
   setupLinkSignInRefusal,
 } from './owner-step-up.ts'
-import { actions, droppedFields, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import { actions, droppedFields, rolePermissions, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
@@ -90,7 +90,10 @@ export const WORKSPACE_KEY_SCOPE = "This setup link is for one workspace only: i
 export function workspaceKeyOutOfScope(def: Pick<ActionDef, 'name' | 'permission'>, actor: Actor): boolean {
   if (def.permission === 'instance:admin') return true
   if (actor.workspaceId === null) return def.name !== 'agentSetup.endOwnAccess'
-  return actor.workspaceId !== actor.setupWorkspaceId
+  if (actor.workspaceId !== actor.setupWorkspaceId) return true
+  // Never past the role the key was made with: an admin's key never runs what only the owner may (workspace:own).
+  const role = actor.setupWorkspaceRole
+  return !role || actor.role !== role || !rolePermissions[role].includes(def.permission)
 }
 
 /**

@@ -151,10 +151,13 @@ describe('setup keys', () => {
     expect(body.progress.steps.map((s: { id: string }) => s.id)).toContain('telephony')
     // Grouped like the agent's setup_status: the server's part, then the business's.
     const groupOf = (id: string) => body.progress.steps.find((s: { id: string }) => s.id === id)?.group
-    expect(groupOf('telephony')).toBe('server')
-    expect(groupOf('workspace')).toBe('business')
-    // Named like the app's own places, with the industry term where it helps (setupStepNames).
     const step = (id: string) => body.progress.steps.find((s: { id: string }) => s.id === id)
+    expect(groupOf('telephony')).toBe('server')
+    expect(groupOf('business')).toBe('business')
+    // The business is one row (name, time zone and what the assistant knows), never a workspace row besides it.
+    expect(groupOf('workspace')).toBeUndefined()
+    expect(step('business')).toMatchObject({ label: 'Your business', hint: 'name, time zone, services, area, prices' })
+    // Named like the app's own places, with the industry term where it helps (setupStepNames).
     expect(step('notify')).toMatchObject({ label: 'Notifications' })
     expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })
     expect(step('call-audio').hint).toMatch(/LiveKit/)
@@ -409,7 +412,7 @@ describe('tools', () => {
     // No workspace yet: the way to the first one, and what follows, so the whole way shows from the start.
     expect(before.workspaces).toHaveLength(1)
     expect(before.workspaces[0]).toMatchObject({ id: null, name: null })
-    expect(before.workspaces[0]!.steps.map(s => s.id).slice(0, 2)).toEqual(['workspace', 'business'])
+    expect(before.workspaces[0]!.steps.map(s => s.id).slice(0, 2)).toEqual(['business', 'assistant'])
     expect(before.workspaces[0]!.steps.every(s => s.group === 'business')).toBe(true)
     expect(before.next_workspace_id).toBeNull()
     // The same words as the app.
@@ -447,7 +450,9 @@ describe('tools', () => {
       [second, 'Riverside Dental Eastside', 'owner'],
     ])
     for (const w of after.workspaces) {
-      expect(w.steps.find(s => s.id === 'workspace')?.state).toBe('done')
+      // The workspace exists, but its one business row stays open until the profile is saved too.
+      expect(w.steps.find(s => s.id === 'business')?.state).toBe('todo')
+      expect(w.steps.map(s => s.id)).not.toContain('workspace')
       expect(w.steps.map(s => s.id)).toEqual(expect.arrayContaining(['business', 'pickup', 'notify', 'phone']))
       expect(w.all_done).toBe(false)
     }
@@ -979,7 +984,7 @@ describe('every key through the agent (LIN-182)', () => {
     const step = (id: string, state: string) =>
       ({ id, label: id, state }) as Parameters<typeof installPartDone>[0][number]
     const providers = ['answering', 'telephony', 'email', 'call-audio'].map(id => step(id, 'done'))
-    const business = [step('workspace', 'todo'), step('test_call', 'admin_only')]
+    const business = [step('business', 'todo'), step('test_call', 'admin_only')]
     expect(installPartDone([...providers, ...business])).toBe(true)
     expect(installPartDone([...providers.slice(0, 3), step('call-audio', 'todo'), ...business])).toBe(false)
   })
@@ -1010,6 +1015,7 @@ describe('every key through the agent (LIN-182)', () => {
       role: 'member',
       workspaceId: null,
       permissions: ['instance:admin'],
+      sessionId: 'forged-session',
     }
     await expect(
       db.transaction(tx =>
