@@ -674,6 +674,7 @@
   "system.riskyWarning": "{count, plural, one {{countries} is a frequent toll-fraud destination: numbers there are rented to fraudsters who are paid for every minute called. Allow it only for a business you know needs it.} other {{countries} are frequent toll-fraud destinations: numbers there are rented to fraudsters who are paid for every minute called. Allow them only for a business you know needs it.}}",
   "system.server": "Server",
   "system.sipTrunks": "SIP trunks",
+  "system.spendCapsUnconfirmed": "Spend limits not confirmed: Telnyx did not confirm the max destination rate and daily spend limit on {count, plural, one {the voice profile {profiles}} other {the voice profiles {profiles}}}. Calls through {count, plural, one {it} other {them}} may cost more than TELNYX_MAX_DESTINATION_RATE and TELNYX_DAILY_SPEND_LIMIT allow. The reason is in the server log (ALERT outbound); the warning goes away once a retry or the next set-up confirms them.",
   "system.transfersOff": "Transfers are off (a limit is 0)",
   "system.twilioBlocked": "Twilio blocks calls to {countries}. Turn on {names} in Twilio Console › Voice › Settings › Geo permissions.",
   "system.url": "URL",

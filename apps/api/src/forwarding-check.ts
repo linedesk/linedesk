@@ -43,6 +43,7 @@ import {
   installCarrierName,
   type OutboundSip,
   TelephonyError,
+  telnyxSpendLimits,
 } from '@linedesk/telephony'
 import { and, count, desc, eq, gt, gte, isNull, or, sql } from 'drizzle-orm'
 import { db } from './db.ts'
@@ -53,6 +54,7 @@ import { createRateLimiter } from './rate-limit.ts'
 import { recordSetupEvent } from './setup-events.ts'
 import { installDestinations } from './outbound-policy.ts'
 import { switchOffLoopingTransfers } from './transfer-loops.ts'
+import { recordSpendCaps } from './telnyx-spend-caps.ts'
 import { LivekitError, livekitSip } from './transfer-trunk.ts'
 import { CARRIER_TIMEOUT_MS, telephonyForWorkspace } from './workspace-carrier.ts'
 
@@ -520,6 +522,8 @@ export async function installCheckLine(env: Env = process.env, doFetch: typeof f
         apiKey: values.api_key!,
         name,
         destinations: destinations.length ? destinations : undefined,
+        spendLimits: telnyxSpendLimits(env),
+        onSpendCaps: problem => recordSpendCaps(name, problem),
         fetch: timed,
       }).ensureOutboundSip()
     }

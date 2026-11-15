@@ -1,7 +1,7 @@
 import { devProvider } from './dev.ts'
 import { installCarrierName, type TelephonyProvider } from './provider.ts'
 import { createTelnyxProvider } from './telnyx.ts'
-import { createTelnyxOutbound, type OutboundSip, TRANSFER_OUTBOUND_NAME } from './telnyx-outbound.ts'
+import { createTelnyxOutbound, type OutboundSip, TRANSFER_OUTBOUND_NAME, telnyxSpendLimits } from './telnyx-outbound.ts'
 import { createTwilioProvider } from './twilio.ts'
 
 export * from './provider.ts'
@@ -9,11 +9,16 @@ export { DEV_LOOKUP, devForwardingOutcome, devProvider, type DevForwardingOutcom
 export { createTelnyxProvider, telnyxLineType, type TelnyxOptions } from './telnyx.ts'
 export {
   createTelnyxOutbound,
+  DEFAULT_SPEND_LIMITS,
+  SPEND_LIMIT_WARN_ABOVE,
   setTelnyxDestinations,
   sipUserName,
+  spendLimitWarnings,
+  telnyxSpendLimits,
   TRANSFER_OUTBOUND_NAME,
   type OutboundSip,
   type TelnyxOutboundOptions,
+  type TelnyxSpendLimits,
 } from './telnyx-outbound.ts'
 export { createTwilioProvider, twilioLineType, type TwilioOptions } from './twilio.ts'
 export {
@@ -66,6 +71,7 @@ export async function transferOutboundSipFromEnv(
     apiKey: env.TELNYX_API_KEY,
     name: installCarrierName(TRANSFER_OUTBOUND_NAME),
     destinations,
+    spendLimits: telnyxSpendLimits(env),
     fetch: doFetch,
   }).ensureOutboundSip()
 }

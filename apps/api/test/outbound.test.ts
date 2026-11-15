@@ -14,13 +14,14 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { and, eq } from 'drizzle-orm'
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { and, eq, like } from 'drizzle-orm'
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { listAudit } from '../src/audit.ts'
 import {
   installDestinations,
   outboundLimits,
+  syncTelnyxProfiles,
   transferMinutesAllowed,
   transferMinutesUsed,
   workspaceDestinations,
@@ -625,4 +626,205 @@ test('the audit log lists who changed the countries, with the list before', asyn
   })
   const [logged] = await db.select().from(commands).where(eq(commands.id, changes[0]!.id))
   expect(logged?.result).toMatchObject({ data: { previous: { countries: ['CA'] }, countries: ['CA', 'MX'] } })
+})
+
+describe('Telnyx spend limits at start (syncTelnyxProfiles)', () => {
+  type Request = { method: string; path: string; body?: Record<string, unknown> }
+  /** A Telnyx account holding these voice profiles; a PATCH of a profile in `failing` answers 503. */
+  function telnyxAccount(profiles: string[], failing: Set<string> = new Set()) {
+    const requests: Request[] = []
+    const fetch: typeof globalThis.fetch = async (url, init) => {
+      const path = decodeURIComponent(String(url).replace('https://api.telnyx.com/v2', ''))
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined
+      requests.push({ method: init?.method ?? 'GET', path, body })
+      if (path.startsWith('/outbound_voice_profiles?'))
+        return Response.json({
+          data: profiles.filter(name => path.endsWith(`=${name}`)).map(name => ({ id: `ovp_${name}`, name })),
+        })
+      const patched = path.match(/^\/outbound_voice_profiles\/ovp_(.+)$/)?.[1]
+      if (init?.method === 'PATCH' && patched) {
+        if (failing.has(patched)) return Response.json({ errors: [{ detail: 'Telnyx is down' }] }, { status: 503 })
+        return Response.json({ data: { id: `ovp_${patched}`, ...body } })
+      }
+      return Response.json({ errors: [{ detail: 'no mock' }] }, { status: 404 })
+    }
+    return { fetch, requests, patches: () => requests.filter(r => r.method === 'PATCH') }
+  }
+  const SPEND = { max_destination_rate: 0.1, daily_spend_limit: '50.00', daily_spend_limit_enabled: true }
+  const INSTALL_ENV = { TELEPHONY_PROVIDER: 'telnyx', TELNYX_API_KEY: 'KEY-install-0123456789' }
+  const noWait = { retryMs: [] as number[], sleep: async () => {} }
+  const ownTelnyx = (ws: Workspace, key: string) =>
+    db.transaction(tx =>
+      setWorkspaceCarrier(tx, ws.id, 'telnyx', { api_key: key }, ws.owner.userId, new Date().toISOString()),
+    )
+  const unconfirmed = async () =>
+    (await act(operator.owner, 'outboundCountries.get', {})).body.data.spendCapsUnconfirmed as { profile: string }[]
+  const spendRows = () => db.select().from(instance_settings).where(like(instance_settings.key, 'telnyx.spendCaps:%'))
+
+  beforeEach(async () => {
+    // Each test starts without workspaces on their own Telnyx account (earlier tests leave some) and without records.
+    await db.update(workspace_settings).set({ carrier: 'default' }).where(eq(workspace_settings.carrier, 'telnyx'))
+    await db.delete(instance_settings).where(like(instance_settings.key, 'telnyx.spendCaps:%'))
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test("a workspace's existing own profile gets its countries and the limits, with its name, no new password", async () => {
+    const ws = await createWorkspace('Older Telnyx Business')
+    await ownNumber(ws, berlin())
+    await ownTelnyx(ws, 'KEY-older-0123456789')
+    const profile = `linedesk-outbound-${ws.id}`
+    const telnyx = telnyxAccount([profile])
+    expect(await syncTelnyxProfiles({ fetch: telnyx.fetch, env: { TELNYX_DAILY_SPEND_LIMIT: '40' }, ...noWait })).toBe(
+      true,
+    )
+    expect(telnyx.patches()).toEqual([
+      {
+        method: 'PATCH',
+        path: `/outbound_voice_profiles/ovp_${profile}`,
+        body: { name: profile, whitelisted_destinations: ['DE'], ...SPEND, daily_spend_limit: '40.00' },
+      },
+    ])
+    expect(telnyx.requests.some(r => r.path.startsWith('/credential_connections'))).toBe(false)
+    expect(await unconfirmed()).toEqual([])
+  })
+
+  test('the install profiles: each gets the limits on its own, and a failing one does not skip the other', async () => {
+    const telnyx = telnyxAccount(['linedesk-outbound', 'linedesk-forwarding-check'], new Set(['linedesk-outbound']))
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(await syncTelnyxProfiles({ fetch: telnyx.fetch, env: INSTALL_ENV, ...noWait })).toBe(false)
+    expect(telnyx.patches().map(p => p.path)).toEqual([
+      '/outbound_voice_profiles/ovp_linedesk-outbound',
+      '/outbound_voice_profiles/ovp_linedesk-forwarding-check',
+    ])
+    expect(telnyx.patches()[1]?.body).toMatchObject({ name: 'linedesk-forwarding-check', ...SPEND })
+    expect(telnyx.patches()[1]?.body?.whitelisted_destinations).toContain('US')
+    expect(errors.mock.calls.map(c => String(c[0]))).toContainEqual(
+      expect.stringMatching(/^ALERT outbound: the install's Telnyx voice profile "linedesk-outbound" was not updated/),
+    )
+    expect((await unconfirmed()).map(p => p.profile)).toEqual(['linedesk-outbound'])
+  })
+
+  test('a Telnyx error: ALERT, never throws, retried after each wait; the warning stays until a try confirms', async () => {
+    const failing = new Set(['linedesk-outbound'])
+    const telnyx = telnyxAccount(['linedesk-outbound'], failing)
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const waits: number[] = []
+    const sleep = async (ms: number) => {
+      waits.push(ms)
+      // Telnyx answers again before the second retry.
+      if (waits.length === 2) failing.clear()
+      expect((await unconfirmed()).map(p => p.profile)).toEqual(['linedesk-outbound'])
+    }
+    expect(await syncTelnyxProfiles({ fetch: telnyx.fetch, env: INSTALL_ENV, retryMs: [5, 10, 20], sleep })).toBe(true)
+    expect(waits).toEqual([5, 10])
+    expect(telnyx.patches()).toHaveLength(3)
+    expect(errors.mock.calls.filter(c => String(c[0]).startsWith('ALERT outbound'))).toHaveLength(2)
+    expect(await unconfirmed()).toEqual([])
+  })
+
+  test('gives up after the last wait, says so, and leaves the warning', async () => {
+    const telnyx = telnyxAccount(['linedesk-outbound'], new Set(['linedesk-outbound']))
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const waits: number[] = []
+    const result = await syncTelnyxProfiles({
+      fetch: telnyx.fetch,
+      env: INSTALL_ENV,
+      retryMs: [1, 2],
+      sleep: async ms => {
+        waits.push(ms)
+      },
+    })
+    expect(result).toBe(false)
+    expect(waits).toEqual([1, 2])
+    expect(errors.mock.calls.map(c => String(c[0]))).toContainEqual(
+      expect.stringMatching(/Telnyx spend limits not confirmed after 3 tries/),
+    )
+    expect((await unconfirmed()).map(p => p.profile)).toEqual(['linedesk-outbound'])
+  })
+
+  test('a bad env value: ALERT, never throws, retried, nothing sent to Telnyx, every profile warned', async () => {
+    const ws = await createWorkspace('Bad Env Business')
+    await ownNumber(ws, berlin())
+    await ownTelnyx(ws, 'KEY-badenv-0123456789')
+    const telnyx = telnyxAccount(['linedesk-outbound', `linedesk-outbound-${ws.id}`])
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const waits: number[] = []
+    const result = await syncTelnyxProfiles({
+      fetch: telnyx.fetch,
+      env: { ...INSTALL_ENV, TELNYX_DAILY_SPEND_LIMIT: 'fifty' },
+      retryMs: [1],
+      sleep: async ms => {
+        waits.push(ms)
+      },
+    })
+    expect(result).toBe(false)
+    expect(waits).toEqual([1])
+    expect(telnyx.requests).toEqual([])
+    expect(errors.mock.calls.map(c => String(c[0]))).toContainEqual(
+      expect.stringMatching(/ALERT outbound: .* TELNYX_DAILY_SPEND_LIMIT=fifty is not a positive amount/),
+    )
+    expect((await unconfirmed()).map(p => p.profile).sort()).toEqual(
+      [`linedesk-forwarding-check`, 'linedesk-outbound', `linedesk-outbound-${ws.id}`].sort(),
+    )
+  })
+
+  test('warns at start about limits so high they barely limit', async () => {
+    const warnings = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await syncTelnyxProfiles({ env: { TELNYX_MAX_DESTINATION_RATE: '3' }, ...noWait })
+    expect(warnings.mock.calls.map(c => String(c[0]))).toContainEqual(
+      expect.stringMatching(/TELNYX_MAX_DESTINATION_RATE is \$3\/min, above \$1\/min/),
+    )
+  })
+
+  test('without countries to give, an existing profile still gets the limits (its countries left as they are)', async () => {
+    // A workspace on its own Telnyx account without own-account numbers.
+    const ws = await createWorkspace('No Own Numbers Business')
+    await ownTelnyx(ws, 'KEY-nonumbers-0123456789')
+    const profile = `linedesk-outbound-${ws.id}`
+    const telnyx = telnyxAccount([profile])
+    expect(await syncTelnyxProfiles({ fetch: telnyx.fetch, ...noWait })).toBe(true)
+    expect(telnyx.patches()).toEqual([
+      { method: 'PATCH', path: `/outbound_voice_profiles/ovp_${profile}`, body: { name: profile, ...SPEND } },
+    ])
+  })
+
+  test('reading the install carrier or the workspace list fails: ALERT, no throw, and Server admin warns', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(db, 'transaction').mockRejectedValueOnce(new Error('database is down'))
+    vi.spyOn(db, 'select').mockImplementationOnce(() => {
+      throw new Error('database is down')
+    })
+    expect(await syncTelnyxProfiles({ env: INSTALL_ENV, ...noWait })).toBe(false)
+    vi.restoreAllMocks()
+    expect((await unconfirmed()).map(p => p.profile).sort()).toEqual(
+      ['linedesk-forwarding-check', 'linedesk-outbound', 'linedesk-outbound-<workspace id>'].sort(),
+    )
+    expect(errors.mock.calls.map(c => String(c[0]))).toContainEqual(
+      expect.stringMatching(/ALERT outbound: workspaces' Telnyx voice profiles were not updated: database is down/),
+    )
+    // A sync that can read everything again clears them.
+    expect(await syncTelnyxProfiles({ fetch: telnyxAccount([]).fetch, env: INSTALL_ENV, ...noWait })).toBe(true)
+    expect(await unconfirmed()).toEqual([])
+  })
+
+  test('a malformed record is skipped and logged, never breaks Server admin', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await db.insert(instance_settings).values([
+      { key: 'telnyx.spendCaps:linedesk-broken', value: 'not json' },
+      { key: 'telnyx.spendCaps:linedesk-outbound', value: JSON.stringify({ problem: 'x', at: new Date().toISOString() }) },
+    ])
+    expect((await unconfirmed()).map(p => p.profile)).toEqual(['linedesk-outbound'])
+    expect(errors.mock.calls.map(c => String(c[0]))).toContainEqual(
+      expect.stringMatching(/"linedesk-broken" is not valid JSON; skipped/),
+    )
+  })
+
+  test('a profile that does not exist is left alone (the next set-up creates it with the limits)', async () => {
+    const telnyx = telnyxAccount([])
+    expect(await syncTelnyxProfiles({ fetch: telnyx.fetch, env: INSTALL_ENV, ...noWait })).toBe(true)
+    expect(telnyx.patches()).toEqual([])
+    expect(await spendRows()).toEqual([])
+  })
 })

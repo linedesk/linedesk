@@ -53,6 +53,10 @@ const server = serve({ fetch: app.fetch, port }, () => console.log(`api on http:
 
 // Jobs failing to start must not take the API down: requests keep working, the jobs wait for a restart.
 startJobs().catch(error => console.error('jobs could not start:', error))
+// Linedesk's Telnyx voice profiles get the allowed countries and the spend limits again (outbound-policy.ts), so an
+// update brings older profiles to them. In the background, never blocking the start: it retries with backoff, logs
+// ALERT lines and records unconfirmed profiles for Server admin › System; it never throws.
+void (await import('./outbound-policy.ts')).syncTelnyxProfiles()
 
 // Stop on SIGTERM/SIGINT (as PID 1 in a container Node would ignore them): finish open requests,
 // but don't wait for long-lived sync streams.

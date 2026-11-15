@@ -331,7 +331,7 @@ export type OutboundCountriesView = { countries: string[] | null }
 export const outboundCountriesGet = defineAction({
   name: 'outboundCountries.get',
   description:
-    "Server admin: the countries every workspace of this install may call besides its own numbers' countries (`countries`; `fromEnv`: set by OUTBOUND_COUNTRIES, read-only here), today's outbound use, and the countries the install's Twilio account blocks (null: not Twilio or not known).",
+    "Server admin: the countries every workspace of this install may call besides its own numbers' countries (`countries`; `fromEnv`: set by OUTBOUND_COUNTRIES, read-only here), today's outbound use, the countries the install's Twilio account blocks (null: not Twilio or not known), and the Telnyx voice profiles whose spend limits are not confirmed (`spendCapsUnconfirmed`).",
   input: z.object({}),
   permission: 'instance:admin',
   readOnly: true,
@@ -359,4 +359,9 @@ export type OutboundCountriesData = {
   highRisk: readonly string[]
   /** Countries Linedesk may call that the install's Twilio account's Geo permissions block; null when not Twilio or unknown. */
   twilioBlocked: string[] | null
+  /**
+   * Linedesk's Telnyx voice profiles whose spend limits (TELNYX_MAX_DESTINATION_RATE, TELNYX_DAILY_SPEND_LIMIT) are not
+   * confirmed: the startup sync or a set-up failed for them (the reason is in the server log). Empty when all are.
+   */
+  spendCapsUnconfirmed: { profile: string; at: string }[]
 }

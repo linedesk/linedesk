@@ -24,11 +24,13 @@ import {
   TRANSFER_MAX_MINUTES,
   TRANSFER_MIN_MINUTES,
 } from '@linedesk/actions'
-import { calls, forwarding_checks, instance_settings, phone_numbers, type Tx } from '@linedesk/db'
+import { calls, forwarding_checks, instance_settings, phone_numbers, type Tx, workspace_settings } from '@linedesk/db'
 import {
   installCarrierName,
   setTelnyxDestinations,
+  spendLimitWarnings,
   TRANSFER_OUTBOUND_NAME,
+  telnyxSpendLimits,
   twilioBlockedCountries,
 } from '@linedesk/telephony'
 import { and, eq, gte, isNotNull, sql } from 'drizzle-orm'
@@ -36,7 +38,9 @@ import { db } from './db.ts'
 import { CHECK_TRUNK_NAME } from './forwarding-check.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { installTelephony } from './provider-settings.ts'
-import { CARRIER_TIMEOUT_MS } from './workspace-carrier.ts'
+import { pruneSpendCaps, recordSpendCaps, unconfirmedSpendCaps, WORKSPACE_PROFILES } from './telnyx-spend-caps.ts'
+import { carrierSideName } from './transfer-trunk.ts'
+import { CARRIER_TIMEOUT_MS, ownCarrierCredentials } from './workspace-carrier.ts'
 
 type Env = Record<string, string | undefined>
 const KEY = 'outbound.countries'
@@ -271,33 +275,182 @@ const timedFetch =
   (input, init) =>
     doFetch(input, { ...init, signal: AbortSignal.timeout(CARRIER_TIMEOUT_MS) })
 
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
 /**
- * Puts the allowed countries on the install's Telnyx voice profiles (transfers and forwarding checks) that exist; the
- * next set-up creates a missing one with them. Twilio: nothing is changed (account-wide Geo permissions). Runs after
- * the change committed (`onCommit`), with its own short read, so no carrier request holds a transaction. Logs and
- * never throws: a carrier that is down never undoes the change that caused this; the ALERT line says the carrier's
- * ceiling may now be wider than Linedesk's list (Linedesk still checks every dial).
+ * Puts the allowed countries and the spend limits on one existing `linedesk-*` voice profile (`destinations` null:
+ * the limits only) and records the result (telnyx-spend-caps.ts). False when it failed, with an ALERT line; never throws.
  */
-export async function syncInstallDestinations(deps: Deps = {}) {
+async function syncProfile(
+  apiKey: string,
+  name: string,
+  destinations: string[] | null,
+  deps: Deps,
+  what: string,
+): Promise<boolean> {
   try {
-    const { carrier, destinations } = await db.transaction(async tx => ({
-      carrier: await installTelephony(tx),
-      destinations: await installDestinations(tx, deps.env),
-    }))
-    if ('named' in carrier || carrier.provider !== 'telnyx') return
-    const apiKey = carrier.config.api_key?.value
-    if (!apiKey || !destinations.length) return
-    for (const base of [TRANSFER_OUTBOUND_NAME, CHECK_TRUNK_NAME])
-      await setTelnyxDestinations({
-        apiKey,
-        name: installCarrierName(base),
-        destinations,
-        fetch: timedFetch(deps.fetch ?? fetch),
-      })
+    await setTelnyxDestinations({
+      apiKey,
+      name,
+      destinations,
+      spendLimits: telnyxSpendLimits(deps.env ?? process.env),
+      fetch: timedFetch(deps.fetch ?? fetch),
+    })
+    await recordSpendCaps(name, null)
+    return true
   } catch (e) {
-    console.error(
-      `ALERT outbound: the install's Telnyx destinations were not updated: ${e instanceof Error ? e.message : String(e)}`,
+    console.error(`ALERT outbound: ${what} was not updated: ${message(e)}`)
+    await recordSpendCaps(name, message(e))
+    return false
+  }
+}
+
+/** The install's Telnyx carrier and what its profiles may call; null when the install does not call through Telnyx. */
+async function installTelnyx(deps: Deps) {
+  const { carrier, destinations } = await db.transaction(async tx => ({
+    carrier: await installTelephony(tx, deps.env),
+    destinations: await installDestinations(tx, deps.env),
+  }))
+  if ('named' in carrier || carrier.provider !== 'telnyx') return null
+  const apiKey = carrier.config.api_key?.value
+  return apiKey ? { apiKey, destinations } : null
+}
+
+const INSTALL_PROFILES = [TRANSFER_OUTBOUND_NAME, CHECK_TRUNK_NAME]
+
+/**
+ * Puts the allowed countries and the spend limits (`TELNYX_MAX_DESTINATION_RATE`, `TELNYX_DAILY_SPEND_LIMIT`) on the
+ * install's Telnyx voice profiles (transfers and forwarding checks) that exist, each on its own (one failing never
+ * skips the other); the next set-up creates a missing one with them. Without a country to give (no install-account
+ * number, no install list) only the limits are set. Twilio: nothing is changed (account-wide Geo permissions). Runs
+ * after the change committed (`onCommit`), with its own short read, so no carrier request holds a transaction. Logs and
+ * never throws: a carrier that is down never undoes the change that caused this; the ALERT line says the carrier's
+ * ceiling may now be wider than Linedesk's list (Linedesk still checks every dial), and Server admin › System warns
+ * until the limits are confirmed.
+ */
+export async function syncInstallDestinations(deps: Deps = {}): Promise<void> {
+  await syncInstallProfiles(deps)
+}
+
+/** syncInstallDestinations, with whether every profile is up to date and the names it manages. */
+async function syncInstallProfiles(deps: Deps): Promise<{ ok: boolean; profiles: string[] }> {
+  let install: Awaited<ReturnType<typeof installTelnyx>>
+  try {
+    install = await installTelnyx(deps)
+  } catch (e) {
+    console.error(`ALERT outbound: the install's Telnyx destinations were not updated: ${message(e)}`)
+    const profiles = INSTALL_PROFILES.map(base => installCarrierName(base))
+    // Not known whether the install calls through Telnyx: warn for its profiles until a sync can tell.
+    for (const name of profiles) await recordSpendCaps(name, message(e))
+    return { ok: false, profiles }
+  }
+  if (!install) return { ok: true, profiles: [] }
+  const profiles = INSTALL_PROFILES.map(base => installCarrierName(base))
+  let ok = true
+  for (const name of profiles)
+    if (
+      !(await syncProfile(
+        install.apiKey,
+        name,
+        install.destinations.length ? install.destinations : null,
+        deps,
+        `the install's Telnyx voice profile "${name}"`,
+      ))
     )
+      ok = false
+  return { ok, profiles }
+}
+
+/**
+ * The profile in each workspace's own Telnyx account: its own numbers' countries and the spend limits; a workspace
+ * without own-account numbers gets the limits only (its countries stay as they are).
+ */
+async function syncWorkspaceProfiles(deps: Deps): Promise<{ ok: boolean; profiles: string[] }> {
+  const env = deps.env ?? process.env
+  let workspaceIds: string[]
+  try {
+    workspaceIds = (
+      await db
+        .select({ id: workspace_settings.workspace_id })
+        .from(workspace_settings)
+        .where(eq(workspace_settings.carrier, 'telnyx'))
+    ).map(row => row.id)
+  } catch (e) {
+    console.error(`ALERT outbound: workspaces' Telnyx voice profiles were not updated: ${message(e)}`)
+    await recordSpendCaps(WORKSPACE_PROFILES, message(e))
+    return { ok: false, profiles: [WORKSPACE_PROFILES] }
+  }
+  let ok = true
+  const profiles: string[] = []
+  for (const workspaceId of workspaceIds) {
+    const name = carrierSideName(workspaceId)
+    profiles.push(name)
+    const what = `the Telnyx voice profile of workspace ${workspaceId}`
+    try {
+      const { own, destinations } = await db.transaction(async tx => ({
+        own: await ownCarrierCredentials(tx, workspaceId),
+        destinations: await workspaceDestinations(tx, workspaceId, env),
+      }))
+      if (own?.carrier !== 'telnyx' || !own.values.api_key) {
+        await recordSpendCaps(name, null)
+        continue
+      }
+      if (!(await syncProfile(own.values.api_key, name, destinations.length ? destinations : null, deps, what)))
+        ok = false
+    } catch (e) {
+      console.error(`ALERT outbound: ${what} was not updated: ${message(e)}`)
+      await recordSpendCaps(name, message(e))
+      ok = false
+    }
+  }
+  return { ok, profiles }
+}
+
+/** Waits between the startup sync's tries; the timer never keeps the process alive. */
+const sleep = (ms: number) =>
+  new Promise<void>(resolve => {
+    setTimeout(resolve, ms).unref?.()
+  })
+/** The startup sync tries again after these waits, then gives up until the next start (or a set-up confirms). */
+export const SPEND_CAPS_RETRY_MS = [30_000, 120_000, 600_000, 1_800_000]
+
+type SyncDeps = Deps & { retryMs?: number[]; sleep?: (ms: number) => Promise<void> }
+
+/**
+ * At the API's start, in the background: the allowed countries and the spend limits on every Linedesk voice profile
+ * that exists, the install's (syncInstallDestinations) and the one in each workspace's own Telnyx account, so an
+ * update brings profiles made before the limits (or changed by hand) back to them, without a new SIP password
+ * anywhere. A profile that fails is recorded (Server admin › System shows "Spend limits not confirmed" until a later
+ * sync or set-up confirms it) and the whole sync is tried again after each wait in SPEND_CAPS_RETRY_MS. Warns when a
+ * configured limit is so high it barely limits. Logs and never throws; true once every profile is confirmed.
+ */
+export async function syncTelnyxProfiles(deps: SyncDeps = {}): Promise<boolean> {
+  try {
+    for (const warning of spendLimitWarnings(telnyxSpendLimits(deps.env ?? process.env)))
+      console.warn(`outbound: ${warning}`)
+  } catch {
+    // An invalid value: every profile below fails with the reason and is recorded.
+  }
+  const waits = deps.retryMs ?? SPEND_CAPS_RETRY_MS
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const install = await syncInstallProfiles(deps)
+      const workspaces = await syncWorkspaceProfiles(deps)
+      if (install.ok && workspaces.ok) {
+        await pruneSpendCaps([...install.profiles, ...workspaces.profiles])
+        return true
+      }
+    } catch (e) {
+      console.error(`ALERT outbound: the Telnyx voice profiles were not updated: ${message(e)}`)
+    }
+    const wait = waits[attempt]
+    if (wait === undefined) {
+      console.error(
+        `ALERT outbound: Telnyx spend limits not confirmed after ${attempt + 1} tries; Server admin › System lists the voice profiles`,
+      )
+      return false
+    }
+    await (deps.sleep ?? sleep)(wait)
   }
 }
 
@@ -342,6 +495,7 @@ async function adminView(tx: Tx, now: string, deps: Deps): Promise<OutboundCount
     },
     limits: outboundLimits(env),
     twilioBlocked: await twilioBlocked(tx, deps),
+    spendCapsUnconfirmed: (await unconfirmedSpendCaps(tx)).map(({ profile, at }) => ({ profile, at })),
     highRisk: HIGH_RISK_COUNTRIES,
   }
 }

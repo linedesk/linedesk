@@ -302,6 +302,17 @@ function OutboundCalls() {
                 })}
               </Note>
             ) : null}
+            {data.spendCapsUnconfirmed?.length ? (
+              <Note tone="warning">
+                {t('admin.system.spendCapsUnconfirmed', {
+                  count: data.spendCapsUnconfirmed.length,
+                  profiles: fmt().list(
+                    data.spendCapsUnconfirmed.map(p => p.profile),
+                    { type: 'unit', style: 'short' },
+                  ),
+                })}
+              </Note>
+            ) : null}
             <dl className="adm-facts">
               <div>
                 <dt>{t('admin.system.last24h')}</dt>

@@ -99,7 +99,14 @@ The per-workspace minutes count every transferred call of the workspace, also th
 
 Premium-rate, shared-cost, toll-free, personal, emergency and service numbers are never called, in any country.
 
-**Telnyx:** Linedesk keeps its voice profiles (`linedesk-*`) limited to the allowed countries itself.
+**Telnyx:** Linedesk keeps its voice profiles (`linedesk-*`) limited to the allowed countries itself, and puts two of Telnyx's own cost ceilings on each: a max destination rate (destinations that cost more per minute are refused) and a daily spend limit (once reached, the profile takes no new calls until the next day). Both are set when a profile is created, on every set-up and country change, and again each time the API starts, so an update brings older profiles to them. When Telnyx does not confirm them at start, the API tries again in the background (after 30 s, 2, 10 and 30 minutes), logs `ALERT outbound` lines, and Server admin › System shows "Spend limits not confirmed" with the voice profiles until a retry or the next set-up confirms them. Values above $1/min or $500 a day are applied, with a warning in the log:
+
+```sh
+TELNYX_MAX_DESTINATION_RATE=0.10   # USD per minute (default): US/Canada about $0.01, most mobile in Europe and Latin America a few cents
+TELNYX_DAILY_SPEND_LIMIT=50        # USD per voice profile and day (default): 2000 install minutes at $0.025
+```
+
+Raise the rate if you allow a country whose mobile numbers cost more (Telnyx's outbound rate deck shows them); the transfer then fails with a carrier refusal until you do.
 
 **Twilio:** which countries an account may call is the account's own setting, and Linedesk never changes it. Server admin › System shows the allowed countries Twilio still blocks; turn each on in Twilio Console › Voice › Settings › Geo permissions (low-risk numbers are enough). A workspace with its own Twilio account does the same in its account.
 

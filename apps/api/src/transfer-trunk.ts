@@ -11,12 +11,19 @@
 import { createHash } from 'node:crypto'
 import type { CarrierProvisionData, CarrierTransferTrunkData, OwnCarrier } from '@linedesk/actions'
 import { commands, phone_numbers, type Tx } from '@linedesk/db'
-import { createTelnyxOutbound, createTwilioOutbound, type OutboundSip, TelephonyError } from '@linedesk/telephony'
+import {
+  createTelnyxOutbound,
+  createTwilioOutbound,
+  type OutboundSip,
+  TelephonyError,
+  telnyxSpendLimits,
+} from '@linedesk/telephony'
 import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { livekitToken } from './livekit-status.ts'
 import { workspaceDestinations } from './outbound-policy.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { recordSpendCaps } from './telnyx-spend-caps.ts'
 import {
   CARRIER_TIMEOUT_MS,
   carrierLabel,
@@ -49,10 +56,18 @@ function ownOutboundSip(
   values: Record<string, string>,
   doFetch: typeof fetch,
   destinations: string[],
+  env: Env,
 ): Promise<OutboundSip> {
   const name = carrierSideName(workspaceId)
   if (carrier === 'telnyx')
-    return createTelnyxOutbound({ apiKey: values.api_key!, name, destinations, fetch: doFetch }).ensureOutboundSip()
+    return createTelnyxOutbound({
+      apiKey: values.api_key!,
+      name,
+      destinations,
+      spendLimits: telnyxSpendLimits(env),
+      onSpendCaps: problem => recordSpendCaps(name, problem),
+      fetch: doFetch,
+    }).ensureOutboundSip()
   const auth =
     values.api_key_sid && values.api_key_secret
       ? { apiKeySid: values.api_key_sid, apiKeySecret: values.api_key_secret }
@@ -174,6 +189,7 @@ export async function provisionTransferTrunk(tx: Tx, workspaceId: string, deps: 
       own.values,
       timed,
       await workspaceDestinations(tx, workspaceId, deps.env),
+      deps.env ?? process.env,
     )
   } catch (e) {
     // The adapters keep credentials out of their messages.
