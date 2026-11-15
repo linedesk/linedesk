@@ -1,7 +1,7 @@
 // The assistant's transfer_call tool: puts the caller through to the transfer contact whose condition
 // fits (warm transfer, transfer-call.ts), tries the next one when the contact says so, and records how
 // each try went with call.transfer.
-import { callTakeMessage, callTransfer, type TransferResult } from '@linedesk/actions'
+import { type CallTransferData, callTakeMessage, callTransfer, type TransferResult } from '@linedesk/actions'
 import { llm, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -161,16 +161,26 @@ async function saveNotConnectedMessage(api: ApiClient, call: CallSession, log: C
 
 /** Records a try's result with call.transfer (`dialing` asks to start it; refused over the workspace's limits). */
 async function report(api: ApiClient, call: CallSession, { to, name }: Report, result: TransferResult) {
-  await api.run(callTransfer, { callId: call.callId, to, name, result }, call)
+  return api.run(callTransfer, { callId: call.callId, to, name, result }, call)
 }
 
-/** Why the API refused to start the transfer, or null when it may go ahead. */
-async function startTransfer(api: ApiClient, call: CallSession, target: Report): Promise<string | null> {
+/**
+ * Asks the API to start the transfer, right before dialling: it checks the destination again (the workspace's numbers
+ * or the install's countries may have changed since the contact was saved) and the day's minutes. The caller ID and the
+ * longest the leg may last, or why it was refused.
+ */
+export async function startTransfer(
+  api: Pick<ApiClient, 'run'>,
+  call: CallSession,
+  target: Report,
+): Promise<{ refused: string; destination: boolean } | { refused: null; start: Partial<CallTransferData> }> {
   try {
-    await report(api, call, target, 'dialing')
-    return null
+    const { data } = await report(api as ApiClient, call, target, 'dialing')
+    return { refused: null, start: (data ?? {}) as Partial<CallTransferData> }
   } catch (e) {
-    return e instanceof Error ? e.message : String(e)
+    const refused = e instanceof Error ? e.message : String(e)
+    // Only this contact's number is refused: the next contact may still be tried, as the plan says.
+    return { refused, destination: /transfer refused:/.test(refused) }
   }
 }
 
@@ -235,11 +245,16 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
           previous = contact
           continue
         }
-        const refused = await startTransfer(api, call, target)
-        if (refused) {
-          console.warn(`transfer of call ${call.callId} not started: ${refused}`)
+        const started = await startTransfer(api, call, target)
+        if (started.refused !== null) {
+          console.warn(`transfer of call ${call.callId} not started: ${started.refused}`)
           log.record('system', transferLabel('failed', contact.number, contact.name), callTransfer.name)
           void report(api, call, target, 'failed').catch(() => {})
+          if (started.destination) {
+            // A country the workspace may not call (any more): like no answer, the plan decides what is next.
+            previous = contact
+            continue
+          }
           break // the workspace's limits: the next contact would be refused too
         }
         // A fixed line, so the caller always hears whom they are put through to before the ringback.
@@ -259,6 +274,8 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
             announcement,
             ringSeconds: contact.ring_seconds,
             attempt: i + 1,
+            callerId: started.start.callerId ?? undefined,
+            maxCallSeconds: started.start.maxMinutes ? started.start.maxMinutes * 60 : undefined,
           },
           briefing,
           left,

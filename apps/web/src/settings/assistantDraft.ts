@@ -7,6 +7,8 @@ import {
   TRANSFER_CONTACTS_MAX,
   TRANSFER_NAME_MAX,
   onCallNumberProblem,
+  type OutboundCountries,
+  outboundNumberProblem,
   phoneNumberProblem,
   DEFAULT_SILENCE_CLOSING,
   DEFAULT_SILENCE_REMINDER,
@@ -38,8 +40,7 @@ import {
   type VoicePipeline,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
-import { formatNumber, renameInGreeting } from '../onboarding/flow.ts'
-import { usE164 } from '../onboarding/us-number.ts'
+import { formatNumber, outboundE164, renameInGreeting } from '../onboarding/flow.ts'
 
 /** `greeting_outside`: used outside business hours; empty = the same as during hours. */
 export type Draft = {
@@ -293,25 +294,37 @@ export function hangUpSummary(d: Pick<Draft, 'silence_hang_up_s' | 'max_call_min
 
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
 function normalizedNumber(typed: string): string {
-  const e164 = usE164(typed)
+  const e164 = outboundE164(typed)
   return e164 ? formatNumber(e164) : typed.trim()
 }
 
-/** Why a transfer contact's number cannot be used, or null (empty is fine: the contact waits for one). */
-export function numberProblem(typed: string): string | null {
+/**
+ * Why a transfer contact's number cannot be used, or null (empty is fine: the contact waits for one). `countries`: the
+ * ones the workspace may call (outbound.countries); `any` until it has a number (the server checks the dial).
+ */
+export function numberProblem(typed: string, countries: OutboundCountries = 'any'): string | null {
   if (!typed.trim()) return null
-  const e164 = usE164(typed)
-  if (e164) return onCallNumberProblem(e164)
+  const e164 = outboundE164(typed)
+  if (e164) return onCallNumberProblem(e164, countries)
   // The phone field's value (E.164 as typed): an unfinished number says so for its country.
   const unfinished = typed.trim().startsWith('+') ? phoneNumberProblem(typed) : null
-  return unfinished ?? 'Enter a US number with its area code, like +1 503 555 0100.'
+  return unfinished ?? 'Enter the number with its country code and area code, like +1 503 555 0100.'
+}
+
+/** Whether the contact's number is refused only for its country: shown at once, also on a contact saved earlier. */
+export const refusedForCountry = (typed: string, countries: OutboundCountries) => {
+  const e164 = outboundE164(typed)
+  return !!e164 && outboundNumberProblem(e164, countries)?.reason === 'country'
 }
 
 export type TransferField = 'name' | 'number' | 'condition'
 /** What is wrong with a contact, and in which field; the first problem of the list, or null. */
 export type TransferProblem = { index: number; field: TransferField; message: string }
 
-export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | null {
+export function transferProblem(
+  d: Pick<Draft, 'transfers'>,
+  countries: OutboundCountries = 'any',
+): TransferProblem | null {
   const names = new Set<string>()
   for (const [index, c] of d.transfers.entries()) {
     const name = c.name.trim()
@@ -320,7 +333,7 @@ export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | 
       return { index, field: 'name', message: `At most ${TRANSFER_NAME_MAX} characters.` }
     if (names.has(name.toLowerCase())) return { index, field: 'name', message: `Another contact is called "${name}".` }
     names.add(name.toLowerCase())
-    const number = numberProblem(c.number)
+    const number = numberProblem(c.number, countries)
     if (number) return { index, field: 'number', message: number }
     if (!c.condition.trim()) return { index, field: 'condition', message: 'Say when calls go to this contact.' }
     if (c.condition.trim().length > TRANSFER_CONDITION_MAX)
@@ -331,7 +344,7 @@ export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | 
 
 /** The transfer contacts to save. */
 export const transfersToSave = (d: Pick<Draft, 'transfers'>): TransferContact[] =>
-  d.transfers.map(c => ({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: usE164(c.number) }))
+  d.transfers.map(c => ({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: outboundE164(c.number) }))
 
 /** Starting points for a new contact: blank, or someone for callers who ask for a person. */
 export type TransferPreset = 'blank' | 'person'
@@ -403,14 +416,14 @@ export function nameProblem(name: string): string | null {
 }
 
 /** Why the draft cannot be saved yet, in words for the user; null when it can. */
-export function draftProblem(draft: Draft): string | null {
+export function draftProblem(draft: Draft, countries: OutboundCountries = 'any'): string | null {
   const name = nameProblem(draft.name)
   if (name) return name
   if (!draft.greeting.trim()) return 'The greeting cannot be empty: it is the first thing callers hear.'
   const length = draft.instructions.trim().length
   if (length > INSTRUCTIONS_MAX)
     return `The instructions are too long: ${length.toLocaleString('en-US')} of ${INSTRUCTIONS_MAX.toLocaleString('en-US')} characters.`
-  return transferProblem(draft)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
+  return transferProblem(draft, countries)?.message ?? silenceProblem(draft) ?? languagesProblem(draft)
 }
 
 /** The profile to save: the instructions replace the older fields they were folded from. Expects a normalized draft. */

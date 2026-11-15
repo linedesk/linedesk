@@ -21,8 +21,19 @@ import { type GreetingAudio, synthesize } from './greeting-cache.ts'
 import { rms } from './test-caller/latency.ts'
 import { RING_SECONDS } from './transfer.ts'
 
-/** `ringSeconds`: how long the phone rings (the contact's ring time; RING_SECONDS when not given). */
-export type DialRequest = { room: string; identity: string; signal: AbortSignal; ringSeconds?: number }
+/**
+ * `ringSeconds`: how long the phone rings (the contact's ring time; RING_SECONDS when not given). `from`: the caller ID
+ * for this dial (the API's pick), else the dialer's own. `maxCallSeconds`: the longest the leg may last (the API's limit),
+ * never more than MAX_TRANSFER_SEC.
+ */
+export type DialRequest = {
+  room: string
+  identity: string
+  signal: AbortSignal
+  ringSeconds?: number
+  from?: string
+  maxCallSeconds?: number
+}
 
 /** Puts the on-call person into the consult room; resolves once they answered, rejects when nobody did. */
 export interface OnCallDialer {
@@ -42,6 +53,12 @@ const aborted = (signal: AbortSignal) =>
 /** A transferred call never lasts longer than this on the on-call side: the longest any call lasts. */
 const MAX_TRANSFER_SEC = CALL_MAX_MINUTES * 60
 
+/** The on-call leg's longest length: the API's limit when it gave one (at least a minute), never more than MAX_TRANSFER_SEC. */
+export const transferLegSeconds = (maxCallSeconds?: number) =>
+  maxCallSeconds && maxCallSeconds > 0
+    ? Math.min(MAX_TRANSFER_SEC, Math.max(60, Math.floor(maxCallSeconds)))
+    : MAX_TRANSFER_SEC
+
 /** Dials the on-call number through the outbound trunk, showing the business's Linedesk number. */
 export function sipDialer({
   sip,
@@ -55,16 +72,17 @@ export function sipDialer({
   from?: string
 }): OnCallDialer {
   return {
-    async dial({ room, identity, signal, ringSeconds = RING_SECONDS }) {
+    async dial({ room, identity, signal, ringSeconds = RING_SECONDS, from: callerId, maxCallSeconds }) {
       if (signal.aborted) throw new NotAnsweredError('cancelled before dialling')
+      const fromNumber = callerId ?? from
       // The SIP request cannot be cancelled; the caller of dial deletes the consult room, which ends the leg.
       const dialled = sip.createSipParticipant(trunkId, to, room, {
         participantIdentity: identity,
         participantName: 'On call',
-        ...(from ? { fromNumber: from } : {}),
+        ...(fromNumber ? { fromNumber } : {}),
         waitUntilAnswered: true,
         ringingTimeout: ringSeconds,
-        maxCallDuration: MAX_TRANSFER_SEC,
+        maxCallDuration: transferLegSeconds(maxCallSeconds),
         timeout: ringSeconds + 10,
       })
       try {

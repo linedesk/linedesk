@@ -1,7 +1,12 @@
 // The forwarding check (onboarding concept, 6a and 6c), in the order the owner goes: the business's own number first,
 // its carrier from a lookup, then the carrier and codes (`children`), then "Check forwarding": Linedesk calls that
 // number and watches whether the call reaches the assistant. Used in the phone step and in Settings › Phone numbers.
-import { type ForwardingCheckView, forwardingGuideById, type LineLookupData } from '@linedesk/actions'
+import {
+  type ForwardingCheckView,
+  forwardingGuideById,
+  type LineLookupData,
+  onCallNumberProblem,
+} from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
@@ -18,8 +23,9 @@ import {
   noCheckText,
   SIMULATED_MARK,
 } from './forwarding-check.ts'
-import { formatNumber } from './flow.ts'
-import { usE164 } from './us-number.ts'
+import { formatNumber, outboundE164 } from './flow.ts'
+import { useOutboundCountries } from './outbound-number.ts'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 
 const POLL_MS = 2000
 /** Reads that fail in a row before the check says so and offers to try again; until then it backs off. */
@@ -61,7 +67,7 @@ export function ForwardingCheck({
   const write = useWriteAction()
   const run = useRun()
   const [typed, setTyped] = useState(() => {
-    const known = number.forwarded_from ?? (given && usE164(given))
+    const known = number.forwarded_from ?? (given && outboundE164(given))
     return known ? formatNumber(known) : ''
   })
   const [edited, setEdited] = useState(false)
@@ -80,12 +86,17 @@ export function ForwardingCheck({
   const looked = useRef<string | null>(null)
   const editedRef = useRef(edited)
   editedRef.current = edited
-  const businessNumber = usE164(typed)
+  const countries = useOutboundCountries()
+  const phoneCountry = useDefaultPhoneCountry()
+  const typedNumber = outboundE164(typed)
+  // The destination policy, said under the field at once: a country this workspace may not call, a toll-free number.
+  const policyProblem = typedNumber ? onCallNumberProblem(typedNumber, countries, 'check') : null
+  const businessNumber = policyProblem ? null : typedNumber
   const dialing = check?.status === 'dialing'
 
   // The business phone from the first step can arrive after this opens: it fills the field while that is empty.
   useEffect(() => {
-    const e164 = given && usE164(given)
+    const e164 = given && outboundE164(given)
     if (e164) setTyped(current => current || formatNumber(e164))
   }, [given])
 
@@ -169,6 +180,7 @@ export function ForwardingCheck({
 
   async function start() {
     if (starting || dialing || !available) return
+    if (policyProblem) return setProblem(policyProblem)
     if (!businessNumber) return setProblem('Enter your business number, the one your callers dial.')
     setProblem(null)
     setStarting(true)
@@ -204,7 +216,8 @@ export function ForwardingCheck({
           <PhoneInput
             id={fieldId}
             value={typed}
-            defaultCountry="US"
+            defaultCountry={phoneCountry}
+            invalid={!!policyProblem}
             autoComplete="off"
             onChange={value => {
               setTyped(value)
@@ -220,6 +233,7 @@ export function ForwardingCheck({
           />
         </Field>
       )}
+      {canCheck && policyProblem && <Note tone="danger">{policyProblem}</Note>}
       {line && (
         <p className="ob2-note">
           {line.text}

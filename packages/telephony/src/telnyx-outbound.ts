@@ -21,6 +21,11 @@ export interface TelnyxOutboundOptions {
   apiKey: string
   /** Name of the connection and the voice profile; also the base of the SIP user name. */
   name?: string
+  /**
+   * The countries the voice profile may call (ISO codes; default: the US only). Linedesk's destination policy
+   * (packages/actions/src/outbound.ts) decides them; never empty, which Telnyx could take as "anywhere".
+   */
+  destinations?: readonly string[]
   fetch?: typeof fetch
 }
 
@@ -29,11 +34,11 @@ type Json = Record<string, any>
 
 const DEFAULT_NAME = 'linedesk-test-caller'
 /**
- * Outbound calls go to US numbers only: the US is the only allowed destination. Telnyx creates new voice
- * profiles only on the global plan now ("conversational, global, rate-deck"; the US plan is refused), so the
- * destination list is what keeps them to the US.
+ * Outbound calls go only to the allowed countries (default: the US). Telnyx creates new voice profiles only on the
+ * global plan now ("conversational, global, rate-deck"; the US plan is refused), so the destination list is what keeps
+ * them to those countries.
  */
-const US_ONLY = { whitelisted_destinations: ['US'] }
+const DEFAULT_DESTINATIONS = ['US']
 const NEW_PROFILE_PLAN = { traffic_type: 'conversational', service_plan: 'global', usage_payment_method: 'rate-deck' }
 /** Linedesk only ever creates or changes Telnyx objects whose name starts with this. */
 export const OWN_PREFIX = 'linedesk-'
@@ -41,25 +46,75 @@ export const OWN_PREFIX = 'linedesk-'
 export const TRANSFER_OUTBOUND_NAME = 'linedesk-outbound'
 const fail = (message: string) => new TelephonyError('telnyx', message)
 
+/** The destination list as Telnyx gets it: upper-case ISO codes, each once, sorted; refuses an empty or malformed one. */
+function destinationList(destinations: readonly string[]): string[] {
+  const list = [...new Set(destinations.map(c => c.toUpperCase()))].sort()
+  if (!list.length || list.some(c => !/^[A-Z]{2}$/.test(c)))
+    throw fail(`refusing the destination list ${JSON.stringify(destinations)}`)
+  return list
+}
+
+/** Fail closed: a profile Telnyx did not keep to exactly these countries is never used. */
+function checkSaved(name: string, saved: Json, wanted: string[]) {
+  const destinations = saved.data?.whitelisted_destinations
+  if (!Array.isArray(destinations) || [...destinations].sort().join() !== wanted.join())
+    throw fail(`voice profile "${name}" is not limited to ${wanted.join(', ')} (${JSON.stringify(destinations)})`)
+}
+
+/**
+ * Sets the allowed countries of the existing voice profile of that name (a `linedesk-*` one), without touching its
+ * connection or password: when the countries a workspace or the install may call change. Returns false when there is
+ * no such profile (nothing to change: the next set-up creates it with the list).
+ */
+export async function setTelnyxDestinations({
+  apiKey,
+  name,
+  destinations,
+  fetch: doFetch = fetch,
+}: {
+  apiKey: string
+  name: string
+  destinations: readonly string[]
+  fetch?: typeof fetch
+}): Promise<boolean> {
+  if (!name.startsWith(OWN_PREFIX))
+    throw fail(`refusing to manage "${name}": only objects named ${OWN_PREFIX}* are Linedesk's`)
+  const wanted = destinationList(destinations)
+  const request = telnyxRequest(apiKey, doFetch)
+  const { data } = await request('GET', `/outbound_voice_profiles?filter[name][contains]=${encodeURIComponent(name)}`)
+  const existing = (data as Json[] | undefined)?.find(item => item.name === name)
+  if (!existing) return false
+  checkSaved(
+    name,
+    await request('PATCH', `/outbound_voice_profiles/${existing.id}`, { whitelisted_destinations: wanted }),
+    wanted,
+  )
+  return true
+}
+
 /** Telnyx user names: 4 to 32 letters and digits, a letter among the first five. */
 export const sipUserName = (name: string) => `cf${name.replace(/[^a-zA-Z0-9]/g, '')}`.slice(0, 32)
 
-export function createTelnyxOutbound({ apiKey, name = DEFAULT_NAME, fetch: doFetch = fetch }: TelnyxOutboundOptions) {
-  if (!name.startsWith(OWN_PREFIX)) throw fail(`refusing to manage "${name}": only objects named ${OWN_PREFIX}* are Linedesk's`)
+export function createTelnyxOutbound({
+  apiKey,
+  name = DEFAULT_NAME,
+  destinations = DEFAULT_DESTINATIONS,
+  fetch: doFetch = fetch,
+}: TelnyxOutboundOptions) {
+  if (!name.startsWith(OWN_PREFIX))
+    throw fail(`refusing to manage "${name}": only objects named ${OWN_PREFIX}* are Linedesk's`)
+  const allowed = { whitelisted_destinations: destinationList(destinations) }
   const request = telnyxRequest(apiKey, doFetch)
   const byExactName = (items: Json[] | undefined, field: string) => items?.find(item => item[field] === name)
 
-  /** Created, or put back to US-only on every run: a profile changed by hand cannot open other destinations. */
+  /** Created, or put back to the allowed countries on every run: a profile changed by hand cannot open others. */
   async function ensureVoiceProfile(): Promise<string> {
     const { data } = await request('GET', `/outbound_voice_profiles?filter[name][contains]=${encodeURIComponent(name)}`)
     const existing = byExactName(data, 'name')
     const saved = existing
-      ? await request('PATCH', `/outbound_voice_profiles/${existing.id}`, US_ONLY)
-      : await request('POST', '/outbound_voice_profiles', { name, ...NEW_PROFILE_PLAN, ...US_ONLY })
-    // Fail closed: a profile that could call anywhere but the US is never used.
-    const destinations = saved.data?.whitelisted_destinations
-    if (!Array.isArray(destinations) || destinations.join() !== 'US')
-      throw fail(`voice profile "${name}" is not limited to US destinations (${JSON.stringify(destinations)})`)
+      ? await request('PATCH', `/outbound_voice_profiles/${existing.id}`, allowed)
+      : await request('POST', '/outbound_voice_profiles', { name, ...NEW_PROFILE_PLAN, ...allowed })
+    checkSaved(name, saved, allowed.whitelisted_destinations)
     return existing?.id ?? saved.data.id
   }
 

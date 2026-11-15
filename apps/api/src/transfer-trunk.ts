@@ -1,7 +1,8 @@
 // The outbound trunk warm transfers of a workspace's own carrier account dial through. The API sets it
 // up, never the agent, and no credential ever goes to the agent:
 // - at the carrier, `linedesk-outbound-<workspace id>` in the workspace's account (Twilio: Elastic SIP
-//   trunk + credential list; Telnyx: credential connection + US-only voice profile), so workspaces that
+//   trunk + credential list; Telnyx: credential connection + a voice profile limited to the countries the workspace
+//   may call, outbound-policy.ts), so workspaces that
 //   share an account, or an account shared with the install, never rotate each other's passwords;
 // - in LiveKit, `linedesk-outbound-<workspace id>-<account fingerprint>` with the workspace's own-account
 //   numbers as caller IDs, so after a switch to another account a trunk of the old one is never used.
@@ -14,6 +15,7 @@ import { createTelnyxOutbound, createTwilioOutbound, type OutboundSip, Telephony
 import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { livekitToken } from './livekit-status.ts'
+import { workspaceDestinations } from './outbound-policy.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import {
   CARRIER_TIMEOUT_MS,
@@ -46,10 +48,11 @@ function ownOutboundSip(
   carrier: OwnCarrier,
   values: Record<string, string>,
   doFetch: typeof fetch,
+  destinations: string[],
 ): Promise<OutboundSip> {
   const name = carrierSideName(workspaceId)
   if (carrier === 'telnyx')
-    return createTelnyxOutbound({ apiKey: values.api_key!, name, fetch: doFetch }).ensureOutboundSip()
+    return createTelnyxOutbound({ apiKey: values.api_key!, name, destinations, fetch: doFetch }).ensureOutboundSip()
   const auth =
     values.api_key_sid && values.api_key_secret
       ? { apiKeySid: values.api_key_sid, apiKeySecret: values.api_key_secret }
@@ -165,7 +168,13 @@ export async function provisionTransferTrunk(tx: Tx, workspaceId: string, deps: 
     doFetch(input, { ...init, signal: AbortSignal.timeout(CARRIER_TIMEOUT_MS) })
   let credentials: OutboundSip
   try {
-    credentials = await ownOutboundSip(workspaceId, own.carrier, own.values, timed)
+    credentials = await ownOutboundSip(
+      workspaceId,
+      own.carrier,
+      own.values,
+      timed,
+      await workspaceDestinations(tx, workspaceId, deps.env),
+    )
   } catch (e) {
     // The adapters keep credentials out of their messages.
     throw e instanceof TelephonyError

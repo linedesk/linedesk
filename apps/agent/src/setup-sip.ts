@@ -5,11 +5,13 @@
 // MAX_CALL_MINUTES, 2 hours (LiveKit hangs up; the assistant itself leaves after 25 minutes), set by writing the trunk back whole with the same numbers and addresses.
 // With --outbound also the outbound trunk warm transfers dial through ("linedesk-outbound"): the
 // carrier side is set up at TELEPHONY_PROVIDER (Telnyx for now) with a new password, and the numbers
-// are the caller IDs a transfer may show (each business's own Linedesk number).
+// are the caller IDs a transfer may show (each business's own Linedesk number). The Telnyx voice profile may call the
+// countries of those numbers plus OUTBOUND_COUNTRIES (the API keeps it to the install's list afterwards).
 // --print-allowed-addresses prints the address list, one per line, and changes nothing (for a firewall).
 // The numbers replace the trunk's whole list, so every number that must keep working is passed each time;
 // no number or an unknown option prints the usage and changes nothing.
 // Usage: pnpm --filter @linedesk/agent setup-sip [--outbound] <+15035550142 ...> | --print-allowed-addresses
+import { countriesOfNumbers, parseCountryList } from '@linedesk/actions'
 import { transferOutboundSipFromEnv } from '@linedesk/telephony'
 import { RoomAgentDispatch, RoomConfiguration, SipClient } from 'livekit-server-sdk'
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv, runScript } from './env.ts'
@@ -52,10 +54,17 @@ async function main() {
   for (const warning of openInboundWarnings(await sip.listSipInboundTrunk(), await sip.listSipDispatchRule())) console.warn(`WARNING: ${warning}`)
 
   if (outbound) {
-    const credentials = await transferOutboundSipFromEnv(process.env)
+    const destinations = [
+      ...new Set([...countriesOfNumbers(numbers), ...parseCountryList(process.env.OUTBOUND_COUNTRIES)]),
+    ]
+    const credentials = await transferOutboundSipFromEnv(
+      process.env,
+      undefined,
+      destinations.length ? destinations : undefined,
+    )
     const outboundId = await replaceOutboundTrunk(sip, numbers, credentials, TRANSFER_TRUNK_NAME)
     console.log(
-      `outbound trunk ${outboundId} ("${TRANSFER_TRUNK_NAME}") for warm transfers through ${credentials.address}, caller IDs ${numbers.join(', ')}`,
+      `outbound trunk ${outboundId} ("${TRANSFER_TRUNK_NAME}") for warm transfers through ${credentials.address}, caller IDs ${numbers.join(', ')}, to ${destinations.join(', ') || 'US'}`,
     )
   }
 }

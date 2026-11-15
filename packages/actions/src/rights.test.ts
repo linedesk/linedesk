@@ -36,6 +36,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'contact.merge',
     'voice.options',
     'voice.catalog',
+    // Which countries transfer contacts may be in (outbound.ts): read like the other settings.
+    'outbound.countries',
     'workspace.getSettings',
     'account.setAvatar',
     'account.removeAvatar',
@@ -183,6 +185,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'user.impersonate',
     'setupEmails.get',
     'setupEmails.set',
+    'outboundCountries.get',
+    'outboundCountries.set',
     'workspace.create',
     'membership.add',
     'membership.setRole',

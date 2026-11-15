@@ -24,6 +24,7 @@ import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { callerHistory } from './caller-history.ts'
 import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace, tryLockWorkspaceCarrier } from './workspace-carrier.ts'
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
+import { outboundHandlers, outboundRefusal, syncInstallDestinations } from './outbound-policy.ts'
 import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
@@ -359,6 +360,9 @@ const blockedCall = (now: string) => ({
  * count: a forwarding check saves it from a caller ID, which can be faked, so it must never lock anyone else out.
  */
 async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], workspaceId: string, e164: string, name: string) {
+  // The destination policy: a country the workspace may call, a landline or mobile (outbound-policy.ts).
+  const refusal = await outboundRefusal(tx, workspaceId, e164, 'transfer')
+  if (refusal) throw new Reject(`${name}: ${refusal}`)
   const [linedesk] = await tx
     .select({ e164: phone_numbers.e164 })
     .from(phone_numbers)
@@ -466,6 +470,7 @@ const handlers: Record<string, Handler> = {
   ...carrierHandlers(),
   ...forwardingCheckHandlers(queueForwardingCheck),
   ...transferTrunkHandlers(),
+  ...outboundHandlers(),
   ...liveCallHandlers(),
   ...apiKeyHandlers,
   ...agentSetupHandlers,
@@ -781,7 +786,7 @@ const handlers: Record<string, Handler> = {
     return { rows: {}, data: { numbers, more: owned.length >= CARRIER_NUMBERS_PAGE } satisfies CarrierNumbersData }
   },
 
-  'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback }, input) => {
+  'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback, onCommit }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspace_id = actor.workspaceId
     // Never waits long for a lock while it holds a connection: a burst of setups must not fill the pool.
@@ -842,7 +847,15 @@ const handlers: Record<string, Handler> = {
       verified_at: existing ? null : now,
     }).returning()
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
-    if (carrier_account === 'workspace') await refreshTransferTrunk(tx, workspace_id, { actorId: actor.actorId, trigger: 'phoneNumber.setup', impersonatedBy: actor.impersonation?.by })
+    if (carrier_account === 'workspace')
+      await refreshTransferTrunk(tx, workspace_id, {
+        actorId: actor.actorId,
+        trigger: 'phoneNumber.setup',
+        impersonatedBy: actor.impersonation?.by,
+      })
+    // An install-account number in a new country: the install's carrier profiles may call it too, once this commits
+    // (Telnyx; logged, never fails the setup). Own-account numbers never widen the install's profiles.
+    if (carrier_account === 'install') onCommit?.(() => syncInstallDestinations())
     // The go-live checklist's first step ("Connect your number"), and where Admin › Onboarding sees a business stop.
     await recordSetupEvent(tx, workspace_id, 'number_connected', now)
     // A transfer contact on this number would now ring back into Linedesk: switched off.
@@ -853,7 +866,7 @@ const handlers: Record<string, Handler> = {
   // Detaches the number from the workspace; a number Linedesk bought also goes back to the carrier, an
   // attached one is taken off Linedesk's routing there (its other settings at the carrier stay).
   // The carrier is asked last, right before the commit: if it refuses, nothing changes here.
-  'phoneNumber.release': async ({ tx, actor, telephony }, input) => {
+  'phoneNumber.release': async ({ tx, actor, telephony, onCommit }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const [number] = await tx.select().from(phone_numbers)
       .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, actor.workspaceId)))
@@ -883,7 +896,13 @@ const handlers: Record<string, Handler> = {
     }
     // No rows: the delete reaches browsers through read sync (a returned row would be written back locally).
     // The trunk keeps only the remaining numbers as caller IDs (or goes, without any).
-    if (number.carrier_account === 'workspace') await refreshTransferTrunk(tx, actor.workspaceId, { actorId: actor.actorId, trigger: 'phoneNumber.release', impersonatedBy: actor.impersonation?.by })
+    if (number.carrier_account === 'workspace')
+      await refreshTransferTrunk(tx, actor.workspaceId, {
+        actorId: actor.actorId,
+        trigger: 'phoneNumber.release',
+        impersonatedBy: actor.impersonation?.by,
+      })
+    if (number.carrier_account !== 'workspace') onCommit?.(() => syncInstallDestinations())
     return { rows: {}, deleted: { phone_numbers: [number.id] }, data: { releasedAtCarrier, unroutedAtCarrier } }
   },
 }

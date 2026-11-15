@@ -6,6 +6,7 @@ import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
 import {
   arrivesFor,
+  asE164,
   type CheckDialer,
   couldBeFrom,
   type CheckLine,
@@ -122,7 +123,7 @@ describe('starting a check', () => {
     const [pn] = await db.select().from(phone_numbers).where(eq(phone_numbers.workspace_id, ws.id))
     await db.update(phone_numbers).set({ forwarded_from: '+18885550100' }).where(eq(phone_numbers.id, pn!.id))
     const started = await act(ws.owner, 'phoneNumber.checkForwarding', { phoneNumberId: pn!.id })
-    expect(started.body.error).toMatch(/US business number/)
+    expect(started.body.error).toMatch(/no toll-free/)
   })
 
   test('only a forwarded number of the workspace, never a Linedesk number, toll-free or foreign number', async () => {
@@ -137,19 +138,17 @@ describe('starting a check', () => {
     await db.update(phone_numbers).set({ e164: linedeskNumber }).where(eq(phone_numbers.workspace_id, other.id))
     expect((await check({ businessNumber: linedeskNumber })).body.error).toMatch(/Linedesk number/)
     expect((await check({ businessNumber: '+18005550100' })).status).toBe(422)
-    expect((await check({ businessNumber: '+442071838750' })).status).toBe(422)
+    // Another country than the workspace's numbers' (and none allowed by the admin): the destination policy refuses it.
+    expect((await check({ businessNumber: '+442071838750' })).body.error).toMatch(
+      /^Only numbers in the United States can be checked/,
+    )
     expect((await check({ businessNumber: businessNumber() }, other.owner)).body.error).toBe('phone number not found')
     expect((await check({ businessNumber: DEV_CHECK_NUMBER })).body.error).toMatch(/number Linedesk checks from/)
-    // Not Canada, the Caribbean, personal (5XX), premium (900) or non-geographic numbers.
-    for (const foreign of [
-      '+14165550123',
-      '+18765550123',
-      '+18095550123',
-      '+15005550123',
-      '+19005550123',
-      '+17105550123',
-    ])
-      expect((await check({ businessNumber: foreign })).status).toBe(422)
+    // Not Canada or the Caribbean (countries of their own), never personal (5XX), premium (900) or non-geographic numbers.
+    for (const foreign of ['+14165550123', '+18765550123', '+18095550123'])
+      expect((await check({ businessNumber: foreign })).body.error).toMatch(/^Only numbers in the United States/)
+    for (const refused of ['+15005550123', '+19005550123', '+17105550123'])
+      expect((await check({ businessNumber: refused })).status).toBe(422)
     await db.update(phone_numbers).set({ mode: 'new' }).where(eq(phone_numbers.id, pn!.id))
     expect((await check({ businessNumber: businessNumber() })).body.error).toMatch(/forwards to can be checked/)
   })
@@ -775,4 +774,15 @@ describe('line lookups', () => {
       failing({ tx: db, actor, telephony, now: new Date().toISOString() } as never, { number: businessNumber() }),
     ).rejects.toThrow('The line could not be looked up. Try again later.')
   })
+})
+
+test('a check number from Server admin: E.164 stays as written, only a bare ten-digit number is North American', () => {
+  expect(asE164('+4930123456')).toBe('+4930123456') // ten digits after the +: German, never +1 493 012 3456
+  expect(asE164('+49 30 1234 5678')).toBe('+493012345678')
+  expect(asE164('0049 30 1234 5678')).toBe('+493012345678')
+  expect(asE164('(503) 555-0142')).toBe('+15035550142')
+  expect(asE164('1 503 555 0142')).toBe('+15035550142')
+  expect(asE164('+1 503 555 0142')).toBe('+15035550142')
+  expect(asE164('12345')).toBeNull()
+  expect(asE164(null)).toBeNull()
 })

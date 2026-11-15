@@ -2,19 +2,21 @@
 // each with a plain-language condition, in order. One compact row per contact; a row opens in place to
 // edit it (Done closes it). Part of the assistant's draft: saved with the page's Save. A field's error
 // shows once the field was left or a save was tried, never on a row just added.
-import { RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
+import { countryList, RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
 import type { TransferFallback } from '@linedesk/db/types'
 import { useRef, useState } from 'react'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Input, Textarea } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
-import { formatNumber } from '../onboarding/flow.ts'
-import { usE164 } from '../onboarding/us-number.ts'
+import { formatNumber, outboundE164 } from '../onboarding/flow.ts'
+import { useOutboundCountries } from '../onboarding/outbound-number.ts'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import {
   canAddTransfer,
   moveTransfer,
   newTransferContact,
+  refusedForCountry,
   type TransferDraft,
   type TransferProblem,
   transferInactive,
@@ -36,11 +38,15 @@ const ringOptions: SelectOption<string>[] = [10, 15, 20, 25, 30, 45, 60]
   .filter(s => s >= RING_SECONDS_MIN && s <= RING_SECONDS_MAX)
   .map(s => ({ value: String(s), label: `${s} seconds` }))
 
-/** The number in the contact's row: a US number spaced out ("+1 503 555 0100"), whatever the field sent. */
+/** The number in the contact's row: E.164, a North American one spaced out ("+1 503 555 0100"). */
 const numberLabel = (typed: string) => {
-  const e164 = usE164(typed)
+  const e164 = outboundE164(typed)
   return e164 ? formatNumber(e164) : typed.trim() || 'No number'
 }
+
+/** The number field's tip: where calls may be put through (the workspace's countries), never a Linedesk number. */
+const numberTip = (countries: readonly string[] | 'any') =>
+  `A mobile or landline${countries !== 'any' && countries.length ? ` in ${countryList(countries)}` : ''}: the person's own phone, not a ${brandName()} number.`
 
 /** The id of a contact's field, for the label and for putting the cursor there after a failed save. */
 export const transferFieldId = (index: number, field: TransferProblem['field']) => `tc-${index}-${field}`
@@ -65,7 +71,9 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
   const [open, setOpen] = useState<string | null>(null)
   /** Fields left at least once, as `<contact id>:<field>`: their errors show. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
-  const problem = transferProblem({ transfers })
+  const countries = useOutboundCountries()
+  const country = useDefaultPhoneCountry()
+  const problem = transferProblem({ transfers }, countries)
   const update = (index: number, patch: Partial<TransferDraft>) =>
     onChange(transfers.map((c, i) => (i === index ? { ...c, ...patch } : c)))
   function add() {
@@ -85,7 +93,14 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
         <ol className="tc-list">
           {transfers.map((c, i) => {
             const mine = problem?.index === i ? problem : null
-            const shown = mine && (showErrors || touched.has(`${c.id}:${mine.field}`)) ? mine : null
+            // A number refused for its country shows at once: also one saved before the server's countries changed.
+            const shown =
+              mine &&
+              (showErrors ||
+                touched.has(`${c.id}:${mine.field}`) ||
+                (mine.field === 'number' && refusedForCountry(c.number, countries)))
+                ? mine
+                : null
             return (
               <ContactRow
                 key={c.id}
@@ -95,6 +110,8 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
                 open={open === c.id || (showErrors && !!mine)}
                 problem={shown}
                 hoursOn={hoursOn}
+                numberTip={numberTip(countries)}
+                defaultCountry={country}
                 onToggle={() => setOpen(open === c.id ? null : c.id)}
                 onClose={() => setOpen(null)}
                 onLeave={field => setTouched(t => new Set(t).add(`${c.id}:${field}`))}
@@ -125,6 +142,10 @@ type RowProps = {
   /** The problem to show in this row (null: none, or not shown yet). */
   problem: TransferProblem | null
   hoursOn: boolean
+  /** What the number field's tip says about where calls may go. */
+  numberTip: string
+  /** The country the phone field starts on: the workspace's (its first Linedesk number). */
+  defaultCountry: string
   onToggle: () => void
   onClose: () => void
   onLeave: (field: TransferProblem['field']) => void
@@ -148,7 +169,22 @@ function grow(el: HTMLTextAreaElement | null) {
 }
 
 function ContactRow(props: RowProps) {
-  const { contact: c, index, count, open, problem, hoursOn, onToggle, onClose, onLeave, onChange, onMove, onRemove } = props
+  const {
+    contact: c,
+    index,
+    count,
+    open,
+    problem,
+    hoursOn,
+    numberTip,
+    defaultCountry,
+    onToggle,
+    onClose,
+    onLeave,
+    onChange,
+    onMove,
+    onRemove,
+  } = props
   const inactive = transferInactive(c)
   const name = c.name.trim() || 'New contact'
   const id = (field: TransferProblem['field']) => transferFieldId(index, field)
@@ -189,11 +225,11 @@ function ContactRow(props: RowProps) {
                 invalid={!!error('name')}
               />
             </Field>
-            <Field id={id('number')} label="Phone number" error={error('number')} tip={`A US mobile or landline: the person's own phone, not a ${brandName()} number.`}>
+            <Field id={id('number')} label="Phone number" error={error('number')} tip={numberTip}>
               <PhoneInput
                 id={id('number')}
                 value={c.number}
-                defaultCountry="US"
+                defaultCountry={defaultCountry}
                 autoComplete="off"
                 onChange={number => onChange({ number })}
                 onBlur={() => onLeave('number')}

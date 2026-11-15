@@ -7,10 +7,26 @@ import { createTwilioProvider } from './twilio.ts'
 export * from './provider.ts'
 export { DEV_LOOKUP, devForwardingOutcome, devProvider, type DevForwardingOutcome } from './dev.ts'
 export { createTelnyxProvider, telnyxLineType, type TelnyxOptions } from './telnyx.ts'
-export { createTelnyxOutbound, sipUserName, TRANSFER_OUTBOUND_NAME, type OutboundSip, type TelnyxOutboundOptions } from './telnyx-outbound.ts'
+export {
+  createTelnyxOutbound,
+  setTelnyxDestinations,
+  sipUserName,
+  TRANSFER_OUTBOUND_NAME,
+  type OutboundSip,
+  type TelnyxOutboundOptions,
+} from './telnyx-outbound.ts'
 export { createTwilioProvider, twilioLineType, type TwilioOptions } from './twilio.ts'
-export { createTwilioOutbound, TWILIO_OUTBOUND_NAME, type TwilioOutboundOptions } from './twilio-outbound.ts'
-export { CARRIER_SIGNALING_ADDRESSES, type CarrierSignalingAddresses, type SignalingCarrier } from './signaling-addresses.ts'
+export {
+  createTwilioOutbound,
+  TWILIO_OUTBOUND_NAME,
+  twilioBlockedCountries,
+  type TwilioOutboundOptions,
+} from './twilio-outbound.ts'
+export {
+  CARRIER_SIGNALING_ADDRESSES,
+  type CarrierSignalingAddresses,
+  type SignalingCarrier,
+} from './signaling-addresses.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -38,9 +54,18 @@ export function telephonyProviderFromEnv(env: Env): TelephonyProvider {
  * only for now; Twilio (Elastic SIP Trunking) comes later. Creates or repairs the carrier side and
  * sets a new password each time.
  */
-export async function transferOutboundSipFromEnv(env: Env, doFetch?: typeof fetch): Promise<OutboundSip> {
+export async function transferOutboundSipFromEnv(
+  env: Env,
+  doFetch?: typeof fetch,
+  destinations?: readonly string[],
+): Promise<OutboundSip> {
   const name = env.TELEPHONY_PROVIDER || 'dev'
   if (name !== 'telnyx') throw new Error(`warm transfer dials out through Telnyx only for now (TELEPHONY_PROVIDER is ${name})`)
   if (!env.TELNYX_API_KEY) throw new Error('TELNYX_API_KEY is not set')
-  return createTelnyxOutbound({ apiKey: env.TELNYX_API_KEY, name: installCarrierName(TRANSFER_OUTBOUND_NAME), fetch: doFetch }).ensureOutboundSip()
+  return createTelnyxOutbound({
+    apiKey: env.TELNYX_API_KEY,
+    name: installCarrierName(TRANSFER_OUTBOUND_NAME),
+    destinations,
+    fetch: doFetch,
+  }).ensureOutboundSip()
 }

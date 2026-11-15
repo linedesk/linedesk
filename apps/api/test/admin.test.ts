@@ -182,6 +182,8 @@ describe('access', () => {
       'membership.add',
       'membership.remove',
       'membership.setRole',
+      'outboundCountries.get',
+      'outboundCountries.set',
       'provider.clearKeys',
       'provider.confirmEmail',
       'provider.connectOneKey',
@@ -2256,6 +2258,10 @@ describe('impersonation', () => {
       'notifications.get',
       // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.
       'onboarding.goLiveChecklist',
+      // Which countries transfers may call, so the Transfers settings show what the user sees.
+      'outbound.countries',
+      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
+      'outboundCountries.get',
       'phoneNumber.forwardingCheck',
       // One free read of the carrier account, to pick a number; buys nothing.
       'phoneNumber.listCarrierNumbers',

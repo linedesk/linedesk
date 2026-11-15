@@ -1,6 +1,6 @@
 // Twilio outbound SIP against mocked HTTP: no request ever leaves the process.
 import { describe, expect, test } from 'vitest'
-import { createTwilioOutbound, TelephonyError } from './index.ts'
+import { createTwilioOutbound, TelephonyError, twilioBlockedCountries } from './index.ts'
 
 const SID = `AC${'1'.repeat(32)}`
 const ACCOUNT = `/2010-04-01/Accounts/${SID}`
@@ -131,5 +131,27 @@ describe('twilio outbound SIP', () => {
     expect(error).toMatchObject({ status: 401, message: 'twilio: list trunks failed: Authenticate' })
     expect(error.message).not.toContain('tok-secret')
     expect(error.message).not.toContain(SID)
+  })
+})
+
+describe('twilio Geo permissions', () => {
+  test('reports the countries whose ordinary numbers the account blocks, and only reads', async () => {
+    const calls: { method: string; url: string }[] = []
+    const fakeFetch: typeof fetch = async (url, init) => {
+      calls.push({ method: init!.method!, url: String(url) })
+      const country = String(url).split('/').pop()
+      return Response.json({ iso_code: country, low_risk_numbers_enabled: country === 'US' })
+    }
+    const blocked = await twilioBlockedCountries({ accountSid: 'AC1', authToken: 't', fetch: fakeFetch }, [
+      'US',
+      'DE',
+      'KR',
+    ])
+    expect(blocked).toEqual(['DE', 'KR'])
+    expect(
+      calls.every(
+        c => c.method === 'GET' && c.url.startsWith('https://voice.twilio.com/v1/DialingPermissions/Countries/'),
+      ),
+    ).toBe(true)
   })
 })

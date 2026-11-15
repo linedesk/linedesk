@@ -2,42 +2,16 @@
 // (a name, a number and a plain-language condition, in order; assistant.update `transfers`). The voice
 // agent dials the contact that fits and reports how it went with call.transfer.
 import { type TransferContact, transferFallbacks } from '@linedesk/db/types'
-import { parsePhoneNumberFromString } from 'libphonenumber-js/max'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
-
-const NANP = /^\+1([2-9]\d{2})([2-9]\d{2})\d{4}$/
-/** Area codes that are no place for a transferred call: premium rate, personal and carrier services. */
-const BLOCKED_AREA_CODES = new Set(['900', '976', '500', '533', '544', '566', '577', '588', '700'])
-/** What libphonenumber may call a number calls can be put through to. */
-const CALLABLE_TYPES = new Set(['FIXED_LINE', 'MOBILE', 'FIXED_LINE_OR_MOBILE'])
+import { onCallNumberProblem } from './outbound.ts'
 
 /**
- * Why the number cannot take transferred calls, in words for the owner; null when it can. Only US
- * landlines and mobiles (libphonenumber's US region: not Canada, the Caribbean or US territories with
- * their own region). Never premium rate (900, 976 anywhere), personal or 700 numbers, toll-free or N11
- * numbers, so a typo or a hostile setting cannot run up a phone bill.
+ * A number calls may be put through to, by its kind only (outboundNumberProblem with any country): which countries a
+ * workspace may call depends on its numbers and the install, so assistant.update and call.transfer check that too.
  */
-export function onCallNumberProblem(e164: string): string | null {
-  const m = NANP.exec(e164)
-  if (!m) return 'Enter a US phone number with its area code, like +1 503 555 0100.'
-  const [, area, exchange] = m as unknown as [string, string, string]
-  if (/^[2-9]11$/.test(area) || /^[2-9]11$/.test(exchange))
-    return 'Service numbers (like 411) cannot take transferred calls.'
-  // 976 is premium rate behind any area code (212-976-…)
-  if (BLOCKED_AREA_CODES.has(area) || exchange === '976')
-    return 'Premium-rate and personal numbers (900, 976, 500, 700) cannot take transferred calls.'
-  const parsed = parsePhoneNumberFromString(e164)
-  if (!parsed?.isValid() || parsed.country !== 'US')
-    return 'Only US phone numbers can take transferred calls (not Canada or the Caribbean).'
-  const type = parsed.getType()
-  if (type === 'TOLL_FREE') return 'Toll-free numbers cannot take transferred calls. Enter a mobile or landline.'
-  if (!type || !CALLABLE_TYPES.has(type)) return 'Enter a US mobile or landline number.'
-  return null
-}
-
 export const onCallNumber = z.string().superRefine((value, ctx) => {
-  const problem = onCallNumberProblem(value)
+  const problem = onCallNumberProblem(value, 'any')
   if (problem) ctx.addIssue({ code: 'custom', message: problem })
 })
 
@@ -117,3 +91,9 @@ export const callTransfer = defineAction({
   permission: 'agent',
   logged: 'ids',
 })
+/**
+ * `data` of call.transfer `dialing`: the caller ID to show (a number of the workspace in the destination's country, in
+ * the same carrier account as the called number; null: the called number as before) and how long the on-call leg may
+ * last at most (the day's minutes left, at most TRANSFER_MAX_MINUTES).
+ */
+export type CallTransferData = { callerId: string | null; maxMinutes: number }

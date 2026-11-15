@@ -9,15 +9,16 @@ import {
   TRANSFER_CONTACTS_MAX,
 } from './index.ts'
 
-test('on-call numbers: US landlines and mobiles only', () => {
+const US = ['US']
+
+test('on-call numbers of a workspace with a US number: US landlines and mobiles, as before', () => {
   for (const ok of ['+15035550199', '+12125550123', '+13125550123', '+14155552671'])
-    expect(onCallNumberProblem(ok)).toBeNull()
-  expect(onCallNumberProblem('5035550199')).toMatch(/area code/)
-  expect(onCallNumberProblem('+445035550199')).toMatch(/area code/)
-  expect(onCallNumberProblem('+10355550199')).toMatch(/area code/) // area codes start with 2-9
+    expect(onCallNumberProblem(ok, US)).toBeNull()
+  expect(onCallNumberProblem('5035550199', US)).toMatch(/country code/)
+  expect(onCallNumberProblem('+10355550199', US)).toMatch(/area code/) // area codes start with 2-9
 })
 
-test('Canada, the Caribbean and US territories with their own region are refused', () => {
+test('Canada, the Caribbean and US territories with their own region are their own countries', () => {
   for (const foreign of [
     '+16045550123',
     '+14165550123',
@@ -28,19 +29,22 @@ test('Canada, the Caribbean and US territories with their own region are refused
     '+16495550123',
     '+17875550123',
   ])
-    expect(onCallNumberProblem(foreign)).toMatch(/Only US phone numbers/)
+    expect(onCallNumberProblem(foreign, US)).toMatch(/Only numbers in the United States can take transferred calls/)
+  // The server admin allows Canada: Canadian numbers then work, the Caribbean still does not.
+  expect(onCallNumberProblem('+16045550123', ['CA', 'US'])).toBeNull()
+  expect(onCallNumberProblem('+18765550123', ['CA', 'US'])).toMatch(/Canada and the United States/)
 })
 
 test('premium rate (900, 976 anywhere), personal, 700, toll-free and N11 numbers are refused', () => {
-  expect(onCallNumberProblem('+19005550199')).toMatch(/Premium-rate/)
-  expect(onCallNumberProblem('+19765550199')).toMatch(/Premium-rate/)
-  expect(onCallNumberProblem('+12129765555')).toMatch(/Premium-rate/) // 976 behind a New York area code
-  expect(onCallNumberProblem('+15005550199')).toMatch(/Premium-rate and personal/)
-  expect(onCallNumberProblem('+17005550199')).toMatch(/Premium-rate and personal/)
+  expect(onCallNumberProblem('+19005550199', US)).toMatch(/Premium-rate/)
+  expect(onCallNumberProblem('+19765550199', US)).toMatch(/Premium-rate/)
+  expect(onCallNumberProblem('+12129765555', US)).toMatch(/Premium-rate/) // 976 behind a New York area code
+  expect(onCallNumberProblem('+15005550199', US)).toMatch(/Premium-rate and personal/)
+  expect(onCallNumberProblem('+17005550199', US)).toMatch(/Premium-rate and personal/)
   for (const tollFree of ['+18005550199', '+18885550199', '+18335550199'])
-    expect(onCallNumberProblem(tollFree)).toMatch(/Toll-free/)
-  expect(onCallNumberProblem('+14115550199')).toMatch(/Service numbers/)
-  expect(onCallNumberProblem('+15039110199')).toMatch(/Service numbers/)
+    expect(onCallNumberProblem(tollFree, US)).toMatch(/Toll-free/)
+  expect(onCallNumberProblem('+14115550199', US)).toMatch(/Service numbers/)
+  expect(onCallNumberProblem('+15039110199', US)).toMatch(/Service numbers/)
 })
 
 const contact = (over: Record<string, unknown> = {}) => ({
@@ -60,7 +64,9 @@ test('assistant.update takes the list of transfer contacts and validates each nu
   expect(update([contact(), contact({ id: 'person', name: 'Owner', number: null, if_no_answer: 'next' })])).toBe(true)
   expect(update([])).toBe(true)
   expect(update([contact({ number: '+19005550199' })])).toBe(false)
-  expect(update([contact({ number: '+18765550123' })])).toBe(false)
+  // The country is the workspace's policy, checked by the handler; the kind of number is checked here.
+  expect(update([contact({ number: '+18765550123' })])).toBe(true)
+  expect(update([contact({ number: '+4980012345678' })])).toBe(false)
   expect(update([contact({ number: '(503) 555-0199' })])).toBe(false)
   expect(update([contact({ condition: ' ' })])).toBe(false)
   expect(update([contact({ ring_seconds: 5 })])).toBe(false)

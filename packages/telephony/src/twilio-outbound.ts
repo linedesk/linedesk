@@ -3,7 +3,8 @@
 // authenticates with. The counterpart of telnyx-outbound.ts, for warm transfers from a workspace that
 // brings its own Twilio account. Only objects with the given `linedesk-*` name are created or changed.
 // Which destinations the account may call is Twilio's Voice Geographic Permissions (account-wide, in the
-// console); Linedesk checks the number before it dials (US only).
+// console, never changed by Linedesk); Linedesk checks the number before it dials (its destination policy), and
+// twilioBlockedCountries tells which allowed countries the account still blocks, for Server admin.
 import { randomBytes } from 'node:crypto'
 import { TelephonyError } from './provider.ts'
 import type { OutboundSip } from './telnyx-outbound.ts'
@@ -89,4 +90,25 @@ export function createTwilioOutbound({ name = TWILIO_OUTBOUND_NAME, ...options }
       return { address: trunk.domain, username, password, headers: {} }
     },
   }
+}
+
+/** Twilio's Voice Dialing Permissions API (read-only here: the Geo permissions are the account owner's to change). */
+const DIALING_PERMISSIONS = 'https://voice.twilio.com/v1/DialingPermissions/Countries'
+
+/**
+ * Which of these countries the account's Voice Geographic Permissions block for ordinary numbers (Twilio's
+ * `low_risk_numbers_enabled` is false), so Server admin can say "turn on Germany in Twilio Console". Only reads.
+ */
+export async function twilioBlockedCountries(options: TwilioOptions, countries: readonly string[]): Promise<string[]> {
+  const request = twilioRequest(options)
+  const blocked: string[] = []
+  for (const country of countries) {
+    const permission = await request(
+      `read Geo permissions for ${country}`,
+      'GET',
+      `${DIALING_PERMISSIONS}/${encodeURIComponent(country)}`,
+    )
+    if (permission.low_risk_numbers_enabled !== true) blocked.push(country)
+  }
+  return blocked
 }

@@ -85,6 +85,7 @@ import { useQuery } from '../cachedQuery.ts'
 import { useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
+import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
@@ -677,6 +678,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
     return marked
   }, [draft, saved])
 
+  const outboundCountries = useOutboundCountries()
+
   /** Shows the section a field is in, then puts the cursor there. */
   function goTo(section: SectionId, field: string) {
     if (section !== current) window.location.hash = sectionHash(page, section)
@@ -688,14 +691,14 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
     // Name and greeting show their error under the field: go there instead of a toast that outlives the fix.
     if (nameProblem(draft.name)) return goTo('general', 'as-name')
     if (!draft.greeting.trim()) return goTo('general', 'as-greet')
-    const transfer = transferProblem(draft)
+    const transfer = transferProblem(draft, outboundCountries)
     if (transfer) {
       setTransferSaveTried(true)
       return goTo('transfers', transferFieldId(transfer.index, transfer.field))
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (languagesProblem(draft)) return goTo('general', 'as-languages-mode')
-    const problem = draftProblem(draft)
+    const problem = draftProblem(draft, outboundCountries)
     if (problem) return toast(problem)
     if (dirty) {
       const clean = normalized(draft)

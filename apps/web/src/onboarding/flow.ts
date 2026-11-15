@@ -10,6 +10,7 @@ import {
   type OnboardingStep,
   onboardingSteps,
   onCallNumberProblem,
+  type OutboundCountries,
   type PickupMode,
   phoneNumberProblem,
   type ProviderName,
@@ -147,6 +148,16 @@ export function toE164(typed: string): string | null {
   if (digits.length === 10) return `+1${digits}`
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
   return null
+}
+
+/**
+ * A number typed in the phone field (E.164 as far as typed) in E.164 once it is whole, any country; or, from older
+ * settings, a US number written without its country code ("(503) 555-0142"). Null while it is not a whole number.
+ */
+export function outboundE164(typed: string): string | null {
+  const text = typed.trim()
+  if (text.startsWith('+')) return completePhone(`+${text.replace(/\D/g, '')}`)
+  return toE164(text)
 }
 
 /** +15035550142 → +1 503 555 0142 */
@@ -446,14 +457,20 @@ export type WhoHearsProblem = { field: 'choice' | 'mobile' | 'condition' | 'list
 export function whoHearsProblem(
   draft: WhoHearsDraft,
   transfers: readonly TransferContact[] = [],
+  /** The countries the workspace may call (outbound.countries); `any` until it has a number. */
+  countries: OutboundCountries = 'any',
 ): WhoHearsProblem | null {
   if (!draft.urgent) return { field: 'choice', message: 'Choose what happens when a caller has an urgent matter.' }
   if (draft.urgent === 'message') return null
   const typed = draft.mobile.trim()
   if (!typed) return { field: 'mobile', message: 'Enter your mobile number, so urgent calls can ring it.' }
-  const e164 = toE164(typed)
-  if (!e164) return { field: 'mobile', message: 'Enter your mobile number with its area code.' }
-  const problem = onCallNumberProblem(e164)
+  const e164 = outboundE164(typed)
+  if (!e164)
+    return {
+      field: 'mobile',
+      message: (typed.startsWith('+') && phoneNumberProblem(typed)) || 'Enter your mobile number with its area code.',
+    }
+  const problem = onCallNumberProblem(e164, countries)
   if (problem) return { field: 'mobile', message: problem }
   if (!transfers.some(c => c.id === URGENT_CONTACT_ID) && transfers.length >= TRANSFER_CONTACTS_MAX)
     return {
@@ -499,7 +516,7 @@ export function whoHearsTransfers(
   if (!draft.urgent) return null
   const own = transfers.find(c => c.id === URGENT_CONTACT_ID)
   const putThrough = draft.urgent === 'transfer'
-  const number = putThrough ? toE164(draft.mobile) : (own?.number ?? null)
+  const number = putThrough ? outboundE164(draft.mobile) : (own?.number ?? null)
   if (!own && !(putThrough && number)) return null
   // A new workspace's "asks for a person" contact has no number yet: the owner's mobile serves it too. The step's
   // contact takes it over (its condition gets ALSO_PERSON), so the owner is one contact, not two.

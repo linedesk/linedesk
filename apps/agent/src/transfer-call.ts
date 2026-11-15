@@ -56,6 +56,10 @@ export interface TransferSetup {
   ringSeconds?: number
   /** Which try of this call it is (1, 2, …): each has its own consult room, so closing one never ends the next. */
   attempt?: number
+  /** The caller ID the API picked (a number of the workspace in the destination's country); else the dialer's own. */
+  callerId?: string
+  /** The longest the on-call leg may last (the day's outbound minutes left, at most the limit for one call). */
+  maxCallSeconds?: number
 }
 
 /** What happened; `connected` comes with the bridge, which ends the call when the on-call person hangs up. */
@@ -197,7 +201,14 @@ export async function warmTransfer(
     const tts = setup.consult.tts()
     const lines = prerenderConsultLines(tts, briefing) // while it rings
     consult = await joinConsultRoom(livekit, consultName)
-    await setup.dialer.dial({ room: consultName, identity: ON_CALL_IDENTITY, signal, ringSeconds: setup.ringSeconds })
+    await setup.dialer.dial({
+      room: consultName,
+      identity: ON_CALL_IDENTITY,
+      signal,
+      ringSeconds: setup.ringSeconds,
+      from: setup.callerId,
+      maxCallSeconds: setup.maxCallSeconds,
+    })
     if (signal.aborted) return { result: 'not_answered' }
 
     const agent = new ConsultAgent({ instructions: 'You brief the person about a call to put through.' })

@@ -1,6 +1,6 @@
 // Telnyx outbound setup against mocked HTTP: only objects named for the call test are touched.
 import { describe, expect, test } from 'vitest'
-import { createTelnyxOutbound, sipUserName, transferOutboundSipFromEnv } from './index.ts'
+import { createTelnyxOutbound, setTelnyxDestinations, sipUserName, transferOutboundSipFromEnv } from './index.ts'
 
 type Call = { method: string; path: string; body?: Record<string, unknown> }
 type Account = {
@@ -42,7 +42,7 @@ function mockTelnyx(account: Account) {
     }
     return Response.json({ errors: [{ detail: `no mock for ${method} ${path}` }] }, { status: 404 })
   }
-  return { outbound: createTelnyxOutbound({ apiKey: 'KEY', fetch: fakeFetch }), calls, fetch: fakeFetch }
+  return { outbound: createTelnyxOutbound({ apiKey: 'KEY', fetch: fakeFetch }), calls, fetch: fakeFetch, account }
 }
 
 const freshAccount = (): Account => ({
@@ -121,7 +121,60 @@ describe('telnyx outbound for the call test', () => {
   test('fails closed when Telnyx does not keep the profile to the US', async () => {
     const account = { ...freshAccount(), ignoresWhitelist: true }
     await mockTelnyx(account).outbound.ensureOutboundSip(CALLER)
-    await expect(mockTelnyx(account).outbound.ensureOutboundSip(CALLER)).rejects.toThrow(/not limited to US destinations/)
+    await expect(mockTelnyx(account).outbound.ensureOutboundSip(CALLER)).rejects.toThrow(/not limited to US/)
+  })
+
+  test('a profile for other countries: created and put back with exactly that list', async () => {
+    const account = freshAccount()
+    const { calls, fetch } = mockTelnyx(account)
+    await createTelnyxOutbound({
+      apiKey: 'KEY',
+      name: 'linedesk-outbound-ws1',
+      destinations: ['de', 'US', 'DE'],
+      fetch,
+    }).ensureOutboundSip()
+    expect(
+      calls.find(c => c.method === 'POST' && c.path === '/outbound_voice_profiles')?.body?.whitelisted_destinations,
+    ).toEqual(['DE', 'US'])
+  })
+
+  test('never an empty or malformed destination list', () => {
+    expect(() => createTelnyxOutbound({ apiKey: 'KEY', name: 'linedesk-x', destinations: [] })).toThrow(
+      /destination list/,
+    )
+    expect(() => createTelnyxOutbound({ apiKey: 'KEY', name: 'linedesk-x', destinations: ['*'] })).toThrow(
+      /destination list/,
+    )
+  })
+
+  test('setTelnyxDestinations changes only the existing profile of that name, and fails closed', async () => {
+    const account = freshAccount()
+    account.profiles.push({ id: 'ovp_ws', name: 'linedesk-outbound-ws1' })
+    const { calls, fetch } = mockTelnyx(account)
+    expect(
+      await setTelnyxDestinations({ apiKey: 'KEY', name: 'linedesk-outbound-ws1', destinations: ['KR', 'DE'], fetch }),
+    ).toBe(true)
+    expect(calls.filter(c => c.method === 'PATCH')).toEqual([
+      { method: 'PATCH', path: '/outbound_voice_profiles/ovp_ws', body: { whitelisted_destinations: ['DE', 'KR'] } },
+    ])
+    expect(
+      await setTelnyxDestinations({ apiKey: 'KEY', name: 'linedesk-outbound-none', destinations: ['DE'], fetch }),
+    ).toBe(false)
+    await expect(
+      setTelnyxDestinations({ apiKey: 'KEY', name: 'Another business', destinations: ['DE'], fetch }),
+    ).rejects.toThrow(/only objects named/)
+    const ignoring = mockTelnyx({ ...account, ignoresWhitelist: true })
+    await expect(
+      setTelnyxDestinations({
+        apiKey: 'KEY',
+        name: 'linedesk-outbound-ws1',
+        destinations: ['DE'],
+        fetch: ignoring.fetch,
+      }),
+    ).rejects.toThrow(/not limited to DE/)
+    await expect(
+      setTelnyxDestinations({ apiKey: 'KEY', name: 'linedesk-outbound-ws1', destinations: [], fetch }),
+    ).rejects.toThrow(/destination list/)
   })
 
   test('refuses to manage objects not named linedesk-*', () => {

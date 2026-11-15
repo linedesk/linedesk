@@ -84,6 +84,25 @@ When something breaks (server gone, database restore, calls not arriving, a leak
 
 Settings and keys do not move with the install: set the server up again (the agent does it in about 10 minutes). Then stop the copy on your computer: `docker compose down` in its folder.
 
+## Calls to other countries
+
+Linedesk calls out for warm transfers and the forwarding check. A workspace may call the countries of its own Linedesk numbers: a workspace with US numbers calls US landlines and mobiles, nothing else. To let calls through this server's carrier account reach more countries (for example a business with a US number whose owner has a Canadian mobile), add them in Server admin › System, "Calls to other countries", or set them in `.env`. A business that connected its own carrier account calls its own numbers' countries from those numbers; your list never widens its account. Countries often used for toll fraud (Cuba, Somalia, Latvia and others) ask for a second confirmation. The settings in `.env`:
+
+```sh
+OUTBOUND_COUNTRIES=CA,MX                  # ISO country codes; while set, the list in Server admin is read-only
+OUTBOUND_MINUTES_PER_WORKSPACE_DAY=120    # minutes of transferred calls per workspace in 24 hours
+OUTBOUND_MINUTES_INSTALL_DAY=2000         # all workspaces together, through this server's carrier account (ALERT in the log when reached)
+TRANSFER_MAX_MINUTES=30                   # the longest one transferred call may last; 0 in any limit turns transfers off
+```
+
+The per-workspace minutes count every transferred call of the workspace, also those through its own carrier account (on its own bill); the install-wide minutes count only calls through this server's account. The forwarding check calls from this server's check line, so it may reach the countries of this server's numbers plus your list.
+
+Premium-rate, shared-cost, toll-free, personal, emergency and service numbers are never called, in any country.
+
+**Telnyx:** Linedesk keeps its voice profiles (`linedesk-*`) limited to the allowed countries itself.
+
+**Twilio:** which countries an account may call is the account's own setting, and Linedesk never changes it. Server admin › System shows the allowed countries Twilio still blocks; turn each on in Twilio Console › Voice › Settings › Geo permissions (low-risk numbers are enough). A workspace with its own Twilio account does the same in its account.
+
 ## Updates and backups
 
 See the README: Update and backup.

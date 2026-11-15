@@ -21,6 +21,7 @@ import {
   phoneCountry,
   type ForwardingCheckView,
   isCheckableBusinessNumber,
+  outboundNumberProblem,
   LINE_LOOKUPS_PER_10_MIN,
   LINE_LOOKUPS_PER_INSTALL_DAY,
   LINE_LOOKUPS_PER_WORKSPACE_DAY,
@@ -50,6 +51,7 @@ import { deleteLivekitRoom, findSipCallerRoom } from './livekit-status.ts'
 import { installTelephony, telephonyProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { recordSetupEvent } from './setup-events.ts'
+import { installDestinations } from './outbound-policy.ts'
 import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { LivekitError, livekitSip } from './transfer-trunk.ts'
 import { CARRIER_TIMEOUT_MS, telephonyForWorkspace } from './workspace-carrier.ts'
@@ -395,10 +397,17 @@ export function livekitDialer(
   }
 }
 
-/** A number as E.164 (+1 for ten digits), or null. */
-function asE164(value: string | undefined | null): string | null {
-  const digits = (value ?? '').replace(/\D/g, '')
+/**
+ * A number as typed in Server admin as E.164, or null. Written with + (or 00) it is read as it is ("+44 20 7946 0000" stays
+ * British); only a bare ten-digit number (or eleven starting with 1) without a country code is read as North American.
+ */
+export function asE164(value: string | undefined | null): string | null {
+  const text = (value ?? '').trim()
+  const international = /^(\+|00)/.test(text)
+  const digits = text.replace(/^00/, '').replace(/\D/g, '')
+  if (international) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null
   if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
   return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null
 }
 
@@ -500,11 +509,20 @@ export async function installCheckLine(env: Env = process.env, doFetch: typeof f
   const values = Object.fromEntries(Object.entries(carrier.config).map(([field, v]) => [field, v?.value ?? '']))
   const name = installCarrierName(CHECK_TRUNK_NAME)
   const sip = livekitSip(env, doFetch)!
-  const outbound = (): Promise<OutboundSip> => {
+  const outbound = async (): Promise<OutboundSip> => {
     const timed: typeof fetch = (input, init) =>
       doFetch(input, { ...init, signal: AbortSignal.timeout(CARRIER_TIMEOUT_MS) })
-    if (carrier.provider === 'telnyx')
-      return createTelnyxOutbound({ apiKey: values.api_key!, name, fetch: timed }).ensureOutboundSip()
+    if (carrier.provider === 'telnyx') {
+      // The check line calls business numbers of every workspace: the install's ceiling; each check is held to the
+      // same list before it is queued (phoneNumber.checkForwarding).
+      const destinations = await db.transaction(tx => installDestinations(tx))
+      return createTelnyxOutbound({
+        apiKey: values.api_key!,
+        name,
+        destinations: destinations.length ? destinations : undefined,
+        fetch: timed,
+      }).ensureOutboundSip()
+    }
     return createTwilioOutbound({
       accountSid: values.account_sid!,
       authToken: values.auth_token!,
@@ -822,7 +840,13 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
       if (!businessNumber) throw new Reject('Enter your business number first.')
       // The saved number is checked like a typed one: it may come from before these rules.
       if (!isCheckableBusinessNumber(businessNumber))
-        throw new Reject('Enter a US business number (no toll-free or premium numbers).')
+        throw new Reject('Enter your business landline or mobile (no toll-free, premium-rate or service numbers).')
+      // The destination policy, like a transfer. The check line is the install's, so the install's own ceiling: the
+      // countries of the install-account numbers plus the install's list, never a workspace's own-account countries.
+      // A workspace whose numbers are all in its own account can check a line in those countries (its business is
+      // usually where its numbers are); the check's own limits keep the cost small (per hour, day and number, 40 s).
+      const refusal = outboundNumberProblem(businessNumber, await installDestinations(tx), 'check')
+      if (refusal) throw new Reject(refusal.message)
       // Never a Linedesk number (any workspace's). Another workspace's saved business number is no reason to refuse:
       // a check saves it from a caller ID, which can be faked, so it must never lock the number's real owner out.
       const [taken] = await tx

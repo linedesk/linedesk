@@ -258,6 +258,8 @@ type AdminInputs = {
   'membership.remove': { memberId: string; keepAccount?: boolean }
   'invitation.revoke': { invitationId: string }
   'invitation.resend': { invitationId: string }
+  'outboundCountries.get': Record<string, never>
+  'outboundCountries.set': { countries: string[]; confirmHighRisk?: string[] }
   'voiceCloning.get': Record<string, never>
   'voiceCloning.set': { on: boolean }
   'voicePipelinePolicy.get': Record<string, never>
@@ -317,6 +319,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'workspace.create': 'create a workspace and give it an owner',
   'provider.setKeys': 'save email or sign-in keys',
   'provider.clearKeys': 'disconnect email or sign-in',
+  'outboundCountries.set': 'change where calls may go',
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {

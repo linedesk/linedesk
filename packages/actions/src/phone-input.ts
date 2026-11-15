@@ -70,7 +70,7 @@ const WITH_THE = new Set('US GB NL PH AE DO BS GM CF KM MV MH SB VA CD CG'.split
 export const phoneCountryName = (country: string): string => regionNames.of(country.toUpperCase()) ?? country
 
 /** The name as it goes into a sentence: "the United States", "Germany". */
-const nameInSentence = (country: string) => `${WITH_THE.has(country) ? 'the ' : ''}${phoneCountryName(country)}`
+export const nameInSentence = (country: string) => `${WITH_THE.has(country) ? 'the ' : ''}${phoneCountryName(country)}`
 
 /** The region of a locale: "de-DE" → "DE", "de" → "DE" (its likely region), "en" → "US"; null when unknown. */
 export function localeRegion(locale: string | null | undefined): string | null {

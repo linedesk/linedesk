@@ -1,12 +1,18 @@
 // System: LiveKit, part of the install (its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so), and
-// whether workspaces may clone voices (off until an instance admin turns it on).
-import type { VoiceCloningData } from '@linedesk/actions'
+// whether workspaces may clone voices (off until an instance admin turns it on), and where outbound calls may go.
+import {
+  countryList,
+  type OutboundCountriesData,
+  parseCountryList,
+  phoneCountryName,
+  type VoiceCloningData,
+} from '@linedesk/actions'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { Switch } from '../ui/controls.tsx'
-import { Card } from '../ui/form.tsx'
-import { Button, cx } from '../ui/kit.tsx'
+import { Checkbox, Switch } from '../ui/controls.tsx'
+import { Card, Input } from '../ui/form.tsx'
+import { Button, cx, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
@@ -123,11 +129,144 @@ function VoiceCloning() {
   )
 }
 
+const OUTBOUND = 'admin.outboundCountries'
+const loadOutbound = async () => (await runAdmin('outboundCountries.get', {})) as OutboundCountriesData
+
+/**
+ * Where transfers and forwarding checks may call: every workspace the countries of its own numbers, plus the
+ * countries allowed here for the whole install (or by OUTBOUND_COUNTRIES). With today's use, the limits, and the
+ * countries the install's Twilio account still blocks (its Geo permissions are changed in Twilio, never by Linedesk).
+ */
+function OutboundCalls() {
+  const query = useQuery(OUTBOUND, loadOutbound)
+  const data = query.data ?? null
+  const [typed, setTyped] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const value = typed ?? data?.countries.join(', ') ?? ''
+  const wanted = parseCountryList(value)
+  const unknown = value.split(/[\s,;]+/).filter(c => c.trim() && !wanted.includes(c.trim().toUpperCase()))
+  const changed = !!data && wanted.join() !== data.countries.join()
+  // Frequent toll-fraud destinations being added: saved only after a second, explicit confirmation.
+  const risky = data ? wanted.filter(c => data.highRisk.includes(c) && !data.countries.includes(c)) : []
+  const [confirmed, setConfirmed] = useState(false)
+  async function save() {
+    setProblem(null)
+    setBusy(true)
+    try {
+      const saved = (await runAdmin('outboundCountries.set', {
+        countries: wanted,
+        ...(risky.length && confirmed ? { confirmHighRisk: risky } : {}),
+      })) as OutboundCountriesData
+      setConfirmed(false)
+      setQueryData<OutboundCountriesData | undefined>(OUTBOUND, saved)
+      setTyped(null)
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : 'Could not save the countries.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Card
+      title="Calls to other countries"
+      help="Transfers and forwarding checks call out, and every call costs money. Each workspace may call the countries of its own phone numbers. Allow more countries only for businesses that need them: calls abroad cost more and are a common target of phone fraud."
+    >
+      <Loading
+        what="Outbound countries"
+        loading={!data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<Skeleton shape="text" width={240} />}
+      >
+        {data && (
+          <>
+            <label className="k-field-label" htmlFor="adm-outbound">
+              Also allow, for calls through this server’s carrier account (country codes, like CA, MX)
+            </label>
+            <div className="ob2-row">
+              <Input
+                id="adm-outbound"
+                value={value}
+                placeholder="None: each workspace calls only its own numbers' countries"
+                disabled={data.fromEnv || busy}
+                invalid={unknown.length > 0}
+                onChange={e => {
+                  setTyped(e.target.value)
+                  setConfirmed(false)
+                }}
+              />
+              {!data.fromEnv && (
+                <Button
+                  busy={busy}
+                  disabled={!changed || unknown.length > 0 || (risky.length > 0 && !confirmed)}
+                  onClick={() => void save()}
+                >
+                  Save
+                </Button>
+              )}
+            </div>
+            <p className="k-field-msg">
+              {unknown.length
+                ? `Not a country code: ${unknown.join(', ')}`
+                : wanted.length
+                  ? `Allowed besides their own: ${countryList(wanted)}.`
+                  : 'Only the countries of each workspace’s own numbers.'}
+              {data.fromEnv && ' Set by OUTBOUND_COUNTRIES on this server.'}
+            </p>
+            {risky.length > 0 && !data.fromEnv && (
+              <Note tone="danger">
+                {countryList(risky)} {risky.length === 1 ? 'is a' : 'are'} frequent toll-fraud destination
+                {risky.length === 1 ? '' : 's'}: numbers there are rented to fraudsters who are paid for every minute
+                called. Allow {risky.length === 1 ? 'it' : 'them'} only for a business you know needs it.
+                <Checkbox checked={confirmed} onChange={setConfirmed}>
+                  I understand the risk: allow calls to {countryList(risky)}
+                </Checkbox>
+              </Note>
+            )}
+            {data.twilioBlocked?.length ? (
+              <Note tone="warning">
+                Twilio blocks calls to {countryList(data.twilioBlocked)}. Turn on{' '}
+                {data.twilioBlocked.map(phoneCountryName).join(', ')} in Twilio Console › Voice › Settings › Geo
+                permissions.
+              </Note>
+            ) : null}
+            <dl className="adm-facts">
+              <div>
+                <dt>Last 24 hours</dt>
+                <dd>
+                  {data.usage.transfers} transfers ({data.usage.transferMinutes} min,{' '}
+                  {data.usage.installTransferMinutes} min of them through this server’s carrier account),{' '}
+                  {data.usage.forwardingChecks} forwarding checks
+                </dd>
+              </div>
+              <div>
+                <dt>Limits</dt>
+                <dd>
+                  {data.limits.minutesPerWorkspaceDay && data.limits.minutesInstallDay && data.limits.transferMaxMinutes
+                    ? `${data.limits.minutesPerWorkspaceDay} transfer minutes per workspace a day, ${data.limits.minutesInstallDay} for the whole server through its carrier account, ${data.limits.transferMaxMinutes} min per transferred call`
+                    : 'Transfers are off (a limit is 0)'}
+                </dd>
+              </div>
+            </dl>
+          </>
+        )}
+      </Loading>
+      {problem && (
+        <p className="k-field-msg" role="alert">
+          {problem}
+        </p>
+      )}
+    </Card>
+  )
+}
+
 export function System() {
   return (
     <>
       <Livekit />
       <VoiceCloning />
+      <OutboundCalls />
     </>
   )
 }

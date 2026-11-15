@@ -3,10 +3,14 @@
 // and CONCURRENT_TRANSFERS on-call legs ringing or connected at a time. Checked under a per-workspace
 // advisory lock, so two calls of the same workspace cannot both slip in. Only phone calls count and are limited,
 // like the live-call limit: a test call (browser or the call test's room) never dials a real phone.
-import { CONCURRENT_TRANSFERS, type TransferResult, TRANSFERS_PER_HOUR } from '@linedesk/actions'
+// The start is also where the destination is checked again, right before the agent dials: the workspace's numbers or
+// the install's list may have changed since the contact was saved (outbound-policy.ts), and the day's minutes of
+// transferred calls are counted; the answer tells the agent the caller ID and how long the leg may last.
+import { CONCURRENT_TRANSFERS, type CallTransferData, type TransferResult, TRANSFERS_PER_HOUR } from '@linedesk/actions'
 import { calls, type Tx } from '@linedesk/db'
 import { and, eq, gte, inArray, ne, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
+import { numberRoute, outboundCallerId, outboundLimits, outboundRefusal, transferMinutesAllowed } from './outbound-policy.ts'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -31,13 +35,27 @@ export const transferHandlers: Record<string, Handler> = {
         .returning()
       return { rows: { calls: rows } }
     }
-    if (call.source === 'phone') await checkTransferLimits(tx, workspaceId, call.id, now)
+    // Every call, test calls too: a destination the workspace may not call is never dialled. The countries are those
+    // of the route the call goes out through: the account the called number is in (transfer-trunk.ts).
+    const route = await numberRoute(tx, workspaceId, call.to_number)
+    const refusal = await outboundRefusal(tx, workspaceId, input.to, 'transfer', { strict: true, route })
+    if (refusal) {
+      console.warn(`transfer of call ${call.id} refused: the destination is not allowed for workspace ${workspaceId}`)
+      throw new Reject(`transfer refused: ${refusal}`)
+    }
+    let maxMinutes = outboundLimits().transferMaxMinutes
+    if (!maxMinutes) throw new Reject('transfers are off on this server')
+    if (call.source === 'phone') {
+      await checkTransferLimits(tx, workspaceId, call.id, now)
+      maxMinutes = await transferMinutesAllowed(tx, workspaceId, now, route)
+    }
     const rows = await tx
       .update(calls)
       .set({ transfer_to: input.to, transfer_name, transfer_result: 'dialing', transfer_at: now })
       .where(eq(calls.id, call.id))
       .returning()
-    return { rows: { calls: rows } }
+    const callerId = await outboundCallerId(tx, workspaceId, call.to_number, input.to)
+    return { rows: { calls: rows }, data: { callerId, maxMinutes } satisfies CallTransferData }
   },
 }
 

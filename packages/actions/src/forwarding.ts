@@ -4,7 +4,7 @@
 import type { ForwardingCheckStatus } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
-import { onCallNumberProblem } from './transfer.ts'
+import { onCallNumberProblem } from './outbound.ts'
 
 /** How long the business phone may ring before a check gives up: carriers forward after up to 30 s. */
 export const FORWARDING_RING_SECONDS = 40
@@ -25,16 +25,19 @@ export const LINE_LOOKUPS_PER_WORKSPACE_DAY = 30
 export const LINE_LOOKUPS_PER_INSTALL_DAY = 500
 
 /**
- * US numbers only (the outbound profiles are US-only): a US landline or mobile, by the same rule as a transfer
- * contact (onCallNumberProblem). Not Canada, the Caribbean or US territories with their own region, and no toll-free,
- * premium-rate (900, 976), personal (5XX), non-geographic or N11 number.
+ * A landline, mobile or VoIP line by the outbound rules (outboundNumberProblem): no toll-free, premium-rate, shared-cost,
+ * personal, emergency, short or non-geographic number, in any country. Which countries a workspace may check is the
+ * destination policy, which phoneNumber.checkForwarding applies with the workspace's countries.
  */
-export const isCheckableBusinessNumber = (e164: string): boolean => onCallNumberProblem(e164) === null
+export const isCheckableBusinessNumber = (e164: string): boolean => onCallNumberProblem(e164, 'any', 'check') === null
 
 const businessNumber = z
   .string()
   .regex(/^\+[1-9]\d{6,14}$/, 'a number in E.164, e.g. +15035550100')
-  .refine(isCheckableBusinessNumber, 'a US business number (no toll-free or premium numbers)')
+  .superRefine((value, ctx) => {
+    const problem = onCallNumberProblem(value, 'any', 'check')
+    if (problem) ctx.addIssue({ code: 'custom', message: problem })
+  })
 
 /** One check as the web app shows it. `ringSeconds`: how long the business phone rang before the call arrived. */
 export type ForwardingCheckView = {
