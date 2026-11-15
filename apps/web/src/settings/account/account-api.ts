@@ -1,13 +1,13 @@
 // The Account page's calls. Everything goes to Better Auth: its client, or the one server-only
 // method (set a first password) through POST /v1/account/password.
 import type { ChangedBy } from '@linedesk/actions'
-import { auth, type AuthMethods, fetchAuthMethods, fetchMe, signedInAccount, signInWithPasskey } from '../../auth.ts'
+import { type AuthMethods, auth, fetchAuthMethods, fetchMe, signedInAccount, signInWithPasskey } from '../../auth.ts'
 import { refreshQuery } from '../../cachedQuery.ts'
 import { forgetEnrolmentCode } from '../../enrolment-code.ts'
+import { i18n } from '../../i18n/index.tsx'
 import { signOutAndForget } from '../../localData.ts'
 import { authErrorMessage } from '../../sign-in-code.ts'
-import { rememberSignInMethod } from '../../sign-in-methods.ts'
-import { i18n } from '../../i18n/index.tsx'
+import { passkeyRequestClosed, rememberSignInMethod } from '../../sign-in-methods.ts'
 import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
 
 type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null }
@@ -22,6 +22,9 @@ export class SignInAgain extends Error {}
 export class ConfirmWithPasskey extends SignInAgain {}
 const passkeySignIn = () => i18n().t('account.passkeys.confirmToChange')
 
+/** The passkey prompt was closed, timed out or found no passkey on this device: nothing failed, it can be tried again. */
+export class PasskeyPromptClosed extends ConfirmWithPasskey {}
+
 /** The browser offered another account's passkey and it was used: that session is gone, nothing is retried. */
 export class PasskeyOfAnotherAccount extends Error {}
 const RELOAD_AFTER_MS = 3000
@@ -34,7 +37,10 @@ const RELOAD_AFTER_MS = 3000
 export async function confirmWithPasskey() {
   const before = await signedInAccount()
   const result = await signInWithPasskey()
-  if (result?.error) throw new ConfirmWithPasskey(authErrorMessage(result.error))
+  if (result?.error) {
+    if (passkeyRequestClosed(result.error)) throw new PasskeyPromptClosed(i18n().t('account.passkeys.promptClosed'))
+    throw new ConfirmWithPasskey(authErrorMessage(result.error))
+  }
   if (before && (await signedInAccount()) !== before) {
     await signOutAndForget()
     setTimeout(() => window.location.reload(), RELOAD_AFTER_MS)
@@ -187,7 +193,8 @@ export async function loadPasskeys(): Promise<PasskeyRow[]> {
   return list
     .map(p => ({
       id: p.id,
-      name: p.name || i18n().t(p.deviceType === 'multiDevice' ? 'account.passkeys.synced' : 'account.passkeys.onDevice'),
+      name:
+        p.name || i18n().t(p.deviceType === 'multiDevice' ? 'account.passkeys.synced' : 'account.passkeys.onDevice'),
       added: p.createdAt ? new Date(p.createdAt) : null,
     }))
     .sort((a, b) => (b.added?.getTime() ?? 0) - (a.added?.getTime() ?? 0))

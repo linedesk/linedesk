@@ -98,7 +98,12 @@ function useRequest() {
     setDone(null)
     setError(text)
   }
-  return { busy, error, done, needsSignIn, confirmPasskey, setError: fail, run }
+  /** Forgets the outcome: the step-up note's Cancel. */
+  const dismiss = () => {
+    setError(null)
+    setAwaitingPasskey(null)
+  }
+  return { busy, error, done, needsSignIn, confirmPasskey, setError: fail, dismiss, run }
 }
 type Request = ReturnType<typeof useRequest>
 
@@ -111,30 +116,52 @@ function SignInAgainButton() {
   )
 }
 
-/** The outcome of a form's last request, next to the form that caused it. */
+/**
+ * The outcome of a form's last request, next to the form that caused it. A request that only waits for the passkey
+ * (the server wants it, or its prompt was closed) is not a failure: a calm note with Cancel and Confirm, in place of
+ * the form's own buttons (the form hides them while `confirmPasskey` is set).
+ */
 function FormStatus({
   request,
 }: {
-  request: Pick<Request, 'busy' | 'error' | 'done' | 'needsSignIn' | 'confirmPasskey'>
+  request: Pick<Request, 'busy' | 'error' | 'done' | 'needsSignIn' | 'confirmPasskey' | 'dismiss'>
 }) {
   const t = useT()
   if (request.error) {
     const { confirmPasskey } = request
+    if (confirmPasskey)
+      return (
+        <Note
+          tone="info"
+          action={
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                title={t('account.confirmPasskey.cancelTitle')}
+                onClick={request.dismiss}
+              >
+                {t('common.action.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                title={t('account.confirmPasskey.title')}
+                disabled={request.busy}
+                onClick={() => void confirmPasskey()}
+              >
+                {request.busy ? t('account.passkeys.waiting') : t('account.confirmPasskey.button')}
+              </Button>
+            </>
+          }
+        >
+          {request.error}
+        </Note>
+      )
     return (
-      <div className="ac-inline">
-        <Note tone="danger">{request.error}</Note>
-        {confirmPasskey ? (
-          <Button
-            title={t('account.confirmPasskey.title')}
-            disabled={request.busy}
-            onClick={() => void confirmPasskey()}
-          >
-            {t('account.confirmPasskey.button')}
-          </Button>
-        ) : (
-          request.needsSignIn && <SignInAgainButton />
-        )}
-      </div>
+      <Note tone="danger" action={request.needsSignIn && <SignInAgainButton />}>
+        {request.error}
+      </Note>
     )
   }
   return request.done ? (
@@ -505,12 +532,15 @@ function Passkeys() {
   const none = list?.length === 0
 
   const add = () => request.run(() => addThisDevice(load), t('account.passkeys.added'))
-  const remove = (id: string) =>
-    request.run(async () => {
+  const remove = (id: string) => {
+    setConfirming(null)
+    return request.run(async () => {
       await removePasskey(id)
-      setConfirming(null)
       await load()
     }, t('account.passkeys.removed'))
+  }
+  // Waiting for the passkey: the note's Confirm is the one way on, so the other buttons step back.
+  const waiting = Boolean(request.confirmPasskey)
 
   return (
     <div className="ac-form ac-divided">
@@ -538,7 +568,7 @@ function Passkeys() {
                     )}
                   </div>
                   <div className="ac-row-actions">
-                    {confirming === p.id ? (
+                    {waiting ? null : confirming === p.id ? (
                       <>
                         <span className="help">{t('account.passkeys.removeQuestion')}</span>
                         <Button
@@ -586,7 +616,7 @@ function Passkeys() {
         </Field>
       )}
       <FormStatus request={request} />
-      <div className="ac-actions">
+      <div className="ac-actions" hidden={waiting}>
         <Button
           variant={none ? 'primary' : undefined}
           title={t('account.passkeys.addTitle')}
@@ -693,7 +723,7 @@ function Authenticator() {
           <FormStatus request={request} />
           {justAdded && data.hasAuthenticator && <Note tone="success">{t('account.authenticator.added')}</Note>}
           {setup.error && <Note tone="danger">{setup.error}</Note>}
-          <div className="ac-actions">
+          <div className="ac-actions" hidden={Boolean(request.confirmPasskey)}>
             {!data.hasAuthenticator && !noPasskey && (
               <Button
                 title={t('account.authenticator.addTitle')}
