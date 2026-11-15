@@ -39,24 +39,26 @@ export function Tour({ onClose }: { onClose: () => void }) {
           <span className="tour-count" aria-hidden="true">
             {t('shell.tour.count', { step: at + 1, steps: steps.length })}
           </span>
-          <Button size="sm" variant="ghost" onClick={onClose} title={t('shell.tour.closeTip', { key: 'esc' })}>
-            {last ? t('common.action.close') : t('shell.tour.skip')}
-          </Button>
-          {at > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => setAt(at - 1)} title={t('common.withKey', { label: t('shell.tour.back'), key: '←' })}>
-              {t('shell.tour.back')}
+          <div className="tour-actions">
+            <Button size="sm" variant="ghost" onClick={onClose} title={t('shell.tour.closeTip', { key: 'esc' })}>
+              {last ? t('common.action.close') : t('shell.tour.skip')}
             </Button>
-          )}
-          <Button
-            ref={nextRef}
-            size="sm"
-            variant="primary"
-            shortcut={['→']}
-            onClick={() => (last ? onClose() : setAt(at + 1))}
-            title={t('common.withKey', { label: last ? t('shell.tour.done') : t('shell.tour.next'), key: '→' })}
-          >
-            {last ? t('shell.tour.done') : t('shell.tour.next')}
-          </Button>
+            {at > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setAt(at - 1)} title={t('common.withKey', { label: t('shell.tour.back'), key: '←' })}>
+                {t('shell.tour.back')}
+              </Button>
+            )}
+            <Button
+              ref={nextRef}
+              size="sm"
+              variant="primary"
+              shortcut={['→']}
+              onClick={() => (last ? onClose() : setAt(at + 1))}
+              title={t('common.withKey', { label: last ? t('shell.tour.done') : t('shell.tour.next'), key: '→' })}
+            >
+              {last ? t('shell.tour.done') : t('shell.tour.next')}
+            </Button>
+          </div>
         </div>
       </TourCard>
       <div className="sr-only" aria-live="polite">
