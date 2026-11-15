@@ -13,11 +13,13 @@ import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwardi
 import {
   areaCodeOf,
   buyQuestion,
+  buyUnavailableText,
   carrierName,
   existingLinkText,
   firstPickup,
   formatNumber,
   numberModeLabel,
+  offersBuying,
   type PhoneOption,
   phoneOptionSetup,
   phoneOptionText,
@@ -43,6 +45,7 @@ import { AreaCodeInput } from './AreaCodeInput.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
+import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
 
 const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode => ({
@@ -522,7 +525,12 @@ function ConnectNumber({
   const count = numbers.length
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
-  const [option, setOption] = useState<PhoneOption>(connectOptions[0]!)
+  // Outside the countries numbers can be bought in, only a number the business already has (offersBuying).
+  const buyable = offersBuying(useWorkspaceCountry()?.country ?? null)
+  const [chosen, setOption] = useState<PhoneOption>(connectOptions[0]!)
+  const option: PhoneOption = buyable ? chosen : 'existing'
+  // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
+  const nothingToConnect = !buyable && !canAttach
   // E.164 as far as typed (PhoneInput).
   const [typed, setTyped] = useState('')
   const phoneCountry = useDefaultPhoneCountry()
@@ -563,7 +571,7 @@ function ConnectNumber({
     void run('phoneNumber.setup', result.input)
   }
   function submit() {
-    if (sentAt !== null) return
+    if (sentAt !== null || nothingToConnect) return
     if (!buying) return send(false)
     // Buying needs a second, deliberate click: Enter only asks for the confirmation.
     const check = phoneOptionSetup(option, { number: typed, areaCode, confirmed: true }, forwarding)
@@ -590,7 +598,7 @@ function ConnectNumber({
       {option === 'existing' ? (
         <div className="st-pn-t">
           <b>{existing.title}</b>
-          <span className="help">{existing.description}</span>
+          <span className="help">{buyable ? existing.description : buyUnavailableText(carrier, canAttach)}</span>
         </div>
       ) : (
         <>
@@ -614,7 +622,7 @@ function ConnectNumber({
           )}
         </>
       )}
-      {option === 'existing' ? (
+      {nothingToConnect ? null : option === 'existing' ? (
         <>
           <Field id="st-pn-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
             <CarrierNumberInput
@@ -628,11 +636,13 @@ function ConnectNumber({
             />
           </Field>
           {dev && <p className="help">Development mode: any number works, nothing is called.</p>}
-          <div>
-            <Button size="sm" variant="ghost" onClick={() => pick(connectOptions[0]!)}>
-              Back to the choices
-            </Button>
-          </div>
+          {buyable && (
+            <div>
+              <Button size="sm" variant="ghost" onClick={() => pick(connectOptions[0]!)}>
+                Back to the choices
+              </Button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -674,7 +684,7 @@ function ConnectNumber({
               Cancel
             </Button>
           )}
-          <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy}>
+          <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy || nothingToConnect}>
             {busy ? 'Connecting…' : buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'}
           </Button>
         </div>

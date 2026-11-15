@@ -1,5 +1,14 @@
 import { expect, test } from 'vitest'
-import { areaCodeLabel, phoneNumberSetup, searchAreaCodes, US_AREA_CODES, US_STATE_NAMES, usAreaCode } from './index.ts'
+import {
+  areaCodeLabel,
+  canBuyNumbersIn,
+  NUMBER_BUY_COUNTRIES,
+  phoneNumberSetup,
+  searchAreaCodes,
+  US_AREA_CODES,
+  US_STATE_NAMES,
+  usAreaCode,
+} from './index.ts'
 import { inputErrorText } from './input-errors.ts'
 
 const codes = US_AREA_CODES.map(a => a.code)
@@ -51,4 +60,11 @@ test('the server refuses an area code that is not in the list, in a plain senten
   const parsed = phoneNumberSetup.input.safeParse(sent)
   expect(parsed.success).toBe(false)
   expect(inputErrorText(parsed.error!, sent)).toBe('Area code: not a US area code a number can be bought in.')
+})
+
+test('numbers can be bought in the US only for now (Q6), whatever the case', () => {
+  expect(NUMBER_BUY_COUNTRIES).toEqual(['US'])
+  expect(canBuyNumbersIn('US')).toBe(true)
+  expect(canBuyNumbersIn(' us ')).toBe(true)
+  for (const country of ['CA', 'DE', 'GB', '']) expect(canBuyNumbersIn(country), country).toBe(false)
 })

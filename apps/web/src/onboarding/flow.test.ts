@@ -10,6 +10,7 @@ import {
   rejectionStep,
   urgentCasesFrom,
   buyQuestion,
+  buyUnavailableText,
   carrierName,
   DEFAULT_URGENT_CONDITION,
   dialPath,
@@ -24,6 +25,7 @@ import {
   mobileErrorText,
   NO_PICKUP_MEMORY,
   nextStep,
+  offersBuying,
   oldForwardingAfter,
   phoneOptionSetup,
   phoneOptionText,
@@ -497,13 +499,33 @@ test('a carrier failure says what it is and who fixes it (LIN-111)', () => {
   )
 })
 
+test('buying a number is offered only in the US, and as before while the country loads (Q6)', () => {
+  expect(offersBuying('US')).toBe(true)
+  expect(offersBuying('us')).toBe(true)
+  expect(offersBuying(null)).toBe(true)
+  for (const country of ['DE', 'CA', 'GB', 'MX']) expect(offersBuying(country), country).toBe(false)
+  expect(buyUnavailableText('Telnyx', true)).toBe(
+    'Buying numbers is available in the US for now. Connect a number you already have in Telnyx.',
+  )
+  expect(buyUnavailableText(null, true)).toMatch(/Connect a number you already have with your carrier\.$/)
+  expect(buyUnavailableText('Telnyx', false)).toMatch(/connect your own carrier account in Settings › Phone numbers\.$/)
+  // The server's refusal (apps/api/src/number-purchases.ts) in the same words.
+  expect(
+    phoneSetupErrorText(
+      'Buying numbers is available in the US for now; this workspace is in DE. Connect a number already in the carrier account instead: give its number (e164) without purchase.',
+    ),
+  ).toBe(buyUnavailableText(null, true))
+})
+
 test('a missing phone carrier sends admins to Server admin › Providers (LIN-111)', () => {
   expect(phoneSetupErrorText('phone setup is not configured', 'admin')).toMatch(/under Server admin › Providers\.$/)
   expect(phoneSetupErrorText('phone setup is not configured', 'member')).toMatch(/Ask whoever runs it/)
 })
 
 test('the emergency note under "Urgent means" names the workspace country\'s number', () => {
-  expect(EMERGENCY_NOTE('Maya')).toBe('Emergencies (danger to people, fire, a gas smell): Maya tells the caller to hang up and call 911.')
+  expect(EMERGENCY_NOTE('Maya')).toBe(
+    'Emergencies (danger to people, fire, a gas smell): Maya tells the caller to hang up and call 911.',
+  )
   expect(EMERGENCY_NOTE('Maya', 'AU')).toContain('call 000.')
   expect(EMERGENCY_NOTE('Maya', 'BR')).toContain('call the local emergency number.')
 })

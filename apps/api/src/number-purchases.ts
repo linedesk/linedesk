@@ -4,9 +4,11 @@
 // the number, so buying and releasing in a loop counts too; the row is committed before the carrier is
 // asked, so a purchase whose action fails afterwards (and is released again) still counts.
 import { number_purchases, phone_numbers, type Tx } from '@linedesk/db'
+import { canBuyNumbersIn } from '@linedesk/actions'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { ownCommitDb } from './db.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 
 /** Numbers a workspace may hold and buy (per 30 days) on the install's account, unless an instance admin buys them. */
 export const INSTALL_NUMBERS_PER_WORKSPACE = 2
@@ -39,6 +41,20 @@ export const NOT_WITH_API_KEY = 'Numbers on this server are bought in the app, n
 export const NUMBER_SETUP_BUSY = 'Another number is being set up, try again in a moment.'
 export const INSTALL_CAP_REACHED = 'This server has given out as many numbers as it allows for now: try again later, or ask whoever runs it.'
 const ASK_ADMIN = 'ask whoever runs this server, or use your own carrier account'
+
+/** The start of the refusal for a purchase outside NUMBER_BUY_COUNTRIES; the web app matches it (phoneSetupErrorText). */
+export const BUY_US_ONLY = 'Buying numbers is available in the US for now'
+
+/**
+ * Why the workspace may not buy a number at all, or null: only workspaces in NUMBER_BUY_COUNTRIES can (its country as
+ * set, else worked out; nothing known: the US). Any carrier account, any actor: elsewhere a business connects a number
+ * it already has. Q6, 2026-11-15.
+ */
+export async function buyCountryRefusal(tx: Tx, workspaceId: string): Promise<string | null> {
+  const { resolvedCountry } = await workspaceLocale(tx, workspaceId)
+  if (canBuyNumbersIn(resolvedCountry)) return null
+  return `${BUY_US_ONLY}; this workspace is in ${resolvedCountry}. Connect a number already in the carrier account instead: give its number (e164) without purchase.`
+}
 
 async function countPurchases(tx: Tx, where: ReturnType<typeof and>) {
   const [row] = await tx.select({ count: sql<number>`count(*)::int` }).from(number_purchases).where(where)

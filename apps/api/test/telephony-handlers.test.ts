@@ -1,7 +1,7 @@
 // Handlers whose outcome depends on the carrier or on time: they run directly, with the provider
 // passed in, inside a transaction that is rolled back. Part of the Postgres-backed API suite.
 import { actions, rolePermissions } from '@linedesk/actions'
-import { calls, number_purchases, phone_numbers, type Tx } from '@linedesk/db'
+import { calls, number_purchases, phone_numbers, type Tx, workspace_settings } from '@linedesk/db'
 import { devProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -10,7 +10,7 @@ import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
 import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import {
-  INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_SETUP_BUSY, US_ONLY,
+  BUY_US_ONLY, INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_SETUP_BUSY, US_ONLY,
 } from '../src/number-purchases.ts'
 
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
@@ -307,6 +307,43 @@ describe('telephony handlers', () => {
     expect(error.notes).toEqual([])
     expect(failing.routeToSip).not.toHaveBeenCalled()
   }))
+
+  describe('buying outside the US (NUMBER_BUY_COUNTRIES)', () => {
+    const inCountry = (tx: Tx, country: string | null) =>
+      tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'Europe/Berlin', country })
+        .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country } })
+    const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
+
+    test('a workspace in another country cannot buy, by area code or by number, but attaches what it has', () => inRollback(async tx => {
+      await inCountry(tx, 'DE')
+      const account = carrier(['+493012345678'])
+      const search = vi.spyOn(account, 'searchNumbers')
+      for (const [input, actor] of [[{ areaCode: '503', purchase: true }, owner], [{ e164: '+15035550901', purchase: true }, owner], [{ areaCode: '503', purchase: true }, admin]] as const) {
+        const error = await setup(tx, input, account, actor).catch(e => e)
+        expect(error).toBeInstanceOf(Reject)
+        expect(error.message).toMatch(new RegExp(`^${BUY_US_ONLY}; this workspace is in DE`))
+      }
+      expect(search).not.toHaveBeenCalled()
+      expect(account.buyNumber).not.toHaveBeenCalled()
+      expect(await tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))).toEqual([])
+      // A number already in the carrier account: attached, also when the caller passed purchase: true.
+      const { rows } = await setup(tx, { e164: '+493012345678', purchase: true }, account)
+      expect(rows.phone_numbers?.[0]).toMatchObject({ e164: '+493012345678', purchased: false })
+    }))
+
+    test('no country set: worked out from the workspace, so a German number it answers counts as Germany', () => inRollback(async tx => {
+      await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164: '+493012345679', provider: 'dev', provider_ref: 'ref_de' })
+      await expect(setup(tx, { areaCode: '503', purchase: true }, carrier())).rejects.toThrow(BUY_US_ONLY)
+    }))
+
+    test('a workspace in the US, or with nothing known (the US), buys as before', () => inRollback(async tx => {
+      const account = carrier()
+      expect((await setup(tx, { areaCode: '503', purchase: true }, account)).rows.phone_numbers?.[0]?.purchased).toBe(true)
+      await inCountry(tx, 'US')
+      expect((await setup(tx, { e164: '+15035550902', purchase: true }, account)).rows.phone_numbers?.[0]?.purchased).toBe(true)
+      expect(account.buyNumber).toHaveBeenCalledTimes(2)
+    }))
+  })
 
   /** A number row as phoneNumber.setup leaves it; `purchased` says whether Linedesk bought it. */
   async function numberRow(tx: Tx, e164: string, values: Partial<typeof phone_numbers.$inferInsert> = {}) {

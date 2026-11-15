@@ -33,7 +33,7 @@ import { telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
-import { installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
+import { buyCountryRefusal, installPurchaseRefusal, logPurchase, NUMBER_SETUP_BUSY } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
 import { workspaceCreationHandlers } from './workspace-creation-handlers.ts'
 import { teamMemberEditHandlers } from './team-member-edit.ts'
@@ -806,6 +806,10 @@ const handlers: Record<string, Handler> = {
     if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     const onInstallAccount = carrier_account === 'install' && provider.name !== 'dev'
+    // Only workspaces in a country numbers can be bought in may buy (NUMBER_BUY_COUNTRIES). Asked once, when a
+    // purchase is allowed by the input; refused before the carrier is searched for an area code.
+    const countryRefusal = input.purchase ? await buyCountryRefusal(tx, workspace_id) : null
+    if (countryRefusal && !input.e164) throw new Reject(countryRefusal)
     // A purchase by area code is a US purchase: its limits are checked before the carrier is searched, so a
     // refused one makes no carrier request (and takes the install-wide purchase lock before it does).
     if (onInstallAccount && input.purchase && !input.e164) {
@@ -830,6 +834,8 @@ const handlers: Record<string, Handler> = {
       throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     }
     const buying = !existing
+    // A number typed in that is not in the account would be bought: the same country rule.
+    if (buying && countryRefusal) throw new Reject(countryRefusal)
     // A number typed in (checked above when searched by area code).
     if (buying && onInstallAccount && input.e164) {
       const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: true, now })

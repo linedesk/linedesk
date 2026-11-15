@@ -9,6 +9,7 @@ import { CarrierNumberInput } from '../settings/CarrierNumberInput.tsx'
 import { Field } from '../settings/fields.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
+import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { RadioCard } from '../ui/controls.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
@@ -17,6 +18,7 @@ import { Foot, useStepKeys } from './Frame.tsx'
 import {
   areaCodeOf,
   buyQuestion,
+  buyUnavailableText,
   carrierName,
   existingLinkText,
   firstPickup,
@@ -24,6 +26,7 @@ import {
   forwardingOffer,
   type PhoneOption,
   phoneOptionSetup,
+  offersBuying,
   phoneOptions,
   phoneOptionText,
   pickupNumberMode,
@@ -109,7 +112,12 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   const name = useAssistantName()
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
-  const [option, setOption] = useState<PhoneOption>(phoneOptions[0]!)
+  // Outside the countries numbers can be bought in, only a number the business already has (offersBuying).
+  const buyable = offersBuying(useWorkspaceCountry()?.country ?? null)
+  const [chosen, setOption] = useState<PhoneOption>(phoneOptions[0]!)
+  const option: PhoneOption = buyable ? chosen : 'existing'
+  // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
+  const nothingToConnect = !buyable && !canAttach
   // E.164 as far as typed (PhoneInput). No number is connected yet, so no forwarding guide has picked a country.
   const [typed, setTyped] = useState('')
   const phoneCountry = useDefaultPhoneCountry()
@@ -144,6 +152,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   }
   function primary() {
     if (sending) return
+    if (nothingToConnect) return onNext()
     if (!buying) return send(false)
     // Buying needs a second, deliberate click: Enter only asks for the confirmation.
     if (!confirming) {
@@ -161,7 +170,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   const toChoices = () => pick(phoneOptions[0]!)
   useStepKeys({
     onEnter: primary,
-    onEscape: () => (confirming ? setConfirming(false) : option === 'existing' ? toChoices() : onBack()),
+    onEscape: () => (confirming ? setConfirming(false) : option === 'existing' && buyable ? toChoices() : onBack()),
   })
 
   const error = problem ?? setupError
@@ -181,7 +190,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         {option === 'existing' ? (
           <div className="ob-existing">
             <b>{existing.title}</b>
-            <span className="ob2-note">{existing.description}</span>
+            <span className="ob2-note">{buyable ? existing.description : buyUnavailableText(carrier, canAttach)}</span>
           </div>
         ) : (
           <>
@@ -206,7 +215,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         {dev && option === 'existing' && (
           <p className="ob2-note">Development mode: any number works, nothing is called.</p>
         )}
-        {option === 'existing' ? (
+        {nothingToConnect ? null : option === 'existing' ? (
           <>
             <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
               <CarrierNumberInput
@@ -220,9 +229,11 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
                 defaultCountry={phoneCountry}
               />
             </Field>
-            <button type="button" className="ob-link" onClick={toChoices} title="Back to the choices (Esc)">
-              Back to the choices
-            </button>
+            {buyable && (
+              <button type="button" className="ob-link" onClick={toChoices} title="Back to the choices (Esc)">
+                Back to the choices
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -259,11 +270,13 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
       <Foot
         onBack={onBack}
         onContinue={primary}
-        onSkipStep={onNext}
+        onSkipStep={nothingToConnect ? undefined : onNext}
         {...LATER}
         canContinue={!confirming}
         busy={sending && !confirming}
-        label={buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'}
+        label={
+          nothingToConnect ? LATER.laterLabel : buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'
+        }
       />
     </>
   )

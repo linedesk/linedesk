@@ -390,6 +390,16 @@ const BY_CODE = new Map(US_AREA_CODES.map(a => [a.code, a]))
 /** The area code from the list, or undefined for one a new number can't be bought in. */
 export const usAreaCode = (code: string): AreaCode | undefined => BY_CODE.get(code)
 
+/**
+ * The countries a workspace can buy a number in (workspace_settings.country, resolveWorkspaceCountry): numbers are
+ * searched by US area code only, so the US alone for now. Elsewhere the business connects a number it already has
+ * in its carrier account (phoneNumber.setup without purchase); the server refuses a purchase (Q6, 2026-11-15).
+ */
+export const NUMBER_BUY_COUNTRIES: readonly string[] = ['US']
+
+/** Whether a workspace in `country` (ISO 3166-1 alpha-2) can buy a number. */
+export const canBuyNumbersIn = (country: string): boolean => NUMBER_BUY_COUNTRIES.includes(country.trim().toUpperCase())
+
 /** "503 · Portland, OR" */
 export const areaCodeLabel = (a: AreaCode): string => `${a.code} · ${a.city}, ${a.state}`
 

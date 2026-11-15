@@ -785,7 +785,7 @@ export const phoneNumberModes = ['forward_conditional', 'forward_all', 'new', 'p
 export const phoneNumberSetup = defineAction({
   name: 'phoneNumber.setup',
   description:
-    'Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money. Repeating it for the same number finishes a setup that failed halfway.',
+    'Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in the US can buy (NUMBER_BUY_COUNTRIES), elsewhere attach a number the business already has. Repeating it for the same number finishes a setup that failed halfway.',
   input: z
     .object({
       e164: z

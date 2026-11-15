@@ -1,6 +1,7 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import {
   type BusinessHoursSpan,
+  canBuyNumbersIn,
   completePhone,
   emergencyNumberOf,
   type ForwardingGuide,
@@ -215,6 +216,23 @@ export type PhoneOption = 'forward' | 'existing' | 'new'
 /** The cards everyone sees, in order; the first is recommended and preselected. */
 export const phoneOptions: readonly PhoneOption[] = ['forward', 'new']
 
+/**
+ * Whether the phone step and Settings › Phone numbers offer buying a number: only in a country numbers can be bought
+ * in (NUMBER_BUY_COUNTRIES; the server refuses the rest). While the workspace country loads (null): yes, as before.
+ */
+export const offersBuying = (country: string | null): boolean => country === null || canBuyNumbersIn(country)
+
+/**
+ * The line shown instead of buying outside those countries. `canAttach` false: the install's carrier account is for
+ * instance admins only, so a number the business has needs its own carrier account first.
+ */
+export function buyUnavailableText(carrier: string | null, canAttach: boolean): string {
+  const why = 'Buying numbers is available in the US for now.'
+  if (!canAttach)
+    return `${why} To use a number you already have, connect your own carrier account in Settings › Phone numbers.`
+  return `${why} Connect a number you already have ${carrier ? `in ${carrier}` : 'with your carrier'}.`
+}
+
 /** The link under the cards to the `existing` option, naming the install's carrier when it has one. */
 export const existingLinkText = (carrier: string | null): string =>
   carrier ? `Already have a number in ${carrier}? Use it` : 'Already have a number? Use it'
@@ -282,6 +300,8 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
       ? "Phone numbers aren't set up on this server yet. Add a phone carrier under Server admin › Providers."
       : "Phone numbers aren't set up on this server yet. Ask whoever runs it to add a phone carrier."
   if (/is already set up/i.test(error)) return `That number is already connected to ${brandName()}.`
+  // Outside the countries numbers can be bought in (apps/api/src/number-purchases.ts, buyCountryRefusal).
+  if (/^Buying numbers is available in the US/i.test(error)) return buyUnavailableText(null, true)
   if (/is not in the .* account/i.test(error))
     return "We couldn't find that number in the carrier account. Check the number, or get a new one."
   if (/no number available in area code/i.test(error))
