@@ -1,7 +1,7 @@
 // Setup emails (setup-emails.ts): which one is due when, each once per workspace, only owners who did not turn them
 // off, none of the "not live yet" ones once a real call came in. Turning them on for the install and the first-call
 // email are instance-wide: those tests are in admin.test.ts.
-import { calls, phone_numbers, setup_emails, setup_events } from '@linedesk/db'
+import { calls, member, phone_numbers, setup_emails, setup_events } from '@linedesk/db'
 import { and, eq, inArray } from 'drizzle-orm'
 import { describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
@@ -134,15 +134,29 @@ describe('sending', () => {
     expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toBeNull()
   })
 
-  test('an owner who turned them off gets none; the email still counts as sent', async () => {
+  test('an owner who turned them off gets none, and nothing is marked sent for nobody', async () => {
     const ws = await newWorkspace('Setup Opt Out Plumbing')
     expect((await act(ws.owner, 'notifications.update', { setupEmails: false })).status).toBe(200)
     expect(await setupRecipients(db, ws.id)).toEqual([])
     const { sender, sent } = spySender()
     await signedUpHoursAgo(ws, 3)
-    expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toEqual({ kind: 'setup_day0', sent: 0, failed: 0 })
+    expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toBeNull()
     expect(sent).toEqual([])
+    expect(await sentKinds(ws)).toEqual([])
+    // Turned on again while day 0 is still due: it goes out then.
+    expect((await act(ws.owner, 'notifications.update', { setupEmails: true })).status).toBe(200)
+    expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toEqual({ kind: 'setup_day0', sent: 1, failed: 0 })
     expect(await sentKinds(ws)).toEqual(['setup_day0'])
+  })
+
+  test('a workspace without an owner (a server admin made it, the owner has not joined) gets no claim', async () => {
+    const ws = await newWorkspace('Setup Ownerless Plumbing')
+    await db.delete(member).where(eq(member.organizationId, ws.id))
+    await signedUpHoursAgo(ws, 3)
+    const { sender, sent } = spySender()
+    expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toBeNull()
+    expect(sent).toEqual([])
+    expect(await sentKinds(ws)).toEqual([])
   })
 
   test('when nothing could go out, the next run tries again', async () => {

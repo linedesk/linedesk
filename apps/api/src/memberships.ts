@@ -2,7 +2,18 @@
 // invitation from inside the app, and an instance admin adds, changes and removes members of any
 // workspace. A workspace's own owners and admins use team.* (team.ts).
 import { INVITATION_DAYS, type MyInvitation } from '@linedesk/actions'
-import { invitation, member, organization, type Tx, user } from '@linedesk/db'
+import {
+  calendar_oauth_states,
+  calls,
+  golive_checklist_dismissals,
+  golive_checklist_steps,
+  invitation,
+  member,
+  member_notification_settings,
+  organization,
+  type Tx,
+  user,
+} from '@linedesk/db'
 import { and, asc, eq, gt, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
@@ -12,6 +23,7 @@ import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
 import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail } from './emails/templates.ts'
+import { recordSetupEvent } from './setup-events.ts'
 import { insertInvitation, makeOwner, pendingInvitationTo, sendInvitation } from './team.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
 
@@ -40,6 +52,53 @@ async function isMember(tx: Tx, workspaceId: string, userId: string) {
   const [row] = await tx.select({ id: member.id }).from(member)
     .where(and(eq(member.organizationId, workspaceId), eq(member.userId, userId)))
   return !!row
+}
+
+/**
+ * An owner joined the workspace: the setup emails' clock (the `signup` milestone, setup-emails.ts) starts now. A server
+ * admin makes a workspace before its owner is in it (workspace.create), so the clock starts when the owner arrives,
+ * not when the admin typed the name. Only the first time counts: a workspace its owner made (POST /v1/workspaces, the
+ * setup MCP) has the milestone from its creation, and a later owner (a hand-over) changes nothing. Called wherever a
+ * member becomes owner: joins (here), Better Auth's invitation page (auth.ts), makeOwner (team.ts).
+ */
+export async function ownerJoined(
+  tx: Parameters<typeof recordSetupEvent>[0],
+  workspaceId: string,
+  role: string,
+  at: string,
+) {
+  if (role === 'owner') await recordSetupEvent(tx, workspaceId, 'signup', at)
+}
+
+/**
+ * What a workspace keeps of a member who is no longer in it (removed or left), cleared in the removal's transaction:
+ * their pushes for it, their calls there are unassigned (in nobody's "Assigned to me" otherwise, and pointing at no
+ * one once the account goes), their notification settings (a re-invited member starts from the defaults), their
+ * go-live checklist rows (the workspace-wide ones stay) and their unfinished calendar connects. The unassigned calls,
+ * for the remover's own store (CLAUDE.md rule 3).
+ */
+export async function forgetMember(tx: Tx, workspaceId: string, userId: string) {
+  await dropWorkspacePush(tx, workspaceId, userId)
+  const unassigned = await tx
+    .update(calls)
+    .set({ assignee_id: null })
+    .where(and(eq(calls.workspace_id, workspaceId), eq(calls.assignee_id, userId)))
+    .returning()
+  await tx
+    .delete(member_notification_settings)
+    .where(
+      and(eq(member_notification_settings.workspace_id, workspaceId), eq(member_notification_settings.user_id, userId)),
+    )
+  await tx
+    .delete(golive_checklist_dismissals)
+    .where(and(eq(golive_checklist_dismissals.workspace_id, workspaceId), eq(golive_checklist_dismissals.user_id, userId)))
+  await tx
+    .delete(golive_checklist_steps)
+    .where(and(eq(golive_checklist_steps.workspace_id, workspaceId), eq(golive_checklist_steps.user_id, userId)))
+  await tx
+    .delete(calendar_oauth_states)
+    .where(and(eq(calendar_oauth_states.workspace_id, workspaceId), eq(calendar_oauth_states.user_id, userId)))
+  return { calls: unassigned }
 }
 
 async function listMine(tx: Tx, actor: Actor, now: string): Promise<MyInvitation[]> {
@@ -110,7 +169,8 @@ export async function roleOnAccept(tx: Tx, invite: { organizationId: string; rol
  * A new account made through an invitation (signup-gate.ts: only a proven address with a pending invitation gets one)
  * joins every workspace it is invited to, in the same step: there is no account without a workspace unless someone
  * chose to keep it. Workspaces that are disabled meanwhile, or that it is in already, are skipped. Each join counts as
- * accepting that invitation (owner only while the workspace has none, like invitation.accept).
+ * accepting that invitation (owner only while the workspace has none, like invitation.accept); an owner joining starts
+ * the setup emails' clock (ownerJoined).
  */
 export async function joinInvitedWorkspaces(
   tx: Tx,
@@ -139,6 +199,7 @@ export async function joinInvitedWorkspaces(
     const role = await roleOnAccept(tx, invite)
     await tx.insert(member).values({ id: newMemberId(), organizationId: invite.organizationId, userId: account.id, role, createdAt: now })
     await tx.update(invitation).set({ status: 'accepted' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
+    await ownerJoined(tx, invite.organizationId, role, now.toISOString())
     joined.push(invite.organizationId)
   }
   return joined
@@ -285,7 +346,8 @@ export async function noticeAddedByAdmin(
 
 /**
  * Makes an existing account a member of the workspace with `role`, no email (membership.add, and user.invite for an
- * account whose address is confirmed). A pending invitation of theirs to the same workspace is answered by this.
+ * account whose address is confirmed, e.g. the owner of a workspace.create). A pending invitation of theirs to the same
+ * workspace is answered by this. An owner added here starts the setup emails' clock (ownerJoined).
  */
 export async function addToWorkspace(
   tx: Tx,
@@ -299,6 +361,7 @@ export async function addToWorkspace(
   await refuseSecondOwner(tx, workspace, role)
   const id = newMemberId()
   await insertMember(tx, { id, organizationId: workspace.id, userId: account.id, role, createdAt: new Date(now) }, already)
+  await ownerJoined(tx, workspace.id, role, now)
   await tx.update(invitation).set({ status: 'canceled' })
     .where(and(eq(invitation.organizationId, workspace.id), eq(invitation.status, 'pending'), sameEmail(account.email)))
   return id
@@ -317,6 +380,7 @@ export const membershipHandlers: Record<string, Handler> = {
     const role = await roleOnAccept(tx, invite)
     await insertMember(tx, { id: newMemberId(), organizationId: invite.organizationId, userId: account.id, role, createdAt: new Date(now) }, already)
     await tx.update(invitation).set({ status: 'accepted' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
+    await ownerJoined(tx, invite.organizationId, role, now)
     return { rows: {}, data: { workspaceId: invite.organizationId, subject: { email: account.email, workspaceId: invite.organizationId } } }
   },
 
@@ -373,7 +437,8 @@ export const membershipHandlers: Record<string, Handler> = {
     keepTheOwner(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
-    await dropWorkspacePush(tx, target.organizationId, target.userId)
+    // The unassigned calls are not returned: the server admin is not in the workspace and does not see its calls.
+    await forgetMember(tx, target.organizationId, target.userId)
     // Their last workspace: the account goes too, unless kept (workspace-delete.ts).
     const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
     return { rows: {}, data: { accountDeleted, subject } }

@@ -1,13 +1,12 @@
 // workspace.create (packages/actions/src/workspace-creation.ts): a server admin makes a workspace for a business and
 // gives it its one owner. Who may create workspaces at all: workspace-creation.ts.
 import type { WorkspaceCreateData } from '@linedesk/actions'
-import { assistants, type Db, organization, user, workspace_settings } from '@linedesk/db'
+import { assistants, organization, user, workspace_settings } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import type { Handler } from './handler-context.ts'
 import { Reject } from './handler-context.ts'
 import { newAssistant, newWorkspaceSettings } from './onboarding.ts'
-import { recordSetupEvent } from './setup-events.ts'
 
 const slugOf = (name: string) =>
   `${name
@@ -19,7 +18,8 @@ export const workspaceCreationHandlers: Record<string, Handler> = {
   /**
    * The workspace, its assistant and settings, then its owner through Add user (user.invite with role owner): the
    * same rules for who joins at once and who is invited, the same emails, in the same transaction. Nothing is left
-   * behind when the owner cannot be added (no email delivery, a disabled account).
+   * behind when the owner cannot be added (no email delivery, a disabled account). No `signup` milestone here: the
+   * setup emails count from when the owner joins (memberships.ts, ownerJoined), not from when the admin typed the name.
    */
   'workspace.create': async (
     ctx,
@@ -37,7 +37,6 @@ export const workspaceCreationHandlers: Record<string, Handler> = {
       .returning({ id: organization.id, name: organization.name })
     await tx.insert(assistants).values(newAssistant(org!.id, input.name))
     await tx.insert(workspace_settings).values(newWorkspaceSettings(org!.id, input.timeZone))
-    await recordSetupEvent(tx as Db, org!.id, 'signup', now)
     const added = await adminHandlers['user.invite']!(ctx, {
       email,
       name: ownerName,

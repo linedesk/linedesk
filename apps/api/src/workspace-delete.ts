@@ -198,6 +198,8 @@ export async function deleteWorkspace(
   now: string,
   spareUserId: string | null,
   telephony?: TelephonyProvider,
+  /** Database work that belongs to the delete (the emails to members), given the deleted accounts' addresses: before the carrier step. */
+  beforeCarrier?: (usersDeleted: string[]) => Promise<void>,
 ): Promise<WorkspaceDeleteData> {
   const { workspaceId } = input
   const [workspace] = await tx.select().from(organization).where(eq(organization.id, workspaceId)).for('update')
@@ -245,6 +247,7 @@ export async function deleteWorkspace(
     tx,
     users.map(u => u.id),
   )
+  await beforeCarrier?.(users.map(u => u.email))
 
   // Last, so a database failure above never leaves a number released for a workspace that is still there.
   const numberResults: NumberResult[] = []

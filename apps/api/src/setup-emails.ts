@@ -1,9 +1,11 @@
-// Setup emails: the first week after sign-up is onboarding too. Built from the workspace's setup milestones
-// (setup_events): a few hours after sign-up what is left, on day 1 and day 3 the one next step while no real call
-// has reached the assistant (day 3 also offers a partner who sets it up), the first real call as its own email
-// (call-notifications.ts), and a week after sign-up a summary for businesses that are live. Each goes out at most
-// once per workspace (setup_emails), only to owners who did not turn them off, and only when an instance admin
-// turned them on (off by default: a self-hosted install sends none). A job checks every few minutes (jobs.ts).
+// Setup emails: the first week after the owner joined is onboarding too. Built from the workspace's setup milestones
+// (setup_events), counted from `signup`: when the workspace got its owner (made by its owner, or the owner joined a
+// workspace a server admin made: memberships.ts, ownerJoined). A few hours after that what is left, on day 1 and day 3
+// the one next step while no real call has reached the assistant (day 3 also offers a partner who sets it up), the
+// first real call as its own email (call-notifications.ts), and a week after the owner joined a summary for businesses
+// that are live. Each goes out at most once per workspace (setup_emails), only to owners who did not turn them off,
+// and only when an instance admin turned them on (off by default: a self-hosted install sends none). A job checks
+// every few minutes (jobs.ts).
 // What a step is, which number and what counts as live is the shared definition in @linedesk/actions (setup-state.ts),
 // the same the go-live checklist in the inbox uses. Until #488 (LIN-85) is merged, setup-state.ts is an identical copy
 // in this branch; it goes away with the merge.
@@ -81,7 +83,7 @@ export const setupEmailHandlers: Record<string, Handler> = {
 type ScheduledKind = Exclude<SetupEmailKind, 'first_call'>
 
 /**
- * Hours after sign-up in which each email may go out. The windows do not overlap, so at most one is due at a
+ * Hours after the owner joined (the `signup` milestone) in which each email may go out. The windows do not overlap, so at most one is due at a
  * time, and one missed (the install was down, or the emails were turned on later) is skipped, never sent late.
  */
 export const SETUP_EMAIL_WINDOWS: Record<ScheduledKind, readonly [from: number, to: number]> = {
@@ -279,6 +281,9 @@ export async function sendSetupEmailFor(
     sent,
   })
   if (!kind) return null
+  // Nobody to send to (no owner yet, or every owner turned them off): not claimed, so it is not marked sent for nobody.
+  const recipients = await setupRecipientRows(tx, workspaceId)
+  if (!recipients.length) return null
   const claimed = await tx
     .insert(setup_emails)
     .values({ workspace_id: workspaceId, kind, sent_at: now })
@@ -288,7 +293,7 @@ export async function sendSetupEmailFor(
   // Forwarding works once the check passed or a real caller reached a forwarding number (as in the go-live checklist).
   const forwardingVerified = milestones.has('forwarding_verified') || (await forwardedCallArrived(tx, workspaceId))
   const email = await emailFor(tx, workspaceId, kind, signedUpAt, forwardingVerified)
-  const result = await sendAll(sender, await setupRecipientRows(tx, workspaceId), email, workspaceId)
+  const result = await sendAll(sender, recipients, email, workspaceId)
   if (result.failed && !result.sent)
     await tx.delete(setup_emails).where(and(eq(setup_emails.workspace_id, workspaceId), eq(setup_emails.kind, kind)))
   return { kind, ...result }

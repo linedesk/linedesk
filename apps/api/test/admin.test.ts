@@ -4231,9 +4231,18 @@ describe('workspace.delete', () => {
     } finally {
       setJobQueue(null)
     }
-    expect(queued).toEqual([
+    expect(queued.filter(q => q.name !== 'workspace.deletedEmail')).toEqual([
       { name: 'recording.deleteFile', data: { store: 'file', key: recordingKey(gone.id, gone.call.id) } },
     ])
+    // Every member hears of it, with whether their account went (member-cleanup.test.ts has the details).
+    expect(
+      queued.filter(q => q.name === 'workspace.deletedEmail').map(q => (q.data as { to: string; accountDeleted: boolean })),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ to: ownerEmail, accountDeleted: true }),
+        expect.objectContaining({ to: bothEmail, accountDeleted: false }),
+      ]),
+    )
 
     const after = await rowsOf(gone.id)
     for (const [table, n] of Object.entries(after)) if (!(table in KEPT_TABLES)) expect(n, table).toBe(0)

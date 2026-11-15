@@ -13,7 +13,7 @@ import { emailSender } from './email.ts'
 import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
-import { dropWorkspacePush } from './push.ts'
+import { forgetMember, ownerJoined } from './memberships.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
 
@@ -132,6 +132,8 @@ async function lockedOwner(tx: Tx, workspaceId: string) {
 export async function makeOwner(tx: Tx, target: { id: string; organizationId: string }, previousOwnerId: string | null) {
   if (previousOwnerId) await tx.update(member).set({ role: 'admin' }).where(eq(member.id, previousOwnerId))
   await tx.update(member).set({ role: 'owner' }).where(eq(member.id, target.id))
+  // A server admin giving an ownerless workspace its owner (membership.setRole) starts the setup emails' clock.
+  await ownerJoined(tx, target.organizationId, 'owner', new Date().toISOString())
   await tx.update(invitation).set({ status: 'canceled' })
     .where(and(eq(invitation.organizationId, target.organizationId), eq(invitation.status, 'pending'), eq(invitation.role, 'owner')))
 }
@@ -220,7 +222,8 @@ export const teamHandlers: Record<string, Handler> = {
     if (!me) throw new Reject('member not found')
     if (me.role === 'owner') throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
     await tx.delete(member).where(eq(member.id, me.id))
-    await dropWorkspacePush(tx, workspaceId, actor.actorId)
+    // The unassigned calls are not returned: the one leaving no longer sees the workspace's calls.
+    await forgetMember(tx, workspaceId, actor.actorId)
     const [next] = await tx.select({ id: member.organizationId }).from(member)
       .where(eq(member.userId, actor.actorId)).orderBy(asc(member.createdAt)).limit(1)
     // Their last workspace: the account goes only when the request says so (deleteAccount: true; never a server admin's,
@@ -236,9 +239,9 @@ export const teamHandlers: Record<string, Handler> = {
     guardOwner(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
-    await dropWorkspacePush(tx, target.organizationId, target.userId)
+    const forgotten = await forgetMember(tx, target.organizationId, target.userId)
     // Their last workspace: the account goes too, unless kept (workspace-delete.ts).
     const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
-    return { rows: {}, data: { accountDeleted, subject } }
+    return { rows: { calls: forgotten.calls }, data: { accountDeleted, subject } }
   },
 }

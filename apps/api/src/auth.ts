@@ -306,6 +306,13 @@ export const auth = betterAuth({
       requireEmailVerificationOnInvitation: true,
       organizationHooks: {
         beforeAcceptInvitation: refuseExistingMember,
+        // An owner who joins through the invitation page starts the setup emails' clock (memberships.ts, ownerJoined).
+        afterAcceptInvitation: async ({ member }) => {
+          const { ownerJoined } = await import('./memberships.ts')
+          await ownerJoined(db, member.organizationId, member.role, new Date().toISOString()).catch(err =>
+            console.error('setup event signup failed', err),
+          )
+        },
         // Its cloned voices are deleted at the provider too.
         beforeDeleteOrganization: async ({ organization }) => {
           await db.transaction(tx => releaseWorkspaceClones(tx, organization.id))

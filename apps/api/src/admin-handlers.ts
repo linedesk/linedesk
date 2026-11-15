@@ -7,12 +7,22 @@ import {
   signInCategories,
   type UserInviteData,
 } from '@linedesk/actions'
-import { agent_setup_keys, organization, session, spending_cap_alerts, type Tx, user } from '@linedesk/db'
+import {
+  agent_setup_keys,
+  member,
+  organization,
+  session,
+  spending_cap_alerts,
+  type Tx,
+  user,
+  workspace_settings,
+} from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { createEmailSender, type EmailSender, emailSender, emailSettingsOf, sendNotice } from './email.ts'
-import { emailSafeName, passkeyEnrolmentIssuedEmail, welcomeEmail } from './emails/templates.ts'
+import { emailSafeName, passkeyEnrolmentIssuedEmail, WEB_ORIGIN, welcomeEmail } from './emails/templates.ts'
+import { siteHost } from './emails/layout.ts'
 import { db } from './db.ts'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, ne, or, sql } from 'drizzle-orm'
 import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
@@ -44,6 +54,8 @@ import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { brandName } from './branding.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
+import { deletedWhen } from './workspace-delete-own.ts'
+import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import type { AuditSubject } from './audit.ts'
 import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
 
@@ -162,13 +174,13 @@ function refuseEnrolmentCode(actor: Actor) {
 async function actorName(actor: Actor): Promise<string> {
   if (actor.actorId === 'cli') return 'The server operator (command line)'
   const [who] = await db.select({ email: user.email }).from(user).where(eq(user.id, actor.actorId))
-  return who?.email ?? 'An instance admin'
+  return who?.email ?? 'A server admin'
 }
 
 async function alertAdminGranted(actor: Actor, email: string) {
   await alertInstanceAdmins(
     `New instance admin on ${brandName()}: ${email}`,
-    `${await actorName(actor)} made ${email} an instance admin.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Users and Audit log.`,
+    `${await actorName(actor)} made ${email} a server admin.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Users and Audit log.`,
   )
 }
 
@@ -237,6 +249,54 @@ async function viaWhat(actor: Actor): Promise<{ subject: string; body: string; a
     body: `through the AI agent setup link ${key?.prefix ?? actor.setupKeyId}…${made}`,
     after: ` That admin ends the link with End access on the setup page; disabling the admin ends it too.`,
   }
+}
+
+/**
+ * workspace.delete: the delete (workspace-delete.ts), and every member hears of it, as with an owner's own delete
+ * (workspace-delete-own.ts): who deleted it ("the server admin of <site>"), when, and whether their account went with
+ * it. Queued in the delete's transaction: the emails go only if it commits. Not to the admin deleting it.
+ */
+async function deleteWorkspaceAndTell(
+  tx: Tx,
+  input: Parameters<typeof deleteWorkspace>[1],
+  now: string,
+  actorId: string,
+  telephony: Parameters<typeof deleteWorkspace>[4],
+) {
+  // The lock deleteWorkspace takes first, before the members are read: a join at the same moment waits, so nobody
+  // loses an account without the email.
+  await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, input.workspaceId))
+    .for('update')
+  const [settings] = await tx
+    .select({ timezone: workspace_settings.timezone })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, input.workspaceId))
+  const members = await tx
+    .select({ email: user.email })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(member.organizationId, input.workspaceId), ne(member.userId, actorId)))
+  const [workspace] = await tx
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, input.workspaceId))
+  const content = {
+    workspace: emailSafeName(workspace?.name, 'Your workspace'),
+    by: `The server admin of ${siteHost(WEB_ORIGIN)}`,
+    when: deletedWhen(now, settings?.timezone),
+  }
+  // Queued before the numbers are released at the carrier: a failure here undoes the delete before anything left
+  // the database.
+  return deleteWorkspace(tx, input, now, actorId, telephony, async usersDeleted => {
+    const deleted = new Set(usersDeleted)
+    await queueWorkspaceDeletedEmails(
+      tx,
+      members.map(m => ({ to: m.email, ...content, accountDeleted: deleted.has(m.email) })),
+    )
+  })
 }
 
 export const adminHandlers: Record<string, Handler> = {
@@ -411,7 +471,7 @@ export const adminHandlers: Record<string, Handler> = {
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
   'workspace.delete': async ({ tx, now, actor, telephony }, input) => ({
     rows: {},
-    data: await deleteWorkspace(tx, input, now, actor.actorId, telephony),
+    data: await deleteWorkspaceAndTell(tx, input, now, actor.actorId, telephony),
   }),
   'workspace.setSpendingCap': ({ tx, now }, input) => setSpendingCap(tx, input.workspaceId, input.capUsd, now),
 
