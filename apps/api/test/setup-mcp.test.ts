@@ -1,7 +1,7 @@
 // Setup MCP at /mcp/setup (LIN-125): an instance admin's setup key, the short list of setup tools, and every way a
 // key stops working. In INSTANCE_WIDE_FILES: it makes instance admins and stores provider keys.
 import { randomBytes } from 'node:crypto'
-import { SETUP_MCP_INSTRUCTIONS } from '@linedesk/actions'
+import { providerGroups, SETUP_MCP_INSTRUCTIONS } from '@linedesk/actions'
 import {
   agent_setup_keys,
   assistants,
@@ -1358,10 +1358,24 @@ describe('every key through the agent (LIN-182)', () => {
     expect(init.body.result.instructions).toBe(SETUP_MCP_INSTRUCTIONS)
     const status = data(await call(key, 'setup_status')) as {
       steps: { id: string; how?: string[] }[]
-      optional: { id: string; how?: string[] }[]
+      optional: { id: string; state: string; how?: string[] }[]
       app_links: Record<string, string>
     }
-    expect(status.optional.map(o => o.id)).toEqual(['sign-in', 'calendar', 'recording', 'business'])
+    // Every group a first call does not need, in the registry's order (a new optional group shows up here on its own).
+    const optionalIds = providerGroups.filter(g => !g.needed).map(g => g.id)
+    expect(optionalIds).toEqual(expect.arrayContaining(['sign-in', 'calendar', 'recording', 'transcript', 'business']))
+    expect(status.optional.map(o => o.id)).toEqual(optionalIds)
+    // None is set up on a fresh install, and each says how through these tools: never an empty how-to that leaves the
+    // agent to send the admin to the app, and never a tool call the server refuses (transcription is not provider_setActive).
+    for (const o of status.optional) {
+      expect(o.state, o.id).not.toBe('done')
+      expect(o.how?.length, o.id).toBeGreaterThan(0)
+    }
+    expect(JSON.stringify(status.optional)).not.toMatch(/provider_setActive \{ category: "transcript"/)
+    const transcript = status.optional.find(o => o.id === 'transcript')!.how!.join(' ')
+    expect(transcript).toMatch(/provider_setKeys \{ provider: "openai_transcript"/)
+    expect(transcript).toContain('#admin/providers/transcript')
+    expect(status.app_links.providers_transcript).toMatch(/#admin\/providers\/transcript$/)
     const all = JSON.stringify(status)
     expect(all).not.toMatch(/paste (it|the key|them) in the app|cannot change email/i)
     expect(status.app_links.agent_setup).toMatch(/#setup-agent$/)
