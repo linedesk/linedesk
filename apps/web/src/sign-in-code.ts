@@ -9,6 +9,8 @@ export const noAccountText = () => i18n().t('auth.error.signupClosed')
 export const CODE_LENGTH = 6
 /** Seconds before "Resend code" is offered. */
 export const RESEND_AFTER_S = 30
+/** Seconds on the code step before "No email? Check spam…" shows: earlier it is only noise. */
+export const NO_CODE_HINT_AFTER_S = 60
 
 /** Digits only, at most six: a pasted "123 456" or "Code: 123456" becomes "123456". */
 export const normalizeCode = (value: string) => value.replace(/\D/g, '').slice(0, CODE_LENGTH)

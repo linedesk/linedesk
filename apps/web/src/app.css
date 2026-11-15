@@ -212,6 +212,24 @@ body,
   outline-offset: 2px;
   border-radius: 2px;
 }
+.auth-switch:disabled {
+  color: var(--ink-muted);
+  cursor: default;
+}
+/* The code step's quiet line under the button: "Resend code · Use a different email". */
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.auth-links > * + *::before {
+  content: "·";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--ink-muted);
+}
 .auth-more {
   align-self: center;
   padding: 4px 0;
@@ -1912,7 +1930,7 @@ button.k-link {
   margin-bottom: 3px;
 }
 .me-ws::after {
-  content: '';
+  content: "";
   margin: 2px 4px 0; /* + the grid's 1px gap: 3px, as above an hr */
   border-top: 1px solid var(--line);
 }

@@ -4,7 +4,7 @@
 // unknown address is told to ask for an invitation; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
-import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, NO_CODE_HINT_AFTER_S, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -425,9 +425,9 @@ function LegalLinksLine({ links }: { links: LegalLinks }) {
 
 type CodeStepProps = {
   email: string
-  /** SUPPORT_EMAIL of this install: named under "No code after a minute?" when set. */
+  /** SUPPORT_EMAIL of this install: named in the "No email?" line when set. */
   supportEmail?: string | null
-  /** Signing in from an invitation: the address may sign in, so the line does not send them to ask for one. */
+  /** Signing in from an invitation: the address may sign in, so the page says the code was sent and does not send them to ask for an invitation. */
   invited?: boolean
   onDone: () => Promise<void>
   onDifferentEmail: () => void
@@ -441,6 +441,7 @@ export function CodeStep({ email, supportEmail, invited = false, onDone, onDiffe
   const [busy, setBusy] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
   const [waitS, setWaitS] = useState(RESEND_AFTER_S)
+  const [late, setLate] = useState(false)
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -448,6 +449,11 @@ export function CodeStep({ email, supportEmail, invited = false, onDone, onDiffe
     const timer = setTimeout(() => setWaitS(s => s - 1), 1000)
     return () => clearTimeout(timer)
   }, [waitS])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLate(true), NO_CODE_HINT_AFTER_S * 1000)
+    return () => clearTimeout(timer)
+  }, [])
 
   async function check(value: string) {
     setBusy(true)
@@ -484,8 +490,10 @@ export function CodeStep({ email, supportEmail, invited = false, onDone, onDiffe
     <AuthPage>
       <form className="auth-card" noValidate onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
         <h1>{t('auth.code.title')}</h1>
-        {/* The same words for every address: whether it may sign in here is not told (no account enumeration). */}
-        <p>{t('auth.code.sent', { email, digits: CODE_LENGTH })}</p>
+        {/* No code goes to an address that cannot sign in (apps/api/src/signup-gate.ts), so the line hedges, and says the
+            same for every address: whether this one has an account is not told (no account enumeration). From an
+            invitation the address may sign in, so it says plainly that the code was sent. */}
+        <p>{invited ? t('auth.code.sentInvited', { email }) : t('auth.code.sentIfAccount', { email })}</p>
         <input ref={input} className="auth-code" aria-label={t('auth.code.label')} value={code} onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
@@ -495,23 +503,34 @@ export function CodeStep({ email, supportEmail, invited = false, onDone, onDiffe
           {(busy || signedIn) && <Spinner />}
           {signedIn ? t('auth.signingIn') : busy ? t('auth.checking') : t('auth.signIn')}
         </button>
-        {waitS > 0
-          ? <p className="auth-note">{t('auth.code.wait', { seconds: waitS })}</p>
-          : <button type="button" className="auth-switch" onClick={() => void resend()}>{t('auth.code.resend')}</button>}
-        {/* No open sign-up: an address without an account gets no code (apps/api/src/signup-gate.ts). The same line
-            for every address, so the page does not tell whether this one has an account. */}
-        <p className="auth-note">
-          {t('auth.code.none', { help: t(invited ? 'auth.code.noneHelpInvited' : 'auth.code.noneHelp') })}
-          {supportEmail && (
-            <>
-              {' '}
-              <T k="auth.writeTo" values={{ email: supportEmail, a: chunks => <a className="k-link" href={`mailto:${supportEmail}`}>{chunks}</a> }} />
-            </>
-          )}
-        </p>
-        <button type="button" className="auth-switch" onClick={onDifferentEmail}>{t('auth.differentEmail')}</button>
+        <div className="auth-links">
+          <button type="button" className="auth-switch" disabled={waitS > 0} onClick={() => void resend()}>
+            {waitS > 0 ? t('auth.code.resendIn', { seconds: waitS }) : t('auth.code.resend')}
+          </button>
+          <button type="button" className="auth-switch" onClick={onDifferentEmail}>{t('auth.differentEmail')}</button>
+        </div>
+        {/* Said once when Resend opens, not every second of the countdown; focus stays in the code field. */}
+        <span className="sr-only" role="status">{waitS > 0 ? '' : t('auth.code.resendReady')}</span>
+        {/* Only after a minute without a sign-in: before that the email is most likely still on its way. */}
+        {late && <NoCodeHint invited={invited} supportEmail={supportEmail} />}
       </form>
     </AuthPage>
+  )
+}
+
+/** "No email? Check spam…": the code step shows it after NO_CODE_HINT_AFTER_S without a sign-in. */
+export function NoCodeHint({ invited, supportEmail }: Pick<CodeStepProps, 'invited' | 'supportEmail'>) {
+  const t = useT()
+  return (
+    <p className="auth-note">
+      {t(invited ? 'auth.code.noEmailInvited' : 'auth.code.noEmail')}
+      {supportEmail && (
+        <>
+          {' '}
+          <T k="auth.writeTo" values={{ email: supportEmail, a: chunks => <a className="k-link" href={`mailto:${supportEmail}`}>{chunks}</a> }} />
+        </>
+      )}
+    </p>
   )
 }
 
