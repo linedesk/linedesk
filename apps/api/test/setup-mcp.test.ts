@@ -21,7 +21,7 @@ import {
 import { and, desc, eq } from 'drizzle-orm'
 import nodemailer from 'nodemailer'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
-import { agentSetupHandlers, hashSetupKey, setupActorIn, setupKeyAccess } from '../src/agent-setup.ts'
+import { agentSetupHandlers, hashSetupKey, setupActor, setupActorIn, setupKeyAccess } from '../src/agent-setup.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -627,6 +627,100 @@ describe('tools', () => {
     }
     expect((await request(admin, 'POST', '/v1/workspaces', { name: 'Location 13' })).status).toBe(200)
   }, 60_000)
+
+  test('workspace_create runs workspace.create: logged and audited with the link; a deleted workspace still counts toward the cap', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key, keyId } = await makeKey(admin)
+    // A refused create (two lines) is logged as refused, or not at all, and never counts.
+    expect((await call(key, 'workspace_create', { name: 'Brightwater\nPlumbing' })).body.result.isError).toBe(true)
+    const made = data(await call(key, 'workspace_create', { name: 'Brightwater Plumbing & Heating' })) as {
+      workspace: { id: string }
+    }
+    const logged = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.setup_key_id, keyId), eq(commands.action, 'workspace.create')))
+    expect(logged.filter(c => !c.rejected)).toHaveLength(1)
+    expect(logged.find(c => !c.rejected)).toMatchObject({ actor_id: admin.userId })
+    expect(await db.select().from(member).where(eq(member.organizationId, made.workspace.id))).toMatchObject([
+      { userId: admin.userId, role: 'owner' },
+    ])
+    expect(
+      await db
+        .select()
+        .from(setup_events)
+        .where(and(eq(setup_events.workspace_id, made.workspace.id), eq(setup_events.event, 'signup'))),
+    ).toHaveLength(1)
+    const audit = (await request(admin, 'GET', '/v1/admin/audit?kind=admin&limit=50')).body.entries as {
+      what: string
+      viaSetupKey: string | null
+    }[]
+    expect(audit).toContainEqual(expect.objectContaining({ what: 'workspace.create', viaSetupKey: keyId }))
+    // Deleting what the link made does not give it room for more: the command log counts what it created.
+    await db.delete(organization).where(eq(organization.id, made.workspace.id))
+    for (let i = 2; i <= SETUP_LINK_WORKSPACE_CAP; i++)
+      expect((await call(key, 'workspace_create', { name: `Location ${i}` })).body.result.isError).toBeFalsy()
+    const capped = await call(key, 'workspace_create', { name: 'One too many' })
+    expect(capped.body.result.isError).toBe(true)
+    expect(capped.body.result.content[0].text).toMatch(/can create up to 10 workspaces/)
+  }, 60_000)
+
+  test('parallel workspace_create calls on one link never pass the cap', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key } = await makeKey(admin)
+    for (let i = 1; i <= SETUP_LINK_WORKSPACE_CAP - 2; i++)
+      expect((await call(key, 'workspace_create', { name: `Branch ${i}` })).body.result.isError).toBeFalsy()
+    // Two places left, four calls at once (the most one key may have in flight, mcp.ts): exactly two get one.
+    const results = await Promise.all(
+      [1, 2, 3, 4].map(i => call(key, 'workspace_create', { name: `Branch extra ${i}` })),
+    )
+    expect(results.map(r => r.status)).toEqual([200, 200, 200, 200])
+    expect(results.filter(r => !r.body.result.isError)).toHaveLength(2)
+    expect(await db.select().from(member).where(eq(member.userId, admin.userId))).toHaveLength(SETUP_LINK_WORKSPACE_CAP)
+  }, 60_000)
+
+  test('the link cap holds in workspace.create itself: another API process, past the quick check, is refused too', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key, keyId } = await makeKey(admin)
+    for (let i = 1; i <= SETUP_LINK_WORKSPACE_CAP - 2; i++)
+      expect((await call(key, 'workspace_create', { name: `Depot ${i}` })).body.result.isError).toBeFalsy()
+    // What another process would run: the action as the link's actor, without this process's oneCreateAtATime.
+    const linkActor = (await setupActor(admin.userId, keyId, { passkeyConfirmed: true }))!
+    const results = await Promise.all(
+      [1, 2, 3, 4, 5].map(i => runAction('workspace.create', { name: `Depot elsewhere ${i}` }, linkActor)),
+    )
+    expect(results.filter(r => r.status === 200)).toHaveLength(2)
+    for (const refused of results.filter(r => r.status !== 200))
+      expect(refused).toMatchObject({
+        status: 409,
+        body: { ok: false, error: expect.stringMatching(/can create up to 10 workspaces/) },
+      })
+    expect(await db.select().from(member).where(eq(member.userId, admin.userId))).toHaveLength(SETUP_LINK_WORKSPACE_CAP)
+  }, 60_000)
+
+  test('workspace.create checks the account again under its lock: disabled or no longer a server admin, nothing is made', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { keyId } = await makeKey(admin)
+    // Resolved while still an admin, as a request in flight would be.
+    const linkActor = (await setupActor(admin.userId, keyId, { passkeyConfirmed: true }))!
+    await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
+    expect(await runAction('workspace.create', { name: 'Revoked Plumbing' }, linkActor)).toMatchObject({
+      status: 403,
+      body: { ok: false, code: 'forbidden' },
+    })
+    await db.update(user).set({ instanceAdmin: true, disabledAt: new Date() }).where(eq(user.id, admin.userId))
+    expect(await runAction('workspace.create', { name: 'Disabled Plumbing' }, linkActor)).toMatchObject({
+      status: 403,
+      body: { ok: false, code: 'forbidden' },
+    })
+    expect(await db.select().from(member).where(eq(member.userId, admin.userId))).toEqual([])
+    expect(await db.select().from(organization).where(eq(organization.name, 'Revoked Plumbing'))).toEqual([])
+    expect(await db.select().from(organization).where(eq(organization.name, 'Disabled Plumbing'))).toEqual([])
+  })
 
   test('workspace and provider tools run through the registry as the admin, in their own workspace', async () => {
     const { key } = await makeKey(ws.owner)

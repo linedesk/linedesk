@@ -163,10 +163,12 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
 })
 
 /**
- * Workspaces are created, renamed and removed only through Linedesk: POST /v1/workspaces makes the
- * assistant and settings with it, and nothing else may delete a workspace and leave its numbers,
- * contacts and assistants behind. Better Auth's own endpoints for these are off over HTTP; the API
- * still calls `auth.api.createOrganization` itself.
+ * Workspaces are created, renamed and removed only through Linedesk: workspace.create makes the
+ * assistant and settings with it (workspace-creation-handlers.ts, for the app's POST /v1/workspaces,
+ * the setup MCP and Server admin), and nothing else may delete a workspace and leave its numbers,
+ * contacts and assistants behind. Better Auth's own endpoints for these are off over HTTP. Only the
+ * seed and the workspace-create.ts CLI still call `auth.api.createOrganization`: Better Auth's
+ * `organizationLimit` guards nothing else; workspace.create applies WORKSPACE_LIMIT itself.
  */
 const WORKSPACE_WRITE_PATHS = ['/organization/create', '/organization/update', '/organization/delete']
 const TEAM_WRITE_PATHS = [

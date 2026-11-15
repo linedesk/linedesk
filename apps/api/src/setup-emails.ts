@@ -34,6 +34,7 @@ import {
 import type { Call } from '@linedesk/db/types'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { type EmailSender, emailSender } from './email.ts'
+import { forwardingVerifiedFor } from './go-live-checklist.ts'
 import { setupUnsubscribeUrl, unsubscribeHeaders } from './setup-unsubscribe.ts'
 import {
   emailSafeName,
@@ -290,8 +291,8 @@ export async function sendSetupEmailFor(
     .onConflictDoNothing()
     .returning()
   if (!claimed.length) return null
-  // Forwarding works once the check passed or a real caller reached a forwarding number (as in the go-live checklist).
-  const forwardingVerified = milestones.has('forwarding_verified') || (await forwardedCallArrived(tx, workspaceId))
+  // Forwarding works for the setup number: the one meaning the go-live checklist uses (forwardingVerifiedFor).
+  const forwardingVerified = await forwardingVerifiedFor(tx, workspaceId)
   const email = await emailFor(tx, workspaceId, kind, signedUpAt, forwardingVerified)
   const result = await sendAll(sender, recipients, email, workspaceId)
   if (result.failed && !result.sent)
@@ -334,15 +335,6 @@ const realCallIn = (workspaceId: unknown) => sql`exists (select 1 from calls c w
 async function hasRealCall(tx: Tx, workspaceId: string): Promise<boolean> {
   const { rows } = await tx.execute<{ real: boolean }>(sql`select ${realCallIn(workspaceId)} as real`)
   return rows[0]?.real === true
-}
-
-/** Whether a real caller (not the business's own phones) reached one of its numbers that is in a forwarding mode. */
-async function forwardedCallArrived(tx: Tx, workspaceId: string): Promise<boolean> {
-  const { rows } = await tx.execute<{ yes: boolean }>(sql`select exists (
-    select 1 from calls c join phone_numbers p on p.e164 = c.to_number and p.workspace_id = c.workspace_id
-    where c.workspace_id = ${workspaceId} and c.source = 'phone' and not c.from_own_number
-      and p.mode in ('forward_conditional', 'forward_all')) as yes`)
-  return rows[0]?.yes === true
 }
 
 /** Undoes claimFirstCallEmail when no email could go out at all, so the job's next try sends it. */

@@ -44,6 +44,7 @@ import {
   statusText,
   type SetupStepGroup,
   setupStepNames,
+  type WorkspaceCreateData,
 } from '@linedesk/actions'
 import {
   assistants,
@@ -55,8 +56,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
-import { APIError } from 'better-auth/api'
-import { and, asc, count, eq, sql } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   type ManagedWorkspace,
@@ -67,19 +67,25 @@ import {
   tooManyRefusedSetupKeys,
   webAddress,
 } from './agent-setup.ts'
-import { mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
-import { auth, WORKSPACE_LIMIT, workspaceLimitText } from './auth.ts'
+import {
+  mayCreateWorkspace,
+  SETUP_LINK_CAP_TEXT,
+  SETUP_LINK_WORKSPACE_CAP,
+  WORKSPACE_CREATION_CLOSED,
+  workspacesMadeBy,
+} from './workspace-creation.ts'
+import { WORKSPACE_LIMIT } from './auth.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
 import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
-import { ensureWorkspaceRows, newAssistant } from './onboarding.ts'
+import { newAssistant } from './onboarding.ts'
 import { pipelinesSetUp, providerStatus, voicePipelinePolicy } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
-import { assistantSpokeIn, recordSignup } from './setup-events.ts'
+import { assistantSpokeIn } from './setup-events.ts'
 
 /**
  * The registry actions an agent gets, by name. Instance: the providers. Workspace: what onboarding does. Each is
@@ -157,22 +163,15 @@ const answer = (data: Record<string, unknown>): ToolResult => {
   const text = forAgent(JSON.stringify(data))
   return { content: [{ type: 'text', text }], structuredContent: JSON.parse(text) }
 }
-/** The most workspaces one setup link creates (review of #711): a leaked link cannot fill the install. */
-export const SETUP_LINK_WORKSPACE_CAP = 10
-/** Kept in the workspace's metadata: the setup link that created it. */
-const MADE_BY_SETUP_KEY = 'createdBySetupKey'
+// The setup link cap (SETUP_LINK_WORKSPACE_CAP) and its count: workspace-creation.ts. workspace.create enforces it in the
+// creating transaction (workspace-creation-handlers.ts); the check here only answers early.
+export { SETUP_LINK_WORKSPACE_CAP }
 
-/** How many workspaces this setup link has created (still there). Better Auth stores the metadata as JSON text. */
-async function workspacesMadeBy(keyId: string) {
-  const needle = JSON.stringify({ [MADE_BY_SETUP_KEY]: keyId }).slice(1, -1)
-  const [row] = await db
-    .select({ n: count() })
-    .from(organization)
-    .where(sql`position(${needle} in coalesce(${organization.metadata}, '')) > 0`)
-  return row?.n ?? 0
-}
-
-/** One workspace_create per link at a time, so two parallel calls cannot both pass the cap (one API process). */
+/**
+ * One workspace_create per link at a time in this process, so the quick check below sees the previous call's committed
+ * command (runAction returns after the commit). Across processes, workspace.create holds the line: it locks the link
+ * and counts again in its own transaction.
+ */
 const creating = new Map<string, Promise<unknown>>()
 function oneCreateAtATime<T>(keyId: string, run: () => Promise<T>): Promise<T> {
   const before = creating.get(keyId) ?? Promise.resolve()
@@ -847,38 +846,19 @@ function registerTools(server: McpServer, actor: Actor) {
         if (/[\r\n]/.test(name)) return refusal('the name is one line')
         // Only server admins create workspaces (workspace-creation.ts): a setup link is a server admin's.
         if (!mayCreateWorkspace(actor)) return refusal(WORKSPACE_CREATION_CLOSED)
-        const slug = `${name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
         const keyId = actor.setupKeyId
         if (!keyId) return refusal('could not create the workspace')
-        const org = await oneCreateAtATime(keyId, async () => {
-          // A leaked link must not fill the install with workspaces: each one carries the link it came from.
-          if ((await workspacesMadeBy(keyId)) >= SETUP_LINK_WORKSPACE_CAP) return 'link_cap' as const
-          // At the workspace limit (WORKSPACE_LIMIT, auth.ts) Better Auth refuses: said like the app's New workspace,
-          // never "internal error".
-          return auth.api
-            .createOrganization({
-              body: { name, slug, userId: actor.actorId, metadata: { [MADE_BY_SETUP_KEY]: keyId } },
-            })
-            .catch((err: unknown) => {
-              if (err instanceof APIError && err.body?.code === 'YOU_HAVE_REACHED_THE_MAXIMUM_NUMBER_OF_ORGANIZATIONS')
-                return 'at_limit' as const
-              throw err
-            })
+        // The one path for a new workspace (workspace.create without an owner: the admin becomes its owner), logged with
+        // this link like every setup tool. At the workspace limit (WORKSPACE_LIMIT, auth.ts) it says so, like the app's
+        // New workspace, never "internal error".
+        const made = await oneCreateAtATime(keyId, async () => {
+          // A leaked link must not fill the install with workspaces: the command log counts what it made.
+          if ((await workspacesMadeBy(db, keyId)) >= SETUP_LINK_WORKSPACE_CAP) return 'link_cap' as const
+          return runAction('workspace.create', { name, ...(timeZone ? { timeZone } : {}) }, actor)
         })
-        if (org === 'link_cap')
-          return refusal(
-            `This setup link can create up to ${SETUP_LINK_WORKSPACE_CAP} workspaces. Create a new setup link on the setup page to add more, or create them in the app.`,
-          )
-        if (org === 'at_limit')
-          return refusal(
-            WORKSPACE_LIMIT === null ? 'could not create the workspace' : workspaceLimitText(WORKSPACE_LIMIT),
-          )
-        if (!org) return refusal('could not create the workspace')
-        await ensureWorkspaceRows(org.id, name, timeZone)
-        await recordSignup(db, org.id)
+        if (made === 'link_cap') return refusal(SETUP_LINK_CAP_TEXT)
+        if (!made.body.ok) return refusal(made.body.error)
+        const org = (made.body.data as WorkspaceCreateData).workspace
         return answer({
           ok: true,
           workspace: { id: org.id, name: org.name },

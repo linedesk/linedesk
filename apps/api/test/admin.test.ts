@@ -2973,6 +2973,40 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect(await status()).toBe(403)
   })
 
+  test('workspace.create without an owner through /v1/actions: refused without the passkey check and while impersonating, nothing made', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
+    const name = `Own Biz ${crypto.randomUUID().slice(0, 6)}`
+    const made = async () => db.select().from(organization).where(eq(organization.name, name))
+    // A sign-in a minute old without the passkey check.
+    await sessionOfAdmin({ createdAt: new Date(Date.now() - 60_000) })
+    expect(await act(admin, 'workspace.create', { name })).toMatchObject({
+      status: 403,
+      body: { ok: false, code: 'SECOND_FACTOR_REQUIRED' },
+    })
+    expect(await made()).toEqual([])
+    // The same session as an impersonation (by another server admin), even with a fresh passkey check.
+    const by = await signUp()
+    await setAdmin(by, true)
+    try {
+      await sessionOfAdmin({ createdAt: new Date(), passkeyVerifiedAt: new Date(), impersonatedBy: by.userId })
+      const refused = await act(admin, 'workspace.create', { name })
+      expect(refused.status).toBe(403)
+      expect(refused.body.ok).toBe(false)
+      expect(await made()).toEqual([])
+      // Control: the same session with the passkey check and no impersonation does make it.
+      await sessionOfAdmin({ createdAt: new Date(), passkeyVerifiedAt: new Date(), impersonatedBy: null })
+      expect((await act(admin, 'workspace.create', { name })).status).toBe(200)
+      expect(await made()).toHaveLength(1)
+    } finally {
+      await setAdmin(by, false)
+      // The rest of this block expects an admin in no workspace.
+      await db.delete(memberTable).where(eq(memberTable.userId, admin.userId))
+      await db.delete(organization).where(eq(organization.name, name))
+      await db.update(session).set({ activeOrganizationId: null }).where(eq(session.userId, admin.userId))
+    }
+  })
+
   test('signing in again with a password never opens Server admin; the workspaces work as before', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
     await addPasskey()

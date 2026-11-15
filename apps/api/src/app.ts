@@ -1,16 +1,12 @@
-import { actions, avatarUrlOf, CLONE_BODY_MAX_BYTES, openApiDocument, workspaceNameProblem } from '@linedesk/actions'
 import {
-  assistants,
-  member,
-  organization,
-  passkey,
-  user,
-  workspace_icons,
-  workspace_settings,
-  tableNames,
-  type TableName,
-} from '@linedesk/db'
-import { APIError } from 'better-auth/api'
+  actions,
+  avatarUrlOf,
+  CLONE_BODY_MAX_BYTES,
+  openApiDocument,
+  type WorkspaceCreateData,
+  workspaceNameProblem,
+} from '@linedesk/actions'
+import { member, organization, passkey, user, workspace_icons, tableNames, type TableName } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -31,7 +27,7 @@ import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
-import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT, workspaceLimitText } from './auth.ts'
+import { auth, TRUSTED_ORIGINS, WEB_ORIGIN } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { configuredCalendarProviders } from '@linedesk/calendar'
@@ -55,8 +51,7 @@ import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
-import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
-import { recordSignup } from './setup-events.ts'
+import { onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { firstUse } from './sample-calls.ts'
 import { starPromptFor } from './star-prompt.ts'
 import { voiceFailing } from './provider-failures.ts'
@@ -176,9 +171,9 @@ app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.p
 
 export { WORKSPACE_CREATION_CLOSED }
 
-// Create a workspace (= organization) for the signed-in user, with its assistant, and make it active.
-// Better Auth writes the organization on its own connection, so this is not one transaction:
-// if the assistant cannot be written the organization is removed again and the call can be repeated.
+// Create a workspace (= organization) for the signed-in server admin, with its assistant, and make it active: the
+// app's New workspace. The checks below answer as before; the workspace itself is made by workspace.create without an
+// owner (workspace-creation-handlers.ts), in one transaction, logged and audited like every other way to make one.
 app.post('/v1/workspaces', async c => {
   const headers = c.req.raw.headers
   const session = await auth.api.getSession({ headers })
@@ -199,37 +194,13 @@ app.post('/v1/workspaces', async c => {
   const problem = workspaceNameProblem(body.name)
   if (problem) return c.json({ ok: false, error: problem }, 422)
   const name = (body.name as string).trim()
-  const slug = `${name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
-  // Refused by Better Auth when signed out or at the workspace limit (auth.ts).
-  const org = await auth.api.createOrganization({ body: { name, slug }, headers }).catch(err => {
-    if (!(err instanceof APIError)) throw err
-    const atLimit = err.body?.code === 'YOU_HAVE_REACHED_THE_MAXIMUM_NUMBER_OF_ORGANIZATIONS'
-    return {
-      refused:
-        atLimit && WORKSPACE_LIMIT !== null
-          ? workspaceLimitText(WORKSPACE_LIMIT)
-          : err.message || 'Could not create the workspace',
-      status: err.statusCode,
-    }
-  })
-  if (!org) return c.json({ ok: false, error: 'not signed in' }, 401)
-  if ('refused' in org) return c.json({ ok: false, error: org.refused }, org.status === 401 ? 401 : 403)
-  try {
-    await db.insert(assistants).values(newAssistant(org.id, name))
-    await db.insert(workspace_settings).values(newWorkspaceSettings(org.id, body.timeZone))
-  } catch (err) {
-    await db.delete(organization).where(eq(organization.id, org.id))
-    throw err
-  }
-  await recordSignup(db, org.id)
-  // Not essential: without an active workspace the member's first one is used (context.ts).
-  await auth.api
-    .setActiveOrganization({ body: { organizationId: org.id }, headers })
-    .catch(err => console.error('set active workspace failed', err))
-  return c.json({ ok: true, workspace: { id: org.id, name: org.name } })
+  // A time zone that is not one falls back to the default, as before (onboarding.ts, workspaceTimeZone).
+  const timeZone = typeof body.timeZone === 'string' && body.timeZone.length <= 64 ? body.timeZone : undefined
+  const made = await runAction('workspace.create', { name, ...(timeZone ? { timeZone } : {}) }, caller.actor)
+  // Refused (the workspace limit, auth.ts): 403 as Better Auth answered; invalid input stays 422.
+  if (!made.body.ok) return c.json(made.body, made.status === 409 ? 403 : made.status)
+  const { workspace } = made.body.data as WorkspaceCreateData
+  return c.json({ ok: true, workspace })
 })
 
 // Public, before the guard: the API description lists no data, only the public actions' schemas.
