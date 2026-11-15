@@ -17,6 +17,7 @@ test('search finds zones by city, zone name or offset, written as GMT or UTC', (
   expect(values('pacific')).toContain('America/Los_Angeles')
   expect(values('gmt+1')).toContain('Europe/Berlin')
   expect(values('UTC - 8')).toContain('America/Los_Angeles')
+  expect(values('gmt-5')).toContain('America/New_York')
   expect(values('gmt+1')).not.toContain('America/Los_Angeles')
   // An offset is compared whole: GMT+10:30, +12 and +13 are not "gmt+1".
   expect(values('gmt+1')).not.toContain('Australia/Adelaide')

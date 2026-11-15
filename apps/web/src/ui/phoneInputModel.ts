@@ -16,7 +16,7 @@ export type PhoneCountryOption = {
 }
 
 /** Shown first, in this order, like the common currencies of the currency menu. */
-export const COMMON_PHONE_COUNTRIES = ['US', 'CA', 'GB', 'AU', 'DE'] as const
+export const COMMON_PHONE_COUNTRIES = ['US', 'CA', 'GB', 'AU'] as const
 export const ALL_COUNTRIES_GROUP = 'All countries'
 
 /** "DE" → 🇩🇪 (two regional indicator letters). */

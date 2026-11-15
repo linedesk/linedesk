@@ -298,7 +298,7 @@ function CountryPicker({ country, onPick, disabled, size }: PickerProps) {
           <input
             autoFocus
             className="k-phone-search"
-            placeholder="Search a country or +49"
+            placeholder="Search a country or +1"
             aria-label="Search countries"
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}

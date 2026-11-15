@@ -15,14 +15,15 @@ const search = (query: string) => searchPhoneCountries(options, query).map(o => 
 
 describe('the country list', () => {
   test('common countries first, then every other one A-Z under "All countries"', () => {
-    expect(options.slice(0, 5).map(o => o.value)).toEqual(['US', 'CA', 'GB', 'AU', 'DE'])
+    expect(options.slice(0, 4).map(o => o.value)).toEqual(['US', 'CA', 'GB', 'AU'])
     const runs = optionGroups(options)
     expect(runs.map(r => r.group)).toEqual([undefined, ALL_COUNTRIES_GROUP])
     const names = runs[1]!.options.map(o => o.name)
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')))
     // Each country once.
     expect(new Set(options.map(o => o.value)).size).toBe(options.length)
-    expect(runs[1]!.options.some(o => o.value === 'DE')).toBe(false)
+    expect(runs[1]!.options.some(o => o.value === 'US')).toBe(false)
+    expect(runs[1]!.options.some(o => o.value === 'DE')).toBe(true)
   })
 
   test('each country with its flag and calling code', () => {
@@ -50,6 +51,7 @@ describe('search', () => {
     expect(search('+44')[0]).toBe('GB')
     const plusOne = search('1')
     expect(plusOne.slice(0, 2)).toEqual(['US', 'CA'])
+    expect(search('+1').slice(0, 2)).toEqual(['US', 'CA'])
     expect(plusOne).toContain('JM')
     expect(search('+4')).toEqual(expect.arrayContaining(['DE', 'GB', 'AT', 'CH']))
   })

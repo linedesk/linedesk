@@ -852,10 +852,10 @@ function registerTools(server: McpServer, actor: Actor) {
         country: z
           .string()
           .trim()
-          .regex(/^[A-Za-z]{2}$/, 'a two-letter country code (ISO 3166-1 alpha-2), e.g. US or DE')
+          .regex(/^[A-Za-z]{2}$/, 'a two-letter country code (ISO 3166-1 alpha-2), e.g. US or GB')
           .transform(c => c.toUpperCase())
           .optional()
-          .describe('The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "GB", "DE"); default US'),
+          .describe('The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "CA", "GB"); default US'),
         mode: z.enum(['forward_conditional', 'forward_all']).default('forward_conditional'),
         workspaceId: workspaceIdField,
       }),

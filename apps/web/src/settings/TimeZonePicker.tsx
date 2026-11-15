@@ -119,7 +119,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
           <input
             autoFocus
             className="tz-search"
-            placeholder="Search a city, region or GMT+1"
+            placeholder="Search a city, region or GMT-5"
             aria-label="Search time zones"
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
