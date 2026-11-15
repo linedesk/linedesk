@@ -262,7 +262,7 @@ export const scenarios = {
     },
     languages: ['es'],
   },
-  // The assistant speaks only Spanish: English tool results (take_message's) must come out in Spanish too.
+  // The assistant speaks only Spanish: English tool results (flag_urgent's, the collection steps') must come out in Spanish too.
   'spanish-only': {
     persona:
       'Eres María González. Hablas solo español, nada de inglés. El inodoro de tu baño gotea y quieres que un fontanero te llame para arreglarlo esta semana. Da tu nombre cuando te lo pidan. Despídete con "adiós" y cuelga.',

@@ -385,7 +385,7 @@ export const callRecordTimings = defineAction({
   logged: 'ids',
 })
 
-// Tools the assistant can use during a call.
+// What the agent saves during a call (the urgent flag; a message when a transfer found nobody).
 export const callTakeMessage = defineAction({
   name: 'call.takeMessage',
   description: 'Take a message for the business: adds an action item to the call.',

@@ -219,7 +219,7 @@ test('listed appointments switch the booking-change rules; the API check stays (
 test('caller ID: a known number is in the prompt and not asked for, a saved name is not asked for, an unknown number is', () => {
   const known = { name: null, note: null, phone: '+15035550142' }
   expect(callerIdInstructions(known)).toContain('The caller is calling from +1 503 555 0142 (caller ID).')
-  expect(callerIdInstructions(known)).toMatch(/saved as the callback number with every message: never ask for a callback number/)
+  expect(callerIdInstructions(known)).toMatch(/The team has it as the callback number: never ask for a callback number/)
   expect(callerIdInstructions(known)).toMatch(/get it with get_phone_number/)
   expect(callerIdInstructions(known)).not.toMatch(/saved contact|can be faked/)
   expect(callerIdInstructions({ ...known, name: 'Linda Park' })).toMatch(/^The caller is "Linda Park" \(a saved contact\)\..*do not ask for the caller's name/)
@@ -233,7 +233,7 @@ test('a test call from the app: the prompt says there is no caller ID and "the n
   const testCaller = { name: 'Test call', note: null, phone: 'test', testCall: true }
   expect(callerIdInstructions(testCaller)).toContain(TEST_CALL_CALLER_ID)
   expect(TEST_CALL_CALLER_ID).toBe(
-    "This is a test call from the app: there is no caller ID. If the caller says to use the number they are calling from, accept that, note 'test call, no caller ID', and go on.",
+    "This is a test call from the app: there is no caller ID. If the caller says to use the number they are calling from, accept that and go on.",
   )
   expect(buildInstructions(assistant(), null, null, [], testCaller)).toContain(TEST_CALL_CALLER_ID)
   for (const real of [{ name: null, note: null }, { name: null, note: null, phone: '+15035550142' }, { name: null, note: null, phone: 'anonymous' }])
@@ -328,7 +328,7 @@ test('an assistant that speaks more than one language says English tool texts an
 test('an assistant that speaks only one language other than English also says English tool texts in that language', () => {
   const german = languageInstructions({ languages: { main: 'de', mode: 'english', allowed: [] } } as unknown as Assistant)
   expect(german).toMatch(/^Speak German only\./)
-  expect(german).toContain('write the messages, notes and booking details you save with tools in English')
+  expect(german).toContain('write the notes and booking details you save with tools in English')
   expect(german).toContain('say them in the language you are speaking with the caller')
 })
 

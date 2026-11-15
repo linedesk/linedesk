@@ -4,7 +4,7 @@ import type {
   knowledge_documents, knowledge_questions, phone_numbers, transcript_segments, webhook_endpoints, workspace_settings, workspace_members, call_events,
 } from './schema.ts'
 
-/** `kind: 'message'`: a message the assistant took during the call (call.takeMessage), counted for MESSAGES_PER_CALL. */
+/** `kind: 'message'`: a message saved during the call (call.takeMessage: a transfer nobody took), counted for MESSAGES_PER_CALL. */
 export type ActionItem = { text: string; done?: boolean; kind?: 'message' }
 export type CallField = { label: string; value: string }
 /**

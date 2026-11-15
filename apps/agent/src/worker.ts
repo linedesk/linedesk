@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -12,8 +12,7 @@ import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { initErrorReporting } from './error-reporting.ts'
 import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet, stepFacts } from './collect/collect-tools.ts'
-import { partialPhoneNumberIn } from './collect/collectors.ts'
-import { callerIdOf, withCallbackNumber } from './callback-number.ts'
+import { callerIdOf } from './callback-number.ts'
 import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS, repeatFilter } from './call-log.ts'
 import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { retryEmptyReplies } from './empty-reply.ts'
@@ -31,7 +30,7 @@ import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
 import { followCallerLanguage } from './caller-language.ts'
-import { MESSAGE_SAVED_RESULT, skipQuietToolReplies } from './tool-replies.ts'
+import { skipQuietToolReplies } from './tool-replies.ts'
 import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
@@ -63,7 +62,7 @@ export const TEST_CALL_LIMIT_MS = 5 * 60_000
 
 /** A booking tool's result; the assistant is asked to go on when its reply to it comes back empty (as after a collection step). */
 /**
- * A tool that saves something (a booking, a message, the urgent flag): from its start the caller can't interrupt the
+ * A tool that saves something (a booking, the urgent flag): from its start the caller can't interrupt the
  * turn, so an interruption never cancels the tool after the API saved and the assistant always hears the result.
  */
 function saving(opts: llm.ToolOptions): void {
@@ -135,39 +134,11 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
 function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
-  const { callId } = call
-  const callerId = callerIdOf(call)
   return {
     ...bookingToolset(api, call, log),
     ...collectTools(collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     ...lookupTools(api, call, log),
-    take_message: llm.tool({
-      description: 'Save a message for the team: whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself. Once per call; if the caller adds a detail after you saved it (a callback number, an address), call it again with only that detail.',
-      parameters: z.object({
-        message: z
-          .string()
-          .describe(
-            callerId
-              ? "One complete sentence: who wants what. Leave out the caller's number: caller ID is saved as the callback number by itself. Add another number only once get_phone_number confirmed it."
-              : 'One complete sentence: who wants what, with the callback number confirmed with get_phone_number.',
-          ),
-      }),
-      execute: async ({ message: said }, opts) => {
-        saving(opts)
-        // A number the caller said can come out garbled ("503 551 42"): only a whole one is saved.
-        const partial = partialPhoneNumberIn(said, call.country)
-        if (partial) return `"${partial}" is not a complete phone number. Get the callback number with get_phone_number first, then call take_message again with the confirmed number.`
-        // With caller ID that is the callback number; another one only as get_phone_number confirmed it.
-        const checked = withCallbackNumber(said, callerId, { confirmed: log.confirmedNumbers, saved: log.messages, country: call.country })
-        if ('refusal' in checked) return checked.refusal
-        const message = checked.text
-        await api.run(callTakeMessage, { callId, message }, call)
-        log.messages.push(message)
-        log.record('system', 'Took a message', callTakeMessage.name)
-        return MESSAGE_SAVED_RESULT
-      },
-    }),
     end_call: llm.tool({
       // How (no words first, the goodbye after it) is in the prompt's closing rule.
       description: 'Hang up: when the caller said they need nothing else, or said goodbye.',
@@ -185,20 +156,6 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
         return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'
       },
     }),
-  }
-}
-
-/** Adds a detail as one more message for the team, once a message is saved on the call; false otherwise. */
-async function addToMessage(api: ApiClient, call: CallSession, log: CallLog, detail: string): Promise<boolean> {
-  if (!log.messages.length) return false
-  try {
-    await api.run(callTakeMessage, { callId: call.callId, message: detail }, call)
-    log.messages.push(detail)
-    log.record('system', 'Added to the message', callTakeMessage.name)
-    return true
-  } catch (e) {
-    console.warn(`could not add to the message of call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`)
-    return false
   }
 }
 
@@ -246,7 +203,7 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
  * Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. Not end_call: its reply
  * is the goodbye (skipSecondGoodbye).
  */
-const QUIET_TOOLS = new Set(['take_message', 'flag_urgent'])
+const QUIET_TOOLS = new Set(['flag_urgent'])
 
 const greetingCache = createGreetingCache()
 
@@ -501,7 +458,6 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     log,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
     languageRule: () => collectLanguageRule(callAssistant, spokenNow()) ?? undefined,
-    addToMessage: detail => addToMessage(api, call, log, detail),
     callerId: callerIdOf(call),
     testCall: call.caller?.testCall === true,
     country: call.country,

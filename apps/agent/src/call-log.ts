@@ -4,7 +4,7 @@ import type { CallSession, CallTimings, Speaker } from './call-session.ts'
 import type { ReplyTimes } from './turn-metrics.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 import { callerIdOf, hasCallbackNumber } from './callback-number.ts'
-import { mergeToolResults, summarizeCall, unsummarizedResult, voiceFailedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
+import { type CollectedDetail, mergeToolResults, summarizeCall, unsummarizedResult, voiceFailedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -42,8 +42,10 @@ export class CallLog {
   onHold = false
   /** The caller's name as they confirmed it in the name step (get_name): bookings go under it. */
   confirmedName: string | undefined
-  /** Phone numbers the caller confirmed with get_phone_number (E.164): only these may go into a message besides caller ID. */
+  /** Phone numbers the caller confirmed with get_phone_number (E.164): the only ones the team gets besides caller ID. */
   readonly confirmedNumbers: string[] = []
+  /** What the collection steps got, confirmed or a best guess: the summary takes the team's next step from these. */
+  readonly details: CollectedDetail[] = []
   /** The value a collection step is getting right now (its label); null between steps. A call that ends meanwhile still files a call back. */
   collecting: string | null = null
   /** How long each reply took (ReplyTimes), sent at hang-up for the admin overview; `timing` says which pipeline and providers. */
@@ -85,7 +87,7 @@ export async function finishCall(call: CallSession, log: CallLog, complete: Comp
   const callbackKnown = hasCallbackNumber(callerIdOf(call), { confirmed: log.confirmedNumbers, saved: log.messages, country: call.country })
   const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed, call.teamLanguage) : await summarizeWithRetry(call, log, complete, callbackKnown, retry).catch(e => {
     console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
-    return unsummarizedResult(log.lines, log.messages, call.teamLanguage)
+    return unsummarizedResult(log.lines, log.messages, call.teamLanguage, log.details)
   })
   await withRetry(() => call.finish(mergeToolResults(summary, log, callbackKnown, call.teamLanguage)), retry)
 }
@@ -97,13 +99,13 @@ export const SUMMARY_RETRY_DELAY_MS = 2000
 /** Summarizes; a failed request (a rate limit, a bad answer) is tried once more after a short pause. */
 async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, callbackKnown: boolean, retry?: RetryOptions) {
   try {
-    return await summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown })
+    return await summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown, details: log.details })
   } catch (e) {
     if (isTimeout(e)) throw e
     console.warn(`summary of call ${call.callId} failed, trying once more: ${message(e)}`)
     const pause = retry?.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
     await pause(SUMMARY_RETRY_DELAY_MS)
-    return summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown })
+    return summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown, details: log.details })
   }
 }
 

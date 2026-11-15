@@ -24,7 +24,6 @@ export type SpokenLines = {
   busy: string
   overCap: string
   blocked: string
-  messageSaved: string
   urgentFlagged: string
   recordingNotice: string
 }
@@ -44,8 +43,6 @@ const en: SpokenLines = {
   busy: 'Sorry, all our lines are busy right now. Please call back in a few minutes.',
   overCap: "Sorry, we can't take your call right now. We'll call you back as soon as we can.",
   blocked: "Sorry, we can't take your call. Goodbye.",
-  messageSaved:
-    "Thanks, I've passed your message on, and the team will get back to you. Is there anything else I can help with?",
   urgentFlagged:
     "I've marked this as urgent for the team. Is the number you're calling from the best way to reach you?",
   recordingNotice: 'This call may be recorded.',
@@ -67,8 +64,6 @@ const es: SpokenLines = {
   busy: 'Lo siento, todas nuestras líneas están ocupadas. Por favor, vuelva a llamar en unos minutos.',
   overCap: 'Lo siento, ahora no podemos atender su llamada. Le devolveremos la llamada lo antes posible.',
   blocked: 'Lo siento, no podemos atender su llamada. Adiós.',
-  messageSaved:
-    'Gracias, he pasado su mensaje y el equipo se pondrá en contacto con usted. ¿Puedo ayudarle en algo más?',
   urgentFlagged:
     'He marcado esto como urgente para el equipo. ¿El número desde el que llama es el mejor para localizarle?',
   recordingNotice: 'Esta llamada puede ser grabada.',
@@ -90,8 +85,6 @@ const fr: SpokenLines = {
   busy: 'Désolé, toutes nos lignes sont occupées pour le moment. Merci de rappeler dans quelques minutes.',
   overCap: 'Désolé, nous ne pouvons pas prendre votre appel pour le moment. Nous vous rappellerons dès que possible.',
   blocked: 'Désolé, nous ne pouvons pas prendre votre appel. Au revoir.',
-  messageSaved:
-    "Merci, j'ai transmis votre message et l'équipe vous recontactera. Puis-je vous aider pour autre chose ?",
   urgentFlagged:
     "J'ai signalé cet appel comme urgent à l'équipe. Le numéro depuis lequel vous appelez est-il le meilleur pour vous joindre ?",
   recordingNotice: 'Cet appel peut être enregistré.',
@@ -114,8 +107,6 @@ const de: SpokenLines = {
   busy: 'Leider sind gerade alle Leitungen belegt. Bitte rufen Sie in ein paar Minuten wieder an.',
   overCap: 'Leider können wir Ihren Anruf gerade nicht annehmen. Wir rufen Sie so bald wie möglich zurück.',
   blocked: 'Leider können wir Ihren Anruf nicht annehmen. Auf Wiederhören.',
-  messageSaved:
-    'Danke, ich habe Ihre Nachricht weitergegeben, und das Team meldet sich bei Ihnen. Kann ich sonst noch etwas für Sie tun?',
   urgentFlagged:
     'Ich habe das für das Team als dringend markiert. Sind Sie unter der Nummer, von der Sie anrufen, am besten erreichbar?',
   recordingNotice: 'Dieser Anruf wird möglicherweise aufgezeichnet.',
@@ -137,7 +128,6 @@ const it: SpokenLines = {
   busy: 'Mi dispiace, al momento tutte le nostre linee sono occupate. La preghiamo di richiamare tra qualche minuto.',
   overCap: 'Mi dispiace, al momento non possiamo rispondere alla sua chiamata. La richiameremo il prima possibile.',
   blocked: 'Mi dispiace, non possiamo rispondere alla sua chiamata. Arrivederci.',
-  messageSaved: "Grazie, ho inoltrato il suo messaggio e il team la ricontatterà. Posso aiutarla in qualcos'altro?",
   urgentFlagged:
     'Ho segnalato la cosa come urgente al team. Il numero da cui sta chiamando è il migliore per raggiungerla?',
   recordingNotice: 'Questa chiamata potrebbe essere registrata.',
@@ -159,8 +149,6 @@ const pt: SpokenLines = {
   busy: 'Desculpe, todas as nossas linhas estão ocupadas no momento. Por favor, ligue novamente em alguns minutos.',
   overCap: 'Desculpe, não podemos atender sua ligação agora. Retornaremos a ligação assim que possível.',
   blocked: 'Desculpe, não podemos atender sua ligação. Até logo.',
-  messageSaved:
-    'Obrigado, passei sua mensagem adiante e a equipe vai entrar em contato com você. Posso ajudar em mais alguma coisa?',
   urgentFlagged:
     'Marquei isso como urgente para a equipe. O número de onde você está ligando é o melhor para falar com você?',
   recordingNotice: 'Esta ligação pode ser gravada.',
@@ -182,8 +170,6 @@ const nl: SpokenLines = {
   busy: 'Sorry, al onze lijnen zijn op dit moment bezet. Bel over een paar minuten terug.',
   overCap: 'Sorry, we kunnen uw oproep nu niet aannemen. We bellen u zo snel mogelijk terug.',
   blocked: 'Sorry, we kunnen uw oproep niet aannemen. Tot ziens.',
-  messageSaved:
-    'Bedankt, ik heb uw bericht doorgegeven en het team neemt contact met u op. Kan ik u nog ergens anders mee helpen?',
   urgentFlagged:
     'Ik heb dit als dringend gemarkeerd voor het team. Bent u het best bereikbaar op het nummer waarmee u belt?',
   recordingNotice: 'Dit gesprek kan worden opgenomen.',
@@ -203,7 +189,6 @@ const ru: SpokenLines = {
   busy: 'Извините, все линии сейчас заняты. Пожалуйста, перезвоните через несколько минут.',
   overCap: 'Извините, сейчас мы не можем принять ваш звонок. Мы перезвоним вам как можно скорее.',
   blocked: 'Извините, мы не можем принять ваш звонок. До свидания.',
-  messageSaved: 'Спасибо, ваше сообщение передано, и команда с вами свяжется. Могу ли я ещё чем-нибудь помочь?',
   urgentFlagged:
     'Это отмечено для команды как срочное. По номеру, с которого вы звоните, с вами лучше всего связаться?',
   recordingNotice: 'Этот звонок может записываться.',
@@ -224,7 +209,6 @@ const hi: SpokenLines = {
   busy: 'माफ़ कीजिए, अभी हमारी सभी लाइनें व्यस्त हैं। कृपया कुछ मिनट बाद फिर से कॉल करें।',
   overCap: 'माफ़ कीजिए, हम अभी आपकी कॉल नहीं ले सकते। हम जल्द से जल्द आपको वापस कॉल करेंगे।',
   blocked: 'माफ़ कीजिए, हम आपकी कॉल नहीं ले सकते। नमस्ते।',
-  messageSaved: 'धन्यवाद, आपका संदेश टीम तक पहुँचा दिया गया है, और वे आपसे संपर्क करेंगे। क्या और किसी चीज़ में मदद चाहिए?',
   urgentFlagged:
     'इसे टीम के लिए ज़रूरी के रूप में चिह्नित कर दिया गया है। क्या जिस नंबर से आप कॉल कर रहे हैं, उसी पर आपसे संपर्क करना सबसे अच्छा रहेगा?',
   recordingNotice: 'यह कॉल रिकॉर्ड की जा सकती है।',
@@ -246,8 +230,6 @@ const ja: SpokenLines = {
   busy: '申し訳ございません、ただいま回線が大変混み合っております。数分後におかけ直しください。',
   overCap: '申し訳ございません、ただいまお電話をお受けできません。できるだけ早く折り返しご連絡いたします。',
   blocked: '申し訳ございません、お電話をお受けできません。失礼いたします。',
-  messageSaved:
-    'ありがとうございます。メッセージをお伝えしましたので、担当者からご連絡いたします。ほかに何かございますか？',
   urgentFlagged: '緊急としてチームに伝えました。今おかけの番号にご連絡すればよろしいでしょうか？',
   recordingNotice: 'この通話は録音される場合があります。',
 }
@@ -266,7 +248,6 @@ const zh: SpokenLines = {
   busy: '非常抱歉，我们的线路目前全部占线。请过几分钟再拨打。',
   overCap: '非常抱歉，我们现在无法接听您的电话。我们会尽快给您回电。',
   blocked: '非常抱歉，我们无法接听您的电话。再见。',
-  messageSaved: '谢谢，我已经转达了您的留言，团队会与您联系。还有其他可以帮您的吗？',
   urgentFlagged: '我已为团队将此事标记为紧急。请问用您现在拨打的这个号码联系您最方便吗？',
   recordingNotice: '本次通话可能会被录音。',
 }
@@ -287,7 +268,6 @@ const ko: SpokenLines = {
   busy: '죄송합니다, 지금은 모든 회선이 통화 중입니다. 몇 분 후에 다시 전화해 주세요.',
   overCap: '죄송합니다, 지금은 전화를 받을 수 없습니다. 최대한 빨리 다시 연락드리겠습니다.',
   blocked: '죄송합니다, 전화를 받을 수 없습니다. 안녕히 계세요.',
-  messageSaved: '감사합니다. 메시지를 팀에 전달했고, 팀에서 연락드릴 예정입니다. 더 도와드릴 일이 있을까요?',
   urgentFlagged: '팀에 긴급 건으로 표시해 두었습니다. 지금 거신 번호로 연락드리면 될까요?',
   recordingNotice: '이 통화는 녹음될 수 있습니다.',
 }
@@ -309,7 +289,6 @@ const pl: SpokenLines = {
   busy: 'Przepraszamy, wszystkie nasze linie są teraz zajęte. Prosimy zadzwonić ponownie za kilka minut.',
   overCap: 'Przepraszamy, nie możemy teraz odebrać połączenia. Oddzwonimy najszybciej, jak to możliwe.',
   blocked: 'Przepraszamy, nie możemy przyjąć tego połączenia. Do widzenia.',
-  messageSaved: 'Dziękuję, wiadomość została przekazana i zespół się odezwie. Czy mogę jeszcze w czymś pomóc?',
   urgentFlagged:
     'Sprawa została oznaczona dla zespołu jako pilna. Czy najlepiej kontaktować się pod numerem, z którego przychodzi to połączenie?',
   recordingNotice: 'Ta rozmowa może być nagrywana.',
@@ -332,8 +311,6 @@ const tr: SpokenLines = {
   busy: 'Üzgünüz, şu anda tüm hatlarımız meşgul. Lütfen birkaç dakika sonra tekrar arayın.',
   overCap: 'Üzgünüz, şu anda aramanızı yanıtlayamıyoruz. Sizi en kısa sürede geri arayacağız.',
   blocked: 'Üzgünüz, aramanızı kabul edemiyoruz. İyi günler.',
-  messageSaved:
-    'Teşekkürler, mesajınızı ilettim; ekip size dönüş yapacak. Başka yardımcı olabileceğim bir konu var mı?',
   urgentFlagged: 'Bunu ekip için acil olarak işaretledim. Size en iyi şu an aradığınız numaradan mı ulaşabiliriz?',
   recordingNotice: 'Bu görüşme kaydedilebilir.',
 }
@@ -355,8 +332,6 @@ const vi: SpokenLines = {
   busy: 'Xin lỗi, hiện tất cả các đường dây của chúng tôi đều bận. Quý khách vui lòng gọi lại sau vài phút.',
   overCap: 'Xin lỗi, hiện chúng tôi không thể nhận cuộc gọi của quý khách. Chúng tôi sẽ gọi lại sớm nhất có thể.',
   blocked: 'Xin lỗi, chúng tôi không thể nhận cuộc gọi của quý khách. Chào quý khách.',
-  messageSaved:
-    'Cảm ơn quý khách, tôi đã chuyển lời nhắn và đội ngũ sẽ liên hệ lại. Tôi có thể giúp gì thêm cho quý khách không ạ?',
   urgentFlagged:
     'Tôi đã đánh dấu việc này là khẩn cấp cho đội ngũ. Số điện thoại quý khách đang gọi có phải là số tốt nhất để liên lạc không ạ?',
   recordingNotice: 'Cuộc gọi này có thể được ghi âm.',
@@ -380,8 +355,6 @@ const id: SpokenLines = {
   overCap:
     'Mohon maaf, kami tidak dapat menerima panggilan Anda saat ini. Kami akan menelepon Anda kembali secepatnya.',
   blocked: 'Mohon maaf, kami tidak dapat menerima panggilan Anda. Sampai jumpa.',
-  messageSaved:
-    'Terima kasih, pesan Anda sudah saya teruskan, dan tim akan menghubungi Anda kembali. Ada lagi yang bisa saya bantu?',
   urgentFlagged:
     'Saya sudah menandai ini sebagai mendesak untuk tim. Apakah nomor yang Anda gunakan sekarang adalah nomor terbaik untuk menghubungi Anda?',
   recordingNotice: 'Panggilan ini mungkin direkam.',
@@ -403,8 +376,6 @@ const sv: SpokenLines = {
   busy: 'Tyvärr är alla våra linjer upptagna just nu. Ring gärna igen om några minuter.',
   overCap: 'Tyvärr kan vi inte ta ditt samtal just nu. Vi ringer upp dig så snart vi kan.',
   blocked: 'Tyvärr kan vi inte ta ditt samtal. Hej då.',
-  messageSaved:
-    'Tack, jag har lämnat vidare ditt meddelande, och teamet hör av sig till dig. Är det något mer jag kan hjälpa till med?',
   urgentFlagged:
     'Jag har markerat det här som brådskande för teamet. Är numret du ringer från det bästa att nå dig på?',
   recordingNotice: 'Samtalet kan komma att spelas in.',
@@ -424,7 +395,6 @@ const ar: SpokenLines = {
   busy: 'عذرًا، جميع خطوطنا مشغولة حاليًا. يُرجى معاودة الاتصال بعد بضع دقائق.',
   overCap: 'عذرًا، لا يمكننا الرد على مكالمتك الآن. سنعاود الاتصال بك في أقرب وقت ممكن.',
   blocked: 'عذرًا، لا يمكننا استقبال مكالمتك. مع السلامة.',
-  messageSaved: 'شكرًا، لقد نقلت رسالتك وسيتواصل معك الفريق. هل هناك شيء آخر يمكنني مساعدتك فيه؟',
   urgentFlagged: 'لقد حددت هذا الطلب كعاجل للفريق. هل الرقم الذي تتصل منه هو أفضل رقم للتواصل معك؟',
   recordingNotice: 'قد يتم تسجيل هذه المكالمة.',
 }
@@ -444,7 +414,6 @@ const uk: SpokenLines = {
   busy: 'Перепрошуємо, усі лінії зараз зайняті. Будь ласка, зателефонуйте за кілька хвилин.',
   overCap: 'Перепрошуємо, зараз ми не можемо прийняти ваш дзвінок. Ми передзвонимо вам якнайшвидше.',
   blocked: 'Перепрошуємо, ми не можемо прийняти ваш дзвінок. До побачення.',
-  messageSaved: 'Дякую, ваше повідомлення передано, і команда з вами зв’яжеться. Чим ще можу допомогти?',
   urgentFlagged:
     'Це позначено для команди як термінове. Чи найкраще зв’язатися з вами за номером, з якого ви телефонуєте?',
   recordingNotice: 'Цей дзвінок може записуватися.',
@@ -466,7 +435,6 @@ const ro: SpokenLines = {
   busy: 'Ne pare rău, toate liniile noastre sunt ocupate în acest moment. Vă rugăm să sunați din nou în câteva minute.',
   overCap: 'Ne pare rău, nu vă putem prelua apelul acum. Vă vom suna înapoi cât mai curând posibil.',
   blocked: 'Ne pare rău, nu vă putem prelua apelul. La revedere.',
-  messageSaved: 'Mulțumesc, am transmis mesajul dumneavoastră, iar echipa vă va contacta. Vă mai pot ajuta cu ceva?',
   urgentFlagged:
     'Am marcat acest lucru ca urgent pentru echipă. Numărul de pe care sunați este cel mai bun pentru a vă contacta?',
   recordingNotice: 'Acest apel poate fi înregistrat.',
@@ -488,7 +456,6 @@ const cs: SpokenLines = {
   busy: 'Omlouváme se, všechny naše linky jsou právě obsazené. Zavolejte prosím znovu za pár minut.',
   overCap: 'Omlouváme se, váš hovor teď nemůžeme přijmout. Zavoláme vám zpět, jakmile to bude možné.',
   blocked: 'Omlouváme se, váš hovor nemůžeme přijmout. Na shledanou.',
-  messageSaved: 'Děkuji, vaše zpráva byla předána a tým se vám ozve. Mohu vám ještě s něčím pomoci?',
   urgentFlagged: 'Pro tým je to teď označeno jako naléhavé. Jste nejlépe k zastižení na čísle, ze kterého voláte?',
   recordingNotice: 'Tento hovor může být nahráván.',
 }
@@ -510,8 +477,6 @@ const el: SpokenLines = {
   overCap:
     'Λυπούμαστε, δεν μπορούμε να απαντήσουμε στην κλήση σας αυτή τη στιγμή. Θα σας καλέσουμε πίσω το συντομότερο δυνατό.',
   blocked: 'Λυπούμαστε, δεν μπορούμε να δεχτούμε την κλήση σας. Αντίο σας.',
-  messageSaved:
-    'Ευχαριστώ, μετέφερα το μήνυμά σας και η ομάδα θα επικοινωνήσει μαζί σας. Μπορώ να σας βοηθήσω με κάτι άλλο;',
   urgentFlagged:
     'Το σημείωσα ως επείγον για την ομάδα. Ο αριθμός από τον οποίο καλείτε είναι ο καλύτερος για να επικοινωνήσουμε μαζί σας;',
   recordingNotice: 'Αυτή η κλήση ενδέχεται να καταγράφεται.',
@@ -534,8 +499,6 @@ const da: SpokenLines = {
   busy: 'Beklager, alle vores linjer er optaget lige nu. Ring venligst igen om et par minutter.',
   overCap: 'Beklager, vi kan ikke tage dit opkald lige nu. Vi ringer dig op igen så hurtigt som muligt.',
   blocked: 'Beklager, vi kan ikke tage dit opkald. Farvel.',
-  messageSaved:
-    'Tak, jeg har givet din besked videre, og teamet vender tilbage til dig. Er der andet, jeg kan hjælpe med?',
   urgentFlagged:
     'Jeg har markeret det som hastende for teamet. Er det nummer, du ringer fra, det bedste at fange dig på?',
   recordingNotice: 'Opkaldet kan blive optaget.',
@@ -556,7 +519,6 @@ const fi: SpokenLines = {
   busy: 'Valitettavasti kaikki linjamme ovat juuri nyt varattuja. Soita uudelleen muutaman minuutin kuluttua.',
   overCap: 'Valitettavasti emme voi vastata puheluusi juuri nyt. Soitamme sinulle takaisin mahdollisimman pian.',
   blocked: 'Valitettavasti emme voi vastaanottaa puheluasi. Näkemiin.',
-  messageSaved: 'Kiitos, välitin viestisi, ja tiimi on sinuun yhteydessä. Voinko auttaa vielä jossain muussa?',
   urgentFlagged: 'Merkitsin tämän tiimille kiireelliseksi. Tavoittaako sinut parhaiten numerosta, josta soitat?',
   recordingNotice: 'Tämä puhelu saatetaan tallentaa.',
 }
@@ -577,8 +539,6 @@ const no: SpokenLines = {
   busy: 'Beklager, alle linjene våre er opptatt akkurat nå. Ring gjerne igjen om noen minutter.',
   overCap: 'Beklager, vi kan ikke ta samtalen din akkurat nå. Vi ringer deg tilbake så snart vi kan.',
   blocked: 'Beklager, vi kan ikke ta samtalen din. Ha det bra.',
-  messageSaved:
-    'Takk, jeg har gitt beskjeden din videre, og teamet tar kontakt med deg. Er det noe annet jeg kan hjelpe med?',
   urgentFlagged: 'Jeg har markert dette som haster for teamet. Er nummeret du ringer fra, det beste å nå deg på?',
   recordingNotice: 'Denne samtalen kan bli tatt opp.',
 }
@@ -599,8 +559,6 @@ const hu: SpokenLines = {
   busy: 'Elnézést, jelenleg minden vonalunk foglalt. Kérjük, hívjon újra néhány perc múlva.',
   overCap: 'Elnézést, most nem tudjuk fogadni a hívását. A lehető leghamarabb visszahívjuk.',
   blocked: 'Elnézést, nem tudjuk fogadni a hívását. Viszonthallásra.',
-  messageSaved:
-    'Köszönöm, továbbítottam az üzenetét, és a csapat felveszi Önnel a kapcsolatot. Segíthetek még valamiben?',
   urgentFlagged: 'Ezt sürgősként jelöltem meg a csapatnak. Azon a számon érhetjük el a legjobban, amelyről most hív?',
   recordingNotice: 'Ez a hívás rögzítésre kerülhet.',
 }

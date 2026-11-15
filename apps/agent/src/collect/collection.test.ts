@@ -65,7 +65,7 @@ test('a declined callback number on a test call: noted as test call, no caller I
   step.heardCaller()
   const outcome = step.decline(TEST_CALL_NO_NUMBER).outcome!
   expect(describeOutcome(outcome, { callerId: null, testCall: true })).toBe(
-    'This is a test call from the app, with no caller ID: there is no callback number to get (test call, no caller ID). Do not ask for it again; put "test call, no caller ID" in take_message and go on.',
+    'This is a test call from the app, with no caller ID: there is no callback number to get (test call, no caller ID). Do not ask for it again; go on.',
   )
   // On a phone call with a withheld number the assistant still asks once more.
   expect(describeOutcome(outcome, { callerId: null })).toMatch(/ask once more\.$/)

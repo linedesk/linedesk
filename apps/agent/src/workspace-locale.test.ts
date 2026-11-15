@@ -3,7 +3,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, test } from 'vitest'
 import { withWorkspaceLanguage } from './call-session.ts'
-import { phoneNumbersIn, withCallbackNumber } from './callback-number.ts'
+import { phoneNumbersIn } from './callback-number.ts'
 import {
   isWholePhoneNumber,
   partialPhoneNumberIn,
@@ -80,12 +80,6 @@ describe('phone numbers in the workspace country', () => {
     expect(partialPhoneNumberIn('Rückruf an 0151 2345 6789 bitte', 'DE')).toBeNull()
     expect(partialPhoneNumberIn('Call back on 0151 234', 'DE')).toBe('0151 234')
     expect(phoneNumbersIn('Rückruf an 0151 2345 6789', 'DE')).toEqual(['+4915123456789'])
-    const checked = withCallbackNumber('Bitte zurückrufen: 0151 2345 6789.', '+493012345678', {
-      confirmed: [],
-      saved: [],
-      country: 'DE',
-    })
-    expect('refusal' in checked).toBe(true)
   })
 })
 

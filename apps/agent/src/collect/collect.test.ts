@@ -1,6 +1,6 @@
 import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
-import { addedToMessage, nudgeIfQuiet, saidMeanwhile, stepFacts } from './collect-tools.ts'
+import { nudgeIfQuiet, saidMeanwhile, stepFacts } from './collect-tools.ts'
 import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
 import { ASK_FIRST, Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, todayFact } from './collectors.ts'
@@ -168,24 +168,6 @@ test('after a step, a quiet assistant is asked once to go on; not while it repli
   nudgeIfQuiet(closed)
   expect(() => vi.advanceTimersByTime(3000)).not.toThrow()
   vi.useRealTimers()
-})
-
-test('a phone number confirmed after the message was saved is added to it; nothing else is', async () => {
-  const added: string[] = []
-  const addToMessage = async (detail: string) => {
-    added.push(detail)
-    return true
-  }
-  const ctx = { addToMessage } as unknown as Parameters<typeof addedToMessage>[0]
-  const confirmed = { status: 'confirmed', label: 'callback number', value: '+15035550142' } as const
-  expect(await addedToMessage(ctx, phoneCollector(), confirmed)).toMatch(/added to the message/)
-  expect(added).toEqual(['Callback number: +15035550142 (confirmed with the caller).'])
-  expect(await addedToMessage(ctx, phoneCollector(), { status: 'incomplete', label: 'callback number', partial: '50355' })).toBe('')
-  expect(await addedToMessage(ctx, nameCollector, { status: 'confirmed', label: 'name', value: 'Sam Patel' })).toBe('')
-  // No message saved yet: the assistant puts the number into take_message itself.
-  const none = { addToMessage: async () => false } as unknown as Parameters<typeof addedToMessage>[0]
-  expect(await addedToMessage(none, phoneCollector(), confirmed)).toBe('')
-  expect(added).toHaveLength(1)
 })
 
 test('a step knows today, but no list of days: the tool works out the day from the caller\'s words', () => {

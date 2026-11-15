@@ -1,26 +1,17 @@
 // A tool turn costs a second LLM round: after the tools ran, the model is asked again for what to say.
 // For tools whose result the caller does not need to hear, that round is skipped:
 // - the assistant already spoke in the same reply: nothing more to say;
-// - it only called tools and a message was saved: a ready confirmation is spoken instead, which starts
-//   with the voice's first audio (~0.15 s) instead of another LLM round (~0.6 to 1 s).
-// - it only flagged the call as urgent: a ready line says so and asks for the number, which every
-//   message needs.
+// - it only flagged the call as urgent: a ready line says so and asks for the number, which the team needs to
+//   call back.
 // Other tools (end_call alone) keep the model's answer.
 import { type SpokenLines, spokenLines } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 
 type ToolsExecuted = { functionCalls: { name: string }[]; cancelToolReply(): void }
 
-export const MESSAGE_SAVED_REPLY = spokenLines('en').messageSaved
 export const URGENT_FLAGGED_REPLY = spokenLines('en').urgentFlagged
-/**
- * What take_message tells the model. Without the language in it, a realtime model (which has no ready line to say)
- * repeated the English after the tool to a caller speaking Spanish.
- */
-export const MESSAGE_SAVED_RESULT = 'The message is saved. In the language you are speaking with the caller, tell them the team will get back to them.'
-
 /** The ready replies in the language spoken now (default English). */
-type Replies = () => Pick<SpokenLines, 'messageSaved' | 'urgentFlagged'>
+type Replies = () => Pick<SpokenLines, 'urgentFlagged'>
 const english: Replies = () => spokenLines('en')
 
 /**
@@ -40,7 +31,7 @@ export function quietToolReplies(quietTools: ReadonlySet<string>, say: ((text: s
       if (!names.length || !names.every(name => quietTools.has(name))) return
       if (spokeSinceCaller) return event.cancelToolReply()
       if (!say) return
-      const reply = names.includes('take_message') ? replies().messageSaved : names.includes('flag_urgent') ? replies().urgentFlagged : null
+      const reply = names.includes('flag_urgent') ? replies().urgentFlagged : null
       if (!reply) return
       event.cancelToolReply()
       say(reply)

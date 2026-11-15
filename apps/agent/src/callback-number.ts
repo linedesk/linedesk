@@ -1,7 +1,7 @@
-// The number the team calls back on. With caller ID it is the number the caller is calling from: take_message saves it
-// with the message by itself, and the assistant does not ask for one. A different number goes in only once get_phone_number
-// confirmed it, asked for with a reason (the caller wants to be called back elsewhere). On realtime calls the assistant
-// asked for a number although caller ID was known, and saved the one the caller made up (LIN-99).
+// The number the team calls back on. With caller ID it is the number the caller is calling from: the team has it with
+// the call, and the assistant does not ask for one. A different number counts only once get_phone_number confirmed it,
+// asked for with a reason (the caller wants to be called back elsewhere). On realtime calls the assistant asked for a
+// number although caller ID was known, and saved the one the caller made up (LIN-99).
 import { isE164 } from '@linedesk/actions'
 import { toE164 } from './collect/collectors.ts'
 
@@ -26,46 +26,13 @@ export function phoneNumbersIn(text: string, country = 'US'): string[] {
 
 /**
  * Whether the team has a number to call the caller back on: caller ID, a number the caller confirmed with
- * get_phone_number, or one in a message the assistant saved. Without one the summary asks for no call back.
+ * get_phone_number, or one in a message saved on the call. Without one the summary asks for no call back.
  */
 export function hasCallbackNumber(
   callerId: string | null,
   { confirmed, saved, country = 'US' }: { confirmed: readonly string[]; saved: readonly string[]; country?: string },
 ): boolean {
   return !!callerId || confirmed.length > 0 || saved.some(text => phoneNumbersIn(text, country).length > 0)
-}
-
-/** The longest message call.takeMessage takes. */
-const MESSAGE_MAX = 500
-
-/** What take_message does with a message: save `text`, or tell the assistant `refusal` instead. */
-export type CallbackCheck = { text: string } | { refusal: string }
-
-/**
- * A message as it is saved. With caller ID: a number in it other than caller ID that get_phone_number did not confirm is
- * refused (the assistant asks for it with a reason, or leaves it out); without any number in it, the caller ID is added as
- * the callback number, once per call and only when the caller confirmed no other number. Without caller ID the message
- * is saved as it is.
- */
-export function withCallbackNumber(
-  message: string,
-  callerId: string | null,
-  { confirmed, saved, country = 'US' }: { confirmed: readonly string[]; saved: readonly string[]; country?: string },
-): CallbackCheck {
-  if (!callerId) return { text: message }
-  const numbers = phoneNumbersIn(message, country)
-  const unconfirmed = numbers.filter(number => number !== callerId && !confirmed.includes(number))
-  if (unconfirmed.length) {
-    return {
-      refusal: `${unconfirmed[0]} is not the caller's number and was not confirmed with get_phone_number. The caller's own number (${callerId}, caller ID) is saved as the callback number by itself. Call take_message again without that number; only if the caller said they want to be called back on a different number, get it with get_phone_number first, giving their reason.`,
-    }
-  }
-  // A number in this message or an earlier one, or one the caller confirmed (meant for the team): caller ID is not added.
-  const callbackSaved =
-    numbers.length > 0 || confirmed.length > 0 || saved.some(text => phoneNumbersIn(text, country).length > 0)
-  const line = ` Callback number: ${callerId} (caller ID).`
-  if (callbackSaved || message.length + line.length > MESSAGE_MAX) return { text: message }
-  return { text: message.trimEnd() + line }
 }
 
 /**
@@ -78,5 +45,5 @@ export function phoneStepRefusal(
   reason: string | null | undefined,
 ): string | null {
   if (!callerId || reason?.trim() || !/callback|call back|call-back/i.test(what)) return null
-  return `The caller is calling from ${callerId} (caller ID), and that number is saved as the callback number by itself: do not ask for one. Use get_phone_number for a callback number only when the caller said they want to be called back on a different number, and give that as the reason.`
+  return `The caller is calling from ${callerId} (caller ID), and the team has that number as the callback number: do not ask for one. Use get_phone_number for a callback number only when the caller said they want to be called back on a different number, and give that as the reason.`
 }

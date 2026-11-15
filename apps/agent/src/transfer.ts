@@ -150,7 +150,7 @@ export function notConnectedMessage({ callerName, nameConfirmed = false, about, 
 
 /** What the assistant is told when nobody took the call; it then talks to the caller again. */
 export function notConnectedReply(): string {
-  const saved = 'A message that they wanted to be put through is saved already; use take_message only for details the caller adds.'
+  const saved = 'A message that they wanted to be put through is saved already; anything the caller adds reaches the team with the call.'
   const noPromises = 'Nothing else has happened: nobody is on the way and no visit or time is set. Never say or suggest otherwise.'
   return `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on to the team, and that the team will get back to them. ${noPromises} ${saved}`
 }

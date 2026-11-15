@@ -4,7 +4,7 @@ import { llm } from '@livekit/agents'
 import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
-import { type CollectOutcome, describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
+import { describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector, todayFact } from './collectors.ts'
 import { phoneStepRefusal } from '../callback-number.ts'
 
@@ -21,11 +21,6 @@ export type CollectContext = {
   languageRule?: () => string | undefined
   /** The step running now (set by runStep): told when the caller switches language during it (languageChanged). */
   step?: CollectTask | null
-  /**
-   * Adds a detail to the message already saved on this call (call.takeMessage); false when there is no message yet
-   * or it could not be saved. A number confirmed after the message would otherwise be lost.
-   */
-  addToMessage?: (detail: string) => Promise<boolean>
   /** The caller's number from caller ID (callerIdOf); null or missing: unknown. Then it is the callback number. */
   callerId?: string | null
   /** A test call from the app (CallerContext.testCall): no caller ID by design, so no number to call back on. */
@@ -74,20 +69,15 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
     if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)
+    // What the summary writes the team's next step from (there is no tool to save a message during the call).
+    if (outcome.status === 'confirmed') ctx.log.details.push({ label: outcome.label, value: outcome.value, confirmed: true })
+    if (outcome.status === 'incomplete' && outcome.partial) ctx.log.details.push({ label: outcome.label, value: outcome.partial, confirmed: false })
     nudgeIfQuiet(run.session)
-    return describeOutcome(outcome, { callerId: ctx.callerId ?? null, testCall: ctx.testCall === true }) + (await addedToMessage(ctx, collector, outcome)) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
+    return describeOutcome(outcome, { callerId: ctx.callerId ?? null, testCall: ctx.testCall === true }) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
   } catch (e) {
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`
   }
-}
-
-/** A phone number confirmed after the message was saved goes onto the call too; what the assistant is told about it. */
-export async function addedToMessage(ctx: CollectContext, collector: AnyCollector, outcome: CollectOutcome): Promise<string> {
-  if (collector.kind !== 'phone_number' || outcome.status !== 'confirmed' || !ctx.addToMessage) return ''
-  const what = outcome.label.charAt(0).toUpperCase() + outcome.label.slice(1)
-  const added = await ctx.addToMessage(`${what}: ${outcome.value} (confirmed with the caller).`)
-  return added ? ' It is added to the message you saved already: do not use take_message for it.' : ''
 }
 
 /** How long after a step the assistant may stay quiet before it is asked to go on. */
@@ -142,7 +132,7 @@ export function collectTools(ctx: CollectContext) {
     }),
     get_phone_number: llm.tool({
       description: ctx.callerId
-        ? "Get a phone number from the caller and confirm it. The caller's own number is known from caller ID and saved as the callback number by itself: use this for a callback number only when the caller said they want to be called back on a different number."
+        ? "Get a phone number from the caller and confirm it. The caller's own number is known from caller ID, and the team has it as the callback number: use this for a callback number only when the caller said they want to be called back on a different number."
         : 'Get a phone number from the caller and confirm it.',
       parameters: z.object({
         what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),

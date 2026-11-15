@@ -13,7 +13,6 @@ const textLines = [
   'busy',
   'overCap',
   'blocked',
-  'messageSaved',
   'urgentFlagged',
   'recordingNotice',
 ] as const satisfies readonly (keyof SpokenLines)[]

@@ -45,8 +45,8 @@ export function callRules({ booking, transfer, country }: CallSetup = {}): strin
   const canTransfer = transfer !== false
   return [
     emergencyRule(country),
-    // take_message's result tells the assistant to say the team will get back to the caller.
-    'Take a message for every request you cannot handle yourself: a callback, a visit, a quote.',
+    // No tool saves the message: the summary after the call writes it from the whole call.
+    'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. To take a message, get what the team needs to act on it (what the caller wants, and a callback number if there is no caller ID), then tell the caller the team will get back to them.',
     appointments,
     `If the caller asks for a specific person: ${canTransfer ? 'put them through if a transfer contact covers it, otherwise ' : ''}take a message for that person and say they will call back.`,
     'If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.',
@@ -81,7 +81,7 @@ export const BEHAVIOURS = [
     id: 'confirm_number',
     label: 'Confirm the callback number',
     on: false,
-    say: 'Before you save a message, read the number the team will call back on to the caller and ask them to confirm it.',
+    say: 'Before you tell the caller the team will get back to them, read the number the team will call back on to the caller and ask them to confirm it.',
   },
   {
     // Not a line: whether the prompt holds the caller's earlier calls, open next steps and upcoming appointments.
