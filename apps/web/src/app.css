@@ -546,20 +546,27 @@ body,
   color: var(--ink);
   text-decoration: underline;
 }
-/* The sign-in page's language select (Login.tsx): small, under the legal links, after a globe and "Language" in English. */
+/* The sign-in page's language select (Login.tsx): small, under the legal links, below a one-line globe and "Language" in English, both centered as one block. */
 .auth-language {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
-.auth-language-label {
+.auth-card .auth-language-label {
+  /* Beats `.auth-card label` (a column), which would put the globe above the word. */
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--ink-muted);
   cursor: pointer;
+}
+.auth-card .auth-language-label svg {
+  flex: none;
 }
 
 /* "Powered by Linedesk" at the bottom of the sign-in page of an install with its own name or logo (ui/kit.tsx). */
