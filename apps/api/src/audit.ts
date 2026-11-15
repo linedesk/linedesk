@@ -28,21 +28,34 @@ const newId = () => `ae_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
  */
 export async function recordAuthEvent(e: AuthEvent, tx: Db = db) {
   try {
-    const [who] = e.email !== undefined ? [{ email: e.email }] : e.userId ? await tx.select({ email: user.email }).from(user).where(eq(user.id, e.userId)) : []
-    await tx.insert(auth_events).values({
-      id: newId(),
-      user_id: e.userId,
-      email: who?.email ?? null,
-      event: e.event,
-      method: e.method ?? null,
-      workspace_id: e.workspaceId ?? null,
-      // Better Auth writes the unspecified address (::) when it has none.
-      ip_address: e.ipAddress && !/^[0:.]+$/.test(e.ipAddress) ? e.ipAddress : null,
-      user_agent: e.userAgent ?? null,
-    })
+    await insertAuthEvent(tx, e)
   } catch (err) {
     console.error(`audit: could not record ${e.event}`, err)
   }
+}
+
+/**
+ * Writes one event and throws when it cannot: inside the transaction of the change it describes, so the two are saved
+ * together or not at all (a join and its `invitation_accepted`).
+ */
+export async function insertAuthEvent(tx: Db | Tx, e: AuthEvent) {
+  const [who] =
+    e.email !== undefined
+      ? [{ email: e.email }]
+      : e.userId
+        ? await tx.select({ email: user.email }).from(user).where(eq(user.id, e.userId))
+        : []
+  await tx.insert(auth_events).values({
+    id: newId(),
+    user_id: e.userId,
+    email: who?.email ?? null,
+    event: e.event,
+    method: e.method ?? null,
+    workspace_id: e.workspaceId ?? null,
+    // Better Auth writes the unspecified address (::) when it has none.
+    ip_address: e.ipAddress && !/^[0:.]+$/.test(e.ipAddress) ? e.ipAddress : null,
+    user_agent: e.userAgent ?? null,
+  })
 }
 
 type HookCtx = { path?: string; params?: Record<string, string | undefined> } | null | undefined
@@ -176,6 +189,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'team.resendInvite': 'team',
   'team.revokeInvite': 'team',
   'team.setRole': 'team',
+  'team.transferOwnership': 'team',
   'team.removeMember': 'team',
   'team.leave': 'team',
   // An owner or admin changing a teammate's name, picture or notifications (team-member-edit.ts).
@@ -188,6 +202,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'invitation.decline': 'team',
   // An instance admin changing who is in which workspace, also their own membership.
   'membership.add': 'admin',
+  // A server admin making a workspace for a business and giving it its owner.
+  'workspace.create': 'admin',
   'membership.setRole': 'admin',
   'membership.remove': 'admin',
   'invitation.revoke': 'admin',
@@ -238,6 +254,7 @@ const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   password_changed: 'account',
   email_changed: 'account',
   invitation_accepted: 'team',
+  sign_up_undone: 'sign_in',
   call_routing_reset: 'integrations',
 }
 

@@ -1,12 +1,13 @@
-// Team management: who may invite, who may accept, last owner protection, removal and closed sign-up.
+// Team management: who may invite, who may accept, last owner protection, removal and no open sign-up.
 import { account, api_keys, commands, invitation, member, passkey, session, user, webhook_endpoints } from '@linedesk/db'
 import { dropUnprovenAccess } from '../src/account-linking.ts'
 import { and, eq } from 'drizzle-orm'
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
+import { LEAVE_SAY_ACCOUNT, OWNER_STAYS } from '../src/team.ts'
 import { type Email, emailSender } from '../src/email.ts'
-import { act, addMember, agent, anonymous, appRequest, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
+import { act, addMember, agent, anonymous, appRequest, asServerAdmin, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
 const sent: Email[] = []
@@ -61,10 +62,6 @@ beforeAll(async () => {
   ws = await createWorkspace('Brightwater Plumbing & Heating')
   admin = await addMember(ws.id, 'admin')
   plain = await addMember(ws.id, 'member')
-})
-
-afterEach(() => {
-  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
 
 describe('inviting', () => {
@@ -181,7 +178,7 @@ describe('accepting', () => {
 describe('roles', () => {
   test('invalid input is answered in a plain sentence, not as JSON', async () => {
     const res = await act(ws.owner, 'team.setRole', { memberId: await memberIdOf(ws.id, plain), role: 'chief' })
-    expect(res).toMatchObject({ status: 422, body: { ok: false, error: 'Role must be one of owner, admin, member.' } })
+    expect(res).toMatchObject({ status: 422, body: { ok: false, error: 'Role must be one of admin, member.' } })
   })
 
   test('a member sees the team read-only', async () => {
@@ -218,43 +215,41 @@ describe('roles', () => {
     expect((await act(joined, 'assistant.update', { assistantId: ws.assistant.id, greeting: 'x' })).status).toBe(403)
   })
 
-  test('nobody can demote or remove the last owner', async () => {
+  test('nobody demotes or removes the owner, not even the owner (exactly one owner: only a transfer changes it)', async () => {
     const ownerMemberId = await memberIdOf(ws.id, ws.owner)
-    const lastOwner = { status: 409, body: { error: 'the workspace needs an owner: this is the last one' } }
-    expect(await act(ws.owner, 'team.setRole', { memberId: ownerMemberId, role: 'admin' })).toMatchObject(lastOwner)
-    expect(await act(ws.owner, 'team.removeMember', { memberId: ownerMemberId })).toMatchObject(lastOwner)
-    const onlyOwner = { status: 403, body: { error: 'only an owner can change or remove an owner', code: 'forbidden' } }
-    expect(await act(admin, 'team.setRole', { memberId: ownerMemberId, role: 'member' })).toMatchObject(onlyOwner)
-    expect(await act(admin, 'team.removeMember', { memberId: ownerMemberId })).toMatchObject(onlyOwner)
+    const stays = { status: 403, body: { error: OWNER_STAYS, code: 'forbidden' } }
+    for (const who of [ws.owner, admin]) {
+      expect(await act(who, 'team.setRole', { memberId: ownerMemberId, role: 'admin' })).toMatchObject(stays)
+      expect(await act(who, 'team.setRole', { memberId: ownerMemberId, role: 'member' })).toMatchObject(stays)
+      expect(await act(who, 'team.removeMember', { memberId: ownerMemberId })).toMatchObject(stays)
+    }
     expect((await act(ws.owner, 'team.list', {})).body.data.members[0]).toMatchObject({ role: 'owner' })
   })
 
-  test('with two owners, one can demote the other, but not the remaining one', async () => {
+  test('team.setRole never makes an owner; the database keeps one owner per workspace', async () => {
     const own = await createWorkspace('Two Owners')
     const second = await addMember(own.id, 'admin')
     const secondId = await memberIdOf(own.id, second)
-    await db.update(member).set({ role: 'owner' }).where(eq(member.id, secondId))
-    expect((await act(own.owner, 'team.setRole', { memberId: secondId, role: 'admin' })).status).toBe(200)
-    expect((await act(own.owner, 'team.setRole', { memberId: await memberIdOf(own.id, own.owner), role: 'admin' })).status).toBe(409)
+    expect((await act(own.owner, 'team.setRole', { memberId: secondId, role: 'owner' })).status).toBe(422)
+    await expect(db.update(member).set({ role: 'owner' }).where(eq(member.id, secondId))).rejects.toThrow()
   })
 
-  test('an owner makes a second owner and can then hand over by stepping down; an admin cannot make owners', async () => {
+  test('the owner hands over: the new owner has the workspace, the old one is an admin; an admin cannot hand over', async () => {
     const own = await createWorkspace('Hand Over Co')
     const [second, third] = [await addMember(own.id, 'admin'), await addMember(own.id, 'admin')]
     const secondId = await memberIdOf(own.id, second)
-    expect(await act(third, 'team.setRole', { memberId: secondId, role: 'owner' })).toMatchObject({
+    expect(await act(third, 'team.transferOwnership', { memberId: secondId })).toMatchObject({
       status: 403,
-      body: { error: 'only an owner can make someone an owner', code: 'forbidden' },
+      body: { error: 'missing permission workspace:own' },
     })
-    expect(await act(third, 'team.setRole', { memberId: await memberIdOf(own.id, third), role: 'owner' })).toMatchObject({ status: 403 })
-    expect((await act(own.owner, 'team.setRole', { memberId: secondId, role: 'owner' })).status).toBe(200)
+    expect((await act(own.owner, 'team.transferOwnership', { memberId: await memberIdOf(own.id, own.owner) })).status).toBe(409)
+    expect((await act(own.owner, 'team.transferOwnership', { memberId: secondId })).status).toBe(200)
     const roles = async () => Object.fromEntries((await db.select().from(member).where(eq(member.organizationId, own.id))).map(m => [m.userId, m.role]))
-    expect((await roles())[second.userId]).toBe('owner')
-    // Handing over: the first owner steps down; the new owner keeps the workspace.
-    expect((await act(own.owner, 'team.setRole', { memberId: await memberIdOf(own.id, own.owner), role: 'member' })).status).toBe(200)
-    expect(await roles()).toMatchObject({ [own.owner.userId]: 'member', [second.userId]: 'owner', [third.userId]: 'admin' })
-    const logged = await db.select().from(commands).where(and(eq(commands.actor_id, own.owner.userId), eq(commands.action, 'team.setRole')))
-    expect(logged).toContainEqual(expect.objectContaining({ input: { memberId: secondId, role: 'owner' }, rejected: false }))
+    expect(await roles()).toMatchObject({ [own.owner.userId]: 'admin', [second.userId]: 'owner', [third.userId]: 'admin' })
+    // The old owner is an admin now: handing over again is the new owner's call.
+    expect((await act(own.owner, 'team.transferOwnership', { memberId: await memberIdOf(own.id, third) })).status).toBe(403)
+    const logged = await db.select().from(commands).where(and(eq(commands.actor_id, own.owner.userId), eq(commands.action, 'team.transferOwnership')))
+    expect(logged).toContainEqual(expect.objectContaining({ input: { memberId: secondId }, rejected: false }))
   })
 
   test('a member of another workspace cannot be changed', async () => {
@@ -278,33 +273,65 @@ describe('removing', () => {
     const res = await act(plain, 'team.removeMember', { memberId: await memberIdOf(ws.id, admin) })
     expect(res.status).toBe(403)
   })
+  const accountExists = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId))).length === 1
+
+  test('their last workspace: the account is deleted by default, keepAccount keeps it without a workspace', async () => {
+    const gone = await addMember(ws.id, 'member')
+    const removed = await act(admin, 'team.removeMember', { memberId: await memberIdOf(ws.id, gone) })
+    expect(removed).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
+    expect(await accountExists(gone)).toBe(false)
+
+    const kept = await addMember(ws.id, 'member')
+    const keeping = await act(admin, 'team.removeMember', { memberId: await memberIdOf(ws.id, kept), keepAccount: true })
+    expect(keeping).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
+    expect(await accountExists(kept)).toBe(true)
+    expect(await db.select().from(member).where(eq(member.userId, kept.userId))).toEqual([])
+    // Still signed in, without a workspace: the page that waits for an invitation.
+    expect((await request(kept, 'GET', '/api/auth/get-session')).body).toMatchObject({ user: { id: kept.userId } })
+  })
+
+  test('a member of another workspace keeps the account and continues there', async () => {
+    const other = await createWorkspace('Second Shop Electric')
+    const both = await addMember(ws.id, 'member')
+    await auth.api.addMember({ body: { userId: both.userId, organizationId: other.id, role: 'member' } })
+    const res = await act(admin, 'team.removeMember', { memberId: await memberIdOf(ws.id, both) })
+    expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
+    expect(await accountExists(both)).toBe(true)
+    expect((await request(both, 'GET', '/v1/me')).body).toMatchObject({ workspace: { id: other.id } })
+  })
 })
 
-describe('closed sign-up', () => {
-  test('refuses new accounts, but an invited address can sign up with an email code and join', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
-    await expect(signUp()).rejects.toThrow(/sign-up failed: 403/)
+describe('no open sign-up', () => {
+  const passwordSignUp = (email: string) =>
+    appRequest('/api/auth/sign-up/email', {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+      body: JSON.stringify({ name: 'Test User', email, password: 'test-password-1234' }),
+    })
+
+  test('refuses new accounts, but an invited address signs in with an email code and joins in the same step', async () => {
+    const stranger = newEmail()
+    expect((await passwordSignUp(stranger)).status).toBe(400)
+    expect(await db.select().from(user).where(eq(user.email, stranger))).toEqual([])
 
     const email = newEmail()
     const id = await invite(ws.owner, email)
     const invitee = await signInWithCode(email)
-    expect((await accept(invitee, id)).status).toBe(200)
     expect((await request(invitee, 'GET', '/v1/me')).body).toMatchObject({ workspace: { id: ws.id } })
+    const [row] = await db.select().from(invitation).where(eq(invitation.id, id))
+    expect(row!.status).toBe('accepted')
   })
 
   test('a password sign-up cannot take an invited address: it does not prove the address is yours', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
     const email = newEmail()
-    const id = await invite(ws.owner, email)
-    await expect(signUp(email)).rejects.toThrow(/sign-up failed: 403/)
+    await invite(ws.owner, email)
+    expect((await passwordSignUp(email)).status).toBe(400)
     expect(await db.select().from(user).where(eq(user.email, email))).toEqual([])
     // The real owner of the address still gets in with a code and joins.
     const invitee = await signInWithCode(email)
-    expect((await accept(invitee, id)).status).toBe(200)
+    expect((await request(invitee, 'GET', '/v1/me')).body).toMatchObject({ workspace: { id: ws.id } })
   })
 
   test('a revoked or expired invitation no longer opens sign-up', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
     const email = newEmail()
     const id = await invite(ws.owner, email)
     await act(ws.owner, 'team.revokeInvite', { invitationId: id })
@@ -343,7 +370,8 @@ describe('confirming an address by email link (security M1)', () => {
     const attacker = await signUp(victim)
     // What they set up before the owner confirmed: a workspace with an API key, a webhook, an invitation,
     // a passkey (inserted: adding one is refused for an unconfirmed address) and another sign-in account.
-    const made = await request(attacker, 'POST', '/v1/workspaces', { name: 'Before Confirmation' })
+    // Only server admins create workspaces now; made as one here to stand for a workspace from before.
+    const made = await asServerAdmin(attacker, () => request(attacker, 'POST', '/v1/workspaces', { name: 'Before Confirmation' }))
     expect(made.status).toBe(200)
     // Legacy access from before confirmation was required. New creation is refused.
     expect((await act(attacker, 'apiKey.create', { name: 'Exfil', role: 'admin' })).status).toBe(403)
@@ -485,7 +513,7 @@ describe('leaving', () => {
   test('a member leaves: access ends at once, the next workspace is named, and it is logged', async () => {
     const leaving = await joinAs(ws, 'member')
     const own = await createWorkspace('Leaver Own Co')
-    await auth.api.addMember({ body: { userId: leaving.userId, organizationId: own.id, role: 'owner' } })
+    await auth.api.addMember({ body: { userId: leaving.userId, organizationId: own.id, role: 'admin' } })
     const res = await act(leaving, 'team.leave', {})
     expect(res).toMatchObject({ status: 200, body: { ok: true, data: { nextWorkspaceId: own.id } } })
     expect((await db.select().from(member).where(eq(member.userId, leaving.userId))).map(m => m.organizationId)).toEqual([own.id])
@@ -494,21 +522,84 @@ describe('leaving', () => {
     expect(logged).toMatchObject({ workspace_id: ws.id, rejected: false })
   })
 
-  test('the only workspace: no next one, and the member has no access left', async () => {
-    const leaving = await joinAs(ws, 'admin')
-    expect((await act(leaving, 'team.leave', {})).body.data).toEqual({ nextWorkspaceId: null })
-    expect((await request(leaving, 'GET', '/v1/me')).status).toBe(401)
+  test('the only workspace: the request must say whether the account goes; a request that does not is refused and changes nothing', async () => {
+    const leaving = await addMember(ws.id, 'member')
+    expect(await act(leaving, 'team.leave', {})).toMatchObject({ status: 409, body: { error: LEAVE_SAY_ACCOUNT } })
+    expect(await db.select().from(member).where(eq(member.userId, leaving.userId))).toHaveLength(1)
+    expect(await db.select().from(user).where(eq(user.id, leaving.userId))).toHaveLength(1)
+    // With another workspace left the field is not needed: the account stays anyway.
+    const other = await createWorkspace('Leaver Field Co')
+    await auth.api.addMember({ body: { userId: leaving.userId, organizationId: other.id, role: 'member' } })
+    expect((await act(leaving, 'team.leave', {})).body.data).toEqual({ nextWorkspaceId: other.id, accountDeleted: false })
   })
 
-  test('the last owner cannot leave; with a second owner they can', async () => {
+  test('the only workspace with deleteAccount: the account is deleted, with its sessions, passkeys and API keys', async () => {
+    const leaving = await addMember(ws.id, 'admin')
+    const key = (await act(leaving, 'apiKey.create', { name: 'Leaver key', role: 'admin' })).body.data.key as string
+    expect((await appRequest('/v1/me', { headers: { authorization: `Bearer ${key}` } })).status).toBe(200)
+    await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: leaving.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
+    expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: true })
+    expect(await db.select().from(user).where(eq(user.id, leaving.userId))).toEqual([])
+    expect(await db.select().from(session).where(eq(session.userId, leaving.userId))).toEqual([])
+    expect(await db.select().from(passkey).where(eq(passkey.userId, leaving.userId))).toEqual([])
+    expect((await request(leaving, 'GET', '/v1/me')).status).toBe(401)
+    expect((await appRequest('/v1/me', { headers: { authorization: `Bearer ${key}` } })).status).toBe(401)
+    const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, leaving.userId), eq(commands.action, 'team.leave')))
+    expect(logged).toMatchObject({ workspace_id: ws.id, rejected: false })
+  })
+
+  test('the only workspace with deleteAccount false: the account stays, signed in, without a workspace', async () => {
+    const leaving = await addMember(ws.id, 'member')
+    expect((await act(leaving, 'team.leave', { deleteAccount: false })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: false })
+    expect(await db.select().from(user).where(eq(user.id, leaving.userId))).toHaveLength(1)
+    expect(await db.select().from(member).where(eq(member.userId, leaving.userId))).toEqual([])
+    expect((await request(leaving, 'GET', '/api/auth/get-session')).body).toMatchObject({ user: { id: leaving.userId } })
+  })
+
+  test("deleteAccount never deletes a server admin's account", async () => {
+    const serverAdmin = await addMember(ws.id, 'admin')
+    const left = await asServerAdmin(serverAdmin, () => act(serverAdmin, 'team.leave', { deleteAccount: true }))
+    expect(left.body.data).toEqual({ nextWorkspaceId: null, accountDeleted: false })
+    expect(await db.select().from(user).where(eq(user.id, serverAdmin.userId))).toHaveLength(1)
+  })
+
+  test('a hand-over at the same moment: leave waits for it and then refuses, the new owner stays (#734 re-check, R2)', async () => {
+    const shop = await createWorkspace('Leave Race Co')
+    const next = await addMember(shop.id, 'admin')
+    const ownerId = await memberIdOf(shop.id, shop.owner)
+    const nextId = await memberIdOf(shop.id, next)
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    let locked!: () => void
+    const isLocked = new Promise<void>(resolve => { locked = resolve })
+    // The hand-over (as team.transferOwnership does it) holds the new owner's row while it runs.
+    const handOver = db.transaction(async tx => {
+      await tx.select().from(member).where(eq(member.id, nextId)).for('update')
+      locked()
+      await held
+      await tx.update(member).set({ role: 'admin' }).where(eq(member.id, ownerId))
+      await tx.update(member).set({ role: 'owner' }).where(eq(member.id, nextId))
+    })
+    await isLocked
+    const leave = act(next, 'team.leave', { deleteAccount: true })
+    await new Promise(resolve => setTimeout(resolve, 200))
+    release()
+    await handOver
+    expect(await leave).toMatchObject({ status: 409, body: { error: 'you are the owner: make someone else the owner first (Workspace settings › Team)' } })
+    const [row] = await db.select().from(member).where(eq(member.id, nextId))
+    expect(row).toMatchObject({ role: 'owner' })
+    expect(await db.select().from(user).where(eq(user.id, next.userId))).toHaveLength(1)
+  })
+
+  test('the owner cannot leave; after handing over they can', async () => {
     const solo = await createWorkspace('Solo Owner Co')
     expect(await act(solo.owner, 'team.leave', {})).toMatchObject({
       status: 409,
-      body: { error: 'you are the last owner: make someone else owner first' },
+      body: { error: 'you are the owner: make someone else the owner first (Workspace settings › Team)' },
     })
     const second = await addMember(solo.id, 'admin')
-    await db.update(member).set({ role: 'owner' }).where(eq(member.userId, second.userId))
-    expect((await act(solo.owner, 'team.leave', {})).status).toBe(200)
+    expect((await act(solo.owner, 'team.transferOwnership', { memberId: await memberIdOf(solo.id, second) })).status).toBe(200)
+    expect((await act(solo.owner, 'team.leave', { deleteAccount: false })).status).toBe(200)
     expect((await db.select().from(member).where(eq(member.organizationId, solo.id))).map(m => m.userId)).toEqual([second.userId])
   })
 

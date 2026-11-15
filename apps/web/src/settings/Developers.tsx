@@ -33,7 +33,7 @@ export function Developers({ canEdit, toast }: Props) {
   if (!canEdit)
     return (
       <Section id="st-api-keys" title="API keys">
-        <p className="help">Only owners and admins can manage API keys.</p>
+        <p className="help">Only admins can manage API keys.</p>
       </Section>
     )
   const active = keys.data?.keys.filter(k => !k.revoked_at) ?? []

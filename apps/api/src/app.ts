@@ -54,7 +54,7 @@ import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
-import { signUpOpen } from './auth-methods.ts'
+import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { newAssistant, newWorkspaceSettings, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { recordSignup } from './setup-events.ts'
 import { firstUse } from './sample-calls.ts'
@@ -174,19 +174,7 @@ app.post('/v1/setup', async c => {
 // Public: the invitation link shows whom it is for and which workspace, before sign-in.
 app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.param('id'))))
 
-export const WORKSPACE_CREATION_CLOSED =
-  'New workspaces are created by an administrator on this server. Ask for an invitation to an existing one.'
-
-/**
- * Creating a workspace is signing up a business: with sign-up closed (the default; AUTH_SIGNUP_ENABLED=true opens it) only
- * an instance admin creates one. Invitees, members and removed members join by invitation instead.
- * The admin's own account counts (a property of the user), also before they sign in again for the admin area.
- */
-async function mayCreateWorkspace(userId: string): Promise<boolean> {
-  if (signUpOpen()) return true
-  const [account] = await db.select().from(user).where(eq(user.id, userId))
-  return Boolean(account && !account.disabledAt && isInstanceAdmin(account))
-}
+export { WORKSPACE_CREATION_CLOSED }
 
 // Create a workspace (= organization) for the signed-in user, with its assistant, and make it active.
 // Better Auth writes the organization on its own connection, so this is not one transaction:
@@ -197,7 +185,13 @@ app.post('/v1/workspaces', async c => {
   if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
   // A workspace made as the user would outlast the impersonation (impersonation-guard.ts).
   if (session.session.impersonatedBy) return c.json({ ok: false, error: NOT_WHILE_IMPERSONATING }, 403)
-  if (!(await mayCreateWorkspace(session.user.id)))
+  // Only server admins create workspaces (workspace-creation.ts); everyone else is invited.
+  // The session's own instance:admin (context.ts: after the admin sign-in check), not the account's flag alone.
+  const caller = await resolveCaller(headers, clientIpOf(c))
+  // A server admin whose session has not passed the admin sign-in check yet: that first, then the workspace.
+  if ('actor' in caller && caller.actor.adminSecondFactor)
+    return c.json({ ok: false, code: 'admin_second_factor', error: ADMIN_CHECK_FIRST }, 403)
+  if (!('actor' in caller) || !mayCreateWorkspace(caller.actor))
     return c.json({ ok: false, code: 'workspace_creation_closed', error: WORKSPACE_CREATION_CLOSED }, 403)
   const body = await c.req
     .json<{ name?: unknown; timeZone?: unknown }>()

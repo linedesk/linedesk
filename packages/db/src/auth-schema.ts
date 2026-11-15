@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -133,6 +133,8 @@ export const member = pgTable(
     index("member_userId_idx").on(table.userId),
     // One membership per user and workspace: concurrent accepts and adds cannot make two.
     uniqueIndex("member_organization_user_uidx").on(table.organizationId, table.userId),
+    // Exactly one owner per workspace (workspace rights, docs/architecture.md): a transfer demotes the owner first.
+    uniqueIndex("member_one_owner_uidx").on(table.organizationId).where(sql`${table.role} = 'owner'`),
   ],
 );
 
@@ -151,6 +153,9 @@ export const invitation = pgTable(
     inviterId: text("inviter_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // Made by a server admin together with the account (Add user, Create workspace): the person joins at their
+    // first verified sign-in, without a Join click (apps/api/src/memberships.ts, joinOnSignIn).
+    joinOnSignIn: boolean("join_on_sign_in").default(false).notNull(),
   },
   (table) => [
     index("invitation_organizationId_idx").on(table.organizationId),

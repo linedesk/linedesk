@@ -1,10 +1,10 @@
 // Sign-in. Shows what this install offers (GET /v1/auth-methods): the passkey first where the install and the browser
 // can use one, with "Use an email code instead" (a code sent by email) below it; without passkeys the email form comes
-// first. Then the sign-in providers, and a password under "Show other options". New people are signed up on
-// first sign-in, unless sign-up is closed. "Forgot password?" sets a new one with an emailed code.
+// first. Then the sign-in providers, and a password under "Show other options". There is no open sign-up: an
+// unknown address is told to ask for an invitation; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
-import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, NO_ACCOUNT, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -16,7 +16,6 @@ import { brandName } from './brand.ts'
 import { readDeleted } from './session.ts'
 
 type Step = 'start' | 'code' | 'password' | 'reset'
-type Intent = 'signIn' | 'signUp'
 type Result = { error: { message?: string; code?: string; status?: number } | null }
 
 /** Keeps trying while the server is unreachable (a restart), so the page recovers by itself. */
@@ -32,14 +31,14 @@ export type Reauth = { title: string; why: string; onBack: () => void }
 
 /**
  * `onDone` resolves once the app has loaded the account, so the form keeps its busy state until the app replaces it.
- * With `reauth`, the same methods sign a signed-in member in again; no sign-up and no switch to it.
+ * With `reauth`, the same methods sign a signed-in member in again. There is no sign-up: accounts come from an
+ * invitation, the first-run setup or a server admin (apps/api/src/signup-gate.ts).
  */
 export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?: Reauth }) {
   // What this install offers: the last known at once (kept across visits), checked again in the background.
   const methods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
   const [step, setStep] = useState<Step>('start')
-  const [intent, setIntent] = useState<Intent>('signIn')
-  const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '' })
   // A failed provider sign-in comes back with ?error=CODE: read once, then shown like any other error.
   const [redirectError] = useState(takeRedirectError)
   const [error, setError] = useState<string | null>(redirectError?.message ?? null)
@@ -55,7 +54,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const start = signInStart({
     passkeyOn: Boolean(methods?.passkey),
     supported: passkeySupported(),
-    signUp: intent === 'signUp' || Boolean(reauth),
+    signUp: Boolean(reauth),
     lastUsed,
   })
   const [emailChosen, setEmailChosen] = useState(false)
@@ -103,7 +102,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 
   function sendCode(e: FormEvent) {
     e.preventDefault()
-    const invalid = authFormError('email', form)
+    const invalid = authFormError('email', { ...form, name: '' })
     if (invalid) return setError(invalid)
     void attempt('email', async () => {
       fail(await requestSignInCode(form.email))
@@ -114,11 +113,10 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 
   function signInWithPassword(e: FormEvent) {
     e.preventDefault()
-    const invalid = authFormError(intent === 'signUp' ? 'signUp' : 'password', form)
+    const invalid = authFormError('password', { ...form, name: '' })
     if (invalid) return setError(invalid)
     void attempt('password', async () => {
-      if (intent === 'signUp') fail(await auth.signUp.email({ name: form.name, email: form.email, password: form.password }))
-      else fail(await auth.signIn.email({ email: form.email, password: form.password }))
+      fail(await auth.signIn.email({ email: form.email, password: form.password }))
       rememberSignInMethod('password')
       await onDone()
       return true
@@ -163,22 +161,22 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     return <ResetStep initialEmail={form.email} onDone={onDone} onBack={() => go('password')} />
   }
 
-  const title = reauth ? reauth.title : intent === 'signUp' ? `Create your ${brandName()} account` : `Sign in to ${brandName()}`
+  const title = reauth ? reauth.title : `Sign in to ${brandName()}`
   const errorLine = error && <AuthError message={error} />
   // Without email codes the password is the main form, not one of the other options.
   const passwordFirst = methods.password && !methods.emailCode
   const intro = reauth && <p>{reauth.why}</p>
-  // Signing in again: a way back instead of the switch to creating an account.
+  // Signing in again: a way back instead of who gets an account.
   const footer = reauth
     ? <button type="button" className="auth-switch" title="Back to where you were" onClick={reauth.onBack}>Back</button>
-    : <AuthFooter methods={methods} intent={intent} onIntent={setIntent} />
+    : <AuthFooter methods={methods} />
   // Not while signing in again: a reset ends every session, the one being confirmed too.
-  const resetOffer = intent === 'signIn' && !reauth ? passwordResetOffer(methods) : null
+  const resetOffer = !reauth ? passwordResetOffer(methods) : null
   const forgotPassword = resetOffer === 'reset'
     ? <button type="button" className="auth-switch" onClick={() => go('reset')}>Forgot password?</button>
     : resetOffer === 'ask-admin' && <p className="auth-note">Forgot your password? Ask your administrator.</p>
   const passwordForm = (
-    <PasswordForm intent={intent} form={form} set={set} busy={busy === 'password'} disabled={busy !== null} error={errorLine}
+    <PasswordForm form={form} set={set} busy={busy === 'password'} disabled={busy !== null} error={errorLine}
       autoFocus={step === 'password'} onSubmit={signInWithPassword} />
   )
 
@@ -191,7 +189,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           {passwordForm}
           {forgotPassword}
           <button type="button" className="auth-switch" onClick={() => go('start')}>
-            {intent === 'signIn' ? 'Other ways to sign in' : 'Other ways to sign up'}
+            Other ways to sign in
           </button>
           {footer}
         </div>
@@ -208,8 +206,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     ) : (
       error && <AuthError id={id} message={error} />
     )
-  // A passkey signs in existing accounts only: not offered for creating one.
-  const withPasskey = methods.passkey && passkeySupported() && intent === 'signIn'
+  const withPasskey = methods.passkey && passkeySupported()
   const passkeyButton = withPasskey && (
     <ProviderButton method="passkey" label="Passkey" lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText="Signing in…"
       disabled={busy !== null} onClick={continueWithPasskey} />
@@ -320,43 +317,34 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 }
 
 type PasswordFormProps = {
-  intent: Intent; form: { name: string; email: string; password: string }
-  set: (key: 'name' | 'email' | 'password') => (e: { target: { value: string } }) => void
+  form: { email: string; password: string }
+  set: (key: 'email' | 'password') => (e: { target: { value: string } }) => void
   busy: boolean; disabled: boolean; error: ReactNode; autoFocus: boolean; onSubmit: (e: FormEvent) => void
 }
 
-/** Email and password (and a name when creating an account). */
-function PasswordForm({ intent, form, set, busy, disabled, error, autoFocus, onSubmit }: PasswordFormProps) {
-  const signUp = intent === 'signUp'
+/** Email and password. */
+function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }: PasswordFormProps) {
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      {signUp && <input aria-label="Your name" placeholder="Your name" value={form.name} onChange={set('name')} autoComplete="name" autoFocus={autoFocus} />}
-      <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus={autoFocus && !signUp} />
+      <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus={autoFocus} />
       <input type="password" aria-label="Password" placeholder="Password" value={form.password} onChange={set('password')}
-        autoComplete={signUp ? 'new-password' : 'current-password'} />
+        autoComplete="current-password" />
       <button type="submit" className="k-btn k-btn-primary" disabled={disabled}>
-        {signUp ? (busy ? 'Creating account…' : 'Create account') : busy ? 'Signing in…' : 'Sign in'}
+        {busy ? 'Signing in…' : 'Sign in'}
       </button>
       {error}
     </form>
   )
 }
 
-/** Who can get an account, then Terms · Privacy · Help, each only when this install set it. */
-function AuthFooter({ methods, intent, onIntent }: { methods: AuthMethods; intent: Intent; onIntent: (i: Intent) => void }) {
-  const switchTo = (to: Intent, question: string, action: string) => (
-    <p className="auth-note">{question} <button type="button" className="auth-inline" onClick={() => onIntent(to)}>{action}</button></p>
-  )
+/** Who can get an account (an invitation: there is no sign-up), then Terms · Privacy · Help, each only when set. */
+function AuthFooter({ methods }: { methods: AuthMethods }) {
   return (
     <footer className="auth-footer">
-      {methods.signUp === false ? (
-        <p className="auth-note">
-          Ask your administrator for an account.
-          {methods.links.supportEmail && <> Or write to <a className="k-link" href={`mailto:${methods.links.supportEmail}`}>{methods.links.supportEmail}</a>.</>}
-        </p>
-      ) : intent === 'signIn'
-        ? switchTo('signUp', "Don't have an account?", 'Sign up')
-        : switchTo('signIn', 'Already have an account?', 'Sign in')}
+      <p className="auth-note">
+        No account? Ask your workspace admin for an invitation.
+        {methods.links.supportEmail && <> Or write to <a className="k-link" href={`mailto:${methods.links.supportEmail}`}>{methods.links.supportEmail}</a>.</>}
+      </p>
       <LegalLinksLine links={methods.links} />
     </footer>
   )
@@ -440,6 +428,7 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
         {waitS > 0
           ? <p className="auth-note">You can ask for a new code in {waitS} s.</p>
           : <button type="button" className="auth-switch" onClick={() => void resend()}>Resend code</button>}
+        <p className="auth-note">No code? {NO_ACCOUNT}</p>
         <button type="button" className="auth-switch" onClick={onDifferentEmail}>Use a different email</button>
       </form>
     </AuthPage>

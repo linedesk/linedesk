@@ -4,6 +4,7 @@
 // Advanced (how calls are answered, talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
+import { ONLY_ADMINS } from './readOnly.ts'
 import {
   type PipelinesSetUp,
   pipelineFor,
@@ -808,7 +809,7 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
           toast={toast}
         />
       }
-      description={canEdit ? undefined : 'Only owners and admins can change these.'}
+      description={canEdit ? undefined : ONLY_ADMINS}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
       sections={shown}

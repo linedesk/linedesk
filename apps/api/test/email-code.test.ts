@@ -1,7 +1,7 @@
 // Email sign-in by code: a 6-digit code by email, 10 minutes, 3 tries, limits per IP and per address,
 // and closed sign-up. Codes are read from a spy on the email sender.
-import { invitation, user, verification } from '@linedesk/db'
-import { eq, like } from 'drizzle-orm'
+import { invitation, member, user, verification } from '@linedesk/db'
+import { and, eq, like } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -20,9 +20,17 @@ beforeAll(async () => {
   ws = await createWorkspace('Email Code Workspace', false)
 })
 afterEach(() => {
-  process.env.AUTH_SIGNUP_ENABLED = 'true'
   vi.restoreAllMocks()
 })
+/** A pending invitation: there is no open sign-up, so only an invited address gets a code before it has an account. */
+async function invited(email: string) {
+  const id = `inv_${crypto.randomUUID().slice(0, 8)}`
+  await db.insert(invitation).values({
+    id, organizationId: ws.id, email, role: 'member', status: 'pending',
+    inviterId: ws.owner.userId, expiresAt: new Date(Date.now() + 3_600_000),
+  })
+  return id
+}
 
 /** Spies on outgoing email; `codeFor` waits for the latest code sent to an address. */
 function mailbox() {
@@ -109,6 +117,7 @@ describe('signing in with a code', () => {
   test('codes are limited per address and IP: asking from many places never locks the address out (security L3)', async () => {
     const { sentTo, codeFor } = mailbox()
     const email = address('many-places')
+    await invited(email)
     for (let i = 0; i < 7; i++) expect((await requestCode(email)).status).toBe(200)
     await vi.waitFor(() => expect(sentTo(email)).toHaveLength(7))
     expect((await signIn(email, await codeFor(email))).status).toBe(200)
@@ -198,16 +207,7 @@ describe('what is not offered', () => {
 })
 
 describe('codes and sign-up', () => {
-  test('with sign-up open, a code creates the account, verified', async () => {
-    const { codeFor } = mailbox()
-    const email = address('new')
-    await requestCode(email)
-    expect((await signIn(email, await codeFor(email))).status).toBe(200)
-    expect(await accountOf(email)).toMatchObject({ emailVerified: true })
-  })
-
-  test('with sign-up closed, an unknown address gets the same answer and no code', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
+  test('an unknown address gets the same answer and no code; a guessed code creates no account', async () => {
     const { send } = mailbox()
     const email = address('stranger')
     const res = await requestCode(email)
@@ -218,30 +218,27 @@ describe('codes and sign-up', () => {
     expect(await accountOf(email)).toBeUndefined()
   })
 
-  test('a disabled account gets the same answer and no code, with sign-up open or closed', async () => {
+  test('a disabled account gets the same answer and no code', async () => {
     const email = address('disabled')
+    await invited(email)
     const { send, codeFor } = mailbox()
     expect((await signIn(email, await codeFor((await requestCode(email), email)))).status).toBe(200)
     await db.update(user).set({ disabledAt: new Date() }).where(eq(user.email, email))
     send.mockClear()
-    for (const open of ['true', 'false']) {
-      process.env.AUTH_SIGNUP_ENABLED = open
-      expect(await requestCode(email)).toEqual({ status: 200, body: { success: true } })
-    }
+    expect(await requestCode(email)).toEqual({ status: 200, body: { success: true } })
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(send).not.toHaveBeenCalled()
   })
 
-  test('with sign-up closed, an invited address gets a code and joins, verified', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
+  test('an invited address gets a code; the account is created verified and joins the workspace in the same step', async () => {
     const { codeFor } = mailbox()
     const email = address('invited')
-    await db.insert(invitation).values({
-      id: `inv_${crypto.randomUUID().slice(0, 8)}`, organizationId: ws.id, email, role: 'member', status: 'pending',
-      inviterId: ws.owner.userId, expiresAt: new Date(Date.now() + 3_600_000),
-    })
+    const id = await invited(email)
     await requestCode(email)
     expect((await signIn(email, await codeFor(email))).status).toBe(200)
-    expect(await accountOf(email)).toMatchObject({ emailVerified: true })
+    const created = await accountOf(email)
+    expect(created).toMatchObject({ emailVerified: true })
+    expect(await db.select().from(member).where(and(eq(member.userId, created!.id), eq(member.organizationId, ws.id)))).toHaveLength(1)
+    expect((await db.select().from(invitation).where(eq(invitation.id, id)))[0]!.status).toBe('accepted')
   })
 })

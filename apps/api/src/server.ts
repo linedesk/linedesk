@@ -40,6 +40,8 @@ if (agentTokenRefused) {
 const port = Number(process.env.PORT ?? 3000)
 const offWarning = secondFactorOffWarning() ?? passkeysOffWarning()
 if (offWarning) console.warn(offWarning)
+const signUpWarning = (await import('./auth-methods.ts')).signUpSettingRemovedWarning()
+if (signUpWarning) console.warn(signUpWarning)
 // Live calls whose agent went away are ended after a while (stale-calls.ts).
 startStaleCallSweep(db)
 // Recording files the agent never reported are linked to their calls (orphan-recordings.ts).

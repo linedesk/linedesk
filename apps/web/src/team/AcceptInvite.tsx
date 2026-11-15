@@ -49,7 +49,16 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     const session = (await auth.getSession()).data
     takeRedirectSignIn(Boolean(session))
     setAccount(session ? { email: session.user.email, emailVerified: session.user.emailVerified } : null)
+    return session
   }, [])
+  // A new account made with the invited address joins in the same step (apps/api/src/memberships.ts,
+  // joinInvitedWorkspaces): signed in and the invitation no longer pending means they are in.
+  const afterSignIn = useCallback(async () => {
+    const session = await loadAccount()
+    if (!session) return
+    const now = await previewInvitation(invitationId).catch(() => null)
+    if (now && now.status !== 'pending') onDone()
+  }, [invitationId, loadAccount, onDone])
   useEffect(() => {
     previewInvitation(invitationId).then(setInvite, (e: unknown) => setError(authErrorMessage(e)))
     fetchAuthMethods().then(setMethods, (e: unknown) => setError(authErrorMessage(e)))
@@ -82,11 +91,11 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   const lead = <p>{invite.invitedBy || 'A teammate'} invited {invite.email} to join as {roleInSentence(invite.role)}.</p>
   const title = `Join ${invite.workspaceName}`
 
-  if (!account && codeSent) return <CodeStep email={invite.email} onDone={async () => { await loadAccount() }} onDifferentEmail={() => setCodeSent(false)} />
+  if (!account && codeSent) return <CodeStep email={invite.email} onDone={afterSignIn} onDifferentEmail={() => setCodeSent(false)} />
   if (!account) {
     return (
       <SignInForInvite title={title} lead={lead} email={invite.email} methods={methods} busy={busy} error={errorLine} attempt={attempt}
-        onCodeSent={() => setCodeSent(true)} onSignedIn={loadAccount} />
+        onCodeSent={() => setCodeSent(true)} onSignedIn={afterSignIn} />
     )
   }
   if (account.email.toLowerCase() !== invite.email.toLowerCase()) {
@@ -104,7 +113,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     return (
       <Card title={title}>
         {errorLine}
-        <ConfirmEmail email={invite.email} onDone={loadAccount}
+        <ConfirmEmail email={invite.email} onDone={async () => { await loadAccount() }}
           why={`To join ${invite.workspaceName}, confirm that ${invite.email} is yours. We email you a code.`} />
       </Card>
     )
@@ -129,17 +138,17 @@ type SignInProps = {
 
 /** Signed out: the invited address is fixed; any method this install offers works. */
 function SignInForInvite({ title, lead, email, methods, busy, error, attempt, onCodeSent, onSignedIn }: SignInProps) {
-  const [mode, setMode] = useState<'choose' | 'signIn' | 'signUp'>('choose')
-  const [form, setForm] = useState({ name: '', password: '' })
+  // A new account comes from a proven address (a code or a provider): a password signs in an existing one only.
+  const [mode, setMode] = useState<'choose' | 'signIn'>('choose')
+  const [form, setForm] = useState({ password: '' })
   const back = { callbackURL: here(), errorCallbackURL: here() }
 
   function submit(e: FormEvent) {
     e.preventDefault()
     void attempt(async () => {
-      const invalid = authFormError(mode === 'signUp' ? 'signUp' : 'password', { ...form, email })
+      const invalid = authFormError('password', { ...form, name: '', email })
       if (invalid) throw new Error(invalid)
-      if (mode === 'signUp') fail(await auth.signUp.email({ name: form.name, email, password: form.password }))
-      else fail(await auth.signIn.email({ email, password: form.password }))
+      fail(await auth.signIn.email({ email, password: form.password }))
       rememberSignInMethod('password')
       await onSignedIn()
     })
@@ -176,16 +185,14 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                   fail(await auth.signIn.social({ provider: m.id, ...back }))
                 })} />
             ))}
-            {methods.password && methods.signUp !== false && <button type="button" className="auth-switch" onClick={() => setMode('signUp')}>Create an account with a password</button>}
             {methods.password && <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>I already have a password</button>}
           </>
         )}
-        {mode === 'signUp' && <label>Your name<input required value={form.name} autoComplete="name" autoFocus onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></label>}
         {mode !== 'choose' && (
           <>
-            <label>Password<input required type="password" minLength={8} value={form.password} autoFocus={mode === 'signIn'} autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+            <label>Password<input required type="password" minLength={8} value={form.password} autoFocus autoComplete="current-password"
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></label>
-            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{mode === 'signUp' ? 'Create account' : 'Sign in'}</button>
+            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>Sign in</button>
             <button type="button" className="auth-switch" onClick={() => setMode('choose')}>Other ways to continue</button>
           </>
         )}

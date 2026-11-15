@@ -6,6 +6,7 @@ import { ActionBar, RowActions, useActionRunner, workspaceActions } from './acti
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { WorkspaceMembersCard } from './Memberships.tsx'
+import { NewWorkspace } from './NewWorkspace.tsx'
 import { formatMinutes, formatUsd, parseSpendingCap } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { day, when } from './parts.tsx'
@@ -64,6 +65,7 @@ export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload }: 
   const runner = useActionRunner(notify)
   return (
     <>
+      <NewWorkspace toast={notify} reload={reload} />
       <AdminList
         rows={workspaces}
         rowId={w => w.id}

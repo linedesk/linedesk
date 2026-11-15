@@ -35,11 +35,10 @@ describe('someone without a workspace', () => {
     expect(pendingInvitations(rows, now)).toEqual([{ id: 'inv_open', workspaceName: 'Alpha Plumbing', role: 'member' }])
   })
 
-  it('names a business only where the server lets them: sign-up open, or an instance admin', () => {
-    expect(mayCreateWorkspace(true, null)).toBe(true)
-    expect(mayCreateWorkspace(false, null)).toBe(false)
-    expect(mayCreateWorkspace(false, me([]))).toBe(false)
-    expect(mayCreateWorkspace(false, me(['instance:admin']))).toBe(true)
-    expect(mayCreateWorkspace(false, me([], 'confirm'))).toBe(true) // before the passkey prompt
+  it('names a business only as a server admin, also with sign-up open; everyone else waits for an invitation', () => {
+    expect(mayCreateWorkspace(null)).toBe(false)
+    expect(mayCreateWorkspace(me([]))).toBe(false)
+    expect(mayCreateWorkspace(me(['instance:admin']))).toBe(true)
+    expect(mayCreateWorkspace(me([], 'confirm'))).toBe(true) // before the passkey prompt
   })
 })

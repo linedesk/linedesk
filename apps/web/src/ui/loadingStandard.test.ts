@@ -54,7 +54,6 @@ test('spinners only in buttons the user pressed, never for page data', () => {
  */
 const NO_SKELETON_NEEDED: Record<string, string> = {
   'Login.tsx': 'the sign-in page has its own connecting state before the methods are known (boot)',
-  'Workspace.tsx': 'reads the sign-in methods only to decide whether "New workspace" is offered in a menu',
   'admin/Providers.tsx': 'the walkthrough button is off on Cloud, so it is not always shown; the agent button is',
   'call/EvaluationCard.tsx': 'shown only when the call has an evaluation, or for a test call',
   'onboarding/InstanceSetup.tsx': 'the notice shows only when a part of the server is missing or failing',

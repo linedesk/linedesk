@@ -2,7 +2,7 @@
 // with each provider's token endpoint and API faked. For every provider: an existing verified user,
 // a user made by an invitation who never signed in, a user made by another provider, no user with
 // sign-up closed and open, and a provider that does not prove the email.
-import { account, invitation, session, user } from '@linedesk/db'
+import { account, invitation, member, session, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { MICROSOFT_CONSUMER_TENANT } from '../src/account-linking.ts'
@@ -123,6 +123,20 @@ async function invitedUser(email: string) {
 
 let ownerId: string
 let workspaceId: string
+/** A pending invitation to the test workspace: the only way a provider sign-in may create an account. */
+async function inviteTo(email: string) {
+  const id = `inv_${crypto.randomUUID().slice(0, 8)}`
+  await db.insert(invitation).values({
+    id,
+    organizationId: workspaceId,
+    email,
+    role: 'member',
+    status: 'pending',
+    inviterId: ownerId,
+    expiresAt: new Date(Date.now() + 3_600_000),
+  })
+  return id
+}
 beforeAll(async () => {
   const ws = await createWorkspace('Linking Workspace')
   ownerId = ws.owner.userId
@@ -130,7 +144,6 @@ beforeAll(async () => {
 })
 afterEach(() => {
   vi.unstubAllGlobals()
-  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
 
 const providers: Provider[] = ['google', 'microsoft', 'github']
@@ -158,7 +171,6 @@ describe.each(providers)('%s sign-in', provider => {
       inviterId: ownerId,
       expiresAt: new Date(Date.now() + 3_600_000),
     })
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
     const result = await signInWith(provider, { email, verified: true })
     expect(result).toMatchObject({ signedIn: true, error: null })
     expect(await providerAccount(userId, provider)).toBeDefined()
@@ -168,6 +180,7 @@ describe.each(providers)('%s sign-in', provider => {
 
   test('an account made by another provider: lands in the same account', async () => {
     const email = address(`${provider}-other`)
+    await inviteTo(email)
     expect((await signInWith(other(provider), { email, verified: true })).signedIn).toBe(true)
     const first = await userByEmail(email)
     expect((await signInWith(provider, { email, verified: true })).signedIn).toBe(true)
@@ -175,33 +188,24 @@ describe.each(providers)('%s sign-in', provider => {
     expect(await providerAccount(first!.id, other(provider))).toBeDefined()
   })
 
-  test('no account and sign-up closed: refused, nobody created; with a pending invitation: allowed', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
+  test('no account and no invitation: refused with "No account for this email", nobody created', async () => {
     const stranger = address(`${provider}-stranger`)
     expect(await signInWith(provider, { email: stranger, verified: true })).toMatchObject({
       signedIn: false,
       error: 'SIGNUP_CLOSED',
     })
     expect(await userByEmail(stranger)).toBeUndefined()
-
-    const invited = address(`${provider}-pending`)
-    await db.insert(invitation).values({
-      id: `inv_${crypto.randomUUID().slice(0, 8)}`,
-      organizationId: workspaceId,
-      email: invited,
-      role: 'member',
-      status: 'pending',
-      inviterId: ownerId,
-      expiresAt: new Date(Date.now() + 3_600_000),
-    })
-    expect((await signInWith(provider, { email: invited, verified: true })).signedIn).toBe(true)
-    expect((await userByEmail(invited))!.emailVerified).toBe(true)
   })
 
-  test('no account and sign-up open: a new verified account', async () => {
+  test('no account but a pending invitation: a new verified account that joins the workspace in the same step', async () => {
     const email = address(`${provider}-new`)
+    const inviteId = await inviteTo(email)
     expect((await signInWith(provider, { email, verified: true })).signedIn).toBe(true)
-    expect((await userByEmail(email))!.emailVerified).toBe(true)
+    const created = (await userByEmail(email))!
+    expect(created.emailVerified).toBe(true)
+    const joined = await db.select().from(member).where(and(eq(member.userId, created.id), eq(member.organizationId, workspaceId)))
+    expect(joined.map(m => m.role)).toEqual(['member'])
+    expect((await db.select().from(invitation).where(eq(invitation.id, inviteId)))[0]!.status).toBe('accepted')
   })
 
   test('the provider does not prove the email: nobody signed in, linked or created', async () => {

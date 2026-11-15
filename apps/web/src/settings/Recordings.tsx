@@ -1,6 +1,7 @@
 // Settings, Recordings: how long call recordings are kept, and the notice the assistant says after the
 // greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
 // and summary stay.
+import { ONLY_ADMINS } from './readOnly.ts'
 import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { useState } from 'react'
 import { useRun } from '../store.tsx'
@@ -71,7 +72,7 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           <Field
             id="st-retention"
             label="Keep recordings for"
-            help={canEdit ? undefined : 'Only owners and admins can change this.'}
+            help={canEdit ? undefined : ONLY_ADMINS}
           >
             <div>
               <Select

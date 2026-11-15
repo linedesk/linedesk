@@ -1,13 +1,11 @@
 // What GET /v1/auth-methods returns. Types only, so the web app can import them.
 export type SsoMethod = { id: string; label: string }
-/** `signUp`: true only when AUTH_SIGNUP_ENABLED=true; existing users always sign in. */
 /** `emailCode`: sign in with a code sent by email (needs email delivery). */
 /** `passkey`: sign in with a passkey added in Account settings (AUTH_PASSKEY_ENABLED, on by default). */
 export type AuthMethods = {
   password: boolean
   emailCode: boolean
   passkey: boolean
-  signUp?: boolean
   sso: SsoMethod[]
   links: LegalLinks
   /**

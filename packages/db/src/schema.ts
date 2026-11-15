@@ -927,6 +927,8 @@ export const auth_events = pgTable(
         'password_changed',
         'email_changed',
         'invitation_accepted',
+        // A new account made by a sign-in that ended up in no workspace (its invitation went away) and was deleted.
+        'sign_up_undone',
         'call_routing_reset',
       ],
     }).notNull(),

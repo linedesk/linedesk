@@ -2,7 +2,6 @@
 import { offersTour } from '@linedesk/actions'
 import type { Call } from '@linedesk/db/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from './cachedQuery.ts'
 import { useReviewCount } from './review/reviewData.ts'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { PasskeyStepUpHost } from './admin/PasskeyStepUp.tsx'
@@ -30,7 +29,6 @@ import { invitationNotice, unannounced, useMyInvitations } from './shell/invitat
 import { AskName } from './shell/AskName.tsx'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
-import { loadAuthMethods } from './shell/WorkspaceMenu.tsx'
 import { mayCreateWorkspace } from './NoWorkspace.tsx'
 import { Overlays, type Picker } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
@@ -166,11 +164,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   }, [tourOffered, tourOpen, inboxCalls, me.workspace])
   // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
   const canOpenAdmin = instanceAdmin
-  // The same rule as the screen without a workspace (#220): sign-up open, or an instance admin.
-  const authMethods = useQuery('auth-methods', loadAuthMethods, {
-    persist: true,
-  }).data
-  const canCreateWorkspace = !!authMethods && mayCreateWorkspace(authMethods.signUp !== false, me)
+  // The same rule as the screen without a workspace: only server admins create workspaces.
+  const canCreateWorkspace = mayCreateWorkspace(me)
   const [newWorkspace, setNewWorkspace] = useState(false)
   // Members without a passkey: a quiet card asks for one (passkey-ask.ts), not at the same time as the star prompt.
   const [passkeyCardClosed, setPasskeyCardClosed] = useState(false)

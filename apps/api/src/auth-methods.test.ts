@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readAuthConfig, readLegalLinks, signUpOpen } from './auth-methods.ts'
+import { readAuthConfig, readLegalLinks, signUpSettingRemovedWarning } from './auth-methods.ts'
 
 describe('readLegalLinks', () => {
   it('passes terms, privacy and support through, and leaves unset ones null', () => {
@@ -28,7 +28,6 @@ describe('readAuthConfig', () => {
       password: true,
       emailCode: false,
       passkey: true,
-      signUp: false,
       sso: [],
       links: { terms: null, privacy: null, supportEmail: null },
       signInOrigin: null,
@@ -119,11 +118,10 @@ describe('readAuthConfig', () => {
   })
 })
 
-describe('signUpOpen', () => {
-  it('is closed unless AUTH_SIGNUP_ENABLED is exactly true', () => {
-    expect(signUpOpen({})).toBe(false)
-    for (const value of ['', 'false', 'TRUE', '1', 'yes', ' true'])
-      expect(signUpOpen({ AUTH_SIGNUP_ENABLED: value })).toBe(false)
-    expect(signUpOpen({ AUTH_SIGNUP_ENABLED: 'true' })).toBe(true)
+describe('AUTH_SIGNUP_ENABLED', () => {
+  it('is gone: any value only brings a warning at start, and the sign-in screen offers no sign-up', () => {
+    expect(signUpSettingRemovedWarning({})).toBeNull()
+    for (const value of ['', 'false', 'true']) expect(signUpSettingRemovedWarning({ AUTH_SIGNUP_ENABLED: value })).toMatch(/no longer read/)
+    expect(readAuthConfig({ AUTH_SIGNUP_ENABLED: 'true' }).methods).not.toHaveProperty('signUp')
   })
 })

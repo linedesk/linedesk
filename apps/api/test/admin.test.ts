@@ -201,6 +201,7 @@ describe('access', () => {
       'voiceCloning.set',
       'voicePipelinePolicy.get',
       'voicePipelinePolicy.set',
+      'workspace.create',
       'workspace.delete',
       'workspace.disable',
       'workspace.enable',
@@ -252,9 +253,8 @@ describe('access', () => {
     expect((await request(loner, 'GET', '/v1/admin/users')).status).toBe(401)
   })
 
-  test('with sign-up closed, an instance admin still creates a workspace; anyone else is refused', async () => {
+  test('an instance admin creates a workspace; anyone else is refused', async () => {
     const loner = await signUp()
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
     try {
       expect((await request(loner, 'POST', '/v1/workspaces', { name: 'Not Allowed Yet' })).body).toMatchObject({
         code: 'workspace_creation_closed',
@@ -263,7 +263,6 @@ describe('access', () => {
       const created = await request(loner, 'POST', '/v1/workspaces', { name: 'Operator Workspace' })
       expect(created).toMatchObject({ status: 200, body: { ok: true, workspace: { name: 'Operator Workspace' } } })
     } finally {
-      process.env.AUTH_SIGNUP_ENABLED = 'true'
       await setAdmin(loner, false)
     }
   })
@@ -1357,11 +1356,14 @@ describe('instance admins', () => {
         { origin: 'http://localhost:5173', [FROM]: randomIp() },
       )
     const refused = await signUpAs(email)
-    expect(refused.status).toBe(403)
-    expect(refused.body.message).toMatch(/reserved for an administrator/)
+    expect(refused.status).toBe(400)
     expect(await db.select().from(user).where(eq(user.email, email))).toEqual([])
-    expect((await signUpAs(`someone-${crypto.randomUUID().slice(0, 8)}@linedesk.test`)).status).toBe(200)
-    // A verified address (email link, sign-in provider) may be created.
+    // Password sign-up is off altogether; the reserved-address check still holds on its own.
+    expect((await signUpAs(`someone-${crypto.randomUUID().slice(0, 8)}@linedesk.test`)).status).toBe(400)
+    await expect(refuseUnverifiedAdminAddress(db, { email, emailVerified: false })).rejects.toMatchObject({
+      body: { message: expect.stringMatching(/reserved for an administrator/) },
+    })
+    // A verified address (email code, sign-in provider) may be created.
     await expect(refuseUnverifiedAdminAddress(db, { email, emailVerified: true })).resolves.toBeUndefined()
   })
 
@@ -1395,25 +1397,20 @@ describe('instance admins', () => {
     expect(await firstOf({ id: 'first', email: 'Operator@linedesk.test', emailVerified: true })).toBe(true)
   })
 
-  test('closed sign-up on an empty install: only the listed address may create the first account (security L2)', async () => {
+  test('an empty install: only the listed address may create the first account (security L2)', async () => {
     class RollbackOnly extends Error {}
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
-    try {
-      await db
-        .transaction(async tx => {
-          await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
-          expect(await mayCreateUser(tx, 'stranger@linedesk.test', true)).toBe(false)
-          process.env.INSTANCE_ADMIN_EMAILS = 'operator@linedesk.test'
-          expect(await mayCreateUser(tx, 'operator@linedesk.test', true)).toBe(true)
-          expect(await mayCreateUser(tx, 'operator@linedesk.test', false)).toBe(false)
-          throw new RollbackOnly()
-        })
-        .catch(e => {
-          if (!(e instanceof RollbackOnly)) throw e
-        })
-    } finally {
-      process.env.AUTH_SIGNUP_ENABLED = 'true'
-    }
+    await db
+      .transaction(async tx => {
+        await tx.execute(sql`create temp table "user" (like public."user" including defaults) on commit drop`)
+        expect(await mayCreateUser(tx, 'stranger@linedesk.test', true)).toBe(false)
+        process.env.INSTANCE_ADMIN_EMAILS = 'operator@linedesk.test'
+        expect(await mayCreateUser(tx, 'operator@linedesk.test', true)).toBe(true)
+        expect(await mayCreateUser(tx, 'operator@linedesk.test', false)).toBe(false)
+        throw new RollbackOnly()
+      })
+      .catch(e => {
+        if (!(e instanceof RollbackOnly)) throw e
+      })
   })
 
   test('disabling or revoking an admin ends the impersonations they started at once (security L5)', async () => {
@@ -1735,7 +1732,6 @@ describe('user.invite (Add user)', () => {
     shop = await createWorkspace('Harbor Lane Electric')
   })
   afterEach(() => {
-    process.env.AUTH_SIGNUP_ENABLED = 'true'
     process.env.EMAIL_TO_LOG = 'true'
     vi.restoreAllMocks()
   })
@@ -1743,8 +1739,7 @@ describe('user.invite (Add user)', () => {
   const mailsTo = (send: ReturnType<typeof spySend>, email: string) =>
     send.mock.calls.map(([m]) => m).filter(m => m.to === email && !/^New instance admin/.test(m.subject))
 
-  test('a new address: account (unverified) and an invitation to the workspace with the role, in one email that names the workspace; works while sign-up is closed', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
+  test('a new address: account (unverified) and an invitation to the workspace with the role, in one email that names the workspace; there is no open sign-up', async () => {
     const send = spySend()
     const email = address('new')
     const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Rosa', workspaceId: shop.id, role: 'admin' })
@@ -1793,27 +1788,104 @@ describe('user.invite (Add user)', () => {
     expect(await membershipOf(account.id, shop.id)).toMatchObject({ role: 'member' })
   })
 
+  /** Signs in with an email code the way the sign-in page does; null when no code was sent. */
+  async function codeSignIn(send: ReturnType<typeof spySend>, email: string): Promise<User | null> {
+    const headers = { origin: 'http://localhost:5173', [FROM]: randomIp() }
+    const asked = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, headers)
+    expect(asked.status).toBe(200)
+    const code = () => send.mock.calls.map(([m]) => m).findLast(m => m.to === email && /^\d{6} /.test(m.subject))
+    await vi.waitFor(() => expect(code()).toBeDefined())
+    const res = await appRequest('/api/auth/sign-in/email-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ email, otp: code()!.subject.slice(0, 6) }),
+    })
+    expect(res.status).toBe(200)
+    const { user: signedIn } = (await res.json()) as { user: { id: string } }
+    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    return { userId: signedIn.id, headers: { cookie, origin: 'http://localhost:5173' } }
+  }
+
+  test('an account made with the invitation joins at the first sign-in, no Join click, once; it is in the audit log', async () => {
+    const send = spySend()
+    const email = address('autojoin')
+    await act(operator, 'user.invite', { email, name: 'Ava', workspaceId: shop.id, role: 'admin' })
+    const [invite] = await invitationsTo(email)
+    expect(invite).toMatchObject({ joinOnSignIn: true, status: 'pending' })
+    const ava = (await codeSignIn(send, email))!
+    expect(await membershipOf(ava.userId, shop.id)).toMatchObject({ role: 'admin' })
+    expect((await invitationsTo(email))[0]).toMatchObject({ status: 'accepted' })
+    expect((await request(ava, 'GET', '/v1/me')).body).toMatchObject({ workspace: { id: shop.id } })
+    const events = await db.select().from(auth_events).where(and(eq(auth_events.user_id, ava.userId), eq(auth_events.event, 'invitation_accepted')))
+    expect(events).toEqual([expect.objectContaining({ workspace_id: shop.id, method: 'admin_created', email })])
+    // Single use: after leaving (account kept), the next sign-in does not bring them back.
+    expect((await act(ava, 'team.leave', { deleteAccount: false })).status).toBe(200)
+    await codeSignIn(send, email)
+    expect(await membershipOf(ava.userId, shop.id)).toBeUndefined()
+  })
+
+  test('the workspace owner made by Create workspace joins at the first sign-in too', async () => {
+    const send = spySend()
+    const email = address('newowner')
+    const made = await act(operator, 'workspace.create', { name: 'Auto Join Owner Co', owner: { email, name: 'Olive' } })
+    expect(made.status).toBe(200)
+    const olive = (await codeSignIn(send, email))!
+    expect(await membershipOf(olive.userId, made.body.data.workspace.id)).toMatchObject({ role: 'owner' })
+  })
+
+  test('no auto-join: an invitation to an existing account, an expired one, or one for another address keeps the Join step', async () => {
+    const send = spySend()
+    // An account that existed before: the invitation waits for Join, also after a sign-in proves the address.
+    const existing = await signUp()
+    const existingEmail = await emailOf(existing)
+    await act(operator, 'user.invite', { email: existingEmail, name: 'Una', workspaceId: shop.id })
+    expect((await invitationsTo(existingEmail))[0]).toMatchObject({ joinOnSignIn: false })
+    await codeSignIn(send, existingEmail)
+    expect(await membershipOf(existing.userId, shop.id)).toBeUndefined()
+    expect((await invitationsTo(existingEmail))[0]).toMatchObject({ status: 'pending' })
+
+    // Expired: never joins.
+    const late = address('expired')
+    await act(operator, 'user.invite', { email: late, name: 'Lee', workspaceId: shop.id })
+    await db.update(invitation).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(invitation.email, late))
+    const lee = (await codeSignIn(send, late))!
+    expect(await membershipOf(lee.userId, shop.id)).toBeUndefined()
+
+    // The account's address changed before the first sign-in: the invitation names the old one and is not joined.
+    const old = address('moved')
+    await act(operator, 'user.invite', { email: old, name: 'Mo', workspaceId: shop.id })
+    const moved = address('moved-new')
+    await db.update(user).set({ email: moved }).where(eq(user.email, old))
+    const mo = (await codeSignIn(send, moved))!
+    expect(await membershipOf(mo.userId, shop.id)).toBeUndefined()
+    expect((await invitationsTo(old))[0]).toMatchObject({ status: 'pending' })
+  })
+
   test('an account with a confirmed address is added at once with the role, no new account; they and the owners get a notice', async () => {
     const send = spySend()
     const someone = await signUp()
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, someone.userId))
     const email = await emailOf(someone)
-    const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Ignored', workspaceId: shop.id, role: 'owner' })
+    // One owner per workspace: Harbor Lane Electric has one, so a second is refused and the admin role works.
+    expect(
+      (await act(operator, 'user.invite', { email, name: 'Ignored', workspaceId: shop.id, role: 'owner' })).body.error,
+    ).toMatch(/has an owner already/)
+    const res = await act(operator, 'user.invite', { email: email.toUpperCase(), name: 'Ignored', workspaceId: shop.id, role: 'admin' })
     expect(res).toMatchObject({
       status: 200,
-      body: { data: { userId: someone.userId, existing: true, workspace: { id: shop.id, role: 'owner', joined: 'added' } } },
+      body: { data: { userId: someone.userId, existing: true, workspace: { id: shop.id, role: 'admin', joined: 'added' } } },
     })
     expect(res.body.data.delivery).toBeUndefined()
-    expect(await membershipOf(someone.userId, shop.id)).toMatchObject({ role: 'owner' })
+    expect(await membershipOf(someone.userId, shop.id)).toMatchObject({ role: 'admin' })
     expect((await db.select().from(user).where(eq(user.email, email))).length).toBe(1)
     // No invitation to accept: a short notice to them, and the workspace's owner hears of it (not the acting admin).
     const toThem = mailsTo(send, email)
     expect(toThem).toHaveLength(1)
     expect(toThem[0]!.subject).toBe('You were added to Harbor Lane Electric on localhost:5173')
-    expect(toThem[0]!.text).toContain('added you to Harbor Lane Electric on localhost:5173 as an owner')
+    expect(toThem[0]!.text).toContain('added you to Harbor Lane Electric on localhost:5173 as an admin')
     const ownerMail = mailsTo(send, await emailOf(shop.owner))
     expect(ownerMail).toHaveLength(1)
-    expect(ownerMail[0]!.text).toMatch(/added Test User to Harbor Lane Electric as an owner\./)
+    expect(ownerMail[0]!.text).toMatch(/added Test User to Harbor Lane Electric as an admin\./)
     expect(mailsTo(send, await emailOf(operator))).toHaveLength(0)
     // A second time: they are a member already.
     expect(await act(operator, 'user.invite', { email, name: 'Again', workspaceId: shop.id })).toMatchObject({
@@ -2220,6 +2292,9 @@ describe('impersonation', () => {
 
   test('as an owner, only reads and inbox triage run; every other write is refused centrally (security M3)', async () => {
     const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    // One owner per workspace: `other`'s owner steps aside for the test and gets it back after.
+    const otherOwner = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, other.owner.userId))
+    await db.update(memberTable).set({ role: 'admin' }).where(otherOwner)
     await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
     try {
       const { as } = await start(operator, target.userId)
@@ -2255,11 +2330,15 @@ describe('impersonation', () => {
       await stop(as)
     } finally {
       await db.update(memberTable).set({ role: 'member' }).where(targetMember)
+      await db.update(memberTable).set({ role: 'owner' }).where(otherOwner)
     }
   })
 
   test('no role changes while impersonating, even as an owner', async () => {
     const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    // One owner per workspace: `other`'s owner steps aside for the test and gets it back after.
+    const otherOwner = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, other.owner.userId))
+    await db.update(memberTable).set({ role: 'admin' }).where(otherOwner)
     await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
     try {
       const { as } = await start(operator, target.userId)
@@ -2274,6 +2353,7 @@ describe('impersonation', () => {
       await stop(as)
     } finally {
       await db.update(memberTable).set({ role: 'member' }).where(targetMember)
+      await db.update(memberTable).set({ role: 'owner' }).where(otherOwner)
     }
   })
 
@@ -2499,20 +2579,87 @@ describe('memberships across workspaces', () => {
     )
   })
 
-  test('the last owner of a workspace can be neither demoted nor removed; with a second owner both work', async () => {
+  test('the owner can be neither demoted nor removed, and there is no second owner; making someone owner hands it over', async () => {
     const ws = await createWorkspace('Last Owner Test')
     const ownerId = (await memberRow(ws.id, ws.owner))!.id
-    const lastOwner = { status: 409, body: { error: 'the workspace needs an owner: this is the last one' } }
-    expect(await act(operator, 'membership.setRole', { memberId: ownerId, role: 'admin' })).toMatchObject(lastOwner)
-    expect(await act(operator, 'membership.remove', { memberId: ownerId })).toMatchObject(lastOwner)
+    const stays = { status: 409, body: { error: 'the workspace needs its owner: make someone else the owner first' } }
+    expect(await act(operator, 'membership.setRole', { memberId: ownerId, role: 'admin' })).toMatchObject(stays)
+    expect(await act(operator, 'membership.remove', { memberId: ownerId })).toMatchObject(stays)
     expect(await memberRow(ws.id, ws.owner)).toMatchObject({ role: 'owner' })
     const second = await signUp()
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, second.userId))
     expect(
-      (await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'owner' })).status,
-    ).toBe(200)
-    expect((await act(operator, 'membership.setRole', { memberId: ownerId, role: 'member' })).status).toBe(200)
+      (await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'owner' })).body.error,
+    ).toMatch(/has an owner already/)
+    const added = await act(operator, 'membership.add', { userId: second.userId, workspaceId: ws.id, role: 'admin' })
+    expect(added.status).toBe(200)
+    // Making them owner is a transfer: the previous owner becomes an admin, and can then be removed.
+    expect((await act(operator, 'membership.setRole', { memberId: added.body.data.memberId, role: 'owner' })).status).toBe(200)
+    expect(await memberRow(ws.id, second)).toMatchObject({ role: 'owner' })
+    expect(await memberRow(ws.id, ws.owner)).toMatchObject({ role: 'admin' })
     expect((await act(operator, 'membership.remove', { memberId: ownerId })).status).toBe(200)
+  })
+
+  test("removing someone from their last workspace deletes the account by default; keepAccount keeps it; a server admin's never goes", async () => {
+    const ws = await createWorkspace('Last Workspace Removal')
+    const exists = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId))).length === 1
+    const gone = await addMember(ws.id, 'member')
+    expect(await act(operator, 'membership.remove', { memberId: (await memberRow(ws.id, gone))!.id })).toMatchObject({
+      status: 200,
+      body: { data: { accountDeleted: true } },
+    })
+    expect(await exists(gone)).toBe(false)
+
+    const kept = await addMember(ws.id, 'member')
+    expect(
+      await act(operator, 'membership.remove', { memberId: (await memberRow(ws.id, kept))!.id, keepAccount: true }),
+    ).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
+    expect(await exists(kept)).toBe(true)
+
+    const serverAdmin = await addMember(ws.id, 'admin')
+    await setAdmin(serverAdmin, true)
+    try {
+      expect(await act(operator, 'membership.remove', { memberId: (await memberRow(ws.id, serverAdmin))!.id })).toMatchObject({
+        status: 200,
+        body: { data: { accountDeleted: false } },
+      })
+      expect(await exists(serverAdmin)).toBe(true)
+    } finally {
+      await setAdmin(serverAdmin, false)
+    }
+  })
+
+  test('a hand-over at the same moment: membership.setRole waits for it and then refuses to demote the new owner (#734 review, finding 3)', async () => {
+    const ws = await createWorkspace('Hand Over Race')
+    const next = await addMember(ws.id, 'admin')
+    const ownerId = (await memberRow(ws.id, ws.owner))!.id
+    const nextId = (await memberRow(ws.id, next))!.id
+    let release!: () => void
+    const held = new Promise<void>(resolve => {
+      release = resolve
+    })
+    let locked!: () => void
+    const isLocked = new Promise<void>(resolve => {
+      locked = resolve
+    })
+    // The hand-over (as team.transferOwnership does it) holds the new owner's row while it runs.
+    const handOver = db.transaction(async tx => {
+      await tx.select().from(memberTable).where(eq(memberTable.id, nextId)).for('update')
+      locked()
+      await held
+      await tx.update(memberTable).set({ role: 'admin' }).where(eq(memberTable.id, ownerId))
+      await tx.update(memberTable).set({ role: 'owner' }).where(eq(memberTable.id, nextId))
+    })
+    await isLocked
+    const demote = act(operator, 'membership.setRole', { memberId: nextId, role: 'member' })
+    await new Promise(resolve => setTimeout(resolve, 200))
+    release()
+    await handOver
+    expect(await demote).toMatchObject({
+      status: 409,
+      body: { error: 'the workspace needs its owner: make someone else the owner first' },
+    })
+    expect(await memberRow(ws.id, next)).toMatchObject({ role: 'owner' })
   })
 
   test('one membership per user and workspace: the database refuses a second row', async () => {
@@ -2641,7 +2788,7 @@ describe('memberships across workspaces', () => {
       const res = await act(operator, 'membership.add', {
         userId: unconfirmed.userId,
         workspaceId: ws.id,
-        role: 'owner',
+        role: 'admin',
       })
       expect(res).toMatchObject({ status: 200, body: { data: { memberId: null, joined: 'invited' } } })
       expect(await memberRow(ws.id, unconfirmed)).toBeUndefined()
@@ -2649,7 +2796,7 @@ describe('memberships across workspaces', () => {
         .select()
         .from(invitation)
         .where(and(eq(invitation.email, email), eq(invitation.organizationId, ws.id)))
-      expect(invite).toMatchObject({ role: 'owner', status: 'pending', inviterId: operator.userId })
+      expect(invite).toMatchObject({ role: 'admin', status: 'pending', inviterId: operator.userId })
       const owner = await emailOf(ws.owner)
       expect(send.mock.calls.map(([m]) => m).filter(m => m.to === owner)).toHaveLength(1)
       // A membership an unconfirmed account already has (an older add) cannot become owner or admin.
@@ -2831,14 +2978,20 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect(res.status).toBe(200)
     const fresh = callerFrom(res)
     await expectAllAdminRefused(fresh, 'confirm')
-    // Workspace users' level: the admin's own workspace, with any sign-in method.
-    const ws = await request(fresh, 'POST', '/v1/workspaces', { name: `Admin Biz ${crypto.randomUUID().slice(0, 6)}` })
-    expect(ws.status).toBe(200)
-    const me = (await request(fresh, 'GET', '/v1/me')).body
+    // Creating a workspace is Server admin's: it needs the passkey check too (#728 review, finding 4).
+    expect(await request(fresh, 'POST', '/v1/workspaces', { name: `Admin Biz ${crypto.randomUUID().slice(0, 6)}` })).toMatchObject({
+      status: 403,
+      body: { code: 'admin_second_factor' },
+    })
+    // Workspace users' level: a workspace the admin is in works with any sign-in method.
+    const biz = await createWorkspace(`Admin Biz ${crypto.randomUUID().slice(0, 6)}`)
+    await db.insert(memberTable).values({ id: `m_${crypto.randomUUID().slice(0, 12)}`, organizationId: biz.id, userId: admin.userId, role: 'admin', createdAt: new Date() })
+    const tab = { 'x-workspace-id': biz.id }
+    const me = (await request(fresh, 'GET', '/v1/me', undefined, tab)).body
     expect(me.permissions).toEqual(expect.arrayContaining(['settings:write', 'team:write']))
     expect(me.permissions).not.toContain('instance:admin')
     expect(
-      (await act(fresh, 'workspace.rename', { name: `Renamed ${crypto.randomUUID().slice(0, 6)}` })).status,
+      (await request(fresh, 'POST', '/v1/actions/workspace.rename', { name: `Renamed ${crypto.randomUUID().slice(0, 6)}` }, tab)).status,
     ).toBe(200)
   })
 
@@ -3311,7 +3464,8 @@ describe('audit log', () => {
     const { entries } = await audit(`?kind=sign_in&who=${encodeURIComponent(email.toUpperCase())}`)
     expect(entries.map(e => [e.what, e.method])).toEqual([
       ['sign_in', 'password'],
-      ['sign_up', 'password'],
+      // The fixture's own first sign-in (accounts are written directly: there is no open sign-up).
+      ['sign_in', 'password'],
     ])
     expect(entries[0]!.actor).toMatchObject({ id: person.userId, email })
   })
@@ -3344,7 +3498,7 @@ describe('audit log', () => {
     const added = await act(operator, 'membership.add', {
       userId: operator.userId,
       workspaceId: other.id,
-      role: 'owner',
+      role: 'admin',
     })
     expect(added.status).toBe(200)
     const removed = await act(operator, 'membership.remove', { memberId: added.body.data.memberId })
@@ -3355,7 +3509,7 @@ describe('audit log', () => {
     expect(mine.map(e => e.what)).toEqual(['membership.remove', 'membership.add'])
     for (const e of mine)
       expect(e).toMatchObject({ kind: 'admin', workspace: { id: other.id }, subject: { email: operatorEmail } })
-    expect(mine[1]!.input).toMatchObject({ role: 'owner' })
+    expect(mine[1]!.input).toMatchObject({ role: 'admin' })
   })
 
   test('removing a member, leaving, API keys and webhooks are recorded, the member named', async () => {
@@ -3366,7 +3520,7 @@ describe('audit log', () => {
     const [row] = await db.select().from(memberTable).where(eq(memberTable.userId, removed.userId))
     expect((await act(ws.owner, 'team.setRole', { memberId: row!.id, role: 'member' })).status).toBe(200)
     expect((await act(ws.owner, 'team.removeMember', { memberId: row!.id })).status).toBe(200)
-    expect((await act(leaver, 'team.leave', {})).status).toBe(200)
+    expect((await act(leaver, 'team.leave', { deleteAccount: false })).status).toBe(200)
     const key = await act(ws.owner, 'apiKey.create', { name: 'Zapier', role: 'member' })
     expect(key.status).toBe(200)
     expect((await act(ws.owner, 'webhook.delete', { endpointId: ws.webhookEndpoint.id })).status).toBe(200)
@@ -3420,7 +3574,7 @@ describe('audit log', () => {
     const leaving = await signUp()
     expect((await signIn(leaving)).status).toBe(200)
     const before = await db.select().from(auth_events).where(eq(auth_events.user_id, leaving.userId))
-    expect(before.map(e => e.event)).toEqual(expect.arrayContaining(['sign_up', 'sign_in']))
+    expect(before.map(e => e.event)).toEqual(['sign_in', 'sign_in'])
     expect(before.some(e => e.email !== null)).toBe(true)
     await db.delete(user).where(eq(user.id, leaving.userId))
     const after = await db.select().from(auth_events).where(eq(auth_events.user_id, leaving.userId))
@@ -3573,11 +3727,7 @@ describe('monthly spending cap', () => {
 
   test('the alert email goes to the owners and the instance admins, once per address, and says what happens', async () => {
     const ws = await createWorkspace('Alerted Plumbing')
-    const coOwner = await addMember(ws.id, 'admin')
-    await db
-      .update(memberTable)
-      .set({ role: 'owner' })
-      .where(and(eq(memberTable.organizationId, ws.id), eq(memberTable.userId, coOwner.userId)))
+    const wsAdmin = await addMember(ws.id, 'admin')
     await addMember(ws.id, 'member')
     await db.update(organization).set({ spendingCapCents: 0 }).where(eq(organization.id, ws.id))
     const sent: { to: string; subject: string; text: string }[] = []
@@ -3591,9 +3741,10 @@ describe('monthly spending cap', () => {
     const to = sent.map(e => e.to)
     expect(to).toEqual(
       expect.arrayContaining(
-        [await emailOf(ws.owner), await emailOf(coOwner), await emailOf(operator)].map(a => a.toLowerCase()),
+        [await emailOf(ws.owner), await emailOf(operator)].map(a => a.toLowerCase()),
       ),
     )
+    expect(to).not.toContain((await emailOf(wsAdmin)).toLowerCase())
     expect(new Set(to).size).toBe(to.length)
     expect(sent[0]).toMatchObject({
       subject: 'Alerted Plumbing reached its monthly spending cap',
@@ -4012,6 +4163,32 @@ describe('workspace.delete', () => {
     await act(operator, 'workspace.delete', { workspaceId: withAdmin.id, name: 'Admin Inside' })
     expect((await db.select().from(user).where(eq(user.id, operator.userId))).length).toBe(1)
     expect(await db.select().from(user).where(eq(user.id, withAdmin.owner.userId))).toEqual([])
+  })
+
+  test('a server admin only through INSTANCE_ADMIN_EMAILS keeps the account too: workspace deleted, removed, or leaving (#734 review, finding 1)', async () => {
+    const before = process.env.INSTANCE_ADMIN_EMAILS
+    const ws = await createWorkspace('Env Admin Inside')
+    const envAdmins = [await addMember(ws.id, 'member'), await addMember(ws.id, 'admin'), await addMember(ws.id, 'member')]
+    await db.update(user).set({ emailVerified: true }).where(inArray(user.id, envAdmins.map(a => a.userId)))
+    process.env.INSTANCE_ADMIN_EMAILS = (await Promise.all(envAdmins.map(emailOf))).join(',')
+    try {
+      const [removed, leaving, inDeleted] = envAdmins as [User, User, User]
+      const memberIdOf = async (who: User) =>
+        (await db.select().from(memberTable).where(and(eq(memberTable.userId, who.userId), eq(memberTable.organizationId, ws.id))))[0]!.id
+      expect(await act(operator, 'membership.remove', { memberId: await memberIdOf(removed) })).toMatchObject({
+        status: 200,
+        body: { data: { accountDeleted: false } },
+      })
+      expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toMatchObject({ accountDeleted: false })
+      const res = await act(operator, 'workspace.delete', { workspaceId: ws.id, name: 'Env Admin Inside' })
+      expect(res.status).toBe(200)
+      expect(await db.select().from(user).where(eq(user.id, ws.owner.userId))).toEqual([])
+      for (const who of [removed, leaving, inDeleted])
+        expect(await db.select().from(user).where(eq(user.id, who.userId))).toHaveLength(1)
+    } finally {
+      process.env.INSTANCE_ADMIN_EMAILS = before ?? ''
+      await db.update(user).set({ emailVerified: false }).where(inArray(user.id, envAdmins.map(a => a.userId)))
+    }
   })
 
   test('removes every row of the workspace and none of another; members only here lose their accounts, others land elsewhere', async () => {

@@ -48,14 +48,14 @@ async function post<T>(name: string, input: object): Promise<T> {
  * Deletes the workspace. When the server asks for the passkey, the passkey dialog signs in again (a new session,
  * on no workspace yet): the retry first makes this workspace the session's again.
  */
-function deleteOwn(workspaceId: string, name: string, keepOwnAccount: boolean) {
+function deleteOwn(workspaceId: string, name: string, keepAccounts: boolean) {
   let attempt = 0
   return withPasskeyStepUp(async () => {
     if (attempt++ > 0) {
       const r = await auth.organization.setActive({ organizationId: workspaceId })
       if (r.error) throw new Error(r.error.message ?? 'Could not open the workspace again. Reload and try again.')
     }
-    return post<WorkspaceDeleteOwnData>('workspace.deleteOwn', { name, keepOwnAccount })
+    return post<WorkspaceDeleteOwnData>('workspace.deleteOwn', { name, keepAccounts })
   }, 'delete this workspace')
 }
 
@@ -72,9 +72,9 @@ async function leaveDeleted(name: string, data: WorkspaceDeleteOwnData) {
   else window.location.replace('/')
 }
 
-type Props = { workspaceName: string }
+type Props = { workspaceName: string; isInstanceAdmin: boolean }
 
-export function DangerZone({ workspaceName }: Props) {
+export function DangerZone({ workspaceName, isInstanceAdmin }: Props) {
   const team = useTeam()
   const data = team.data ?? null
   if (!data)
@@ -92,7 +92,7 @@ export function DangerZone({ workspaceName }: Props) {
   const role = data.members.find(m => m.userId === data.me)?.role
   return (
     <>
-      <LeaveWorkspace data={data} />
+      <LeaveWorkspace data={data} isInstanceAdmin={isInstanceAdmin} />
       {role === 'owner' && <DeleteWorkspace workspaceName={workspaceName} />}
       {role === 'admin' && (
         <Section id="ws-delete" title="Delete workspace">
@@ -108,7 +108,7 @@ type Preview =
   | { state: 'error'; error: string }
   | { state: 'ready'; preview: WorkspaceDeletePreviewData }
 
-function DeleteWorkspace({ workspaceName }: Props) {
+function DeleteWorkspace({ workspaceName }: Pick<Props, 'workspaceName'>) {
   const workspaceId = tabWorkspace()
   const [open, setOpen] = useState(false)
   // Back from "Sign in again": the dialog opens again.
@@ -167,9 +167,9 @@ function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
   }
   const p = preview.preview
   const brand = brandName()
-  async function run(keepOwnAccount: boolean) {
+  async function run(keepAccounts: boolean) {
     try {
-      const data = await deleteOwn(workspaceId, p.name, keepOwnAccount)
+      const data = await deleteOwn(workspaceId, p.name, keepAccounts)
       await leaveDeleted(p.name, data)
     } catch (err) {
       if (err instanceof SignInFirst) setStepUp('signIn')

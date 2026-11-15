@@ -1,0 +1,36 @@
+// Workspace rights (Janik, 2026-11-15; docs/architecture.md, "Workspace rights"): who in a workspace may run an
+// action, derived from its permission. Owner: everything an admin can, plus deleting the workspace and handing it
+// over (workspace:own; exactly one owner). Admin: every workspace setting and the team except the owner. Member: daily
+// work (inbox, calls, contacts, reminders, their own profile and notifications), no workspace settings.
+import { type Permission, type Role, rolePermissions } from './define.ts'
+
+/**
+ * Who may run an action: the lowest workspace role whose permissions include it, or what else grants it: `agent`
+ * (the voice agent's token), `server-admin` (instance:admin, a property of the user), `impersonation` (a session an
+ * instance admin started as someone else), `account` (every signed-in person, also without a workspace).
+ */
+export type Right = 'member' | 'admin' | 'owner' | 'agent' | 'server-admin' | 'impersonation' | 'account'
+
+const workspaceRoles = ['member', 'admin', 'owner'] as const satisfies readonly Role[]
+
+export function rightOf(permission: Permission): Right {
+  if (permission === 'agent') return 'agent'
+  if (permission === 'instance:admin') return 'server-admin'
+  // Ending setup links: only instance admins get it (context.ts), in every session of theirs (agent-setup.ts).
+  if (permission === 'setupLink:end') return 'server-admin'
+  if (permission === 'impersonation:stop') return 'impersonation'
+  // Answering invitations needs no workspace (context.ts gives it to the workspace-less too, through invitee checks).
+  if (permission === 'invitation:respond') return 'account'
+  const role = workspaceRoles.find(r => rolePermissions[r].includes(permission))
+  if (!role) throw new Error(`no role has ${permission}`)
+  return role
+}
+
+/** Whether `role` may run something that needs `right` (owner ⊃ admin ⊃ member). */
+export function roleMeets(role: (typeof workspaceRoles)[number], right: Right): boolean {
+  const rank = workspaceRoles.indexOf(role)
+  const needed = workspaceRoles.indexOf(right as (typeof workspaceRoles)[number])
+  return needed !== -1 && rank >= needed
+}
+
+export const WORKSPACE_ROLES = workspaceRoles

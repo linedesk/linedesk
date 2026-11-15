@@ -1,6 +1,7 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
 // the workspace icon (WorkspaceIconField), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
+import { ONLY_ADMINS } from './readOnly.ts'
 import { type KeyboardEvent, useEffect, useState } from 'react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
@@ -13,7 +14,7 @@ import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { renameCheck } from './workspaceGeneral.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
 
-const READ_ONLY = 'Only owners and admins can change this.'
+const READ_ONLY = ONLY_ADMINS
 
 type Props = {
   canEdit: boolean

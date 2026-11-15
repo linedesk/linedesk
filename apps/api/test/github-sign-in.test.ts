@@ -1,8 +1,8 @@
 // GitHub sign-in through Better Auth's real callback, with GitHub's API faked: who gets in, which
-// account a GitHub sign-in joins, and that closed sign-up holds.
-import { account, user } from '@linedesk/db'
+// account a GitHub sign-in joins, and that there is no open sign-up.
+import { account, invitation, member, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 
 vi.hoisted(() => {
   process.env.GITHUB_CLIENT_ID = 'test-github-client'
@@ -10,7 +10,8 @@ vi.hoisted(() => {
 })
 
 const { db } = await import('../src/db.ts')
-const { appRequest, randomIp, FROM, signUp } = await import('./helpers.ts')
+const { appRequest, createWorkspace, randomIp, FROM, signUp } = await import('./helpers.ts')
+const { NO_ACCOUNT } = await import('../src/signup-gate.ts')
 
 const ORIGIN = 'http://localhost:5173'
 const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
@@ -77,10 +78,22 @@ const githubAccountOf = async (userId: string) =>
       .where(and(eq(account.userId, userId), eq(account.providerId, 'github')))
   )[0]
 
+let ws: { id: string; owner: { userId: string } }
+beforeAll(async () => {
+  ws = await createWorkspace('GitHub Sign-in Workspace')
+})
 afterEach(() => {
   vi.unstubAllGlobals()
-  process.env.AUTH_SIGNUP_ENABLED = 'true'
 })
+/** A pending invitation: there is no open sign-up, so only an invited address may get a new account. */
+async function invited(email: string) {
+  const id = `inv_${crypto.randomUUID().slice(0, 8)}`
+  await db.insert(invitation).values({
+    id, organizationId: ws.id, email, role: 'member', status: 'pending',
+    inviterId: ws.owner.userId, expiresAt: new Date(Date.now() + 3_600_000),
+  })
+  return id
+}
 
 describe('GitHub sign-in', () => {
   test('asks GitHub for read:user and user:email and comes back to /api/auth/callback/github', async () => {
@@ -91,12 +104,15 @@ describe('GitHub sign-in', () => {
     expect(authorize.searchParams.get('redirect_uri')).toBe(`${ORIGIN}/api/auth/callback/github`)
   })
 
-  test('a new person with a verified primary address gets an account with that address, verified', async () => {
+  test('a new invited person with a verified primary address gets an account with that address, verified, and joins', async () => {
     const email = address('gh-new')
+    await invited(email)
     fakeGitHub(1000 + Math.floor(Math.random() * 1e6), [{ email, primary: true, verified: true }], address('public'))
     const result = await signInWithGitHub()
     expect(result).toMatchObject({ status: 302, location: `${ORIGIN}/`, session: true })
-    expect(await userByEmail(email)).toMatchObject({ emailVerified: true })
+    const created = await userByEmail(email)
+    expect(created).toMatchObject({ emailVerified: true })
+    expect(await db.select().from(member).where(and(eq(member.userId, created!.id), eq(member.organizationId, ws.id)))).toHaveLength(1)
   })
 
   test('an unverified primary address signs nobody in and creates nobody, whatever other addresses say', async () => {
@@ -143,16 +159,18 @@ describe('GitHub sign-in', () => {
     expect(await githubAccountOf(victim.userId)).toBeUndefined()
   })
 
-  test('closed sign-up: a new GitHub user is refused; an existing account still signs in', async () => {
+  test('no open sign-up: a new GitHub user without an invitation is refused; an existing account still signs in', async () => {
     const existing = await signUp(address('gh-closed-existing'))
     const [row] = await db.update(user).set({ emailVerified: true }).where(eq(user.id, existing.userId)).returning()
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
     const email = address('gh-closed')
     fakeGitHub(5000 + Math.floor(Math.random() * 1e6), [{ email, primary: true, verified: true }])
     const refused = await signInWithGitHub()
     expect(refused.session).toBe(false)
     // Back to the sign-in page with a reason, not a bare 403 page.
-    expect(refused.location).toBe(`${ORIGIN}/?error=SIGNUP_CLOSED&error_description=Sign-up+is+closed+on+this+server.`)
+    const back = new URL(refused.location)
+    expect(back.origin + back.pathname).toBe(`${ORIGIN}/`)
+    expect(back.searchParams.get('error')).toBe('SIGNUP_CLOSED')
+    expect(back.searchParams.get('error_description')).toBe(NO_ACCOUNT)
     expect(await userByEmail(email)).toBeUndefined()
 
     fakeGitHub(6000 + Math.floor(Math.random() * 1e6), [{ email: row!.email, primary: true, verified: true }])

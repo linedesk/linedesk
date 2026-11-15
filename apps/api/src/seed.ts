@@ -3,6 +3,7 @@
 // `pnpm db:seed -- --reset` replaces an existing demo's calls and contacts with these (drops old test calls).
 // `pnpm db:seed -- --user <email> [--business <name>] [--reset]` fills that account's own workspace instead (seed-workspace.ts).
 import {
+  account,
   appointment_types,
   assistants,
   availability_exceptions,
@@ -17,6 +18,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { DEFAULT_AI_DISCLOSURE, recordingKey, withoutDisclosure } from '@linedesk/actions'
+import { hashPassword } from 'better-auth/crypto'
 import { parseArgs } from 'node:util'
 import { asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
@@ -151,14 +153,19 @@ async function seed() {
     return
   }
 
-  const signUp = await auth.api.signUpEmail({
-    body: { name: 'Mike Brennan', email: DEMO.email, password: DEMO.password },
-    returnHeaders: true,
+  // There is no open sign-up (signup-gate.ts): the demo account is written the way the first-run setup writes one
+  // (setup.ts), then signed in. Verified, so an email code or SSO joins this account instead of resetting its
+  // password; and the dev install's instance admin: the first user is no longer made one automatically.
+  const demoUserId = crypto.randomUUID().replaceAll('-', '')
+  const hashed = await hashPassword(DEMO.password)
+  await db.transaction(async tx => {
+    await tx.insert(user).values({ id: demoUserId, name: 'Mike Brennan', email: DEMO.email, emailVerified: true, instanceAdmin: true })
+    await tx
+      .insert(account)
+      .values({ id: crypto.randomUUID().replaceAll('-', ''), accountId: demoUserId, providerId: 'credential', userId: demoUserId, password: hashed })
   })
-  // Verified, so an email sign-in link or SSO joins this account instead of resetting its password.
-  // And the dev install's instance admin: the first user is no longer made one automatically.
-  await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.email, DEMO.email))
-  const cookie = signUp.headers
+  const signedIn = await auth.api.signInEmail({ body: { email: DEMO.email, password: DEMO.password }, returnHeaders: true })
+  const cookie = signedIn.headers
     .getSetCookie()
     .map(c => c.split(';')[0])
     .join('; ')

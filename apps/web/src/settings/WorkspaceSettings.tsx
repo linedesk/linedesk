@@ -57,7 +57,7 @@ export function WorkspaceSettings({ canEdit, phoneSetup, isInstanceAdmin, worksp
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
         {current === 'developers' && <Developers canEdit={canEdit} toast={toast} />}
-        {current === 'danger' && <DangerZone workspaceName={workspaceName} />}
+        {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>
   )

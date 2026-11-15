@@ -23,6 +23,7 @@ import {
   call_events,
   calls,
   commands,
+  member,
   organization,
   phone_numbers,
   session,
@@ -37,6 +38,7 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core'
 import { AUDITED_ACTIONS } from './audit.ts'
 import { pruneSet } from './command-log.ts'
 import { Reject } from './handler-context.ts'
+import { isInstanceAdmin } from './instance-admin.ts'
 import { queueRecordingFileDeletions } from './jobs.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { removeTransferTrunks } from './transfer-trunk.ts'
@@ -148,16 +150,41 @@ async function releaseAtCarrier(number: PhoneNumberRow, provider: TelephonyProvi
 }
 
 /**
- * The members whose only workspace this is: their accounts go with it. Never an instance admin, never `spareUserId`
- * (the admin deleting it; the owner deleting their own when they keep their account; null spares nobody else).
+ * The members whose only workspace this is: their accounts go with it. Never an instance admin (the column or
+ * INSTANCE_ADMIN_EMAILS: the same `isInstanceAdmin` as everywhere), never `spareUserId` (the admin deleting it; the
+ * owner deleting their own when they keep their account; null spares nobody else).
  */
 export async function membersOnlyHere(tx: Tx, workspaceId: string, spareUserId: string | null) {
   const result = await tx.execute(sql`
-    select u.id, u.email from member m join "user" u on u.id = m.user_id
-    where m.organization_id = ${workspaceId} and not u.instance_admin and u.id is distinct from ${spareUserId}
+    select u.id, u.email, u.instance_admin, u.email_verified from member m join "user" u on u.id = m.user_id
+    where m.organization_id = ${workspaceId} and u.id is distinct from ${spareUserId}
       and not exists (select 1 from member other where other.user_id = m.user_id and other.organization_id <> ${workspaceId})
     order by u.email`)
-  return result.rows as { id: string; email: string }[]
+  const rows = result.rows as { id: string; email: string; instance_admin: boolean; email_verified: boolean }[]
+  return rows
+    .filter(u => !isInstanceAdmin({ email: u.email, emailVerified: u.email_verified, instanceAdmin: u.instance_admin }))
+    .map(u => ({ id: u.id, email: u.email }))
+}
+
+/** Deletes these accounts: sessions, sign-in methods and passkeys go with them (on delete cascade); the audit log keeps its ids. */
+export async function deleteAccounts(tx: Tx, ids: string[]) {
+  if (!ids.length) return
+  await tx.delete(star_prompts).where(inArray(star_prompts.user_id, ids))
+  await tx.delete(user).where(inArray(user.id, ids))
+}
+
+/**
+ * After a member was removed from a workspace: their account goes too when it is in no workspace any more (no account
+ * without a workspace unless someone keeps it), except a server admin's, who runs the server without one. Whether it
+ * went.
+ */
+export async function deleteAccountWithoutWorkspace(tx: Tx, userId: string): Promise<boolean> {
+  const [account] = await tx.select().from(user).where(eq(user.id, userId)).for('update')
+  if (!account || isInstanceAdmin(account)) return false
+  const [still] = await tx.select({ id: member.id }).from(member).where(eq(member.userId, userId)).limit(1)
+  if (still) return false
+  await deleteAccounts(tx, [userId])
+  return true
 }
 
 /**
@@ -214,12 +241,10 @@ export async function deleteWorkspace(
   const users = input.keepUsers ? [] : await membersOnlyHere(tx, workspaceId, spareUserId)
   // Members and invitations go with it (on delete cascade).
   await tx.delete(organization).where(eq(organization.id, workspaceId))
-  if (users.length) {
-    const ids = users.map(u => u.id)
-    await tx.delete(star_prompts).where(inArray(star_prompts.user_id, ids))
-    // Sessions, sign-in methods and passkeys go with the account (on delete cascade); the audit log keeps its ids.
-    await tx.delete(user).where(inArray(user.id, ids))
-  }
+  await deleteAccounts(
+    tx,
+    users.map(u => u.id),
+  )
 
   // Last, so a database failure above never leaves a number released for a workspace that is still there.
   const numberResults: NumberResult[] = []

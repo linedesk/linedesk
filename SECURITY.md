@@ -25,4 +25,3 @@ Out of scope: vulnerabilities in third-party providers (carriers, speech, langua
 
 - Set every secret in `.env` yourself (`BETTER_AUTH_SECRET`, `SECRETS_KEY`, `POSTGRES_PASSWORD`, `AGENT_API_TOKEN`, the LiveKit keys); the API refuses the placeholders where it can.
 - Keep `SECRETS_KEY` safe and backed up: it encrypts provider keys stored in the admin area.
-- Close sign-up (`AUTH_SIGNUP_ENABLED=false`) once your accounts exist.

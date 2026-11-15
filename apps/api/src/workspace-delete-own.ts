@@ -5,7 +5,8 @@
 // - every other member is emailed (who deleted it and when; whether their account went with it), queued in the
 //   delete's transaction;
 // - the owner's own account follows the members' rule (no other workspace, not an instance admin: it goes, and
-//   with it every session) unless they keep it (`keepOwnAccount`).
+//   with it every session) unless they keep it (`keepOwnAccount`); `keepAccounts` keeps every account, the owner's
+//   included (they then wait for an invitation).
 import type { WorkspaceDeleteOwnData, WorkspaceDeletePreviewData } from '@linedesk/actions'
 import { calls, contacts, member, organization, phone_numbers, type Tx, user, workspace_settings } from '@linedesk/db'
 import { and, asc, count, eq, ne } from 'drizzle-orm'
@@ -90,7 +91,7 @@ export function deletedWhen(now: string, timeZone: string | null | undefined): s
 
 export async function deleteOwn(
   { tx, actor, now, telephony }: HandlerCtx,
-  input: { name: string; keepOwnAccount?: boolean },
+  input: { name: string; keepOwnAccount?: boolean; keepAccounts?: boolean },
 ) {
   const workspaceId = await ownedWorkspace(tx, actor)
   // Checked by run-action before the transaction too; here so no other path can skip it.
@@ -115,7 +116,7 @@ export async function deleteOwn(
 
   const result = await deleteWorkspace(
     tx,
-    { workspaceId, name: input.name },
+    { workspaceId, name: input.name, keepUsers: input.keepAccounts },
     now,
     input.keepOwnAccount ? actor.actorId : null,
     telephony,

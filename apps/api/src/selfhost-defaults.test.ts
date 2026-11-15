@@ -1,4 +1,4 @@
-// Safe defaults for a fresh self-hosted install: `cp .env.example .env` must not leave sign-up open or
+// Safe defaults for a fresh self-hosted install: `cp .env.example .env` must not set the removed sign-up switch or
 // sign-in codes in the logs, and scripts/tunnel.sh must not publish LiveKit with the development secret.
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -11,8 +11,8 @@ const envExample = readFileSync(new URL('../../../.env.example', import.meta.url
 const activeValue = (name: string) => envExample.match(new RegExp(`^${name}=(.*)$`, 'm'))?.[1]
 
 describe('.env.example', () => {
-  test('sign-up is closed', () => {
-    expect(activeValue('AUTH_SIGNUP_ENABLED')).toBe('false')
+  test('there is no sign-up switch (no open sign-up at all)', () => {
+    expect(activeValue('AUTH_SIGNUP_ENABLED')).toBeUndefined()
   })
 
   test('emails are not printed to the log', () => {

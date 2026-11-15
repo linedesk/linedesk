@@ -64,6 +64,7 @@ import {
   tooManyRefusedSetupKeys,
   webAddress,
 } from './agent-setup.ts'
+import { mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { auth, WORKSPACE_LIMIT, workspaceLimitText } from './auth.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -798,6 +799,8 @@ function registerTools(server: McpServer, actor: Actor) {
     async ({ name, timeZone }) =>
       guard('workspace_create', async () => {
         if (/[\r\n]/.test(name)) return refusal('the name is one line')
+        // Only server admins create workspaces (workspace-creation.ts): a setup link is a server admin's.
+        if (!mayCreateWorkspace(actor)) return refusal(WORKSPACE_CREATION_CLOSED)
         const slug = `${name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')

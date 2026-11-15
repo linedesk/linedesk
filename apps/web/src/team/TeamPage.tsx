@@ -9,16 +9,19 @@ import {
   type TeamInvitation,
   type TeamMember,
   type TeamRole,
-  teamRoles,
 } from '@linedesk/actions'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
+import { ONLY_ADMINS } from '../settings/readOnly.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { signOutAndForget } from '../localData.ts'
 import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
-import { Select } from '../ui/controls.tsx'
+import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
+import { Checkbox, Select } from '../ui/controls.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
+import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { sectionParts } from '../ui/SettingsLayout.tsx'
@@ -32,14 +35,15 @@ import {
   isEmail,
   isMe,
   isOnTeam,
-  isOwner,
   joinedLabel,
   PROFILE_HASH,
+  removeMemberConfirmation,
   roleLabel,
+  rolesFor,
 } from './team-model.ts'
 
 const roleHelp: Record<TeamRole, string> = {
-  owner: 'Also manages owners.',
+  owner: 'Hand the workspace over: you become an admin.',
   admin: 'Settings and people.',
   member: 'Calls and contacts.',
 }
@@ -74,7 +78,7 @@ function RoleSelect<R extends TeamRole>({
   )
 }
 
-/** Making someone an owner asks once: they can then change or remove every other owner, you included. */
+/** Handing the workspace over asks once: there is one owner, and it is not you afterwards. */
 function OwnerConfirm({
   name,
   onConfirm,
@@ -87,8 +91,8 @@ function OwnerConfirm({
   const [busy, setBusy] = useState(false)
   return (
     <Dialog
-      title={`Make ${name} an owner?`}
-      description="They can do everything you can, including changing or removing other owners."
+      title={`Make ${name} the owner?`}
+      description="A workspace has one owner, who can also delete it or hand it over. You become an admin and keep every setting and the team."
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={async e => {
@@ -112,14 +116,12 @@ function OwnerConfirm({
 }
 
 function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: Run; onEdit: () => void }) {
-  const [confirming, setConfirming] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [owning, setOwning] = useState(false)
   const name = m.name || m.email
-  const setRole = (role: TeamRole) =>
-    run(
-      () => teamApi.setRole(m.memberId, role),
-      `${m.userId === data.me ? 'You are' : `${name} is`} now ${roleLabel(role).toLowerCase()}.`,
-    )
+  const setRole = (role: AssignableRole) =>
+    run(() => teamApi.setRole(m.memberId, role), `${name} is now ${roleLabel(role).toLowerCase()}.`)
+  const transfer = () => run(() => teamApi.transferOwnership(m.memberId), `${name} is now the owner. You are an admin.`)
   return (
     <ListRow
       lead={<Avatar name={name} size={24} src={m.avatarUrl} />}
@@ -153,7 +155,7 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
             <RoleSelect
               value={m.role}
               label={`Role for ${name}`}
-              roles={isOwner(data) ? teamRoles : assignableRoles}
+              roles={rolesFor(data)}
               onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
             />
           ) : (
@@ -162,23 +164,31 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
           {canRemove(data, m) ? (
             <Button
               size="sm"
-              variant={confirming ? 'danger' : 'ghost'}
-              icon={confirming ? undefined : 'trash'}
+              variant="ghost"
+              icon="trash"
               aria-label={`Remove ${name}`}
-              title={confirming ? 'They lose access at once' : `Remove ${name}`}
-              onBlur={() => setConfirming(false)}
-              onClick={() =>
-                confirming ? void run(() => teamApi.remove(m.memberId), `${name} removed.`) : setConfirming(true)
-              }
-            >
-              {confirming ? 'Remove' : null}
-            </Button>
+              title={`Remove ${name}`}
+              onClick={() => setRemoving(true)}
+            />
           ) : (
             data.canManage && <span className="st-rm-space" />
           )}
         </>
       }
-      below={owning && <OwnerConfirm name={name} onConfirm={() => setRole('owner')} onClose={() => setOwning(false)} />}
+      below={
+        <>
+          {owning && <OwnerConfirm name={name} onConfirm={transfer} onClose={() => setOwning(false)} />}
+          {removing && (
+            <DangerConfirmDialog
+              confirm={removeMemberConfirmation(name)}
+              run={async keepAccount => {
+                if (await run(() => teamApi.remove(m.memberId, keepAccount), `${name} removed.`)) setRemoving(false)
+              }}
+              onClose={() => setRemoving(false)}
+            />
+          )}
+        </>
+      }
     />
   )
 }
@@ -295,23 +305,34 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
   )
 }
 
-/** Leave this workspace: confirmed in a dialog; then into another workspace, or to the start without one. */
-export function LeaveWorkspace({ data }: { data: TeamData }) {
+/**
+ * Leave this workspace: confirmed in a dialog; then into another workspace, or to the start without one. When it is
+ * the person's only workspace the dialog asks "Also delete my account", ticked by default (never for a server admin,
+ * whose account stays; the server checks both again).
+ */
+export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isInstanceAdmin: boolean }) {
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteAccount, setDeleteAccount] = useState(true)
+  const workspaces = useWorkspaces()
   const me = data.members.find(m => m.userId === data.me)
   if (!me) return null
-  const owners = data.members.filter(m => m.role === 'owner').length
-  const lastOwner = me.role === 'owner' && owners < 2
+  // The one owner hands the workspace over before leaving it (or deletes it).
+  const lastOwner = me.role === 'owner'
+  const lastWorkspace = !isInstanceAdmin && workspaces !== null && workspaces.length <= 1
   async function leave(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      const { nextWorkspaceId } = await teamApi.leave()
+      const { nextWorkspaceId, accountDeleted } = await teamApi.leave(lastWorkspace && deleteAccount)
       markLeft()
-      if (nextWorkspaceId) await switchToWorkspace(nextWorkspaceId)
+      if (accountDeleted) {
+        // The account and its sessions are gone: forget what this browser kept, then the sign-in page.
+        await signOutAndForget().catch(() => {})
+        window.location.replace('/')
+      } else if (nextWorkspaceId) await switchToWorkspace(nextWorkspaceId)
       else window.location.replace('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -324,12 +345,12 @@ export function LeaveWorkspace({ data }: { data: TeamData }) {
         <Button
           variant="danger-outline"
           disabled={lastOwner}
-          title={lastOwner ? 'You are the last owner: make someone else owner first' : 'You lose access at once'}
+          title={lastOwner ? 'You are the owner: make someone else the owner first' : 'You lose access at once'}
           onClick={() => setAsking(true)}
         >
           Leave workspace…
         </Button>
-        {lastOwner && <span className="help">Make someone else owner first.</span>}
+        {lastOwner && <span className="help">You are the owner. Make someone else the owner first (Team).</span>}
       </div>
       {asking && (
         <Dialog
@@ -349,6 +370,11 @@ export function LeaveWorkspace({ data }: { data: TeamData }) {
             </>
           }
         >
+          {lastWorkspace && (
+            <Checkbox checked={deleteAccount} onChange={setDeleteAccount} disabled={busy}>
+              Also delete my account (this is your only workspace)
+            </Checkbox>
+          )}
           {error && <FormMessage>{error}</FormMessage>}
         </Dialog>
       )}
@@ -382,8 +408,8 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
       <Section
         id="team-members"
         title="Members"
-        description={data && !data.canManage ? 'Only owners and admins can invite or change roles.' : undefined}
-        help="Owners and admins can change settings, invite or remove people, and edit a teammate's name, picture and notifications (an owner's only by an owner). Members work with calls, contacts and appointments but can't change settings."
+        description={data && !data.canManage ? ONLY_ADMINS : undefined}
+        help="The owner can do everything an admin can, and also delete the workspace or hand it over (one owner per workspace). Admins change settings, invite or remove people, and edit a teammate's name, picture and notifications (not the owner's). Members work with calls, contacts and reminders but can't change settings."
       >
         <Loading
           what="The team"

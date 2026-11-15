@@ -6,7 +6,7 @@ import { createAuthClient } from 'better-auth/react'
 import type { FirstUse, OnboardingStep, StarPrompt } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
-import { authErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, NO_ACCOUNT } from './sign-in-code.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
 import { announceSwitch } from './tabWorkspace.ts'
 import { brandName } from './brand.ts'
@@ -209,7 +209,7 @@ const redirectErrors: Record<string, (provider: string | null) => string> = {
   access_denied: () => 'Sign-in was cancelled. Choose a way to sign in below.',
   account_not_linked: unprovenEmail,
   email_not_found: unprovenEmail,
-  SIGNUP_CLOSED: () => 'There is no account for this address. Ask your administrator for one.',
+  SIGNUP_CLOSED: () => NO_ACCOUNT,
 }
 
 /** The words for a `?error=` code a provider sign-in came back with; unknown codes never show as such. */

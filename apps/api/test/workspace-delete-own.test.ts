@@ -60,7 +60,7 @@ describe('who may delete', () => {
       expect(await act(who, 'workspace.deletePreview', {})).toMatchObject({ status: 403 })
     }
     expect(await act(admin, 'workspace.deleteOwn', { name: 'Only The Owner' })).toMatchObject({
-      body: { error: 'Only an owner can delete this workspace.', code: 'forbidden' },
+      body: { error: 'missing permission workspace:own' },
     })
     expect(await act(agent(ws.id), 'workspace.deleteOwn', { name: 'Only The Owner' })).toMatchObject({ status: 403 })
     expect(await act(ws.owner, 'workspace.deleteOwn', { name: 'Not The Name' })).toMatchObject({
@@ -244,6 +244,18 @@ describe('deleting', () => {
     expect(await exists(ws.owner.userId)).toBe(true)
     expect((await db.select().from(session).where(eq(session.userId, ws.owner.userId))).length).toBeGreaterThan(0)
     expect(await db.select().from(member).where(eq(member.userId, ws.owner.userId))).toEqual([])
+  })
+
+  test('keepAccounts keeps every account, members and the owner, each without a workspace', async () => {
+    const ws = await createWorkspace('Keep Them All')
+    const onlyHere = await addMember(ws.id, 'member')
+    const res = await act(ws.owner, 'workspace.deleteOwn', { name: 'Keep Them All', keepAccounts: true })
+    expect(res).toMatchObject({ status: 200, body: { data: { ownAccountDeleted: false, usersDeleted: [] } } })
+    expect(await workspaceExists(ws.id)).toBe(false)
+    for (const kept of [onlyHere, ws.owner]) {
+      expect(await exists(kept.userId)).toBe(true)
+      expect(await db.select().from(member).where(eq(member.userId, kept.userId))).toEqual([])
+    }
   })
 
   test('an owner with another workspace keeps the account and continues there', async () => {

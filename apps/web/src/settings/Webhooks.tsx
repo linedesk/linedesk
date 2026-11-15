@@ -52,7 +52,7 @@ export function Webhooks({ assistantId, canEdit, toast }: Props) {
   if (!canEdit)
     return (
       <Section id="as-webhooks" title="Webhook">
-        <p className="help">Only owners and admins can manage webhooks.</p>
+        <p className="help">Only admins can manage webhooks.</p>
       </Section>
     )
   return (

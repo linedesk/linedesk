@@ -1,7 +1,7 @@
 // One-click unsubscribe from setup emails (setup-unsubscribe.ts): the signed link in each setup email and its
 // List-Unsubscribe headers, the confirm page, the POST that turns setup emails off for exactly that member, and
 // refusals for a tampered token.
-import { calls, member, member_notification_settings, setup_events } from '@linedesk/db'
+import { calls, member_notification_settings, setup_events } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -34,14 +34,8 @@ async function dueWorkspace(name: string) {
 }
 
 /** Another owner of the workspace (setup emails go to owners only). */
-async function secondOwner(ws: Workspace) {
-  const added = await addMember(ws.id, 'admin')
-  await db
-    .update(member)
-    .set({ role: 'owner' })
-    .where(and(eq(member.organizationId, ws.id), eq(member.userId, added.userId)))
-  return added
-}
+/** An admin of the workspace: setup emails go to its one owner only, so a colleague's setting must stay untouched. */
+const colleagueOf = (ws: Workspace) => addMember(ws.id, 'admin')
 
 const setting = async (ws: Workspace, userId: string) =>
   (
@@ -78,8 +72,9 @@ describe('one-click unsubscribe from setup emails', () => {
 
   test('a valid token: the link shows a confirm page and changes nothing; the POST turns setup emails off, once', async () => {
     const ws = await dueWorkspace('Unsubscribe Valid Plumbing')
-    const colleague = await secondOwner(ws)
+    const colleague = await colleagueOf(ws)
     const token = setupUnsubscribeToken(ws.id, ws.owner.userId)
+    expect(await setupRecipients(db, ws.id)).toHaveLength(1)
 
     const page = await get(token)
     expect(page.status).toBe(200)
@@ -90,19 +85,19 @@ describe('one-click unsubscribe from setup emails', () => {
     expect(done.status).toBe(200)
     expect(await done.text()).toContain('Setup emails are off')
     expect(await setting(ws, ws.owner.userId)).toBe(false)
-    // Only that owner: the other owner still gets them.
-    expect(await setupRecipients(db, ws.id)).toHaveLength(1)
+    // Only that owner's own setting: the colleague's stays as it was.
+    expect(await setupRecipients(db, ws.id)).toHaveLength(0)
     expect(await setting(ws, colleague.userId)).toBeNull()
 
     // Idempotent: again, the same answer and the same state.
     expect((await oneClick(token)).status).toBe(200)
     expect(await setting(ws, ws.owner.userId)).toBe(false)
-    expect(await setupRecipients(db, ws.id)).toHaveLength(1)
+    expect(await setupRecipients(db, ws.id)).toHaveLength(0)
   })
 
   test('a tampered token is refused and changes nothing', async () => {
     const ws = await dueWorkspace('Unsubscribe Tampered Plumbing')
-    const colleague = await secondOwner(ws)
+    const colleague = await colleagueOf(ws)
     const token = setupUnsubscribeToken(ws.id, ws.owner.userId)
     const [w, , mac] = token.split('.') as [string, string, string]
     const flipped = `${token.slice(0, -1)}${token.endsWith('0') ? '1' : '0'}`
@@ -113,7 +108,7 @@ describe('one-click unsubscribe from setup emails', () => {
     }
     expect(await setting(ws, ws.owner.userId)).toBeNull()
     expect(await setting(ws, colleague.userId)).toBeNull()
-    expect(await setupRecipients(db, ws.id)).toHaveLength(2)
+    expect(await setupRecipients(db, ws.id)).toHaveLength(1)
   })
 
   test("another user's token turns off only their own setup emails, never in a workspace they are not in", async () => {

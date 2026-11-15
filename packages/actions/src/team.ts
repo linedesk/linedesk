@@ -5,10 +5,13 @@ import { LOGO_MAX_BYTES } from './branding.ts'
 import { defineAction } from './define.ts'
 import type { ChangedBy, NotificationSettingsData } from './notifications.ts'
 
-/** Roles an invitation can give. Owner is not one: an owner makes someone an owner once they are on the team. */
+/**
+ * Roles an invitation or a role change (team.setRole) can give. Owner is not one: a workspace has exactly one owner,
+ * who hands it over with team.transferOwnership.
+ */
 export const assignableRoles = ['admin', 'member'] as const
 export type AssignableRole = (typeof assignableRoles)[number]
-/** Roles a role change can give. Only an owner makes someone an owner (a second owner, or to hand the workspace over). */
+/** Every workspace role. Owner: exactly one per workspace (a unique index on member), admins and members: any number. */
 export const teamRoles = ['owner', 'admin', 'member'] as const
 export type TeamRole = (typeof teamRoles)[number]
 
@@ -60,28 +63,43 @@ export const teamRevokeInvite = defineAction({
 
 export const teamSetRole = defineAction({
   name: 'team.setRole',
-  description: "Change a member's role to owner, admin or member. Only an owner can make someone an owner or change an owner's role, and the last owner keeps it.",
-  input: z.object({ memberId: z.string().min(1), role: z.enum(teamRoles) }),
+  description:
+    "Change a member's role to admin or member. Never the owner's: the owner hands the workspace over with team.transferOwnership.",
+  input: z.object({ memberId: z.string().min(1), role: z.enum(assignableRoles) }),
   permission: 'team:write',
 })
 
 /**
+ * The owner hands the workspace over: the member becomes its owner and the owner an admin, in one transaction. Only
+ * the owner (workspace:own), never while impersonating, and only to a member whose address is confirmed.
+ */
+export const teamTransferOwnership = defineAction({
+  name: 'team.transferOwnership',
+  description:
+    'Make another member the owner of this workspace. You become an admin. Only the owner can do this; the new owner must have confirmed their email address.',
+  input: z.object({ memberId: z.string().min(1) }),
+  permission: 'workspace:own',
+})
+
+/**
  * Leave the workspace you are signed in to. Every member may (also of a disabled workspace), so it
- * needs no more than reading the team; the last owner cannot leave.
+ * needs no more than reading the team; the owner cannot leave (they transfer ownership first).
  */
 export const teamLeave = defineAction({
   name: 'team.leave',
-  description: 'Leave the current workspace; you lose access at once. The last owner cannot leave.',
-  input: z.object({}),
+  description:
+    'Leave the current workspace; you lose access at once. The owner cannot leave: they hand the workspace over first. When it is your only workspace, deleteAccount must say whether your account goes too (true deletes it, never a server admin\'s; false keeps it); without it the leave is refused.',
+  input: z.object({ deleteAccount: z.boolean().optional() }),
   permission: 'team:read',
 })
-/** What `team.leave` returns: the workspace to continue in, or null when none is left. */
-export type TeamLeaveData = { nextWorkspaceId: string | null }
+/** What `team.leave` returns: the workspace to continue in, or null when none is left; whether the account went too. */
+export type TeamLeaveData = { nextWorkspaceId: string | null; accountDeleted: boolean }
 
 export const teamRemoveMember = defineAction({
   name: 'team.removeMember',
-  description: 'Remove a member from the workspace; they lose access at once. Only an owner can remove an owner, and never the last one.',
-  input: z.object({ memberId: z.string().min(1) }),
+  description:
+    'Remove a member from the workspace; they lose access at once. Never the owner. When it was their only workspace their account is deleted too (never a server admin\'s), unless keepAccount is true: then they wait for an invitation.',
+  input: z.object({ memberId: z.string().min(1), keepAccount: z.boolean().optional() }),
   permission: 'team:write',
 })
 

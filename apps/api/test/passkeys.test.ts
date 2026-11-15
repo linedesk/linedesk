@@ -60,7 +60,6 @@ async function confirmWithPasskey(who: User, at = new Date()) {
 const passkeyExists = async (id: string) => (await db.select().from(passkey).where(eq(passkey.id, id))).length === 1
 
 afterEach(() => {
-  process.env.AUTH_SIGNUP_ENABLED = 'true'
   vi.restoreAllMocks()
 })
 
@@ -126,8 +125,7 @@ describe('an address nobody has confirmed yet', () => {
 })
 
 describe('signing in with a passkey', () => {
-  test('anyone may ask for a challenge; an unknown credential signs nobody in and creates nobody, also with sign-up closed', async () => {
-    process.env.AUTH_SIGNUP_ENABLED = 'false'
+  test('anyone may ask for a challenge; an unknown credential signs nobody in and creates nobody', async () => {
     expect((await authGet(anonymous, '/passkey/generate-authenticate-options')).status).toBe(200)
     const res = await appRequest('/api/auth/passkey/verify-authentication', {
       method: 'POST',
@@ -326,7 +324,7 @@ describe('listing and removing passkeys', () => {
     // The account is told, and the audit log has it; the refused attempts above are not there.
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ subject: 'A passkey was removed from your Linedesk account' }))
     const events = await db.select().from(auth_events).where(eq(auth_events.user_id, fresh.userId))
-    expect(events.map(e => e.event)).toEqual(expect.arrayContaining(['sign_up', 'passkey_removed']))
+    expect(events.map(e => e.event)).toContain('passkey_removed')
     expect((await db.select().from(auth_events).where(eq(auth_events.user_id, owner.userId))).some(e => e.event === 'passkey_removed')).toBe(false)
   })
 })

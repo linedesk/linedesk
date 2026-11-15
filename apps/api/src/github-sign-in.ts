@@ -2,7 +2,7 @@
 // email is the one the user chose to show publicly, and Better Auth would fall back to any address
 // on the account. We only ever use the account's primary address, and only once GitHub has verified
 // it: that address joins an existing Linedesk account (docs/architecture.md, account linking) and
-// counts as proven for an invitation while sign-up is closed. Without one the sign-in is refused.
+// counts as proven for an invitation (there is no open sign-up). Without one the sign-in is refused.
 
 import type { GithubProfile } from 'better-auth/social-providers'
 

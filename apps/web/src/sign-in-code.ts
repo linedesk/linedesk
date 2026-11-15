@@ -1,6 +1,9 @@
 // The sign-in code: what may be typed or pasted, and what the server's answers mean.
 import { brandName } from './brand.ts'
 
+/** No open sign-up: what someone without an account and without an invitation is told (apps/api/src/signup-gate.ts). */
+export const NO_ACCOUNT = 'No account for this email. Ask your workspace admin for an invitation.'
+
 export const CODE_LENGTH = 6
 /** Seconds before "Resend code" is offered. */
 export const RESEND_AFTER_S = 30
@@ -23,7 +26,7 @@ const authErrors: Record<string, string> = {
     return `This address isn't set up for sign-in. Open ${brandName()} from the link in your invitation, or ask your administrator which address to use.`
   },
   MISSING_OR_NULL_ORIGIN: "We couldn't check where this sign-in came from. Reload the page and try again.",
-  SIGNUP_CLOSED: 'There is no account for this address. Ask your administrator for an invitation.',
+  SIGNUP_CLOSED: NO_ACCOUNT,
   SESSION_EXPIRED: 'Your session has ended. Sign in again to continue.',
   INVALID_TOKEN: 'This link is no longer valid. Sign in with an email code instead.',
   TOKEN_EXPIRED: 'This link has expired. Sign in with an email code instead.',
@@ -31,7 +34,7 @@ const authErrors: Record<string, string> = {
     "This invitation couldn't be opened. It may have expired or been withdrawn: ask for a new one.",
   ACCOUNT_DISABLED: 'This account is disabled. Ask your administrator to turn it on again.',
   ADDRESS_RESERVED:
-    'This address is reserved for an administrator. Sign up with an email code or a sign-in provider instead.',
+    'This address is reserved for an administrator. Sign in with an email code or a sign-in provider instead.',
   NOT_WHILE_IMPERSONATING: 'Not possible while signed in as another user. Return to your own account first.',
   ALREADY_MEMBER: 'You are already a member of this workspace. Open it from the workspace menu.',
   INVALID_OTP: 'That code is not right. Check the email and try again.',
@@ -81,6 +84,7 @@ const knownMessages: Record<string, string> = {
   'invalid origin': 'INVALID_ORIGIN',
   'missing or null origin': 'MISSING_OR_NULL_ORIGIN',
   'sign-up is closed on this server': 'SIGNUP_CLOSED',
+  'no account for this email. ask your workspace admin for an invitation': 'SIGNUP_CLOSED',
 }
 const networkMessages = [
   'failed to fetch',

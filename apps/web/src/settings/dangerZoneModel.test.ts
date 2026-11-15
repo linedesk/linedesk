@@ -49,11 +49,13 @@ test('one of each, and nothing to say about members or numbers when there are no
   ])
 })
 
-test('the name is typed to confirm; "Keep my account" only when the own account would go', () => {
+test('the name is typed to confirm; a keep box (off: the accounts are deleted) only when an account would go', () => {
   const confirm = deleteOwnConfirmation(preview, 'Linedesk')
-  expect(confirm).toMatchObject({ typed: 'Zz Delete Test', action: 'Delete workspace', option: 'Keep my account' })
+  expect(confirm).toMatchObject({ typed: 'Zz Delete Test', action: 'Delete workspace', option: 'Keep these accounts, yours included' })
   expect(confirm.after).toBe('This cannot be undone.')
-  expect(deleteOwnConfirmation({ ...preview, ownAccountDeleted: false }, 'Linedesk').option).toBeUndefined()
+  expect(deleteOwnConfirmation({ ...preview, ownAccountDeleted: false }, 'Linedesk').option).toBe('Keep their accounts')
+  expect(deleteOwnConfirmation({ ...preview, accountsDeleted: 0 }, 'Linedesk').option).toBe('Keep my account')
+  expect(deleteOwnConfirmation({ ...preview, accountsDeleted: 0, ownAccountDeleted: false }, 'Linedesk').option).toBeUndefined()
 })
 
 test('a separate danger warning for the own account, gone quiet once it is kept', () => {

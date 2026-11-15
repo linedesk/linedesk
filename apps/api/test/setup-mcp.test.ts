@@ -19,7 +19,7 @@ import {
 import { and, desc, eq } from 'drizzle-orm'
 import nodemailer from 'nodemailer'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
-import { agentSetupHandlers, hashSetupKey, setupKeyAccess } from '../src/agent-setup.ts'
+import { agentSetupHandlers, hashSetupKey, setupActorIn, setupKeyAccess } from '../src/agent-setup.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -34,6 +34,7 @@ import {
   SETUP_LINK_WORKSPACE_CAP,
   wrapUp,
 } from '../src/setup-mcp.ts'
+import { mayCreateWorkspace } from '../src/workspace-creation.ts'
 import {
   act,
   appRequest,
@@ -1030,6 +1031,45 @@ describe('every key through the agent (LIN-182)', () => {
     })
     expect(app.status).toBe(409)
     expect(app.body.error).toMatch(/link-local/)
+  })
+
+  test('workspace_create needs the passkey check to still hold, not only admin rights (#734 review, finding 8)', async () => {
+    const setupAdmin: Actor = {
+      actorId: ws.owner.userId,
+      role: 'member',
+      workspaceId: null,
+      permissions: ['instance:admin'],
+    }
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    expect(mayCreateWorkspace(setupAdmin)).toBe(false)
+    expect(mayCreateWorkspace({ ...setupAdmin, passkeyConfirmed: true })).toBe(true)
+    expect(mayCreateWorkspace({ permissions: ['team:write'], passkeyConfirmed: true })).toBe(false)
+    // A key whose check has lapsed carries no passkeyConfirmed: it cannot reach the tool at all.
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, true)
+    const { key, keyId } = await makeKey(ws.owner)
+    await db
+      .update(agent_setup_keys)
+      .set({ passkey_confirmed_until: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(agent_setup_keys.id, keyId))
+    expect((await mcp(key, 'tools/call', { name: 'workspace_create', arguments: { name: 'Lapsed Co' } })).status).toBe(
+      401,
+    )
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    expect(mayCreateWorkspace(setupAdmin)).toBe(true)
+  })
+
+  test("the setup agent never gets the owner's own rights in a workspace (#734 review, finding 9)", async () => {
+    const setupAdmin: Actor = {
+      actorId: ws.owner.userId,
+      role: 'member',
+      workspaceId: null,
+      permissions: ['instance:admin'],
+    }
+    const inside = await setupActorIn(setupAdmin, ws.id)
+    expect(inside?.role).toBe('owner')
+    expect(inside?.permissions).not.toContain('workspace:own')
+    expect(inside?.permissions).not.toContain('team:write')
   })
 
   test('a link made while ADMIN_SECOND_FACTOR=off stops working once the rule is on again', async () => {

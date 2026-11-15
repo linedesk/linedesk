@@ -171,7 +171,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
             ))}
           </List>
         ) : (
-          <ListEmpty>{canEdit ? 'No number yet.' : 'No number yet. Only owners and admins can add one.'}</ListEmpty>
+          <ListEmpty>{canEdit ? 'No number yet.' : 'No number yet. Only admins can add one.'}</ListEmpty>
         )}
       </Loading>
       {adding && (

@@ -1,6 +1,7 @@
-// Test fixtures: real users and sessions through Better Auth, workspaces through the API,
+// Test fixtures: real sessions through Better Auth (accounts written directly: there is no open sign-up), workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, user as users, webhook_endpoints } from '@linedesk/db'
+import { account as accounts, assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, user as users, webhook_endpoints } from '@linedesk/db'
+import { hashPassword } from 'better-auth/crypto'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
 import { auth } from '../src/auth.ts'
@@ -40,20 +41,30 @@ export function appRequest(path: string, init: RequestInit = {}) {
 export type Caller = { headers: Record<string, string> }
 export type User = Caller & { userId: string }
 
-/** A new account with a password; its email is not verified. */
+const PASSWORD = 'test-password-1234'
+// One hash for every test account (hashing is slow on purpose).
+let passwordHash: Promise<string> | null = null
+
+/**
+ * A new account with a password; its email is not verified. There is no open sign-up (signup-gate.ts): the account is
+ * written as a server admin's Add user would, then signed in through Better Auth like a real person.
+ */
 export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<User> {
-  const res = await appRequest('/api/auth/sign-up/email', {
+  passwordHash ??= hashPassword(PASSWORD)
+  const id = uid('u')
+  await db.insert(users).values({ id, name: 'Test User', email, emailVerified: false })
+  await db.insert(accounts).values({ id: uid('acc'), accountId: id, providerId: 'credential', userId: id, password: await passwordHash })
+  const res = await appRequest('/api/auth/sign-in/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
-    body: JSON.stringify({ name: 'Test User', email, password: 'test-password-1234' }),
+    body: JSON.stringify({ email, password: PASSWORD }),
   })
-  if (!res.ok) throw new Error(`sign-up failed: ${res.status} ${await res.text()}`)
-  const { user } = (await res.json()) as { user: { id: string } }
+  if (!res.ok) throw new Error(`sign-in failed: ${res.status} ${await res.text()}`)
   const cookie = res.headers
     .getSetCookie()
     .map(c => c.split(';')[0])
     .join('; ')
-  return { userId: user.id, headers: { cookie, origin: ORIGIN } }
+  return { userId: id, headers: { cookie, origin: ORIGIN } }
 }
 
 /** The voice agent; each from its own address, so wrong tokens in one test never throttle another (context.ts). */
@@ -83,11 +94,29 @@ export async function request(
 export const act = (who: Caller, name: string, input: unknown, key?: string) =>
   request(who, 'POST', `/v1/actions/${name}`, input, key ? { 'idempotency-key': key } : {})
 
+/**
+ * Runs `run` while `who` is a server admin, then makes them a plain user again: only server admins create workspaces
+ * (workspace-creation.ts), and most tests want an owner who is no server admin.
+ */
+export async function asServerAdmin<T>(who: User, run: () => Promise<T>): Promise<T> {
+  await db.update(users).set({ instanceAdmin: true }).where(eq(users.id, who.userId))
+  // As if they passed the admin passkey check (#728), for files that switch it on: a fixture, not what is tested.
+  const secondFactor = process.env.ADMIN_SECOND_FACTOR
+  process.env.ADMIN_SECOND_FACTOR = 'off'
+  try {
+    return await run()
+  } finally {
+    if (secondFactor === undefined) delete process.env.ADMIN_SECOND_FACTOR
+    else process.env.ADMIN_SECOND_FACTOR = secondFactor
+    await db.update(users).set({ instanceAdmin: false }).where(eq(users.id, who.userId))
+  }
+}
+
 /** A workspace with its owner, assistant, a phone number, one contact and one call. */
 export async function createWorkspace(name: string, emailVerified = true) {
   const owner = await signUp()
   if (emailVerified) await db.update(users).set({ emailVerified: true }).where(eq(users.id, owner.userId))
-  const { status, body } = await request(owner, 'POST', '/v1/workspaces', { name })
+  const { status, body } = await asServerAdmin(owner, () => request(owner, 'POST', '/v1/workspaces', { name }))
   if (status !== 200) throw new Error(`workspace not created: ${status} ${JSON.stringify(body)}`)
   const id: string = body.workspace.id
   const [assistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, id))

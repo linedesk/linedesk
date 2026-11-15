@@ -362,9 +362,10 @@ export const adminHandlers: Record<string, Handler> = {
           ? new Reject(`${email} already has an account`)
           : e
       })
-    // One email: the invitation into the workspace, or without one how to sign in.
+    // One email: the invitation into the workspace, or without one how to sign in. Made with the account, the
+    // invitation joins them at their first sign-in (memberships.ts, joinOnSignIn); no Join click.
     if (workspace) {
-      await inviteToWorkspace(tx, actor, email, workspace, role, now)
+      await inviteToWorkspace(tx, actor, email, workspace, role, now, true)
       await noticeAddedByAdmin(tx, actor, { email, name: input.name }, workspace, role, 'invited')
     } else {
       try {

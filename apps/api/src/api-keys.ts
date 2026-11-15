@@ -101,7 +101,7 @@ export async function actorForApiKey(key: string, ip: string | null): Promise<Ac
     actorId: `apikey:${row.id}`,
     role: row.role,
     workspaceId: row.workspace_id,
-    permissions: rolePermissions[row.role].filter(p => p !== 'team:write'),
+    permissions: rolePermissions[row.role].filter(p => p !== 'team:write' && p !== 'workspace:own'),
     apiKeyId: row.id,
     ...(mustConfirmEmail(found.creatorEmailVerified) ? { emailUnverified: true as const } : {}),
   }

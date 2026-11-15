@@ -3,7 +3,7 @@
 // Every change is a membership.* or invitation.* action; the server keeps a last owner.
 import { type MembershipRole, membershipRoles } from '@linedesk/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
-import { roleLabel } from '../team/team-model.ts'
+import { removeMemberConfirmation, roleLabel } from '../team/team-model.ts'
 import { Select } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Avatar, Badge, Button } from '../ui/kit.tsx'
@@ -109,14 +109,18 @@ function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowP
   )
 }
 
-function RemoveConfirm(who: string, where: string, run: () => Promise<void>): AdminAction {
+/**
+ * Removing someone: when it is their only workspace their account goes too (never a server admin's), unless the box
+ * keeps it (team-model.ts). `run` gets whether to keep it.
+ */
+function RemoveConfirm(who: string, where: string, run: (keepAccount: boolean) => Promise<void>): AdminAction {
   return {
     id: 'remove',
     label: 'Remove…',
     icon: 'trash',
     tip: '',
-    confirm: { text: `${who} loses access to ${where} at once.`, action: 'Remove from workspace' },
-    run,
+    confirm: { ...removeMemberConfirmation(who, where), action: 'Remove from workspace' },
+    run: async keep => run(!!keep),
     done: `${who} was removed from ${where}.`,
   }
 }
@@ -206,7 +210,7 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
             role={w.role}
             removeLabel={`Remove from ${w.name}`}
             onRole={role => void change(() => runAdmin('membership.setRole', { memberId: w.member_id, role }), `${who} is now ${role} of ${w.name}.`)}
-            onRemove={() => runner.pick(RemoveConfirm(who, w.name, async () => { await runAdmin('membership.remove', { memberId: w.member_id }); await reload() }))}
+            onRemove={() => runner.pick(RemoveConfirm(who, w.name, async keepAccount => { await runAdmin('membership.remove', { memberId: w.member_id, keepAccount }); await reload() }))}
           />
         ))}
         {u.invitations.map(i => (
@@ -293,7 +297,6 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
     await Promise.all([load(), reload()])
   }, [load, reload])
   const change = useChange(notify, refresh)
-  const owners = data?.members.filter(m => m.role === 'owner').length ?? 0
   const candidates = users.filter(u => !data?.members.some(m => m.user_id === u.id))
   return (
     <Card
@@ -316,10 +319,10 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
               sub={m.email}
               avatarUrl={m.avatar_url}
               role={m.role}
-              locked={m.role === 'owner' && owners < 2 ? 'The last owner: make someone else owner first' : undefined}
+              locked={m.role === 'owner' ? 'The owner: make someone else the owner first' : undefined}
               removeLabel={`Remove ${name}`}
               onRole={role => void change(() => runAdmin('membership.setRole', { memberId: m.member_id, role }), `${name} is now ${role}.`)}
-              onRemove={() => runner.pick(RemoveConfirm(name, w.name, async () => { await runAdmin('membership.remove', { memberId: m.member_id }); await refresh() }))}
+              onRemove={() => runner.pick(RemoveConfirm(name, w.name, async keepAccount => { await runAdmin('membership.remove', { memberId: m.member_id, keepAccount }); await refresh() }))}
             />
           )
         })}

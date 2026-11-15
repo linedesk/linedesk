@@ -107,7 +107,7 @@ describe('who may edit whom', () => {
     expect(await nameOf(second)).toBe('Test User')
   })
 
-  test('an admin cannot edit the owner; the owner edits everyone, also another owner', async () => {
+  test('an admin cannot edit the owner; the owner edits everyone', async () => {
     const ownerId = await memberIdOf(ws.id, ws.owner)
     for (const [name, input] of [
       ['team.getMember', { memberId: ownerId }],
@@ -128,13 +128,9 @@ describe('who may edit whom', () => {
     expect((await act(ws.owner, 'team.updateMemberProfile', { memberId: adminId, name: 'Ana Admin' })).status).toBe(200)
     expect(await nameOf(admin)).toBe('Ana Admin')
 
-    // A second owner: the first owner may edit them, setup emails included (only owners get those).
-    const coOwner = await addMember(ws.id, 'admin')
-    const coOwnerId = await memberIdOf(ws.id, coOwner)
-    await db.update(member).set({ role: 'owner' }).where(eq(member.id, coOwnerId))
-    const res = await act(ws.owner, 'team.updateMemberNotifications', { memberId: coOwnerId, setupEmails: false })
-    expect(res.status).toBe(200)
-    expect((await act(admin, 'team.updateMemberNotifications', { memberId: coOwnerId, email: true })).status).toBe(403)
+    // The owner's own setup emails (only the owner gets those) are theirs: an admin cannot change them.
+    expect((await act(admin, 'team.updateMemberNotifications', { memberId: ownerId, setupEmails: false })).status).toBe(403)
+    expect((await act(admin, 'team.updateMemberNotifications', { memberId: ownerId, email: true })).status).toBe(403)
   })
 
   test('a member of another workspace is not found, also for its own owner acting in their workspace', async () => {
@@ -287,7 +283,12 @@ describe('security review of #670', () => {
     expect((await act(admin, 'team.getMember', { memberId })).body.data.profileEditable).toBe(true)
     expect((await act(admin, 'team.updateMemberProfile', { memberId, name: 'Both Places' })).status).toBe(200)
 
-    // An owner of `other` is edited there only by an owner: an admin of both is refused again.
+    // An owner of `other` is edited there only by an owner: an admin of both is refused again. One owner per
+    // workspace: `other`'s owner hands it over to them for this (and gets it back below).
+    await db
+      .update(member)
+      .set({ role: 'admin' })
+      .where(and(eq(member.userId, other.owner.userId), eq(member.organizationId, other.id)))
     await db
       .update(member)
       .set({ role: 'owner' })
@@ -297,6 +298,10 @@ describe('security review of #670', () => {
     // The owner of `other` changed it from there: the member, signed in to ws, sees "an admin of another workspace".
     const memberInOther = await memberIdOf(other.id, both)
     await db.update(member).set({ role: 'member' }).where(eq(member.id, memberInOther))
+    await db
+      .update(member)
+      .set({ role: 'owner' })
+      .where(and(eq(member.userId, other.owner.userId), eq(member.organizationId, other.id)))
     await join(other.owner, ws.id, 'admin')
     expect(
       (await act(other.owner, 'team.updateMemberProfile', { memberId: memberInOther, name: 'From Other' })).status,
@@ -341,18 +346,20 @@ describe('security review of #670', () => {
   })
 
   test("unsubscribing from setup emails by link is the member's own change", async () => {
-    const coOwner = await addMember(ws.id, 'admin')
-    const coOwnerId = await memberIdOf(ws.id, coOwner)
-    await db.update(member).set({ role: 'owner' }).where(eq(member.id, coOwnerId))
-    await act(ws.owner, 'team.updateMemberNotifications', { memberId: coOwnerId, setupEmails: true })
+    // The owner changes an admin's notifications, then hands the workspace to them: the new owner unsubscribes.
+    const shop = await createWorkspace('Unsubscribe Hand Over Co')
+    const coOwner = await addMember(shop.id, 'admin')
+    const coOwnerId = await memberIdOf(shop.id, coOwner)
+    expect((await act(shop.owner, 'team.updateMemberNotifications', { memberId: coOwnerId, email: false })).status).toBe(200)
+    expect((await act(shop.owner, 'team.transferOwnership', { memberId: coOwnerId })).status).toBe(200)
     expect((await act(coOwner, 'notifications.get', {})).body.data.changedBy).toMatchObject({ name: 'Test User' })
-    expect(await unsubscribeFromSetupEmails(ws.id, coOwner.userId)).toBe(true)
+    expect(await unsubscribeFromSetupEmails(shop.id, coOwner.userId)).toBe(true)
     const [row] = await db
       .select()
       .from(member_notification_settings)
       .where(
         and(
-          eq(member_notification_settings.workspace_id, ws.id),
+          eq(member_notification_settings.workspace_id, shop.id),
           eq(member_notification_settings.user_id, coOwner.userId),
         ),
       )

@@ -912,7 +912,7 @@ const adminAction = <S extends z.ZodType>(name: string, description: string, inp
 export const userInvite = defineAction({
   name: 'user.invite',
   description:
-    'Add someone to a workspace with a role (member unless given). A new address gets an account and an email to sign in and join; an existing account with a confirmed address joins at once. Without a workspace only a new instance admin (admin: true). Works while sign-up is closed.',
+    'Add someone to a workspace with a role (member unless given). A new address gets an account and an email to sign in and join; an existing account with a confirmed address joins at once. Without a workspace only a new instance admin (admin: true). There is no open sign-up: this is how a server admin adds people.',
   input: z.object({
     email: z.email().max(254),
     name: z.string().trim().min(1).max(80),

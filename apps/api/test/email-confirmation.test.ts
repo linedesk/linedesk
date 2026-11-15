@@ -192,10 +192,12 @@ test('code sign-in removes legacy access only while the address is unconfirmed',
 })
 
 test("an unconfirmed owner added to someone else's workspace: their first confirmation leaves its call routing alone", async () => {
-  // Defense in depth: membership.add invites unconfirmed accounts and setRole refuses them owner, but an older add
-  // could have made one owner. Only the workspaces the account created (it was their first member) are reset.
+  // Defense in depth: membership.add invites unconfirmed accounts and a transfer refuses them owner, but an older add
+  // could have made one owner. Only the workspaces the account created (it was their first member) are reset. One
+  // owner per workspace: the creator is an admin by then.
   const ws = await createWorkspace('Owner Added Later Plumbing')
   const added = await signUp()
+  await db.update(member).set({ role: 'admin' }).where(eq(member.organizationId, ws.id))
   await db.insert(member).values({
     id: `m_${crypto.randomUUID().slice(0, 12)}`,
     organizationId: ws.id,

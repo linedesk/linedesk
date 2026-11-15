@@ -15,6 +15,7 @@ import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
@@ -38,12 +39,13 @@ function workspaceOf(actor: Actor) {
 /** A pending invitation to `email` (lower case), open for INVITATION_DAYS. Not sent: see sendInvitation. */
 export async function insertInvitation(
   tx: Tx,
-  invite: { organizationId: string; email: string; role: string; inviterId: string },
+  invite: { organizationId: string; email: string; role: string; inviterId: string; joinOnSignIn?: boolean },
   now: string,
 ) {
   const [row] = await tx.insert(invitation).values({
     id: newInvitationId(), organizationId: invite.organizationId, email: invite.email, role: invite.role, status: 'pending',
     expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS), createdAt: new Date(now), inviterId: invite.inviterId,
+    joinOnSignIn: invite.joinOnSignIn ?? false,
   }).returning()
   return row!
 }
@@ -100,25 +102,38 @@ async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
   return row
 }
 
-/**
- * Changing or removing an owner: only an owner may, and another owner must remain. Locks the
- * owner rows and reads the acting member's role from them, inside the transaction: two owners
- * who demote each other at the same moment cannot both succeed, and an owner demoted a moment
- * ago no longer counts as one.
- */
-async function guardOwner(tx: Tx, actor: Actor, target: { role: string; organizationId: string; id: string }) {
-  if (target.role !== 'owner') return
-  const owners = await tx.select({ id: member.id, userId: member.userId }).from(member)
-    .where(and(eq(member.organizationId, target.organizationId), eq(member.role, 'owner'))).for('update')
-  if (!owners.some(o => o.userId === actor.actorId)) throw new Forbidden('only an owner can change or remove an owner')
-  if (!owners.some(o => o.id !== target.id)) throw new Reject('the workspace needs an owner: this is the last one')
+/** team.leave from the last workspace without deleteAccount: the request must say whether the account goes too. */
+export const LEAVE_SAY_ACCOUNT =
+  'this is your only workspace: say whether to delete your account too (deleteAccount true or false). In the app, reload the page and leave again'
+
+/** A workspace has exactly one owner (docs/architecture.md, "Workspace rights"): their role only changes by a transfer. */
+export const OWNER_STAYS =
+  "the owner's role only changes when they hand the workspace over: they make someone else the owner (Workspace settings › Team)"
+
+/** The owner cannot be changed or removed by team.setRole and team.removeMember, not even by themselves. */
+function guardOwner(target: { role: string }) {
+  if (target.role === 'owner') throw new Forbidden(OWNER_STAYS)
 }
 
-/** Only an owner makes someone an owner. Read from the locked owner rows, not from the session's role. */
-async function requireOwner(tx: Tx, actor: Actor, workspaceId: string) {
-  const owners = await tx.select({ userId: member.userId }).from(member)
+/**
+ * The workspace's owner row, locked: two transfers at the same moment cannot both succeed, and an owner who handed
+ * the workspace over a moment ago no longer counts as one (read here, never from the session's role).
+ */
+async function lockedOwner(tx: Tx, workspaceId: string) {
+  const [owner] = await tx.select().from(member)
     .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
-  if (!owners.some(o => o.userId === actor.actorId)) throw new Forbidden('only an owner can make someone an owner')
+  return owner ?? null
+}
+
+/**
+ * Makes `target` the owner of its workspace: the owner before (if any) becomes an admin first (the unique owner
+ * index allows one at a time), and a pending owner invitation is withdrawn, so it cannot add a second owner later.
+ */
+export async function makeOwner(tx: Tx, target: { id: string; organizationId: string }, previousOwnerId: string | null) {
+  if (previousOwnerId) await tx.update(member).set({ role: 'admin' }).where(eq(member.id, previousOwnerId))
+  await tx.update(member).set({ role: 'owner' }).where(eq(member.id, target.id))
+  await tx.update(invitation).set({ status: 'canceled' })
+    .where(and(eq(invitation.organizationId, target.organizationId), eq(invitation.status, 'pending'), eq(invitation.role, 'owner')))
 }
 
 async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
@@ -173,35 +188,57 @@ export const teamHandlers: Record<string, Handler> = {
     if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
     const target = await loadMember(tx, workspaceId, input.memberId)
-    await guardOwner(tx, actor, target)
-    if (input.role === 'owner') await requireOwner(tx, actor, workspaceId)
+    guardOwner(target)
+    // Never owner here (the input allows admin and member): that is team.transferOwnership.
+    if (input.role !== 'admin' && input.role !== 'member') throw new Reject('a role change gives admin or member')
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
-  'team.leave': async ({ tx, actor }) => {
+  'team.transferOwnership': async ({ tx, actor }, input: { memberId: string }) => {
     if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
-    const [me] = await tx.select().from(member).where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
+    const owner = await lockedOwner(tx, workspaceId)
+    if (!owner || owner.userId !== actor.actorId) throw new Forbidden('only the owner can hand the workspace over')
+    const target = await loadMember(tx, workspaceId, input.memberId)
+    if (target.id === owner.id) throw new Reject('you are the owner already')
+    const [account] = await tx.select({ emailVerified: user.emailVerified, disabledAt: user.disabledAt, email: user.email })
+      .from(user).where(eq(user.id, target.userId))
+    if (!account || account.disabledAt) throw new Reject('this account is disabled')
+    // The owner decides who may delete the workspace: only a proven address (as for owner and admin elsewhere).
+    if (!account.emailVerified) throw new Reject(`${account.email} must confirm their email address before they can be the owner`)
+    await makeOwner(tx, target, owner.id)
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
+  },
+
+  'team.leave': async ({ tx, actor }, input: { deleteAccount?: boolean }) => {
+    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    const workspaceId = workspaceOf(actor)
+    // Locked: a hand-over to this member at the same moment waits, and the owner check then sees the new role.
+    const [me] = await tx.select().from(member)
+      .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId))).for('update')
     if (!me) throw new Reject('member not found')
-    if (me.role === 'owner') {
-      // Locked, like guardOwner: two owners leaving at the same moment cannot both succeed.
-      const owners = await tx.select({ id: member.id }).from(member)
-        .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
-      if (!owners.some(o => o.id !== me.id)) throw new Reject('you are the last owner: make someone else owner first')
-    }
+    if (me.role === 'owner') throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
     await tx.delete(member).where(eq(member.id, me.id))
     await dropWorkspacePush(tx, workspaceId, actor.actorId)
     const [next] = await tx.select({ id: member.organizationId }).from(member)
       .where(eq(member.userId, actor.actorId)).orderBy(asc(member.createdAt)).limit(1)
-    return { rows: {}, data: { nextWorkspaceId: next?.id ?? null } }
+    // Their last workspace: the account goes only when the request says so (deleteAccount: true; never a server admin's,
+    // workspace-delete.ts). A request that does not say, e.g. a tab still on an older version, is refused: never a
+    // silent delete. Its sessions and passkeys go with the account, its API keys stop working (no membership left).
+    if (!next && input.deleteAccount === undefined) throw new Reject(LEAVE_SAY_ACCOUNT)
+    const accountDeleted = !next && input.deleteAccount === true && (await deleteAccountWithoutWorkspace(tx, actor.actorId))
+    return { rows: {}, data: { nextWorkspaceId: next?.id ?? null, accountDeleted } }
   },
 
-  'team.removeMember': async ({ tx, actor }, input: { memberId: string }) => {
+  'team.removeMember': async ({ tx, actor }, input: { memberId: string; keepAccount?: boolean }) => {
     const target = await loadMember(tx, workspaceOf(actor), input.memberId)
-    await guardOwner(tx, actor, target)
+    guardOwner(target)
+    const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     await dropWorkspacePush(tx, target.organizationId, target.userId)
-    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
+    // Their last workspace: the account goes too, unless kept (workspace-delete.ts).
+    const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
+    return { rows: {}, data: { accountDeleted, subject } }
   },
 }

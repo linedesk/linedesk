@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { authErrorMessage, authFormError, codeErrorMessage, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, codeErrorMessage, NO_ACCOUNT, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
 import { splitAuthError } from './ui/AuthError.tsx'
 
 test('the code field keeps digits only, at most six, so a pasted code works', () => {
@@ -14,7 +14,8 @@ test('server errors become short messages', () => {
   expect(codeErrorMessage({ code: 'INVALID_OTP', message: 'Invalid OTP' })).toMatch(/not right/)
   expect(codeErrorMessage({ code: 'OTP_EXPIRED' })).toMatch(/expired/)
   expect(codeErrorMessage({ code: 'TOO_MANY_ATTEMPTS' })).toMatch(/Too many tries/)
-  expect(codeErrorMessage({ message: 'Sign-up is closed on this server.' })).toMatch(/Ask your administrator for an invitation/)
+  expect(codeErrorMessage({ message: 'Sign-up is closed on this server.' })).toBe(NO_ACCOUNT)
+  expect(codeErrorMessage({ message: NO_ACCOUNT })).toBe('No account for this email. Ask your workspace admin for an invitation.')
   expect(codeErrorMessage({})).toMatch(/^That didn't work\. Try again\./)
 })
 

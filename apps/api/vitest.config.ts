@@ -73,8 +73,6 @@ export default defineConfig(async () => {
         // Email sign-in by code is on, as on a real server; tests read the codes from a spy on the sender.
         EMAIL_TO_LOG: 'true',
         SMTP_URL: '',
-        // Most tests sign up freely; the closed sign-up tests set AUTH_SIGNUP_ENABLED=false themselves.
-        AUTH_SIGNUP_ENABLED: 'true',
         // A fresh key per run: provider keys are only ever stored in the run's own database.
         SECRETS_KEY: randomBytes(32).toString('base64'),
         // No admins or provider keys from the developer's .env.

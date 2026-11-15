@@ -183,7 +183,7 @@ describe('subscriptions', () => {
     const disabled = await addMember(ws.id, 'member')
     for (const who of [leaver, removed, disabled]) await subscribe(who)
 
-    expect((await act(leaver, 'team.leave', {})).status).toBe(200)
+    expect((await act(leaver, 'team.leave', { deleteAccount: false })).status).toBe(200)
     expect(await rowsOf(leaver)).toHaveLength(0)
 
     const [target] = await db

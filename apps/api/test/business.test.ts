@@ -13,7 +13,7 @@ import {
   workspaceDailyCap,
 } from '../src/business-import.ts'
 import { db } from '../src/db.ts'
-import { act, addMember, createWorkspace, getAssistant, request, signUp, type Workspace } from './helpers.ts'
+import { act, addMember, asServerAdmin, createWorkspace, getAssistant, request, signUp, type Workspace } from './helpers.ts'
 
 let ws: Workspace
 beforeAll(async () => {
@@ -257,8 +257,10 @@ describe('workspace.rename', () => {
 
   test('creating a workspace checks the name the same way', async () => {
     const user = await signUp()
-    for (const name of ['', 'x'.repeat(81), 'Two\nlines', 'Bidi \u202Egnirts'])
-      expect((await request(user, 'POST', '/v1/workspaces', { name })).status, JSON.stringify(name)).toBe(422)
+    await asServerAdmin(user, async () => {
+      for (const name of ['', 'x'.repeat(81), 'Two\nlines', 'Bidi \u202Egnirts'])
+        expect((await request(user, 'POST', '/v1/workspaces', { name })).status, JSON.stringify(name)).toBe(422)
+    })
   })
 })
 

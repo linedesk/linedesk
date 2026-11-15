@@ -25,7 +25,7 @@ export function ExportCalls({ canEdit, toast }: Props) {
   if (!canEdit)
     return (
       <Section id="st-export" title="Export calls">
-        <p className="help">Only owners and admins can export calls.</p>
+        <p className="help">Only admins can export calls.</p>
       </Section>
     )
   return <ExportForm toast={toast} />

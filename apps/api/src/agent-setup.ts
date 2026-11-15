@@ -122,7 +122,8 @@ export async function setupActorIn(actor: Actor, workspaceId: string): Promise<A
     ...rest,
     workspaceId: ws.id,
     role: ws.role,
-    permissions: rolePermissions[ws.role].filter(p => p !== 'team:write'),
+    // Never the team or the owner's own rights (hand-over, deleting the workspace), as for API keys (api-keys.ts).
+    permissions: rolePermissions[ws.role].filter(p => p !== 'team:write' && p !== 'workspace:own'),
   }
 }
 

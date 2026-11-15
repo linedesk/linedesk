@@ -29,6 +29,7 @@ import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
 import * as workspaceIcon from './workspace-icon.ts'
 import * as userAvatar from './user-avatar.ts'
+import * as workspaceCreation from './workspace-creation.ts'
 
 export * from './define.ts'
 export * from './agent-token.ts'
@@ -73,6 +74,8 @@ export * from './voices.ts'
 export * from './webhooks.ts'
 export * from './workspace-icon.ts'
 export * from './user-avatar.ts'
+export * from './workspace-creation.ts'
+export * from './rights.ts'
 
 const all = [
   calls.callMarkDone,
@@ -206,11 +209,13 @@ const all = [
   admin.impersonationStop,
   admin.setupEmailsGet,
   admin.setupEmailsSet,
+  workspaceCreation.workspaceCreate,
   team.teamList,
   team.teamInvite,
   team.teamResendInvite,
   team.teamRevokeInvite,
   team.teamSetRole,
+  team.teamTransferOwnership,
   team.teamRemoveMember,
   team.teamLeave,
   team.teamGetMember,

@@ -232,8 +232,11 @@ export const auth = betterAuth({
   // app's sign-in screen, which explains `?error=` in plain words, never to Better Auth's error page.
   onAPIError: { errorURL: WEB_ORIGIN },
   // A reset by emailed code (password-reset.ts) ends every session of the account.
+  // No open sign-up (signup-gate.ts): the endpoint is off before it looks the address up, so it cannot tell which
+  // addresses have an account. Accounts with a password still sign in with it.
   emailAndPassword: {
     enabled: methods.password,
+    disableSignUp: true,
     revokeSessionsOnPasswordReset: true,
     onPasswordReset: afterPasswordReset,
   },

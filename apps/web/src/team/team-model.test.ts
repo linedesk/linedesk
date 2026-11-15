@@ -12,6 +12,7 @@ import {
   joinedLabel,
   PROFILE_HASH,
   roleInSentence,
+  rolesFor,
 } from './team-model.ts'
 import { parseHash } from '../shell/useRoute.ts'
 import { OWN_NOTIFICATIONS_HASH } from '../settings/Notifications.tsx'
@@ -48,12 +49,14 @@ describe('team model', () => {
     expect(ro.members.some(m => canEditRole(ro, m) || canRemove(ro, m))).toBe(false)
   })
 
-  it('with two owners, an owner changes the other owner and their own role; an admin changes neither', () => {
-    const two = (me: string): TeamData => ({ ...data(true, me), members: [member('mike', 'owner'), member('ann', 'owner'), member('sarah', 'admin')] })
-    expect(two('mike').members.map(m => canEditRole(two('mike'), m))).toEqual([true, true, true])
-    expect(two('mike').members.map(m => canRemove(two('mike'), m))).toEqual([false, true, true])
-    expect(two('sarah').members.map(m => canEditRole(two('sarah'), m))).toEqual([false, false, false])
-    expect(two('sarah').members.map(m => canRemove(two('sarah'), m))).toEqual([false, false, false])
+  it('one owner: nobody changes or removes the owner; only the owner may pick owner (a hand-over)', () => {
+    const team = (me: string): TeamData => ({ ...data(true, me), members: [member('mike', 'owner'), member('ann', 'admin'), member('sarah', 'admin')] })
+    expect(team('mike').members.map(m => canEditRole(team('mike'), m))).toEqual([false, true, true])
+    expect(team('mike').members.map(m => canRemove(team('mike'), m))).toEqual([false, true, true])
+    expect(team('sarah').members.map(m => canEditRole(team('sarah'), m))).toEqual([false, true, false])
+    expect(team('sarah').members.map(m => canRemove(team('sarah'), m))).toEqual([false, true, false])
+    expect(rolesFor(team('mike'))).toContain('owner')
+    expect(rolesFor(team('sarah'))).not.toContain('owner')
   })
 
   it('nobody removes themselves', () => {

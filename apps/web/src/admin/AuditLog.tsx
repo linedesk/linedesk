@@ -54,7 +54,9 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
     case 'email_changed':
       return e.method ? `Changed the email address to ${e.method}` : 'Changed the email address'
     case 'invitation_accepted':
-      return 'Joined a workspace'
+      return e.method === 'admin_created' ? 'Joined a workspace a server admin added them to' : 'Joined a workspace'
+    case 'sign_up_undone':
+      return 'Account removed again: its invitation was gone'
     case 'call_routing_reset':
       return 'Warm transfer and call forwarding reset when the address was proven'
     case 'user.impersonate':

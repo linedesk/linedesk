@@ -1,7 +1,8 @@
 // Signed in, but a member of no workspace: just signed up, skipped an invitation ("Not now"), or
 // removed from the last one. What they can do here:
 // - join a workspace they are invited to (a skipped invitation stays here until it is answered);
-// - name their own business, where this server lets them (sign-up open, or an instance admin);
+// - name their own business, if they are a server admin (only server admins create workspaces, also with sign-up
+//   open; self-serve creation comes with billing); everyone else waits for a server admin to add them;
 // - open Account settings, which need no workspace, or sign out ("Use a different account");
 // - an instance admin opens Server admin, which needs no workspace. Right after setting up the server they land on
 //   "Name your business" too (the first workspace), with Server admin one click away; once they have a workspace, /
@@ -9,7 +10,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
-import { auth, fetchAuthMethods, isInstanceAdmin, type Me } from './auth.ts'
+import { auth, isInstanceAdmin, type Me } from './auth.ts'
 import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { AdminStart } from './onboarding/AdminStart.tsx'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
@@ -34,9 +35,10 @@ async function loadInvitations(): Promise<PendingInvitation[]> {
   return res.error ? [] : pendingInvitations((res.data ?? []) as InvitationRow[])
 }
 
-/** May this person name their own business here? The server checks it too (POST /v1/workspaces). */
-export const mayCreateWorkspace = (signUpOpen: boolean, me: Me | null) =>
-  signUpOpen || Boolean(me && isInstanceAdmin(me))
+/**
+ * May this person name their own business here? Only a server admin (self-serve creation comes with billing, postponed). The server checks it too (POST /v1/workspaces).
+ */
+export const mayCreateWorkspace = (me: Me | null) => Boolean(me && isInstanceAdmin(me))
 
 type Props = {
   /** null when /v1/me did not answer for this person (no workspace and no instance admin). */
@@ -52,15 +54,10 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const admin = Boolean(me && isInstanceAdmin(me))
   const hash = useHash()
   const [invitations, setInvitations] = useState<PendingInvitation[] | null>(null)
-  const [signUpOpen, setSignUpOpen] = useState<boolean | null>(null)
   // A new install: its first admin sets it up with an AI agent first, unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
   useEffect(() => {
     void loadInvitations().then(setInvitations)
-    fetchAuthMethods({ attempts: 3 }).then(
-      m => setSignUpOpen(m.signUp !== false),
-      () => setSignUpOpen(false),
-    )
   }, [])
   const leave = () => {
     window.location.hash = '#start'
@@ -115,7 +112,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       />
     )
   }
-  if (invitations === null || signUpOpen === null) return <AuthPage>{null}</AuthPage>
+  if (invitations === null) return <AuthPage>{null}</AuthPage>
 
   const extras = (
     <>
@@ -155,7 +152,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
         {extras}
       </AdminStart>
     )
-  if (mayCreateWorkspace(signUpOpen, me))
+  if (mayCreateWorkspace(me))
     return (
       <CreateWorkspace onDone={onDone} lostWorkspace={lostWorkspace}>
         {extras}
@@ -216,7 +213,7 @@ function InvitationList({ invitations, onOpen }: { invitations: PendingInvitatio
   )
 }
 
-/** Sign-up is closed and this person may not create a workspace: they join by invitation. */
+/** This person may not create a workspace (only server admins do): they wait for a server admin to add them. */
 function NoWorkspaceYet({
   hasInvitations,
   lostWorkspace,
@@ -238,12 +235,12 @@ function NoWorkspaceYet({
               : leftOnPurpose(lostWorkspace)
                 ? `You left ${lostWorkspace}`
                 : `You no longer have access to ${lostWorkspace}`
-            : 'You are not in a workspace yet'}
+            : 'Waiting for an invitation'}
         </h1>
         <p>
           {hasInvitations
-            ? 'Join a workspace you are invited to.'
-            : 'On this server, workspaces are set up by an administrator. Ask yours to invite you.'}
+            ? 'Join a workspace you are invited to, or ask your server admin to add you to another.'
+            : 'Ask your server admin to add you.'}
         </p>
         {children}
         <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>

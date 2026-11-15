@@ -214,7 +214,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     audio,
     /** Why Start is off, for its tooltip; null when it can start. */
     blockedReason: !canStart
-      ? 'Only owners and admins can start a test call'
+      ? 'Only admins can start a test call'
       : voiceDown
         ? `${name} can't take calls yet: the voice service isn't set up. ${operator ? 'Set it up under Server admin › Providers.' : 'Ask whoever runs this server.'}`
         : null,

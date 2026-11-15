@@ -3,7 +3,7 @@
 // workspace. A workspace's own owners and admins use team.* (team.ts).
 import { INVITATION_DAYS, type MyInvitation } from '@linedesk/actions'
 import { invitation, member, organization, type Tx, user } from '@linedesk/db'
-import { and, asc, eq, gt, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
@@ -12,7 +12,8 @@ import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
 import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail } from './emails/templates.ts'
-import { insertInvitation, pendingInvitationTo, sendInvitation } from './team.ts'
+import { insertInvitation, makeOwner, pendingInvitationTo, sendInvitation } from './team.ts'
+import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
 
 const DAY_MS = 86_400_000
 const newMemberId = () => crypto.randomUUID().replaceAll('-', '')
@@ -61,18 +62,101 @@ async function listMine(tx: Tx, actor: Actor, now: string): Promise<MyInvitation
   return rows.map(r => ({ ...r, role: r.role ?? 'member', expiresAt: r.expiresAt.toISOString() }))
 }
 
+/** Locked, like team.ts: a hand-over at the same moment waits, and the owner check then sees the new role. */
 async function loadMember(tx: Tx, memberId: string) {
-  const [row] = await tx.select().from(member).where(eq(member.id, memberId))
+  const [row] = await tx.select().from(member).where(eq(member.id, memberId)).for('update')
   if (!row) throw new Reject('member not found')
   return row
 }
 
-/** An owner who stops being one (new role or removed) must leave another owner behind. Locks the owner rows. */
-async function keepAnOwner(tx: Tx, target: { id: string; role: string; organizationId: string }) {
-  if (target.role !== 'owner') return
-  const others = await tx.select({ id: member.id }).from(member)
-    .where(and(eq(member.organizationId, target.organizationId), eq(member.role, 'owner'), ne(member.id, target.id))).for('update')
-  if (!others.length) throw new Reject('the workspace needs an owner: this is the last one')
+/** The owner stays until someone else is made owner (exactly one per workspace): never demoted or removed directly. */
+function keepTheOwner(target: { role: string }) {
+  if (target.role === 'owner') throw new Reject('the workspace needs its owner: make someone else the owner first')
+}
+
+/**
+ * Whether the workspace can get an owner by an add or an invitation: it has none and no owner invitation is pending.
+ * Locks the owner row, so two adds at the same moment cannot both pass (the unique owner index is the backstop).
+ */
+async function ownerSlotFree(tx: Tx, workspaceId: string): Promise<boolean> {
+  const [owner] = await tx.select({ id: member.id }).from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
+  if (owner) return false
+  const [pending] = await tx.select({ id: invitation.id }).from(invitation)
+    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'), eq(invitation.role, 'owner')))
+  return !pending
+}
+
+async function refuseSecondOwner(tx: Tx, workspace: { id: string; name: string }, role: string) {
+  if (role === 'owner' && !(await ownerSlotFree(tx, workspace.id)))
+    throw new Reject(
+      `${workspace.name} has an owner already: add them as admin, then make them the owner on the workspace's page (the owner becomes an admin)`,
+    )
+}
+
+/**
+ * The role an accepted invitation gives: owner only while the workspace still has no owner (an owner made meanwhile
+ * keeps it; the invitee joins as admin). For both ways to accept: invitation.accept and Better Auth's endpoint.
+ */
+export async function roleOnAccept(tx: Tx, invite: { organizationId: string; role: string | null }): Promise<string> {
+  const role = invite.role ?? 'member'
+  if (role !== 'owner') return role
+  const [owner] = await tx.select({ id: member.id }).from(member)
+    .where(and(eq(member.organizationId, invite.organizationId), eq(member.role, 'owner'))).for('update')
+  return owner ? 'admin' : 'owner'
+}
+
+/**
+ * A new account made through an invitation (signup-gate.ts: only a proven address with a pending invitation gets one)
+ * joins every workspace it is invited to, in the same step: there is no account without a workspace unless someone
+ * chose to keep it. Workspaces that are disabled meanwhile, or that it is in already, are skipped. Each join counts as
+ * accepting that invitation (owner only while the workspace has none, like invitation.accept).
+ */
+export async function joinInvitedWorkspaces(
+  tx: Tx,
+  account: { id: string; email: string },
+  now = new Date(),
+  only: { joinOnSignIn?: boolean } = {},
+) {
+  const invites = await tx
+    .select({ id: invitation.id, organizationId: invitation.organizationId, role: invitation.role })
+    .from(invitation)
+    .innerJoin(organization, eq(organization.id, invitation.organizationId))
+    .where(
+      and(
+        sameEmail(account.email),
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, now),
+        sql`${organization.disabledAt} is null`,
+        only.joinOnSignIn ? eq(invitation.joinOnSignIn, true) : undefined,
+      ),
+    )
+    .orderBy(asc(invitation.createdAt))
+    .for('update', { of: invitation })
+  const joined: string[] = []
+  for (const invite of invites) {
+    if (await isMember(tx, invite.organizationId, account.id)) continue
+    const role = await roleOnAccept(tx, invite)
+    await tx.insert(member).values({ id: newMemberId(), organizationId: invite.organizationId, userId: account.id, role, createdAt: now })
+    await tx.update(invitation).set({ status: 'accepted' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
+    joined.push(invite.organizationId)
+  }
+  return joined
+}
+
+/**
+ * At a sign-in (instance-admin.ts, session.create): the invitations a server admin made together with this account
+ * (Add user, Create workspace) join at once, no Join click. Only to the exact invited address, once it is proven
+ * (emailVerified), not for a disabled account; each invitation once (accepted), never after it expired. Normal
+ * invitations to existing accounts keep the Join step. The workspaces joined.
+ */
+export async function joinOnSignIn(tx: Tx, userId: string, now = new Date()) {
+  const [account] = await tx
+    .select({ id: user.id, email: user.email, emailVerified: user.emailVerified, disabledAt: user.disabledAt })
+    .from(user)
+    .where(eq(user.id, userId))
+  if (!account?.emailVerified || account.disabledAt) return []
+  return joinInvitedWorkspaces(tx, account, now, { joinOnSignIn: true })
 }
 
 /** Locked: an accept that lands at the same moment waits, and then this finds it no longer pending. */
@@ -125,6 +209,8 @@ export async function inviteToWorkspace(
   workspace: { id: string; name: string },
   role: string,
   now: string,
+  /** The account was made with this invitation by a server admin: it joins at the first sign-in (joinOnSignIn). */
+  joinOnSignIn = false,
 ) {
   // An invitation names the person who sent it; the command line is nobody.
   if (actor.actorId === 'cli')
@@ -133,9 +219,10 @@ export async function inviteToWorkspace(
     throw new Reject(`${email} is already a member of ${workspace.name}`)
   if (await pendingInvitationTo(tx, workspace.id, email))
     throw new Reject(`${email} is already invited to ${workspace.name}: resend the invitation on their page`)
+  await refuseSecondOwner(tx, workspace, role)
   const invite = await insertInvitation(
     tx,
-    { organizationId: workspace.id, email, role, inviterId: actor.actorId },
+    { organizationId: workspace.id, email, role, inviterId: actor.actorId, joinOnSignIn },
     now,
   )
   await sendInvitation(tx, invite, role)
@@ -209,6 +296,7 @@ export async function addToWorkspace(
 ): Promise<string> {
   const already = `${account.email} is already a member of ${workspace.name}`
   if (await isMember(tx, workspace.id, account.id)) throw new Reject(already)
+  await refuseSecondOwner(tx, workspace, role)
   const id = newMemberId()
   await insertMember(tx, { id, organizationId: workspace.id, userId: account.id, role, createdAt: new Date(now) }, already)
   await tx.update(invitation).set({ status: 'canceled' })
@@ -226,7 +314,8 @@ export const membershipHandlers: Record<string, Handler> = {
     if (invite.expiresAt.getTime() < Date.parse(now)) throw new Reject('this invitation has expired; ask for a new one')
     const already = 'you are already a member of this workspace'
     if (await isMember(tx, invite.organizationId, account.id)) throw new Reject(already)
-    await insertMember(tx, { id: newMemberId(), organizationId: invite.organizationId, userId: account.id, role: invite.role ?? 'member', createdAt: new Date(now) }, already)
+    const role = await roleOnAccept(tx, invite)
+    await insertMember(tx, { id: newMemberId(), organizationId: invite.organizationId, userId: account.id, role, createdAt: new Date(now) }, already)
     await tx.update(invitation).set({ status: 'accepted' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
     return { rows: {}, data: { workspaceId: invite.organizationId, subject: { email: account.email, workspaceId: invite.organizationId } } }
   },
@@ -267,17 +356,27 @@ export const membershipHandlers: Record<string, Handler> = {
       if (!account?.emailVerified)
         throw new Reject(`${account?.email ?? 'they'} must confirm their email address before they can be ${input.role}`)
     }
-    if (input.role !== 'owner') await keepAnOwner(tx, target)
-    await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
+    if (input.role === 'owner') {
+      // Hands the workspace over: the owner before becomes an admin (locked, so two at once cannot both win).
+      const [owner] = await tx.select({ id: member.id }).from(member)
+        .where(and(eq(member.organizationId, target.organizationId), eq(member.role, 'owner'))).for('update')
+      if (owner?.id !== target.id) await makeOwner(tx, target, owner?.id ?? null)
+    } else {
+      keepTheOwner(target)
+      await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
+    }
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
-  'membership.remove': async ({ tx }, input: { memberId: string }) => {
+  'membership.remove': async ({ tx }, input: { memberId: string; keepAccount?: boolean }) => {
     const target = await loadMember(tx, input.memberId)
-    await keepAnOwner(tx, target)
+    keepTheOwner(target)
+    const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     await dropWorkspacePush(tx, target.organizationId, target.userId)
-    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
+    // Their last workspace: the account goes too, unless kept (workspace-delete.ts).
+    const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
+    return { rows: {}, data: { accountDeleted, subject } }
   },
 
   'invitation.revoke': async ({ tx }, input: { invitationId: string }) => {

@@ -1,6 +1,6 @@
 // Team actions run online against the API: members and invitations are not in the local store,
 // and a role change or removal must not look done before the server has accepted it.
-import type { AssignableRole, InvitationPreview, MemberEditData, TeamRole, TeamData, TeamLeaveData } from '@linedesk/actions'
+import type { AssignableRole, InvitationPreview, MemberEditData, TeamData, TeamLeaveData } from '@linedesk/actions'
 import { fetchQuery, refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
@@ -23,9 +23,12 @@ export const teamApi = {
   invite: (email: string, role: AssignableRole) => runTeamAction('team.invite', { email, role }),
   resend: (invitationId: string) => runTeamAction('team.resendInvite', { invitationId }),
   revoke: (invitationId: string) => runTeamAction('team.revokeInvite', { invitationId }),
-  setRole: (memberId: string, role: TeamRole) => runTeamAction('team.setRole', { memberId, role }),
-  remove: (memberId: string) => runTeamAction('team.removeMember', { memberId }),
-  leave: () => runTeamAction<TeamLeaveData>('team.leave', {}),
+  setRole: (memberId: string, role: AssignableRole) => runTeamAction('team.setRole', { memberId, role }),
+  /** The owner hands the workspace over: the member becomes the owner, the owner an admin. */
+  transferOwnership: (memberId: string) => runTeamAction('team.transferOwnership', { memberId }),
+  remove: (memberId: string, keepAccount = false) => runTeamAction('team.removeMember', { memberId, keepAccount }),
+  /** `deleteAccount`: true deletes the account when this was its last workspace (never a server admin's). */
+  leave: (deleteAccount: boolean) => runTeamAction<TeamLeaveData>('team.leave', { deleteAccount }),
   /** A teammate's profile and notifications, for the Edit dialog (owners and admins). */
   getMember: (memberId: string) => runTeamAction<MemberEditData>('team.getMember', { memberId }),
   setMemberNotifications: (memberId: string, change: object) =>
@@ -42,6 +45,7 @@ export const preloadTeam = () => fetchQuery(TEAM, teamApi.list, { persist: true 
 export async function previewInvitation(id: string): Promise<InvitationPreview> {
   const res = await fetch(`/v1/invitations/${encodeURIComponent(id)}`)
   // A code, not words: the invitation page says it through authErrorMessage like every sign-in error.
-  if (!res.ok) throw Object.assign(new Error('invitation unavailable'), { code: 'INVITATION_UNAVAILABLE', status: res.status })
+  if (!res.ok)
+    throw Object.assign(new Error('invitation unavailable'), { code: 'INVITATION_UNAVAILABLE', status: res.status })
   return (await res.json()) as InvitationPreview
 }

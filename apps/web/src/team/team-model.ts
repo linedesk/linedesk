@@ -1,5 +1,12 @@
 // What the Team page shows and offers, kept out of the component so it can be tested.
-import type { ChangedBy, TeamData, TeamInvitation, TeamMember } from '@linedesk/actions'
+import {
+  assignableRoles,
+  type ChangedBy,
+  type TeamData,
+  type TeamInvitation,
+  type TeamMember,
+  teamRoles,
+} from '@linedesk/actions'
 
 const DAY_MS = 86_400_000
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -17,24 +24,25 @@ export const isMe = (data: TeamData, m: TeamMember) => m.userId === data.me
 export const PROFILE_HASH = '#account/profile'
 
 export const isOwner = (data: TeamData) => data.members.some(m => m.userId === data.me && m.role === 'owner')
-const ownerCount = (data: TeamData) => data.members.filter(m => m.role === 'owner').length
 
 /**
- * Admins change admins and members; owners also make owners and change owners. Your own role only
- * when you are an owner and another owner remains (handing the workspace over). The last owner is
- * never demoted (the API refuses too). Nobody removes themselves from here (Leave workspace does).
+ * A workspace has exactly one owner. Owners and admins change the role of admins and members (never their own, never
+ * the owner's); the owner can also make one of them the owner (team.transferOwnership: they become an admin). The API
+ * refuses the rest too. Nobody removes themselves from here (Leave workspace does).
  */
 export function canEditRole(data: TeamData, m: TeamMember) {
-  if (!data.canManage) return false
-  if (m.role === 'owner' && (!isOwner(data) || ownerCount(data) < 2)) return false
-  return m.userId !== data.me || (isOwner(data) && ownerCount(data) > 1)
+  return data.canManage && m.role !== 'owner' && m.userId !== data.me
 }
-export const canRemove = (data: TeamData, m: TeamMember) =>
-  data.canManage && (m.role !== 'owner' || (isOwner(data) && ownerCount(data) > 1)) && m.userId !== data.me
+/** The roles the role menu offers for a teammate: Owner only to the owner (it hands the workspace over). */
+export const rolesFor = (data: TeamData) => (isOwner(data) ? teamRoles : assignableRoles)
+export const canRemove = (data: TeamData, m: TeamMember) => data.canManage && m.role !== 'owner' && m.userId !== data.me
 
 export function isOnTeam(data: TeamData, email: string) {
   const address = email.trim().toLowerCase()
-  return data.members.some(m => m.email.toLowerCase() === address) || data.invitations.some(i => i.email.toLowerCase() === address)
+  return (
+    data.members.some(m => m.email.toLowerCase() === address) ||
+    data.invitations.some(i => i.email.toLowerCase() === address)
+  )
 }
 
 export function joinedLabel(iso: string, now = new Date()) {
@@ -60,6 +68,24 @@ export const canEditMember = (data: TeamData, m: TeamMember) =>
 export function changedByLabel(c: ChangedBy, now = new Date()) {
   const date = new Date(c.at)
   const sameYear = date.getFullYear() === now.getFullYear()
-  const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) })
+  const day = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
   return `Last changed by ${c.name} on ${day}.`
+}
+
+/**
+ * Removing someone (Workspace settings › Team, Server admin): when it is their only workspace their account goes too,
+ * unless the box keeps it (they then wait for an invitation). Server admins always keep theirs.
+ */
+export function removeMemberConfirmation(name: string, where = 'this workspace') {
+  return {
+    text: `${name} loses access to ${where} at once.`,
+    list: [`If ${where} is their only workspace, their account is deleted too (a server admin's never is).`],
+    action: 'Remove',
+    busyAction: 'Removing…',
+    option: 'Keep their account (they wait for an invitation)',
+  }
 }

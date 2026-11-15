@@ -24,11 +24,20 @@ export async function previewInvitation(id: string): Promise<InvitationPreview> 
   return { status: 'pending', email: row.email, workspaceName: row.workspaceName, invitedBy: row.invitedBy, role: row.role ?? 'member' }
 }
 
-/** Better Auth hook before an invitation is accepted. It has already checked that the signed-in email matches and is verified. */
-export async function refuseExistingMember({ invitation: invite, user: account }: { invitation: { organizationId: string }; user: { id: string } }) {
+/**
+ * Better Auth hook before an invitation is accepted. It has already checked that the signed-in email matches and is
+ * verified. An owner invitation to a workspace that has an owner by now is turned into an admin invitation first:
+ * Better Auth reads the invitation again when it marks it accepted and creates the member with that role, so a
+ * workspace never gets a second owner (the unique owner index would refuse it anyway).
+ */
+export async function refuseExistingMember({ invitation: invite, user: account }: { invitation: { id: string; organizationId: string; role?: string | null }; user: { id: string } }) {
   const [existing] = await db.select({ id: member.id }).from(member)
     .where(and(eq(member.organizationId, invite.organizationId), eq(member.userId, account.id)))
   if (existing) throw new APIError('BAD_REQUEST', { code: 'ALREADY_MEMBER', message: 'You are already a member of this workspace.' })
+  if (invite.role !== 'owner') return
+  const [owner] = await db.select({ id: member.id }).from(member)
+    .where(and(eq(member.organizationId, invite.organizationId), eq(member.role, 'owner')))
+  if (owner) await db.update(invitation).set({ role: 'admin' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
 }
 
 /**

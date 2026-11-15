@@ -4,8 +4,15 @@ import type { AuthMethods, LegalLinks, SsoMethod } from './auth-types.ts'
 
 type Env = Record<string, string | undefined>
 
-/** Sign-up is closed unless AUTH_SIGNUP_ENABLED is exactly `true`: a missing or misspelled value keeps strangers out. */
-export const signUpOpen = (env: Env = process.env) => env.AUTH_SIGNUP_ENABLED === 'true'
+/**
+ * There is no open sign-up (Janik, 2026-11-15): accounts exist only through the first-run setup, a workspace
+ * invitation, or a server admin (signup-gate.ts). AUTH_SIGNUP_ENABLED is gone; a server that still sets it hears so at
+ * start, and nothing changes. Open sign-up for Linedesk Cloud comes with billing.
+ */
+export function signUpSettingRemovedWarning(env: Env = process.env): string | null {
+  if (env.AUTH_SIGNUP_ENABLED === undefined) return null
+  return `AUTH_SIGNUP_ENABLED is no longer read: there is no open sign-up, accounts come only through an invitation, the first-run setup or a server admin. Remove it from the environment.`
+}
 /** Passkeys as a sign-in method (default on; AUTH_PASSKEY_ENABLED=false drops Better Auth's passkey plugin, auth.ts). */
 export const passkeySignInEnabled = (env: Env = process.env) => env.AUTH_PASSKEY_ENABLED !== 'false'
 
@@ -30,7 +37,6 @@ export function readAuthConfig(env: Env) {
     password: env.AUTH_PASSWORD_ENABLED !== 'false',
     emailCode: emailDelivery(env) !== 'none',
     passkey: passkeySignInEnabled(env),
-    signUp: signUpOpen(env),
     sso: [
       google && { id: 'google', label: 'Google' },
       microsoft && { id: 'microsoft', label: 'Microsoft' },

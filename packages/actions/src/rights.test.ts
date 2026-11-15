@@ -1,0 +1,236 @@
+// The workspace rights audit as a test (LIN-246, docs/architecture.md "Workspace rights"): every action in the
+// registry, by who may run it. A new action fails here until it is put in the right group, so nobody adds a setting
+// members can change or a daily-work action members cannot. Owner: everything an admin can, plus deleting the workspace
+// and handing it over. Admin: every workspace setting, the team except the owner, API keys, webhooks. Member: inbox,
+// calls, contacts, reminders and appointments, their own profile and notifications; reading settings, never changing them.
+import { describe, expect, it } from 'vitest'
+import { rolePermissions } from './define.ts'
+import { actions } from './index.ts'
+import { type Right, rightOf, roleMeets, WORKSPACE_ROLES } from './rights.ts'
+
+const expectedRights: Record<Right, readonly string[]> = {
+  member: [
+    'call.markDone',
+    'call.markNotDone',
+    'call.markRead',
+    'call.markUnread',
+    'call.remind',
+    'call.assign',
+    'member.list',
+    'call.clearReminder',
+    'call.delete',
+    'call.restore',
+    'call.markSpam',
+    'call.markNotSpam',
+    'call.setActionItems',
+    'call.setUrgency',
+    'call.listen',
+    'call.takeOver',
+    'contact.update',
+    'contact.block',
+    'contact.unblock',
+    'contact.create',
+    'contact.delete',
+    'contact.restore',
+    'contact.import',
+    'contact.merge',
+    'voice.options',
+    'voice.catalog',
+    'workspace.getSettings',
+    'account.setAvatar',
+    'account.removeAvatar',
+    'holidays.lookup',
+    'notifications.get',
+    'notifications.update',
+    'push.subscribe',
+    'push.unsubscribe',
+    'starPrompt.answer',
+    'calendar.findSlots',
+    'appointment.book',
+    'appointment.cancel',
+    'appointment.reschedule',
+    'team.list',
+    'team.leave',
+    'insights.get',
+  ],
+  admin: [
+    'call.export',
+    'assistant.update',
+    'assistant.create',
+    'assistant.delete',
+    'assistant.versions',
+    'assistant.version',
+    'assistant.restoreVersion',
+    'voice.clone',
+    'phoneNumber.setup',
+    'phoneNumber.listCarrierNumbers',
+    'phoneNumber.update',
+    'phoneNumber.release',
+    'phoneNumber.lookupLine',
+    'phoneNumber.checkForwarding',
+    'phoneNumber.forwardingCheck',
+    'carrier.set',
+    'carrier.get',
+    'carrier.test',
+    'assistant.startTestCall',
+    'workspace.updateSettings',
+    'workspace.rename',
+    'workspace.setIcon',
+    'workspace.removeIcon',
+    'businessHours.set',
+    'closedDays.set',
+    'holidays.set',
+    'sample.add',
+    'sample.remove',
+    'notifications.setDefaults',
+    'appointmentType.upsert',
+    'appointmentType.delete',
+    'calendar.connectStart',
+    'calendar.connectFinish',
+    'calendar.listCalendars',
+    'calendar.disconnect',
+    'assistantCalendar.add',
+    'assistantCalendar.update',
+    'assistantCalendar.setDefault',
+    'assistantCalendar.remove',
+    'apiKey.create',
+    'apiKey.list',
+    'apiKey.revoke',
+    'team.invite',
+    'team.resendInvite',
+    'team.revokeInvite',
+    'team.setRole',
+    'team.removeMember',
+    'team.getMember',
+    'team.updateMemberProfile',
+    'team.setMemberAvatar',
+    'team.removeMemberAvatar',
+    'team.updateMemberNotifications',
+    'onboarding.setStep',
+    'onboarding.recordEvent',
+    'onboarding.goLiveChecklist',
+    'onboarding.dismissGoLiveChecklist',
+    'onboarding.reopenGoLiveChecklist',
+    'onboarding.skipGoLiveStep',
+    'onboarding.remindGoLiveStep',
+    'onboarding.restoreGoLiveStep',
+    'call.getEvaluation',
+    'call.listEvaluations',
+    'call.evaluate',
+    'evaluation.markDone',
+    'evaluation.reopen',
+    'evaluation.listQuestions',
+    'webhook.create',
+    'webhook.update',
+    'webhook.delete',
+    'webhook.test',
+    'webhook.deliveries',
+    'knowledge.import',
+    'knowledgeQuestion.answer',
+    'knowledgeQuestion.dismiss',
+    'business.search',
+    'business.import',
+  ],
+  agent: [
+    'call.start',
+    'call.appendTranscript',
+    'call.finish',
+    'call.recordTimings',
+    'call.reportVoiceFailure',
+    'call.takeMessage',
+    'call.flagUrgent',
+    'call.startTest',
+    'call.findForTest',
+    'call.listNumbers',
+    'call.startRecording',
+    'call.setRecording',
+    'call.transfer',
+    'carrier.transferTrunk',
+    'carrier.provisionTransferTrunk',
+    'provider.reportFailure',
+    'provider.reportOk',
+    'call.lookUpCaller',
+    'call.askWebhook',
+  ],
+  'server-admin': [
+    'voiceCloning.get',
+    'voiceCloning.set',
+    'voicePipelinePolicy.get',
+    'voicePipelinePolicy.set',
+    'branding.set',
+    'install.setProgress',
+    'provider.tryOut',
+    'provider.confirmEmail',
+    'agentSetup.createKey',
+    'agentSetup.revoke',
+    'agentSetup.endOwnAccess',
+    'provider.setKeys',
+    'provider.clearKeys',
+    'provider.setActive',
+    'provider.test',
+    'provider.connectOneKey',
+    'user.invite',
+    'user.disable',
+    'user.enable',
+    'workspace.disable',
+    'workspace.delete',
+    'workspace.enable',
+    'workspace.setSpendingCap',
+    'instanceAdmin.grant',
+    'user.resetPasskeys',
+    'user.issuePasskeyEnrolment',
+    'instanceAdmin.revoke',
+    'user.impersonate',
+    'setupEmails.get',
+    'setupEmails.set',
+    'workspace.create',
+    'membership.add',
+    'membership.setRole',
+    'membership.remove',
+    'invitation.revoke',
+    'invitation.resend',
+  ],
+  owner: ['workspace.deleteOwn', 'workspace.deletePreview', 'team.transferOwnership'],
+  impersonation: ['impersonation.stop'],
+  account: ['invitation.listMine', 'invitation.accept', 'invitation.decline'],
+}
+
+describe('workspace rights', () => {
+  it('lists every action of the registry exactly once', () => {
+    const listed = Object.values(expectedRights).flat()
+    expect(new Set(listed).size).toBe(listed.length)
+    expect([...listed].sort()).toEqual([...actions.keys()].sort())
+  })
+
+  it.each(Object.entries(expectedRights).flatMap(([right, names]) => names.map(name => [name, right] as const)))(
+    '%s needs %s',
+    (name, right) => {
+      expect(rightOf(actions.get(name)!.permission)).toBe(right)
+    },
+  )
+
+  it('owner ⊃ admin ⊃ member: a higher role has every permission of a lower one', () => {
+    for (const p of rolePermissions.member) expect(rolePermissions.admin).toContain(p)
+    for (const p of rolePermissions.admin) expect(rolePermissions.owner).toContain(p)
+    expect(roleMeets('owner', 'admin')).toBe(true)
+    expect(roleMeets('admin', 'owner')).toBe(false)
+    expect(roleMeets('member', 'admin')).toBe(false)
+    expect(roleMeets('owner', 'server-admin')).toBe(false)
+    expect(WORKSPACE_ROLES).toEqual(['member', 'admin', 'owner'])
+  })
+
+  it('members change no workspace setting: settings, team, keys and webhooks are for admins', () => {
+    for (const name of expectedRights.member) {
+      const def = actions.get(name)!
+      expect(['settings:write', 'team:write', 'workspace:own', 'call:export'], name).not.toContain(def.permission)
+    }
+  })
+
+  it('only the owner deletes the workspace or hands it over', () => {
+    expect([...expectedRights.owner].sort()).toEqual([
+      'team.transferOwnership',
+      'workspace.deleteOwn',
+      'workspace.deletePreview',
+    ])
+  })
+})

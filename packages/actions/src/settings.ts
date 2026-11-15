@@ -724,9 +724,13 @@ export type OwnerStepUp = 'passkey' | 'signIn'
 export const workspaceDeleteOwn = defineAction({
   name: 'workspace.deleteOwn',
   description:
-    "Delete this workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Only an owner, signed in within the last 10 minutes (with their passkey when they have one). `name` is the workspace's name, typed to confirm. Every other member is emailed; members who belong to no other workspace lose their accounts, the owner too unless keepOwnAccount is true.",
-  input: z.object({ name: z.string().trim().min(1).max(200), keepOwnAccount: z.boolean().optional() }),
-  permission: 'settings:write',
+    "Delete this workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Only an owner, signed in within the last 10 minutes (with their passkey when they have one). `name` is the workspace's name, typed to confirm. Every other member is emailed; members who belong to no other workspace lose their accounts, the owner too, unless keepAccounts is true (every account stays; they wait for an invitation) or keepOwnAccount is true (only the owner's stays).",
+  input: z.object({
+    name: z.string().trim().min(1).max(200),
+    keepOwnAccount: z.boolean().optional(),
+    keepAccounts: z.boolean().optional(),
+  }),
+  permission: 'workspace:own',
   sensitive: [],
 })
 /**
@@ -739,9 +743,9 @@ export type WorkspaceDeleteOwnData = WorkspaceDeleteData & { nextWorkspaceId: st
 export const workspaceDeletePreview = defineAction({
   name: 'workspace.deletePreview',
   description:
-    "What deleting this workspace would delete: calls, contacts, phone numbers, other members and the accounts that go with it. Owners only.",
+    "What deleting this workspace would delete: calls, contacts, phone numbers, other members and the accounts that go with it. The owner only.",
   input: z.object({}),
-  permission: 'settings:write',
+  permission: 'workspace:own',
   readOnly: true,
 })
 /**

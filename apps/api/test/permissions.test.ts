@@ -1,7 +1,10 @@
 // Who may do what: roles, the agent token, and no access without a session.
 import { actions } from '@linedesk/actions'
 import { beforeAll, describe, expect, test } from 'vitest'
-import { app } from '../src/app.ts'
+import { user as users } from '@linedesk/db'
+import { eq } from 'drizzle-orm'
+import { app, WORKSPACE_CREATION_CLOSED } from '../src/app.ts'
+import { db } from '../src/db.ts'
 import { auth } from '../src/auth.ts'
 import {
   act,
@@ -127,6 +130,7 @@ describe('authentication', () => {
 
 test('creating a workspace needs a name', async () => {
   const user = await signUp()
+  await db.update(users).set({ instanceAdmin: true }).where(eq(users.id, user.userId))
   expect((await request(user, 'POST', '/v1/workspaces', {})).status).toBe(422)
   const notJson = await app.request('/v1/workspaces', {
     method: 'POST',
@@ -140,6 +144,17 @@ test('creating a workspace needs a name', async () => {
     role: 'owner',
     workspace: { name: 'Brightwater Plumbing & Heating' },
   })
+  await db.update(users).set({ instanceAdmin: false }).where(eq(users.id, user.userId))
+})
+
+test('only server admins create workspaces, also with sign-up open: anyone else is told to ask one', async () => {
+  const user = await signUp()
+  expect(await request(user, 'POST', '/v1/workspaces', { name: 'Not Mine To Make' })).toMatchObject({
+    status: 403,
+    body: { ok: false, code: 'workspace_creation_closed', error: WORKSPACE_CREATION_CLOSED },
+  })
+  // A member of a workspace too, and an API key never can.
+  expect((await request(member, 'POST', '/v1/workspaces', { name: 'Side Business' })).status).toBe(403)
 })
 
 describe('a user who belongs to two workspaces', () => {

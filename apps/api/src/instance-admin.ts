@@ -7,10 +7,11 @@ import { account, type Tx, user } from '@linedesk/db'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { APIError } from 'better-auth/api'
 import { hashPassword } from 'better-auth/crypto'
+import { insertAuthEvent } from './audit.ts'
 import { db } from './db.ts'
 import { keepImpersonationExpiry } from './impersonation-guard.ts'
 import { issuePasskeyEnrolment } from './passkey-enrolment.ts'
-import { refuseClosedSignUp } from './signup-gate.ts'
+import { NO_ACCOUNT, refuseClosedSignUp } from './signup-gate.ts'
 
 type Account = { email: string; emailVerified: boolean; instanceAdmin: boolean }
 
@@ -105,6 +106,9 @@ export const instanceAdminHooks = {
       },
       after: async (created: { id: string; email: string; emailVerified?: boolean }) => {
         await grantFirstUser(db, created)
+        // Made through an invitation (signup-gate.ts): it joins the workspace in the same step. Loaded here, since
+        // memberships.ts reaches back to this file.
+        if (created.emailVerified) await joinOrUndo(created)
       },
     },
   },
@@ -119,12 +123,70 @@ export const instanceAdminHooks = {
         // A passkey sign-in counts as the second factor the admin area needs (admin-second-factor.ts).
         return markPasskeySession(session, ctx)
       },
+      // An account a server admin made for a workspace joins it at the first sign-in (memberships.ts, joinOnSignIn).
+      // Each join and its `invitation_accepted` are saved together, in one transaction. A failure is logged and never
+      // stops the sign-in: nothing was joined, the invitation stays and can still be joined by hand.
+      after: async (session: {
+        userId: string
+        impersonatedBy?: string | null
+        ipAddress?: string | null
+        userAgent?: string | null
+      }) => {
+        if (session.impersonatedBy) return
+        const { joinOnSignIn } = await import('./memberships.ts')
+        try {
+          await db.transaction(async tx => {
+            for (const workspaceId of await joinOnSignIn(tx, session.userId))
+              await insertAuthEvent(tx, {
+                event: 'invitation_accepted',
+                userId: session.userId,
+                workspaceId,
+                method: 'admin_created',
+                ipAddress: session.ipAddress,
+                userAgent: session.userAgent,
+              })
+          })
+        } catch (err) {
+          console.error('joining the workspaces of an admin-made account failed; nothing was joined', err)
+        }
+      },
     },
     update: {
       before: async (data: { expiresAt?: Date }, ctx: unknown) =>
         keepImpersonationExpiry(data, ctx as Parameters<typeof keepImpersonationExpiry>[1]),
     },
   },
+}
+
+/**
+ * A new account joins the workspaces it was invited to. Better Auth runs this after its own transaction has saved the
+ * user, so the join cannot share it; instead, an account that ends up in no workspace is deleted again, in the join's
+ * transaction (or right after a join that failed): no account without a workspace stays behind (security review of
+ * #734, finding 6). Never a server admin's (the first-run setup on an empty install has no workspace yet).
+ */
+export async function joinOrUndo(created: { id: string; email: string }) {
+  const { joinInvitedWorkspaces } = await import('./memberships.ts')
+  const { deleteAccountWithoutWorkspace } = await import('./workspace-delete.ts')
+  // Each step is in the audit log, in the same transaction as the step: the joins, or the account removed again.
+  const undo = async (tx: Tx) => {
+    const gone = await deleteAccountWithoutWorkspace(tx, created.id)
+    if (gone) await insertAuthEvent(tx, { event: 'sign_up_undone', userId: created.id, email: created.email })
+    return gone
+  }
+  let undone = false
+  try {
+    undone = await db.transaction(async tx => {
+      for (const workspaceId of await joinInvitedWorkspaces(tx, created))
+        await insertAuthEvent(tx, { event: 'invitation_accepted', userId: created.id, workspaceId, method: 'invitation' })
+      return undo(tx)
+    })
+  } catch (err) {
+    console.error('joining the invited workspaces of a new account failed; the account is removed again', err)
+    await db.transaction(undo)
+    throw err
+  }
+  // The invitation went away in between (revoked, the workspace disabled): as if there had been none.
+  if (undone) throw new APIError('FORBIDDEN', { code: 'SIGNUP_CLOSED', message: NO_ACCOUNT })
 }
 
 const newId = () => crypto.randomUUID().replaceAll('-', '')

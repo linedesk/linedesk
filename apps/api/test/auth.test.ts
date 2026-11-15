@@ -1,7 +1,7 @@
 // Sign-in hardening that only shows on the running app: limits on auth requests and on workspaces.
 import { describe, expect, test } from 'vitest'
 import { auth, parseWorkspaceLimit, WORKSPACE_LIMIT } from '../src/auth.ts'
-import { randomIp, request, signUp, FROM, appRequest } from './helpers.ts'
+import { asServerAdmin, randomIp, request, signUp, FROM, appRequest } from './helpers.ts'
 
 // Several password hashes or workspaces in one test: slow when the files run in parallel.
 const SLOW = 30_000
@@ -38,19 +38,23 @@ describe('account linking', () => {
 })
 
 describe('POST /v1/workspaces', () => {
-  test('no workspace limit by default: a member makes a 6th and more (WORKSPACE_LIMIT unset)', async () => {
+  test('no workspace limit by default: a server admin makes a 6th and more (WORKSPACE_LIMIT unset)', async () => {
     expect(WORKSPACE_LIMIT).toBeNull()
     expect(auth.options.plugins.find(p => p.id === 'organization')?.options?.organizationLimit).toBeUndefined()
     const user = await signUp()
-    for (let i = 1; i <= 7; i++) {
-      expect((await request(user, 'POST', '/v1/workspaces', { name: `Business ${i}` })).status).toBe(200)
-    }
+    await asServerAdmin(user, async () => {
+      for (let i = 1; i <= 7; i++) {
+        expect((await request(user, 'POST', '/v1/workspaces', { name: `Business ${i}` })).status).toBe(200)
+      }
+    })
   }, SLOW)
 
   test('refuses a name that is not text or is too long', async () => {
     const user = await signUp()
-    expect((await request(user, 'POST', '/v1/workspaces', { name: 'x'.repeat(81) })).status).toBe(422)
-    expect((await request(user, 'POST', '/v1/workspaces', { name: 42 })).status).toBe(422)
+    await asServerAdmin(user, async () => {
+      expect((await request(user, 'POST', '/v1/workspaces', { name: 'x'.repeat(81) })).status).toBe(422)
+      expect((await request(user, 'POST', '/v1/workspaces', { name: 42 })).status).toBe(422)
+    })
   })
 })
 

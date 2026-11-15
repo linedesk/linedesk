@@ -10,7 +10,7 @@ vi.hoisted(() => {
 
 const { auth, WORKSPACE_LIMIT } = await import('../src/auth.ts')
 const { db } = await import('../src/db.ts')
-const { act, appRequest, FROM, randomIp, request, signUp } = await import('./helpers.ts')
+const { act, appRequest, asServerAdmin, FROM, randomIp, request, signUp } = await import('./helpers.ts')
 
 afterAll(() => {
   delete process.env.WORKSPACE_LIMIT
@@ -23,9 +23,11 @@ test('the env limit is what Better Auth enforces', () => {
 
 test('New workspace in the app: two, then "You can create up to 2 workspaces."', async () => {
   const member = await signUp()
-  for (const name of ['Business 1', 'Business 2'])
-    expect((await request(member, 'POST', '/v1/workspaces', { name })).status).toBe(200)
-  const refused = await request(member, 'POST', '/v1/workspaces', { name: 'One too many' })
+  const refused = await asServerAdmin(member, async () => {
+    for (const name of ['Business 1', 'Business 2'])
+      expect((await request(member, 'POST', '/v1/workspaces', { name })).status).toBe(200)
+    return request(member, 'POST', '/v1/workspaces', { name: 'One too many' })
+  })
   expect(refused.status).toBe(403)
   expect(refused.body).toEqual({ ok: false, error: 'You can create up to 2 workspaces.' })
 }, 30_000)

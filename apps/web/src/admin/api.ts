@@ -255,7 +255,7 @@ type AdminInputs = {
   'user.issuePasskeyEnrolment': { userId: string }
   'membership.add': { userId: string; workspaceId: string; role: MembershipRole }
   'membership.setRole': { memberId: string; role: MembershipRole }
-  'membership.remove': { memberId: string }
+  'membership.remove': { memberId: string; keepAccount?: boolean }
   'invitation.revoke': { invitationId: string }
   'invitation.resend': { invitationId: string }
   'voiceCloning.get': Record<string, never>
@@ -264,6 +264,7 @@ type AdminInputs = {
   'voicePipelinePolicy.set': { policy: VoicePipelinePolicy }
   'setupEmails.get': Record<string, never>
   'setupEmails.set': { on: boolean }
+  'workspace.create': { name: string; timeZone?: string; owner: { email: string; name?: string } }
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>
   'agentSetup.revoke': Record<string, never>
@@ -313,6 +314,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'membership.setRole': 'change a role',
   'membership.remove': 'remove an admin from a workspace',
   'workspace.delete': 'delete a workspace',
+  'workspace.create': 'create a workspace and give it an owner',
   'provider.setKeys': 'save email or sign-in keys',
   'provider.clearKeys': 'disconnect email or sign-in',
 }

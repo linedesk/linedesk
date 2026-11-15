@@ -30,7 +30,16 @@ export function deleteOwnList(p: WorkspaceDeletePreviewData, brand: string): str
   ]
 }
 
-/** The dialog's words; the "Keep my account" box only when the owner's own account would go. */
+/**
+ * The checkbox that keeps the accounts that would go with the workspace (members in no other workspace, the owner's
+ * own too): off by default, so they are deleted; kept accounts wait for an invitation. None when no account goes.
+ */
+export function keepAccountsOption(p: Pick<WorkspaceDeletePreviewData, 'accountsDeleted' | 'ownAccountDeleted'>) {
+  if (p.accountsDeleted) return p.ownAccountDeleted ? 'Keep these accounts, yours included' : 'Keep their accounts'
+  return p.ownAccountDeleted ? 'Keep my account' : undefined
+}
+
+/** The dialog's words; the keep box only when an account would go (keepAccountsOption). */
 export function deleteOwnConfirmation(p: WorkspaceDeletePreviewData, brand: string): DangerConfirmation {
   return {
     text: `This deletes ${p.name} and all its data for good.`,
@@ -39,7 +48,7 @@ export function deleteOwnConfirmation(p: WorkspaceDeletePreviewData, brand: stri
     action: 'Delete workspace',
     busyAction: 'Deleting…',
     typed: p.name,
-    option: p.ownAccountDeleted ? 'Keep my account' : undefined,
+    option: keepAccountsOption(p),
   }
 }
 
@@ -50,7 +59,7 @@ export function ownAccountWarning(p: Pick<WorkspaceDeletePreviewData, 'ownAccoun
     ? {
         tone: 'neutral' as const,
         title: 'Your account stays.',
-        text: 'You land on the page to set up or join another workspace.',
+        text: 'You land on the page that waits for an invitation to another workspace.',
       }
     : {
         tone: 'danger' as const,
