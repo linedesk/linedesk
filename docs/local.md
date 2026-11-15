@@ -79,6 +79,18 @@ ngrok carries HTTP only. Call audio (WebRTC media) and SIP do not go through it:
   tunnel to this machine, for example). Use the test server for real calls.
 - Carrier status webhooks: not used today (calls arrive over SIP).
 
+## Dev-only variables
+
+Two variables are read only by local and dev-mode stacks; they are not in `.env.example`:
+
+- `LINEDESK_SNAPSHOT_DIR` (default `~/.linedesk`): where the shared local test data lives (`dev-snapshot.dump`,
+  outside every worktree, never in git). `pnpm dev:snapshot` saves a dev database there, `pnpm dev:restore`
+  replaces one with it, and a fresh Postgres volume restores it by itself when `docker-compose.snapshot.yml` is in
+  `COMPOSE_FILE` (`scripts/dev-snapshot.sh`, `scripts/dev-env.sh`).
+- `LINEDESK_CSP_DEV`: extra sources for `script-src` and `style-src` in Caddy's Content-Security-Policy
+  (`docker/Caddyfile`). Empty by default and in production; `docker-compose.dev.yml` sets `'unsafe-inline'` for dev
+  mode's dev server.
+
 ## After a restart
 
 The containers restart by themselves, ngrok does not. Run `scripts/local-public.sh start` again (same

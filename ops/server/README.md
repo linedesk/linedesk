@@ -9,7 +9,7 @@ sudo ops/server/setup.sh --dry-run    # shows every file it would change, touche
 
 | What | Files | When it runs |
 | --- | --- | --- |
-| Email alerts through the install's own SMTP (`SMTP_URL`, `EMAIL_FROM` in `.env`) to `LINEDESK_ALERT_TO` | `bin/linedesk-alert-text`, `bin/linedesk-alert`, `systemd/linedesk-alert@.service` | when a unit below fails (`OnFailure`) |
+| Email alerts through the install's own SMTP (`SMTP_URL`, `EMAIL_FROM` in `.env`) to `LINEDESK_ALERT_TO`. Both must be in `.env` even when email is connected in Server admin › Providers: the alert script cannot read the encrypted settings, so without them alerts cannot be sent | `bin/linedesk-alert-text`, `bin/linedesk-alert`, `systemd/linedesk-alert@.service` | when a unit below fails (`OnFailure`) |
 | Disk (under 15 % or 8 GB free), memory (under 10 % available), swap (over 50 % used): one email when crossed, one when fine again | `bin/linedesk-resources` | every 15 minutes |
 | Offsite database backup (`scripts/backup.sh`) | `systemd/linedesk-backup.*` | 09:00 UTC daily, only once `backup.env` exists |
 | WAL archiving (`docker-compose.wal.yml`, docs/backups-wal.md): archived WAL to the bucket, a base backup every night | `systemd/linedesk-wal-*` | every minute and 03:00 UTC, once `COMPOSE_FILE` has `docker-compose.wal.yml` and `backup.env` exists |

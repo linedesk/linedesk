@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] `pnpm typecheck`, `pnpm lint` and `pnpm test` pass
+- [ ] `pnpm typecheck` and `pnpm lint` pass; tests for what I changed run locally
 - [ ] Writes go through the action registry; new actions have tests (handler, `apply`, permission)
 - [ ] Schema changes come with a Drizzle migration; new env variables are in `.env.example`
 - [ ] `docker compose up` still works

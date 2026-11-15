@@ -15,7 +15,7 @@ Everything else (Postgres and its volume, Electric, the proxy, LiveKit, SIP, egr
 
 ## How it works
 
-- `docker-compose.dev.yml` overrides the three services: one small image (`Dockerfile` target `live`: Node and pnpm, no code), the checkout mounted at `/app`, `node_modules` in a volume, and `docker/dev-run.mjs` as the entry point.
+- `docker-compose.dev.yml` overrides the three services: one small image (`Dockerfile` target `dev`: Node and pnpm, no code), the checkout mounted at `/app`, `node_modules` in a volume, and `docker/dev-run.mjs` as the entry point.
 - `docker/dev-run.mjs` installs the dependencies when the lockfile changed (one service at a time, under a lock; the first install takes a few minutes and ~0.5 GB of memory), starts the service, restarts it when a watched directory changes (api: `apps/api/src`, `packages`; agent: `apps/agent/src`, `packages`; changes to `*.test.ts` are ignored) and starts it again after a crash. A restart sends SIGTERM and SIGKILL 5 s later. `docker compose stop` still gives the agent its full stop grace period.
 - Web and agent never see the checkout's `.env` (an empty file is mounted over `/app/.env`); they get only the variables `docker-compose.yml` gives them, as in image mode. The agent's checkout is read-only, so it never installs (`LINEDESK_DEV_INSTALL=wait`: it waits until the api or web container has installed the lockfile); the process that handles caller audio and LLM tool calls cannot change the code the other services run.
 - The API runs `docker/api-entrypoint.sh` on every start, so new migrations are applied when they arrive. Expand/contract still applies (docs/architecture.md §11).
