@@ -156,76 +156,18 @@
   font-size: 12px;
 }
 
-/* ---- Admin mode: its own sidebar and a centred column, in the look of the Assistant settings. ---- */
+/* ---- Admin mode: the frame of Workspace and Account settings (SettingsLayout), with a back button in the title bar. ---- */
 .adm-mode {
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100%;
   background: var(--bg);
   color: var(--ink);
 }
-.adm-side {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 14px 10px;
-  background: var(--surface);
-  box-shadow: 1px 0 0 var(--line);
-  overflow-y: auto;
-}
-.adm-back {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 8px;
-  margin-bottom: 14px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-}
-.adm-back:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-.adm-back:focus-visible,
 .adm-crumb:focus-visible,
 .adm-row:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-}
-.adm-side-label {
-  margin: 0 8px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
-.adm-side .nav-item .k-kbd {
-  opacity: 0;
-}
-.adm-side .nav-item:hover .k-kbd,
-.adm-side .nav-item:focus-visible .k-kbd {
-  opacity: 1;
-}
-.adm-main {
-  overflow-y: auto;
-  min-width: 0;
-}
-/* One width for every section, so the title never moves; tables wider than it scroll inside. */
-.adm-col {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 28px 28px 56px;
-  display: grid;
-  gap: 16px;
 }
 .adm-head {
   display: grid;
@@ -246,10 +188,10 @@
 .adm-head-actions:empty {
   display: none;
 }
-.adm-head h1 {
+.adm-head h2 {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  font-size: 16px;
+  line-height: 22px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -530,7 +472,7 @@
 }
 
 /* Categories are light headings; each lists its providers (.adm-provlist below). */
-.adm-col-wide .adm-body {
+.adm-body-wide {
   gap: 20px;
 }
 .adm-provcat {
@@ -701,49 +643,8 @@
   font-size: 13px;
 }
 
-/* Narrow: the sections become a row of tabs above the content. */
+/* Narrow: SettingsLayout makes the sections a row of tabs above the content. */
 @media (max-width: 719px) {
-  .adm-mode {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .adm-side {
-    flex-direction: row;
-    align-items: center;
-    gap: 2px;
-    padding: 8px 10px;
-    overflow-x: auto;
-    box-shadow: 0 1px 0 var(--line);
-    scrollbar-width: none;
-  }
-  /* The way out stays at the left end while the sections scroll under it (C24). */
-  .adm-back {
-    /* Over the strip's own left padding too, so no section shows beside it while they scroll. */
-    position: sticky;
-    left: -10px;
-    z-index: 1;
-    margin: 0 6px 0 -10px;
-    padding: 0 8px 0 16px;
-    flex: none;
-    border-radius: 0;
-    background: var(--surface);
-    box-shadow: 1px 0 0 var(--line);
-    color: var(--ink);
-  }
-  .adm-back span,
-  .adm-side-label,
-  .adm-side .nav-item .k-kbd,
-  .adm-side .nav-item .k-icon {
-    display: none;
-  }
-  .adm-side .nav-item {
-    width: auto;
-    flex: none;
-    padding: 0 10px;
-  }
-  .adm-col {
-    padding: 24px 16px 56px;
-  }
   .adm-wide {
     display: none;
   }
@@ -993,9 +894,6 @@
 /* Admin navigation: a failing mark on Overview while a part of the install has a problem */
 .adm-nav-mark {
   margin-left: auto;
-}
-.adm-nav-mark + .k-kbds {
-  margin-left: 6px;
 }
 
 /* Audit log: filters in one wrapping row above the table, "Show older" below it. */

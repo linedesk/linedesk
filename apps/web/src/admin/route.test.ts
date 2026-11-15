@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { adminHash, parseAdminHash, providersTarget } from './route.ts'
+import { adminHash, nextSection, parseAdminHash, providersTarget, tabSwitchesSection } from './route.ts'
 
 test('admin hashes name a section and optionally a row', () => {
   expect(parseAdminHash('#admin')).toEqual({ section: 'overview', id: null })
@@ -21,4 +21,20 @@ test('Providers: a group scrolls, a provider opens its dialog, old category and 
   expect(providersTarget('ai')).toEqual({ group: 'answering' })
   expect(providersTarget('nothing')).toBeNull()
   expect(providersTarget(null)).toBeNull()
+})
+
+test('Tab and Shift-Tab go round the sections', () => {
+  expect(nextSection('overview', false)).toBe('workspaces')
+  expect(nextSection('overview', true)).toBe('audit')
+  expect(nextSection('audit', false)).toBe('overview')
+})
+
+test('Tab switches sections only from the page body, never from a control', () => {
+  const doc = {} as Document
+  const body = { ownerDocument: doc } as unknown as Element
+  Object.assign(doc, { body, documentElement: { ownerDocument: doc } })
+  const button = { ownerDocument: doc } as unknown as Element
+  expect(tabSwitchesSection(null)).toBe(true)
+  expect(tabSwitchesSection(body)).toBe(true)
+  expect(tabSwitchesSection(button)).toBe(false)
 })

@@ -1,11 +1,10 @@
 {
   "apps/web/src/admin/AddUser.tsx": 19,
   "apps/web/src/admin/AdminList.tsx": 1,
-  "apps/web/src/admin/AdminMode.tsx": 9,
+  "apps/web/src/admin/AdminMode.tsx": 6,
   "apps/web/src/admin/AuditLog.tsx": 18,
   "apps/web/src/admin/Branding.tsx": 18,
   "apps/web/src/admin/Memberships.tsx": 22,
-  "apps/web/src/admin/NewWorkspace.tsx": 8,
   "apps/web/src/admin/Onboarding.tsx": 10,
   "apps/web/src/admin/OneKey.tsx": 7,
   "apps/web/src/admin/Overview.tsx": 18,

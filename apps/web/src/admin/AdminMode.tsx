@@ -1,11 +1,13 @@
-// Admin mode: the operator's view above the workspaces, with its own sidebar instead of the
-// inbox. Sections are routes (`#admin/<section>[/<id>]`). Esc steps back: from a detail to its
-// list, from a list out of admin mode to where the user was.
+// Admin mode: the operator's view above the workspaces, in the frame of Workspace and Account settings
+// (SettingsLayout: title bar, sections at the left, one column), with a back button where the inbox's menu button is.
+// Sections are routes (`#admin/<section>[/<id>]`). Esc steps back: from a detail to its list, from a list out of
+// admin mode to where the user was.
 import { PasskeyStepUpHost } from './PasskeyStepUp.tsx'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Toast } from '../shell/Toast.tsx'
-import type { IconName } from '../ui/icons.ts'
-import { Icon, Kbd } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
+import { SettingsLayout } from '../ui/SettingsLayout.tsx'
+import { useT } from '@linedesk/i18n/react'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import type { ListKeys } from './AdminList.tsx'
@@ -21,7 +23,7 @@ import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
 import { useProviderStatus } from './providerStatus.ts'
 import { StatusCard } from './StatusCard.tsx'
-import { type AdminSection, adminSections, useAdminPlace } from './route.ts'
+import { adminSections, nextSection, tabSwitchesSection, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
@@ -29,18 +31,6 @@ import { UserDetail, UsersList } from './UsersPage.tsx'
 import { WorkspaceDetail, WorkspacesList } from './WorkspacesPage.tsx'
 import './admin.css'
 import { useBrand } from '../brand.ts'
-
-const icons: Record<AdminSection, IconName> = {
-  overview: 'waveform',
-  workspaces: 'database',
-  users: 'users',
-  usage: 'clock',
-  onboarding: 'flag',
-  providers: 'plug',
-  branding: 'pencil',
-  system: 'gear',
-  audit: 'shield',
-}
 
 type ToastState = { text: string; undo?: () => Promise<unknown> }
 
@@ -114,6 +104,7 @@ function useHealthProblems(): string[] {
 type Props = { currentUserId: string; onExit: () => void }
 
 export function AdminMode({ currentUserId, onExit }: Props) {
+  const t = useT()
   const { place, go } = useAdminPlace()
   const { name: productName } = useBrand()
   // Shown at once when admin is opened again in this page; loaded again in the background.
@@ -131,17 +122,6 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   // Where a page puts its own buttons, at the right of its heading (Providers: Show all providers).
   const [headActions, setHeadActions] = useState<HTMLDivElement | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
-  const nav = useRef<HTMLElement>(null)
-  // On a phone the sections are a row that scrolls sideways under the back button, which stays put at its
-  // left end: keep the open section in view right of it.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again whenever another section opens
-  useEffect(() => {
-    const item = nav.current?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (!item || !nav.current || nav.current.scrollWidth <= nav.current.clientWidth) return
-    const back = nav.current.querySelector<HTMLElement>('.adm-back')?.offsetWidth ?? 0
-    nav.current.scrollLeft = item.offsetLeft - nav.current.offsetLeft - back - 12
-  }, [place.section])
-
   // Runs before the app's own key handler, which belongs to the inbox.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -163,12 +143,11 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       let handled = true
       if (e.key === 'Escape') place.id ? go({ section: place.section, id: null }) : onExit()
       else if (section) go({ section: section.id, id: null })
-      // Tab moves between sections, as it moves between views in the inbox; it never walks focus.
+      // Tab moves between sections only from the page itself, as it moves between views in the inbox; on a
+      // button, link or menu it walks focus as everywhere else (Q11).
       else if (e.key === 'Tab') {
-        const at = adminSections.findIndex(s => s.id === place.section)
-        const next = adminSections[(at + (e.shiftKey ? adminSections.length - 1 : 1)) % adminSections.length]!
-        ;(document.activeElement as HTMLElement | null)?.blur()
-        go({ section: next.id, id: null })
+        if (!tabSwitchesSection(document.activeElement)) return
+        go({ section: nextSection(place.section, e.shiftKey), id: null })
       }
       // Z only ever undoes here: the inbox's undo would act on a call out of sight.
       else if (e.key === 'z') void undo()
@@ -272,36 +251,32 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   // After signing in, the page loads again at the same admin address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onExit} />
 
+  const sections = adminSections.map((s, i) => ({
+    id: s.id,
+    label: s.label,
+    shortcut: String(i + 1),
+    mark:
+      s.id === 'overview' && problems.length > 0 ? (
+        <StatusMark state="failing" className="adm-nav-mark" label={`Needs attention: ${problems.join(', ')}`} />
+      ) : undefined,
+  }))
+
   return (
     <div className="adm-mode">
-      <nav ref={nav} className="adm-side" aria-label="Server admin">
-        <button type="button" className="adm-back" onClick={onExit} title={`Back to ${productName} (esc)`}>
-          <Icon name="left" size={15} />
-          <span>Back to {productName}</span>
-        </button>
-        <p className="adm-side-label">Server admin</p>
-        {adminSections.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            className="nav-item"
-            aria-current={s.id === place.section ? 'page' : undefined}
-            title={`${s.label} (${i + 1})`}
-            onClick={() => go({ section: s.id, id: null })}
-          >
-            <Icon name={icons[s.id]} size={15} />
-            <span className="lbl">{s.label}</span>
-            {s.id === 'overview' && problems.length > 0 && (
-              <StatusMark state="failing" className="adm-nav-mark" label={`Needs attention: ${problems.join(', ')}`} />
-            )}
-            <Kbd keys={[String(i + 1)]} />
-          </button>
-        ))}
-      </nav>
-      <main className="adm-main">
-        <div
-          className={place.section === 'providers' || place.section === 'audit' ? 'adm-col adm-col-wide' : 'adm-col'}
-        >
+      <div className="pagebar">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="left"
+          className="adm-back"
+          aria-label={t('admin.frame.back', { brand: productName })}
+          title={`${t('admin.frame.back', { brand: productName })} (esc)`}
+          onClick={onExit}
+        />
+        <b>{t('shell.page.admin')}</b>
+      </div>
+      <div className="page">
+        <SettingsLayout page="admin" title={t('shell.page.admin')} sections={sections} current={place.section}>
           <header className="adm-head">
             {detailTitle ? (
               <>
@@ -309,17 +284,17 @@ export function AdminMode({ currentUserId, onExit }: Props) {
                   type="button"
                   className="adm-crumb"
                   onClick={() => go({ section: place.section, id: null })}
-                  title={`Back to ${meta.label} (esc)`}
+                  title={`${t('admin.frame.backTo', { section: meta.label })} (esc)`}
                 >
                   <Icon name="left" size={13} />
                   {meta.label}
                 </button>
-                <h1>{detailTitle}</h1>
+                <h2>{detailTitle}</h2>
               </>
             ) : (
               <>
                 <div className="adm-head-row">
-                  <h1>{meta.label}</h1>
+                  <h2>{meta.label}</h2>
                   <div className="adm-head-actions" ref={setHeadActions} />
                 </div>
                 {meta.description && <p>{meta.description}</p>}
@@ -328,13 +303,13 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           </header>
           {/* A provider or group link on Providers stays on the same page: it scrolls or opens a dialog. */}
           <div
-            className="adm-body"
+            className={place.section === 'providers' ? 'adm-body adm-body-wide' : 'adm-body'}
             key={place.section === 'providers' ? place.section : `${place.section}/${place.id ?? ''}`}
           >
             {page()}
           </div>
-        </div>
-      </main>
+        </SettingsLayout>
+      </div>
       {toast && <Toast toast={{ text: toast.text, undo: !!toast.undo }} onUndo={() => void undo()} />}
       {/* Last, so the passkey dialog opens over a confirm dialog that waits for it (same layer, later wins). */}
       <PasskeyStepUpHost />

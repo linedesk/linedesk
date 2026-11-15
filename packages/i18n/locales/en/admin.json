@@ -1,5 +1,7 @@
 {
   "example.business": "Riverside Electric",
   "example.ownerEmail": "owner@riverside-electric.example",
+  "frame.back": "Back to {brand}",
+  "frame.backTo": "Back to {section}",
   "impersonation.confirm": "You will see {brand} exactly as {name} does. Everything you do is recorded as done by you on their behalf. Ends after 1 hour."
 }

@@ -30,6 +30,19 @@ export const adminSections = [
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }
 
+/** The section after `section` (Tab) or before it (⇧Tab), going round. */
+export function nextSection(section: AdminSection, back: boolean): AdminSection {
+  const at = adminSections.findIndex(s => s.id === section)
+  return adminSections[(at + (back ? adminSections.length - 1 : 1)) % adminSections.length]!.id
+}
+
+/**
+ * Tab switches sections only while focus is on the page itself (nothing focused: the body). On a field, button, link,
+ * menu or dialog it moves focus as in any page, the inbox's rule too (decision Q11).
+ */
+export const tabSwitchesSection = (active: Element | null) =>
+  !active || active === active.ownerDocument.body || active === active.ownerDocument.documentElement
+
 const isSection = (value: string): value is AdminSection => adminSections.some(s => s.id === value)
 
 /** `#admin`, `#admin/users`, `#admin/users/<id>`. Anything else in admin mode is the overview. */

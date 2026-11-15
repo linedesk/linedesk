@@ -11,6 +11,10 @@ export type PageSection<T extends string = string> = {
   description?: string
   /** Open items in it, shown as a small count next to the label (none at 0). */
   count?: number
+  /** The key that opens it (Server admin: 1 to 9), named in the tooltip. */
+  shortcut?: string
+  /** Something to flag next to the label (Server admin › Overview: a part of the install needs attention). */
+  mark?: ReactNode
 }
 
 /** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
@@ -126,11 +130,12 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 className="nav-item sl-item"
                 onClick={e => showSectionNow(e, sectionHash(page, s.id))}
                 aria-current={s.id === current ? 'page' : undefined}
-                title={s.label}
+                title={s.shortcut ? `${s.label} (${s.shortcut})` : s.label}
                 data-desc={s.description}
               >
                 <span>{s.label}</span>
                 {!!s.count && <span className="nav-n">{s.count}</span>}
+                {s.mark}
                 {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
               </a>
             )

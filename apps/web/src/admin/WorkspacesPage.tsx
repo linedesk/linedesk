@@ -6,11 +6,12 @@ import { ActionBar, RowActions, useActionRunner, workspaceActions } from './acti
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { WorkspaceMembersCard } from './Memberships.tsx'
-import { NewWorkspace } from './NewWorkspace.tsx'
 import { formatMinutes, formatUsd, parseSpendingCap } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { day, EMPTY, when } from './parts.tsx'
 import { formatNumber } from '../onboarding/flow.ts'
+import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 const columns: Column<AdminWorkspace>[] = [
   {
@@ -63,11 +64,37 @@ type ListProps = {
   viewerWorkspaces: ReadonlySet<string>
 }
 
+/** Server admin › Workspaces › New workspace: the app's one dialog, here with the owner by email offered as well. */
+function NewWorkspaceButton({ notify, reload }: { notify: Notify; reload: () => Promise<void> }) {
+  const t = useT()
+  const [shown, setShown] = useState(false)
+  return (
+    <>
+      <div>
+        <Button size="sm" icon="plus" title={t('shell.newWorkspace.openTip')} onClick={() => setShown(true)}>
+          {t('shell.newWorkspace.open')}
+        </Button>
+      </div>
+      {shown && (
+        <NewWorkspaceDialog
+          ownerChoice
+          onClose={() => setShown(false)}
+          onCreatedForOwner={async text => {
+            // The list shows it before the dialog closes.
+            await reload()
+            notify(text)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
 export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, viewerWorkspaces }: ListProps) {
   const runner = useActionRunner(notify)
   return (
     <>
-      <NewWorkspace toast={notify} reload={reload} />
+      <NewWorkspaceButton notify={notify} reload={reload} />
       <AdminList
         rows={workspaces}
         rowId={w => w.id}
