@@ -8,6 +8,8 @@
 // The server's steps are once per install; the workspace steps below them belong to the workspace picked in the
 // dropdown that heads them (one per business or location, LIN-237). Picking one makes it the app's active workspace, so
 // the forwarding and the test call always act on the workspace shown.
+// Once everything is set up the page stays the way to change things: a new link for the agent, or the install
+// walkthrough step by step (Server admin › Providers on Cloud, where the walkthrough is off).
 import {
   AGENT_SETUP_HASH,
   type AgentClient,
@@ -24,10 +26,12 @@ import {
   stepsByGroup,
 } from '@linedesk/actions'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { loadAgentSetup, loadAgentSetupKey, runAdmin, watchAdminSignIn } from '../admin/api.ts'
+import { loadAgentSetup, loadAgentSetupKey, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
+import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
+import { useQuery } from '../cachedQuery.ts'
 import { SETUP_LINK_KEY } from '../localData.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
@@ -48,6 +52,7 @@ import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
+import { INSTALL_SETUP_HASH } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
 import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
@@ -269,6 +274,13 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     rememberManual(true)
     onManual(state ? installPartsMissing(state.progress.steps) : false)
   }
+  // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
+  // overview, nothing is reset; off on Cloud, where Server admin › Providers is the way by hand).
+  const allDone = state?.progress.allDone ?? false
+  const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
+  const stepByStep = () => {
+    window.location.hash = install?.enabled === false ? '#admin/providers' : INSTALL_SETUP_HASH
+  }
 
   const connected = Boolean(state?.key?.lastUsedAt)
   // One setup link at a time: while one is active the page offers only to end it, otherwise only to create one.
@@ -296,12 +308,21 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
           <span className="as-kicker">
             <Icon name="spark" size={14} /> Recommended
           </span>
-          <h1>Set up {brandName()} with your AI agent</h1>
-          <p className="ob-lede">
-            Your agent connects to this server and does the whole setup with you: the AI, a phone carrier, email, your
-            business and its number. <b>About 10 minutes.</b> You create the accounts; it asks before anything that
-            costs money.
-          </p>
+          {allDone ? (
+            <>
+              <h1>Change {brandName()} with your AI agent</h1>
+              <p className="ob-lede">Everything is set up. Want to change something? Give your agent a new link.</p>
+            </>
+          ) : (
+            <>
+              <h1>Set up {brandName()} with your AI agent</h1>
+              <p className="ob-lede">
+                Your agent connects to this server and does the whole setup with you: the AI, a phone carrier, email,
+                your business and its number. <b>About 10 minutes.</b> You create the accounts; it asks before anything
+                that costs money.
+              </p>
+            </>
+          )}
         </div>
 
         {state && <HostingNote address={state.mcpUrl} />}
@@ -411,9 +432,20 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
         />
 
         <div className="as-foot">
-          <button type="button" className="as-manual" onClick={manual} title="Go through the setup steps yourself">
-            Set up by hand instead
-          </button>
+          {allDone ? (
+            <button
+              type="button"
+              className="as-manual"
+              onClick={stepByStep}
+              title="Go through the server’s setup steps yourself; what is set up stays"
+            >
+              Step by step
+            </button>
+          ) : (
+            <button type="button" className="as-manual" onClick={manual} title="Go through the setup steps yourself">
+              Set up by hand instead
+            </button>
+          )}
         </div>
       </div>
     </div>

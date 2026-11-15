@@ -1,11 +1,18 @@
 // Server admin › Providers (LIN-158): every provider group in one place, in the same order and words as the overview's
 // "Ready for calls" card and the install walkthrough (provider-status.ts): each group with its status, why it is
 // there and its providers. Connect and Edit open the provider's dialog (ProviderDialog), the one editor. While a group
-// calls need is not set up, the agent setup leads on top. `#admin/providers/<group>` scrolls to the group,
-// `#admin/providers/<provider>` opens its dialog; old category links (`#admin/providers/stt`) land on their group.
+// calls need is not set up, the agent setup leads on top; once all are, the same note offers to change them.
+// `#admin/providers/<group>` scrolls to the group, `#admin/providers/<provider>` opens its dialog; old category links
+// (`#admin/providers/stt`) land on their group.
 // "Show all providers" at the right of the heading opens every group's short list at once (and "Show fewer" folds
 // them again); each list's own "Show more" still works, and the top button follows what the lists show.
-import { isMultiCategory, listWords, providerCategories, type ProviderName } from '@linedesk/actions'
+import {
+  type InstallSetupState,
+  isMultiCategory,
+  listWords,
+  providerCategories,
+  type ProviderName,
+} from '@linedesk/actions'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '../cachedQuery.ts'
@@ -27,11 +34,15 @@ import type { ProviderStatusState } from './providerStatus.ts'
 export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
 
 /**
- * "Set up with an AI agent", the first way to set up an install, and "Step by step" next to it while the walkthrough
- * is on. On top of Server admin › Providers as a note; on the overview's card as a quiet line.
+ * The two ways to set up or change the install, always offered: "Set up with an AI agent" first (once everything is set
+ * up, "Change with an AI agent": the agent setup page gives it a new link), and "Step by step", the install
+ * walkthrough, next to it (once finished, it opens at its overview; nothing is reset). On Cloud the walkthrough is off
+ * (`enabled` false, it would only open Server admin › Providers), so only the agent is offered there. On top of Server
+ * admin › Providers as a note; on the overview's card as a quiet line.
  */
-export function AgentFirst({ lead, quiet }: { lead: string; quiet?: boolean }) {
+export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: boolean; complete?: boolean }) {
   const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
+  const label = agentFirstLabels(install, complete)
   const buttons = (
     <>
       <Button
@@ -39,20 +50,22 @@ export function AgentFirst({ lead, quiet }: { lead: string; quiet?: boolean }) {
         variant="primary"
         icon="spark"
         onClick={openAgentSetup}
-        title="Let Claude, ChatGPT or another AI agent set up this install with you"
+        title={
+          complete
+            ? 'Let Claude, ChatGPT or another AI agent change this install with you'
+            : 'Let Claude, ChatGPT or another AI agent set up this install with you'
+        }
       >
-        Set up with an AI agent
+        {label.agent}
       </Button>
-      {install?.enabled && (
+      {label.steps && (
         <Button
           size="sm"
           variant="ghost"
           onClick={openInstallSetup}
           title="Go through each group yourself, one screen at a time, with a real test for each"
         >
-          {install.progress.step !== 'welcome' && !install.progress.finishedAt
-            ? 'Continue step by step'
-            : 'Step by step'}
+          {label.steps}
         </Button>
       )}
     </>
@@ -69,6 +82,20 @@ export function AgentFirst({ lead, quiet }: { lead: string; quiet?: boolean }) {
       {lead}
     </Note>
   )
+}
+
+/**
+ * AgentFirst's buttons: the agent's ("Change …" once everything is set up) and the walkthrough's, or none for the
+ * walkthrough while its state is not read yet or it is off (Cloud).
+ */
+export function agentFirstLabels(
+  install: Pick<InstallSetupState, 'enabled' | 'progress'> | undefined,
+  complete = false,
+): { agent: string; steps: string | null } {
+  const agent = complete ? 'Change with an AI agent' : 'Set up with an AI agent'
+  if (!install?.enabled) return { agent, steps: null }
+  const started = install.progress.step !== 'welcome' && !install.progress.finishedAt
+  return { agent, steps: !complete && started ? 'Continue step by step' : 'Step by step' }
 }
 
 type DialogForProps = {
@@ -215,11 +242,14 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
           <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
         </Note>
       )}
-      {missing.length > 0 && (
-        <AgentFirst
-          lead={`${listWords(missing.map(g => g.label))} ${missing.length > 1 ? 'are' : 'is'} not set up yet. An AI agent can set up the rest with you in about 10 minutes.`}
-        />
-      )}
+      {status.status &&
+        (missing.length > 0 ? (
+          <AgentFirst
+            lead={`${listWords(missing.map(g => g.label))} ${missing.length > 1 ? 'are' : 'is'} not set up yet. An AI agent can set up the rest with you in about 10 minutes.`}
+          />
+        ) : (
+          <AgentFirst lead="Everything calls need is set up. Want to change something?" complete />
+        ))}
       {status.status &&
         groups.map(g => (
           <ProviderGroup

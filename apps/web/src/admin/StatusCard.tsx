@@ -198,8 +198,10 @@ export function StatusCard({ status }: { status: ProviderStatusState }) {
         {expanded ? 'Hide details' : 'Show details'}
       </button>
       {expanded && <StatusList groups={groups} health={status.health} />}
-      {notSetUp && (
+      {notSetUp ? (
         <AgentFirst lead="Not set up yet? An AI agent sets up the rest with you in about 10 minutes." quiet />
+      ) : (
+        <AgentFirst lead="Everything is set up. Want to change something?" quiet complete />
       )}
     </section>
   )
