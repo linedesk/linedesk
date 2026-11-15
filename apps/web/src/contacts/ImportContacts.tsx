@@ -32,19 +32,23 @@ import {
   planSummary,
   tableOf,
 } from './csvImport.ts'
+import { fmt } from '../i18n/format.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
-const FIELD_LABEL: Record<ImportField | 'skip', string> = {
-  phone: 'Phone',
-  name: 'Name',
-  company: 'Company',
-  email: 'Email',
-  address: 'Address',
-  note: 'Note',
-  skip: 'Skip',
-}
-const fieldOptions = [...IMPORT_FIELDS, 'skip' as const].map(value => ({ value, label: FIELD_LABEL[value] }))
+const FIELD_LABEL = {
+  phone: msg('contacts.field.phone'),
+  name: msg('contacts.field.name'),
+  company: msg('contacts.field.company'),
+  email: msg('contacts.field.email'),
+  address: msg('contacts.field.address'),
+  note: msg('contacts.field.note'),
+  skip: msg('contacts.import.skip'),
+} satisfies Record<ImportField | 'skip', MessageKey>
+const fieldOptions = () =>
+  [...IMPORT_FIELDS, 'skip' as const].map(value => ({ value, label: i18n().t(FIELD_LABEL[value]) }))
 const PREVIEW_ROWS = 5
-const plural = (n: number, word: string) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
 
 type File = CsvTable & { name: string }
 
@@ -58,7 +62,9 @@ function importParts(rows: ImportRow[]): { parts: { rows: ImportRow[] }[] } | { 
       const issue = checked.error.issues[0]!
       const row = part.rows[issue.path[1] as number]
       return {
-        problem: `Nothing was imported: the row for ${row?.phone ?? 'a contact'} cannot be saved (${issue.message}).`,
+        problem: row?.phone
+          ? i18n().t('contacts.import.rowRefused', { phone: row.phone, reason: issue.message })
+          : i18n().t('contacts.import.rowRefusedNoPhone', { reason: issue.message }),
       }
     }
     parts.push(part)
@@ -67,19 +73,20 @@ function importParts(rows: ImportRow[]): { parts: { rows: ImportRow[] }[] } | { 
 }
 
 function importedSummary(total: ContactImportData): string {
-  return `Imported: ${[
-    plural(total.created, 'new contact'),
-    `${total.updated.toLocaleString('en-US')} updated`,
-    total.unchanged && `${total.unchanged.toLocaleString('en-US')} already up to date`,
-    total.skipped && `${total.skipped.toLocaleString('en-US')} of deleted contacts left out`,
-  ]
-    .filter(Boolean)
-    .join(', ')}.`
+  const { t } = i18n()
+  const parts = [
+    t('contacts.import.planAdded', { count: total.created }),
+    t('contacts.import.doneUpdated', { count: total.updated }),
+    total.unchanged && t('contacts.import.doneUnchanged', { count: total.unchanged }),
+    total.skipped && t('contacts.import.doneSkipped', { count: total.skipped }),
+  ].filter((part): part is string => Boolean(part))
+  return t('contacts.import.done', { parts: fmt().list(parts) })
 }
 
 type Props = { onClose: () => void; toast: (text: string) => void }
 
 export function ImportContacts({ onClose, toast }: Props) {
+  const t = useT()
   const write = useWriteAction()
   // Deleted contacts too: contact.import leaves their numbers out, and the preview says so.
   const contacts = useRows('contacts')
@@ -131,8 +138,8 @@ export function ImportContacts({ onClose, toast }: Props) {
       const message = (e as Error).message.replace(/([^.!?])$/, '$1.')
       setError(
         sent
-          ? `The import stopped after ${sent.toLocaleString('en-US')} of ${plan.rows.length.toLocaleString('en-US')} rows: ${message} Import the file again to add the rest; rows already imported are not added twice.`
-          : `Nothing was imported: ${message}`,
+          ? t('contacts.import.stopped', { sent, total: plan.rows.length, message })
+          : t('contacts.import.nothing', { message }),
       )
       setBusy(false)
     }
@@ -141,29 +148,32 @@ export function ImportContacts({ onClose, toast }: Props) {
   const hasPhone = columns.includes('phone')
   return (
     <Dialog
-      title="Import contacts"
+      title={t('contacts.import.label')}
       description={
         file ? (
           file.name
         ) : (
-          <>
-            A CSV file; its first row names the columns.{' '}
-            <button
-              type="button"
-              className="k-link"
-              title={`Download ${EXAMPLE_FILE_NAME}`}
-              onClick={() => saveFile(EXAMPLE_FILE_NAME, toCsv(EXAMPLE_CONTACTS), CSV_TYPE)}
-            >
-              Download an example
-            </button>
-            .
-          </>
+          <T
+            k="contacts.import.description"
+            values={{
+              example: chunks => (
+                <button
+                  type="button"
+                  className="k-link"
+                  title={t('contacts.import.downloadTitle', { file: EXAMPLE_FILE_NAME })}
+                  onClick={() => saveFile(EXAMPLE_FILE_NAME, toCsv(EXAMPLE_CONTACTS), CSV_TYPE)}
+                >
+                  {chunks}
+                </button>
+              ),
+            }}
+          />
         )
       }
       onClose={onClose}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.action.cancel')}</Button>
           {file ? (
             <Button
               busy={busy}
@@ -171,11 +181,15 @@ export function ImportContacts({ onClose, toast }: Props) {
               disabled={busy || !hasPhone || !plan?.rows.length}
               onClick={() => void run()}
             >
-              {busy ? 'Importing…' : `Import ${plan ? plan.rows.length : ''}`}
+              {busy
+                ? t('contacts.import.importing')
+                : plan
+                  ? t('contacts.import.importCount', { count: plan.rows.length })
+                  : t('contacts.import.button')}
             </Button>
           ) : (
             <Button variant="primary" onClick={() => input.current?.click()}>
-              Choose file
+              {t('contacts.import.chooseFile')}
             </Button>
           )}
         </>
@@ -200,13 +214,13 @@ export function ImportContacts({ onClose, toast }: Props) {
               // biome-ignore lint/suspicious/noArrayIndexKey: the columns of one file never move
               <div key={col} className="imp-col">
                 <span className="imp-col-h" title={title}>
-                  {title || `Column ${col + 1}`}
+                  {title || t('contacts.import.column', { number: col + 1 })}
                 </span>
                 <Select
                   size="sm"
-                  label={`Column ${title || col + 1} is`}
+                  label={t('contacts.import.columnIs', { column: title || String(col + 1) })}
                   value={columns[col] ?? 'skip'}
-                  options={fieldOptions}
+                  options={fieldOptions()}
                   onChange={field =>
                     setColumns(cs =>
                       cs.map((c, i) =>
@@ -224,7 +238,7 @@ export function ImportContacts({ onClose, toast }: Props) {
             ))}
           </div>
           {!hasPhone ? (
-            <p className="help">Pick the column with the phone number.</p>
+            <p className="help">{t('contacts.import.pickPhone')}</p>
           ) : (
             plan && (
               <>
@@ -232,10 +246,10 @@ export function ImportContacts({ onClose, toast }: Props) {
                 <table className="imp-preview">
                   <thead>
                     <tr>
-                      <th>Phone</th>
-                      <th>Name</th>
-                      <th>Company</th>
-                      <th>Email</th>
+                      <th>{t('contacts.field.phone')}</th>
+                      <th>{t('contacts.field.name')}</th>
+                      <th>{t('contacts.field.company')}</th>
+                      <th>{t('contacts.field.email')}</th>
                     </tr>
                   </thead>
                   <tbody>

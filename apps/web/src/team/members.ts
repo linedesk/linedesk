@@ -4,6 +4,7 @@ import { avatarUrlOf } from '@linedesk/actions'
 import type { WorkspaceMember } from '@linedesk/db/types'
 import { useMemo } from 'react'
 import { useRows } from '../store.tsx'
+import { i18n } from '../i18n/index.tsx'
 
 /** Every member, by name; disabled accounts included (calls they had still show who). */
 export function useMembers(): WorkspaceMember[] {
@@ -23,7 +24,8 @@ export function useMember(userId: string | null): WorkspaceMember | undefined {
 }
 
 /** A member's name; one without a name (or not synced yet) reads "A teammate". */
-export const memberLabel = (m: Pick<WorkspaceMember, 'name'> | undefined) => m?.name.trim() || 'A teammate'
+export const memberLabel = (m: Pick<WorkspaceMember, 'name'> | undefined) =>
+  m?.name.trim() || i18n().t('team.invite.aTeammate')
 
 /** A member's profile picture (Account settings › Profile), null without one: the initials show. */
 export const memberAvatar = (m: Pick<WorkspaceMember, 'user_id' | 'avatar_version'> | undefined) =>

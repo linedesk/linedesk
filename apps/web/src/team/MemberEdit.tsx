@@ -13,6 +13,7 @@ import { Dialog } from '../ui/form.tsx'
 import { Avatar, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { refreshTeam, teamApi } from './team-api.ts'
+import { useT } from '@linedesk/i18n/react'
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -43,21 +44,22 @@ export function MemberEditDialog({
   onClose: () => void
   toast: (text: string) => void
 }) {
+  const t = useT()
   const { data, setData, error, reload } = useMemberEdit(memberId)
   const shownName = data?.member.name || name
   return (
     <Dialog
-      title={`Edit ${shownName}`}
-      description={`Changes are visible to ${shownName}.`}
+      title={t('team.edit.title', { name: shownName })}
+      description={t('team.edit.description', { name: shownName })}
       onClose={onClose}
       footer={
-        <Button variant="ghost" onClick={onClose} title="Close (Esc)">
-          Done
+        <Button variant="ghost" onClick={onClose} title={t('common.action.closeWithKey', { key: 'Esc' })}>
+          {t('team.edit.done')}
         </Button>
       }
     >
       <Loading
-        what={`${shownName}'s settings`}
+        what={t('team.edit.what', { name: shownName })}
         loading={!data}
         error={error}
         onRetry={() => void reload()}
@@ -78,6 +80,7 @@ function MemberEditForm({
   setData: (next: MemberEditData) => void
   toast: (text: string) => void
 }) {
+  const t = useT()
   const run = useWriteAction()
   const { member } = data
   const [name, setName] = useState(member.name)
@@ -97,7 +100,7 @@ function MemberEditForm({
       await run('team.updateMemberProfile', { memberId: member.memberId, name: trimmed })
       setData({ ...data, member: { ...member, name: trimmed } })
       void refreshTeam()
-      toast('Name saved.')
+      toast(t('account.profile.nameSaved'))
     } catch (err) {
       setProblem(message(err))
     } finally {
@@ -117,12 +120,12 @@ function MemberEditForm({
   }
 
   const nameHelp = data.inOtherWorkspaces
-    ? 'This changes their name in every workspace they are in.'
-    : 'Their name belongs to their account: it also shows in any workspace they join later.'
+    ? t('team.edit.nameEverywhere')
+    : t('team.edit.nameAccount')
 
   return (
     <>
-      <Section id="team-edit-profile" title="Profile">
+      <Section id="team-edit-profile" title={t('account.nav.profile.label')}>
         {data.profileEditable ? (
           <>
             <AvatarField
@@ -137,7 +140,12 @@ function MemberEditForm({
               }}
             />
             <form className="team-edit-name" onSubmit={e => void saveName(e)}>
-              <Field id="team-edit-name" label="Name" tip={nameHelp} error={trimmed ? problem : 'Enter a name.'}>
+              <Field
+                id="team-edit-name"
+                label={t('account.profile.name')}
+                tip={nameHelp}
+                error={trimmed ? problem : t('team.edit.enterName')}
+              >
                 <TextInput id="team-edit-name" value={name} onChange={setName} invalid={!trimmed} />
               </Field>
               <Button
@@ -146,28 +154,32 @@ function MemberEditForm({
                 variant="secondary"
                 busy={saving}
                 disabled={!dirty || !trimmed || saving}
-                title="Save the name (⏎)"
+                title={t('common.withKey', { label: t('team.edit.saveName'), key: '⏎' })}
               >
-                Save
+                {t('common.action.save')}
               </Button>
             </form>
           </>
         ) : (
           <>
-            <Field label="Picture">
+            <Field label={t('account.picture.label')}>
               <Avatar name={member.name || member.email} src={member.avatarUrl ?? null} size={56} />
             </Field>
-            <Field label="Name">
+            <Field label={t('account.profile.name')}>
               <span className="ac-value">{member.name}</span>
             </Field>
-            <p className="help">Also in another workspace, so only they can change their name and picture.</p>
+            <p className="help">{t('team.edit.otherWorkspace')}</p>
           </>
         )}
-        <Field label="Email" tip="Email, password, passkeys and sessions stay with them.">
+        <Field label={t('account.profile.email')} tip={t('team.edit.emailTip')}>
           <span className="ac-value">{member.email}</span>
         </Field>
       </Section>
-      <Section id="team-edit-notify" title="Notifications" description="In this workspace.">
+      <Section
+        id="team-edit-notify"
+        title={t('account.nav.notifications.label')}
+        description={t('team.edit.inThisWorkspace')}
+      >
         <NotificationSwitches
           them
           settings={data.notifications}
@@ -176,7 +188,7 @@ function MemberEditForm({
           pushSummaryOffOnly
           onChange={change => void changeNotifications(change)}
         />
-        <p className="help">Notifications on their devices are turned on and off on each device.</p>
+        <p className="help">{t('team.edit.devices')}</p>
       </Section>
     </>
   )

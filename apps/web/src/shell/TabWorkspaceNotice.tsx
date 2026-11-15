@@ -11,6 +11,7 @@ import { onSwitchElsewhere } from '../tabWorkspace.ts'
 import { BrandMark, Button } from '../ui/kit.tsx'
 import { switchToWorkspace } from './invitations.ts'
 import { brandName } from '../brand.ts'
+import { i18n } from '../i18n/index.tsx'
 
 type Named = { id: string; name: string }
 
@@ -26,51 +27,54 @@ export type TabNotice = { title: string; text: string; actions: NoticeAction[] }
 export const notSavedText = (discarded: number) =>
   discarded === 0
     ? ''
-    : ` ${discarded === 1 ? 'Your last change was' : `Your last ${discarded} changes were`} not saved.`
+    : ` ${i18n().t('shell.tabNotice.notSaved', { count: discarded })}`
 
 /** What the notice says and offers, by why the tab stopped. */
 export function tabNotice(refusal: WorkspaceRefusal, tab: Named, workspaces: Named[], discarded = 0): TabNotice {
+  const { t } = i18n()
   if (refusal.code === 'signed_out') {
     return {
-      title: 'You were signed out',
-      text: `Sign in again to keep working.${notSavedText(discarded)}`,
-      actions: [{ label: 'Sign in', kind: 'reload' }],
+      title: t('shell.tabNotice.signedOut.title'),
+      text: `${t('shell.tabNotice.signedOut.text')}${notSavedText(discarded)}`,
+      actions: [{ label: t('shell.tabNotice.signIn'), kind: 'reload' }],
     }
   }
   if (refusal.code === 'account_switched') {
     return {
-      title: 'Someone else signed in',
-      text: 'Another account signed in on this browser in another tab. Changes made here were not sent as them.',
-      actions: [{ label: 'Reload', kind: 'reload' }],
+      title: t('shell.tabNotice.switched.title'),
+      text: t('shell.tabNotice.switched.text'),
+      actions: [{ label: t('shell.tabNotice.reload'), kind: 'reload' }],
     }
   }
   if (refusal.code === 'client_outdated') {
     return {
-      title: `${brandName()} was updated`,
-      text: 'Reload to continue with the new version. Changes made here are kept and sent after the reload.',
-      actions: [{ label: 'Reload', kind: 'reload' }],
+      title: t('shell.tabNotice.outdated.title', { brand: brandName() }),
+      text: t('shell.tabNotice.outdated.text'),
+      actions: [{ label: t('shell.tabNotice.reload'), kind: 'reload' }],
     }
   }
   if (refusal.code === 'workspace_access_lost') {
     const other = workspaces.find(w => w.id !== tab.id)
     return {
-      title: `You no longer have access to ${tab.name}`,
-      text: `You were removed from this workspace, or it no longer exists.${notSavedText(discarded)}`,
+      title: t('shell.tabNotice.lost.title', { workspace: tab.name }),
+      text: `${t('shell.tabNotice.lost.text')}${notSavedText(discarded)}`,
       actions: [
         other
-          ? { label: `Switch to ${other.name}`, kind: 'switch', workspaceId: other.id, keepPage: false }
-          : { label: 'Continue', kind: 'reload' },
-        { label: 'Sign out', kind: 'signOut' },
+          ? { label: t('shell.tabNotice.switchTo', { workspace: other.name }), kind: 'switch', workspaceId: other.id, keepPage: false }
+          : { label: t('shell.tabNotice.continue'), kind: 'reload' },
+        { label: t('shell.signOut'), kind: 'signOut' },
       ],
     }
   }
   const other = workspaces.find(w => w.id === refusal.activeWorkspaceId)?.name
   return {
-    title: `This tab is on ${tab.name}`,
-    text: `You switched to ${other ?? 'another workspace'} in another tab. This tab sends nothing until you choose; changes made here are kept.`,
+    title: t('shell.tabNotice.elsewhere.title', { workspace: tab.name }),
+    text: other
+      ? t('shell.tabNotice.elsewhere.text', { workspace: other })
+      : t('shell.tabNotice.elsewhere.textUnknown'),
     actions: [
-      { label: `Switch back to ${tab.name}`, kind: 'switch', workspaceId: tab.id, keepPage: true },
-      { label: other ? `Open ${other}` : 'Reload', kind: 'reload' },
+      { label: t('shell.tabNotice.switchBack', { workspace: tab.name }), kind: 'switch', workspaceId: tab.id, keepPage: true },
+      { label: other ? t('shell.tabNotice.open', { workspace: other }) : t('shell.tabNotice.reload'), kind: 'reload' },
     ],
   }
 }

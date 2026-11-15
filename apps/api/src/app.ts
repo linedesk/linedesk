@@ -335,8 +335,21 @@ app.get('/v1/me', async c => {
     starPrompt: await starPromptFor(actor),
     // An instance admin who chose to set up this install by hand: no agent setup page first (install-setup.ts).
     setupByHand: await setupByHandFor(actor),
+    // The member's UI language (user-locale.ts): `locale` null is Automatic. Signed in as someone else, the admin's
+    // own browser decides (null), so they can read what they see.
+    ...(await localeOf(actor)),
   })
 })
+
+/** The UI language fields of the signed-in member; both null while impersonating. */
+async function localeOf({ actorId, impersonation }: Actor) {
+  if (impersonation) return { locale: null, localeAuto: null }
+  const [row] = await db
+    .select({ locale: user.locale, localeAuto: user.localeAuto })
+    .from(user)
+    .where(eq(user.id, actorId))
+  return { locale: row?.locale ?? null, localeAuto: row?.localeAuto ?? null }
+}
 
 /** Only for an instance admin (also before the second factor), never while signed in as someone else. */
 async function setupByHandFor({ actorId, permissions, adminSecondFactor, impersonation }: Actor): Promise<boolean> {

@@ -9,7 +9,7 @@ import { WorkspaceMembersCard } from './Memberships.tsx'
 import { NewWorkspace } from './NewWorkspace.tsx'
 import { formatMinutes, formatUsd, parseSpendingCap } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
-import { day, when } from './parts.tsx'
+import { day, EMPTY, when } from './parts.tsx'
 import { formatNumber } from '../onboarding/flow.ts'
 
 const columns: Column<AdminWorkspace>[] = [
@@ -30,7 +30,7 @@ const columns: Column<AdminWorkspace>[] = [
     wide: true,
     render: w => (
       <span className="adm-mono">
-        {w.phone_numbers[0] ? formatNumber(w.phone_numbers[0]) : '–'}
+        {w.phone_numbers[0] ? formatNumber(w.phone_numbers[0]) : EMPTY}
         {w.phone_numbers.length > 1 && ` +${w.phone_numbers.length - 1}`}
       </span>
     ),

@@ -38,6 +38,7 @@ import { envAdminEmails } from './instance-admin.ts'
 import { PASSKEY_CONFIRMATION_REQUIRED } from './passkeys.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { countWrongCode } from './sign-in-limits.ts'
+import { localeForEmail, localeForUserId } from './email-locale.ts'
 
 type Ctx = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]
 type InternalAdapter = Ctx['context']['internalAdapter']
@@ -199,7 +200,7 @@ export async function guardEmailChange(ctx: Ctx) {
         const code = await newCurrentCode(adapter, me.id)
         // Not awaited, as every code email.
         void emailSender
-          .send({ to: me.email, ...emailChangeConfirmCurrentEmail(code) })
+          .send({ to: me.email, ...emailChangeConfirmCurrentEmail(code, undefined, await localeForUserId(db, me.id)) })
           .catch(err => console.error('email change confirmation email failed', err))
         return ctx.json({ success: true, confirmCurrentEmail: true })
       }
@@ -242,14 +243,16 @@ export async function sendEmailChangeCode(email: string, otp: string, ctx: unkno
     sendRefusedNotice(email)
     return
   }
+  const locale = userId ? await localeForUserId(db, userId) : null
   void emailSender
-    .send({ to: email, ...emailChangeCodeEmail(otp) })
+    .send({ to: email, ...emailChangeCodeEmail(otp, undefined, locale) })
     .catch(err => console.error('email change code email failed', err))
 }
 
+/** In the language of the account that has the address (its owner reads it). */
 function sendRefusedNotice(email: string) {
-  void emailSender
-    .send({ to: email, ...emailChangeRefusedEmail() })
+  void localeForEmail(db, email)
+    .then(locale => emailSender.send({ to: email, ...emailChangeRefusedEmail(undefined, locale) }))
     .catch(err => console.error('email change refused email failed', err))
 }
 
@@ -293,7 +296,7 @@ export async function finishEmailChange(ctx: Ctx) {
     if (!oldEmail || !newEmail) return
     // Not awaited: the address is changed; a slow or broken mail server must not fail it.
     void emailSender
-      .send({ to: oldEmail, ...emailChangedEmail(newEmail) })
+      .send({ to: oldEmail, ...emailChangedEmail(newEmail, undefined, await localeForUserId(db, userId)) })
       .catch(err => console.error('email changed email failed', err))
   } catch (err) {
     console.error('email change: follow-up after the endpoint failed', err)

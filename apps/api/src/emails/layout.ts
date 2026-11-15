@@ -2,10 +2,11 @@
 // them into an HTML part and a plain-text part that say the same thing. Templates never write HTML,
 // so every string they pass is escaped here. Table-based with inline styles for Outlook and Gmail,
 // a <style> block only for dark mode and narrow screens. No fonts or tracking: the Linedesk mark is
-// drawn with table cells; the only image is a logo an instance admin set (branding.ts). With the install's
+// drawn with table cells; the only image is a logo a server admin set (branding.ts). With the install's
 // own name or logo, the footer ends in a quiet "Powered by Linedesk" unless the admin hid it.
 
 import { DEFAULT_PRODUCT_NAME, poweredByUrl, readableOn, showsPoweredBy } from '@linedesk/actions'
+import { getT } from '@linedesk/i18n/server'
 import { brandName, currentBranding } from '../branding.ts'
 
 export type Block =
@@ -18,6 +19,8 @@ export type Block =
   | { kind: 'list'; title: string; items: string[] }
 
 export type EmailContent = {
+  /** The recipient's language (a UI language): the footer's words and <html lang>. */
+  locale: string
   subject: string
   /** The line inbox lists show after the subject. */
   preheader: string
@@ -177,7 +180,9 @@ function eyebrowHtml(content: EmailContent): string {
   return `<p class="ld-muted" style="margin:0 0 10px;font-size:13px;line-height:1.5;color:${MUTED};">${badge}${eyebrow}</p>`
 }
 
-const sentByLine = ({ business }: EmailContent) => (business ? `Sent for ${business} by ${brandName()}` : brandName())
+const sentByLine = ({ business, locale }: EmailContent) =>
+  business ? getT(locale).t('email.layout.sentFor', { business, brand: brandName() }) : brandName()
+const poweredByWords = (locale: string) => getT(locale).t('email.layout.poweredBy', { name: DEFAULT_PRODUCT_NAME })
 
 function footerHtml(content: EmailContent): string {
   const settings = content.settings
@@ -185,7 +190,7 @@ function footerHtml(content: EmailContent): string {
     : ''
   const sentBy = sentByLine(content)
   const poweredBy = showsPoweredBy(currentBranding())
-    ? `<p style="margin:10px 0 0;">Powered by <a href="${escapeHtml(poweredByUrl('email'))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${DEFAULT_PRODUCT_NAME}</a></p>`
+    ? `<p style="margin:10px 0 0;">${escapeHtml(poweredByWords(content.locale)).replace(DEFAULT_PRODUCT_NAME, `<a href="${escapeHtml(poweredByUrl('email'))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${DEFAULT_PRODUCT_NAME}</a>`)}</p>`
     : ''
   return `<p style="margin:0 0 6px;">${escapeHtml(content.reason)}${settings}</p><p style="margin:0;">${escapeHtml(sentBy)} &middot; ${escapeHtml(siteHost(content.origin))}</p>${poweredBy}`
 }
@@ -193,7 +198,7 @@ function footerHtml(content: EmailContent): string {
 function renderHtml(content: EmailContent): string {
   const preheader = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${PAPER};opacity:0;">${escapeHtml(content.preheader)}${'&#847;&zwnj;&nbsp;'.repeat(30)}</div>`
   return `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(getT(content.locale).locale)}" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -252,7 +257,7 @@ function renderText(content: EmailContent): string {
     '--',
     `${content.reason}${settings}`,
     `${sentBy} · ${siteHost(content.origin)}`,
-    ...(showsPoweredBy(currentBranding()) ? [`Powered by ${DEFAULT_PRODUCT_NAME}: ${poweredByUrl('email')}`] : []),
+    ...(showsPoweredBy(currentBranding()) ? [`${poweredByWords(content.locale)}: ${poweredByUrl('email')}`] : []),
   ]
   return `${parts.join('\n\n')}\n`
 }

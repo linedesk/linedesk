@@ -1,6 +1,7 @@
 // LiveKit's client is about a third of the app's code and only needed in a call (listening in, taking
 // over, a test call). It loads on its own, so the first screen does not wait for it, and is fetched once
 // the browser is idle after the first screen (preloadLiveKit), so a call never waits for it either.
+import { i18n } from '../i18n/index.tsx'
 export type LiveKit = typeof import('livekit-client')
 
 let loading: Promise<LiveKit> | null = null
@@ -25,4 +26,4 @@ export function preloadLiveKit() {
 }
 
 /** What a member reads when the call code could not load. */
-export const LOAD_FAILED = "Couldn't load the call. Check your connection or reload the page, then try again."
+export const loadFailed = () => i18n().t('call.live.loadFailed')

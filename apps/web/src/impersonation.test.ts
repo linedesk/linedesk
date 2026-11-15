@@ -22,7 +22,7 @@ describe('impersonation banner', () => {
     expect(minutesLeft(imp.expiresAt, new Date('2026-11-11T11:00:00Z'))).toBe(60)
     expect(minutesLeft(imp.expiresAt, new Date('2026-11-11T11:59:01Z'))).toBe(1)
     expect(minutesLeft(imp.expiresAt, new Date('2026-11-11T12:00:30Z'))).toBe(0)
-    expect([remainingText(60), remainingText(1), remainingText(0)]).toEqual(['60 min left', '1 min left', 'ending'])
+    expect([remainingText(60), remainingText(1), remainingText(0)]).toEqual(['60 minutes left', '1 minute left', 'ending'])
   })
 
   test('the confirmation says what happens and how long', () => {

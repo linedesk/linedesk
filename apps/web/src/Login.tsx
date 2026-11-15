@@ -4,7 +4,7 @@
 // unknown address is told to ask for an invitation; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
-import { authErrorMessage, authFormError, CODE_LENGTH, NO_ACCOUNT, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, noAccountText, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -14,6 +14,12 @@ import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
 import { readDeleted } from './session.ts'
+import { isUiLocale, PSEUDO_LOCALE } from '@linedesk/i18n'
+import { useLocale } from '@linedesk/i18n/react'
+import { activate } from './i18n/index.tsx'
+import { AUTOMATIC, LanguageSelect } from './i18n/LanguageSelect.tsx'
+import { T, useT } from '@linedesk/i18n/react'
+import { i18n } from './i18n/index.tsx'
 
 type Step = 'start' | 'code' | 'password' | 'reset'
 type Result = { error: { message?: string; code?: string; status?: number } | null }
@@ -35,6 +41,7 @@ export type Reauth = { title: string; why: string; onBack: () => void }
  * invitation, the first-run setup or a server admin (apps/api/src/signup-gate.ts).
  */
 export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?: Reauth }) {
+  const t = useT()
   // What this install offers: the last known at once (kept across visits), checked again in the background.
   const methods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
   const [step, setStep] = useState<Step>('start')
@@ -149,7 +156,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     })
   }
 
-  if (!methods) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">Connecting…</p>}</AuthPage>
+  if (!methods) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">{t('auth.connecting')}</p>}</AuthPage>
 
   if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 
@@ -161,20 +168,20 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     return <ResetStep initialEmail={form.email} onDone={onDone} onBack={() => go('password')} />
   }
 
-  const title = reauth ? reauth.title : `Sign in to ${brandName()}`
+  const title = reauth ? reauth.title : t('auth.signInTo', { brand: brandName() })
   const errorLine = error && <AuthError message={error} />
   // Without email codes the password is the main form, not one of the other options.
   const passwordFirst = methods.password && !methods.emailCode
   const intro = reauth && <p>{reauth.why}</p>
   // Signing in again: a way back instead of who gets an account.
   const footer = reauth
-    ? <button type="button" className="auth-switch" title="Back to where you were" onClick={reauth.onBack}>Back</button>
+    ? <button type="button" className="auth-switch" title={t('auth.backTip')} onClick={reauth.onBack}>{t('auth.back')}</button>
     : <AuthFooter methods={methods} />
   // Not while signing in again: a reset ends every session, the one being confirmed too.
   const resetOffer = !reauth ? passwordResetOffer(methods) : null
   const forgotPassword = resetOffer === 'reset'
-    ? <button type="button" className="auth-switch" onClick={() => go('reset')}>Forgot password?</button>
-    : resetOffer === 'ask-admin' && <p className="auth-note">Forgot your password? Ask your administrator.</p>
+    ? <button type="button" className="auth-switch" onClick={() => go('reset')}>{t('auth.forgot')}</button>
+    : resetOffer === 'ask-admin' && <p className="auth-note">{t('auth.forgotAskAdmin')}</p>
   const passwordForm = (
     <PasswordForm form={form} set={set} busy={busy === 'password'} disabled={busy !== null} error={errorLine}
       autoFocus={step === 'password'} onSubmit={signInWithPassword} />
@@ -189,7 +196,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           {passwordForm}
           {forgotPassword}
           <button type="button" className="auth-switch" onClick={() => go('start')}>
-            Other ways to sign in
+            {t('auth.otherWays')}
           </button>
           {footer}
         </div>
@@ -202,13 +209,13 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const lostHere = Boolean(elsewhere && error && error === redirectError?.message && lostSignInState(redirectError?.code))
   const errorPanel = (id?: string) =>
     lostHere && elsewhere ? (
-      <AuthError id={id} message={providerElsewhereMessage(elsewhere.host)} link={{ href: elsewhere.href, label: `Open ${elsewhere.host}` }} />
+      <AuthError id={id} message={providerElsewhereMessage(elsewhere.host)} link={{ href: elsewhere.href, label: t('auth.openHost', { host: elsewhere.host }) }} />
     ) : (
       error && <AuthError id={id} message={error} />
     )
   const withPasskey = methods.passkey && passkeySupported()
   const passkeyButton = withPasskey && (
-    <ProviderButton method="passkey" label="Passkey" lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText="Signing in…"
+    <ProviderButton method="passkey" label={t('auth.method.passkey')} lastUsed={lastUsed === 'passkey'} busy={busy === 'passkey'} busyText={t('auth.signingIn')}
       disabled={busy !== null} onClick={continueWithPasskey} />
   )
   const hasOtherOptions = methods.password && methods.emailCode
@@ -216,14 +223,14 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const nothing = !methods.emailCode && !methods.password && methods.sso.length === 0
   const emailForm = methods.emailCode && (
     <form className="auth-form" onSubmit={sendCode} noValidate>
-      <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')}
+      <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email} onChange={set('email')}
         // With the passkey first, the browser may offer a passkey right in this field (autofill).
         autoComplete={start.passkeyFirst ? 'email webauthn' : 'email'} autoFocus={!start.passkeyFirst || emailOpen}
         aria-describedby={error ? 'auth-error' : undefined} />
       <button type="submit" className={cx('k-btn auth-provider', start.passkeyFirst ? 'k-btn-secondary' : 'k-btn-primary', busy === 'email' && 'is-busy')}
         disabled={busy !== null} aria-busy={busy === 'email' || undefined}>
         {busy === 'email' && <Spinner />}
-        <span>{busy === 'email' ? 'Sending…' : 'Continue with Email'}</span>
+        <span>{busy === 'email' ? t('auth.sending') : t('auth.provider.continueEmail')}</span>
         {lastUsed === 'email' && <LastUsed />}
       </button>
       {errorPanel('auth-error')}
@@ -238,13 +245,13 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           <h1>{title}</h1>
           {deleted?.accountDeleted && (
             <p className="auth-lost" role="status">
-              Workspace and account deleted.
+              {t('auth.deleted')}
             </p>
           )}
           <button type="button" className={cx('k-btn k-btn-primary auth-provider', passkeyBusy && 'is-busy')} disabled={busy !== null}
             aria-busy={passkeyBusy || undefined} autoFocus={!emailOpen} onClick={continueWithPasskey}>
             {passkeyBusy ? <Spinner /> : <SignInMark method="passkey" />}
-            <span>{passkeyBusy ? 'Signing in…' : 'Sign in with passkey'}</span>
+            <span>{passkeyBusy ? t('auth.signingIn') : t('auth.withPasskey')}</span>
             {lastUsed === 'passkey' && <LastUsed />}
           </button>
           {!methods.emailCode && errorPanel()}
@@ -256,7 +263,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           ) : (
             <>
               {errorPanel()}
-              <button type="button" className="auth-switch auth-more" onClick={() => setEmailChosen(true)}>Use an email code instead</button>
+              <button type="button" className="auth-switch auth-more" onClick={() => setEmailChosen(true)}>{t('auth.useEmailCode')}</button>
             </>
           ))}
           {methods.sso.length > 0 && <hr className="auth-separator" />}
@@ -266,12 +273,12 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           ))}
           {elsewhere && !lostHere && (
             <p className="auth-hint">
-              Google, Microsoft and GitHub sign in at <a href={elsewhere.href}>{elsewhere.host}</a>.
+              <T k="auth.providersAt" values={{ host: elsewhere.host, a: chunks => <a href={elsewhere.href}>{chunks}</a> }} />
             </p>
           )}
           {methods.password && (otherOptions || !methods.emailCode
-            ? <ProviderButton method="password" label="Password" lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
-            : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>Show other options</button>)}
+            ? <ProviderButton method="password" label={t('auth.method.password')} lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
+            : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>{t('auth.showOther')}</button>)}
           {footer}
         </div>
       </AuthPage>
@@ -285,7 +292,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
         {intro}
         {deleted?.accountDeleted && (
           <p className="auth-lost" role="status">
-            Workspace and account deleted.
+            {t('auth.deleted')}
           </p>
         )}
         {/* Signing in again: the passkey first, the way that also counts longest (12 hours). */}
@@ -296,20 +303,20 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
         {passwordFirst && forgotPassword}
         {(methods.emailCode || passwordFirst) && (methods.sso.length > 0 || (withPasskey && !reauth)) && <hr className="auth-separator" />}
         {!methods.emailCode && !passwordFirst && errorPanel()}
-        {nothing && <AuthError message="No sign-in method is set up on this server. Ask your administrator to turn one on." />}
+        {nothing && <AuthError message={t('auth.noMethod')} />}
         {methods.sso.map(m => (
           <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={lastUsed === m.id} busy={busy === m.id}
             disabled={busy !== null} onClick={() => continueWith(m)} />
         ))}
         {elsewhere && !lostHere && (
           <p className="auth-hint">
-            Google, Microsoft and GitHub sign in at <a href={elsewhere.href}>{elsewhere.host}</a>.
+            <T k="auth.providersAt" values={{ host: elsewhere.host, a: chunks => <a href={elsewhere.href}>{chunks}</a> }} />
           </p>
         )}
         {!reauth && passkeyButton}
         {hasOtherOptions && (otherOptions
-          ? <ProviderButton method="password" label="Password" lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
-          : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>Show other options</button>)}
+          ? <ProviderButton method="password" label={t('auth.method.password')} lastUsed={lastUsed === 'password'} disabled={busy !== null} onClick={() => go('password')} />
+          : <button type="button" className="auth-switch auth-more" onClick={() => setOtherOptions(true)}>{t('auth.showOther')}</button>)}
         {footer}
       </div>
     </AuthPage>
@@ -324,13 +331,14 @@ type PasswordFormProps = {
 
 /** Email and password. */
 function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }: PasswordFormProps) {
+  const t = useT()
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" autoFocus={autoFocus} />
-      <input type="password" aria-label="Password" placeholder="Password" value={form.password} onChange={set('password')}
+      <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email} onChange={set('email')} autoComplete="email" autoFocus={autoFocus} />
+      <input type="password" aria-label={t('auth.method.password')} placeholder={t('auth.method.password')} value={form.password} onChange={set('password')}
         autoComplete="current-password" />
       <button type="submit" className="k-btn k-btn-primary" disabled={disabled}>
-        {busy ? 'Signing in…' : 'Sign in'}
+        {busy ? t('auth.signingIn') : t('auth.signIn')}
       </button>
       {error}
     </form>
@@ -339,31 +347,62 @@ function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }:
 
 /** Who can get an account (an invitation: there is no sign-up), then Terms · Privacy · Help, each only when set. */
 function AuthFooter({ methods }: { methods: AuthMethods }) {
+  const t = useT()
   return (
     <footer className="auth-footer">
       <p className="auth-note">
-        No account? Ask your workspace admin for an invitation.
-        {methods.links.supportEmail && <> Or write to <a className="k-link" href={`mailto:${methods.links.supportEmail}`}>{methods.links.supportEmail}</a>.</>}
+        {t('auth.noAccount')}
+        {methods.links.supportEmail && (
+          <>
+            {' '}
+            <T
+              k="auth.writeTo"
+              values={{
+                email: methods.links.supportEmail,
+                a: chunks => <a className="k-link" href={`mailto:${methods.links.supportEmail}`}>{chunks}</a>,
+              }}
+            />
+          </>
+        )}
       </p>
       <LegalLinksLine links={methods.links} />
+      <SignInLanguage />
     </footer>
   )
 }
 
+/** The language before signing in: this browser only, until the member's own choice applies after sign-in. */
+function SignInLanguage() {
+  const locale = useLocale()
+  return (
+    <div className="auth-language">
+      <LanguageSelect
+        value={isUiLocale(locale) || locale === PSEUDO_LOCALE ? locale : 'en'}
+        onChange={next => void activate(next === AUTOMATIC ? 'en' : next, { remember: next !== PSEUDO_LOCALE })}
+        withAutomatic={false}
+        size="sm"
+        align="start"
+      />
+    </div>
+  )
+}
+
 function LegalLinksLine({ links }: { links: LegalLinks }) {
+  const t = useT()
   const items = [
-    links.terms && <a key="terms" href={links.terms} target="_blank" rel="noreferrer">Terms</a>,
-    links.privacy && <a key="privacy" href={links.privacy} target="_blank" rel="noreferrer">Privacy</a>,
-    links.supportEmail && <a key="help" href={`mailto:${links.supportEmail}`}>Help</a>,
+    links.terms && <a key="terms" href={links.terms} target="_blank" rel="noreferrer">{t('common.legal.terms')}</a>,
+    links.privacy && <a key="privacy" href={links.privacy} target="_blank" rel="noreferrer">{t('common.legal.privacy')}</a>,
+    links.supportEmail && <a key="help" href={`mailto:${links.supportEmail}`}>{t('common.legal.help')}</a>,
   ].filter(Boolean)
   if (!items.length) return null
-  return <nav className="auth-legal" aria-label="Legal and help">{items}</nav>
+  return <nav className="auth-legal" aria-label={t('auth.legalLabel')}>{items}</nav>
 }
 
 type CodeStepProps = { email: string; onDone: () => Promise<void>; onDifferentEmail: () => void }
 
 /** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
 export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
+  const t = useT()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -411,25 +450,23 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
   return (
     <AuthPage>
       <form className="auth-card" noValidate onSubmit={e => { e.preventDefault(); if (code.length === CODE_LENGTH) void check(code) }}>
-        <h1>Check your email</h1>
+        <h1>{t('auth.code.title')}</h1>
         {/* The same words for every address: whether it may sign in here is not told (no account enumeration). */}
-        <p>
-          If {email} can sign in here, a {CODE_LENGTH}-digit code is on its way. It expires in 10 minutes.
-        </p>
-        <input ref={input} className="auth-code" aria-label="Sign-in code" value={code} onChange={e => change(e.target.value)} disabled={busy}
+        <p>{t('auth.code.sent', { email, digits: CODE_LENGTH })}</p>
+        <input ref={input} className="auth-code" aria-label={t('auth.code.label')} value={code} onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
         {error && <AuthError message={error} id="code-error" />}
         <button type="submit" className={cx('k-btn k-btn-primary', (busy || signedIn) && 'is-busy')}
           disabled={busy || code.length < CODE_LENGTH} aria-busy={busy || signedIn || undefined}>
           {(busy || signedIn) && <Spinner />}
-          {signedIn ? 'Signing in…' : busy ? 'Checking…' : 'Sign in'}
+          {signedIn ? t('auth.signingIn') : busy ? t('auth.checking') : t('auth.signIn')}
         </button>
         {waitS > 0
-          ? <p className="auth-note">You can ask for a new code in {waitS} s.</p>
-          : <button type="button" className="auth-switch" onClick={() => void resend()}>Resend code</button>}
-        <p className="auth-note">No code? {NO_ACCOUNT}</p>
-        <button type="button" className="auth-switch" onClick={onDifferentEmail}>Use a different email</button>
+          ? <p className="auth-note">{t('auth.code.wait', { seconds: waitS })}</p>
+          : <button type="button" className="auth-switch" onClick={() => void resend()}>{t('auth.code.resend')}</button>}
+        <p className="auth-note">{t('auth.code.none', { help: noAccountText() })}</p>
+        <button type="button" className="auth-switch" onClick={onDifferentEmail}>{t('auth.differentEmail')}</button>
       </form>
     </AuthPage>
   )
@@ -442,6 +479,7 @@ type ResetStepProps = { initialEmail: string; onDone: () => Promise<void>; onBac
  * session of the account; this browser then signs in with the new password.
  */
 function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
+  const t = useT()
   const [email, setEmail] = useState(initialEmail)
   const [sent, setSent] = useState(false)
   const [code, setCode] = useState('')
@@ -472,7 +510,7 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
 
   async function reset(e: FormEvent) {
     e.preventDefault()
-    if (code.length < CODE_LENGTH) return setError(`Enter the ${CODE_LENGTH}-digit code from the email.`)
+    if (code.length < CODE_LENGTH) return setError(t('auth.code.enter', { digits: CODE_LENGTH }))
     const invalid = newPasswordError(password)
     if (invalid) return setError(invalid)
     setBusy('reset')
@@ -487,7 +525,7 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
     const signedIn = await auth.signIn.email({ email: email.trim(), password }).catch(error => ({ error }))
     if (signedIn.error) {
       setBusy(null)
-      return setError('Your password is changed, but signing in did not work. Go back to sign in and use your new password.')
+      return setError(t('auth.reset.signInFailed'))
     }
     rememberSignInMethod('password')
     await onDone()
@@ -497,19 +535,19 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
     return (
       <AuthPage>
         <form className="auth-card" noValidate onSubmit={send}>
-          <h1>Reset your password</h1>
-          <p>Enter your email. We send you a code to set a new password.</p>
+          <h1>{t('auth.reset.title')}</h1>
+          <p>{t('auth.reset.text')}</p>
           <div className="auth-form">
-            <input type="email" aria-label="Email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)}
+            <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={email} onChange={e => setEmail(e.target.value)}
               autoComplete="email" autoFocus aria-describedby={error ? 'reset-error' : undefined} />
             <button type="submit" className={cx('k-btn k-btn-primary', busy === 'send' && 'is-busy')} disabled={busy !== null}
               aria-busy={busy === 'send' || undefined}>
               {busy === 'send' && <Spinner />}
-              {busy === 'send' ? 'Sending…' : 'Send code'}
+              {busy === 'send' ? t('auth.sending') : t('auth.reset.send')}
             </button>
             {error && <AuthError message={error} id="reset-error" />}
           </div>
-          <button type="button" className="auth-switch" onClick={onBack}>Back to sign in</button>
+          <button type="button" className="auth-switch" onClick={onBack}>{t('auth.reset.back')}</button>
         </form>
       </AuthPage>
     )
@@ -519,46 +557,48 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
   return (
     <AuthPage>
       <form className="auth-card" noValidate onSubmit={reset}>
-        <h1>Check your email</h1>
+        <h1>{t('auth.code.title')}</h1>
         {/* The same words for every address: whether it has an account here is not told (no account enumeration). */}
-        <p>
-          If {email.trim()} has an account here, a {CODE_LENGTH}-digit code is on its way. It expires in 10 minutes.
-        </p>
+        <p>{t('auth.reset.sent', { email: email.trim(), digits: CODE_LENGTH })}</p>
         <div className="auth-form">
-          <input className="auth-code" aria-label="Reset code" value={code} onChange={e => setCode(normalizeCode(e.target.value))}
+          <input className="auth-code" aria-label={t('auth.reset.code')} value={code} onChange={e => setCode(normalizeCode(e.target.value))}
             disabled={working} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
             aria-describedby={error ? 'reset-error' : undefined} />
-          <input type="password" aria-label="New password" placeholder="New password (at least 8 characters)" value={password}
+          <input type="password" aria-label={t('auth.reset.newPassword')} placeholder={t('auth.reset.newPasswordPlaceholder', { min: 8 })} value={password}
             onChange={e => setPassword(e.target.value)} disabled={working} autoComplete="new-password" />
           <button type="submit" className={cx('k-btn k-btn-primary', working && 'is-busy')} disabled={busy !== null}
             aria-busy={working || undefined}>
             {working && <Spinner />}
-            {busy === 'signIn' ? 'Signing in…' : busy === 'reset' ? 'Saving…' : 'Set new password'}
+            {busy === 'signIn' ? t('auth.signingIn') : busy === 'reset' ? t('common.action.saving') : t('auth.reset.set')}
           </button>
           {error && <AuthError message={error} id="reset-error" />}
         </div>
-        <p className="auth-note">This signs you out on every other device.</p>
+        <p className="auth-note">{t('auth.reset.signsOut')}</p>
         {waitS > 0
-          ? <p className="auth-note">You can ask for a new code in {waitS} s.</p>
-          : <button type="button" className="auth-switch" disabled={busy !== null} onClick={() => void send()}>Resend code</button>}
-        <button type="button" className="auth-switch" onClick={() => { setSent(false); setError(null) }}>Use a different email</button>
+          ? <p className="auth-note">{t('auth.code.wait', { seconds: waitS })}</p>
+          : <button type="button" className="auth-switch" disabled={busy !== null} onClick={() => void send()}>{t('auth.code.resend')}</button>}
+        <button type="button" className="auth-switch" onClick={() => { setSent(false); setError(null) }}>{t('auth.differentEmail')}</button>
       </form>
     </AuthPage>
   )
 }
 
 /** Where the setup code is: the API prints it at start, setup-code.ts prints it again (apps/api/src/setup.ts; docs/hosting.md). */
-const SETUP_CODE_HELP: HelpTipContent = {
-  text: `${brandName()} prints a one-time setup code when it starts without an admin.`,
-  commands: [
-    { label: "In the server's log", code: 'docker compose logs api | grep -A2 "no admin yet"' },
-    { label: 'Or print it again', code: 'docker compose exec api node apps/api/src/setup-code.ts' },
-    { label: 'Local development (also in the terminal running pnpm dev)', code: 'pnpm --filter @linedesk/api setup:code' },
-  ],
+const setupCodeHelp = (): HelpTipContent => {
+  const { t } = i18n()
+  return {
+    text: t('auth.setup.codeHelp', { brand: brandName() }),
+    commands: [
+      { label: t('auth.setup.codeInLog'), code: 'docker compose logs api | grep -A2 "no admin yet"' },
+      { label: t('auth.setup.codeAgain'), code: 'docker compose exec api node apps/api/src/setup-code.ts' },
+      { label: t('auth.setup.codeLocal'), code: 'pnpm --filter @linedesk/api setup:code' },
+    ],
+  }
 }
 
 /** A fresh install: the setup code from the server log makes the first admin (apps/api/src/setup.ts). */
 function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
+  const t = useT()
   const [form, setForm] = useState({ code: '', name: '', email: '', password: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -566,8 +606,8 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!form.code.trim() || !form.name.trim() || !form.email.trim()) return setError('Fill in every field.')
-    if (form.password.length < 12) return setError('Use a password with at least 12 characters.')
+    if (!form.code.trim() || !form.name.trim() || !form.email.trim()) return setError(t('auth.setup.missing'))
+    if (form.password.length < 12) return setError(t('auth.setup.shortPassword', { min: 12 }))
     setBusy(true)
     setError(null)
     try {
@@ -583,22 +623,22 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
-        <h1>Set up {brandName()}</h1>
-        <p>Create the first admin account.</p>
+        <h1>{t('auth.setup.title', { brand: brandName() })}</h1>
+        <p>{t('auth.setup.text')}</p>
         <div className="auth-form">
           <span className="k-has-help">
-            <input aria-label="Setup code" placeholder="Setup code" value={form.code} onChange={set('code')} autoComplete="one-time-code"
+            <input aria-label={t('auth.setup.code')} placeholder={t('auth.setup.code')} value={form.code} onChange={set('code')} autoComplete="one-time-code"
               autoCapitalize="characters" spellCheck={false} autoFocus />
-            <HelpTip inField label="Where is the setup code?" {...SETUP_CODE_HELP} />
+            <HelpTip inField label={t('auth.setup.codeWhere')} {...setupCodeHelp()} />
           </span>
-          <input aria-label="Your name" placeholder="Your name" value={form.name} onChange={set('name')} autoComplete="name" />
-          <input type="email" aria-label="Email" placeholder="Email address" value={form.email} onChange={set('email')} autoComplete="email" />
-          <input type="password" aria-label="Password" placeholder="Password (at least 12 characters)" value={form.password}
+          <input aria-label={t('auth.setup.name')} placeholder={t('auth.setup.name')} value={form.name} onChange={set('name')} autoComplete="name" />
+          <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email} onChange={set('email')} autoComplete="email" />
+          <input type="password" aria-label={t('auth.method.password')} placeholder={t('auth.setup.passwordPlaceholder', { min: 12 })} value={form.password}
             onChange={set('password')} autoComplete="new-password" />
-          <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? 'Setting up…' : 'Create admin account'}</button>
+          <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? t('auth.setup.busy') : t('auth.setup.submit')}</button>
           {error && <AuthError message={error} />}
         </div>
-        <p className="auth-note">Next, your AI agent (Claude, ChatGPT, Codex…) sets up the rest with you: AI, phone, email and your business.</p>
+        <p className="auth-note">{t('auth.setup.next')}</p>
       </form>
     </AuthPage>
   )

@@ -3,17 +3,19 @@
 // No sign-in alerts on an instance that runs on localhost: local development, nobody to warn. Sent without waiting: a failed email never stops
 // the sign-in or the action it is about.
 import { auth_events, user } from '@linedesk/db'
+import { SOURCE } from '@linedesk/i18n'
 import { and, count, eq, inArray } from 'drizzle-orm'
 import { signInMethod } from './audit.ts'
+import { brandName } from './branding.ts'
 import { db } from './db.ts'
 import { type EmailSender, emailSender, sendNotice } from './email.ts'
+import { localeForEmail } from './email-locale.ts'
 import { adminAlertEmail } from './emails/templates.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
-import { brandName } from './branding.ts'
 import { takeSetupSignIn } from './setup.ts'
 
 /**
- * Emails every enabled instance admin. Resolves once the list is read; the sends run on their own. Without email set
+ * Emails every enabled instance admin. Resolves once the list and their languages are read; the sends run on their own. Without email set
  * up: skipped with one log line (no stack, nothing to retry).
  */
 export async function alertInstanceAdmins(subject: string, text: string, sender: EmailSender = emailSender) {
@@ -21,8 +23,12 @@ export async function alertInstanceAdmins(subject: string, text: string, sender:
     console.log(`Admin alert not sent (email is not set up): ${subject}`)
     return
   }
-  for (const to of await instanceAdminEmails())
-    sendNotice({ to, ...adminAlertEmail(subject, text) }, 'admin alert email', sender)
+  // The frame in each admin's language; the alert itself (subject and text) stays English.
+  const admins = await instanceAdminEmails()
+  const locales = await Promise.all(admins.map(to => localeForEmail(db, to).catch(() => SOURCE)))
+  admins.forEach((to, i) =>
+    sendNotice({ to, ...adminAlertEmail(subject, text, undefined, locales[i]) }, 'admin alert email', sender),
+  )
 }
 
 const methodNames: Record<string, string> = {
@@ -64,7 +70,10 @@ async function knownDevice(s: SignIn): Promise<boolean> {
  */
 export function plainSnippet(text: string | null | undefined, max = 120): string {
   if (!text) return 'unknown'
-  const plain = text.replace(/\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi, '[link]').replace(/\s+/g, ' ').trim()
+  const plain = text
+    .replace(/\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi, '[link]')
+    .replace(/\s+/g, ' ')
+    .trim()
   return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain || 'unknown'
 }
 

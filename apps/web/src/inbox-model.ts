@@ -1,6 +1,7 @@
 // Inbox views are derived, never stored: does a person still have to act? (architecture §9)
 import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import { parseTs, whenLabel } from './time.ts'
+import { i18n } from './i18n/index.tsx'
 
 /**
  * `mine`: calls assigned to the signed-in member that are still open; `member`: the same for another
@@ -159,22 +160,34 @@ export function callStatus(call: Call, segments: TranscriptSegment[]): CallStatu
 }
 
 /** One word per status, the same in the row, the call header and in place of the transcript. */
-export const STATUS_WORD = { missed: 'Missed', hungUp: 'Hung up' } as const
+export const STATUS_WORD = {
+  get missed() {
+    return i18n().t('inbox.status.missed')
+  },
+  get hungUp() {
+    return i18n().t('inbox.status.hungUp')
+  },
+}
 
 /** The call header's "who answered" part. */
 export function answeredByLabel(call: Call, segments: TranscriptSegment[], assistant: string): string {
   const status = callStatus(call, segments)
   if (status === 'missed') return STATUS_WORD.missed
-  if (status === 'spam') return `Blocked by ${assistant}`
-  if (status === 'outbound') return `Outbound call by ${assistant}`
-  const who = call.answered_by === 'human' ? 'the team' : assistant
-  return status === 'hungUp' ? `Answered by ${who}, caller hung up` : `Answered by ${who}`
+  const { t } = i18n()
+  if (status === 'spam') return t('inbox.status.blockedBy', { assistant })
+  if (status === 'outbound') return t('inbox.status.outboundBy', { assistant })
+  if (call.answered_by === 'human')
+    return status === 'hungUp' ? t('inbox.status.answeredByTeamHungUp') : t('inbox.status.answeredByTeam')
+  return status === 'hungUp'
+    ? t('inbox.status.answeredByHungUp', { assistant })
+    : t('inbox.status.answeredBy', { assistant })
 }
 
 /** A deleted contact no longer names the call: the number does. */
 export const callerName = (call: Call, contact?: Contact) =>
   (!contact?.deleted_at && contact?.name) || formatPhone(call.from_number)
-export const callTitle = (call: Call) => call.title ?? (call.status === 'live' ? 'Call in progress' : 'Call')
+export const callTitle = (call: Call) =>
+  call.title ?? (call.status === 'live' ? i18n().t('inbox.status.inProgress') : i18n().t('inbox.status.call'))
 
 export function formatPhone(e164: string): string {
   const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
@@ -187,16 +200,17 @@ export function transferText(
 ): string | null {
   if (!call.transfer_result) return null
   const number = call.transfer_to ? formatPhone(call.transfer_to) : null
+  const { t } = i18n()
   const to = call.transfer_name
     ? number
-      ? `${call.transfer_name} (${number})`
+      ? t('inbox.transfer.nameAndNumber', { name: call.transfer_name, number })
       : call.transfer_name
-    : (number ?? 'the on-call phone')
-  if (call.transfer_result === 'connected') return `Transferred to ${to}`
-  if (call.transfer_result === 'dialing') return `Transferring to ${to}`
-  if (call.transfer_result === 'declined') return `Transfer declined by ${to}`
-  if (call.transfer_result === 'failed') return 'Transfer could not be placed'
-  return 'Transfer not answered'
+    : (number ?? t('inbox.transfer.onCallPhone'))
+  if (call.transfer_result === 'connected') return t('inbox.transfer.connected', { to })
+  if (call.transfer_result === 'dialing') return t('inbox.transfer.dialing', { to })
+  if (call.transfer_result === 'declined') return t('inbox.transfer.declined', { to })
+  if (call.transfer_result === 'failed') return t('inbox.transfer.failed')
+  return t('inbox.transfer.notAnswered')
 }
 
 export type StatusLabel = { text: string; tone: 'danger' | 'neutral' | 'info' | 'next' | 'quiet' }
@@ -209,19 +223,26 @@ export function statusLabel(
   now = new Date(),
   segments: TranscriptSegment[] = [],
 ): StatusLabel {
+  const { t } = i18n()
   const next = call.action_items.find(i => !i.done)?.text
   if (hasReminder(call, now) && call.inbox_state === 'open')
     return { text: whenLabel(parseTs(call.reminder_at!), now), tone: 'neutral' }
-  if (call.urgency === 'urgent') return { text: 'Urgent callback', tone: 'danger' }
-  if (call.outcome === 'transferred') return { text: 'Transferred', tone: 'info' }
+  if (call.urgency === 'urgent') return { text: t('inbox.status.urgent'), tone: 'danger' }
+  if (call.outcome === 'transferred') return { text: t('inbox.status.transferred'), tone: 'info' }
   if (call.outcome === 'hangup')
     return callStatus(call, segments) === 'hungUp'
       ? { text: STATUS_WORD.hungUp, tone: 'quiet' }
       : { text: STATUS_WORD.missed, tone: 'danger' }
-  if (call.outcome === 'spam') return { text: 'Blocked', tone: 'neutral' }
+  if (call.outcome === 'spam') return { text: t('inbox.status.blocked'), tone: 'neutral' }
   if (next && tab === 'you') return { text: next, tone: 'next' }
-  if (call.direction === 'out') return { text: 'Outbound', tone: 'quiet' }
-  return { text: tabOf(call, now) === 'ai' ? `Resolved by ${assistantName}` : (next ?? 'Follow-up'), tone: 'quiet' }
+  if (call.direction === 'out') return { text: t('inbox.status.outbound'), tone: 'quiet' }
+  return {
+    text:
+      tabOf(call, now) === 'ai'
+        ? t('inbox.status.resolvedBy', { assistant: assistantName })
+        : (next ?? t('inbox.status.followUp')),
+    tone: 'quiet',
+  }
 }
 
 /**

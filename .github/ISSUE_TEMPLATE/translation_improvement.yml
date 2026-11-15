@@ -1,0 +1,45 @@
+name: Translation improvement
+description: A word or sentence in your language that is wrong, awkward or too long.
+labels: [i18n, translation]
+body:
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Español
+        - Português (Brasil)
+        - Français
+        - Deutsch
+        - 日本語
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The screen or email (for example "Inbox, the Remind menu"), or the key if you know it (open the app with ?lang=en-XA to see which text comes from the catalogs).
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current text
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: Better text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why (optional)
+  - type: checkboxes
+    id: native
+    attributes:
+      label: About you
+      options:
+        - label: I'm a native speaker of this language.

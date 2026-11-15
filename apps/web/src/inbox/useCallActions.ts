@@ -21,6 +21,7 @@ import {
   unreadChange,
 } from './changes.ts'
 import type { ReminderOption } from './remind.ts'
+import { i18n } from '../i18n/index.tsx'
 
 /** `cancelWrite` stops a write that is still waiting for the fade; true when it had not been sent yet. */
 /** `page`: a change made on a page (not a call); undoing it stays on that page. */
@@ -38,7 +39,7 @@ type UndoEntry = {
 const LEAVE_MS = 170
 const ENTER_MS = 260
 const UNDO_DEPTH = 10
-const LIVE_NOTE = 'A live call can be triaged once it has ended.'
+const liveNote = () => i18n().t('inbox.toast.live')
 
 type Context = {
   list: Call[]
@@ -87,7 +88,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
   }
 
   function act(call: Call, { steps, inverse, label, key, onLive }: Change) {
-    if (call.status === 'live' && !onLive) return toaster.show(LIVE_NOTE)
+    if (call.status === 'live' && !onLive) return toaster.show(liveNote())
     if (isNoOp(call, steps)) return // nothing to send, nothing to undo
     const after = preview(call, steps)
     const leaves = !!after.deleted_at || (!searching && tabOf(after) !== tab) // a deleted call leaves every view
@@ -111,7 +112,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       .map(c => ({ call: c, change: make(c) }))
       .filter((x): x is { call: Call; change: Change } => !!x.change && !isNoOp(x.call, x.change.steps))
       .filter(x => x.call.status !== 'live' || x.change.onLive)
-    if (!changes.length) return toaster.show(calls.some(c => c.status === 'live') ? LIVE_NOTE : 'Nothing to change.')
+    if (!changes.length) return toaster.show(calls.some(c => c.status === 'live') ? liveNote() : i18n().t('inbox.toast.nothingToChange'))
     for (const { change } of changes) runAll(change.steps)
     const leaving = new Set(
       changes
@@ -144,14 +145,13 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     ].slice(-UNDO_DEPTH)
     toaster.show(toaster.withTip(label(changes.length), 'Z'), true)
   }
-  const calls = (n: number) => `${n} ${n === 1 ? 'call' : 'calls'}`
 
   function undo() {
     const entry = undoStack.current.pop()
-    if (!entry) return toaster.show('Nothing to undo.')
+    if (!entry) return toaster.show(i18n().t('inbox.toast.nothingToUndo'))
     const neverSent = entry.cancelWrite()
     if (!neverSent) entry.revert ? entry.revert() : runAll(entry.steps)
-    if (entry.page) return toaster.show(toaster.withTip('Undone.', 'Z'))
+    if (entry.page) return toaster.show(toaster.withTip(i18n().t('inbox.toast.undone'), 'Z'))
     setTab(entry.tab)
     setCursor(entry.callId)
     if (entry.wasOpen) showCall(entry.callId)
@@ -159,7 +159,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       setEntering(entry.callId)
       setTimeout(() => setEntering(null), ENTER_MS)
     }
-    toaster.show(toaster.withTip('Undone.', 'Z'))
+    toaster.show(toaster.withTip(i18n().t('inbox.toast.undone'), 'Z'))
   }
 
   /** A change outside the inbox (a contact deleted on the Contacts page): sent now, one toast, undone with Z. */
@@ -188,21 +188,21 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     runUndoable,
     undoable,
     markDone: (call: Call) =>
-      call.inbox_state === 'done' ? toaster.show('Already done.') : act(call, doneChange(call)),
+      call.inbox_state === 'done' ? toaster.show(i18n().t('inbox.toast.alreadyDone')) : act(call, doneChange(call)),
     markNotDone: (call: Call) =>
-      call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show('This call is not done.'),
+      call.inbox_state === 'done' ? act(call, notDoneChange(call)) : toaster.show(i18n().t('inbox.toast.notDone')),
     toggleUnread: (call: Call) => act(call, unreadChange(call)),
     remind: (call: Call, option: ReminderOption) => act(call, remindChange(call, option)),
     clearReminder: (call: Call) =>
-      tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show('No reminder on this call.'),
+      tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show(i18n().t('inbox.toast.noReminder')),
     remove: (call: Call) => act(call, deleteChange(call)),
     /** Assign to a member (null: nobody); `who` names them in the toast. */
     assign: (call: Call, userId: string | null, who: string) =>
-      act(call, assignChange(call, userId, userId === me ? 'you' : who)),
+      act(call, assignChange(call, userId, userId === me ? i18n().t('inbox.change.you') : who)),
     toggleSpam: (call: Call) => act(call, spamChange(call)),
     toggleBlock: (call: Call) => {
       const contact = call.contact_id ? contacts.get(call.contact_id) : undefined
-      if (!contact) return toaster.show('This number has no contact, so it cannot be blocked.')
+      if (!contact) return toaster.show(i18n().t('inbox.toast.noContactToBlock'))
       act(call, blockChange(call, contact))
     },
     many: {
@@ -210,13 +210,13 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
         actMany(
           list,
           c => (c.inbox_state === 'done' ? null : doneChange(c)),
-          n => `${calls(n)} marked done.`,
+          n => i18n().t('inbox.many.done', { count: n }),
         ),
       markNotDone: (list: Call[]) =>
         actMany(
           list,
           c => (c.inbox_state === 'done' ? notDoneChange(c) : null),
-          n => `${calls(n)} back in the inbox.`,
+          n => i18n().t('inbox.many.notDone', { count: n }),
         ),
       /** Mark all read when any is unread, else mark all unread. */
       toggleUnread: (list: Call[]) => {
@@ -224,27 +224,30 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
         actMany(
           list,
           c => (c.unread === read ? unreadChange(c) : null),
-          n => `${calls(n)} marked ${read ? 'read' : 'unread'}.`,
+          n => (read ? i18n().t('inbox.many.read', { count: n }) : i18n().t('inbox.many.unread', { count: n })),
         )
       },
       remind: (list: Call[], option: ReminderOption) =>
         actMany(
           list,
           c => remindChange(c, option),
-          n => `Reminder set for ${calls(n)}.`,
+          n => i18n().t('inbox.many.reminderSet', { count: n }),
         ),
       clearReminder: (list: Call[]) =>
         actMany(
           list,
           c => (tabOf(c) === 'reminders' ? clearReminderChange(c) : null),
-          n => `Reminder cleared on ${calls(n)}.`,
+          n => i18n().t('inbox.many.reminderCleared', { count: n }),
         ),
-      remove: (list: Call[]) => actMany(list, deleteChange, n => `${calls(n)} deleted.`),
+      remove: (list: Call[]) => actMany(list, deleteChange, n => i18n().t('inbox.many.deleted', { count: n })),
       assign: (list: Call[], userId: string | null, who: string) =>
         actMany(
           list,
           c => assignChange(c, userId, who),
-          n => (userId ? `${calls(n)} assigned to ${userId === me ? 'you' : who}.` : `${calls(n)} unassigned.`),
+          n =>
+            userId
+              ? i18n().t('inbox.many.assigned', { count: n, who: userId === me ? i18n().t('inbox.change.you') : who })
+              : i18n().t('inbox.many.unassigned', { count: n }),
         ),
       /** All to Spam, unless all of them are spam already: then all back to Needs you. */
       toggleSpam: (list: Call[]) => {
@@ -252,12 +255,12 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
         actMany(
           list,
           c => ((c.outcome === 'spam') === toSpam ? null : spamChange(c)),
-          n => (toSpam ? `${calls(n)} moved to Spam.` : `${calls(n)} back in Needs you.`),
+          n => (toSpam ? i18n().t('inbox.many.spam', { count: n }) : i18n().t('inbox.many.notSpam', { count: n })),
         )
       },
     },
     isTriageable: (call: Call) => {
-      if (call.status === 'live') toaster.show(LIVE_NOTE)
+      if (call.status === 'live') toaster.show(liveNote())
       return call.status !== 'live'
     },
   }

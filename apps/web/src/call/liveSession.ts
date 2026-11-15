@@ -11,9 +11,10 @@ import { TRANSCRIPTION_TOPIC } from '../settings/liveTranscript.ts'
 import { whoSetsUp } from '../providerAudience.ts'
 import { TimedOut, within } from '../settings/testCallModel.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
-import { type LiveKit, LOAD_FAILED, loadLiveKit } from './livekit.ts'
+import { type LiveKit, loadFailed, loadLiveKit } from './livekit.ts'
 import { microphoneAllowed } from './microphone.ts'
 import { transcribesOthers } from './useLiveLines.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export type LivePhase = 'idle' | 'joining' | 'listening' | 'handingOff' | 'talking'
 export type LiveSession = {
@@ -25,7 +26,7 @@ export type LiveSession = {
 }
 
 const JOIN_TIMEOUT_MS = 15_000
-const REFUSED = "The assistant couldn't hand this call over right now. Try again in a moment."
+const refused = () => i18n().t('call.live.refused')
 /** How long the assistant may take to say the hand-over line and leave the conversation. */
 const HAND_OFF_TIMEOUT_MS = 20_000
 
@@ -62,10 +63,10 @@ function sink(): HTMLDivElement {
 /** The server's refusal in plain words; LiveKit and other internals stay out. */
 function joinErrorText(error: string): string {
   if (/not set up|not configured/i.test(error))
-    return `Listening in isn't set up on this server yet. ${whoSetsUp('the voice services')}`
-  if (/ended|not found/i.test(error)) return 'This call has ended.'
+    return i18n().t('call.live.notSetUp', { next: whoSetsUp('voice') })
+  if (/ended|not found/i.test(error)) return i18n().t('call.live.ended')
   if (/already took|putting this call through|signed-in member|member of the workspace/i.test(error)) return error
-  return "Couldn't join the call. Try again in a moment."
+  return i18n().t('call.live.joinFailed')
 }
 
 async function requestJoin(action: 'call.listen' | 'call.takeOver', callId: string): Promise<LiveCallJoin> {
@@ -98,7 +99,7 @@ async function connect(join: LiveCallJoin, { Room, RoomEvent, Track }: LiveKit):
     // Removed while waiting for the hand-over: the assistant could not hand the call over.
     if (state.phase === 'handingOff') {
       attempt++
-      return update({ phase: 'idle', muted: false, problem: REFUSED })
+      return update({ phase: 'idle', muted: false, problem: refused() })
     }
     update({ callId: null, phase: 'idle', muted: false })
   })
@@ -115,7 +116,7 @@ async function connect(join: LiveCallJoin, { Room, RoomEvent, Track }: LiveKit):
 /** The LiveKit client, or an error in plain words when it could not load. */
 const livekitOrFail = () =>
   loadLiveKit().catch(() => {
-    throw new Error(LOAD_FAILED)
+    throw new Error(loadFailed())
   })
 
 /** Leaves the room without touching the state. */
@@ -131,10 +132,10 @@ function fail(e: unknown, mine: number) {
   void drop()
   const problem =
     e instanceof TimedOut
-      ? "Couldn't reach the call. Try again in a moment."
+      ? i18n().t('call.live.unreachable')
       : e instanceof Error
         ? e.message
-        : "Couldn't join the call."
+        : i18n().t('call.live.joinFailedShort')
   update({ phase: 'idle', problem })
 }
 
@@ -199,10 +200,10 @@ async function takeOver(callId: string) {
     room = next
     update({ phase: 'handingOff' })
     const answer = await handOff(next, livekit).catch(e => {
-      throw e instanceof TimedOut ? new Error("The assistant didn't hand the call over. Try again.") : e
+      throw e instanceof TimedOut ? new Error(i18n().t('call.live.handOffTimeout')) : e
     })
     if (mine !== attempt) return
-    if (answer === 'refused') throw new Error(REFUSED)
+    if (answer === 'refused') throw new Error(refused())
     await next.localParticipant.setMicrophoneEnabled(true)
     update({ phase: 'talking' })
   } catch (e) {

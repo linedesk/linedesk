@@ -5,6 +5,7 @@ import { auth } from '../auth.ts'
 import { changeName } from '../settings/account/account-api.ts'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 const LATER_KEY = 'linedesk.askName.later'
 
@@ -18,6 +19,7 @@ function laterChosen() {
 
 /** Shown while the signed-in user has no name (not while an admin is signed in as them). */
 export function AskName({ impersonating }: { impersonating: boolean }) {
+  const t = useT()
   const session = auth.useSession()
   const [later, setLater] = useState(laterChosen)
   const [name, setName] = useState('')
@@ -37,7 +39,7 @@ export function AskName({ impersonating }: { impersonating: boolean }) {
   async function save(e: FormEvent) {
     e.preventDefault()
     const trimmed = name.trim()
-    if (!trimmed) return setError('Enter your name.')
+    if (!trimmed) return setError(t('shell.askName.empty'))
     setBusy(true)
     setError(null)
     try {
@@ -50,22 +52,22 @@ export function AskName({ impersonating }: { impersonating: boolean }) {
   }
   return (
     <Dialog
-      title="What's your name?"
+      title={t('shell.askName.title')}
       size="sm"
       onClose={busy ? () => {} : postpone}
       onSubmit={save}
       footer={
         <>
           <Button variant="ghost" onClick={postpone} disabled={busy}>
-            Later
+            {t('shell.askName.later')}
           </Button>
           <Button busy={busy} type="submit" variant="primary" disabled={busy || !name.trim()}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? t('common.action.saving') : t('common.action.save')}
           </Button>
         </>
       }
     >
-      <FormField id="ask-name" label="Name">
+      <FormField id="ask-name" label={t('shell.askName.label')}>
         <Input id="ask-name" value={name} autoComplete="name" maxLength={80} onChange={e => setName(e.target.value)} />
       </FormField>
       {error && <FormMessage>{error}</FormMessage>}

@@ -10,11 +10,11 @@ import { CodeStep } from '../Login.tsx'
 import { authErrorMessage, authFormError } from '../sign-in-code.ts'
 import { rememberSignInMethod, startRedirectSignIn, takeRedirectSignIn } from '../sign-in-methods.ts'
 import { previewInvitation } from './team-api.ts'
-import { roleInSentence } from './team-model.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
 import { AuthPage } from '../ui/kit.tsx'
 import { brandName } from '../brand.ts'
+import { useT } from '@linedesk/i18n/react'
 
 const INVITE_PARAM = 'invite'
 
@@ -38,6 +38,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function AcceptInvite({ invitationId, onDone }: { invitationId: string; onDone: () => void }) {
+  const t = useT()
   const [invite, setInvite] = useState<InvitationPreview | null>(null)
   const [account, setAccount] = useState<Account | null | undefined>(undefined)
   const [methods, setMethods] = useState<AuthMethods | null>(null)
@@ -82,14 +83,18 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   if (!invite || account === undefined || !methods) return <AuthPage>{errorLine}</AuthPage>
   if (invite.status !== 'pending') {
     return (
-      <Card title={invite.status === 'expired' ? 'This invitation has expired' : 'This invitation is no longer valid'}>
-        <p>Ask the person who invited you to send a new one.</p>
-        <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>Continue to {brandName()}</button>
+      <Card title={invite.status === 'expired' ? t('team.invite.expired') : t('team.invite.invalid')}>
+        <p>{t('team.invite.askAgain')}</p>
+        <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>{t('team.invite.continueTo', { brand: brandName() })}</button>
       </Card>
     )
   }
-  const lead = <p>{invite.invitedBy || 'A teammate'} invited {invite.email} to join as {roleInSentence(invite.role)}.</p>
-  const title = `Join ${invite.workspaceName}`
+  const lead = (
+    <p>
+      {t('team.invite.lead', { inviter: invite.invitedBy || t('team.invite.aTeammate'), email: invite.email, role: invite.role })}
+    </p>
+  )
+  const title = t('team.invite.join', { workspace: invite.workspaceName })
 
   if (!account && codeSent) return <CodeStep email={invite.email} onDone={afterSignIn} onDifferentEmail={() => setCodeSent(false)} />
   if (!account) {
@@ -102,10 +107,10 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     return (
       <Card title={title}>
         {lead}
-        <p>You are signed in as {account.email}. Sign out, then continue with {invite.email}.</p>
+        <p>{t('team.invite.otherAccount', { current: account.email, invited: invite.email })}</p>
         {errorLine}
-        <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => { await signOutAndForget(); await loadAccount() })}>Sign out and continue</button>
-        <button type="button" className="auth-switch" onClick={onDone}>Not now</button>
+        <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => { await signOutAndForget(); await loadAccount() })}>{t('team.invite.signOutContinue')}</button>
+        <button type="button" className="auth-switch" onClick={onDone}>{t('team.invite.notNow')}</button>
       </Card>
     )
   }
@@ -114,7 +119,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
       <Card title={title}>
         {errorLine}
         <ConfirmEmail email={invite.email} onDone={async () => { await loadAccount() }}
-          why={`To join ${invite.workspaceName}, confirm that ${invite.email} is yours. We email you a code.`} />
+          why={t('team.invite.confirmWhy', { workspace: invite.workspaceName, email: invite.email })} />
       </Card>
     )
   }
@@ -125,8 +130,8 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
       <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => {
         fail(await auth.organization.acceptInvitation({ invitationId }))
         onDone()
-      })}>Join {invite.workspaceName}</button>
-      <button type="button" className="auth-switch" onClick={onDone}>Not now</button>
+      })}>{t('team.invite.join', { workspace: invite.workspaceName })}</button>
+      <button type="button" className="auth-switch" onClick={onDone}>{t('team.invite.notNow')}</button>
     </Card>
   )
 }
@@ -138,6 +143,7 @@ type SignInProps = {
 
 /** Signed out: the invited address is fixed; any method this install offers works. */
 function SignInForInvite({ title, lead, email, methods, busy, error, attempt, onCodeSent, onSignedIn }: SignInProps) {
+  const t = useT()
   // A new account comes from a proven address (a code or a provider): a password signs in an existing one only.
   const [mode, setMode] = useState<'choose' | 'signIn'>('choose')
   const [form, setForm] = useState({ password: '' })
@@ -159,18 +165,18 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{title}</h1>
         {lead}
-        <label>Email<input value={email} readOnly /></label>
+        <label>{t('auth.email')}<input value={email} readOnly /></label>
         {mode === 'choose' && (
           <>
             {methods.emailCode && (
               <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => {
                 fail(await requestSignInCode(email))
                 onCodeSent()
-              })}>Email me a code</button>
+              })}>{t('auth.confirm.send')}</button>
             )}
             {/* Someone who already has an account with a passkey: in with it (another account's is caught below). */}
             {methods.passkey && passkeySupported() && (
-              <ProviderButton method="passkey" label="Passkey" lastUsed={false} disabled={busy}
+              <ProviderButton method="passkey" label={t('auth.method.passkey')} lastUsed={false} disabled={busy}
                 onClick={() => attempt(async () => {
                   fail(await signInWithPasskey())
                   rememberSignInMethod('passkey')
@@ -185,15 +191,15 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                   fail(await auth.signIn.social({ provider: m.id, ...back }))
                 })} />
             ))}
-            {methods.password && <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>I already have a password</button>}
+            {methods.password && <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>{t('team.invite.havePassword')}</button>}
           </>
         )}
         {mode !== 'choose' && (
           <>
-            <label>Password<input required type="password" minLength={8} value={form.password} autoFocus autoComplete="current-password"
+            <label>{t('auth.method.password')}<input required type="password" minLength={8} value={form.password} autoFocus autoComplete="current-password"
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></label>
-            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>Sign in</button>
-            <button type="button" className="auth-switch" onClick={() => setMode('choose')}>Other ways to continue</button>
+            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{t('auth.signIn')}</button>
+            <button type="button" className="auth-switch" onClick={() => setMode('choose')}>{t('team.invite.otherWays')}</button>
           </>
         )}
         {error}

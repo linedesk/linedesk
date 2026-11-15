@@ -9,18 +9,22 @@ import { RadioCard, Select } from '../ui/controls.tsx'
 import { Dialog, FormField } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { contactLabel, type ContactRow, duplicatePairs, MERGE_FIELDS, type MergeField, mergeDefaults } from './model.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
-const FIELD_LABEL: Record<MergeField, string> = {
-  name: 'Name',
-  company: 'Company',
-  email: 'Email',
-  address: 'Address',
-  note: 'Note',
-}
+const FIELD_LABEL = {
+  name: msg('contacts.field.name'),
+  company: msg('contacts.field.company'),
+  email: msg('contacts.field.email'),
+  address: msg('contacts.field.address'),
+  note: msg('contacts.field.note'),
+} satisfies Record<MergeField, MessageKey>
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const who = (contact: Contact) =>
-  contact.name ? `${contact.name} · ${formatPhone(contact.phone)}` : formatPhone(contact.phone)
+  contact.name
+    ? i18n().t('contacts.merge.who', { name: contact.name, number: formatPhone(contact.phone) })
+    : formatPhone(contact.phone)
 
 type Props = {
   /** The contact the merge starts from; it is kept unless the member swaps. */
@@ -34,6 +38,7 @@ type Props = {
 }
 
 export function MergeContacts({ first, second, all, onClose, toast }: Props) {
+  const t = useT()
   const run = useRun()
   const candidates = all.filter(r => r.contact.id !== first.contact.id)
   // Picking: a contact with the same number or email comes first, if there is one.
@@ -50,7 +55,7 @@ export function MergeContacts({ first, second, all, onClose, toast }: Props) {
 
   if (!merge || !defaults)
     return (
-      <Dialog title="Merge contacts" description="There is no other contact to merge with." onClose={onClose}>
+      <Dialog title={t('contacts.merge.title')} description={t('contacts.merge.noOther')} onClose={onClose}>
         {null}
       </Dialog>
     )
@@ -63,32 +68,39 @@ export function MergeContacts({ first, second, all, onClose, toast }: Props) {
     const values = Object.fromEntries(MERGE_FIELDS.map(f => [f, value(f)]))
     void run('contact.merge', { keepId: keep.contact.id, mergeId: merge.contact.id, ...values })
     toast(
-      `Merged into ${contactLabel(keep.contact)}.${merge.calls.length ? ` ${plural(merge.calls.length, 'call')} moved.` : ''}`,
+      merge.calls.length
+        ? t('contacts.merge.doneMoved', { name: contactLabel(keep.contact), count: merge.calls.length })
+        : t('contacts.merge.done', { name: contactLabel(keep.contact) }),
     )
     onClose()
   }
 
   return (
     <Dialog
-      title="Merge contacts"
-      description={`${contactLabel(merge.contact)} goes into ${contactLabel(keep.contact)}: ${merge.calls.length === 1 ? '1 call moves' : `${plural(merge.calls.length, 'call')} move`} over, and calls from ${formatPhone(merge.contact.phone)} land there from now on.`}
+      title={t('contacts.merge.title')}
+      description={t('contacts.merge.description', {
+        merge: contactLabel(merge.contact),
+        keep: contactLabel(keep.contact),
+        count: merge.calls.length,
+        number: formatPhone(merge.contact.phone),
+      })}
       onClose={onClose}
       onSubmit={submit}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.action.cancel')}</Button>
           <Button type="submit" variant="primary">
-            Merge
+            {t('contacts.merge.merge')}
           </Button>
         </>
       }
     >
       {!second && (
-        <FormField id="merge-other" label="Merge with">
+        <FormField id="merge-other" label={t('contacts.merge.with')}>
           <div>
             <Select
               id="merge-other"
-              label="Merge with"
+              label={t('contacts.merge.with')}
               value={otherId}
               options={candidates.map(r => ({ value: r.contact.id, label: who(r.contact) }))}
               onChange={id => {
@@ -99,8 +111,8 @@ export function MergeContacts({ first, second, all, onClose, toast }: Props) {
           </div>
         </FormField>
       )}
-      <FormField label="Keep">
-        <div className="merge-pick" role="radiogroup" aria-label="Keep">
+      <FormField label={t('contacts.merge.keep')}>
+        <div className="merge-pick" role="radiogroup" aria-label={t('contacts.merge.keep')}>
           {[first, other!].map(row => (
             <RadioCard
               key={row.contact.id}
@@ -111,14 +123,17 @@ export function MergeContacts({ first, second, all, onClose, toast }: Props) {
                 setPicked({})
               }}
               title={contactLabel(row.contact)}
-              description={`${formatPhone(row.contact.phone)} · ${plural(row.calls.length, 'call')}`}
+              description={t('contacts.merge.rowDescription', {
+                number: formatPhone(row.contact.phone),
+                count: row.calls.length,
+              })}
             />
           ))}
         </div>
       </FormField>
       {defaults.choices.map(field => (
-        <FormField key={field} label={FIELD_LABEL[field]}>
-          <div className="merge-pick" role="radiogroup" aria-label={FIELD_LABEL[field]}>
+        <FormField key={field} label={t(FIELD_LABEL[field])}>
+          <div className="merge-pick" role="radiogroup" aria-label={t(FIELD_LABEL[field])}>
             {(['keep', 'merge'] as const).map(side => (
               <RadioCard
                 key={side}

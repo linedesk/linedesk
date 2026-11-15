@@ -1,6 +1,7 @@
 // Pure helpers of the admin page: sorting, the usage grid, and a provider's keys (the status: providerStatus.ts).
 import { phoneNumberProblem, providers as providerSpecs } from '@linedesk/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
+import { fmt } from '../i18n/format.ts'
 
 export type SortDir = 'asc' | 'desc'
 export type Sort<K extends string> = { key: K; dir: SortDir }
@@ -29,7 +30,7 @@ export function recentMonths(count: number, now = new Date()): string[] {
 }
 
 export const monthLabel = (month: string) =>
-  new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+  fmt().dateTime(new Date(`${month}-01T00:00:00Z`), { month: 'short', year: 'numeric', timeZone: 'UTC' })
 
 export type UsageCell = { calls: number; minutes: number }
 /** Usage per workspace: month → cell. */
@@ -45,7 +46,7 @@ export function usageByWorkspace(usage: readonly UsageRow[]): Map<string, Map<st
 /** Answered minutes; a month with calls but under a tenth of a minute says so instead of a dash. */
 export const formatMinutes = (minutes: number) =>
   minutes >= 0.1
-    ? `${minutes.toLocaleString('en-US', { maximumFractionDigits: 1 })} min`
+    ? `${fmt().number(minutes, { maximumFractionDigits: 1 })} min`
     : minutes > 0
       ? '<0.1 min'
       : '0 min'

@@ -41,12 +41,14 @@ import {
   roleLabel,
   rolesFor,
 } from './team-model.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
 
-const roleHelp: Record<TeamRole, string> = {
-  owner: 'Hand the workspace over: you become an admin.',
-  admin: 'Settings and people.',
-  member: 'Calls and contacts.',
-}
+const roleHelp = {
+  owner: msg('team.role.ownerHelp'),
+  admin: msg('team.role.adminHelp'),
+  member: msg('team.role.memberHelp'),
+} satisfies Record<TeamRole, MessageKey>
 
 type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
 
@@ -65,6 +67,7 @@ function RoleSelect<R extends TeamRole>({
   onChange: (role: R) => void
   roles: readonly R[]
 }) {
+  const t = useT()
   return (
     <Select
       id={id}
@@ -73,7 +76,7 @@ function RoleSelect<R extends TeamRole>({
       value={value}
       label={label}
       onChange={onChange}
-      options={roles.map(r => ({ value: r, label: roleLabel(r), description: roleHelp[r] }))}
+      options={roles.map(r => ({ value: r, label: roleLabel(r), description: t(roleHelp[r]) }))}
     />
   )
 }
@@ -88,11 +91,12 @@ function OwnerConfirm({
   onConfirm: () => Promise<boolean>
   onClose: () => void
 }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   return (
     <Dialog
-      title={`Make ${name} the owner?`}
-      description="A workspace has one owner, who can also delete it or hand it over. You become an admin and keep every setting and the team."
+      title={t('team.owner.title', { name })}
+      description={t('team.owner.description')}
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={async e => {
@@ -104,10 +108,10 @@ function OwnerConfirm({
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.action.cancel')}
           </Button>
           <Button busy={busy} type="submit" variant="danger-outline" disabled={busy}>
-            Make owner
+            {t('team.owner.make')}
           </Button>
         </>
       }
@@ -116,45 +120,46 @@ function OwnerConfirm({
 }
 
 function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: Run; onEdit: () => void }) {
+  const t = useT()
   const [removing, setRemoving] = useState(false)
   const [owning, setOwning] = useState(false)
   const name = m.name || m.email
   const setRole = (role: AssignableRole) =>
-    run(() => teamApi.setRole(m.memberId, role), `${name} is now ${roleLabel(role).toLowerCase()}.`)
-  const transfer = () => run(() => teamApi.transferOwnership(m.memberId), `${name} is now the owner. You are an admin.`)
+    run(() => teamApi.setRole(m.memberId, role), t('team.member.roleChanged', { name, role }))
+  const transfer = () => run(() => teamApi.transferOwnership(m.memberId), t('team.owner.done', { name }))
   return (
     <ListRow
       lead={<Avatar name={name} size={24} src={m.avatarUrl} />}
       title={
         <>
           {name}
-          {m.userId === data.me && <Badge>You</Badge>}
+          {m.userId === data.me && <Badge>{t('team.member.you')}</Badge>}
         </>
       }
-      sub={`${m.email} · ${joinedLabel(m.joinedAt)}`}
+      sub={t('team.member.sub', { email: m.email, joined: joinedLabel(m.joinedAt) })}
       actions={
         <>
           {isMe(data, m) && (
             <Button
               size="sm"
               variant="ghost"
-              title="Your name, sign-in and sessions, in Account"
+              title={t('team.member.editProfileTitle')}
               onClick={() => {
                 window.location.hash = PROFILE_HASH
               }}
             >
-              Edit profile
+              {t('team.member.editProfile')}
             </Button>
           )}
           {canEditMember(data, m) && (
-            <Button size="sm" variant="ghost" title={`${name}'s name, picture and notifications`} onClick={onEdit}>
-              Edit
+            <Button size="sm" variant="ghost" title={t('team.member.editTitle', { name })} onClick={onEdit}>
+              {t('team.member.edit')}
             </Button>
           )}
           {canEditRole(data, m) ? (
             <RoleSelect
               value={m.role}
-              label={`Role for ${name}`}
+              label={t('team.member.roleFor', { name })}
               roles={rolesFor(data)}
               onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
             />
@@ -166,8 +171,8 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
               size="sm"
               variant="ghost"
               icon="trash"
-              aria-label={`Remove ${name}`}
-              title={`Remove ${name}`}
+              aria-label={t('team.member.remove', { name })}
+              title={t('team.member.remove', { name })}
               onClick={() => setRemoving(true)}
             />
           ) : (
@@ -182,7 +187,7 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
             <DangerConfirmDialog
               confirm={removeMemberConfirmation(name)}
               run={async keepAccount => {
-                if (await run(() => teamApi.remove(m.memberId, keepAccount), `${name} removed.`)) setRemoving(false)
+                if (await run(() => teamApi.remove(m.memberId, keepAccount), t('team.member.removed', { name }))) setRemoving(false)
               }}
               onClose={() => setRemoving(false)}
             />
@@ -194,6 +199,7 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
 }
 
 function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; canManage: boolean; run: Run }) {
+  const t = useT()
   const [confirming, setConfirming] = useState(false)
   return (
     <ListRow
@@ -201,10 +207,10 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
       title={
         <>
           <span className="k-row-text">{invite.email}</span>
-          <Badge>{invite.expired ? 'Expired' : 'Invited'}</Badge>
+          <Badge>{invite.expired ? t('team.invitation.expired') : t('team.invitation.invited')}</Badge>
         </>
       }
-      sub={<span title={`Invited by ${invite.invitedBy || 'a teammate'}`}>{invitationStatus(invite)}</span>}
+      sub={<span title={t('team.invitation.invitedBy', { name: invite.invitedBy || t('team.invitation.aTeammate') })}>{invitationStatus(invite)}</span>}
       aside={roleLabel(invite.role)}
       actions={
         canManage && (
@@ -212,25 +218,25 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
             <Button
               size="sm"
               variant="ghost"
-              title="Send the email again; the link works for another 7 days"
+              title={t('team.invitation.resendTitle')}
               onClick={() =>
-                void run(() => teamApi.resend(invite.invitationId), `Invitation sent again to ${invite.email}.`)
+                void run(() => teamApi.resend(invite.invitationId), t('team.invitation.resent', { email: invite.email }))
               }
             >
-              Resend
+              {t('team.invitation.resend')}
             </Button>
             <Button
               size="sm"
               variant={confirming ? 'danger' : 'ghost'}
-              title={confirming ? 'Click again: the link stops working' : 'The link stops working'}
+              title={confirming ? t('team.invitation.revokeConfirmTitle') : t('team.invitation.revokeTitle')}
               onBlur={() => setConfirming(false)}
               onClick={() =>
                 confirming
-                  ? void run(() => teamApi.revoke(invite.invitationId), `Invitation for ${invite.email} revoked.`)
+                  ? void run(() => teamApi.revoke(invite.invitationId), t('team.invitation.revoked', { email: invite.email }))
                   : setConfirming(true)
               }
             >
-              {confirming ? 'Revoke invitation' : 'Revoke'}
+              {confirming ? t('team.invitation.revokeConfirm') : t('team.invitation.revoke')}
             </Button>
           </span>
         )
@@ -240,6 +246,7 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
 }
 
 function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (text: string) => void }) {
+  const t = useT()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<AssignableRole>('member')
   const valid = isEmail(email)
@@ -247,8 +254,8 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
     e.preventDefault()
     const address = email.trim().toLowerCase()
     if (!valid) return
-    if (isOnTeam(data, address)) return toast(`${address} is already on the team or invited.`)
-    if (await run(() => teamApi.invite(address, role), `Invitation sent to ${address}.`)) {
+    if (isOnTeam(data, address)) return toast(t('team.invite.alreadyOnTeam', { email: address }))
+    if (await run(() => teamApi.invite(address, role), t('team.invite.sent', { email: address }))) {
       setEmail('')
       setRole('member') // the next invitation starts with the least access again
     }
@@ -272,22 +279,22 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
         void submit(e).finally(() => setSending(false))
       }}
     >
-      <FormField id="team-invite-email" label="Invite by email" className="team-invite-email">
+      <FormField id="team-invite-email" label={t('team.invite.byEmail')} className="team-invite-email">
         <Input
           id="team-invite-email"
           type="email"
           value={email}
-          placeholder="name@business.com"
+          placeholder={t('team.invite.placeholder')}
           autoComplete="off"
           onChange={e => setEmail(e.target.value)}
         />
       </FormField>
-      <FormField id="team-invite-role" label="Role">
+      <FormField id="team-invite-role" label={t('team.invite.role')}>
         <RoleSelect
           id="team-invite-role"
           size="md"
           value={role}
-          label="Role for the invited person"
+          label={t('team.invite.roleLabel')}
           roles={assignableRoles}
           onChange={setRole}
         />
@@ -297,9 +304,9 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
         type="submit"
         variant="primary"
         disabled={!valid || sending}
-        title="Send the invitation (⏎)"
+        title={t('common.withKey', { label: t('team.invite.sendTitle'), key: '⏎' })}
       >
-        {sending ? 'Sending…' : 'Invite'}
+        {sending ? t('team.invite.sending') : t('team.invite.button')}
       </Button>
     </form>
   )
@@ -311,6 +318,7 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
  * whose account stays; the server checks both again).
  */
 export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isInstanceAdmin: boolean }) {
+  const t = useT()
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -340,39 +348,43 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
     }
   }
   return (
-    <Section id="team-leave" title="Leave workspace">
+    <Section id="team-leave" title={t('team.leave.title')}>
       <div className="team-leave">
         <Button
           variant="danger-outline"
           disabled={lastOwner}
-          title={lastOwner ? 'You are the owner: make someone else the owner first' : 'You lose access at once'}
+          title={lastOwner ? t('team.leave.ownerTitle') : t('team.leave.loseAccess')}
           onClick={() => setAsking(true)}
         >
-          Leave workspace…
+          {t('team.leave.button')}
         </Button>
-        {lastOwner && <span className="help">You are the owner. Make someone else the owner first (Team).</span>}
+        {lastOwner && (
+          <span className="help">
+            <T k="team.leave.ownerHelp" values={{ link: chunks => <a href="#workspace/team">{chunks}</a> }} />
+          </span>
+        )}
       </div>
       {asking && (
         <Dialog
-          title="Leave workspace"
-          description="You lose access at once. Only a new invitation brings you back."
+          title={t('team.leave.title')}
+          description={t('team.leave.description')}
           size="sm"
           onClose={busy ? () => {} : () => setAsking(false)}
           onSubmit={leave}
           footer={
             <>
               <Button variant="ghost" onClick={() => setAsking(false)} disabled={busy}>
-                Cancel
+                {t('common.action.cancel')}
               </Button>
               <Button busy={busy} type="submit" variant="danger" disabled={busy}>
-                {busy ? 'Leaving…' : 'Leave workspace'}
+                {busy ? t('team.leave.leaving') : t('team.leave.title')}
               </Button>
             </>
           }
         >
           {lastWorkspace && (
             <Checkbox checked={deleteAccount} onChange={setDeleteAccount} disabled={busy}>
-              Also delete my account (this is your only workspace)
+              {t('team.leave.deleteAccount')}
             </Checkbox>
           )}
           {error && <FormMessage>{error}</FormMessage>}
@@ -384,6 +396,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
 
 /** The team section of Workspace settings; the team defaults for notifications at its end (owners and admins). */
 export function TeamSection({ toast }: { toast: (text: string) => void }) {
+  const t = useT()
   const team = useTeam()
   const [editing, setEditing] = useState<TeamMember | null>(null)
   const data = team.data ?? null
@@ -407,19 +420,19 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
     <>
       <Section
         id="team-members"
-        title="Members"
+        title={t('team.members.title')}
         description={data && !data.canManage ? ONLY_ADMINS : undefined}
-        help="The owner can do everything an admin can, and also delete the workspace or hand it over (one owner per workspace). Admins change settings, invite or remove people, and edit a teammate's name, picture and notifications (not the owner's). Members work with calls, contacts and reminders but can't change settings."
+        help={t('team.members.help')}
       >
         <Loading
-          what="The team"
+          what={t('team.members.what')}
           loading={!data}
           error={error}
           onRetry={() => void load()}
           skeleton={<SkeletonList rows={2} lead={24} aside />}
         >
           {data && (
-            <List label="Members">
+            <List label={t('team.members.title')}>
               {data.members.map(m => (
                 <MemberRow key={m.memberId} data={data} m={m} run={run} onEdit={() => setEditing(m)} />
               ))}
@@ -436,10 +449,10 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
         )}
       </Section>
       {data && (data.canManage || data.invitations.length > 0) && (
-        <Section id="team-invites" title="Invitations" description="Links in the email work for 7 days.">
-          {data.invitations.length === 0 && <ListEmpty>No pending invitations.</ListEmpty>}
+        <Section id="team-invites" title={t('team.invitations.title')} description={t('team.invitations.description')}>
+          {data.invitations.length === 0 && <ListEmpty>{t('team.invitations.none')}</ListEmpty>}
           {data.invitations.length > 0 && (
-            <List label="Invitations">
+            <List label={t('team.invitations.title')}>
               {data.invitations.map(i => (
                 <InvitationRow key={i.invitationId} invite={i} canManage={data.canManage} run={run} />
               ))}

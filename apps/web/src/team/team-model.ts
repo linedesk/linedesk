@@ -7,16 +7,18 @@ import {
   type TeamMember,
   teamRoles,
 } from '@linedesk/actions'
+import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 
 const DAY_MS = 86_400_000
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const isEmail = (text: string) => EMAIL.test(text.trim())
 
-export const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
+export { roleLabel } from '../shell/invitations.ts'
 
 /** The role in a sentence: "a member", "an admin", "an owner". */
-export const roleInSentence = (role: string) => `${/^[aeiou]/i.test(role) ? 'an' : 'a'} ${role}`
+export const roleInSentence = (role: string) => i18n().t('team.role.inSentence', { role })
 
 /** The signed-in member's own row ("You"): it offers Edit profile. */
 export const isMe = (data: TeamData, m: TeamMember) => m.userId === data.me
@@ -48,13 +50,15 @@ export function isOnTeam(data: TeamData, email: string) {
 export function joinedLabel(iso: string, now = new Date()) {
   const date = new Date(iso)
   const sameYear = date.getFullYear() === now.getFullYear()
-  return `Joined ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) })}`
+  const day = fmt().dateTime(date, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) })
+  return i18n().t('team.member.joined', { date: day })
 }
 
 export function invitationStatus(invite: TeamInvitation, now = Date.now()) {
-  if (invite.expired) return 'Resend to renew the link'
+  const { t } = i18n()
+  if (invite.expired) return t('team.invitation.renew')
   const days = Math.ceil((Date.parse(invite.expiresAt) - now) / DAY_MS)
-  return days <= 1 ? 'Expires today' : `Expires in ${days} days`
+  return days <= 1 ? t('team.invitation.expiresToday') : t('team.invitation.expiresIn', { days })
 }
 
 /**
@@ -68,24 +72,26 @@ export const canEditMember = (data: TeamData, m: TeamMember) =>
 export function changedByLabel(c: ChangedBy, now = new Date()) {
   const date = new Date(c.at)
   const sameYear = date.getFullYear() === now.getFullYear()
-  const day = date.toLocaleDateString('en-US', {
+  const day = fmt().dateTime(date, {
     month: 'short',
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' }),
   })
-  return `Last changed by ${c.name} on ${day}.`
+  return i18n().t('team.changedBy', { name: c.name, date: day })
 }
 
 /**
  * Removing someone (Workspace settings › Team, Server admin): when it is their only workspace their account goes too,
  * unless the box keeps it (they then wait for an invitation). Server admins always keep theirs.
  */
-export function removeMemberConfirmation(name: string, where = 'this workspace') {
+export function removeMemberConfirmation(name: string, where?: string) {
+  const { t } = i18n()
+  const place = where ?? t('team.remove.thisWorkspace')
   return {
-    text: `${name} loses access to ${where} at once.`,
-    list: [`If ${where} is their only workspace, their account is deleted too (a server admin's never is).`],
-    action: 'Remove',
-    busyAction: 'Removing…',
-    option: 'Keep their account (they wait for an invitation)',
+    text: t('team.remove.text', { name, where: place }),
+    list: [t('team.remove.onlyWorkspace', { where: place })],
+    action: t('team.remove.action'),
+    busyAction: t('team.remove.busy'),
+    option: t('team.remove.keepAccount'),
   }
 }

@@ -1,40 +1,43 @@
 // What the user reads when the server refuses an action: a plain sentence, never an action id.
 import { phoneSetupErrorText } from '../onboarding/flow.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { i18n } from '../i18n/index.tsx'
 
+// i18n-dynamic: errors.couldNot.*
 const verbs: Record<string, string> = {
-  'call.markDone': 'mark the call done',
-  'call.markNotDone': 'reopen the call',
-  'call.markRead': 'mark the call read',
-  'call.markUnread': 'mark the call unread',
-  'call.remind': 'set the reminder',
-  'call.clearReminder': 'clear the reminder',
-  'call.delete': 'delete the call',
-  'call.restore': 'restore the call',
-  'call.setActionItems': 'update the next steps',
-  'contact.update': 'save the contact',
-  'assistant.update': 'save the assistant settings',
-  'onboarding.setStep': 'save your setup progress',
-  'onboarding.recordEvent': 'save your setup progress',
-  'phoneNumber.release': 'release the number',
-  'notifications.update': 'save your notification settings',
-  'notifications.setDefaults': 'save the notification defaults',
-  'workspace.updateSettings': 'save the workspace settings',
-  'workspace.rename': 'rename the business',
-  'workspace.setIcon': 'save the workspace icon',
-  'workspace.removeIcon': 'remove the workspace icon',
-  'businessHours.set': 'save the business hours',
-  'phoneNumber.update': 'change the number',
-  'push.subscribe': 'turn on notifications on this device',
-  'push.unsubscribe': 'turn off notifications on this device',
-  'appointmentType.upsert': 'save the appointment type',
-  'appointmentType.delete': 'remove the appointment type',
-  'sample.add': 'add the sample calls',
-  'sample.remove': 'remove the sample calls',
-  'onboarding.dismissGoLiveChecklist': 'hide the go-live checklist',
-  'onboarding.reopenGoLiveChecklist': 'show the go-live checklist',
-  'onboarding.skipGoLiveStep': 'mark that step not needed',
-  'onboarding.remindGoLiveStep': 'set the reminder',
-  'onboarding.restoreGoLiveStep': 'bring that step back',
+  'call.markDone': 'errors.couldNot.call.markDone',
+  'call.markNotDone': 'errors.couldNot.call.markNotDone',
+  'call.markRead': 'errors.couldNot.call.markRead',
+  'call.markUnread': 'errors.couldNot.call.markUnread',
+  'call.remind': 'errors.couldNot.call.remind',
+  'call.clearReminder': 'errors.couldNot.call.clearReminder',
+  'call.delete': 'errors.couldNot.call.delete',
+  'call.restore': 'errors.couldNot.call.restore',
+  'call.setActionItems': 'errors.couldNot.call.setActionItems',
+  'contact.update': 'errors.couldNot.contact.update',
+  'assistant.update': 'errors.couldNot.assistant.update',
+  'onboarding.setStep': 'errors.couldNot.onboarding.setStep',
+  'onboarding.recordEvent': 'errors.couldNot.onboarding.recordEvent',
+  'phoneNumber.release': 'errors.couldNot.phoneNumber.release',
+  'notifications.update': 'errors.couldNot.notifications.update',
+  'notifications.setDefaults': 'errors.couldNot.notifications.setDefaults',
+  'workspace.updateSettings': 'errors.couldNot.workspace.updateSettings',
+  'workspace.rename': 'errors.couldNot.workspace.rename',
+  'workspace.setIcon': 'errors.couldNot.workspace.setIcon',
+  'workspace.removeIcon': 'errors.couldNot.workspace.removeIcon',
+  'businessHours.set': 'errors.couldNot.businessHours.set',
+  'phoneNumber.update': 'errors.couldNot.phoneNumber.update',
+  'push.subscribe': 'errors.couldNot.push.subscribe',
+  'push.unsubscribe': 'errors.couldNot.push.unsubscribe',
+  'appointmentType.upsert': 'errors.couldNot.appointmentType.upsert',
+  'appointmentType.delete': 'errors.couldNot.appointmentType.delete',
+  'sample.add': 'errors.couldNot.sample.add',
+  'sample.remove': 'errors.couldNot.sample.remove',
+  'onboarding.dismissGoLiveChecklist': 'errors.couldNot.onboarding.dismissGoLiveChecklist',
+  'onboarding.reopenGoLiveChecklist': 'errors.couldNot.onboarding.reopenGoLiveChecklist',
+  'onboarding.skipGoLiveStep': 'errors.couldNot.onboarding.skipGoLiveStep',
+  'onboarding.remindGoLiveStep': 'errors.couldNot.onboarding.remindGoLiveStep',
+  'onboarding.restoreGoLiveStep': 'errors.couldNot.onboarding.restoreGoLiveStep',
 }
 
 const sentence = (text: string) => {
@@ -49,34 +52,35 @@ const sentence = (text: string) => {
 export function rejectionReason(error: string): string {
   const t = error.trim()
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(t))
-    return "The server can't be reached. Check your connection and try again."
+    return i18n().t('errors.unreachable')
   if (!t || /^HTTP \d{3}$|internal server error|^[[{<]|\n\s*at |\bundefined\b|\bnull\b/i.test(t) || t.length > 240)
-    return 'Something went wrong on the server. Try again in a moment.'
+    return i18n().t('errors.server')
   return sentence(t)
 }
 
 export function rejectionText(action: string, error: string): string {
   if (action === 'phoneNumber.setup') return phoneSetupErrorText(error)
   if (action in forwardingFallback) return forwardingCheckErrorText(action, error)
-  return `Could not ${verbs[action] ?? 'save that change'}. ${rejectionReason(error)}`.trim()
+  const couldNot = i18n().t((verbs[action] ?? 'errors.couldNot.default') as MessageKey)
+  return `${couldNot} ${rejectionReason(error)}`.trim()
 }
 
 // The forwarding check (phoneNumber.checkForwarding, phoneNumber.lookupLine): the server's sentences written for the
 // owner (limits, a number it cannot call) pass as they are; its internal reasons get words; anything else the fallback.
-const forwardingFallback: Record<string, string> = {
-  'phoneNumber.checkForwarding': 'The check could not start. Try again in a moment.',
-  'phoneNumber.lookupLine': 'Your carrier could not be looked up. Pick it from the list.',
+const forwardingFallback: Record<string, MessageKey> = {
+  'phoneNumber.checkForwarding': msg('errors.forwarding.checkFailed'),
+  'phoneNumber.lookupLine': msg('errors.forwarding.lookupFailed'),
 }
 const forwardingWritten =
   /^(Enter |That is |That number was checked|A check is already running|Too many |You checked |Forwarding checks are paused|Lookups are paused|The line could not be looked up|No connection to the server)/
-const forwardingReasons: [RegExp, string][] = [
-  [/workspace is disabled/i, 'This workspace is disabled, so nothing can be checked.'],
-  [/not found/i, 'This number is no longer connected to your workspace.'],
-  [/only a number your business phone forwards to/i, 'Only a number your business phone forwards to can be checked.'],
+const forwardingReasons: [RegExp, MessageKey][] = [
+  [/workspace is disabled/i, msg('errors.forwarding.disabled')],
+  [/not found/i, msg('errors.forwarding.notFound')],
+  [/only a number your business phone forwards to/i, msg('errors.forwarding.notForwarded')],
 ]
 
 function forwardingCheckErrorText(action: string, error: string): string {
   const t = error.trim()
   if (forwardingWritten.test(t)) return t
-  return forwardingReasons.find(([re]) => re.test(t))?.[1] ?? forwardingFallback[action]!
+  return i18n().t(forwardingReasons.find(([re]) => re.test(t))?.[1] ?? forwardingFallback[action]!)
 }

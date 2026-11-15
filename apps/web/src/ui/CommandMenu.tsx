@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { IconName } from './icons.ts'
 import { Avatar, Icon, Kbd } from './kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 /** `hint` is a quiet detail after the label, for example the time behind "Tomorrow morning". */
 /** `keywords` are other words that find the item ("unread" finds "Mark read"). */
@@ -73,11 +74,12 @@ type Props<T extends CommandItem> = {
 export function CommandMenu<T extends CommandItem>({
   groups,
   onSelect,
-  placeholder = 'Type a command…',
+  placeholder,
   numbered,
   fromQuery,
-  label = 'Commands',
+  label,
 }: Props<T>) {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const listId = useId()
@@ -111,14 +113,14 @@ export function CommandMenu<T extends CommandItem>({
 
   let n = -1
   return (
-    <div className="k-cmd" ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label}>
+    <div className="k-cmd" ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label ?? t('common.commandMenu.label')}>
       <div className="k-cmd-search">
         <Icon name="search" />
         <input
           autoFocus={!touchOnly()}
           value={query}
-          placeholder={placeholder}
-          aria-label="Search commands"
+          placeholder={placeholder ?? t('common.commandMenu.placeholder')}
+          aria-label={t('common.commandMenu.search')}
           autoComplete="off"
           onKeyDown={onKey}
           role="combobox"
@@ -133,7 +135,7 @@ export function CommandMenu<T extends CommandItem>({
         <Kbd keys={['esc']} />
       </div>
       <div className="k-cmd-list" role="listbox" id={listId}>
-        {!flat.length && <div className="k-cmd-empty">No results for “{query}”</div>}
+        {!flat.length && <div className="k-cmd-empty">{t('common.commandMenu.noResults', { query })}</div>}
         {shown.map(g => (
           <div key={g.label ?? 'results'} role="group" aria-label={g.label ?? undefined}>
             {g.label && <div className="k-cmd-group">{g.label}</div>}
@@ -168,15 +170,15 @@ export function CommandMenu<T extends CommandItem>({
       <div className="k-cmd-foot">
         <span>
           <Kbd keys={['↑', '↓']} />
-          select
+          {t('common.commandMenu.select')}
         </span>
         <span>
           <Kbd keys={['⏎']} />
-          run
+          {t('common.commandMenu.run')}
         </span>
         <span>
           <Kbd keys={['esc']} />
-          close
+          {t('common.commandMenu.close')}
         </span>
       </div>
     </div>

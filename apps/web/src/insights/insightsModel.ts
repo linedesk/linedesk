@@ -2,29 +2,33 @@
 // grouping by day, week or month, the busiest time, and money.
 import type { InsightCounts, InsightDay, InsightPeriod, InsightsData, JobValueCurrency } from '@linedesk/actions'
 import { currencyDigits, fromMinorUnits, jobValueCurrencies, toMinorUnits } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { fmt, intlLocale } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import type { SelectOption } from '../ui/controls.tsx'
 
-export const plural = (n: number, one: string, many = `${one}s`) =>
-  `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
+type Translate = ReturnType<typeof i18n>['t']
+/** The active language's `t`, looked up on each call (the language can change while the module stays loaded). */
+const t = ((...args: Parameters<Translate>) => i18n().t(...args)) as Translate
 
-export const PERIOD_LABELS: Record<InsightPeriod, string> = {
-  '7d': 'Last 7 days',
-  '30d': 'Last 30 days',
-  month: 'This month',
-  lastMonth: 'Last month',
-  '12m': 'Last 12 months',
-  all: 'All time',
+export const PERIOD_LABELS: Record<InsightPeriod, MessageKey> = {
+  '7d': msg('insights.period.7d'),
+  '30d': msg('insights.period.30d'),
+  month: msg('insights.period.month'),
+  lastMonth: msg('insights.period.lastMonth'),
+  '12m': msg('insights.period.12m'),
+  all: msg('insights.period.all'),
 }
 
 const DAY_MS = 86_400_000
 const ms = (date: string) => Date.parse(`${date}T00:00:00Z`)
-const fmt = (date: string, opts: Intl.DateTimeFormatOptions) =>
-  new Date(ms(date)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' })
+const utcDate = (date: string, opts: Intl.DateTimeFormatOptions) =>
+  fmt().dateTime(new Date(ms(date)), { ...opts, timeZone: 'UTC' })
 
 /** "Nov 11". */
-export const shortDate = (date: string) => fmt(date, { month: 'short', day: 'numeric' })
+export const shortDate = (date: string) => utcDate(date, { month: 'short', day: 'numeric' })
 /** "Nov 11, 2026". */
-export const longDate = (date: string) => fmt(date, { month: 'short', day: 'numeric', year: 'numeric' })
+export const longDate = (date: string) => utcDate(date, { month: 'short', day: 'numeric', year: 'numeric' })
 
 /** "Oct 15 – Nov 13, 2026" or "Dec 1, 2025 – Nov 13, 2026". */
 export function spanLabel(from: string, to: string): string {
@@ -38,11 +42,11 @@ export function spanLabel(from: string, to: string): string {
 export function compareLabel(data: Pick<InsightsData, 'period' | 'days' | 'compareWith'>): string | null {
   const c = data.compareWith
   if (!c) return null
-  if (data.period === 'lastMonth') return fmt(c.from, { month: 'long' })
+  if (data.period === 'lastMonth') return utcDate(c.from, { month: 'long' })
   if (data.period === 'month')
-    return c.from === c.to ? shortDate(c.from) : `${shortDate(c.from)}–${fmt(c.to, { day: 'numeric' })}`
-  if (data.period === '12m') return 'prior 12 months'
-  return `prior ${data.days} days`
+    return c.from === c.to ? shortDate(c.from) : `${shortDate(c.from)}–${utcDate(c.to, { day: 'numeric' })}`
+  if (data.period === '12m') return t('insights.compare.prior12m')
+  return t('insights.compare.priorDays', { days: data.days })
 }
 
 /**
@@ -51,35 +55,22 @@ export function compareLabel(data: Pick<InsightsData, 'period' | 'days' | 'compa
  */
 export function change(current: number, previous: number): string {
   const d = current - previous
-  if (d === 0) return 'Same'
-  const count = `${d > 0 ? '+' : '−'}${Math.abs(d).toLocaleString('en-US')}`
+  if (d === 0) return t('insights.change.same')
+  const sign = d > 0 ? '+' : '−'
+  const count = `${sign}${fmt().number(Math.abs(d))}`
   if (current < 20 || previous < 20) return count
-  return `${count} (${d > 0 ? '+' : '−'}${Math.abs(Math.round((d / previous) * 100))}%)`
+  const percent = fmt().number(Math.abs(Math.round((d / previous) * 100)) / 100, { style: 'percent' })
+  return `${count} (${sign}${percent})`
 }
 
-const listOf = (parts: string[]) =>
-  parts.length <= 1 ? (parts[0] ?? '') : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
-
-/** How the sentence starts for the period: "In the last 30 days", "This month", "Since your first call". */
-function opening(period: InsightsData['period'], days: number, from?: string, to?: string): string {
-  switch (period) {
-    case 'custom':
-      return from && to
-        ? from === to
-          ? `On ${longDate(from)}`
-          : `From ${shortDate(from)} to ${longDate(to)}`
-        : `In these ${days} days`
-    case 'month':
-      return 'This month'
-    case 'lastMonth':
-      return 'Last month'
-    case '12m':
-      return 'In the last 12 months'
-    case 'all':
-      return 'Since your first call'
-    default:
-      return `In the last ${days} days`
+/** Which way of naming the period the sentences use, and its values. */
+function periodWords(period: InsightsData['period'], days: number, from?: string, to?: string) {
+  if (period === 'custom') {
+    if (from && to && from === to) return { period: 'day', days, date: longDate(from) }
+    if (from && to) return { period: 'range', days, from: shortDate(from), to: longDate(to) }
+    return { period: 'some', days }
   }
+  return { period: period === '7d' || period === '30d' ? 'days' : period, days }
 }
 
 /** "In the last 7 days Maya answered 34 calls, booked 9 appointments and caught 4 urgent calls after hours." */
@@ -88,14 +79,14 @@ export function summarySentence(
   data: Pick<InsightsData, 'period' | 'days'> & Partial<Pick<InsightsData, 'from' | 'to'>>,
   c: InsightCounts,
 ): string {
-  const when = opening(data.period, data.days, data.from, data.to)
-  if (c.calls === 0)
-    return data.period === 'all' ? 'No calls yet.' : `No calls ${when[0]!.toLowerCase()}${when.slice(1)}.`
-  const parts = [`answered ${plural(c.answered, 'call')}`]
-  if (c.booked) parts.push(`booked ${plural(c.booked, 'appointment')}`)
-  if (c.urgentAfterHours) parts.push(`caught ${plural(c.urgentAfterHours, 'urgent call')} after hours`)
-  else if (c.urgent) parts.push(`flagged ${plural(c.urgent, 'urgent call')}`)
-  return `${when} ${assistant} ${listOf(parts)}.`
+  const words = periodWords(data.period, data.days, data.from, data.to)
+  if (c.calls === 0) return t('insights.summary.noCalls', words)
+  const parts = [t('insights.summary.answered', { count: c.answered })]
+  if (c.booked) parts.push(t('insights.summary.booked', { count: c.booked }))
+  if (c.urgentAfterHours) parts.push(t('insights.summary.caughtAfterHours', { count: c.urgentAfterHours }))
+  else if (c.urgent) parts.push(t('insights.summary.flagged', { count: c.urgent }))
+  const when = t('insights.summary.when', words)
+  return t('insights.summary.sentence', { when, assistant, actions: fmt().list(parts) })
 }
 
 // --- The chart -----------------------------------------------------------------------------------
@@ -151,9 +142,9 @@ export function columns(daily: InsightDay[], metric: ChartMetric, grouping: Grou
           grouping === 'day'
             ? shortDate(d.date)
             : grouping === 'week'
-              ? `Week of ${shortDate(key)}`
-              : fmt(d.date, { month: 'short', year: 'numeric' }),
-        tick: grouping === 'month' ? fmt(d.date, { month: 'short' }) : shortDate(key),
+              ? t('insights.chart.weekOf', { date: shortDate(key) })
+              : utcDate(d.date, { month: 'short', year: 'numeric' }),
+        tick: grouping === 'month' ? utcDate(d.date, { month: 'short' }) : shortDate(key),
         value: 0,
         missed: 0,
         partial: grouping !== 'day' && end > today,
@@ -174,15 +165,28 @@ export function tickEvery(count: number): number {
 
 // --- Busy times ----------------------------------------------------------------------------------
 
-export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
+/** For each weekday (0 Sunday), the name the messages select on. */
+const WEEKDAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+/** A day that is the given weekday (Jan 1, 2023 was a Sunday), at the given hour, in UTC. */
+const sample = (weekday: number, hour = 0) => new Date(Date.UTC(2023, 0, 1 + weekday, hour))
 
-/** "9 am", "12 pm". */
-export function hourLabel(hour: number): string {
-  const h = hour % 12 === 0 ? 12 : hour % 12
-  return `${h} ${hour % 24 < 12 ? 'am' : 'pm'}`
-}
+/** "Tue", in the active language. */
+export const weekdayShort = (weekday: number) => fmt().dateTime(sample(weekday), { weekday: 'short', timeZone: 'UTC' })
 
-/** "Tuesdays, 9–10 am", or null when there were no calls. */
+/** "Tuesdays": every one of that weekday. */
+export const weekdays = (weekday: number) => t('insights.weekdays', { day: WEEKDAY_IDS[weekday] ?? 'sun' })
+
+/** "9 AM", "12 PM" (or "9時", "9 Uhr"). */
+export const hourLabel = (hour: number) => fmt().time(sample(0, hour), { hour: 'numeric', timeZone: 'UTC' })
+
+/** "9 – 10 AM", "11 AM – 12 PM": the hour that starts at `hour`. */
+const hourRange = (hour: number) =>
+  new Intl.DateTimeFormat(intlLocale(), { hour: 'numeric', timeZone: 'UTC' }).formatRange(
+    sample(0, hour),
+    sample(0, hour + 1),
+  )
+
+/** "Tuesdays, 9 – 10 AM", or null when there were no calls. */
 export function busiestTime(byWeekdayHour: number[][]): string | null {
   let w = -1
   let h = -1
@@ -193,10 +197,7 @@ export function busiestTime(byWeekdayHour: number[][]): string | null {
       if (v > top) [w, h, top] = [day, hour, v]
     }
   if (top === 0) return null
-  const start = hourLabel(h)
-  const end = hourLabel(h + 1)
-  const sameHalf = start.slice(-2) === end.slice(-2)
-  return `${WEEKDAYS[w]}s, ${sameHalf ? start.slice(0, -3) : start}–${end}`
+  return t('insights.busiest.value', { days: weekdays(w), hours: hourRange(h) })
 }
 
 // --- Money ---------------------------------------------------------------------------------------
@@ -206,16 +207,14 @@ export function busiestTime(byWeekdayHour: number[][]): string | null {
  * "£90", "CA$400", "A$400", "CHF 350", "¥5,000", "₹1,500", "SEK 900".
  */
 export const formatMoney = (cents: number, currency: JobValueCurrency = 'USD') =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(
-    Math.round(fromMinorUnits(cents, currency)),
-  )
+  fmt().currency(Math.round(fromMinorUnits(cents, currency)), currency, { maximumFractionDigits: 0 })
 
 /**
  * A currency in the menu: its code and symbol ("USD · $", "EUR · €", "CAD · CA$"), the symbol as formatMoney
  * writes it; just the code where the symbol is the code ("CHF").
  */
 export function currencyLabel(currency: JobValueCurrency): string {
-  const symbol = new Intl.NumberFormat('en-US', { style: 'currency', currency })
+  const symbol = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency })
     .formatToParts(0)
     .find(p => p.type === 'currency')?.value
   return symbol && symbol !== currency ? `${currency} · ${symbol}` : currency
@@ -227,14 +226,18 @@ export const TOP_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const satis
 /**
  * The currencies offered next to the appointment value, in the order of the menu: TOP_CURRENCIES, then under an
  * "All currencies" heading every other one by code (the top ones are not repeated). Every currency picker uses it.
+ * A function: the symbols and the heading are in the active language.
  */
-export const CURRENCY_OPTIONS: SelectOption<JobValueCurrency>[] = [
-  ...TOP_CURRENCIES.map(c => ({ value: c, label: currencyLabel(c) })),
-  ...jobValueCurrencies
-    .filter(c => !(TOP_CURRENCIES as readonly JobValueCurrency[]).includes(c))
-    .sort()
-    .map(c => ({ value: c, label: currencyLabel(c), group: 'All currencies' })),
-]
+export function currencyOptions(): SelectOption<JobValueCurrency>[] {
+  const all = t('insights.currency.all')
+  return [
+    ...TOP_CURRENCIES.map(c => ({ value: c, label: currencyLabel(c) })),
+    ...jobValueCurrencies
+      .filter(c => !(TOP_CURRENCIES as readonly JobValueCurrency[]).includes(c))
+      .sort()
+      .map(c => ({ value: c, label: currencyLabel(c), group: all })),
+  ]
+}
 
 /**
  * What was typed → minor units of the currency: "380", "$1,250.50", "€90", "R$ 90" → cents; "¥5,000" → 5000 (JPY
@@ -261,19 +264,21 @@ export function totalsTable(data: InsightsData): { header: string[]; rows: (stri
   const hours = data.current.afterHours !== null
   const value = data.jobValueCents
   const header = [
-    'Date',
-    'Calls',
-    'Answered',
-    'Missed',
-    'Booked',
-    'Messages',
-    'Transferred',
-    'Other answered',
-    'Spam',
-    'Urgent',
-    ...(hours ? ['After hours'] : []),
-    'Minutes',
-    ...(value !== null ? [`Booked value (${data.jobValueCurrency ?? 'USD'})`] : []),
+    t('insights.export.column.date'),
+    t('insights.export.column.calls'),
+    t('insights.export.column.answered'),
+    t('insights.export.column.missed'),
+    t('insights.export.column.booked'),
+    t('insights.export.column.messages'),
+    t('insights.export.column.transferred'),
+    t('insights.export.column.other'),
+    t('insights.export.column.spam'),
+    t('insights.export.column.urgent'),
+    ...(hours ? [t('insights.export.column.afterHours')] : []),
+    t('insights.export.column.minutes'),
+    ...(value !== null
+      ? [t('insights.export.column.bookedValue', { currency: data.jobValueCurrency ?? 'USD' })]
+      : []),
   ]
   const rows = data.daily.map(d => [
     d.date,

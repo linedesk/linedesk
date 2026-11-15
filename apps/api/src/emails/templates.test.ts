@@ -68,6 +68,7 @@ describe('every email', () => {
 describe('the layout', () => {
   it('escapes everything a template passes', () => {
     const email = renderEmail({
+      locale: 'en',
       subject: 'x',
       preheader: '<p>',
       heading: '<script>alert(1)</script>',
@@ -87,6 +88,7 @@ describe('the layout', () => {
   it('refuses links that are not http(s)', () => {
     expect(() =>
       renderEmail({
+        locale: 'en',
         subject: 'x',
         preheader: '',
         heading: 'x',
@@ -483,5 +485,21 @@ describe('confirming an address', () => {
       expect(email.text, name).not.toMatch(/verify-email/)
       expect(email.html, name).not.toMatch(/verify-email/)
     }
+  })
+})
+
+describe('in the recipient language', () => {
+  // The subject and the plain-text part of every email, in English and in one target language: a changed text or a
+  // lost translation shows in the diff. Update with `vitest -u` after a deliberate change.
+  for (const locale of ['en', 'es'] as const) {
+    it(`${locale}: every email's subject and text`, () => {
+      const emails = previewEmails(ORIGIN, locale).map(({ name, email }) => [name, email.subject, email.text])
+      expect(emails).toMatchSnapshot()
+    })
+  }
+
+  it('sets <html lang> and keeps English for an unknown language', () => {
+    expect(previewEmails(ORIGIN, 'ja')[0]!.email.html).toContain('<html lang="ja"')
+    expect(previewEmails(ORIGIN, 'xx')[0]!.email.html).toContain('<html lang="en"')
   })
 })

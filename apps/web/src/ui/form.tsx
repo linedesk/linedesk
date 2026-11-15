@@ -19,6 +19,7 @@ import { Backdrop } from './Backdrop.tsx'
 import { type HelpContent, HelpTip, helpContent } from './HelpTip.tsx'
 import { Button, cx, Icon } from './kit.tsx'
 import './form.css'
+import { useT } from '@linedesk/i18n/react'
 
 export { type HelpContent, HelpTip } from './HelpTip.tsx'
 
@@ -139,7 +140,7 @@ type DateInputProps = Omit<ComponentProps<'input'>, 'size' | 'type' | 'value' | 
 export function DateInput({
   value,
   onChange,
-  placeholder = 'Pick a day',
+  placeholder,
   invalid,
   size = 'md',
   className,
@@ -149,6 +150,7 @@ export function DateInput({
   onKeyDown,
   ...rest
 }: DateInputProps) {
+  const t = useT()
   const open = (input: HTMLInputElement) => {
     try {
       input.showPicker()
@@ -168,7 +170,7 @@ export function DateInput({
     >
       <Icon name="calendar" size={size === 'sm' ? 13 : 14} />
       <span className={cx('k-date-text', !value && 'is-empty')} aria-hidden="true">
-        {value ? dayFieldLabel(value) : placeholder}
+        {value ? dayFieldLabel(value) : (placeholder ?? t('common.dateInput.placeholder'))}
       </span>
       <input
         type="date"
@@ -227,6 +229,7 @@ type SecretProps = {
  * and the key would end up in the password manager, so it is masked by CSS and can be shown.
  */
 export function SecretInput({ id, value, onChange, storedLast4, placeholder, autoFocus, invalid }: SecretProps) {
+  const t = useT()
   const [shown, setShown] = useState(false)
   const [replacing, setReplacing] = useState(!storedLast4)
   const input = useRef<HTMLInputElement>(null)
@@ -241,7 +244,7 @@ export function SecretInput({ id, value, onChange, storedLast4, placeholder, aut
           •••• {storedLast4}
         </span>
         <Button size="sm" variant="ghost" onClick={() => setReplacing(true)} autoFocus={autoFocus}>
-          Replace
+          {t('common.action.replace')}
         </Button>
       </div>
     )
@@ -266,8 +269,8 @@ export function SecretInput({ id, value, onChange, storedLast4, placeholder, aut
           type="button"
           className="k-input-btn"
           aria-pressed={shown}
-          aria-label={shown ? 'Hide' : 'Show'}
-          title={shown ? 'Hide' : 'Show'}
+          aria-label={shown ? t('common.secret.hide') : t('common.secret.show')}
+          title={shown ? t('common.secret.hide') : t('common.secret.show')}
           onClick={() => setShown(s => !s)}
         >
           <Icon name={shown ? 'eyeOff' : 'eye'} size={14} />
@@ -300,13 +303,14 @@ type SaveBarProps = {
 }
 
 /** Cancel and Save, sticky at the bottom; shows only while there are changes. Submit the form to save. */
-export function SaveBar({ dirty, saving, onCancel, disabled, label = 'Save', note }: SaveBarProps) {
+export function SaveBar({ dirty, saving, onCancel, disabled, label, note }: SaveBarProps) {
+  const t = useT()
   if (!dirty && !saving) return null
   return (
-    <div className="k-savebar" role="region" aria-label="Unsaved changes">
-      <span className="k-savebar-note">{note ?? 'Unsaved changes'}</span>
-      <Button variant="ghost" onClick={onCancel} disabled={saving} title="Undo the changes">
-        Cancel
+    <div className="k-savebar" role="region" aria-label={t('common.unsaved')}>
+      <span className="k-savebar-note">{note ?? t('common.unsaved')}</span>
+      <Button variant="ghost" onClick={onCancel} disabled={saving} title={t('common.saveBar.undoTip')}>
+        {t('common.action.cancel')}
       </Button>
       <Button
         busy={saving}
@@ -314,9 +318,9 @@ export function SaveBar({ dirty, saving, onCancel, disabled, label = 'Save', not
         variant="primary"
         disabled={saving || disabled}
         shortcut={['⌘', 'S']}
-        title="Save (⌘S)"
+        title={t('common.action.saveWithKey', { key: '⌘S' })}
       >
-        {saving ? 'Saving…' : label}
+        {saving ? t('common.action.saving') : (label ?? t('common.action.save'))}
       </Button>
     </div>
   )
@@ -338,6 +342,7 @@ type DialogProps = {
 
 /** A modal over the page. Esc, the ✕ or a click outside closes it; focus stays inside. */
 export function Dialog({ title, description, icon, onClose, footer, onSubmit, size = 'md', children }: DialogProps) {
+  const t = useT()
   const titleId = useId()
   const descId = useId()
   const box = useRef<HTMLDivElement>(null)
@@ -379,7 +384,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descId}>{description}</p>}
           </div>
-          <Button size="sm" variant="ghost" icon="close" aria-label="Close" title="Close (esc)" onClick={onClose} />
+          <Button size="sm" variant="ghost" icon="close" aria-label={t('common.action.close')} title={t('common.action.closeWithKey', { key: 'esc' })} onClick={onClose} />
         </header>
         {onSubmit ? (
           <form className="k-dialog-form" noValidate onSubmit={onSubmit} onKeyDown={e => onSaveKey(e, true)}>

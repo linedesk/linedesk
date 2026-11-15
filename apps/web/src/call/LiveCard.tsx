@@ -2,6 +2,8 @@ import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect } from 'react'
 import { Button, Note } from '../ui/kit.tsx'
 import { type LiveSession, liveSession, useLiveSession } from './liveSession.ts'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 /** L listens or stops listening, ⇧T takes the call over: the open live call registers them while shown. */
 let keysMounted: ((key: string) => boolean) | null = null
@@ -35,11 +37,12 @@ function useLiveKeys(callId: string, session: LiveSession) {
 }
 
 function headline(phase: LiveSession['phase'], assistantName: string, takenBy: string | null) {
-  if (phase === 'joining') return 'Joining the call…'
-  if (phase === 'handingOff') return `${assistantName} is putting the caller through to you…`
-  if (phase === 'talking') return "You're on the call"
+  const { t } = i18n()
+  if (phase === 'joining') return t('call.live.joining')
+  if (phase === 'handingOff') return t('call.live.handingOff', { assistant: assistantName })
+  if (phase === 'talking') return t('call.live.talking')
   if (takenBy) return takenBy
-  return `${assistantName} is on the call…`
+  return t('call.live.onCall', { assistant: assistantName })
 }
 
 /**
@@ -55,6 +58,7 @@ export function LiveCard({
   segments: TranscriptSegment[]
   assistantName: string
 }) {
+  const t = useT()
   const session = useLiveSession()
   useLiveKeys(call.id, session)
   const mine = session.callId === call.id
@@ -80,18 +84,18 @@ export function LiveCard({
                 icon="mic"
                 aria-pressed={session.muted}
                 onClick={liveSession.toggleMute}
-                title={session.muted ? 'Unmute your microphone' : 'Mute your microphone'}
+                title={session.muted ? t('call.live.unmuteTitle') : t('call.live.muteTitle')}
               >
-                {session.muted ? 'Unmute' : 'Mute'}
+                {session.muted ? t('call.live.unmute') : t('call.live.mute')}
               </Button>
               <Button
                 size="sm"
                 variant="danger"
                 icon="phone-off"
                 onClick={() => void liveSession.leave()}
-                title="Hang up: ends the call for the caller too"
+                title={t('call.live.hangUpTitle')}
               >
-                Hang up
+                {t('call.live.hangUp')}
               </Button>
             </>
           ) : (
@@ -102,14 +106,10 @@ export function LiveCard({
                 shortcut={['L']}
                 disabled={busy}
                 aria-pressed={phase === 'listening'}
-                title={
-                  phase === 'listening'
-                    ? 'Stop listening (L)'
-                    : 'Listen: hear the call without the caller hearing you (L)'
-                }
+                title={t('common.withKey', { label: phase === 'listening' ? t('call.live.stopListening') : t('call.live.listenTitle'), key: 'L' })}
                 onClick={() => void (phase === 'listening' ? liveSession.leave() : liveSession.listen(call.id))}
               >
-                {phase === 'listening' ? 'Stop listening' : 'Listen'}
+                {phase === 'listening' ? t('call.live.stopListening') : t('call.live.listen')}
               </Button>
               {!takenBy && (
                 <Button
@@ -119,17 +119,20 @@ export function LiveCard({
                   icon="phone-in"
                   shortcut={['⇧', 'T']}
                   disabled={busy}
-                  title={`Take over: ${assistantName} tells the caller and hands the call to you; not recorded from then on (⇧T)`}
+                  title={t('common.withKey', {
+                    label: t('call.live.takeOverTitle', { assistant: assistantName }),
+                    key: '⇧T',
+                  })}
                   onClick={() => void liveSession.takeOver(call.id)}
                 >
-                  {phase === 'handingOff' ? 'Connecting…' : 'Take over'}
+                  {phase === 'handingOff' ? t('call.live.connecting') : t('call.live.takeOver')}
                 </Button>
               )}
             </>
           )}
         </span>
       </div>
-      {phase === 'talking' && <p className="lvc-note">The caller hears you. This part of the call is not recorded.</p>}
+      {phase === 'talking' && <p className="lvc-note">{t('call.live.notRecorded')}</p>}
       {phase !== 'talking' && lastEvent && <p className="lvc-note">{lastEvent.label}</p>}
       {mine && session.problem && <Note tone="danger">{session.problem}</Note>}
     </section>

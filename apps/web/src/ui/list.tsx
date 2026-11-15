@@ -7,6 +7,7 @@ import { useAnchoredList } from './floating.ts'
 import { Button, cx } from './kit.tsx'
 import type { IconName } from './icons.ts'
 import './list.css'
+import { useT } from '@linedesk/i18n/react'
 
 export function List({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
   return (
@@ -86,13 +87,14 @@ export function ListEmpty({ children }: { children: ReactNode }) {
 
 /** A row's Edit: a small pencil button. */
 export function EditButton({ name, onClick }: { name: string; onClick: () => void }) {
+  const t = useT()
   return (
     <Button
       size="sm"
       variant="ghost"
       icon="pencil"
-      aria-label={`Edit ${name}`}
-      title={`Edit ${name}`}
+      aria-label={t('common.list.edit', { name })}
+      title={t('common.list.edit', { name })}
       onClick={onClick}
     />
   )
@@ -103,18 +105,19 @@ export function EditButton({ name, onClick }: { name: string; onClick: () => voi
  * first click turns it into a red "Delete"; a second click deletes, leaving it (blur) takes it back.
  */
 export function DeleteButton({ name, onDelete }: { name: string; onDelete: () => void }) {
+  const t = useT()
   const [confirming, setConfirming] = useState(false)
   return (
     <Button
       size="sm"
       variant={confirming ? 'danger' : 'ghost'}
       icon={confirming ? undefined : 'trash'}
-      aria-label={confirming ? `Delete ${name} now` : `Delete ${name}`}
-      title={confirming ? 'Click again to delete' : `Delete ${name}`}
+      aria-label={confirming ? t('common.list.deleteNow', { name }) : t('common.list.delete', { name })}
+      title={confirming ? t('common.list.clickAgain') : t('common.list.delete', { name })}
       onBlur={() => setConfirming(false)}
       onClick={() => (confirming ? onDelete() : setConfirming(true))}
     >
-      {confirming ? 'Delete' : null}
+      {confirming ? t('common.action.delete') : null}
     </Button>
   )
 }

@@ -5,6 +5,7 @@
 //   (learn.microsoft.com/entra/identity-platform/howto-add-branding-in-apps), four squares.
 // - GitHub mark: GitHub logos (github.com/logos), the Octicons `mark-github` path; drawn in the text colour.
 import type { ReactNode } from 'react'
+import { useT } from '@linedesk/i18n/react'
 
 const svg = (viewBox: string, children: ReactNode) => (
   <svg className="auth-logo" width="18" height="18" viewBox={viewBox} aria-hidden="true" focusable="false">
@@ -114,13 +115,19 @@ type ProviderButtonProps = {
 
 /** A full-width "Continue with …" button: the mark on the left, "Last used" on the right when it applies. */
 export function ProviderButton({ method, label, lastUsed, busy, busyText, disabled, onClick }: ProviderButtonProps) {
+  const t = useT()
   return (
     <button type="button" className="k-btn k-btn-secondary auth-provider" disabled={disabled} onClick={onClick}>
       <SignInMark method={method} />
-      <span>{busy ? (busyText ?? `Opening ${label}…`) : `Continue with ${label}`}</span>
+      <span>{busy ? (busyText ?? t('auth.provider.opening', { provider: label })) : method === 'password'
+            ? t('auth.provider.continuePassword')
+            : t('auth.provider.continue', { provider: label })}</span>
       {lastUsed && <LastUsed />}
     </button>
   )
 }
 
-export const LastUsed = () => <span className="auth-last-used">Last used</span>
+export function LastUsed() {
+  const t = useT()
+  return <span className="auth-last-used">{t('auth.lastUsed')}</span>
+}

@@ -1,6 +1,6 @@
 import type { AdminWorkspace, UsageRow } from './api.ts'
 import { formatMinutes, monthLabel, recentMonths, sortRows, usageByWorkspace } from './model.ts'
-import { SortTh, useSort } from './parts.tsx'
+import { EMPTY, SortTh, useSort } from './parts.tsx'
 
 type Column = 'name' | 'month'
 type Props = { workspaces: AdminWorkspace[]; usage: UsageRow[]; months: number }
@@ -47,7 +47,7 @@ export function Usage({ workspaces, usage, months }: Props) {
                   const cell = grid.get(w.id)?.get(month)
                   return (
                     <td key={month} className="adm-num" data-label={monthLabel(month)}>
-                      {cell ? formatMinutes(cell.minutes) : '–'}
+                      {cell ? formatMinutes(cell.minutes) : EMPTY}
                       {cell ? (
                         <span className="adm-sub">
                           {cell.calls} {cell.calls === 1 ? 'call' : 'calls'}

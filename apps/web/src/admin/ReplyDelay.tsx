@@ -6,6 +6,8 @@ import { providers as providerRegistry } from '@linedesk/actions'
 import { useQuery } from '../cachedQuery.ts'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { loadLatency, type PipelineLatency, type Percentiles } from './api.ts'
+import { fmt } from '../i18n/format.ts'
+import { EMPTY } from './parts.tsx'
 
 const PIPELINE_LABELS: Record<PipelineLatency['pipeline'], string> = {
   cascaded: 'Speech to text, language model, voice',
@@ -43,7 +45,7 @@ function partsOf(p: PipelineLatency): Part[] {
 }
 
 const ms = (value: number | null) =>
-  value === null ? '–' : value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${value} ms`
+  value === null ? EMPTY : value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${value} ms`
 const sumOf = (parts: Part[]) => parts.reduce((sum, part) => sum + Math.max(0, part.value.p50 ?? 0), 0)
 
 function PipelineBar({ latency, scale }: { latency: PipelineLatency; scale: number }) {
@@ -54,7 +56,7 @@ function PipelineBar({ latency, scale }: { latency: PipelineLatency; scale: numb
       <div className="adm-delay-head">
         <b>{PIPELINE_LABELS[latency.pipeline]}</b>
         <span className="help">
-          {latency.replies.toLocaleString('en-US')} replies · median {ms(heard)}
+          {fmt().number(latency.replies)} replies · median {ms(heard)}
           {latency.phone.calls > 0 ? ' as heard on the phone' : ' on the server'}
         </span>
       </div>

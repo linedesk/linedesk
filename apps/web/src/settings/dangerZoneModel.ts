@@ -2,8 +2,9 @@
 // functions of the server's preview (workspace.deletePreview), so the words are tested without a browser.
 import type { WorkspaceDeletePreviewData } from '@linedesk/actions'
 import type { DangerConfirmation } from '../ui/DangerConfirmDialog.tsx'
+import { fmt } from '../i18n/format.ts'
 
-const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
+const count = (n: number, one: string, many = `${one}s`) => `${fmt().number(n)} ${n === 1 ? one : many}`
 
 /**
  * What deleting a workspace takes with it, one line per kind of data: the one list for an owner (Danger zone) and a

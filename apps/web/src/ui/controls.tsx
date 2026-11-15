@@ -5,6 +5,7 @@ import { Fragment, type KeyboardEvent, type ReactNode, useEffect, useId, useRef,
 import { useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './controls.css'
+import { useT } from '@linedesk/i18n/react'
 
 type CheckboxProps = {
   checked: boolean
@@ -167,6 +168,7 @@ export function Select<T extends string>({
   size = 'md',
   align = 'start',
 }: SelectProps<T>) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
@@ -260,7 +262,7 @@ export function Select<T extends string>({
         onClick={() => (open ? close() : show())}
         onKeyDown={onButtonKey}
       >
-        <span>{current?.label ?? 'Choose…'}</span>
+        <span>{current?.label ?? t('common.select.choose')}</span>
         <Icon name="down" size={14} />
       </button>
       {open && (

@@ -26,6 +26,7 @@ import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail } from './emai
 import { recordSetupEvent } from './setup-events.ts'
 import { insertInvitation, makeOwner, pendingInvitationTo, sendInvitation } from './team.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
+import { localeForEmail, localeForUserId } from './email-locale.ts'
 
 const DAY_MS = 86_400_000
 const newMemberId = () => crypto.randomUUID().replaceAll('-', '')
@@ -324,23 +325,23 @@ export async function noticeAddedByAdmin(
   const ws = emailSafeName(workspace.name, 'your workspace')
   const who = emailSafeName(person.name || person.email, person.email)
   if (how === 'added')
-    await sendNotice(person.email, addedNoticeEmail({ admin, workspace: ws, workspaceId: workspace.id, role }))
+    await sendNotice(
+      person.email,
+      addedNoticeEmail(
+        { admin, workspace: ws, workspaceId: workspace.id, role },
+        undefined,
+        await localeForEmail(tx, person.email),
+      ),
+    )
   const owners = await tx
     .select({ email: user.email, id: user.id })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.organizationId, workspace.id), eq(member.role, 'owner')))
-  const notice = memberAddedByAdminEmail({
-    admin,
-    who,
-    workspace: ws,
-    workspaceId: workspace.id,
-    role,
-    pending: how === 'invited',
-  })
+  const fields = { admin, who, workspace: ws, workspaceId: workspace.id, role, pending: how === 'invited' }
   for (const owner of owners) {
     if (owner.id === actor.actorId || owner.email.toLowerCase() === person.email.toLowerCase()) continue
-    await sendNotice(owner.email, notice)
+    await sendNotice(owner.email, memberAddedByAdminEmail(fields, undefined, await localeForUserId(tx, owner.id)))
   }
 }
 

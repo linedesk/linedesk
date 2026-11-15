@@ -65,6 +65,7 @@ import { useBrand } from './brand.ts'
 import { setProviderAudience } from './providerAudience.ts'
 import { cx } from './ui/kit.tsx'
 import { useMediaQuery } from './ui/useMediaQuery.ts'
+import { useT } from '@linedesk/i18n/react'
 
 /** Whether the passkey card is due for this member: no passkey, not paused with "Not now" (passkey-ask.ts). */
 function usePasskeyCard(me: Me): boolean {
@@ -103,6 +104,7 @@ type Props = {
 }
 
 export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRenamed }: Props) {
+  const t = useT()
   const nav = useRoute()
   // Disabled or enabled by an instance admin while this tab is open: the banner follows the server's
   // latest answer, and the member's permissions are loaded again.
@@ -252,7 +254,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         run: () => pick(item.userId, item.label),
       })),
     }))
-    setPicker({ label: 'Assign', placeholder: 'Assign to…', groups, anchor })
+    setPicker({ label: t('inbox.assign.label'), placeholder: t('inbox.assign.placeholder'), groups, anchor })
     setOverlay('pick')
   }
   /** Switch between the assignee views (the title of one, as a menu). */
@@ -265,8 +267,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       })),
     }))
     setPicker({
-      label: 'Assigned to',
-      placeholder: 'Show calls assigned to…',
+      label: t('inbox.assigneeViews.label'),
+      placeholder: t('inbox.assigneeViews.placeholder'),
       groups,
       anchor,
     })
@@ -342,7 +344,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   )
 
   // A hash that leads nowhere shows the inbox, says so once and is cleaned up.
-  const lost = !nav.known ? 'That page does not exist.' : view.missingCall ? 'Call not found.' : null
+  const lost = !nav.known ? t('shell.lost.page') : view.missingCall ? t('shell.lost.call') : null
   useEffect(() => {
     if (!lost) return
     toaster.show(lost, false, NOT_FOUND_TOAST_MS)
@@ -379,14 +381,14 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
 
   // The browser tab says where you are: the open call's issue, the view or the page.
   const viewTitles: Record<InboxTab, string> = {
-    you: 'Needs you',
-    ai: `Handled by ${assistantName}`,
-    spam: 'Spam',
-    reminders: 'Reminders',
-    done: 'Done',
-    mine: 'Assigned to me',
-    member: memberName ? `Assigned to ${memberName}` : 'Assigned',
-    unassigned: 'Unassigned',
+    you: t('inbox.view.you'),
+    ai: t('inbox.view.ai', { assistant: assistantName }),
+    spam: t('inbox.view.spam'),
+    reminders: t('inbox.view.reminders'),
+    done: t('inbox.view.done'),
+    mine: t('inbox.view.mine'),
+    member: memberName ? t('inbox.view.member', { name: memberName }) : t('inbox.view.assigned'),
+    unassigned: t('inbox.view.unassigned'),
   }
   const where =
     nav.route !== 'calls'
@@ -524,7 +526,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         onSignOut={() => void signOut()}
         onClose={() => setNavOpen(false)}
       />
-      <button type="button" className="scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setNavOpen(false)} />
+      <button type="button" className="scrim" aria-label={t('shell.nav.closeMenu')} tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
         {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canEditSettings} />}
         {!page && !openCall && (
@@ -543,8 +545,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
               fallback={
                 <div className="page">
                   <div className="empty">
-                    <b>This page could not be shown</b>
-                    <span>Reload the app, or go back to the inbox with G I.</span>
+                    <b>{t('shell.pageFailed.title')}</b>
+                    <span>{t('shell.pageFailed.text', { keys: 'G I' })}</span>
                   </div>
                 </div>
               }
@@ -652,7 +654,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         )}
         {workspaceDisabled && (
           <div className="sync-bar" role="status">
-            This workspace is disabled. Calls are not answered and nothing can be changed.
+            {t('shell.disabledWorkspace.bar')}
           </div>
         )}
         <SyncBar />
@@ -669,7 +671,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       {tourOpen && !page && <Tour onClose={closeTour} />}
       {askForPasskey && !(tourOpen || !!page || !!openCall || overlay !== null || newWorkspace) && (
         <PasskeyCard account={me.actorId} needsEnrolmentCode={Boolean(me.passkeyEnrolment)} onAdded={() => {
-            toaster.show('Passkey added. Next time, sign in with it.')
+            toaster.show(t('account.passkey.added'))
             setPasskeyCardClosed(true)
             return onSessionStale()
           }}

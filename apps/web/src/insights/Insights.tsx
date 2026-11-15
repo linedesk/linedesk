@@ -8,7 +8,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { callAction, readAction } from '../settings/settings-api.ts'
 import { useAssistantName } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
-import { DateInput } from '../ui/form.tsx'
+import { DateInput, FormMessage } from '../ui/form.tsx'
 import { AppointmentValue } from '../settings/AppointmentValue.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
@@ -24,15 +24,19 @@ import {
   hourLabel,
   longDate,
   PERIOD_LABELS,
-  plural,
   spanLabel,
   summarySentence,
   tickEvery,
   totalsTable,
-  WEEKDAYS,
+  weekdayShort,
+  weekdays,
 } from './insightsModel.ts'
 import { CSV_TYPE, saveFile, type Table, toCsv, toXlsx, XLSX_TYPE } from './spreadsheet.ts'
 import './insights.css'
+import { fmt } from '../i18n/format.ts'
+import { timeZoneLabel } from '../settings/timeZones.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
 
 type Choice = InsightPeriod | 'custom'
 type Range = { from: string; to: string }
@@ -40,9 +44,9 @@ const queryKey = (period: Choice, range: Range) =>
   period === 'custom' ? `insights.custom.${range.from}.${range.to}` : `insights.${period}`
 const load = (period: Choice, range: Range) => () =>
   readAction<InsightsData>('insights.get', period === 'custom' ? { period, ...range } : { period })
-const PERIOD_OPTIONS = [
+const PERIOD_KEYS: { value: Choice; label: MessageKey }[] = [
   ...insightPeriods.map(p => ({ value: p as Choice, label: PERIOD_LABELS[p] })),
-  { value: 'custom' as Choice, label: 'Custom range' },
+  { value: 'custom', label: msg('insights.period.custom') },
 ]
 
 /** Today in the browser, YYYY-MM-DD (the server keeps a range from going past the business's today). */
@@ -54,6 +58,7 @@ const localToday = () => {
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
 export function Insights({ canEdit, toast }: Props) {
+  const t = useT()
   const [period, setPeriod] = useState<Choice>('30d')
   const [range, setRange] = useState<Range | null>(null)
   const [metric, setMetric] = useState<ChartMetric>('answered')
@@ -76,18 +81,18 @@ export function Insights({ canEdit, toast }: Props) {
       <div className="page-in st-page in-page">
         <div className="page-head">
           <div>
-            <h1>Insights</h1>
+            <h1>{t('insights.title')}</h1>
             <p>
               {data
-                ? `${spanLabel(data.from, data.to)} · ${data.timeZone.replace('_', ' ')}`
-                : `How ${assistant} handled your calls.`}
+                ? `${spanLabel(data.from, data.to)} · ${timeZoneLabel(data.timeZone)}`
+                : t('insights.lede', { assistant })}
             </p>
           </div>
           <div className="in-controls">
             <Select
-              label="Period"
+              label={t('insights.period.label')}
               value={period}
-              options={PERIOD_OPTIONS}
+              options={PERIOD_KEYS.map(o => ({ value: o.value, label: t(o.label) }))}
               onChange={pickPeriod}
               size="sm"
               align="end"
@@ -97,7 +102,7 @@ export function Insights({ canEdit, toast }: Props) {
         </div>
         {period === 'custom' && range && <RangeFields range={range} onChange={setRange} />}
         <Loading
-          what="Insights"
+          what={t('insights.title')}
           loading={!data}
           error={query.error}
           onRetry={() => void query.reload()}
@@ -112,11 +117,11 @@ export function Insights({ canEdit, toast }: Props) {
                 <BusyTimes data={data} />
               </div>
               <p className="in-foot">
-                Test calls and calls from your own phones are not counted.{' '}
+                {t('insights.foot.notCounted')}{' '}
                 {data.compareWith
-                  ? `Compared with ${spanLabel(data.compareWith.from, data.compareWith.to)}.`
+                  ? t('insights.foot.compared', { span: spanLabel(data.compareWith.from, data.compareWith.to) })
                   : data.firstCall
-                    ? `First call ${longDate(data.firstCall)}.`
+                    ? t('insights.foot.firstCall', { date: longDate(data.firstCall) })
                     : ''}
               </p>
             </>
@@ -129,6 +134,7 @@ export function Insights({ canEdit, toast }: Props) {
 
 /** From and to of a custom range. A change applies once both are days and the first is not after the last. */
 function RangeFields({ range, onChange }: { range: Range; onChange: (r: Range) => void }) {
+  const t = useT()
   const [draft, setDraft] = useState(range)
   const today = localToday()
   const valid = Boolean(draft.from && draft.to && draft.from <= draft.to)
@@ -137,10 +143,10 @@ function RangeFields({ range, onChange }: { range: Range; onChange: (r: Range) =
     if (next.from && next.to && next.from <= next.to) onChange(next)
   }
   return (
-    <div className="in-range" role="group" aria-label="Custom range">
-      <label htmlFor="in-from">From</label>
+    <div className="in-range" role="group" aria-label={t('insights.period.custom')}>
+      <label htmlFor="in-from">{t('insights.range.from')}</label>
       <DateInput id="in-from" value={draft.from} max={today} onChange={from => set({ ...draft, from })} />
-      <label htmlFor="in-to">to</label>
+      <label htmlFor="in-to">{t('insights.range.to')}</label>
       <DateInput
         id="in-to"
         value={draft.to}
@@ -149,13 +155,14 @@ function RangeFields({ range, onChange }: { range: Range; onChange: (r: Range) =
         invalid={!valid}
         onChange={to => set({ ...draft, to })}
       />
-      {!valid && <span className="in-error">The first day comes before the last.</span>}
+      {!valid && <FormMessage>{t('insights.range.order')}</FormMessage>}
     </div>
   )
 }
 
 /** The page's cards in grey, in their own classes and sizes: summary, the four numbers with the chart, two panels. */
 function InsightsSkeleton() {
+  const t = useT()
   return (
     <>
       <section className="k-card in-summary">
@@ -166,7 +173,7 @@ function InsightsSkeleton() {
         <div className="in-tiles">
           {NUMBERS.map(n => (
             <div key={n.key} className="in-tile">
-              <span className="in-tile-l">{n.label}</span>
+              <span className="in-tile-l">{t(n.label)}</span>
               <Skeleton width={40} height={24} className="in-sk-number" />
               <Skeleton shape="text" width="70%" />
             </div>
@@ -178,7 +185,7 @@ function InsightsSkeleton() {
         </div>
       </section>
       <div className="in-two">
-        {['How calls ended', 'When people call'].map(title => (
+        {[t('insights.outcomes.title'), t('insights.busy.title')].map(title => (
           <section key={title} className="k-card in-panel">
             <h2>{title}</h2>
             <Skeleton height={140} />
@@ -209,17 +216,18 @@ export function showAppointmentValue(cents: number | null, currency: JobValueCur
 }
 
 function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assistant: string } & Props) {
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const value = data.jobValueCents
   const currency = data.jobValueCurrency ?? 'USD'
   const booked = data.current.booked
   return (
-    <section className="k-card in-summary" aria-label="Summary">
+    <section className="k-card in-summary" aria-label={t('insights.summary.label')}>
       <p className="in-sentence">{summarySentence(assistant, data, data.current)}</p>
       {editing ? (
         <AppointmentValue
           id="in-appointment-value-input"
-          label="Average value of a booked appointment"
+          label={t('insights.value.label')}
           value={value}
           currency={currency}
           canEdit={canEdit}
@@ -232,18 +240,21 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
         <p className="in-value">
           {booked > 0 && (
             <>
-              ≈ <b>{formatMoney(value * booked, currency)}</b> in booked appointments{' '}
+              <T
+                k="insights.value.total"
+                values={{ amount: formatMoney(value * booked, currency), b: chunks => <b>{chunks}</b> }}
+              />{' '}
             </>
           )}
           <span className="in-muted">
             {booked > 0
-              ? `· ${plural(booked, 'appointment')} × ${formatMoney(value, currency)}`
-              : `A booked appointment counts as ${formatMoney(value, currency)}`}
+              ? `· ${t('insights.value.perAppointment', { count: booked, amount: formatMoney(value, currency) })}`
+              : t('insights.value.countsAs', { amount: formatMoney(value, currency) })}
             {canEdit && (
               <>
                 {' · '}
                 <button type="button" className="in-link" onClick={() => setEditing(true)}>
-                  Change
+                  {t('common.action.change')}
                 </button>
               </>
             )}
@@ -252,10 +263,16 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
       ) : (
         canEdit && (
           <p className="in-value in-muted">
-            <button type="button" className="in-link" onClick={() => setEditing(true)}>
-              Set an appointment value
-            </button>{' '}
-            to see what the booked appointments are worth.
+            <T
+              k="insights.value.set"
+              values={{
+                link: chunks => (
+                  <button type="button" className="in-link" onClick={() => setEditing(true)}>
+                    {chunks}
+                  </button>
+                ),
+              }}
+            />
           </p>
         )
       )}
@@ -265,11 +282,11 @@ function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assi
 
 // --- The four numbers and the chart --------------------------------------------------------------
 
-const NUMBERS: { key: ChartMetric; label: string; help: string }[] = [
-  { key: 'answered', label: 'Answered', help: 'Calls the assistant or your team picked up.' },
-  { key: 'booked', label: 'Booked', help: 'Calls that ended with an appointment the assistant booked.' },
-  { key: 'messages', label: 'Messages taken', help: 'Messages and callback requests.' },
-  { key: 'missed', label: 'Missed', help: 'Nobody picked up: the assistant was not running or not set up.' },
+const NUMBERS: { key: ChartMetric; label: MessageKey; help: MessageKey }[] = [
+  { key: 'answered', label: msg('insights.number.answered'), help: msg('insights.number.answeredHelp') },
+  { key: 'booked', label: msg('insights.number.booked'), help: msg('insights.number.bookedHelp') },
+  { key: 'messages', label: msg('insights.number.messages'), help: msg('insights.number.messagesHelp') },
+  { key: 'missed', label: msg('insights.number.missed'), help: msg('insights.number.missedHelp') },
 ]
 
 function Numbers({
@@ -281,21 +298,24 @@ function Numbers({
   metric: ChartMetric
   onMetric: (m: ChartMetric) => void
 }) {
+  const t = useT()
   const c = data.current
   const versus = compareLabel(data)
   const real = c.calls - c.spam
   return (
-    <section className="k-card in-numbers" aria-label="Key numbers">
-      <div className="in-tiles" role="tablist" aria-label="Show in the chart">
+    <section className="k-card in-numbers" aria-label={t('insights.number.label')}>
+      <div className="in-tiles" role="tablist" aria-label={t('insights.number.tabs')}>
         {NUMBERS.map(n => {
           const value = c[n.key]
           const sub =
             n.key === 'answered' && real > 0
-              ? `${Math.round((c.answered / real) * 100)}% of ${plural(real, 'call')}`
+              ? t('insights.number.shareOf', { share: c.answered / real, count: real })
               : n.key === 'booked' && data.jobValueCents !== null && value > 0
                 ? `≈ ${formatMoney(value * data.jobValueCents, data.jobValueCurrency)}`
                 : null
-          const delta = versus ? `${change(value, data.previous[n.key])} vs ${versus}` : null
+          const delta = versus
+            ? t('insights.number.versus', { change: change(value, data.previous[n.key]), versus })
+            : null
           return (
             <button
               key={n.key}
@@ -303,12 +323,12 @@ function Numbers({
               role="tab"
               aria-selected={metric === n.key}
               className="in-tile"
-              title={n.help}
+              title={t(n.help)}
               onClick={() => onMetric(n.key)}
             >
-              <span className="in-tile-l">{n.label}</span>
+              <span className="in-tile-l">{t(n.label)}</span>
               <b className={cx('in-tile-n', n.key === 'missed' && value > 0 && 'in-danger')}>
-                {value.toLocaleString('en-US')}
+                {fmt().number(value)}
               </b>
               <span className="in-tile-s">{delta ?? sub ?? ' '}</span>
               {delta && sub && <span className="in-tile-s">{sub}</span>}
@@ -322,35 +342,36 @@ function Numbers({
 }
 
 function Chart({ data, metric }: { data: InsightsData; metric: ChartMetric }) {
+  const t = useT()
   const grouping = groupingFor(data.days)
   const cols = columns(data.daily, metric, grouping, data.today)
   const max = Math.max(1, ...cols.map(c => c.value + c.missed))
   const every = tickEvery(cols.length)
-  const name = NUMBERS.find(n => n.key === metric)!.label
+  const name = t(NUMBERS.find(n => n.key === metric)!.label)
   const stacked = metric === 'answered'
   return (
     <div className="in-chart" role="tabpanel">
       <div className="in-chart-head">
         <span>
-          <b>{name}</b> per {grouping}
+          <T k="insights.chart.per" values={{ name, grouping, b: chunks => <b>{chunks}</b> }} />
         </span>
         <span className="in-legend">
           {stacked && (
             <>
               <span>
                 <i className="in-key" />
-                Answered
+                {t('insights.number.answered')}
               </span>
               <span>
                 <i className="in-key in-key-missed" />
-                Missed
+                {t('insights.number.missed')}
               </span>
             </>
           )}
           {cols.some(c => c.partial) && (
             <span>
               <i className="in-key in-key-partial" />
-              Not over yet
+              {t('insights.chart.partial')}
             </span>
           )}
         </span>
@@ -358,13 +379,18 @@ function Chart({ data, metric }: { data: InsightsData; metric: ChartMetric }) {
       <div
         className={cx('in-cols', cols.length > 40 && 'in-cols-dense')}
         role="img"
-        aria-label={`${name} per ${grouping}`}
+        aria-label={t('insights.chart.perPlain', { name, grouping })}
       >
         {cols.map(c => (
           <div
             key={c.key}
             className="in-col"
-            title={`${c.label}: ${c.value.toLocaleString('en-US')}${stacked ? ` answered, ${c.missed} missed` : ''}${c.partial ? ' so far' : ''}`}
+            title={t(stacked ? 'insights.chart.columnStacked' : 'insights.chart.column', {
+              label: c.label,
+              value: c.value,
+              missed: c.missed,
+              partial: c.partial ? 'yes' : 'no',
+            })}
           >
             {stacked && <span className="in-bar in-missed" style={{ height: `${(c.missed / max) * 100}%` }} />}
             <span
@@ -386,26 +412,27 @@ function Chart({ data, metric }: { data: InsightsData; metric: ChartMetric }) {
 // --- How calls ended -----------------------------------------------------------------------------
 
 function Outcomes({ data }: { data: InsightsData }) {
+  const t = useT()
   const c = data.current
   const rows: { label: string; value: number; tone?: 'soft' | 'danger' }[] = [
-    { label: 'Booked', value: c.booked },
-    { label: 'Message or callback', value: c.messages },
-    { label: 'Transferred to you', value: c.transferred },
-    { label: 'Answered, no follow-up', value: c.other, tone: 'soft' },
-    { label: 'Spam blocked', value: c.spam, tone: 'soft' },
-    { label: 'Missed', value: c.missed, tone: 'danger' },
+    { label: t('insights.number.booked'), value: c.booked },
+    { label: t('insights.outcomes.message'), value: c.messages },
+    { label: t('insights.outcomes.transferred'), value: c.transferred },
+    { label: t('insights.outcomes.other'), value: c.other, tone: 'soft' },
+    { label: t('insights.outcomes.spam'), value: c.spam, tone: 'soft' },
+    { label: t('insights.number.missed'), value: c.missed, tone: 'danger' },
   ]
   const total = Math.max(1, c.calls)
   return (
     <section className="k-card in-panel" aria-labelledby="in-out-h">
-      <h2 id="in-out-h">How calls ended</h2>
-      <p className="in-desc">Every call counts once.</p>
+      <h2 id="in-out-h">{t('insights.outcomes.title')}</h2>
+      <p className="in-desc">{t('insights.outcomes.desc')}</p>
       <ul className="in-outcomes">
         {rows.map(r => (
           <li key={r.label}>
             <span>{r.label}</span>
             <span className="in-out-n">
-              <b>{r.value.toLocaleString('en-US')}</b> · {Math.round((r.value / total) * 100)}%
+              <b>{fmt().number(r.value)}</b> · {fmt().number(r.value / total, { style: 'percent' })}
             </span>
             <span className="in-track">
               <span
@@ -417,11 +444,13 @@ function Outcomes({ data }: { data: InsightsData }) {
         ))}
       </ul>
       <div className="in-flags">
-        <span className={cx('in-flag', c.urgent > 0 && 'in-flag-urgent')}>{plural(c.urgent, 'urgent call')}</span>
+        <span className={cx('in-flag', c.urgent > 0 && 'in-flag-urgent')}>
+          {t('insights.outcomes.urgent', { count: c.urgent })}
+        </span>
         <span className="in-flag">
           {c.afterHours === null
-            ? 'Set business hours to count calls after hours'
-            : `${plural(c.afterHours, 'call')} after hours`}
+            ? t('insights.outcomes.setHours')
+            : t('insights.outcomes.afterHours', { count: c.afterHours })}
         </span>
       </div>
     </section>
@@ -434,19 +463,24 @@ function Outcomes({ data }: { data: InsightsData }) {
 const ROWS = [1, 2, 3, 4, 5, 6, 0]
 
 function BusyTimes({ data }: { data: InsightsData }) {
+  const t = useT()
   const grid = data.byWeekdayHour
   const max = Math.max(1, ...grid.flat())
   const busiest = busiestTime(grid)
   return (
     <section className="k-card in-panel" aria-labelledby="in-busy-h">
-      <h2 id="in-busy-h">When people call</h2>
-      <p className="in-desc">Darker means more calls.</p>
-      <div className="in-heat" role="img" aria-label={busiest ? `Busiest: ${busiest}` : 'No calls yet'}>
+      <h2 id="in-busy-h">{t('insights.busy.title')}</h2>
+      <p className="in-desc">{t('insights.busy.desc')}</p>
+      <div
+        className="in-heat"
+        role="img"
+        aria-label={busiest ? t('insights.busy.busiestPlain', { when: busiest }) : t('insights.busy.none')}
+      >
         <span />
         {Array.from({ length: 24 }, (_, h) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: one label per hour, fixed order
           <span key={h} className="in-heat-h">
-            {h % 6 === 0 ? hourLabel(h).replace(' ', '') : ''}
+            {h % 6 === 0 ? hourLabel(h) : ''}
           </span>
         ))}
         {ROWS.map(w => (
@@ -455,11 +489,9 @@ function BusyTimes({ data }: { data: InsightsData }) {
       </div>
       <p className="in-peak">
         {busiest ? (
-          <>
-            Busiest: <b>{busiest}</b>
-          </>
+          <T k="insights.busy.busiest" values={{ when: busiest, b: chunks => <b>{chunks}</b> }} />
         ) : (
-          'No calls yet.'
+          t('insights.busy.noneYet')
         )}
       </p>
     </section>
@@ -467,16 +499,17 @@ function BusyTimes({ data }: { data: InsightsData }) {
 }
 
 function HeatRow({ weekday, values, max }: { weekday: number; values: number[]; max: number }) {
-  const day = WEEKDAYS[weekday]!
+  const t = useT()
+  const days = weekdays(weekday)
   return (
     <>
-      <span className="in-heat-d">{day.slice(0, 3)}</span>
+      <span className="in-heat-d">{weekdayShort(weekday)}</span>
       {values.map((v, h) => (
         <span
           // biome-ignore lint/suspicious/noArrayIndexKey: one cell per hour, fixed order
           key={h}
           className="in-heat-c"
-          title={`${day}s ${hourLabel(h)}: ${plural(v, 'call')}`}
+          title={t('insights.busy.cell', { days, hour: hourLabel(h), count: v })}
           style={v ? { opacity: 0.12 + 0.88 * (v / max) } : undefined}
           data-empty={v === 0 || undefined}
         />
@@ -487,12 +520,12 @@ function HeatRow({ weekday, values, max }: { weekday: number; values: number[]; 
 
 // --- Export --------------------------------------------------------------------------------------
 
-type ExportChoice = { id: string; label: string; what: 'calls' | 'totals'; format: 'csv' | 'xlsx' }
+type ExportChoice = { id: string; label: MessageKey; what: 'calls' | 'totals'; format: 'csv' | 'xlsx' }
 const CHOICES: ExportChoice[] = [
-  { id: 'calls-xlsx', label: 'Every call', what: 'calls', format: 'xlsx' },
-  { id: 'calls-csv', label: 'Every call', what: 'calls', format: 'csv' },
-  { id: 'totals-xlsx', label: 'Totals per day', what: 'totals', format: 'xlsx' },
-  { id: 'totals-csv', label: 'Totals per day', what: 'totals', format: 'csv' },
+  { id: 'calls-xlsx', label: msg('insights.export.calls'), what: 'calls', format: 'xlsx' },
+  { id: 'calls-csv', label: msg('insights.export.calls'), what: 'calls', format: 'csv' },
+  { id: 'totals-xlsx', label: msg('insights.export.totals'), what: 'totals', format: 'xlsx' },
+  { id: 'totals-csv', label: msg('insights.export.totals'), what: 'totals', format: 'csv' },
 ]
 
 function ExportMenu({
@@ -504,6 +537,7 @@ function ExportMenu({
   canExportCalls: boolean
   toast: Props['toast']
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -530,11 +564,11 @@ function ExportMenu({
     setOpen(false)
     setBusy(true)
     try {
-      const note = `${spanLabel(data.from, data.to)}, times in ${data.timeZone.replace('_', ' ')}`
+      const note = t('insights.export.note', { span: spanLabel(data.from, data.to), zone: timeZoneLabel(data.timeZone) })
       const name = exportName(choice.what, data)
       if (choice.what === 'totals') {
-        save(name, choice.format, totalsTable(data), 'Totals per day', note)
-        toast(`Exported ${plural(data.daily.length, 'day')}.`)
+        save(name, choice.format, totalsTable(data), t('insights.export.totals'), note)
+        toast(t('insights.export.doneDays', { count: data.daily.length }))
         return
       }
       const result = await callAction<CallExportData>('call.export', {
@@ -543,11 +577,11 @@ function ExportMenu({
         format: choice.format === 'csv' ? 'csv' : 'table',
       })
       if (choice.format === 'csv') saveFile(`${name}.csv`, result.csv ?? '', CSV_TYPE)
-      else if (result.table) save(name, 'xlsx', result.table, 'Calls', note)
+      else if (result.table) save(name, 'xlsx', result.table, t('insights.export.sheetCalls'), note)
       toast(
         result.truncated
-          ? `Exported the newest ${result.count.toLocaleString('en-US')} calls. Pick a shorter period for the rest.`
-          : `Exported ${plural(result.count, 'call')}.`,
+          ? t('insights.export.truncated', { count: result.count })
+          : t('insights.export.doneCalls', { count: result.count }),
       )
     } catch (e) {
       toast((e as Error).message)
@@ -564,14 +598,14 @@ function ExportMenu({
         disabled={!data || busy}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Download the numbers of this period"
+        title={t('insights.export.title')}
         onClick={() => setOpen(o => !o)}
       >
-        <span>{busy ? 'Exporting…' : 'Export'}</span>
+        <span>{busy ? t('insights.export.exporting') : t('insights.export.button')}</span>
         <Icon name="down" size={14} />
       </button>
       {open && (
-        <div className="k-select-list" role="menu" aria-label="Export">
+        <div className="k-select-list" role="menu" aria-label={t('insights.export.button')}>
           {choices.map(c => (
             <button
               key={c.id}
@@ -581,12 +615,12 @@ function ExportMenu({
               onClick={() => void run(c)}
             >
               <span className="k-select-opt-t">
-                <span>{c.label}</span>
+                <span>{t(c.label)}</span>
               </span>
               <span className="in-fmt">{c.format === 'csv' ? 'CSV' : 'Excel'}</span>
             </button>
           ))}
-          {!canExportCalls && <p className="in-export-note">Owners and admins can also export every call.</p>}
+          {!canExportCalls && <p className="in-export-note">{t('insights.export.adminsOnly')}</p>}
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
 import { ONLY_ADMINS } from './readOnly.ts'
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
+import { useLocale } from '@linedesk/i18n/react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
@@ -157,7 +158,8 @@ function Language({ canEdit }: { canEdit: boolean }) {
   const settings = useWorkspaceSettings()
   const data = settings.data
   const country = data?.resolvedCountry ?? 'US'
-  const options = useMemo(() => languageOptions(country), [country])
+  const ui = useLocale()
+  const options = useMemo(() => languageOptions(country, ui), [country, ui])
   const change = (value: string) => {
     const language = value === AUTOMATIC ? null : value
     patchWorkspaceSettings({ language, ...(language ? { resolvedLanguage: language } : {}) })

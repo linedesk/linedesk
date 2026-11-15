@@ -5,6 +5,7 @@ import { CommandMenu, type CommandGroup, type SelectVia } from '../ui/CommandMen
 import type { Command } from './commands.ts'
 import { HelpSheet } from './HelpSheet.tsx'
 import type { Overlay } from './keys.ts'
+import { useT } from '@linedesk/i18n/react'
 
 /**
  * A pick list (the member picker): its name, the field's placeholder and what it offers. `anchor`: the
@@ -32,6 +33,7 @@ type Props = {
 
 /** What floats above the app: ⌘K, the remind menu, the member picker and the shortcut sheet. */
 export function Overlays({ overlay, commands, picker, onClose, onCommand, onReminder }: Props) {
+  const t = useT()
   if (!overlay) return null
   const anchor = overlay === 'pick' ? picker?.anchor : undefined
   if (anchor && picker)
@@ -54,12 +56,12 @@ export function Overlays({ overlay, commands, picker, onClose, onCommand, onRemi
       {overlay === 'remind' && (
         <CommandMenu
           numbered
-          label="Remind me"
-          placeholder="Remind me… or type a time: fri 2pm, in 3 hours"
-          groups={[{ label: 'Bring this call back', items: reminderOptions() }]}
+          label={t('inbox.remind.title')}
+          placeholder={t('inbox.remind.placeholder')}
+          groups={[{ label: t('inbox.remind.group'), items: reminderOptions() }]}
           fromQuery={query => {
             const typed = typedReminder(query)
-            return typed && { label: 'At the time you typed', items: [typed] }
+            return typed && { label: t('inbox.remind.typed'), items: [typed] }
           }}
           onSelect={onReminder}
         />

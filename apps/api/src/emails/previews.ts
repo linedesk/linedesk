@@ -1,31 +1,32 @@
 // Every email with demo data (Brightwater Plumbing & Heating), for the preview script and the tests.
+
+import { brandName } from '../branding.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
+  addedToWorkspaceEmail,
   adminAlertEmail,
   bookingConfirmationEmail,
-  confirmationCodeEmail,
   callEmail,
+  confirmationCodeEmail,
+  emailChangeCodeEmail,
+  emailChangeConfirmCurrentEmail,
+  emailChangedEmail,
+  emailChangeRefusedEmail,
   firstCallEmail,
-  setupDay0Email,
-  setupNudgeEmail,
-  weekSummaryEmail,
-  addedToWorkspaceEmail,
   invitationEmail,
   PARTNER_DIRECTORY_URL,
   passkeyChangedEmail,
   passkeyEnrolmentIssuedEmail,
   passkeysResetEmail,
   passwordChangedEmail,
-  emailChangeCodeEmail,
-  emailChangeConfirmCurrentEmail,
-  emailChangeRefusedEmail,
-  emailChangedEmail,
   passwordResetCodeEmail,
+  setupDay0Email,
+  setupNudgeEmail,
   signInCodeEmail,
+  weekSummaryEmail,
   welcomeEmail,
   workspaceDeletedEmail,
 } from './templates.ts'
-import { brandName } from '../branding.ts'
 
 export type Preview = { name: string; email: RenderedEmail }
 
@@ -62,9 +63,10 @@ const setup = {
   step: 'forwarding' as const,
 }
 
-export function previewEmails(origin: string): Preview[] {
+/** Every email in `locale` (a UI language; English by default). */
+export function previewEmails(origin: string, locale?: string | null): Preview[] {
   return [
-    { name: 'call-summary', email: callEmail(call, origin) },
+    { name: 'call-summary', email: callEmail(call, origin, locale) },
     {
       name: 'call-summary-plain',
       email: callEmail(
@@ -79,16 +81,27 @@ export function previewEmails(origin: string): Preview[] {
           booking: null,
         },
         origin,
+        locale,
       ),
     },
-    { name: 'setup-day0', email: setupDay0Email(setup, origin) },
-    { name: 'setup-day1', email: setupNudgeEmail(1, setup, origin) },
+    { name: 'setup-day0', email: setupDay0Email(setup, origin, null, locale) },
+    { name: 'setup-day1', email: setupNudgeEmail(1, setup, origin, null, PARTNER_DIRECTORY_URL, locale) },
     {
       name: 'setup-day1-no-number',
-      email: setupNudgeEmail(1, { ...setup, numberId: null, number: null, step: 'number' }, origin),
+      email: setupNudgeEmail(
+        1,
+        { ...setup, numberId: null, number: null, step: 'number' },
+        origin,
+        null,
+        PARTNER_DIRECTORY_URL,
+        locale,
+      ),
     },
-    { name: 'setup-day3', email: setupNudgeEmail(3, setup, origin, null, partners) },
-    { name: 'setup-day3-test', email: setupNudgeEmail(3, { ...setup, step: 'first_call' }, origin, null, partners) },
+    { name: 'setup-day3', email: setupNudgeEmail(3, setup, origin, null, partners, locale) },
+    {
+      name: 'setup-day3-test',
+      email: setupNudgeEmail(3, { ...setup, step: 'first_call' }, origin, null, partners, locale),
+    },
     {
       name: 'first-call',
       email: firstCallEmail(
@@ -104,6 +117,7 @@ export function previewEmails(origin: string): Preview[] {
           booking: null,
         },
         origin,
+        locale,
       ),
     },
     {
@@ -119,17 +133,20 @@ export function previewEmails(origin: string): Preview[] {
           messages: 4,
         },
         origin,
+        null,
+        locale,
       ),
     },
-    { name: 'sign-in-code', email: signInCodeEmail('482913', origin) },
-    { name: 'password-reset-code', email: passwordResetCodeEmail('815302', origin) },
-    { name: 'confirmation-code', email: confirmationCodeEmail('730514', origin, origin) },
+    { name: 'sign-in-code', email: signInCodeEmail('482913', origin, locale) },
+    { name: 'password-reset-code', email: passwordResetCodeEmail('815302', origin, locale) },
+    { name: 'confirmation-code', email: confirmationCodeEmail('730514', origin, origin, locale) },
     {
       name: 'admin-alert',
       email: adminAlertEmail(
         `Admin sign-in to ${brandName()}: ann@brightwater.example`,
         'ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.\n\nAddress: 203.0.113.9\nBrowser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)\n\nIf this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.',
         origin,
+        locale,
       ),
     },
     {
@@ -143,6 +160,7 @@ export function previewEmails(origin: string): Preview[] {
           days: 7,
         },
         origin,
+        locale,
       ),
     },
     {
@@ -157,17 +175,18 @@ export function previewEmails(origin: string): Preview[] {
           role: 'member',
         },
         origin,
+        locale,
       ),
     },
-    { name: 'welcome', email: welcomeEmail({ name: 'Sam Patel', email: 'sam@example.com' }, origin) },
-    { name: 'passkey-added', email: passkeyChangedEmail('added', origin) },
-    { name: 'passkeys-reset', email: passkeysResetEmail(2, origin) },
-    { name: 'passkey-enrolment-issued', email: passkeyEnrolmentIssuedEmail('ann@brightwater.example', origin) },
-    { name: 'password-changed', email: passwordChangedEmail(origin) },
-    { name: 'email-change-confirm-current', email: emailChangeConfirmCurrentEmail('318274', origin) },
-    { name: 'email-change-code', email: emailChangeCodeEmail('604218', origin) },
-    { name: 'email-change-refused', email: emailChangeRefusedEmail(origin) },
-    { name: 'email-changed', email: emailChangedEmail('mike.brennan@brightwater.example', origin) },
+    { name: 'welcome', email: welcomeEmail({ name: 'Sam Patel', email: 'sam@example.com' }, origin, locale) },
+    { name: 'passkey-added', email: passkeyChangedEmail('added', origin, locale) },
+    { name: 'passkeys-reset', email: passkeysResetEmail(2, origin, locale) },
+    { name: 'passkey-enrolment-issued', email: passkeyEnrolmentIssuedEmail('ann@brightwater.example', origin, locale) },
+    { name: 'password-changed', email: passwordChangedEmail(origin, locale) },
+    { name: 'email-change-confirm-current', email: emailChangeConfirmCurrentEmail('318274', origin, locale) },
+    { name: 'email-change-code', email: emailChangeCodeEmail('604218', origin, locale) },
+    { name: 'email-change-refused', email: emailChangeRefusedEmail(origin, locale) },
+    { name: 'email-changed', email: emailChangedEmail('mike.brennan@brightwater.example', origin, locale) },
     {
       name: 'workspace-deleted',
       email: workspaceDeletedEmail(
@@ -178,6 +197,7 @@ export function previewEmails(origin: string): Preview[] {
           accountDeleted: true,
         },
         origin,
+        locale,
       ),
     },
     {
@@ -192,6 +212,7 @@ export function previewEmails(origin: string): Preview[] {
           phone: '+15035550100',
         },
         origin,
+        locale,
       ),
     },
   ]

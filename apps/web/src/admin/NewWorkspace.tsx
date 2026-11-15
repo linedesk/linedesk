@@ -7,6 +7,7 @@ import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { runAdmin } from './api.ts'
 import { errorText } from './notify.ts'
+import { useT } from '@linedesk/i18n/react'
 
 type Form = { name: string; ownerEmail: string; ownerName: string }
 type Errors = { name?: string; ownerEmail?: string; form?: string }
@@ -21,6 +22,7 @@ export function createdText(data: WorkspaceCreateData): string {
 
 /** Server admin › Workspaces › New workspace: the business's name and its owner's address (and name, if new). */
 export function NewWorkspace({ toast, reload }: { toast: (text: string) => void; reload: () => Promise<void> }) {
+  const t = useT()
   const [shown, setShown] = useState(false)
   const [form, setForm] = useState<Form>(blank)
   const [errors, setErrors] = useState<Errors>({})
@@ -97,6 +99,7 @@ export function NewWorkspace({ toast, reload }: { toast: (text: string) => void;
           <FormField id="adm-new-ws-name" label="Business name" error={errors.name}>
             <Input
               id="adm-new-ws-name"
+              placeholder={t('admin.example.business')}
               maxLength={80}
               autoComplete="off"
               invalid={!!errors.name}
@@ -113,6 +116,7 @@ export function NewWorkspace({ toast, reload }: { toast: (text: string) => void;
             <Input
               id="adm-new-ws-owner"
               type="email"
+              placeholder={t('admin.example.ownerEmail')}
               autoComplete="off"
               invalid={!!errors.ownerEmail}
               value={form.ownerEmail}

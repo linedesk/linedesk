@@ -28,6 +28,10 @@ export const user = pgTable("user", {
   // (apps/api/src/passkey-enrolment.ts). Only its SHA-256 is kept.
   passkeyEnrolmentHash: text("passkey_enrolment_hash"),
   passkeyEnrolmentExpiresAt: timestamp("passkey_enrolment_expires_at"),
+  // The UI language (apps/api/src/user-locale.ts): the person's choice, null for Automatic, and what Automatic last
+  // resolved to in their browser (for emails).
+  locale: text("locale"),
+  localeAuto: text("locale_auto"),
 });
 
 export const session = pgTable(

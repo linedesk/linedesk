@@ -2,20 +2,21 @@
 import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { callTitle, formatPhone } from '../inbox-model.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export type SearchHit = { field: string; text: string; atMs?: number }
 
 type Searchable = { call: Call; contact?: Contact; segments: TranscriptSegment[]; assistantName: string }
 
 function speakerName(s: TranscriptSegment, callerLabel: string, assistantName: string): string {
-  return s.speaker === 'caller' ? callerLabel : s.speaker === 'agent' ? assistantName : s.speaker === 'human' ? 'Team' : 'Event'
+  return s.speaker === 'caller' ? callerLabel : s.speaker === 'agent' ? assistantName : s.speaker === 'human' ? i18n().t('inbox.search.team') : i18n().t('inbox.search.event')
 }
 
 function textsOf({ call, contact, segments, assistantName }: Searchable): SearchHit[] {
   const caller = contact?.name || formatPhone(call.from_number)
   return [
-    { field: 'Summary', text: call.summary ?? '' },
-    { field: 'Topic', text: callTitle(call) },
+    { field: i18n().t('inbox.search.summary'), text: call.summary ?? '' },
+    { field: i18n().t('inbox.search.topic'), text: callTitle(call) },
     ...segments.map(s => ({ field: speakerName(s, caller, assistantName), text: s.text, atMs: s.at_ms })),
   ]
 }

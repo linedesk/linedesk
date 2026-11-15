@@ -9,7 +9,7 @@ import { useAssistantName, useRows } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
-import { LOAD_FAILED, loadLiveKit } from '../call/livekit.ts'
+import { loadFailed, loadLiveKit } from '../call/livekit.ts'
 import { microphoneAllowed } from '../call/microphone.ts'
 import { useLiveLines } from '../call/useLiveLines.ts'
 import {
@@ -112,7 +112,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     if (blocked) return fail(blocked)
     const livekit = await loadLiveKit().catch(() => null)
     if (mine !== attempt.current) return
-    if (!livekit) return fail(LOAD_FAILED)
+    if (!livekit) return fail(loadFailed())
     const { Room, RoomEvent, Track } = livekit
     const next = new Room()
     // Connected, but the assistant never picks up or drops out: say so and hang up instead of a silent call.

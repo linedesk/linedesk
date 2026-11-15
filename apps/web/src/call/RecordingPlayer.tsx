@@ -4,11 +4,13 @@ import { RECORDINGS_NOT_KEPT } from '@linedesk/actions'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { Icon } from '../ui/kit.tsx'
 import { nextSpeed, recordingLength, registerPlayer, SEEK_STEP_SECONDS, seekSeconds } from './playback.ts'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = { callId: string; callDurationSec: number | null }
 
 /** Plays the call's recording: play or pause (Space), seek, speed, elapsed and total time. */
 export function RecordingPlayer({ callId, callDurationSec }: Props) {
+  const t = useT()
   const audio = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [position, setPosition] = useState(0)
@@ -56,7 +58,7 @@ export function RecordingPlayer({ callId, callDurationSec }: Props) {
 
   const played = length ? Math.min(1, position / length) : 0
   return (
-    <section className="vn" aria-label="Recording">
+    <section className="vn" aria-label={t('call.recording.label')}>
       {/* biome-ignore lint/a11y/useMediaCaption: the transcript below is the text of this recording */}
       <audio ref={audio} src={`/v1/calls/${callId}/recording`} preload="metadata"
         onLoadedMetadata={e => { setFailed(false); setReportedLength(e.currentTarget.duration) }}
@@ -64,13 +66,13 @@ export function RecordingPlayer({ callId, callDurationSec }: Props) {
         onTimeUpdate={e => { if (!dragging) setPosition(e.currentTarget.currentTime) }}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
         onError={() => { setFailed(true); setPlaying(false) }} />
-      <button type="button" className="vn-btn" disabled={failed} aria-label={playing ? 'Pause' : 'Play recording'} title={`${playing ? 'Pause' : 'Play'} (Space)`} onClick={toggle}>
+      <button type="button" className="vn-btn" disabled={failed} aria-label={playing ? t('call.recording.pause') : t('call.recording.play')} title={t('common.withKey', { label: playing ? t('call.recording.pause') : t('call.recording.playShort'), key: 'Space' })} onClick={toggle}>
         <Icon name={playing ? 'pause' : 'play'} size={14} />
       </button>
       <div className="vn-body">
-        {failed ? <span className="help">The recording could not be loaded.</span> : (
-          <div className="vn-track" role="slider" tabIndex={0} aria-label="Position in the recording" aria-valuemin={0} aria-valuemax={Math.round(length)}
-            aria-valuenow={Math.round(position)} aria-valuetext={`${clock(position)} of ${clock(length)}`}
+        {failed ? <span className="help">{t('call.recording.loadFailed')}</span> : (
+          <div className="vn-track" role="slider" tabIndex={0} aria-label={t('call.recording.position')} aria-valuemin={0} aria-valuemax={Math.round(length)}
+            aria-valuenow={Math.round(position)} aria-valuetext={t('call.recording.positionValue', { position: clock(position), length: clock(length) })}
             onPointerDown={onPointerDown} onPointerMove={e => { if (dragging && e.buttons & 1) seekTo(e) }}
             onPointerUp={() => setDragging(false)} onPointerCancel={() => setDragging(false)} onLostPointerCapture={() => setDragging(false)}
             onKeyDown={onTrackKey}>
@@ -80,18 +82,19 @@ export function RecordingPlayer({ callId, callDurationSec }: Props) {
         )}
       </div>
       <span className="vn-time">{clock(position)} / {clock(length)}</span>
-      <button type="button" className="vn-speed" aria-label={`Playback speed ${speed}x`} onClick={changeSpeed}>{speed}×</button>
+      <button type="button" className="vn-speed" aria-label={t('call.recording.speed', { speed })} onClick={changeSpeed}>{speed}×</button>
     </section>
   )
 }
 
 /** In place of the player when the workspace keeps no recordings (Settings, Recordings: Don't keep). */
 export function RecordingNotKept() {
+  const t = useT()
   const settings = useWorkspaceSettings().data
   if (!settings?.recordingOn || settings.recordingRetentionDays !== RECORDINGS_NOT_KEPT) return null
   return (
-    <p className="cv-no-recording" title="Settings, Recordings: Don't keep">
-      Recording not kept
+    <p className="cv-no-recording" title={t('call.recording.notKeptTitle')}>
+      {t('call.recording.notKept')}
     </p>
   )
 }

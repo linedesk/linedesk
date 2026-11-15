@@ -15,6 +15,7 @@ import {
   newContactInput,
   noteHint,
 } from './model.ts'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = {
   /** Numbers already in Contacts, in E.164: adding one again says so instead of failing on the server. */
@@ -31,6 +32,7 @@ function submitOnEnter(e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>)
 }
 
 export function NewContact({ existing, onAdded, onClose }: Props) {
+  const t = useT()
   const run = useRun()
   const assistantNames = useAssistants().map(a => a.name)
   const [form, setForm] = useState<NewContactForm>(EMPTY_NEW_CONTACT)
@@ -52,25 +54,25 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
   }
 
   return (
-    <aside className="cv-side cust-side ct-detail" aria-label="New contact" data-esc-closes>
+    <aside className="cv-side cust-side ct-detail" aria-label={t('contacts.new.label')} data-esc-closes>
       <form className="ct-detail-in" onSubmit={submit} noValidate>
         <header className="ct-head">
           <div className="ct-who">
-            <b>New contact</b>
+            <b>{t('contacts.new.label')}</b>
           </div>
         </header>
         <Card className="ct-card">
           <div className="ct-grid">
             <ContactField
               id="ct-new-name"
-              label="Name"
-              placeholder="Add a name"
+              label={t('contacts.field.name')}
+              placeholder={t('contacts.field.namePlaceholder')}
               value={form.name}
               maxLength={NEW_CONTACT_MAX_LENGTH.name}
               autoFocus
               onChange={set('name')}
             />
-            <FormField id="ct-new-phone" label="Phone" error={problem}>
+            <FormField id="ct-new-phone" label={t('contacts.field.phone')} error={problem}>
               <PhoneInput
                 id="ct-new-phone"
                 value={form.phone}
@@ -86,13 +88,15 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
             </FormField>
           </div>
         </Card>
-        <Card title="Details" className="ct-card">
+        <Card title={t('contacts.detail.details')} className="ct-card">
           <div className="ct-grid">
             {CONTACT_DETAIL_FIELDS.map(({ field, ...f }) => (
               <ContactField
                 key={field}
                 id={`ct-new-${field}`}
-                {...f}
+                label={t(f.label)}
+                placeholder={t(f.placeholder)}
+                multiline={'multiline' in f}
                 value={form[field]}
                 maxLength={NEW_CONTACT_MAX_LENGTH[field]}
                 hint={field === 'note' ? noteHint(assistantNames) : undefined}
@@ -103,11 +107,21 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
           </div>
         </Card>
         <div className="ct-new-acts">
-          <Button variant="ghost" shortcut={['esc']} title="Close (esc)" onClick={onClose}>
-            Cancel
+          <Button
+            variant="ghost"
+            shortcut={['esc']}
+            title={t('common.action.closeWithKey', { key: 'esc' })}
+            onClick={onClose}
+          >
+            {t('common.action.cancel')}
           </Button>
-          <Button variant="primary" type="submit" shortcut={['⏎']} title="Add contact (⏎)">
-            Add contact
+          <Button
+            variant="primary"
+            type="submit"
+            shortcut={['⏎']}
+            title={t('common.withKey', { label: t('contacts.new.add'), key: '⏎' })}
+          >
+            {t('contacts.new.add')}
           </Button>
         </div>
       </form>

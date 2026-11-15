@@ -45,6 +45,10 @@ The rules that matter most:
 5. **Self-hosting works at every commit.** `docker compose up` keeps working; a new service needs a compose entry and its variables in `.env.example`.
 6. **No secrets, keys, customer data or internal notes** in code, tests, fixtures or commits. Use the demo business (Brightwater Plumbing & Heating) and `555` phone numbers in examples.
 
+## Translations
+
+English is the source; the other languages are translated before each release (with AI, screen by screen) and improved by people. In a code change, add new text only to `packages/i18n/locales/en/` and use it with `t()`; never edit other languages in the same pull request. To fix a translation, edit `packages/i18n/locales/<locale>/`, record it with `pnpm i18n:lock --by human --locale <locale> --prefix <key>` and open a pull request: your wording is kept from then on. Details, and how to ask for a new language: [docs/translations.md](docs/translations.md).
+
 ## Pull requests
 
 - Branch from `master-dev`; one logical change per pull request. We squash on merge.

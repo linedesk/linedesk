@@ -12,6 +12,8 @@ import {
   type Tx,
   user,
 } from '@linedesk/db'
+import type { UiLocale } from '@linedesk/i18n'
+import { getT, localeForUser } from '@linedesk/i18n/server'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
 import { assignedCallEmail, emailSafeName } from './emails/templates.ts'
@@ -41,7 +43,12 @@ async function standingAssignment(tx: Tx, eventId: string) {
 /** The assignee's address and whether they want emails, while they are an active member of the call's workspace. */
 async function assigneeOf(tx: Tx, workspaceId: string, userId: string) {
   const [row] = await tx
-    .select({ email: user.email, wants: member_notification_settings.assigned_email })
+    .select({
+      email: user.email,
+      wants: member_notification_settings.assigned_email,
+      locale: user.locale,
+      localeAuto: user.localeAuto,
+    })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .leftJoin(
@@ -52,14 +59,15 @@ async function assigneeOf(tx: Tx, workspaceId: string, userId: string) {
       ),
     )
     .where(and(eq(member.organizationId, workspaceId), eq(member.userId, userId), isNull(user.disabledAt)))
-  return row ? { email: row.email, wantsEmail: row.wants ?? true } : null
+  return row ? { email: row.email, wantsEmail: row.wants ?? true, locale: localeForUser(row) } : null
 }
 
-/** Who assigned it: their name, else "A teammate"; an API key: "An integration". */
-async function assignerName(tx: Tx, actorId: string | null) {
-  if (!actorId) return 'An integration'
+/** Who assigned it: their name, else "A teammate"; an API key: "An integration" (in the assignee's language). */
+async function assignerName(tx: Tx, actorId: string | null, locale: UiLocale) {
+  const { t } = getT(locale)
+  if (!actorId) return t('email.fallback.integration')
   const [row] = await tx.select({ name: user.name }).from(user).where(eq(user.id, actorId))
-  return emailSafeName(row?.name, 'A teammate')
+  return emailSafeName(row?.name, t('email.fallback.teammate'))
 }
 
 export async function notifyAssigned(
@@ -74,7 +82,7 @@ export async function notifyAssigned(
   if (event.actor_id === assigneeId) return { email: null, push: null, skipped: 'self' }
   const assignee = await assigneeOf(tx, call.workspace_id, assigneeId)
   if (!assignee) return { email: null, push: null, skipped: 'not-a-member' }
-  const byName = await assignerName(tx, event.actor_id)
+  const byName = await assignerName(tx, event.actor_id, assignee.locale)
   const [contact] = call.contact_id ? await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)) : []
   let email: AssignNotifyResult['email'] = 'off'
   if (assignee.wantsEmail) {
@@ -83,17 +91,21 @@ export async function notifyAssigned(
         .select({ name: organization.name })
         .from(organization)
         .where(eq(organization.id, call.workspace_id))
-      const content = assignedCallEmail({
-        workspaceId: call.workspace_id,
-        callId: call.id,
-        title: call.title,
-        summary: call.summary,
-        urgent: call.urgency === 'urgent',
-        fromNumber: call.from_number,
-        callerName: contact?.name ?? null,
-        assignedBy: byName,
-        workspace: emailSafeName(workspace?.name, 'your workspace'),
-      })
+      const content = assignedCallEmail(
+        {
+          workspaceId: call.workspace_id,
+          callId: call.id,
+          title: call.title,
+          summary: call.summary,
+          urgent: call.urgency === 'urgent',
+          fromNumber: call.from_number,
+          callerName: contact?.name ?? null,
+          assignedBy: byName,
+          workspace: emailSafeName(workspace?.name, getT(assignee.locale).t('email.fallback.workspace')),
+        },
+        undefined,
+        assignee.locale,
+      )
       await emails.send({ to: assignee.email, ...content })
       email = 'sent'
     } catch (e) {

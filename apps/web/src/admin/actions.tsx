@@ -2,15 +2,16 @@
 // a row of buttons, the list as quick icon buttons on each row (and a ⋯ menu on touch screens).
 // Actions that change access ask once in a dialog; the rest run at once.
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { brandName } from '../brand.ts'
+import { fmt } from '../i18n/format.ts'
 import { confirmText, startImpersonation } from '../impersonation.ts'
+import { keepAccountsOption, numberLines, workspaceDeleteList } from '../settings/dangerZoneModel.ts'
+import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Button, Icon } from '../ui/kit.tsx'
-import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
-import { brandName } from '../brand.ts'
-import { keepAccountsOption, numberLines, workspaceDeleteList } from '../settings/dangerZoneModel.ts'
 
 type Confirmation = DangerConfirmation
 
@@ -34,7 +35,7 @@ export type AdminAction = {
 
 const userLabel = (u: AdminUser) => u.name || u.email
 
-/** A new instance admin's one-time code for their first passkey (apps/api/src/passkey-enrolment.ts). */
+/** A new server admin's one-time code for their first passkey (apps/api/src/passkey-enrolment.ts). */
 export type PasskeyEnrolment = { code: string; expiresAt: string }
 
 const isEnrolment = (value: unknown): value is PasskeyEnrolment =>
@@ -59,7 +60,7 @@ export function EnrolmentCodeDialog({
   return (
     <Dialog
       title="Passkey enrolment code"
-      description={`Give this code to ${who}. Their first passkey needs it (Account, Sign-in & security, Add passkey). It works once, until ${new Date(enrolment.expiresAt).toLocaleString()}, and is not shown again.`}
+      description={`Give this code to ${who}. Their first passkey needs it (Account, Sign-in & security, Add passkey). It works once, until ${fmt().dateTime(new Date(enrolment.expiresAt), { dateStyle: 'medium', timeStyle: 'short' })}, and is not shown again.`}
       size="sm"
       onClose={onClose}
       onSubmit={e => {
@@ -82,15 +83,15 @@ export function existingPasskeysText(passkeys: NonNullable<AdminUser['passkeys']
   const list = passkeys
     .map(
       p =>
-        `${p.name || (p.device_type === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device')}${p.created_at ? ` (added ${new Date(p.created_at).toLocaleDateString()})` : ''}`,
+        `${p.name || (p.device_type === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device')}${p.created_at ? ` (added ${fmt().date(new Date(p.created_at))})` : ''}`,
     )
     .join(', ')
   return `They already have ${passkeys.length === 1 ? 'a passkey' : `${passkeys.length} passkeys`}: ${list}. These open the admin area for them. If you are not sure they are all theirs, reset them instead: you get a one-time code for their new first passkey.`
 }
 
-/** What granting instance admin means, said before it happens (detail, row and Add user). */
+/** What granting server admin means, said before it happens (detail, row and Add user). */
 export const adminGrantText = (who: string) =>
-  `Make ${who} an instance admin? They can see every workspace and user, change provider keys and sign in as other users.`
+  `Make ${who} a server admin? They can see every workspace and user, change provider keys and sign in as other users.`
 
 /** The actions that apply to this user: none of them on yourself except what is harmless. */
 export function userActions(u: AdminUser, currentUserId: string, reload: () => Promise<void>): AdminAction[] {
@@ -125,18 +126,18 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
   if (!u.instance_admin && !u.disabled_at)
     actions.push({
       id: 'grant',
-      label: 'Make admin…',
+      label: 'Make server admin…',
       icon: 'shield',
       tip: 'Sees every workspace and user, and sets the provider keys.',
       confirm: {
         text: u.passkeys?.length ? `${adminGrantText(name)} ${existingPasskeysText(u.passkeys)}` : adminGrantText(name),
-        action: 'Make instance admin',
+        action: 'Make server admin',
         variant: 'danger-outline',
         // Their existing passkeys become the admin second factor: start over when unsure they are all theirs.
         ...(u.passkeys?.length
           ? {
               alternative: {
-                action: 'Reset passkeys and make admin',
+                action: 'Reset passkeys and make server admin',
                 tip: 'Removes their passkeys, signs them out and gives you a one-time code for their new first passkey.',
                 run: async () => {
                   await runAdmin('instanceAdmin.grant', { userId: u.id })
@@ -150,17 +151,17 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
       },
       run: act('instanceAdmin.grant'),
       subject: name,
-      done: `${name} is an instance admin.`,
+      done: `${name}: now a server admin.`,
     })
   if (u.instance_admin && !isSelf && !u.instance_admin_by_env)
     actions.push({
       id: 'revoke',
-      label: 'Remove admin…',
+      label: 'Remove server admin…',
       icon: 'shield',
-      tip: 'They keep their workspaces and lose access to Admin.',
-      confirm: { text: `${name} loses access to Admin.`, action: 'Remove instance admin' },
+      tip: 'They keep their workspaces and lose access to Server admin.',
+      confirm: { text: `${name} loses access to Server admin.`, action: 'Remove server admin' },
       run: act('instanceAdmin.revoke'),
-      done: `${name} is no longer an instance admin.`,
+      done: `${name}: no longer a server admin.`,
     })
   // An admin without a passkey only needs the code for their first: nothing to reset, nobody signed out.
   if (u.instance_admin && !isSelf && !u.disabled_at && u.passkeys?.length === 0)
@@ -244,7 +245,7 @@ export function deleteWorkspaceText(
   }
 }
 
-const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
+const count = (n: number, one: string, many = `${one}s`) => `${fmt().number(n)} ${n === 1 ? one : many}`
 
 /** The toast after a delete: numbers left at the carrier are named, since someone has to release them there. */
 export function deletedWorkspaceText(name: string, data: unknown): string {

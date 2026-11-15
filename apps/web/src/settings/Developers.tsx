@@ -12,6 +12,7 @@ import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, readAction } from './settings-api.ts'
 import './developers.css'
+import { fmt } from '../i18n/format.ts'
 
 const API_KEYS = 'apiKey.list'
 const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
@@ -23,7 +24,7 @@ const roles: SelectOption<Role>[] = [
 ]
 
 const day = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  fmt().dateTime(new Date(iso), { month: 'short', day: 'numeric', year: 'numeric' })
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 

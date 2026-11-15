@@ -18,6 +18,7 @@ import {
   starPitch,
   takeGrantReturn,
 } from './starPrompt.ts'
+import { useT } from '@linedesk/i18n/react'
 
 /** `waiting`: not shown yet; `closed`: answered or thanked, gone for this page. */
 type State = 'waiting' | 'ask' | 'starring' | 'thanks' | 'failed' | 'closed'
@@ -57,6 +58,7 @@ function celebrate() {
 /** `quiet`: something else has the member's attention (a call, a page, the tour): wait. */
 /** `prompt` null: not due (also right after the star, when the card still says thanks). */
 export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: boolean }) {
+  const t = useT()
   const [returned] = useState(() => takeGrantReturn(prompt))
   const [state, setState] = useState<State>(
     returned === 'refused' ? 'failed' : returned === 'starred' ? 'thanks' : 'waiting',
@@ -109,8 +111,8 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
   if (state === 'thanks') {
     return (
       <section className="tour star-card" role="status" aria-live="polite">
-        <h2>Thanks for the star.</h2>
-        <p>It helps other businesses find Linedesk.</p>
+        <h2>{t('shell.star.thanks')}</h2>
+        <p>{t('shell.star.thanksLine', { product: 'Linedesk' })}</p>
       </section>
     )
   }
@@ -118,33 +120,33 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
   const failed = state === 'failed'
   const move = starMove(prompt)
   return (
-    <section className="tour star-card" role="dialog" aria-label="Star Linedesk on GitHub" aria-live="polite">
+    <section className="tour star-card" role="dialog" aria-label={t('shell.star.dialog', { product: 'Linedesk' })} aria-live="polite">
       <Button
         size="sm"
         variant="ghost"
         icon="close"
         className="star-close"
-        aria-label="Close"
-        title="Close for now"
+        aria-label={t('common.action.close')}
+        title={t('shell.star.closeTip')}
         onClick={() => setState('closed')}
       />
       <h2 className="star-title">
         <Icon name="heart" size={15} className="star-heart" />
-        Support Linedesk
+        {t('shell.star.title', { product: 'Linedesk' })}
       </h2>
       <p>
         {failed
-          ? 'That did not work from here. You can star it on GitHub instead.'
+          ? t('shell.star.failed')
           : starPitch('Linedesk', starCount, formatStarCount)}
       </p>
       <div className="tour-foot">
         <span className="tour-count" />
-        <Button size="sm" variant="ghost" onClick={dismiss} title="Don't ask again">
-          No thanks
+        <Button size="sm" variant="ghost" onClick={dismiss} title={t('shell.star.dismissTip')}>
+          {t('shell.star.dismiss')}
         </Button>
         {failed || move === 'open' ? (
-          <Button size="sm" variant="primary" icon="star" onClick={open} title={`Open ${prompt.repo} on GitHub`}>
-            {failed ? 'Open GitHub' : 'Star on GitHub'}
+          <Button size="sm" variant="primary" icon="star" onClick={open} title={t('shell.star.open', { repo: prompt.repo })}>
+            {failed ? t('shell.star.openGitHub') : t('shell.star.button')}
           </Button>
         ) : (
           <Button busy={state === 'starring'}
@@ -153,9 +155,9 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
             icon="star"
             disabled={state === 'starring'}
             onClick={() => void grant()}
-            title="GitHub asks you to allow starring, then you are back here. Linedesk gives the permission up right after."
+            title={t('shell.star.grantTip', { product: 'Linedesk' })}
           >
-            {state === 'starring' ? 'Starring…' : 'Star on GitHub'}
+            {state === 'starring' ? t('shell.star.starring') : t('shell.star.button')}
           </Button>
         )}
       </div>

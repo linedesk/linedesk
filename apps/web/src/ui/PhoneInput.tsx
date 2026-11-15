@@ -31,6 +31,7 @@ import {
   searchPhoneCountries,
 } from './phoneInputModel.ts'
 import './phone-input.css'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = {
   /** The number field's id: a FormField's label points at it. */
@@ -193,6 +194,7 @@ type PickerProps = {
  * move, Enter picks, Esc closes; typing a letter or digit on the button opens the list searching for it.
  */
 function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -289,8 +291,8 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
         type="button"
         className="k-phone-country-btn"
         disabled={disabled}
-        title={`Country code: ${label}`}
-        aria-label={`Country code: ${label}`}
+        title={t('common.phone.countryCode', { country: label })}
+        aria-label={t('common.phone.countryCode', { country: label })}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => (open ? close() : show())}
@@ -308,7 +310,7 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
             autoFocus
             className="k-phone-search"
             placeholder={phoneCountrySearchPlaceholder(viewer)}
-            aria-label="Search countries"
+            aria-label={t('common.phone.searchCountries')}
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
             autoComplete="off"
@@ -320,7 +322,7 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
             }}
             onKeyDown={onSearchKey}
           />
-          <div id={listId} role="listbox" aria-label="Countries" className="k-phone-options">
+          <div id={listId} role="listbox" aria-label={t('common.phone.countries')} className="k-phone-options">
             {(searching ? [{ group: undefined, start: 0, options: matches }] : optionGroups(matches)).map(run => {
               const items = run.options.map((o, k) => {
                 const i = run.start + k
@@ -354,7 +356,7 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
                 </div>
               )
             })}
-            {!matches.length && <div className="k-phone-empty">No country matches "{query}".</div>}
+            {!matches.length && <div className="k-phone-empty">{t('common.phone.noMatch', { query })}</div>}
           </div>
         </div>
       )}

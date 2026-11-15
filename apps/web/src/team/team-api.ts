@@ -3,6 +3,7 @@
 import type { AssignableRole, InvitationPreview, MemberEditData, TeamData, TeamLeaveData } from '@linedesk/actions'
 import { fetchQuery, refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
+import { i18n } from '../i18n/index.tsx'
 
 const TEAM = 'team'
 
@@ -14,7 +15,7 @@ async function runTeamAction<T = unknown>(name: string, input: object): Promise<
     body: JSON.stringify(input),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: T } | null
-  if (!res.ok || !body?.ok) throw new Error(body?.error ?? 'That did not work. Try again.')
+  if (!res.ok || !body?.ok) throw new Error(body?.error ?? i18n().t('errors.generic'))
   return body.data as T
 }
 

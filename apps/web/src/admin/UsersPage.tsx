@@ -24,7 +24,7 @@ const columns: Column<AdminUser>[] = [
         <span className="adm-who">
           <span className="adm-strong">
             {label(u)}
-            {u.instance_admin && <Badge>Admin</Badge>}
+            {u.instance_admin && <Badge>Server admin</Badge>}
             {u.disabled_at && <Badge>Disabled</Badge>}
           </span>
           <span className="adm-sub">{u.email}</span>
@@ -105,7 +105,7 @@ export function UserDetail({ user: u, workspaces, currentUserId, notify, reload 
         <dl className="adm-facts">
           <Fact label="Email">{u.email}</Fact>
           <Fact label="Status">{u.disabled_at ? `Disabled ${when(u.disabled_at)}` : 'Active'}</Fact>
-          <Fact label="Instance admin">
+          <Fact label="Server admin">
             {u.instance_admin ? 'Yes' : 'No'}
             {u.instance_admin_by_env && <ServerSet />}
           </Fact>

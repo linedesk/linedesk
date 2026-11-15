@@ -3,6 +3,8 @@ import { CONTACT_IMPORT_LIMITS, phoneNumberProblem } from '@linedesk/actions'
 import type { Call, Contact } from '@linedesk/db/types'
 import { formatPhone } from '../inbox-model.ts'
 import { parseTs } from '../time.ts'
+import { msg } from '@linedesk/i18n'
+import { i18n } from '../i18n/index.tsx'
 
 export type ContactRow = {
   contact: Contact
@@ -123,17 +125,22 @@ export function mergeDefaults(keep: Contact, other: Contact) {
 
 /** Under a contact's note: who gets it (the assistant answering, when this contact is the caller). */
 export function noteHint(assistantNames: string[]): string {
-  const who =
-    assistantNames.length === 1 ? assistantNames[0] : assistantNames.length ? 'Your assistants' : 'The assistant'
-  return `${who} ${assistantNames.length > 1 ? 'see' : 'sees'} this note when this contact calls.`
+  const { t } = i18n()
+  if (assistantNames.length > 1) return t('contacts.note.hintMany')
+  return t('contacts.note.hintOne', { assistant: assistantNames[0] ?? t('contacts.note.theAssistant') })
 }
 
 /** The details a contact has besides name and phone, in the order the contact page shows them. New contact asks for the same. */
 export const CONTACT_DETAIL_FIELDS = [
-  { field: 'company', label: 'Company', placeholder: 'Add a company' },
-  { field: 'email', label: 'Email', placeholder: 'name@example.com' },
-  { field: 'address', label: 'Address', placeholder: 'Street, city' },
-  { field: 'note', label: 'Note', placeholder: 'Anything to remember', multiline: true },
+  { field: 'company', label: msg('contacts.field.company'), placeholder: msg('contacts.field.companyPlaceholder') },
+  { field: 'email', label: msg('contacts.field.email'), placeholder: msg('contacts.field.emailPlaceholder') },
+  { field: 'address', label: msg('contacts.field.address'), placeholder: msg('contacts.field.addressPlaceholder') },
+  {
+    field: 'note',
+    label: msg('contacts.field.note'),
+    placeholder: msg('contacts.field.notePlaceholder'),
+    multiline: true,
+  },
 ] as const
 
 export type ContactDetailField = (typeof CONTACT_DETAIL_FIELDS)[number]['field']
@@ -158,10 +165,10 @@ export function newContactInput(
   existing: ReadonlySet<string>,
 ): { input: NewContactInput; problem?: undefined } | { problem: string; input?: undefined } {
   const e164 = form.phone.trim()
-  if (!e164) return { problem: 'Enter a phone number.' }
+  if (!e164) return { problem: i18n().t('contacts.new.enterPhone') }
   const problem = phoneNumberProblem(e164)
   if (problem) return { problem }
-  if (existing.has(e164)) return { problem: 'That number is already in Contacts.' }
+  if (existing.has(e164)) return { problem: i18n().t('contacts.new.exists') }
   const input: NewContactInput = { phone: e164 }
   for (const field of ['name', ...CONTACT_DETAIL_FIELDS.map(f => f.field)] as const) {
     const value = form[field].trim()
@@ -176,6 +183,6 @@ export function newContactInput(
  */
 export function contactsEmptyCopy(query: string): { title: string; line: string | null; mark: 'contact' } {
   return query.trim()
-    ? { title: `No contact matches “${query.trim()}”`, line: null, mark: 'contact' }
-    : { title: 'No contacts yet', line: 'Everyone who calls shows up here.', mark: 'contact' }
+    ? { title: i18n().t('contacts.empty.search', { query: query.trim() }), line: null, mark: 'contact' }
+    : { title: i18n().t('contacts.empty.title'), line: i18n().t('contacts.empty.line'), mark: 'contact' }
 }

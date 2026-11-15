@@ -23,14 +23,14 @@ const options: SelectOption<VoicePipelinePolicy>[] = VOICE_PIPELINE_POLICIES.map
   label: VOICE_PIPELINE_POLICY_LABELS[policy],
   description:
     policy === 'choice'
-      ? 'Each assistant picks one under Settings, Assistant'
-      : 'Every assistant uses it; Settings, Assistant shows no choice',
+      ? 'Each assistant picks one under Assistant settings › Advanced'
+      : 'Every assistant uses it; Assistant settings › Advanced shows no choice',
 }))
 
 const HELP = `${VOICE_PIPELINE_LABELS.realtime}: ${VOICE_PIPELINE_DESCRIPTIONS.realtime} ${VOICE_PIPELINE_LABELS.three_stage}: ${VOICE_PIPELINE_DESCRIPTIONS.three_stage} Both can put calls through to a person. When the one picked stops working, the other answers.`
 
 const descriptions: Record<VoicePipelinePolicy, string> = {
-  choice: `Each assistant picks under Settings, Assistant; the ${VOICE_PIPELINE_LABELS.realtime.toLowerCase()} unless it picks the other.`,
+  choice: `Each assistant picks under Assistant settings › Advanced; the ${VOICE_PIPELINE_LABELS.realtime.toLowerCase()} unless it picks the other.`,
   realtime: `Every workspace's calls are answered by the ${VOICE_PIPELINE_LABELS.realtime.toLowerCase()}, whatever its assistant picked.`,
   three_stage: `Every workspace's calls are answered by ${VOICE_PIPELINE_LABELS.three_stage.toLowerCase()}, whatever its assistant picked.`,
 }

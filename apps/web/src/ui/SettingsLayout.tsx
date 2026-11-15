@@ -3,6 +3,7 @@
 // so links, reload and Back work. Below 720 px the nav is a row of tabs that scrolls sideways.
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import './settings-layout.css'
+import { useT } from '@linedesk/i18n/react'
 
 export type PageSection<T extends string = string> = {
   id: T
@@ -93,6 +94,7 @@ type Props<T extends string> = {
 }
 
 export function SettingsLayout<T extends string>(props: Props<T>) {
+  const t = useT()
   const { page, title, description, heading, actions, sections, current, unsaved, banner, children } = props
   const nav = useRef<HTMLElement>(null)
   // On a phone the nav is a row that scrolls sideways: keep the open section in view.
@@ -114,7 +116,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
       </div>
       {banner}
       <div className="sl-body">
-        <nav ref={nav} className="sl-nav" aria-label={`${title} sections`}>
+        <nav ref={nav} className="sl-nav" aria-label={t('common.settingsLayout.sections', { title })}>
           {sections.map(s => {
             const dirty = unsaved?.has(s.id)
             return (
@@ -129,7 +131,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
               >
                 <span>{s.label}</span>
                 {!!s.count && <span className="nav-n">{s.count}</span>}
-                {dirty && <span className="sl-dot" role="img" aria-label="Unsaved changes" />}
+                {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
               </a>
             )
           })}

@@ -11,6 +11,7 @@ import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
 import { ContactCalls } from './ContactCalls.tsx'
 import { CONTACT_DETAIL_FIELDS, type ContactDetailField, contactLabel, type ContactRow, noteHint } from './model.ts'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = {
   row: ContactRow
@@ -88,6 +89,7 @@ function DetailField({
 
 /** ⋯ with Delete contact, which asks once in place; the toast then offers Undo. */
 function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () => void; onMerge: () => void }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -119,21 +121,21 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
         className="ct-more"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="More"
-        title="More"
+        aria-label={t('contacts.detail.more')}
+        title={t('contacts.detail.more')}
         onClick={() => setOpen(o => !o)}
       />
       {open && (
-        <div className="ct-menu" role="menu" aria-label="Contact">
+        <div className="ct-menu" role="menu" aria-label={t('call.contact.label')}>
           {confirming ? (
             <div className="ct-menu-confirm">
-              <span>Delete {label}? Their calls stay.</span>
+              <span>{t('contacts.detail.deleteConfirm', { name: label })}</span>
               <span className="ct-menu-acts">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-                  Cancel
+                  {t('common.action.cancel')}
                 </Button>
                 <Button size="sm" variant="danger" onClick={onDelete}>
-                  Delete
+                  {t('common.action.delete')}
                 </Button>
               </span>
             </div>
@@ -149,7 +151,7 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
                 }}
               >
                 <Icon name="users" size={15} />
-                <span className="lbl">Merge with…</span>
+                <span className="lbl">{t('contacts.detail.mergeWith')}</span>
               </button>
               <button
                 type="button"
@@ -158,7 +160,7 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
                 onClick={() => setConfirming(true)}
               >
                 <Icon name="trash" size={15} />
-                <span className="lbl">Delete contact…</span>
+                <span className="lbl">{t('contacts.detail.delete')}</span>
                 <kbd className="k-kbd">#</kbd>
               </button>
             </>
@@ -170,12 +172,13 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
 }
 
 export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, runUndoable }: Props) {
+  const t = useT()
   const { contact, calls } = row
   const assistantNames = useAssistants().map(a => a.name)
   const label = contactLabel(contact)
   const phone = formatPhone(contact.phone)
   return (
-    <aside className="cv-side cust-side ct-detail" aria-label="Contact" data-esc-closes>
+    <aside className="cv-side cust-side ct-detail" aria-label={t('call.contact.label')} data-esc-closes>
       <div className="ct-detail-in">
         <header className="ct-head">
           <Button
@@ -183,44 +186,55 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
             variant="ghost"
             icon="left"
             className="ct-back"
-            aria-label="Close contact"
-            title="Close (esc)"
+            aria-label={t('call.contact.close')}
+            title={t('common.action.closeWithKey', { key: 'esc' })}
             onClick={onClose}
           />
           <Avatar name={contact.name ?? '?'} size={40} />
           <div className="ct-who">
             <b>{label}</b>
-            <span>{contact.name ? phone : (contact.company ?? 'No name yet')}</span>
+            <span>{contact.name ? phone : (contact.company ?? t('contacts.detail.noName'))}</span>
           </div>
           <div className="ct-acts">
             {contact.phone.startsWith('+') && <CallLink number={contact.phone} />}
             <MoreMenu label={label} onDelete={() => onDelete(contact.id)} onMerge={onMerge} />
           </div>
         </header>
-        <Card title="Details" className="ct-card">
+        <Card title={t('contacts.detail.details')} className="ct-card">
           <div className="ct-grid" key={contact.id}>
             <DetailField
               contact={contact}
               field="name"
-              label="Name"
-              placeholder="Add a name"
+              label={t('contacts.field.name')}
+              placeholder={t('contacts.field.namePlaceholder')}
               hint={nameFromCaller(contact) ? <ConfirmCallerName contact={contact} /> : undefined}
             />
-            <DetailField contact={contact} {...company} />
-            <FormField id="ct-phone" label="Phone">
+            <DetailField
+              contact={contact}
+              field={company.field}
+              label={t(company.label)}
+              placeholder={t(company.placeholder)}
+            />
+            <FormField id="ct-phone" label={t('contacts.field.phone')}>
               <Input id="ct-phone" value={phone} readOnly className="ct-readonly" />
             </FormField>
             {afterPhone.map(f => (
               <DetailField
                 key={f.field}
                 contact={contact}
-                {...f}
+                field={f.field}
+                label={t(f.label)}
+                placeholder={t(f.placeholder)}
+                multiline={'multiline' in f}
                 hint={f.field === 'note' ? noteHint(assistantNames) : undefined}
               />
             ))}
           </div>
         </Card>
-        <Card title={calls.length ? `Calls · ${calls.length}` : 'Calls'} className="ct-card">
+        <Card
+          title={calls.length ? t('contacts.detail.callsCount', { count: calls.length }) : t('contacts.column.calls')}
+          className="ct-card"
+        >
           <ContactCalls
             key={contact.id}
             calls={calls}

@@ -8,6 +8,7 @@ import { type FocusEvent, type ReactNode, useEffect, useId, useLayoutEffect, use
 import { hideFromTopLayer, showInTopLayer } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './form.css'
+import { useT } from '@linedesk/i18n/react'
 
 /** A command to copy: the line itself, and optionally a few words above it saying where it applies. */
 export type HelpCommand = { code: string; label?: string }
@@ -85,9 +86,10 @@ export function HelpTip({
   commands,
   after,
   learnMore,
-  label = 'More information',
+  label,
   inField,
 }: HelpTipProps) {
+  const t = useT()
   const [state, send] = useReducer(helpTipReducer, CLOSED)
   const { open } = state
   const id = useId()
@@ -171,7 +173,7 @@ export function HelpTip({
         ref={refs.setReference}
         type="button"
         className="k-help-btn"
-        aria-label={label}
+        aria-label={label ?? t('common.help.more')}
         aria-describedby={open ? id : undefined}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
@@ -196,7 +198,7 @@ export function HelpTip({
           popover="manual"
           // A non-modal dialog, not a tooltip: it can hold buttons and a link. The "?" describes itself by it.
           role="dialog"
-          aria-label={title ?? label}
+          aria-label={title ?? label ?? t('common.help.more')}
           id={id}
           className={cx('k-help-pop', interactive && 'is-rich')}
           style={floatingStyles}
@@ -221,6 +223,7 @@ export function HelpTip({
 
 /** What the open help shows: title, words, commands to copy and the docs link. */
 export function HelpBody({ title, text, commands, after, learnMore }: HelpTipContent) {
+  const t = useT()
   return (
     <>
       {title && <span className="k-help-title">{title}</span>}
@@ -237,7 +240,7 @@ export function HelpBody({ title, text, commands, after, learnMore }: HelpTipCon
       {after && <span className="k-help-text">{after}</span>}
       {learnMore && (
         <a className="k-help-more" href={learnMore} target="_blank" rel="noreferrer">
-          Learn more in the docs
+          {t('common.help.learnMore')}
         </a>
       )}
     </>
@@ -245,6 +248,7 @@ export function HelpBody({ title, text, commands, after, learnMore }: HelpTipCon
 }
 
 function CopyCommand({ code }: { code: string }) {
+  const t = useT()
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   useEffect(() => {
     if (state === 'idle') return
@@ -255,11 +259,11 @@ function CopyCommand({ code }: { code: string }) {
     <button
       type="button"
       className="k-help-copy"
-      aria-label={state === 'copied' ? 'Copied' : `Copy ${code}`}
+      aria-label={state === 'copied' ? t('common.copy.copied') : t('common.copy.copyThis', { text: code })}
       onClick={() => void copyText(code).then(setState)}
     >
       {state === 'copied' && <Icon name="check" size={12} />}
-      <span aria-live="polite">{state === 'copied' ? 'Copied' : state === 'failed' ? 'Select it' : 'Copy'}</span>
+      <span aria-live="polite">{state === 'copied' ? t('common.copy.copied') : state === 'failed' ? t('common.copy.selectIt') : t('common.copy.copy')}</span>
     </button>
   )
 }

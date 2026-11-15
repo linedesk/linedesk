@@ -11,6 +11,7 @@ import { onPushOpensCall, pushSupport, thisDeviceId } from '../push.ts'
 import { readAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { callHash } from './useRoute.ts'
+import { i18n } from '../i18n/index.tsx'
 
 // The member's settings, shared by this hook and Account settings, Notifications (which updates them on
 // change): the last known at once (also across page loads), checked again in the background.
@@ -47,8 +48,15 @@ export function newlyFinished(
 /** Clock differences between server and browser. */
 const SLACK_MS = 60_000
 
+/** "New call", or the call's title; "Urgent: …" for an urgent call. */
+function notificationTitle(call: Call): string {
+  const { t } = i18n()
+  const title = call.title || t('shell.notification.newCall')
+  return call.urgency === 'urgent' ? t('shell.notification.urgent', { title }) : title
+}
+
 function show(call: Call, callerName: (call: Call) => string) {
-  const notification = new Notification(`${call.urgency === 'urgent' ? 'Urgent: ' : ''}${call.title || 'New call'}`, {
+  const notification = new Notification(notificationTitle(call), {
     body: [callerName(call), call.summary].filter(Boolean).join(' · '),
     tag: `call-${call.id}`, // one notification per call, even with several tabs open
   })

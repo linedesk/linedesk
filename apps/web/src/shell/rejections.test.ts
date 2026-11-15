@@ -7,7 +7,7 @@ test('refusals read as sentences and never show action ids or server settings', 
   expect(rejectionText('businessHours.set', 'HTTP 500')).toBe(
     'Could not save the business hours. Something went wrong on the server. Try again in a moment.',
   )
-  expect(rejectionText('push.subscribe', 'Failed to fetch')).toMatch(/^Could not turn on notifications.*can't be reached/)
+  expect(rejectionText('push.subscribe', 'Failed to fetch')).toMatch(/^Could not turn on notifications.*Can't reach the server/)
   expect(rejectionText('sample.add', '{"issues":[]}')).not.toMatch(/issues/)
   const phone = rejectionText('phoneNumber.setup', 'phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
   expect(phone).not.toMatch(/LIVEKIT|phoneNumber/)

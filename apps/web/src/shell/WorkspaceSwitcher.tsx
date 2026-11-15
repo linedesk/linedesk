@@ -8,6 +8,8 @@ import { WORKSPACES_QUERY } from '../session.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { declineInvitation, joinWorkspace, roleLabel, switchToWorkspace } from './invitations.ts'
 import { WorkspaceMark } from './WorkspaceMark.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 /**
  * `disabled`: an admin turned the workspace off; it shows greyed out and cannot be chosen. `iconUrl`: its icon
@@ -29,7 +31,7 @@ export function filterWorkspaces(all: Workspace[], currentId: string, query: str
 
 async function loadWorkspaces(): Promise<Workspace[]> {
   const res = await fetch('/v1/me/workspaces', { credentials: 'include' })
-  if (!res.ok) throw new Error('Could not load your workspaces')
+  if (!res.ok) throw new Error(i18n().t('shell.switcher.loadFailed'))
   return (await res.json()) as Workspace[]
 }
 
@@ -56,6 +58,7 @@ type Props = {
 
 /** The workspace section of the workspace menu: always the workspaces (at least the current one), then invitations. */
 export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsChanged, onError }: Props) {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const switcher = !!all && all.length >= 1
@@ -75,34 +78,34 @@ export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsCh
     setBusy(i.invitationId)
     declineInvitation(i.invitationId).then(() => {
       setBusy(null)
-      onError(`Declined the invitation to ${i.workspaceName}.`)
+      onError(t('shell.switcher.declined', { workspace: i.workspaceName }))
       onInvitationsChanged()
     }, fail)
   }
   const invitationList = invitations.length > 0 && (
     <>
-      <div className="me-ws-head">Invitations</div>
+      <div className="me-ws-head">{t('shell.switcher.invitations')}</div>
       {invitations.map(i => (
         <div key={i.invitationId} className="me-inv">
           <div className="me-inv-t">
             <span className="lbl" title={i.workspaceName}>{i.workspaceName}</span>
             <small>
-              {roleLabel(i.role)} · from {i.invitedBy}
+              {t('shell.switcher.invitedBy', { role: roleLabel(i.role), name: i.invitedBy })}
             </small>
           </div>
           <div className="me-inv-acts">
-            <Button busy={busy === i.invitationId} size="sm" variant="primary" role="menuitem" disabled={!!busy} onClick={join(i)} title={`Join ${i.workspaceName} as ${i.role} and switch to it`}>
-              {busy === i.invitationId ? 'Joining…' : 'Join'}
+            <Button busy={busy === i.invitationId} size="sm" variant="primary" role="menuitem" disabled={!!busy} onClick={join(i)} title={t('shell.switcher.joinTip', { workspace: i.workspaceName, role: roleLabel(i.role) })}>
+              {busy === i.invitationId ? t('shell.switcher.joining') : t('shell.switcher.join')}
             </Button>
-            <Button size="sm" variant="ghost" role="menuitem" disabled={!!busy} onClick={decline(i)} title={`Decline the invitation to ${i.workspaceName}`}>
-              Decline
+            <Button size="sm" variant="ghost" role="menuitem" disabled={!!busy} onClick={decline(i)} title={t('shell.switcher.declineTip', { workspace: i.workspaceName })}>
+              {t('shell.switcher.decline')}
             </Button>
           </div>
         </div>
       ))}
     </>
   )
-  if (!switcher) return <div className="me-ws" role="group" aria-label="Invitations">{invitationList}</div>
+  if (!switcher) return <div className="me-ws" role="group" aria-label={t('shell.switcher.invitations')}>{invitationList}</div>
   const many = all.length >= WORKSPACE_FILTER_FROM
   const shown = filterWorkspaces(all, currentId, query)
 
@@ -120,14 +123,14 @@ export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsCh
   }
 
   return (
-    <div className="me-ws" role="group" aria-label="Workspaces">
-      <div className="me-ws-head">Workspaces</div>
+    <div className="me-ws" role="group" aria-label={t('shell.switcher.workspaces')}>
+      <div className="me-ws-head">{t('shell.switcher.workspaces')}</div>
       {many && (
         <input
           className="me-ws-filter"
           type="search"
-          placeholder={`Find among ${all.length} workspaces…`}
-          aria-label="Find a workspace"
+          placeholder={t('shell.switcher.filter', { count: all.length })}
+          aria-label={t('shell.switcher.filterLabel')}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={onFilterKey}
@@ -135,15 +138,15 @@ export function WorkspaceSwitcher({ all, currentId, invitations, onInvitationsCh
       )}
       <div className={many ? 'me-ws-list is-scroll' : 'me-ws-list'}>
         {shown.map(w => (
-          <button key={w.id} type="button" role="menuitemradio" aria-checked={w.id === currentId} aria-disabled={w.disabled && w.id !== currentId ? true : undefined} className={w.disabled ? 'nav-item is-ws-disabled' : 'nav-item'} onClick={choose(w)} title={w.id === currentId ? 'Current workspace' : w.disabled ? `${w.name} was disabled by an admin` : `Switch to ${w.name}`}>
+          <button key={w.id} type="button" role="menuitemradio" aria-checked={w.id === currentId} aria-disabled={w.disabled && w.id !== currentId ? true : undefined} className={w.disabled ? 'nav-item is-ws-disabled' : 'nav-item'} onClick={choose(w)} title={w.id === currentId ? t('shell.switcher.current') : w.disabled ? t('shell.switcher.disabledTip', { workspace: w.name }) : t('shell.tabNotice.switchTo', { workspace: w.name })}>
             <WorkspaceMark name={w.name} iconUrl={w.iconUrl} size="sm" />
             <span className="lbl">{w.name}</span>
             {w.id === currentId && <Icon name="check" size={15} />}
-            {w.disabled && <span className="me-ws-busy">Disabled</span>}
-            {busy === w.id && <span className="me-ws-busy">Switching…</span>}
+            {w.disabled && <span className="me-ws-busy">{t('shell.switcher.disabled')}</span>}
+            {busy === w.id && <span className="me-ws-busy">{t('shell.switcher.switching')}</span>}
           </button>
         ))}
-        {shown.length === 0 && <div className="me-ws-none">No workspace matches “{query}”.</div>}
+        {shown.length === 0 && <div className="me-ws-none">{t('shell.switcher.noMatch', { query })}</div>}
       </div>
       {invitationList}
     </div>

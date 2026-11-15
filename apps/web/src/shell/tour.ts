@@ -3,6 +3,7 @@
 // sample): right after onboarding the go-live checklist comes first, and a tour of an empty inbox has
 // nothing to point at. ⌘K "Show the tour" starts it any time. Kept in this browser only: a convenience,
 // not a record.
+import { i18n } from '../i18n/index.tsx'
 
 export type TourPlacement = 'top' | 'bottom' | 'bottom-start' | 'bottom-end'
 
@@ -22,34 +23,35 @@ const CURSOR_ROW = '.ib-list .row.is-cursor'
 const FIRST_ROW = '.ib-list .row'
 
 export function tourSteps(assistant: string): TourStep[] {
+  const { t } = i18n()
   return [
     {
-      title: 'Your inbox',
-      text: `Every call ${assistant} answers lands here with a summary and the next step. J and K move.`,
+      title: t('shell.tour.inbox.title'),
+      text: t('shell.tour.inbox.text', { assistant, down: 'J', up: 'K' }),
       targets: [FIRST_ROW],
       placement: 'bottom',
     },
     {
-      title: 'Open a call',
-      text: 'Enter opens the call under the cursor: what it is about, the transcript, the recording. Esc goes back.',
+      title: t('shell.tour.call.title'),
+      text: t('shell.tour.call.text', { open: 'Enter', back: 'Esc' }),
       targets: [CURSOR_ROW, FIRST_ROW],
       placement: 'bottom',
     },
     {
-      title: 'Assign and finish',
-      text: 'A assigns a call to you, H reminds you later, E marks it done and moves on. Z undoes.',
+      title: t('shell.tour.finish.title'),
+      text: t('shell.tour.finish.text', { assign: 'A', remind: 'H', done: 'E', undo: 'Z' }),
       targets: [`${CURSOR_ROW} .r-acts`, CURSOR_ROW, FIRST_ROW],
       placement: 'bottom-end',
     },
     {
-      title: 'Settings',
-      text: `G then S opens Workspace settings: name, team, phone numbers. Your notifications are under your name, bottom left. G then A sets up ${assistant}, business hours included.`,
+      title: t('shell.tour.settings.title'),
+      text: t('shell.tour.settings.text', { assistant, g: 'G', s: 'S', a: 'A' }),
       targets: ['.menu-btn'],
       placement: 'bottom-start',
     },
     {
-      title: 'Everything else',
-      text: '⌘K finds any action, ? lists every shortcut. That is the tour.',
+      title: t('shell.tour.rest.title'),
+      text: t('shell.tour.rest.text', { commands: '⌘K', shortcuts: '?' }),
       targets: ['.ib-hint > span:nth-last-child(2)'], // "⌘K commands", next to "? all shortcuts"
       placement: 'top',
     },

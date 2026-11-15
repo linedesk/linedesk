@@ -9,6 +9,7 @@ import { useBrand } from '../brand.ts'
 import { pages, type PageRoute, type Route } from './pages.tsx'
 import { useFocusTrap } from '../ui/useFocusTrap.ts'
 import { WorkspaceMenu } from './WorkspaceMenu.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = {
   open: boolean
@@ -54,6 +55,7 @@ function NavItem({ label, icon, keys, current, sub, muted, badge, title, onClick
  * On very wide windows it is docked: always open beside the content. Two parts: the workspace button on top (one
  * menu: switch workspace, your account, sign out) and one list of pages, Workspace settings once at its end. */
 export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, avatarUrl, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
+  const t = useT()
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
   const sessionUser = auth.useSession().data?.user
@@ -67,33 +69,33 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
   const go = (run: () => void) => () => { if (!docked) onClose(); run() }
   const onCalls = route === 'calls'
   return (
-    <nav className="nav" aria-label="Main" ref={ref} inert={!open}>
+    <nav className="nav" aria-label={t('shell.nav.label')} ref={ref} inert={!open}>
       <div className="ws-top">
         <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast} avatarUrl={avatarUrl}
           onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAccount={go(() => on.onPage('account'))} onShortcuts={go(on.onHelp)} onSignOut={go(on.onSignOut)} />
-        {!docked && <Button size="sm" variant="ghost" icon="left" aria-label="Close menu" title="Close (esc)" onClick={onClose} />}
+        {!docked && <Button size="sm" variant="ghost" icon="left" aria-label={t('shell.nav.closeMenu')} title={t('common.action.closeWithKey', { key: 'esc' })} onClick={onClose} />}
       </div>
-      <NavItem label="Inbox" icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
+      <NavItem label={t('shell.nav.inbox')} icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
         badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
-      <NavItem sub label="Reminders" icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
+      <NavItem sub label={t('shell.nav.reminders')} icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
       {mineCount !== null && (
-        <NavItem sub label="Assigned to me" icon="user" keys={['G', 'M']} current={onCalls && tab === 'mine'} onClick={go(() => on.onInbox('mine'))}
+        <NavItem sub label={t('shell.nav.mine')} icon="user" keys={['G', 'M']} current={onCalls && tab === 'mine'} onClick={go(() => on.onInbox('mine'))}
           badge={mineCount ? <span className="nav-n">{mineCount}</span> : null} />
       )}
       {unassignedCount !== null && (
-        <NavItem sub label="Unassigned" icon="users" keys={['G', 'U']} current={onCalls && tab === 'unassigned'} onClick={go(() => on.onInbox('unassigned'))}
+        <NavItem sub label={t('shell.nav.unassigned')} icon="users" keys={['G', 'U']} current={onCalls && tab === 'unassigned'} onClick={go(() => on.onInbox('unassigned'))}
           badge={unassignedCount ? <span className="nav-n">{unassignedCount}</span> : null} />
       )}
-      <NavItem sub label="Done" icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
+      <NavItem sub label={t('shell.nav.done')} icon="check" keys={['G', 'E']} current={onCalls && tab === 'done'} onClick={go(() => on.onInbox('done'))} />
       <NavItem label={pages.assistant.title} icon="waveform" keys={['G', 'A']} current={route === 'assistant'} onClick={go(() => on.onPage('assistant'))}
-        badge={reviewCount ? <span className="nav-n" title="To look at in How the assistant did">{reviewCount}</span> : null} />
+        badge={reviewCount ? <span className="nav-n" title={t('shell.nav.reviewTip')}>{reviewCount}</span> : null} />
       <NavItem label={pages.contacts.title} icon="contact" keys={['G', 'C']} current={route === 'contacts'} onClick={go(() => on.onPage('contacts'))} />
       <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
       <hr className="nav-sep" />
       <NavItem label={pages.workspace.title} icon="gear" keys={['G', 'S']} current={route === 'workspace'} onClick={go(() => on.onPage('workspace'))} />
       {isInstanceAdmin && <NavItem muted label={pages.admin.title} icon="shield" keys={['G', 'D']}
-        title="Server admin: providers, users and settings for every workspace on this server" onClick={go(() => on.onPage('admin'))} />}
+        title={t('shell.nav.adminTip')} onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
         <StarLink />
       </div>
@@ -103,12 +105,13 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
 
 /** Star on GitHub with the count the server last read (none while unknown); gone when an admin turned the star prompt off. */
 function StarLink() {
+  const t = useT()
   const { starPrompt, starCount } = useBrand()
   if (!starPrompt) return null
-  const title = starCount === null ? `Open ${STAR_REPO} on GitHub` : `${starCount.toLocaleString('en-US')} ${starCount === 1 ? 'star' : 'stars'} on GitHub`
+  const title = starCount === null ? t('shell.star.open', { repo: STAR_REPO }) : t('shell.star.count', { count: starCount })
   return (
     <a className="nav-item" href={STAR_REPO_URL} target="_blank" rel="noreferrer" title={title}>
-      <Icon name="star" size={15} /><span className="lbl">Star on GitHub</span>
+      <Icon name="star" size={15} /><span className="lbl">{t('shell.star.button')}</span>
       {starCount !== null && <span className="nav-stars">{formatStarCount(starCount)}</span>}
     </a>
   )
@@ -116,6 +119,7 @@ function StarLink() {
 
 /** `badge`: something waits in the menu (an invitation). */
 export function MenuButton({ open, onOpen, badge = false }: { open: boolean; onOpen: () => void; badge?: boolean }) {
-  const button = <Button size="sm" variant="ghost" icon="menu" className="menu-btn" aria-label={badge ? 'Open menu, an invitation is waiting' : 'Open menu'} aria-expanded={open} title="Menu (M)" onClick={onOpen} />
+  const t = useT()
+  const button = <Button size="sm" variant="ghost" icon="menu" className="menu-btn" aria-label={badge ? t('shell.nav.openMenuInvitation') : t('shell.nav.openMenu')} aria-expanded={open} title={t('shell.nav.menuTip', { key: 'M' })} onClick={onOpen} />
   return badge ? <span className="me-avatar menu-btn-wrap">{button}<span className="me-dot" aria-hidden="true" /></span> : button
 }

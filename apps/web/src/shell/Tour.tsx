@@ -7,11 +7,13 @@ import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, use
 import { useAssistantName } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { dialogOpen, findTarget, onScreen, spotlightBox, type TourStep, tourKey, tourSteps } from './tour.ts'
+import { useT } from '@linedesk/i18n/react'
 
 const GAP = 12 // between the target and the card's arrow tip
 const EDGE = 12 // the card keeps this far from the window's edges
 
 export function Tour({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const assistant = useAssistantName()
   const steps = useMemo(() => tourSteps(assistant), [assistant])
   const [at, setAt] = useState(0)
@@ -35,14 +37,14 @@ export function Tour({ onClose }: { onClose: () => void }) {
         <p id={textId}>{step.text}</p>
         <div className="tour-foot">
           <span className="tour-count" aria-hidden="true">
-            {at + 1} of {steps.length}
+            {t('shell.tour.count', { step: at + 1, steps: steps.length })}
           </span>
-          <Button size="sm" variant="ghost" onClick={onClose} title="Close the tour (esc)">
-            {last ? 'Close' : 'Skip'}
+          <Button size="sm" variant="ghost" onClick={onClose} title={t('shell.tour.closeTip', { key: 'esc' })}>
+            {last ? t('common.action.close') : t('shell.tour.skip')}
           </Button>
           {at > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => setAt(at - 1)} title="Back (←)">
-              Back
+            <Button size="sm" variant="ghost" onClick={() => setAt(at - 1)} title={t('common.withKey', { label: t('shell.tour.back'), key: '←' })}>
+              {t('shell.tour.back')}
             </Button>
           )}
           <Button
@@ -51,14 +53,14 @@ export function Tour({ onClose }: { onClose: () => void }) {
             variant="primary"
             shortcut={['→']}
             onClick={() => (last ? onClose() : setAt(at + 1))}
-            title={last ? 'Done (→)' : 'Next (→)'}
+            title={t('common.withKey', { label: last ? t('shell.tour.done') : t('shell.tour.next'), key: '→' })}
           >
-            {last ? 'Done' : 'Next'}
+            {last ? t('shell.tour.done') : t('shell.tour.next')}
           </Button>
         </div>
       </TourCard>
       <div className="sr-only" aria-live="polite">
-        Step {at + 1} of {steps.length}: {step.title}
+        {t('shell.tour.stepOf', { step: at + 1, steps: steps.length, title: step.title })}
       </div>
     </>
   )

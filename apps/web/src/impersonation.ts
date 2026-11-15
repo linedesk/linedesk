@@ -5,6 +5,7 @@ import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './admin/PasskeyStep
 import { forgetLocalData } from './localData.ts'
 import { flushAllStores } from './storeCache.ts'
 import { brandName } from './brand.ts'
+import { i18n } from './i18n/index.tsx'
 
 type Person = { id: string; name: string; email: string }
 /** From `/v1/me`: who is signed in as this user, and until when. */
@@ -15,25 +16,24 @@ export const minutesLeft = (expiresAt: string, now: Date) =>
   Math.max(0, Math.ceil((Date.parse(expiresAt) - now.getTime()) / 60_000))
 
 export const remainingText = (minutes: number) =>
-  minutes <= 0 ? 'ending' : minutes === 1 ? '1 min left' : `${minutes} min left`
+  minutes <= 0 ? i18n().t('shell.impersonation.ending') : i18n().t('shell.impersonation.minutesLeft', { minutes })
 
 const nameOf = (p: Pick<Person, 'name' | 'email'>) => p.name || p.email
 
 /** The banner's parts: whose session this is and which admin is in it. */
 export const bannerText = (imp: Impersonation) => ({
-  who: `Signed in as ${nameOf(imp.user)}`,
+  who: i18n().t('shell.impersonation.who', { name: nameOf(imp.user) }),
   /** Only when the name is shown: someone without a name is already named by their email. */
   email: imp.user.name ? imp.user.email : null,
-  by: `by ${nameOf(imp.by)}`,
+  by: i18n().t('shell.impersonation.by', { name: nameOf(imp.by) }),
 })
 
 export const confirmText = (name: string) =>
-  `You will see ${brandName()} exactly as ${name} does. Everything you do is recorded as done by you on their behalf. Ends after 1 hour.`
+  i18n().t('admin.impersonation.confirm', { brand: brandName(), name })
 
 export class UnsentChanges extends Error {}
 
-const unsentText = (n: number) =>
-  `${n} ${n === 1 ? 'change has' : 'changes have'} not been sent yet. Reconnect, then try again.`
+const unsentText = (n: number) => i18n().t('shell.impersonation.unsent', { count: n })
 
 async function post(path: string, body: unknown = {}) {
   const res = await fetch(path, {

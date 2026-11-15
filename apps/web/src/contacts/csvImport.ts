@@ -5,6 +5,8 @@ import { CONTACT_IMPORT_LIMITS, type NationalPhoneProblem, nameInSentence, phone
 import type { Contact } from '@linedesk/db/types'
 import type { Table } from '../insights/spreadsheet.ts'
 import { formatNumber } from '../onboarding/flow.ts'
+import { intlLocale } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export const IMPORT_FIELDS = ['phone', 'name', 'company', 'email', 'address', 'note'] as const
 export type ImportField = (typeof IMPORT_FIELDS)[number]
@@ -40,16 +42,15 @@ export const MULTI_COLUMN_FIELDS: readonly (ImportField | 'skip')[] = ['phone', 
 const JOIN: Partial<Record<TextField, string>> = { name: ' ', address: ', ' }
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024
-const EXCEL_FILE =
-  'This is an Excel workbook, not a CSV file. In Excel, choose File › Save As and pick “CSV UTF-8”, then import that file.'
-const NOT_CSV = 'This file is not a CSV file. Export your contacts as CSV (comma or semicolon separated) and try again.'
+const excelFile = () => i18n().t('contacts.import.excel')
+const notCsv = () => i18n().t('contacts.import.notCsv')
 
 /** Why a file of this size is not read, or null. */
 export function fileSizeProblem(bytes: number): string | null {
-  if (bytes === 0) return 'The file is empty.'
+  if (bytes === 0) return i18n().t('contacts.import.empty')
   if (bytes <= MAX_FILE_BYTES) return null
-  const mb = (n: number) => `${Math.round((n / 1024 / 1024) * 10) / 10} MB`
-  return `The file is ${mb(bytes)}; files up to ${mb(MAX_FILE_BYTES)} can be imported. Split it into smaller files.`
+  const mb = (n: number) => Math.round((n / 1024 / 1024) * 10) / 10
+  return i18n().t('contacts.import.tooBig', { size: mb(bytes), max: mb(MAX_FILE_BYTES) })
 }
 
 const startsWith = (bytes: Uint8Array, magic: number[]) => magic.every((b, i) => bytes[i] === b)
@@ -71,11 +72,11 @@ export function decodeCsvFile(bytes: Uint8Array): { text: string } | { problem: 
   if (sizeProblem) return { problem: sizeProblem }
   // .xlsx is a zip file; .xls an OLE2 compound file.
   if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) || startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0]))
-    return { problem: EXCEL_FILE }
+    return { problem: excelFile() }
   const text = decode(bytes)
   // Control characters other than tab and line breaks only appear in binary files (images, PDFs, archives).
   // biome-ignore lint/suspicious/noControlCharactersInRegex: that is what it looks for
-  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text.slice(0, 8192))) return { problem: NOT_CSV }
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text.slice(0, 8192))) return { problem: notCsv() }
   return { text }
 }
 
@@ -142,11 +143,11 @@ export function tableOf(rows: string[][]): CsvTable | { problem: string } {
     .map((cells, index) => ({ cells, index }))
     .filter(r => hasText(r.cells))
     .slice(0, 10)
-  if (!candidates.length) return { problem: 'The file is empty.' }
+  if (!candidates.length) return { problem: i18n().t('contacts.import.empty') }
   const header = candidates.find(r => guessColumns(r.cells).includes('phone')) ?? candidates[0]!
   const data = rows.slice(header.index + 1)
   if (!data.some(hasText))
-    return { problem: 'The file has no rows under its column names. The first row names the columns.' }
+    return { problem: i18n().t('contacts.import.noRows') }
   return { header: header.cells.map(h => h.trim()), data, firstRow: header.index + 2 }
 }
 
@@ -311,36 +312,40 @@ export function planImport(
   return plan
 }
 
-const plural = (n: number, word: string) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
-
-const UNREADABLE: Record<UnreadablePhone, string> = {
-  missing: 'no number',
-  too_short: 'too short',
-  too_long: 'too long',
-  invalid: 'not a valid number',
+/** "the US", "the United Kingdom" in English; the country's name in the active language otherwise. */
+function countryInSentence(country: string): string {
+  if (intlLocale() === 'en') return country === 'US' ? 'the US' : nameInSentence(country)
+  try {
+    return new Intl.DisplayNames(intlLocale(), { type: 'region' }).of(country) ?? country
+  } catch {
+    return country
+  }
 }
-
-/** "outside the US", "outside the United Kingdom": where a number needs + and its country code. */
-const outside = (country: string) => (country === 'US' ? 'the US' : nameInSentence(country))
 
 /** What the preview says the import will do, in one line; `country`: the workspace country national numbers are read in. */
 export function planSummary(plan: ImportPlan, country = 'US'): string {
+  const { t } = i18n()
   const more = plan.unreadable.length - 3
-  const unreadable = plan.unreadable
-    .slice(0, 3)
-    .map(u => {
-      const text = u.text.length > 30 ? `${u.text.slice(0, 30)}…` : u.text
-      return `row ${u.row} (${text ? `${text}: ` : ''}${UNREADABLE[u.problem]})`
-    })
-    .join(', ')
+  const rows = plan.unreadable.slice(0, 3).map(u => {
+    const text = u.text.length > 30 ? `${u.text.slice(0, 30)}…` : u.text
+    const problem = t('contacts.import.unreadable', { problem: u.problem })
+    return text
+      ? t('contacts.import.rowWithText', { row: u.row, text, problem })
+      : t('contacts.import.row', { row: u.row, problem })
+  })
+  const unreadable = more > 0 ? t('contacts.import.andMore', { rows: rows.join(', '), count: more }) : rows.join(', ')
   return [
-    plural(plan.added, 'new contact'),
-    `${plan.matched.toLocaleString('en-US')} fill empty fields of existing contacts`,
-    plan.repeated && `${plural(plan.repeated, 'repeated number')} combined`,
-    plan.deleted && `${plural(plan.deleted, 'row')} of deleted contacts left out`,
-    plan.shortened && `${plural(plan.shortened, 'row')} with text too long for a contact, cut to fit`,
+    t('contacts.import.planAdded', { count: plan.added }),
+    t('contacts.import.planMatched', { count: plan.matched }),
+    plan.repeated && t('contacts.import.planRepeated', { count: plan.repeated }),
+    plan.deleted && t('contacts.import.planDeleted', { count: plan.deleted }),
+    plan.shortened && t('contacts.import.planShortened', { count: plan.shortened }),
     plan.unreadable.length &&
-      `${plural(plan.unreadable.length, 'row')} without a readable phone number left out: ${unreadable}${more > 0 ? ` and ${more.toLocaleString('en-US')} more` : ''}. Numbers outside ${outside(country)} need + and the country code.`,
+      t('contacts.import.planUnreadable', {
+        count: plan.unreadable.length,
+        rows: unreadable,
+        country: countryInSentence(country),
+      }),
   ]
     .filter(Boolean)
     .join(' · ')

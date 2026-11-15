@@ -1,15 +1,12 @@
+import { T, useT } from '@linedesk/i18n/react'
 import { providerAudience } from '../providerAudience.ts'
 import { Note } from '../ui/kit.tsx'
 
-/** What this install lacks, the provider group in Server admin › Providers that adds it, and the title. */
+/** What this install lacks and the provider group in Server admin › Providers that adds it (texts: settings.missingProvider.<kind>.*). */
 const KINDS = {
-  voice: { group: 'answering', title: 'No voice provider yet', what: 'a voice' },
-  calendar: { group: 'calendar', title: 'No calendar provider yet', what: 'a calendar app' },
-  answering: {
-    group: 'answering',
-    title: "Calls aren't answered yet",
-    what: 'a realtime model, or speech to text, a language model and a voice',
-  },
+  voice: { group: 'answering' },
+  calendar: { group: 'calendar' },
+  answering: { group: 'answering' },
 } as const
 
 export type MissingProviderKind = keyof typeof KINDS
@@ -19,19 +16,24 @@ export type MissingProviderKind = keyof typeof KINDS
  * its title. Server admins get the place to add it as a link; everyone else is told to ask (providerAudience.ts).
  */
 export function MissingProviderNote({ kind }: { kind: MissingProviderKind }) {
-  const { group, title, what } = KINDS[kind]
+  const t = useT()
+  const { group } = KINDS[kind]
+  // i18n-dynamic: settings.missingProvider.*
   return (
-    <Note tone="warning" title={title}>
+    <Note tone="warning" title={t(`settings.missingProvider.${kind}.title`)}>
       {providerAudience() === 'admin' ? (
-        <>
-          Add {what} under{' '}
-          <a className="k-link" href={`#admin/providers/${group}`}>
-            Server admin › Providers
-          </a>
-          .
-        </>
+        <T
+          k={`settings.missingProvider.${kind}.add`}
+          values={{
+            link: chunks => (
+              <a className="k-link" href={`#admin/providers/${group}`}>
+                {chunks}
+              </a>
+            ),
+          }}
+        />
       ) : (
-        'Ask your server admin.'
+        t('settings.missingProvider.ask')
       )}
     </Note>
   )

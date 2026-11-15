@@ -16,6 +16,8 @@ import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { forgetMember, ownerJoined } from './memberships.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
+import { getT } from '@linedesk/i18n/server'
+import { invitationLocale } from './email-locale.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
@@ -59,7 +61,7 @@ export async function pendingInvitationTo(tx: Tx, workspaceId: string, email: st
 
 /**
  * The email names the member who sent the invitation (`inviterId`), also when someone else resends it. `addedAs`:
- * an instance admin added the address (Server admin › Users › Add user), so the email says so and names the role.
+ * a server admin added the address (Server admin › Users › Add user), so the email says so and names the role.
  */
 export async function sendInvitation(
   tx: Tx,
@@ -72,14 +74,19 @@ export async function sendInvitation(
   if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, invite.organizationId))
   const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, invite.inviterId))
+  // The workspace's language when the web app has it, else the inviter's (email-locale.ts).
+  const locale = await invitationLocale(tx, invite.organizationId, invite.inviterId)
+  const { t } = getT(locale)
   const content = {
-    inviter: emailSafeName(inviter?.name, addedAs ? 'An administrator' : 'A teammate'),
-    workspace: emailSafeName(ws?.name, 'your team'),
+    inviter: emailSafeName(inviter?.name, addedAs ? t('email.fallback.serverAdmin') : t('email.fallback.teammate')),
+    workspace: emailSafeName(ws?.name, t('email.fallback.team')),
     email: invite.email,
     url: invitationLink(invite.id),
     days: INVITATION_DAYS,
   }
-  const email = addedAs ? addedToWorkspaceEmail({ ...content, role: addedAs }) : invitationEmail(content)
+  const email = addedAs
+    ? addedToWorkspaceEmail({ ...content, role: addedAs }, undefined, locale)
+    : invitationEmail(content, undefined, locale)
   try {
     await emailSender.send({ to: invite.email, ...email })
   } catch (err) {

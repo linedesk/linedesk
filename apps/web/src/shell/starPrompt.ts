@@ -3,6 +3,7 @@
 // One click stars the repository for members who signed in with GitHub: GitHub asks them to allow
 // starring (STAR_SCOPE), the server stars on the way back and gives the permission up again.
 import type { StarPrompt } from '@linedesk/actions'
+import { i18n } from '../i18n/index.tsx'
 
 /** How long into a session the card shows. */
 export const STAR_DELAY_MS = 120_000
@@ -13,8 +14,8 @@ export const STAR_COUNT_SHOWN_FROM = 100
 /** The card's line: with the count once it is worth naming. */
 export const starPitch = (product: string, stars: number | null, format: (n: number) => string) =>
   stars !== null && stars >= STAR_COUNT_SHOWN_FROM
-    ? `${product} is open source. Join ${format(stars)} others who starred it on GitHub.`
-    : `${product} is open source. A star on GitHub helps others find it.`
+    ? i18n().t('shell.star.pitchCount', { product, stars: format(stars) })
+    : i18n().t('shell.star.pitch', { product })
 
 const SHOWN_KEY = 'linedesk.starPrompt.shown'
 const STARTED_KEY = 'linedesk.starPrompt.sessionStart'

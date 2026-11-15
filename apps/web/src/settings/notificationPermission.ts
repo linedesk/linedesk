@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { pushSupport } from '../push.ts'
 import { browserNotificationsSupported } from '../shell/useCallNotifications.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export type NotificationPermissionState = 'granted' | 'default' | 'denied' | 'unsupported' | 'ios-needs-install'
 
@@ -14,17 +15,18 @@ const read = (): NotificationPermissionState => {
 
 /** What the permission means here, or why it cannot be given. */
 export function permissionText(state: NotificationPermissionState): string {
+  const { t } = i18n()
   switch (state) {
     case 'granted':
-      return 'This browser may show notifications.'
+      return t('account.notify.permission.granted')
     case 'default':
-      return 'Your browser asks once when you turn notifications on.'
+      return t('account.notify.permission.default')
     case 'denied':
-      return 'Blocked by the browser. Allow notifications for this site in the browser’s site settings, then reload the page.'
+      return t('account.notify.permission.denied')
     case 'unsupported':
-      return 'This browser cannot show notifications.'
+      return t('account.notify.permission.unsupported')
     case 'ios-needs-install':
-      return `On iPhone and iPad, add ${brandName()} to your Home Screen first (Share, Add to Home Screen), then open it from there.`
+      return t('account.notify.iosInstall', { brand: brandName() })
   }
 }
 

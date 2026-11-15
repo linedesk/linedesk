@@ -7,6 +7,7 @@ import { auth } from '../auth.ts'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { expectSessionChange } from '../session.ts'
 import { announceSwitch, workspaceHeaders } from '../tabWorkspace.ts'
+import { i18n } from '../i18n/index.tsx'
 
 async function runAction<T>(name: string, input: object): Promise<T> {
   const res = await fetch(`/v1/actions/${name}`, {
@@ -16,7 +17,7 @@ async function runAction<T>(name: string, input: object): Promise<T> {
     body: JSON.stringify(input),
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: T } | null
-  if (!res.ok || !body?.ok) throw new Error(body?.error ?? 'That did not work. Try again.')
+  if (!res.ok || !body?.ok) throw new Error(body?.error ?? i18n().t('errors.generic'))
   return body.data as T
 }
 
@@ -26,7 +27,7 @@ async function runAction<T>(name: string, input: object): Promise<T> {
  */
 export async function switchToWorkspace(id: string, hash: string | null = '#calls') {
   const r = await auth.organization.setActive({ organizationId: id })
-  if (r.error) throw new Error(r.error.message ?? 'Could not switch the workspace')
+  if (r.error) throw new Error(r.error.message ?? i18n().t('shell.switcher.switchFailed'))
   announceSwitch(id)
   expectSessionChange() // the reload opens the new workspace, not the one this device remembers
   if (hash) window.location.hash = hash
@@ -75,10 +76,18 @@ export function unannounced(list: MyInvitation[]): MyInvitation[] {
   return fresh
 }
 
-export const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
+/** "Owner", "Admin", "Member" in the active language; another role as it is, capitalized. */
+export function roleLabel(role: string): string {
+  const { t } = i18n()
+  if (role === 'owner') return t('team.role.owner')
+  if (role === 'admin') return t('team.role.admin')
+  if (role === 'member') return t('team.role.member')
+  return role.charAt(0).toUpperCase() + role.slice(1)
+}
 
 /** The toast for new invitations: one names the workspace, several are counted. */
 export function invitationNotice(fresh: MyInvitation[]): string {
-  if (fresh.length === 1) return `${fresh[0]!.invitedBy} invited you to ${fresh[0]!.workspaceName}. Join from the workspace menu at the top of the navigation.`
-  return `You have ${fresh.length} invitations to other workspaces. Join from the workspace menu at the top of the navigation.`
+  if (fresh.length === 1)
+    return i18n().t('shell.invitation.one', { name: fresh[0]!.invitedBy, workspace: fresh[0]!.workspaceName })
+  return i18n().t('shell.invitation.many', { count: fresh.length })
 }

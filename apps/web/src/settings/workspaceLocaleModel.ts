@@ -11,6 +11,7 @@ import {
   type WorkspaceCountrySource,
   workspaceLanguageName,
 } from '@linedesk/actions'
+import { type ActiveLocale, languageLabel } from '@linedesk/i18n'
 import { phoneCountryOptions, searchPhoneCountries } from '../ui/phoneInputModel.ts'
 import { type SearchOption, searchOptions } from '../ui/SearchSelect.tsx'
 
@@ -52,25 +53,28 @@ export function searchCountries(options: readonly SearchOption[], query: string)
 export const countryLanguage = (country: string): string => COUNTRY_LANGUAGES[country] ?? 'en'
 
 /**
- * "Automatic (German, from your country)"; for a country whose language calls cannot be answered in yet, what they
- * are answered in instead: "Automatic (Korean summaries; calls in English)".
+ * "Automatic (Deutsch · German, from your country)"; for a country whose language calls cannot be answered in yet,
+ * what they are answered in instead: "Automatic (Korean summaries; calls in English)". `ui`: the UI language.
  */
-export function automaticLanguageOption(country: string): SearchOption {
+export function automaticLanguageOption(country: string, ui: ActiveLocale): SearchOption {
   const language = countryLanguage(country)
   return {
     value: AUTOMATIC,
     label: isVoiceLanguage(language)
-      ? automaticLanguageLabel(language)
+      ? automaticLanguageLabel(language, languageLabel(language, ui))
       : `Automatic (${workspaceLanguageName(language)} summaries; calls in English)`,
   }
 }
 
-/** "Automatic", then every language calls can be answered in, A–Z. */
-export function languageOptions(country: string): SearchOption[] {
+/**
+ * "Automatic", then every language calls can be answered in (A–Z by English name), each in its own name and in the UI
+ * language `ui` ("Español · Spanish").
+ */
+export function languageOptions(country: string, ui: ActiveLocale): SearchOption[] {
   return [
-    automaticLanguageOption(country),
+    automaticLanguageOption(country, ui),
     ...[...languageCodes]
       .sort((a, b) => LANGUAGES[a].localeCompare(LANGUAGES[b], 'en'))
-      .map(code => ({ value: code, label: LANGUAGES[code], meta: code })),
+      .map(code => ({ value: code, label: languageLabel(code, ui), meta: code })),
   ]
 }

@@ -3,7 +3,6 @@
 // the server checks again. Refused because the session's passkey check ran out meanwhile (403 `admin_second_factor`):
 // the dialog offers the passkey prompt (Server admin opens on it) instead of an error line.
 import { useState } from 'react'
-import { SECOND_FACTOR_BUTTON } from '../admin/SecondFactorPrompt.tsx'
 import { type AdminSecondFactor, createWorkspace } from '../auth.ts'
 import { secondFactorDue } from '../CreateWorkspace.tsx'
 import { type CreatingPhase, CreatingStatus } from '../CreatingStatus.tsx'
@@ -15,8 +14,11 @@ const openPasskeyCheck = () => {
   window.location.hash = '#admin'
 }
 
+import { useT } from '@linedesk/i18n/react'
+
 /** `returnTo`: the page the app opens on in the new workspace (its onboarding when left out; the setup page passes its own). */
 export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => void; returnTo?: string }) {
+  const t = useT()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<CreatingPhase>('idle')
@@ -25,7 +27,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
 
   async function create() {
     if (busy) return
-    if (!name.trim()) return setError('Give the business a name.')
+    if (!name.trim()) return setError(t('shell.newWorkspace.nameMissing'))
     setPhase('creating')
     setError(null)
     try {
@@ -45,8 +47,8 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
 
   return (
     <Dialog
-      title="New workspace"
-      description="The assistant says this name on calls."
+      title={t('shell.newWorkspace.title')}
+      description={t('shell.newWorkspace.description')}
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={e => {
@@ -57,15 +59,20 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.action.cancel')}
           </Button>
           {passkeyFirst ? (
-            <Button type="submit" variant="primary" shortcut={['⏎']} title="Open Server admin's passkey check">
-              {SECOND_FACTOR_BUTTON[passkeyFirst]}
+            <Button type="submit" variant="primary" shortcut={['⏎']} title={t('shell.newWorkspace.passkey.openCheck')}>
+              {/* i18n-dynamic: shell.newWorkspace.passkey.button.* */}
+              {t(`shell.newWorkspace.passkey.button.${passkeyFirst}`)}
             </Button>
           ) : (
             <Button type="submit" variant="primary" busy={busy} shortcut={['⏎']}>
-              {phase === 'opening' ? 'Opening…' : busy ? 'Creating…' : 'Create workspace'}
+              {phase === 'opening'
+                ? t('shell.newWorkspace.opening')
+                : busy
+                  ? t('shell.newWorkspace.creating')
+                  : t('shell.newWorkspace.create')}
             </Button>
           )}
         </>
@@ -73,19 +80,18 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
     >
       {passkeyFirst && (
         <Note tone="info">
-          {passkeyFirst === 'email'
-            ? "Creating a workspace needs Server admin's passkey check, and adding a passkey needs a confirmed email address. Confirm your email first, then create it again."
-            : `Creating a workspace needs Server admin's passkey check. ${SECOND_FACTOR_BUTTON[passkeyFirst]}, then create it again.`}
+          {/* i18n-dynamic: shell.newWorkspace.passkey.note.* */}
+          {t(`shell.newWorkspace.passkey.note.${passkeyFirst}`)}
         </Note>
       )}
-      <FormField id="new-ws-name" label="Business name" error={error}>
+      <FormField id="new-ws-name" label={t('shell.newWorkspace.name')} error={error}>
         <Input
           id="new-ws-name"
           value={name}
           invalid={!!error}
           autoComplete="organization"
           disabled={busy}
-          placeholder="Riverside Electric"
+          placeholder={t('shell.newWorkspace.namePlaceholder')}
           onChange={e => {
             setName(e.target.value)
             setError(null)

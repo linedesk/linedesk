@@ -50,7 +50,8 @@ function unwrap<T>(result: Result<T>, fallback: string): T {
 }
 
 export type Account = {
-  user: { name: string; email: string; emailVerified: boolean }
+  /** `locale`: the UI language chosen (null: Automatic; absent in what an older version remembered). */
+  user: { name: string; email: string; emailVerified: boolean; locale?: string | null }
   accounts: LinkedAccount[]
   methods: AuthMethods
   /** The profile picture (Account settings › Profile), null without one (absent in what an older version remembered). */
@@ -74,7 +75,12 @@ export async function loadAccount(): Promise<Account> {
   ])
   const current = unwrap(session, 'You are signed out.')
   return {
-    user: { name: current.user.name, email: current.user.email, emailVerified: current.user.emailVerified },
+    user: {
+      name: current.user.name,
+      email: current.user.email,
+      emailVerified: current.user.emailVerified,
+      locale: current.user.locale ?? null,
+    },
     accounts: unwrap(accounts, 'Could not load your sign-in methods.'),
     methods,
     avatarUrl: me?.avatarUrl ?? null,

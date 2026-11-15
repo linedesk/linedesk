@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 import { type AdminSecondFactor, fetchMe, passkeySupported } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { readEnrolmentCode } from '../enrolment-code.ts'
-import { PASSKEY_NOT_VERIFIED } from '../sign-in-code.ts'
+import { passkeyNotVerifiedText } from '../sign-in-code.ts'
 import { runAdminOnce } from './api.ts'
 import { signInAgain } from '../localData.ts'
 import { Login } from '../Login.tsx'
@@ -117,7 +117,7 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
       await reload()
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      setError(message === PASSKEY_NOT_VERIFIED ? PASSKEY_NOT_VERIFIED_FOR_ADMIN : message)
+      setError(message === passkeyNotVerifiedText() ? PASSKEY_NOT_VERIFIED_FOR_ADMIN : message)
       setBusy(null)
     }
   }

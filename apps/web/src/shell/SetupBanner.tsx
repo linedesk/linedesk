@@ -4,10 +4,12 @@
 import { useAssistantName, useRows } from '../store.tsx'
 import { Icon } from '../ui/kit.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 const PHONE_SETUP_HASH = '#workspace/phone'
 
 export function SetupBanner({ canEdit }: { canEdit: boolean }) {
+  const t = useT()
   const hasNumber = useRows('phone_numbers').length > 0
   const name = useAssistantName()
   // A fresh browser has no rows until the first sync: only a synced empty list means no number.
@@ -17,14 +19,14 @@ export function SetupBanner({ canEdit }: { canEdit: boolean }) {
     <div className="setup-bar" role="status">
       <Icon name="phone-off" size={15} />
       <span>
-        <b>{name} has no phone number yet</b>
+        <b>{t('shell.setupBanner.noNumber', { assistant: name })}</b>
         {' · '}
         {canEdit ? (
-          <a href={PHONE_SETUP_HASH} title="Workspace settings › Phone numbers">
-            Connect your number
+          <a href={PHONE_SETUP_HASH} title={t('shell.setupBanner.connectTip')}>
+            {t('shell.setupBanner.connect')}
           </a>
         ) : (
-          'An owner or admin needs to connect one'
+          t('shell.setupBanner.askAdmin')
         )}
       </span>
     </div>

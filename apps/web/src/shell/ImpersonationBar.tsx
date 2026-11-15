@@ -12,6 +12,7 @@ import {
 } from '../impersonation.ts'
 import { Button } from '../ui/kit.tsx'
 import { useNow } from './useNow.ts'
+import { useT } from '@linedesk/i18n/react'
 
 export function ImpersonationFrame({
   impersonation,
@@ -30,6 +31,7 @@ export function ImpersonationFrame({
 }
 
 function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
+  const t = useT()
   const now = useNow(15_000)
   const left = minutesLeft(impersonation.expiresAt, now)
   const [busy, setBusy] = useState(false)
@@ -53,13 +55,13 @@ function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
     } catch (err) {
       const unsent = err instanceof UnsentChanges
       setDiscardUnsent(unsent)
-      setWarning(unsent ? err.message : `Could not return: ${err instanceof Error ? err.message : err}`)
+      setWarning(unsent ? err.message : t('shell.impersonation.returnFailed', { reason: err instanceof Error ? err.message : String(err) }))
       setBusy(false)
     }
   }
 
   return (
-    <div className="imp-bar" role="region" aria-label="Signed in as another user">
+    <div className="imp-bar" role="region" aria-label={t('shell.impersonation.region')}>
       <span className="imp-text">
         <b>{text.who}</b>
         {text.email && <span className="imp-wide"> ({text.email})</span>}
@@ -75,10 +77,10 @@ function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
         size="sm"
         className="imp-back"
         disabled={busy}
-        title={`Return to admin: end this session and sign back in as ${impersonation.by.name || impersonation.by.email}`}
+        title={t('shell.impersonation.returnTip', { name: impersonation.by.name || impersonation.by.email })}
         onClick={() => void back()}
       >
-        Return to admin
+        {t('shell.impersonation.return')}
       </Button>
     </div>
   )

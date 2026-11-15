@@ -18,7 +18,7 @@ describe('fetchAuthMethods', () => {
   it('gives up after the given number of attempts', async () => {
     const fetch = vi.fn().mockImplementation(down)
     vi.stubGlobal('fetch', fetch)
-    await expect(fetchAuthMethods({ retryMs: [0], attempts: 3 })).rejects.toThrow(/Could not reach the server/)
+    await expect(fetchAuthMethods({ retryMs: [0], attempts: 3 })).rejects.toThrow(/Can't reach the server/)
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 })

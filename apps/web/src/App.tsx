@@ -20,7 +20,7 @@ import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { switchToWorkspace } from './shell/invitations.ts'
 import { linkNotice, linkWorkspace, linkWorkspaceTarget, withoutLinkWorkspace } from './shell/useRoute.ts'
 import { TabWorkspaceGuard } from './shell/TabWorkspaceNotice.tsx'
-import { DISABLED_WORKSPACE, StoreProvider } from './store.tsx'
+import { disabledWorkspaceText, StoreProvider } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
@@ -28,13 +28,16 @@ import { AddPasskeyPage } from './AddPasskey.tsx'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
 import { brandName } from './brand.ts'
+import { useMemberLocale } from './i18n/user.ts'
+import { useT } from '@linedesk/i18n/react'
 
 /** Shown when the server is unreachable and this device has nothing to open offline. It retries on its own. */
 function Unreachable() {
+  const t = useT()
   return (
     <div className="boot" role="status">
-      <b>Can't reach {brandName()}</b>
-      <span>Trying again… This page continues on its own once the connection is back.</span>
+      <b>{t('shell.unreachable.title', { brand: brandName() })}</b>
+      <span>{t('shell.unreachable.text')}</span>
     </div>
   )
 }
@@ -226,6 +229,10 @@ export function App() {
     }
   }, [waiting, showAnswer])
 
+  // The member's language (Account › Preferences); everything below re-renders when the active one changes.
+  useMemberLocale(session.state === 'ready' || session.state === 'needsWorkspace' ? session.me : null)
+  const t = useT()
+
   if (inviteId) {
     const leaveInvite = () => {
       clearInviteId()
@@ -242,7 +249,7 @@ export function App() {
     }
     return <AddPasskeyPage account={sessionMe!.actorId} onAdded={refresh} onDone={done} />
   }
-  if (session.state === 'loading') return <BootScreen line={`Opening ${brandName()}…`} />
+  if (session.state === 'loading') return <BootScreen line={t('shell.boot.opening', { name: brandName() })} />
   if (session.state === 'unreachable') return <Unreachable />
   if (session.state === 'signedOut') {
     // Signed out while the app was open: its sync had stopped for good, so the page loads fresh after signing in
@@ -253,7 +260,7 @@ export function App() {
     }
     return <Login onDone={signedOutHere.current ? reload : refresh} />
   }
-  if (target) return <BootScreen line={`Opening ${target.kind === 'switch' ? target.workspace.name : brandName()}…`} />
+  if (target) return <BootScreen line={t('shell.boot.opening', { name: target.kind === 'switch' ? target.workspace.name : brandName() })} />
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>
@@ -290,7 +297,8 @@ export function App() {
     const leave = () => {
       if (isAgentSetupHash(window.location.hash)) window.location.hash = ''
     }
-    // Back from the passkey check goes on by hand (naming the business needs no passkey), not back to this page.
+    // Back from the passkey check goes on by hand, not back to this page; naming the business also waits for the
+    // passkey check.
     if (session.me.adminSecondFactor)
       return (
         <SecondFactorPrompt
@@ -327,7 +335,7 @@ export function App() {
       <StoreProvider
         workspaceId={session.me.workspace!.id}
         account={session.me.actorId}
-        readOnly={session.me.workspace?.disabled ? DISABLED_WORKSPACE : undefined}
+        readOnly={session.me.workspace?.disabled ? disabledWorkspaceText() : undefined}
       >
         <TabWorkspaceGuard me={session.me}>
           {/* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */}

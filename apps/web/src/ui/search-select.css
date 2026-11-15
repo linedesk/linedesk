@@ -2,6 +2,8 @@
 .k-ssel {
   display: block;
   width: 100%;
+  /* In a grid (a field's loading wrapper) a long label ends in an ellipsis instead of widening the page at 390 px. */
+  min-width: 0;
 }
 .k-ssel .k-select-btn > span.k-ssel-label {
   flex: 1;

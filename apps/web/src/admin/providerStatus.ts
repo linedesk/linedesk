@@ -27,6 +27,7 @@ import { useQuery } from '../cachedQuery.ts'
 import { ADMIN_HEALTH, type AdminData, type AdminHealth, loadHealth, type ProviderStatus, testProvider } from './api.ts'
 import { isConfigured } from './model.ts'
 import { errorText } from './notify.ts'
+import { fmt } from '../i18n/format.ts'
 
 /** Changes whenever the keys in effect change: a test of other keys no longer counts. */
 export const keysSignature = (p: ProviderStatus) => JSON.stringify(p.fields.map(f => [f.source, f.last4, f.value]))
@@ -174,7 +175,7 @@ export function testedAgo(at: string | null, now = Date.now()): string | null {
   if (minutes < 60) return `tested ${minutes} min ago`
   const hours = Math.round(minutes / 60)
   if (hours < 24) return `tested ${hours} h ago`
-  return `tested ${new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  return `tested ${fmt().dateTime(new Date(at), { month: 'short', day: 'numeric' })}`
 }
 
 /**

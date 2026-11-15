@@ -29,7 +29,44 @@ jobs:
           [ "$HEAD_REF" = master-dev ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] ||
             { echo "master-prod only takes merges of master-dev, not $HEAD_REPO:$HEAD_REF"; exit 1; }
 
-  # Fast checks only: typecheck and lint (~10 s). The test suite runs only locally, when wanted (docs/ci.md).
+  # The release translation pass (docs/translations.md) is required: a release pull request (base master-prod) turns
+  # red while any string is untranslated in a language or was translated from older English. The failing keys are
+  # listed in the log and in the run's summary; `pnpm i18n:changed` lists what the pass has to cover.
+  release-translations:
+    if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Every string translated and current
+        run: |
+          set +e
+          pnpm i18n:check --complete > i18n-check.log 2>&1
+          status=$?
+          cat i18n-check.log
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "## Translations missing or stale"
+              echo
+              echo "Run the release translation pass (docs/translations.md), then push to master-dev."
+              echo
+              echo '```'
+              grep '^error:' i18n-check.log | head -300
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+  # Fast checks only: typecheck, lint, the language check, the scrub tests and the release receiver's tests (~20 s). The
+  # test suite runs only locally, when wanted (docs/ci.md).
   check:
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
@@ -45,6 +82,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      # Languages (docs/translations.md): catalogs valid, every key used and defined, no new hardcoded English in the
+      # web app. Missing translations are fine here (English shows instead); releases check them (release-translations).
+      - run: pnpm i18n:check
       # What error reports and log lines may send to Sentry (packages/scrub; about 2 s, no database needed).
       - run: pnpm --filter @linedesk/scrub test
       # The production deploy receiver's checks (about 1 s, docs/ci.md).

@@ -4,6 +4,7 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { useState } from 'react'
 import { useBrand } from '../brand.ts'
 import { filledIcons, icons, type IconName } from './icons.ts'
+import { T } from '@linedesk/i18n/react'
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ')
 
@@ -244,7 +245,7 @@ export function PoweredBy({ brand }: { brand: Pick<Branding, 'name' | 'logoUrl' 
     <a className="powered-by" href={poweredByUrl('sign-in')} target="_blank" rel="noopener noreferrer">
       <LogoMark size={14} />
       <span>
-        Powered by <b>{DEFAULT_PRODUCT_NAME}</b>
+        <T k="common.poweredBy" values={{ brand: DEFAULT_PRODUCT_NAME, b: chunks => <b>{chunks}</b> }} />
       </span>
     </a>
   )

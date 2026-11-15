@@ -1,0 +1,1117 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`in the recipient language > en: every email's subject and text 1`] = `
+[
+  [
+    "call-summary",
+    "Urgent: Water heater leaking in the basement · Sarah Chen",
+    "URGENT · Maya answered · Tue 8:42 AM · 4 min
+
+Water heater leaking in the basement
+
+Caller: Sarah Chen
+Number: +1 503 555 0142
+
+Sarah noticed water pooling under the water heater this morning. It is a 12-year-old 50 gallon gas tank. She turned off the cold-water supply but the floor is still wet and she is worried about the drywall.
+
+Next steps
+- Confirm the technician can bring a replacement tank
+- Text Sarah the arrival window
+
+Booked
+What: Emergency repair
+When: Tuesday, November 10 at 1:00 PM PST
+
+Open the call:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+The recording and the transcript are in Linedesk.
+
+--
+
+You get one email per call to Brightwater Plumbing & Heating. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "call-summary-plain",
+    "Quote for a bathroom remodel · +1 503 555 0177",
+    "Maya answered · Tue 8:42 AM · 4 min
+
+Quote for a bathroom remodel
+
+Caller: Unknown caller
+Number: +1 503 555 0177
+
+Wants a quote for replacing the tub with a walk-in shower. Flexible on timing, prefers mornings.
+
+Next steps
+- Call back with a site-visit time
+
+Open the call:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+The recording and the transcript are in Linedesk.
+
+--
+
+You get one email per call to Brightwater Plumbing & Heating. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day0",
+    "Maya is almost ready to answer for Brightwater Plumbing & Heating",
+    "One step left
+
+Maya is set up for Brightwater Plumbing & Heating. One thing is left before callers reach Maya:
+
+If you haven't yet, forward the calls you don't pick up on your business line to +1 503 555 0142. The steps for your phone company are in Linedesk.
+
+Finish setup:
+https://desk.example.com/#workspace/phone/pn_preview?ws=ws_demo
+
+--
+
+You get a few emails while Brightwater Plumbing & Heating gets set up. They stop once Maya answers real calls. Turn off setup emails: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day1",
+    "Maya hasn't answered a real call yet",
+    "No calls yet
+
+No real calls have reached Maya yet. The one thing left:
+
+If you haven't yet, forward the calls you don't pick up on your business line to +1 503 555 0142. The steps for your phone company are in Linedesk.
+
+Finish setup:
+https://desk.example.com/#workspace/phone/pn_preview?ws=ws_demo
+
+--
+
+You get a few emails while Brightwater Plumbing & Heating gets set up. They stop once Maya answers real calls. Turn off setup emails: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day1-no-number",
+    "Maya hasn't answered a real call yet",
+    "No calls yet
+
+No real calls have reached Maya yet. The one thing left:
+
+Pick a phone number for Maya. It takes a minute in Linedesk.
+
+Finish setup:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You get a few emails while Brightwater Plumbing & Heating gets set up. They stop once Maya answers real calls. Turn off setup emails: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day3",
+    "Still one step before Maya answers your calls",
+    "One step left
+
+No real calls have reached Maya yet. The one thing left:
+
+If you haven't yet, forward the calls you don't pick up on your business line to +1 503 555 0142. The steps for your phone company are in Linedesk.
+
+Finish setup:
+https://desk.example.com/#workspace/phone/pn_preview?ws=ws_demo
+
+Rather have someone do it for you? A partner can set up Linedesk for Brightwater Plumbing & Heating, phone settings included.
+
+Find a partner:
+https://linedesk.ai/partners
+
+--
+
+You get a few emails while Brightwater Plumbing & Heating gets set up. They stop once Maya answers real calls. Turn off setup emails: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day3-test",
+    "Still one step before Maya answers your calls",
+    "One step left
+
+No real calls have reached Maya yet. The one thing left:
+
+Call your business number from a phone that isn't one of yours (a friend's) and let it ring. When you don't pick up, Maya does.
+
+Open your inbox:
+https://desk.example.com/#calls?ws=ws_demo
+
+Rather have someone do it for you? A partner can set up Linedesk for Brightwater Plumbing & Heating, phone settings included.
+
+Find a partner:
+https://linedesk.ai/partners
+
+--
+
+You get a few emails while Brightwater Plumbing & Heating gets set up. They stop once Maya answers real calls. Turn off setup emails: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "first-call",
+    "Your first real call · Dana Whitaker",
+    "Maya answered · Tue 8:42 AM · 4 min
+
+Your first call
+
+The first real call to Brightwater Plumbing & Heating just came in: Dripping shower valve.
+
+Caller: Dana Whitaker
+Number: +1 503 555 0154
+
+Dana has a shower valve that keeps dripping after it is turned off. Wants a callback after 4 pm to set up a visit.
+
+Next steps
+- Call Dana back after 4 pm
+
+Open the call:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+The recording and the transcript are in Linedesk.
+
+--
+
+From now on you get one email per call to Brightwater Plumbing & Heating. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "week-summary",
+    "Maya's first week at Brightwater Plumbing & Heating",
+    "Your first week
+
+In its first week, Maya answered 9 calls for Brightwater Plumbing & Heating.
+
+Calls answered: 9
+Urgent: 2
+Appointments booked: 3
+Messages taken: 4
+
+Open the inbox:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+You get this once, a week after Brightwater Plumbing & Heating got its owner. Turn off setup emails: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "sign-in-code",
+    "482913 is your Linedesk sign-in code",
+    "Your sign-in code
+
+Enter this code on the Linedesk sign-in page at desk.example.com.
+
+    482913
+
+It works once and expires in 10 minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.
+
+--
+
+You got this email because someone asked to sign in to desk.example.com with this address. If it wasn't you, you can ignore it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "password-reset-code",
+    "815302 is your Linedesk password reset code",
+    "Reset your password
+
+Enter this code on the Linedesk sign-in page at desk.example.com, then choose a new password.
+
+    815302
+
+It works once and expires in 10 minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.
+
+--
+
+You got this email because someone asked to reset the password for this address on desk.example.com. If it wasn't you, you can ignore it: your password stays the same.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "confirmation-code",
+    "730514 is your Linedesk confirmation code",
+    "Your confirmation code
+
+This code confirms this address for your Linedesk account at https://desk.example.com. Enter it on https://desk.example.com, where Linedesk asked for it.
+
+    730514
+
+It works once and expires in 10 minutes. Don't share this code with anyone; Linedesk staff will never ask for it.
+
+--
+
+You got this email because your account asked to confirm this address. If it wasn't you, you can ignore it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert",
+    "Admin sign-in to Linedesk: ann@brightwater.example",
+    "Admin alert
+
+Admin sign-in to Linedesk: ann@brightwater.example
+
+ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.
+
+Address: 203.0.113.9
+Browser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+
+If this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "invitation",
+    "Join Brightwater Plumbing & Heating on Linedesk",
+    "Join Brightwater Plumbing & Heating on Linedesk
+
+Mike Brennan invited you to join Brightwater Plumbing & Heating on Linedesk at desk.example.com: answer and follow up on the calls its assistant takes.
+
+Accept invitation:
+https://desk.example.com/?invite=preview
+
+The link works for 7 days. Sign in with this address (sam@example.com): enter it on the sign-in page and we email you a code.
+
+--
+
+You got this email because someone invited this address. If you didn't expect it, you can ignore it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "added-to-workspace",
+    "You were added to Brightwater Plumbing & Heating on desk.example.com",
+    "You were added to Brightwater Plumbing & Heating
+
+Mike Brennan added you to Brightwater Plumbing & Heating on desk.example.com as a member: answer and follow up on the calls its assistant takes.
+
+Sign in with: sam@example.com
+
+Join Brightwater Plumbing & Heating:
+https://desk.example.com/?invite=preview
+
+The link works for 7 days. Enter this email address on the sign-in page and we send you a code.
+
+--
+
+You got this email because a server admin of desk.example.com added this address. If you didn't expect it, you can ignore it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "welcome",
+    "Your Linedesk account is ready",
+    "Welcome, Sam Patel
+
+A server admin created a Linedesk account for you at desk.example.com.
+
+Sign in with: sam@example.com
+
+Sign in:
+https://desk.example.com
+
+Enter this email address on the sign-in page and we send you a code.
+
+--
+
+You got this email because a server admin of desk.example.com added you.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "passkey-added",
+    "A passkey was added to your Linedesk account",
+    "Security notice
+
+A passkey was added
+
+A passkey was added to your Linedesk account at desk.example.com. If this was you, there is nothing to do.
+
+If it wasn't you, ask a server admin of your Linedesk to remove all passkeys of your account (Server admin › Users, your name, Reset passkeys), then sign in and add your own again.
+
+Review sign-in & security:
+https://desk.example.com/#account/security
+
+--
+
+You got this email because the sign-in methods of your account changed. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "passkeys-reset",
+    "The passkeys of your Linedesk account were removed",
+    "Security notice
+
+Your passkeys were removed
+
+A server admin removed every passkey of your Linedesk account and signed you out everywhere.
+
+Sign in with an email code or your password, then add a new passkey under Account settings › Sign-in & security.
+
+Sign in:
+https://desk.example.com
+
+If you did not ask for this, tell your administrator.
+
+--
+
+You got this email because the sign-in methods of your account changed. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "passkey-enrolment-issued",
+    "A passkey enrolment code was issued for your Linedesk account",
+    "Security notice
+
+Passkey enrolment code issued
+
+ann@brightwater.example issued a one-time code for the first passkey of your Linedesk account. Nothing was removed and you are still signed in.
+
+Get the code from them, then add your passkey under Account settings › Sign-in & security.
+
+Open Sign-in & security:
+https://desk.example.com/#account/security
+
+If you did not ask for this, tell the other administrators of Linedesk at once: whoever has the code can add a passkey to your account.
+
+--
+
+You got this email because the sign-in methods of your account changed. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "password-changed",
+    "The password of your Linedesk account was changed",
+    "Security notice
+
+Your password was changed
+
+The password of your Linedesk account at desk.example.com was reset with a code sent to this address, and you were signed out everywhere. If this was you, there is nothing to do.
+
+If it was not you, someone can read your email: secure your mailbox first, then use "Forgot password?" on the sign-in page to set a new password, and tell your administrator.
+
+Review sign-in & security:
+https://desk.example.com/#account/security
+
+--
+
+You got this email because the sign-in methods of your account changed. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-change-confirm-current",
+    "318274 is your Linedesk code to confirm it's you",
+    "Confirm it's you
+
+Someone signed in to your Linedesk account on desk.example.com wants to change its email address. Enter this code in Account settings to confirm it's you.
+
+    318274
+
+It works once and expires in 10 minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.
+
+--
+
+You got this email because it is the address of your account. If it wasn't you, don't enter the code: change your password and tell your administrator.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-change-code",
+    "604218 is your Linedesk code to change your email",
+    "Confirm your new email address
+
+Enter this code in Account settings on desk.example.com. Your Linedesk account then uses this address to sign in and for its emails.
+
+    604218
+
+It works once and expires in 10 minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.
+
+--
+
+You got this email because someone signed in to Linedesk on desk.example.com asked to use this address for their account. If it wasn't you, you can ignore it: nothing changes without this code.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-change-refused",
+    "This address can't be used for another Linedesk account",
+    "This address can't be used
+
+Someone signed in to Linedesk on desk.example.com asked to use this address for their account. It already belongs to an account there or is kept for a server admin, so it can't be used for another one, and nothing was changed.
+
+If that was you, use a different address, or sign in with this one instead. If it wasn't you, you can ignore this email.
+
+--
+
+You got this email because this address was entered as a new sign-in address. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-changed",
+    "The email of your Linedesk account was changed",
+    "Security notice
+
+Your email address was changed
+
+Your Linedesk account at desk.example.com now uses mike.​brennan@brightwater.​example to sign in and for its emails, and its other sessions were signed out. This address no longer signs in to it. If this was you, there is nothing to do.
+
+If it was not you, someone has access to your account: tell your administrator right away, so they can turn the account off.
+
+--
+
+You got this email because it was the address of your account until now. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "workspace-deleted",
+    "Brightwater Plumbing & Heating was deleted on Linedesk",
+    "Account notice
+
+Brightwater Plumbing & Heating was deleted
+
+Mike Brennan deleted the workspace Brightwater Plumbing & Heating on November 14, 2026 at 9:05 AM PST. Its calls, contacts, recordings and settings are gone, and nobody can open it anymore.
+
+Your Linedesk account at desk.example.com was deleted with it, because you belonged to no other workspace. You can't sign in there anymore.
+
+If you didn't expect this, ask the workspace owner.
+
+--
+
+You got this email because you were a member of Brightwater Plumbing & Heating on desk.example.com. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "booking-confirmation",
+    "Confirmed: your repair visit with Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
+    "Booking confirmed
+
+Your repair visit is booked
+
+Brightwater Plumbing & Heating
+When: Tuesday, November 17 at 9:00 AM PST
+Length: 60 minutes
+Where: 2140 SE Division St, Portland, OR 97202
+
+To change or cancel it, call Brightwater Plumbing & Heating at +1 503 555 0100.
+
+--
+
+You got this email because you booked by phone with Brightwater Plumbing & Heating and gave this address.
+
+Sent for Brightwater Plumbing & Heating by Linedesk · desk.example.com
+",
+  ],
+]
+`;
+
+exports[`in the recipient language > es: every email's subject and text 1`] = `
+[
+  [
+    "call-summary",
+    "Urgente: Water heater leaking in the basement · Sarah Chen",
+    "URGENTE · Contestó Maya · mar, 8:42 · 4 min
+
+Water heater leaking in the basement
+
+Quien llama: Sarah Chen
+Número: +1 503 555 0142
+
+Sarah noticed water pooling under the water heater this morning. It is a 12-year-old 50 gallon gas tank. She turned off the cold-water supply but the floor is still wet and she is worried about the drywall.
+
+Próximos pasos
+- Confirm the technician can bring a replacement tank
+- Text Sarah the arrival window
+
+Reservada
+Qué: Emergency repair
+Cuándo: Tuesday, November 10 at 1:00 PM PST
+
+Abrir la llamada:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+La grabación y la transcripción están en Linedesk.
+
+--
+
+Recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "call-summary-plain",
+    "Quote for a bathroom remodel · +1 503 555 0177",
+    "Contestó Maya · mar, 8:42 · 4 min
+
+Quote for a bathroom remodel
+
+Quien llama: Persona desconocida
+Número: +1 503 555 0177
+
+Wants a quote for replacing the tub with a walk-in shower. Flexible on timing, prefers mornings.
+
+Próximos pasos
+- Call back with a site-visit time
+
+Abrir la llamada:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+La grabación y la transcripción están en Linedesk.
+
+--
+
+Recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day0",
+    "Maya está casi listo para contestar por Brightwater Plumbing & Heating",
+    "Falta un paso
+
+Maya está configurado para Brightwater Plumbing & Heating. Falta una cosa para que las llamadas lleguen a Maya:
+
+Si todavía no lo hiciste, desvía a +1 503 555 0142 las llamadas que no contestas en la línea de tu negocio. Los pasos para tu compañía telefónica están en Linedesk.
+
+Terminar la configuración:
+https://desk.example.com/#workspace/phone/pn_preview?ws=ws_demo
+
+--
+
+Recibes algunos correos mientras se configura Brightwater Plumbing & Heating. Se detienen cuando Maya contesta llamadas reales. Desactivar los correos de configuración: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day1",
+    "Maya todavía no contestó una llamada real",
+    "Todavía no hay llamadas
+
+Todavía no ha llegado ninguna llamada real a Maya. Lo único que falta:
+
+Si todavía no lo hiciste, desvía a +1 503 555 0142 las llamadas que no contestas en la línea de tu negocio. Los pasos para tu compañía telefónica están en Linedesk.
+
+Terminar la configuración:
+https://desk.example.com/#workspace/phone/pn_preview?ws=ws_demo
+
+--
+
+Recibes algunos correos mientras se configura Brightwater Plumbing & Heating. Se detienen cuando Maya contesta llamadas reales. Desactivar los correos de configuración: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day1-no-number",
+    "Maya todavía no contestó una llamada real",
+    "Todavía no hay llamadas
+
+Todavía no ha llegado ninguna llamada real a Maya. Lo único que falta:
+
+Elige un número de teléfono para Maya. Toma un minuto en Linedesk.
+
+Terminar la configuración:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+Recibes algunos correos mientras se configura Brightwater Plumbing & Heating. Se detienen cuando Maya contesta llamadas reales. Desactivar los correos de configuración: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day3",
+    "Todavía falta un paso para que Maya conteste tus llamadas",
+    "Falta un paso
+
+Todavía no ha llegado ninguna llamada real a Maya. Lo único que falta:
+
+Si todavía no lo hiciste, desvía a +1 503 555 0142 las llamadas que no contestas en la línea de tu negocio. Los pasos para tu compañía telefónica están en Linedesk.
+
+Terminar la configuración:
+https://desk.example.com/#workspace/phone/pn_preview?ws=ws_demo
+
+¿Prefieres que alguien lo haga por ti? Un socio puede configurar Linedesk para Brightwater Plumbing & Heating, incluida la configuración del teléfono.
+
+Buscar un socio:
+https://linedesk.ai/partners
+
+--
+
+Recibes algunos correos mientras se configura Brightwater Plumbing & Heating. Se detienen cuando Maya contesta llamadas reales. Desactivar los correos de configuración: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "setup-day3-test",
+    "Todavía falta un paso para que Maya conteste tus llamadas",
+    "Falta un paso
+
+Todavía no ha llegado ninguna llamada real a Maya. Lo único que falta:
+
+Llama al número de tu negocio desde un teléfono que no sea tuyo (el de un amigo) y déjalo sonar. Cuando no contestas, contesta Maya.
+
+Abrir tu bandeja de entrada:
+https://desk.example.com/#calls?ws=ws_demo
+
+¿Prefieres que alguien lo haga por ti? Un socio puede configurar Linedesk para Brightwater Plumbing & Heating, incluida la configuración del teléfono.
+
+Buscar un socio:
+https://linedesk.ai/partners
+
+--
+
+Recibes algunos correos mientras se configura Brightwater Plumbing & Heating. Se detienen cuando Maya contesta llamadas reales. Desactivar los correos de configuración: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "first-call",
+    "Tu primera llamada real · Dana Whitaker",
+    "Contestó Maya · mar, 8:42 · 4 min
+
+Tu primera llamada
+
+Acaba de llegar la primera llamada real a Brightwater Plumbing & Heating: Dripping shower valve.
+
+Quien llama: Dana Whitaker
+Número: +1 503 555 0154
+
+Dana has a shower valve that keeps dripping after it is turned off. Wants a callback after 4 pm to set up a visit.
+
+Próximos pasos
+- Call Dana back after 4 pm
+
+Abrir la llamada:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+La grabación y la transcripción están en Linedesk.
+
+--
+
+A partir de ahora recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "week-summary",
+    "La primera semana de Maya en Brightwater Plumbing & Heating",
+    "Tu primera semana
+
+En su primera semana, Maya contestó 9 llamadas para Brightwater Plumbing & Heating.
+
+Llamadas contestadas: 9
+Urgentes: 2
+Citas agendadas: 3
+Mensajes recibidos: 4
+
+Abrir la bandeja de entrada:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+Recibes esto una vez, una semana después de que Brightwater Plumbing & Heating tuvo propietario. Desactivar los correos de configuración: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "sign-in-code",
+    "482913 es tu código de inicio de sesión de Linedesk",
+    "Tu código de inicio de sesión
+
+Ingresa este código en la página de inicio de sesión de Linedesk en desk.example.com.
+
+    482913
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de Linedesk ni de tu equipo te lo pedirá nunca.
+
+--
+
+Recibes este correo porque alguien pidió iniciar sesión en desk.example.com con esta dirección. Si no fuiste tú, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "password-reset-code",
+    "815302 es tu código de Linedesk para restablecer la contraseña",
+    "Restablece tu contraseña
+
+Ingresa este código en la página de inicio de sesión de Linedesk en desk.example.com y luego elige una contraseña nueva.
+
+    815302
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de Linedesk ni de tu equipo te lo pedirá nunca.
+
+--
+
+Recibes este correo porque alguien pidió restablecer la contraseña de esta dirección en desk.example.com. Si no fuiste tú, puedes ignorarlo: tu contraseña sigue igual.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "confirmation-code",
+    "730514 es tu código de confirmación de Linedesk",
+    "Tu código de confirmación
+
+Este código confirma esta dirección para tu cuenta de Linedesk en https://desk.example.com. Ingrésalo en https://desk.example.com, donde Linedesk te lo pidió.
+
+    730514
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código con nadie; el personal de Linedesk nunca te lo pedirá.
+
+--
+
+Recibes este correo porque tu cuenta pidió confirmar esta dirección. Si no fuiste tú, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert",
+    "Admin sign-in to Linedesk: ann@brightwater.example",
+    "Alerta de administración
+
+Admin sign-in to Linedesk: ann@brightwater.example
+
+ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.
+
+Address: 203.0.113.9
+Browser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+
+If this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "invitation",
+    "Únete a Brightwater Plumbing & Heating en Linedesk",
+    "Únete a Brightwater Plumbing & Heating en Linedesk
+
+Mike Brennan te invitó a unirte a Brightwater Plumbing & Heating en Linedesk en desk.example.com: contesta y da seguimiento a las llamadas que toma su asistente.
+
+Aceptar invitación:
+https://desk.example.com/?invite=preview
+
+El enlace funciona durante 7 días. Inicia sesión con esta dirección (sam@example.com): ingrésala en la página de inicio de sesión y te enviaremos un código por correo.
+
+--
+
+Recibes este correo porque alguien invitó a esta dirección. Si no lo esperabas, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "added-to-workspace",
+    "Te agregaron a Brightwater Plumbing & Heating en desk.example.com",
+    "Te agregaron a Brightwater Plumbing & Heating
+
+Mike Brennan te agregó a Brightwater Plumbing & Heating en desk.example.com como miembro: contesta y da seguimiento a las llamadas que toma su asistente.
+
+Iniciar sesión con: sam@example.com
+
+Unirte a Brightwater Plumbing & Heating:
+https://desk.example.com/?invite=preview
+
+El enlace funciona durante 7 días. Ingresa esta dirección en la página de inicio de sesión y te enviaremos un código por correo.
+
+--
+
+Recibes este correo porque un administrador del servidor de desk.example.com agregó esta dirección. Si no lo esperabas, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "welcome",
+    "Tu cuenta de Linedesk está lista",
+    "Te damos la bienvenida, Sam Patel
+
+Un administrador del servidor creó una cuenta de Linedesk para ti en desk.example.com.
+
+Iniciar sesión con: sam@example.com
+
+Iniciar sesión:
+https://desk.example.com
+
+Ingresa esta dirección en la página de inicio de sesión y te enviaremos un código por correo.
+
+--
+
+Recibes este correo porque un administrador del servidor de desk.example.com te agregó.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "passkey-added",
+    "Se agregó una llave de acceso a tu cuenta de Linedesk",
+    "Aviso de seguridad
+
+Se agregó una llave de acceso
+
+Se agregó una llave de acceso a tu cuenta de Linedesk en desk.example.com. Si fuiste tú, no tienes que hacer nada.
+
+Si no fuiste tú, pídele a un administrador del servidor de tu Linedesk que quite todas las llaves de acceso de tu cuenta (Administración del servidor › Usuarios, tu nombre, Restablecer llaves de acceso) y luego inicia sesión y vuelve a agregar las tuyas.
+
+Revisar inicio de sesión y seguridad:
+https://desk.example.com/#account/security
+
+--
+
+Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "passkeys-reset",
+    "Se quitaron las llaves de acceso de tu cuenta de Linedesk",
+    "Aviso de seguridad
+
+Se quitaron tus llaves de acceso
+
+Un administrador del servidor quitó todas las llaves de acceso de tu cuenta de Linedesk y cerró tu sesión en todas partes.
+
+Inicia sesión con un código por correo o tu contraseña y luego agrega una llave de acceso nueva en Configuración de la cuenta › Inicio de sesión y seguridad.
+
+Iniciar sesión:
+https://desk.example.com
+
+Si no lo pediste, avísale a tu administrador.
+
+--
+
+Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "passkey-enrolment-issued",
+    "Se emitió un código de registro de llave de acceso para tu cuenta de Linedesk",
+    "Aviso de seguridad
+
+Se emitió un código de registro de llave de acceso
+
+ann@brightwater.example emitió un código de un solo uso para la primera llave de acceso de tu cuenta de Linedesk. No se quitó nada y sigues con la sesión iniciada.
+
+Pídele el código y luego agrega tu llave de acceso en Configuración de la cuenta › Inicio de sesión y seguridad.
+
+Abrir Inicio de sesión y seguridad:
+https://desk.example.com/#account/security
+
+Si no lo pediste, avísales de inmediato a los demás administradores de Linedesk: quien tenga el código puede agregar una llave de acceso a tu cuenta.
+
+--
+
+Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "password-changed",
+    "Se cambió la contraseña de tu cuenta de Linedesk",
+    "Aviso de seguridad
+
+Se cambió tu contraseña
+
+La contraseña de tu cuenta de Linedesk en desk.example.com se restableció con un código enviado a esta dirección, y se cerró tu sesión en todas partes. Si fuiste tú, no tienes que hacer nada.
+
+Si no fuiste tú, alguien puede leer tu correo: primero protege tu buzón, luego usa "¿Olvidaste la contraseña?" en la página de inicio de sesión para establecer una nueva y avísale a tu administrador.
+
+Revisar inicio de sesión y seguridad:
+https://desk.example.com/#account/security
+
+--
+
+Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-change-confirm-current",
+    "318274 es tu código de Linedesk para confirmar que eres tú",
+    "Confirma que eres tú
+
+Alguien con sesión iniciada en tu cuenta de Linedesk en desk.example.com quiere cambiar su dirección de correo. Ingresa este código en Configuración de la cuenta para confirmar que eres tú.
+
+    318274
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de Linedesk ni de tu equipo te lo pedirá nunca.
+
+--
+
+Recibes este correo porque es la dirección de tu cuenta. Si no fuiste tú, no ingreses el código: cambia tu contraseña y avísale a tu administrador.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-change-code",
+    "604218 es tu código de Linedesk para cambiar tu correo",
+    "Confirma tu nueva dirección de correo
+
+Ingresa este código en Configuración de la cuenta en desk.example.com. Tu cuenta de Linedesk usará entonces esta dirección para iniciar sesión y para sus correos.
+
+    604218
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de Linedesk ni de tu equipo te lo pedirá nunca.
+
+--
+
+Recibes este correo porque alguien con sesión iniciada en Linedesk en desk.example.com pidió usar esta dirección para su cuenta. Si no fuiste tú, puedes ignorarlo: nada cambia sin este código.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-change-refused",
+    "Esta dirección no se puede usar para otra cuenta de Linedesk",
+    "Esta dirección no se puede usar
+
+Alguien con sesión iniciada en Linedesk en desk.example.com pidió usar esta dirección para su cuenta. Ya pertenece a una cuenta allí o está reservada para un administrador del servidor, así que no se puede usar para otra, y no se cambió nada.
+
+Si fuiste tú, usa otra dirección o inicia sesión con esta. Si no fuiste tú, puedes ignorar este correo.
+
+--
+
+Recibes este correo porque esta dirección se ingresó como nueva dirección de inicio de sesión. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "email-changed",
+    "Se cambió el correo de tu cuenta de Linedesk",
+    "Aviso de seguridad
+
+Se cambió tu dirección de correo
+
+Tu cuenta de Linedesk en desk.example.com ahora usa mike.​brennan@brightwater.​example para iniciar sesión y para sus correos, y se cerraron sus otras sesiones. Esta dirección ya no sirve para iniciar sesión. Si fuiste tú, no tienes que hacer nada.
+
+Si no fuiste tú, alguien tiene acceso a tu cuenta: avísale de inmediato a tu administrador para que desactive la cuenta.
+
+--
+
+Recibes este correo porque hasta ahora era la dirección de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "workspace-deleted",
+    "Se eliminó Brightwater Plumbing & Heating en Linedesk",
+    "Aviso de la cuenta
+
+Se eliminó Brightwater Plumbing & Heating
+
+Mike Brennan eliminó el espacio de trabajo Brightwater Plumbing & Heating el November 14, 2026 at 9:05 AM PST. Sus llamadas, contactos, grabaciones y configuración ya no existen, y nadie puede volver a abrirlo.
+
+Tu cuenta de Linedesk en desk.example.com se eliminó junto con él, porque no pertenecías a ningún otro espacio de trabajo. Ya no puedes iniciar sesión allí.
+
+Si no lo esperabas, pregúntale al propietario del espacio de trabajo.
+
+--
+
+Recibes este correo porque eras miembro de Brightwater Plumbing & Heating en desk.example.com. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "booking-confirmation",
+    "Confirmada: tu repair visit con Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
+    "Reserva confirmada
+
+repair visit: tu reserva está lista
+
+Brightwater Plumbing & Heating
+Cuándo: Tuesday, November 17 at 9:00 AM PST
+Duración: 60 minutos
+Dónde: 2140 SE Division St, Portland, OR 97202
+
+Para cambiarla o cancelarla, llama a Brightwater Plumbing & Heating al +1 503 555 0100.
+
+--
+
+Recibes este correo porque reservaste por teléfono con Brightwater Plumbing & Heating y diste esta dirección.
+
+Enviado para Brightwater Plumbing & Heating por Linedesk · desk.example.com
+",
+  ],
+]
+`;

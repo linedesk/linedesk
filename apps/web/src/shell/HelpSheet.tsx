@@ -1,97 +1,117 @@
+import type { MessageKey } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
+import { i18n } from '../i18n/index.tsx'
 import { useCanAssign } from '../team/members.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
+import { useAssistantName } from '../store.tsx'
 
 export type Group = { group: string; rows: [label: string, keys: string[]][] }
 
-export const SHORTCUTS: Group[] = [
+// i18n-dynamic: shell.help.*
+const SHORTCUTS: Group[] = [
   {
-    group: 'Navigate',
+    group: 'help.group.navigate',
     rows: [
-      ['Next call', ['J']],
-      ['Next call', ['↓']],
-      ['Previous call', ['K']],
-      ['Previous call', ['↑']],
-      ['Open call', ['⏎']],
-      ['Open call', ['O']],
-      ['Back to list, close', ['esc']],
-      ['Next view', ['tab']],
-      ['Previous view', ['⇧', 'tab']],
-      ['Needs you · Handled · Spam · Reminders · Done', ['1', '–', '5']],
+      ['help.row.nextCall', ['J']],
+      ['help.row.nextCall', ['↓']],
+      ['help.row.previousCall', ['K']],
+      ['help.row.previousCall', ['↑']],
+      ['help.row.openCall', ['⏎']],
+      ['help.row.openCall', ['O']],
+      ['help.row.backToListClose', ['esc']],
+      ['help.row.nextView', ['tab']],
+      ['help.row.previousView', ['⇧', 'tab']],
+      ['help.row.needsYouHandledSpamRemindersDone', ['1', '–', '5']],
     ],
   },
   {
-    group: 'Triage',
+    group: 'help.group.triage',
     rows: [
-      ['Mark done', ['E']],
-      ['Mark not done', ['⇧', 'E']],
-      ['Remind me', ['H']],
-      ['Clear reminder', ['⇧', 'H']],
-      ['Assign to a teammate, or unassign', ['A']],
-      ['Pick in a menu', ['1', '–', '9']],
-      ['Mark read or unread', ['U']],
-      ['Spam, or not spam', ['!']],
-      ['Contact panel of the open call', ['I']],
-      ['Listen to a live call, or stop', ['L']],
-      ['Take over a live call', ['⇧', 'T']],
-      ['Block or unblock the number', ['⇧', 'B']],
-      ['Delete', ['#']],
-      ['Undo', ['Z']],
+      ['help.row.markDone', ['E']],
+      ['help.row.markNotDone', ['⇧', 'E']],
+      ['help.row.remindMe', ['H']],
+      ['help.row.clearReminder', ['⇧', 'H']],
+      ['help.row.assignToATeammateOrUnassign', ['A']],
+      ['help.row.pickInAMenu', ['1', '–', '9']],
+      ['help.row.markReadOrUnread', ['U']],
+      ['help.row.spamOrNotSpam', ['!']],
+      ['help.row.contactPanelOfTheOpenCall', ['I']],
+      ['help.row.listenToALiveCallOr', ['L']],
+      ['help.row.takeOverALiveCall', ['⇧', 'T']],
+      ['help.row.blockOrUnblockTheNumber', ['⇧', 'B']],
+      ['help.row.delete', ['#']],
+      ['help.row.undo', ['Z']],
     ],
   },
   {
-    group: 'Select',
+    group: 'help.group.select',
     rows: [
-      ['Select or unselect call', ['X']],
-      ['Select this and the next call', ['⇧', 'J']],
-      ['Select this and the previous call', ['⇧', 'K']],
-      ['Select a range', ['⇧', 'click']],
-      ['Select all in the view', ['⌘', 'A']],
-      ['Clear selection', ['esc']],
-      ['With calls selected, E, H, U and # act on all of them', []],
+      ['help.row.selectOrUnselectCall', ['X']],
+      ['help.row.selectThisAndTheNextCall', ['⇧', 'J']],
+      ['help.row.selectThisAndThePreviousCall', ['⇧', 'K']],
+      ['help.row.selectARange', ['⇧', 'click']],
+      ['help.row.selectAllInTheView', ['⌘', 'A']],
+      ['help.row.clearSelection', ['esc']],
+      ['help.row.withCallsSelectedEHU', []],
     ],
   },
   {
-    group: 'Contacts',
+    group: 'help.group.contacts',
     rows: [
-      ['New contact', ['N']],
-      ['Delete contact', ['#']],
+      ['help.row.newContact', ['N']],
+      ['help.row.deleteContact', ['#']],
     ],
   },
   {
-    group: 'Go to',
+    group: 'help.group.goTo',
     rows: [
-      ['Inbox', ['G', 'I']],
-      ['Done', ['G', 'E']],
-      ['Reminders', ['G', 'H']],
-      ['Assigned to me', ['G', 'M']],
-      ['Unassigned', ['G', 'U']],
-      ['Contacts', ['G', 'C']],
-      ['Insights', ['G', 'N']],
-      ['Assistant', ['G', 'A']],
-      ['How the assistant did (owners and admins)', ['G', 'R']],
-      ['Workspace settings', ['G', 'S']],
-      ['Workspace settings › Team', ['G', 'T']],
-      ['Server admin (instance admins)', ['G', 'D']],
+      ['help.row.inbox', ['G', 'I']],
+      ['help.row.done', ['G', 'E']],
+      ['help.row.reminders', ['G', 'H']],
+      ['help.row.assignedToMe', ['G', 'M']],
+      ['help.row.unassigned', ['G', 'U']],
+      ['help.row.contacts', ['G', 'C']],
+      ['help.row.insights', ['G', 'N']],
+      ['help.row.assistant', ['G', 'A']],
+      ['help.row.review', ['G', 'R']],
+      ['help.row.workspaceSettings', ['G', 'S']],
+      ['help.row.team', ['G', 'T']],
+      ['help.row.serverAdmin', ['G', 'D']],
     ],
   },
   {
-    group: 'General',
+    group: 'help.group.general',
     rows: [
-      ['Search calls', ['/']],
-      ['Commands', ['⌘', 'K']],
-      ['Keyboard shortcuts', ['?']],
-      ['Open menu', ['M']],
+      ['help.row.searchCalls', ['/']],
+      ['help.row.commands', ['⌘', 'K']],
+      ['help.row.keyboardShortcuts', ['?']],
+      ['help.row.openMenu', ['M']],
     ],
   },
 ]
 
-/** The rows about assigning: shown only while the workspace has more than one member. */
-const ASSIGN_ROWS = new Set(['Assign to a teammate, or unassign', 'Assigned to me', 'Unassigned'])
+const BULK_ROW = 'help.row.withCallsSelectedEHU'
 
-/** The shortcuts that apply here; without teammates the assign ones are left out. */
-export const shortcutsFor = (canAssign: boolean): Group[] =>
-  canAssign ? SHORTCUTS : SHORTCUTS.map(g => ({ ...g, rows: g.rows.filter(([label]) => !ASSIGN_ROWS.has(label)) }))
+/** The rows about assigning: shown only while the workspace has more than one member. */
+const ASSIGN_ROWS = new Set(['help.row.assignToATeammateOrUnassign', 'help.row.assignedToMe', 'help.row.unassigned'])
+
+/** The shortcuts that apply here, in the active language; without teammates the assign ones are left out. */
+export function shortcutsFor(canAssign: boolean, assistant = ''): Group[] {
+  const { t, format } = i18n()
+  const text = (key: string) =>
+    key === BULK_ROW
+      ? t('shell.help.row.withCallsSelectedEHU', { keys: format.list(['E', 'H', 'U', '#']) })
+      : key === 'help.row.review'
+        ? assistant.trim()
+          ? t('shell.help.row.review', { assistant: assistant.trim() })
+          : t('shell.help.row.reviewDefault')
+        : t(`shell.${key}` as MessageKey)
+  return SHORTCUTS.map(g => ({
+    group: t(`shell.${g.group}` as MessageKey),
+    rows: g.rows.filter(([key]) => canAssign || !ASSIGN_ROWS.has(key)).map(([key, keys]) => [text(key), keys]),
+  }))
+}
 
 /** Matches the action, its group and its keys ("tab", "esc", "⇧ e"), word by word. */
 export function filterShortcuts(groups: Group[], query: string): Group[] {
@@ -106,18 +126,19 @@ export function filterShortcuts(groups: Group[], query: string): Group[] {
 }
 
 export function HelpSheet() {
+  const t = useT()
   const [query, setQuery] = useState('')
-  const groups = filterShortcuts(shortcutsFor(useCanAssign()), query)
+  const groups = filterShortcuts(shortcutsFor(useCanAssign(), useAssistantName()), query)
   return (
-    <div className="help-sheet" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <div className="help-sheet" role="dialog" aria-modal="true" aria-label={t('shell.help.title')}>
       <div className="help-head">
-        <b>Keyboard shortcuts</b>
+        <b>{t('shell.help.title')}</b>
         <div className="k-input">
           <Icon name="search" size={15} />
           <input
             autoFocus
-            placeholder="Find a shortcut"
-            aria-label="Find a shortcut"
+            placeholder={t('shell.help.find')}
+            aria-label={t('shell.help.find')}
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
@@ -136,14 +157,14 @@ export function HelpSheet() {
             ))}
           </section>
         ))}
-        {!groups.length && <div className="help-empty">No shortcut matches “{query}”.</div>}
+        {!groups.length && <div className="help-empty">{t('shell.help.noMatch', { query })}</div>}
       </div>
       <div className="help-foot">
         <span>
-          Open this anytime with <Kbd keys={['?']} />
+          <T k="shell.help.openAnytime" values={{ keys: <Kbd keys={['?']} /> }} />
         </span>
         <span>
-          Every action is also in <Kbd keys={['⌘', 'K']} />
+          <T k="shell.help.everyAction" values={{ keys: <Kbd keys={['⌘', 'K']} /> }} />
         </span>
       </div>
     </div>

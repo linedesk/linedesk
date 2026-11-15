@@ -10,6 +10,7 @@ import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
 import { passkeysResetEmail } from './emails/templates.ts'
+import { localeForUserId } from './email-locale.ts'
 
 export const ENROLMENT_HOURS = 24
 
@@ -106,6 +107,9 @@ export async function removeAllPasskeys(
   // A setup link the admin confirmed with a passkey could still change email and sign-in: it ends with the rest.
   const setupLinksEnded = await revokeSetupKeysOf(tx, target.id, 'passkeys_reset')
   if (removed.length || target.isAdmin)
-    sendNotice({ to: target.email, ...passkeysResetEmail(removed.length) }, 'passkeys reset email')
+    sendNotice(
+      { to: target.email, ...passkeysResetEmail(removed.length, undefined, await localeForUserId(tx, target.id)) },
+      'passkeys reset email',
+    )
   return { removed: removed.length, sessionsEnded: sessions.length, setupLinksEnded }
 }

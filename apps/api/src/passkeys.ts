@@ -12,6 +12,7 @@ import { passkeyChangedEmail } from './emails/templates.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { clearPasskeyEnrolment, ENROLMENT_HEADER, enrolmentCodeValid, enrolmentPending } from './passkey-enrolment.ts'
 import { brandName } from './branding.ts'
+import { localeForEmail } from './email-locale.ts'
 
 type Env = Record<string, string | undefined>
 type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
@@ -209,5 +210,6 @@ export async function notifyPasskeyChange(ctx: Parameters<Parameters<typeof crea
   }
   // Not awaited: the change is made; a slow or broken mail server must not fail it. A fresh install has no email yet
   // (its first admin adds a passkey before connecting it): one log line, no error.
-  sendNotice({ to: email, ...passkeyChangedEmail(change) }, 'passkey email')
+  const locale = await localeForEmail(db, email)
+  sendNotice({ to: email, ...passkeyChangedEmail(change, undefined, locale) }, 'passkey email')
 }

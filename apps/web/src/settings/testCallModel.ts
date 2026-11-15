@@ -132,7 +132,7 @@ export function watchPickup(
 /** The server's refusal in words for the business; LiveKit and other internals stay out. */
 export function testCallErrorText(error: string): string {
   if (/not set up|not configured/i.test(error))
-    return `Test calls aren't set up on this server yet. ${whoSetsUp('the voice services')}`
+    return `Test calls aren't set up on this server yet. ${whoSetsUp('voice')}`
   // Nobody would answer (apps/api/src/test-call.ts): the why for the operator, a plain sentence for everyone else.
   if (/voice agent|test calls aren't available/i.test(error)) return error
   if (/too many test calls/i.test(error)) return 'Too many test calls in a short time. Try again in a few minutes.'

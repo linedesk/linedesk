@@ -58,6 +58,7 @@ import { deletedWhen } from './workspace-delete-own.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import type { AuditSubject } from './audit.ts'
 import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
+import { localeForUserId } from './email-locale.ts'
 
 /** A missing or wrong SECRETS_KEY is the operator's to fix: show the reason instead of a server error. */
 /** OpenAI's language model and transcription can use the OpenAI key stored for the realtime model. */
@@ -548,7 +549,13 @@ export const adminHandlers: Record<string, Handler> = {
       throw new Reject(
         `${account.email} has a passkey already. To start over, reset their passkeys: that also signs them out everywhere and ends their AI agent setup links`,
       )
-    sendNotice({ to: account.email, ...passkeyEnrolmentIssuedEmail(await actorName(actor)) }, 'passkey enrolment email')
+    sendNotice(
+      {
+        to: account.email,
+        ...passkeyEnrolmentIssuedEmail(await actorName(actor), undefined, await localeForUserId(tx, account.id)),
+      },
+      'passkey enrolment email',
+    )
     await alertInstanceAdmins(
       `Passkey enrolment code issued on ${brandName()}: ${account.email}`,
       `${await actorName(actor)} issued a one-time code for the first passkey of ${account.email}, an instance admin without a passkey. Nothing was removed and their sessions and AI agent setup links keep working.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Audit log.`,

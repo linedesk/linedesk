@@ -2,13 +2,15 @@
 // jobValueCents and jobValueCurrency): set in Workspace settings › General and from the Insights summary,
 // which multiplies it by the booked appointments.
 import { currencyDigits, type JobValueCurrency } from '@linedesk/actions'
-import { useEffect, useState } from 'react'
-import { CURRENCY_OPTIONS, formatMoney, moneyText, parseMoney } from '../insights/insightsModel.ts'
+import { useT } from '@linedesk/i18n/react'
+import { useEffect, useMemo, useState } from 'react'
+import { currencyOptions, formatMoney, moneyText, parseMoney } from '../insights/insightsModel.ts'
 import { useRun } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { FormMessage, Input } from '../ui/form.tsx'
 import { patchWorkspaceSettings } from './settings-api.ts'
 import './appointmentValue.css'
+import { fmt } from '../i18n/format.ts'
 
 type Props = {
   /** The amount field's id, for the label around it. */
@@ -43,7 +45,10 @@ export function AppointmentValue({
   onSaved,
   toast,
 }: Props) {
+  const t = useT()
   const run = useRun()
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the labels follow the active language (t)
+  const options = useMemo(() => currencyOptions(), [t])
   const savedText = moneyText(value, savedCurrency)
   const [text, setText] = useState(savedText)
   const [currency, setCurrency] = useState(savedCurrency)
@@ -63,8 +68,8 @@ export function AppointmentValue({
     void run('workspace.updateSettings', { jobValueCents: parsed, jobValueCurrency: currency })
     toast(
       parsed === null
-        ? 'Appointment value cleared.'
-        : `A booked appointment counts as ${formatMoney(parsed, currency)}.`,
+        ? t('insights.value.cleared')
+        : t('insights.value.saved', { amount: formatMoney(parsed, currency) }),
     )
   }
 
@@ -98,21 +103,21 @@ export function AppointmentValue({
           id={id}
           inputMode={whole ? 'numeric' : 'decimal'}
           autoFocus={autoFocus}
-          placeholder="e.g. 350"
+          placeholder={fmt().number(350)}
           value={text}
           readOnly={!canEdit}
           invalid={invalid}
           onChange={e => setText(e.target.value)}
         />
         <Select
-          label="Currency"
+          label={t('insights.value.currency')}
           value={currency}
-          options={CURRENCY_OPTIONS}
+          options={options}
           onChange={setCurrency}
           disabled={!canEdit}
         />
       </div>
-      {invalid && <FormMessage>{whole ? 'A whole number, like 5,000.' : 'A number, like 350 or 1,250.'}</FormMessage>}
+      {invalid && <FormMessage>{whole ? t('insights.value.wholeNumber', { example: 5000 }) : t('insights.value.number', { a: 350, b: 1250 })}</FormMessage>}
     </form>
   )
 }

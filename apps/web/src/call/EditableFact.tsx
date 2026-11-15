@@ -39,12 +39,13 @@ export function useInlineEdit({ value, onSave, multiline }: Edit) {
   }
 }
 
-type Props = Edit & { label: string; placeholder: string }
+/** `field`: names the input for code (`[data-field=name]`), whatever the label's language. */
+type Props = Edit & { label: string; placeholder: string; field?: string }
 
 /** A fact that reads as plain text and edits in place (the call view's contact panel). */
-export function EditableFact({ label, value, placeholder, onSave, multiline }: Props) {
+export function EditableFact({ label, value, placeholder, onSave, multiline, field }: Props) {
   const edit = useInlineEdit({ value, onSave, multiline })
-  const props = { className: 'fact-input', placeholder, 'aria-label': label, ...edit }
+  const props = { className: 'fact-input', placeholder, 'aria-label': label, 'data-field': field, ...edit }
   return (
     <>
       <dt>{label}</dt>

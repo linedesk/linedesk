@@ -69,7 +69,7 @@ test('a failed confirmation says why in one short sentence, never a raw error', 
     'Not confirmed with your passkey. Nothing changed.',
   )
   expect(confirmErrorText(new TypeError('Failed to fetch'))).toBe(
-    "The server can't be reached. Check your connection and try again.",
+    "Can't reach the server. Check your connection and try again.",
   )
   expect(confirmErrorText(new Error('The server answered 502'))).toBe(
     'Something went wrong on the server. Try again in a moment.',

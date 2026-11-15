@@ -1,22 +1,31 @@
 import { type EnrolmentCode, rememberEnrolmentCode } from './enrolment-code.ts'
 import { passkeyClient } from '@better-auth/passkey/client'
-import { emailOTPClient, organizationClient } from 'better-auth/client/plugins'
+import { emailOTPClient, inferAdditionalFields, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 import type { FirstUse, OnboardingStep, StarPrompt } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
-import { authErrorMessage, NO_ACCOUNT } from './sign-in-code.ts'
+import { authErrorMessage, noAccountText } from './sign-in-code.ts'
 import { readLastUsedMethod } from './sign-in-methods.ts'
 import { announceSwitch } from './tabWorkspace.ts'
 import { brandName } from './brand.ts'
+import { i18n } from './i18n/index.tsx'
 
 export type { AuthMethods, LegalLinks, SsoMethod }
 
 export const auth = createAuthClient({
   // Same origin as the page (the API is proxied). Not read at import time, so tests can load this module without a browser.
   baseURL: typeof window === 'undefined' ? undefined : window.location.origin,
-  plugins: [organizationClient(), emailOTPClient(), passkeyClient()],
+  plugins: [
+    organizationClient(),
+    emailOTPClient(),
+    passkeyClient(),
+    // The UI language fields of the user (apps/api/src/user-locale.ts), set through updateUser.
+    inferAdditionalFields({
+      user: { locale: { type: 'string', required: false }, localeAuto: { type: 'string', required: false } },
+    }),
+  ],
 })
 
 /** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
@@ -58,6 +67,10 @@ export type Me = {
   phoneSetup: PhoneSetupStatus | null
   /** Set while an instance admin is signed in as this user. */
   impersonation: Impersonation | null
+  /** The UI language the member chose; null: Automatic (follows the browser). Absent from an older server. */
+  locale?: string | null
+  /** What Automatic last resolved to in the member's browser (for emails). */
+  localeAuto?: string | null
   /** When the session ends unless it is used again; null for an API key (absent in what an older version remembered). */
   sessionExpiresAt?: string | null
   /** An instance admin whose session has not passed the passkey check for Server admin: what is still missing. */
@@ -115,7 +128,7 @@ export async function fetchAuthMethods({
   for (let attempt = 1; ; attempt++) {
     const res = await fetch('/v1/auth-methods').catch(() => null)
     if (res?.ok) return (await res.json()) as AuthMethods
-    if (attempt >= attempts) throw new Error('Could not reach the server. Try again in a moment.')
+    if (attempt >= attempts) throw new Error(i18n().t('auth.error.methodsUnreachable'))
     await wait(retryMs[Math.min(attempt - 1, retryMs.length - 1)] ?? 8000)
   }
 }
@@ -130,7 +143,7 @@ export async function completeSetup(input: { code: string; name: string; email: 
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null
-    throw new Error(body?.error ?? body?.message ?? 'Setup did not work. Try again.')
+    throw new Error(body?.error ?? body?.message ?? i18n().t('auth.setup.failed'))
   }
   const body = (await res.json().catch(() => ({}))) as { signedIn?: boolean; enrolment?: EnrolmentCode | null }
   // The first passkey's enrolment code: Account › Sign-in & security fills it in (enrolment-code.ts).
@@ -147,7 +160,7 @@ export async function createWorkspace(name: string) {
     body: JSON.stringify({ name, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
   })
   const body = (await res.json().catch(() => ({}))) as { error?: string; workspace?: { id: string } }
-  if (!res.ok) throw new Error(body.error ?? 'Could not create the workspace')
+  if (!res.ok) throw new Error(body.error ?? i18n().t('auth.createWorkspace.failed'))
   // The new workspace is now the session's: other open tabs say which one they are on.
   if (body.workspace) announceSwitch(body.workspace.id)
 }
@@ -197,19 +210,20 @@ export function startSso(method: SsoMethod) {
 const providerNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft', github: 'GitHub' }
 
 /** The provider didn't prove the address, so it signs nobody in (the API's account-linking rule). */
-const unprovenEmail = (provider: string | null) =>
-  `${(provider && providerNames[provider]) || 'The sign-in provider'} didn't confirm this email address, so it can't sign you in. Sign in with an email code instead.`
+const unprovenEmail = (provider: string | null) => {
+  const name = provider && providerNames[provider]
+  return name ? i18n().t('auth.redirect.unproven', { provider: name }) : i18n().t('auth.redirect.unprovenUnknown')
+}
 
 const redirectErrors: Record<string, (provider: string | null) => string> = {
   // Better Auth's own: the state cookie or record of this sign-in is gone, expired or from another browser.
-  state_mismatch: () =>
-    'This sign-in took too long or was started in another browser. Start again below and finish in the same tab. If it keeps happening, allow cookies for this site.',
-  state_not_found: () => 'This sign-in could not be finished. Start again below and finish in the same tab.',
-  invalid_callback_request: () => 'This sign-in could not be finished. Start again below.',
-  access_denied: () => 'Sign-in was cancelled. Choose a way to sign in below.',
+  state_mismatch: () => i18n().t('auth.redirect.stateMismatch'),
+  state_not_found: () => i18n().t('auth.redirect.stateNotFound'),
+  invalid_callback_request: () => i18n().t('auth.redirect.invalidCallback'),
+  access_denied: () => i18n().t('auth.redirect.accessDenied'),
   account_not_linked: unprovenEmail,
   email_not_found: unprovenEmail,
-  SIGNUP_CLOSED: () => NO_ACCOUNT,
+  SIGNUP_CLOSED: noAccountText,
 }
 
 /** The words for a `?error=` code a provider sign-in came back with; unknown codes never show as such. */
@@ -252,4 +266,4 @@ export function providerSignInElsewhere(methods: Pick<AuthMethods, 'signInOrigin
 
 /** What the sign-in page says when a provider sign-in has to start at `host`. */
 export const providerElsewhereMessage = (host: string) =>
-  `Sign-in with Google, Microsoft or GitHub has to start from ${host}. Open ${brandName()} there and sign in again.`
+  i18n().t('auth.redirect.elsewhere', { host, brand: brandName() })

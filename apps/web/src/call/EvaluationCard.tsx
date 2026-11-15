@@ -12,6 +12,8 @@ import { readAction } from '../settings/settings-api.ts'
 import { useAssistants } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button, Note } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 async function requestEvaluation(callId: string) {
   const res = await fetch('/v1/actions/call.evaluate', {
@@ -20,10 +22,11 @@ async function requestEvaluation(callId: string) {
     headers: { 'content-type': 'application/json', ...workspaceHeaders() },
     body: JSON.stringify({ callId }),
   })
-  if (!res.ok) throw new Error('The evaluation could not be started. Try again.')
+  if (!res.ok) throw new Error(i18n().t('call.evaluation.startFailed'))
 }
 
 export function EvaluationCard({ call }: { call: Call }) {
+  const t = useT()
   const finished = call.status === 'completed'
   const assistants = useAssistants()
   const assistant = assistants.find(a => a.id === call.assistant_id) ?? assistants[0]
@@ -36,7 +39,7 @@ export function EvaluationCard({ call }: { call: Call }) {
   const [error, setError] = useState<string | null>(null)
   if (!finished || query.data === undefined) return null
   const evaluation = query.data
-  const title = `${reviewTitle(assistant?.name ?? '')} on this call`
+  const title = t('call.evaluation.title', { review: reviewTitle(assistant?.name ?? '') })
 
   async function evaluate() {
     setError(null)
@@ -59,11 +62,11 @@ export function EvaluationCard({ call }: { call: Call }) {
     return (
       <section className="evc evc-empty" aria-label={title}>
         <span className="help">
-          {asked ? 'Evaluating… this takes a few seconds.' : 'Test calls are not evaluated on their own.'}
+          {asked ? t('call.evaluation.evaluating') : t('call.evaluation.testCalls')}
         </span>
         {!asked && (
-          <Button size="sm" title="Have the language model judge how the assistant did" onClick={() => void evaluate()}>
-            Evaluate
+          <Button size="sm" title={t('call.evaluation.evaluateTitle')} onClick={() => void evaluate()}>
+            {t('call.evaluation.evaluate')}
           </Button>
         )}
         {error && <Note tone="danger">{error}</Note>}
@@ -76,7 +79,7 @@ export function EvaluationCard({ call }: { call: Call }) {
       <div className="evc-h">
         <b>{title}</b>
         <ScoreBadge evaluation={evaluation} />
-        <span className="evc-who">Only owners and admins see this.</span>
+        <span className="evc-who">{t('call.evaluation.who')}</span>
         {/* Only a call worth a look is on the list, so only it has Mark as checked (and Reopen once checked). */}
         {needsALook(evaluation.score) && <DoneButton evaluation={evaluation} assistantId={assistant?.id ?? null} />}
       </div>
@@ -89,7 +92,7 @@ export function EvaluationCard({ call }: { call: Call }) {
       )}
       {evaluation.unanswered.length > 0 && (
         <div className="evc-questions">
-          <span className="evc-label">Couldn't answer</span>
+          <span className="evc-label">{t('call.evaluation.unanswered')}</span>
           <ul className="evc-issues">
             {evaluation.unanswered.map(q => (
               <li key={q}>{q}</li>

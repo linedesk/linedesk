@@ -1,5 +1,6 @@
 // What the Account page shows, worked out from what Better Auth returns. No network here.
 import type { AuthMethods } from '../../auth.ts'
+import { i18n } from '../../i18n/index.tsx'
 
 export type LinkedAccount = { providerId: string }
 /** A session as the page keeps it: no token, no IP address. */
@@ -11,14 +12,15 @@ export const hasPassword = (accounts: LinkedAccount[]) => accounts.some(a => a.p
 
 /** Every way this member can sign in on this install, in a fixed order: "Password", "Google", ..., "Email code". */
 export function signInMethodLabels(accounts: LinkedAccount[], methods: AuthMethods): string[] {
+  const { t } = i18n()
   const names: Record<string, string> = {
-    [PASSWORD]: 'Password', google: 'Google', microsoft: 'Microsoft', github: 'GitHub',
-    oidc: methods.sso.find(m => m.id === 'oidc')?.label ?? 'Single sign-on',
+    [PASSWORD]: t('account.method.password'), google: 'Google', microsoft: 'Microsoft', github: 'GitHub',
+    oidc: methods.sso.find(m => m.id === 'oidc')?.label ?? t('account.method.sso'),
   }
   const linked = new Set(accounts.map(a => a.providerId))
   const usable = (id: string) => linked.has(id) && (id !== PASSWORD || methods.password)
   const labels = Object.keys(names).filter(usable).map(id => names[id]!)
-  return methods.emailCode ? [...labels, 'Email code'] : labels
+  return methods.emailCode ? [...labels, t('account.method.emailCode')] : labels
 }
 
 const browsers: [RegExp, string][] = [[/Edg\//, 'Edge'], [/OPR\//, 'Opera'], [/Firefox\//, 'Firefox'], [/Chrome\//, 'Chrome'], [/Safari\//, 'Safari']]
@@ -27,12 +29,13 @@ const firstMatch = (table: [RegExp, string][], text: string) => table.find(([pat
 
 /** "Chrome on macOS" from a user agent; something readable for anything else. */
 export function describeDevice(userAgent?: string | null): string {
-  if (!userAgent) return 'Unknown device'
+  const { t } = i18n()
+  if (!userAgent) return t('account.device.unknown')
   const browser = firstMatch(browsers, userAgent)
   const system = firstMatch(systems, userAgent)
-  if (browser && system) return `${browser} on ${system}`
+  if (browser && system) return t('account.device.browserOn', { browser, system })
   // Neither a browser nor a system: a script or tool (curl, an SDK) signed in with the API.
-  return browser ?? system ?? 'API client'
+  return browser ?? system ?? t('account.device.apiClient')
 }
 
 /** How many sessions the list shows before "Show N more". */
@@ -47,9 +50,10 @@ export const MIN_PASSWORD_LENGTH = 8
 
 /** Why this password form cannot be sent yet, or null when it can. */
 export function passwordProblem(form: { current: string; next: string; repeat: string }, needsCurrent: boolean): string | null {
-  if (needsCurrent && !form.current) return 'Enter your current password.'
-  if (form.next.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`
-  if (form.next !== form.repeat) return 'The two new passwords do not match.'
-  if (needsCurrent && form.next === form.current) return 'The new password is the same as the current one.'
+  const { t } = i18n()
+  if (needsCurrent && !form.current) return t('account.password.enterCurrent')
+  if (form.next.length < MIN_PASSWORD_LENGTH) return t('account.password.tooShort', { count: MIN_PASSWORD_LENGTH })
+  if (form.next !== form.repeat) return t('account.password.mismatch')
+  if (needsCurrent && form.next === form.current) return t('account.password.sameAsCurrent')
   return null
 }

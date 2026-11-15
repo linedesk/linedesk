@@ -6,6 +6,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { auth } from './auth.ts'
 import { authErrorMessage, CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import { Button, Note } from './ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 type Result = { error: { code?: string; message?: string; status?: number } | null }
 const check = (res: Result) => {
@@ -22,6 +23,7 @@ export function ConfirmEmail({
   why: string
   onDone: () => void | Promise<void>
 }) {
+  const t = useT()
   const [email, setEmail] = useState(known ?? '')
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
@@ -73,16 +75,16 @@ export function ConfirmEmail({
   }
 
   return (
-    <form className="confirm-email" onSubmit={confirm} aria-label="Confirm your email">
+    <form className="confirm-email" onSubmit={confirm} aria-label={t('auth.confirm.title')}>
       <div className="confirm-email-text">
-        <b>Confirm your email</b>
-        <span>{sent ? `Enter the ${CODE_LENGTH}-digit code we sent to ${email}. It expires in 10 minutes.` : why}</span>
+        <b>{t('auth.confirm.title')}</b>
+        <span>{sent ? t('auth.confirm.sent', { digits: CODE_LENGTH, email }) : why}</span>
       </div>
       {sent ? (
         <div className="confirm-email-row">
           <span className="k-input">
             <input
-              aria-label="Confirmation code"
+              aria-label={t('auth.confirm.code')}
               value={code}
               onChange={e => setCode(normalizeCode(e.target.value))}
               disabled={busy}
@@ -98,16 +100,16 @@ export function ConfirmEmail({
             />
           </span>
           <Button type="submit" variant="primary" size="sm" disabled={busy || code.length !== CODE_LENGTH}>
-            Confirm
+            {t('auth.confirm.submit')}
           </Button>
           <Button size="sm" variant="ghost" disabled={busy || waitS > 0} onClick={() => void sendCode()}>
-            {waitS > 0 ? `New code in ${waitS} s` : 'Send a new code'}
+            {waitS > 0 ? t('auth.confirm.wait', { seconds: waitS }) : t('auth.confirm.resend')}
           </Button>
         </div>
       ) : (
         <div className="confirm-email-row">
           <Button variant="primary" size="sm" disabled={busy || !email} onClick={() => void sendCode()}>
-            Email me a code
+            {t('auth.confirm.send')}
           </Button>
         </div>
       )}

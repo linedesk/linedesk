@@ -12,6 +12,8 @@ import { memberAvatar, memberLabel, useMember } from '../team/members.ts'
 import { Avatar, Badge, cx, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 /** The inbox passes them all; a call list elsewhere (a contact's calls) only those it offers. */
 export type RowHandlers = {
@@ -47,12 +49,13 @@ type Props = RowHandlers & {
 /** What a screen reader says for a row (and as J and K move the cursor onto it). */
 export function rowLabel(call: Call, contact: Contact | undefined, group: Call[] | undefined): string {
   const unread = call.unread || !!group?.some(c => c.unread)
+  const { t } = i18n()
   return [
     callerName(call, contact),
     callTitle(call),
-    group && `${group.length} calls`,
-    unread && 'unread',
-    call.inbox_state === 'done' && 'done',
+    group && t('inbox.row.calls', { count: group.length }),
+    unread && t('inbox.row.unread'),
+    call.inbox_state === 'done' && t('inbox.row.done'),
   ]
     .filter(Boolean)
     .join(', ')
@@ -69,7 +72,8 @@ export function RowAction({ title, icon, onClick }: { title: string; icon: IconN
       type="button"
       className="r-act"
       title={title}
-      aria-label={title.replace(/ \(.*\)$/, '')}
+      // The name without the key and without the line that explains the action (common.withKeyHint).
+      aria-label={title.split('\n')[0]!.replace(/ \(.*\)$/, '')}
       onClick={stop(onClick)}
     >
       <Icon name={icon} size={14} />
@@ -88,9 +92,10 @@ export function Status({
   markDone: boolean
   segments: TranscriptSegment[]
 }) {
+  const t = useT()
   const assistant = useAssistantName()
   if (call.status === 'live') return <LiveIndicator since={parseTs(call.started_at)} />
-  if (markDone) return <span className="r-quiet">Done</span> // search lists every call, done ones included
+  if (markDone) return <span className="r-quiet">{t('inbox.action.done')}</span> // search lists every call, done ones included
   const { text, tone } = statusLabel(call, tab, assistant, undefined, segments)
   if (tone === 'next' || tone === 'quiet')
     return (
@@ -136,29 +141,31 @@ function SelectBox({
   selected: boolean
   onSelect: (call: Call, range: boolean) => void
 }) {
+  const t = useT()
   // A click selects (with shift: a range) and never reaches the row. The box is shown, not operated: the label's own toggle is cancelled.
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the checkbox inside is the control; this only reads shift from its click
     <span
       className="r-check"
-      title="Select (X)"
+      title={t('common.withKey', { label: t('inbox.row.select'), key: 'X' })}
       onClick={e => {
         e.stopPropagation()
         e.preventDefault() // the label would toggle the box a second time
         onSelect(call, e.shiftKey)
       }}
     >
-      <Checkbox checked={selected} label={selected ? 'Selected, unselect' : 'Select'} onChange={() => {}} />
+      <Checkbox checked={selected} label={selected ? t('inbox.row.selectedUnselect') : t('inbox.row.select')} onChange={() => {}} />
     </span>
   )
 }
 
 /** The member a call is assigned to: their picture or initials, the name in the tooltip. */
 function AssigneeMark({ userId }: { userId: string }) {
+  const t = useT()
   const assignee = useMember(userId)
   const name = memberLabel(assignee)
   return (
-    <span className="r-assignee" title={`Assigned to ${name}`}>
+    <span className="r-assignee" title={t('inbox.row.assignedTo', { name })}>
       <Avatar name={name} size={20} src={memberAvatar(assignee)} />
     </span>
   )
@@ -166,14 +173,19 @@ function AssigneeMark({ userId }: { userId: string }) {
 
 /** Opens the member picker under itself. Always the assign icon; the assignee's initials sit next to the caller's name. */
 function AssignAction({ call, onAssign }: { call: Call; onAssign: (call: Call, anchor: DOMRect) => void }) {
+  const t = useT()
   const assignee = useMember(call.assignee_id)
-  const title = call.assignee_id ? `Assigned to ${memberLabel(assignee)}: reassign (A)` : 'Assign (A)'
+  const name = memberLabel(assignee)
+  const title = t('common.withKey', {
+    label: call.assignee_id ? t('inbox.row.reassignTitle', { name }) : t('inbox.assign.label'),
+    key: 'A',
+  })
   return (
     <button
       type="button"
       className="r-act r-act-assign"
       title={title}
-      aria-label={call.assignee_id ? `Assigned to ${memberLabel(assignee)}, reassign` : 'Assign'}
+      aria-label={call.assignee_id ? t('inbox.row.reassignLabel', { name }) : t('inbox.assign.label')}
       aria-haspopup="dialog"
       onClick={e => {
         e.stopPropagation()
@@ -203,6 +215,7 @@ export const Row = memo(function Row({
   measure,
   ...on
 }: Props) {
+  const t = useT()
   const contact = useContact(call.contact_id)
   const unread = call.unread || !!group?.some(c => c.unread)
   const live = call.status === 'live'
@@ -233,8 +246,8 @@ export const Row = memo(function Row({
         className={cx('r-dot', unread && 'is-unread')}
         role="button"
         tabIndex={-1}
-        title={`${unread ? 'Mark read' : 'Mark unread'} (U)`}
-        aria-label={unread ? 'Unread, mark read' : 'Read, mark unread'}
+        title={t('common.withKey', { label: unread ? t('inbox.row.markRead') : t('inbox.row.markUnread'), key: 'U' })}
+        aria-label={unread ? t('inbox.row.unreadMarkRead') : t('inbox.row.readMarkUnread')}
         onClick={stop(() => on.onToggleUnread?.(call))}
       >
         <i />
@@ -246,12 +259,12 @@ export const Row = memo(function Row({
       <span className="r-name">
         <span>{highlight(callerName(call, contact), search)}</span>
         {group && (
-          <span className="r-count" title={`${group.length} calls from this number`}>
+          <span className="r-count" title={t('inbox.row.callsFromNumber', { count: group.length })}>
             {group.length}
           </span>
         )}
         {call.assignee_id && on.onAssign && <AssigneeMark userId={call.assignee_id} />}
-        {call.source === 'sample' && <span className="r-sample">Sample</span>}
+        {call.source === 'sample' && <span className="r-sample">{t('inbox.row.sample')}</span>}
       </span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">
@@ -261,7 +274,15 @@ export const Row = memo(function Row({
       <span className="r-acts">
         {on.onToggleDone && (
           <RowAction
-            title={done ? 'Mark not done (⇧E)' : 'Mark done (E)'}
+            title={
+              done
+                ? t('common.withKeyHint', {
+                    label: t('shell.command.markNotDone'),
+                    key: '⇧E',
+                    hint: t('inbox.action.notDoneHint'),
+                  })
+                : t('common.withKey', { label: t('shell.command.markDone'), key: 'E' })
+            }
             icon={done ? 'restart' : 'check'}
             onClick={() => on.onToggleDone!(call)}
           />
@@ -269,10 +290,16 @@ export const Row = memo(function Row({
         {on.onAssign && <AssignAction call={call} onAssign={on.onAssign} />}
         {reminded
           ? on.onClearReminder && (
-              <RowAction title="Clear reminder (⇧H)" icon="restart" onClick={() => on.onClearReminder!(call)} />
+              <RowAction
+                title={t('common.withKey', { label: t('inbox.goLive.clearReminder'), key: '⇧H' })}
+                icon="restart" onClick={() => on.onClearReminder!(call)} />
             )
-          : on.onRemind && <RowAction title="Remind me (H)" icon="clock" onClick={() => on.onRemind!(call)} />}
-        {on.onCommands && <RowAction title="All commands (⌘ K)" icon="more" onClick={() => on.onCommands!(call)} />}
+          : on.onRemind && <RowAction
+                title={t('common.withKey', { label: t('shell.command.remindMe'), key: 'H' })}
+                icon="clock" onClick={() => on.onRemind!(call)} />}
+        {on.onCommands && <RowAction
+              title={t('common.withKey', { label: t('inbox.action.allCommands'), key: '⌘ K' })}
+              icon="more" onClick={() => on.onCommands!(call)} />}
       </span>
     </div>
   )

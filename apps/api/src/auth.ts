@@ -36,8 +36,10 @@ import {
 import { maySendSignInCode } from './signup-gate.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
 import { personNameHooks } from './team-member-edit.ts'
+import { userLocaleFields, userLocaleHooks } from './user-locale.ts'
 import { clearProfileChangeAfterOwnUpdate } from './user-avatar.ts'
 import { releaseWorkspaceClones } from './voices.ts'
+import { localeForEmail } from './email-locale.ts'
 
 const { google, microsoft, github, oidc, trustedProviders, methods } = authConfig
 
@@ -204,22 +206,34 @@ export { signInCodeEmail }
  * sign-in-limits.ts). Names the site it is for (the address people open, as for passkeys), so a code
  * someone asks for elsewhere stands out.
  */
-export const confirmationCodeEmail = (otp: string, env: Record<string, string | undefined> = process.env) =>
-  confirmationCodeTemplate(otp, passkeyRelyingParty(env).origin)
+export const confirmationCodeEmail = (
+  otp: string,
+  env: Record<string, string | undefined> = process.env,
+  locale?: string | null,
+) => confirmationCodeTemplate(otp, passkeyRelyingParty(env).origin, undefined, locale)
+
+/** The browser's languages on the request that asked for a code (the sign-in page's, before there is an account). */
+const acceptLanguageOf = (ctx: unknown) =>
+  (ctx as { headers?: Headers; request?: Request } | undefined)?.headers?.get('accept-language') ??
+  (ctx as { request?: Request } | undefined)?.request?.headers.get('accept-language') ??
+  null
 
 /** Sign-in, confirmation, password reset and email change codes. */
 async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }, ctx?: unknown) {
   if (type === 'change-email') return sendEmailChangeCode(email, otp, ctx)
+  const locale = await localeForEmail(db, email, acceptLanguageOf(ctx))
   if (type === 'email-verification') {
-    await emailSender.send({ to: email, ...confirmationCodeEmail(otp) })
+    await emailSender.send({ to: email, ...confirmationCodeEmail(otp, process.env, locale) })
     return
   }
-  if (type === 'forget-password') return sendPasswordResetCode(email, otp)
+  if (type === 'forget-password') return sendPasswordResetCode(email, otp, locale)
   if (type !== 'sign-in') return
   // Closed sign-up: no code to an address that cannot sign in.
   if (!(await maySendSignInCode(db, email))) return
   // Not awaited: waiting for SMTP only for real accounts would tell anyone which addresses have one.
-  void emailSender.send({ to: email, ...signInCodeEmail(otp) }).catch(err => console.error('sign-in email failed', err))
+  void emailSender
+    .send({ to: email, ...signInCodeEmail(otp, undefined, locale) })
+    .catch(err => console.error('sign-in email failed', err))
 }
 
 // Workspace = Better Auth organization. Sign-in methods: see auth-methods.ts.
@@ -242,6 +256,7 @@ export const auth = betterAuth({
   },
   databaseHooks: mergeDatabaseHooks(
     personNameHooks,
+    userLocaleHooks,
     instanceAdminHooks,
     accountLinkingHooks,
     auditHooks,
@@ -285,6 +300,8 @@ export const auth = betterAuth({
     ...WORKSPACE_WRITE_PATHS,
   ],
   hooks: { before: beforeAuthEndpoints, after: afterAuthEndpoints },
+  // The person's UI language, set by themselves (user-locale.ts); comes with the session, so the first render knows it.
+  user: { additionalFields: userLocaleFields },
   // Set by user.impersonate only (impersonation.ts); `input: false` keeps clients from setting it.
   // passkeyVerifiedAt: set by the session.create hook on a passkey sign-in (admin-second-factor.ts).
   // A sign-in lasts 30 days and is renewed at most once a day while it is used: a member who opens

@@ -19,6 +19,7 @@ import {
 import { Dialog } from './form.tsx'
 import { canvasAsPng } from './imageAsPng.ts'
 import { Button, cx, Icon, Note } from './kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 /** The frame's side in CSS pixels. */
 const FRAME = 280
@@ -67,6 +68,7 @@ type Props = {
 }
 
 export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, onSave }: Props) {
+  const t = useT()
   // The file's address for the <img>, made and released with the effect (also when React runs it twice in dev).
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
@@ -195,7 +197,7 @@ export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, 
       }
       await onSave(canvasAsPng(canvas, { maxBytes, what }))
     } catch (e) {
-      setProblem(e instanceof Error ? e.message : 'Could not save the image. Try again.')
+      setProblem(e instanceof Error ? e.message : t('common.imageCrop.saveFailed'))
       setBusy(false)
     }
   }
@@ -209,17 +211,17 @@ export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, 
       onClose={busy ? () => {} : onCancel}
       footer={
         <>
-          <Button variant="ghost" onClick={onCancel} disabled={busy} title="Keep what is there now (esc)">
-            Cancel
+          <Button variant="ghost" onClick={onCancel} disabled={busy} title={t('common.imageCrop.cancelTip', { key: 'esc' })}>
+            {t('common.action.cancel')}
           </Button>
           <Button
             variant="primary"
             busy={busy}
             disabled={!crop || busy}
             onClick={() => void save()}
-            title="Save (enter)"
+            title={t('common.action.saveWithKey', { key: 'enter' })}
           >
-            Save
+            {t('common.action.save')}
           </Button>
         </>
       }
@@ -232,7 +234,7 @@ export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, 
           role="group"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: the frame takes the arrow and +/− keys that move and zoom the image; no native element does
           tabIndex={0}
-          aria-label="Image position"
+          aria-label={t('common.imageCrop.position')}
           aria-describedby={helpId}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -246,7 +248,7 @@ export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, 
             alt=""
             draggable={false}
             onLoad={loaded}
-            onError={() => setProblem('That file is not an image this browser can read. Use a PNG, JPEG, WebP or SVG.')}
+            onError={() => setProblem(t('common.imageCrop.unreadable'))}
             style={
               placed
                 ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height }
@@ -257,12 +259,12 @@ export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, 
           {crop && (
             <span className={cx('k-crop-hint', frame.moved && 'is-hidden')} aria-hidden="true">
               <Icon name="move" size={16} />
-              Drag to move
+              {t('common.imageCrop.dragHint')}
             </span>
           )}
         </div>
         <label className="k-crop-zoom">
-          <span>Zoom</span>
+          <span>{t('common.imageCrop.zoom')}</span>
           <input
             type="range"
             min={1}
@@ -278,13 +280,10 @@ export function ImageCrop({ file, shape, title, size, maxBytes, what, onCancel, 
           />
         </label>
         <p className="k-crop-help">
-          <span className="k-crop-help-pointer">
-            Drag the picture to move it. Use the slider, scroll or pinch to zoom.
-          </span>
-          <span className="k-crop-help-touch">Drag to move, pinch to zoom.</span>
+          <span className="k-crop-help-pointer">{t('common.imageCrop.helpPointer')}</span>
+          <span className="k-crop-help-touch">{t('common.imageCrop.helpTouch')}</span>
           <span id={helpId} className="sr-only">
-            Drag the image or use the arrow keys to move it, Shift with an arrow key moves it farther. Use + and − or
-            the zoom slider to zoom.
+            {t('common.imageCrop.helpKeyboard')}
           </span>
         </p>
         {problem && <Note tone="danger">{problem}</Note>}

@@ -2,6 +2,9 @@
 // (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, API keys and leaving it.
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
 // webhooks in the assistant's settings (old #settings and #team links are rewritten, shell/useRoute.ts).
+
+import type { MessageKey } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useMemo } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { TeamSection } from '../team/TeamPage.tsx'
@@ -15,26 +18,34 @@ import { Recordings } from './Recordings.tsx'
 import { WorkspaceGeneral } from './WorkspaceGeneral.tsx'
 
 type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'developers' | 'danger'
-const sections: readonly PageSection<SectionId>[] = [
-  { id: 'general', label: 'General', description: 'Business name, time zone, appointment value' },
-  { id: 'team', label: 'Team', description: 'Who is in the workspace, invitations' },
-  { id: 'phone', label: 'Phone numbers', description: 'The numbers the assistant answers' },
-  { id: 'recordings', label: 'Recordings', description: 'How long recordings are kept, recording notice' },
-  { id: 'export', label: 'Export calls', description: 'Download calls as a CSV file' },
-  { id: 'developers', label: 'Developers', description: 'API keys for your own tools' },
-  { id: 'danger', label: 'Danger zone', description: 'Leave or delete this workspace' },
-]
-/** Members can't export calls or manage API keys (call:export, settings:write): those sections are not shown. */
-const memberSections = sections.filter(s => s.id !== 'export' && s.id !== 'developers')
+const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'developers', 'danger']
+
+/**
+ * The page's sections in the active language. Members can't export calls or manage API keys (call:export,
+ * settings:write): those sections are not shown.
+ */
+function useSections(canEdit: boolean): readonly PageSection<SectionId>[] {
+  const t = useT()
+  return useMemo(
+    () =>
+      SECTION_IDS.filter(id => canEdit || (id !== 'export' && id !== 'developers')).map(id => ({
+        id,
+        // i18n-dynamic: settings.workspace.nav.*
+        label: t(`settings.workspace.nav.${id}.label` as MessageKey),
+        description: t(`settings.workspace.nav.${id}.description` as MessageKey),
+      })),
+    [t, canEdit],
+  )
+}
 
 /**
  * What the Danger zone offers this person: the owner can't leave (they hand the workspace over or delete it), everyone
  * else can only leave (deleting is the owner's). The general words while the role isn't known yet.
  */
-function dangerDescription(canEdit: boolean, role: string | undefined): string {
-  if (!canEdit || role === 'admin' || role === 'member') return 'Leave this workspace'
-  if (role === 'owner') return 'Hand over or delete this workspace'
-  return 'Leave or delete this workspace'
+function dangerDescription(canEdit: boolean, role: string | undefined): MessageKey {
+  if (!canEdit || role === 'admin' || role === 'member') return 'settings.workspace.nav.danger.leave'
+  if (role === 'owner') return 'settings.workspace.nav.danger.owner'
+  return 'settings.workspace.nav.danger.description'
 }
 
 type Props = {
@@ -48,19 +59,21 @@ type Props = {
 }
 
 export function WorkspaceSettings({ canEdit, phoneSetup, isInstanceAdmin, workspaceName, onRenamed, toast }: Props) {
+  const t = useT()
   const team = useTeam().data
   const role = team?.members.find(m => m.userId === team.me)?.role
-  const danger = dangerDescription(canEdit, role)
+  const sections = useSections(canEdit)
+  const danger = t(dangerDescription(canEdit, role))
   const shown = useMemo(
-    () => (canEdit ? sections : memberSections).map(s => (s.id === 'danger' ? { ...s, description: danger } : s)),
-    [canEdit, danger],
+    () => sections.map(s => (s.id === 'danger' ? { ...s, description: danger } : s)),
+    [sections, danger],
   )
   const current = useSection('workspace', shown)
   return (
     <div className="page">
       <SettingsLayout
         page="workspace"
-        title="Workspace settings"
+        title={t('settings.workspace.title')}
         description={workspaceName}
         sections={shown}
         current={current}

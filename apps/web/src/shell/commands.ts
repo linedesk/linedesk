@@ -1,5 +1,6 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
 import type { Call, WorkspaceMember } from '@linedesk/db/types'
+import { i18n } from '../i18n/index.tsx'
 import { hasReminder } from '../inbox-model.ts'
 import { memberAvatar, memberLabel } from '../team/members.ts'
 import type { CommandGroup, CommandItem } from '../ui/CommandMenu.tsx'
@@ -59,23 +60,25 @@ export type CommandContext = {
 }
 
 function callCommands(call: Call, c: CommandContext): Command[] {
+  const { t } = i18n()
   const done = call.inbox_state === 'done'
   return [
     done
       ? {
-          label: 'Mark not done',
+          label: t('shell.command.markNotDone'),
+          hint: t('inbox.action.notDoneHint'),
           icon: 'restart',
           shortcut: ['⇧', 'E'],
           run: () => c.markNotDone(call),
         }
       : {
-          label: 'Mark done',
+          label: t('shell.command.markDone'),
           icon: 'check',
           shortcut: ['E'],
           run: () => c.markDone(call),
         },
     {
-      label: 'Remind me',
+      label: t('shell.command.remindMe'),
       icon: 'clock',
       shortcut: ['H'],
       run: () => c.openRemind(call),
@@ -84,7 +87,7 @@ function callCommands(call: Call, c: CommandContext): Command[] {
     ...(hasReminder(call) && !done
       ? [
           {
-            label: 'Clear reminder',
+            label: t('shell.command.clearReminder'),
             icon: 'restart',
             shortcut: ['⇧', 'H'],
             run: () => c.clearReminder(call),
@@ -92,7 +95,7 @@ function callCommands(call: Call, c: CommandContext): Command[] {
         ]
       : []),
     {
-      label: call.unread ? 'Mark read' : 'Mark unread',
+      label: call.unread ? t('shell.command.markRead') : t('shell.command.markUnread'),
       keywords: 'read unread',
       icon: 'checks',
       shortcut: ['U'],
@@ -100,28 +103,28 @@ function callCommands(call: Call, c: CommandContext): Command[] {
     },
     call.outcome === 'spam'
       ? {
-          label: 'Not spam',
+          label: t('shell.command.notSpam'),
           keywords: 'rescue real caller',
           icon: 'restart',
           shortcut: ['!'],
           run: () => c.toggleSpam(call),
         }
       : {
-          label: 'Move to Spam',
+          label: t('shell.command.moveToSpam'),
           keywords: 'junk sales robocall',
           icon: 'flag',
           shortcut: ['!'],
           run: () => c.toggleSpam(call),
         },
     {
-      label: c.isBlocked(call) ? 'Unblock number' : 'Block number',
+      label: c.isBlocked(call) ? t('shell.command.unblockNumber') : t('shell.command.blockNumber'),
       keywords: 'blocklist robocall spam caller',
       icon: 'ban',
       shortcut: ['⇧', 'B'],
       run: () => c.toggleBlock(call),
     },
     {
-      label: 'Delete call',
+      label: t('shell.command.deleteCall'),
       keywords: 'remove trash',
       icon: 'trash',
       shortcut: ['#'],
@@ -133,12 +136,13 @@ function callCommands(call: Call, c: CommandContext): Command[] {
 
 /** Mark urgent, or Not urgent on an urgent call: the team's own say over the urgent flag. */
 function urgentCommands(call: Call, c: CommandContext): Command[] {
+  const { t } = i18n()
   const setUrgent = c.setUrgent
   if (!setUrgent) return []
   return call.urgency === 'urgent'
     ? [
         {
-          label: 'Not urgent',
+          label: t('shell.command.notUrgent'),
           keywords: 'urgent flag emergency priority',
           icon: 'close',
           run: () => setUrgent(call, false),
@@ -146,7 +150,7 @@ function urgentCommands(call: Call, c: CommandContext): Command[] {
       ]
     : [
         {
-          label: 'Mark urgent',
+          label: t('shell.command.markUrgent'),
           keywords: 'urgent flag emergency priority',
           icon: 'flag',
           run: () => setUrgent(call, true),
@@ -159,10 +163,11 @@ function urgentCommands(call: Call, c: CommandContext): Command[] {
  * "Assign to <name>" directly (never yourself: that goes through the picker).
  */
 function assignCommands(call: Call, a: NonNullable<CommandContext['assign']>, me: string): Command[] {
+  const { t } = i18n()
   const teammates = a.members.filter(m => m.user_id !== me && m.user_id !== call.assignee_id)
   return [
     {
-      label: 'Assign…',
+      label: t('shell.command.assign'),
       keywords: 'assign teammate hand over owner',
       icon: 'user',
       shortcut: ['A'],
@@ -171,7 +176,7 @@ function assignCommands(call: Call, a: NonNullable<CommandContext['assign']>, me
     ...(call.assignee_id
       ? [
           {
-            label: 'Unassign',
+            label: t('shell.command.unassign'),
             keywords: 'assign nobody remove',
             icon: 'close',
             run: () => a.to(call, null, ''),
@@ -180,7 +185,7 @@ function assignCommands(call: Call, a: NonNullable<CommandContext['assign']>, me
       : []),
     ...teammates.map(
       (m): Command => ({
-        label: `Assign to ${memberLabel(m)}`,
+        label: t('shell.command.assignTo', { name: memberLabel(m) }),
         keywords: 'assign teammate',
         avatar: memberLabel(m),
         avatarSrc: memberAvatar(m),
@@ -192,15 +197,16 @@ function assignCommands(call: Call, a: NonNullable<CommandContext['assign']>, me
 }
 
 function assigneeViewCommands(a: NonNullable<CommandContext['assign']>, c: CommandContext): Command[] {
+  const { t } = i18n()
   return [
     {
-      label: 'Go to Assigned to me',
+      label: t('shell.command.goToAssignedToMe'),
       icon: 'user',
       shortcut: ['G', 'M'],
       run: () => c.goInbox('mine'),
     },
     {
-      label: 'Go to Unassigned',
+      label: t('shell.command.goToUnassigned'),
       keywords: 'nobody no one',
       icon: 'users',
       shortcut: ['G', 'U'],
@@ -210,7 +216,7 @@ function assigneeViewCommands(a: NonNullable<CommandContext['assign']>, c: Comma
       .filter(m => m.user_id !== c.me)
       .map(
         (m): Command => ({
-          label: `Go to ${memberLabel(m)}'s calls`,
+          label: t('shell.command.goToMemberCalls', { name: memberLabel(m) }),
           keywords: 'assigned to filter teammate',
           avatar: memberLabel(m),
           avatarSrc: memberAvatar(m),
@@ -222,11 +228,12 @@ function assigneeViewCommands(a: NonNullable<CommandContext['assign']>, c: Comma
 }
 
 function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: boolean): Command[] {
+  const { t } = i18n()
   return [
     ...(hasTarget && !s.count
       ? [
           {
-            label: 'Select call',
+            label: t('shell.command.selectCall'),
             keywords: 'pick several bulk',
             icon: 'check',
             shortcut: ['X'],
@@ -235,7 +242,7 @@ function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: 
         ]
       : []),
     {
-      label: 'Select all in the view',
+      label: t('shell.command.selectAllInTheView'),
       keywords: 'pick several bulk',
       icon: 'checks',
       shortcut: ['⌘', 'A'],
@@ -244,7 +251,7 @@ function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: 
     ...(s.count
       ? [
           {
-            label: 'Clear selection',
+            label: t('shell.command.clearSelection'),
             keywords: 'unselect',
             icon: 'restart',
             shortcut: ['esc'],
@@ -256,40 +263,41 @@ function selectCommands(s: NonNullable<CommandContext['selection']>, hasTarget: 
 }
 
 export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
+  const { t } = i18n()
   return [
     ...(c.target
       ? [
           {
-            label: `Selected call · ${c.targetName}`,
+            label: t('shell.command.selectedCall', { name: c.targetName }),
             items: callCommands(c.target, c),
           },
         ]
       : []),
-    ...(c.selection ? [{ label: 'Select', items: selectCommands(c.selection, !!c.target) }] : []),
+    ...(c.selection ? [{ label: t('shell.command.select'), items: selectCommands(c.selection, !!c.target) }] : []),
     {
-      label: 'Go to',
+      label: t('shell.command.goTo'),
       items: [
         {
-          label: 'Go to Inbox',
+          label: t('shell.command.goToInbox'),
           icon: 'phone',
           shortcut: ['G', 'I'],
           run: () => c.goInbox('you'),
         },
         {
-          label: 'Go to Done',
+          label: t('shell.command.goToDone'),
           icon: 'check',
           shortcut: ['G', 'E'],
           run: () => c.goInbox('done'),
         },
         {
-          label: 'Go to Reminders',
+          label: t('shell.command.goToReminders'),
           icon: 'clock',
           shortcut: ['G', 'H'],
           run: () => c.goInbox('reminders'),
         },
         ...(c.assign ? assigneeViewCommands(c.assign, c) : []),
         {
-          label: 'Go to Assistant',
+          label: t('shell.command.goToAssistant'),
           icon: 'waveform',
           shortcut: ['G', 'A'],
           run: () => c.goPage('assistant'),
@@ -297,7 +305,9 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         ...(c.canReview
           ? [
               {
-                label: `Go to How ${c.assistantName || 'the assistant'} did`,
+                label: c.assistantName
+                  ? t('shell.command.goToReview', { assistant: c.assistantName })
+                  : t('shell.command.goToReviewDefault'),
                 icon: 'flag' as const,
                 shortcut: ['G', 'R'],
                 run: () => c.goPage('assistant', 'review'),
@@ -305,61 +315,61 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
             ]
           : []),
         {
-          label: 'Go to Contacts',
+          label: t('shell.command.goToContacts'),
           icon: 'contact',
           shortcut: ['G', 'C'],
           run: () => c.goPage('contacts'),
         },
         {
-          label: 'Go to Insights',
+          label: t('shell.command.goToInsights'),
           keywords: 'analytics stats reports numbers',
           icon: 'chart',
           shortcut: ['G', 'N'],
           run: () => c.goPage('insights'),
         },
         {
-          label: 'Go to Workspace settings',
+          label: t('shell.command.goToWorkspaceSettings'),
           keywords: 'settings phone numbers recordings export api keys rename team leave',
           icon: 'gear',
           shortcut: ['G', 'S'],
           run: () => c.goPage('workspace'),
         },
         {
-          label: 'Go to Team',
+          label: t('shell.command.goToTeam'),
           icon: 'users',
           shortcut: ['G', 'T'],
           run: () => c.goPage('workspace', 'team'),
         },
         {
-          label: 'Rename workspace',
+          label: t('shell.command.renameWorkspace'),
           keywords: 'business name',
           icon: 'gear',
           searchOnly: true,
           run: () => c.goPage('workspace', 'general'),
         },
         {
-          label: 'Time zone',
+          label: t('shell.command.timeZone'),
           keywords: 'timezone clock date business hours',
           icon: 'clock',
           searchOnly: true,
           run: () => c.goPage('workspace', 'general'),
         },
         {
-          label: 'Appointment value',
+          label: t('shell.command.appointmentValue'),
           keywords: 'job value worth money currency insights booked',
           icon: 'chart',
           searchOnly: true,
           run: () => c.goPage('workspace', 'general'),
         },
         {
-          label: 'Notifications',
+          label: t('shell.command.notifications'),
           keywords: 'email push device alerts',
           icon: 'bell',
           searchOnly: true,
           run: () => c.goPage('account', 'notifications'),
         },
         {
-          label: 'Leave workspace…',
+          label: t('shell.command.leaveWorkspace'),
           keywords: 'quit exit danger',
           icon: 'users',
           searchOnly: true,
@@ -368,7 +378,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         ...(c.isInstanceAdmin
           ? [
               {
-                label: 'Go to Server admin',
+                label: t('shell.command.goToServerAdmin'),
                 icon: 'shield',
                 shortcut: ['G', 'D'],
                 run: () => c.goPage('admin'),
@@ -378,29 +388,29 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
       ],
     },
     {
-      label: 'App',
+      label: t('shell.command.app'),
       items: [
-        { label: 'Undo', icon: 'restart', shortcut: ['Z'], run: c.undo },
+        { label: t('shell.command.undo'), icon: 'restart', shortcut: ['Z'], run: c.undo },
         {
-          label: 'Search calls',
+          label: t('shell.command.searchCalls'),
           icon: 'search',
           shortcut: ['/'],
           run: c.openSearch,
         },
         {
-          label: 'Show keyboard shortcuts',
+          label: t('shell.command.showKeyboardShortcuts'),
           icon: 'keyboard',
           shortcut: ['?'],
           run: c.openHelp,
         },
         ...(c.showTour
-          ? [{ label: 'Show the tour', keywords: 'help intro', icon: 'spark' as const, run: c.showTour }]
+          ? [{ label: t('shell.command.showTheTour'), keywords: 'help intro', icon: 'spark' as const, run: c.showTour }]
           : []),
-        { label: 'Open menu', icon: 'menu', shortcut: ['M'], run: c.openNav },
+        { label: t('shell.command.openMenu'), icon: 'menu', shortcut: ['M'], run: c.openNav },
         ...(c.showGoLive
           ? [
               {
-                label: 'Show go-live checklist',
+                label: t('shell.command.showGoLiveChecklist'),
                 keywords: 'setup checklist next steps',
                 icon: 'tasks' as const,
                 run: c.showGoLive,
@@ -408,12 +418,18 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
             ]
           : []),
         {
-          label: 'Go to Account settings',
+          label: t('shell.command.goToAccountSettings'),
           keywords: 'account settings profile password passkeys sessions',
           icon: 'user',
           run: () => c.goPage('account'),
         },
-        { label: 'Sign out', icon: 'arrow-up-right', run: c.signOut },
+        {
+          label: t('shell.command.changeLanguage'),
+          keywords: 'language locale translation idioma langue sprache 言語',
+          icon: 'globe',
+          run: () => c.goPage('account', 'preferences'),
+        },
+        { label: t('shell.command.signOut'), icon: 'arrow-up-right', run: c.signOut },
       ],
     },
   ]

@@ -17,6 +17,10 @@ Status: in development, before the first public release. Phone and calendar firs
 
 Demo data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya").
 
+## Languages
+
+Linedesk speaks English, Español, Português (Brasil), Français, Deutsch and 日本語. Translations are made by AI and improved by people. See a bad translation? Fix it in a pull request or open a [Translation improvement](https://github.com/linedesk/linedesk/issues/new?template=translation_improvement.yml) issue. Missing your language? [Ask for it](https://github.com/linedesk/linedesk/issues/new?template=language_request.yml). How it works: [docs/translations.md](docs/translations.md).
+
 ## Development quickstart
 
 Requirements: Node 22.18 or newer (it runs the TypeScript files directly), pnpm 10, Docker.
@@ -282,5 +286,6 @@ A real restore: download a backup (decrypt an encrypted one on your computer:
 - [docs/decisions.md](docs/decisions.md): decisions log
 - [docs/research.md](docs/research.md): what an AI front desk must do well
 - [docs/design-principles.md](docs/design-principles.md): UI rules
+- [docs/translations.md](docs/translations.md): languages, the translation pipeline, fixing a translation
 
 Working on the code: read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) first. Security reports: [SECURITY.md](SECURITY.md).

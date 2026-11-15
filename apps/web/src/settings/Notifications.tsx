@@ -18,19 +18,21 @@ import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Loading } from '../ui/LoadStates.tsx'
 import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
+import { T, useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 /** Your own notifications, linked from the team defaults (Workspace settings › Team). */
 export const OWN_NOTIFICATIONS_HASH = '#account/notifications'
 
-const blockedText = 'Blocked by the browser. Allow notifications for this site, then try again.'
+const blockedText = () => i18n().t('account.notify.blocked')
 
 /** Why push cannot be turned on here, or null when it can. */
 export function pushBlocker(publicKey: string | null): string | null {
   const support = pushSupport()
   if (support === 'ios-needs-install')
-    return `On iPhone and iPad, add ${brandName()} to your Home Screen first (Share, Add to Home Screen), then open it from there.`
-  if (support === 'unsupported') return 'This browser cannot receive push notifications.'
-  if (!publicKey) return 'Not set up on this server yet (VAPID keys, see the operator notes).'
+    return i18n().t('account.notify.iosInstall', { brand: brandName() })
+  if (support === 'unsupported') return i18n().t('account.notify.pushUnsupported')
+  if (!publicKey) return i18n().t('account.notify.pushNotSetUp')
   return null
 }
 
@@ -61,7 +63,7 @@ export async function turnOnPush(
   if (!settings.push.publicKey) return { id: null, note: pushBlocker(null) }
   try {
     const subscription = await subscribeThisBrowser(settings.push.publicKey)
-    if (subscription === 'denied') return { id: null, note: blockedText }
+    if (subscription === 'denied') return { id: null, note: blockedText() }
     const id = await thisDeviceId()
     if (id)
       setNotificationSettings({
@@ -71,7 +73,10 @@ export async function turnOnPush(
     void run('push.subscribe', subscription)
     return { id, note: null }
   } catch (e) {
-    return { id: null, note: `Push could not be turned on: ${e instanceof Error ? e.message : String(e)}` }
+    return {
+      id: null,
+      note: i18n().t('account.notify.pushFailed', { reason: e instanceof Error ? e.message : String(e) }),
+    }
   }
 }
 
@@ -106,6 +111,7 @@ function setOwnBrowser(settings: NotificationSettingsData, on: boolean, run: (na
  * permission itself; `note` says what the switch does here, or why it cannot be turned on.
  */
 export function useDeviceNotifications(settings: NotificationSettingsData) {
+  const t = useT()
   const run = useRun()
   const device = useThisDevice(settings.push.devices)
   const [permission, askPermission] = useNotificationPermission()
@@ -126,7 +132,7 @@ export function useDeviceNotifications(settings: NotificationSettingsData) {
     if (!browserNotificationsSupported() || Notification.permission !== 'granted') return
     if (!viaPush) return setOwnBrowser(settings, true, run)
     // Registering with the browser's push service can take a while the first time.
-    setBusyNote('Turning on…')
+    setBusyNote(t('account.notify.turningOn'))
     const result = await turnOnPush(settings, run)
     setBusyNote(result.note)
     if (result.id) device.setId(result.id)
@@ -134,25 +140,26 @@ export function useDeviceNotifications(settings: NotificationSettingsData) {
 
   const fallback =
     pushSupport() === 'supported'
-      ? `New calls while ${brandName()} is open. Notifications when it is closed are not set up on this server yet.`
-      : `New calls while ${brandName()} is open. This browser cannot show them when it is closed.`
+      ? t('account.notify.whileOpenNoPush', { brand: brandName() })
+      : t('account.notify.whileOpenNoBrowser', { brand: brandName() })
   const note = unavailable
     ? permissionText(permission)
-    : (busyNote ?? (viaPush ? `New calls, urgent ones first, even when ${brandName()} is closed.` : fallback))
+    : (busyNote ?? (viaPush ? t('account.notify.push', { brand: brandName() }) : fallback))
   return { on, disabled: unavailable, note, set, pushOn: viaPush && on }
 }
 
 /** `workspaceName`: the workspace these settings are for; each workspace has its own. */
 export function Notifications({ workspaceName }: { workspaceName: string }) {
+  const t = useT()
   const query = useNotificationQuery()
   const settings = query.data ?? null
   const error = settings ? null : query.error
-  const description = `In ${workspaceName}: email, and this device.`
+  const description = t('account.notify.description', { workspace: workspaceName })
 
   return (
-    <Section id="st-notify" title="Notifications" description={description}>
+    <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
       <Loading
-        what="Notification settings"
+        what={t('account.notify.what')}
         loading={!settings}
         error={error}
         onRetry={() => void query.reload()}
@@ -205,30 +212,27 @@ export function NotificationSwitches({
   pushSummaryOffOnly?: boolean
   onChange: (change: NotificationChange) => void
 }) {
+  const t = useT()
   return (
     <div className="st-swlist">
       <SwitchRow
-        title="Email for every call"
-        aside={settings.own.email === null ? 'Team default' : undefined}
+        title={t('account.notify.emailEveryCall')}
+        aside={settings.own.email === null ? t('account.notify.teamDefault') : undefined}
         on={settings.effective.email}
         onChange={email => onChange({ email })}
       />
       {canAssign && (
         <SwitchRow
-          title={them ? 'Email when a call is assigned to them' : 'Email me when a call is assigned to me'}
-          description={
-            them
-              ? 'When a teammate assigns them a call. Never for calls they take themselves.'
-              : 'When a teammate assigns you a call. Never for calls you take yourself.'
-          }
+          title={them ? t('account.notify.assignedThem') : t('account.notify.assignedMe')}
+          description={them ? t('account.notify.assignedThemDescription') : t('account.notify.assignedMeDescription')}
           on={settings.assignedEmail}
           onChange={assignedEmail => onChange({ assignedEmail })}
         />
       )}
       {settings.setupEmails !== null && (
         <SwitchRow
-          title="Setup emails"
-          description={`A few emails while ${them ? 'the' : 'your'} workspace gets set up, and a summary of its first week.`}
+          title={t('account.notify.setupEmails')}
+          description={them ? t('account.notify.setupEmailsThem') : t('account.notify.setupEmailsMe')}
           on={settings.setupEmails}
           onChange={setupEmails => onChange({ setupEmails })}
         />
@@ -237,12 +241,8 @@ export function NotificationSwitches({
       {pushOn && (
         <SwitchRow
           nested={!!device}
-          title={them ? 'Push notifications say what the call was about' : 'Include what the call was about'}
-          description={
-            them
-              ? 'Adds one line about the call to the notifications on their devices. It can show on a lock screen, so only they can turn it on.'
-              : 'Adds one line about the call to these notifications. It can show on your lock screen.'
-          }
+          title={them ? t('account.notify.summaryThem') : t('account.notify.summaryMe')}
+          description={them ? t('account.notify.summaryThemDescription') : t('account.notify.summaryMeDescription')}
           on={settings.push.summary}
           onChange={pushSummary => onChange({ pushSummary })}
           disabled={pushSummaryOffOnly && !settings.push.summary}
@@ -253,6 +253,7 @@ export function NotificationSwitches({
 }
 
 function OwnNotifications({ settings }: { settings: NotificationSettingsData }) {
+  const t = useT()
   const run = useRun()
   const canAssign = useCanAssign()
   const device = useDeviceNotifications(settings)
@@ -274,7 +275,7 @@ function OwnNotifications({ settings }: { settings: NotificationSettingsData }) 
         onChange={change}
         device={
           <SwitchRow
-            title="Notifications on this device"
+            title={t('account.notify.thisDevice')}
             description={device.note}
             on={device.on}
             onChange={on => void device.set(on)}
@@ -284,13 +285,14 @@ function OwnNotifications({ settings }: { settings: NotificationSettingsData }) 
         }
       />
       {settings.changedBy && <p className="help">{changedByLabel(settings.changedBy)}</p>}
-      {several && <p className="help">Each workspace has its own. Switch workspace to change another's.</p>}
+      {several && <p className="help">{t('account.notify.perWorkspace')}</p>}
     </>
   )
 }
 
 /** Owners and admins: the email default for teammates who never changed theirs. Nothing for everyone else. */
 export function NotificationDefaults({ toast }: { toast: (text: string) => void }) {
+  const t = useT()
   const run = useRun()
   const settings = useNotificationQuery().data ?? null
   if (!settings?.canEditDefaults) return null
@@ -300,20 +302,27 @@ export function NotificationDefaults({ toast }: { toast: (text: string) => void 
     const effective = { ...current.effective, email: current.own.email ?? on }
     setNotificationSettings({ ...current, defaults, effective })
     void run('notifications.setDefaults', { email: on })
-    toast('Team defaults saved.')
+    toast(t('account.notify.defaultsSaved'))
   }
 
   return (
-    <Section id="st-notify-defaults" title="Team defaults" description="Notifications for teammates without their own.">
+    <Section
+      id="st-notify-defaults"
+      title={t('account.notify.defaults')}
+      description={t('account.notify.defaultsDescription')}
+    >
       <div className="st-swlist">
         <SwitchRow
-          title="Email for every call"
+          title={t('account.notify.emailEveryCall')}
           on={settings.defaults.email}
           onChange={on => setDefaultEmail(settings, on)}
         />
       </div>
       <p className="help">
-        Your own notifications: <a href={OWN_NOTIFICATIONS_HASH}>Account settings › Notifications</a>
+        <T
+          k="account.notify.ownLink"
+          values={{ link: chunks => <a href={OWN_NOTIFICATIONS_HASH}>{chunks}</a> }}
+        />
       </p>
     </Section>
   )

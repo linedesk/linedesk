@@ -14,6 +14,7 @@ import { Avatar, Button } from '../../ui/kit.tsx'
 import { Field } from '../fields.tsx'
 import { useWriteAction } from '../settings-api.ts'
 import { ACCOUNT, type Account } from './account-api.ts'
+import { useT } from '@linedesk/i18n/react'
 
 /** Your own picture, changed by you: the profile no longer says someone else changed it last. */
 const showAvatar = (avatarUrl: string | null) =>
@@ -34,6 +35,7 @@ export function AvatarField({
   avatarUrl: string | null
   member?: { memberId: string; onSaved: (avatarUrl: string | null) => void }
 }) {
+  const t = useT()
   const run = useWriteAction()
   const shown = member ? member.onSaved : showAvatar
   const fileRef = useRef<HTMLInputElement>(null)
@@ -58,7 +60,7 @@ export function AvatarField({
       void refreshTeam() // the team list shows the new picture
     } catch (e) {
       shown(before)
-      setProblem(e instanceof Error ? e.message : 'Could not save the picture. Try again.')
+      setProblem(e instanceof Error ? e.message : t('account.picture.saveFailed'))
     } finally {
       setBusy(null)
     }
@@ -75,7 +77,7 @@ export function AvatarField({
   async function saveCropped(avatar: string) {
     setCropping(null)
     setBusy('upload')
-    await save(false, { avatar }, avatar, 'Picture saved.')
+    await save(false, { avatar }, avatar, t('account.picture.saved'))
   }
 
   function remove() {
@@ -83,18 +85,14 @@ export function AvatarField({
     setProblem(null)
     setDone(null)
     setBusy('remove')
-    void save(true, {}, null, 'Picture removed.')
+    void save(true, {}, null, t('account.picture.removed'))
   }
 
   return (
     <Field
       id="ac-avatar"
-      label="Picture"
-      tip={
-        member
-          ? 'Shown to the team wherever they appear, in every workspace they are in. A square image works best.'
-          : 'Shown to your team wherever you appear, for example on calls assigned to you. A square image works best.'
-      }
+      label={t('account.picture.label')}
+      tip={member ? t('account.picture.tipMember') : t('account.picture.tip')}
       error={problem}
     >
       <div className="ac-avatar">
@@ -114,10 +112,10 @@ export function AvatarField({
           <ImageCrop
             file={cropping}
             shape="circle"
-            title="Crop your picture"
+            title={t('account.picture.crop')}
             size={LOGO_SIZE}
             maxBytes={LOGO_MAX_BYTES}
-            what="The picture"
+            what={t('account.picture.what')}
             onCancel={() => setCropping(null)}
             onSave={saveCropped}
           />
@@ -128,9 +126,9 @@ export function AvatarField({
           busy={busy === 'upload'}
           disabled={!!busy}
           onClick={() => fileRef.current?.click()}
-          title={member ? `Choose an image of ${name}` : 'Choose an image of you'}
+          title={member ? t('account.picture.chooseOf', { name }) : t('account.picture.chooseOfYou')}
         >
-          {avatarUrl ? 'Replace…' : 'Upload…'}
+          {avatarUrl ? t('account.picture.replace') : t('account.picture.upload')}
         </Button>
         {avatarUrl && (
           <Button
@@ -139,9 +137,9 @@ export function AvatarField({
             busy={busy === 'remove'}
             disabled={!!busy}
             onClick={remove}
-            title={member ? 'Show their initials instead' : 'Show your initials instead'}
+            title={member ? t('account.picture.initialsMember') : t('account.picture.initials')}
           >
-            Remove
+            {t('account.passkeys.remove')}
           </Button>
         )}
         {done && (

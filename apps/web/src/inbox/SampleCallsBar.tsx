@@ -3,8 +3,10 @@ import { useState } from 'react'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { useRows } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
+import { T, useT } from '@linedesk/i18n/react'
 
 export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
+  const t = useT()
   const write = useWriteAction()
   const count = useRows('calls').filter(c => c.source === 'sample' && !c.deleted_at).length
   const [busy, setBusy] = useState(false)
@@ -13,7 +15,7 @@ export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (t
     setBusy(true)
     try {
       await write('sample.remove', {})
-      toast('Sample calls removed.')
+      toast(t('inbox.sample.removed'))
     } catch (e) {
       toast((e as Error).message)
     } finally {
@@ -23,7 +25,10 @@ export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (t
   return (
     <div className="ib-sample" role="status">
       <span>
-        <b>Sample calls.</b> {count} examples of how calls land here. Try E, A and Enter on them.
+        <T
+          k="inbox.sample.line"
+          values={{ count, b: chunks => <b>{chunks}</b>, done: 'E', assign: 'A', open: 'Enter' }}
+        />
       </span>
       {canEdit && (
         <Button busy={busy}
@@ -31,9 +36,9 @@ export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (t
           variant="ghost"
           disabled={busy}
           onClick={() => void remove()}
-          title="Remove every sample call"
+          title={t('inbox.sample.removeTitle')}
         >
-          {busy ? 'Removing…' : 'Remove sample calls'}
+          {busy ? t('inbox.sample.removing') : t('inbox.sample.remove')}
         </Button>
       )}
     </div>

@@ -1,6 +1,8 @@
 // Asking a member without a passkey to add one (passkey-ask.ts, LIN-215): the calm page right after signing in another
 // way (AddPasskeyPage) and the quiet card in the app (PasskeyCard). Both add the passkey the way Account › Sign-in &
 // security does (addPasskeyForThisDevice); "Not now" pauses both on this device for 14 days. Never blocking.
+
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { signInAgain } from './localData.ts'
 import { PAUSE_DAYS, pause } from './passkey-ask.ts'
@@ -9,10 +11,7 @@ import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip } from './ui/form.tsx'
 import { AuthPage, Button, cx, Note, Spinner } from './ui/kit.tsx'
 
-/** The one line why, and the longer explanation behind the "?". */
-export const PASSKEY_WHY = 'Sign in faster next time, with no code.'
-export const PASSKEY_HELP =
-  'A passkey lets you sign in with your fingerprint, face or screen lock. It stays on your device and only works for this site, so nobody can trick you into giving it away. Email codes keep working.'
+/** The one line why (auth.addPasskey.why) and the longer explanation behind the "?" (auth.addPasskey.help). */
 
 type Step = 'ask' | 'adding' | 'added'
 
@@ -49,13 +48,14 @@ type PageProps = {
 
 /** Right after signing in without a passkey: one calm question before the app. */
 export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
+  const t = useT()
   const request = useAddPasskey(() => {})
   if (request.step === 'added') {
     return (
       <AuthPage>
         <div className="auth-card">
-          <h1>Passkey added</h1>
-          <p>Next time, choose Sign in with passkey.</p>
+          <h1>{t('auth.addPasskey.added')}</h1>
+          <p>{t('auth.addPasskey.addedNext')}</p>
           <button
             type="button"
             className="k-btn k-btn-primary"
@@ -65,7 +65,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
               onDone()
             }}
           >
-            Continue
+            {t('auth.addPasskey.continue')}
           </button>
         </div>
       </AuthPage>
@@ -75,14 +75,14 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
   return (
     <AuthPage>
       <div className="auth-card">
-        <h1>Add a passkey</h1>
+        <h1>{t('auth.addPasskey.title')}</h1>
         <p className="auth-why">
-          {PASSKEY_WHY} <HelpTip text={PASSKEY_HELP} />
+          {t('auth.addPasskey.why')} <HelpTip text={t('auth.addPasskey.help')} />
         </p>
         {request.error && <AuthError message={request.error} />}
         {request.needsSignIn ? (
           <button type="button" className="k-btn k-btn-primary" autoFocus onClick={() => void signInAgain()}>
-            Sign in again
+            {t('auth.addPasskey.signInAgain')}
           </button>
         ) : (
           <button
@@ -94,7 +94,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
             onClick={() => void request.add()}
           >
             {adding && <Spinner />}
-            {adding ? 'Waiting for your device…' : 'Add passkey'}
+            {adding ? t('auth.addPasskey.waitingDevice') : t('auth.addPasskey.add')}
           </button>
         )}
         <button
@@ -106,7 +106,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
             onDone()
           }}
         >
-          Not now
+          {t('auth.addPasskey.notNow')}
         </button>
       </div>
     </AuthPage>
@@ -125,6 +125,7 @@ type CardProps = {
 
 /** In the app, for members without a passkey: a small card at the bottom right, like the star prompt. */
 export function PasskeyCard({ account, needsEnrolmentCode, onAdded, onClose }: CardProps) {
+  const t = useT()
   const request = useAddPasskey(onAdded)
   const adding = request.step === 'adding'
   const notNow = () => {
@@ -132,37 +133,43 @@ export function PasskeyCard({ account, needsEnrolmentCode, onAdded, onClose }: C
     onClose()
   }
   return (
-    <section className="tour star-card passkey-card" role="dialog" aria-label="Add a passkey">
+    <section className="tour star-card passkey-card" role="dialog" aria-label={t('auth.addPasskey.title')}>
       <h2>
-        Add a passkey <HelpTip text={PASSKEY_HELP} />
+        {t('auth.addPasskey.title')} <HelpTip text={t('auth.addPasskey.help')} />
       </h2>
-      <p>{PASSKEY_WHY}</p>
+      <p>{t('auth.addPasskey.why')}</p>
       {request.error && <Note tone="danger">{request.error}</Note>}
       <div className="tour-foot">
         <span className="tour-count" />
-        <Button size="sm" variant="ghost" onClick={notNow} disabled={adding} title={`Ask again in ${PAUSE_DAYS} days`}>
-          Not now
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={notNow}
+          disabled={adding}
+          title={t('auth.addPasskey.askAgainIn', { days: PAUSE_DAYS })}
+        >
+          {t('auth.addPasskey.notNow')}
         </Button>
         {request.needsSignIn ? (
           <Button
             size="sm"
             variant="primary"
             onClick={() => void signInAgain()}
-            title="Sign out and sign in again, then add it"
+            title={t('auth.addPasskey.signInAgainTitle')}
           >
-            Sign in again
+            {t('auth.addPasskey.signInAgain')}
           </Button>
         ) : needsEnrolmentCode ? (
           <Button
             size="sm"
             variant="primary"
-            title="Add it in Account settings with your enrolment code"
+            title={t('auth.addPasskey.enrolmentTitle')}
             onClick={() => {
               window.location.hash = '#account/security'
               onClose()
             }}
           >
-            Add passkey
+            {t('auth.addPasskey.add')}
           </Button>
         ) : (
           <Button
@@ -170,10 +177,10 @@ export function PasskeyCard({ account, needsEnrolmentCode, onAdded, onClose }: C
             variant="primary"
             busy={adding}
             disabled={adding}
-            title="Create a passkey on this device for your account"
+            title={t('auth.addPasskey.addTitle')}
             onClick={() => void request.add()}
           >
-            {adding ? 'Waiting…' : 'Add passkey'}
+            {adding ? t('auth.addPasskey.waiting') : t('auth.addPasskey.add')}
           </Button>
         )}
       </div>

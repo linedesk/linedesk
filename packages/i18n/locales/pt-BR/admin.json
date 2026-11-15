@@ -1,0 +1,5 @@
+{
+  "example.business": "Riverside Electric",
+  "example.ownerEmail": "owner@riverside-electric.example",
+  "impersonation.confirm": "Você verá o {brand} exatamente como {name} vê. Tudo o que você fizer será registrado como feito por você em nome dessa pessoa. Termina após 1 hora."
+}

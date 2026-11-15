@@ -500,6 +500,13 @@ body,
   color: var(--ink-muted);
   font-size: 12px;
 }
+/* Label and hint stay on the row's one line; a hint too long for a narrow window ends in an ellipsis. */
+.k-cmd-item > span:not(.k-kbds) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Terms · Privacy · Help under sign-in. */
 .auth-legal {
@@ -520,6 +527,11 @@ body,
 .auth-legal a:hover {
   color: var(--ink);
   text-decoration: underline;
+}
+/* The sign-in page's language select (Login.tsx): small, under the legal links. */
+.auth-language {
+  display: flex;
+  justify-content: center;
 }
 
 /* "Powered by Linedesk" at the bottom of the sign-in page of an install with its own name or logo (ui/kit.tsx). */

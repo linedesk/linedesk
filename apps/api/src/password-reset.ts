@@ -24,6 +24,7 @@ import { emailSender } from './email.ts'
 import { passwordChangedEmail, passwordResetCodeEmail } from './emails/templates.ts'
 import { revokeSetupKeysOf } from './passkey-enrolment.ts'
 import { countWrongCode } from './sign-in-limits.ts'
+import { localeForEmail } from './email-locale.ts'
 
 /** Better Auth's two endpoints of the reset; off over HTTP unless password sign-in is on. */
 export const PASSWORD_RESET_PATHS = ['/email-otp/request-password-reset', '/email-otp/reset-password']
@@ -44,11 +45,11 @@ async function accountByEmail(email: string) {
  * existing account; a disabled one gets nothing. Not awaited, as sign-in codes: waiting for SMTP only
  * for real accounts would tell anyone which addresses have one.
  */
-export async function sendPasswordResetCode(email: string, otp: string) {
+export async function sendPasswordResetCode(email: string, otp: string, locale?: string | null) {
   const target = await accountByEmail(email)
   if (!target || target.disabledAt) return
   void emailSender
-    .send({ to: email, ...passwordResetCodeEmail(otp) })
+    .send({ to: email, ...passwordResetCodeEmail(otp, undefined, locale) })
     .catch(err => console.error('password reset email failed', err))
 }
 
@@ -173,6 +174,6 @@ export async function afterPasswordReset(
   await record()
   // Not awaited: the password is changed; a slow or broken mail server must not fail it.
   void emailSender
-    .send({ to: resetUser.email, ...passwordChangedEmail() })
+    .send({ to: resetUser.email, ...passwordChangedEmail(undefined, await localeForEmail(db, resetUser.email)) })
     .catch(err => console.error('password changed email failed', err))
 }

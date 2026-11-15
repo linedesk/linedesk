@@ -24,6 +24,7 @@
     "@linedesk/actions": "workspace:*",
     "@linedesk/calendar": "workspace:*",
     "@linedesk/db": "workspace:*",
+    "@linedesk/i18n": "workspace:*",
     "@linedesk/scrub": "workspace:*",
     "@linedesk/telephony": "workspace:*",
     "@modelcontextprotocol/server": "2.4.0",

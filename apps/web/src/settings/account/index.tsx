@@ -1,41 +1,41 @@
 // Account: profile, notifications, sign-in and sessions of the signed-in member, one section at a time
 // (#account/<section>). Profile, sign-in and sessions are Better Auth's own data (see account-api.ts), so they do
 // not go through the outbox; notifications are per workspace (settings/Notifications.tsx).
-import { PASSKEY_WHY } from '../../AddPasskey.tsx'
-import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useState } from 'react'
+import type { MessageKey } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
+import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { passkeySupported } from '../../auth.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
+import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { signInAgain } from '../../localData.ts'
 import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.ts'
-import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { refreshTeam } from '../../team/team-api.ts'
 import { changedByLabel } from '../../team/team-model.ts'
-import { Loading, Skeleton } from '../../ui/LoadStates.tsx'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
+import { Loading, Skeleton } from '../../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
-import { AvatarField } from './AvatarField.tsx'
 import { Notifications } from '../Notifications.tsx'
-import { useAddPasskey } from './add-passkey.ts'
+import { AvatarField } from './AvatarField.tsx'
 import {
   ACCOUNT,
   type Account,
-  PASSKEYS,
-  SESSIONS,
+  ConfirmWithPasskey,
   changeEmail,
   changeName,
   changePassword,
-  ConfirmWithPasskey,
   confirmWithPasskey,
   loadAccount,
   loadPasskeys,
   loadSessions,
+  PASSKEYS,
   removePasskey,
   requestEmailChange,
-  setFirstPassword,
+  SESSIONS,
   SignInAgain,
+  setFirstPassword,
   signOutOtherSessions,
   signOutSession,
 } from './account-api.ts'
@@ -43,10 +43,12 @@ import {
   hasPassword,
   orderSessions,
   passwordProblem,
-  type SessionRow,
   SESSIONS_SHOWN,
+  type SessionRow,
   signInMethodLabels,
 } from './account-model.ts'
+import { useAddPasskey } from './add-passkey.ts'
+import { Preferences } from './Preferences.tsx'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
 
@@ -99,9 +101,10 @@ function useRequest() {
 type Request = ReturnType<typeof useRequest>
 
 function SignInAgainButton() {
+  const t = useT()
   return (
-    <Button title="Sign out and sign in again, then come back here" onClick={() => void signInAgain()}>
-      Sign in again
+    <Button title={t('account.signInAgain.title')} onClick={() => void signInAgain()}>
+      {t('account.signInAgain.button')}
     </Button>
   )
 }
@@ -112,6 +115,7 @@ function FormStatus({
 }: {
   request: Pick<Request, 'busy' | 'error' | 'done' | 'needsSignIn' | 'confirmPasskey'>
 }) {
+  const t = useT()
   if (request.error) {
     const { confirmPasskey } = request
     return (
@@ -119,11 +123,11 @@ function FormStatus({
         <Note tone="danger">{request.error}</Note>
         {confirmPasskey ? (
           <Button
-            title="Sign in with one of your passkeys, then try again"
+            title={t('account.confirmPasskey.title')}
             disabled={request.busy}
             onClick={() => void confirmPasskey()}
           >
-            Confirm with passkey
+            {t('account.confirmPasskey.button')}
           </Button>
         ) : (
           request.needsSignIn && <SignInAgainButton />
@@ -164,6 +168,7 @@ function PasswordInput({
 }
 
 function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspace: boolean }) {
+  const t = useT()
   const [name, setName] = useState(account.user.name)
   const request = useRequest()
   const trimmed = name.trim()
@@ -174,7 +179,7 @@ function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspac
     void request.run(async () => {
       await changeName(trimmed)
       await Promise.all([reload(), refreshTeam()]) // the Team list and call assignment show the new name
-    }, 'Name saved.')
+    }, t('account.profile.nameSaved'))
   }
   // `=== false`: an account remembered from before this field existed says nothing either way.
   const unconfirmed = account.user.emailVerified === false && account.methods.emailCode
@@ -188,36 +193,38 @@ function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspac
         <ConfirmEmail
           email={account.user.email}
           onDone={reload}
-          why={`Confirm that ${account.user.email} is yours. Until then you cannot create API keys or webhooks, invite people, or set up a carrier or phone number.`}
+          why={t('account.profile.confirmEmail', { email: account.user.email })}
         />
       )}
       <form className="ac-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !!trimmed)}>
-        <Section id="ac-profile" title="Profile">
+        <Section id="ac-profile" title={t('account.nav.profile.label')}>
           {/* The picture is shown to the people you work with; without a workspace there is nobody to show it to. */}
           {hasWorkspace && <AvatarField name={account.user.name} avatarUrl={account.avatarUrl ?? null} />}
-          <Field id="ac-name" label="Name" error={trimmed ? null : 'Enter your name.'}>
-            <TextInput id="ac-name" value={name} onChange={setName} placeholder="Your name" invalid={!trimmed} />
+          <Field id="ac-name" label={t('account.profile.name')} error={trimmed ? null : t('account.profile.enterName')}>
+            <TextInput
+              id="ac-name"
+              value={name}
+              onChange={setName}
+              placeholder={t('account.profile.namePlaceholder')}
+              invalid={!trimmed}
+            />
           </Field>
           <Field
-            label="Email"
-            tip={
-              canChangeEmail
-                ? 'You sign in with this address, and sign-in codes and emails go to it. To change it, confirm the new address with a code.'
-                : 'You sign in with this address, and sign-in codes and emails go to it.'
-            }
+            label={t('account.profile.email')}
+            tip={canChangeEmail ? t('account.profile.emailTipChange') : t('account.profile.emailTip')}
           >
             <div className="ac-inline">
               <span className="ac-value">{account.user.email}</span>
               {canChangeEmail && !changingEmail && (
                 <Button
                   size="sm"
-                  title="Use a different email address for this account"
+                  title={t('account.profile.changeEmailTitle')}
                   onClick={() => {
                     setEmailChanged(null)
                     setChangingEmail(true)
                   }}
                 >
-                  Change…
+                  {t('account.profile.change')}
                 </Button>
               )}
             </div>
@@ -235,7 +242,7 @@ function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspac
               onDone={async next => {
                 await Promise.all([reload(), refreshTeam()]) // the Team list shows members' addresses
                 setChangingEmail(false)
-                setEmailChanged(`Email changed to ${next}. Your other sessions were signed out.`)
+                setEmailChanged(t('account.profile.emailChanged', { email: next }))
               }}
             />
           )}
@@ -265,6 +272,7 @@ function ChangeEmail({
   onCancel: () => void
   onDone: (next: string) => Promise<void>
 }) {
+  const t = useT()
   const [email, setEmail] = useState('')
   // The new address, and whose code is asked for: the current address's first, when the server wants it.
   const [target, setTarget] = useState<string | null>(null)
@@ -287,8 +295,8 @@ function ChangeEmail({
   }
   const send = (to: string) =>
     request.run(async () => {
-      if (!looksLikeEmail(to)) throw new Error('Enter a valid email address.')
-      if (to === current.toLowerCase()) throw new Error('That is already your email address.')
+      if (!looksLikeEmail(to)) throw new Error(t('account.email.invalid'))
+      if (to === current.toLowerCase()) throw new Error(t('account.email.same'))
       const { confirmCurrentEmail } = await requestEmailChange(to)
       codeSent(to, confirmCurrentEmail)
     })
@@ -314,22 +322,18 @@ function ChangeEmail({
   }
 
   return (
-    <div className="ac-form ac-divided" role="group" aria-label="Change email" onKeyDown={onEnter}>
+    <div className="ac-form ac-divided" role="group" aria-label={t('account.email.change')} onKeyDown={onEnter}>
       {target ? (
         <Field
           key={step}
           id="ac-email-code"
-          label="Code"
+          label={t('account.email.code')}
           help={
             step === 'current'
-              ? `Confirm it's you: enter the ${CODE_LENGTH}-digit code we sent to ${current}.`
-              : `Enter the ${CODE_LENGTH}-digit code we sent to ${target}.`
+              ? t('account.email.codeCurrent', { digits: CODE_LENGTH, email: current })
+              : t('account.email.codeNew', { digits: CODE_LENGTH, email: target })
           }
-          tip={
-            step === 'current'
-              ? 'Your current address confirms the change first, so a stolen password alone cannot move your account. After a recent passkey sign-in, this step is skipped.'
-              : undefined
-          }
+          tip={step === 'current' ? t('account.email.codeCurrentTip') : undefined}
         >
           <div className="ac-inline">
             <span className="k-input">
@@ -347,22 +351,20 @@ function ChangeEmail({
             <Button
               size="sm"
               variant="ghost"
-              title={
-                step === 'current' ? 'Email a new code to your current address' : 'Email a new code to the new address'
-              }
+              title={step === 'current' ? t('account.email.resendCurrent') : t('account.email.resendNew')}
               disabled={request.busy || waitS > 0}
               onClick={() => void send(target)}
             >
-              {waitS > 0 ? `New code in ${waitS} s` : 'Send a new code'}
+              {waitS > 0 ? t('account.email.resendIn', { seconds: waitS }) : t('account.email.resend')}
             </Button>
           </div>
         </Field>
       ) : (
         <Field
           id="ac-new-email"
-          label="New email address"
-          help="We'll send a code to the new address. Your address changes once you enter it."
-          tip="Unless you recently signed in with a passkey, your current address gets a code first to confirm it's you. If the new address already belongs to another account, no code comes; that address gets a notice instead. After the change, your old address gets a notice and your other sessions are signed out."
+          label={t('account.email.newAddress')}
+          help={t('account.email.newAddressHelp')}
+          tip={t('account.email.newAddressTip')}
         >
           <span className="k-input">
             <input
@@ -371,7 +373,7 @@ function ChangeEmail({
               value={email}
               onChange={e => setEmail(e.target.value)}
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t('account.email.placeholder')}
               autoFocus
             />
           </span>
@@ -379,23 +381,27 @@ function ChangeEmail({
       )}
       <FormStatus request={request} />
       <div className="ac-actions">
-        <Button variant="ghost" title="Keep your current email address" disabled={request.busy} onClick={onCancel}>
-          Cancel
+        <Button variant="ghost" title={t('account.email.keep')} disabled={request.busy} onClick={onCancel}>
+          {t('common.action.cancel')}
         </Button>
         <Button
           busy={request.busy}
           variant="primary"
           title={
             !target
-              ? 'Email a code'
+              ? t('account.email.sendTitle')
               : step === 'current'
-                ? 'Confirm and email a code to the new address'
-                : 'Change your email address to the new one'
+                ? t('account.email.continueTitle')
+                : t('account.email.changeTitle')
           }
           disabled={request.busy || (target ? code.length !== CODE_LENGTH : !next)}
           onClick={submit}
         >
-          {!target ? 'Send code' : step === 'current' ? 'Continue' : 'Change email'}
+          {!target
+            ? t('account.email.send')
+            : step === 'current'
+              ? t('account.email.continue')
+              : t('account.email.change')}
         </Button>
       </div>
     </div>
@@ -403,6 +409,7 @@ function ChangeEmail({
 }
 
 function PasswordForm({ account, reload }: SectionProps) {
+  const t = useT()
   const exists = hasPassword(account.accounts)
   const empty = { current: '', next: '', repeat: '' }
   const [form, setForm] = useState(empty)
@@ -418,40 +425,45 @@ function PasswordForm({ account, reload }: SectionProps) {
         setForm(empty)
         await reload()
       },
-      exists ? 'Password changed. Other sessions were signed out.' : 'Password set. Other sessions were signed out.',
+      exists ? t('account.password.changed') : t('account.password.set'),
     )
   }
   return (
     <form className="ac-form ac-divided" onSubmit={save}>
-      {!exists && <span className="help">No password yet.</span>}
-      <div className="row2">
-        {exists && (
-          <Field id="ac-pw-current" label="Current password">
-            <PasswordInput
-              id="ac-pw-current"
-              value={form.current}
-              onChange={set('current')}
-              autoComplete="current-password"
-            />
+      <Field label={t('account.password.title')} help={exists ? undefined : t('account.password.none')}>
+        <div className="row2">
+          {exists && (
+            <Field id="ac-pw-current" label={t('account.password.current')}>
+              <PasswordInput
+                id="ac-pw-current"
+                value={form.current}
+                onChange={set('current')}
+                autoComplete="current-password"
+              />
+            </Field>
+          )}
+          <Field id="ac-pw-new" label={t('account.password.new')}>
+            <PasswordInput id="ac-pw-new" value={form.next} onChange={set('next')} autoComplete="new-password" />
           </Field>
-        )}
-        <Field id="ac-pw-new" label="New password">
-          <PasswordInput id="ac-pw-new" value={form.next} onChange={set('next')} autoComplete="new-password" />
-        </Field>
-        <Field id="ac-pw-repeat" label="Repeat new password">
-          <PasswordInput id="ac-pw-repeat" value={form.repeat} onChange={set('repeat')} autoComplete="new-password" />
-        </Field>
-      </div>
+          <Field id="ac-pw-repeat" label={t('account.password.repeat')}>
+            <PasswordInput id="ac-pw-repeat" value={form.repeat} onChange={set('repeat')} autoComplete="new-password" />
+          </Field>
+        </div>
+      </Field>
       <FormStatus request={request} />
       <div className="ac-actions">
         <Button
           busy={request.busy}
           type="submit"
           variant="primary"
-          title={exists ? 'Change your password and sign out your other sessions' : 'Set a password for this account'}
+          title={exists ? t('account.password.changeTitle') : t('account.password.setTitle')}
           disabled={request.busy || !form.next}
         >
-          {request.busy ? 'Saving…' : exists ? 'Change password' : 'Set a password'}
+          {request.busy
+            ? t('common.action.saving')
+            : exists
+              ? t('account.password.change')
+              : t('account.password.setButton')}
         </Button>
       </div>
     </form>
@@ -459,10 +471,11 @@ function PasswordForm({ account, reload }: SectionProps) {
 }
 
 function SignIn(props: SectionProps) {
+  const t = useT()
   const { accounts, methods } = props.account
   return (
-    <Section id="ac-signin" title="Sign-in & security">
-      <Field label="Methods">
+    <Section id="ac-signin" title={t('account.nav.security.label')}>
+      <Field label={t('account.security.methods')}>
         <div className="ac-badges">
           {signInMethodLabels(accounts, methods).map(label => (
             <Badge key={label}>{label}</Badge>
@@ -477,6 +490,7 @@ function SignIn(props: SectionProps) {
 
 /** The member's passkeys: add one for this device, remove one (both need a recent sign-in). */
 function Passkeys() {
+  const t = useT()
   const passkeys = useQuery(PASSKEYS, loadPasskeys)
   const list = passkeys.data
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -487,57 +501,68 @@ function Passkeys() {
   // None yet: the way in we recommend, so it says so and adding one is the main button here.
   const none = list?.length === 0
 
-  const add = () => request.run(() => addThisDevice(load), 'Passkey added.')
+  const add = () => request.run(() => addThisDevice(load), t('account.passkeys.added'))
   const remove = (id: string) =>
     request.run(async () => {
       await removePasskey(id)
       setConfirming(null)
       await load()
-    }, 'Passkey removed.')
+    }, t('account.passkeys.removed'))
 
   return (
     <div className="ac-form ac-divided">
       <Field
-        label="Passkeys"
-        tip="A passkey lets you sign in with your fingerprint, face or device PIN instead of a code or password."
-        labelAfter={none && <Badge>Recommended</Badge>}
+        label={t('account.passkeys.title')}
+        tip={t('account.passkeys.tip')}
+        labelAfter={none && <Badge>{t('account.passkeys.recommended')}</Badge>}
       >
         <Loading
-          what="Passkeys"
+          what={t('account.passkeys.title')}
           loading={!list}
           error={passkeys.error}
           onRetry={() => void load()}
           skeleton={<ListSkeleton rows={1} />}
         >
-          {none && <span className="help">{PASSKEY_WHY}</span>}
+          {none && <span className="help">{t('auth.addPasskey.why')}</span>}
           {list && list.length > 0 && (
             <ul className="ac-list">
               {list.map(p => (
                 <li key={p.id} className="ac-session">
                   <div>
                     <b>{p.name}</b>
-                    {p.added && <span className="help">Added {dateTimeLabel(p.added)}</span>}
+                    {p.added && (
+                      <span className="help">{t('account.passkeys.addedAt', { when: dateTimeLabel(p.added) })}</span>
+                    )}
                   </div>
                   <div className="ac-row-actions">
                     {confirming === p.id ? (
                       <>
-                        <span className="help">Remove this passkey?</span>
-                        <Button size="sm" variant="ghost" title="Keep this passkey" onClick={() => setConfirming(null)}>
-                          Cancel
+                        <span className="help">{t('account.passkeys.removeQuestion')}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title={t('account.passkeys.keep')}
+                          onClick={() => setConfirming(null)}
+                        >
+                          {t('common.action.cancel')}
                         </Button>
                         <Button
                           size="sm"
                           variant="danger"
-                          title="Remove it; it no longer signs you in"
+                          title={t('account.passkeys.removeTitle')}
                           disabled={request.busy}
                           onClick={() => void remove(p.id)}
                         >
-                          Remove
+                          {t('account.passkeys.remove')}
                         </Button>
                       </>
                     ) : (
-                      <Button size="sm" title={`Remove ${p.name}`} onClick={() => setConfirming(p.id)}>
-                        Remove
+                      <Button
+                        size="sm"
+                        title={t('account.passkeys.removeNamed', { name: p.name })}
+                        onClick={() => setConfirming(p.id)}
+                      >
+                        {t('account.passkeys.remove')}
                       </Button>
                     )}
                   </div>
@@ -548,13 +573,10 @@ function Passkeys() {
         </Loading>
       </Field>
       {needsCode && (
-        <Field
-          label="Enrolment code"
-          tip="Because you are an instance admin, your first passkey needs a one-time code. The admin who made you an instance admin has it."
-        >
+        <Field label={t('account.passkeys.enrolmentCode')} tip={t('account.passkeys.enrolmentTip')}>
           <TextInput
-            label="Enrolment code"
-            placeholder="From the admin who made you one"
+            label={t('account.passkeys.enrolmentCode')}
+            placeholder={t('account.passkeys.enrolmentPlaceholder')}
             value={enrolmentCode}
             onChange={setEnrolmentCode}
           />
@@ -564,11 +586,11 @@ function Passkeys() {
       <div className="ac-actions">
         <Button
           variant={none ? 'primary' : undefined}
-          title="Create a passkey on this device for your account"
+          title={t('account.passkeys.addTitle')}
           disabled={request.busy}
           onClick={() => void add()}
         >
-          {request.busy ? 'Waiting for your device…' : 'Add passkey'}
+          {request.busy ? t('account.passkeys.waiting') : t('account.passkeys.add')}
         </Button>
       </div>
     </div>
@@ -587,14 +609,15 @@ function Confirm({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const t = useT()
   return (
     <>
       <span className="help">{question}</span>
-      <Button size="sm" variant="ghost" title="Keep it signed in" onClick={onCancel}>
-        Cancel
+      <Button size="sm" variant="ghost" title={t('account.sessions.keep')} onClick={onCancel}>
+        {t('common.action.cancel')}
       </Button>
-      <Button size="sm" variant="primary" title="Sign out now" disabled={busy} onClick={onConfirm}>
-        Sign out
+      <Button size="sm" variant="primary" title={t('account.sessions.signOutNow')} disabled={busy} onClick={onConfirm}>
+        {t('account.sessions.signOut')}
       </Button>
     </>
   )
@@ -640,9 +663,10 @@ function AccountSkeleton({
   error: string | null
   retry: () => void
 }) {
+  const t = useT()
   const skeleton =
     current === 'security' ? (
-      <Field label="Methods">
+      <Field label={t('account.security.methods')}>
         <span className="sk-inline">
           <Skeleton width={64} height={20} />
           <Skeleton width={72} height={20} />
@@ -651,17 +675,17 @@ function AccountSkeleton({
     ) : (
       <>
         {hasWorkspace && (
-          <Field label="Picture">
+          <Field label={t('account.picture.label')}>
             <span className="ac-avatar">
               <Skeleton width={56} height={56} className="sk-round" />
               <Skeleton width={76} height={28} />
             </span>
           </Field>
         )}
-        <Field label="Name">
+        <Field label={t('account.profile.name')}>
           <Skeleton shape="field" width="100%" />
         </Field>
-        <Field label="Email">
+        <Field label={t('account.profile.email')}>
           <Skeleton shape="text" width={180} />
         </Field>
       </>
@@ -669,14 +693,15 @@ function AccountSkeleton({
   return (
     <Section
       id={current === 'security' ? 'ac-signin' : 'ac-profile'}
-      title={current === 'security' ? 'Sign-in & security' : 'Profile'}
+      title={current === 'security' ? t('account.nav.security.label') : t('account.nav.profile.label')}
     >
-      <Loading what="Your account" loading error={error} onRetry={retry} skeleton={skeleton} />
+      <Loading what={t('account.yourAccount')} loading error={error} onRetry={retry} skeleton={skeleton} />
     </Section>
   )
 }
 
 function Sessions() {
+  const t = useT()
   const query = useQuery(SESSIONS, loadSessionList)
   const list = query.data
   /** A session id, or 'others'. */
@@ -695,15 +720,15 @@ function Sessions() {
 
   const others = sessions ? sessions.length - 1 : 0
   return (
-    <Section id="ac-sessions" title="Sessions">
+    <Section id="ac-sessions" title={t('account.nav.sessions.label')}>
       {list === 'signInAgain' && (
         <div className="ac-inline">
-          <span className="help">Sign in again to see your devices.</span>
+          <span className="help">{t('account.sessions.signInAgain')}</span>
           <SignInAgainButton />
         </div>
       )}
       <Loading
-        what="Sessions"
+        what={t('account.nav.sessions.label')}
         loading={!list}
         error={query.error}
         onRetry={() => void load()}
@@ -715,21 +740,27 @@ function Sessions() {
               <li key={s.id} className="ac-session">
                 <div>
                   <b>{s.device}</b>
-                  <span className="help">Last active {dateTimeLabel(s.lastActive)}</span>
+                  <span className="help">
+                    {t('account.sessions.lastActive', { when: dateTimeLabel(s.lastActive) })}
+                  </span>
                 </div>
                 <div className="ac-row-actions">
                   {s.current ? (
-                    <Badge>This device</Badge>
+                    <Badge>{t('account.sessions.thisDevice')}</Badge>
                   ) : confirming === s.id ? (
                     <Confirm
-                      question="Sign this device out?"
+                      question={t('account.sessions.signOutQuestion')}
                       busy={request.busy}
                       onCancel={() => setConfirming(null)}
-                      onConfirm={() => void signOut(() => signOutSession(s.id), 'Session signed out.')}
+                      onConfirm={() => void signOut(() => signOutSession(s.id), t('account.sessions.signedOut'))}
                     />
                   ) : (
-                    <Button size="sm" title={`Sign out ${s.device}`} onClick={() => setConfirming(s.id)}>
-                      Sign out
+                    <Button
+                      size="sm"
+                      title={t('account.sessions.signOutDevice', { device: s.device })}
+                      onClick={() => setConfirming(s.id)}
+                    >
+                      {t('account.sessions.signOut')}
                     </Button>
                   )}
                 </div>
@@ -741,7 +772,7 @@ function Sessions() {
       {sessions && !showAll && sessions.length > SESSIONS_SHOWN && (
         <div>
           <Button size="sm" variant="ghost" onClick={() => setShowAll(true)}>
-            Show {sessions.length - SESSIONS_SHOWN} more
+            {t('account.sessions.showMore', { count: sessions.length - SESSIONS_SHOWN })}
           </Button>
         </div>
       )}
@@ -750,14 +781,14 @@ function Sessions() {
         <div className="ac-actions">
           {confirming === 'others' ? (
             <Confirm
-              question={`Sign out ${others} other ${others === 1 ? 'session' : 'sessions'}?`}
+              question={t('account.sessions.signOutOthersQuestion', { count: others })}
               busy={request.busy}
               onCancel={() => setConfirming(null)}
-              onConfirm={() => void signOut(signOutOtherSessions, 'Other sessions signed out.')}
+              onConfirm={() => void signOut(signOutOtherSessions, t('account.sessions.othersSignedOut'))}
             />
           ) : (
-            <Button title="Sign out everywhere except this device" onClick={() => setConfirming('others')}>
-              Sign out all other sessions
+            <Button title={t('account.sessions.signOutOthersTitle')} onClick={() => setConfirming('others')}>
+              {t('account.sessions.signOutOthers')}
             </Button>
           )}
         </div>
@@ -766,15 +797,23 @@ function Sessions() {
   )
 }
 
-type SectionId = 'profile' | 'notifications' | 'security' | 'sessions'
-const sections: readonly PageSection<SectionId>[] = [
-  { id: 'profile', label: 'Profile', description: 'Your picture and name' },
-  { id: 'notifications', label: 'Notifications', description: 'New calls by email and on this device' },
-  { id: 'security', label: 'Sign-in & security', description: 'Sign-in methods, passkeys and password' },
-  { id: 'sessions', label: 'Sessions', description: 'Where you are signed in' },
-]
-/** Without a workspace there are no notifications to set. */
-const sectionsWithoutWorkspace = sections.filter(s => s.id !== 'notifications')
+type SectionId = 'profile' | 'preferences' | 'notifications' | 'security' | 'sessions'
+const SECTION_IDS: readonly SectionId[] = ['profile', 'preferences', 'notifications', 'security', 'sessions']
+
+/** The page's sections in the active language; without a workspace there are no notifications to set. */
+function useSections(hasWorkspace: boolean): readonly PageSection<SectionId>[] {
+  const t = useT()
+  return useMemo(
+    () =>
+      SECTION_IDS.filter(id => hasWorkspace || id !== 'notifications').map(id => ({
+        id,
+        // i18n-dynamic: account.nav.*
+        label: t(`account.nav.${id}.label` as MessageKey),
+        description: t(`account.nav.${id}.description` as MessageKey),
+      })),
+    [t, hasWorkspace],
+  )
+}
 
 type Props = {
   /** False on the screen without a workspace (NoWorkspace.tsx): no Notifications section. */
@@ -783,6 +822,7 @@ type Props = {
 }
 
 export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
+  const t = useT()
   const query = useQuery(ACCOUNT, loadAccount, { persist: true })
   const account = query.data
   // A changed password signs other sessions out, so the session list is loaded again too.
@@ -790,12 +830,12 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
     await Promise.all([query.reload(), refreshQuery(SESSIONS)])
   }, [query.reload])
 
-  const shown = hasWorkspace ? sections : sectionsWithoutWorkspace
+  const shown = useSections(hasWorkspace)
   const current = useSection('account', shown)
   const props = account ? { account, reload } : null
   return (
     <div className="page">
-      <SettingsLayout page="account" title="Account settings" sections={shown} current={current}>
+      <SettingsLayout page="account" title={t('account.title')} sections={shown} current={current}>
         {!props && (current === 'profile' || current === 'security') && (
           <AccountSkeleton
             current={current}
@@ -805,6 +845,7 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
           />
         )}
         {props && current === 'profile' && <Profile {...props} hasWorkspace={hasWorkspace} />}
+        {current === 'preferences' && <Preferences locale={account?.user.locale} saved={() => void query.reload()} />}
         {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
         {props && current === 'security' && <SignIn {...props} />}
         {current === 'sessions' && <Sessions />}

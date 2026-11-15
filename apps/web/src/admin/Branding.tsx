@@ -129,7 +129,7 @@ function LogoField({
           }}
         />
         <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
-          {shown ? 'Replace' : 'Upload'}
+          {shown ? 'Replace…' : 'Upload…'}
         </Button>
         {shown && (
           <Button

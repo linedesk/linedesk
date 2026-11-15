@@ -1,4 +1,5 @@
 /** Asks for the microphone before anything is created, so a refusal costs nothing; the reason when it is not allowed. */
+import { i18n } from '../i18n/index.tsx'
 export async function microphoneAllowed(): Promise<string | null> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -6,7 +7,7 @@ export async function microphoneAllowed(): Promise<string | null> {
     return null
   } catch (e) {
     return e instanceof DOMException && e.name === 'NotAllowedError'
-      ? 'Microphone access is blocked. Allow it for this site, then try again.'
-      : 'No microphone found. Connect one, then try again.'
+      ? i18n().t('call.live.micBlocked')
+      : i18n().t('call.live.noMic')
   }
 }

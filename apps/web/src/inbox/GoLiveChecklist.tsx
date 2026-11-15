@@ -48,6 +48,8 @@ import {
   goLiveView,
   teamInvited,
 } from './goLive.ts'
+import { i18n } from '../i18n/index.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 const CHECKLIST = 'golive.checklist'
 const loadChecklist = () => readAction<GoLiveChecklistData>('onboarding.goLiveChecklist')
@@ -200,7 +202,7 @@ const PICKER_WIDTH = 240
 type RemindOption = CommandItem & { days: 3 | 7 | 30 }
 const remindOptions = (now: Date): RemindOption[] =>
   ([3, 7, 30] as const).map(days => ({
-    label: `In ${days} days`,
+    label: i18n().t('inbox.remind.inDays', { days }),
     icon: 'clock',
     hint: goLiveDate(new Date(now.getTime() + days * DAY_MS)),
     days,
@@ -226,6 +228,7 @@ export function GoLiveChecklist({
   quiet = false,
   canFixVoice = false,
 }: Props) {
+  const t = useT()
   const query = useGoLiveChecklistQuery(canEdit, workspaceId)
   const server = query.data
   const calendarProviders = useCalendarProviders(canEdit)
@@ -281,10 +284,10 @@ export function GoLiveChecklist({
   }, [shown, failed])
   if (failed)
     return (
-      <aside className="golive golive-problem" aria-label="Go live" role="alert">
-        <span>The go-live checklist could not be loaded.</span>
+      <aside className="golive golive-problem" aria-label={t('inbox.goLive.title')} role="alert">
+        <span>{t('inbox.goLive.loadFailed')}</span>
         <Button size="sm" variant="ghost" onClick={() => void query.reload()}>
-          Try again
+          {t('common.action.tryAgain')}
         </Button>
       </aside>
     )
@@ -317,7 +320,7 @@ export function GoLiveChecklist({
     leaving(item)
     setSteps(steps => [...steps.filter(s => s.step !== item.id), { step: item.id, state: 'skipped', until: null }])
     void run('onboarding.skipGoLiveStep', { step: item.id })
-    undoable(`Not needed: ${item.label}`, '⌫', () => restore(item.id))
+    undoable(t('inbox.goLive.notNeededItem', { step: item.label }), '⌫', () => restore(item.id))
   }
   function remind(item: GoLiveItem, days: 3 | 7 | 30) {
     const until = new Date(Date.now() + days * DAY_MS)
@@ -327,7 +330,7 @@ export function GoLiveChecklist({
       { step: item.id, state: 'later', until: until.toISOString() },
     ])
     void run('onboarding.remindGoLiveStep', { step: item.id, days })
-    toaster.show(`Reminder set: back on ${goLiveDate(until)}`)
+    toaster.show(t('inbox.goLive.reminderSet', { date: goLiveDate(until) }))
   }
   function restore(id: GoLiveId) {
     setSteps(steps => steps.filter(s => s.step !== id))
@@ -364,11 +367,11 @@ export function GoLiveChecklist({
     toaster.via('key', () => restore(id))
   }
   return (
-    <aside ref={panel} className={cx('golive', open && 'is-open')} aria-label="Go live" onKeyDown={onKeyDown}>
+    <aside ref={panel} className={cx('golive', open && 'is-open')} aria-label={t('inbox.goLive.title')} onKeyDown={onKeyDown}>
       <div className="golive-head">
         {wide ? (
           <div className="golive-toggle">
-            <b>Go live</b>
+            <b>{t('inbox.goLive.title')}</b>
             <span className="golive-count">{goLiveProgress(view)}</span>
           </div>
         ) : (
@@ -377,9 +380,13 @@ export function GoLiveChecklist({
             className="golive-toggle"
             aria-expanded={open}
             onClick={() => setOpen(o => !o)}
-            title={open ? 'Hide the steps (Esc)' : 'Show the steps (Enter)'}
+            title={
+              open
+                ? t('common.withKey', { label: t('inbox.goLive.hideSteps'), key: 'Esc' })
+                : t('common.withKey', { label: t('inbox.goLive.showSteps'), key: 'Enter' })
+            }
           >
-            <b>Go live</b>
+            <b>{t('inbox.goLive.title')}</b>
             <span className="golive-count">{goLiveProgress(view)}</span>
             {next && !open && <span className="golive-next">{next.label}</span>}
           </button>
@@ -388,8 +395,8 @@ export function GoLiveChecklist({
           size="sm"
           variant="ghost"
           icon="close"
-          aria-label="Close the checklist"
-          title="Close the checklist"
+          aria-label={t('inbox.goLive.close')}
+          title={t('inbox.goLive.close')}
           onClick={dismiss}
         />
       </div>
@@ -422,8 +429,8 @@ export function GoLiveChecklist({
                   size="sm"
                   variant="ghost"
                   icon="clock"
-                  aria-label={`Remind me: ${item.label}`}
-                  title="Remind me (H)"
+                  aria-label={t('inbox.goLive.remindItem', { step: item.label })}
+                  title={t('common.withKey', { label: t('shell.command.remindMe'), key: 'H' })}
                   onClick={event =>
                     setRemindFor({ item, anchor: event.currentTarget.closest('li')!.getBoundingClientRect() })
                   }
@@ -433,14 +440,14 @@ export function GoLiveChecklist({
                     size="sm"
                     variant="ghost"
                     icon="close"
-                    aria-label={`Not needed: ${item.label}`}
-                    title={item.scope === 'person' ? 'Not needed for me (⌫)' : 'Not needed (⌫)'}
+                    aria-label={t('inbox.goLive.notNeededItem', { step: item.label })}
+                    title={t('common.withKey', { label: item.scope === 'person' ? t('inbox.goLive.notNeededForMe') : t('inbox.goLive.notNeeded'), key: '⌫' })}
                     onClick={() => skip(item)}
                   />
                 )}
               </span>
             )}
-            <span className="sr-only">{item.done ? 'Done' : 'Not done yet'}</span>
+            <span className="sr-only">{item.done ? t('inbox.action.done') : t('inbox.goLive.notDoneYet')}</span>
           </li>
         ))}
       </ol>
@@ -452,12 +459,12 @@ export function GoLiveChecklist({
                 type="button"
                 className="golive-more"
                 aria-expanded={expanded === 'later'}
-                title={expanded === 'later' ? 'Hide the reminders (Enter)' : 'Show the reminders (Enter)'}
+                title={t('common.withKey', { label: expanded === 'later' ? t('inbox.goLive.hideReminders') : t('inbox.goLive.showReminders'), key: 'Enter' })}
                 onClick={() => toggleSet('later')}
               >
                 <Icon name="down" size={12} />
-                Reminders · {view.later.length}
-                <span>(next on {goLiveDate(view.later[0]!.until)})</span>
+                {t('inbox.goLive.reminders', { count: view.later.length })}
+                <span>{t('inbox.goLive.nextOn', { date: goLiveDate(view.later[0]!.until) })}</span>
               </button>
               {expanded === 'later' && (
                 <ul>
@@ -466,12 +473,12 @@ export function GoLiveChecklist({
                       <button
                         type="button"
                         className="golive-back"
-                        title="Clear reminder (⇧H)"
+                        title={t('common.withKey', { label: t('inbox.goLive.clearReminder'), key: '⇧H' })}
                         onClick={() => restore(item.id)}
                         onKeyDown={event => onBackKey(event, item.id, 'H')}
                       >
                         <b>{item.label}</b>
-                        <span>Back on {goLiveDate(until)}</span>
+                        <span>{t('inbox.goLive.backOn', { date: goLiveDate(until) })}</span>
                         <Icon name="restart" size={12} />
                       </button>
                     </li>
@@ -486,13 +493,11 @@ export function GoLiveChecklist({
                 type="button"
                 className="golive-more"
                 aria-expanded={expanded === 'skipped'}
-                title={
-                  expanded === 'skipped' ? 'Hide the steps not needed (Enter)' : 'Show the steps not needed (Enter)'
-                }
+                title={t('common.withKey', { label: expanded === 'skipped' ? t('inbox.goLive.hideSkipped') : t('inbox.goLive.showSkipped'), key: 'Enter' })}
                 onClick={() => toggleSet('skipped')}
               >
                 <Icon name="down" size={12} />
-                Not needed · {view.skipped.length}
+                {t('inbox.goLive.skipped', { count: view.skipped.length })}
               </button>
               {expanded === 'skipped' && (
                 <ul>
@@ -501,12 +506,12 @@ export function GoLiveChecklist({
                       <button
                         type="button"
                         className="golive-back"
-                        title="Needed after all (⇧⌫)"
+                        title={t('common.withKey', { label: t('inbox.goLive.neededAfterAll'), key: '⇧⌫' })}
                         onClick={() => restore(item.id)}
                         onKeyDown={event => onBackKey(event, item.id, 'Backspace')}
                       >
                         <b>{item.label}</b>
-                        <span>Bring back</span>
+                        <span>{t('inbox.goLive.bringBack')}</span>
                         <Icon name="restart" size={12} />
                       </button>
                     </li>
@@ -531,8 +536,8 @@ export function GoLiveChecklist({
           >
             <CommandMenu
               numbered
-              label="Remind me"
-              placeholder="Remind me…"
+              label={t('shell.command.remindMe')}
+              placeholder={t('inbox.goLive.remindPlaceholder')}
               groups={[{ label: remindFor.item.label, items: remindOptions(now) }]}
               onSelect={(option, via) => {
                 setRemindFor(null)

@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
 import { Kbd } from '../ui/kit.tsx'
 import { ZeroState } from '../ui/listPage.tsx'
+import { T } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 export type InboxEmptyProps = {
   tab: InboxTab
@@ -20,37 +22,41 @@ export function emptyCopy({ tab, search, assistant, handledCount, hasAnyCalls, q
   title: string
   line: ReactNode
 } {
-  if (search) return { title: `No call mentions “${search}”`, line: null }
-  if (!hasAnyCalls) return { title: 'No calls yet', line: quiet ? null : `Calls ${assistant} answers show up here.` }
+  const { t } = i18n()
+  if (search) return { title: t('inbox.empty.search', { search }), line: null }
+  if (!hasAnyCalls)
+    return { title: t('inbox.empty.noCalls'), line: quiet ? null : t('inbox.empty.noCallsLine', { assistant }) }
   switch (tab) {
     case 'you':
       return {
-        title: 'Nothing needs you right now',
+        title: t('inbox.empty.you'),
         line:
           handledCount > 0 ? (
-            <>
-              {assistant} resolved <b>{handledCount}</b> {handledCount === 1 ? 'call' : 'calls'} on its own. Press{' '}
-              <Kbd keys={['tab']} /> to see {handledCount === 1 ? 'it' : 'them'}.
-            </>
+            <T
+              k="inbox.empty.youResolved"
+              values={{
+                assistant,
+                count: handledCount,
+                b: chunks => <b>{chunks}</b>,
+                key: <Kbd keys={['tab']} />,
+              }}
+            />
           ) : null,
       }
     case 'ai':
-      return {
-        title: `Nothing handled by ${assistant} right now`,
-        line: `Calls ${assistant} resolves on its own show up here.`,
-      }
+      return { title: t('inbox.empty.ai', { assistant }), line: t('inbox.empty.aiLine', { assistant }) }
     case 'spam':
-      return { title: 'No spam right now', line: 'Blocked sales calls and robocalls show up here.' }
+      return { title: t('inbox.empty.spam'), line: t('inbox.empty.spamLine') }
     case 'done':
-      return { title: 'Nothing done yet', line: 'Calls you mark done show up here.' }
+      return { title: t('inbox.empty.done'), line: t('inbox.empty.doneLine') }
     case 'reminders':
-      return { title: 'No reminders', line: "Calls you set a reminder on wait here until it's time." }
+      return { title: t('inbox.empty.reminders'), line: t('inbox.empty.remindersLine') }
     case 'mine':
-      return { title: 'Nothing assigned to you', line: null }
+      return { title: t('inbox.empty.mine'), line: null }
     case 'member':
-      return { title: 'Nothing assigned to them', line: null }
+      return { title: t('inbox.empty.member'), line: null }
     case 'unassigned':
-      return { title: 'Every call that needs someone has someone', line: null }
+      return { title: t('inbox.empty.unassigned'), line: null }
   }
 }
 

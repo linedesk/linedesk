@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { clock } from '../time.ts'
+import { useT } from '@linedesk/i18n/react'
 
 /** Seconds since `since`, ticking once a second. */
 export function useElapsed(since: Date): number {
@@ -13,11 +14,12 @@ export function useElapsed(since: Date): number {
 
 /** Green pulsing dot, "Live" and a running clock. */
 export function LiveIndicator({ since }: { since: Date }) {
+  const t = useT()
   const seconds = useElapsed(since)
   return (
     <span className="k-livei k-livei-live">
       <span className="k-livei-dot" aria-hidden="true" />
-      Live
+      {t('common.live')}
       <time>{clock(seconds)}</time>
     </span>
   )

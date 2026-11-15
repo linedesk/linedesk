@@ -12,6 +12,7 @@ import './styles.css'
 import './app.css'
 import { captureOpenRouterReturn } from './admin/openrouterAuth.ts'
 import { fetchAuthMethods } from './auth.ts'
+import { activate, initialLocale, languageFromAddress, LocaleRoot } from './i18n/index.tsx'
 import { startErrorReporting } from './errorReporting.ts'
 import { loadBrand } from './brand.ts'
 import { NewVersionBar } from './shell/NewVersionBar.tsx'
@@ -33,9 +34,17 @@ registerServiceWorker()
 const openRouterBack = captureOpenRouterReturn(window.location.search)
 if (openRouterBack) window.history.replaceState(null, '', `${window.location.pathname}${openRouterBack}`)
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-    <NewVersionBar />
-  </StrictMode>,
-)
+// The language's messages load before the first render (the static boot line shows meanwhile), so no English flashes.
+// A language that fails to load leaves English.
+void activate(initialLocale(), { remember: !languageFromAddress() })
+  .catch(() => {})
+  .finally(() =>
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <LocaleRoot>
+          <App />
+          <NewVersionBar />
+        </LocaleRoot>
+      </StrictMode>,
+    ),
+  )

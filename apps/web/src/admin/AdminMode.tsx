@@ -342,14 +342,14 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   )
 }
 
-/** For someone who opens an admin address without being an instance admin. */
+/** For someone who opens an admin address without being a server admin. */
 export function AdminNotice() {
   return (
     <div className="page">
       <div className="page-in">
         <div className="empty">
-          <b>Server admin is for instance admins</b>
-          <span>Ask your administrator for access.</span>
+          <b>Server admin is for server admins</b>
+          <span>Ask your server admin for access.</span>
         </div>
       </div>
     </div>

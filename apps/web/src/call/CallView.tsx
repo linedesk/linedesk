@@ -25,6 +25,7 @@ import { EvaluationCard } from './EvaluationCard.tsx'
 import { SummaryCard } from './SummaryCard.tsx'
 import { Transcript } from './Transcript.tsx'
 import { useFollowLive } from './useFollowLive.ts'
+import { useT } from '@linedesk/i18n/react'
 
 export type CallViewActions = {
   onBack: () => void
@@ -63,26 +64,27 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
 type BarProps = Omit<Props, 'segments' | 'search' | 'side' | 'repeatCount' | 'canReview'>
 
 function Bar({ call, index, count, menu, ...on }: BarProps) {
+  const t = useT()
   const live = call.status === 'live'
   const done = call.inbox_state === 'done'
   const reminded = hasReminder(call) && !done
   return (
-    <div className="cv-bar" role="toolbar" aria-label="Call">
+    <div className="cv-bar" role="toolbar" aria-label={t('call.bar.label')}>
       {menu}
       <Button
         size="sm"
         variant="ghost"
         icon="left"
-        title="Back to calls (esc)"
-        aria-label="Back to calls"
+        title={t('common.withKey', { label: t('call.bar.back'), key: 'esc' })}
+        aria-label={t('call.bar.back')}
         onClick={on.onBack}
       />
       <Button
         size="sm"
         variant="ghost"
         icon="up"
-        title="Previous call (K)"
-        aria-label="Previous call"
+        title={t('common.withKey', { label: t('call.bar.previous'), key: 'K' })}
+        aria-label={t('call.bar.previous')}
         disabled={index <= 0}
         onClick={() => on.onStep(-1)}
       />
@@ -90,14 +92,14 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
         size="sm"
         variant="ghost"
         icon="down"
-        title="Next call (J)"
-        aria-label="Next call"
+        title={t('common.withKey', { label: t('call.bar.next'), key: 'J' })}
+        aria-label={t('call.bar.next')}
         disabled={index >= count - 1}
         onClick={() => on.onStep(1)}
       />
       {index > -1 && (
         <span className="cv-pos">
-          {index + 1} of {count}
+          {t('call.bar.position', { index: index + 1, count })}
         </span>
       )}
       {on.onAssign && (
@@ -112,8 +114,8 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
               size="sm"
               variant="ghost"
               icon="more"
-              aria-label="All commands"
-              title="All commands (⌘ K)"
+              aria-label={t('inbox.action.allCommands')}
+              title={t('common.withKey', { label: t('inbox.action.allCommands'), key: '⌘ K' })}
               onClick={on.onCommands}
             />
           )}
@@ -122,10 +124,10 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
               size="sm"
               variant="ghost"
               shortcut={['⇧', 'H']}
-              title="Clear reminder (⇧H)"
+              title={t('common.withKey', { label: t('inbox.goLive.clearReminder'), key: '⇧H' })}
               onClick={() => on.onClearReminder(call)}
             >
-              Clear reminder
+              {t('inbox.goLive.clearReminder')}
             </Button>
           )}
           {!done && !reminded && (
@@ -134,8 +136,8 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
               variant="ghost"
               icon="clock"
               className="cv-act"
-              aria-label="Remind me"
-              title="Remind me (H)"
+              aria-label={t('shell.command.remindMe')}
+              title={t('common.withKey', { label: t('shell.command.remindMe'), key: 'H' })}
               onClick={() => on.onRemind(call)}
             />
           )}
@@ -144,10 +146,10 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
               size="sm"
               variant="ghost"
               shortcut={['!']}
-              title="Not spam: back to Needs you (!)"
+              title={t('common.withKey', { label: t('call.bar.notSpamTitle'), key: '!' })}
               onClick={() => on.onToggleSpam!(call)}
             >
-              Not spam
+              {t('call.bar.notSpam')}
             </Button>
           )}
           {done ? (
@@ -155,10 +157,14 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
               size="sm"
               icon="restart"
               shortcut={['⇧', 'E']}
-              title="Mark not done (⇧E)"
+              title={t('common.withKeyHint', {
+                label: t('shell.command.markNotDone'),
+                key: '⇧E',
+                hint: t('inbox.action.notDoneHint'),
+              })}
               onClick={() => on.onNotDone(call)}
             >
-              Not done
+              {t('inbox.action.notDone')}
             </Button>
           ) : (
             <Button
@@ -166,10 +172,10 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
               variant="primary"
               shortcut={['E']}
               className="cv-done"
-              title="Mark done (E)"
+              title={t('common.withKey', { label: t('shell.command.markDone'), key: 'E' })}
               onClick={() => on.onDone(call)}
             >
-              Done
+              {t('inbox.action.done')}
             </Button>
           )}
         </div>
@@ -180,6 +186,7 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
 
 /** Who has the call: their picture (or initials) and first name, or Assign. Opens the member picker under itself (A). */
 function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, anchor: DOMRect) => void }) {
+  const t = useT()
   const assignee = useMember(call.assignee_id)
   const name = memberLabel(assignee)
   return (
@@ -189,7 +196,7 @@ function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, a
       icon={call.assignee_id ? undefined : 'user'}
       className="cv-assign-btn"
       aria-haspopup="dialog"
-      title={call.assignee_id ? `Assigned to ${name}: reassign (A)` : 'Assign (A)'}
+      title={t('common.withKey', { label: call.assignee_id ? t('inbox.row.reassignTitle', { name }) : t('inbox.assign.label'), key: 'A' })}
       onClick={e => onAssign(call, e.currentTarget.getBoundingClientRect())}
     >
       {call.assignee_id ? (
@@ -198,7 +205,7 @@ function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, a
           {firstName(assignee)}
         </>
       ) : (
-        'Assign'
+        t('inbox.assign.label')
       )}
     </Button>
   )
@@ -228,23 +235,25 @@ function ContactLink({
   open: boolean
   onOpen: () => void
 }) {
-  const label = name ? `Open contact ${name}` : `Add a name for ${number}`
+  const t = useT()
+  const label = name ? t('call.header.openContact', { name }) : t('call.header.addNameFor', { number })
   return (
     <button
       type="button"
       className="cv-contact-link"
       aria-label={label}
       aria-expanded={open}
-      title={`${label} (I)`}
+      title={t('common.withKey', { label, key: 'I' })}
       onClick={onOpen}
     >
-      <span>{name ?? 'Add name'}</span>
+      <span>{name ?? t('call.contact.addName')}</span>
       <Icon name="arrow-up-right" size={12} />
     </button>
   )
 }
 
 function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: HeaderProps) {
+  const t = useT()
   const assistant = useCallAssistantName(call.assistant_id)
   const contact = useContact(call.contact_id)
   const started = parseTs(call.started_at)
@@ -263,22 +272,30 @@ function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: Hea
           )}
           <span>{answeredByLabel(call, segments, assistant)}</span>
           {call.assistant_version != null && (
-            <span title="The assistant's settings this call ran with: Settings › Assistant › History">
-              Assistant version {call.assistant_version}
+            <span title={t('call.header.versionTitle')}>
+              {t('call.header.version', { version: call.assistant_version })}
             </span>
           )}
         </div>
         <h1>{callTitle(call)}</h1>
         <div className="cv-line">
           <ContactLink
-            name={contact?.name ? `${contact.name}${contact.company ? ` · ${contact.company}` : ''}` : null}
+            name={
+              contact?.name
+                ? contact.company
+                  ? t('call.header.nameAndCompany', { name: contact.name, company: contact.company })
+                  : contact.name
+                : null
+            }
             number={formatPhone(call.from_number)}
             open={contactOpen}
             onOpen={onOpenContact}
           />
           <CopyNumber number={formatPhone(call.from_number)} />
-          {repeatCount > 1 && <span>{repeatCount} calls from this number</span>}
-          {hasReminder(call) && <span>Reminder: {whenLabel(parseTs(call.reminder_at!))}</span>}
+          {repeatCount > 1 && <span>{t('inbox.row.callsFromNumber', { count: repeatCount })}</span>}
+          {hasReminder(call) && (
+            <span>{t('call.header.reminder', { when: whenLabel(parseTs(call.reminder_at!)) })}</span>
+          )}
           {transferText(call) && <span className="cv-transfer">{transferText(call)}</span>}
         </div>
       </div>
@@ -288,12 +305,13 @@ function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: Hea
 
 /** In place of the transcript when nobody spoke: say what happened, in the same words as the inbox. */
 function NoConversation({ status }: { status: CallStatus }) {
+  const t = useT()
   const [title, text] =
     status === 'missed'
-      ? [STATUS_WORD.missed, 'Nobody picked up this call, so there is no conversation.']
+      ? [STATUS_WORD.missed, t('call.empty.missed')]
       : status === 'hungUp'
-        ? [STATUS_WORD.hungUp, 'The caller hung up without saying anything.']
-        : ['No transcript', 'There is no transcript for this call.']
+        ? [STATUS_WORD.hungUp, t('call.empty.hungUp')]
+        : [t('call.empty.noTranscript'), t('call.empty.noTranscriptLine')]
   return (
     <div className="empty">
       <Icon name="phone-missed" size={24} />
@@ -305,6 +323,7 @@ function NoConversation({ status }: { status: CallStatus }) {
 
 /** The caller's number under the title: a click copies it. */
 function CopyNumber({ number }: { number: string }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const copy = () =>
     navigator.clipboard.writeText(number).then(
@@ -315,8 +334,8 @@ function CopyNumber({ number }: { number: string }) {
       () => {},
     )
   return (
-    <button type="button" className="sub fact-copy" title={copied ? 'Copied' : 'Copy number'} onClick={copy}>
-      {copied ? 'Copied' : number}
+    <button type="button" className="sub fact-copy" title={copied ? t('call.header.copied') : t('call.header.copyNumber')} onClick={copy}>
+      {copied ? t('call.header.copied') : number}
     </button>
   )
 }
@@ -339,13 +358,14 @@ function useListenedLines(callId: string, segments: TranscriptSegment[]) {
 
 /** One call, full width: what it was about, the conversation, and the caller on the side. Mount with key={call.id} so each call starts at the top. */
 export function CallView({ call, segments, search, side, repeatCount = 1, canReview = false, ...bar }: Props) {
+  const t = useT()
   const [sideOpen, setSideOpen] = useState(false)
   /** Narrow windows: open or close the contact sheet. Wide ones show the panel anyway. Opening puts the caret in its name. */
   function openContact() {
     const narrow = window.matchMedia(NARROW_QUERY).matches
     if (narrow && sideOpen) return setSideOpen(false)
     if (narrow) setSideOpen(true)
-    requestAnimationFrame(() => document.querySelector<HTMLElement>('.cv-side [aria-label="Name"]')?.focus())
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.cv-side [data-field="name"]')?.focus())
   }
   useEffect(() => registerContactPanel(() => setSideOpen(open => !open)), [])
   const assistant = useCallAssistantName(call.assistant_id)
@@ -389,10 +409,9 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
               {turns ? (
                 <>
                   <div className="tr-h">
-                    <b>Transcript</b>
+                    <b>{t('call.transcript.title')}</b>
                     <span>
-                      {turns} {turns === 1 ? 'turn' : 'turns'}
-                      {live ? ' · live' : ''}
+                      {live ? t('call.transcript.turnsLive', { count: turns }) : t('call.transcript.turns', { count: turns })}
                     </span>
                     <Button
                       size="sm"
@@ -400,26 +419,29 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
                       aria-expanded={transcriptOpen}
                       onClick={() => setTranscriptOpen(!transcriptOpen)}
                     >
-                      {transcriptOpen ? 'Collapse' : 'Expand'}
+                      {transcriptOpen ? t('call.transcript.collapse') : t('call.transcript.expand')}
                     </Button>
                   </div>
                   {transcriptOpen && (
                     <Transcript
                       segments={segments}
-                      callerName={contact?.name ?? 'Caller'}
+                      callerName={contact?.name ?? t('call.transcript.caller')}
                       assistantName={assistant}
                       search={search}
                       pending={live ? pending : []}
                       start={{
                         time: clock(0),
-                        label: `Incoming call, ${call.answered_by === 'human' ? 'the team' : assistant} answered`,
+                        label:
+                          call.answered_by === 'human'
+                            ? t('call.transcript.startTeam')
+                            : t('call.transcript.start', { assistant }),
                       }}
                       end={
                         live
                           ? null
                           : {
                               time: clock(call.duration_sec ?? Math.max(0, ...segments.map(s => s.at_ms / 1000))),
-                              label: status === 'hungUp' ? 'Caller hung up' : 'Call ended',
+                              label: status === 'hungUp' ? t('call.transcript.hungUp') : t('call.transcript.ended'),
                             }
                       }
                     />
@@ -435,7 +457,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
           <button
             type="button"
             className="cv-side-scrim"
-            aria-label="Close contact"
+            aria-label={t('call.contact.close')}
             tabIndex={-1}
             onClick={() => setSideOpen(false)}
           />

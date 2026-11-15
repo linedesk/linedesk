@@ -10,6 +10,7 @@ import { type Change, doneChange, notDoneChange, unreadChange } from '../inbox/c
 import { RowAction, Status } from '../inbox/Row.tsx'
 import { parseTs, shortDuration, timeLabel } from '../time.ts'
 import { cx } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 /** Rows shown before "Show all". */
 const COLLAPSED_ROWS = 5
@@ -21,20 +22,21 @@ type Props = {
 }
 
 export function ContactCalls({ calls, onOpen, onChange }: Props) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
-  if (!calls.length) return <p className="ct-calls-empty">No calls yet.</p>
+  if (!calls.length) return <p className="ct-calls-empty">{t('contacts.calls.empty')}</p>
   const collapsible = calls.length > COLLAPSED_ROWS + 1 // never hide a single row behind a button
   const shown = collapsible && !expanded ? calls.slice(0, COLLAPSED_ROWS) : calls
   return (
     <div className="ct-calls">
-      <div role="list" aria-label="Calls">
+      <div role="list" aria-label={t('contacts.column.calls')}>
         {shown.map(call => (
           <CallItem key={call.id} call={call} onOpen={onOpen} onChange={onChange} />
         ))}
       </div>
       {collapsible && (
         <button type="button" className="ct-calls-more" onClick={() => setExpanded(!expanded)}>
-          {expanded ? 'Show fewer' : `Show all ${calls.length}`}
+          {expanded ? t('contacts.calls.showFewer') : t('contacts.calls.showAll', { count: calls.length })}
         </button>
       )}
     </div>
@@ -42,6 +44,7 @@ export function ContactCalls({ calls, onOpen, onChange }: Props) {
 }
 
 function CallItem({ call, onOpen, onChange }: { call: Call; onOpen: Props['onOpen']; onChange: Props['onChange'] }) {
+  const t = useT()
   const done = call.inbox_state === 'done'
   const live = call.status === 'live'
   const title = callTitle(call)
@@ -60,7 +63,7 @@ function CallItem({ call, onOpen, onChange }: { call: Call; onOpen: Props['onOpe
       role="listitem"
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the row is the list's item and opens the call (Enter, Space, click), as in the inbox
       tabIndex={0}
-      aria-label={[title, call.unread && 'unread', done && 'done'].filter(Boolean).join(', ')}
+      aria-label={[title, call.unread && t('inbox.row.unread'), done && t('inbox.row.done')].filter(Boolean).join(', ')}
       className={cx('ct-call', call.unread && 'is-unread', done && 'is-done')}
       onClick={() => onOpen(call)}
       onKeyDown={onKeyDown}
@@ -69,8 +72,8 @@ function CallItem({ call, onOpen, onChange }: { call: Call; onOpen: Props['onOpe
         className="ct-call-dot"
         role="button"
         tabIndex={-1}
-        title={`${call.unread ? 'Mark read' : 'Mark unread'} (U)`}
-        aria-label={call.unread ? 'Unread, mark read' : 'Read, mark unread'}
+        title={t('common.withKey', { label: call.unread ? t('inbox.row.markRead') : t('inbox.row.markUnread'), key: 'U' })}
+        aria-label={call.unread ? t('inbox.row.unreadMarkRead') : t('inbox.row.readMarkUnread')}
         onClick={e => {
           e.stopPropagation()
           toggleUnread()
@@ -89,7 +92,15 @@ function CallItem({ call, onOpen, onChange }: { call: Call; onOpen: Props['onOpe
       <span className="ct-call-dur">{live || !call.duration_sec ? '' : shortDuration(call.duration_sec)}</span>
       <span className="ct-call-acts">
         <RowAction
-          title={done ? 'Mark not done (⇧E)' : 'Mark done (E)'}
+          title={
+            done
+              ? t('common.withKeyHint', {
+                  label: t('shell.command.markNotDone'),
+                  key: '⇧E',
+                  hint: t('inbox.action.notDoneHint'),
+                })
+              : t('common.withKey', { label: t('shell.command.markDone'), key: 'E' })
+          }
           icon={done ? 'restart' : 'check'}
           onClick={toggleDone}
         />

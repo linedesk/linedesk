@@ -10,6 +10,7 @@ import { Field, Section, TextArea } from './fields.tsx'
 import { hasKnowledge } from './knowledgeModel.ts'
 import { WriteWithHelp } from './WriteWithHelp.tsx'
 import './knowledge.css'
+import { fmt } from '../i18n/format.ts'
 
 type Props = {
   assistant: Assistant
@@ -20,7 +21,7 @@ type Props = {
   toast: (text: string) => void
 }
 
-const count = (n: number) => n.toLocaleString('en-US')
+const count = (n: number) => fmt().number(n)
 
 export function Knowledge(props: Props) {
   const { draft } = props

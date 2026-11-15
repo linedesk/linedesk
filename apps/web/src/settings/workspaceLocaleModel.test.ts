@@ -15,13 +15,25 @@ test('the country list starts with Automatic and where it came from, then every 
 })
 
 test('the language list: Automatic from the country, then the languages calls can be answered in', () => {
-  expect(languageOptions('US')[0]?.label).toBe('Automatic (English, from your country)')
-  expect(languageOptions('MX')[0]?.label).toBe('Automatic (Spanish, from your country)')
-  expect(languageOptions('KR')[0]?.label).toBe('Automatic (Korean summaries; calls in English)')
-  const codes = languageOptions('US').map(o => o.value)
+  expect(languageOptions('US', 'en')[0]?.label).toBe('Automatic (English, from your country)')
+  expect(languageOptions('MX', 'en')[0]?.label).toBe('Automatic (Español · Spanish, from your country)')
+  expect(languageOptions('KR', 'en')[0]?.label).toBe('Automatic (Korean summaries; calls in English)')
+  const codes = languageOptions('US', 'en').map(o => o.value)
   expect(codes).toContain('es')
   expect(codes).not.toContain('ko')
-  expect(searchOptions(languageOptions('US'), 'span').map(o => o.value)).toEqual(['es'])
+  expect(searchOptions(languageOptions('US', 'en'), 'span').map(o => o.value)).toEqual(['es'])
+})
+
+test('each language in its own name and in the UI language, in the same order for every UI language', () => {
+  const en = languageOptions('US', 'en')
+  const de = languageOptions('US', 'de')
+  expect(en.find(o => o.value === 'es')).toMatchObject({ label: 'Español · Spanish', meta: 'es' })
+  expect(de.find(o => o.value === 'es')?.label).toBe('Español · Spanisch')
+  expect(de.find(o => o.value === 'de')?.label).toBe('Deutsch')
+  expect(en.find(o => o.value === 'pt')?.label).toBe('Português · Portuguese')
+  expect(de.map(o => o.value)).toEqual(en.map(o => o.value))
+  expect(searchOptions(de, 'spanisch').map(o => o.value)).toEqual(['es'])
+  expect(searchOptions(de, 'espa').map(o => o.value)).toEqual(['es'])
 })
 
 test('an assistant without a main language shows the workspace language, its default greeting in it', () => {

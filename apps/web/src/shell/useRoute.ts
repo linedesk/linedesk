@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { InboxTab } from '../inbox-model.ts'
 import { hasSections, isPageRoute, type Route } from './pages.tsx'
+import { i18n } from '../i18n/index.tsx'
 
 /** `member`: whose calls the `member` view lists (null in every other view). */
 export type InboxPlace = { tab: InboxTab; search: string | null; member?: string | null }
@@ -119,9 +120,8 @@ export function linkWorkspaceTarget(
 
 /** What the inbox says after a link it could not open in this workspace. */
 export function linkNotice(target: LinkTarget): string | null {
-  if (target.kind === 'noAccess') return "You don't have access to the workspace that link is for."
-  if (target.kind === 'elsewhere')
-    return `That link is for ${target.workspace.name}. Switch to it in the workspace menu.`
+  if (target.kind === 'noAccess') return i18n().t('shell.link.noAccess')
+  if (target.kind === 'elsewhere') return i18n().t('shell.link.elsewhere', { workspace: target.workspace.name })
   return null
 }
 

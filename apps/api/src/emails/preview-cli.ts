@@ -1,11 +1,14 @@
 // Writes every email to HTML and text files to look at (and screenshot), and with --send sends
 // each one to an address through the configured sender (SMTP_URL, or the log).
 // --brand renders them as an install with its own product name (Server admin › Branding), --hide-powered-by with the
-// "Powered by Linedesk" line switched off.
+// "Powered by Linedesk" line switched off, --locale in another UI language (es, pt-BR, fr, de, ja; English by default).
 //   pnpm --filter @linedesk/api email:preview [--out <dir>] [--send <address>] [--brand <name>] [--hide-powered-by]
+//     [--locale <locale>]
+
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
+import { isUiLocale } from '@linedesk/i18n'
 import { setBrandingInMemory } from '../branding.ts'
 import { previewEmails } from './previews.ts'
 import { WEB_ORIGIN } from './templates.ts'
@@ -16,12 +19,17 @@ const { values } = parseArgs({
     send: { type: 'string' },
     brand: { type: 'string' },
     'hide-powered-by': { type: 'boolean', default: false },
+    locale: { type: 'string', default: 'en' },
   },
 })
+if (!isUiLocale(values.locale)) {
+  console.error(`--locale takes a UI language (en, es, pt-BR, fr, de, ja), not ${values.locale}`)
+  process.exit(1)
+}
 if (values.brand) setBrandingInMemory({ name: values.brand, poweredBy: !values['hide-powered-by'] })
 const out = resolve(values.out!)
 mkdirSync(out, { recursive: true })
-const previews = previewEmails(WEB_ORIGIN)
+const previews = previewEmails(WEB_ORIGIN, values.locale)
 for (const { name, email } of previews) {
   writeFileSync(join(out, `${name}.html`), email.html)
   writeFileSync(join(out, `${name}.txt`), `Subject: ${email.subject}\n\n${email.text}`)

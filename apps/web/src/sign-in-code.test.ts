@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { authErrorMessage, authFormError, codeErrorMessage, NO_ACCOUNT, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, codeErrorMessage, noAccountText, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
 import { splitAuthError } from './ui/AuthError.tsx'
 
 test('the code field keeps digits only, at most six, so a pasted code works', () => {
@@ -14,8 +14,8 @@ test('server errors become short messages', () => {
   expect(codeErrorMessage({ code: 'INVALID_OTP', message: 'Invalid OTP' })).toMatch(/not right/)
   expect(codeErrorMessage({ code: 'OTP_EXPIRED' })).toMatch(/expired/)
   expect(codeErrorMessage({ code: 'TOO_MANY_ATTEMPTS' })).toMatch(/Too many tries/)
-  expect(codeErrorMessage({ message: 'Sign-up is closed on this server.' })).toBe(NO_ACCOUNT)
-  expect(codeErrorMessage({ message: NO_ACCOUNT })).toBe('No account for this email. Ask your workspace admin for an invitation.')
+  expect(codeErrorMessage({ message: 'Sign-up is closed on this server.' })).toBe(noAccountText())
+  expect(codeErrorMessage({ message: noAccountText() })).toBe('No account for this email. Ask your workspace admin for an invitation.')
   expect(codeErrorMessage({})).toMatch(/^That didn't work\. Try again\./)
 })
 
@@ -51,8 +51,8 @@ test('a page opened at an address the server does not trust says so, and where t
 })
 
 test('connection failures and server errors get a plain message and what to do, never the server text', () => {
-  expect(authErrorMessage(new TypeError('Failed to fetch'))).toMatch(/internet connection/)
-  expect(authErrorMessage({ status: 0, message: 'Load failed' })).toMatch(/internet connection/)
+  expect(authErrorMessage(new TypeError('Failed to fetch'))).toMatch(/Check your connection/)
+  expect(authErrorMessage({ status: 0, message: 'Load failed' })).toMatch(/Check your connection/)
   const server = authErrorMessage({ status: 500, message: 'SQL connection refused at internal-db:5432' })
   expect(server).toMatch(/^Something went wrong on our side\. Try again in a few minutes/)
   expect(server).not.toMatch(/SQL|internal-db/)

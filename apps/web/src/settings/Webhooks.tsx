@@ -29,6 +29,7 @@ import { callAction, readAction, useWriteAction } from './settings-api.ts'
 import { lookupTestText, WebhookLookups } from './WebhookLookups.tsx'
 import './webhooks.css'
 import { brandName } from '../brand.ts'
+import { fmt } from '../i18n/format.ts'
 
 const HOOK_HELP: Record<WebhookHook, string> = {
   call_start: `${brandName()} sends the caller's number and waits up to ${CALL_START_TIMEOUT_MS / 1000} second. Answer with JSON like {"name": "Sam"}: the assistant knows it, and the greeting can say {{name}}.`,
@@ -295,7 +296,7 @@ function DeliveryTable({ rows }: { rows: WebhookDeliverySummary[] }) {
             </td>
             <td>{d.attempts}</td>
             <td>
-              {new Date(d.last_attempt_at ?? d.created_at).toLocaleString('en-US', {
+              {fmt().dateTime(new Date(d.last_attempt_at ?? d.created_at), {
                 month: 'short',
                 day: 'numeric',
                 hour: 'numeric',

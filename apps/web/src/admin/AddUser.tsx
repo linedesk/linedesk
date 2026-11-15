@@ -2,6 +2,7 @@
 // account and one email to sign in and join; an account whose address is confirmed joins at once. Only a server
 // admin may be added without a workspace. A button above the user list opens the form as a dialog.
 import { type MembershipRole, membershipRoles, type UserInviteData } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { emailError } from '../sign-in-code.ts'
 import { roleLabel } from '../team/team-model.ts'
@@ -132,6 +133,7 @@ function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: Pick
 }
 
 export function AddUser({ workspaces, users, toast, reload }: Props) {
+  const t = useT()
   // People join a workspace that answers calls; a disabled one is refused anyway.
   const open = workspaces.filter(w => !w.disabled_at)
   const owned = workspacesWithOwner(users)
@@ -244,6 +246,7 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
             <Input
               id="adm-add-email"
               type="email"
+              placeholder={t('admin.example.ownerEmail')}
               autoComplete="off"
               invalid={!!errors.email}
               value={form.email}

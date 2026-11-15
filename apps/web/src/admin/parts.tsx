@@ -3,9 +3,13 @@
 import { useState } from 'react'
 import { dateTimeLabel } from '../time.ts'
 import { nextSort, type Sort, type SortDir } from './model.ts'
+import { fmt } from '../i18n/format.ts'
+
+/** What an empty cell shows, in every admin table. */
+export const EMPTY = '—'
 
 export const day = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  fmt().dateTime(new Date(iso), { month: 'short', day: 'numeric', year: 'numeric' })
 export const when = (iso: string | null) => (iso ? dateTimeLabel(new Date(iso)) : 'Never')
 
 export function useSort<K extends string>(initial: Sort<K>) {

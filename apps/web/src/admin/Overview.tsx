@@ -8,9 +8,11 @@ import { cx } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, SkeletonRows, useLoading } from '../ui/LoadStates.tsx'
 import { type AdminOverview, loadOverview } from './api.ts'
 import { ReplyDelay } from './ReplyDelay.tsx'
+import { fmt } from '../i18n/format.ts'
+import { EMPTY } from './parts.tsx'
 
 const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
-const count = (n: number) => n.toLocaleString('en-US')
+const count = (n: number) => fmt().number(n)
 
 /** The last answer at once when admin is opened again, a fresh one in the background. */
 function useLoad<T>(key: string, load: () => Promise<T>) {
@@ -85,8 +87,8 @@ function Costs({ overview }: { overview: AdminOverview }) {
                 <th scope="row">{providerCategories[c.category]}</th>
                 <td>{c.label ?? <span className="help">Not set up</span>}</td>
                 <td className="adm-num">{count(c.minutes7d)}</td>
-                <td className="adm-num">{c.provider ? money(c.cost7d) : '–'}</td>
-                <td className="adm-num">{c.provider ? money(c.costMonth) : '–'}</td>
+                <td className="adm-num">{c.provider ? money(c.cost7d) : EMPTY}</td>
+                <td className="adm-num">{c.provider ? money(c.costMonth) : EMPTY}</td>
               </tr>
             ))}
             <tr className="adm-total">

@@ -10,9 +10,11 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
-import { DEFAULT_TIME_ZONE, slotWithZone } from './bookings.ts'
+import { DEFAULT_TIME_ZONE } from './bookings.ts'
+import { callerLocale } from './email-locale.ts'
 import type { EmailSender } from './email.ts'
-import { bookingConfirmationEmail, emailSafeName } from './emails/templates.ts'
+import { bookingConfirmationEmail, emailSafeName, slotInZone } from './emails/templates.ts'
+import { getT } from '@linedesk/i18n/server'
 
 /** The number the caller can ring to change the booking: the business's own, which forwards to the assistant. */
 async function businessNumber(tx: Tx, callId: string | null): Promise<string | null> {
@@ -45,16 +47,23 @@ export async function sendBookingConfirmation(
     .select({ timezone: workspace_settings.timezone })
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, booking.workspace_id))
+  // Only the frame is translated: the business, its appointment type and the address stay as they were written.
+  const locale = await callerLocale(tx, booking.workspace_id, booking.call_id)
+  const { t } = getT(locale)
   await sender.send({
     to: booking.caller_email,
-    ...bookingConfirmationEmail({
-      business: emailSafeName(workspace?.name, 'the business'),
-      what: emailSafeName(type?.name, 'appointment').toLowerCase(),
-      when: slotWithZone(booking.start_at, settings?.timezone ?? DEFAULT_TIME_ZONE),
-      minutes: type?.duration_min ?? null,
-      address: booking.address,
-      phone: await businessNumber(tx, booking.call_id),
-    }),
+    ...bookingConfirmationEmail(
+      {
+        business: emailSafeName(workspace?.name, t('email.fallback.business')),
+        what: emailSafeName(type?.name, t('email.fallback.appointment')).toLowerCase(),
+        when: slotInZone(booking.start_at, settings?.timezone ?? DEFAULT_TIME_ZONE, locale),
+        minutes: type?.duration_min ?? null,
+        address: booking.address,
+        phone: await businessNumber(tx, booking.call_id),
+      },
+      undefined,
+      locale,
+    ),
   })
   return 'sent'
 }

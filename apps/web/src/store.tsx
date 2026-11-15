@@ -15,6 +15,8 @@ import {
 import { forgetElectricState } from './localData.ts'
 import { leaseStore } from './storeCache.ts'
 import { BootScreen } from './ui/BootScreen.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from './i18n/index.tsx'
 
 /** `claimed`: a screen was waiting for this action when it was refused and shows the refusal itself (no toast). */
 export type ClaimableRejection = Rejection & { claimed?: boolean }
@@ -31,7 +33,7 @@ export const localDbName = (workspaceId: string) => `linedesk-${workspaceId}`
 type Boot = { state: 'loading' } | { state: 'failed' } | { state: 'ready'; store: Store }
 
 /** Why nothing can be changed (a disabled workspace): writes are refused here, before anything changes on screen. */
-export const DISABLED_WORKSPACE = 'This workspace is disabled, so nothing can be changed.'
+export const disabledWorkspaceText = () => i18n().t('shell.disabledWorkspace.readOnly')
 
 /**
  * Opens the local store. While it opens a quiet loading line shows; if it cannot open, an error with Reload: never a blank page.
@@ -52,6 +54,7 @@ export function StoreProvider({
   fallback?: ReactNode
   children: ReactNode
 }) {
+  const t = useT()
   const [boot, setBoot] = useState<Boot>({ state: 'loading' })
   const [rejection, setRejection] = useState<ClaimableRejection | null>(null)
   // The actions a screen is waiting on and shows refusals of inline, with how many screens wait on each.
@@ -101,19 +104,19 @@ export function StoreProvider({
   if (boot.state === 'failed') {
     return (
       <div className="boot" role="alert">
-        <b>Your calls could not be loaded</b>
-        <span>Reloading fetches them from the server again. Changes you have not sent yet are kept.</span>
+        <b>{t('shell.store.failed.title')}</b>
+        <span>{t('shell.store.failed.text')}</span>
         <button
           type="button"
           className="k-btn k-btn-primary k-btn-md"
           onClick={() => void reloadFromServer(workspaceId)}
         >
-          Reload
+          {t('shell.tabNotice.reload')}
         </button>
       </div>
     )
   }
-  return fallback ?? <BootScreen line="Loading your calls…" />
+  return fallback ?? <BootScreen line={t('shell.store.loading')} />
 }
 
 /** Empties this workspace's local copy (unsent changes stay) and reloads, so everything syncs fresh. */

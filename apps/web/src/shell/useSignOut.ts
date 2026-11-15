@@ -4,6 +4,7 @@ import { forgetLocalData } from '../localData.ts'
 import { stopPushOnSignOut } from '../push.ts'
 import { useStore } from '../store.tsx'
 import { clearRoute } from './useRoute.ts'
+import { i18n } from '../i18n/index.tsx'
 
 const SETTLE_MS = 2000
 const POLL_MS = 150
@@ -32,7 +33,7 @@ export function useSignOut({ onSignedOut, toast }: Options) {
     const unsent = await unsentAfterFlush()
     if (unsent > 0 && warnedAbout.current !== unsent) {
       warnedAbout.current = unsent
-      return toast(`${unsent} ${unsent === 1 ? 'change has' : 'changes have'} not been sent yet. Reconnect to keep ${unsent === 1 ? 'it' : 'them'}, or sign out again to discard.`)
+      return toast(i18n().t('shell.signOutUnsent', { count: unsent }))
     }
     // Pushes stop for this browser before the session ends (the server needs it to know whose they are).
     await stopPushOnSignOut()

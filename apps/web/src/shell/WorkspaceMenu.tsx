@@ -19,6 +19,7 @@ import { refreshInvitations } from './invitations.ts'
 import { useMenu } from './useMenu.ts'
 import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
 import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'terms' | 'privacy' | 'sign-out'
 
@@ -139,6 +140,7 @@ export function WorkspaceMenu({
   onShortcuts,
   onSignOut,
 }: Props) {
+  const t = useT()
   // In the background when it opens: the menu already shows the last known lists.
   const menu = useMenu(navOpen, () => {
     void refreshWorkspaces()
@@ -178,8 +180,8 @@ export function WorkspaceMenu({
         onKeyDown={menu.onTriggerKeyDown}
         title={
           waiting
-            ? `${name}: ${waiting === 1 ? 'an invitation' : `${waiting} invitations`} to join`
-            : `${name}: switch workspace, your account, sign out`
+            ? t('shell.workspaceMenu.invitationsTip', { workspace: name, count: waiting })
+            : t('shell.workspaceMenu.tip', { workspace: name })
         }
       >
         <WorkspaceMark name={name} iconUrl={iconUrl}>
@@ -194,7 +196,7 @@ export function WorkspaceMenu({
           popover="manual"
           className="ws-menu k-float"
           role="menu"
-          aria-label={`${name} and your account`}
+          aria-label={t('shell.workspaceMenu.label', { workspace: name })}
           onKeyDown={menu.onKeyDown}
         >
           <WorkspaceSwitcher
@@ -209,14 +211,14 @@ export function WorkspaceMenu({
           />
           {items.includes('new') && onNewWorkspace && (
             <>
-              <Item label="New workspace…" icon="plus" onClick={menu.choose(onNewWorkspace)} />
+              <Item label={t('shell.workspaceMenu.newWorkspace')} icon="plus" onClick={menu.choose(onNewWorkspace)} />
               <hr />
             </>
           )}
           <div
             className="ws-account"
             role="group"
-            aria-label={who ? `Signed in as ${who}${userName && email ? `, ${email}` : ''}` : 'Your account'}
+            aria-label={who ? t('shell.workspaceMenu.signedInAs', { who: userName && email ? `${who}, ${email}` : who }) : t('shell.workspaceMenu.yourAccount')}
           >
             {youRow.phase === 'reserve' || youRow.phase === 'skeleton' ? (
               <YouRowSkeleton lines={youLines} reserved={youRow.phase === 'reserve'} />
@@ -231,18 +233,18 @@ export function WorkspaceMenu({
                 </div>
               )
             )}
-            <Item label="Account settings" icon="user" onClick={menu.choose(onAccount)} />
-            <Item label="Keyboard shortcuts" icon="keyboard" keys={['?']} onClick={menu.choose(onShortcuts)} />
+            <Item label={t('shell.page.account')} icon="user" onClick={menu.choose(onAccount)} />
+            <Item label={t('shell.help.title')} icon="keyboard" keys={['?']} onClick={menu.choose(onShortcuts)} />
             {items.includes('help') && links?.supportEmail && (
-              <LinkItem label="Help" icon="mail" href={`mailto:${links.supportEmail}`} />
+              <LinkItem label={t('common.legal.help')} icon="mail" href={`mailto:${links.supportEmail}`} />
             )}
-            {items.includes('terms') && links?.terms && <LinkItem label="Terms" icon="globe" href={links.terms} />}
+            {items.includes('terms') && links?.terms && <LinkItem label={t('common.legal.terms')} icon="globe" href={links.terms} />}
             {items.includes('privacy') && links?.privacy && (
-              <LinkItem label="Privacy" icon="globe" href={links.privacy} />
+              <LinkItem label={t('common.legal.privacy')} icon="globe" href={links.privacy} />
             )}
           </div>
           <hr />
-          <Item label="Sign out" icon="arrow-up-right" onClick={menu.choose(onSignOut)} />
+          <Item label={t('shell.signOut')} icon="arrow-up-right" onClick={menu.choose(onSignOut)} />
         </div>
       )}
     </div>

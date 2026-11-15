@@ -14,6 +14,7 @@ import {
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from 'react'
+import { useLocale } from '@linedesk/i18n/react'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
 import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from '../settings/workspaceLocaleModel.ts'
@@ -406,7 +407,8 @@ function ReviewProfile({
     phoneCountry
   const language = pickedLanguage ?? settings?.language ?? AUTOMATIC
   const countryChoices = useMemo(() => countryOptions(country, 'explicit').slice(1), [country])
-  const languageChoices = useMemo(() => languageOptions(country), [country])
+  const ui = useLocale()
+  const languageChoices = useMemo(() => languageOptions(country, ui), [country, ui])
   const problem = draftProblem(draft)
   const problems = draftProblems(draft)
   const set = (change: Partial<ProfileDraft>) => setDraft(d => ({ ...d, ...change }))

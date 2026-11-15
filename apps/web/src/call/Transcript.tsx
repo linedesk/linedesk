@@ -4,6 +4,7 @@ import { highlight } from '../inbox/search.tsx'
 import { clock } from '../time.ts'
 import type { IconName } from '../ui/icons.ts'
 import { cx, Icon } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = {
   segments: TranscriptSegment[]
@@ -37,13 +38,14 @@ function CallEvent({ segment }: { segment: TranscriptSegment }) {
 type BubbleProps = { fromCaller: boolean; author: string | null; time: string | null; pending?: boolean; children: ReactNode }
 
 function Bubble({ fromCaller, author, time, pending, children }: BubbleProps) {
+  const t = useT()
   return (
     <div className={cx('k-msg', fromCaller ? 'k-msg-them' : 'k-msg-me', author && 'k-msg-tail', pending && 'k-msg-pending')}>
       <div className={cx('k-bubble', fromCaller ? 'k-tone-signal' : 'k-tone-neutral')}>
         {author && <div className="k-msg-author">{author}</div>}
         <span className="k-msg-text">{children}</span>
         <span className="k-meta-space" aria-hidden="true" />
-        <span className="k-meta">{time ? <time>{time}</time> : <span className="k-typing" role="img" aria-label="Speaking"><i /><i /><i /></span>}</span>
+        <span className="k-meta">{time ? <time>{time}</time> : <span className="k-typing" role="img" aria-label={t('call.transcript.speaking')}><i /><i /><i /></span>}</span>
       </div>
     </div>
   )
@@ -51,7 +53,8 @@ function Bubble({ fromCaller, author, time, pending, children }: BubbleProps) {
 
 /** The conversation in spoken order. The speaker's name shows when the speaker changes. */
 export function Transcript({ segments, callerName, assistantName, search, start, end, pending = [] }: Props) {
-  const names: Record<string, string> = { caller: callerName, agent: assistantName, human: 'Team' }
+  const t = useT()
+  const names: Record<string, string> = { caller: callerName, agent: assistantName, human: t('inbox.search.team') }
   let previous: string | null = null
   return (
     <div>

@@ -3,7 +3,7 @@ import { jobValueCurrencies } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
   busiestTime,
-  CURRENCY_OPTIONS,
+  currencyOptions,
   currencyLabel,
   formatMoney,
   moneyText,
@@ -62,7 +62,7 @@ describe('labels', () => {
   test('the sentence follows the period', () => {
     const c = { ...day('2026-11-13', 34), booked: 9, urgent: 2, urgentAfterHours: 0 }
     expect(summarySentence('Maya', { period: '7d', days: 7 }, c)).toBe(
-      'In the last 7 days Maya answered 34 calls, booked 9 appointments and flagged 2 urgent calls.',
+      'In the last 7 days Maya answered 34 calls, booked 9 appointments, and flagged 2 urgent calls.',
     )
     expect(summarySentence('Maya', { period: 'all', days: 400 }, c)).toMatch(/^Since your first call Maya/)
     expect(summarySentence('Maya', { period: 'month', days: 13 }, { ...c, calls: 0 })).toBe('No calls this month.')
@@ -100,9 +100,10 @@ describe('busiestTime', () => {
     const grid = Array.from({ length: 7 }, () => Array(24).fill(0))
     grid[2]![9] = 5
     grid[4]![11] = 3
-    expect(busiestTime(grid)).toBe('Tuesdays, 9–10 am')
+    // Hour ranges as Intl writes them in the active language (thin spaces around the dash in English).
+    expect(busiestTime(grid)).toBe('Tuesdays, 9\u2009–\u200910\u202fAM')
     grid[2]![9] = 0
-    expect(busiestTime(grid)).toBe('Thursdays, 11 am–12 pm')
+    expect(busiestTime(grid)).toBe('Thursdays, 11\u202fAM\u2009–\u200912\u202fPM')
     expect(busiestTime(Array.from({ length: 7 }, () => Array(24).fill(0)))).toBeNull()
   })
 })
@@ -172,12 +173,12 @@ test('the currency menu shows each code with its symbol, the code alone where th
   expect(currencyLabel('PHP')).toBe('PHP · ₱')
   expect(currencyLabel('PLN')).toBe('PLN')
   expect(currencyLabel('CLP')).toBe('CLP')
-  expect(CURRENCY_OPTIONS[0]).toEqual({ value: 'USD', label: 'USD · $' })
+  expect(currencyOptions()[0]).toEqual({ value: 'USD', label: 'USD · $' })
 })
 
 test('the currency menu shows the common currencies first, then every other one by code under a heading', () => {
-  const top = CURRENCY_OPTIONS.filter(o => !o.group).map(o => o.value)
-  const rest = CURRENCY_OPTIONS.filter(o => o.group).map(o => o.value)
+  const top = currencyOptions().filter(o => !o.group).map(o => o.value)
+  const rest = currencyOptions().filter(o => o.group).map(o => o.value)
   expect(top).toEqual(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
   expect(rest).toEqual([
     'AED',
@@ -216,9 +217,9 @@ test('the currency menu shows the common currencies first, then every other one 
     'ZAR',
   ])
   // The top ones come first and are not repeated; every offered currency is there once.
-  expect(CURRENCY_OPTIONS.map(o => o.value)).toEqual([...top, ...rest])
-  expect([...CURRENCY_OPTIONS.map(o => o.value)].sort()).toEqual([...jobValueCurrencies].sort())
-  expect(new Set(rest.map(c => CURRENCY_OPTIONS.find(o => o.value === c)?.group))).toEqual(new Set(['All currencies']))
+  expect(currencyOptions().map(o => o.value)).toEqual([...top, ...rest])
+  expect([...currencyOptions().map(o => o.value)].sort()).toEqual([...jobValueCurrencies].sort())
+  expect(new Set(rest.map(c => currencyOptions().find(o => o.value === c)?.group))).toEqual(new Set(['All currencies']))
 })
 
 test('currencies without minor units are typed and shown in whole units', () => {

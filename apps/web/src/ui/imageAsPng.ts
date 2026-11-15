@@ -2,6 +2,7 @@
 // for images people upload that the server stores (the install logo in Server admin › Branding does the same; the
 // profile picture and the workspace icon go through the crop step, ImageCrop.tsx, and its PNG through `canvasAsPng`).
 // Drawing to a canvas keeps only pixels: an SVG never reaches the server, so no script in one is ever served.
+import { i18n } from '../i18n/index.tsx'
 
 /** The file types the upload fields offer. */
 export const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml'
@@ -29,7 +30,7 @@ export async function loadImage(file: File): Promise<HTMLImageElement> {
     const image = new Image()
     image.src = url
     await image.decode().catch(() => {
-      throw new Error('That file is not an image this browser can read. Use a PNG, JPEG, WebP or SVG.')
+      throw new Error(i18n().t('common.image.unreadable'))
     })
     return image
   } finally {
@@ -41,7 +42,7 @@ export async function loadImage(file: File): Promise<HTMLImageElement> {
 export function canvasAsPng(canvas: HTMLCanvasElement, { maxBytes, what }: { maxBytes: number; what: string }) {
   const png = canvas.toDataURL('image/png')
   if (pngDataUrlBytes(png) > maxBytes)
-    throw new Error(`${what} is too large once converted: use a simpler image (at most ${maxBytes / 1024} KB).`)
+    throw new Error(i18n().t('common.image.tooLarge', { what, kb: maxBytes / 1024 }))
   return png
 }
 

@@ -4,19 +4,21 @@
 // Which number, what counts as live and the order of the steps come from @linedesk/actions (setup-state.ts), the
 // same definition the setup emails and Server admin › Onboarding use.
 import {
+  forwardsCalls,
   type GoLiveChecklistData,
   type GoLiveStep,
   type GoLiveStepScope,
   type GoLiveStepState,
-  forwardsCalls,
   goLiveStepScope,
   setupNumber,
   skippableGoLiveSteps,
-  takesAllCalls,
   type TeamData,
+  takesAllCalls,
 } from '@linedesk/actions'
 import type { AssistantCalendar, CalendarConnection, PhoneNumber } from '@linedesk/db/types'
 import { brandName } from '../brand.ts'
+import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { type ForwardedCall, realCallReached } from '../onboarding/forwarding-check.ts'
 
 export type GoLiveId = GoLiveStep
@@ -59,30 +61,33 @@ export type GoLiveFacts = {
 }
 
 /** The one sentence for a server whose voice service is not set up: the inbox header and the go-live checklist. */
-export const voiceNotSetUp = (assistant: string) =>
-  `${assistant} can't answer calls yet: the voice service isn't set up.`
+export const voiceNotSetUp = (assistant: string) => i18n().t('inbox.voice.notSetUp', { assistant })
 /** What to do about it: instance admins set it up themselves, everyone else asks whoever runs the server. */
 export const voiceFix = (canFix: boolean) =>
-  canFix ? 'Set it up under Server admin › Providers.' : 'Ask whoever runs this server.'
+  canFix ? i18n().t('inbox.voice.setUpInAdmin') : i18n().t('inbox.voice.askServerOwner')
 /** Set up, but a provider it needs is failing (a used-up quota, a rejected key): the header and the checklist. */
 export const voiceFailing = (assistant: string, canFix: boolean) =>
-  `${assistant} can't answer calls: a service it needs is failing (a used-up quota or a rejected key). ${
-    canFix ? 'Fix it under Server admin › Providers.' : 'Ask whoever runs this server.'
-  }`
+  i18n().t('inbox.voice.failing', {
+    assistant,
+    fix: canFix ? i18n().t('inbox.voice.fixInAdmin') : i18n().t('inbox.voice.askServerOwner'),
+  })
 
 export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[] {
+  const { t } = i18n()
   const items: Omit<GoLiveItem, 'scope'>[] = [
     {
       id: 'number',
-      label: 'Connect your number',
-      hint: `So ${assistant} can answer your calls`,
+      label: t('inbox.goLive.number.label'),
+      hint: t('inbox.goLive.number.hint', { assistant }),
       done: facts.hasNumber,
       href: '#workspace/phone',
     },
     {
       id: 'forwarding',
-      label: 'Turn on call forwarding',
-      hint: facts.forwardingTakesAllCalls ? `Every call goes to ${assistant}` : `Calls you miss go to ${assistant}`,
+      label: t('inbox.goLive.forwarding.label'),
+      hint: facts.forwardingTakesAllCalls
+        ? t('inbox.goLive.forwarding.hintAll', { assistant })
+        : t('inbox.goLive.forwarding.hintMissed', { assistant }),
       done: facts.forwardingVerified,
       href:
         facts.forwardingNumberId && facts.forwardingNumberId !== 'none'
@@ -91,8 +96,8 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
     },
     {
       id: 'first_call',
-      label: 'Get your first real call',
-      hint: "Call your business from a phone that isn't yours or your team's",
+      label: t('inbox.goLive.firstCall.label'),
+      hint: t('inbox.goLive.firstCall.hint'),
       done: facts.firstRealCall,
       href: null,
     },
@@ -102,7 +107,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
   if (facts.voice)
     items.unshift({
       id: 'voice',
-      label: `${assistant} can answer calls`,
+      label: t('inbox.goLive.voice.label', { assistant }),
       hint: facts.voice.ready
         ? voiceFailing(assistant, facts.voice.canFix)
         : `${voiceNotSetUp(assistant)} ${voiceFix(facts.voice.canFix)}`,
@@ -112,23 +117,23 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
   if (facts.calendarConnected !== null)
     items.push({
       id: 'calendar',
-      label: 'Connect your calendar',
-      hint: `So ${assistant} can book appointments`,
+      label: t('inbox.goLive.calendar.label'),
+      hint: t('inbox.goLive.calendar.hint', { assistant }),
       done: facts.calendarConnected,
       href: '#assistant/booking',
     })
   if (facts.pushOn !== null)
     items.push({
       id: 'push',
-      label: 'Get calls on your phone',
-      hint: `Add ${brandName()} to your Home Screen, then allow notifications`,
+      label: t('inbox.goLive.push.label'),
+      hint: t('inbox.goLive.push.hint', { brand: brandName() }),
       done: facts.pushOn,
       href: '#account/notifications',
     })
   items.push({
     id: 'team',
-    label: 'Invite your team',
-    hint: 'They get the calls meant for them',
+    label: t('inbox.goLive.team.label'),
+    hint: t('inbox.goLive.team.hint'),
     done: facts.teamInvited,
     href: '#workspace/team',
   })
@@ -243,12 +248,13 @@ export const teamInvited = (team: Pick<TeamData, 'members' | 'invitations'>) =>
 export function goLiveProgress(view: GoLiveView): string {
   const total = view.rows.length + view.later.length + view.skipped.length
   const handled = view.rows.length - view.open.length + view.skipped.length
-  return `${handled} of ${total}${view.skipped.length ? ` (${view.skipped.length} not needed)` : ''}`
+  return view.skipped.length
+    ? i18n().t('inbox.goLive.progressSkipped', { handled, total, skipped: view.skipped.length })
+    : i18n().t('inbox.goLive.progress', { handled, total })
 }
 
 /** "Nov 16". */
-export const goLiveDate = (at: Date) => at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+export const goLiveDate = (at: Date) => fmt().dateTime(at, { month: 'short', day: 'numeric' })
 
 /** The hint row in the inbox until the first real call: what happens when one comes in. */
-export const firstCallHint = (assistant: string) =>
-  `When someone calls, ${assistant} answers and the call shows up here with a summary and what to do next.`
+export const firstCallHint = (assistant: string) => i18n().t('inbox.firstCallHint', { assistant })

@@ -1,19 +1,15 @@
-const formatters = new Map<string, Intl.DateTimeFormat>()
 /**
- * `date.toLocaleString('en-US', options)` with the formatter built once: building one costs far more
- * than using it, and the inbox formats a time for every row on every render.
+ * Times and durations as the app shows them, in the active language (docs/translations.md, "Formatting"): dates and
+ * clock times through Intl, the words around them ("Yesterday 4:05 PM") from the catalog.
  */
+import { i18n } from './i18n/index.tsx'
+
+/** `date` formatted with `options` in the active language; each formatter is built once (the inbox formats every row). */
 export function formatDate(date: Date, options: Intl.DateTimeFormatOptions): string {
-  const key = JSON.stringify(options)
-  let formatter = formatters.get(key)
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-US', options)
-    formatters.set(key, formatter)
-  }
-  return formatter.format(date)
+  return i18n().format.dateTime(date, options)
 }
 
-/** A day ("YYYY-MM-DD") as a date field shows it: "Nov 14, 2026", in English whatever the browser's language. */
+/** A day ("YYYY-MM-DD") as a date field shows it: "Nov 14, 2026" in English, "14 nov 2026" in Spanish. */
 export function dayFieldLabel(day: string): string {
   const date = new Date(`${day}T12:00:00Z`)
   if (Number.isNaN(date.getTime())) return day
@@ -26,31 +22,35 @@ export function parseTs(value: string): Date {
   return new Date(iso)
 }
 
-export function dayLabel(date: Date, now = new Date()): 'Today' | 'Yesterday' | 'Earlier' {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
-  return days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : 'Earlier'
+export type Day = 'today' | 'yesterday' | 'earlier'
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+/** Calendar days from `from` to `to` in the browser's time zone (negative: `to` is earlier). */
+const daysBetween = (from: Date, to: Date) => Math.round((startOfDay(to) - startOfDay(from)) / 86_400_000)
+
+export function dayLabel(date: Date, now = new Date()): Day {
+  const days = daysBetween(date, now)
+  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : 'earlier'
 }
+
+const clockTime = (date: Date) => formatDate(date, { hour: 'numeric', minute: '2-digit' })
+const monthDay = (date: Date) => formatDate(date, { month: 'short', day: 'numeric' })
 
 export function timeLabel(date: Date, now = new Date()): string {
   const day = dayLabel(date, now)
-  if (day === 'Today') return formatDate(date, { hour: 'numeric', minute: '2-digit' })
-  if (day === 'Yesterday') return 'Yesterday'
-  return formatDate(date, { month: 'short', day: 'numeric' })
+  if (day === 'today') return clockTime(date)
+  if (day === 'yesterday') return i18n().t('common.time.yesterday')
+  return monthDay(date)
 }
 
 /** "1m 20s" for lists. */
 export function shortDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60),
-    s = Math.round(seconds % 60)
-  return m ? `${m}m${s ? ` ${s}s` : ''}` : `${s}s`
+  return i18n().format.duration(seconds, 'narrow')
 }
 
-/** "1 min 20 sec" for the call header. */
+/** "1 min, 20 sec" for the call header. */
 export function longDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60),
-    s = Math.round(seconds % 60)
-  return m ? `${m} min${s ? ` ${s} sec` : ''}` : `${s} sec`
+  return i18n().format.duration(seconds, 'short')
 }
 
 /** "01:20" for clocks and transcript times. */
@@ -62,10 +62,12 @@ export function clock(seconds: number): string {
 
 /** "10:23 AM", "Yesterday 10:23 AM" or "Nov 8, 10:23 AM" for the call header. */
 export function dateTimeLabel(date: Date, now = new Date()): string {
-  const time = formatDate(date, { hour: 'numeric', minute: '2-digit' })
+  const { t } = i18n()
+  const time = clockTime(date)
   const day = dayLabel(date, now)
-  if (day === 'Today') return time
-  return day === 'Yesterday' ? `Yesterday ${time}` : `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
+  if (day === 'today') return time
+  if (day === 'yesterday') return t('common.time.yesterdayAt', { time })
+  return t('common.time.dateAt', { date: monthDay(date), time })
 }
 
 /**
@@ -73,31 +75,37 @@ export function dateTimeLabel(date: Date, now = new Date()): string {
  * "2:58 PM", "Yesterday 7:59 PM", "Mon 9:02 AM" (the last week), "Nov 12, 9:02 AM", "Nov 12, 2025" (another year).
  */
 export function listTime(date: Date, now = new Date()): string {
-  const time = formatDate(date, { hour: 'numeric', minute: '2-digit' })
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
+  const { t } = i18n()
+  const time = clockTime(date)
+  const days = daysBetween(date, now)
   if (days <= 0) return time
-  if (days === 1) return `Yesterday ${time}`
-  if (days < 7) return `${formatDate(date, { weekday: 'short' })} ${time}`
+  if (days === 1) return t('common.time.yesterdayAt', { time })
+  if (days < 7) return t('common.time.weekdayAt', { weekday: formatDate(date, { weekday: 'short' }), time })
   if (date.getFullYear() !== now.getFullYear())
     return formatDate(date, { month: 'short', day: 'numeric', year: 'numeric' })
-  return `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
+  return t('common.time.dateAt', { date: monthDay(date), time })
 }
 
 /** When a reminder comes back: "Today 6:30 PM", "Tomorrow 8:00 AM", "Fri 8:00 AM", "Dec 10, 8:00 AM". */
 export function whenLabel(date: Date, now = new Date()): string {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const days = Math.round((startOfDay(date) - startOfDay(now)) / 86_400_000)
-  const time = formatDate(date, { hour: 'numeric', minute: '2-digit' })
-  if (days === 0) return `Today ${time}`
-  if (days === 1) return `Tomorrow ${time}`
-  if (days > 1 && days < 7) return `${formatDate(date, { weekday: 'short' })} ${time}`
-  return `${formatDate(date, { month: 'short', day: 'numeric' })}, ${time}`
+  const { t } = i18n()
+  const days = daysBetween(now, date)
+  const time = clockTime(date)
+  if (days === 0) return t('common.time.todayAt', { time })
+  if (days === 1) return t('common.time.tomorrowAt', { time })
+  if (days > 1 && days < 7) return t('common.time.weekdayAt', { weekday: formatDate(date, { weekday: 'short' }), time })
+  return t('common.time.dateAt', { date: monthDay(date), time })
 }
 
 /**
- * When something runs out, after "valid until": "today 6:30 PM", "tomorrow 1:00 AM", "Sun 1:00 AM", "Dec 10, 8:00 AM".
- * In English whatever the browser's language, like every label here (LIN-161: the setup link said "So., 01:00").
+ * When something runs out, inside a sentence after "valid until": "today 6:30 PM", "tomorrow 1:00 AM", "Sun 1:00 AM",
+ * "Dec 10, 8:00 AM". Always with the clock time (LIN-161: the setup link said "So., 01:00").
  */
-export const untilLabel = (date: Date, now = new Date()) =>
-  whenLabel(date, now).replace(/^(Today|Tomorrow)\b/, day => day.toLowerCase())
+export function untilLabel(date: Date, now = new Date()): string {
+  const { t } = i18n()
+  const days = daysBetween(now, date)
+  const time = clockTime(date)
+  if (days === 0) return t('common.time.untilToday', { time })
+  if (days === 1) return t('common.time.untilTomorrow', { time })
+  return whenLabel(date, now)
+}

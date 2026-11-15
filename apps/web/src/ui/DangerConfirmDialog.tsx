@@ -9,6 +9,7 @@ import { rejectionReason } from '../shell/rejections.ts'
 import { Checkbox } from './controls.tsx'
 import { Dialog, Input } from './form.tsx'
 import { Button, Note } from './kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 export type DangerConfirmation = {
   text: string
@@ -53,6 +54,7 @@ type Props = {
 }
 
 export function DangerConfirmDialog({ confirm, run, onClose, children, blocked = false }: Props) {
+  const t = useT()
   const [typed, setTyped] = useState('')
   const [option, setOption] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -80,7 +82,7 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.action.cancel')}
           </Button>
           {confirm.alternative && (
             <Button
@@ -119,7 +121,7 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
         <Input
           value={typed}
           placeholder={confirm.typed}
-          aria-label={`Type ${confirm.typed} to confirm`}
+          aria-label={t('common.dangerConfirm.typeToConfirm', { text: confirm.typed })}
           autoComplete="off"
           disabled={busy}
           onChange={e => setTyped(e.target.value)}

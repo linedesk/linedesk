@@ -3,6 +3,7 @@
 import type { ClosedDay, DerivedDay } from '@linedesk/actions'
 import type { Closure, HolidayCalendar, HolidayChange } from '@linedesk/db/types'
 import { timeOptionLabel } from './businessHoursModel.ts'
+import { fmt } from '../i18n/format.ts'
 
 /** Today's date (YYYY-MM-DD) in a time zone. */
 export function todayIn(timeZone: string, now = Date.now()): string {
@@ -26,7 +27,7 @@ export function withDays(days: readonly ClosedDay[], added: readonly ClosedDay[]
 export function shortDate(date: string, today: string): string {
   const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
   if (date.slice(0, 4) !== today.slice(0, 4)) options.year = 'numeric'
-  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', options)
+  return fmt().dateTime(new Date(`${date}T12:00:00Z`), options)
 }
 
 /** "Closed" or "Open 8:00 AM–12:00 PM". */
@@ -52,7 +53,7 @@ export function closureSummary(c: Closure, today: string): string {
 
 /** "Monday, January 5". */
 const longDate = (date: string) =>
-  new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', {
+  fmt().dateTime(new Date(`${date}T12:00:00Z`), {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

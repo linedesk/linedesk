@@ -5,6 +5,7 @@
 // in styles.css and app.css.
 import type { ReactNode } from 'react'
 import { Button, Icon, Kbd } from './kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 /** The page's visible title at the left of the header bar, with the number of items in it. */
 export function PageTitle({ title, count }: { title: string; count?: number }) {
@@ -18,9 +19,10 @@ export function PageTitle({ title, count }: { title: string; count?: number }) {
 
 /** The header's Search button: quiet, with its key; it opens the search field in place of the bar. */
 export function SearchButton({ label, onClick }: { label: string; onClick: () => void }) {
+  const t = useT()
   return (
-    <Button size="sm" variant="ghost" icon="search" shortcut={['/']} title={`${label} (/)`} onClick={onClick}>
-      Search
+    <Button size="sm" variant="ghost" icon="search" shortcut={['/']} title={t('common.withKey', { label, key: '/' })} onClick={onClick}>
+      {t('common.search.button')}
     </Button>
   )
 }
@@ -41,6 +43,7 @@ type SearchFieldProps = {
  * results (J and K move there); Close or Esc ends the search.
  */
 export function SearchField({ id, value, placeholder, label, onChange, onClose, escapeCloses }: SearchFieldProps) {
+  const t = useT()
   return (
     <div className="ib-search">
       <Icon name="search" size={15} />
@@ -59,8 +62,8 @@ export function SearchField({ id, value, placeholder, label, onChange, onClose, 
           if (e.key === 'Escape' && escapeCloses) onClose() // the app's key handler then blurs the field
         }}
       />
-      <Button size="sm" variant="ghost" shortcut={['esc']} title="Close search (esc)" onClick={onClose}>
-        Close
+      <Button size="sm" variant="ghost" shortcut={['esc']} title={t('common.search.closeTip', { key: 'esc' })} onClick={onClose}>
+        {t('common.action.close')}
       </Button>
     </div>
   )
@@ -68,12 +71,13 @@ export function SearchField({ id, value, placeholder, label, onChange, onClose, 
 
 /** The shortcut line under a list: J K move first, then the page's own keys. */
 export function ShortcutHints({ hints }: { hints: [keys: string[], label: string][] }) {
+  const t = useT()
   return (
     <div className="ib-hint">
       <span>
         <Kbd keys={['J']} />
         <Kbd keys={['K']} />
-        move
+        {t('common.shortcut.move')}
       </span>
       {hints.map(([keys, label]) => (
         <span key={label}>

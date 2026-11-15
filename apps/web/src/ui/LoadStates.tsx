@@ -8,6 +8,8 @@ import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 
 import { useReadSyncDown, useSnapshotValue } from '../store.tsx'
 import { Button, cx } from './kit.tsx'
 import { createLoadingGate, initialView, type LoadingView, SLOW_MS } from './loadingGate.ts'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 export type LoadState = 'ready' | 'loading' | 'slow'
 
@@ -110,10 +112,11 @@ function LoadingArea({
   skeleton: ReactNode
   className?: string
 }) {
+  const t = useT()
   return (
     <div className={cx('ld', 'ld-busy', reserved && 'is-reserved', className)} aria-busy="true" style={pulseInStep()}>
       <span className="sr-only" role="status">
-        Loading {what}
+        {t('common.load.loading', { what })}
       </span>
       {skeleton}
     </div>
@@ -275,20 +278,20 @@ export function SkeletonPart({
 
 /** Read sync has not reached the server for a while; it keeps retrying by itself, so there is nothing to press. */
 function ServerUnreachable({ className }: { className?: string }) {
+  const t = useT()
   return (
     <div className={cx('empty', 'load-problem', className)} role="status">
-      <b>Can't reach the server. Retrying…</b>
+      <b>{t('common.load.unreachable')}</b>
     </div>
   )
 }
 
 /** The answer of a server that is down or restarting, as the browser reports it. */
 const UNREACHABLE = /server answered 5\d\d|failed to fetch|networkerror|load failed/i
-const NO_ANSWER = 'The server did not answer. It may be restarting, or this device is offline.'
 
 /** An error's text as a person reads it: the server's own reason, or what an unreachable server means. */
 export const problemText = (message: string | null | undefined) =>
-  message && !UNREACHABLE.test(message) ? message : NO_ANSWER
+  message && !UNREACHABLE.test(message) ? message : i18n().t('common.load.noAnswer')
 
 type LoadProblemProps = {
   /** "Your calls", "Contacts", "Health": what did not arrive. */
@@ -302,17 +305,18 @@ type LoadProblemProps = {
 
 /** Something did not load: say so plainly and offer to try again. */
 export function LoadProblem({ what, message, onRetry, className }: LoadProblemProps) {
+  const t = useT()
   // A synced list (no reason, no retry of its own) while read sync is down: it comes back by itself.
   const readSyncDown = useReadSyncDown()
   if (readSyncDown && !message && !onRetry) return <ServerUnreachable className={className} />
   const unreachable = !message || UNREACHABLE.test(message)
-  const reason = unreachable && !onRetry ? `${NO_ANSWER} Your changes are kept.` : problemText(message)
+  const reason = unreachable && !onRetry ? t('common.load.noAnswerKept') : problemText(message)
   return (
     <div className={cx('empty', 'load-problem', className)} role="alert">
-      <b>{what} could not be loaded.</b>
+      <b>{t('common.load.failed', { what })}</b>
       <span>{reason}</span>
       <Button size="sm" onClick={onRetry ?? (() => window.location.reload())}>
-        Try again
+        {t('common.action.tryAgain')}
       </Button>
     </div>
   )

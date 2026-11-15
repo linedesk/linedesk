@@ -1,5 +1,5 @@
 // Onboarding: how new workspaces get to their first real call. Whether they get setup emails (off by default, so a
-// self-hosted install sends none), and the workspaces at risk: signed up a while ago and no real call has reached
+// self-hosted install sends none), and the workspaces at risk: added a while ago and no real call has reached
 // their assistant yet. Each shows the setup milestones it reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on
 // help comes from partners, not from us.
 import type { SetupEmailsData } from '@linedesk/actions'
@@ -45,7 +45,7 @@ function SetupEmails() {
   return (
     <Card
       title="Setup emails"
-      help={`To the owners of new workspaces: what is left a few hours after sign-up, the next step on day 1 and day 3${partner}, their first real call, and a summary after the first week. They stop once a real call came in, each goes out once, and owners can turn them off.`}
+      help={`To the owners of new workspaces: what is left a few hours after the owner joined, the next step on day 1 and day 3${partner}, their first real call, and a summary after the first week. They stop once a real call came in, each goes out once, and owners can turn them off.`}
     >
       <div className="swrow">
         <div>
@@ -81,7 +81,7 @@ function SetupEmails() {
  * checklist's first steps ("Connect your number", "Turn on call forwarding"). number_connected comes with #488 (LIN-85).
  */
 const milestoneLabels: Record<string, string> = {
-  signup: 'Signed up',
+  signup: 'Added',
   business_found: 'Business found',
   assistant_heard: 'Heard the assistant',
   mobile_added: 'Mobile added',
@@ -110,9 +110,9 @@ const DAYS = ['1', '3', '7', '14'] as const
 /** An empty list: either every workspace old enough had a real call, or none is old enough to judge yet (a new install). */
 function emptyText(oldEnough: number, days: string) {
   const ago = `more than ${days} ${days === '1' ? 'day' : 'days'} ago`
-  if (oldEnough === 0) return `No workspace signed up ${ago} yet, so there is nobody to judge.`
-  if (oldEnough === 1) return `Nobody. The one workspace that signed up ${ago} has had a real call.`
-  return `Nobody. All ${oldEnough} workspaces that signed up ${ago} have had a real call.`
+  if (oldEnough === 0) return `No workspaces in onboarding: none was added ${ago} yet.`
+  if (oldEnough === 1) return `No workspaces in onboarding. The one added ${ago} has had a real call.`
+  return `No workspaces in onboarding. All ${oldEnough} added ${ago} have had a real call.`
 }
 
 function AtRisk() {
@@ -123,12 +123,12 @@ function AtRisk() {
   return (
     <Card
       title="At risk"
-      description="Signed up a while ago, no real call yet. Where each one stopped."
+      description="Added a while ago, no real call yet. Where each one stopped."
       actions={
         <Select
           size="sm"
           align="end"
-          label="Signed up more than"
+          label="Added more than"
           value={days}
           onChange={setDays}
           options={DAYS.map(d => ({ value: d, label: `More than ${d} ${d === '1' ? 'day' : 'days'} ago` }))}
@@ -144,14 +144,14 @@ function AtRisk() {
           skeleton={<SkeletonRows rows={6} columns={4} className="adm-sk-rows" />}
         />
       ) : rows.length === 0 ? (
-        <p className="adm-notice">{emptyText(query.data?.oldEnough ?? 0, days)}</p>
+        <p className="adm-empty">{emptyText(query.data?.oldEnough ?? 0, days)}</p>
       ) : (
         <div className="adm-scroll">
           <table className="adm-table">
             <thead>
               <tr>
                 <th scope="col">Workspace</th>
-                <th scope="col">Signed up</th>
+                <th scope="col">Added</th>
                 <th scope="col">Stopped after</th>
                 <th scope="col">Setup emails</th>
               </tr>
@@ -168,7 +168,7 @@ function AtRisk() {
                     </th>
                     <td>{day(w.signed_up_at)}</td>
                     <td>
-                      {last ? last.label : 'Signed up'}
+                      {last ? last.label : 'Added'}
                       {last && <span className="adm-sub">{when(last.at)}</span>}
                       {steps.length > 1 && (
                         <details className="adm-steps">

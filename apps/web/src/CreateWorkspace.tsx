@@ -1,3 +1,4 @@
+import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { type AdminSecondFactor, createWorkspace, fetchMe, type Me } from './auth.ts'
@@ -22,7 +23,7 @@ export async function secondFactorDue(loadMe: () => Promise<Me | null> = fetchMe
  * First sign-in: name the business. Creates the workspace and its assistant. `lostWorkspace`: the
  * workspace this browser had open, which the member was removed from; said first, so the form is not
  * a surprise. `children`: shown under the form (invitations, Admin). `embedded`: only the form, as the secondary way
- * on an instance admin's start page (NoWorkspace.tsx, AdminStart): no page around it, its button not the primary one.
+ * on a server admin's start page (NoWorkspace.tsx, AdminStart): no page around it, its button not the primary one.
  * `onSecondFactor`: creating was refused until the passkey check (the session's 12 hours ran out meanwhile); the page
  * around opens the passkey prompt. Without it, this page shows the prompt itself instead of an error line.
  */
@@ -39,6 +40,7 @@ export function CreateWorkspace({
   embedded?: boolean
   onSecondFactor?: (state: AdminSecondFactor) => void
 }) {
+  const t = useT()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<CreatingPhase>('idle')
@@ -46,23 +48,23 @@ export function CreateWorkspace({
   // Made, but the app did not open it: from here the button reloads, so a second try never makes a second workspace.
   const [created, setCreated] = useState(false)
   const [secondFactor, setSecondFactor] = useState<AdminSecondFactor | null>(null)
-  const notOpened = 'Your workspace is ready, but it did not open. Reload the page to go on.'
+  const notOpened = t('auth.create.notOpened')
   // The app replaces this page once the new workspace has loaded. If that does not happen, don't hang on
   // "Opening…": the workspace exists, so the way on is a reload, not another try (that would make a second one).
   useEffect(() => {
     if (phase !== 'opening') return
     const timer = setTimeout(() => {
       setPhase('idle')
-      setError(notOpened)
+      setError(t('auth.create.notOpened'))
     }, OPENING_MS)
     return () => clearTimeout(timer)
-  }, [phase])
+  }, [phase, t])
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (busy) return
     if (created) return window.location.reload()
-    if (!name.trim()) return setError('Give your business a name.')
+    if (!name.trim()) return setError(t('auth.create.nameMissing'))
     setPhase('creating')
     setError(null)
     let made = false // state would be stale in the catch below
@@ -91,15 +93,15 @@ export function CreateWorkspace({
     <form className={embedded ? 'auth-form' : 'auth-card'} onSubmit={submit} noValidate>
       {lostWorkspace && <LostWorkspace name={lostWorkspace} />}
       {embedded ? (
-        <p>Name your business. Your assistant uses it when it answers the phone.</p>
+        <p>{t('auth.create.intro')}</p>
       ) : (
         <>
-          <h1>Name your business</h1>
-          <p>Your assistant uses it when it answers the phone.</p>
+          <h1>{t('auth.create.title')}</h1>
+          <p>{t('auth.create.text')}</p>
         </>
       )}
       <label>
-        Business name
+        {t('shell.newWorkspace.name')}
         <input
           required
           value={name}
@@ -117,13 +119,19 @@ export function CreateWorkspace({
         aria-busy={busy || undefined}
       >
         {busy && <Spinner />}
-        {phase === 'opening' ? 'Opening…' : busy ? 'Setting up…' : created ? 'Reload' : 'Continue'}
+        {phase === 'opening'
+          ? t('shell.newWorkspace.opening')
+          : busy
+            ? t('auth.setup.busy')
+            : created
+              ? t('shell.tabNotice.reload')
+              : t('shell.tabNotice.continue')}
       </button>
       <CreatingStatus phase={phase} name={name.trim()} />
       {children}
       {!embedded && (
         <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>
-          Use a different account
+          {t('auth.differentAccount')}
         </button>
       )}
     </form>
@@ -136,17 +144,11 @@ export function LostWorkspace({ name }: { name: string }) {
   return (
     <p className="auth-lost" role="status">
       {deletedOnPurpose(name) ? (
-        <>
-          You deleted <b>{name}</b>. Set up a new business, or join one you are invited to.
-        </>
+        <T k="auth.lost.deletedLong" values={{ workspace: name, b: chunks => <b>{chunks}</b> }} />
       ) : leftOnPurpose(name) ? (
-        <>
-          You left <b>{name}</b>. Set up your own business, or join one you are invited to.
-        </>
+        <T k="auth.lost.leftLong" values={{ workspace: name, b: chunks => <b>{chunks}</b> }} />
       ) : (
-        <>
-          You no longer have access to <b>{name}</b>. Ask its owner to invite you again, or set up your own business.
-        </>
+        <T k="auth.lost.noAccessLong" values={{ workspace: name, b: chunks => <b>{chunks}</b> }} />
       )}
     </p>
   )

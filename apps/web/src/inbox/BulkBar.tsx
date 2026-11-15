@@ -1,5 +1,6 @@
 // Replaces the inbox header while calls are selected: what is selected and what can be done with it.
 import { Button } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
 
 export type BulkActions = {
   count: number
@@ -18,9 +19,10 @@ export type BulkActions = {
 }
 
 export function BulkBar(b: BulkActions) {
+  const t = useT()
   return (
-    <div className="ib-bulk" role="toolbar" aria-label="Selected calls">
-      <b>{b.count} selected</b>
+    <div className="ib-bulk" role="toolbar" aria-label={t('inbox.bulk.label')}>
+      <b>{t('inbox.bulk.selected', { count: b.count })}</b>
       {/* Narrow windows show the icons only (ib-bulk-label); Read / unread is then under ⋯. Select all is ⌘A. */}
       <span className="ib-bulk-acts">
         <Button
@@ -28,22 +30,30 @@ export function BulkBar(b: BulkActions) {
           variant="ghost"
           className="ib-bulk-label"
           icon={b.inDone ? 'restart' : 'check'}
-          aria-label={b.inDone ? 'Not done' : 'Done'}
-          title={b.inDone ? 'Mark not done (⇧E)' : 'Mark done (E)'}
+          aria-label={b.inDone ? t('inbox.action.notDone') : t('inbox.action.done')}
+          title={
+            b.inDone
+              ? t('common.withKeyHint', {
+                  label: t('shell.command.markNotDone'),
+                  key: '⇧E',
+                  hint: t('inbox.action.notDoneHint'),
+                })
+              : t('common.withKey', { label: t('shell.command.markDone'), key: 'E' })
+          }
           onClick={b.onDone}
         >
-          {b.inDone ? 'Not done' : 'Done'}
+          {b.inDone ? t('inbox.action.notDone') : t('inbox.action.done')}
         </Button>
         <Button
           size="sm"
           variant="ghost"
           className="ib-bulk-label"
           icon="clock"
-          aria-label="Remind"
-          title="Remind me (H)"
+          aria-label={t('inbox.action.remind')}
+          title={t('common.withKey', { label: t('shell.command.remindMe'), key: 'H' })}
           onClick={b.onRemind}
         >
-          Remind
+          {t('inbox.action.remind')}
         </Button>
         {b.onAssign && (
           <Button
@@ -51,40 +61,40 @@ export function BulkBar(b: BulkActions) {
             variant="ghost"
             className="ib-bulk-label"
             icon="user"
-            aria-label="Assign"
+            aria-label={t('inbox.assign.label')}
             aria-haspopup="dialog"
-            title="Assign (A)"
+            title={t('common.withKey', { label: t('inbox.assign.label'), key: 'A' })}
             onClick={e => b.onAssign!(e.currentTarget.getBoundingClientRect())}
           >
-            Assign
+            {t('inbox.assign.label')}
           </Button>
         )}
         <Button
           size="sm"
           variant="ghost"
           className="ib-bulk-wide"
-          title="Mark read or unread (U)"
+          title={t('common.withKey', { label: t('shell.help.row.markReadOrUnread'), key: 'U' })}
           onClick={b.onToggleRead}
         >
-          Read / unread
+          {t('inbox.action.readUnread')}
         </Button>
         <Button
           size="sm"
           variant="ghost"
           className="ib-bulk-label"
           icon="trash"
-          aria-label="Delete"
-          title="Delete (#)"
+          aria-label={t('common.action.delete')}
+          title={t('common.withKey', { label: t('common.action.delete'), key: '#' })}
           onClick={b.onDelete}
         >
-          Delete
+          {t('common.action.delete')}
         </Button>
         <Button
           size="sm"
           variant="ghost"
           icon="more"
-          aria-label="All commands"
-          title="All commands (⌘ K)"
+          aria-label={t('inbox.action.allCommands')}
+          title={t('common.withKey', { label: t('inbox.action.allCommands'), key: '⌘ K' })}
           onClick={b.onCommands}
         />
         <Button
@@ -92,10 +102,10 @@ export function BulkBar(b: BulkActions) {
           variant="ghost"
           className="ib-bulk-clear"
           shortcut={['esc']}
-          title="Clear selection (esc)"
+          title={t('common.withKey', { label: t('shell.command.clearSelection'), key: 'esc' })}
           onClick={b.onClear}
         >
-          Clear
+          {t('inbox.bulk.clear')}
         </Button>
       </span>
     </div>

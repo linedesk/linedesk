@@ -9,6 +9,8 @@ import { useElapsed } from '../ui/LiveIndicator.tsx'
 import { SearchButton, SearchField } from '../ui/listPage.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
 import { voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -29,23 +31,24 @@ export type InboxHeadProps = {
 }
 
 export const SEARCH_INPUT_ID = 'call-search'
-const modeTitle: Partial<Record<InboxTab, string>> = {
-  done: 'Done',
-  reminders: 'Reminders',
-  mine: 'Assigned to me',
-  member: 'Assigned to a teammate',
-  unassigned: 'Unassigned',
+const modeTitle: Partial<Record<InboxTab, MessageKey>> = {
+  done: msg('inbox.view.done'),
+  reminders: msg('inbox.view.reminders'),
+  mine: msg('inbox.view.mine'),
+  member: msg('inbox.heading.member'),
+  unassigned: msg('inbox.view.unassigned'),
 }
 
 function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | 'counts'>) {
+  const t = useT()
   const assistant = useAssistantName()
   const info: Record<(typeof splits)[number], [label: string, description: string, short?: string]> = {
-    you: ['Needs you', 'Calls where someone has to act'],
-    ai: [`Handled by ${assistant}`, `${assistant} resolved these on their own`, 'Handled'],
-    spam: ['Spam', 'Blocked sales calls and robocalls'],
+    you: [t('inbox.view.you'), t('inbox.tab.youDescription')],
+    ai: [t('inbox.view.ai', { assistant }), t('inbox.tab.aiDescription', { assistant }), t('inbox.tab.aiShort')],
+    spam: [t('inbox.view.spam'), t('inbox.tab.spamDescription')],
   }
   return (
-    <div className="ib-tabs" role="tablist" aria-label="Views">
+    <div className="ib-tabs" role="tablist" aria-label={t('inbox.tab.label')}>
       {visibleSplits(counts, tab).map((id, i) => (
         <button
           key={id}
@@ -54,7 +57,7 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
           className="ib-tab"
           aria-selected={tab === id}
           data-desc={info[id][1]}
-          title={`${info[id][0]} (${i + 1})`}
+          title={t('common.withKey', { label: info[id][0], key: String(i + 1) })}
           onClick={() => setTab(id)}
         >
           {info[id][2] ? (
@@ -75,10 +78,17 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
 type ModeProps = { title: string; count: number; setTab: (tab: InboxTab) => void; onSwitch?: (anchor: DOMRect) => void }
 
 function Mode({ title, count, setTab, onSwitch }: ModeProps) {
+  const t = useT()
   return (
     <div className="ib-mode">
-      <Button size="sm" variant="ghost" icon="left" title="Back to Needs you (esc)" onClick={() => setTab('you')}>
-        Needs you
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="left"
+        title={t('common.withKey', { label: t('inbox.mode.back'), key: 'esc' })}
+        onClick={() => setTab('you')}
+      >
+        {t('inbox.view.you')}
       </Button>
       <span className="ib-mode-sep" aria-hidden="true">
         /
@@ -87,7 +97,7 @@ function Mode({ title, count, setTab, onSwitch }: ModeProps) {
         <button
           type="button"
           className="ib-mode-switch"
-          title="Show calls assigned to someone else"
+          title={t('inbox.mode.switch')}
           aria-haspopup="dialog"
           onClick={e => onSwitch(e.currentTarget.getBoundingClientRect())}
         >
@@ -103,46 +113,54 @@ function Mode({ title, count, setTab, onSwitch }: ModeProps) {
 }
 
 function LiveCallButton({ call, onOpen }: { call: Call; onOpen?: (call: Call) => void }) {
+  const t = useT()
   const assistant = useAssistantName()
   const caller = callerName(call, useContact(call.contact_id))
   const elapsed = useElapsed(parseTs(call.started_at))
   return (
-    <button type="button" className="ib-maya is-live" title="Open live call" onClick={() => onOpen?.(call)}>
+    <button type="button" className="ib-maya is-live" title={t('inbox.presence.openLive')} onClick={() => onOpen?.(call)}>
       <span className="ib-dot" />
-      {assistant} is on a call with {caller.startsWith('+') ? caller : caller.split(' ')[0]}{' '}
-      <time>{clock(elapsed)}</time>
+      <T
+        k="inbox.presence.onCall"
+        values={{
+          assistant,
+          caller: caller.startsWith('+') ? caller : caller.split(' ')[0],
+          time: <time>{clock(elapsed)}</time>,
+        }}
+      />
     </button>
   )
 }
 
 /** What the assistant is doing right now: green only when calls are really answered. */
 function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveCall' | 'onOpen' | 'canFixVoice'>) {
+  const t = useT()
   const assistant = useAssistantName()
   const presence = usePresence()
   if (liveCall) return <LiveCallButton call={liveCall} onOpen={onOpen} />
   if (presence.kind === 'unknown') return null
   if (presence.kind === 'answering') {
     return (
-      <span className="ib-maya" title={`${assistant} is answering calls`}>
+      <span className="ib-maya" title={t('inbox.presence.answeringCalls', { assistant })}>
         <span className="ib-dot" />
-        <span className="ib-maya-t">{assistant} is answering</span>
+        <span className="ib-maya-t">{t('inbox.presence.answering', { assistant })}</span>
       </span>
     )
   }
   if (presence.kind === 'offline') {
     return (
-      <span className="ib-maya is-off" title="You are offline. New calls show up once you are back online.">
+      <span className="ib-maya is-off" title={t('inbox.presence.offlineTitle')}>
         <span className="ib-dot" />
-        <span className="ib-maya-t">Offline</span>
+        <span className="ib-maya-t">{t('inbox.presence.offline')}</span>
       </span>
     )
   }
   // No number: the setup bar above the inbox (or the go-live checklist) already says so, with the link; the header keeps the dot.
   if (presence.reason === 'number')
     return (
-      <span className="ib-maya is-off" title={`${assistant} has no phone number yet, so calls don't reach it.`}>
+      <span className="ib-maya is-off" title={t('inbox.presence.noNumberTitle', { assistant })}>
         <span className="ib-dot" />
-        <span className="sr-only">{assistant} has no phone number yet</span>
+        <span className="sr-only">{t('inbox.presence.noNumber', { assistant })}</span>
       </span>
     )
   // The voice service: the same sentence as the go-live checklist's first step.
@@ -155,11 +173,13 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
     >
       <span className="ib-dot" />
       <span className="ib-maya-t">
-        {assistant} can't answer calls{failing ? '' : ' yet'}
+        {failing
+          ? t('inbox.presence.cannotAnswer', { assistant })
+          : t('inbox.presence.cannotAnswerYet', { assistant })}
       </span>
       {fix && (
         <a className="ib-maya-fix" href={fix}>
-          {failing ? 'Fix' : 'Set up'}
+          {failing ? t('inbox.presence.fix') : t('inbox.presence.setUp')}
         </a>
       )}
     </span>
@@ -172,7 +192,10 @@ export function InboxHead({
   bulk,
   ...p
 }: InboxHeadProps & { resultCount: number; menu?: ReactNode; bulk?: BulkActions }) {
-  const mode = p.tab === 'member' && p.memberName ? `Assigned to ${p.memberName}` : modeTitle[p.tab]
+  const t = useT()
+  const title = modeTitle[p.tab]
+  const mode =
+    p.tab === 'member' && p.memberName ? t('inbox.view.member', { name: p.memberName }) : title && t(title)
   if (bulk && bulk.count > 0)
     return (
       <div className="ib-head">
@@ -187,8 +210,8 @@ export function InboxHead({
         <SearchField
           id={SEARCH_INPUT_ID}
           value={p.search}
-          placeholder="Search calls, callers and transcripts"
-          label="Search calls"
+          placeholder={t('inbox.search.placeholder')}
+          label={t('inbox.search.label')}
           onChange={p.onSearchChange}
           onClose={p.onSearchClose}
         />
@@ -205,7 +228,7 @@ export function InboxHead({
       {p.search === null && (
         <div className="ib-right">
           <Presence liveCall={p.liveCall} onOpen={p.onOpen} canFixVoice={p.canFixVoice} />
-          <SearchButton label="Search calls" onClick={p.onSearch} />
+          <SearchButton label={t('inbox.search.label')} onClick={p.onSearch} />
         </div>
       )}
     </div>

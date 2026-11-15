@@ -14,6 +14,8 @@ import { InboxHead, type InboxHeadProps } from './InboxHead.tsx'
 import { InboxEmpty } from './InboxEmpty.tsx'
 import { listFrame } from './listFrame.ts'
 import { Row, type RowHandlers, rowLabel } from './Row.tsx'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = InboxHeadProps &
   RowHandlers & {
@@ -32,18 +34,21 @@ type Props = InboxHeadProps &
     firstCallHint?: string | null
   }
 
-const viewHeading: Record<InboxTab, string> = {
-  you: 'Needs you',
-  ai: 'Handled calls',
-  spam: 'Spam',
-  reminders: 'Reminders',
-  done: 'Done',
-  mine: 'Assigned to me',
-  member: 'Assigned to a teammate',
-  unassigned: 'Unassigned',
-}
+const viewHeading = {
+  you: msg('inbox.view.you'),
+  ai: msg('inbox.heading.handled'),
+  spam: msg('inbox.view.spam'),
+  reminders: msg('inbox.view.reminders'),
+  done: msg('inbox.view.done'),
+  mine: msg('inbox.view.mine'),
+  member: msg('inbox.heading.member'),
+  unassigned: msg('inbox.view.unassigned'),
+} satisfies Record<InboxTab, MessageKey>
 /** What the status column shows in each view; search lists calls of every view, so there it is the status. */
-const statusHeading: Partial<Record<InboxTab, string>> = { you: 'Next step', reminders: 'Reminder' }
+const statusHeading: Partial<Record<InboxTab, MessageKey>> = {
+  you: msg('inbox.column.nextStep'),
+  reminders: msg('inbox.column.reminder'),
+}
 
 /**
  * Above the calls: a box that selects every call in the view (a dash while only some are), and a
@@ -62,6 +67,7 @@ function ListHead({
   bulk: BulkActions
   ref?: Ref<HTMLDivElement>
 }) {
+  const t = useT()
   const all = bulk.count > 0 && bulk.count >= total
   const some = bulk.count > 0 && !all
   // An empty view keeps its headings; the box is there, but there is nothing to select.
@@ -72,7 +78,11 @@ function ListHead({
       {/* biome-ignore lint/a11y/noStaticElementInteractions: the checkbox inside is the control; its click (and Space) arrive here */}
       <span
         className="ib-cols-check"
-        title={all ? 'Unselect all (Esc)' : 'Select all (⌘ A)'}
+        title={
+          all
+            ? t('common.withKey', { label: t('inbox.select.unselectAll'), key: 'Esc' })
+            : t('common.withKey', { label: t('inbox.select.selectAll'), key: '⌘ A' })
+        }
         onClick={e => {
           e.stopPropagation()
           if (none) return
@@ -86,10 +96,10 @@ function ListHead({
           checked={all}
           indeterminate={some}
           disabled={none}
-          label={all ? 'Unselect all calls' : 'Select all calls'}
+          label={all ? t('inbox.select.unselectAllCalls') : t('inbox.select.selectAllCalls')}
           onChange={() => {}}
         >
-          <span className="ib-cols-all">{all ? 'All selected' : 'Select all'}</span>
+          <span className="ib-cols-all">{all ? t('inbox.select.allSelected') : t('inbox.select.selectAll')}</span>
         </Checkbox>
       </span>
     </>
@@ -98,16 +108,30 @@ function ListHead({
     <ColumnHeads
       ref={ref}
       lead={total > 0 ? lead : undefined}
-      labels={['Time', 'Caller', 'Call', (!searching && statusHeading[tab]) || 'Status', 'Duration']}
+      labels={[
+        t('inbox.column.time'),
+        t('inbox.column.caller'),
+        t('inbox.column.call'),
+        t((!searching && statusHeading[tab]) || 'inbox.column.status'),
+        t('inbox.column.duration'),
+      ]}
     />
   )
 }
 
 function Hints({ tab }: { tab: InboxTab }) {
-  const done: [string[], string] = tab === 'done' ? [['⇧', 'E'], 'not done'] : [['E'], 'done']
+  const t = useT()
+  const done: [string[], string] =
+    tab === 'done' ? [['⇧', 'E'], t('common.shortcut.notDone')] : [['E'], t('common.shortcut.done')]
   return (
     <ShortcutHints
-      hints={[[['⏎'], 'open'], done, [['tab'], 'switch'], [['⌘', 'K'], 'commands'], [['?'], 'all shortcuts']]}
+      hints={[
+        [['⏎'], t('common.shortcut.open')],
+        done,
+        [['tab'], t('common.shortcut.switch')],
+        [['⌘', 'K'], t('common.shortcut.commands')],
+        [['?'], t('common.shortcut.allShortcuts')],
+      ]}
     />
   )
 }
@@ -179,6 +203,7 @@ export function Inbox({
   firstCallHint,
   ...rest
 }: Props) {
+  const t = useT()
   const { tab, search, counts } = rest
   const { onOpen, onHover, onToggleDone, onToggleUnread, onRemind, onClearReminder, onCommands, onAssign, onSelect } =
     rest
@@ -259,10 +284,10 @@ export function Inbox({
     <div className="cv">
       <h1 className="sr-only">
         {search !== null
-          ? 'Search calls'
+          ? t('inbox.search.label')
           : tab === 'member' && rest.memberName
-            ? `Assigned to ${rest.memberName}`
-            : viewHeading[tab]}
+            ? t('inbox.view.member', { name: rest.memberName })
+            : t(viewHeading[tab])}
       </h1>
       <InboxHead {...rest} resultCount={list.length} menu={menu} bulk={bulk} />
       <div className="sr-only" aria-live="polite">
@@ -316,7 +341,7 @@ export function Inbox({
           <div className="ib-spacer" style={{ height: after }} aria-hidden="true" />
           {waiting ? (
             <Loading
-              what="Your calls"
+              what={t('inbox.yourCalls')}
               loading
               error={loadState === 'slow'}
               skeleton={<SkeletonRows rows={8} columns={5} />}

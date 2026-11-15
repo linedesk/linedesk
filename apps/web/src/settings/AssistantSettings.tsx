@@ -36,6 +36,8 @@ import {
   otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
+import { languageLabel } from '@linedesk/i18n'
+import { useLocale } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
@@ -445,7 +447,6 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
   )
 }
 
-const languageOptions = languageCodes.map(code => ({ value: code, label: LANGUAGES[code] }))
 const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
   {
     value: 'english',
@@ -457,8 +458,11 @@ const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: st
 ]
 
 function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLanguage: (code: Language) => void }) {
+  const ui = useLocale()
   const { mode } = draft.languages
   const main = mainOf(draft)
+  // Each language in its own name and in the UI language ("Español · Spanish"), in the registry's order.
+  const languageOptions = languageCodes.map(code => ({ value: code, label: languageLabel(code, ui) }))
   const others = pickedOthers(draft)
   const problem = languagesProblem(draft)
   const toggle = (code: Language, on: boolean) =>
@@ -503,7 +507,7 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
                 disabled={mode === 'any'}
                 onChange={on => toggle(code, on)}
               >
-                {LANGUAGES[code]}
+                {languageLabel(code, ui)}
               </Checkbox>
             ))}
         </div>

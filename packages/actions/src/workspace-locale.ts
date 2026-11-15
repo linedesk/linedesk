@@ -188,9 +188,9 @@ const SOURCE_WORDS: Record<WorkspaceCountrySource, string> = {
 export const automaticCountryLabel = (country: string, source: WorkspaceCountrySource): string =>
   `Automatic (${phoneCountryName(country)}, ${SOURCE_WORDS[source] || 'set'})`
 
-/** "Automatic (German, from your country)". */
-export const automaticLanguageLabel = (language: string): string =>
-  `Automatic (${workspaceLanguageName(language)}, from your country)`
+/** "Automatic (German, from your country)"; `name` names the language another way ("Deutsch · German"). */
+export const automaticLanguageLabel = (language: string, name = workspaceLanguageName(language)): string =>
+  `Automatic (${name}, from your country)`
 
 /** EU and EEA countries and Switzerland: 112 everywhere. */
 const EMERGENCY_112 =

@@ -10,6 +10,7 @@ import { AccountSettings } from '../settings/account/index.tsx'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { AssistantSettings } from '../settings/AssistantSettings.tsx'
 import { WorkspaceSettings } from '../settings/WorkspaceSettings.tsx'
+import { i18n } from '../i18n/index.tsx'
 
 export type PageProps = {
   toast: (text: string) => void
@@ -33,20 +34,28 @@ export type Page = { title: string; render: (props: PageProps) => ReactNode; own
 
 export const pages = {
   contacts: {
-    title: 'Contacts',
+    get title() {
+      return i18n().t('shell.page.contacts')
+    },
     ownHeader: true,
     render: p => <Contacts menu={p.menu} toast={p.toast} openCall={p.openCall} runUndoable={p.runUndoable} />,
   },
-  insights: { title: 'Insights', render: p => <Insights canEdit={p.canEditSettings} toast={p.toast} /> },
+  insights: { get title() {
+      return i18n().t('shell.page.insights')
+    }, render: p => <Insights canEdit={p.canEditSettings} toast={p.toast} /> },
   assistant: {
-    title: 'Assistant',
+    get title() {
+      return i18n().t('shell.page.assistant')
+    },
     sections: true,
     render: p => <AssistantSettings canEdit={p.canEditSettings} toast={p.toast} isInstanceAdmin={p.isInstanceAdmin} />,
   },
   // Everything about the workspace that is not the assistant: its name, the team, numbers, recordings, export,
   // API keys and leaving it (#workspace/<section>). Old #settings and #team links are rewritten (useRoute.ts).
   workspace: {
-    title: 'Workspace settings',
+    get title() {
+      return i18n().t('shell.page.workspace')
+    },
     sections: true,
     render: p => (
       <WorkspaceSettings
@@ -60,13 +69,17 @@ export const pages = {
     ),
   },
   account: {
-    title: 'Account settings',
+    get title() {
+      return i18n().t('shell.page.account')
+    },
     sections: true,
     render: p => <AccountSettings hasWorkspace workspaceName={p.workspaceName} />,
   },
   // Shown in the navigation and ⌘K to instance admins only; the API refuses everyone else.
   // Instance admins get admin mode instead (Workspace.tsx); anyone else who opens #admin sees this.
-  admin: { title: 'Server admin', render: () => <AdminNotice /> },
+  admin: { get title() {
+      return i18n().t('shell.page.admin')
+    }, render: () => <AdminNotice /> },
 } satisfies Record<string, Page>
 
 export type PageRoute = keyof typeof pages

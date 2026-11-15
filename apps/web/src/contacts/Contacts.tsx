@@ -15,6 +15,8 @@ import { MergeContacts } from './MergeContacts.tsx'
 import { contactLabel, type ContactRow, contactsEmptyCopy, duplicatePairs } from './model.ts'
 import { NewContact } from './NewContact.tsx'
 import { CONTACT_SEARCH_ID, useContactsPage } from './useContactsPage.ts'
+import { msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 
 type Props = {
   menu: ReactNode
@@ -22,8 +24,6 @@ type Props = {
   openCall: (call: Call) => void
   runUndoable: (steps: Step[], inverse: Step[], label: string, key: string) => void
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 function Row({
   row,
@@ -36,6 +36,7 @@ function Row({
   onOpen: () => void
   onHover: () => void
 }) {
+  const t = useT()
   const { contact, lastCall, nextStep } = row
   return (
     <div
@@ -55,34 +56,42 @@ function Row({
         {lastCall && <span className="c-sum-t">{callTitle(lastCall)}</span>}
         {nextStep && <span className="c-next"> · {nextStep}</span>}
       </span>
-      <span className="c-cell c-count">{plural(row.calls.length, 'call')}</span>
+      <span className="c-cell c-count">{t('inbox.row.calls', { count: row.calls.length })}</span>
     </div>
   )
 }
 
 /** One heading per cell of a row, in the row's order; the time comes first, as in the inbox. */
-const CONTACT_COLUMNS = ['When', 'Name', 'Company', 'Last call', 'Calls'] as const
+const CONTACT_COLUMNS = [
+  msg('contacts.column.when'),
+  msg('contacts.column.name'),
+  msg('contacts.column.company'),
+  msg('contacts.column.lastCall'),
+  msg('contacts.column.calls'),
+] as const
 
 function Hints({ open }: { open: boolean }) {
+  const t = useT()
   return (
     <ShortcutHints
       hints={[
-        [['⏎'], 'open'],
-        [['/'], 'search'],
-        [['N'], 'new'],
-        ...(open ? [[['esc'], 'close'] as [string[], string]] : []),
-        [['?'], 'all shortcuts'],
+        [['⏎'], t('common.shortcut.open')],
+        [['/'], t('common.shortcut.search')],
+        [['N'], t('common.shortcut.new')],
+        ...(open ? [[['esc'], t('common.shortcut.close')] as [string[], string]] : []),
+        [['?'], t('common.shortcut.allShortcuts')],
       ]}
     />
   )
 }
 
 export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
+  const t = useT()
   const remove = (contactId: string) =>
     runUndoable(
       [['contact.delete', { contactId }]],
       [['contact.restore', { contactId }]],
-      'Contact deleted. Their calls stay.',
+      t('contacts.deleted'),
       '#',
     )
   const page = useContactsPage({ remove })
@@ -110,38 +119,38 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
           <SearchField
             id={CONTACT_SEARCH_ID}
             value={query}
-            placeholder="Search names, numbers, companies and emails"
-            label="Search contacts"
+            placeholder={t('contacts.search.placeholder')}
+            label={t('contacts.search.label')}
             onChange={page.setQuery}
             onClose={page.closeSearch}
             escapeCloses
           />
         ) : (
           <>
-            <PageTitle title="Contacts" count={page.all.length} />
+            <PageTitle title={t('contacts.title')} count={page.all.length} />
             <div className="ib-right">
               <Button
                 size="sm"
                 variant="ghost"
                 icon="attach"
-                aria-label="Import contacts"
-                title="Import contacts from a CSV file"
+                aria-label={t('contacts.import.label')}
+                title={t('contacts.import.title')}
                 onClick={() => setImporting(true)}
               >
-                Import
+                {t('contacts.import.button')}
               </Button>
               <Button
                 size="sm"
                 variant="primary"
                 icon="plus"
                 shortcut={['N']}
-                aria-label="New contact"
-                title="New contact (N)"
+                aria-label={t('contacts.new.label')}
+                title={t('common.withKey', { label: t('contacts.new.label'), key: 'N' })}
                 onClick={page.startCreate}
               >
-                New contact
+                {t('contacts.new.label')}
               </Button>
-              <SearchButton label="Search contacts" onClick={page.openSearch} />
+              <SearchButton label={t('contacts.search.label')} onClick={page.openSearch} />
             </div>
           </>
         )}
@@ -152,11 +161,14 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
             <div className="ct-dupes">
               <span>
                 {duplicates.length === 1
-                  ? `${contactLabel(duplicates[0]![0].contact)} and ${contactLabel(duplicates[0]![1].contact)} may be one person.`
-                  : `${duplicates.length} possible duplicates, by number or email.`}
+                  ? t('contacts.duplicates.one', {
+                      first: contactLabel(duplicates[0]![0].contact),
+                      second: contactLabel(duplicates[0]![1].contact),
+                    })
+                  : t('contacts.duplicates.many', { count: duplicates.length })}
               </span>
               <Button size="sm" onClick={() => setMerging({ first: duplicates[0]![0], second: duplicates[0]![1] })}>
-                Review
+                {t('contacts.duplicates.review')}
               </Button>
             </div>
           )}
@@ -164,10 +176,10 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
             className={cx('ib-list', 'ct-list', empty && 'is-zero', listView.fadeIn && 'ld-rows-in')}
             ref={listRef}
             role="list"
-            aria-label="Contacts"
+            aria-label={t('contacts.title')}
           >
             {/* The headings stand over the skeleton, the rows and the empty state alike (as in the inbox). */}
-            <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS} />
+            <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS.map(key => t(key))} />
             {!waiting &&
               rows.map(row => (
                 <Row
@@ -180,7 +192,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
               ))}
             {waiting ? (
               <Loading
-                what="Contacts"
+                what={t('contacts.title')}
                 loading
                 error={loadState === 'slow'}
                 skeleton={<SkeletonRows rows={8} columns={5} />}

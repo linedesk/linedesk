@@ -24,6 +24,7 @@ import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
+import { localeForEmail } from './email-locale.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -123,7 +124,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   })
   await instance.work<WorkspaceDeletedJob>(WORKSPACE_DELETED_EMAIL, async ([job]) => {
     const { to, ...content } = job!.data
-    await emailSender.send({ to, ...workspaceDeletedEmail(content) })
+    // The account may be gone with the workspace: then English.
+    await emailSender.send({ to, ...workspaceDeletedEmail(content, undefined, await localeForEmail(db, to)) })
   })
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.

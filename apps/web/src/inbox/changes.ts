@@ -3,6 +3,7 @@ import { actions } from '@linedesk/actions'
 import type { Call, Contact } from '@linedesk/db/types'
 import { parseTs } from '../time.ts'
 import type { ReminderOption } from './remind.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export type Step = [action: string, input: Record<string, unknown>]
 /** `onLive`: the change is fine while the call is still going (assigning it). */
@@ -39,21 +40,21 @@ const restoreReminder = (call: Call): Step[] =>
 export const doneChange = (call: Call): Change => ({
   steps: [['call.markDone', id(call)]],
   inverse: [['call.markNotDone', id(call)], ...(call.unread ? [['call.markUnread', id(call)] satisfies Step] : [])],
-  label: 'Marked done.',
+  label: i18n().t('inbox.change.done'),
   key: 'E',
 })
 
 export const notDoneChange = (call: Call): Change => ({
   steps: [['call.markNotDone', id(call)]],
   inverse: [['call.markDone', id(call)]],
-  label: 'Marked not done.',
+  label: i18n().t('inbox.change.notDone'),
   key: '⇧E',
 })
 
 export const unreadChange = (call: Call): Change => ({
   steps: [[call.unread ? 'call.markRead' : 'call.markUnread', id(call)]],
   inverse: [[call.unread ? 'call.markUnread' : 'call.markRead', id(call)]],
-  label: call.unread ? 'Marked read.' : 'Marked unread.',
+  label: call.unread ? i18n().t('inbox.change.read') : i18n().t('inbox.change.unread'),
   key: 'U',
 })
 
@@ -67,7 +68,7 @@ export function remindChange(call: Call, option: ReminderOption): Change {
     ],
     inverse: [...restoreReminder(call), ...(wasDone ? [['call.markDone', id(call)] satisfies Step] : [])],
     // "tomorrow morning" reads lowercase in the sentence; a typed time ("Fri 2:00 PM") keeps its form.
-    label: `Reminder set: ${/\d/.test(option.label) ? option.label : option.label.toLowerCase()}.`,
+    label: i18n().t('inbox.change.reminderSet', { when: option.inline ?? option.label }),
     key: 'H',
   }
 }
@@ -80,7 +81,7 @@ export function blockChange(call: Call, contact: Contact): Change {
     return {
       steps: [['contact.unblock', contactId]],
       inverse: [['contact.block', contactId]],
-      label: 'Number unblocked.',
+      label: i18n().t('inbox.change.unblocked'),
       key: '⇧B',
     }
   }
@@ -88,7 +89,7 @@ export function blockChange(call: Call, contact: Contact): Change {
   return {
     steps: [['contact.block', contactId], ...(toSpam?.steps ?? [])],
     inverse: [['contact.unblock', contactId], ...(toSpam?.inverse ?? [])],
-    label: 'Number blocked: its calls go to Spam.',
+    label: i18n().t('inbox.change.blocked'),
     key: '⇧B',
   }
 }
@@ -102,7 +103,7 @@ export function spamChange(call: Call): Change {
         ...(call.inbox_state === 'done' ? [['call.markDone', id(call)] satisfies Step] : []),
         ...(call.unread ? [['call.markUnread', id(call)] satisfies Step] : []),
       ],
-      label: 'Moved to Spam.',
+      label: i18n().t('inbox.change.spam'),
       key: '!',
     }
   }
@@ -112,7 +113,7 @@ export function spamChange(call: Call): Change {
       ['call.markSpam', id(call)],
       ...(call.inbox_state === 'done' ? [['call.markDone', id(call)] satisfies Step] : []),
     ],
-    label: 'Not spam: back in Needs you.',
+    label: i18n().t('inbox.change.notSpam'),
     key: '!',
   }
 }
@@ -120,7 +121,7 @@ export function spamChange(call: Call): Change {
 export const clearReminderChange = (call: Call): Change => ({
   steps: [['call.clearReminder', id(call)]],
   inverse: call.reminder_at ? [remindStep(call)] : [],
-  label: 'Reminder cleared.',
+  label: i18n().t('inbox.change.reminderCleared'),
   key: '⇧H',
 })
 
@@ -131,7 +132,7 @@ export const clearReminderChange = (call: Call): Change => ({
 export const assignChange = (call: Call, userId: string | null, who: string): Change => ({
   steps: [['call.assign', { ...id(call), userId }]],
   inverse: [['call.assign', { ...id(call), userId: call.assignee_id, notify: false }]],
-  label: userId ? `Assigned to ${who}.` : 'Unassigned.',
+  label: userId ? i18n().t('inbox.change.assigned', { who }) : i18n().t('inbox.change.unassigned'),
   key: 'A',
   onLive: true,
 })
@@ -139,6 +140,6 @@ export const assignChange = (call: Call, userId: string | null, who: string): Ch
 export const deleteChange = (call: Call): Change => ({
   steps: [['call.delete', id(call)]],
   inverse: [['call.restore', id(call)]],
-  label: 'Deleted.',
+  label: i18n().t('inbox.change.deleted'),
   key: '#',
 })

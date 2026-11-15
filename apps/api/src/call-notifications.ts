@@ -17,14 +17,18 @@ import {
 } from '@linedesk/db'
 import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
-import { slotWithZone } from './bookings.ts'
-import { type CallEmail, callEmail, emailSafeName, firstCallEmail } from './emails/templates.ts'
+import { type CallEmail, callEmail, emailSafeName, firstCallEmail, slotInZone } from './emails/templates.ts'
 import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
+import type { UiLocale } from '@linedesk/i18n'
+import { getT, localeForUser } from '@linedesk/i18n/server'
 
 export { formatNumber } from './emails/templates.ts'
 
 /** Members of the workspace who get an email for this call, with their address. */
-export async function emailRecipients(tx: Tx, workspaceId: string): Promise<{ email: string; name: string }[]> {
+export async function emailRecipients(
+  tx: Tx,
+  workspaceId: string,
+): Promise<{ email: string; name: string; locale: UiLocale }[]> {
   const [settings] = await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   const fallback = settings?.notify_email_default ?? DEFAULT_NOTIFICATIONS.email
   const rows = await tx
@@ -32,6 +36,8 @@ export async function emailRecipients(tx: Tx, workspaceId: string): Promise<{ em
       email: user.email,
       name: user.name,
       own: member_notification_settings.email,
+      locale: user.locale,
+      localeAuto: user.localeAuto,
     })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
@@ -43,7 +49,7 @@ export async function emailRecipients(tx: Tx, workspaceId: string): Promise<{ em
       ),
     )
     .where(and(eq(member.organizationId, workspaceId), isNull(user.disabledAt)))
-  return rows.filter(r => r.own ?? fallback).map(({ email, name }) => ({ email, name }))
+  return rows.filter(r => r.own ?? fallback).map(r => ({ email: r.email, name: r.name, locale: localeForUser(r) }))
 }
 
 export type NotifyResult = { sent: number; failed: number; skipped?: 'missing' | 'test' | 'spam' | 'unfinished' }
@@ -79,7 +85,8 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     .where(and(eq(bookings.call_id, call.id), ne(bookings.status, 'cancelled')))
     .orderBy(desc(bookings.created_at))
     .limit(1)
-  const content: CallEmail = {
+  // Per recipient language (email-locale.ts): the frame, the labels and the booked slot; the summary stays as written.
+  const contentIn = (locale: UiLocale): CallEmail => ({
     workspaceId: call.workspace_id,
     callId: call.id,
     title: call.title,
@@ -87,17 +94,19 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     urgent: call.urgency === 'urgent',
     fromNumber: call.from_number,
     callerName: contact?.name ?? null,
-    assistantName: assistant?.name ?? 'Your assistant',
+    assistantName: assistant?.name ?? getT(locale).t('email.fallback.assistant'),
     startedAt: call.started_at,
     durationSec: call.duration_sec,
     timeZone,
     nextSteps: call.action_items.filter(item => !item.done).map(item => item.text),
     booking: booked
-      ? { what: booked.type ?? booked.title ?? 'Appointment', when: slotWithZone(booked.start_at, timeZone) }
+      ? {
+          what: booked.type ?? booked.title ?? getT(locale).t('email.fallback.appointment'),
+          when: slotInZone(booked.start_at, timeZone, locale),
+        }
       : null,
-    workspace: emailSafeName(workspace?.name, 'your workspace'),
-  }
-  const email = callEmail(content)
+    workspace: emailSafeName(workspace?.name, getT(locale).t('email.fallback.workspace')),
+  })
   const recipients = await emailRecipients(tx, call.workspace_id)
   // The workspace's first real call is a moment of its own (setup-emails.ts), for those of them who get setup
   // emails (owners who did not turn them off: the same rule as the other setup emails); marked sent only when one
@@ -108,12 +117,15 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     sender.kind === 'smtp' &&
     recipients.some(getsFirst) &&
     (await claimFirstCallEmail(tx, call, new Date().toISOString()))
-      ? firstCallEmail(content)
-      : null
   const result: NotifyResult = { sent: 0, failed: 0 }
   for (const recipient of recipients) {
     try {
-      await sender.send({ to: recipient.email, ...(first && getsFirst(recipient) ? first : email) })
+      const content = contentIn(recipient.locale)
+      const email =
+        first && getsFirst(recipient)
+          ? firstCallEmail(content, undefined, recipient.locale)
+          : callEmail(content, undefined, recipient.locale)
+      await sender.send({ to: recipient.email, ...email })
       result.sent++
     } catch (e) {
       result.failed++

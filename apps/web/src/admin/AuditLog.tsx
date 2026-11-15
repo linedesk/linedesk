@@ -9,6 +9,8 @@ import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AdminWorkspace, type AuditEntry, type AuditFilter, type AuditKind, loadAudit } from './api.ts'
 import { errorText } from './notify.ts'
+import { fmt } from '../i18n/format.ts'
+import { EMPTY } from './parts.tsx'
 
 const kinds: SelectOption<AuditKind | 'all'>[] = [
   { value: 'all', label: 'Everything' },
@@ -346,7 +348,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
               {entries.map(e => (
                 <tr key={e.id}>
                   <td data-label="When">
-                    <time dateTime={e.at} title={new Date(e.at).toLocaleString('en-US')}>
+                    <time dateTime={e.at} title={fmt().dateTime(new Date(e.at), { dateStyle: 'full', timeStyle: 'long' })}>
                       {dateTimeLabel(new Date(e.at))}
                     </time>
                   </td>
@@ -365,7 +367,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                     )}
                     {e.ipAddress && <span className="adm-sub">{e.ipAddress}</span>}
                   </td>
-                  <td data-label="Workspace">{e.workspace ? (e.workspace.name ?? e.workspace.id) : '–'}</td>
+                  <td data-label="Workspace">{e.workspace ? (e.workspace.name ?? e.workspace.id) : EMPTY}</td>
                 </tr>
               ))}
             </tbody>

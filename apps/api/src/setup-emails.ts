@@ -32,10 +32,12 @@ import {
   user,
 } from '@linedesk/db'
 import type { Call } from '@linedesk/db/types'
+import type { UiLocale } from '@linedesk/i18n'
+import { getT } from '@linedesk/i18n/server'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { type EmailSender, emailSender } from './email.ts'
-import { forwardingVerifiedFor } from './go-live-checklist.ts'
-import { setupUnsubscribeUrl, unsubscribeHeaders } from './setup-unsubscribe.ts'
+import { localesForUserIds } from './email-locale.ts'
+import type { RenderedEmail } from './emails/layout.ts'
 import {
   emailSafeName,
   PARTNER_DIRECTORY_URL,
@@ -45,9 +47,10 @@ import {
   WEB_ORIGIN,
   weekSummaryEmail,
 } from './emails/templates.ts'
-import type { RenderedEmail } from './emails/layout.ts'
+import { forwardingVerifiedFor } from './go-live-checklist.ts'
 import type { Handler } from './handler-context.ts'
 import { HANDLED } from './setup-events.ts'
+import { setupUnsubscribeUrl, unsubscribeHeaders } from './setup-unsubscribe.ts'
 
 const SETTING_KEY = 'setup_emails'
 
@@ -155,7 +158,7 @@ async function emailFor(
   kind: ScheduledKind,
   signedUpAt: string,
   forwardingVerified: boolean,
-): Promise<(unsubscribeUrl: string | null) => RenderedEmail> {
+): Promise<Render> {
   const [workspace] = await tx
     .select({ name: organization.name })
     .from(organization)
@@ -166,11 +169,12 @@ async function emailFor(
     .where(eq(assistants.workspace_id, workspaceId))
     .orderBy(asc(assistants.created_at))
     .limit(1)
-  const names = {
+  // The fallbacks in the recipient's language.
+  const namesIn = (locale: UiLocale) => ({
     workspaceId,
-    workspace: emailSafeName(workspace?.name, 'your business'),
-    assistantName: emailSafeName(assistant?.name, 'Your assistant'),
-  }
+    workspace: emailSafeName(workspace?.name, getT(locale).t('email.fallback.yourBusiness')),
+    assistantName: emailSafeName(assistant?.name, getT(locale).t('email.fallback.assistant')),
+  })
   if (kind === 'week_summary') {
     const [counts] = await tx
       .select({
@@ -190,8 +194,8 @@ async function emailFor(
           sql`${calls.started_at} >= ${signedUpAt}`,
         ),
       )
-    const week = { ...names, calls: 0, urgent: 0, booked: 0, messages: 0, ...counts }
-    return url => weekSummaryEmail(week, WEB_ORIGIN, url)
+    const week = { calls: 0, urgent: 0, booked: 0, messages: 0, ...counts }
+    return (url, locale) => weekSummaryEmail({ ...namesIn(locale), ...week }, WEB_ORIGIN, url, locale)
   }
   const number = setupNumber(
     await tx
@@ -204,16 +208,24 @@ async function emailFor(
       .from(phone_numbers)
       .where(eq(phone_numbers.workspace_id, workspaceId)),
   )
-  const setup: SetupEmail = {
-    ...names,
+  const setup: Omit<SetupEmail, 'workspaceId' | 'workspace' | 'assistantName'> = {
     numberId: number?.id ?? null,
     number: number?.e164 ?? null,
     takesAllCalls: !!number && takesAllCalls(number.mode),
     // Setup emails go out only while the workspace is not live (dueSetupEmail).
     step: nextSetupStep({ number, forwardingVerified, live: false }) ?? 'first_call',
   }
-  if (kind === 'setup_day0') return url => setupDay0Email(setup, WEB_ORIGIN, url)
-  return url => setupNudgeEmail(kind === 'setup_day1' ? 1 : 3, setup, WEB_ORIGIN, url)
+  if (kind === 'setup_day0')
+    return (url, locale) => setupDay0Email({ ...namesIn(locale), ...setup }, WEB_ORIGIN, url, locale)
+  return (url, locale) =>
+    setupNudgeEmail(
+      kind === 'setup_day1' ? 1 : 3,
+      { ...namesIn(locale), ...setup },
+      WEB_ORIGIN,
+      url,
+      PARTNER_DIRECTORY_URL,
+      locale,
+    )
 }
 
 /** What to log about a failed send or sweep: the error's code or class, never its message (it can hold addresses). */
@@ -224,11 +236,15 @@ const errorKind = (e: unknown) =>
       ? e.name
       : typeof e
 
+/** One setup email for one recipient: their unsubscribe link and their language. */
+type Render = (unsubscribeUrl: string | null, locale: UiLocale) => RenderedEmail
+
 async function sendAll(
   sender: EmailSender,
   to: { email: string; userId: string }[],
-  render: (unsubscribeUrl: string | null) => RenderedEmail,
+  render: Render,
   workspaceId: string,
+  locales: Map<string, UiLocale>,
 ) {
   let sent = 0
   let failed = 0
@@ -237,7 +253,7 @@ async function sendAll(
     try {
       await sender.send({
         to: address,
-        ...render(unsubscribeUrl),
+        ...render(unsubscribeUrl, locales.get(userId) ?? 'en'),
         ...(unsubscribeUrl ? { headers: unsubscribeHeaders(unsubscribeUrl) } : {}),
       })
       sent++
@@ -294,7 +310,11 @@ export async function sendSetupEmailFor(
   // Forwarding works for the setup number: the one meaning the go-live checklist uses (forwardingVerifiedFor).
   const forwardingVerified = await forwardingVerifiedFor(tx, workspaceId)
   const email = await emailFor(tx, workspaceId, kind, signedUpAt, forwardingVerified)
-  const result = await sendAll(sender, recipients, email, workspaceId)
+  const locales = await localesForUserIds(
+    tx,
+    recipients.map(r => r.userId),
+  )
+  const result = await sendAll(sender, recipients, email, workspaceId, locales)
   if (result.failed && !result.sent)
     await tx.delete(setup_emails).where(and(eq(setup_emails.workspace_id, workspaceId), eq(setup_emails.kind, kind)))
   return { kind, ...result }
