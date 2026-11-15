@@ -546,10 +546,20 @@ body,
   color: var(--ink);
   text-decoration: underline;
 }
-/* The sign-in page's language select (Login.tsx): small, under the legal links. */
+/* The sign-in page's language select (Login.tsx): small, under the legal links, after a globe and "Language" in English. */
 .auth-language {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.auth-language-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
 }
 
 /* "Powered by Linedesk" at the bottom of the sign-in page of an install with its own name or logo (ui/kit.tsx). */

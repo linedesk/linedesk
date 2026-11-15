@@ -2,7 +2,7 @@
 // can use one, with "Use an email code instead" (a code sent by email) below it; without passkeys the email form comes
 // first. Then the sign-in providers, and a password under "Show other options". There is no open sign-up: an
 // unknown address is told to ask for an invitation; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
 import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
@@ -11,7 +11,7 @@ import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton, SignInMark } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
-import { AuthPage, cx, Spinner } from './ui/kit.tsx'
+import { AuthPage, cx, Icon, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
 import { readDeleted, signedOutOfWorkspace } from './session.ts'
 import { isUiLocale, PSEUDO_LOCALE } from '@linedesk/i18n'
@@ -379,12 +379,25 @@ function AuthFooter({ methods }: { methods: AuthMethods }) {
   )
 }
 
-/** The language before signing in: this browser only, until the member's own choice applies after sign-in. */
+// i18n-ignore: Always English: language picker label must be readable regardless of current UI language
+const LANGUAGE_LABEL_EN = 'Language'
+
+/**
+ * The language before signing in: this browser only, until the member's own choice applies after sign-in. A globe and
+ * "Language" in English (never translated) sit before the select, so someone who cannot read the current language
+ * still finds it.
+ */
 function SignInLanguage() {
   const locale = useLocale()
+  const id = useId()
   return (
     <div className="auth-language">
+      <label className="auth-language-label" htmlFor={id} lang="en">
+        <Icon name="globe" size={13} />
+        {LANGUAGE_LABEL_EN}
+      </label>
       <LanguageSelect
+        id={id}
         value={isUiLocale(locale) || locale === PSEUDO_LOCALE ? locale : 'en'}
         onChange={next => void activate(next === AUTOMATIC ? 'en' : next, { remember: next !== PSEUDO_LOCALE })}
         withAutomatic={false}
