@@ -135,13 +135,30 @@ describe('workspace.updateSettings', () => {
   })
 
   it('takes the appointment value in any offered currency, and no other', () => {
-    for (const jobValueCurrency of ['USD', 'MXN', 'NZD', 'JPY', 'INR', 'BRL', 'SGD', 'ZAR', 'SEK', 'NOK', 'DKK'])
+    for (const jobValueCurrency of [
+      'USD',
+      'MXN',
+      'NZD',
+      'JPY',
+      'INR',
+      'BRL',
+      'SGD',
+      'ZAR',
+      'SEK',
+      'NOK',
+      'DKK',
+      'CNY',
+      'KRW',
+      'PLN',
+      'AED',
+      'NGN',
+    ])
       expect(workspaceUpdateSettings.input.safeParse({ jobValueCurrency }).success).toBe(true)
-    for (const jobValueCurrency of ['usd', 'XYZ', 'CNY', ''])
+    for (const jobValueCurrency of ['usd', 'XYZ', 'RUB', ''])
       expect(workspaceUpdateSettings.input.safeParse({ jobValueCurrency }).success).toBe(false)
     expect(jobValueCurrencies[0]).toBe('USD')
     expect(jobValueCurrencies.slice(1)).toEqual([...jobValueCurrencies.slice(1)].sort())
-    expect(jobValueCurrencies).toHaveLength(16)
+    expect(jobValueCurrencies).toHaveLength(39)
   })
 
   it('counts each currency in its minor units, as Intl does: cents, whole yen for JPY', () => {
@@ -150,6 +167,10 @@ describe('workspace.updateSettings', () => {
         new Intl.NumberFormat('en-US', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits,
       )
     expect(currencyDigits('JPY')).toBe(0)
+    expect(currencyDigits('KRW')).toBe(0)
+    expect(currencyDigits('CLP')).toBe(0)
+    expect(currencyDigits('IDR')).toBe(2)
+    expect(toMinorUnits(50_000, 'KRW')).toBe(50_000)
     expect(toMinorUnits(350.5, 'USD')).toBe(35_050)
     expect(toMinorUnits(5000, 'JPY')).toBe(5000)
     expect(fromMinorUnits(5000, 'JPY')).toBe(5000)

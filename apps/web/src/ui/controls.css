@@ -1,4 +1,4 @@
-/* Kit form controls (controls.tsx): checkbox, switch, radio card, select. */
+/* Kit form controls (controls.tsx): checkbox, switch, radio card, select (with option groups). */
 .k-check {
   position: relative;
   display: inline-flex;
@@ -206,6 +206,20 @@
 }
 .k-select-opt.active {
   background: var(--surface-hover);
+}
+.k-select-group-h {
+  padding: 8px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: default;
+  user-select: none;
+}
+/* A group after other options: a line above its heading separates them. */
+.k-select-group:not(:first-child) {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
 }
 .k-select-opt-t {
   display: grid;

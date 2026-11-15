@@ -1,7 +1,7 @@
 // Form controls of the UI kit: Checkbox, Switch, RadioCard and Select. Use these instead of the
 // browser's own controls, so every page looks the same. Styles in controls.css (k-check, sw,
 // k-radio, k-select). Checkbox and RadioCard keep a hidden native input for keyboard and screen readers.
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { Fragment, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './controls.css'
@@ -97,7 +97,29 @@ export function RadioCard({ name, checked, onPick, title, description, disabled 
   )
 }
 
-export type SelectOption<T extends string> = { value: T; label: string; description?: string }
+export type SelectOption<T extends string> = {
+  value: T
+  label: string
+  description?: string
+  /**
+   * A heading over this option and the ones after it with the same group ("All currencies"), with a line above it.
+   * Options without one come first, with no heading. The heading is not an option: arrow keys and typing skip it.
+   */
+  group?: string
+}
+
+/** The options as the list shows them: runs of consecutive options with the same group, each with its first index. */
+export function optionGroups<O extends { group?: string }>(
+  options: readonly O[],
+): { group: string | undefined; start: number; options: O[] }[] {
+  const runs: { group: string | undefined; start: number; options: O[] }[] = []
+  options.forEach((o, i) => {
+    const last = runs.at(-1)
+    if (last && last.group === o.group) last.options.push(o)
+    else runs.push({ group: o.group, start: i, options: [o] })
+  })
+  return runs
+}
 
 type SelectProps<T extends string> = {
   value: T
@@ -250,24 +272,38 @@ export function Select<T extends string>({
           aria-activedescendant={`${listId}-${active}`}
           onKeyDown={onListKey}
         >
-          {options.map((o, i) => (
-            // biome-ignore lint/a11y/useKeyWithClickEvents: the list handles the keys for its options (aria-activedescendant)
-            <div
-              key={o.value}
-              id={`${listId}-${i}`}
-              role="option"
-              aria-selected={o.value === value}
-              className={cx('k-select-opt', i === active && 'active')}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => pick(o)}
-            >
-              <span className="k-select-opt-t">
-                <span>{o.label}</span>
-                {o.description && <small>{o.description}</small>}
-              </span>
-              {o.value === value && <Icon name="check" size={14} />}
-            </div>
-          ))}
+          {optionGroups(options).map(run => {
+            const items = run.options.map((o, k) => {
+              const i = run.start + k
+              return (
+                <div
+                  key={o.value}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={o.value === value}
+                  className={cx('k-select-opt', i === active && 'active')}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => pick(o)}
+                >
+                  <span className="k-select-opt-t">
+                    <span>{o.label}</span>
+                    {o.description && <small>{o.description}</small>}
+                  </span>
+                  {o.value === value && <Icon name="check" size={14} />}
+                </div>
+              )
+            })
+            if (run.group === undefined) return <Fragment key={run.start}>{items}</Fragment>
+            const headingId = `${listId}-g${run.start}`
+            return (
+              <div key={run.start} role="group" aria-labelledby={headingId} className="k-select-group">
+                <div id={headingId} role="presentation" className="k-select-group-h">
+                  {run.group}
+                </div>
+                {items}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

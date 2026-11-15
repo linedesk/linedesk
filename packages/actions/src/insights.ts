@@ -21,53 +21,99 @@ export type InsightRange = (typeof insightRanges)[number]
 export const JOB_VALUE_MAX_CENTS = 100_000_000
 
 /**
- * The currencies an appointment value can be set in (workspace.updateSettings, jobValueCurrency), in the order
- * of the menu: USD (the default) first, then the rest by code.
+ * The currencies an appointment value can be set in (workspace.updateSettings, jobValueCurrency): USD (the
+ * default) first, then the rest by code. The web app's menu puts the most common ones first (CURRENCY_OPTIONS).
  */
 export const jobValueCurrencies = [
   'USD',
+  'AED',
+  'ARS',
   'AUD',
   'BRL',
   'CAD',
   'CHF',
+  'CLP',
+  'CNY',
+  'COP',
+  'CZK',
   'DKK',
+  'EGP',
   'EUR',
   'GBP',
+  'HKD',
+  'HUF',
+  'IDR',
+  'ILS',
   'INR',
   'JPY',
+  'KES',
+  'KRW',
   'MXN',
+  'MYR',
+  'NGN',
   'NOK',
   'NZD',
+  'PEN',
+  'PHP',
+  'PLN',
+  'RON',
+  'SAR',
   'SEK',
   'SGD',
+  'THB',
+  'TRY',
+  'TWD',
   'ZAR',
 ] as const
 export type JobValueCurrency = (typeof jobValueCurrencies)[number]
 
 /**
  * Digits after the point in each currency (ISO 4217, as Intl formats it): jobValueCents counts this many
- * places, so 100 cents make a dollar but 1 makes a yen.
+ * places, so 100 cents make a dollar but 1 makes a yen (JPY, KRW and CLP have no minor units).
  */
 const CURRENCY_DIGITS: Record<JobValueCurrency, 0 | 2> = {
   USD: 2,
+  AED: 2,
+  ARS: 2,
   AUD: 2,
   BRL: 2,
   CAD: 2,
   CHF: 2,
+  CLP: 0,
+  CNY: 2,
+  COP: 2,
+  CZK: 2,
   DKK: 2,
+  EGP: 2,
   EUR: 2,
   GBP: 2,
+  HKD: 2,
+  HUF: 2,
+  IDR: 2,
+  ILS: 2,
   INR: 2,
   JPY: 0,
+  KES: 2,
+  KRW: 0,
   MXN: 2,
+  MYR: 2,
+  NGN: 2,
   NOK: 2,
   NZD: 2,
+  PEN: 2,
+  PHP: 2,
+  PLN: 2,
+  RON: 2,
+  SAR: 2,
   SEK: 2,
   SGD: 2,
+  THB: 2,
+  TRY: 2,
+  TWD: 2,
   ZAR: 2,
 }
 
-/** Digits after the point: 2, or 0 for a currency without minor units (JPY). */
+/** Digits after the point: 2, or 0 for a currency without minor units (JPY, KRW, CLP). */
 export const currencyDigits = (currency: JobValueCurrency): number => CURRENCY_DIGITS[currency]
 
 /** Minor units (as stored in jobValueCents) → the amount in whole units with its fraction: 35050 USD → 350.5, 5000 JPY → 5000. */

@@ -1,4 +1,5 @@
 import type { InsightDay } from '@linedesk/actions'
+import { jobValueCurrencies } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
   busiestTime,
@@ -163,25 +164,68 @@ test('the currency menu shows each code with its symbol, the code alone where th
   expect(currencyLabel('INR')).toBe('INR · ₹')
   expect(currencyLabel('SEK')).toBe('SEK')
   expect(currencyLabel('MXN')).toBe('MXN · MX$')
-  expect(CURRENCY_OPTIONS.map(o => o.value)).toEqual([
-    'USD',
-    'AUD',
+  expect(currencyLabel('KRW')).toBe('KRW · ₩')
+  expect(currencyLabel('CNY')).toBe('CNY · CN¥')
+  expect(currencyLabel('HKD')).toBe('HKD · HK$')
+  expect(currencyLabel('TWD')).toBe('TWD · NT$')
+  expect(currencyLabel('ILS')).toBe('ILS · ₪')
+  expect(currencyLabel('PHP')).toBe('PHP · ₱')
+  expect(currencyLabel('PLN')).toBe('PLN')
+  expect(currencyLabel('CLP')).toBe('CLP')
+  expect(CURRENCY_OPTIONS[0]).toEqual({ value: 'USD', label: 'USD · $' })
+})
+
+test('the currency menu shows the common currencies first, then every other one by code under a heading', () => {
+  const top = CURRENCY_OPTIONS.filter(o => !o.group).map(o => o.value)
+  const rest = CURRENCY_OPTIONS.filter(o => o.group).map(o => o.value)
+  expect(top).toEqual(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
+  expect(rest).toEqual([
+    'AED',
+    'ARS',
     'BRL',
-    'CAD',
     'CHF',
+    'CLP',
+    'CNY',
+    'COP',
+    'CZK',
     'DKK',
-    'EUR',
-    'GBP',
+    'EGP',
+    'HKD',
+    'HUF',
+    'IDR',
+    'ILS',
     'INR',
     'JPY',
+    'KES',
+    'KRW',
     'MXN',
+    'MYR',
+    'NGN',
     'NOK',
     'NZD',
+    'PEN',
+    'PHP',
+    'PLN',
+    'RON',
+    'SAR',
     'SEK',
     'SGD',
+    'THB',
+    'TRY',
+    'TWD',
     'ZAR',
   ])
-  expect(CURRENCY_OPTIONS[0]).toEqual({ value: 'USD', label: 'USD · $' })
+  // The top ones come first and are not repeated; every offered currency is there once.
+  expect(CURRENCY_OPTIONS.map(o => o.value)).toEqual([...top, ...rest])
+  expect([...CURRENCY_OPTIONS.map(o => o.value)].sort()).toEqual([...jobValueCurrencies].sort())
+  expect(new Set(rest.map(c => CURRENCY_OPTIONS.find(o => o.value === c)?.group))).toEqual(new Set(['All currencies']))
+})
+
+test('currencies without minor units are typed and shown in whole units', () => {
+  expect(parseMoney('50000', 'KRW')).toBe(50_000)
+  expect(parseMoney('5000.5', 'CLP')).toBeUndefined()
+  expect(formatMoney(50_000, 'KRW')).toBe('₩50,000')
+  expect(parseMoney('1,250.50', 'PLN')).toBe(125_050)
 })
 
 test('the totals table names the currency of the value', () => {

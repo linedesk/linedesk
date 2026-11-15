@@ -2,6 +2,7 @@
 // grouping by day, week or month, the busiest time, and money.
 import type { InsightCounts, InsightDay, InsightPeriod, InsightsData, JobValueCurrency } from '@linedesk/actions'
 import { currencyDigits, fromMinorUnits, jobValueCurrencies, toMinorUnits } from '@linedesk/actions'
+import type { SelectOption } from '../ui/controls.tsx'
 
 export const plural = (n: number, one: string, many = `${one}s`) =>
   `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
@@ -201,7 +202,7 @@ export function busiestTime(byWeekdayHour: number[][]): string | null {
 // --- Money ---------------------------------------------------------------------------------------
 
 /**
- * Minor units (cents; whole yen for JPY) as whole units in the appointment value's currency: "$1,250", "€350",
+ * Minor units (cents; whole units for JPY, KRW and CLP) as whole units in the appointment value's currency: "$1,250", "€350",
  * "£90", "CA$400", "A$400", "CHF 350", "¥5,000", "₹1,500", "SEK 900".
  */
 export const formatMoney = (cents: number, currency: JobValueCurrency = 'USD') =>
@@ -220,8 +221,20 @@ export function currencyLabel(currency: JobValueCurrency): string {
   return symbol && symbol !== currency ? `${currency} · ${symbol}` : currency
 }
 
-/** The currencies offered next to the appointment value, in the order of the menu. */
-export const CURRENCY_OPTIONS = jobValueCurrencies.map(c => ({ value: c, label: currencyLabel(c) }))
+/** The currencies most businesses pick, first in the menu in this order; the rest follow by code. */
+export const TOP_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const satisfies readonly JobValueCurrency[]
+
+/**
+ * The currencies offered next to the appointment value, in the order of the menu: TOP_CURRENCIES, then under an
+ * "All currencies" heading every other one by code (the top ones are not repeated). Every currency picker uses it.
+ */
+export const CURRENCY_OPTIONS: SelectOption<JobValueCurrency>[] = [
+  ...TOP_CURRENCIES.map(c => ({ value: c, label: currencyLabel(c) })),
+  ...jobValueCurrencies
+    .filter(c => !(TOP_CURRENCIES as readonly JobValueCurrency[]).includes(c))
+    .sort()
+    .map(c => ({ value: c, label: currencyLabel(c), group: 'All currencies' })),
+]
 
 /**
  * What was typed → minor units of the currency: "380", "$1,250.50", "€90", "R$ 90" → cents; "¥5,000" → 5000 (JPY
