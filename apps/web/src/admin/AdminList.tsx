@@ -2,6 +2,7 @@
 // / searches) and a click that opens the row. `rowActions` adds quick actions at the end of a row.
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { cx, Icon } from '../ui/kit.tsx'
+import { ShortcutHints } from '../ui/listPage.tsx'
 import { type SortDir, sortRows } from './model.ts'
 
 export type Column<T> = {
@@ -85,77 +86,81 @@ export function AdminList<T>({
     )
 
   return (
-    <div className="adm-card adm-listcard">
-      <label className="k-input adm-search">
-        <Icon name="search" size={15} />
-        <input
-          ref={search}
-          value={query}
-          placeholder={searchLabel}
-          aria-label={searchLabel}
-          onChange={e => {
-            setQuery(e.target.value)
-            setCursor(0)
-          }}
-          onKeyDown={e => {
-            if (e.key === 'ArrowDown' || e.key === 'Enter') {
-              e.preventDefault()
-              e.currentTarget.blur()
-              if (e.key === 'Enter' && shown[at]) onOpen(shown[at]!)
-            }
-          }}
-        />
-        <kbd className="k-kbd">/</kbd>
-      </label>
-      <div className="adm-list" role="table" aria-label={searchLabel.replace('Search ', '')} ref={list}>
-        <div className="adm-row adm-row-head" role="row">
-          {columns.map(c => (
-            <div
-              key={c.key}
-              role="columnheader"
-              className={cx('adm-cell', c.numeric && 'adm-num', c.wide && 'adm-wide')}
-              aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-            >
-              {c.sort ? (
-                <button
-                  type="button"
-                  className="adm-sort"
-                  title={`Sort by ${c.label.toLowerCase()}`}
-                  onClick={() => toggle(c)}
-                >
-                  {c.label}
-                  <span aria-hidden="true">{sort.key === c.key ? (sort.dir === 'asc' ? '↑' : '↓') : ''}</span>
-                </button>
-              ) : (
-                c.label
-              )}
-            </div>
-          ))}
-        </div>
-        {shown.map((row, i) => (
-          <div
-            key={rowId(row)}
-            role="row"
-            tabIndex={-1}
-            data-cursor={i === at}
-            className={cx('adm-row', i === at && 'is-cursor')}
-            onMouseEnter={() => setCursor(i)}
-            onClick={() => onOpen(row)}
-          >
+    <>
+      <div className="adm-card adm-listcard">
+        <label className="k-input adm-search">
+          <Icon name="search" size={15} />
+          <input
+            ref={search}
+            value={query}
+            placeholder={searchLabel}
+            aria-label={searchLabel}
+            onChange={e => {
+              setQuery(e.target.value)
+              setCursor(0)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                e.preventDefault()
+                e.currentTarget.blur()
+                if (e.key === 'Enter' && shown[at]) onOpen(shown[at]!)
+              }
+            }}
+          />
+          <kbd className="k-kbd">/</kbd>
+        </label>
+        <div className="adm-list" role="table" aria-label={searchLabel.replace('Search ', '')} ref={list}>
+          <div className="adm-row adm-row-head" role="row">
             {columns.map(c => (
-              <div key={c.key} role="cell" className={cx('adm-cell', c.numeric && 'adm-num', c.wide && 'adm-wide')}>
-                {c.render(row)}
+              <div
+                key={c.key}
+                role="columnheader"
+                className={cx('adm-cell', c.numeric && 'adm-num', c.wide && 'adm-wide')}
+                aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+              >
+                {c.sort ? (
+                  <button
+                    type="button"
+                    className="adm-sort"
+                    title={`Sort by ${c.label.toLowerCase()}`}
+                    onClick={() => toggle(c)}
+                  >
+                    {c.label}
+                    <span aria-hidden="true">{sort.key === c.key ? (sort.dir === 'asc' ? '↑' : '↓') : ''}</span>
+                  </button>
+                ) : (
+                  c.label
+                )}
               </div>
             ))}
-            {rowActions && <div className="adm-cell adm-cell-acts">{rowActions(row)}</div>}
           </div>
-        ))}
-        {!shown.length && <p className="adm-empty">{query ? `Nothing matches “${query}”.` : empty}</p>}
+          {shown.map((row, i) => (
+            <div
+              key={rowId(row)}
+              role="row"
+              tabIndex={-1}
+              data-cursor={i === at}
+              className={cx('adm-row', i === at && 'is-cursor')}
+              onMouseEnter={() => setCursor(i)}
+              onClick={() => onOpen(row)}
+            >
+              {columns.map(c => (
+                <div key={c.key} role="cell" className={cx('adm-cell', c.numeric && 'adm-num', c.wide && 'adm-wide')}>
+                  {c.render(row)}
+                </div>
+              ))}
+              {rowActions && <div className="adm-cell adm-cell-acts">{rowActions(row)}</div>}
+            </div>
+          ))}
+          {!shown.length && <p className="adm-empty">{query ? `Nothing matches “${query}”.` : empty}</p>}
+        </div>
       </div>
-      <p className="adm-hint">
-        <kbd className="k-kbd">J</kbd> <kbd className="k-kbd">K</kbd> move · <kbd className="k-kbd">⏎</kbd> open ·{' '}
-        <kbd className="k-kbd">esc</kbd> back
-      </p>
-    </div>
+      <ShortcutHints
+        hints={[
+          [['⏎'], 'open'],
+          [['esc'], 'back'],
+        ]}
+      />
+    </>
   )
 }

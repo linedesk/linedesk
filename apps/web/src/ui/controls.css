@@ -207,6 +207,10 @@
 .k-select-opt.active {
   background: var(--surface-hover);
 }
+.k-select-opt.is-off {
+  color: var(--ink-muted);
+  cursor: default;
+}
 .k-select-group-h {
   padding: 8px 8px 4px;
   font-size: 11.5px;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { addedText, matchWorkspaces } from './AddUser.tsx'
+import { addedText, matchWorkspaces, roleChoices, workspacesWithOwner } from './AddUser.tsx'
 import { addedNote } from './Memberships.tsx'
 import type { AdminWorkspace } from './api.ts'
 import { workspacesText } from './UsersPage.tsx'
@@ -44,6 +44,27 @@ describe('Add to workspace', () => {
     expect(addedNote('Ana', 'Harbor Lane', { joined: 'invited' })).toBe(
       'Ana was invited to Harbor Lane. They join once they confirm their email address.',
     )
+  })
+})
+
+describe('Add user: Owner only where the workspace has none (A16)', () => {
+  test('a workspace with an owner, or an owner invitation pending, has one', () => {
+    const owned = workspacesWithOwner([
+      { workspaces: [{ id: 'w1', name: 'Brightwater', role: 'owner', member_id: 'm1' }], invitations: [] },
+      { workspaces: [{ id: 'w2', name: 'Harbor Lane', role: 'admin', member_id: 'm2' }], invitations: [] },
+      {
+        workspaces: [],
+        invitations: [{ id: 'i1', workspace_id: 'w3', workspace_name: 'Alder Electric', role: 'owner', expires_at: '' }],
+      },
+    ])
+    expect([...owned].sort()).toEqual(['w1', 'w3'])
+  })
+
+  test('Owner is shown off with why, the other roles stay', () => {
+    const owner = (hasOwner: boolean) => roleChoices(hasOwner).find(o => o.value === 'owner')
+    expect(owner(true)).toMatchObject({ disabled: true, description: 'Has an owner' })
+    expect(owner(false)).not.toHaveProperty('disabled')
+    expect(roleChoices(true).filter(o => !('disabled' in o)).map(o => o.value)).toEqual(['admin', 'member'])
   })
 })
 

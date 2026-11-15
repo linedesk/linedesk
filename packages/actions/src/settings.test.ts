@@ -306,6 +306,16 @@ describe('workspace.deleteOwn and workspace.deletePreview', () => {
     expect(workspaceDeleteOwn.input.safeParse({ name: '  ' }).success).toBe(false)
     expect(workspaceDeleteOwn.input.safeParse({}).success).toBe(false)
   })
+
+  it('stores its input as it came: no field is secret, so nothing is redacted, as before (E14)', async () => {
+    const { workspaceDeleteOwn } = await import('./settings.ts')
+    const { redactInput } = await import('./define.ts')
+    expect(workspaceDeleteOwn.sensitive).toBeUndefined()
+    const input = { name: 'Brightwater Plumbing & Heating', keepAccounts: true }
+    // The same as with the empty list it had: redactInput leaves the input alone either way.
+    expect(redactInput(workspaceDeleteOwn, input)).toBe(input)
+    expect(redactInput({ sensitive: [] }, input)).toBe(input)
+  })
 })
 
 describe('the instance policy for how calls are answered', () => {

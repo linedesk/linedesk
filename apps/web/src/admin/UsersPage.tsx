@@ -69,7 +69,7 @@ export function UsersList({ users, workspaces, currentUserId, onOpen, keysRef, n
   const runner = useActionRunner(notify)
   return (
     <>
-      <AddUser workspaces={workspaces} toast={notify} reload={reload} />
+      <AddUser workspaces={workspaces} users={users} toast={notify} reload={reload} />
       <AdminList
         rows={users}
         rowId={u => u.id}

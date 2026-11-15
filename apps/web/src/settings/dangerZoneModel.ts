@@ -5,7 +5,47 @@ import type { DangerConfirmation } from '../ui/DangerConfirmDialog.tsx'
 
 const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
 
-/** One line per kind of data that goes, in the order the admin's delete lists them (admin/actions.tsx). */
+/**
+ * What deleting a workspace takes with it, one line per kind of data: the one list for an owner (Danger zone) and a
+ * server admin (admin/actions.tsx). `numbers`: the phone number lines, which differ (the owner's preview knows which
+ * were bought); `otherMembers`: the members besides the one deleting it, who each get an email; `accountsDeleted`:
+ * the accounts that go because they have no other workspace.
+ */
+export type WorkspaceDeleteFacts = {
+  calls: number
+  contacts: number
+  numbers: string[]
+  otherMembers: number
+  accountsDeleted: number
+}
+
+export function workspaceDeleteList(f: WorkspaceDeleteFacts): string[] {
+  return [
+    `${count(f.calls, 'call')}, with their transcripts and recordings`,
+    count(f.contacts, 'contact'),
+    ...f.numbers,
+    'Its bookings, settings and invitations',
+    ...(f.otherMembers
+      ? [`The access of ${count(f.otherMembers, 'other member')}; each of them gets an email that it was deleted`]
+      : []),
+    ...(f.accountsDeleted
+      ? [
+          `${count(f.accountsDeleted, 'account')} will be deleted because ${f.accountsDeleted === 1 ? 'it has' : 'they have'} no other workspace`,
+        ]
+      : []),
+  ]
+}
+
+/** The phone number lines when nothing is known but how many there are (a server admin's delete). */
+export function numberLines(numbers: number, brand: string): string[] {
+  return [
+    numbers
+      ? `${count(numbers, 'phone number')}: numbers bought through ${brand} are released at the carrier, the others stop reaching ${brand}`
+      : count(0, 'phone number'),
+  ]
+}
+
+/** The owner's list (Danger zone), from the server's preview. */
 export function deleteOwnList(p: WorkspaceDeletePreviewData, brand: string): string[] {
   const { bought, attached } = p.numbers
   const numbers = !bought && !attached ? [count(0, 'phone number')] : []
@@ -14,20 +54,13 @@ export function deleteOwnList(p: WorkspaceDeletePreviewData, brand: string): str
     numbers.push(
       `${count(attached, 'phone number')} you brought or connected: ${attached === 1 ? 'it stops' : 'they stop'} reaching ${brand} and ${attached === 1 ? 'stays' : 'stay'} yours`,
     )
-  return [
-    `${count(p.calls, 'call')}, with their transcripts and recordings`,
-    count(p.contacts, 'contact'),
-    ...numbers,
-    'Its bookings, settings and invitations',
-    ...(p.otherMembers
-      ? [`The access of ${count(p.otherMembers, 'other member')}; each of them gets an email that it was deleted`]
-      : []),
-    ...(p.accountsDeleted
-      ? [
-          `${count(p.accountsDeleted, 'account')} will be deleted because ${p.accountsDeleted === 1 ? 'it has' : 'they have'} no other workspace`,
-        ]
-      : []),
-  ]
+  return workspaceDeleteList({
+    calls: p.calls,
+    contacts: p.contacts,
+    numbers,
+    otherMembers: p.otherMembers,
+    accountsDeleted: p.accountsDeleted,
+  })
 }
 
 /**

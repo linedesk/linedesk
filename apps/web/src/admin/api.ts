@@ -247,7 +247,13 @@ type AdminInputs = {
   'user.enable': { userId: string }
   'workspace.disable': { workspaceId: string }
   'workspace.enable': { workspaceId: string }
-  'workspace.delete': { workspaceId: string; name: string; keepUsers?: boolean }
+  'workspace.delete': {
+    workspaceId: string
+    name: string
+    keepAccounts?: boolean
+    /** @deprecated The old name of keepAccounts, sent with the same value for one release (an older API reads it). */
+    keepUsers?: boolean
+  }
   'workspace.setSpendingCap': { workspaceId: string; capUsd: number | null }
   'instanceAdmin.grant': { userId: string }
   'instanceAdmin.revoke': { userId: string }

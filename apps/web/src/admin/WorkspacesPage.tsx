@@ -59,9 +59,11 @@ type ListProps = {
   keysRef: { current: ListKeys | null }
   notify: Notify
   reload: () => Promise<void>
+  /** The workspaces the signed-in admin is a member of (a delete then counts them out of the other members). */
+  viewerWorkspaces: ReadonlySet<string>
 }
 
-export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload }: ListProps) {
+export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, viewerWorkspaces }: ListProps) {
   const runner = useActionRunner(notify)
   return (
     <>
@@ -76,7 +78,12 @@ export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload }: 
         onOpen={w => onOpen(w.id)}
         keysRef={keysRef}
         empty="No workspaces yet."
-        rowActions={w => <RowActions actions={workspaceActions(w, reload)} onPick={runner.pick} />}
+        rowActions={w => (
+          <RowActions
+            actions={workspaceActions(w, reload, { viewerIsMember: viewerWorkspaces.has(w.id) })}
+            onPick={runner.pick}
+          />
+        )}
       />
       {runner.dialog}
     </>
@@ -90,13 +97,17 @@ type DetailProps = {
   reload: () => Promise<void>
   /** Back to the list, once the workspace is deleted. */
   onDeleted: () => void
+  viewerWorkspaces: ReadonlySet<string>
 }
 
-export function WorkspaceDetail({ workspace: w, users, notify, reload, onDeleted }: DetailProps) {
+export function WorkspaceDetail({ workspace: w, users, notify, reload, onDeleted, viewerWorkspaces }: DetailProps) {
   const runner = useActionRunner(notify)
   return (
     <>
-      <ActionBar actions={workspaceActions(w, reload, onDeleted)} onPick={runner.pick} />
+      <ActionBar
+        actions={workspaceActions(w, reload, { onDeleted, viewerIsMember: viewerWorkspaces.has(w.id) })}
+        onPick={runner.pick}
+      />
       <Card title="Details" className="adm-detail">
         <dl className="adm-facts">
           <Fact label="Status">{w.disabled_at ? `Disabled ${when(w.disabled_at)}` : 'Active'}</Fact>

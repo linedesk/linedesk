@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { expect, test } from 'vitest'
-import { confirmErrorText, deleteWorkspaceText } from './actions.tsx'
+import { expect, test, vi } from 'vitest'
+import { confirmErrorText, deleteWorkspaceText, workspaceActions } from './actions.tsx'
 import type { AdminWorkspace } from './api.ts'
 import { StepUpRequired } from './PasskeyStepUp.tsx'
 
@@ -14,7 +14,7 @@ const workspace = {
   phone_numbers: [],
 } as unknown as AdminWorkspace
 
-test('deleting a workspace lists what goes and says it cannot be undone', () => {
+test('deleting a workspace lists what goes, as Workspace settings does, and says it cannot be undone', () => {
   const text = deleteWorkspaceText(workspace)
   expect(text.after).toBe('This cannot be undone.')
   expect(text.list).toEqual([
@@ -22,9 +22,46 @@ test('deleting a workspace lists what goes and says it cannot be undone', () => 
     '1 contact',
     '0 phone numbers',
     'Its bookings, settings and invitations',
-    'The accounts of 1 member who belongs to no other workspace',
-    'The access of 2 other members; their accounts and other workspaces stay',
+    'The access of 3 other members; each of them gets an email that it was deleted',
+    '1 account will be deleted because it has no other workspace',
   ])
+  expect(text.option).toBe('Keep their accounts')
+})
+
+test('an admin who is a member is not counted among the other members', () => {
+  const text = deleteWorkspaceText({ ...workspace, members: 2, members_only_here: 0 }, true)
+  expect(text.list).toContain('The access of 1 other member; each of them gets an email that it was deleted')
+  expect(deleteWorkspaceText({ ...workspace, members: 1, members_only_here: 0 }, true).list).toEqual([
+    '12 calls, with their transcripts and recordings',
+    '1 contact',
+    '0 phone numbers',
+    'Its bookings, settings and invitations',
+  ])
+  expect(deleteWorkspaceText({ ...workspace, members: 1, members_only_here: 0 }, true).option).toBeUndefined()
+})
+
+test('the delete sends keepAccounts and keepUsers with the same value, and its button is red as in Workspace settings', async () => {
+  const sent: unknown[] = []
+  vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+    sent.push(JSON.parse(String(init.body)))
+    return new Response(JSON.stringify({ data: { usersDeleted: [], numbers: [] } }), { status: 200 })
+  })
+  try {
+    const remove = workspaceActions(workspace, async () => {}).find(a => a.id === 'delete')!
+    expect(remove.danger).toBe(true)
+    await remove.run(true)
+    // Both names with the same value for this release: an older API reads only keepUsers.
+    expect(sent).toEqual([{ workspaceId: 'ws-1', name: 'Brightwater Plumbing', keepAccounts: true, keepUsers: true }])
+    await remove.run(false)
+    expect(sent[1]).toEqual({
+      workspaceId: 'ws-1',
+      name: 'Brightwater Plumbing',
+      keepAccounts: false,
+      keepUsers: false,
+    })
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
 
 test('a failed confirmation says why in one short sentence, never a raw error', () => {

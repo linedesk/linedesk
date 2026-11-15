@@ -746,7 +746,6 @@ export const workspaceDeleteOwn = defineAction({
     keepAccounts: z.boolean().optional(),
   }),
   permission: 'workspace:own',
-  sensitive: [],
 })
 /**
  * What `workspace.deleteOwn` did, and the workspace the owner continues in (null: none is left).

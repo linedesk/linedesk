@@ -10,6 +10,7 @@ import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 import { brandName } from '../brand.ts'
+import { keepAccountsOption, numberLines, workspaceDeleteList } from '../settings/dangerZoneModel.ts'
 
 type Confirmation = DangerConfirmation
 
@@ -27,6 +28,8 @@ export type AdminAction = {
   done?: string | ((made: unknown) => string)
   /** Whom it is about, for its result ("Give this code to …"). */
   subject?: string
+  /** Destroys data (Delete workspace): its button is red, as in Workspace settings › Danger zone. */
+  danger?: boolean
 }
 
 const userLabel = (u: AdminUser) => u.name || u.email
@@ -216,33 +219,32 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
   return actions
 }
 
-const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
-
-/** What deleting the workspace removes, said before it happens: one line per kind of data. */
-export function deleteWorkspaceText(w: AdminWorkspace): Pick<Confirmation, 'text' | 'list' | 'after' | 'option'> {
-  const numbers = w.phone_numbers.length
-  const onlyHere = w.members_only_here
-  const others = w.members - onlyHere
+/**
+ * What deleting the workspace removes, said before it happens: the same list as an owner's delete in Workspace
+ * settings (settings/dangerZoneModel.ts). `viewerIsMember`: the admin deleting it is a member, so they are no
+ * "other member" (they get no email either). Instance admins keep their accounts, so the admin is never among the
+ * accounts that go (members_only_here).
+ */
+export function deleteWorkspaceText(
+  w: AdminWorkspace,
+  viewerIsMember = false,
+): Pick<Confirmation, 'text' | 'list' | 'after' | 'option'> {
+  const accountsDeleted = w.members_only_here
   return {
     text: `This deletes ${w.name} and all its data for good.`,
-    list: [
-      `${count(w.calls_total, 'call')}, with their transcripts and recordings`,
-      `${count(w.contacts, 'contact')}`,
-      numbers
-        ? `${count(numbers, 'phone number')}: numbers bought through ${brandName()} are released at the carrier, the others stop reaching ${brandName()}`
-        : count(numbers, 'phone number'),
-      'Its bookings, settings and invitations',
-      ...(onlyHere
-        ? [
-            `The accounts of ${count(onlyHere, 'member')} who ${onlyHere === 1 ? 'belongs' : 'belong'} to no other workspace`,
-          ]
-        : []),
-      ...(others ? [`The access of ${count(others, 'other member')}; their accounts and other workspaces stay`] : []),
-    ],
-    option: onlyHere ? `Keep the ${onlyHere === 1 ? "member's account" : `${onlyHere} members' accounts`}` : undefined,
+    list: workspaceDeleteList({
+      calls: w.calls_total,
+      contacts: w.contacts,
+      numbers: numberLines(w.phone_numbers.length, brandName()),
+      otherMembers: Math.max(0, w.members - (viewerIsMember ? 1 : 0)),
+      accountsDeleted,
+    }),
+    option: keepAccountsOption({ accountsDeleted, ownAccountDeleted: false }),
     after: 'This cannot be undone.',
   }
 }
+
+const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
 
 /** The toast after a delete: numbers left at the carrier are named, since someone has to release them there. */
 export function deletedWorkspaceText(name: string, data: unknown): string {
@@ -255,11 +257,11 @@ export function deletedWorkspaceText(name: string, data: unknown): string {
   return `${name} is deleted.${accounts}${left ? ` Still at the carrier: ${left}.` : ''}`
 }
 
-/** `onDeleted`: leave the page of a workspace that is gone. */
+/** `onDeleted`: leave the page of a workspace that is gone. `viewerIsMember`: the admin is a member of it. */
 export function workspaceActions(
   w: AdminWorkspace,
   reload: () => Promise<void>,
-  onDeleted?: () => void,
+  { onDeleted, viewerIsMember = false }: { onDeleted?: () => void; viewerIsMember?: boolean } = {},
 ): AdminAction[] {
   const set = (disabled: boolean) => async () => {
     await runAdmin(disabled ? 'workspace.disable' : 'workspace.enable', { workspaceId: w.id })
@@ -269,10 +271,23 @@ export function workspaceActions(
     id: 'delete',
     label: 'Delete workspace…',
     icon: 'trash',
+    danger: true,
     tip: 'Deletes it with all its calls, contacts, numbers and settings, and the accounts of members who belong to no other workspace.',
-    confirm: { ...deleteWorkspaceText(w), action: 'Delete workspace', busyAction: 'Deleting…', typed: w.name },
-    run: async keepUsers => {
-      const data = await runAdmin('workspace.delete', { workspaceId: w.id, name: w.name, keepUsers: !!keepUsers })
+    confirm: {
+      ...deleteWorkspaceText(w, viewerIsMember),
+      action: 'Delete workspace',
+      busyAction: 'Deleting…',
+      typed: w.name,
+    },
+    run: async keepAccounts => {
+      // Both names, the same value, for this one release: an API from before the rename reads only keepUsers
+      // and would drop keepAccounts, deleting the accounts the box kept (security review of #756, F1).
+      const data = await runAdmin('workspace.delete', {
+        workspaceId: w.id,
+        name: w.name,
+        keepAccounts: !!keepAccounts,
+        keepUsers: !!keepAccounts,
+      })
       onDeleted?.()
       await reload()
       return data
@@ -359,7 +374,14 @@ export function ActionBar({ actions, onPick }: { actions: AdminAction[]; onPick:
   return (
     <div className="adm-actbar">
       {actions.map(a => (
-        <Button key={a.id} size="sm" icon={a.icon} title={a.tip} onClick={() => onPick(a)}>
+        <Button
+          key={a.id}
+          size="sm"
+          icon={a.icon}
+          variant={a.danger ? 'danger-outline' : undefined}
+          title={a.tip}
+          onClick={() => onPick(a)}
+        >
           {a.label}
         </Button>
       ))}

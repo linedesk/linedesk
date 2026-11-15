@@ -7,6 +7,7 @@ import { Toast } from '../shell/Toast.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import type { ListKeys } from './AdminList.tsx'
 import { ADMIN_DATA, ADMIN_HEALTH, type HealthPart, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -131,12 +132,14 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const [headActions, setHeadActions] = useState<HTMLDivElement | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
   const nav = useRef<HTMLElement>(null)
-  // On a phone the sections are a row that scrolls sideways: keep the open one in view.
+  // On a phone the sections are a row that scrolls sideways under the back button, which stays put at its
+  // left end: keep the open section in view right of it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs again whenever another section opens
   useEffect(() => {
     const item = nav.current?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (item && nav.current && nav.current.scrollWidth > nav.current.clientWidth)
-      nav.current.scrollLeft = item.offsetLeft - nav.current.offsetLeft - 12
+    if (!item || !nav.current || nav.current.scrollWidth <= nav.current.clientWidth) return
+    const back = nav.current.querySelector<HTMLElement>('.adm-back')?.offsetWidth ?? 0
+    nav.current.scrollLeft = item.offsetLeft - nav.current.offsetLeft - back - 12
   }, [place.section])
 
   // Runs before the app's own key handler, which belongs to the inbox.
@@ -185,6 +188,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     place.section === 'workspaces' && place.id ? data?.workspaces.find(w => w.id === place.id) : undefined
   const user = place.section === 'users' && place.id ? data?.users.find(u => u.id === place.id) : undefined
   const detailTitle = workspace?.name ?? (user ? user.name || user.email : null)
+  const viewerWorkspaces = new Set(data?.users.find(u => u.id === currentUserId)?.workspaces.map(w => w.id))
 
   function page(): ReactNode {
     // The overview and Onboarding load their own numbers, so they show while the lists are still on their way.
@@ -218,16 +222,30 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             workspace={workspace}
             users={data.users}
             onDeleted={() => go({ section: 'workspaces', id: null })}
+            viewerWorkspaces={viewerWorkspaces}
             {...shared}
           />
         ) : (
-          <WorkspacesList workspaces={data.workspaces} onOpen={open} keysRef={listKeys} {...shared} />
+          <WorkspacesList
+            workspaces={data.workspaces}
+            onOpen={open}
+            keysRef={listKeys}
+            viewerWorkspaces={viewerWorkspaces}
+            {...shared}
+          />
         )
       case 'users':
         return user ? (
           <UserDetail user={user} workspaces={data.workspaces} currentUserId={currentUserId} {...shared} />
         ) : (
-          <UsersList users={data.users} workspaces={data.workspaces} currentUserId={currentUserId} onOpen={open} keysRef={listKeys} {...shared} />
+          <UsersList
+            users={data.users}
+            workspaces={data.workspaces}
+            currentUserId={currentUserId}
+            onOpen={open}
+            keysRef={listKeys}
+            {...shared}
+          />
         )
       case 'usage':
         return <Usage workspaces={data.workspaces} usage={data.usage} months={data.usageMonths} />
@@ -274,12 +292,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             <Icon name={icons[s.id]} size={15} />
             <span className="lbl">{s.label}</span>
             {s.id === 'overview' && problems.length > 0 && (
-              <span
-                className="adm-nav-dot"
-                role="img"
-                aria-label={`Problem: ${problems.join(', ')}`}
-                title={`Problem: ${problems.join(', ')}`}
-              />
+              <StatusMark state="failing" className="adm-nav-mark" label={`Needs attention: ${problems.join(', ')}`} />
             )}
             <Kbd keys={[String(i + 1)]} />
           </button>

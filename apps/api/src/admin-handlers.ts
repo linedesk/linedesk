@@ -125,6 +125,12 @@ function joined(
   }
 }
 
+/**
+ * The subject of a change to an account itself (disabled, enabled, made or no longer a server admin): its address,
+ * filed under no workspace, so the audit log names whom it was about (audit.ts).
+ */
+const accountSubject = (account: { email: string }): AuditSubject => ({ email: account.email, workspaceId: null })
+
 async function setWorkspaceDisabled(tx: Tx, workspaceId: string, disabledAt: Date | null) {
   const [workspace] = await tx
     .update(organization)
@@ -458,20 +464,32 @@ export const adminHandlers: Record<string, Handler> = {
     await tx.delete(session).where(or(eq(session.userId, account.id), eq(session.impersonatedBy, account.id)))
     await revokeSetupKeysOf(tx, account.id, 'account_disabled')
     await dropUserPush(tx, account.id)
-    return { rows: {}, data: { userId: account.id, disabled_at: now } }
+    return { rows: {}, data: { userId: account.id, disabled_at: now, subject: accountSubject(account) } }
   },
 
   'user.enable': async ({ tx }, input) => {
     const account = await loadUser(tx, input.userId)
     await tx.update(user).set({ disabledAt: null }).where(eq(user.id, account.id))
-    return { rows: {}, data: { userId: account.id, disabled_at: null } }
+    return { rows: {}, data: { userId: account.id, disabled_at: null, subject: accountSubject(account) } }
   },
 
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
+  // `keepUsers` is the field's old name: a tab opened before the rename still sends it (one release). Either one
+  // saying keep keeps the accounts: a conflict between the two never deletes (security review of #756, F3).
   'workspace.delete': async ({ tx, now, actor, telephony }, input) => ({
     rows: {},
-    data: await deleteWorkspaceAndTell(tx, input, now, actor.actorId, telephony),
+    data: await deleteWorkspaceAndTell(
+      tx,
+      {
+        workspaceId: input.workspaceId,
+        name: input.name,
+        keepUsers: input.keepAccounts === true || input.keepUsers === true,
+      },
+      now,
+      actor.actorId,
+      telephony,
+    ),
   }),
   'workspace.setSpendingCap': ({ tx, now }, input) => setSpendingCap(tx, input.workspaceId, input.capUsd, now),
 
@@ -483,7 +501,10 @@ export const adminHandlers: Record<string, Handler> = {
     // Only while they have no passkey, in one conditional write (passkey-enrolment.ts issueFirstPasskeyEnrolment).
     const enrolment = (await issueFirstPasskeyEnrolment(tx, account.id)) ?? {}
     await alertAdminGranted(actor, account.email)
-    return { rows: {}, data: { userId: account.id, instance_admin: true, ...enrolment } }
+    return {
+      rows: {},
+      data: { userId: account.id, instance_admin: true, subject: accountSubject(account), ...enrolment },
+    }
   },
 
   // The recovery path that needs none of the user's passkeys (passkeys.ts). Runs only with the
@@ -545,6 +566,6 @@ export const adminHandlers: Record<string, Handler> = {
     await tx.delete(session).where(eq(session.impersonatedBy, account.id))
     // So do their AI agent setup links: they stop working now, and must not come back with a later grant.
     await revokeSetupKeysOf(tx, account.id, 'admin_role_removed')
-    return { rows: {}, data: { userId: account.id, instance_admin: false } }
+    return { rows: {}, data: { userId: account.id, instance_admin: false, subject: accountSubject(account) } }
   },
 }

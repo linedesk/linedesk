@@ -142,15 +142,15 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return "Changed the workspace's own carrier account"
     case 'carrier.provisionTransferTrunk':
       return 'Set up the transfer line at the carrier'
-    // These take only a user id; the name follows once their handlers keep the subject.
+    // These take only a user id: the address is the subject their handlers keep; older entries have none.
     case 'user.disable':
-      return 'Disabled a user'
+      return e.subject?.email ? `Disabled ${e.subject.email}` : 'Disabled a user'
     case 'user.enable':
-      return 'Enabled a user'
+      return e.subject?.email ? `Enabled ${e.subject.email}` : 'Enabled a user'
     case 'instanceAdmin.grant':
-      return 'Made someone a server admin'
+      return `Made ${e.subject?.email ?? 'someone'} a server admin`
     case 'instanceAdmin.revoke':
-      return 'Removed someone as server admin'
+      return `Removed ${e.subject?.email ?? 'someone'} as server admin`
     case 'workspace.disable':
       return 'Disabled the workspace'
     case 'workspace.enable':

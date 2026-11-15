@@ -9,10 +9,16 @@ import { Checkbox, Select } from '../ui/controls.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { adminGrantText, EnrolmentCodeDialog, enrolmentOf, type PasskeyEnrolment } from './actions.tsx'
-import { type AdminWorkspace, runAdmin } from './api.ts'
+import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { errorText } from './notify.ts'
 
-type Props = { workspaces: AdminWorkspace[]; toast: (text: string) => void; reload: () => Promise<void> }
+type Props = {
+  workspaces: AdminWorkspace[]
+  /** Who is where: a workspace with an owner (or an owner invitation) takes no second one (membership.add refuses). */
+  users: AdminUser[]
+  toast: (text: string) => void
+  reload: () => Promise<void>
+}
 /** `workspaceId`: '' none picked yet, NONE only for a server admin. */
 type Form = { email: string; name: string; workspaceId: string; role: MembershipRole; admin: boolean }
 type Errors = { email?: string; name?: string; workspace?: string; form?: string }
@@ -23,6 +29,23 @@ const SEARCH_FROM = 8
 const roleOptions = membershipRoles.map(r => ({ value: r, label: roleLabel(r) }))
 const WORKSPACE_HELP =
   'The workspace they join, with the role below. Only a server admin can be added without one: they run this server and can be added to a workspace later.'
+
+/** The workspaces that have an owner, or an owner invitation pending: the server refuses a second one. */
+export function workspacesWithOwner(users: Pick<AdminUser, 'workspaces' | 'invitations'>[]): Set<string> {
+  const owned = new Set<string>()
+  for (const u of users) {
+    for (const w of u.workspaces) if (w.role === 'owner') owned.add(w.id)
+    for (const i of u.invitations) if (i.role === 'owner') owned.add(i.workspace_id)
+  }
+  return owned
+}
+
+/** The roles to pick from in `workspaceId`: Owner is shown off, with why, where the workspace has one. */
+export function roleChoices(hasOwner: boolean) {
+  return roleOptions.map(o =>
+    o.value === 'owner' && hasOwner ? { ...o, disabled: true, description: 'Has an owner' } : o,
+  )
+}
 
 /** What happened, in one line for the toast. */
 export function addedText(data: Pick<UserInviteData, 'email' | 'existing' | 'delivery' | 'workspace'>): string {
@@ -108,9 +131,10 @@ function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: Pick
   )
 }
 
-export function AddUser({ workspaces, toast, reload }: Props) {
+export function AddUser({ workspaces, users, toast, reload }: Props) {
   // People join a workspace that answers calls; a disabled one is refused anyway.
   const open = workspaces.filter(w => !w.disabled_at)
+  const owned = workspacesWithOwner(users)
   const blank = (): Form => ({
     email: '',
     name: '',
@@ -139,6 +163,8 @@ export function AddUser({ workspaces, toast, reload }: Props) {
       const next = { ...f, ...patch }
       // Without server admin, "None" is no choice.
       if (!next.admin && next.workspaceId === NONE) next.workspaceId = ''
+      // Owner was picked, then a workspace that has one: back to Member.
+      if (next.role === 'owner' && owned.has(next.workspaceId)) next.role = 'member'
       return next
     })
     setErrors({})
@@ -248,7 +274,7 @@ export function AddUser({ workspaces, toast, reload }: Props) {
               <Select
                 id="adm-add-role"
                 value={form.role}
-                options={roleOptions}
+                options={roleChoices(owned.has(form.workspaceId))}
                 label="Role"
                 onChange={role => set({ role })}
               />

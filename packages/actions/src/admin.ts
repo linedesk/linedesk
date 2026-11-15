@@ -958,15 +958,18 @@ export const workspaceEnable = adminAction(
 )
 /**
  * Deletes a workspace and everything in it (apps/api/src/workspace-delete.ts). `name` is the workspace's name as
- * typed to confirm. Members without another workspace lose their accounts too, unless `keepUsers`; members of
- * other workspaces and instance admins always keep theirs.
+ * typed to confirm. Members without another workspace lose their accounts too, unless `keepAccounts` (the same name
+ * as in `workspace.deleteOwn`); members of other workspaces and instance admins always keep theirs. `keepUsers` is
+ * the old name, still taken for one release from a tab opened before the rename; either one set to true keeps them.
  */
 export const workspaceDelete = adminAction(
   'workspace.delete',
-  "Delete a workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Members who belong to no other workspace lose their accounts too, unless keepUsers is true; members of other workspaces and instance admins keep theirs. Type the workspace's name to confirm.",
+  "Delete a workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Members who belong to no other workspace lose their accounts too, unless keepAccounts is true; members of other workspaces and instance admins keep theirs. Type the workspace's name to confirm.",
   z.object({
     workspaceId: z.string().min(1),
     name: z.string().trim().min(1).max(200),
+    keepAccounts: z.boolean().optional(),
+    /** @deprecated The old name of `keepAccounts`; taken for one release. */
     keepUsers: z.boolean().optional(),
   }),
 )
@@ -994,7 +997,9 @@ export const instanceAdminGrant = defineAction({
   description: 'Make a user an instance admin. Without a passkey they get a one-time code for their first one.',
   input: userId,
   permission: 'instance:admin',
-  secretResult: true,
+  // As user.invite: the code is shown once and never logged; the rest is kept, so the audit log names whom it made
+  // a server admin (data.subject).
+  secretResult: ['enrolmentCode'],
 })
 export type InstanceAdminGrantData = { userId: string; instance_admin: true } & Partial<PasskeyEnrolmentData>
 

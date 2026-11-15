@@ -97,6 +97,15 @@ describe('every audited action reads as words', () => {
   test('server admin, setup link, calendar and number entries', () => {
     expect(label('instanceAdmin.grant', { userId: 'u1' })).toBe('Made someone a server admin')
     expect(label('user.disable', { userId: 'u1' })).toBe('Disabled a user')
+    // Since E4 their handlers keep whom it was about.
+    expect(label('instanceAdmin.grant', { userId: 'u1' }, 'mike@example.com')).toBe(
+      'Made mike@example.com a server admin',
+    )
+    expect(label('instanceAdmin.revoke', { userId: 'u1' }, 'mike@example.com')).toBe(
+      'Removed mike@example.com as server admin',
+    )
+    expect(label('user.disable', { userId: 'u1' }, 'mike@example.com')).toBe('Disabled mike@example.com')
+    expect(label('user.enable', { userId: 'u1' }, 'mike@example.com')).toBe('Enabled mike@example.com')
     expect(label('workspace.setSpendingCap', { workspaceId: 'w1', capUsd: 50 })).toBe('Set the spending cap to $50')
     expect(label('workspace.setSpendingCap', { workspaceId: 'w1', capUsd: null })).toBe('Removed the spending cap')
     expect(label('workspace.create', { name: 'Brightwater Plumbing & Heating' }, 'mike@example.com')).toBe(

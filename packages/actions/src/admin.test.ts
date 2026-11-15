@@ -31,6 +31,16 @@ test('every admin area action needs instance:admin, which no role has', () => {
   for (const name of names) expect(actions.get(name)?.permission, name).toBe('instance:admin')
 })
 
+test('workspace.delete takes keepAccounts, and for one release the old keepUsers (E14)', () => {
+  const def = actions.get('workspace.delete')!
+  const base = { workspaceId: 'ws1', name: 'Brightwater Plumbing & Heating' }
+  expect(def.input.parse({ ...base, keepAccounts: true })).toEqual({ ...base, keepAccounts: true })
+  // A tab opened before the rename still sends the old name: it must not be dropped (a dropped keep deletes accounts).
+  expect(def.input.parse({ ...base, keepUsers: true })).toEqual({ ...base, keepUsers: true })
+  expect(def.input.parse(base)).toEqual(base)
+  expect(def.input.safeParse({ ...base, keepAccounts: 'yes' }).success).toBe(false)
+})
+
 test('sensitive fields keep their keys and lose their values', () => {
   const input = { provider: 'twilio', values: { account_sid: 'ACmadeup', auth_token: SECRET } }
   const redacted = redactInput(providerSetKeys, input)

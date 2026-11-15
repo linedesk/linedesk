@@ -106,6 +106,8 @@ export type SelectOption<T extends string> = {
    * Options without one come first, with no heading. The heading is not an option: arrow keys and typing skip it.
    */
   group?: string
+  /** Shown but not pickable; `description` says why ("Has an owner"). */
+  disabled?: boolean
 }
 
 /** The options as the list shows them: runs of consecutive options with the same group, each with its first index. */
@@ -216,6 +218,7 @@ export function Select<T extends string>({
     button.current?.focus()
   }
   function pick(option: SelectOption<T>) {
+    if (option.disabled) return
     close()
     if (option.value !== value) onChange(option.value)
   }
@@ -281,7 +284,8 @@ export function Select<T extends string>({
                   id={`${listId}-${i}`}
                   role="option"
                   aria-selected={o.value === value}
-                  className={cx('k-select-opt', i === active && 'active')}
+                  aria-disabled={o.disabled || undefined}
+                  className={cx('k-select-opt', i === active && 'active', o.disabled && 'is-off')}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(o)}
                 >

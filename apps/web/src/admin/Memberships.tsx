@@ -13,6 +13,7 @@ import { type AdminAction, useActionRunner } from './actions.tsx'
 import { type AdminUser, type AdminWorkspace, loadWorkspaceMembers, runAdmin, type WorkspaceMembers } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 import { day } from './parts.tsx'
+import { WorkspaceMark } from '../shell/WorkspaceMark.tsx'
 
 const roleOptions = membershipRoles.map(r => ({ value: r, label: roleLabel(r) }))
 const asRole = (role: string): MembershipRole => (membershipRoles.includes(role as MembershipRole) ? (role as MembershipRole) : 'member')
@@ -42,45 +43,56 @@ function useChange(notify: Notify, refresh: () => Promise<void>) {
 type MemberRowProps = {
   title: string
   sub?: string
-  /** A person's profile picture; a workspace row has none. */
+  /** A person: their profile picture or initials; a workspace: its square (WorkspaceMark), as everywhere else. */
+  lead: 'person' | 'workspace'
   avatarUrl?: string | null
   role: string
-  /** Why the role and remove are locked (the last owner), or undefined. */
-  locked?: string
   onRole: (role: MembershipRole) => void
   onRemove: () => void
   removeLabel: string
 }
 
-function MemberRow({ title, sub, avatarUrl, role, locked, onRole, onRemove, removeLabel }: MemberRowProps) {
+/** The owner is never demoted or removed directly, only replaced (another member made owner): plain text, no remove. */
+const OWNER_TIP = 'The owner. To hand the workspace over, make another member the owner.'
+
+function MemberRow({ title, sub, lead, avatarUrl, role, onRole, onRemove, removeLabel }: MemberRowProps) {
   return (
     <ListRow
-      lead={<Avatar name={title} size={24} src={avatarUrl} />}
+      lead={lead === 'workspace' ? <WorkspaceMark name={title} iconUrl={null} /> : <Avatar name={title} size={24} src={avatarUrl} />}
       title={title}
       sub={sub}
       actions={
-        <>
-          {locked ? (
-            <span className="help st-role" title={locked}>
-              {roleLabel(role)}
-            </span>
-          ) : (
+        role === 'owner' ? (
+          <span className="help st-role" title={OWNER_TIP}>
+            {roleLabel(role)}
+          </span>
+        ) : (
+          <>
             <Select size="sm" align="end" value={asRole(role)} options={roleOptions} label={`Role in ${title}`} onChange={onRole} />
-          )}
-          <Button size="sm" variant="ghost" icon="trash" aria-label={removeLabel} title={locked ?? removeLabel} disabled={!!locked} onClick={onRemove} />
-        </>
+            <Button size="sm" variant="ghost" icon="trash" aria-label={removeLabel} title={removeLabel} onClick={onRemove} />
+          </>
+        )
       }
     />
   )
 }
 
-type InviteRowProps = { title: string; sub: string; role: string; expired?: boolean; onResend: () => void; onRevoke: () => void }
+type InviteRowProps = {
+  title: string
+  sub: string
+  role: string
+  expired?: boolean
+  /** An invitation listed by its workspace (a user's page): the workspace's square. */
+  workspace?: boolean
+  onResend: () => void
+  onRevoke: () => void
+}
 
-function InviteRow({ title, sub, role, expired, onResend, onRevoke }: InviteRowProps) {
+function InviteRow({ title, sub, role, expired, workspace, onResend, onRevoke }: InviteRowProps) {
   const [confirming, setConfirming] = useState(false)
   return (
     <ListRow
-      lead={<Avatar name={title} size={24} />}
+      lead={workspace ? <WorkspaceMark name={title} iconUrl={null} /> : <Avatar name={title} size={24} />}
       title={
         <>
           {title}
@@ -207,6 +219,7 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
           <MemberRow
             key={w.member_id}
             title={w.name}
+            lead="workspace"
             role={w.role}
             removeLabel={`Remove from ${w.name}`}
             onRole={role => void change(() => runAdmin('membership.setRole', { memberId: w.member_id, role }), `${who} is now ${role} of ${w.name}.`)}
@@ -217,6 +230,7 @@ export function UserWorkspaces({ user: u, workspaces, notify, reload }: UserProp
           <InviteRow
             key={i.id}
             title={i.workspace_name}
+            workspace
             sub={`Expires ${day(i.expires_at)}`}
             role={i.role}
             onResend={() => void change(() => runAdmin('invitation.resend', { invitationId: i.id }), `Invitation to ${i.workspace_name} sent again.`)}
@@ -317,9 +331,9 @@ export function WorkspaceMembersCard({ workspace: w, users, notify, reload }: Wo
               key={m.member_id}
               title={name}
               sub={m.email}
+              lead="person"
               avatarUrl={m.avatar_url}
               role={m.role}
-              locked={m.role === 'owner' ? 'The owner: make someone else the owner first' : undefined}
               removeLabel={`Remove ${name}`}
               onRole={role => void change(() => runAdmin('membership.setRole', { memberId: m.member_id, role }), `${name} is now ${role}.`)}
               onRemove={() => runner.pick(RemoveConfirm(name, w.name, async keepAccount => { await runAdmin('membership.remove', { memberId: m.member_id, keepAccount }); await refresh() }))}
