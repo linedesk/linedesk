@@ -29,7 +29,7 @@ const ASK_TIMES = 'ask which day and time suit the caller, put that in the messa
  * handled by the owner's urgent rules (transfer contacts, flag_urgent).
  */
 export const emergencyRule = (country = 'US'): string =>
-  `Emergencies (danger to people, fire, a break-in, a gas smell): tell the caller to hang up and call ${emergencyNumberOf(country)} right away, before anything else. A problem that puts nobody in danger is not one of these, even when the caller calls it an emergency: handle it as urgent.`
+  `Emergencies (danger to people, fire, a break-in, a gas smell): tell the caller to hang up and call ${emergencyNumberOf(country)} right away, before anything else. Damage to a home, a car or equipment is not one of these, even when the caller says it is an emergency: never send it to ${emergencyNumberOf(country)}; flag the call as urgent and take a message.`
 
 /** The emergency rule of a US workspace (emergencyRule). */
 export const EMERGENCY_RULE = emergencyRule('US')
