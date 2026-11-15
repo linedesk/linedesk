@@ -2,18 +2,27 @@
 
 Linedesk handles phone calls, recordings, transcripts and calendar access for businesses, so we take reports seriously.
 
-## Reporting a vulnerability
-
-Please do not open a public issue. Instead:
-
-- Email **SECURITY_CONTACT_PLACEHOLDER** (address to be added before the repository is public), or
-- use GitHub's "Report a vulnerability" button on the Security tab of this repository.
-
-Include what you found, how to reproduce it, and the version or commit you tested. We confirm receipt within 3 working days, keep you updated while we fix it, and credit you in the release notes unless you prefer otherwise. Please give us a reasonable time to ship a fix before you disclose anything publicly.
-
 ## Supported versions
 
-Until 1.0, only the latest release and `master-dev` get security fixes.
+Only the latest release gets security fixes. Before you report, check that the issue is still there in the latest release (or on `master-dev`, which becomes the next one). Self-hosters: update to the latest release to get a fix.
+
+## Reporting a vulnerability
+
+Please report privately. Do not open a public issue, pull request or discussion.
+
+- Email **security@linedesk.ai**. It reaches the maintainers directly.
+- Or use GitHub private vulnerability reporting ("Report a vulnerability" on the repository's Security tab), where it is enabled.
+
+Include what you found, how to reproduce it, the version or commit you tested, and what an attacker could do with it. Please don't access or change other people's data, and don't test against installs you don't run yourself; your own self-hosted install is the place to try things.
+
+## What to expect
+
+- We confirm receipt within 3 working days.
+- Within 10 working days we tell you whether we can reproduce it and how serious we think it is.
+- We keep you updated while we fix it, ship the fix in a release, and credit you in the release notes unless you prefer otherwise.
+- Please give us a reasonable time to ship a fix before you disclose anything publicly; we agree on a date with you.
+
+There is no bug bounty: we can't pay for reports.
 
 ## Scope
 
