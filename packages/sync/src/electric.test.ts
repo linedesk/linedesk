@@ -246,3 +246,76 @@ describe('tables that are not live', () => {
     stopLive()
   })
 })
+
+describe('a fresh refresh', () => {
+  // The review build: a device had no phone numbers while the cursor said the table was up to date, so a read from
+  // the cursor brought nothing. A fresh read loads the whole table and replaces what the device has.
+  it('reads the whole table from the start, also when a read is running, and answers who waited for that one', async () => {
+    const { streams, createStream } = fakeStreams()
+    const adapter = electricAdapter('', { createStream, liveTables: [], pollMs: 60_000 })
+    const local = memorySink()
+    const stop = adapter.start('phone_numbers', local.sink)
+    await eventually(() => expect(streams).toHaveLength(1))
+    streams[0]!.send([insert('pn_1'), upToDate])
+    expect(local.cursor()).toBeTruthy()
+    local.rows.clear() // the device lost the rows, the cursor stayed
+
+    let plain = false
+    void Promise.resolve(adapter.refresh?.(['phone_numbers'])).then(() => {
+      plain = true
+    })
+    await eventually(() => expect(streams).toHaveLength(2))
+    expect(streams[1]!.options).toMatchObject({ handle: 'h0' }) // from the cursor: it would bring nothing
+    let fresh = false
+    void Promise.resolve(adapter.refresh?.(['phone_numbers'], { fresh: true })).then(() => {
+      fresh = true
+    })
+    await eventually(() => expect(streams).toHaveLength(3))
+    expect(streams[2]!.options.handle).toBeUndefined()
+    expect(streams[2]!.options.offset).toBeUndefined()
+    streams[1]!.send([insert('stale'), upToDate]) // the dropped read: nothing of it applies
+    expect(local.rows.has('stale')).toBe(false)
+    expect([plain, fresh]).toEqual([false, false])
+    streams[2]!.send([insert('pn_1'), upToDate])
+    await eventually(() => expect([plain, fresh]).toEqual([true, true]))
+    expect([...local.rows.keys()]).toEqual(['pn_1'])
+    stop()
+  })
+})
+
+describe('a hidden page', () => {
+  // Electric's client pauses a stream while document.hidden. The leading tab is often in the background, and every
+  // other tab of the workspace gets its rows from it: it has to keep reading.
+  it('keeps reading: the leading tab reads for the other tabs even in the background', async () => {
+    const doc = globalThis as { document?: unknown }
+    const before = doc.document
+    doc.document = { hidden: true, visibilityState: 'hidden', addEventListener() {}, removeEventListener() {} }
+    const asked: string[] = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      asked.push(String(input))
+      return new Response('[]', { status: 500 })
+    }) as typeof fetch
+    const store = memorySink()
+    const stop = electricAdapter('http://linedesk.test', { workspaceId: 'ws_a', liveTables: [] }).start(
+      'phone_numbers',
+      store.sink,
+    )
+    try {
+      await eventually(() => expect(asked.some(url => url.includes('/v1/shape/phone_numbers'))).toBe(true))
+    } finally {
+      stop()
+      globalThis.fetch = realFetch
+      doc.document = before
+    }
+  })
+
+  it('tells Electric the page is always visible', () => {
+    const { streams, createStream } = fakeStreams()
+    const stop = electricAdapter('', { createStream }).start('calls', memorySink().sink)
+    return eventually(() => {
+      const options = streams[0]?.options as { runtimeVisibility?: { getCurrentState?: () => string } } | undefined
+      expect(options?.runtimeVisibility?.getCurrentState?.()).toBe('visible')
+    }).finally(stop)
+  })
+})

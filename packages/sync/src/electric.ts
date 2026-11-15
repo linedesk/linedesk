@@ -1,6 +1,13 @@
-import { FetchError, isChangeMessage, isControlMessage, ShapeStream, type Row } from '@electric-sql/client'
+import {
+  FetchError,
+  isChangeMessage,
+  isControlMessage,
+  type Row,
+  type RuntimeVisibilityAdapter,
+  ShapeStream,
+} from '@electric-sql/client'
 import type { TableName } from '@linedesk/db/types'
-import type { ReadSyncAdapter, TableSink } from './adapter.ts'
+import type { ReadSyncAdapter, RefreshOptions, TableSink } from './adapter.ts'
 import { inOrder, type RowChange } from './ordered.ts'
 import { type PageScope, refusalOf, workspaceRequestHeaders, workspaceStateOf } from './refusal.ts'
 
@@ -43,6 +50,17 @@ type Options = {
 /** Shape requests yield to everything else the page asks for (writes, admin actions). */
 const LOW: RequestInit = { priority: 'low' } as RequestInit
 
+/**
+ * Read sync runs in one tab for all tabs of the workspace (tabs.ts), and that tab is often in the background. Electric's
+ * client pauses a stream while its page is hidden; then the leading tab read nothing, every visible tab waited on it
+ * (it still answered pings), and a table not on this device yet stayed empty: the setup page's "Set up forwarding"
+ * spun forever. So the streams never pause: a hidden leading tab reads on for the others.
+ */
+export const alwaysVisible: RuntimeVisibilityAdapter = {
+  getCurrentState: () => 'visible',
+  subscribe: () => () => {},
+}
+
 /** A table's shape URL. With the workspace in it, every workspace's shape has its own URL, so Electric's per-URL state (expired handles) never mixes workspaces. */
 export const shapeUrl = (api: string, table: TableName, workspaceId?: string) =>
   `${api}/v1/shape/${table}${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`
@@ -66,12 +84,12 @@ export const electricAdapter = (
   { createStream = o => new ShapeStream(o), delayMs = restartDelayMs, liveTables, pollMs = 60_000, workspaceId, account }: Options = {},
 ): ReadSyncAdapter => {
   /** Re-checks of the tables that are not live, by table. Each resolves once the table is read up to date. */
-  const pokes = new Map<TableName, () => Promise<void>>()
+  const pokes = new Map<TableName, (fresh: boolean) => Promise<void>>()
   return {
     name: 'electric',
     // A live table needs no refresh: its long-poll brings every change as it happens.
-    refresh: async tables => {
-      await Promise.all([...pokes].filter(([t]) => !tables || tables.includes(t)).map(([, poke]) => poke()))
+    refresh: async (tables, { fresh = false }: RefreshOptions = {}) => {
+      await Promise.all([...pokes].filter(([t]) => !tables || tables.includes(t)).map(([, poke]) => poke(fresh)))
     },
     start(table, sink) {
       const live = !liveTables || liveTables.includes(table)
@@ -82,6 +100,8 @@ export const electricAdapter = (
       let again = false
       /** Who waits for a read that starts after they asked (resolved at its up-to-date). */
       let waiting: (() => void)[] = []
+      /** Who waits for the read running now. */
+      let serving: (() => void)[] = []
       let attempt = 0
       let abort: AbortController | null = null
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -102,7 +122,8 @@ export const electricAdapter = (
         abort = controller
         reading = !live
         again = false
-        const serving = waiting
+        const mine = waiting
+        serving = mine
         waiting = []
         const stream = createStream({
           url: shapeUrl(api, table, workspaceId),
@@ -120,6 +141,7 @@ export const electricAdapter = (
             return res
           },
           signal: controller.signal,
+          runtimeVisibility: alwaysVisible,
           subscribe: live,
           offset: cursor?.offset as never,
           handle: cursor?.handle,
@@ -128,7 +150,7 @@ export const electricAdapter = (
           onError: error => {
             if (controller.signal.aborted || stopped) return
             controller.abort()
-            waiting = [...serving, ...waiting] // the next read answers them
+            waiting = [...mine.splice(0), ...waiting] // the next read answers them
             // Signed out, or not this tab's workspace any more: retrying cannot help, the store stops and says so.
             const refusal = error instanceof FetchError ? refusalOf(error.status, error.json) : null
             if (refusal) {
@@ -138,15 +160,15 @@ export const electricAdapter = (
             restartLater(isStaleCursor(error))
           },
         })
-        follow(stream, sink, !cursor, () => {
+        follow(stream, sink, !cursor, controller.signal, () => {
           attempt = 0
-          for (const done of serving.splice(0)) done()
+          for (const done of mine.splice(0)) done()
           if (live) return
           // Read up to date: check again later (or sooner, on focus or after a write).
           reading = false
           clearTimeout(timer)
           if (again) return void begin(false)
-          timer = setTimeout(() => void poke(), pollMs)
+          timer = setTimeout(() => void poke(false), pollMs)
         })
       }
       /**
@@ -154,10 +176,16 @@ export const electricAdapter = (
        * the change the caller waits for, so another follows it. Resolves once a read that started
        * after the call is up to date.
        */
-      function poke(): Promise<void> {
+      function poke(fresh: boolean): Promise<void> {
         if (stopped) return Promise.resolve()
         const done = new Promise<void>(resolve => waiting.push(resolve))
-        if (reading) again = true
+        if (fresh) {
+          // The read running now (if any) continues from the cursor: drop it, its waiters are answered by this one.
+          waiting = [...serving.splice(0), ...waiting]
+          abort?.abort()
+          clearTimeout(timer)
+          void begin(true)
+        } else if (reading) again = true
         else {
           clearTimeout(timer)
           void begin(false)
@@ -172,7 +200,7 @@ export const electricAdapter = (
         clearTimeout(timer)
         abort?.abort()
         if (pokes.get(table) === poke) pokes.delete(table)
-        for (const done of waiting.splice(0)) done() // nobody waits for a table that stopped
+        for (const done of [...serving.splice(0), ...waiting.splice(0)]) done() // nobody waits for a table that stopped
       }
     },
   }
@@ -183,11 +211,13 @@ function follow(
   stream: Pick<ShapeStream<Row<unknown>>, 'subscribe' | 'lastOffset' | 'shapeHandle'>,
   sink: TableSink,
   fresh: boolean,
+  signal: AbortSignal,
   onUpToDate: () => void,
 ) {
   let replacing = fresh
   let buffer: Row<unknown>[] = []
   stream.subscribe(messages => {
+    if (signal.aborted) return // replaced by another read (or stopped): what it still delivers is not applied
     const changes: RowChange<Row<unknown>>[] = []
     for (const m of messages) {
       if (isChangeMessage(m)) {

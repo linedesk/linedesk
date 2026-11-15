@@ -4,7 +4,7 @@
 // With several tabs open, one tab leads: it sends the outbox and runs read sync (see tabs.ts).
 import { actions, applyLocally, type ActionResult, type LocalTables } from '@linedesk/actions'
 import { tableNames, type TableName, type Tables } from '@linedesk/db/types'
-import type { ReadSyncAdapter, TableSink } from './adapter.ts'
+import type { ReadSyncAdapter, RefreshOptions, TableSink } from './adapter.ts'
 import { type LocalDb, openLocalDb } from './idb.ts'
 import {
   keepsPendingWrites,
@@ -213,7 +213,7 @@ export async function createStore(opts: StoreOptions) {
   /** This tab's ping to the leader that is waiting for an answer: its id. */
   let pinging: string | null = null
   /** This tab's refreshes the leader is reading for, by request id. */
-  const askedLeader = new Map<string, { tables?: readonly TableName[]; answered: () => void }>()
+  const askedLeader = new Map<string, { tables?: readonly TableName[]; fresh?: true; answered: () => void }>()
   let lastSeq = 0
   let snapshot: Snapshot
   let previousTables: LocalTables | null = null
@@ -553,16 +553,18 @@ export async function createStore(opts: StoreOptions) {
     void flush()
   }
 
-  /** The leading tab reads the tables now; resolves once they are up to date. */
-  async function readNow(tables?: readonly TableName[]) {
-    await opts.adapter.refresh?.(tables)
+  /** The leading tab reads the tables now (`fresh`: from the start); resolves once they are up to date. */
+  async function readNow(tables?: readonly TableName[], fresh?: boolean) {
+    if (fresh) await opts.adapter.refresh?.(tables, { fresh } satisfies RefreshOptions)
+    else await opts.adapter.refresh?.(tables)
   }
 
   /** A tab that does not lead asks the leader to read; resolves when the leader says it has. */
-  function askLeader(tables?: readonly TableName[]): Promise<void> {
+  function askLeader(tables?: readonly TableName[], fresh?: boolean): Promise<void> {
     const id = crypto.randomUUID()
-    const answered = new Promise<void>(resolve => askedLeader.set(id, { tables, answered: resolve }))
-    tabs.post({ type: 'refresh', id, ...(tables ? { tables: [...tables] } : {}) })
+    const ask = { tables, ...(fresh ? { fresh: true as const } : {}) }
+    const answered = new Promise<void>(resolve => askedLeader.set(id, { ...ask, answered: resolve }))
+    tabs.post({ type: 'refresh', id, ...(tables ? { tables: [...tables] } : {}), ...(fresh ? { fresh: true } : {}) })
     checkLeader()
     return answered
   }
@@ -596,18 +598,26 @@ export async function createStore(opts: StoreOptions) {
    * Reads the tables that are not followed live again now (all, or these), in whichever tab leads.
    * With `wait`, the tables show as loading until then (at most `refreshWaitMs`): for a change made
    * outside the outbox whose rows this tab has not got, so the UI never shows the state from before.
+   * With `fresh`, the tables are read from the start and replace what this device has (RefreshOptions): for rows
+   * missing here although the table counts as up to date. Resolves true once the tables were read up to date, false
+   * when that took longer than `refreshWaitMs` (the server or the leading tab did not answer in time) or the store
+   * has stopped.
    */
-  async function refresh(tables?: readonly TableName[], { wait = false }: { wait?: boolean } = {}) {
-    if (stopped || refused) return
+  async function refresh(
+    tables?: readonly TableName[],
+    { wait = false, fresh = false }: { wait?: boolean } & RefreshOptions = {},
+  ): Promise<boolean> {
+    if (stopped || refused) return false
     if (!tables) refreshedAt = Date.now()
     const waited = wait ? (tables ?? tableNames) : []
     if (waited.length) markRefreshing(waited, 1)
     let timer: ReturnType<typeof setTimeout> | undefined
-    const capped = new Promise<void>(resolve => {
-      timer = setTimeout(resolve, opts.refreshWaitMs ?? REFRESH_WAIT_MS)
+    const capped = new Promise<false>(resolve => {
+      timer = setTimeout(() => resolve(false), opts.refreshWaitMs ?? REFRESH_WAIT_MS)
     })
     try {
-      await Promise.race([leading ? readNow(tables) : askLeader(tables), capped])
+      const read = (leading ? readNow(tables, fresh) : askLeader(tables, fresh)).then(() => !stopped)
+      return await Promise.race([read, capped])
     } finally {
       clearTimeout(timer)
       if (waited.length && !stopped) markRefreshing(waited, -1)
@@ -648,7 +658,7 @@ export async function createStore(opts: StoreOptions) {
     } else if (m.type === 'workspace-state') workspaceState = m.state
     else if (m.type === 'read-sync' && !leading) readSyncDown = m.down
     else if (m.type === 'refresh') {
-      if (leading) void readNow(m.tables).then(() => tabs.post({ type: 'refreshed', id: m.id }))
+      if (leading) void readNow(m.tables, m.fresh).then(() => tabs.post({ type: 'refreshed', id: m.id }))
       return
     } else if (m.type === 'refreshed') {
       askedLeader.get(m.id)?.answered()
@@ -681,7 +691,7 @@ export async function createStore(opts: StoreOptions) {
     // What this tab asked the leader before (it was not leading yet, or the leader closed): read it now.
     for (const [id, ask] of askedLeader) {
       askedLeader.delete(id)
-      void readNow(ask.tables).then(ask.answered)
+      void readNow(ask.tables, ask.fresh).then(ask.answered)
     }
     void flush()
   }

@@ -244,4 +244,42 @@ describe('two tabs on one workspace', () => {
     expect([a.syncing(), b.syncStarted()]).toEqual([true, false])
     first.stop(); second.stop()
   })
+
+  // The setup page's "Set up forwarding" waited forever for a number the leading tab never read (its streams were
+  // paused in the background): a refresh says whether the tables were read, so the page can say so instead.
+  it('a refresh says whether the leader read the tables in time', async () => {
+    let reads = 0
+    const { tab } = browser()
+    const a = tab({ refresh: async () => { reads++ } })
+    const first = await a.store
+    const b = tab({ refreshWaitMs: 50 })
+    const second = await b.store
+    expect(await second.refresh(['phone_numbers'])).toBe(true)
+    expect(reads).toBeGreaterThan(0)
+    first.stop(); second.stop()
+
+    const hung = browser()
+    const c = hung.tab({ refresh: () => new Promise<void>(() => {}) }) // answers pings, never finishes a read
+    const third = await c.store
+    const d = hung.tab({ refreshWaitMs: 50 })
+    const fourth = await d.store
+    expect(await fourth.refresh(['phone_numbers'])).toBe(false)
+    third.stop(); fourth.stop()
+  })
+
+  it('a fresh refresh asked in another tab reaches the leader as fresh', async () => {
+    const asked: unknown[][] = []
+    const { tab } = browser()
+    const a = tab({ refresh: async (...args: unknown[]) => void asked.push(args) })
+    const first = await a.store
+    const b = tab({ refreshWaitMs: 1000 })
+    const second = await b.store
+    await eventually(() => expect(asked.length).toBeGreaterThan(0)) // the second tab opened
+    asked.length = 0
+    expect(await second.refresh(['phone_numbers'], { fresh: true })).toBe(true)
+    expect(asked).toEqual([[['phone_numbers'], { fresh: true }]])
+    expect(await second.refresh(['phone_numbers'])).toBe(true)
+    expect(asked[1]).toEqual([['phone_numbers']])
+    first.stop(); second.stop()
+  })
 })

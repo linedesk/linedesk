@@ -6,8 +6,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { ManageNumber } from '../settings/PhoneNumbers.tsx'
 import { useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
-import { StoreProvider, useAssistants, useRows } from '../store.tsx'
+import { StoreProvider, useAssistants, useRows, useStore } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
+import { sectionHash } from '../ui/SettingsLayout.tsx'
+import { isForwarded, type NumberMissing, waitForForwardedNumber } from './forwarded-number.ts'
 
 /** The workspace the business steps are about, as this tab works in it (the store and requests act there). */
 export type SetupWorkspace = { id: string; account: string }
@@ -171,14 +173,49 @@ export function SetupForwarding({
 }
 
 function ForwardingDialog({ busy, onClose }: { busy: ReactNode; onClose: () => void }) {
-  const number = useRows('phone_numbers').find(n => n.mode === 'forward_conditional' || n.mode === 'forward_all')
+  const number = useRows('phone_numbers').find(isForwarded)
   const assistants = useAssistants()
-  // The numbers arrive with the store's first sync: until then the button stays busy.
-  if (!number) return busy
+  const store = useStore()
+  // The numbers may still be on their way (read sync): the button stays busy a few seconds at most, then says why.
+  const [missing, setMissing] = useState<NumberMissing | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  // Waits again when the number stops forwarding while the dialog is open (its use changed to a number of its own).
+  const found = Boolean(number)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is Try again: it waits once more
+  useEffect(() => {
+    if (found) return
+    setMissing(null)
+    const wait = waitForForwardedNumber(store)
+    void wait.done.then(setMissing)
+    return wait.cancel
+  }, [store, attempt, found])
+  if (number)
+    return (
+      <>
+        {busy}
+        <ManageNumber number={number} assistants={assistants} canEdit onClose={onClose} />
+      </>
+    )
+  if (missing) return <ForwardingMissing missing={missing} onRetry={() => setAttempt(n => n + 1)} />
+  return busy
+}
+
+/** In place of "Set up forwarding" when its dialog cannot open: why, and where the numbers are. */
+export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing; onRetry: () => void }) {
   return (
-    <>
-      {busy}
-      <ManageNumber number={number} assistants={assistants} canEdit onClose={onClose} />
-    </>
+    <span className="as-small" role="status">
+      {missing === 'none' ? 'No forwarded number in this workspace.' : "Your phone numbers didn't load."}{' '}
+      {missing === 'not_loaded' && (
+        <>
+          <button type="button" className="k-link" onClick={onRetry}>
+            Try again
+          </button>
+          {' · '}
+        </>
+      )}
+      <a className="k-link" href={sectionHash('workspace', 'phone')}>
+        Settings › Phone numbers
+      </a>
+    </span>
   )
 }

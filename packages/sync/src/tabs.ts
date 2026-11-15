@@ -25,8 +25,8 @@ export type TabMessage =
   | { type: 'read-sync'; down: boolean }
   /** The leader heard from the server whether the workspace is disabled. */
   | { type: 'workspace-state'; state: WorkspaceState }
-  /** A tab asks the leader to read these tables (all when absent) again now. */
-  | { type: 'refresh'; id: string; tables?: TableName[] }
+  /** A tab asks the leader to read these tables (all when absent) again now; `fresh`: from the start (RefreshOptions). */
+  | { type: 'refresh'; id: string; tables?: TableName[]; fresh?: true }
   /** The leader has read the tables of that request up to date; their rows were posted before this. */
   | { type: 'refreshed'; id: string }
   /** A tab checks that the leader still answers (a frozen or hung tab keeps the lead without doing anything). */
