@@ -141,7 +141,7 @@ describe('telnyx adapter', () => {
     const { provider, calls } = mockTelnyx(telnyxAccount())
     const numbers = await provider.searchNumbers({ country: 'US', areaCode: '503', limit: 5 })
     expect(numbers).toEqual([{ e164: NUMBER, locality: 'PORTLAND', region: 'OR', monthlyCost: '1.00', currency: 'USD' }])
-    expect(calls[0]!.path).toBe('/available_phone_numbers?filter[country_code]=US&filter[features][]=voice&filter[limit]=5&filter[national_destination_code]=503')
+    expect(calls[0]!.path).toBe('/available_phone_numbers?filter[country_code]=US&filter[features][]=voice&filter[limit]=5&filter[best_effort]=false&filter[national_destination_code]=503')
     expect(calls[0]!.auth).toBe('Bearer KEY')
   })
 
@@ -153,7 +153,7 @@ describe('telnyx adapter', () => {
       expect(await provider.searchNumbers({ country, areaCode, limit: 5 })).toHaveLength(1)
       expect(calls.map(c => c.path)).toEqual([
         `/regulatory_requirements?filter[country_code]=${country}&filter[phone_number_type]=local&filter[action]=ordering`,
-        `/available_phone_numbers?filter[country_code]=${country}&filter[features][]=voice&filter[limit]=5&filter[national_destination_code]=${areaCode}`,
+        `/available_phone_numbers?filter[country_code]=${country}&filter[features][]=voice&filter[limit]=5&filter[best_effort]=false&filter[national_destination_code]=${areaCode}`,
       ])
     }
   })
@@ -181,6 +181,70 @@ describe('telnyx adapter', () => {
     await expect(failed).rejects.toThrow(/^telnyx: /)
     await expect(failed).rejects.toMatchObject({ status: 500, code: undefined })
     expect(calls.map(c => c.path.split('?')[0])).toEqual(['/regulatory_requirements'])
+  })
+
+  test('only the row for local numbers and ordering in the country counts: porting rules do not refuse a purchase', async () => {
+    const { provider, calls } = mockTelnyx(c =>
+      c.path.startsWith('/regulatory_requirements')
+        ? { json: { data: [
+            { country_code: 'CA', phone_number_type: 'local', action: 'porting', regulatory_requirements: [{ name: 'Letter of authorization', field_type: 'document' }] },
+            { country_code: 'CA', phone_number_type: 'toll_free', action: 'ordering', regulatory_requirements: [{ name: 'Address', field_type: 'address' }] },
+            { country_code: 'CA', phone_number_type: 'local', action: 'ordering', regulatory_requirements: [] },
+          ] } }
+        : telnyxAccount()(c),
+    )
+    expect(await provider.searchNumbers({ country: 'CA', areaCode: '416', limit: 5 })).toHaveLength(1)
+    expect(calls.map(c => c.path.split('?')[0])).toEqual(['/regulatory_requirements', '/available_phone_numbers'])
+  })
+
+  describe('a search that finds nothing', () => {
+    let warnings: string[]
+    beforeEach(() => {
+      warnings = []
+      vi.spyOn(console, 'warn').mockImplementation((message: unknown) => void warnings.push(String(message)))
+    })
+    afterEach(() => vi.restoreAllMocks())
+
+    const searchAnswers = (answer: { status?: number; json: unknown }) =>
+      mockTelnyx(c =>
+        c.path.startsWith('/regulatory_requirements') ? { json: { data: [] } }
+          : c.path.startsWith('/available_phone_numbers') ? answer
+            : telnyxAccount()(c),
+      )
+
+    test('Telnyx answers an area code without free numbers with HTTP 400 (10031): an empty search, in the log', async () => {
+      const { provider, calls } = searchAnswers({ status: 400, json: { errors: [{ code: '10031', title: 'Invalid request filter', detail: 'No numbers found for the given filters' }] } })
+      expect(await provider.searchNumbers({ country: 'CA', areaCode: '416', limit: 5 })).toEqual([])
+      expect(calls.map(c => c.path.split('?')[0])).toEqual(['/regulatory_requirements', '/available_phone_numbers'])
+      expect(warnings).toEqual(['telnyx: no number found for CA area code 416: No numbers found for the given filters (10031)'])
+    })
+
+    test('no coverage in the country (10015) is an empty search too', async () => {
+      const { provider } = searchAnswers({ status: 400, json: { errors: [{ code: 10015, detail: 'No coverage found in the specified country' }] } })
+      expect(await provider.searchNumbers({ country: 'PR', areaCode: '787' })).toEqual([])
+      expect(warnings).toEqual(['telnyx: no number found for PR area code 787: No coverage found in the specified country (10015)'])
+    })
+
+    test('any other 400 with those codes stays an error', async () => {
+      for (const errors of [
+        [{ code: '10031', detail: 'The request filter filter[foo] is invalid.' }],
+        [{ code: '10015', detail: 'The request failed because it was not well-formed.' }],
+        [{ code: '10031', detail: 'No numbers found for the given filters' }, { code: '10005', detail: 'Resource not found' }],
+      ]) {
+        const { provider } = searchAnswers({ status: 400, json: { errors } })
+        await expect(provider.searchNumbers({ country: 'CA', areaCode: '416' })).rejects.toMatchObject({ status: 400, code: undefined })
+      }
+      expect(warnings).toEqual([])
+    })
+
+    test('best-effort results (numbers near the area code, not in it) are never offered', async () => {
+      const { provider, calls } = searchAnswers({ json: { data: [
+        { phone_number: '+16475550100', best_effort: true },
+        { phone_number: '+14165550100', best_effort: false },
+      ] } })
+      expect((await provider.searchNumbers({ country: 'CA', areaCode: '416' })).map(n => n.e164)).toEqual(['+14165550100'])
+      expect(calls[1]!.path).toContain('filter[best_effort]=false')
+    })
   })
 
   test('a US search asks for no requirements', async () => {

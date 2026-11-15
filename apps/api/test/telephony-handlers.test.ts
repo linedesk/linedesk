@@ -2,9 +2,9 @@
 // passed in, inside a transaction that is rolled back. Part of the Postgres-backed API suite.
 import { actions, rolePermissions } from '@linedesk/actions'
 import { calls, number_purchases, phone_numbers, type Tx, workspace_settings } from '@linedesk/db'
-import { devProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
+import { createTelnyxProvider, devProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { eq, inArray, sql } from 'drizzle-orm'
-import { afterEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, onTestFinished, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
@@ -486,7 +486,33 @@ describe('telephony handlers', () => {
           throw new TelephonyError('telnyx', 'POST /number_orders: Insufficient balance', 402)
         },
       })
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
       await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow('telnyx: POST /number_orders: Insufficient balance (HTTP 402)')
+      // The app shows most of these in general words: the carrier's answer is in the server log too.
+      expect(logged).toHaveBeenCalledWith('carrier request refused: telnyx: POST /number_orders: Insufficient balance (HTTP 402)')
+    }))
+
+    test('Telnyx has no free number in Toronto\'s 416 (HTTP 400, 10031): "no number available", nothing ordered or counted', () => inRollback(async tx => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
+      onTestFinished(() => void vi.unstubAllEnvs())
+      await tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'America/Toronto', country: 'CA' })
+      const paths: string[] = []
+      const telnyxApi: typeof fetch = async (url, init) => {
+        const path = decodeURIComponent(String(url).replace('https://api.telnyx.com/v2', ''))
+        paths.push(`${init?.method} ${path.split('?')[0]}`)
+        if (path.startsWith('/regulatory_requirements')) return Response.json({ data: [] })
+        if (path.startsWith('/available_phone_numbers'))
+          return Response.json({ errors: [{ code: '10031', title: 'Invalid request filter', detail: 'No numbers found for the given filters' }] }, { status: 400 })
+        return Response.json({ errors: [{ detail: `unexpected ${path}` }] }, { status: 500 })
+      }
+      const account = createTelnyxProvider({ apiKey: 'KEY', fetch: telnyxApi, wait: async () => {} })
+      const error = await setup(tx, { areaCode: '416', purchase: true }, account).catch(e => e)
+      expect(error).toBeInstanceOf(Reject)
+      // The app's "No number is free in that area code right now. Try a nearby one." (phoneSetupErrorText).
+      expect(error.message).toBe('no number available in area code 416')
+      expect(paths).toEqual(['GET /regulatory_requirements', 'GET /available_phone_numbers'])
+      expect(await purchases(tx)).toEqual([])
     }))
   })
 

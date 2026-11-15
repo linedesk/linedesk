@@ -36,6 +36,29 @@ const statusByEvent: Record<string, CallStatus> = {
 
 const fail = (message: string, status?: number, code?: TelephonyErrorCode) => new TelephonyError('telnyx', message, status, code)
 
+/** A Telnyx answer that was not 2xx, with Telnyx's own error codes (`errors[].code`), so a caller can tell known answers apart. */
+export class TelnyxApiError extends TelephonyError {
+  readonly errors: { code: string; detail: string }[]
+
+  constructor(message: string, status: number, errors: { code: string; detail: string }[]) {
+    super('telnyx', message, status)
+    this.errors = errors
+  }
+}
+
+/**
+ * Telnyx's answer to a number search that matches nothing: HTTP 400 with one of these codes and details, not an empty
+ * list. 10031 when a filter (an area code without free numbers, such as Toronto's 416) matches no number; 10015 when
+ * the account has no coverage in the country. Both codes are also used for other bad requests, so the detail counts too.
+ */
+const NO_INVENTORY: Record<string, string> = {
+  '10031': 'No numbers found',
+  '10015': 'No coverage found',
+}
+const isNoInventory = (e: unknown) =>
+  e instanceof TelnyxApiError && e.status === 400 && e.errors.length > 0 &&
+  e.errors.every(({ code, detail }) => NO_INVENTORY[code] !== undefined && detail.startsWith(NO_INVENTORY[code]!))
+
 /** Telnyx's carrier type ("mobile", "fixed line", "voip", "toll free") or portability line type ("wireless", "landline"). */
 export function telnyxLineType(type: unknown): LineType {
   const text = typeof type === 'string' ? type.toLowerCase() : ''
@@ -73,7 +96,10 @@ export function telnyxRequest(apiKey: string, doFetch: typeof fetch = fetch, tim
       if (signal.aborted) throw fail(`${where}: Telnyx did not answer within ${timeoutMs / 1000} s`)
       throw e
     }
-    if (!res.ok) throw fail(`${where}: ${json.errors?.[0]?.detail ?? json.errors?.[0]?.title ?? res.statusText}`, res.status)
+    if (!res.ok) {
+      const errors = (Array.isArray(json.errors) ? (json.errors as Json[]) : []).map(e => ({ code: String(e?.code ?? ''), detail: String(e?.detail ?? e?.title ?? '') }))
+      throw new TelnyxApiError(`${where}: ${json.errors?.[0]?.detail ?? json.errors?.[0]?.title ?? res.statusText}`, res.status, errors)
+    }
     return json
   }
 }
@@ -161,7 +187,11 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   async function orderingRequirements(country: string): Promise<string[]> {
     const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[phone_number_type]': 'local', 'filter[action]': 'ordering' })
     const { data } = await request('GET', `/regulatory_requirements?${query}`)
-    return ((data ?? []) as Json[]).flatMap(r => ((r.regulatory_requirements ?? []) as Json[]).map(q => String(q.name ?? q.field_type)))
+    // Only the row for exactly this country, local numbers and ordering: porting rules (Canada asks for an LOA) are not
+    // asked for a purchase.
+    const rows = ((data ?? []) as Json[]).filter(r =>
+      (r.country_code ?? country) === country && (r.phone_number_type ?? 'local') === 'local' && (r.action ?? 'ordering') === 'ordering')
+    return rows.flatMap(r => ((r.regulatory_requirements ?? []) as Json[]).map(q => String(q.name ?? q.field_type)))
   }
 
   /**
@@ -193,10 +223,18 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
         if (needs.length)
           throw fail(`local numbers in ${country} need ${needs.join(', ')} at Telnyx, which Linedesk cannot submit yet`, undefined, 'country_requirements')
       }
-      const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[features][]': 'voice', 'filter[limit]': String(limit) })
+      // No best-effort results (US and Canada): those are numbers near the area code, not in it.
+      const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[features][]': 'voice', 'filter[limit]': String(limit), 'filter[best_effort]': 'false' })
       if (areaCode) query.set('filter[national_destination_code]', areaCode)
-      const { data } = await request('GET', `/available_phone_numbers?${query}`)
-      return ((data ?? []) as Json[]).map((n): AvailableNumber => {
+      const answer = await request('GET', `/available_phone_numbers?${query}`).catch((e: unknown) => {
+        if (!isNoInventory(e)) throw e
+        // No free number there: an empty search, which the app tells as such. Telnyx's words stay in the log.
+        const why = (e as TelnyxApiError).errors.map(x => `${x.detail} (${x.code})`).join('; ')
+        console.warn(`telnyx: no number found for ${country}${areaCode ? ` area code ${areaCode}` : ''}: ${why}`)
+        return null
+      })
+      if (!answer) return []
+      return ((answer.data ?? []) as Json[]).filter(n => n.best_effort !== true).map((n): AvailableNumber => {
         const region = (type: string) => n.region_information?.find((r: Json) => r.region_type === type)?.region_name
         return {
           e164: n.phone_number, locality: region('rate_center') ?? region('location'), region: region('state'),

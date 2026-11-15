@@ -171,7 +171,11 @@ async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
       console.error(`phone setup: ${e.message}`)
       throw new Reject(e.code === 'country_requirements' ? NUMBERS_NEED_DOCUMENTS : NUMBER_NOT_ACTIVATED)
     }
-    throw new Reject(e.status ? `${e.message} (HTTP ${e.status})` : e.message)
+    const reason = e.status ? `${e.message} (HTTP ${e.status})` : e.message
+    // The app shows most refusals in general words ("couldn't be connected"): the carrier's own answer goes to the server
+    // log too, so a failed purchase can be told from the log (its words, never the key).
+    console.error(`carrier request refused: ${reason}`)
+    throw new Reject(reason)
   }
 }
 
