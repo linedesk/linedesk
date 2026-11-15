@@ -96,7 +96,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   )
   const title = t('team.invite.join', { workspace: invite.workspaceName })
 
-  if (!account && codeSent) return <CodeStep email={invite.email} onDone={afterSignIn} onDifferentEmail={() => setCodeSent(false)} />
+  if (!account && codeSent) return <CodeStep email={invite.email} supportEmail={methods.links.supportEmail} invited onDone={afterSignIn} onDifferentEmail={() => setCodeSent(false)} />
   if (!account) {
     return (
       <SignInForInvite title={title} lead={lead} email={invite.email} methods={methods} busy={busy} error={errorLine} attempt={attempt}

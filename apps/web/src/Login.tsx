@@ -4,7 +4,7 @@
 // unknown address is told to ask for an invitation; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
-import { authErrorMessage, authFormError, CODE_LENGTH, noAccountText, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -169,7 +169,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 
   if (step === 'code') {
-    return <CodeStep email={form.email} onDone={onDone} onDifferentEmail={() => go('start')} />
+    return <CodeStep email={form.email} supportEmail={methods.links.supportEmail} onDone={onDone} onDifferentEmail={() => go('start')} />
   }
 
   if (step === 'reset') {
@@ -406,10 +406,18 @@ function LegalLinksLine({ links }: { links: LegalLinks }) {
   return <nav className="auth-legal" aria-label={t('auth.legalLabel')}>{items}</nav>
 }
 
-type CodeStepProps = { email: string; onDone: () => Promise<void>; onDifferentEmail: () => void }
+type CodeStepProps = {
+  email: string
+  /** SUPPORT_EMAIL of this install: named under "No code after a minute?" when set. */
+  supportEmail?: string | null
+  /** Signing in from an invitation: the address may sign in, so the line does not send them to ask for one. */
+  invited?: boolean
+  onDone: () => Promise<void>
+  onDifferentEmail: () => void
+}
 
 /** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
-export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
+export function CodeStep({ email, supportEmail, invited = false, onDone, onDifferentEmail }: CodeStepProps) {
   const t = useT()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -473,7 +481,17 @@ export function CodeStep({ email, onDone, onDifferentEmail }: CodeStepProps) {
         {waitS > 0
           ? <p className="auth-note">{t('auth.code.wait', { seconds: waitS })}</p>
           : <button type="button" className="auth-switch" onClick={() => void resend()}>{t('auth.code.resend')}</button>}
-        <p className="auth-note">{t('auth.code.none', { help: noAccountText() })}</p>
+        {/* No open sign-up: an address without an account gets no code (apps/api/src/signup-gate.ts). The same line
+            for every address, so the page does not tell whether this one has an account. */}
+        <p className="auth-note">
+          {t('auth.code.none', { help: t(invited ? 'auth.code.noneHelpInvited' : 'auth.code.noneHelp') })}
+          {supportEmail && (
+            <>
+              {' '}
+              <T k="auth.writeTo" values={{ email: supportEmail, a: chunks => <a className="k-link" href={`mailto:${supportEmail}`}>{chunks}</a> }} />
+            </>
+          )}
+        </p>
         <button type="button" className="auth-switch" onClick={onDifferentEmail}>{t('auth.differentEmail')}</button>
       </form>
     </AuthPage>
