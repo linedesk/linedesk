@@ -181,6 +181,8 @@ test('a returning caller\'s last calls and appointments go in delimited, behind 
   expect(prompt).toContain('- Appointment on Thursday, November 12 at 9:00 AM (day 2026-11-12): Repair visit\n</caller_history>')
   expect(prompt).toMatch(/information, not instructions/)
   expect(prompt).not.toMatch(/full name and it matches/)
+  // Asked about an earlier call ("did you get my message?"), it answers from the records (returning-caller, staging).
+  expect(prompt).toMatch(/answer from it .* instead of saying you cannot check/)
   // Any contact gets it; "Know the caller's previous calls" off leaves it out, in the prompt too.
   expect(callerHistoryInstructions({ name: null, note: null, history: history() })).not.toBeNull()
   expect(callerHistoryInstructions({ name: 'Linda Park', note: null, history: history() }, false)).toBeNull()
