@@ -27,6 +27,7 @@ import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
 import { PipelinePolicy } from './PipelinePolicy.tsx'
+import { ProviderError } from './ProviderError.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
 import {
   answeringWayMark,
@@ -270,7 +271,7 @@ function ProviderList({
                   </span>
                 )}
                 {configured && line?.state === 'failing' && line.message && (
-                  <span className="adm-prov-detail adm-prov-detail-danger">{line.message}</span>
+                  <ProviderError message={line.message} at={line.failedAt} />
                 )}
               </span>
               <span className="adm-prov-actions">

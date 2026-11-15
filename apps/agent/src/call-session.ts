@@ -6,6 +6,8 @@ import {
   callFinish,
   callRecordTimings,
   callReportVoiceFailure,
+  providerReportOk,
+  type ProviderName,
   type ReportVoiceFailureData,
   callStart,
   callStartTest,
@@ -89,6 +91,8 @@ export interface CallSession {
   recordTimings(timings: CallTimings): Promise<void>
   /** Marks the call with a failed stage of the voice pipeline (call.reportVoiceFailure); the failure as kept, refined. */
   reportVoiceFailure?(failure: VoiceFailure): Promise<VoiceFailure>
+  /** Providers that worked on this call (provider.reportOk): a failure recorded for them before is over. */
+  reportProvidersOk?(providers: ProviderName[]): Promise<void>
 }
 
 /** The replies' times of one call and who did each part (call.recordTimings without the call id). */
@@ -298,6 +302,9 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     async reportVoiceFailure(failure) {
       const result = await api.run(callReportVoiceFailure, { callId, failure }, scope)
       return (result.data as ReportVoiceFailureData | undefined)?.failure ?? failure
+    },
+    async reportProvidersOk(providers) {
+      if (providers.length) await api.run(providerReportOk, { providers }, scope)
     },
   }
 }

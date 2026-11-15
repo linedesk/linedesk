@@ -86,6 +86,21 @@ describe('record and clear', () => {
     expect((await mine()).map(f => f.provider)).toEqual(['gmail'])
   })
 
+  test('a per-call race (two replies at once) is not the provider failing: not recorded, no email, old rows hidden', async () => {
+    const race = {
+      reason: 'unknown' as const,
+      message:
+        'Conversation already has an active response in progress: resp_1. {"code":"conversation_already_has_active_response"}',
+    }
+    expect(await recordProviderFailure(db, 'groq', race, 'agent')).toMatchObject({ alerted: false })
+    expect(await mine()).toEqual([])
+    expect(alerts.sent).toHaveLength(0)
+    // A row recorded before this rule: read as no failure.
+    const at = new Date().toISOString()
+    await db.insert(provider_failures).values({ provider: 'groq', ...race, source: 'agent', since: at, last_at: at, count: 1 })
+    expect(await mine()).toEqual([])
+  })
+
   test('a long message is cut; the email has no links', async () => {
     const long = { reason: 'unknown' as const, message: `see https://evil.example/x ${'x'.repeat(400)}` }
     await recordProviderFailure(db, 'mistral', long, 'llm', { diagnose: async () => null })

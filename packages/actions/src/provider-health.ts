@@ -157,6 +157,47 @@ export function providerFailureReasonOfText(text: string): ProviderFailureReason
   return providerFailureReason({ status, text })
 }
 
+/**
+ * Errors about one call's conversation, caused by how our voice agent drove it, not by the provider: the realtime
+ * model refusing a second reply while one is still running, or a cancel with nothing to cancel. The provider works
+ * (the call goes on), so these are logged and counted, never recorded as the provider failing (LIN-249).
+ */
+const PER_CALL_ERROR =
+  /conversation_already_has_active_response|already has an active response|response_cancel_not_active|Cancellation failed: no active response/i
+export const isPerCallProviderError = (text: string) => PER_CALL_ERROR.test(text)
+
+/** The longest short error line (providerErrorSummary). */
+export const PROVIDER_ERROR_SUMMARY_MAX = 120
+
+/** Known error codes in a provider's text, said for people (one line each). */
+const SUMMARIES: [RegExp, string][] = [
+  [PER_CALL_ERROR, 'A call sent two replies at once. Calls still work.'],
+  [QUOTA, "The provider's limit or credit is used up."],
+  [/\b429\b|rate[_ ]limit|too many requests/i, "The provider's limit or credit is used up."],
+  [
+    /\b401\b|invalid[_ ]?(api[_ ]?)?key|incorrect api key|unauthori[sz]ed|key rejected|rejected the key/i,
+    'The API key is not accepted.',
+  ],
+]
+
+/**
+ * A provider's error text as one short human line (at most PROVIDER_ERROR_SUMMARY_MAX characters): a known code in
+ * plain words, else the text's first sentence without any JSON or ids after it. The full text is for "Details".
+ */
+export function providerErrorSummary(text: string): string {
+  const known = SUMMARIES.find(([pattern]) => pattern.test(text))
+  if (known) return known[1]
+  // Up to the first JSON object or array: what follows is the provider's raw answer.
+  const prose = text
+    .split(/\s[{[]/, 1)[0]!
+    .replace(/\s+/g, ' ')
+    .trim()
+  // The first sentence: up to ". " followed by a capital, or the end.
+  const sentence = (/^.*?[.!?](?=\s+[A-Z]|$)/.exec(prose)?.[0] ?? prose).trim()
+  const line = sentence || 'The provider returned an error.'
+  return line.length > PROVIDER_ERROR_SUMMARY_MAX ? `${line.slice(0, PROVIDER_ERROR_SUMMARY_MAX - 1).trimEnd()}…` : line
+}
+
 /** Reasons that only say something went wrong at the provider, not that something there must be fixed. */
 export const passingProviderFailure = (reason: ProviderFailureReason) =>
   reason === 'network' || reason === 'timeout' || reason === 'no_output' || reason === 'unknown'

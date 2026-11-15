@@ -548,6 +548,13 @@
 .adm-provcat {
   display: grid;
   gap: 10px;
+  /* Never wider than its column, whatever a provider's error says (LIN-249). */
+  min-width: 0;
+  max-width: 100%;
+}
+.adm-provcat > *,
+.adm-provlists > * {
+  min-width: 0;
 }
 .adm-provcat h2 {
   display: flex;
@@ -1193,6 +1200,40 @@
 .adm-prov-detail-danger {
   color: var(--danger);
 }
+/* A provider's error (ProviderError): one line with an ellipsis, the full text only under Details. It never widens
+   its card or column: the line is cut, the full text wraps anywhere (long ids, JSON without spaces). */
+.adm-prov-error {
+  display: block;
+  flex-basis: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12.5px;
+  line-height: 17px;
+  color: var(--danger);
+}
+.adm-prov-error-line {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.adm-prov-error-details > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+.adm-prov-error-full {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+.adm-prov-error-full time {
+  font-variant-numeric: tabular-nums;
+}
 /* A confirmation's list of what it affects (deleting a workspace). */
 .adm-confirm-list {
   margin: 0;
@@ -1213,8 +1254,12 @@
   margin: 0;
   font-size: 13px;
 }
-.adm-group-status .adm-prov-detail {
+.adm-group-status .adm-prov-detail,
+.adm-group-status .adm-prov-error {
   flex-basis: 100%;
+}
+.adm-group-status {
+  min-width: 0;
 }
 .adm-provsub {
   margin: 4px 0 0;

@@ -112,3 +112,16 @@ test('a turn that only called tools that do not exist or with wrong arguments is
   )
   expect(report.mock.calls[0]![0]).toMatchObject({ stage: 'llm', reason: 'no_output' })
 })
+
+test('two replies at once on a realtime call is counted, not reported as the provider failing', () => {
+  const session = new EventEmitter()
+  const report = vi.fn()
+  const onCallError = vi.fn()
+  watchVoicePipeline(session as never, { realtime: 'openai_realtime' }, report, [], onCallError)
+  const cause = Object.assign(new Error('Conversation already has an active response in progress: resp_1.'), {
+    body: { type: 'invalid_request_error', code: 'conversation_already_has_active_response' },
+  })
+  session.emit(E.Error, { error: { type: 'realtime_model_error', label: 'x', error: cause, recoverable: true, timestamp: 0 } })
+  expect(report).not.toHaveBeenCalled()
+  expect(onCallError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ stage: 'realtime', provider: 'openai_realtime' }))
+})

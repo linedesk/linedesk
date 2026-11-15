@@ -6,7 +6,14 @@
 // muted; words only for a problem. The details fold away once everything works; a failing group a call needs makes the
 // headline "Calls are not answered" with the reason. The install walkthrough shows the same rows (StatusList) without
 // links: it never navigates away (design rule 14).
-import { type GroupStatus, overviewGroups, readiness, type StatusState, statusText } from '@linedesk/actions'
+import {
+  type GroupStatus,
+  overviewGroups,
+  providerErrorSummary,
+  readiness,
+  type StatusState,
+  statusText,
+} from '@linedesk/actions'
 import { useState } from 'react'
 import { refreshQuery } from '../cachedQuery.ts'
 import { HelpTip } from '../ui/form.tsx'
@@ -67,10 +74,11 @@ export const serverRows = (health: AdminHealth | null): Row[] =>
       id: key,
       label,
       state,
-      mark: !status ? 'Checking…' : status.ok ? 'Responding' : `Failing: ${status.message}`,
+      // The status word once in the mark; the error once, short, under the name, its full text behind the (?).
+      mark: !status ? 'Checking…' : status.ok ? 'Responding' : 'Failing',
       value: failing || (status?.ok && quietWhenOk.includes(key)) ? null : (status?.message ?? null),
-      problem: failing ? status.message : null,
-      help: null,
+      problem: failing ? providerErrorSummary(status.message) : null,
+      help: failing && providerErrorSummary(status.message) !== status.message.trim() ? status.message : null,
       href: '#admin/system',
     }
   })

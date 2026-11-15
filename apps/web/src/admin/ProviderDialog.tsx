@@ -31,6 +31,7 @@ import {
 import { errorText } from './notify.ts'
 import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
 import { stepUpRefusalText } from './PasskeyStepUp.tsx'
+import { ProviderError } from './ProviderError.tsx'
 import { StatusWords } from './ProviderGroup.tsx'
 import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx'
 import { testedAgo } from './providerStatus.ts'
@@ -299,7 +300,7 @@ export function ProviderDialog(props: Props) {
           {phase === 'testing' ? 'Testing…' : <StatusWords status={line} />}
           {phase !== 'testing' && testedAgo(line.testedAt) ? ` · ${testedAgo(line.testedAt)}` : ''}
           {phase !== 'testing' && line.state === 'failing' && line.message && !result ? (
-            <span className="adm-prov-detail adm-prov-detail-danger">{line.message}</span>
+            <ProviderError message={line.message} at={line.failedAt} />
           ) : null}
         </p>
       )}

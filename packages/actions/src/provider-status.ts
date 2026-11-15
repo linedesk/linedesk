@@ -169,7 +169,8 @@ export const statusWords: Record<StatusState, string> = {
 }
 /** "Failing: Key rejected", "Partly works: voice missing", "Works". */
 export const statusText = (s: { state: StatusState; detail: string | null }) =>
-  s.detail && (s.state === 'failing' || s.state === 'partly')
+  // The word once: a detail that only repeats it ("Failing: Failing") is left out.
+  s.detail && (s.state === 'failing' || s.state === 'partly') && s.detail !== statusWords[s.state]
     ? `${statusWords[s.state]}: ${s.detail}`
     : statusWords[s.state]
 
@@ -215,6 +216,8 @@ export type ProviderLine = {
   /** The longer text: a test's result, a failure's message with its fix. */
   message: string | null
   testedAt: string | null
+  /** When the failure it shows happened (the recorded failure's latest, or the failing test's time). */
+  failedAt?: string | null
 }
 export type GroupStatus = {
   id: ProviderGroupId
@@ -270,12 +273,14 @@ export function providerLine(fact: ProviderFact, failures: readonly FailureFact[
     return {
       ...base,
       state: 'failing',
-      detail: providerFailureReasonLabels[failure.reason],
+      // An unknown reason adds nothing to "Failing".
+      detail: failure.reason === 'unknown' ? null : providerFailureReasonLabels[failure.reason],
       message: failure.message,
       testedAt,
+      failedAt: failure.last_at,
     }
   if (!test) return { ...base, state: 'untested', detail: null, message: 'Keys set, not tested yet', testedAt }
-  if (!test.ok) return { ...base, state: 'failing', detail: null, message: test.message, testedAt }
+  if (!test.ok) return { ...base, state: 'failing', detail: null, message: test.message, testedAt, failedAt: test.at }
   return { ...base, state: 'works', detail: null, message: testMessage(fact.provider, test.message), testedAt }
 }
 

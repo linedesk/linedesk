@@ -1,4 +1,4 @@
-import { groupSpec, type ProviderName, providerNames, providerSpec } from '@linedesk/actions'
+import { groupSpec, type ProviderFailure, type ProviderName, providerNames, providerSpec, statusText } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import type { ActiveProviders, AdminData, AdminHealth, ProviderStatus } from './api.ts'
 import {
@@ -146,7 +146,7 @@ test('why a group is there is help on demand, and not again inside the walkthrou
   expect(groupNote(email)).toBeNull()
   expect(groupHelp(email)).toBe(groupSpec('email').why)
   expect(groupHelp(email, true)).toBeNull()
-  // A problem is a visible line, on the page and in the walkthrough.
+  // A failing provider says it on its own card (ProviderError), not again in a line above it.
   const failing = groupOf(
     providerStatus(
       data(['resend'], { tests: { resend: { ...passed, ok: false, message: 'Resend rejected the key.' } } }),
@@ -155,7 +155,32 @@ test('why a group is there is help on demand, and not again inside the walkthrou
     ),
     'email',
   )
-  expect(groupNote(failing)).toBe('Resend rejected the key.')
+  expect(groupNote(failing)).toBeNull()
+  expect(groupProblem(failing)).toEqual({ line: 'The API key is not accepted.', detail: 'Resend rejected the key.' })
+})
+
+test('a raw realtime error: "Failing" once, no line above the card, a short line on the overview', () => {
+  const raw =
+    'Conversation already has an active response in progress: resp_DfQ9xXkT2ab. Wait until the response is finished before creating a new one. {"type":"invalid_request_error","code":"conversation_already_has_active_response","message":"Conversation already has an active response in progress: re'
+  const failure: ProviderFailure = {
+    provider: 'resend',
+    category: 'email',
+    label: 'Resend',
+    reason: 'unknown',
+    message: raw,
+    source: 'agent',
+    since: '2026-11-15T01:00:00.000Z',
+    last_at: '2026-11-15T01:00:00.000Z',
+    count: 1,
+    workspace_id: null,
+    call_id: null,
+  }
+  const status = providerStatus(data(['resend'], { tests: { resend: passed }, providerFailures: [failure] }), {}, health)
+  const email = groupOf(status, 'email')
+  expect(status.lines.resend).toMatchObject({ state: 'failing', detail: null, failedAt: failure.last_at })
+  expect(statusText(status.lines.resend)).toBe('Failing')
+  expect(groupNote(email)).toBeNull()
+  expect(groupProblem(email)).toEqual({ line: 'A call sent two replies at once. Calls still work.', detail: raw })
 })
 
 test('a group heading shows a status only for a problem: failing, partly, or not set up while calls need it', () => {

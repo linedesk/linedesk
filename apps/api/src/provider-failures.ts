@@ -15,6 +15,7 @@ import {
   type ProviderAudience,
   type ProviderCategory,
   type ProviderName,
+  isPerCallProviderError,
   passingProviderFailure,
   providerFailureReasonLabels,
   providerNames,
@@ -121,6 +122,11 @@ export async function recordProviderFailure(
   source: ProviderFailureSource,
   { scope = {}, now = new Date(), diagnose = diagnoseProvider }: RecordOptions = {},
 ): Promise<ProviderProblem & { alerted: boolean }> {
+  // A race in one call's conversation (two replies at once) is ours, not the provider failing: logged, not recorded.
+  if (isPerCallProviderError(reported.message)) {
+    console.warn(`${provider}: per-call error, not recorded as a provider failure: ${clip(reported.message)}`)
+    return { reason: reported.reason, message: clip(reported.message), alerted: false }
+  }
   const problem = source === 'test' ? reported : await refineProblem(provider, reported, diagnose)
   const at = now.toISOString()
   const message = clip(problem.message)
@@ -156,7 +162,8 @@ export async function clearProviderFailures(tx: Tx, providers: readonly Provider
 export async function listProviderFailures(tx: Tx): Promise<ProviderFailure[]> {
   const rows = await tx.select().from(provider_failures)
   return rows
-    .filter(row => isProvider(row.provider))
+    // Older rows of a per-call race (before LIN-249 they were recorded): not a provider failure.
+    .filter(row => isProvider(row.provider) && !isPerCallProviderError(row.message))
     .map(row => {
       const provider = row.provider as ProviderName
       const { label, category } = providerSpec(provider)

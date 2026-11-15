@@ -15,6 +15,7 @@ import { type AgentConfig, type CallConfig, isRealtime, llmDefaults, type Realti
 import type { GreetingVoice } from './greeting-cache.ts'
 import { quotedData } from './prompt.ts'
 import type { CompleteJson } from './summary.ts'
+import { type GatedSession, gateReplies, type RealtimeReplyGate } from './realtime-replies.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
 /**
@@ -215,6 +216,8 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
 export type RealtimeEvents = {
   on(event: 'openai_client_event_queued' | 'openai_server_event_received', listener: (event: { type?: string }) => void): unknown
   sendEvent(event: object): void
+  /** One reply at a time (realtime-replies.ts): every reply asked for waits until the model is not answering. */
+  replies: RealtimeReplyGate
 }
 
 /** The realtime model, handing each session it opens to `onSession` (one per call, again after a reconnect). */
@@ -226,7 +229,8 @@ class ObservedRealtimeModel extends openai.realtime.RealtimeModel {
   }
   override session(...args: Parameters<openai.realtime.RealtimeModel['session']>) {
     const session = super.session(...args)
-    this.#onSession?.(session as unknown as RealtimeEvents)
+    const replies = gateReplies(session as unknown as GatedSession)
+    this.#onSession?.(Object.assign(session, { replies }) as unknown as RealtimeEvents)
     return session
   }
 }

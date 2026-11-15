@@ -37,8 +37,8 @@ test('a part with a problem says it in full under its name, not cut off at the r
   expect(row).toMatchObject({
     mark: 'Failing: Key rejected',
     value: null,
-    problem: 'OpenAI rejected the key.',
-    help: null,
+    problem: 'The API key is not accepted.',
+    help: 'OpenAI rejected the key.',
   })
   // Not set up: the words alone at the right, no problem line.
   expect(groupRow(group({ state: 'missing', message: 'x' }))).toMatchObject({ value: 'Not set up', problem: null })
@@ -73,5 +73,12 @@ test('the server parts: a mark alone while the API and read sync respond, the vo
   expect(agent).toMatchObject({ state: 'works', value: 'Checked in 26 s ago.' })
   const down = serverRows({ ...health, readSync: { ok: false, message: "Electric can't be reached." } })[1]
   expect(down).toMatchObject({ state: 'failing', value: null, problem: "Electric can't be reached." })
+  // "Failing" once in the mark; a long raw error is one short line, its full text behind the (?).
+  const raw = `Socket closed by the server. {"error":"${'x'.repeat(300)}"}`
+  expect(serverRows({ ...health, agent: { ok: false, message: raw } })[2]).toMatchObject({
+    mark: 'Failing',
+    problem: 'Socket closed by the server.',
+    help: raw,
+  })
   expect(serverRows(null).map(r => r.state)).toEqual(['checking', 'checking', 'checking'])
 })

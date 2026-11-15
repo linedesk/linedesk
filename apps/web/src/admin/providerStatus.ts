@@ -13,6 +13,7 @@ import {
   type ProviderLine,
   type ProviderName,
   type ProviderTestData,
+  providerErrorSummary,
   providerLine,
   providerNames,
   type StatusGroups,
@@ -90,6 +91,8 @@ export function providerStatus(
  * or is half set up. Why the group is there is help on demand (groupHelp), behind the (?) next to the heading.
  */
 export function groupNote(group: GroupStatus): string | null {
+  // A provider that fails says so on its own card (ProviderError): the error once, never again above it (LIN-249).
+  if (group.state === 'failing' && group.parts.some(p => p.state === 'failing')) return null
   const problem = groupProblem(group)
   if (problem) return problem.line
   if (group.message && group.state !== 'works' && group.state !== 'off') return group.message
@@ -153,7 +156,10 @@ export function groupProblem(group: GroupStatus): { line: string; detail: string
   if (group.id === 'call-audio') {
     return { line: "LiveKit can't be reached, so calls have no audio.", detail: server && `${server}.` }
   }
-  return { line: group.message ?? statusText(group), detail: null }
+  // One short line (a provider's raw error never: providerErrorSummary); the full text behind the (?).
+  if (!group.message) return { line: statusText(group), detail: null }
+  const line = group.state === 'failing' ? providerErrorSummary(group.message) : group.message
+  return { line, detail: line === group.message.trim() ? null : group.message }
 }
 
 export function groupValue(group: GroupStatus): string | null {

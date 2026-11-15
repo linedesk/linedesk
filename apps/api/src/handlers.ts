@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -634,6 +634,8 @@ const handlers: Record<string, Handler> = {
   // and reason.
   'call.reportVoiceFailure': async ({ tx, actor, now }, input: { callId: string; failure: VoiceFailure }) => {
     const call = await loadCall(tx, actor, input.callId)
+    // A race in the call's own conversation (two replies at once): the call went on, nothing to keep (LIN-249).
+    if (isPerCallProviderError(input.failure.message)) return { rows: {}, data: { failure: input.failure } }
     // One failure model (LIN-111): the stage's provider is failing for the whole install too (Admin › Providers, one
     // email per streak). A vague reason comes back refined by the provider's own test, and that is what the call keeps
     // and the agent shows on the test call.

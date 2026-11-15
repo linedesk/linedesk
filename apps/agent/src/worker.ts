@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type VoiceFailure, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -340,14 +340,36 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     })
   }) : pipeline!)
   // Any stage that fails marks the call and shows on a test call, instead of silence.
+  const stageProviders: Partial<Record<VoiceStage, ProviderName>> = stages
+    ? { stt: stages.stt.provider, llm: stages.llm.provider, tts: ttsFor(stages.tts, call.assistant?.voice).provider }
+    : { realtime: realtime!.provider }
+  const failedStages = new Set<VoiceStage>()
+  // Races in the call's own conversation (two replies at once): logged and counted, the provider stays OK (LIN-249).
+  let callErrors = 0
   watchVoicePipeline(
     session,
-    stages
-      ? { stt: stages.stt.provider, llm: stages.llm.provider, tts: ttsFor(stages.tts, call.assistant?.voice).provider }
-      : { realtime: realtime!.provider },
-    onceEachStage(failure => reportVoiceFailure(ctx.room, call, log, failure)),
+    stageProviders,
+    onceEachStage(failure => {
+      failedStages.add(failure.stage)
+      reportVoiceFailure(ctx.room, call, log, failure)
+    }),
     stages ? [stages.stt.apiKey, stages.llm.apiKey, stages.tts.apiKey] : [realtime!.apiKey],
+    failure => {
+      callErrors++
+      console.warn(`call ${call.callId}: ${voiceStageNames[failure.stage]} ${failure.provider} refused a reply (per-call, not a provider failure): ${failure.message}`)
+    },
   )
+  // A call the assistant answered in: the providers of every stage that did not fail worked, so a failure recorded for
+  // them before (Server admin › Providers) is over.
+  session.on(voice.AgentSessionEventTypes.Close, () => {
+    if (callErrors) console.log(`call ${call.callId}: ${callErrors} per-call realtime error(s), provider not marked failing`)
+    if (!log.replies.length) return
+    const worked = Object.entries(stageProviders)
+      .filter(([stage]) => !failedStages.has(stage as VoiceStage))
+      .map(([, provider]) => provider)
+    void call.reportProvidersOk?.([...new Set(worked)])
+      .catch(e => console.warn(`could not report working providers for call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`))
+  })
   if (stages) retryEmptyReplies(session)
   const voiceOfLines = lineVoiceOf(config, call.assistant)
   const realtimeLines = realtime ? { model: () => realtimeSession, callerTurns: () => callerTurns, languages } : null
@@ -482,7 +504,17 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     // A realtime model has no voice provider: it says the greeting itself. A greeting with the caller's details waits for
     // them (at most GREETING_WAIT_MS) and goes to the model filled in; its instructions never hold that greeting (prompt.ts).
     const details = personalGreeting ? await within(callerDetails, GREETING_WAIT_MS, null) : null
-    session.generateReply({ instructions: realtimeLine(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call)) })
+    const replies = realtimeLines?.model()?.replies
+    if (replies?.serverReplies()) return setup.note('dropped: the realtime model already answered the caller')
+    const askedBefore = replies?.asked() ?? 0
+    const greeting = session.generateReply({ instructions: realtimeLine(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call)) })
+    // The caller spoke first and the model answered them before the greeting went out: that answer opens the call, and
+    // the greeting is dropped instead of following it (or colliding with it: two replies at once). Only while it was
+    // not sent yet: interrupting a sent one would cancel the model's answer.
+    const stop = replies?.onReply(byServer => {
+      stop?.()
+      if (byServer && replies.asked() === askedBefore) greeting.interrupt()
+    })
     return setup.note('spoken by the realtime model')
   }
   setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))

@@ -2,6 +2,7 @@
 // model), and however it fails (an error, or an answer with nothing usable in it), becomes one VoiceFailure
 // (@linedesk/actions), logged once and handed to `report` (the worker marks the call and tells a test call's browser).
 import {
+  isPerCallProviderError,
   type ProviderName,
   type VoiceFailure,
   type VoiceStage,
@@ -85,13 +86,17 @@ export function watchVoicePipeline(
   providers: Partial<Record<VoiceStage, ProviderName>>,
   report: (failure: VoiceFailure) => void,
   secrets: string[] = [],
+  /** A race in the call's own conversation (two replies at once): ours, not the provider failing; counted, not reported. */
+  onCallError: (failure: VoiceFailure) => void = () => {},
 ) {
   session.on(voice.AgentSessionEventTypes.Error, ev => {
     const stage = stageOfError[ev.error.type]
     const provider = stage && providers[stage]
     if (!stage || !provider) return
     const cause = 'error' in ev.error ? ev.error.error : ev.error
-    report(voiceFailureOf(stage, provider, cause, secrets))
+    const failure = voiceFailureOf(stage, provider, cause, secrets)
+    if (isPerCallProviderError(failure.message)) onCallError(failure)
+    else report(failure)
   })
   session.on(voice.AgentSessionEventTypes.MetricsCollected, ({ metrics }) => {
     if (metrics.type !== 'llm_metrics' || metrics.cancelled || metrics.ttftMs >= 0 || !providers.llm) return
