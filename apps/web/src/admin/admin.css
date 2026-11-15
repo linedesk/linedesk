@@ -723,12 +723,8 @@
 }
 .adm-ready-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-}
-.adm-ready-head > .k-mark {
-  align-self: flex-start;
-  margin-top: 3px;
 }
 .adm-ready-text {
   flex: 1;
@@ -1218,11 +1214,11 @@
   margin: 0;
 }
 /* The agent setup as a quiet line under the overview's status. */
-/* The text's first line and the buttons share one centre line; the buttons wrap below when the text needs the room. */
+/* Text and buttons share one centre line (design rule 19); the buttons wrap below when the text needs the room. */
 .adm-agent-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
@@ -1230,7 +1226,6 @@
 }
 .adm-agent-line .help {
   flex: 1 1 240px;
-  padding-top: calc((var(--control-h-sm, 28px) - 18px) / 2);
   line-height: 18px;
 }
 /* Try it (TryOut.tsx): a real round trip in the provider's dialog. */
