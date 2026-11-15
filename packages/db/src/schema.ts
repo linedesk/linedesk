@@ -772,6 +772,10 @@ export const commands = pgTable(
     index('commands_unpruned_created').on(t.created_at).where(sql`${t.pruned_at} is null`),
     index('commands_unpruned_input').using('gin', t.input.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
     index('commands_unpruned_result').using('gin', t.result.op('jsonb_path_ops')).where(sql`${t.pruned_at} is null`),
+    // Server admin › Audit log (apps/api/src/audit.ts): the audited actions, impersonation and setup-link entries.
+    index('commands_action_created').on(t.action, t.created_at),
+    index('commands_impersonated_created').on(t.created_at).where(sql`${t.impersonated_by} is not null`),
+    index('commands_setup_key_created').on(t.created_at).where(sql`${t.setup_key_id} is not null`),
   ],
 )
 

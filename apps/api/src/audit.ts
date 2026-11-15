@@ -170,6 +170,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'provider.connectOneKey': 'keys',
   'carrier.set': 'keys',
   'carrier.provisionTransferTrunk': 'keys',
+  // Install-wide switches a server admin sets for every workspace.
+  'voiceCloning.set': 'admin',
+  'voicePipelinePolicy.set': 'admin',
+  'setupEmails.set': 'admin',
   'user.invite': 'admin',
   'user.disable': 'admin',
   'user.enable': 'admin',
@@ -215,6 +219,11 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'webhook.update': 'integrations',
   'webhook.delete': 'integrations',
   'webhook.test': 'integrations',
+  // Where bookings with callers' details go, and phone numbers (buying one spends money).
+  'calendar.connectFinish': 'integrations',
+  'calendar.disconnect': 'integrations',
+  'phoneNumber.setup': 'integrations',
+  'phoneNumber.release': 'integrations',
   // An AI agent acting as an instance admin: its setup link. confirmPasskey and withdrawPasskey (the Allow step, gone
   // since the one-level setup link) stay listed, so their past entries still show.
   'agentSetup.createKey': 'integrations',
@@ -320,6 +329,8 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
   )
   // Everything done while an admin was signed in as someone else counts as impersonation, whatever the action.
   const withImpersonated = !f.kind || f.kind === 'impersonation'
+  // Everything an AI agent did with a setup link counts as an integration, whatever the action (docs/api.md, Setup MCP).
+  const withSetupKey = !f.kind || f.kind === 'integrations'
   const listed = kindActions.length
     ? sql`c.action in (${sql.join(
         kindActions.map(a => sql`${a}`),
@@ -327,13 +338,15 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       )})`
     : sql`false`
   const commandRows =
-    kindActions.length || withImpersonated
+    kindActions.length || withImpersonated || withSetupKey
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
         c.impersonated_by, c.setup_key_id,
         case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
           else coalesce(c.input->>'workspaceId', c.workspace_id) end as workspace_id,
         c.input, c.result->'data'->'subject'->>'email' as subject_email, c.rejected as refused, null::text as ip_address, 'command' as source
-        from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}`
+        from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}${
+          withSetupKey ? sql` or c.setup_key_id is not null` : sql``
+        }`
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
@@ -380,7 +393,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       at: r.at_iso,
       kind:
         r.source === 'command'
-          ? (AUDITED_ACTIONS[r.what] ?? 'impersonation')
+          ? (AUDITED_ACTIONS[r.what] ?? (r.setup_key_id ? 'integrations' : 'impersonation'))
           : AUTH_EVENT_KIND[r.what as AuthEventName],
       what: r.what,
       method: r.method,

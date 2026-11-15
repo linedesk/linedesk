@@ -140,12 +140,12 @@ app.get('/v1/branding/logo.png', async c => {
 // (`enrolment`, null when admins need no passkey): the first passkey needs no command on the server.
 app.post('/v1/setup', async c => {
   const parsed = setupInput.safeParse(await c.req.json().catch(() => null))
-  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid input' }, 400)
+  if (!parsed.success) return c.json({ ok: false, error: parsed.error.issues[0]?.message ?? 'invalid input' }, 400)
   let made: Awaited<ReturnType<typeof completeSetup>>
   try {
     made = await completeSetup(db, parsed.data, clientIpOf(c))
   } catch (e) {
-    if (e instanceof SetupError) return c.json({ error: e.message }, e.status)
+    if (e instanceof SetupError) return c.json({ ok: false, error: e.message }, e.status)
     throw e
   }
   const { userId, enrolment } = made
@@ -238,12 +238,12 @@ app.get('/v1/openapi.json', c => c.json(openApi))
 
 // MCP for a workspace's own AI tools: API keys only, its own gate (mcp.ts).
 // The size limit applies while the body is read, also to a chunked one without content-length.
-app.use('/mcp', bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ error: 'request too large' }, 413) }))
+app.use('/mcp', bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ ok: false, error: 'request too large' }, 413) }))
 app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c)))
 // Setup MCP for an AI agent setting up the install: setup keys only, in the path or as Bearer (setup-mcp.ts).
 const setupMcpLimit = bodyLimit({
   maxSize: MCP_MAX_BODY_BYTES,
-  onError: c => c.json({ error: 'request too large' }, 413),
+  onError: c => c.json({ ok: false, error: 'request too large' }, 413),
 })
 app.use('/mcp/setup', setupMcpLimit)
 app.use('/mcp/setup/*', setupMcpLimit)

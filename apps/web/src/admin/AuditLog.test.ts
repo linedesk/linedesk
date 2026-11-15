@@ -71,3 +71,45 @@ describe('audit labels', () => {
     expect(label('webhook.update', { enabled: false })).toBe('Changed a webhook')
   })
 })
+
+// A copy of the keys of AUDITED_ACTIONS (apps/api/src/audit.ts): add a new audited action here and give it a label.
+const AUDITED_ACTION_NAMES = [
+  'provider.setKeys', 'provider.clearKeys', 'provider.setActive', 'provider.connectOneKey', 'carrier.set',
+  'carrier.provisionTransferTrunk', 'voiceCloning.set', 'voicePipelinePolicy.set', 'setupEmails.set', 'user.invite',
+  'user.disable', 'user.enable', 'workspace.disable', 'workspace.enable', 'workspace.delete', 'workspace.setSpendingCap',
+  'instanceAdmin.grant', 'instanceAdmin.revoke', 'user.resetPasskeys', 'user.issuePasskeyEnrolment', 'branding.set',
+  'user.impersonate', 'impersonation.stop', 'team.invite', 'team.resendInvite', 'team.revokeInvite', 'team.setRole',
+  'team.transferOwnership', 'team.removeMember', 'team.leave', 'team.updateMemberProfile', 'team.setMemberAvatar',
+  'team.removeMemberAvatar', 'team.updateMemberNotifications', 'workspace.deleteOwn', 'invitation.accept',
+  'invitation.decline', 'membership.add', 'workspace.create', 'membership.setRole', 'membership.remove',
+  'invitation.revoke', 'invitation.resend', 'apiKey.create', 'apiKey.revoke', 'webhook.create', 'webhook.update',
+  'webhook.delete', 'webhook.test', 'calendar.connectFinish', 'calendar.disconnect', 'phoneNumber.setup',
+  'phoneNumber.release', 'agentSetup.createKey', 'agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey',
+  'agentSetup.revoke', 'agentSetup.endOwnAccess',
+]
+
+describe('every audited action reads as words', () => {
+  test.each(AUDITED_ACTION_NAMES)('%s has a label', what => {
+    expect(label(what)).not.toBe(what)
+    expect(label(what, { name: 'Brightwater Plumbing & Heating' }, 'mike@example.com')).not.toBe(what)
+  })
+
+  test('server admin, setup link, calendar and number entries', () => {
+    expect(label('instanceAdmin.grant', { userId: 'u1' })).toBe('Made someone a server admin')
+    expect(label('user.disable', { userId: 'u1' })).toBe('Disabled a user')
+    expect(label('workspace.setSpendingCap', { workspaceId: 'w1', capUsd: 50 })).toBe('Set the spending cap to $50')
+    expect(label('workspace.setSpendingCap', { workspaceId: 'w1', capUsd: null })).toBe('Removed the spending cap')
+    expect(label('workspace.create', { name: 'Brightwater Plumbing & Heating' }, 'mike@example.com')).toBe(
+      'Created the workspace “Brightwater Plumbing & Heating” with owner mike@example.com',
+    )
+    expect(label('workspace.deleteOwn', { name: 'Brightwater Plumbing & Heating' })).toBe(
+      'Owner deleted the workspace “Brightwater Plumbing & Heating”',
+    )
+    expect(label('agentSetup.createKey')).toBe('Created an AI agent setup link')
+    expect(label('calendar.connectFinish', { provider: 'google', state: '[redacted]' })).toBe(
+      'Connected a Google calendar',
+    )
+    expect(label('phoneNumber.setup', { areaCode: '503', purchase: true })).toBe('Bought a phone number')
+    expect(label('phoneNumber.setup', { e164: '+15035550142', purchase: false })).toBe('Connected a phone number')
+  })
+})

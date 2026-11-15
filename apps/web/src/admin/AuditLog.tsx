@@ -17,7 +17,7 @@ const kinds: SelectOption<AuditKind | 'all'>[] = [
   { value: 'admin', label: 'Admin actions' },
   { value: 'team', label: 'Team changes' },
   { value: 'keys', label: 'Provider keys' },
-  { value: 'integrations', label: 'API keys and webhooks' },
+  { value: 'integrations', label: 'API keys, webhooks and AI agent setup' },
   { value: 'impersonation', label: 'Signed in as a user' },
 ]
 
@@ -127,10 +127,66 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return 'Sent a test to a webhook'
     case 'agentSetup.endOwnAccess':
       return 'AI agent ended its own setup link'
+    case 'agentSetup.createKey':
+      return 'Created an AI agent setup link'
+    case 'agentSetup.revoke':
+      return 'Ended AI agent setup links'
+    // The Allow step, gone since the one-level setup link; past entries still show.
+    case 'agentSetup.confirmPasskey':
+      return 'Allowed email and sign-in for an AI agent (old)'
+    case 'agentSetup.withdrawPasskey':
+      return 'Withdrew email and sign-in for an AI agent (old)'
+    case 'provider.connectOneKey':
+      return `Connected ${String(input.provider ?? 'a provider')} with one key`
+    case 'carrier.set':
+      return "Changed the workspace's own carrier account"
+    case 'carrier.provisionTransferTrunk':
+      return 'Set up the transfer line at the carrier'
+    // These take only a user id; the name follows once their handlers keep the subject.
+    case 'user.disable':
+      return 'Disabled a user'
+    case 'user.enable':
+      return 'Enabled a user'
+    case 'instanceAdmin.grant':
+      return 'Made someone a server admin'
+    case 'instanceAdmin.revoke':
+      return 'Removed someone as server admin'
+    case 'workspace.disable':
+      return 'Disabled the workspace'
+    case 'workspace.enable':
+      return 'Enabled the workspace'
+    case 'workspace.setSpendingCap':
+      return input.capUsd == null ? 'Removed the spending cap' : `Set the spending cap to $${String(input.capUsd)}`
+    case 'team.transferOwnership':
+      return `Handed the workspace over to ${who}`
+    case 'workspace.deleteOwn':
+      return withName('Owner deleted the workspace', input.name)
+    case 'workspace.create':
+      return `${withName('Created the workspace', input.name)} with owner ${who}`
+    case 'voiceCloning.set':
+      return 'Changed voice cloning for the server'
+    case 'voicePipelinePolicy.set':
+      return 'Changed who picks how calls are answered'
+    case 'setupEmails.set':
+      return 'Changed the setup emails'
+    case 'calendar.connectFinish':
+      return calendarNames[String(input.provider)]
+        ? `Connected a ${calendarNames[String(input.provider)]} calendar`
+        : 'Connected a calendar'
+    case 'calendar.disconnect':
+      return 'Disconnected a calendar'
+    case 'phoneNumber.setup':
+      return input.purchase ? 'Bought a phone number' : 'Connected a phone number'
+    case 'phoneNumber.release':
+      return 'Released a phone number'
     default:
       return e.what
   }
 }
+
+const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft' }
+/** "Created the workspace “Brightwater”", or without the name when the entry has none. */
+const withName = (text: string, name: unknown) => `${text} ${quoted(name)}`.trim()
 
 /** A webhook URL's host only: its path or query can carry a bearer token (the API sends only the host already). */
 const hostOf = (url: unknown) => {

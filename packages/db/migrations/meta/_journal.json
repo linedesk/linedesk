@@ -659,6 +659,13 @@
       "when": 1794711741298,
       "tag": "0093_workspace_locale",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1794713473827,
+      "tag": "0094_commands_audit_indexes",
+      "breakpoints": true
     }
   ]
 }

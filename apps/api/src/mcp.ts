@@ -58,10 +58,27 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
     ((input: unknown) =>
       guard(def.name, async () => {
         const { body } = await runAction(def.name, input, actor)
-        return body.ok ? answer({ rows: body.rows, ...(body.data ? { data: body.data } : {}) }) : refusal(body.error)
+        if (!body.ok) return refusal(body.error)
+        const payload = { rows: body.rows, ...(body.data ? { data: body.data } : {}) }
+        // Calls, contacts, bookings and the export carry what callers said: same rule as the read tools.
+        return answer(
+          resultCarriesCallerText(def.name, body.rows)
+            ? { untrusted_caller_content: untrustedCallerContent(payload) }
+            : payload,
+        )
       })) as never,
   )
 }
+
+/**
+ * Tables whose rows hold no caller text (ids, kinds, times, what the business wrote). An action result with rows of
+ * any other table comes back inside `untrusted_caller_content`, so a new table is wrapped until it is listed here.
+ */
+export const ROW_TABLES_WITHOUT_CALLER_TEXT: ReadonlySet<string> = new Set(['call_events', 'appointment_types'])
+
+/** Whether an action's result can carry caller text: rows of a table not known to be free of it, or the call export. */
+export const resultCarriesCallerText = (action: string, rows: Record<string, unknown>) =>
+  action === 'call.export' || Object.keys(rows).some(table => !ROW_TABLES_WITHOUT_CALLER_TEXT.has(table))
 
 /**
  * What callers said, and what was written from it (titles, summaries, next steps, contact details),
