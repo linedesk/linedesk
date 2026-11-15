@@ -3,12 +3,11 @@
 import { describe, expect, test } from 'vitest'
 import {
   agentClients,
-  agentSetupAllowHash,
   agentSetupPrompt,
-  allowKeyIdOf,
   installPlace,
   isAgentSetupHash,
   reachableFromCloud,
+  SETUP_KEY_HOURS,
   SETUP_MCP_INSTRUCTIONS,
   setupStepNames,
   shellQuote,
@@ -121,30 +120,38 @@ describe('installPlace', () => {
   })
 })
 
-test('the setup page address with ?allow= names the one key to allow', () => {
-  expect(agentSetupAllowHash('sk_abc123')).toBe('#setup-agent?allow=sk_abc123')
-  expect(allowKeyIdOf(agentSetupAllowHash('sk_abc123'))).toBe('sk_abc123')
-  expect(allowKeyIdOf('#setup-agent')).toBeNull()
-  expect(allowKeyIdOf('#setup-agent?allow=')).toBeNull()
-  expect(allowKeyIdOf('#admin?allow=sk_abc123')).toBeNull()
+test('the setup page address, also an old link with ?allow= (the Allow step is gone), opens the setup page', () => {
   expect(isAgentSetupHash('#setup-agent')).toBe(true)
   expect(isAgentSetupHash('#setup-agent?allow=sk_abc123')).toBe(true)
   expect(isAgentSetupHash('#setup-agents')).toBe(false)
   expect(isAgentSetupHash('#setup-install')).toBe(false)
 })
 
+describe('one access level for the setup link (2026-11-15)', () => {
+  test('the link works for 4 hours, and the prompt and instructions say so', () => {
+    expect(SETUP_KEY_HOURS).toBe(4)
+    expect(agentSetupPrompt(URL)).toContain('stops working after 4 hours')
+    expect(SETUP_MCP_INSTRUCTIONS).toContain('ends after 4 hours')
+  })
+
+  test('nothing tells the agent to wait for an Allow or a PASSKEY_NEEDED answer', () => {
+    for (const text of [agentSetupPrompt(URL), agentSetupPrompt(URL, { connector: true }), SETUP_MCP_INSTRUCTIONS]) {
+      expect(text).not.toMatch(/PASSKEY_NEEDED|Allow with passkey|email_and_sign_in_allowed/)
+      expect(text).not.toContain('24 hours')
+    }
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/email and sign-in included/)
+  })
+})
+
 describe('stepsByGroup', () => {
   test('the steps by part of the setup, in its order, leaving out a part without steps', () => {
-    const step = (id: string, group: 'you' | 'server' | 'business') => ({ id, group })
+    const step = (id: string, group: 'server' | 'business') => ({ id, group })
     const steps = [step('answering', 'server'), step('workspace', 'business'), step('email', 'server')]
     expect(stepsByGroup(steps).map(g => [g.label, g.steps.map(s => s.id)])).toEqual([
       ['This server', ['answering', 'email']],
       ['Workspace', ['workspace']],
     ])
-    expect(stepsByGroup([step('phone', 'business'), step('passkey', 'you')]).map(g => [g.id, g.label])).toEqual([
-      ['you', 'Security'],
-      ['business', 'Workspace'],
-    ])
+    expect(stepsByGroup([step('phone', 'business')]).map(g => [g.id, g.label])).toEqual([['business', 'Workspace']])
   })
 })
 

@@ -25,7 +25,7 @@ import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
 import { AddPasskeyPage } from './AddPasskey.tsx'
-import { passkeySupported, type Me } from './auth.ts'
+import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
 import { brandName } from './brand.ts'
 
@@ -266,7 +266,9 @@ export function App() {
       </ImpersonationFrame>
     )
   }
-  const instanceAdmin = session.me.permissions.includes('instance:admin') && !session.me.impersonation
+  // An instance admin by account, also before this session passed the passkey check: the setup pages are part of
+  // Server admin, so they open on the passkey check (SecondFactorPrompt) until it is done.
+  const instanceAdmin = isInstanceAdmin(session.me) && !session.me.impersonation
   const settingUp = session.me.onboarding && !onboarded
   // The install by hand, step by step (InstallSetup.tsx); leaving it goes on to the business setup.
   if (instanceAdmin && installSetupHash) {
@@ -288,6 +290,18 @@ export function App() {
     const leave = () => {
       if (isAgentSetupHash(window.location.hash)) window.location.hash = ''
     }
+    // Back from the passkey check goes on by hand (naming the business needs no passkey), not back to this page.
+    if (session.me.adminSecondFactor)
+      return (
+        <SecondFactorPrompt
+          state={session.me.adminSecondFactor}
+          onExit={() => {
+            rememberManual(true)
+            setManualSetup(true)
+            leave()
+          }}
+        />
+      )
     return (
       <AgentSetup
         onManual={installFirst => {
@@ -317,7 +331,7 @@ export function App() {
       >
         <TabWorkspaceGuard me={session.me}>
           {/* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */}
-          {session.me.onboarding && !onboarded && !(adminHash && session.me.permissions.includes('instance:admin')) ? (
+          {session.me.onboarding && !onboarded && !(adminHash && isInstanceAdmin(session.me)) ? (
             <Onboarding
               me={session.me}
               state={session.me.onboarding}

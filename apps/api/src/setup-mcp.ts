@@ -10,13 +10,11 @@
 // owner or admin (setupActorIn, LIN-237). Nothing else: no users, admins, other people's workspaces, API keys,
 // impersonation or deleting. Every provider key can be set here (LIN-182: the admin never pastes a key into the app); provider_setKeys
 // runs the free provider test right after saving and returns it, and answers with "set" and the last 4 of a secret,
-// never the secret. Email and sign-in keep the passkey step-up (admin-step-up.ts): only a key the admin confirmed
-// with a passkey changes them, and the refusal tells the agent to ask the admin in the chat. The workspace actions
-// run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
+// never the secret. One access level: the key was made in a session that passed the admin's passkey check, so it sets
+// email and sign-in too, with no second Allow step (Janik, 2026-11-15). The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
 import {
   type ActionDef,
   actions,
-  agentSetupAllowHash,
   callAudioGuide,
   type ForwardingMode,
   forwardingInstructions,
@@ -40,7 +38,6 @@ import {
   setupStepNames,
 } from '@linedesk/actions'
 import {
-  agent_setup_keys,
   assistants,
   calls,
   organization,
@@ -53,15 +50,9 @@ import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { APIError } from 'better-auth/api'
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { adminSecondFactorRequired } from './admin-second-factor.ts'
-import { PASSKEY_STEP_UP_REQUIRED, passkeyStillNeeded, type StepUp } from './admin-step-up.ts'
 import {
-  clientName,
-  emailAndSignInAllowed,
   type ManagedWorkspace,
   managedWorkspaces,
-  noteAllowRequest,
-  type RequestOrigin,
   setupKeyAccess,
   setupActorIn,
   setupKeyEndedResponse,
@@ -122,7 +113,7 @@ const ASK_FIRST: Record<string, string> = {
 /** What the agent is told about a tool on top of the registry's description. */
 const EXTRA: Record<string, string> = {
   'provider.setKeys':
-    "Ask the admin for the key in the chat and pass it here; never ask them to paste it into the app. The answer shows each field as set (secrets only by their last 4) and `test`: the free provider test run right after saving. Email and sign-in providers need the admin's passkey confirmation of this setup link (the refusal says what to ask).",
+    'Ask the admin for the key in the chat and pass it here; never ask them to paste it into the app. The answer shows each field as set (secrets only by their last 4) and `test`: the free provider test run right after saving.',
   'install.setProgress':
     'The install part is marked finished by setup_status once its groups work; use this to skip a part the admin does not want now (skip: "<step>").',
 }
@@ -178,42 +169,8 @@ function oneCreateAtATime<T>(keyId: string, run: () => Promise<T>): Promise<T> {
 
 const refusal = (error: string): ToolResult => ({ content: [{ type: 'text', text: forAgent(error) }], isError: true })
 
-/** How often the agent reads setup_status while it waits for the admin's Allow. */
-const ALLOW_POLL_SECONDS = 10
-
-/** The setup page with Allow for this setup key only (agent-setup.ts confirmPasskey refuses any other key). */
-const allowPage = (keyId: string | undefined) =>
-  `${webAddress()}/${keyId ? agentSetupAllowHash(keyId) : '#setup-agent'}`
-
-/**
- * After PASSKEY_NEEDED: how the agent learns that the admin allowed it, without retrying the refused tool blindly.
- * setup_status is read-only and says `email_and_sign_in_allowed` (setupStatus).
- */
-const WAIT_FOR_ALLOW = `Then wait for them: do not call this tool again yet. Call setup_status { read_only: true } (changes nothing) every ${ALLOW_POLL_SECONDS} seconds or when the admin says they allowed it, until it answers email_and_sign_in_allowed: true (after 15 minutes, stop and ask the admin); then call this tool again with the same values. This setup link keeps working meanwhile.`
-
-/**
- * Email and sign-in decide who can sign in, so changing them needs the admin's passkey (admin-step-up.ts), for an
- * agent too; so does recording storage on this server or a private network (s3-endpoint.ts). What the agent says in
- * the chat: never "paste it in the app", only the one thing a person must do, with the link that allows this key.
- */
-export function passkeyNeeded(stepUp: StepUp | undefined, keyId?: string, reason?: string): string {
-  const page = allowPage(keyId)
-  const why =
-    reason === 'private_endpoint'
-      ? 'a storage endpoint on this server or a private network could reach internal services, so it needs'
-      : 'email and sign-in decide who can sign in, so changing them needs'
-  return stepUp === 'enrol'
-    ? `PASSKEY_NEEDED: ${why} the admin's passkey, and they have none yet. Nothing was stored. Ask the admin in this chat to add one in the browser (you cannot add passkeys): ${addPasskeyHow()} Then ask them to open ${page} and click "Allow with passkey". ${WAIT_FOR_ALLOW} Or skip this for now and go on with the next step.`
-    : `PASSKEY_NEEDED: ${why} the admin's passkey. This setup link does not have it. Nothing was stored. Ask the admin in this chat to open ${page}: a dialog names the setup link; they check it is the one you use, click "Allow with passkey" and confirm with their passkey (no keys to paste). ${WAIT_FOR_ALLOW}`
-}
-
-/**
- * How the admin adds their first passkey, said for the agent. The first admin, made with the setup code, has the
- * enrolment code filled in already in the browser they set up in (app.ts /v1/setup); anyone else needs one.
- */
-function addPasskeyHow(): string {
-  return `open ${webAddress()}/#account/security and click "Add passkey". If they made their account with the setup code from the server log, the enrolment code is filled in already in that browser; otherwise it needs one: if you can run commands on the server, run docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <their email> (or pnpm --filter @linedesk/api user:passkeys --enrol --email <their email>) and give them the code it prints, or another instance admin gives them one.`
-}
+/** How often the agent reads setup_status while it waits for the admin (the test call). */
+const POLL_SECONDS = 10
 
 /** The server's own actions (providers, the install's progress): instance admin rights, in no workspace. */
 const isServerAction = (name: string) => name.startsWith('provider.') || name.startsWith('install.')
@@ -240,7 +197,7 @@ async function saveAndTest(provider: ProviderName, actor: Actor, saved: Record<s
   return answer({ ok: true, ...saved, test, ...(restarts ? { note: restarts } : {}) })
 }
 
-function registerAction(server: McpServer, def: ActionDef, actor: Actor, from: RequestOrigin) {
+function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
   const serverAction = isServerAction(def.name)
   const notes = [
     def.description,
@@ -271,17 +228,7 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor, from: R
           input = rest
         }
         const { body } = await runAction(def.name, input, as)
-        if (!body.ok) {
-          const refused = body as { code?: string; stepUp?: StepUp; reason?: string }
-          // What waits for the admin's Allow: shown in the dialog with when and from where (agent-setup.ts).
-          if (refused.code === PASSKEY_STEP_UP_REQUIRED && actor.setupKeyId)
-            await noteAllowRequest(actor.setupKeyId, def.name, input, from)
-          return refusal(
-            refused.code === PASSKEY_STEP_UP_REQUIRED
-              ? passkeyNeeded(refused.stepUp, actor.setupKeyId, refused.reason)
-              : body.error,
-          )
-        }
+        if (!body.ok) return refusal(body.error)
         const result = { rows: body.rows, ...(body.data ? { data: body.data } : {}) }
         if (def.name === 'provider.setKeys')
           return saveAndTest((input as { provider: ProviderName }).provider, as, result)
@@ -290,7 +237,7 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor, from: R
   )
 }
 
-/** Links into the app for the steps only the admin can do there (a passkey, a test call with their microphone). */
+/** Links into the app for the steps only the admin can do there (a test call with their microphone, forwarding). */
 const appLinks = () => {
   const app = webAddress()
   // One link per provider group (Admin › Providers scrolls to it): providers_email, providers_call_audio, …
@@ -300,7 +247,7 @@ const appLinks = () => {
   return {
     app,
     setup: `${app}/#admin/overview`,
-    // The setup page: "Allow" there lets this setup link change email and sign-in (the admin's passkey).
+    // The setup page: the admin's own steps (forwarding, the test call), and End access.
     agent_setup: `${app}/#setup-agent`,
     providers: `${app}/#admin/providers`,
     ...groups,
@@ -396,33 +343,9 @@ const callAudioLines = () => [
 /** The install's own steps (provider groups a first call needs); when all are done, the setup by hand is finished. */
 const INSTALL_GROUP_STEPS: readonly string[] = ['answering', 'telephony', 'email', 'call-audio']
 
-/** Whether the install's own part is done: its provider steps by id, whatever comes before them (the passkey). */
+/** Whether the install's own part is done: its provider steps by id. */
 export const installPartDone = (steps: readonly Pick<Step, 'id' | 'state'>[]) =>
   steps.filter(s => INSTALL_GROUP_STEPS.includes(s.id)).every(s => s.state === 'done')
-
-/**
- * First, on an install that asks admins for a passkey: the admin's own passkey. Email and sign-in need it, and an
- * agent can never add one, so the step is the admin's (admin_only) and carries its how-to until it is done; the
- * agent goes on with the next step meanwhile. Not listed when admins need no passkey (ADMIN_SECOND_FACTOR=off).
- */
-async function passkeyStep(actor: Actor): Promise<StepBase[]> {
-  if (!adminSecondFactorRequired()) return []
-  const needed = await passkeyStillNeeded(actor.actorId)
-  return [
-    {
-      id: 'passkey',
-      label: 'Your passkey',
-      state: needed ? 'admin_only' : 'done',
-      detail: needed ? 'Not added yet: email and sign-in wait for it' : 'Added',
-      how: [
-        "Do this first. Email and sign-in decide who can sign in, so changing them needs the admin's passkey; agents cannot add passkeys.",
-        `Ask the admin in this chat to add one in the browser: ${addPasskeyHow()}`,
-        `Then ask them to open ${allowPage(actor.setupKeyId)} and click "Allow with passkey", so this setup link may change email and sign-in.`,
-        'Meanwhile go on with the next step. If the admin wants to skip the passkey for now, that is fine: only email and sign-in wait for it.',
-      ],
-    },
-  ]
-}
 
 /** One workspace's steps for the agent, with its id: every business tool takes it as workspaceId. */
 type WorkspaceStatus = { id: string | null; name: string | null; role?: ManagedWorkspace['role']; steps: Step[] }
@@ -434,10 +357,8 @@ const firstOpen = (steps: readonly Step[]) => steps.find(s => s.state !== 'done'
 async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean } = {}) {
   const { groups } = await setupChecklist(db)
   const group = (id: GroupStatus['id']) => groups.find(g => g.id === id)!
-  const emailAndSignIn = await linkMayChangeEmailAndSignIn(actor)
-  // Once per server: the admin's passkey and the providers a first call needs.
+  // Once per server: the providers a first call needs. The admin's passkey is no step: making the setup link needed it.
   const steps: Step[] = [
-    ...inGroup('you', await passkeyStep(actor)),
     ...inGroup('server', [
       groupStep(
         group('answering'),
@@ -455,7 +376,6 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
       groupStep(group('email'), [
         ...guideLines(recommendedProviders.email),
         'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
-        `Email decides who gets sign-in codes, so it needs the admin's passkey: ${emailAndSignInNote(actor, emailAndSignIn)}`,
         'Once the test passes: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
       ]),
       groupStep(group('call-audio'), callAudioLines(), 'livekit'),
@@ -470,7 +390,7 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
   const nextWorkspace = serverNext ? null : (workspaces.find(w => firstOpen(w.steps)) ?? null)
   const next = serverNext ?? (nextWorkspace ? firstOpen(nextWorkspace.steps) : null)
   const waiting = [...steps, ...workspaces.flatMap(w => w.steps)].filter(s => s.state === 'admin_only')
-  // The next step's how-to, and those of the admin's own steps while open (the passkey, the test calls).
+  // The next step's how-to, and those of the admin's own steps while open (the test calls).
   const shown = (list: Step[], here: boolean) =>
     list.map(({ how, ...s }) => ((here && s.id === next?.id) || s.state === 'admin_only' ? { ...s, how } : s))
   return {
@@ -490,9 +410,7 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
     all_done: !next,
     // How to finish, ending this setup link with setup_endAccess.
     wrap_up: wrapUp(!next, waiting),
-    // Whether provider_setKeys may store email and sign-in keys with this link now: the admin's Allow with passkey.
-    email_and_sign_in_allowed: emailAndSignIn,
-    optional: optionalSteps(groups, emailAndSignInNote(actor, emailAndSignIn)),
+    optional: optionalSteps(groups),
     app_links: appLinks(),
   }
 }
@@ -523,7 +441,7 @@ export function wrapUp(agentDone: boolean, waiting: readonly Pick<Step, 'id'>[])
     return `Not finished yet. If you stop before every step is done, ask the admin first whether to end your access; if they agree, give a short summary of what is set up and what is left, ${end}`
   const open = [...new Set(waiting.map(s => s.id))]
   if (open.includes('test_call'))
-    return `Your part is done. Ask the admin to make the test call now, right on the setup page (${webAddress()}/#setup-agent): they pick the workspace in the dropdown above its steps, and the button on its Test call row calls that workspace's assistant with their microphone (once per workspace whose test_call is open). Call setup_status { read_only: true } every ${ALLOW_POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
+    return `Your part is done. Ask the admin to make the test call now, right on the setup page (${webAddress()}/#setup-agent): they pick the workspace in the dropdown above its steps, and the button on its Test call row calls that workspace's assistant with their microphone (once per workspace whose test_call is open). Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
   if (open.length)
     return `Your part is done; only the admin can do what is still open (${open.join(', ')}). Give a short summary of what is set up and what is left for them, ask whether to end your access now, and if they agree, ${end}`
   return `Everything is set up. Give the admin a short summary of what is set up in each workspace and what is left for them (the optional steps), ${end}`
@@ -539,39 +457,19 @@ function redirectUris(provider: ProviderName): string[] {
   return []
 }
 
-/** Whether this setup link may change email and sign-in now (the admin's Allow lasts, or the passkey rule is off). */
-async function linkMayChangeEmailAndSignIn(actor: Actor): Promise<boolean> {
-  const [key] = actor.setupKeyId
-    ? await db
-        .select({ until: agent_setup_keys.passkey_confirmed_until })
-        .from(agent_setup_keys)
-        .where(eq(agent_setup_keys.id, actor.setupKeyId))
-    : []
-  return emailAndSignInAllowed(key?.until ?? null)
-}
-
-/** Whether this setup link may change email and sign-in now, said for the agent. */
-function emailAndSignInNote(actor: Actor, allowed: boolean): string {
-  return allowed
-    ? 'this setup link has it, so provider_setKeys stores email and sign-in keys directly.'
-    : `this setup link does not have it yet. Before asking for the key, ask the admin in this chat to open ${allowPage(actor.setupKeyId)}, click "Allow with passkey" and confirm with their passkey (no keys to paste there). Then call setup_status { read_only: true } every ${ALLOW_POLL_SECONDS} seconds until email_and_sign_in_allowed is true.`
-}
-
 /**
  * The groups a first call does not need (sign-in, calendar, recording, business lookup): their state and how to set
  * them up through these tools, offered once the needed steps are done. Calendars themselves are connected per business
  * by signing in to Google or Microsoft in the browser (Settings › Calendar), the one part an agent cannot do.
  */
-function optionalSteps(groups: GroupStatus[], passkey: string) {
+function optionalSteps(groups: GroupStatus[]) {
   const how: Record<string, string[]> = {
     'sign-in': [
       ...guideLines(recommendedProviders.sign_in),
       'The OAuth app needs the redirect URIs that providers_list gives per provider (redirect_uris).',
-      `Sign-in needs the admin's passkey: ${passkey}`,
     ],
     calendar: [
       'The Google or Microsoft sign-in app also connects calendars (set it up as for sign-in, with the calendar scopes in its help).',
-      `Sign-in apps need the admin's passkey: ${passkey}`,
       `Connecting a calendar to the business is a Google or Microsoft sign-in in the browser: the admin does it in ${webAddress()}/#settings/assistant after setup. Say so; it is optional.`,
     ],
     recording: [
@@ -822,24 +720,24 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       state: golive.firstRealCall || (await testCallMade(workspaceId)) ? 'done' : 'admin_only',
       how: [
         `Only the admin can do this: they talk to the assistant. Ask them to stay on the setup page (${webAddress()}/#setup-agent), pick ${JSON.stringify(ws?.name ?? '')} in the workspace dropdown and click ${JSON.stringify(`Call ${assistant?.name ?? 'Maya'} now`)} on the Test call row: it calls the assistant with their microphone, right there, and the step is done once the assistant answered.${numbers[0] ? ` Or they call ${numbers[0].e164} from another phone.` : ''}`,
-        `Call setup_status { read_only: true } every ${ALLOW_POLL_SECONDS} seconds or when they say they talked to it, until test_call is done.`,
+        `Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they talked to it, until test_call is done.`,
       ],
     },
   ]
 }
 
-function registerTools(server: McpServer, actor: Actor, from: RequestOrigin) {
+function registerTools(server: McpServer, actor: Actor) {
   const read = { readOnlyHint: true }
   server.registerTool(
     'setup_status',
     {
       description:
-        'Start here, and call again after every step: what is set up, what is missing or failing, and for the next step exactly what to do (pages, clicks, tool calls). Also links into the app for what only the admin can do there. It never changes a setting; it only notes how far the setup got (the step the app opens on). With read_only: true it notes nothing either: use that to wait. email_and_sign_in_allowed says whether this setup link may store email and sign-in keys now; after a PASSKEY_NEEDED answer, call setup_status { read_only: true } until it is true instead of retrying the refused tool.',
+        'Start here, and call again after every step: what is set up, what is missing or failing, and for the next step exactly what to do (pages, clicks, tool calls). Also links into the app for what only the admin can do there. It never changes a setting; it only notes how far the setup got (the step the app opens on). With read_only: true it notes nothing either: use that to wait.',
       inputSchema: z.object({
         read_only: z
           .boolean()
           .optional()
-          .describe("true: only read, note nothing (for waiting, e.g. for the admin's Allow with passkey)"),
+          .describe("true: only read, note nothing (for waiting, e.g. for the admin's test call)"),
       }),
       annotations: read,
     },
@@ -996,25 +894,22 @@ function registerTools(server: McpServer, actor: Actor, from: RequestOrigin) {
   )
   for (const name of SETUP_ACTIONS) {
     const def = actions.get(name)
-    if (def) registerAction(server, def, actor, from)
+    if (def) registerAction(server, def, actor)
   }
 }
 
 /** The setup tools for this setup key's admin. */
-export function setupMcpServerFor(actor: Actor, from: RequestOrigin = { ip: null, client: null }) {
+export function setupMcpServerFor(actor: Actor) {
   const server = new McpServer({ name: 'linedesk-setup', version: '1' }, { instructions: SETUP_MCP_INSTRUCTIONS })
-  registerTools(server, actor, from)
+  registerTools(server, actor)
   return server
 }
 
-const handler = createMcpHandler(
-  ctx => setupMcpServerFor(ctx.authInfo!.extra!.actor as Actor, ctx.authInfo!.extra!.from as RequestOrigin),
-  {
-    responseMode: 'json',
-    maxRequestBodySize: MCP_MAX_BODY_BYTES,
-    onerror: e => console.error(`setup mcp: ${e.message}`),
-  },
-)
+const handler = createMcpHandler(ctx => setupMcpServerFor(ctx.authInfo!.extra!.actor as Actor), {
+  responseMode: 'json',
+  maxRequestBodySize: MCP_MAX_BODY_BYTES,
+  onerror: e => console.error(`setup mcp: ${e.message}`),
+})
 
 const challenge = { 'www-authenticate': 'Bearer realm="linedesk-setup", error="invalid_token"' }
 const refuse = (status: 400 | 401 | 405 | 413 | 429, error: string, headers: Record<string, string> = {}) =>
@@ -1069,7 +964,7 @@ export async function serveSetupMcp(request: Request, keyInPath: string | null, 
         token: 'setupkey',
         clientId: actor.actorId,
         scopes: [...actor.permissions],
-        extra: { actor, from: { ip: clientIp, client: clientName(request.headers.get('user-agent')) } },
+        extra: { actor },
       },
     })
     const body = await res.text()

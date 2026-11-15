@@ -2,7 +2,7 @@
 // and, where admins need a passkey, gives that browser their passkey enrolment code at once, so the first passkey needs
 // no command on the server. Later admins never get one this way. Needs a database without users, so it is one of the
 // instance-wide files (vitest.config.ts).
-import { instance_settings, passkey, user } from '@linedesk/db'
+import { instance_settings, passkey, session, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
@@ -142,14 +142,17 @@ describe('the first admin', () => {
     expect(row!.passkeyEnrolmentHash).not.toContain(body.enrolment!.enrolmentCode)
     expect(enrolmentCodeValid(row!, body.enrolment!.enrolmentCode)).toBe(true)
 
-    // Signed in by the same answer: the install setup says a passkey comes first.
+    // Signed in by the same answer, but Server admin (the install setup included) waits for the passkey: the page asks
+    // to add it with that code first.
     const headers = { cookie: cookieOf(res), origin: ORIGIN }
     expect(headers.cookie).toMatch(/session_token/)
+    const me = (await (await appRequest('/v1/me', { headers })).json()) as Record<string, unknown>
+    expect(me).toMatchObject({ adminSecondFactor: 'enrol', passkeyEnrolment: true })
     const state = await appRequest('/v1/admin/install-setup', { headers })
-    expect(state.status).toBe(200)
-    expect(((await state.json()) as { passkeyNeeded: boolean }).passkeyNeeded).toBe(true)
+    expect(state.status).toBe(403)
+    expect(await state.json()).toMatchObject({ code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'enrol' })
 
-    // With a passkey it is not needed any more.
+    // With a passkey, and this session confirmed with it, the install setup opens and needs no passkey any more.
     await db.insert(passkey).values({
       id: 'pk_first_admin',
       userId: firstId,
@@ -159,7 +162,9 @@ describe('the first admin', () => {
       deviceType: 'multiDevice',
       backedUp: true,
     })
+    await db.update(session).set({ passkeyVerifiedAt: new Date() }).where(eq(session.userId, firstId))
     const again = await appRequest('/v1/admin/install-setup', { headers })
+    expect(again.status).toBe(200)
     expect(((await again.json()) as { passkeyNeeded: boolean }).passkeyNeeded).toBe(false)
   })
 

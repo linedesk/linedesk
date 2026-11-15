@@ -2132,6 +2132,17 @@ button.k-link {
 .auth-card .auth-hint {
   font-size: 12.5px;
 }
+/* The server command for an enrolment code on the Server admin passkey page (admin/SecondFactorPrompt.tsx). */
+.auth-hint .auth-command {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
 .auth-hint a {
   color: var(--ink);
   text-decoration: underline;

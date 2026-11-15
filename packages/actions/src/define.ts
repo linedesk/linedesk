@@ -8,9 +8,11 @@ import type { z } from 'zod'
 /**
  * `instance:admin` belongs to no role: the API adds it for users who operate the install, in any workspace.
  * `impersonation:stop` belongs to no role either: the API adds it only to a session an instance admin started as another user.
+ * `setupLink:end` belongs to no role either: the API adds it to every session of an instance admin (not while
+ * impersonating), also before the passkey check, so ending their own agent setup links is never harder than making one.
  */
 /** `call:export`: every call of a date range at once (call.export), owners and admins only. */
-export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'invitation:respond'
+export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'invitation:respond'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {

@@ -16,7 +16,11 @@ await refreshBranding(db).catch(error => console.error('could not load the brand
 watchBranding(db)
 // A fresh install: the setup code for the first admin goes to the log (setup.ts).
 await (await import('./setup.ts')).issueSetupCode(db).catch(error => console.error('could not make a setup code:', error))
-const { secondFactorOffWarning } = await import('./admin-second-factor.ts')
+const { passkeysOffWarning, secondFactorOffWarning } = await import('./admin-second-factor.ts')
+// Instance admins without a passkey: Server admin needs one, so each gets an enrolment code in the log (admin-passkey-codes.ts).
+await (await import('./admin-passkey-codes.ts'))
+  .printMissingAdminEnrolments()
+  .catch(error => console.error('could not issue passkey enrolment codes:', error))
 const { app } = await import('./app.ts')
 // Every email's result goes into the provider failure record (provider-failures.ts).
 const { watchEmailFailures } = await import('./provider-failures.ts')
@@ -34,7 +38,7 @@ if (agentTokenRefused) {
 }
 
 const port = Number(process.env.PORT ?? 3000)
-const offWarning = secondFactorOffWarning()
+const offWarning = secondFactorOffWarning() ?? passkeysOffWarning()
 if (offWarning) console.warn(offWarning)
 // Live calls whose agent went away are ended after a while (stale-calls.ts).
 startStaleCallSweep(db)

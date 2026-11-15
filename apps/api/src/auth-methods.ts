@@ -6,6 +6,8 @@ type Env = Record<string, string | undefined>
 
 /** Sign-up is closed unless AUTH_SIGNUP_ENABLED is exactly `true`: a missing or misspelled value keeps strangers out. */
 export const signUpOpen = (env: Env = process.env) => env.AUTH_SIGNUP_ENABLED === 'true'
+/** Passkeys as a sign-in method (default on; AUTH_PASSKEY_ENABLED=false drops Better Auth's passkey plugin, auth.ts). */
+export const passkeySignInEnabled = (env: Env = process.env) => env.AUTH_PASSKEY_ENABLED !== 'false'
 
 const pair = (id?: string, secret?: string) => (id && secret ? { clientId: id, clientSecret: secret } : null)
 
@@ -27,7 +29,7 @@ export function readAuthConfig(env: Env) {
   const methods: AuthMethods = {
     password: env.AUTH_PASSWORD_ENABLED !== 'false',
     emailCode: emailDelivery(env) !== 'none',
-    passkey: env.AUTH_PASSKEY_ENABLED !== 'false',
+    passkey: passkeySignInEnabled(env),
     signUp: signUpOpen(env),
     sso: [
       google && { id: 'google', label: 'Google' },

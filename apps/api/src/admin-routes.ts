@@ -1,7 +1,7 @@
 // Reads for the admin area and for the voice agent. They cross workspaces, so they are plain
 // routes with their own permission check instead of read sync.
 import { AUDIT_KINDS, type AuditKind, isAuditCursor, isCalendarDay, listAudit } from './audit.ts'
-import { secondFactorRefusal } from './admin-second-factor.ts'
+import { adminPasskeyRefusal, secondFactorRefusal } from './admin-second-factor.ts'
 import { avatarUrlOf, type Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
@@ -27,7 +27,7 @@ type Env = { Variables: { actor: Actor } }
 type Row = Record<string, any>
 
 const requirePermission = (permission: Permission) => async (c: Context<Env>, next: Next) => {
-  const refusal = secondFactorRefusal(c.get('actor'), permission)
+  const refusal = secondFactorRefusal(c.get('actor'), permission) ?? adminPasskeyRefusal(c.get('actor'), permission)
   if (refusal) return c.json(refusal, 403)
   if (!c.get('actor').permissions.includes(permission))
     return c.json({ ok: false, error: `missing permission ${permission}` }, 403)
@@ -231,11 +231,10 @@ export function registerAdminRoutes(app: Hono<Env>) {
   // Agent setup (agent-setup.ts): the admin's working setup key (never the key) and where agents connect.
   app.get('/v1/admin/agent-setup', async c => {
     const actor = c.get('actor')
-    // ?part=key: the key alone, without the progress (which checks every provider group): the Allow dialog opens on it.
-    if (c.req.query('part') === 'key') return c.json(await agentSetupState(actor.actorId))
     // The server's steps, then those of the workspace the page picked (?workspace=, one the admin is owner or admin
     // of; else their first): what the agent sees for it, whatever workspace the session is in.
-    const asAgent = (await setupActor(actor.actorId, 'page')) ?? actor
+    const asAgent =
+      (await setupActor(actor.actorId, 'page', { passkeyConfirmed: actor.passkeyConfirmed === true })) ?? actor
     const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null)
     return c.json({ ...(await agentSetupState(actor.actorId)), progress })
   })

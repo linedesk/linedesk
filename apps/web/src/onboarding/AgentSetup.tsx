@@ -2,9 +2,9 @@
 // up. An AI agent (Claude Code, Claude, ChatGPT, Codex, Cursor, any MCP client) connects to the setup MCP with a
 // setup key and does the setup with them; this page makes the key, says how to connect each agent, gives the prompt,
 // and shows the agent's progress as it works. Setting up by hand stays one small link away.
-// Step 1 is the admin's passkey (agent-setup-passkey.ts): only they can add it, on this device, so it comes first.
-// Every step the admin does themselves is finished here, never sent into the app: the passkey, the call forwarding and
-// the test call (SetupRowActions.tsx). The agent ends its own access at the end; the page then says when.
+// The page is part of Server admin, so it opens only after the admin's passkey check (App.tsx, SecondFactorPrompt):
+// the passkey is no step here. Every step the admin does themselves is finished here, never sent into the app: the
+// call forwarding and the test call (SetupRowActions.tsx). The agent ends its own access at the end; the page then says when.
 // The server's steps are once per install; the workspace steps below them belong to the workspace picked in the
 // dropdown that heads them (one per business or location, LIN-237). Picking one makes it the app's active workspace, so
 // the forwarding and the test call always act on the workspace shown.
@@ -17,8 +17,8 @@ import {
   type AgentSetupState,
   agentClientLabels,
   agentClients,
-  allowKeyIdOf,
   cloudClients,
+  SETUP_KEY_HOURS,
   HOSTING_GUIDE_URL,
   installPlace,
   type SetupWorkspaceSummary,
@@ -26,7 +26,7 @@ import {
   stepsByGroup,
 } from '@linedesk/actions'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { loadAgentSetup, loadAgentSetupKey, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
+import { loadAgentSetup, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -37,16 +37,8 @@ import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
-import {
-  AddPasskeyButton,
-  PasskeyFirstStep,
-  type PasskeyHere,
-  PasskeyProblem,
-  usePasskeyHere,
-} from './AddPasskeyStep.tsx'
 import { AgentPicker } from './AgentPicker.tsx'
-import { AllowDialog, AllowedNote, AllowRequestNote, useAllow } from './AllowEmailAndSignIn.tsx'
-import { installPartsMissing, passkeyStepOf, withPasskeyAdded } from './agent-setup-passkey.ts'
+import { installPartsMissing } from './agent-setup-passkey.ts'
 import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
 import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
@@ -71,10 +63,7 @@ function savedClient(): AgentClient {
   }
 }
 
-/**
- * The address of the setup page (#setup-agent): opened from Admin › Overview, or after choosing the manual way. The
- * agent's link adds `?allow=<keyId>` when it needs email and sign-in: Allow is offered only for that key.
- */
+/** The address of the setup page (#setup-agent): opened from Admin › Overview, or after choosing the manual way. */
 export { AGENT_SETUP_HASH, isAgentSetupHash } from '@linedesk/actions'
 export const openAgentSetup = () => {
   rememberManual(false)
@@ -144,25 +133,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
   }, [])
 
   const [client, setClient] = useState<AgentClient>(savedClient)
-  const [busy, setBusy] = useState<'create' | 'end' | 'withdraw' | null>(null)
-  // The key the agent's link asks to allow (#setup-agent?allow=<keyId>), followed as the address changes.
-  const [allowKeyId, setAllowKeyId] = useState(() => allowKeyIdOf(window.location.hash))
-  useEffect(() => {
-    const follow = () => setAllowKeyId(allowKeyIdOf(window.location.hash))
-    window.addEventListener('hashchange', follow)
-    return () => window.removeEventListener('hashchange', follow)
-  }, [])
-  // Opened from the agent's Allow link: the key alone is read first (the progress takes longer), so the dialog opens
-  // as soon as the key is known.
-  const [quickKey, setQuickKey] = useState<AgentSetupState['key'] | undefined>(undefined)
-  useEffect(() => {
-    if (!allowKeyIdOf(window.location.hash)) return
-    loadAgentSetupKey()
-      .then(s => setQuickKey(s.key))
-      .catch(() => {}) // the full read says what failed
-  }, [])
+  const [busy, setBusy] = useState<'create' | 'end' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The admin sign-in ran out (1 hour, 12 with a passkey): the page turns into the sign-in, never an error line.
+  // The passkey check ran out (12 hours): the page turns into the passkey prompt, never an error line.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
 
@@ -178,10 +151,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
       setLoadError(e instanceof Error ? e.message : 'Could not read the setup state')
     }
   }, [activeId])
-  // An Allow link opened in this tab already: read again at once, so the dialog names what the agent just asked for.
-  useEffect(() => {
-    if (allowKeyId) void load()
-  }, [allowKeyId, load])
   // The agent works in another window: show its progress as it goes (only while this tab is visible).
   useEffect(() => {
     void load()
@@ -191,17 +160,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     return () => clearInterval(id)
   }, [load])
 
-  // Step 1, the admin's passkey: added here, it shows as done at once; the next read of the progress agrees.
-  const [passkeyAddedHere, setPasskeyAddedHere] = useState(false)
-  const passkeyStep = passkeyStepOf(state, passkeyAddedHere)
-  const passkey = usePasskeyHere(
-    useCallback(() => {
-      setPasskeyAddedHere(true)
-      void load()
-    }, [load]),
-    load,
-  )
-  const linkFirst = passkeyStep === 'none' || passkeyStep === 'done'
 
   const workspaceReady = state?.progress.steps.some(s => s.id === 'workspace' && s.state === 'done') ?? false
   const told = useRef(false)
@@ -227,32 +185,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create a setup link')
-    } finally {
-      setBusy(null)
-    }
-  }
-  // Email and sign-in need the admin's passkey, for the agent too: the agent's link (#setup-agent?allow=<keyId>) opens
-  // the dialog at once; Allow asks for the passkey, then lets that link (and only that one) do them.
-  const [allowedHere, setAllowedHere] = useState<string | null>(null)
-  const [allowDialog, setAllowDialog] = useState<'auto' | 'open' | 'closed'>('auto')
-  const allow = useAllow(until => {
-    setAllowDialog('closed')
-    setAllowedHere(until ?? new Date().toISOString())
-    // The link's request is answered: a reload or Withdraw later does not open the dialog again.
-    if (allowKeyIdOf(window.location.hash)) window.history.replaceState(null, '', AGENT_SETUP_HASH)
-    setAllowKeyId(null)
-    void load()
-  })
-  // Lowering the link's rights needs no passkey.
-  const withdrawEmailAndSignIn = async () => {
-    setBusy('withdraw')
-    setError(null)
-    try {
-      await runAdmin('agentSetup.withdrawPasskey', {})
-      setAllowedHere(null)
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not withdraw it')
     } finally {
       setBusy(null)
     }
@@ -290,9 +222,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     if (state.key?.prefix !== created.prefix || !unexpired(created)) setCreated(null)
   }, [state, created, setCreated])
   const hasLink = state ? Boolean(state.key) : Boolean(created)
-  // The agent's link names the working key, which may not do email and sign-in yet: ask (dialog, then the note).
-  const keyNow = state ? state.key : quickKey
-  const allowAsked = keyNow && allowKeyId === keyNow.id && !keyNow.emailAndSignIn && !allowedHere ? keyNow : null
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
@@ -329,13 +258,12 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
 
         <section className="as-card" aria-label="Your agent">
           <ol className="as-steps">
-            {passkeyStep !== 'none' && <PasskeyFirstStep step={passkeyStep} passkey={passkey} />}
-            <li className={cx(!linkFirst && 'as-later')}>
+            <li>
               <b className="as-step-title">
                 Give your agent a setup link
                 <HelpTip
                   label="About the setup link"
-                  text="It lets your agent set up this server for you, using setup tools only. For security, the link stops working after 24 hours. You can end it here at any time."
+                  text={`It lets your agent set up this server for you, using setup tools only, email and sign-in included. For security, the link stops working after ${SETUP_KEY_HOURS} hours. You can end it here at any time.`}
                 />
               </b>
               <AgentPicker client={client} onPick={pick} />
@@ -350,9 +278,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                 <>
                   <div className="as-link">
                     <span className="as-small">
-                      {created
-                        ? `Ready, valid until ${timeOf(created.expiresAt)}. It lets an agent act as you, so keep it to yourself.`
-                        : `Your agent has a setup link (${state?.key?.prefix}…), valid until ${timeOf(state?.key?.expiresAt ?? '')}.`}
+                      Ready, valid until {timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? '')}.
                     </span>
                     <Button
                       size="sm"
@@ -363,17 +289,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                       End access
                     </Button>
                   </div>
-                  {state?.key &&
-                    (allowAsked ? (
-                      <AllowRequestNote linkKey={allowAsked} onOpen={() => setAllowDialog('open')} />
-                    ) : (
-                      <EmailAndSignIn
-                        linkKey={state.key}
-                        allowedHere={allowedHere}
-                        busy={busy}
-                        onWithdraw={() => void withdrawEmailAndSignIn()}
-                      />
-                    ))}
                   {created ? (
                     <StartAgent client={client} url={created.url} />
                   ) : (
@@ -388,7 +303,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                   {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
                   <div>
                     <Button
-                      variant={linkFirst ? 'primary' : 'secondary'}
+                      variant="primary"
                       busy={busy === 'create'}
                       onClick={() => void createKey()}
                     >
@@ -399,34 +314,14 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
               )}
             </li>
           </ol>
-          {state && allowKeyId && state.key?.id !== allowKeyId && (
-            <Note tone="warning" title="Nothing to allow">
-              The link you opened asks to allow a setup link that ended or is not yours. If your agent needs email and
-              sign-in, ask it for a new link.
-            </Note>
-          )}
           {error && <Note tone="danger">{error}</Note>}
         </section>
-        {allowAsked && allowDialog !== 'closed' && (
-          <AllowDialog
-            linkKey={allowAsked}
-            allow={allow}
-            passkeyMissing={passkeyStep === 'todo'}
-            onClose={() => setAllowDialog('closed')}
-          />
-        )}
 
         <Progress
-          state={
-            state && {
-              ...state,
-              progress: { ...state.progress, steps: withPasskeyAdded(state.progress.steps, passkeyAddedHere) },
-            }
-          }
+          state={state}
           loadError={loadError}
           connected={connected}
           onDone={onDone}
-          passkey={passkey}
           active={active ?? null}
           reload={load}
         />
@@ -452,39 +347,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
   )
 }
 
-/**
- * Whether the working link may change email and sign-in, when the agent's link does not ask for it right now
- * (AllowRequestNote): while a passkey confirmation lasts, until when, with Withdraw; a moment after Allow, said as the
- * result. Otherwise how it works: the agent gives a link to allow it when it needs it.
- */
-function EmailAndSignIn({
-  linkKey,
-  allowedHere,
-  busy,
-  onWithdraw,
-}: {
-  linkKey: NonNullable<AgentSetupState['key']>
-  /** Allowed on this page a moment ago: until when (the server's answer, before the next read agrees). */
-  allowedHere: string | null
-  busy: string | null
-  onWithdraw: () => void
-}) {
-  const until = linkKey.emailAndSignInUntil ?? allowedHere
-  if (until)
-    return (
-      <AllowedNote until={until} justNow={Boolean(allowedHere)} busy={busy === 'withdraw'} onWithdraw={onWithdraw} />
-    )
-  if (linkKey.emailAndSignIn) return null
-  return (
-    <div className="as-link">
-      <span className="as-small">
-        Email and sign-in decide who can sign in, so your agent needs your passkey for them. When it does, it gives you
-        a link to allow it here.
-      </span>
-    </div>
-  )
-}
-
 const timeOf = (iso: string) => untilLabel(new Date(iso))
 
 /** The dropdown's item that opens "New workspace" instead of picking one. */
@@ -498,7 +360,6 @@ function Progress({
   loadError,
   connected,
   onDone,
-  passkey,
   active,
   reload,
 }: {
@@ -506,7 +367,6 @@ function Progress({
   loadError: string | null
   connected: boolean
   onDone: () => void
-  passkey: PasskeyHere
   active: SetupWorkspace | null
   reload: () => Promise<void>
 }) {
@@ -618,7 +478,6 @@ function Progress({
                   {step.state === 'failing' && <span className="as-small">failing</span>}
                   <StepAction
                     step={step}
-                    passkey={passkey}
                     workspace={here}
                     onSwitch={selected && !here ? action => void switchAndDo(selected.id, action) : null}
                     switching={switchingFor ?? (switching ? 'workspace' : null)}
@@ -628,7 +487,6 @@ function Progress({
                     reload={reload}
                   />
                 </li>
-                {step.id === 'passkey' && step.state !== 'done' && <PasskeyProblem passkey={passkey} from="list" />}
               </Fragment>
             ))}
           </ul>
@@ -716,12 +574,11 @@ export function withTestCallMade<S extends { id: string; state: string }>(
 }
 
 /**
- * How the admin finishes a step on this page (never "do this in the app"): the passkey, the call forwarding (the
+ * How the admin finishes a step on this page (never "do this in the app"): the call forwarding (the
  * agent can also run it) and the test call, always for the workspace shown. Steps the agent does have none.
  */
 export function StepAction({
   step,
-  passkey,
   workspace,
   onSwitch,
   switching = null,
@@ -731,7 +588,6 @@ export function StepAction({
   reload,
 }: {
   step: AgentSetupState['progress']['steps'][number]
-  passkey: PasskeyHere
   /** The workspace shown, when it is the app's active workspace in this tab: the buttons act in it right here. */
   workspace: SetupWorkspace | null
   /**
@@ -747,12 +603,6 @@ export function StepAction({
   onCalled: () => void
   reload: () => Promise<void>
 }) {
-  if (step.id === 'passkey')
-    return step.state === 'done' ? null : (
-      <span className="as-item-action">
-        <AddPasskeyButton passkey={passkey} from="list" size="sm" />
-      </span>
-    )
   if (step.id === 'test_call') {
     // Also once done ("Call again"), so a call in progress keeps its panel when the row turns done.
     if (workspace)

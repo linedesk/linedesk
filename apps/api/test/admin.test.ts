@@ -47,9 +47,11 @@ import {
   adminSecondFactorGap,
   adminSecondFactorRequired,
   markPasskeySession,
+  noteUserVerified,
+  passkeysOffWarning,
   secondFactorOffWarning,
 } from '../src/admin-second-factor.ts'
-import { mayReceiveEnrolmentCode, needsPasskeyStepUp } from '../src/admin-step-up.ts'
+import { mayReceiveEnrolmentCode } from '../src/admin-step-up.ts'
 import type { Actor } from '../src/context.ts'
 import { runAction } from '../src/run-action.ts'
 import { signInMethod } from '../src/audit.ts'
@@ -169,11 +171,8 @@ describe('access', () => {
 
   test('the registry has the admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
-      'agentSetup.confirmPasskey',
       'agentSetup.createKey',
       'agentSetup.endOwnAccess',
-      'agentSetup.revoke',
-      'agentSetup.withdrawPasskey',
       'branding.set',
       'install.setProgress',
       'instanceAdmin.grant',
@@ -243,7 +242,7 @@ describe('access', () => {
     expect((await request(loner, 'GET', '/v1/me')).status).toBe(401)
     await setAdmin(loner, true)
     expect((await request(loner, 'GET', '/v1/me')).body).toMatchObject({
-      permissions: ['instance:admin'],
+      permissions: ['instance:admin', 'setupLink:end'],
       workspace: null,
     })
     expect((await request(loner, 'GET', '/v1/admin/users')).status).toBe(200)
@@ -1658,7 +1657,6 @@ describe('user.resetPasskeys: the recovery path that needs none of their passkey
       body: { code: 'forbidden' },
     })
     expect((await act(other.owner, 'user.issuePasskeyEnrolment', { userId: second.userId })).status).toBe(403)
-    expect(await needsPasskeyStepUp('user.issuePasskeyEnrolment', { userId: second.userId })).toBe(true)
     // Not for a disabled admin.
     await db.delete(passkey).where(eq(passkey.userId, second.userId))
     await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, second.userId))
@@ -2748,70 +2746,105 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     await sessionOfAdmin({ passkeyVerifiedAt: null, impersonatedBy: null })
   })
 
-  test('a sign-in older than 12 hours: no instance:admin, admin routes and actions refused, /v1/me says confirm', async () => {
+  /** Every instance-admin action and admin read, refused with SECOND_FACTOR_REQUIRED and the state `want`. */
+  async function expectAllAdminRefused(caller: User, want: 'confirm' | 'enrol' | 'email') {
+    for (const path of adminRoutes) {
+      expect(await request(caller, 'GET', path), path).toMatchObject({
+        status: 403,
+        body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: want },
+      })
+    }
+    // Table-driven over the registry: an instance-admin action added later is covered without touching this test.
+    // user.impersonate runs only through its own route (POST /v1/actions refuses it before any permission check).
+    expect(adminActions.length).toBeGreaterThan(20)
+    for (const def of adminActions.filter(d => d.name !== 'user.impersonate')) {
+      expect(await act(caller, def.name, {}), def.name).toMatchObject({
+        status: 403,
+        body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: want },
+      })
+    }
+    expect(await request(caller, 'POST', '/v1/impersonation/start', { userId: member.userId })).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: want },
+    })
+  }
+
+  test('a session without the passkey check, even a sign-in a minute old: no instance:admin, every admin route and action refused', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
+    await sessionOfAdmin({ createdAt: new Date(Date.now() - 60_000) })
     const me = (await request(admin, 'GET', '/v1/me')).body
     expect(me.permissions).not.toContain('instance:admin')
     expect(me.adminSecondFactor).toBe('confirm')
-    for (const path of adminRoutes) {
-      expect(await request(admin, 'GET', path), path).toMatchObject({
-        status: 403,
-        body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' },
-      })
-    }
-    // user.impersonate runs only through its own route (POST /v1/actions refuses it before any permission check).
-    for (const def of adminActions.filter(d => d.name !== 'user.impersonate')) {
-      expect(await act(admin, def.name, {}), def.name).toMatchObject({
-        status: 403,
-        body: { code: 'SECOND_FACTOR_REQUIRED' },
-      })
-    }
-    expect(await request(admin, 'POST', '/v1/impersonation/start', { userId: member.userId })).toMatchObject({
-      status: 403,
-      body: { code: 'SECOND_FACTOR_REQUIRED' },
-    })
+    await expectAllAdminRefused(admin, 'confirm')
     expect((await request(other.owner, 'GET', '/v1/me')).body.adminSecondFactor).toBeNull()
   })
 
-  test('(e) another sign-in opens the admin area for 1 hour, a passkey sign-in for 12; a future time never', async () => {
+  test('an admin without a passkey: /v1/me and every refusal say enrol (add the first passkey with a code)', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
+    await sessionOfAdmin({ createdAt: new Date() })
+    const me = (await request(admin, 'GET', '/v1/me')).body
+    expect(me.adminSecondFactor).toBe('enrol')
+    expect(me.passkeyEnrolment).toBe(true)
+    await expectAllAdminRefused(admin, 'enrol')
+  })
+
+  test('the passkey check opens every admin route and action for 12 hours in that session; older or in the future never', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
     const status = async () => (await request(admin, 'GET', '/v1/admin/users')).status
-    await sessionOfAdmin({ createdAt: new Date(Date.now() - 50 * 60_000) })
+    // A passkey sign-in (marked when the session is made, so both times are the same).
+    const elevenAgo = new Date(Date.now() - 11 * HOUR)
+    await sessionOfAdmin({ createdAt: elevenAgo, passkeyVerifiedAt: elevenAgo })
     const me = (await request(admin, 'GET', '/v1/me')).body
     expect(me.permissions).toContain('instance:admin')
     expect(me.adminSecondFactor).toBeNull()
+    for (const path of adminRoutes) expect((await request(admin, 'GET', path)).status, path).toBe(200)
+    // Every instance-admin action gets past the permission check (its own input check answers instead).
+    for (const def of adminActions.filter(d => d.name !== 'user.impersonate')) {
+      const res = await act(admin, def.name, {})
+      expect(res.body?.code, def.name).not.toBe('SECOND_FACTOR_REQUIRED')
+      expect(res.status, def.name).not.toBe(401)
+    }
+    const almost = new Date(Date.now() - 12 * HOUR + 60_000)
+    await sessionOfAdmin({ createdAt: almost, passkeyVerifiedAt: almost })
     expect(await status()).toBe(200)
-    await sessionOfAdmin({ createdAt: new Date(Date.now() - 61 * 60_000) })
+    // Past 12 hours: closed again, until the next passkey check.
+    const thirteenAgo = new Date(Date.now() - 13 * HOUR)
+    await sessionOfAdmin({ createdAt: thirteenAgo, passkeyVerifiedAt: thirteenAgo })
     expect(await request(admin, 'GET', '/v1/admin/users')).toMatchObject({
       status: 403,
       body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' },
     })
-    // A passkey sign-in (marked when the session is made, so both times are the same).
-    const elevenAgo = new Date(Date.now() - 11 * HOUR)
-    await sessionOfAdmin({ createdAt: elevenAgo, passkeyVerifiedAt: elevenAgo })
-    expect(await status()).toBe(200)
-    const thirteenAgo = new Date(Date.now() - 13 * HOUR)
-    await sessionOfAdmin({ createdAt: thirteenAgo, passkeyVerifiedAt: thirteenAgo })
-    expect(await status()).toBe(403)
-    await sessionOfAdmin({ createdAt: new Date(Date.now() + HOUR), passkeyVerifiedAt: null })
+    await sessionOfAdmin({ createdAt: new Date(), passkeyVerifiedAt: new Date(Date.now() + HOUR) })
     expect(await status()).toBe(403)
   })
 
-  test('signing in again with a password opens the admin area', async () => {
+  test('signing in again with a password never opens Server admin; the workspaces work as before', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
-    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403)
+    await addPasskey()
     const res = await appRequest('/api/auth/sign-in/email', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost:5173', [FROM]: randomIp() },
       body: JSON.stringify({ email: await emailOf(admin), password: 'test-password-1234' }),
     })
     expect(res.status).toBe(200)
-    expect((await request(callerFrom(res), 'GET', '/v1/admin/users')).status).toBe(200)
-    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403) // the old session stays as it was
+    const fresh = callerFrom(res)
+    await expectAllAdminRefused(fresh, 'confirm')
+    // Workspace users' level: the admin's own workspace, with any sign-in method.
+    const ws = await request(fresh, 'POST', '/v1/workspaces', { name: `Admin Biz ${crypto.randomUUID().slice(0, 6)}` })
+    expect(ws.status).toBe(200)
+    const me = (await request(fresh, 'GET', '/v1/me')).body
+    expect(me.permissions).toEqual(expect.arrayContaining(['settings:write', 'team:write']))
+    expect(me.permissions).not.toContain('instance:admin')
+    expect(
+      (await act(fresh, 'workspace.rename', { name: `Renamed ${crypto.randomUUID().slice(0, 6)}` })).status,
+    ).toBe(200)
   })
 
-  test('signing in again with an email code opens the admin area', async () => {
+  test('signing in again with an email code never opens Server admin', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
+    await addPasskey()
     const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
     const email = await emailOf(admin)
     const headers = { origin: 'http://localhost:5173', [FROM]: randomIp() }
@@ -2837,19 +2870,29 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       body: JSON.stringify({ email, otp }),
     })
     expect(res.status).toBe(200)
-    expect((await request(callerFrom(res), 'GET', '/v1/admin/users')).status).toBe(200)
+    expect(await request(callerFrom(res), 'GET', '/v1/admin/users')).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' },
+    })
   })
 
-  test('the rule does not ask how the session was started (passkey, code, password, Google, Microsoft, GitHub)', () => {
+  test('the rule: only a passkey check of the last 12 hours counts, whatever started the session', () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
     const now = Date.now()
-    const recent = { createdAt: new Date(now - 30 * 60_000), passkeyVerifiedAt: null }
-    expect(adminSecondFactorGap({ emailVerified: true }, recent, now)).toBeNull()
-    expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, createdAt: new Date(now - HOUR) }, now)).toBe(
+    const fresh = { passkeyVerifiedAt: null }
+    const confirmed = { passkeyVerifiedAt: new Date(now - 30 * 60_000) }
+    expect(adminSecondFactorGap({ emailVerified: true }, confirmed, true, now)).toBeNull()
+    expect(adminSecondFactorGap({ emailVerified: true }, fresh, true, now)).toBe('confirm')
+    expect(adminSecondFactorGap({ emailVerified: true }, fresh, false, now)).toBe('enrol')
+    expect(adminSecondFactorGap({ emailVerified: false }, fresh, false, now)).toBe('email')
+    expect(
+      adminSecondFactorGap({ emailVerified: true }, { passkeyVerifiedAt: new Date(now - 13 * HOUR) }, true, now),
+    ).toBe('confirm')
+    expect(adminSecondFactorGap({ emailVerified: true }, { ...confirmed, impersonatedBy: 'someone' }, true, now)).toBe(
       'confirm',
     )
-    expect(adminSecondFactorGap({ emailVerified: false }, recent, now)).toBe('email')
-    expect(adminSecondFactorGap({ emailVerified: true }, { ...recent, impersonatedBy: 'someone' }, now)).toBe('confirm')
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    expect(adminSecondFactorGap({ emailVerified: true }, fresh, false, now)).toBeNull()
   })
 
   test('an unconfirmed email address keeps the admin area closed, even right after signing in', async () => {
@@ -2865,11 +2908,11 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     })
   })
 
-  test('a recent sign-in that opens the admin area still cannot add or remove passkeys without a passkey sign-in (H1)', async () => {
+  test('a recent sign-in without the passkey check cannot add or remove passkeys either (H1)', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
     await addPasskey()
     await sessionOfAdmin({ createdAt: new Date() })
-    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
+    expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403)
     const authCall = (path: string, body?: unknown) =>
       request(admin, body === undefined ? 'GET' : 'POST', `/api/auth${path}`, body, {
         origin: 'http://localhost:5173',
@@ -2929,12 +2972,24 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect((await authCall('/passkey/generate-register-options')).status).toBe(200)
   })
 
-  test('only a passkey sign-in marks a session, never an impersonation', () => {
+  test('only a passkey sign-in the device verified marks a session, never an impersonation', () => {
     const plain = { userId: 'u', impersonatedBy: null }
-    expect(markPasskeySession(plain, { path: PASSKEY_PATH })?.data.passkeyVerifiedAt).toBeInstanceOf(Date)
+    /** A request's context, as Better Auth hands it to the plugin and the hook; `verified`: the response's UV flag. */
+    const request = (path: string, verified: boolean) => {
+      const ctx = { path, context: {} }
+      if (verified) noteUserVerified(ctx)
+      return ctx
+    }
+    expect(markPasskeySession(plain, request(PASSKEY_PATH, true))?.data.passkeyVerifiedAt).toBeInstanceOf(Date)
+    // Without user verification (a security key without a PIN, a device that skipped the check): no passkey check.
+    expect(markPasskeySession(plain, request(PASSKEY_PATH, false))).toBeUndefined()
+    expect(markPasskeySession(plain, { path: PASSKEY_PATH })).toBeUndefined()
+    // Another request's verification does not carry over.
+    request(PASSKEY_PATH, true)
+    expect(markPasskeySession(plain, request(PASSKEY_PATH, false))).toBeUndefined()
     for (const path of ['/sign-in/email', '/sign-in/email-otp', '/callback/github', '/passkey/verify-registration'])
-      expect(markPasskeySession(plain, { path }), path).toBeUndefined()
-    expect(markPasskeySession({ ...plain, impersonatedBy: 'admin' }, { path: PASSKEY_PATH })).toBeUndefined()
+      expect(markPasskeySession(plain, request(path, true)), path).toBeUndefined()
+    expect(markPasskeySession({ ...plain, impersonatedBy: 'admin' }, request(PASSKEY_PATH, true))).toBeUndefined()
     expect(markPasskeySession(plain, undefined)).toBeUndefined()
   })
 
@@ -2949,7 +3004,8 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     const after = await rows()
     expect(after.map(row => row.passkeyVerifiedAt)).toEqual(before.map(() => null))
     expect(after.map(row => row.createdAt.getTime())).toEqual(before.map(row => row.createdAt.getTime()))
-    expect((await request(admin, 'GET', '/v1/me')).body.adminSecondFactor).toBe('confirm')
+    // Still the gap of an admin without a passkey: nothing the client sent counts as the passkey check.
+    expect((await request(admin, 'GET', '/v1/me')).body.adminSecondFactor).toBe('enrol')
   })
 
   test('an impersonation session never counts, even a fresh one whose row says passkey', async () => {
@@ -2960,7 +3016,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(403)
   })
 
-  describe('(a) taking over admin needs a passkey sign-in on top of a recent sign-in', () => {
+  describe('(a) one rule for every admin action: the passkey check, nothing more per action', () => {
     let target: User // a plain user
     let otherAdmin: User
     beforeAll(async () => {
@@ -2969,12 +3025,11 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await setAdmin(otherAdmin, true)
     })
     afterAll(() => setAdmin(otherAdmin, false))
-    const stepUpRefused = { status: 403, body: { code: 'PASSKEY_STEP_UP_REQUIRED' } }
+    const refused = { status: 403, body: { code: 'SECOND_FACTOR_REQUIRED' } }
 
-    test('a non-passkey session opens Admin but cannot grant, reset, impersonate, invite an admin or act on another admin', async () => {
+    test('without it, granting, resetting, impersonating, inviting an admin and changes to an admin are refused and change nothing', async () => {
       process.env.ADMIN_SECOND_FACTOR = 'on'
       await sessionOfAdmin({ createdAt: new Date() })
-      expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
       const refusals = [
         await act(admin, 'instanceAdmin.grant', { userId: target.userId }),
         await act(admin, 'user.resetPasskeys', { userId: target.userId }),
@@ -2984,60 +3039,53 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
           admin: true,
         }),
         await act(admin, 'user.disable', { userId: otherAdmin.userId }),
+        await act(admin, 'user.disable', { userId: target.userId }),
         await act(admin, 'instanceAdmin.revoke', { userId: otherAdmin.userId }),
-        // Who is in a workspace: Add user with a workspace, Add to workspace, owner or admin there.
-        await act(admin, 'user.invite', { email: await emailOf(otherAdmin), name: 'Other Admin', workspaceId: home.id }),
-        await act(admin, 'user.invite', {
-          email: `${crypto.randomUUID().slice(0, 8)}@linedesk.test`,
-          name: 'Plain',
-          workspaceId: home.id,
-        }),
         await act(admin, 'membership.add', { userId: target.userId, workspaceId: home.id, role: 'member' }),
+        await act(admin, 'agentSetup.createKey', {}),
+        await act(admin, 'provider.setKeys', { provider: 'deepgram', values: { api_key: 'dg-test-key-1234' } }),
         await request(admin, 'POST', '/v1/impersonation/start', { userId: target.userId }),
       ]
-      // No passkey yet: what is missing is the first passkey (enrolment code path).
-      for (const res of refusals)
-        expect(res).toMatchObject({ ...stepUpRefused, body: { ...stepUpRefused.body, stepUp: 'enrol' } })
+      for (const res of refusals) expect(res).toMatchObject({ ...refused, body: { ...refused.body, secondFactor: 'enrol' } })
       expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.instanceAdmin).toBe(false)
+      expect((await db.select().from(user).where(eq(user.id, target.userId)))[0]!.disabledAt).toBeNull()
       expect((await db.select().from(user).where(eq(user.id, otherAdmin.userId)))[0]!.disabledAt).toBeNull()
-      // With a passkey on the account, the dialog asks to confirm with it.
+      // With a passkey on the account, the refusal asks to confirm with it.
       await addPasskey()
       expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject({
-        ...stepUpRefused,
-        body: { stepUp: 'confirm' },
+        ...refused,
+        body: { secondFactor: 'confirm' },
       })
     })
 
-    test("F2: an admin's workspace membership counts as acting on them: setRole and remove by memberId need the passkey", async () => {
+    test('with it, acting on another admin and on workspace memberships needs no second prompt', async () => {
       process.env.ADMIN_SECOND_FACTOR = 'on'
-      await sessionOfAdmin({ createdAt: new Date() })
+      await addPasskey()
+      const now = new Date()
+      await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
       const adminMember = `m_${crypto.randomUUID().slice(0, 12)}`
-      const plainMember = `m_${crypto.randomUUID().slice(0, 12)}`
       await db.insert(memberTable).values([
         { id: adminMember, organizationId: other.id, userId: otherAdmin.userId, role: 'admin', createdAt: new Date() },
-        { id: plainMember, organizationId: other.id, userId: target.userId, role: 'admin', createdAt: new Date() },
       ])
-      expect(await act(admin, 'membership.setRole', { memberId: adminMember, role: 'member' })).toMatchObject(
-        stepUpRefused,
-      )
-      expect(await act(admin, 'membership.remove', { memberId: adminMember })).toMatchObject(stepUpRefused)
-      expect(
-        await act(admin, 'membership.add', { userId: otherAdmin.userId, workspaceId: home.id, role: 'member' }),
-      ).toMatchObject(stepUpRefused)
-      // Owner or admin of a workspace needs the passkey for anyone (security review of #671); member does not.
-      for (const role of ['owner', 'admin'])
-        expect(await act(admin, 'membership.setRole', { memberId: plainMember, role })).toMatchObject(stepUpRefused)
-      // A member who is no instance admin: no passkey needed.
-      expect((await act(admin, 'membership.setRole', { memberId: plainMember, role: 'member' })).status).toBe(200)
-      expect((await act(admin, 'membership.remove', { memberId: plainMember })).status).toBe(200)
-      await db.delete(memberTable).where(eq(memberTable.id, adminMember))
-    })
-
-    test('actions on users who are not admins, and the rest of Admin, need no passkey', async () => {
-      process.env.ADMIN_SECOND_FACTOR = 'on'
-      await sessionOfAdmin({ createdAt: new Date() })
+      expect((await act(admin, 'membership.setRole', { memberId: adminMember, role: 'member' })).status).toBe(200)
+      expect((await act(admin, 'membership.remove', { memberId: adminMember })).status).toBe(200)
       expect((await act(admin, 'user.disable', { userId: target.userId })).status).toBe(200)
       expect((await act(admin, 'user.enable', { userId: target.userId })).status).toBe(200)
+    })
+
+    test('the defence in depth: an actor with instance:admin but without the passkey check is refused all the same', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const forged: Actor = {
+        actorId: admin.userId,
+        role: 'member',
+        workspaceId: null,
+        permissions: ['instance:admin'],
+        sessionId: 's',
+      }
+      for (const def of adminActions.filter(d => d.name !== 'user.impersonate'))
+        expect((await runAction(def.name, {}, forged)).body, def.name).toMatchObject({ code: 'SECOND_FACTOR_REQUIRED' })
+      expect((await runAction('instanceAdmin.grant', { userId: target.userId }, { ...forged, passkeyConfirmed: true })).status).toBe(200)
+      await setAdmin(target, false)
     })
 
     test('in a passkey session they run, and (c) only then is an enrolment code handed out', async () => {
@@ -3079,7 +3127,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await addPasskey()
       // Admin itself is closed by then too; even a fresh session with an old passkey mark is not confirmed.
       await sessionOfAdmin({ createdAt: new Date(), passkeyVerifiedAt: new Date(Date.now() - 13 * HOUR) })
-      expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject(stepUpRefused)
+      expect(await act(admin, 'instanceAdmin.grant', { userId: target.userId })).toMatchObject(refused)
     })
   })
 
@@ -3216,11 +3264,17 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     })
   })
 
-  test('ADMIN_SECOND_FACTOR=off turns the rule off, the email check and the passkey step-up included, with a loud warning', async () => {
+  test('ADMIN_SECOND_FACTOR=off turns the rule off, the email check included, with a loud warning', async () => {
     expect(adminSecondFactorRequired({})).toBe(true)
     expect(adminSecondFactorRequired({ ADMIN_SECOND_FACTOR: 'OFF' })).toBe(false)
     expect(secondFactorOffWarning({})).toBeNull()
     expect(secondFactorOffWarning({ ADMIN_SECOND_FACTOR: 'off' })).toMatch(/WARNING: ADMIN_SECOND_FACTOR=off/)
+    // Passkeys off as a sign-in method while the rule is on: nobody can open Server admin, said at every start.
+    expect(passkeysOffWarning({})).toBeNull()
+    expect(passkeysOffWarning({ AUTH_PASSKEY_ENABLED: 'false', ADMIN_SECOND_FACTOR: 'off' })).toBeNull()
+    expect(passkeysOffWarning({ AUTH_PASSKEY_ENABLED: 'false' })).toMatch(
+      /WARNING: AUTH_PASSKEY_ENABLED=false[\s\S]*nobody can open Server admin[\s\S]*remove AUTH_PASSKEY_ENABLED=false/,
+    )
     process.env.ADMIN_SECOND_FACTOR = 'off'
     await confirmEmail(false)
     expect((await request(admin, 'GET', '/v1/admin/users')).status).toBe(200)
@@ -3565,14 +3619,6 @@ describe('monthly spending cap', () => {
     })
     expect(sent).toEqual([])
   })
-})
-
-test('changing email or sign-in settings needs the passkey; other providers do not', async () => {
-  for (const provider of ['smtp', 'google', 'microsoft', 'github', 'oidc'])
-    for (const name of ['provider.setKeys', 'provider.clearKeys'])
-      expect(await needsPasskeyStepUp(name, { provider }), `${name} ${provider}`).toBe(true)
-  for (const provider of ['telnyx', 'deepgram', 's3'])
-    expect(await needsPasskeyStepUp('provider.setKeys', { provider })).toBe(false)
 })
 
 describe('branding', () => {

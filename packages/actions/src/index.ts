@@ -183,8 +183,6 @@ const all = [
   agentSetup.agentSetupCreateKey,
   agentSetup.agentSetupRevoke,
   agentSetup.agentSetupEndOwnAccess,
-  agentSetup.agentSetupConfirmPasskey,
-  agentSetup.agentSetupWithdrawPasskey,
   admin.providerSetKeys,
   admin.providerClearKeys,
   admin.providerSetActive,

@@ -1,6 +1,5 @@
 // The start page (#start) of an instance admin without a workspace who chose the way by hand before (NoWorkspace.tsx):
-// still AI agent first. Step 1 is their passkey while they have none (AddPasskeyStep.tsx), step 2 the AI agent (the
-// agent setup page); setting up by hand stays the clear, secondary alternative below: naming the business here, or
+// still AI agent first (the agent setup page, behind Server admin's passkey check); setting up by hand stays the clear, secondary alternative below: naming the business here, or
 // the server's parts first when they are not set up (as AgentSetup's "Set up by hand instead").
 import type { AgentSetupState } from '@linedesk/actions'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
@@ -8,10 +7,9 @@ import { loadAgentSetup } from '../admin/api.ts'
 import { brandName } from '../brand.ts'
 import { CreateWorkspace, LostWorkspace } from '../CreateWorkspace.tsx'
 import { signOutAndForget } from '../localData.ts'
-import { AuthPage, Button, cx } from '../ui/kit.tsx'
-import { PasskeyFirstStep, usePasskeyHere } from './AddPasskeyStep.tsx'
+import { AuthPage, Button } from '../ui/kit.tsx'
 import { openAgentSetup } from './AgentSetup.tsx'
-import { installPartsMissing, passkeyStepOf } from './agent-setup-passkey.ts'
+import { installPartsMissing } from './agent-setup-passkey.ts'
 
 type Props = {
   onDone: () => void
@@ -26,28 +24,16 @@ type Props = {
 
 export function AdminStart({ onDone, lostWorkspace, byHandFirst, onInstallByHand, children }: Props) {
   const [state, setState] = useState<AgentSetupState | null>(null)
-  const [loadFailed, setLoadFailed] = useState(false)
   const load = useCallback(async () => {
     try {
       setState(await loadAgentSetup())
     } catch {
-      // Without it: no passkey step, and by hand opens the business form (the walkthrough is in Admin too).
-      setLoadFailed(true)
+      // Without it (no passkey check yet): by hand opens the business form (the walkthrough is in Admin too).
     }
   }, [])
   useEffect(() => {
     void load()
   }, [load])
-  const [passkeyAddedHere, setPasskeyAddedHere] = useState(false)
-  const passkey = usePasskeyHere(
-    useCallback(() => {
-      setPasskeyAddedHere(true)
-      void load()
-    }, [load]),
-    load,
-  )
-  const passkeyStep = loadFailed && !passkeyAddedHere ? 'none' : passkeyStepOf(state, passkeyAddedHere)
-  const agentFirst = passkeyStep === 'none' || passkeyStep === 'done'
   const [byHand, setByHand] = useState(byHandFirst)
   const installFirst = state ? installPartsMissing(state.progress.steps) : false
 
@@ -58,8 +44,7 @@ export function AdminStart({ onDone, lostWorkspace, byHandFirst, onInstallByHand
         <h1>Set up {brandName()}</h1>
         <section className="as-card">
           <ol className="as-steps">
-            {passkeyStep !== 'none' && <PasskeyFirstStep step={passkeyStep} passkey={passkey} />}
-            <li className={cx(!agentFirst && 'as-later')}>
+            <li>
               <b>Set up with your AI agent</b>
               <span className="as-small">
                 Your agent does the setup with you: the AI, a phone carrier, email, your business and its number. About
@@ -67,7 +52,7 @@ export function AdminStart({ onDone, lostWorkspace, byHandFirst, onInstallByHand
               </span>
               <div>
                 <Button
-                  variant={agentFirst ? 'primary' : 'secondary'}
+                  variant="primary"
                   onClick={openAgentSetup}
                   title="Let Claude, ChatGPT or another agent set up this server with you"
                 >

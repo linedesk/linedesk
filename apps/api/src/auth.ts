@@ -24,7 +24,13 @@ import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
 import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
-import { guardPasskeyChanges, notifyPasskeyChange, passkeyPlugin, passkeyRelyingParty } from './passkeys.ts'
+import {
+  guardPasskeyChanges,
+  notifyPasskeyChange,
+  passkeyPlugin,
+  passkeyRelyingParty,
+  refuseUnverifiedPasskey,
+} from './passkeys.ts'
 import {
   ALLOWED_TRIES,
   afterPasswordReset,
@@ -138,6 +144,7 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
   await limitSignIns(ctx)
   await refuseWhileImpersonating(ctx)
   await guardPasskeyChanges(ctx)
+  refuseUnverifiedPasskey(ctx)
   await guardPasswordReset(ctx)
   // The first step of proving the current address is answered from here (email-change.ts).
   return guardEmailChange(ctx)
@@ -299,7 +306,8 @@ export const auth = betterAuth({
     additionalFields: {
       impersonatedBy: { type: 'string', required: false, input: false },
       passkeyVerifiedAt: { type: 'date', required: false, input: false },
-      // Set when the passkey sign-in gave a setup link its email and sign-in grant (agent-setup.ts).
+      // Unused since the one-level setup link (2026-11-15): was set when a passkey sign-in gave a setup link its email
+      // and sign-in grant. Kept until a later contract step (expand/contract, docs/architecture.md §11).
       passkeyGrantUsedAt: { type: 'date', required: false, input: false },
     },
   },

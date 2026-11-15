@@ -5,7 +5,7 @@ import { passkey } from '@better-auth/passkey'
 import { passkey as passkeyTable, user } from '@linedesk/db'
 import { APIError, type createAuthMiddleware, getSessionFromCtx, isAPIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
-import { passkeyConfirmed } from './admin-second-factor.ts'
+import { noteUserVerified, passkeyConfirmed } from './admin-second-factor.ts'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
 import { passkeyChangedEmail } from './emails/templates.ts'
@@ -30,21 +30,52 @@ export function passkeyRelyingParty(env: Env) {
 export const passkeyPlugin = (env: Env) =>
   passkey({
     ...passkeyRelyingParty(env),
+    // A passkey is two factors only when the device checks the person (fingerprint, face or PIN: WebAuthn user
+    // verification). Required when a passkey is added and when one signs in: the browser asks for it, and the plugin
+    // refuses a response without it (requireUserVerification). A security key without a PIN only proves possession.
+    authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
     // A passkey is added to the account of the session that asks, after a recent sign-in (the
     // plugin's fresh-session check). There is no `resolveUser`: no passkey-first sign-up.
     registration: { requireSession: true },
-    // Signed in already (a passkey step-up, Allow on the setup page): only one of this account's passkeys counts.
     authentication: {
-      afterVerification: async ({ ctx, clientData }) =>
-        refuseOtherAccountsPasskey((await getSessionFromCtx(ctx as AuthCtx))?.user.id ?? null, clientData.id),
+      afterVerification: async ({ ctx, verification, clientData }) => {
+        // Signed in already (a passkey step-up): only one of this account's passkeys counts.
+        await refuseOtherAccountsPasskey((await getSessionFromCtx(ctx as AuthCtx))?.user.id ?? null, clientData.id)
+        // What the session.create hook reads: only a sign-in the device verified counts as the passkey check.
+        if (verification.authenticationInfo.userVerified) noteUserVerified(ctx)
+      },
     },
   })
 
+/** The code a passkey sign-in without user verification is refused with (the web app explains it). */
+export const PASSKEY_USER_NOT_VERIFIED = 'PASSKEY_USER_NOT_VERIFIED'
+/** The WebAuthn flag "user verified" in authenticatorData (byte 32, after the 32-byte hash of the relying party). */
+const UV_FLAG = 0x04
+
 /**
- * A passkey sign-in from a signed-in browser is a confirmation of that person (the step-ups, Allow on the setup page):
- * the browser already offers only their passkeys (Better Auth lists them as allowCredentials), and the server refuses
- * another account's passkey too, so a confirmation never switches the browser to someone else. Without a session (the
- * sign-in page) any passkey signs its own account in.
+ * Before Better Auth's passkey sign-in: a response whose device did not verify the person is refused with a clear
+ * code. The plugin refuses it as well (userVerification 'required'), only with a generic "did not work". The flag is
+ * read before the signature is checked, so it only ever chooses the refusal's text, never lets anything through.
+ */
+export function refuseUnverifiedPasskey(ctx: { path: string; body?: unknown }) {
+  if (ctx.path !== '/passkey/verify-authentication') return
+  const data = (ctx.body as { response?: { response?: { authenticatorData?: unknown } } } | undefined)?.response
+    ?.response?.authenticatorData
+  if (typeof data !== 'string') return
+  const bytes = Buffer.from(data, 'base64url')
+  if (bytes.length < 37 || bytes[32]! & UV_FLAG) return
+  throw new APIError('FORBIDDEN', {
+    code: PASSKEY_USER_NOT_VERIFIED,
+    message:
+      "This passkey doesn't check your fingerprint, face or PIN. Sign in another way, or ask an admin to reset your passkeys.",
+  })
+}
+
+/**
+ * A passkey sign-in from a signed-in browser is a confirmation of that person (the step-ups, the check before Server
+ * admin): the browser already offers only their passkeys (Better Auth lists them as allowCredentials), and the server
+ * refuses another account's passkey too, so a confirmation never switches the browser to someone else. Without a
+ * session (the sign-in page) any passkey signs its own account in.
  */
 export const PASSKEY_OTHER_ACCOUNT = 'PASSKEY_OTHER_ACCOUNT'
 export async function refuseOtherAccountsPasskey(signedInUserId: string | null, credentialId: string) {

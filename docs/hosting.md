@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/inst
 
 The setup code works once and stays the same across restarts of the API for 7 days; after that the next start prints a new one. To see it again, or to replace it with a new one (if someone else saw it): `docker compose exec api node apps/api/src/setup-code.ts [--new]`. It is gone once the first admin exists.
 
-Open the address, enter the setup code, add your passkey when it asks (email and sign-in settings need it), and set up the rest with your AI agent or by hand.
+Open the address, enter the setup code, add your passkey when it asks (Server admin needs it; lost it? see docs/self-host-first-run.md "Your passkey"), and set up the rest with your AI agent or by hand.
 
 **With an AI agent:** Claude Code or Codex on your computer can do the whole move. The Linedesk setup tells your agent when it runs only on your computer; ask it to put Linedesk on a server. It helps you pick a provider, and once it can reach the server over SSH, it runs the install there and reads you the setup code.
 

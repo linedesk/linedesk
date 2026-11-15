@@ -11,6 +11,7 @@ import type { ListKeys } from './AdminList.tsx'
 import { ADMIN_DATA, ADMIN_HEALTH, type HealthPart, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
 import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
+import { SecondPasskeyNote } from './SecondPasskeyNote.tsx'
 import { AuditLog } from './AuditLog.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -190,6 +191,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'overview')
       return (
         <>
+          <SecondPasskeyNote account={currentUserId} />
           <StatusCard status={status} />
           <Overview onOpen={section => go({ section, id: null })} />
         </>

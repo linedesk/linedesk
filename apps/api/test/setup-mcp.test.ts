@@ -14,19 +14,16 @@ import {
   provider_settings,
   session,
   transcript_segments,
-  type Tx,
   user,
 } from '@linedesk/db'
-import { and, desc, eq, isNotNull, type SQL } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
-import { passkeyStepUpRefusal } from '../src/admin-step-up.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { refuseOtherAccountsPasskey } from '../src/passkeys.ts'
 import { emailSender } from '../src/email.ts'
 import nodemailer from 'nodemailer'
 import type * as RunActionModule from '../src/run-action.ts'
-import { PRIVATE_ENDPOINT } from '../src/s3-endpoint.ts'
 import {
   devNumberLine,
   forAgent,
@@ -35,7 +32,7 @@ import {
   SETUP_LINK_WORKSPACE_CAP,
   wrapUp,
 } from '../src/setup-mcp.ts'
-import { agentSetupHandlers, hashSetupKey } from '../src/agent-setup.ts'
+import { agentSetupHandlers, hashSetupKey, setupKeyAccess } from '../src/agent-setup.ts'
 import { runAction } from '../src/run-action.ts'
 import {
   act,
@@ -127,7 +124,7 @@ describe('setup keys', () => {
     expect(made.url).toMatch(new RegExp(`/mcp/setup/${made.key}$`))
     const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, made.keyId))
     expect(row!.key_hash).not.toContain(made.key)
-    expect(Date.parse(made.expiresAt) - Date.now()).toBeGreaterThan(23 * 3_600_000)
+    expect(Date.parse(made.expiresAt) - Date.now()).toBeGreaterThan(3.9 * 3_600_000)
   })
 
   test('a new key ends the earlier ones; End agent access ends all of them', async () => {
@@ -436,7 +433,7 @@ describe('tools', () => {
     const second = (again as { workspace: { id: string } }).workspace.id
     expect(second).not.toBe(first)
     type Status = Omit<typeof before, 'workspaces'> & {
-      workspaces: (typeof before.workspaces[number] & { all_done: boolean; role?: string })[]
+      workspaces: ((typeof before.workspaces)[number] & { all_done: boolean; role?: string })[]
     }
     const after = data(await call(key, 'setup_status')) as Status
     // The server's steps once, then each workspace's own steps with its id, oldest first.
@@ -567,7 +564,11 @@ describe('tools', () => {
       .returning()
     const { key } = await makeKey(admin.owner)
     // B's assistant and number named with A's workspaceId: not found there, B untouched.
-    const renamed = await call(key, 'assistant_update', { workspaceId: admin.id, assistantId: bAssistant!.id, name: 'Taken' })
+    const renamed = await call(key, 'assistant_update', {
+      workspaceId: admin.id,
+      assistantId: bAssistant!.id,
+      name: 'Taken',
+    })
     expect(renamed.body.result.isError).toBe(true)
     const moved = await call(key, 'phoneNumber_update', {
       workspaceId: admin.id,
@@ -613,9 +614,7 @@ describe('tools', () => {
     expect(capped.body.result.content[0].text).toBe(
       'This setup link can create up to 10 workspaces. Create a new setup link on the setup page to add more, or create them in the app.',
     )
-    expect(await db.select().from(member).where(eq(member.userId, admin.userId))).toHaveLength(
-      SETUP_LINK_WORKSPACE_CAP,
-    )
+    expect(await db.select().from(member).where(eq(member.userId, admin.userId))).toHaveLength(SETUP_LINK_WORKSPACE_CAP)
     // The cap is per link: a new link B can create up to 10 again; the app can make more too.
     const { key: next } = await makeKey(admin)
     for (const name of ['Location 11', 'Location 12']) {
@@ -789,143 +788,126 @@ describe('every key through the agent (LIN-182)', () => {
     expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toHaveLength(2)
   })
 
-  test('setup_status lists the passkey first while the admin has none, with how to add it (LIN-189)', async () => {
-    type Status = {
-      steps: { id: string; group: string; state: string; how?: string[] }[]
-      next_step: string | null
-    }
-    // Admins need no passkey on this install: no passkey step, the providers come first as before.
-    const { key } = await makeKey(ws.owner)
-    const off = data(await call(key, 'setup_status')) as Status
-    expect(off.steps.map(s => s.id)).not.toContain('passkey')
-    expect(off.steps[0]!.id).toBe('answering')
-
+  test('setup_status never lists a passkey step: making the link needed the passkey already (one access level)', async () => {
+    type Status = { steps: { id: string; group: string }[]; next_step: string | null }
     process.env.ADMIN_SECOND_FACTOR = 'on'
-    const before = data(await call(key, 'setup_status')) as Status
-    expect(before.steps.map(s => s.id).slice(0, 5)).toEqual([
-      'passkey',
-      'answering',
-      'telephony',
-      'email',
-      'call-audio',
-    ])
-    const step = before.steps[0]!
-    // The admin's own part of the setup, before the server's.
-    expect(before.steps.slice(0, 2).map(s => s.group)).toEqual(['you', 'server'])
-    // Only the admin can add it, in the browser: the agent asks and goes on with the next step meanwhile.
-    expect(step.state).toBe('admin_only')
-    expect(before.next_step).toBe('answering')
-    const how = step.how!.join(' ')
-    expect(how).toMatch(/agents cannot add passkeys/)
-    expect(how).toContain('/#account/security')
-    expect(how).toMatch(/enrolment code is filled in already/)
-    expect(how).toContain('user-passkeys.ts --enrol')
-    expect(how).toMatch(/"Allow with passkey"/)
-    // The next step keeps its own how-to as well.
-    expect(before.steps.find(s => s.id === 'answering')?.how).toBeDefined()
-
     await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    const after = data(await call(key, 'setup_status')) as Status
-    expect(after.steps[0]).toMatchObject({ id: 'passkey', state: 'done' })
-    expect(after.steps[0]!.how).toBeUndefined()
+    await signedIn(ws.owner, true)
+    const { key } = await makeKey(ws.owner)
+    const status = data(await call(key, 'setup_status')) as Status & Record<string, unknown>
+    expect(status.steps.map(s => s.id)).not.toContain('passkey')
+    expect(status.steps.map(s => s.group)).not.toContain('you')
+    expect(status.steps[0]!.id).toBe('answering')
+    expect(status).not.toHaveProperty('email_and_sign_in_allowed')
+    expect(JSON.stringify(status)).not.toMatch(/PASSKEY_NEEDED|Allow with passkey|\?allow=/)
   })
 
-  test('the install part is finished when its four provider steps are done, the passkey step aside', () => {
+  test('the install part is finished when its four provider steps are done', () => {
     const step = (id: string, state: string) =>
       ({ id, label: id, state }) as Parameters<typeof installPartDone>[0][number]
     const providers = ['answering', 'telephony', 'email', 'call-audio'].map(id => step(id, 'done'))
     const business = [step('workspace', 'todo'), step('test_call', 'admin_only')]
-    // The passkey comes first and only the admin adds it: it never holds the install part back.
-    expect(installPartDone([step('passkey', 'admin_only'), ...providers, ...business])).toBe(true)
     expect(installPartDone([...providers, ...business])).toBe(true)
-    // With the passkey first, the old "first four" left call audio out.
-    expect(
-      installPartDone([step('passkey', 'done'), ...providers.slice(0, 3), step('call-audio', 'todo'), ...business]),
-    ).toBe(false)
+    expect(installPartDone([...providers.slice(0, 3), step('call-audio', 'todo'), ...business])).toBe(false)
   })
 
-  test('email and sign-in keep the passkey step-up: PASSKEY_NEEDED says what to ask, nothing is stored', async () => {
+  test('making a link needs the passkey check; without it nothing is made', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
+    const before = await db.select({ id: agent_setup_keys.id }).from(agent_setup_keys)
+    // No passkey yet: enrol first.
     await signedIn(ws.owner, false)
-    const { key, keyId } = await makeKey(ws.owner)
-    // No passkey yet: the agent hears how the admin gets one, not "paste it in the app".
-    const enrol = await call(key, 'provider_setKeys', { provider: 'resend', values: { api_key: SECRET } })
-    expect(enrol.body.result.isError).toBe(true)
-    expect(text(enrol)).toMatch(/^PASSKEY_NEEDED: .*enrol/)
+    expect(await act(ws.owner, 'agentSetup.createKey', {})).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'enrol' },
+    })
+    // A passkey, but this session did not pass the check (a password or email-code sign-in).
     await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    expect(await act(ws.owner, 'agentSetup.createKey', {})).toMatchObject({
+      status: 403,
+      body: { code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'confirm' },
+    })
+    // A passkey check older than 12 hours does not count either.
+    const old = new Date(Date.now() - 13 * 3_600_000)
+    await db.update(session).set({ createdAt: old, passkeyVerifiedAt: old }).where(eq(session.userId, ws.owner.userId))
+    expect((await act(ws.owner, 'agentSetup.createKey', {})).status).toBe(403)
+    expect(await db.select({ id: agent_setup_keys.id }).from(agent_setup_keys)).toHaveLength(before.length)
+    // The defence in depth in the handler: an actor with instance:admin but without the check is refused there too.
+    const forged: Actor = {
+      actorId: ws.owner.userId,
+      role: 'member',
+      workspaceId: null,
+      permissions: ['instance:admin'],
+    }
+    await expect(
+      db.transaction(tx =>
+        agentSetupHandlers['agentSetup.createKey']!({ tx, actor: forged as Actor, now: new Date().toISOString() }, {}),
+      ),
+    ).rejects.toThrow(/passkey/)
+    // Right after the passkey check: made, for 4 hours.
+    await signedIn(ws.owner, true)
+    const made = await makeKey(ws.owner)
+    expect(Date.parse(made.expiresAt) - Date.now()).toBeGreaterThan(3.9 * 3_600_000)
+    expect(Date.parse(made.expiresAt) - Date.now()).toBeLessThanOrEqual(4 * 3_600_000)
+  })
+
+  test('one access level: the link sets email and sign-in at once, no Allow, no PASSKEY_NEEDED', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, true)
+    const { key, keyId } = await makeKey(ws.owner)
+    // Later the admin's browser session is a plain one again: the link keeps working, it carries the check itself.
+    await signedIn(ws.owner, false)
     for (const [name, args] of [
-      ['provider_setKeys', { provider: 'resend', values: { api_key: SECRET } }],
-      ['provider_setKeys', { provider: 'google', values: { client_id: 'id', client_secret: SECRET } }],
-      ['provider_clearKeys', { provider: 'smtp' }],
+      ['provider_setKeys', { provider: 'resend', values: { api_key: SECRET, from: 'desk@brightwater.test' } }],
       ['provider_setActive', { category: 'email', provider: 'resend' }],
+      ['provider_setKeys', { provider: 'google', values: { client_id: 'id', client_secret: SECRET } }],
+      ['provider_clearKeys', { provider: 'google' }],
+      ['provider_clearKeys', { provider: 'smtp' }],
     ] as const) {
       const res = await call(key, name, args)
-      expect(res.body.result.isError).toBe(true)
-      expect(text(res)).toMatch(/^PASSKEY_NEEDED: email and sign-in .*"Allow with passkey"/)
-      // It says how to wait for the Allow (setup_status, read-only) instead of retrying the refused tool blindly.
-      expect(text(res)).toMatch(
-        /do not call this tool again yet\. Call setup_status .* email_and_sign_in_allowed: true/,
-      )
-      // The link names this key: Allow on that page confirms it and nothing else.
-      expect(text(res)).toContain(`/#setup-agent?allow=${keyId}`)
-      expect(text(res)).not.toMatch(/paste (it|the key) in/i)
+      expect(res.body.result.isError, name).toBeFalsy()
+      expect(text(res), name).not.toMatch(/PASSKEY_NEEDED|Allow/)
       expect(JSON.stringify(res.body)).not.toContain(SECRET)
     }
-    expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toEqual([])
+    expect(
+      (await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).length,
+    ).toBeGreaterThan(0)
+    // The page (Server admin, so the passkey check again) shows the link as it is: no grant, no pending request.
+    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body).toMatchObject({
+      code: 'SECOND_FACTOR_REQUIRED',
+    })
+    await signedIn(ws.owner, true)
     const state = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body
-    expect(state.key.emailAndSignIn).toBe(false)
-    // Allow needs the passkey itself.
-    const refused = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
-    expect(refused).toMatchObject({ status: 403, body: { code: 'PASSKEY_STEP_UP_REQUIRED' } })
-  })
-
-  test('Allow with a passkey (or a key made right after a passkey sign-in) lets the same link set email and sign-in', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    await signedIn(ws.owner, false)
-    const { key, keyId } = await makeKey(ws.owner)
-    await signedIn(ws.owner, true)
-    const allowed = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
-    expect(allowed.status).toBe(200)
-    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
-    // 12 hours from that passkey sign-in, never past the key's own end.
-    expect(Date.parse(row!.passkey_confirmed_until!) - Date.now()).toBeGreaterThan(11.9 * 3_600_000)
-    expect(Date.parse(row!.passkey_confirmed_until!) - Date.now()).toBeLessThanOrEqual(12 * 3_600_000)
-    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key.emailAndSignIn).toBe(true)
-    const res = await call(key, 'provider_setKeys', {
-      provider: 'resend',
-      values: { api_key: SECRET, from: 'desk@brightwater.test' },
-    })
-    expect(data(res)).toMatchObject({ ok: true, test: { message: expect.any(String) } })
-    expect(JSON.stringify(res.body)).not.toContain(SECRET)
-    // A passkey confirmation that ran out stops it again.
-    await db
-      .update(agent_setup_keys)
-      .set({ passkey_confirmed_until: new Date(Date.now() - 1000).toISOString() })
-      .where(eq(agent_setup_keys.id, keyId))
-    expect(text(await call(key, 'provider_clearKeys', { provider: 'resend' }))).toMatch(/^PASSKEY_NEEDED/)
-    // A key made right after a new passkey sign-in carries it from the start (the earlier sign-in gave its one grant).
-    await signedIn(ws.owner, true)
-    const fresh = await makeKey(ws.owner)
-    const [made] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, fresh.keyId))
-    expect(made!.passkey_confirmed_until).not.toBeNull()
-    expect(data(await call(fresh.key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatchObject({
-      ok: true,
-    })
-  })
-
-  test('the passkey confirmation never reaches the workspace tools, and a setup key cannot allow itself', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    await signedIn(ws.owner, true)
-    const { key, keyId } = await makeKey(ws.owner)
+    expect(Object.keys(state.key).sort()).toEqual(['createdAt', 'expiresAt', 'id', 'lastUsedAt', 'prefix'])
+    expect(state.key.id).toBe(keyId)
+    // The removed Allow and Withdraw are no actions any more, in the app or through the link.
+    for (const name of ['agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey'])
+      expect((await act(ws.owner, name, { keyId })).status, name).toBe(404)
     const names: string[] = (await mcp(key, 'tools/list')).body.result.tools.map((t: { name: string }) => t.name)
     expect(names).not.toContain('agentSetup_confirmPasskey')
-    expect(names).not.toContain('agentSetup_withdrawPasskey')
     expect(names).not.toContain('agentSetup_createKey')
-    expect((await call(key, 'agentSetup_confirmPasskey', { keyId })).body.error.message).toMatch(/not found/)
-    // A confirmed key: a provider action gets the confirmation, a workspace action runs without it (and without
-    // instance:admin), as the business's owner would.
+  })
+
+  test('a link stops working after 4 hours, email and sign-in included', async () => {
+    const { key, keyId } = await makeKey(ws.owner)
+    expect((await mcp(key, 'tools/list')).status).toBe(200)
+    await db
+      .update(agent_setup_keys)
+      .set({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .where(eq(agent_setup_keys.id, keyId))
+    const res = await call(key, 'provider_setKeys', { provider: 'resend', values: { api_key: SECRET } })
+    expect(res).toMatchObject({ status: 401, body: { code: 'SETUP_KEY_ENDED', reason: 'expired' } })
+    expect(res.body.error).toMatch(/a link works for 4 hours/)
+    expect(await db.select().from(provider_settings).where(eq(provider_settings.provider, 'resend'))).toEqual([])
+  })
+
+  test('the passkey check never reaches the workspace tools', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, true)
+    const { key, keyId } = await makeKey(ws.owner)
+    // A provider action gets the check, a workspace action runs without it (and without instance:admin), as the
+    // business's owner would.
     ran.length = 0
     expect(data(await call(key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatchObject({
       ok: true,
@@ -946,157 +928,11 @@ describe('every key through the agent (LIN-182)', () => {
     })
   })
 
-  test("Allow confirms only the key the agent named, and only if it is the admin's own working key (M1)", async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'off'
-    const theirs = await makeKey(fresh)
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    // Someone with only the mailbox (no passkey sign-in) makes a key; then a second one ends the first.
-    await signedIn(ws.owner, false)
-    const first = await makeKey(ws.owner)
-    const second = await makeKey(ws.owner)
-    const state = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body
-    expect(state.key).toMatchObject({ id: second.keyId, emailAndSignIn: false, emailAndSignInUntil: null })
-    expect(Date.parse(state.key.createdAt)).toBeLessThanOrEqual(Date.now())
-    // The admin then allows with a passkey sign-in: an id that is not theirs, ended or made up is refused.
-    await signedIn(ws.owner, true)
-    for (const keyId of [first.keyId, theirs.keyId, 'sk_madeup']) {
-      const refused = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
-      expect(refused.status, keyId).toBe(409)
-      expect(refused.body.error).toMatch(/not your working one/)
-    }
-    const confirmed = () =>
-      db.select().from(agent_setup_keys).where(isNotNull(agent_setup_keys.passkey_confirmed_until))
-    expect((await confirmed()).map(r => r.id)).not.toContain(second.keyId)
-    expect((await confirmed()).map(r => r.id)).not.toContain(theirs.keyId)
-    // An expired key is not the working one either.
-    await db
-      .update(agent_setup_keys)
-      .set({ expires_at: new Date(Date.now() - 1000).toISOString() })
-      .where(eq(agent_setup_keys.id, second.keyId))
-    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId: second.keyId })).status).toBe(409)
-    // The key the agent's link names, still working: allowed.
-    const third = await makeKey(ws.owner)
-    await db.update(agent_setup_keys).set({ passkey_confirmed_until: null }).where(eq(agent_setup_keys.id, third.keyId))
-    // Making it used that passkey sign-in's one grant: Allow comes with a new passkey prompt.
-    await signedIn(ws.owner, true)
-    const allowed = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId: third.keyId })
-    expect(allowed).toMatchObject({ status: 200, body: { data: { keyId: third.keyId } } })
-    expect((await confirmed()).map(r => r.id)).toEqual(expect.arrayContaining([third.keyId]))
-    expect((await confirmed()).map(r => r.id)).not.toContain(theirs.keyId)
-  })
-
-  test('Allow needs a passkey sign-in of the last minutes, works without email, and the agent sees it in setup_status', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    // Email is not set up on this install: the grant must not depend on it (no notification on the way).
-    await clear('smtp', 'resend')
-    await signedIn(ws.owner, false)
-    const { key, keyId } = await makeKey(ws.owner)
-    const status = async () => data(await call(key, 'setup_status')) as { email_and_sign_in_allowed: boolean }
-    expect((await status()).email_and_sign_in_allowed).toBe(false)
-    // The reported failure: a passkey sign-in from an hour ago used to let Allow through without a passkey prompt.
-    // Now the passkey is asked for again (the page then shows the passkey prompt), and nothing is allowed.
-    const hourAgo = new Date(Date.now() - 3_600_000)
-    await db
-      .update(session)
-      .set({ createdAt: hourAgo, passkeyVerifiedAt: hourAgo })
-      .where(eq(session.userId, ws.owner.userId))
-    const stale = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
-    expect(stale).toMatchObject({ status: 403, body: { code: 'PASSKEY_STEP_UP_REQUIRED', stepUp: 'confirm' } })
-    const [untouched] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
-    expect(untouched!.passkey_confirmed_until).toBeNull()
-    // Other step-ups still take that sign-in: only the Allow asks every time.
-    const hourOldPasskey = { actorId: ws.owner.userId, passkeyConfirmed: true } as Actor
-    const setKeys = { name: 'provider.setKeys', permission: 'instance:admin' } as const
-    expect(await passkeyStepUpRefusal(setKeys, { provider: 'resend' }, hourOldPasskey)).toBeNull()
-    // Right after the passkey sign-in (what "Allow with passkey" does first): allowed, and the agent can go on.
-    await signedIn(ws.owner, true)
-    const allowed = await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })
-    expect(allowed).toMatchObject({ status: 200, body: { data: { keyId } } })
-    expect((await status()).email_and_sign_in_allowed).toBe(true)
-    const res = await call(key, 'provider_setKeys', {
-      provider: 'resend',
-      values: { api_key: SECRET, from: 'desk@brightwater.test' },
-    })
-    expect(data(res)).toMatchObject({ ok: true })
-  })
-
-  test('one passkey sign-in gives one grant: Withdraw and Allow again needs a new passkey prompt (review L1)', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    await signedIn(ws.owner, false)
-    const { keyId } = await makeKey(ws.owner)
-    await signedIn(ws.owner, true)
-    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })).status).toBe(200)
-    expect((await act(ws.owner, 'agentSetup.withdrawPasskey', {})).status).toBe(200)
-    // Same passkey sign-in, still within the minutes: used up.
-    expect(await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })).toMatchObject({
-      status: 403,
-      body: { code: 'PASSKEY_STEP_UP_REQUIRED' },
-    })
-    // A key made now from the same sign-in starts without the grant too.
-    const again = await makeKey(ws.owner)
-    const [made] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, again.keyId))
-    expect(made!.passkey_confirmed_until).toBeNull()
-    // A new passkey prompt (a new sign-in) allows again.
-    await signedIn(ws.owner, true)
-    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId: again.keyId })).status).toBe(200)
-  })
-
-  test('a new link carries the grant only from an unused passkey sign-in of the last minutes (review M1)', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    // A passkey sign-in an hour ago (a session cookie someone could have taken): the new link has no grant.
-    const hourAgo = new Date(Date.now() - 3_600_000)
-    await db
-      .update(session)
-      .set({ createdAt: hourAgo, passkeyVerifiedAt: hourAgo, passkeyGrantUsedAt: null })
-      .where(eq(session.userId, ws.owner.userId))
-    const old = await makeKey(ws.owner)
-    const [stale] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, old.keyId))
-    expect(stale!.passkey_confirmed_until).toBeNull()
-    expect(text(await call(old.key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatch(
-      /^PASSKEY_NEEDED/,
-    )
-    // Right after one: it has the grant, and that sign-in is used up.
-    await signedIn(ws.owner, true)
-    const fresh = await makeKey(ws.owner)
-    const [made] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, fresh.keyId))
-    expect(made!.passkey_confirmed_until).not.toBeNull()
-    const [own] = await db.select().from(session).where(eq(session.userId, ws.owner.userId))
-    expect(own!.passkeyGrantUsedAt).not.toBeNull()
-  })
-
-  test('the Allow dialog gets what the agent asked for, from where, without secrets (review L3)', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    await signedIn(ws.owner, false)
-    const { key } = await makeKey(ws.owner)
-    const res = await call(key, 'provider_setKeys', {
-      provider: 'smtp',
-      values: { url: `smtps://desk:${SECRET}@mail.brightwater.test:465`, from: 'desk@brightwater.test' },
-    })
-    expect(text(res)).toMatch(/^PASSKEY_NEEDED/)
-    const state = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body
-    expect(state.key.request).toMatchObject({
-      what: 'Set up email with SMTP (server mail.brightwater.test:465, from desk@brightwater.test)',
-      at: expect.any(String),
-    })
-    expect(state.key.request.ip).toEqual(expect.any(String))
-    expect(JSON.stringify(state)).not.toContain(SECRET)
-    expect(JSON.stringify(state)).not.toContain('desk:')
-    // Allowed: nothing waits any more.
-    await signedIn(ws.owner, true)
-    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId: state.key.id })).status).toBe(200)
-    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key.request).toBeNull()
-  })
-
-  test('setup_status { read_only: true } notes nothing, so waiting for Allow has no side effects (review I1)', async () => {
+  test('setup_status { read_only: true } notes nothing (review I1)', async () => {
     const { key } = await makeKey(ws.owner)
     const before = await db.select({ id: commands.id }).from(commands)
     const status = data(await call(key, 'setup_status', { read_only: true }))
-    expect(status).toHaveProperty('email_and_sign_in_allowed')
+    expect(status).toHaveProperty('steps')
     expect(await db.select({ id: commands.id }).from(commands)).toHaveLength(before.length)
   })
 
@@ -1118,77 +954,24 @@ describe('every key through the agent (LIN-182)', () => {
     await db.delete(passkey).where(eq(passkey.userId, fresh.userId))
   })
 
-  test('Withdraw ends the passkey confirmation without a passkey; the page shows until when it lasts (L1)', async () => {
+  test('recording storage on this server or a private network is fine for the link; link-local never (M2)', async () => {
     process.env.ADMIN_SECOND_FACTOR = 'on'
     await db.insert(passkey).values(passkeyRow(ws.owner.userId))
     await signedIn(ws.owner, true)
     const { key } = await makeKey(ws.owner)
-    const until = (await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key.emailAndSignInUntil
-    expect(Date.parse(until)).toBeGreaterThan(Date.now() + 11 * 3_600_000)
-    await signedIn(ws.owner, false)
-    expect((await act(ws.owner, 'agentSetup.withdrawPasskey', {})).status).toBe(200)
-    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key).toMatchObject({
-      emailAndSignIn: false,
-      emailAndSignInUntil: null,
-    })
-    expect(text(await call(key, 'provider_setActive', { category: 'email', provider: 'resend' }))).toMatch(
-      /^PASSKEY_NEEDED/,
-    )
-    // A setup key cannot withdraw (or do anything with) setup links.
-    expect((await call(key, 'agentSetup_withdrawPasskey')).body.error.message).toMatch(/not found/)
-  })
-
-  test('recording storage on this server or a private network needs the Allow; link-local never (M2)', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'on'
-    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
-    await signedIn(ws.owner, false)
-    const { key, keyId } = await makeKey(ws.owner)
     const stored = async () =>
       (await db.select().from(provider_settings).where(eq(provider_settings.provider, 's3'))).map(r => r.field)
-    // `localhost` is a name that resolves to a loopback address: checked after DNS, like the written ones.
-    for (const endpoint of [
-      'http://127.0.0.1:9000',
-      'http://localhost:9000',
-      'http://10.0.0.5:9000',
-      'http://[::1]:9000',
-    ]) {
-      const res = await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint, bucket: 'calls' } })
-      expect(res.body.result.isError, endpoint).toBe(true)
-      expect(text(res)).toMatch(/^PASSKEY_NEEDED: a storage endpoint on this server or a private network/)
-      expect(text(res)).toContain(`/#setup-agent?allow=${keyId}`)
-    }
     for (const endpoint of ['http://169.254.169.254', 'http://[fe80::1]:9000']) {
       const res = await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint } })
       expect(res.body.result.isError, endpoint).toBe(true)
       expect(text(res)).toMatch(/link-local or cloud metadata/)
     }
     expect(await stored()).toEqual([])
-    // A public address is stored and tested at once (the test request is the faked fetch).
-    const fetched = vi.mocked(globalThis.fetch)
-    const pub = await call(key, 'provider_setKeys', {
-      provider: 's3',
-      values: {
-        endpoint: 'https://93.184.215.14',
-        bucket: 'calls',
-        access_key_id: 'AKIAEXAMPLE',
-        secret_access_key: SECRET,
-      },
-    })
-    expect(data(pub)).toMatchObject({ ok: true, test: { ok: false } })
-    expect(fetched).toHaveBeenCalled()
-    expect(await stored()).toContain('endpoint')
-
-    // The admin puts storage on the Docker network themselves: fine for them, but the unconfirmed setup key
-    // cannot test it (no request goes there, and the provider is not marked as failing).
+    // The link was made with the passkey check: a storage endpoint on the Docker network is the admin's choice.
     expect(
-      (await act(ws.owner, 'provider.setKeys', { provider: 's3', values: { endpoint: 'http://127.0.0.1:9000' } }))
-        .status,
-    ).toBe(200)
-    fetched.mockClear()
-    const tested = await call(key, 'provider_test', { provider: 's3' })
-    expect(tested.body.result.isError).toBe(true)
-    expect(text(tested)).toContain(PRIVATE_ENDPOINT)
-    expect(fetched).not.toHaveBeenCalled()
+      data(await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint: 'http://localhost:9000' } })),
+    ).toMatchObject({ ok: true })
+    expect(await stored()).toContain('endpoint')
     // Link-local is refused for the admin too, in the app.
     const app = await act(ws.owner, 'provider.setKeys', {
       provider: 's3',
@@ -1196,27 +979,77 @@ describe('every key through the agent (LIN-182)', () => {
     })
     expect(app.status).toBe(409)
     expect(app.body.error).toMatch(/link-local/)
-
-    // After the admin's Allow, the same link may use a private endpoint, but still no link-local one.
-    await signedIn(ws.owner, true)
-    expect((await act(ws.owner, 'agentSetup.confirmPasskey', { keyId })).status).toBe(200)
-    expect(
-      data(await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint: 'http://localhost:9000' } })),
-    ).toMatchObject({ ok: true })
-    expect(
-      text(await call(key, 'provider_setKeys', { provider: 's3', values: { endpoint: 'http://169.254.169.254' } })),
-    ).toMatch(/link-local/)
   })
 
-  test("resetting an admin's passkeys ends their setup links, a confirmed one too (M3)", async () => {
+  test('a link made while ADMIN_SECOND_FACTOR=off stops working once the rule is on again', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'off'
+    // No passkey check in this session: only allowed because the rule is off.
+    const { key, keyId } = await makeKey(ws.owner)
+    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
+    expect(row!.passkey_confirmed_until).toBeNull()
+    expect((await mcp(key, 'tools/list')).status).toBe(200)
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    for (const tool of ['tools/list', 'tools/call'])
+      expect(await mcp(key, tool, { name: 'providers_list', arguments: {} })).toMatchObject({
+        status: 401,
+        body: { code: 'SETUP_KEY_ENDED', reason: 'ended' },
+      })
+    // The setup page does not offer it as working either.
+    await db.insert(passkey).values(passkeyRow(ws.owner.userId))
+    await signedIn(ws.owner, true)
+    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key).toBeNull()
+    // A link made with the passkey check carries it, also after the switch went off and on.
+    const confirmed = await makeKey(ws.owner)
+    const [made] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, confirmed.keyId))
+    expect(made!.passkey_confirmed_until).toBe(made!.expires_at)
+    expect((await mcp(confirmed.key, 'tools/list')).status).toBe(200)
+    expect((await request(ws.owner, 'GET', '/v1/admin/agent-setup')).body.key).toMatchObject({ id: confirmed.keyId })
+  })
+
+  test('End access works from any session of the admin, without the passkey check; ending other links needs it', async () => {
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    await db.insert(passkey).values([passkeyRow(ws.owner.userId), passkeyRow(fresh.userId)])
+    await signedIn(ws.owner, true)
+    await signedIn(fresh, true)
+    try {
+      const own = await makeKey(ws.owner)
+      const theirs = await makeKey(fresh)
+      // The passkey check of this session has run out (or this is the phone without the passkey).
+      await signedIn(ws.owner, false)
+      const me = (await request(ws.owner, 'GET', '/v1/me')).body
+      expect(me.permissions).toContain('setupLink:end')
+      expect(me.permissions).not.toContain('instance:admin')
+      expect(await act(ws.owner, 'agentSetup.createKey', {})).toMatchObject({
+        status: 403,
+        body: { code: 'SECOND_FACTOR_REQUIRED' },
+      })
+      expect(await act(ws.owner, 'agentSetup.revoke', {})).toMatchObject({ status: 200, body: { data: { ended: 1 } } })
+      expect((await mcp(own.key, 'tools/list')).body).toMatchObject({ code: 'SETUP_KEY_ENDED', reason: 'ended' })
+      // Only their own links: another admin's keeps working, and ending it (resetting that admin's passkeys) needs the check.
+      expect((await mcp(theirs.key, 'tools/list')).status).toBe(200)
+      expect(await act(ws.owner, 'user.resetPasskeys', { userId: fresh.userId })).toMatchObject({
+        status: 403,
+        body: { code: 'SECOND_FACTOR_REQUIRED' },
+      })
+      expect((await mcp(theirs.key, 'tools/list')).status).toBe(200)
+      // A workspace owner who is no instance admin, an API key or the setup link itself never may.
+      const owner = (await createWorkspace('Not an admin')).owner
+      expect((await act(owner, 'agentSetup.revoke', {})).status).toBe(403)
+      const asLink = (await setupKeyAccess(theirs.key, null)) as { kind: 'ok'; actor: Actor }
+      expect((await runAction('agentSetup.revoke', {}, asLink.actor)).status).toBe(403)
+      expect((await mcp(theirs.key, 'tools/list')).status).toBe(200)
+    } finally {
+      await db.delete(passkey).where(eq(passkey.userId, fresh.userId))
+      await signedIn(fresh, false)
+      await act(fresh, 'agentSetup.revoke', {})
+    }
+  })
+
+  test("resetting an admin's passkeys ends their setup links (M3)", async () => {
     process.env.ADMIN_SECOND_FACTOR = 'off'
     const victim = await signUp()
     await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, victim.userId))
     const { key, keyId } = await makeKey(victim)
-    await db
-      .update(agent_setup_keys)
-      .set({ passkey_confirmed_until: new Date(Date.now() + 3_600_000).toISOString() })
-      .where(eq(agent_setup_keys.id, keyId))
     expect((await mcp(key, 'tools/list')).status).toBe(200)
     const mails: string[] = []
     const send = vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e.text))
@@ -1296,7 +1129,8 @@ describe('every key through the agent (LIN-182)', () => {
   test('the agent is never sent to the app to paste a key: instructions, setup_status and optional groups', async () => {
     expect(SETUP_MCP_INSTRUCTIONS).not.toMatch(/paste those keys in the app|never changed through these tools/)
     expect(SETUP_MCP_INSTRUCTIONS).toMatch(/Resend API key/)
-    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/PASSKEY_NEEDED/)
+    expect(SETUP_MCP_INSTRUCTIONS).not.toMatch(/PASSKEY_NEEDED/)
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/email and sign-in included/)
     const { key } = await makeKey(ws.owner)
     const init = await mcp(key, 'initialize', {
       protocolVersion: '2025-06-18',
@@ -1423,15 +1257,11 @@ describe('the agent ends its own access', () => {
     return admin
   }
 
-  test('setup_endAccess ends only the calling key, with its email and sign-in grant, at once; later calls are refused', async () => {
+  test('setup_endAccess ends only the calling key, at once; later calls are refused', async () => {
     const admin = await newAdmin()
     const other = await newAdmin()
     const { key, keyId } = await makeKey(admin)
     const others = await makeKey(other)
-    await db
-      .update(agent_setup_keys)
-      .set({ passkey_confirmed_until: new Date(Date.now() + 3_600_000).toISOString() })
-      .where(eq(agent_setup_keys.id, keyId))
     // setup_status tells the agent how to finish.
     expect((data(await call(key, 'setup_status', { read_only: true })) as { wrap_up: string }).wrap_up).toMatch(
       /setup_endAccess/,
@@ -1441,7 +1271,7 @@ describe('the agent ends its own access', () => {
     expect(res.body.result.isError).toBeFalsy()
     expect(data(res)).toMatchObject({ ok: true, ended: true, message: expect.stringMatching(/Your access has ended/) })
     const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
-    expect(row).toMatchObject({ ended_reason: 'ended_by_agent', passkey_confirmed_until: null })
+    expect(row).toMatchObject({ ended_reason: 'ended_by_agent' })
     expect(row!.revoked_at).not.toBeNull()
 
     // Every later call with it gets the clear answer, which says it ended the link itself.
@@ -1500,42 +1330,5 @@ describe('the agent ends its own access', () => {
     expect(res).toMatchObject({ status: 409, body: { error: expect.stringMatching(/already ended/) } })
     const [theirsRow] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, theirs.keyId))
     expect(theirsRow!.revoked_at).toBeNull()
-  })
-
-  test('an Allow that lands after the key ended grants nothing and says so (review L1)', async () => {
-    process.env.ADMIN_SECOND_FACTOR = 'off'
-    const admin = await newAdmin()
-    const { keyId } = await makeKey(admin)
-    const person: Actor = { actorId: admin.userId, role: 'owner', workspaceId: null, permissions: ['instance:admin'] }
-    // The agent's setup_endAccess commits between the Allow's read of the key and its write (the race the review names).
-    const endMeanwhile = () =>
-      db
-        .update(agent_setup_keys)
-        .set({ revoked_at: new Date().toISOString(), ended_reason: 'ended_by_agent' })
-        .where(eq(agent_setup_keys.id, keyId))
-    const confirm = agentSetupHandlers['agentSetup.confirmPasskey']!
-    await expect(
-      db.transaction(async tx => {
-        const racing = new Proxy(tx, {
-          get(target, prop, receiver) {
-            if (prop !== 'update') return Reflect.get(target, prop, receiver)
-            return (table: typeof agent_setup_keys) => ({
-              set: (values: Partial<typeof agent_setup_keys.$inferInsert>) => ({
-                where: (where: SQL | undefined) => ({
-                  returning: async (fields: { id: typeof agent_setup_keys.id }) => {
-                    await endMeanwhile()
-                    return target.update(table).set(values).where(where).returning(fields)
-                  },
-                }),
-              }),
-            })
-          },
-        })
-        return confirm({ tx: racing as Tx, actor: person, now: new Date().toISOString() }, { keyId })
-      }),
-    ).rejects.toThrow(/not your working one/)
-    const [row] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, keyId))
-    expect(row).toMatchObject({ ended_reason: 'ended_by_agent', passkey_confirmed_until: null })
-    expect(row!.revoked_at).not.toBeNull()
   })
 })

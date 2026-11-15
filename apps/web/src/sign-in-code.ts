@@ -14,6 +14,9 @@ export const normalizeCode = (value: string) => value.replace(/\D/g, '').slice(0
  * like a server setting (AUTH_*) to the check that keeps those off owners' screens (owner-copy.test.ts).
  */
 export const PASSKEY_CANCELLED = ['AUTH', 'CANCELLED'].join('_')
+/** A passkey sign-in refused because the device did not check the person (apps/api/src/passkeys.ts). */
+export const PASSKEY_NOT_VERIFIED =
+  "This passkey doesn't check your fingerprint, face or PIN. Sign in another way, or ask an admin to reset your passkeys."
 
 const authErrors: Record<string, string> = {
   get INVALID_ORIGIN() {
@@ -48,7 +51,9 @@ const authErrors: Record<string, string> = {
     return `That passkey isn't set up for ${brandName()}. Sign in another way, then add it in Account settings.`
   },
   AUTHENTICATION_FAILED: 'That passkey did not work. Try again.',
-  // A passkey step-up (or Allow on the setup page) with another account's passkey (apps/api/src/passkeys.ts).
+  // The device did not check the person (no fingerprint, face or PIN): a passkey counts only with that (passkeys.ts).
+  PASSKEY_USER_NOT_VERIFIED: PASSKEY_NOT_VERIFIED,
+  // A passkey check (Server admin, a step-up) with another account's passkey (apps/api/src/passkeys.ts).
   PASSKEY_OTHER_ACCOUNT: 'That passkey belongs to another account. Use one of your own passkeys.',
   ERROR_CEREMONY_ABORTED: 'Adding the passkey was cancelled.',
   // The browser's NotAllowedError, passed through by SimpleWebAuthn: closed, timed out, or no passkey for this site here.

@@ -1,7 +1,7 @@
 // Who is calling: a signed-in member (session cookie) or the voice agent (bearer token).
 import { timingSafeEqual } from 'node:crypto'
 import { CLIENT_PROTOCOL, CLIENT_PROTOCOL_HEADER, rolePermissions, teamRoles, type Permission, type Role } from '@linedesk/actions'
-import { member, organization, user } from '@linedesk/db'
+import { member, organization, passkey, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { isCallToken, verifyCallToken } from './agent-token.ts'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
@@ -25,7 +25,7 @@ export interface Actor {
   workspaceDisabled?: true
   /** An instance admin (`by`) signed in as this user (docs/architecture.md §12). */
   impersonation?: Impersonation
-  /** An instance admin whose session lacks the second factor: no instance:admin until it is done. */
+  /** An instance admin whose session lacks the passkey check: no instance:admin until it is done. */
   adminSecondFactor?: AdminSecondFactor
   /** The request came with this workspace API key (api-keys.ts), not a session. */
   apiKeyId?: string
@@ -38,8 +38,8 @@ export interface Actor {
   /** The voice agent with a call token (agent-token.ts): only this call, in `workspaceId`. */
   callId?: string
   /**
-   * The session was started by a passkey sign-in in the last 12 hours (never while impersonating),
-   * or the caller is the server operator (CLI): what admin-step-up.ts asks for.
+   * The session was started by a passkey sign-in in the last 12 hours (never while impersonating), the caller is the
+   * server operator (CLI), or an AI agent's setup key (made in such a session): what instance:admin requires.
    */
   passkeyConfirmed?: true
   /** The member's address (or an API key's creator's) is not confirmed yet: no sensitive actions (run-action.ts). */
@@ -58,6 +58,12 @@ async function checkImpersonation(s: { id: string; createdAt: Date; expiresAt: D
   const [admin] = await db.select().from(user).where(eq(user.id, s.impersonatedBy))
   if (!admin || admin.disabledAt || !isInstanceAdmin(admin)) return null
   return { by: admin.id, sessionId: s.id, expiresAt: new Date(Math.min(s.expiresAt.getTime(), endsAt.getTime())) }
+}
+
+/** Whether the account has a passkey: an instance admin without one adds it before Server admin (`enrol`). */
+async function hasPasskey(userId: string): Promise<boolean> {
+  const [any] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)
+  return Boolean(any)
 }
 
 /** A disabled workspace's members keep reading, and can still answer invitations to other workspaces. */
@@ -146,12 +152,19 @@ export async function resolveCaller(
   const impersonation = impersonatedBy ? await checkImpersonation({ ...session.session, impersonatedBy }) : undefined
   if (impersonation === null) return signedOut
   // While impersonating: the user's own permissions, never instance:admin, plus ending the impersonation.
-  // An instance admin gets instance:admin only in a session with the second factor (admin-second-factor.ts).
-  const secondFactorGap = !impersonation && isInstanceAdmin(account) ? adminSecondFactorGap(account, session.session) : null
+  // An instance admin gets instance:admin only in a session that passed the passkey check (admin-second-factor.ts).
+  const secondFactorGap =
+    !impersonation && isInstanceAdmin(account)
+      ? adminSecondFactorGap(account, session.session, await hasPasskey(account.id))
+      : null
+  // Ending their own agent setup links needs no passkey check (setupLink:end, agentSetup.revoke): taking access away is
+  // never harder than granting it.
   const extraPermissions: Permission[] = impersonation
     ? ['impersonation:stop']
-    : isInstanceAdmin(account) && !secondFactorGap
-      ? ['instance:admin']
+    : isInstanceAdmin(account)
+      ? secondFactorGap
+        ? ['setupLink:end']
+        : ['instance:admin', 'setupLink:end']
       : []
   const extra = {
     sessionId: session.session.id,

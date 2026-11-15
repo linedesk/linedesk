@@ -199,7 +199,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'webhook.update': 'integrations',
   'webhook.delete': 'integrations',
   'webhook.test': 'integrations',
-  // An AI agent acting as an instance admin: its setup link, and letting it change email and sign-in.
+  // An AI agent acting as an instance admin: its setup link. confirmPasskey and withdrawPasskey (the Allow step, gone
+  // since the one-level setup link) stay listed, so their past entries still show.
   'agentSetup.createKey': 'integrations',
   'agentSetup.confirmPasskey': 'integrations',
   'agentSetup.withdrawPasskey': 'integrations',

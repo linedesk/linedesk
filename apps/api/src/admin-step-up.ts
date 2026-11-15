@@ -1,148 +1,21 @@
-// A passkey on top of the admin area (docs/architecture.md §12). Any recent sign-in opens Admin, so
-// someone with only an admin's mailbox, password or provider account gets that far. What would let
-// them keep the role or take over passkeys needs a passkey sign-in in the last 12 hours: granting
-// admin, resetting passkeys, issuing an enrolment code, inviting an admin (these hand out enrolment codes), signing in as a
-// user, deleting a workspace, adding anyone to a workspace or making them owner or admin there, any action on an instance admin (by user or by workspace membership), the caller
-// included, and changing email or sign-in settings (an SMTP server or sign-in provider of an
-// attacker's own would hand them sign-in codes or any account). Admins without a passkey add their first with the enrolment code (passkey-enrolment.ts).
-// The server operator (CLI) needs none.
-import { type ActionDef, providerNames, providerSpec, signInCategories } from '@linedesk/actions'
-import { member, passkey, session, user } from '@linedesk/db'
+// What is left of the per-action passkey step-up for instance admins (#293, #694): nothing per action. Since Janik's
+// decision of 2026-11-15 every instance-admin action needs a session that passed the passkey check
+// (admin-second-factor.ts), so the list of actions that needed a passkey "on top", the 5-minute grant for setup links
+// and the private-endpoint exception are gone. Kept here: the refusal code a workspace owner's step-up still uses
+// (owner-step-up.ts), and two helpers for the first-run setup and the handlers that hand out enrolment codes.
+// The server operator (CLI) needs no passkey.
+import { passkey } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
-import { adminSecondFactorRequired, signedInWithin } from './admin-second-factor.ts'
+import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { isInstanceAdmin } from './instance-admin.ts'
-import { s3EndpointProblem } from './s3-endpoint.ts'
 
+/** A workspace owner's passkey step-up (owner-step-up.ts); the web app's passkey dialog reacts to it. */
 export const PASSKEY_STEP_UP_REQUIRED = 'PASSKEY_STEP_UP_REQUIRED'
 
 /**
- * Actions that always need the passkey: they hand out admin rights, enrolment codes or someone else's account,
- * destroy a whole workspace's data for good, or hand the email and sign-in step-up to an AI agent's setup key.
- */
-const ALWAYS = new Set([
-  'instanceAdmin.grant',
-  'user.resetPasskeys',
-  'user.issuePasskeyEnrolment',
-  'user.impersonate',
-  'workspace.delete',
-  // Adds someone to any workspace (or invites them): access to a business's calls.
-  'membership.add',
-  // Lets an AI agent's setup key change email and sign-in (agent-setup.ts): the same rule as doing it yourself.
-  'agentSetup.confirmPasskey',
-])
-
-/**
- * Actions whose passkey is the consent to this one change, so a passkey sign-in from hours ago does not count: only an
- * unused one of the last FRESH_PASSKEY_MINUTES (passkeySignInForGrant). "Allow with passkey" on the setup page asks for
- * the passkey every time (apps/web/src/onboarding/allow-email-and-sign-in.ts).
- */
-const FRESH = new Set(['agentSetup.confirmPasskey'])
-export const FRESH_PASSKEY_MINUTES = 5
-
-/**
- * The passkey sign-in that may give a setup link email and sign-in (agent-setup.ts createKey, confirmPasskey): this
- * session's, within the last FRESH_PASSKEY_MINUTES, and not used for a grant yet (session.passkeyGrantUsedAt, set by
- * agent-setup.ts when it grants): one passkey prompt, one grant. Null otherwise.
- */
-export async function passkeySignInForGrant(
-  actor: Pick<Actor, 'passkeyConfirmed' | 'sessionId'>,
-  q: Pick<typeof db, 'select'> = db,
-): Promise<Date | null> {
-  if (!actor.passkeyConfirmed || !actor.sessionId) return null
-  const [row] = await q
-    .select({ at: session.passkeyVerifiedAt, used: session.passkeyGrantUsedAt })
-    .from(session)
-    .where(eq(session.id, actor.sessionId))
-  if (!row?.at || row.used || !signedInWithin(row.at, FRESH_PASSKEY_MINUTES / 60)) return null
-  return new Date(row.at)
-}
-
-/** The user an admin action is about: its `userId`, or the user of its `memberId` (membership.setRole, .remove). */
-async function targetUserId(fields: { userId?: unknown; memberId?: unknown }): Promise<string | null> {
-  if (typeof fields.userId === 'string') return fields.userId
-  if (typeof fields.memberId !== 'string') return null
-  const [row] = await db.select({ userId: member.userId }).from(member).where(eq(member.id, fields.memberId))
-  return row?.userId ?? null
-}
-
-/**
- * provider.setKeys / clearKeys of email or sign-in, or which email provider sends (setActive): whoever controls these
- * can sign in as anyone.
- */
-export function changesSignInOrEmail(name: string, input: unknown): boolean {
-  if (name === 'provider.setActive') {
-    const category = (input as { category?: unknown } | null)?.category
-    return typeof category === 'string' && (signInCategories as readonly string[]).includes(category)
-  }
-  if (name !== 'provider.setKeys' && name !== 'provider.clearKeys') return false
-  const provider = (input as { provider?: unknown } | null)?.provider
-  if (typeof provider !== 'string' || !(providerNames as string[]).includes(provider)) return false
-  return signInCategories.includes(providerSpec(provider as (typeof providerNames)[number]).category)
-}
-
-/** Whether this admin action needs a passkey sign-in: see the file comment. */
-export async function needsPasskeyStepUp(name: string, input: unknown): Promise<boolean> {
-  if (ALWAYS.has(name) || changesSignInOrEmail(name, input)) return true
-  const fields = (input ?? {}) as {
-    admin?: unknown
-    userId?: unknown
-    memberId?: unknown
-    role?: unknown
-    workspaceId?: unknown
-  }
-  // Who is in a workspace, and as owner or admin: an admin's stolen first factor must not hand out access to a
-  // business's calls (security review of #671).
-  if (name === 'user.invite') return fields.admin === true || Boolean(fields.workspaceId)
-  if (name === 'membership.setRole' && (fields.role === 'owner' || fields.role === 'admin')) return true
-  const userId = await targetUserId(fields)
-  if (!userId) return false
-  const [target] = await db.select().from(user).where(eq(user.id, userId))
-  return Boolean(target && isInstanceAdmin(target))
-}
-
-/**
- * An AI agent's setup key storing a recording storage endpoint on this server or a private network (or one that does
- * not resolve): like email, only with the admin's passkey Allow (s3-endpoint.ts). A leaked setup link must not probe
- * or write to internal services. Link-local endpoints are refused for everyone by the handler instead.
- */
-export async function setsPrivateS3Endpoint(name: string, input: unknown, actor: Actor): Promise<boolean> {
-  if (!actor.setupKeyId || name !== 'provider.setKeys') return false
-  const { provider, values } = (input ?? {}) as { provider?: unknown; values?: { endpoint?: unknown } }
-  if (provider !== 's3' || typeof values?.endpoint !== 'string') return false
-  const problem = await s3EndpointProblem(values.endpoint, 'public')
-  return Boolean(problem && problem.kind !== 'link_local')
-}
-
-/** `confirm`: sign in with your passkey; `enrol`: add your first passkey (with an enrolment code). */
-export type StepUp = 'confirm' | 'enrol'
-
-/** The 403 body when this admin action needs a passkey sign-in the caller's session lacks, else null. */
-export async function passkeyStepUpRefusal(def: Pick<ActionDef, 'name' | 'permission'>, input: unknown, actor: Actor) {
-  if (def.permission !== 'instance:admin' || !adminSecondFactorRequired()) return null
-  if (actor.passkeyConfirmed && (!FRESH.has(def.name) || (await passkeySignInForGrant(actor)))) return null
-  const privateEndpoint = await setsPrivateS3Endpoint(def.name, input, actor)
-  if (!privateEndpoint && !(await needsPasskeyStepUp(def.name, input))) return null
-  const [own] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)
-  const stepUp: StepUp = own ? 'confirm' : 'enrol'
-  const error =
-    stepUp === 'confirm'
-      ? 'Confirm with your passkey to do this.'
-      : 'This needs a passkey. Add your first under Account, Sign-in & security with the enrolment code another admin or the server gives you.'
-  return {
-    ok: false as const,
-    error,
-    code: PASSKEY_STEP_UP_REQUIRED,
-    stepUp,
-    // What the passkey is for, when it is not email or sign-in (setup-mcp.ts says it to the agent).
-    ...(privateEndpoint ? { reason: 'private_endpoint' as const } : {}),
-  }
-}
-
-/**
- * An instance admin who has no passkey on an install that asks for one: email and sign-in settings wait for it, so the
- * first-run setup asks for the passkey first (install-setup.ts, setup-mcp.ts).
+ * An instance admin who has no passkey on an install that asks for one: Server admin waits for it (the first-run
+ * setup asks for the passkey first, install-setup.ts).
  */
 export async function passkeyStillNeeded(userId: string): Promise<boolean> {
   if (!adminSecondFactorRequired()) return false

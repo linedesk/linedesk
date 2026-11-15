@@ -1,8 +1,7 @@
 // The one path for actions. Validate, authorize, run in a transaction, record the command.
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
-import { secondFactorRefusal } from './admin-second-factor.ts'
-import { passkeyStepUpRefusal } from './admin-step-up.ts'
+import { adminPasskeyRefusal, secondFactorRefusal } from './admin-second-factor.ts'
 import { OWNER_STEP_UP_ACTIONS, ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
 import { actions, droppedFields, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
@@ -123,7 +122,8 @@ async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promis
 export async function runAction(name: string, rawInput: unknown, actor: Actor, commandId: string = crypto.randomUUID()): Promise<RunResult> {
   const def = actions.get(name)
   if (!def) return rejection(404, `unknown action ${name}`)
-  const refusal = secondFactorRefusal(actor, def.permission)
+  // Server admin needs the passkey check, for every instance-admin action (admin-second-factor.ts).
+  const refusal = secondFactorRefusal(actor, def.permission) ?? adminPasskeyRefusal(actor, def.permission)
   if (refusal) return { status: 403, body: refusal }
   const allowed = actor.role === 'agent' && def.agent ? actor.permissions.includes('agent') : actor.permissions.includes(def.permission)
   if (!allowed) return forbidden(`missing permission ${def.permission}`)
@@ -138,8 +138,6 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (agentRefused) return forbidden(agentRefused)
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)
   if (unknown) return unknown
-  const stepUp = await passkeyStepUpRefusal(def, parsed.data, actor)
-  if (stepUp) return { status: 403, body: stepUp }
   // An owner deleting their workspace signs in again first (owner-step-up.ts); the handler checks it once more.
   const ownerStepUp = OWNER_STEP_UP_ACTIONS.has(name) ? await ownerStepUpNeeded(db, actor) : null
   if (ownerStepUp) return { status: 403, body: ownerStepUpRefusal(ownerStepUp) }

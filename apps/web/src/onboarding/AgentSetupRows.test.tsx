@@ -9,7 +9,6 @@ import {
   withTestCallMade,
   workspaceOptions,
 } from './AgentSetup.tsx'
-import type { PasskeyHere } from './AddPasskeyStep.tsx'
 import type { ResumeAction } from './resume-after-switch.ts'
 
 type Step = AgentSetupState['progress']['steps'][number]
@@ -25,7 +24,6 @@ const row = (
   renderToStaticMarkup(
     <StepAction
       step={s}
-      passkey={{} as PasskeyHere}
       workspace={here}
       onSwitch={onSwitch}
       {...more}

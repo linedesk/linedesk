@@ -86,7 +86,19 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       />
     )
   }
-  if (me && admin && !me.impersonation && (isAgentSetupHash(hash) || !choseManualSetup(me, manualSetup)))
+  if (me && admin && !me.impersonation && (isAgentSetupHash(hash) || !choseManualSetup(me, manualSetup))) {
+    // The setup page is part of Server admin: the passkey check first. Back goes on by hand (naming the business).
+    if (me.adminSecondFactor)
+      return (
+        <SecondFactorPrompt
+          state={me.adminSecondFactor}
+          onExit={() => {
+            rememberManual(true)
+            setManualSetup(true)
+            if (isAgentSetupHash(hash)) leave()
+          }}
+        />
+      )
     return (
       <AgentSetup
         onManual={installFirst => {
@@ -102,6 +114,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
         onWorkspaceReady={onDone}
       />
     )
+  }
   if (invitations === null || signUpOpen === null) return <AuthPage>{null}</AuthPage>
 
   const extras = (

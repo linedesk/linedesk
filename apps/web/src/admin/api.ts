@@ -168,7 +168,7 @@ const signInListeners = new Set<(state: AdminSecondFactor) => void>()
 
 /**
  * The admin area and the setup pages listen here: once any admin request says the session no longer opens Admin,
- * the page turns into "Sign in again for Admin" instead of an error or a "Try again" that cannot work.
+ * the page turns into the passkey check (SecondFactorPrompt) instead of an error or a "Try again" that cannot work.
  */
 export function watchAdminSignIn(listener: (state: AdminSecondFactor) => void): () => void {
   signInListeners.add(listener)
@@ -182,9 +182,10 @@ async function body<T>(res: Response): Promise<T> {
     | (T & { error?: string; code?: unknown; stepUp?: unknown; secondFactor?: unknown })
     | null
   if (json?.code === 'SECOND_FACTOR_REQUIRED') {
-    const state: AdminSecondFactor = json.secondFactor === 'email' ? 'email' : 'confirm'
+    const state: AdminSecondFactor =
+      json.secondFactor === 'email' || json.secondFactor === 'enrol' ? json.secondFactor : 'confirm'
     for (const listener of signInListeners) listener(state)
-    throw new AdminSignInRequired(json.error ?? 'Sign in again to use the admin area.', state)
+    throw new AdminSignInRequired(json.error ?? 'Server admin needs your passkey.', state)
   }
   const stepUp = stepUpOf(json)
   if (stepUp) throw new StepUpRequired(json?.error ?? 'Confirm with your passkey.', stepUp)
@@ -266,8 +267,6 @@ type AdminInputs = {
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>
   'agentSetup.revoke': Record<string, never>
-  'agentSetup.confirmPasskey': { keyId: string }
-  'agentSetup.withdrawPasskey': Record<string, never>
   'install.setProgress': {
     step?: InstallStep
     skip?: InstallStep
@@ -288,8 +287,7 @@ export function runAdmin<N extends keyof AdminInputs>(name: N, input: AdminInput
 }
 
 /**
- * Runs an admin action once, without the passkey dialog: a step-up refusal throws StepUpRequired. For a page that asks
- * for the passkey itself first (the setup page's Allow, AllowEmailAndSignIn.tsx).
+ * Runs an admin action once, without the passkey dialog: a step-up refusal throws StepUpRequired. runAdmin wraps it.
  */
 export async function runAdminOnce<N extends keyof AdminInputs>(name: N, input: AdminInputs[N]) {
   const res = await fetch(`/v1/actions/${name}`, {
@@ -317,7 +315,6 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
   'workspace.delete': 'delete a workspace',
   'provider.setKeys': 'save email or sign-in keys',
   'provider.clearKeys': 'disconnect email or sign-in',
-  'agentSetup.confirmPasskey': 'let your agent set up email and sign-in',
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {
@@ -349,8 +346,6 @@ export const loadAgentSetup = (workspaceId?: string | null) =>
   get<AgentSetupState>(
     workspaceId ? `/v1/admin/agent-setup?workspace=${encodeURIComponent(workspaceId)}` : '/v1/admin/agent-setup',
   )
-/** The same without the progress (quick): the Allow dialog opens as soon as the key is known. */
-export const loadAgentSetupKey = () => get<Omit<AgentSetupState, 'progress'>>('/v1/admin/agent-setup?part=key')
 /** Install setup by hand (InstallSetup.tsx): where it is, and whether a saved sign-in change waits for a restart. */
 export const loadInstallSetup = () => get<InstallSetupState>('/v1/admin/install-setup')
 

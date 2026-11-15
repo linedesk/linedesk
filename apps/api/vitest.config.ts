@@ -34,6 +34,7 @@ const INSTANCE_WIDE_FILES = [
   'test/provider-health-check.test.ts',
   'test/first-admin.test.ts',
   'test/team-member-edit.test.ts',
+  'test/admin-passkey-recovery.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

@@ -1019,11 +1019,12 @@ export const agent_setup_keys = pgTable(
      */
     ended_reason: text('ended_reason').$type<SetupKeyEndReason>(),
     /**
-     * Until when the key may change email and sign-in (the passkey step-up, admin-step-up.ts): the admin confirmed
-     * with a passkey when making it, or afterwards on the setup page; 12 hours from that passkey sign-in. Null: never.
+     * Until when the key carries its maker's passkey check (apps/api/src/agent-setup.ts keyPasskeyConfirmed): its
+     * expiry when the session that made it had passed the check, null when it had not (ADMIN_SECOND_FACTOR=off). While
+     * the rule is on, a key without it does not work. Rows from #694's Allow step keep their own time.
      */
     passkey_confirmed_until: ts('passkey_confirmed_until'),
-    /** The last change the agent asked for that waits for the admin's Allow (AgentSetupAllowRequest in @linedesk/actions), no secrets. */
+    /** Unused since the one-level setup link (2026-11-15): the last request that waited for #694's Allow step. */
     allow_request: jsonb('allow_request').$type<{
       at: string
       ip: string | null

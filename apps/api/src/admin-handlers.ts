@@ -38,7 +38,7 @@ import {
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { missingFields, testProvider } from './provider-test.ts'
 import { recentTest, rememberTest } from './setup-checklist.ts'
-import { endpointRuleFor, s3EndpointProblem } from './s3-endpoint.ts'
+import { s3EndpointProblem } from './s3-endpoint.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
@@ -241,10 +241,9 @@ async function viaWhat(actor: Actor): Promise<{ subject: string; body: string; a
 
 export const adminHandlers: Record<string, Handler> = {
   'provider.setKeys': async ({ tx, actor, now, onCommit }, input) => {
-    // Recording storage is never on a link-local or metadata address (s3-endpoint.ts); a setup key without the
-    // admin's Allow got the step-up for a private one already (admin-step-up.ts).
+    // Recording storage is never on a link-local or metadata address (s3-endpoint.ts).
     if (input.provider === 's3' && input.values.endpoint) {
-      const refused = await s3EndpointProblem(input.values.endpoint, endpointRuleFor(actor))
+      const refused = await s3EndpointProblem(input.values.endpoint)
       if (refused) throw new Reject(refused.message)
     }
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
@@ -273,22 +272,12 @@ export const adminHandlers: Record<string, Handler> = {
     return { rows: {}, data: { active: (await providerStatus(tx)).active } }
   },
 
-  'provider.test': async ({ tx, actor }, input) => {
+  'provider.test': async ({ tx }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
-    const endpointRule = endpointRuleFor(actor)
-    // A setup key without the admin's Allow never reaches storage on this server or its network, also when the admin
-    // set it up there: refused before any request, and not counted as the provider failing.
-    if (input.provider === 's3' && endpointRule === 'public' && config.endpoint?.value) {
-      const refused = await s3EndpointProblem(config.endpoint.value, endpointRule)
-      if (refused && refused.kind !== 'link_local') throw new Reject(refused.message)
-    }
     // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
     const recent = await recentTest(tx, input.provider, config)
     if (recent) return { rows: {}, data: recent }
-    const result = await testProvider(input.provider, config, fetch, process.env, {
-      free: input.free ?? false,
-      endpointRule,
-    })
+    const result = await testProvider(input.provider, config, fetch, process.env, { free: input.free ?? false })
     await rememberTest(tx, input.provider, config, result)
     // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
     // without the email: the admin sees it). One that is not set up is not failing, only missing.

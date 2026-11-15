@@ -1,15 +1,16 @@
 // Passkeys through Better Auth's plugin: who may add, list and remove them, and that a passkey never
-// creates an account. A full WebAuthn ceremony needs an authenticator, so registration is checked up
-// to its options; sign-in with an unknown credential is checked to make nobody.
+// creates an account. Registration is checked up to its options; sign-in runs a full WebAuthn ceremony
+// with a software authenticator (user verification on and off), and with an unknown credential it makes nobody.
 // Impersonation (no passkey changes as the user) is in admin.test.ts, the file with instance admins.
 import { auth_events, passkey, session, user } from '@linedesk/db'
+import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { readAuthConfig } from '../src/auth-methods.ts'
 import { PASSKEY_CHALLENGE_LIMIT, PASSKEY_CHALLENGE_PATH } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
-import { notifyPasskeyChange, PASSKEY_CONFIRMATION_REQUIRED, PASSKEY_ENROLMENT_REQUIRED, passkeyChangeRefusal, passkeyRelyingParty } from '../src/passkeys.ts'
+import { notifyPasskeyChange, PASSKEY_CONFIRMATION_REQUIRED, PASSKEY_ENROLMENT_REQUIRED, PASSKEY_USER_NOT_VERIFIED, passkeyChangeRefusal, passkeyRelyingParty } from '../src/passkeys.ts'
 import { enrolmentCodeValid, issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
 import { anonymous, appRequest, type Caller, createWorkspace, randomIp, request, signUp, FROM, type User } from './helpers.ts'
 
@@ -144,6 +145,113 @@ describe('signing in with a passkey', () => {
     expect(res.status).toBeGreaterThanOrEqual(400)
     // No session: the endpoint only ever signs in the owner of a stored passkey; it has no way to create a user.
     expect(res.headers.getSetCookie().some(c => c.includes('session_token=') && !c.includes('Max-Age=0'))).toBe(false)
+  })
+})
+
+/**
+ * A software authenticator for one P-256 passkey of `who`: stores the passkey (its COSE public key, as Better Auth
+ * stores it) and signs sign-in responses, with the "user verified" flag (fingerprint, face or PIN) on or off.
+ */
+async function softwarePasskey(who: User) {
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+  const jwk = publicKey.export({ format: 'jwk' })
+  const coord = (v: string | undefined) => Buffer.from(v!, 'base64url')
+  // COSE_Key {1: 2 (EC2), 3: -7 (ES256), -1: 1 (P-256), -2: x, -3: y}, CBOR-encoded.
+  const cose = Buffer.concat([
+    Buffer.from([0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20]),
+    coord(jwk.x),
+    Buffer.from([0x22, 0x58, 0x20]),
+    coord(jwk.y),
+  ])
+  const credentialId = randomBytes(16).toString('base64url')
+  await db.insert(passkey).values({
+    id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+    userId: who.userId,
+    name: 'Software key',
+    publicKey: cose.toString('base64'),
+    credentialID: credentialId,
+    counter: 0,
+    deviceType: 'singleDevice',
+    backedUp: false,
+    createdAt: new Date(),
+  })
+  let counter = 0
+  /** One sign-in: asks for a challenge, answers it, and returns the verify-authentication response. */
+  return async function signIn({ userVerified }: { userVerified: boolean }) {
+    const ip = randomIp()
+    const options = await appRequest(`/api/auth${PASSKEY_CHALLENGE_PATH}`, { headers: { ...ORIGIN, [FROM]: ip } })
+    expect(options.status).toBe(200)
+    const { challenge } = (await options.json()) as { challenge: string }
+    const cookie = options.headers
+      .getSetCookie()
+      .map(c => c.split(';')[0])
+      .join('; ')
+    const clientDataJSON = Buffer.from(
+      JSON.stringify({ type: 'webauthn.get', challenge, origin: ORIGIN.origin, crossOrigin: false }),
+    )
+    const sha256 = (data: Buffer | string) => createHash('sha256').update(data).digest()
+    const count = Buffer.alloc(4)
+    count.writeUInt32BE(++counter)
+    // rpIdHash, flags (user present, and user verified when the device checked the person), sign count.
+    const authenticatorData = Buffer.concat([
+      sha256(passkeyRelyingParty(process.env).rpID),
+      Buffer.from([0x01 | (userVerified ? 0x04 : 0)]),
+      count,
+    ])
+    const signature = sign('sha256', Buffer.concat([authenticatorData, sha256(clientDataJSON)]), privateKey)
+    return appRequest('/api/auth/passkey/verify-authentication', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...ORIGIN, [FROM]: ip, cookie },
+      body: JSON.stringify({
+        response: {
+          id: credentialId,
+          rawId: credentialId,
+          type: 'public-key',
+          clientExtensionResults: {},
+          response: {
+            clientDataJSON: clientDataJSON.toString('base64url'),
+            authenticatorData: authenticatorData.toString('base64url'),
+            signature: signature.toString('base64url'),
+          },
+        },
+      }),
+    })
+  }
+}
+
+const sessionsOf = (who: User) => db.select().from(session).where(eq(session.userId, who.userId))
+
+describe('user verification (the device checks fingerprint, face or PIN)', () => {
+  test('a verified passkey sign-in starts a session that counts as the passkey check', async () => {
+    const member = await verifiedSignUp(address('uv'))
+    const signIn = await softwarePasskey(member)
+    const before = (await sessionsOf(member)).length
+    const res = await signIn({ userVerified: true })
+    expect(res.status).toBe(200)
+    const sessions = await sessionsOf(member)
+    expect(sessions).toHaveLength(before + 1)
+    expect(sessions.filter(s => s.passkeyVerifiedAt)).toHaveLength(1)
+  })
+
+  test('a response without user verification signs nobody in and never counts as the passkey check', async () => {
+    const member = await verifiedSignUp(address('no-uv'))
+    const signIn = await softwarePasskey(member)
+    const before = (await sessionsOf(member)).length
+    const res = await signIn({ userVerified: false })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ code: PASSKEY_USER_NOT_VERIFIED })
+    expect(res.headers.getSetCookie().some(c => c.includes('session_token=') && !c.includes('Max-Age=0'))).toBe(false)
+    const sessions = await sessionsOf(member)
+    expect(sessions).toHaveLength(before)
+    expect(sessions.filter(s => s.passkeyVerifiedAt)).toEqual([])
+  })
+
+  test('new passkeys and sign-ins ask the device for user verification', async () => {
+    const member = await verifiedSignUp(address('uv-options'))
+    const registration = await authGet(member, '/passkey/generate-register-options')
+    expect(registration.status).toBe(200)
+    expect(registration.body.authenticatorSelection).toMatchObject({ userVerification: 'required' })
+    expect((await authGet(anonymous, PASSKEY_CHALLENGE_PATH)).body.userVerification).toBe('required')
   })
 })
 

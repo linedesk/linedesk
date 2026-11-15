@@ -1,6 +1,7 @@
-// Granting admin, resetting passkeys, signing in as a user and changes to another admin need a
-// passkey sign-in from the last 12 hours (apps/api/src/admin-step-up.ts). When the server asks for
-// it, this dialog signs in with the passkey (a new session) and the action runs again.
+// A passkey confirmation in place of an action: a workspace owner deleting their workspace confirms with their passkey
+// (apps/api/src/owner-step-up.ts). When the server asks for it (PASSKEY_STEP_UP_REQUIRED), this dialog signs in with
+// the passkey (a new session) and the action runs again. Server admin as a whole needs the passkey check before it
+// opens (SecondFactorPrompt.tsx); its requests answer SECOND_FACTOR_REQUIRED instead, so no admin action asks here.
 import { useEffect, useState } from 'react'
 import { passkeySupported, signInWithPasskey } from '../auth.ts'
 import { authErrorMessage } from '../sign-in-code.ts'
@@ -98,7 +99,7 @@ export function PasskeyStepUpHost() {
 
 /** The dialog's line under the title: what is confirmed, then why a passkey ("Delete workspace Riverside Electric. …"). */
 export const stepUpReason = (what: string) =>
-  `${what.charAt(0).toUpperCase()}${what.slice(1)}. Deleting a workspace, granting admin, resetting passkeys, signing in as a user and changes to an admin need a passkey sign-in from the last 12 hours.`
+  `${what.charAt(0).toUpperCase()}${what.slice(1)}. This needs a passkey sign-in from the last 12 hours.`
 
 function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: boolean) => void }) {
   const [busy, setBusy] = useState(false)
@@ -147,7 +148,7 @@ function EnrolFirst({ what, onClose }: { what: string; onClose: (confirmed: bool
   return (
     <Dialog
       title={`Add a passkey first: ${what}`}
-      description={`Email and sign-in keys, granting admin, resetting passkeys, signing in as a user and changes to another admin need a passkey. Add your first ${ENROL_WHERE}`}
+      description={`This needs a passkey. Add your first ${ENROL_WHERE}`}
       size="sm"
       onClose={() => onClose(false)}
       footer={

@@ -60,7 +60,7 @@ export type Me = {
   impersonation: Impersonation | null
   /** When the session ends unless it is used again; null for an API key (absent in what an older version remembered). */
   sessionExpiresAt?: string | null
-  /** An instance admin who must confirm their email address or sign in again before the admin area. */
+  /** An instance admin whose session has not passed the passkey check for Server admin: what is still missing. */
   adminSecondFactor?: AdminSecondFactor | null
   /** An instance admin without a passkey: their first needs the enrolment code another admin (or the CLI) gave them. */
   passkeyEnrolment?: boolean
@@ -76,13 +76,17 @@ export type Me = {
   setupByHand?: boolean
 }
 
-/** `email`: the address is not confirmed yet; `confirm`: the last sign-in is more than 12 hours ago. */
-export type AdminSecondFactor = 'email' | 'confirm'
+/**
+ * What an instance admin still has to do before Server admin (apps/api/src/admin-second-factor.ts): `confirm` with
+ * their passkey in this session (it counts 12 hours), `enrol` their first passkey (with an enrolment code), or confirm
+ * their `email` address first (adding a passkey needs it).
+ */
+export type AdminSecondFactor = 'email' | 'enrol' | 'confirm'
 
 /**
  * An instance admin: the one check for every place that offers Server admin or its links (Server admin › Providers). One who still
- * has to confirm their email or sign in again (`adminSecondFactor`, sent only to instance admins) counts too: Admin
- * opens on that prompt, so the link still leads to the fix.
+ * has to pass the passkey check (`adminSecondFactor`, sent only to instance admins) counts too: Admin opens on that
+ * prompt, so the link still leads to the fix.
  */
 export const isInstanceAdmin = (me: Pick<Me, 'permissions' | 'adminSecondFactor'>): boolean =>
   me.permissions.includes('instance:admin') || Boolean(me.adminSecondFactor)

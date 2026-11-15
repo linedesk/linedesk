@@ -205,7 +205,7 @@ export function s3StoreFromValues(values: S3Values, doFetch?: typeof fetch): Rec
     prefix: values.prefix || undefined,
     forcePathStyle: values.force_path_style !== 'false',
     // Never to link-local or cloud metadata addresses, whoever set the endpoint (s3-endpoint.ts).
-    fetch: doFetch ?? s3Fetch('not_link_local'),
+    fetch: doFetch ?? s3Fetch(),
   })
 }
 

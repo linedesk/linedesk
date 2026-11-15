@@ -37,6 +37,15 @@ function isInstanceAdminSql() {
   return or(eq(user.instanceAdmin, true), and(eq(user.emailVerified, true), inArray(sql`lower(${user.email})`, emails)))
 }
 
+/** Every enabled instance admin (id and address), oldest first. */
+export async function enabledInstanceAdmins(): Promise<{ id: string; email: string }[]> {
+  return db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(and(isInstanceAdminSql(), isNull(user.disabledAt)))
+    .orderBy(user.createdAt)
+}
+
 /** The addresses of every enabled instance admin: who is told about admin sign-ins and changes (admin-alerts.ts). */
 export async function instanceAdminEmails(): Promise<string[]> {
   const admins = await db.select({ email: user.email }).from(user).where(and(isInstanceAdminSql(), isNull(user.disabledAt)))
