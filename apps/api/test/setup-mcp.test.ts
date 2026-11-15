@@ -27,7 +27,14 @@ import { emailSender } from '../src/email.ts'
 import nodemailer from 'nodemailer'
 import type * as RunActionModule from '../src/run-action.ts'
 import { PRIVATE_ENDPOINT } from '../src/s3-endpoint.ts'
-import { devNumberLine, forAgent, installPartDone, SETUP_ACTIONS, wrapUp } from '../src/setup-mcp.ts'
+import {
+  devNumberLine,
+  forAgent,
+  installPartDone,
+  SETUP_ACTIONS,
+  SETUP_LINK_WORKSPACE_CAP,
+  wrapUp,
+} from '../src/setup-mcp.ts'
 import { agentSetupHandlers, hashSetupKey } from '../src/agent-setup.ts'
 import { runAction } from '../src/run-action.ts'
 import {
@@ -545,6 +552,78 @@ describe('tools', () => {
       ok: true,
     })
   })
+
+  test('a disabled workspace of the admin, and ids of another of their workspaces, are refused (review I2 of #711)', async () => {
+    const admin = await createWorkspace('Brightwater Salem')
+    await setAdmin(admin.owner, true)
+    // A second workspace of the same admin, with its own assistant and number.
+    const second = await request(admin.owner, 'POST', '/v1/workspaces', { name: 'Brightwater Eugene' })
+    expect(second.status).toBe(200)
+    const b: string = second.body.workspace.id
+    const [bAssistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, b))
+    const [bNumber] = await db
+      .insert(phone_numbers)
+      .values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: b, e164: '+15035550199', provider: 'dev' })
+      .returning()
+    const { key } = await makeKey(admin.owner)
+    // B's assistant and number named with A's workspaceId: not found there, B untouched.
+    const renamed = await call(key, 'assistant_update', { workspaceId: admin.id, assistantId: bAssistant!.id, name: 'Taken' })
+    expect(renamed.body.result.isError).toBe(true)
+    const moved = await call(key, 'phoneNumber_update', {
+      workspaceId: admin.id,
+      phoneNumberId: bNumber!.id,
+      mode: 'forward_all',
+    })
+    expect(moved.body.result.isError).toBe(true)
+    const [assistantAfter] = await db.select().from(assistants).where(eq(assistants.id, bAssistant!.id))
+    expect(assistantAfter!.name).toBe(bAssistant!.name)
+    const [numberAfter] = await db.select().from(phone_numbers).where(eq(phone_numbers.id, bNumber!.id))
+    expect(numberAfter!.mode).toBe(bNumber!.mode)
+    // With B's own workspaceId the same change works.
+    expect(
+      data(await call(key, 'assistant_update', { workspaceId: b, assistantId: bAssistant!.id, name: 'Maya' })),
+    ).toMatchObject({ ok: true })
+    // B disabled by the instance: refused like a stranger's, and gone from setup_status and the page.
+    await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, b))
+    ran.length = 0
+    const refused = await call(key, 'workspace_rename', { workspaceId: b, name: 'Back again' })
+    expect(refused.body.result.isError).toBe(true)
+    expect(refused.body.result.content[0].text).toMatch(/not one you can set up/)
+    expect(ran).toEqual([])
+    const status = data(await call(key, 'setup_status', { read_only: true })) as { workspaces: { id: string }[] }
+    expect(status.workspaces.map(w => w.id)).toEqual([admin.id])
+    const page = (await request(admin.owner, 'GET', `/v1/admin/agent-setup?workspace=${b}`)).body
+    expect(page.progress.workspace.id).toBe(admin.id)
+    expect(page.progress.workspaces.map((w: { id: string }) => w.id)).toEqual([admin.id])
+  })
+
+  test('no workspace limit by default, but one setup link creates at most 10 workspaces (#711 review)', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key } = await makeKey(admin)
+    // Past the old fixed limit of 5: no WORKSPACE_LIMIT, no limit.
+    for (let i = 1; i <= SETUP_LINK_WORKSPACE_CAP; i++) {
+      const made = await call(key, 'workspace_create', { name: `Location ${i}` })
+      expect(made.body.result.isError, JSON.stringify(made.body)).toBeFalsy()
+    }
+    const memberships = await db.select().from(member).where(eq(member.userId, admin.userId))
+    expect(memberships).toHaveLength(SETUP_LINK_WORKSPACE_CAP)
+    const capped = await call(key, 'workspace_create', { name: 'One too many' })
+    expect(capped.body.result.isError).toBe(true)
+    expect(capped.body.result.content[0].text).toBe(
+      'This setup link can create up to 10 workspaces. Create a new setup link on the setup page to add more, or create them in the app.',
+    )
+    expect(await db.select().from(member).where(eq(member.userId, admin.userId))).toHaveLength(
+      SETUP_LINK_WORKSPACE_CAP,
+    )
+    // The cap is per link: a new link B can create up to 10 again; the app can make more too.
+    const { key: next } = await makeKey(admin)
+    for (const name of ['Location 11', 'Location 12']) {
+      const made = await call(next, 'workspace_create', { name })
+      expect(made.body.result.isError, JSON.stringify(made.body)).toBeFalsy()
+    }
+    expect((await request(admin, 'POST', '/v1/workspaces', { name: 'Location 13' })).status).toBe(200)
+  }, 60_000)
 
   test('workspace and provider tools run through the registry as the admin, in their own workspace', async () => {
     const { key } = await makeKey(ws.owner)

@@ -85,8 +85,25 @@ function devOrigins(): string[] {
 
 export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(WEB_ORIGIN), ...devOrigins()])]
 
-/** A member can create this many workspaces. */
-export const WORKSPACE_LIMIT = 5
+/**
+ * How many workspaces a member can create (`WORKSPACE_LIMIT` in .env): a positive whole number, or unset or empty for
+ * no limit (the default). Anything else stops the API at start instead of quietly running without the limit meant.
+ */
+export function parseWorkspaceLimit(raw: string | undefined): number | null {
+  const value = raw?.trim()
+  if (!value) return null
+  if (!/^[1-9][0-9]{0,8}$/.test(value))
+    throw new Error(
+      `WORKSPACE_LIMIT must be a positive whole number (the most workspaces one member can create), or empty for no limit; got "${value}"`,
+    )
+  return Number(value)
+}
+
+/** The workspace limit per member; null: none. */
+export const WORKSPACE_LIMIT = parseWorkspaceLimit(process.env.WORKSPACE_LIMIT)
+
+/** What a member hears at the limit: the app's New workspace and the setup agent say the same. */
+export const workspaceLimitText = (limit: number) => `You can create up to ${limit} workspaces.`
 
 /** Where the browser asks for a passkey challenge, and how often one address may (per minute). */
 export const PASSKEY_CHALLENGE_PATH = '/passkey/generate-authenticate-options'
@@ -288,7 +305,8 @@ export const auth = betterAuth({
   },
   plugins: [
     organization({
-      organizationLimit: WORKSPACE_LIMIT,
+      // No limit unless WORKSPACE_LIMIT sets one: Better Auth checks the count only when this is a number.
+      organizationLimit: WORKSPACE_LIMIT ?? undefined,
       // Only the invited address, and only once it is verified, can accept.
       requireEmailVerificationOnInvitation: true,
       organizationHooks: {

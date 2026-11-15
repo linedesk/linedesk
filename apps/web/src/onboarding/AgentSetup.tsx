@@ -43,9 +43,11 @@ import { AgentPicker } from './AgentPicker.tsx'
 import { AllowDialog, AllowedNote, AllowRequestNote, useAllow } from './AllowEmailAndSignIn.tsx'
 import { installPartsMissing, passkeyStepOf, withPasskeyAdded } from './agent-setup-passkey.ts'
 import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
+import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
+import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
 import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
 import './agent-setup.css'
@@ -483,7 +485,14 @@ function Progress({
   }, [reload])
   const [newWorkspace, setNewWorkspace] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
+  // The row button whose click is switching the tab: busy until the page reloads into the workspace.
+  const [switchingFor, setSwitchingFor] = useState<ResumeAction | null>(null)
   const [switchError, setSwitchError] = useState<string | null>(null)
+  // A row button clicked before the reload into this workspace: it carries on here, once.
+  const [resume] = useState(() => peekResume(active?.id ?? null))
+  useEffect(() => {
+    if (resume) clearResume()
+  }, [resume])
   // Picking a workspace makes it the app's active one (the page reloads into it), so its rows' buttons act on it.
   const switchTo = useCallback((id: string) => {
     setSwitching(id)
@@ -492,6 +501,29 @@ function Progress({
       setSwitching(null)
       setSwitchError(e instanceof Error ? e.message : 'Could not switch the workspace')
     })
+  }, [])
+  // One click is enough: a row button for another workspace switches to it and carries on there after the reload.
+  // The test call asks for the microphone inside this click, before the switch: the call after the reload then
+  // finds it allowed, and a refusal is said here and switches nothing.
+  const switchAndDo = useCallback(async (id: string, action: ResumeAction) => {
+    setSwitchingFor(action)
+    setSwitchError(null)
+    if (action === 'test_call') {
+      const blocked = await microphoneAllowed()
+      if (blocked) {
+        setSwitchingFor(null)
+        setSwitchError(blocked)
+        return
+      }
+    }
+    saveResume(id, action)
+    try {
+      await switchToWorkspace(id, null)
+    } catch (e) {
+      clearResume()
+      setSwitchingFor(null)
+      setSwitchError(e instanceof Error ? e.message : 'Could not switch the workspace')
+    }
   }, [])
   if (!state) return loadError ? <Note tone="danger">{loadError}</Note> : null
   const { allDone } = state.progress
@@ -527,7 +559,7 @@ function Progress({
             <WorkspacePicker
               workspaces={state.progress.workspaces ?? []}
               selectedId={selected?.id ?? null}
-              busy={switching}
+              busy={switching ?? (switchingFor && selected ? selected.id : null)}
               onPick={id => (id === NEW_WORKSPACE ? setNewWorkspace(true) : switchTo(id))}
             />
           ) : (
@@ -551,8 +583,9 @@ function Progress({
                     step={step}
                     passkey={passkey}
                     workspace={here}
-                    onSwitch={selected && !here ? () => switchTo(selected.id) : null}
-                    switching={Boolean(switching)}
+                    onSwitch={selected && !here ? action => void switchAndDo(selected.id, action) : null}
+                    switching={switchingFor ?? (switching ? 'workspace' : null)}
+                    resume={here ? resume : null}
                     assistantName={selected?.assistantName ?? 'your assistant'}
                     onCalled={onCalled}
                     reload={reload}
@@ -654,7 +687,8 @@ export function StepAction({
   passkey,
   workspace,
   onSwitch,
-  switching = false,
+  switching = null,
+  resume = null,
   assistantName,
   onCalled,
   reload,
@@ -663,9 +697,15 @@ export function StepAction({
   passkey: PasskeyHere
   /** The workspace shown, when it is the app's active workspace in this tab: the buttons act in it right here. */
   workspace: SetupWorkspace | null
-  /** The workspace shown is not the active one (or this tab has none): its buttons make it active first. */
-  onSwitch: (() => void) | null
-  switching?: boolean
+  /**
+   * The workspace shown is not the active one (or this tab has none): its buttons make it active first, then carry on
+   * with what was clicked (one click, resume-after-switch.ts).
+   */
+  onSwitch: ((action: ResumeAction) => void) | null
+  /** A switch is under way: the button that started it is busy, the other one waits. */
+  switching?: ResumeAction | 'workspace' | null
+  /** Clicked before the reload into this workspace: start the call or open the dialog at once. */
+  resume?: ResumeAction | null
   assistantName: string
   onCalled: () => void
   reload: () => Promise<void>
@@ -686,6 +726,7 @@ export function StepAction({
             assistantName={assistantName}
             done={step.state === 'done'}
             onCalled={onCalled}
+            autoStart={resume === 'test_call'}
           />
         </span>
       )
@@ -697,9 +738,10 @@ export function StepAction({
             size="sm"
             variant="primary"
             icon="phone-in"
-            busy={switching}
-            title="Opens this workspace in this tab first; then call from here"
-            onClick={onSwitch}
+            busy={switching === 'test_call'}
+            disabled={Boolean(switching)}
+            title="Opens this workspace in this tab, then calls"
+            onClick={() => onSwitch('test_call')}
           >
             Call {assistantName} now
           </Button>
@@ -711,7 +753,7 @@ export function StepAction({
     if (workspace)
       return (
         <span className="as-item-action">
-          <SetupForwarding workspace={workspace} onClosed={() => void reload()} />
+          <SetupForwarding workspace={workspace} onClosed={() => void reload()} autoOpen={resume === 'forwarding'} />
         </span>
       )
     if (onSwitch)
@@ -720,9 +762,10 @@ export function StepAction({
           <Button
             size="sm"
             variant="secondary"
-            busy={switching}
-            title="Opens this workspace in this tab first; then set it up from here"
-            onClick={onSwitch}
+            busy={switching === 'forwarding'}
+            disabled={Boolean(switching)}
+            title="Opens this workspace in this tab, then its forwarding settings"
+            onClick={() => onSwitch('forwarding')}
           >
             Set up forwarding
           </Button>

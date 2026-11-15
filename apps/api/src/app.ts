@@ -31,7 +31,7 @@ import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
-import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT } from './auth.ts'
+import { auth, TRUSTED_ORIGINS, WEB_ORIGIN, WORKSPACE_LIMIT, workspaceLimitText } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { configuredCalendarProviders } from '@linedesk/calendar'
@@ -214,9 +214,10 @@ app.post('/v1/workspaces', async c => {
     if (!(err instanceof APIError)) throw err
     const atLimit = err.body?.code === 'YOU_HAVE_REACHED_THE_MAXIMUM_NUMBER_OF_ORGANIZATIONS'
     return {
-      refused: atLimit
-        ? `You can create up to ${WORKSPACE_LIMIT} workspaces.`
-        : err.message || 'Could not create the workspace',
+      refused:
+        atLimit && WORKSPACE_LIMIT !== null
+          ? workspaceLimitText(WORKSPACE_LIMIT)
+          : err.message || 'Could not create the workspace',
       status: err.statusCode,
     }
   })

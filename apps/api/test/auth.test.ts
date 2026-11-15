@@ -1,6 +1,6 @@
 // Sign-in hardening that only shows on the running app: limits on auth requests and on workspaces.
 import { describe, expect, test } from 'vitest'
-import { auth, WORKSPACE_LIMIT } from '../src/auth.ts'
+import { auth, parseWorkspaceLimit, WORKSPACE_LIMIT } from '../src/auth.ts'
 import { randomIp, request, signUp, FROM, appRequest } from './helpers.ts'
 
 // Several password hashes or workspaces in one test: slow when the files run in parallel.
@@ -38,19 +38,30 @@ describe('account linking', () => {
 })
 
 describe('POST /v1/workspaces', () => {
-  test('a member can create up to the limit, then is refused', async () => {
+  test('no workspace limit by default: a member makes a 6th and more (WORKSPACE_LIMIT unset)', async () => {
+    expect(WORKSPACE_LIMIT).toBeNull()
+    expect(auth.options.plugins.find(p => p.id === 'organization')?.options?.organizationLimit).toBeUndefined()
     const user = await signUp()
-    for (let i = 1; i <= WORKSPACE_LIMIT; i++) {
+    for (let i = 1; i <= 7; i++) {
       expect((await request(user, 'POST', '/v1/workspaces', { name: `Business ${i}` })).status).toBe(200)
     }
-    const refused = await request(user, 'POST', '/v1/workspaces', { name: 'One too many' })
-    expect(refused.status).toBe(403)
-    expect(refused.body).toEqual({ ok: false, error: `You can create up to ${WORKSPACE_LIMIT} workspaces.` })
   }, SLOW)
 
   test('refuses a name that is not text or is too long', async () => {
     const user = await signUp()
     expect((await request(user, 'POST', '/v1/workspaces', { name: 'x'.repeat(81) })).status).toBe(422)
     expect((await request(user, 'POST', '/v1/workspaces', { name: 42 })).status).toBe(422)
+  })
+})
+
+describe('WORKSPACE_LIMIT', () => {
+  test('unset or empty: no limit; a positive whole number: that limit; anything else stops the start', () => {
+    expect(parseWorkspaceLimit(undefined)).toBeNull()
+    expect(parseWorkspaceLimit('')).toBeNull()
+    expect(parseWorkspaceLimit('  ')).toBeNull()
+    expect(parseWorkspaceLimit('2')).toBe(2)
+    expect(parseWorkspaceLimit(' 50 ')).toBe(50)
+    for (const bad of ['0', '-1', '2.5', 'five', '1e3', 'Infinity', '10000000000'])
+      expect(() => parseWorkspaceLimit(bad), bad).toThrow(/WORKSPACE_LIMIT must be a positive whole number/)
   })
 })

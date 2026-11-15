@@ -40,14 +40,17 @@ export function SetupTestCall({
   assistantName,
   done,
   onCalled,
+  autoStart = false,
 }: {
   workspace: SetupWorkspace
   assistantName: string
   done: boolean
   onCalled: () => void
+  /** The admin clicked it before the tab switched into this workspace: the call starts at once (resume-after-switch.ts). */
+  autoStart?: boolean
 }) {
   // Bumped by every click: the call starts on it, also again after the panel was closed.
-  const [asked, setAsked] = useState(0)
+  const [asked, setAsked] = useState(autoStart ? 1 : 0)
   const label = done ? 'Call again' : `Call ${assistantName} now`
   const variant = done ? 'ghost' : 'primary'
   if (!asked)
@@ -132,8 +135,17 @@ function TestCallHere({
  * "Set up forwarding" on the Call forwarding row: the number's dialog from Settings › Phone numbers (codes for the
  * carrier, then "Check forwarding", which calls the business line and marks the step done once the call arrives).
  */
-export function SetupForwarding({ workspace, onClosed }: { workspace: SetupWorkspace; onClosed: () => void }) {
-  const [open, setOpen] = useState(false)
+export function SetupForwarding({
+  workspace,
+  onClosed,
+  autoOpen = false,
+}: {
+  workspace: SetupWorkspace
+  onClosed: () => void
+  /** The admin clicked it before the tab switched into this workspace: the dialog opens at once. */
+  autoOpen?: boolean
+}) {
+  const [open, setOpen] = useState(autoOpen)
   const button = (busy: boolean) => (
     <Button
       size="sm"

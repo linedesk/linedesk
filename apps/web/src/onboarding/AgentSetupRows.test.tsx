@@ -10,18 +10,25 @@ import {
   workspaceOptions,
 } from './AgentSetup.tsx'
 import type { PasskeyHere } from './AddPasskeyStep.tsx'
+import type { ResumeAction } from './resume-after-switch.ts'
 
 type Step = AgentSetupState['progress']['steps'][number]
 const step = (id: string, state: Step['state']): Step => ({ id, label: id, group: 'business', state })
 const workspace = { id: 'ws_1', account: 'u_1' }
 /** One row's action: `here` is the workspace shown when it is this tab's; `onSwitch` when it is another one. */
-const row = (s: Step, here: typeof workspace | null = workspace, onSwitch: (() => void) | null = null) =>
+const row = (
+  s: Step,
+  here: typeof workspace | null = workspace,
+  onSwitch: ((action: ResumeAction) => void) | null = null,
+  more: Partial<Pick<Parameters<typeof StepAction>[0], 'switching' | 'resume'>> = {},
+) =>
   renderToStaticMarkup(
     <StepAction
       step={s}
       passkey={{} as PasskeyHere}
       workspace={here}
       onSwitch={onSwitch}
+      {...more}
       assistantName="Maya"
       onCalled={() => {}}
       reload={async () => {}}
@@ -45,13 +52,29 @@ test('the buttons always act on the workspace shown: another than the active one
   const switchTo = () => {}
   const call = row(step('test_call', 'admin_only'), null, switchTo)
   expect(call).toMatch(/k-btn-primary[^>]*>.*Call Maya now/)
-  expect(call).toContain('Opens this workspace in this tab first')
+  expect(call).toContain('Opens this workspace in this tab, then calls')
   expect(call).not.toMatch(/tab of your first workspace/)
   const forwarding = row(step('forwarding', 'todo'), null, switchTo)
   expect(forwarding).toContain('Set up forwarding')
-  expect(forwarding).toContain('Opens this workspace in this tab first')
+  expect(forwarding).toContain('Opens this workspace in this tab, then its forwarding settings')
   expect(row(step('forwarding', 'done'), null, switchTo)).toBe('')
   expect(row(step('test_call', 'done'), null, switchTo)).toBe('')
+})
+
+test('one click is enough: the clicked button is busy while the tab switches, the other one waits (LIN-237)', () => {
+  const switchTo = () => {}
+  const busy = /<button[^>]*aria-busy="true"/
+  const disabled = /<button[^>]*disabled/
+  // The test call was clicked: it spins, forwarding cannot start a second switch.
+  const calling = row(step('test_call', 'admin_only'), null, switchTo, { switching: 'test_call' })
+  expect(calling).toMatch(busy)
+  const forwardingWaits = row(step('forwarding', 'todo'), null, switchTo, { switching: 'test_call' })
+  expect(forwardingWaits).not.toMatch(busy)
+  expect(forwardingWaits).toMatch(disabled)
+  expect(row(step('forwarding', 'todo'), null, switchTo, { switching: 'forwarding' })).toMatch(busy)
+  // Nothing under way: both can be clicked.
+  expect(row(step('forwarding', 'todo'), null, switchTo)).not.toMatch(disabled)
+  expect(row(step('test_call', 'admin_only'), null, switchTo)).not.toMatch(disabled)
 })
 
 test('the workspace dropdown lists every workspace with how far it got, and New workspace… last (LIN-237)', () => {
@@ -99,4 +122,15 @@ test('the page says when the agent ended its own access', () => {
   const html = renderToStaticMarkup(<AgentEndedNote at={at.toISOString()} />)
   expect(html).toMatch(/Your agent ended its access at 5:58\s?PM\./)
   expect(html).toContain('Create a new link any time')
+})
+
+test('after the reload into the clicked workspace the row carries on by itself: dialog opening, call starting (LIN-237)', () => {
+  // Not clicked before: the plain buttons.
+  expect(row(step('forwarding', 'todo'))).not.toMatch(/aria-busy="true"/)
+  expect(row(step('test_call', 'admin_only'))).not.toMatch(/aria-busy="true"/)
+  // Clicked before the switch: the workspace's store opens at once for the dialog or the call (busy meanwhile).
+  expect(row(step('forwarding', 'todo'), workspace, null, { resume: 'forwarding' })).toMatch(/aria-busy="true"/)
+  expect(row(step('test_call', 'admin_only'), workspace, null, { resume: 'test_call' })).toMatch(/aria-busy="true"/)
+  // Only the row it was clicked on.
+  expect(row(step('forwarding', 'todo'), workspace, null, { resume: 'test_call' })).not.toMatch(/aria-busy="true"/)
 })

@@ -50,7 +50,8 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
-import { and, asc, eq } from 'drizzle-orm'
+import { APIError } from 'better-auth/api'
+import { and, asc, count, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { PASSKEY_STEP_UP_REQUIRED, passkeyStillNeeded, type StepUp } from './admin-step-up.ts'
@@ -67,7 +68,7 @@ import {
   tooManyRefusedSetupKeys,
   webAddress,
 } from './agent-setup.ts'
-import { auth } from './auth.ts'
+import { auth, WORKSPACE_LIMIT, workspaceLimitText } from './auth.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
@@ -148,6 +149,33 @@ const answer = (data: Record<string, unknown>): ToolResult => {
   const text = forAgent(JSON.stringify(data))
   return { content: [{ type: 'text', text }], structuredContent: JSON.parse(text) }
 }
+/** The most workspaces one setup link creates (review of #711): a leaked link cannot fill the install. */
+export const SETUP_LINK_WORKSPACE_CAP = 10
+/** Kept in the workspace's metadata: the setup link that created it. */
+const MADE_BY_SETUP_KEY = 'createdBySetupKey'
+
+/** How many workspaces this setup link has created (still there). Better Auth stores the metadata as JSON text. */
+async function workspacesMadeBy(keyId: string) {
+  const needle = JSON.stringify({ [MADE_BY_SETUP_KEY]: keyId }).slice(1, -1)
+  const [row] = await db
+    .select({ n: count() })
+    .from(organization)
+    .where(sql`position(${needle} in coalesce(${organization.metadata}, '')) > 0`)
+  return row?.n ?? 0
+}
+
+/** One workspace_create per link at a time, so two parallel calls cannot both pass the cap (one API process). */
+const creating = new Map<string, Promise<unknown>>()
+function oneCreateAtATime<T>(keyId: string, run: () => Promise<T>): Promise<T> {
+  const before = creating.get(keyId) ?? Promise.resolve()
+  const next = before.catch(() => {}).then(run)
+  const done = next.finally(() => {
+    if (creating.get(keyId) === done) creating.delete(keyId)
+  })
+  creating.set(keyId, done)
+  return next
+}
+
 const refusal = (error: string): ToolResult => ({ content: [{ type: 'text', text: forAgent(error) }], isError: true })
 
 /** How often the agent reads setup_status while it waits for the admin's Allow. */
@@ -858,8 +886,7 @@ function registerTools(server: McpServer, actor: Actor, from: RequestOrigin) {
   server.registerTool(
     'workspace_create',
     {
-      description:
-        'Create a business (a workspace) with its assistant: one per business or location the admin runs. They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status.',
+      description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (${WORKSPACE_LIMIT === null ? '' : `up to ${WORKSPACE_LIMIT} workspaces per admin; `}this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status.`,
       inputSchema: z.object({
         name: z.string().trim().min(1).max(80).describe("The business's name, as callers know it"),
         timeZone: z.string().max(64).optional().describe('IANA time zone, e.g. America/Los_Angeles'),
@@ -872,7 +899,31 @@ function registerTools(server: McpServer, actor: Actor, from: RequestOrigin) {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '')}-${crypto.randomUUID().slice(0, 6)}`
-        const org = await auth.api.createOrganization({ body: { name, slug, userId: actor.actorId } })
+        const keyId = actor.setupKeyId
+        if (!keyId) return refusal('could not create the workspace')
+        const org = await oneCreateAtATime(keyId, async () => {
+          // A leaked link must not fill the install with workspaces: each one carries the link it came from.
+          if ((await workspacesMadeBy(keyId)) >= SETUP_LINK_WORKSPACE_CAP) return 'link_cap' as const
+          // At the workspace limit (WORKSPACE_LIMIT, auth.ts) Better Auth refuses: said like the app's New workspace,
+          // never "internal error".
+          return auth.api
+            .createOrganization({
+              body: { name, slug, userId: actor.actorId, metadata: { [MADE_BY_SETUP_KEY]: keyId } },
+            })
+            .catch((err: unknown) => {
+              if (err instanceof APIError && err.body?.code === 'YOU_HAVE_REACHED_THE_MAXIMUM_NUMBER_OF_ORGANIZATIONS')
+                return 'at_limit' as const
+              throw err
+            })
+        })
+        if (org === 'link_cap')
+          return refusal(
+            `This setup link can create up to ${SETUP_LINK_WORKSPACE_CAP} workspaces. Create a new setup link on the setup page to add more, or create them in the app.`,
+          )
+        if (org === 'at_limit')
+          return refusal(
+            WORKSPACE_LIMIT === null ? 'could not create the workspace' : workspaceLimitText(WORKSPACE_LIMIT),
+          )
         if (!org) return refusal('could not create the workspace')
         await ensureWorkspaceRows(org.id, name, timeZone)
         await recordSignup(db, org.id)
