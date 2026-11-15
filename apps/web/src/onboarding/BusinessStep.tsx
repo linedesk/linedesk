@@ -14,7 +14,7 @@ import {
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from 'react'
-import { useLocale } from '@linedesk/i18n/react'
+import { T, useLocale, useT } from '@linedesk/i18n/react'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
 import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from '../settings/workspaceLocaleModel.ts'
@@ -54,16 +54,15 @@ type Props = {
   onNext: () => void
 }
 
-const HEADING = 'Tell us about your business.'
-
 export function BusinessStep(p: Props) {
+  const t = useT()
   const assistant = useAssistant()
   if (assistant) return <FindBusiness assistant={assistant} {...p} />
   return (
     <>
       <div className="ob-body">
-        <h1>{HEADING}</h1>
-        <Loading what="Your assistant" loading skeleton={<SkeletonFields fields={2} />} />
+        <h1>{t('onboarding.business.heading')}</h1>
+        <Loading what={t('onboarding.assistant.loadingWhat')} loading skeleton={<SkeletonFields fields={2} />} />
       </div>
       <Foot canContinue={false} />
     </>
@@ -85,6 +84,7 @@ function FindBusiness({
   onRenamed,
   onNext,
 }: Props & { assistant: Assistant }) {
+  const t = useT()
   // Lookup found off (or its key refused) by a search since the page loaded: not offered again here.
   const [lookupLost, setLookupLost] = useState(false)
   const canSearch = lookup && !lookupLost
@@ -126,9 +126,9 @@ function FindBusiness({
 
   async function search() {
     const text = query.trim()
-    if (text.length < 2) return setError('Type the business name and city, or its website.')
+    if (text.length < 2) return setError(t('onboarding.business.searchTooShort'))
     if (site === 'field' && looksLikeWebsite(text))
-      return importBusiness({ name: businessName, website: text }, `Reading ${text}…`)
+      return importBusiness({ name: businessName, website: text }, t('onboarding.business.reading', { site: text }))
     setError(null)
     setSearching(true)
     try {
@@ -149,9 +149,12 @@ function FindBusiness({
   }
 
   function manualContinue() {
-    if (!name.trim()) return setError('Give the business a name.')
+    if (!name.trim()) return setError(t('onboarding.business.nameRequired'))
     if (site === 'field' && website.trim())
-      return importBusiness({ name: name.trim(), website: website.trim() }, `Reading ${website.trim()}…`)
+      return importBusiness(
+        { name: name.trim(), website: website.trim() },
+        t('onboarding.business.reading', { site: website.trim() }),
+      )
     setError(null)
     setPhase({ kind: 'review', proposal: manualProposal(name, assistant.name, website), fromGoogle: false })
   }
@@ -188,30 +191,38 @@ function FindBusiness({
         <>
           <Field
             id="ob-biz-q"
-            label="Business name and city"
-            help={site === 'field' ? 'Or paste your website.' : undefined}
+            label={t('onboarding.business.find.label')}
+            help={site === 'field' ? t('onboarding.business.find.help') : undefined}
           >
             <div className="ob-biz-search">
-              <TextInput id="ob-biz-q" value={query} onChange={setQuery} placeholder="Business name, city" />
+              <TextInput
+                id="ob-biz-q"
+                value={query}
+                onChange={setQuery}
+                placeholder={t('onboarding.business.find.placeholder')}
+              />
               <Button
                 busy={searching}
                 variant="primary"
                 icon="search"
                 disabled={searching}
                 onClick={() => void search()}
-                title="Search (Enter)"
+                title={t('onboarding.business.find.searchTip', { key: 'Enter' })}
               >
-                {searching ? 'Searching…' : 'Search'}
+                {searching ? t('onboarding.business.find.searching') : t('common.search.button')}
               </Button>
             </div>
           </Field>
-          {results && results.length === 0 && (
-            <p className="ob2-note">No listing found. Try the name as it is on Google, or enter it yourself.</p>
-          )}
+          {results && results.length === 0 && <p className="ob2-note">{t('onboarding.business.find.none')}</p>}
           {results && results.length > 0 && (
             <ResultList
               results={results}
-              onPick={r => void importBusiness({ placeId: r.placeId, name: r.name }, `Getting ${r.name}…`)}
+              onPick={r =>
+                void importBusiness(
+                  { placeId: r.placeId, name: r.name },
+                  t('onboarding.business.getting', { name: r.name }),
+                )
+              }
             />
           )}
           <p className="ob-tight">
@@ -223,37 +234,53 @@ function FindBusiness({
                 setPhase({ kind: 'manual' })
               }}
             >
-              Not on Google? Enter it yourself
+              {t('onboarding.business.find.manual')}
             </Button>
           </p>
         </>
       )}
       {phase.kind === 'manual' && (
         <>
-          <Field id="ob-biz-name" label="Business name">
-            <TextInput id="ob-biz-name" value={name} onChange={setName} placeholder="Your business name" />
+          <Field id="ob-biz-name" label={t('onboarding.business.field.name')}>
+            <TextInput
+              id="ob-biz-name"
+              value={name}
+              onChange={setName}
+              placeholder={t('onboarding.business.manual.namePlaceholder')}
+            />
           </Field>
           {site === 'field' && (
             <Field
               id="ob-biz-site"
-              label="Website"
-              aside="Optional"
-              tip="We read a few pages to fill in your services."
+              label={t('onboarding.business.field.website')}
+              aside={t('onboarding.business.field.optional')}
+              tip={t('onboarding.business.manual.websiteTip')}
             >
-              <TextInput id="ob-biz-site" value={website} onChange={setWebsite} placeholder="yourbusiness.com" />
+              <TextInput
+                id="ob-biz-site"
+                value={website}
+                onChange={setWebsite}
+                placeholder={t('onboarding.business.field.websitePlaceholder')}
+              />
             </Field>
           )}
-          {site === 'paused' && <p className="ob2-note">Website reading is paused for today.</p>}
+          {site === 'paused' && <p className="ob2-note">{t('onboarding.business.manual.paused')}</p>}
           {site === 'needs_model' && (
             <ProblemNote problem={providerProblem({ provider: 'llm', reason: 'config' }, 'search')} admin />
           )}
           <p className="ob2-row ob-tight">
-            <Button variant="primary" onClick={manualContinue} title="Next (Enter)">
-              {site === 'field' && website.trim() ? 'Read my website' : 'Next'}
+            <Button
+              variant="primary"
+              onClick={manualContinue}
+              title={t('onboarding.business.manual.nextTip', { key: 'Enter' })}
+            >
+              {site === 'field' && website.trim()
+                ? t('onboarding.business.manual.readWebsite')
+                : t('onboarding.business.manual.next')}
             </Button>
             {canSearch && (
               <Button size="sm" variant="ghost" onClick={() => setPhase({ kind: 'find' })}>
-                Search Google instead
+                {t('onboarding.business.manual.searchGoogle')}
               </Button>
             )}
           </p>
@@ -270,6 +297,7 @@ function FindBusiness({
  * between them. Google's terms ask for the "Google Maps" attribution where Places results show without a map.
  */
 function ResultList({ results, onPick }: { results: BusinessCandidate[]; onPick: (r: BusinessCandidate) => void }) {
+  const t = useT()
   function move(e: KeyboardEvent<HTMLUListElement>) {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
     if (!step) return
@@ -280,7 +308,7 @@ function ResultList({ results, onPick }: { results: BusinessCandidate[]; onPick:
   }
   return (
     <div className="ob-biz-results">
-      <ul aria-label="Pick your business" onKeyDown={move}>
+      <ul aria-label={t('onboarding.business.find.results')} onKeyDown={move}>
         {results.map(r => (
           <li key={r.placeId}>
             <button type="button" className="ob-biz-result" onClick={() => onPick(r)}>
@@ -303,29 +331,36 @@ const isGoogle = (f: BusinessLookupFailure) => f.provider === 'business'
  * not finished); members are told to ask whoever runs the server.
  */
 function ProblemNote({ problem, admin, alert }: { problem: ProviderProblem; admin: boolean; alert?: boolean }) {
+  const t = useT()
   return (
     <Note tone="warning" role={alert ? 'alert' : undefined}>
       {problem.text}{' '}
       {admin ? (
-        <>
-          {problem.adminFix}{' '}
-          <a className="k-link" href={`#admin/providers/${problem.group}`} target="_blank" rel="noopener">
-            Server admin › Providers
-          </a>
-          .
-        </>
+        <T
+          k={problem.adminFix}
+          values={{
+            link: chunks => (
+              <a className="k-link" href={`#admin/providers/${problem.group}`} target="_blank" rel="noopener">
+                {chunks}
+              </a>
+            ),
+          }}
+        />
       ) : (
-        'Ask whoever runs this server.'
+        t('onboarding.business.problem.askAdmin')
       )}
     </Note>
   )
 }
 
+/** Google's own words, never translated (its attribution rules). */
+const GOOGLE_MAPS = 'Google Maps'
+
 /** The text attribution Google requires for Places content shown without a Google map. */
 function GoogleMapsCredit() {
   return (
     <p className="ob-biz-credit" translate="no">
-      Google Maps
+      {GOOGLE_MAPS}
     </p>
   )
 }
@@ -346,19 +381,20 @@ function FindForm({
   readsWebsite: boolean
   children: ReactNode
 }) {
+  const t = useT()
   useStepKeys({ onEnter })
   return (
     <>
       <div className="ob-body">
-        <h1>{HEADING}</h1>
+        <h1>{t('onboarding.business.heading')}</h1>
         <p className="ob-lede">
           {saved
-            ? 'Look your business up again. Back keeps what you saved.'
+            ? t('onboarding.business.lede.saved')
             : phase.kind !== 'manual'
-              ? `We fill in what your listing${readsWebsite ? ' and website say' : ' says'}. You check it before anything is saved.`
+              ? t(readsWebsite ? 'onboarding.business.lede.listingAndWebsite' : 'onboarding.business.lede.listing')
               : readsWebsite
-                ? 'You check everything before it is saved.'
-                : 'Name your business, then fill in the rest. You check it before anything is saved.'}
+                ? t('onboarding.business.lede.manualWebsite')
+                : t('onboarding.business.lede.manual')}
         </p>
         {children}
       </div>
@@ -391,6 +427,7 @@ function ReviewProfile({
   onBack: () => void
   onNext: () => void
 }) {
+  const t = useT()
   const run = useRun()
   const phoneCountry = useDefaultPhoneCountry()
   const settings = useWorkspaceSettings().data
@@ -447,8 +484,12 @@ function ReviewProfile({
       <div className="ob-body">
         <h1>
           {fromGoogle
-            ? `Is this ${draft.name.trim() || 'your business'}?`
-            : `About ${draft.name.trim() || 'your business'}`}
+            ? draft.name.trim()
+              ? t('onboarding.business.review.isThis', { name: draft.name.trim() })
+              : t('onboarding.business.review.isThisYours')
+            : draft.name.trim()
+              ? t('onboarding.business.review.about', { name: draft.name.trim() })
+              : t('onboarding.business.review.aboutYours')}
         </h1>
         <p className="ob-lede">{sourcesLine(proposal.pages, fromGoogle)}</p>
         {proposal.notes.map(note => (
@@ -459,7 +500,7 @@ function ReviewProfile({
         {proposal.failures.map(f => (
           <ProblemNote key={f.provider} problem={providerProblem(f, 'listing')} admin={admin} />
         ))}
-        <Field id="ob-biz-name" label="Business name" error={problems.name}>
+        <Field id="ob-biz-name" label={t('onboarding.business.field.name')} error={problems.name}>
           <TextInput
             id="ob-biz-name"
             value={draft.name}
@@ -467,28 +508,32 @@ function ReviewProfile({
             invalid={!!problems.name}
           />
         </Field>
-        <Field id="ob-biz-kind" label="Kind of business" tip="Picks the common calls below.">
+        <Field
+          id="ob-biz-kind"
+          label={t('onboarding.business.field.kind')}
+          tip={t('onboarding.business.field.kindTip')}
+        >
           <Select<BusinessTemplateId | typeof NO_TEMPLATE>
             id="ob-biz-kind"
-            label="Kind of business"
+            label={t('onboarding.business.field.kind')}
             value={draft.template ?? NO_TEMPLATE}
             options={templateOptions}
-            onChange={t => t && setDraft(d => switchTemplate(d, t))}
+            onChange={kind => kind && setDraft(d => switchTemplate(d, kind))}
           />
         </Field>
         <div className="ob-biz-pair">
-          <Field id="ob-biz-addr" label="Address">
+          <Field id="ob-biz-addr" label={t('onboarding.business.field.address')}>
             <TextInput id="ob-biz-addr" value={draft.address} onChange={v => set({ address: v })} />
           </Field>
-          <Field id="ob-biz-area" label="Area you serve">
+          <Field id="ob-biz-area" label={t('onboarding.business.field.area')}>
             <TextInput
               id="ob-biz-area"
               value={draft.area}
               onChange={v => set({ area: v })}
-              placeholder="The towns or neighborhoods you serve"
+              placeholder={t('onboarding.business.field.areaPlaceholder')}
             />
           </Field>
-          <Field id="ob-biz-phone" label="Phone" error={problems.phone}>
+          <Field id="ob-biz-phone" label={t('onboarding.business.field.phone')} error={problems.phone}>
             <PhoneInput
               id="ob-biz-phone"
               value={draft.phone}
@@ -498,37 +543,41 @@ function ReviewProfile({
               invalid={!!problems.phone}
             />
           </Field>
-          <Field id="ob-biz-web" label="Website" error={problems.website}>
+          <Field id="ob-biz-web" label={t('onboarding.business.field.website')} error={problems.website}>
             <TextInput
               id="ob-biz-web"
               value={draft.website}
               onChange={v => set({ website: v })}
               invalid={!!problems.website}
-              placeholder="yourbusiness.com"
+              placeholder={t('onboarding.business.field.websitePlaceholder')}
             />
           </Field>
-          <Field id="ob-biz-country" label="Country" tip="Phone numbers, holidays and the currency start with it.">
+          <Field
+            id="ob-biz-country"
+            label={t('onboarding.business.field.country')}
+            tip={t('onboarding.business.field.countryTip')}
+          >
             <SearchSelect
               id="ob-biz-country"
-              label="Country"
+              label={t('onboarding.business.field.country')}
               value={country}
               options={countryChoices}
               search={searchCountries}
-              placeholder="Search a country"
+              placeholder={t('onboarding.business.field.countrySearch')}
               onChange={setPickedCountry}
             />
           </Field>
           <Field
             id="ob-biz-language"
-            label="Language"
-            tip={`What ${assistant.name} greets callers in and call summaries are written in.`}
+            label={t('common.language.label')}
+            tip={t('onboarding.business.field.languageTip', { assistant: assistant.name })}
           >
             <SearchSelect
               id="ob-biz-language"
-              label="Language"
+              label={t('common.language.label')}
               value={language}
               options={languageChoices}
-              placeholder="Search a language"
+              placeholder={t('onboarding.business.field.languageSearch')}
               onChange={setPickedLanguage}
             />
           </Field>
@@ -536,34 +585,46 @@ function ReviewProfile({
         {!!draft.hours?.length && (
           <div className="ob-biz-hours">
             <Checkbox checked={draft.useHours} onChange={v => set({ useHours: v })}>
-              Use these hours from Google
+              {t('onboarding.business.hours.use')}
             </Checkbox>
             <ul>
               {draft.hoursText.map(h => (
                 <li key={h}>{h}</li>
               ))}
             </ul>
-            <span className="ob2-note">They matter only if {assistant.name} picks up when you're closed.</span>
+            <span className="ob2-note">{t('onboarding.business.hours.note', { assistant: assistant.name })}</span>
           </div>
         )}
-        <Field id="ob-biz-services" label="Services" help="One per line, with prices if you want callers to hear them.">
+        <Field
+          id="ob-biz-services"
+          label={t('onboarding.business.field.services')}
+          help={t('onboarding.business.field.servicesHelp')}
+        >
           <TextArea id="ob-biz-services" value={draft.services} onChange={v => set({ services: v })} />
         </Field>
-        <Field id="ob-biz-about" label="About" help={`What ${assistant.name} tells callers about you.`}>
+        <Field
+          id="ob-biz-about"
+          label={t('onboarding.business.field.about')}
+          help={t('onboarding.business.field.aboutHelp', { assistant: assistant.name })}
+        >
           <TextArea
             id="ob-biz-about"
             value={draft.about}
             onChange={v => set({ about: v })}
-            placeholder="What you do, for whom, and what callers often ask."
+            placeholder={t('onboarding.business.field.aboutPlaceholder')}
           />
         </Field>
-        <Field id="ob-biz-calls" label="Common calls" help="One per line: when a caller …, what to do.">
+        <Field
+          id="ob-biz-calls"
+          label={t('onboarding.business.field.calls')}
+          help={t('onboarding.business.field.callsHelp')}
+        >
           <TextArea id="ob-biz-calls" value={draft.useCases} onChange={v => set({ useCases: v })} tall />
         </Field>
         {/* The greeting with the business's name is saved too; the owner hears and edits it in the next step. */}
         {fromGoogle && <GoogleMapsCredit />}
       </div>
-      <Foot onBack={onBack} onContinue={save} canContinue={!problem} label="Save and continue" />
+      <Foot onBack={onBack} onContinue={save} canContinue={!problem} label={t('onboarding.business.review.save')} />
     </>
   )
 }

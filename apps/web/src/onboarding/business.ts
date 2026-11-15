@@ -14,7 +14,9 @@ import {
   workspaceNameProblem,
 } from '@linedesk/actions'
 import type { BusinessProfile } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import type { WebsiteImport } from '../auth.ts'
+import { i18n } from '../i18n/index.tsx'
 
 /**
  * What the step shows for the website: the field (`field`), a quiet line that reading is paused for today
@@ -183,7 +185,7 @@ export function instructionsOf(draft: ProfileDraft): string {
 /** What is wrong with the draft, per field (shown under it); empty when it can be saved. */
 export function draftProblems(draft: ProfileDraft): Partial<Record<'name' | 'phone' | 'website', string>> {
   const problems: Partial<Record<'name' | 'phone' | 'website', string>> = {}
-  const name = draft.name.trim() ? workspaceNameProblem(draft.name) : 'Give the business a name.'
+  const name = draft.name.trim() ? workspaceNameProblem(draft.name) : i18n().t('onboarding.business.nameRequired')
   if (name) problems.name = name
   // The phone field's value is E.164 as far as typed: an unfinished number says so for its country.
   const phone =
@@ -240,47 +242,51 @@ export function profileSave(
 }
 
 /**
- * A provider the step could not use, in words: what happened (`text`) and, for instance admins, the start of the
- * sentence that ends with the link to its group in Server admin › Providers (`adminFix`, `group`). Members get "Ask
+ * A provider the step could not use, in words: what happened (`text`) and, for instance admins, the sentence with the
+ * link to its group in Server admin › Providers (`adminFix`, a message with a `<link>` tag; `group`). Members get "Ask
  * whoever runs this server."
  */
-export type ProviderProblem = { text: string; adminFix: string; group: 'answering' | 'business' }
+export type ProviderProblem = { text: string; adminFix: MessageKey; group: 'answering' | 'business' }
 export function providerProblem(failure: BusinessLookupFailure, where: 'search' | 'listing'): ProviderProblem {
+  const { t } = i18n()
   if (failure.provider === 'llm')
     return {
       text:
-        where === 'listing'
-          ? 'Nothing was filled in from your listing or website: that needs a language model on this server.'
-          : 'Reading your website needs a language model.',
-      adminFix: 'Set one up under',
+        where === 'listing' ? t('onboarding.business.problem.llmListing') : t('onboarding.business.problem.llmSearch'),
+      adminFix: msg('onboarding.business.problem.fixSetOneUp'),
       group: 'answering',
     }
-  const [lost, next] =
+  const auth = failure.reason === 'auth'
+  const text =
     where === 'search'
-      ? ['Searching Google', 'Enter your business yourself.']
-      : ['Reading your Google listing', 'Fill in the rest below.']
-  return failure.reason === 'auth'
-    ? {
-        text: `${lost} didn't work: Google refused this server's key. ${next}`,
-        adminFix: 'Check the key under',
-        group: 'business',
-      }
-    : { text: `${lost} isn't set up on this server. ${next}`, adminFix: 'Set it up under', group: 'business' }
+      ? t(auth ? 'onboarding.business.problem.searchAuth' : 'onboarding.business.problem.searchConfig')
+      : t(auth ? 'onboarding.business.problem.listingAuth' : 'onboarding.business.problem.listingConfig')
+  return {
+    text,
+    adminFix: msg(auth ? 'onboarding.business.problem.fixCheckKey' : 'onboarding.business.problem.fixSetItUp'),
+    group: 'business',
+  }
 }
 
 /** Where the proposal came from, for the line above the review. */
 export function sourcesLine(pages: BusinessImportData['pages'], fromGoogle: boolean) {
-  const parts = [fromGoogle ? 'your Google listing' : null]
-  if (pages.length) {
-    const host = (() => {
-      try {
-        return new URL(pages[0]!.url).host.replace(/^www\./, '')
-      } catch {
-        return 'your website'
-      }
-    })()
-    parts.push(`${pages.length} ${pages.length === 1 ? 'page' : 'pages'} of ${host}`)
-  }
-  const from = parts.filter(Boolean)
-  return from.length ? `From ${from.join(' and ')}. Check it and change anything.` : 'Check it and change anything.'
+  const { t } = i18n()
+  if (!pages.length) return t(fromGoogle ? 'onboarding.business.sources.listing' : 'onboarding.business.sources.none')
+  const host = (() => {
+    try {
+      return new URL(pages[0]!.url).host.replace(/^www\./, '')
+    } catch {
+      return null
+    }
+  })()
+  const count = pages.length
+  if (!host)
+    return t(
+      fromGoogle ? 'onboarding.business.sources.listingAndPagesOfSite' : 'onboarding.business.sources.pagesOfSite',
+      { count },
+    )
+  return t(fromGoogle ? 'onboarding.business.sources.listingAndPages' : 'onboarding.business.sources.pages', {
+    count,
+    host,
+  })
 }

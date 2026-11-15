@@ -8,6 +8,7 @@ import {
   onCallNumberProblem,
 } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
+import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { Field } from '../settings/fields.tsx'
@@ -22,7 +23,7 @@ import {
   lineText,
   lookupGuide,
   noCheckText,
-  SIMULATED_MARK,
+  simulatedMark,
 } from './forwarding-check.ts'
 import { formatNumber, outboundE164 } from './flow.ts'
 import { useOutboundCountries } from './outbound-number.ts'
@@ -64,6 +65,7 @@ export function ForwardingCheck({
   lookupOnOpen = false,
   canCheck = true,
 }: Props) {
+  const t = useT()
   const name = useAssistantName()
   const write = useWriteAction()
   const run = useRun()
@@ -190,7 +192,7 @@ export function ForwardingCheck({
   async function start() {
     if (starting || dialing || !available) return
     if (policyProblem) return setProblem(policyProblem)
-    if (!businessNumber) return setProblem('Enter your business number, the one your callers dial.')
+    if (!businessNumber) return setProblem(t('onboarding.forwardingCheck.enterNumber'))
     setProblem(null)
     setStarting(true)
     try {
@@ -219,8 +221,8 @@ export function ForwardingCheck({
       {canCheck && (
         <Field
           id={fieldId}
-          label="Your business number"
-          tip="The number your callers dial today. We look up its carrier for the right codes."
+          label={t('onboarding.forwardingCheck.numberLabel')}
+          tip={t('onboarding.forwardingCheck.numberTip')}
         >
           <PhoneInput
             id={fieldId}
@@ -246,15 +248,15 @@ export function ForwardingCheck({
       {line && (
         <p className="ob2-note">
           {line.text}
-          {line.simulated && <span className="fc-sim">{SIMULATED_MARK}</span>}
+          {line.simulated && <span className="fc-sim">{simulatedMark()}</span>}
         </p>
       )}
       {lookupNote && <p className="ob2-note">{lookupNote}</p>}
       {suggested && (
         <p className="ob2-note fc-suggest">
-          Your carrier looks like {suggested.name}.{' '}
+          {t('onboarding.forwardingCheck.suggestCarrier', { carrier: suggested.name })}{' '}
           <button type="button" className="fc-switch" onClick={() => onCarrier?.(suggested.id, 'owner')}>
-            Switch guide
+            {t('onboarding.forwardingCheck.switchGuide')}
           </button>
         </p>
       )}
@@ -267,17 +269,16 @@ export function ForwardingCheck({
             variant="secondary"
             onClick={() => void start()}
             disabled={starting || dialing}
-            title="Call your business number and watch for the forwarded call"
+            title={t('onboarding.forwardingCheck.checkTitle')}
           >
-            {starting || dialing ? 'Checking…' : 'Check forwarding'}
+            {starting || dialing ? t('onboarding.forwardingCheck.checking') : t('onboarding.forwardingCheck.check')}
           </Button>
         </div>
       )}
       {problem && <Note tone="danger">{problem}</Note>}
       {lost && (
         <Note tone="danger" className="fc-lost">
-          {dialing ? 'The check’s result could not be read.' : 'The last check could not be loaded.'} Check your
-          connection.{' '}
+          {dialing ? t('onboarding.forwardingCheck.lostResult') : t('onboarding.forwardingCheck.lostLast')}{' '}
           <button
             type="button"
             className="fc-switch"
@@ -286,7 +287,7 @@ export function ForwardingCheck({
               setReread(n => n + 1)
             }}
           >
-            Check again
+            {t('onboarding.forwardingCheck.checkAgain')}
           </button>
         </Note>
       )}
@@ -296,17 +297,17 @@ export function ForwardingCheck({
           <span>
             <b>{result.title}</b>
             {result.next && <span className="fc-next">{result.next}</span>}
-            {check.simulated && <span className="fc-sim">{SIMULATED_MARK}</span>}
+            {check.simulated && <span className="fc-sim">{simulatedMark()}</span>}
             {result.fixes && canCheck && (
               <span className="ob2-row fc-fixes">
                 {result.fixes.includes('forward_all') && (
                   <Button size="sm" variant="secondary" onClick={() => switchTo('forward_all')}>
-                    Forward every call instead
+                    {t('onboarding.forwardingCheck.forwardAllInstead')}
                   </Button>
                 )}
                 {result.fixes.includes('new') && (
                   <Button size="sm" variant="ghost" onClick={() => switchTo('new')}>
-                    Give out {formatNumber(number.e164)} instead
+                    {t('onboarding.forwardingCheck.giveOutInstead', { number: formatNumber(number.e164) })}
                   </Button>
                 )}
               </span>

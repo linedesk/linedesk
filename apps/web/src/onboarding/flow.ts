@@ -10,26 +10,27 @@ import {
   isActiveContact,
   nanpAreaCode,
   type OnboardingStep,
+  type OutboundCountries,
   onboardingSteps,
   onCallNumberProblem,
-  type OutboundCountries,
   type PickupMode,
-  phoneNumberProblem,
+  type ProviderAudience,
   type ProviderName,
+  phoneNumberProblem,
+  providerFailureReasonOfText,
+  providerFailureText,
   providerNames,
   providerSpec,
   RING_SECONDS_DEFAULT,
   TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX,
   TRANSFER_NAME_MAX,
-  type ProviderAudience,
   usAreaCode,
-  providerFailureReasonOfText,
-  providerFailureText,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { brandName } from '../brand.ts'
+import { i18n } from '../i18n/index.tsx'
 import { providerAudience } from '../providerAudience.ts'
 import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
 
@@ -37,13 +38,26 @@ type PhoneNumberMode = PhoneNumber['mode']
 
 export { type OnboardingStep, onboardingSteps }
 
+/** The steps' names in the active language (read on every use, so a language change shows at once). */
 export const stepLabels: Record<OnboardingStep, string> = {
-  business: 'Business',
-  assistant: 'Your assistant',
-  pickup: 'When to pick up',
-  notify: 'Who hears about calls',
-  phone: 'Phone',
-  done: 'Done',
+  get business() {
+    return i18n().t('onboarding.steps.business')
+  },
+  get assistant() {
+    return i18n().t('onboarding.steps.assistant')
+  },
+  get pickup() {
+    return i18n().t('onboarding.steps.pickup')
+  },
+  get notify() {
+    return i18n().t('onboarding.steps.notify')
+  },
+  get phone() {
+    return i18n().t('onboarding.steps.phone')
+  },
+  get done() {
+    return i18n().t('onboarding.steps.done')
+  },
 }
 
 export const nextStep = (step: OnboardingStep): OnboardingStep =>
@@ -196,12 +210,11 @@ export function phoneSetupInput(
     const e164 = international ? completePhone(typed) : toE164(typed)
     if (e164) return { input: { e164, purchase: false, ...(forwarding ? { mode: forwarding } : {}) } }
     return {
-      problem:
-        (international && phoneNumberProblem(typed)) || 'Enter the number with its area code, like +1 503 555 0100.',
+      problem: (international && phoneNumberProblem(typed)) || i18n().t('onboarding.flow.problem.enterNumber'),
     }
   }
-  if (!usAreaCode(choice.areaCode)) return { problem: 'Pick an area code for the new number from the list.' }
-  if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
+  if (!usAreaCode(choice.areaCode)) return { problem: i18n().t('onboarding.flow.problem.pickAreaCode') }
+  if (!choice.confirmed) return { problem: i18n().t('onboarding.flow.problem.confirmCost') }
   return { input: { areaCode: choice.areaCode, purchase: true, mode: forwarding ?? 'new' } }
 }
 
@@ -227,15 +240,16 @@ export const offersBuying = (country: string | null): boolean => country === nul
  * instance admins only, so a number the business has needs its own carrier account first.
  */
 export function buyUnavailableText(carrier: string | null, canAttach: boolean): string {
-  const why = 'Buying numbers is available in the US for now.'
-  if (!canAttach)
-    return `${why} To use a number you already have, connect your own carrier account in Settings › Phone numbers.`
-  return `${why} Connect a number you already have ${carrier ? `in ${carrier}` : 'with your carrier'}.`
+  const { t } = i18n()
+  if (!canAttach) return t('onboarding.flow.buyUnavailable.ownCarrier')
+  return carrier
+    ? t('onboarding.flow.buyUnavailable.inCarrier', { carrier })
+    : t('onboarding.flow.buyUnavailable.withCarrier')
 }
 
 /** The link under the cards to the `existing` option, naming the install's carrier when it has one. */
 export const existingLinkText = (carrier: string | null): string =>
-  carrier ? `Already have a number in ${carrier}? Use it` : 'Already have a number? Use it'
+  carrier ? i18n().t('onboarding.flow.existingLinkIn', { carrier }) : i18n().t('onboarding.flow.existingLink')
 
 /** The `phoneNumber.setup` choice and forwarding for a phone step option. */
 export function phoneOptionSetup(
@@ -258,19 +272,22 @@ export function phoneOptionText(
   name: string,
   carrier: string | null,
 ): { title: string; description: string } {
+  const { t } = i18n()
   if (option === 'forward')
     return {
-      title: 'Keep my number',
-      description: `We get ${name} a number, and you dial a short code once on your business phone to forward to it.`,
+      title: t('onboarding.flow.option.forward.title'),
+      description: t('onboarding.flow.option.forward.description', { name }),
     }
   if (option === 'existing')
     return {
-      title: carrier ? `Use a number you have in ${carrier}` : 'Use a number you have',
-      description: `${name} answers that number; your business phone forwards to it.`,
+      title: carrier
+        ? t('onboarding.flow.option.existing.titleIn', { carrier })
+        : t('onboarding.flow.option.existing.title'),
+      description: t('onboarding.flow.option.existing.description', { name }),
     }
   return {
-    title: 'Give callers a new number',
-    description: `Only calls to the new number reach ${name}. Your current number rings as it does today.`,
+    title: t('onboarding.flow.option.new.title'),
+    description: t('onboarding.flow.option.new.description', { name }),
   }
 }
 
@@ -295,44 +312,54 @@ export const forwardingOffer = (mode: PhoneNumberMode, pickup: PickupMode): Forw
  * sent to Server admin › Providers, everyone else to whoever runs the server.
  */
 export function phoneSetupErrorText(error: string, audience: ProviderAudience = providerAudience()): string {
+  const { t } = i18n()
   if (/^phone setup is not configured/i.test(error))
     return audience === 'admin'
-      ? "Phone numbers aren't set up on this server yet. Add a phone carrier under Server admin › Providers."
-      : "Phone numbers aren't set up on this server yet. Ask whoever runs it to add a phone carrier."
-  if (/is already set up/i.test(error)) return `That number is already connected to ${brandName()}.`
+      ? t('onboarding.flow.setupError.notConfiguredAdmin')
+      : t('onboarding.flow.setupError.notConfigured')
+  if (/is already set up/i.test(error)) return t('onboarding.flow.setupError.alreadyConnected', { brand: brandName() })
   // Outside the countries numbers can be bought in (apps/api/src/number-purchases.ts, buyCountryRefusal).
   if (/^Buying numbers is available in the US/i.test(error)) return buyUnavailableText(null, true)
-  if (/is not in the .* account/i.test(error))
-    return "We couldn't find that number in the carrier account. Check the number, or get a new one."
-  if (/no number available in area code/i.test(error))
-    return 'No number is free in that area code right now. Try a nearby one.'
+  if (/is not in the .* account/i.test(error)) return t('onboarding.flow.setupError.notInAccount')
+  if (/no number available in area code/i.test(error)) return t('onboarding.flow.setupError.noneFree')
   // The limits on buying through the install's carrier account (apps/api/src/number-purchases.ts) are written for people: shown as they are.
   if (/(on|through) this server|this server has given|numbers today/i.test(error)) return error
   const reason = providerFailureReasonOfText(error)
   // A refused setting, an unknown number and anything else are about this request: the cases above and the default.
+  // The provider-failure sentences are the shared package's (@linedesk/actions), English for now, so is their label.
   if (reason !== 'config' && reason !== 'not_found' && reason !== 'unknown')
     return providerFailureText(reason, 'The phone carrier', audience)
-  return "The number couldn't be connected. Try again in a moment."
+  return t('onboarding.flow.setupError.failed')
 }
 
 /** How the business uses a connected number, in a few words. */
 export const numberModeLabel: Record<PhoneNumberMode, string> = {
-  forward_conditional: 'Missed calls forward here',
-  forward_all: 'All calls forward here',
+  get forward_conditional() {
+    return i18n().t('onboarding.flow.numberMode.forwardConditional')
+  },
+  get forward_all() {
+    return i18n().t('onboarding.flow.numberMode.forwardAll')
+  },
   get new() {
-    return `Your ${brandName()} number`
+    return i18n().t('onboarding.flow.numberMode.new', { brand: brandName() })
   },
   get ported() {
-    return `Your number, moved to ${brandName()}`
+    return i18n().t('onboarding.flow.numberMode.ported', { brand: brandName() })
   },
 }
 
 /** What a new number costs, as far as we know it. Prices are the carriers' list prices for a US local number. */
 export function priceNote(provider: string | null): string {
-  if (provider === 'twilio') return 'About $1.15 a month plus call minutes, billed by Twilio.'
-  if (provider === 'telnyx') return 'About $1 a month plus call minutes, billed by Telnyx.'
-  if (provider === 'dev') return 'Development mode: nothing is bought, the number is not real.'
-  return 'A monthly fee plus call minutes, billed by your carrier.'
+  const { t, format } = i18n()
+  const listPrice = (amount: number, carrier: string) =>
+    t('onboarding.flow.price.carrier', {
+      price: format.currency(amount, 'USD', { minimumFractionDigits: amount % 1 ? 2 : 0 }),
+      carrier,
+    })
+  if (provider === 'twilio') return listPrice(1.15, 'Twilio')
+  if (provider === 'telnyx') return listPrice(1, 'Telnyx')
+  if (provider === 'dev') return t('onboarding.flow.price.dev')
+  return t('onboarding.flow.price.unknown')
 }
 
 /**
@@ -340,8 +367,8 @@ export function priceNote(provider: string | null): string {
  * (priceNote), so the question doesn't repeat it.
  */
 export function buyQuestion(provider: string | null, areaCode: string): string {
-  if (provider === 'dev') return `Add a test number in area code ${areaCode}?`
-  return `Buy a number in area code ${areaCode}? It is billed every month until you release it.`
+  if (provider === 'dev') return i18n().t('onboarding.flow.buyQuestionDev', { areaCode })
+  return i18n().t('onboarding.flow.buyQuestion', { areaCode })
 }
 
 /**
@@ -350,10 +377,16 @@ export function buyQuestion(provider: string | null, areaCode: string): string {
  */
 export function turnOffFirst(guide: ForwardingGuide, earlier: ForwardingMode, e164: string, country?: string): string {
   const steps = forwardingInstructions(guide, earlier, e164, country)
-  if (!steps) return 'Turned on forwarding earlier? Turn it off first.'
-  if (steps.how === 'dial')
-    return `Dialled the earlier code already? Turn that forwarding off first with ${steps.off.map(c => c.code).join(', ')}.`
-  return `Set up the earlier forwarding already? Turn it off first in ${steps.where}.`
+  const { t, format } = i18n()
+  if (!steps) return t('onboarding.flow.turnOff.unknown')
+  if (steps.how === 'dial') {
+    const codes = format.list(
+      steps.off.map(c => c.code),
+      { type: 'unit', style: 'short' },
+    )
+    return t('onboarding.flow.turnOff.dial', { codes })
+  }
+  return t('onboarding.flow.turnOff.where', { where: steps.where })
 }
 
 /** iPhone or iPad (iPadOS reports itself as a Mac, with touch). */
@@ -469,7 +502,7 @@ export function urgentCasesFrom(instructions: string | undefined): string | null
  * the emergency number of the workspace country (911 in the US).
  */
 export const EMERGENCY_NOTE = (name: string, country = 'US') =>
-  `Emergencies (danger to people, fire, a gas smell): ${name} tells the caller to hang up and call ${emergencyNumberOf(country)}.`
+  i18n().t('onboarding.flow.emergencyNote', { name, emergency: emergencyNumberOf(country) })
 
 /** What is wrong, and where: no choice made, the mobile field, the condition, or the contact list itself. */
 export type WhoHearsProblem = { field: 'choice' | 'mobile' | 'condition' | 'list'; message: string }
@@ -484,27 +517,29 @@ export function whoHearsProblem(
   /** The countries the workspace may call (outbound.countries); `any` until it has a number. */
   countries: OutboundCountries = 'any',
 ): WhoHearsProblem | null {
-  if (!draft.urgent) return { field: 'choice', message: 'Choose what happens when a caller has an urgent matter.' }
+  const { t } = i18n()
+  if (!draft.urgent) return { field: 'choice', message: t('onboarding.flow.whoHears.choose') }
   if (draft.urgent === 'message') return null
   const typed = draft.mobile.trim()
-  if (!typed) return { field: 'mobile', message: 'Enter your mobile number, so urgent calls can ring it.' }
+  if (!typed) return { field: 'mobile', message: t('onboarding.flow.whoHears.enterMobile') }
   const e164 = outboundE164(typed)
   if (!e164)
     return {
       field: 'mobile',
-      message: (typed.startsWith('+') && phoneNumberProblem(typed)) || 'Enter your mobile number with its area code.',
+      message: (typed.startsWith('+') && phoneNumberProblem(typed)) || t('onboarding.flow.whoHears.mobileAreaCode'),
     }
   const problem = onCallNumberProblem(e164, countries)
   if (problem) return { field: 'mobile', message: problem }
   if (!transfers.some(c => c.id === URGENT_CONTACT_ID) && transfers.length >= TRANSFER_CONTACTS_MAX)
     return {
       field: 'list',
-      message: `${TRANSFER_CONTACTS_MAX} transfer contacts is the most an assistant can have. Remove one in Assistant settings › Transfers, or choose "Take a message".`,
+      message: t('onboarding.flow.whoHears.listFull', { max: TRANSFER_CONTACTS_MAX }),
     }
-  if (!draft.condition.trim()) return { field: 'condition', message: 'Say which calls are urgent.' }
+  if (!draft.condition.trim()) return { field: 'condition', message: t('onboarding.flow.whoHears.sayWhich') }
   // Room for the "asks for a person" line the contact may carry too.
   const max = TRANSFER_CONDITION_MAX - ALSO_PERSON.length - 1
-  if (draft.condition.trim().length > max) return { field: 'condition', message: `At most ${max} characters.` }
+  if (draft.condition.trim().length > max)
+    return { field: 'condition', message: t('onboarding.flow.whoHears.tooLong', { max }) }
   return null
 }
 
@@ -579,11 +614,12 @@ export function whoHearsTransfers(
  * about the mobile; anything else (another contact, the list) is said as the server says it.
  */
 export function mobileErrorText(error: string, name: string): string {
-  if (/confirm your email/i.test(error))
-    return 'Confirm your email address above first: then urgent calls can ring your mobile.'
-  if (error.includes(`${name}'s number is a `)) return `That is a ${brandName()} number. Enter your own mobile.`
+  const { t } = i18n()
+  if (/confirm your email/i.test(error)) return t('onboarding.flow.mobileError.confirmEmail')
+  if (error.includes(`${name}'s number is a `))
+    return t('onboarding.flow.mobileError.ownNumber', { brand: brandName() })
   if (error.includes(`${name}'s number forwards its calls to`))
-    return `That number forwards its calls to ${brandName()}. Enter your own mobile.`
+    return t('onboarding.flow.mobileError.forwards', { brand: brandName() })
   return error
 }
 
@@ -618,16 +654,6 @@ export function rejectionStep(action: string, input: unknown, left: OnboardingSt
   return left
 }
 
-/** What a step saves, for "Couldn't save …: reason". */
-export const stepSaves: Record<OnboardingStep, string> = {
-  business: 'your business details',
-  assistant: 'your assistant',
-  pickup: 'when your assistant picks up',
-  notify: 'who hears about calls',
-  phone: 'the phone number',
-  done: 'the sample calls',
-}
-
 /** What is left before calls are really answered, in the go-live checklist's words, with where it is done (null: nowhere this member can open). */
 export type DoneLeft = { label: string; href: string | null }
 
@@ -648,26 +674,34 @@ export function doneState(facts: {
   assistant: string
 }): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
   const { number, voiceMissing, forwardingVerified, admin, assistant } = facts
+  const { t } = i18n()
   const voice: DoneLeft = admin
-    ? { label: 'Get the voice service working in Server admin › Providers', href: '#admin/providers/answering' }
-    : { label: "The voice service isn't working yet: ask whoever runs this server", href: null }
+    ? { label: t('onboarding.flow.done.voiceAdmin'), href: '#admin/providers/answering' }
+    : { label: t('onboarding.flow.done.voiceMember'), href: null }
   if (!number)
     return {
       live: false,
-      title: 'Almost there.',
-      lede: `${assistant} answers once your number is connected.`,
-      left: [{ label: 'Connect your number', href: '#workspace/phone' }, ...(voiceMissing ? [voice] : [])],
+      title: t('onboarding.flow.done.almost'),
+      lede: t('onboarding.flow.done.answersOnceConnected', { assistant }),
+      left: [
+        { label: t('onboarding.flow.done.connectNumber'), href: '#workspace/phone' },
+        ...(voiceMissing ? [voice] : []),
+      ],
     }
   const shown = formatNumber(number.e164)
   const forwarding = (number.mode === 'forward_conditional' || number.mode === 'forward_all') && !forwardingVerified
   const left: DoneLeft[] = [
-    ...(forwarding ? [{ label: 'Turn on call forwarding', href: '#workspace/phone' }] : []),
+    ...(forwarding ? [{ label: t('onboarding.flow.done.turnOnForwarding'), href: '#workspace/phone' }] : []),
     ...(voiceMissing ? [voice] : []),
   ]
+  const values = { assistant, number: shown }
   if (!left.length)
-    return { live: true, title: "You're live.", lede: `${assistant} answers ${shown}. Calls land in your inbox.`, left }
-  const once = [forwarding && 'forwarding is on', voiceMissing && 'the voice service works']
-    .filter(Boolean)
-    .join(' and ')
-  return { live: false, title: 'Almost there.', lede: `${assistant} answers ${shown} once ${once}.`, left }
+    return { live: true, title: t('onboarding.flow.done.live'), lede: t('onboarding.flow.done.liveLede', values), left }
+  const lede =
+    forwarding && voiceMissing
+      ? t('onboarding.flow.done.onceBoth', values)
+      : forwarding
+        ? t('onboarding.flow.done.onceForwarding', values)
+        : t('onboarding.flow.done.onceVoice', values)
+  return { live: false, title: t('onboarding.flow.done.almost'), lede, left }
 }

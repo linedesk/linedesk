@@ -2,6 +2,8 @@
 // same call and side panel as Settings › Assistant, TestCall.tsx) and the call forwarding (the same dialog as Settings ›
 // Phone numbers). Both act in the business's workspace, so each opens that workspace's local store on the first click,
 // not with the page: most admins never need it here.
+import { msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { ManageNumber } from '../settings/PhoneNumbers.tsx'
 import { useTestCall } from '../settings/TestCall.tsx'
@@ -31,7 +33,7 @@ function InWorkspace({
   )
 }
 
-const TEST_CALL_TITLE = 'Talk to your assistant with your microphone, right here'
+const TEST_CALL_TITLE = msg('onboarding.rowActions.testCallTitle')
 
 /**
  * "Call Maya now" on the Test call row: starts the browser test call at once (microphone, live call, hang up in the
@@ -51,13 +53,16 @@ export function SetupTestCall({
   /** The admin clicked it before the tab switched into this workspace: the call starts at once (resume-after-switch.ts). */
   autoStart?: boolean
 }) {
+  const t = useT()
   // Bumped by every click: the call starts on it, also again after the panel was closed.
   const [asked, setAsked] = useState(autoStart ? 1 : 0)
-  const label = done ? 'Call again' : `Call ${assistantName} now`
+  const label = done
+    ? t('onboarding.rowActions.callAgain')
+    : t('onboarding.rowActions.callNow', { name: assistantName })
   const variant = done ? 'ghost' : 'primary'
   if (!asked)
     return (
-      <Button size="sm" variant={variant} icon="phone-in" title={TEST_CALL_TITLE} onClick={() => setAsked(1)}>
+      <Button size="sm" variant={variant} icon="phone-in" title={t(TEST_CALL_TITLE)} onClick={() => setAsked(1)}>
         {label}
       </Button>
     )
@@ -94,6 +99,7 @@ function TestCallHere({
   onAsk: () => void
   onCalled: () => void
 }) {
+  const t = useT()
   // The admin is an instance admin: when nobody answers, the panel says what to fix on the server.
   const session = useTestCall(true, undefined, true)
   const started = useRef(0)
@@ -121,10 +127,10 @@ function TestCallHere({
           icon="phone-in"
           busy={session.phase === 'starting'}
           disabled={busy || Boolean(session.blockedReason)}
-          title={session.blockedReason ? undefined : TEST_CALL_TITLE}
+          title={session.blockedReason ? undefined : t(TEST_CALL_TITLE)}
           onClick={onAsk}
         >
-          {session.phase === 'live' ? 'On the call' : label}
+          {session.phase === 'live' ? t('onboarding.rowActions.onCall') : label}
         </Button>
       </span>
       {/* No Open in inbox: the setup page stays where it is; the call is in the inbox afterwards. */}
@@ -147,6 +153,7 @@ export function SetupForwarding({
   /** The admin clicked it before the tab switched into this workspace: the dialog opens at once. */
   autoOpen?: boolean
 }) {
+  const t = useT()
   const [open, setOpen] = useState(autoOpen)
   const button = (busy: boolean) => (
     <Button
@@ -154,10 +161,10 @@ export function SetupForwarding({
       variant="secondary"
       busy={busy}
       disabled={busy}
-      title="The codes for your carrier, then a check that calls reach your assistant"
+      title={t('onboarding.rowActions.forwardingTitle')}
       onClick={() => setOpen(true)}
     >
-      Set up forwarding
+      {t('onboarding.rowActions.forwarding')}
     </Button>
   )
   if (!open) return button(false)
@@ -202,19 +209,20 @@ function ForwardingDialog({ busy, onClose }: { busy: ReactNode; onClose: () => v
 
 /** In place of "Set up forwarding" when its dialog cannot open: why, and where the numbers are. */
 export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing; onRetry: () => void }) {
+  const t = useT()
   return (
     <span className="as-small" role="status">
-      {missing === 'none' ? 'No forwarded number in this workspace.' : "Your phone numbers didn't load."}{' '}
+      {missing === 'none' ? t('onboarding.rowActions.noForwarded') : t('onboarding.rowActions.numbersNotLoaded')}{' '}
       {missing === 'not_loaded' && (
         <>
           <button type="button" className="k-link" onClick={onRetry}>
-            Try again
+            {t('common.action.tryAgain')}
           </button>
           {' · '}
         </>
       )}
       <a className="k-link" href={sectionHash('workspace', 'phone')}>
-        Workspace settings › Phone numbers
+        {t('onboarding.rowActions.phoneNumbersLink')}
       </a>
     </span>
   )

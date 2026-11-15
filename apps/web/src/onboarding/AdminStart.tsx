@@ -4,6 +4,7 @@
 // Naming the business waits for the passkey check too (POST /v1/workspaces answers 403 `admin_second_factor` before
 // it): until then the way by hand offers that check, never a form the server would refuse.
 import type { AgentSetupState } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { AdminSignInRequired, loadAgentSetup } from '../admin/api.ts'
 import { SECOND_FACTOR_BUTTON, SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
@@ -37,6 +38,7 @@ export function AdminStart({
   secondFactor = null,
   children,
 }: Props) {
+  const t = useT()
   const [state, setState] = useState<AgentSetupState | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   // Known from /v1/me, from the setup state's refusal (SECOND_FACTOR_REQUIRED) or from a refused creation.
@@ -64,22 +66,15 @@ export function AdminStart({
     <AuthPage>
       <div className="auth-card as-start">
         {lostWorkspace && <LostWorkspace name={lostWorkspace} />}
-        <h1>Set up {brandName()}</h1>
+        <h1>{t('onboarding.adminStart.title', { brand: brandName() })}</h1>
         <section className="as-card">
           <ol className="as-steps">
             <li>
-              <b>Set up with your AI agent</b>
-              <span className="as-small">
-                Your agent does the setup with you: the AI, a phone carrier, email, your business and its number. About
-                10 minutes.
-              </span>
+              <b>{t('onboarding.adminStart.agent')}</b>
+              <span className="as-small">{t('onboarding.adminStart.agentHelp')}</span>
               <div>
-                <Button
-                  variant="primary"
-                  onClick={openAgentSetup}
-                  title="Let Claude, ChatGPT or another agent set up this server with you"
-                >
-                  Set up with an AI agent
+                <Button variant="primary" onClick={openAgentSetup} title={t('onboarding.adminStart.agentTip')}>
+                  {t('onboarding.adminStart.agentButton')}
                 </Button>
               </div>
             </li>
@@ -87,7 +82,7 @@ export function AdminStart({
         </section>
         {byHand ? (
           <div className="as-byhand">
-            <h2 className="as-byhand-title">Or set up by hand</h2>
+            <h2 className="as-byhand-title">{t('onboarding.adminStart.byHandTitle')}</h2>
             <ByHand
               state={state}
               checkDue={checkDue}
@@ -107,14 +102,14 @@ export function AdminStart({
             type="button"
             className="as-manual as-manual-center"
             onClick={() => setByHand(true)}
-            title="Go through the setup steps yourself"
+            title={t('onboarding.adminStart.byHandTip')}
           >
-            Set up by hand instead
+            {t('onboarding.adminStart.byHand')}
           </button>
         )}
         {children}
         <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>
-          Use a different account
+          {t('onboarding.adminStart.otherAccount')}
         </button>
       </div>
     </AuthPage>
@@ -145,19 +140,18 @@ export function ByHand({
   onDone: () => void
   onSecondFactor: (state: AdminSecondFactor) => void
 }) {
+  const t = useT()
   if (checkDue)
     return (
       <>
         <p>
-          {checkDue === 'email'
-            ? 'Setting up this server and your business needs your passkey check, and adding a passkey needs a confirmed email address first.'
-            : 'Setting up this server and your business needs your passkey check first.'}
+          {checkDue === 'email' ? t('onboarding.adminStart.checkFirstEmail') : t('onboarding.adminStart.checkFirst')}
         </p>
         <div>
           <Button
             onClick={onConfirm}
             title={
-              checkDue === 'email' ? 'Confirm your email address with a code' : 'Confirm it is you with your passkey'
+              checkDue === 'email' ? t('onboarding.adminStart.checkTipEmail') : t('onboarding.adminStart.checkTip')
             }
           >
             {SECOND_FACTOR_BUTTON[checkDue]}
@@ -168,14 +162,14 @@ export function ByHand({
   if (loadFailed && !state)
     return (
       <>
-        <LoadProblem what="The setup state" onRetry={onRetry} />
-        <p>You can still name your business now.</p>
+        <LoadProblem what={t('onboarding.adminStart.setupState')} onRetry={onRetry} />
+        <p>{t('onboarding.adminStart.nameAnyway')}</p>
         <CreateWorkspace onDone={onDone} embedded onSecondFactor={onSecondFactor} />
       </>
     )
   return (
     <Loading
-      what="The setup state"
+      what={t('onboarding.adminStart.setupState')}
       loading={!state}
       error={loadFailed}
       onRetry={onRetry}
@@ -183,10 +177,10 @@ export function ByHand({
     >
       {state && installPartsMissing(state.progress.steps) ? (
         <>
-          <p>The server’s parts come first: email, answering calls, phone carrier and call audio.</p>
+          <p>{t('onboarding.adminStart.partsFirst')}</p>
           <div>
-            <Button onClick={onInstallByHand} title="Go through the server’s setup steps yourself">
-              Set up the server by hand
+            <Button onClick={onInstallByHand} title={t('onboarding.adminStart.partsFirstTip')}>
+              {t('onboarding.adminStart.partsFirstButton')}
             </Button>
           </div>
         </>

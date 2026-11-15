@@ -2,6 +2,7 @@
 // speaks in the server's voice), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
 import { localizedDefault, mainLanguageOf, otherLanguagesOf, pipelineFor } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { ASSISTANT_NAME_MAX, staleGreetingName } from '../settings/assistantDraft.ts'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
@@ -20,13 +21,14 @@ import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.
 type Props = { onBack: () => void; onNext: () => void; operator?: boolean }
 
 export function AssistantStep(p: Props) {
+  const t = useT()
   const assistant = useAssistant()
   if (assistant) return <AssistantForm assistant={assistant} {...p} />
   return (
     <>
       <div className="ob-body">
-        <h1>Meet your assistant.</h1>
-        <Loading what="Your assistant" loading skeleton={<SkeletonFields fields={3} />} />
+        <h1>{t('onboarding.assistant.heading')}</h1>
+        <Loading what={t('onboarding.assistant.loadingWhat')} loading skeleton={<SkeletonFields fields={3} />} />
       </div>
       <Foot onBack={p.onBack} canContinue={false} onContinue={p.onNext} />
     </>
@@ -34,6 +36,7 @@ export function AssistantStep(p: Props) {
 }
 
 function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & { assistant: Assistant }) {
+  const t = useT()
   const run = useRun()
   const write = useWriteAction()
   // Without a main language of its own the assistant greets in the workspace language: the default greeting shows in it.
@@ -51,11 +54,11 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const changes = assistantChanges(assistant, draft)
   // The same limit as the server's (assistant.update) and Assistant settings.
   const nameProblem = !name
-    ? 'Give your assistant a name.'
+    ? t('onboarding.assistant.nameRequired')
     : name.length > ASSISTANT_NAME_MAX
-      ? `At most ${ASSISTANT_NAME_MAX} characters.`
+      ? t('onboarding.assistant.nameTooLong', { max: ASSISTANT_NAME_MAX })
       : null
-  const greetingProblem = draft.greeting.trim() ? null : 'The greeting cannot be empty.'
+  const greetingProblem = draft.greeting.trim() ? null : t('onboarding.assistant.greetingEmpty')
   const problem = nameProblem ?? greetingProblem
   // The greeting still names the saved name after a rename: saving renames it there; the hint says so and offers it now.
   const stale = staleGreetingName(draft.greeting, assistant.name, draft.name)
@@ -92,9 +95,11 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   return (
     <>
       <div className="ob-body">
-        <h1>Meet {name || 'your assistant'}.</h1>
-        <p className="ob-lede">This is how callers are greeted. Change anything, then talk to {name || 'it'}.</p>
-        <Field id="ob-name" label="Assistant's name" error={nameProblem}>
+        <h1>{name ? t('onboarding.assistant.headingNamed', { name }) : t('onboarding.assistant.heading')}</h1>
+        <p className="ob-lede">
+          {name ? t('onboarding.assistant.lede', { name }) : t('onboarding.assistant.ledeUnnamed')}
+        </p>
+        <Field id="ob-name" label={t('onboarding.assistant.nameLabel')} error={nameProblem}>
           <TextInput
             id="ob-name"
             value={draft.name}
@@ -105,8 +110,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         </Field>
         <Field
           id="ob-greeting"
-          label="Greeting"
-          tip="The first thing callers hear. Short works best."
+          label={t('onboarding.assistant.greetingLabel')}
+          tip={t('onboarding.assistant.greetingTip')}
           error={greetingProblem}
         >
           <TextArea
@@ -117,19 +122,19 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
           />
           {stale && (
             <span className="help as-stale">
-              Still says "{stale}".
+              {t('onboarding.assistant.staleGreeting', { name: stale })}
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setDraft(d => ({ ...d, greeting: renameInGreeting(d.greeting, stale, name) }))}
               >
-                Use {name}
+                {t('onboarding.assistant.useName', { name })}
               </Button>
             </span>
           )}
         </Field>
         {realtime ? (
-          <p className="ob2-note">Voice: set for this server (Server admin › Providers › Answering calls)</p>
+          <p className="ob2-note">{t('onboarding.assistant.voiceServer')}</p>
         ) : (
           <VoiceSettings
             assistantId={assistant.id}
@@ -145,9 +150,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         <div className="ob-talk">
           {/* The same button and panel as Assistant settings; the click saves first. */}
           <TestCallButton session={session} variant="primary" onStart={() => void talk()} />
-          <span className="ob2-note">
-            {session.blockedReason ?? 'Use your microphone and ask what a customer would ask.'}
-          </span>
+          <span className="ob2-note">{session.blockedReason ?? t('onboarding.assistant.talkHint')}</span>
         </div>
         {/* No Open in inbox here: the inbox would end onboarding before the number is connected. */}
         <TestCallPanel session={session} onOpenCall={null} onStart={() => void talk()} />

@@ -6,6 +6,8 @@
 // queued, and a refusal comes back as the onboarding's save error for this step (Onboarding.tsx).
 import { type NotificationSettingsData, setsTransferNumber } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
+import { msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { brandName } from '../brand.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
@@ -46,22 +48,24 @@ type Props = {
 }
 
 export function NotifyStep(p: Props) {
+  const t = useT()
   const assistant = useAssistant()
   if (assistant) return <NotifyForm assistant={assistant} {...p} />
   return (
     <>
       <div className="ob-body">
-        <h1>Who hears about calls?</h1>
-        <Loading what="Your assistant" loading skeleton={<SkeletonFields fields={3} />} />
+        <h1>{t('onboarding.notify.title')}</h1>
+        <Loading what={t('onboarding.notify.loadingAssistant')} loading skeleton={<SkeletonFields fields={3} />} />
       </div>
-      <Foot onBack={p.onBack} onContinue={p.onNext} canContinue={false} onSkipStep={p.onNext} laterTitle={LATER} />
+      <Foot onBack={p.onBack} onContinue={p.onNext} canContinue={false} onSkipStep={p.onNext} laterTitle={t(LATER)} />
     </>
   )
 }
 
-const LATER = 'Set this up later in Account settings › Notifications and Assistant settings.'
+const LATER = msg('onboarding.notify.later')
 
 function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext }: Props & { assistant: Assistant }) {
+  const t = useT()
   const run = useRun()
   const me = useMember(actorId)
   const numbers = useRows('phone_numbers')
@@ -103,7 +107,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
     // The server refuses a number of this workspace too; said here at once, without a round trip.
     const typed = draft.urgent === 'transfer' ? outboundE164(draft.mobile) : null
     if (typed && numbers.some(n => n.e164 === typed))
-      return setError({ message: `That is a ${brandName()} number. Enter your own mobile.`, mobile: true })
+      return setError({ message: t('onboarding.notify.ownNumber', { brand: brandName() }), mobile: true })
     if (settings && emailOn !== settings.effective.email) {
       setNotificationSettings({
         ...settings,
@@ -135,13 +139,13 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
   return (
     <>
       <div className="ob-body">
-        <h1>Who hears about calls?</h1>
-        <p className="ob-lede">{name} answers, then tells you what each call was about.</p>
+        <h1>{t('onboarding.notify.title')}</h1>
+        <p className="ob-lede">{t('onboarding.notify.lede', { name })}</p>
         <span className="ob-label" id="ob-hear">
-          How do you want to hear about calls?
+          {t('onboarding.notify.hearLabel')}
         </span>
         <Loading
-          what="Your notification settings"
+          what={t('onboarding.notify.loadingSettings')}
           loading={!settings}
           error={notifications.error}
           onRetry={() => void notifications.reload()}
@@ -155,37 +159,37 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
           {settings && <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} />}
         </Loading>
         <span className="ob-label" id="ob-urgent">
-          If a call is urgent
+          {t('onboarding.notify.urgentLabel')}
         </span>
         <div className="k-radios ob-choices" role="radiogroup" aria-labelledby="ob-urgent">
           <RadioCard
             name="ob-urgent"
             checked={draft.urgent === 'transfer'}
             onPick={() => pick('transfer')}
-            title="Put them through to my mobile"
-            description={`At any hour. If you don't pick up, ${name} takes a message.`}
+            title={t('onboarding.notify.transfer.title')}
+            description={t('onboarding.notify.transfer.description', { name })}
           />
           <RadioCard
             name="ob-urgent"
             checked={draft.urgent === 'message'}
             onPick={() => pick('message')}
-            title="Take a message and alert me right away"
-            description="No number needed."
+            title={t('onboarding.notify.message.title')}
+            description={t('onboarding.notify.message.description')}
           />
         </div>
         {nobodyAlerted && (
           <Note tone="warning">
             {emailOn
-              ? 'Without email on this server and with notifications off, nobody is alerted. Turn on notifications above.'
-              : 'With email and notifications off, nobody is alerted. Turn on one of them above.'}
+              ? t('onboarding.notify.nobodyAlertedNoEmail')
+              : t('onboarding.notify.nobodyAlerted')}
           </Note>
         )}
         {draft.urgent === 'transfer' && (
           <div className="ob-urgent">
             <Field
               id="ob-mobile"
-              label="Your mobile number"
-              tip="Where urgent calls, and callers who ask for a person, are put through."
+              label={t('onboarding.notify.mobile.label')}
+              tip={t('onboarding.notify.mobile.tip')}
               error={mobileError}
             >
               <PhoneInput
@@ -197,7 +201,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
                 onBlur={() => draft.mobile.trim() && setShown(true)}
               />
             </Field>
-            <Field id="ob-urgent-means" label="Urgent means" help={EMERGENCY_NOTE(name, workspaceCountry?.country)} error={conditionError}>
+            <Field id="ob-urgent-means" label={t('onboarding.notify.urgentMeans')} help={EMERGENCY_NOTE(name, workspaceCountry?.country)} error={conditionError}>
               <TextArea
                 id="ob-urgent-means"
                 value={draft.condition}
@@ -214,7 +218,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
         onContinue={next}
         canContinue={!(shown && problem)}
         onSkipStep={onNext}
-        laterTitle={LATER}
+        laterTitle={t(LATER)}
       />
     </>
   )
@@ -235,27 +239,28 @@ function Summaries({
   onEmail: (on: boolean) => void
   admin: boolean
 }) {
+  const t = useT()
   const device = useDeviceNotifications(settings)
   return (
     <div className="ob-summaries">
       <Checkbox checked={email} onChange={onEmail}>
-        Email me a summary of every call
+        {t('onboarding.notify.emailSummary')}
       </Checkbox>
       {/* The choice is kept either way; it says that nothing arrives until the server sends email. */}
       {settings.emailReady === false && (
         <p className="ob2-note" role="status">
-          Email isn't set up on this server yet.{' '}
+          {t('onboarding.notify.emailMissing')}{' '}
           {admin ? (
             <a className="k-link" href="#admin/providers/email">
-              Set it up in Server admin › Providers
+              {t('onboarding.notify.emailMissingFix')}
             </a>
           ) : (
-            'Ask whoever runs this server.'
+            t('onboarding.notify.emailMissingAsk')
           )}
         </p>
       )}
       <Checkbox checked={device.on} onChange={on => void device.set(on)} disabled={device.disabled}>
-        Notifications on this device
+        {t('onboarding.notify.push')}
       </Checkbox>
       <p className="ob2-note ob-push-note">{device.note}</p>
     </div>

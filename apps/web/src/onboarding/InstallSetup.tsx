@@ -15,7 +15,8 @@ import {
   installSteps,
   type ProviderName,
 } from '@linedesk/actions'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { T, useT } from '@linedesk/i18n/react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import {
   ADMIN_DATA,
   type AdminData,
@@ -84,6 +85,7 @@ type Props = {
 }
 
 export function InstallSetup({ onExit }: Props) {
+  const t = useT()
   const from = useRef(openFrom)
   useEffect(() => {
     openFrom = 'left'
@@ -177,21 +179,25 @@ export function InstallSetup({ onExit }: Props) {
   const passkeyFirst = showPasskeyFirst(step, setup, passkeySkipped)
   const passkeyStep: PasskeyStep = passkeyAddedHere ? 'done' : setup?.passkeyNeeded ? 'todo' : 'none'
   return (
-    <div className="ob is" role="main" aria-label={`Set up ${brandName()} by hand`}>
+    <div className="ob is" role="main" aria-label={t('onboarding.install.label', { brand: brandName() })}>
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
         <span className="ob-count">
-          Setup by hand{passkeyFirst ? ' · Your passkey' : step ? ` · ${installStepLabels[step]}` : ''}
-          {partIndex >= 0 && !passkeyFirst ? ` · ${partIndex + 1} of ${partSteps.length}` : ''}
+          {passkeyFirst
+            ? t('onboarding.install.countStep', { step: t('onboarding.install.welcome.passkey') })
+            : !step
+              ? t('onboarding.install.count')
+              : partIndex >= 0
+                ? t('onboarding.install.countStepOf', {
+                    step: installStepLabels[step],
+                    number: partIndex + 1,
+                    total: partSteps.length,
+                  })
+                : t('onboarding.install.countStep', { step: installStepLabels[step] })}
         </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={later}
-          title="Leave now and pick up where you left off in Server admin › Providers"
-        >
-          Set up later
+        <Button size="sm" variant="ghost" onClick={later} title={t('onboarding.install.laterTip')}>
+          {t('onboarding.install.later')}
         </Button>
       </div>
       <div className="ob-bar">
@@ -199,7 +205,12 @@ export function InstallSetup({ onExit }: Props) {
       </div>
       <div className="ob-main as-main">
         {!setup || !step || !data || !groups ? (
-          <Loading what="The setup" loading error={loadError} skeleton={<SkeletonFields fields={2} />} />
+          <Loading
+            what={t('onboarding.install.loading')}
+            loading
+            error={loadError}
+            skeleton={<SkeletonFields fields={2} />}
+          />
         ) : step === 'welcome' ? (
           <Welcome status={status} passkeyStep={passkeyStep} passkey={passkey} onStart={() => go('email')} />
         ) : passkeyFirst ? (
@@ -267,7 +278,7 @@ function Foot({
   onSkip,
   skipTitle,
   onNext,
-  nextLabel = 'Continue',
+  nextLabel,
   nextPrimary = true,
 }: {
   onBack?: () => void
@@ -277,11 +288,12 @@ function Foot({
   nextLabel?: string
   nextPrimary?: boolean
 }) {
+  const t = useT()
   return (
     <div className="ob-foot">
       {onBack ? (
-        <Button variant="ghost" icon="left" onClick={onBack} title="Back (Esc)">
-          Back
+        <Button variant="ghost" icon="left" onClick={onBack} title={t('onboarding.action.backTip')}>
+          {t('onboarding.action.back')}
         </Button>
       ) : (
         <span />
@@ -289,11 +301,11 @@ function Foot({
       <div className="ob2-foot-r">
         {onSkip && (
           <Button variant="ghost" onClick={onSkip} title={skipTitle}>
-            Skip for now
+            {t('onboarding.action.skipForNow')}
           </Button>
         )}
         <Button variant={nextPrimary ? 'primary' : 'secondary'} shortcut={['⏎']} onClick={onNext}>
-          {nextLabel}
+          {nextLabel ?? t('onboarding.action.continue')}
         </Button>
       </div>
     </div>
@@ -315,27 +327,26 @@ function Welcome({
   passkey: PasskeyHere
   onStart: () => void
 }) {
+  const t = useT()
   useWalkKeys(onStart, null)
   const passkeyFirst = passkeyStep !== 'none'
   return (
     <>
       <div className="ob-body">
-        <h1>Set up this server by hand</h1>
+        <h1>{t('onboarding.install.welcome.title')}</h1>
         <p className="ob-lede">
-          {passkeyFirst ? 'First your passkey, then four parts' : 'Four parts'}, most with their own account. Every step
-          says where to get the key and what it costs, and tests it for real before you move on. About 15 to 30 minutes;
-          you can skip a part and come back to it.
+          {passkeyFirst ? t('onboarding.install.welcome.ledePasskey') : t('onboarding.install.welcome.lede')}
         </p>
       </div>
       <HostingNote address={window.location.origin} />
       {/* The same step 1 as the agent setup page: add the passkey right here; the parts follow. */}
       {passkeyFirst && (
-        <section className="as-card" aria-label="Your steps">
+        <section className="as-card" aria-label={t('onboarding.install.welcome.steps')}>
           <ol className="as-steps">
             <PasskeyFirstStep step={passkeyStep} passkey={passkey} />
             <li className={passkeyStep === 'done' ? undefined : 'as-later'}>
-              <b>Set up the server’s four parts</b>
-              <span className="as-small">Email, answering calls, phone carrier and call audio, one at a time.</span>
+              <b>{t('onboarding.install.welcome.parts')}</b>
+              <span className="as-small">{t('onboarding.install.welcome.partsHelp')}</span>
             </li>
           </ol>
         </section>
@@ -345,25 +356,24 @@ function Welcome({
           <div className="adm-health is-passkey-row">
             <div className="adm-health-row">
               <StatusMark state={passkeyStep === 'done' ? 'works' : 'missing'} />
-              <b>Your passkey</b>
-              <span className="help">{passkeyStep === 'done' ? 'Added' : 'Not added yet'}</span>
+              <b>{t('onboarding.install.welcome.passkey')}</b>
+              <span className="help">
+                {passkeyStep === 'done'
+                  ? t('onboarding.install.passkey.added')
+                  : t('onboarding.install.passkey.notAdded')}
+              </span>
             </div>
           </div>
         )}
         <StatusList groups={status.status!.groups} links={false} />
       </section>
       <Note tone="info">
-        An AI agent can do this in <b>about 10 minutes</b> and check the server for you.{' '}
-        <button
-          type="button"
-          className="k-link"
-          onClick={openAgentSetup}
-          title="Set up with Claude, ChatGPT or another agent"
-        >
-          Set up with an AI agent instead
+        <T k="onboarding.install.agentNote" values={BOLD} />{' '}
+        <button type="button" className="k-link" onClick={openAgentSetup} title={t('onboarding.install.agentTip')}>
+          {t('onboarding.install.agentButton')}
         </button>
       </Note>
-      <Foot onNext={onStart} nextLabel="Start" nextPrimary={passkeyStep !== 'todo'} />
+      <Foot onNext={onStart} nextLabel={t('onboarding.install.welcome.start')} nextPrimary={passkeyStep !== 'todo'} />
     </>
   )
 }
@@ -381,6 +391,7 @@ function PasskeyFirst({
   onSkip: () => void
   onDone: () => Promise<void>
 }) {
+  const t = useT()
   const [code, setCode] = useState(() => readEnrolmentCode() ?? '')
   // Filled in from the setup: the field stays hidden unless that code is missing or did not work.
   const [askCode, setAskCode] = useState(() => !readEnrolmentCode())
@@ -404,7 +415,7 @@ function PasskeyFirst({
     run(async () => {
       if (!code.trim()) {
         setAskCode(true)
-        throw new Error('Enter your enrolment code first.')
+        throw new Error(t('onboarding.install.passkey.codeMissing'))
       }
       try {
         await addPasskey(describeDevice(navigator.userAgent), code)
@@ -426,62 +437,67 @@ function PasskeyFirst({
   return (
     <>
       <div className="ob-body">
-        <span className="as-kicker">Before you start</span>
-        <h1>Add your passkey</h1>
-        <p className="ob-lede">
-          Email and sign-in decide who can sign in, so saving their keys needs your passkey. Add it now: your
-          fingerprint, face or device PIN.
-        </p>
+        <span className="as-kicker">{t('onboarding.install.passkey.kicker')}</span>
+        <h1>{t('onboarding.install.passkey.title')}</h1>
+        <p className="ob-lede">{t('onboarding.install.passkey.lede')}</p>
       </div>
 
       <section className="as-card">
         <ul className="is-passkey">
           <li>
-            <StatusMark state={added ? 'works' : 'missing'} label={added ? 'Added' : 'Not added yet'} />
-            Add a passkey on this device
+            <StatusMark
+              state={added ? 'works' : 'missing'}
+              label={added ? t('onboarding.install.passkey.added') : t('onboarding.install.passkey.notAdded')}
+            />
+            {t('onboarding.install.passkey.addHere')}
           </li>
           <li>
-            <StatusMark state="missing" label="Not yet" />
-            Sign in with it once
+            <StatusMark state="missing" label={t('onboarding.install.passkey.notYet')} />
+            {t('onboarding.install.passkey.signInOnce')}
           </li>
         </ul>
         {askCode && !added && (
           <Input
-            aria-label="Enrolment code"
-            placeholder="Enrolment code"
+            aria-label={t('onboarding.install.passkey.codeLabel')}
+            placeholder={t('onboarding.install.passkey.codeLabel')}
             value={code}
             onChange={e => setCode(e.target.value)}
-            end={<HelpTip inField label="Where is the enrolment code?" {...ENROLMENT_CODE_HELP} />}
+            end={
+              <HelpTip
+                inField
+                label={t('onboarding.install.passkey.codeWhere')}
+                {...enrolmentCodeHelp(
+                  t('onboarding.install.passkey.codeHelp'),
+                  t('onboarding.install.passkey.codeAfter'),
+                )}
+              />
+            }
           />
         )}
-        {!supported && (
-          <Note tone="danger">Passkeys need https. Open this page at its https address, or skip for now.</Note>
-        )}
+        {!supported && <Note tone="danger">{t('onboarding.install.passkey.needsHttps')}</Note>}
         {error && <Note tone="danger">{error}</Note>}
       </section>
 
       <div className="ob-foot">
-        <Button variant="ghost" icon="left" onClick={onBack} title="Back (Esc)">
-          Back
+        <Button variant="ghost" icon="left" onClick={onBack} title={t('onboarding.action.backTip')}>
+          {t('onboarding.action.back')}
         </Button>
         <div className="ob2-foot-r">
           {supported && (
-            <Button
-              variant="ghost"
-              onClick={onSkip}
-              title="Skip for now. Saving email and sign-in keys asks for a passkey then."
-            >
-              Skip for now
+            <Button variant="ghost" onClick={onSkip} title={t('onboarding.install.passkey.skipTip')}>
+              {t('onboarding.action.skipForNow')}
             </Button>
           )}
           <Button variant="primary" shortcut={['⏎']} disabled={busy} onClick={primary}>
-            {busy
-              ? 'Waiting for your device…'
-              : !supported
-                ? 'Skip for now'
-                : added
-                  ? 'Sign in with passkey'
-                  : 'Add passkey'}
+            {t(
+              busy
+                ? 'onboarding.install.passkey.waiting'
+                : !supported
+                  ? 'onboarding.action.skipForNow'
+                  : added
+                    ? 'onboarding.install.passkey.signIn'
+                    : 'onboarding.install.passkey.add',
+            )}
           </Button>
         </div>
       </div>
@@ -489,12 +505,15 @@ function PasskeyFirst({
   )
 }
 
-/** A new enrolment code, made on the server (apps/api/src/user-passkeys.ts). */
-const ENROLMENT_CODE_HELP: HelpTipContent = {
-  text: 'A one-time code that lets you add your first passkey. Make one on the server:',
+/** A new enrolment code, made on the server (apps/api/src/user-passkeys.ts); the command stays as it is typed. */
+const enrolmentCodeHelp = (text: string, after: string): HelpTipContent => ({
+  text,
   commands: [{ code: 'docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <your email>' }],
-  after: 'Or ask another server admin for one.',
-}
+  after,
+})
+
+/** `<b>…</b>` in a message. */
+const BOLD = { b: (chunks: ReactNode[]) => <b>{chunks}</b> }
 
 type PartProps = {
   step: PartStepId
@@ -510,6 +529,7 @@ type PartProps = {
 
 /** One group: its heading, the same panel as Server admin › Providers, and the footer. */
 function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext, onSkip }: PartProps) {
+  const t = useT()
   const group = groupOfStep(status, step)
   const [dialog, setDialog] = useState<ProviderName | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -520,9 +540,7 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
   return (
     <>
       <div className="ob-body">
-        <span className="as-kicker">
-          Step {number} of {partSteps.length}
-        </span>
+        <span className="as-kicker">{t('onboarding.install.part.stepOf', { number, total: partSteps.length })}</span>
         <h1>{group.label}</h1>
         <p className="ob-lede">{groupSpec(group.id).why}</p>
       </div>
@@ -535,7 +553,7 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
         onOpen={setDialog}
         onOneKey={async () => {
           await reloadAll()
-          setNote('Calls are answered with OpenAI now.')
+          setNote(t('onboarding.install.oneKeyDone'))
         }}
         embedded
       />
@@ -552,9 +570,12 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
       <Foot
         onBack={onBack}
         onSkip={ready && group.state !== 'works' ? onSkip : undefined}
-        skipTitle={`Skip ${group.label} for now. ${installSkipEffects[step] ?? ''}`}
+        skipTitle={t('onboarding.install.skipTip', {
+          part: group.label,
+          effect: installSkipEffects[step] ?? '',
+        }).trim()}
         onNext={ready ? onNext : onSkip}
-        nextLabel={ready ? 'Continue' : 'Skip for now'}
+        nextLabel={ready ? t('onboarding.action.continue') : t('onboarding.action.skipForNow')}
         nextPrimary={ready}
       />
 
@@ -585,16 +606,15 @@ function Done({
   onOpen: (step: InstallStep) => void
   onFinish: () => void
 }) {
+  const t = useT()
   useWalkKeys(onFinish, onBack)
   const open = partSteps.filter(s => groupOfStep(status, s).state !== 'works')
   return (
     <>
       <div className="ob-body">
-        <h1>{open.length ? 'The server is almost set up' : 'The server is set up'}</h1>
+        <h1>{open.length ? t('onboarding.install.done.almost') : t('onboarding.install.done.title')}</h1>
         <p className="ob-lede">
-          {open.length
-            ? 'The remaining parts are in Server admin › Providers. Next: your business, its assistant and its number.'
-            : 'Every part works. Next: your business, its assistant and its number; then call it to hear it answer.'}
+          {open.length ? t('onboarding.install.done.almostLede') : t('onboarding.install.done.titleLede')}
         </p>
       </div>
       <section className="as-card">
@@ -604,20 +624,27 @@ function Done({
         <ul className="is-remaining">
           {open.map(s => (
             <li key={s}>
-              <button type="button" className="k-link" onClick={() => onOpen(s)}>
-                {installStepLabels[s]}
-              </button>
-              {skipped.includes(s) ? ' (skipped)' : ''}: {installSkipEffects[s]}
+              <T
+                k={
+                  skipped.includes(s) ? 'onboarding.install.done.remainingSkipped' : 'onboarding.install.done.remaining'
+                }
+                values={{
+                  part: installStepLabels[s],
+                  effect: installSkipEffects[s],
+                  link: chunks => (
+                    <button type="button" className="k-link" onClick={() => onOpen(s)}>
+                      {chunks}
+                    </button>
+                  ),
+                }}
+              />
             </li>
           ))}
         </ul>
       )}
       {/* A hint, not a link: the walkthrough never leaves itself (Server admin has no way back to this step). */}
-      <Note tone="info">
-        Sign-in with Google or GitHub, calendars for bookings and where call recordings are kept come later, in Server
-        admin › Providers. None of them is needed to answer a first call.
-      </Note>
-      <Foot onBack={onBack} onNext={onFinish} nextLabel="Set up your business" />
+      <Note tone="info">{t('onboarding.install.done.later')}</Note>
+      <Foot onBack={onBack} onNext={onFinish} nextLabel={t('onboarding.install.done.next')} />
     </>
   )
 }

@@ -1,7 +1,7 @@
 // For an instance admin on a fresh install: onboarding says which provider groups a call needs are still missing or
 // failing (GET /v1/admin/setup-checklist, the same status as Server admin › Providers) and links to Server admin ›
 // Providers.
-import { listWords } from '@linedesk/actions'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { loadSetupChecklist } from '../admin/api.ts'
 import type { Me } from '../auth.ts'
@@ -28,22 +28,40 @@ export function useHash() {
  * everyone else. A failed read says so and offers to try again instead of hiding the notice.
  */
 export function InstanceSetupNotice() {
+  const t = useT()
+  const format = useFormat()
   const { data, error, reload } = useQuery(SETUP_STATUS, () => loadSetupChecklist())
   const link = (
-    <a href="#admin/providers" title="Server admin › Providers: every provider with its status, steps and a test">
-      Open Providers
+    <a href="#admin/providers" title={t('onboarding.instance.openTip')}>
+      {t('onboarding.instance.open')}
     </a>
   )
   if (!data)
     return error ? (
       <p className="ob-instance" role="alert">
-        Could not check this server’s setup.{' '}
-        <button type="button" className="k-link" onClick={() => void reload()} title="Check the setup again">
-          Try again
-        </button>{' '}
-        or {link}.
+        <T
+          k="onboarding.instance.checkFailed"
+          values={{
+            retry: chunks => (
+              <button
+                type="button"
+                className="k-link"
+                onClick={() => void reload()}
+                title={t('onboarding.instance.retryTip')}
+              >
+                {chunks}
+              </button>
+            ),
+            link: chunks => (
+              <a href="#admin/providers" title={t('onboarding.instance.openTip')}>
+                {chunks}
+              </a>
+            ),
+          }}
+        />
       </p>
     ) : null
+  // The group names come from the server (English, like Server admin › Providers).
   const missing = data.groups
     .filter(g => g.needed && (g.state === 'missing' || g.state === 'partly'))
     .map(g => g.label.toLowerCase())
@@ -51,8 +69,10 @@ export function InstanceSetupNotice() {
   if (!missing.length && !failing.length) return null
   return (
     <p className="ob-instance" role="note">
-      {missing.length > 0 && `This server has no ${listWords(missing, 'or')} yet. `}
-      {failing.length > 0 && `${capitalize(listWords(failing))} ${failing.length > 1 ? 'are' : 'is'} failing. `}
+      {missing.length > 0 &&
+        `${t('onboarding.instance.missing', { groups: format.list(missing, { type: 'disjunction' }) })} `}
+      {failing.length > 0 &&
+        `${t('onboarding.instance.failing', { groups: capitalize(format.list(failing)), count: failing.length })} `}
       {link}
     </p>
   )

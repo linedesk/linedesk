@@ -1,11 +1,14 @@
 // Onboarding, from the first sign-in to the first answered call. Progress lives on the workspace
 // (`onboarding.setStep`), so a reload resumes at the same step.
 import { formatStarCount, offersSampleCalls, offersTour, STAR_REPO_URL } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from '../admin/AdminMode.tsx'
 import type { Me, OnboardingState } from '../auth.ts'
 import { brandName, useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
+import { i18n } from '../i18n/index.tsx'
 import { preloadWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { usePresence } from '../shell/presence.ts'
 import { rejectionReason } from '../shell/rejections.ts'
@@ -26,11 +29,10 @@ import {
   previousStep,
   rejectionStep,
   stepLabels,
-  stepSaves,
   URGENT_CONTACT_ID,
 } from './flow.ts'
-import { NotifyStep } from './NotifyStep.tsx'
 import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.tsx'
+import { NotifyStep } from './NotifyStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
 import './onboarding.css'
@@ -59,6 +61,7 @@ export function Onboarding(props: Props) {
 }
 
 function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
+  const t = useT()
   const run = useRun()
   const firstUse = me.firstUse ?? 'off'
   // Leaving onboarding: the tour (where the install offers it) starts in the inbox.
@@ -136,10 +139,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
         onDismiss={e => setSaveErrors(all => all.filter(x => x !== e))}
       />
       {me.emailUnconfirmed && !confirmed && (
-        <ConfirmEmail
-          onDone={() => setConfirmed(true)}
-          why="We email you a code to confirm your address. Setting up a phone number, a carrier, API keys, webhooks and invitations waits for it."
-        />
+        <ConfirmEmail onDone={() => setConfirmed(true)} why={t('onboarding.main.confirmWhy')} />
       )}
       {isInstanceAdmin(me) && <InstanceSetupNotice />}
       {step === 'business' && (
@@ -197,16 +197,28 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
 /** A save the server refused after its step was left; `step` null: not about one step (setup progress). */
 type SaveError = { step: OnboardingStep | null; text: string }
 
+/** "Couldn't save …: reason", one whole sentence per step. */
+const SAVE_ERRORS: Record<OnboardingStep, MessageKey> = {
+  business: msg('onboarding.main.saveError.business'),
+  assistant: msg('onboarding.main.saveError.assistant'),
+  pickup: msg('onboarding.main.saveError.pickup'),
+  notify: msg('onboarding.main.saveError.notify'),
+  phone: msg('onboarding.main.saveError.phone'),
+  done: msg('onboarding.main.saveError.done'),
+}
+
 /** "Couldn't save your business details: reason." The step's own words for its refusals (the mobile), else the shared ones. */
 function saveErrorText(step: OnboardingStep | null, action: string, input: unknown, error: string): string {
-  const what = step ? stepSaves[step] : 'your setup progress'
+  const { t } = i18n()
+  if (!step) return t('onboarding.main.saveError.progress', { reason: rejectionReason(error) })
+  const what = SAVE_ERRORS[step]
   if (step === 'notify' && action === 'assistant.update') {
     const transfers = (input as { transfers?: { id: string; name: string }[] }).transfers ?? []
     const name = transfers.find(c => c.id === URGENT_CONTACT_ID)?.name ?? ''
     const own = mobileErrorText(error, name)
-    if (own !== error) return `Couldn't save ${what}: ${own}`
+    if (own !== error) return t(what, { reason: own })
   }
-  return `Couldn't save ${what}: ${rejectionReason(error)}`
+  return t(what, { reason: rejectionReason(error) })
 }
 
 /** The one place save errors show, above the step: what failed, a way back to that step, and Dismiss. */
@@ -221,6 +233,7 @@ function SaveErrors({
   onOpen: (step: OnboardingStep) => void
   onDismiss: (error: SaveError) => void
 }) {
+  const t = useT()
   if (!errors.length) return null
   return (
     <div className="ob-save-errors">
@@ -231,12 +244,12 @@ function SaveErrors({
           action={
             <>
               {e.step && e.step !== step && (
-                <Button size="sm" onClick={() => onOpen(e.step!)} title="Open that step to fix it">
-                  Back to {stepLabels[e.step]}
+                <Button size="sm" onClick={() => onOpen(e.step!)} title={t('onboarding.main.openStepTip')}>
+                  {t('onboarding.main.backTo', { step: stepLabels[e.step] })}
                 </Button>
               )}
               <Button size="sm" variant="ghost" onClick={() => onDismiss(e)}>
-                Dismiss
+                {t('onboarding.main.dismiss')}
               </Button>
             </>
           }
@@ -257,14 +270,22 @@ function StarLine() {
   if (!starPrompt) return null
   return (
     <p className="ob-star">
-      {brandName()} is open source. A star on GitHub helps other businesses find it and keeps us building. We're really
-      grateful for every one{' '}
-      <span className="ob-star-heart" aria-hidden="true">
-        ♥
-      </span>{' '}
-      <a href={STAR_REPO_URL} target="_blank" rel="noreferrer">
-        Star it on GitHub
-      </a>
+      <T
+        k="onboarding.main.star"
+        values={{
+          brand: brandName(),
+          heart: () => (
+            <span className="ob-star-heart" aria-hidden="true">
+              ♥
+            </span>
+          ),
+          link: chunks => (
+            <a href={STAR_REPO_URL} target="_blank" rel="noreferrer">
+              {chunks}
+            </a>
+          ),
+        }}
+      />
       {starCount !== null && (
         <span className="ob-star-count">
           <Icon name="star" size={12} />
@@ -287,6 +308,7 @@ function Done({
   offerSamples: boolean
   admin: boolean
 }) {
+  const t = useT()
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0] ?? null
   const presence = usePresence()
@@ -315,7 +337,7 @@ function Done({
       window.history.replaceState(null, '', '#calls')
       onDone()
     } catch (e) {
-      setSampleError(`Couldn't add the sample calls: ${rejectionReason((e as Error).message)}`)
+      setSampleError(t('onboarding.main.samplesFailed', { reason: rejectionReason((e as Error).message) }))
       setAdding(false)
     }
   }
@@ -352,9 +374,9 @@ function Done({
                 icon="spark"
                 busy={adding}
                 onClick={() => void trySamples()}
-                title="Fill the inbox with example calls you can remove in one click"
+                title={t('onboarding.main.samplesTip')}
               >
-                Try with sample calls
+                {t('onboarding.main.samples')}
               </Button>
             )}
           </p>
@@ -362,7 +384,7 @@ function Done({
         {sampleError && <Note tone="danger">{sampleError}</Note>}
         <StarLine />
       </div>
-      <Foot onBack={onBack} onContinue={openCalls} canContinue label="Open my calls" />
+      <Foot onBack={onBack} onContinue={openCalls} canContinue label={t('onboarding.main.openCalls')} />
     </>
   )
 }

@@ -1,4 +1,5 @@
 // The onboarding page around each step: top bar, progress, footer, and the keys (Enter continues, Esc goes back).
+import { useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { BrandMark, Button } from '../ui/kit.tsx'
 import { onboardingSteps, progress, stepLabels, type OnboardingStep } from './flow.ts'
@@ -45,6 +46,7 @@ export function Frame({
   onSkip?: () => void
   children: ReactNode
 }) {
+  const t = useT()
   const index = onboardingSteps.indexOf(step)
   const skipRef = useRef(onSkip)
   skipRef.current = onSkip
@@ -58,21 +60,20 @@ export function Frame({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   return (
-    <div className="ob" role="main" aria-label={`Set up ${brandName()}`}>
+    <div className="ob" role="main" aria-label={t('onboarding.frame.title', { brand: brandName() })}>
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
         <span className="ob-count">
-          Step {index + 1} of {onboardingSteps.length} · {stepLabels[step]}
+          {t('onboarding.frame.stepCount', {
+            step: index + 1,
+            total: onboardingSteps.length,
+            label: stepLabels[step],
+          })}
         </span>
         {onSkip && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onSkip}
-            title="Finish setup later: what is left stays in your go-live checklist (Shift+Esc)"
-          >
-            Finish later
+          <Button size="sm" variant="ghost" onClick={onSkip} title={t('onboarding.frame.finishLaterTitle')}>
+            {t('onboarding.frame.finishLater')}
           </Button>
         )}
       </div>
@@ -105,18 +106,19 @@ export function Foot({
   onBack,
   onContinue,
   canContinue,
-  label = 'Continue',
+  label,
   hint,
   busy,
   onSkipStep,
-  laterLabel = 'Later',
-  laterTitle = 'Do this later in Assistant settings',
+  laterLabel,
+  laterTitle,
 }: FootProps) {
+  const t = useT()
   return (
     <div className="ob-foot">
       {onBack ? (
-        <Button variant="ghost" icon="left" onClick={onBack} title="Back (Esc)">
-          Back
+        <Button variant="ghost" icon="left" onClick={onBack} title={t('onboarding.frame.backTitle')}>
+          {t('onboarding.action.back')}
         </Button>
       ) : (
         <span />
@@ -124,8 +126,13 @@ export function Foot({
       <div className="ob2-foot-r">
         {hint && <span className="ob2-hint">{hint}</span>}
         {onSkipStep && (
-          <Button variant="ghost" onClick={onSkipStep} disabled={busy} title={laterTitle}>
-            {laterLabel}
+          <Button
+            variant="ghost"
+            onClick={onSkipStep}
+            disabled={busy}
+            title={laterTitle ?? t('onboarding.frame.laterTitle')}
+          >
+            {laterLabel ?? t('onboarding.action.later')}
           </Button>
         )}
         {onContinue && (
@@ -136,7 +143,7 @@ export function Foot({
             busy={busy}
             onClick={onContinue}
           >
-            {label}
+            {label ?? t('onboarding.action.continue')}
           </Button>
         )}
       </div>
@@ -147,13 +154,14 @@ export function Foot({
 /** A value with a Copy button that says "Copied" for a moment. */
 export function CopyButton({
   text,
-  label = 'Copy',
+  label,
   variant,
 }: {
   text: string
   label?: string
   variant?: 'primary' | 'secondary'
 }) {
+  const t = useT()
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   useEffect(() => {
     if (state === 'idle') return
@@ -171,9 +179,13 @@ export function CopyButton({
       variant={variant}
       icon={state === 'copied' ? 'check' : undefined}
       onClick={() => void copy()}
-      aria-label={`${label} ${text}`}
+      aria-label={label ? t('onboarding.frame.copyLabel', { label, text }) : t('common.copy.copyThis', { text })}
     >
-      {state === 'copied' ? 'Copied' : state === 'failed' ? 'Select it instead' : label}
+      {state === 'copied'
+        ? t('common.copy.copied')
+        : state === 'failed'
+          ? t('onboarding.frame.selectInstead')
+          : (label ?? t('common.copy.copy'))}
     </Button>
   )
 }

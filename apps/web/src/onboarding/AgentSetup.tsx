@@ -27,6 +27,7 @@ import {
   startPlan,
   stepsByGroup,
 } from '@linedesk/actions'
+import { T, useT } from '@linedesk/i18n/react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { loadAgentSetup, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
@@ -34,6 +35,7 @@ import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { SETUP_LINK_KEY } from '../localData.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
@@ -121,6 +123,7 @@ type Props = {
 }
 
 export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props) {
+  const t = useT()
   const [state, setState] = useState<AgentSetupState | null>(null)
   const activeId = active?.id ?? null
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -151,9 +154,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
       setState(next)
       setLoadError(null)
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'Could not read the setup state')
+      setLoadError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.read'))
     }
-  }, [activeId])
+  }, [activeId, t])
   // The agent works in another window: show its progress as it goes (only while this tab is visible).
   useEffect(() => {
     void load()
@@ -186,7 +189,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
       setCreated((await runAdmin('agentSetup.createKey', {})) as AgentSetupKeyCreated)
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create a setup link')
+      setError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.create'))
     } finally {
       setBusy(null)
     }
@@ -199,7 +202,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
       setCreated(null)
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not end agent access')
+      setError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.end'))
     } finally {
       setBusy(null)
     }
@@ -238,23 +241,23 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     <div
       className="ob as"
       role="main"
-      aria-label={`Set up ${brandName()} with an AI agent`}
+      aria-label={t('onboarding.agentSetup.ariaLabel', { brand: brandName() })}
       aria-busy={skeleton || undefined}
     >
       {skeleton && (
         <span className="sr-only" role="status">
-          Loading the setup
+          {t('onboarding.agentSetup.loading')}
         </span>
       )}
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
-        <span className="ob-count">Setup</span>
+        <span className="ob-count">{t('onboarding.agentSetup.setup')}</span>
       </div>
       <div className="ob-main as-main">
         <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
           <span className="as-kicker">
-            <Icon name="spark" size={14} /> Recommended
+            <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
           </span>
           {skeleton ? (
             <SkeletonPart reserved={reserved}>
@@ -268,16 +271,14 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
             </SkeletonPart>
           ) : allDone ? (
             <>
-              <h1>Change {brandName()} with your AI agent</h1>
-              <p className="ob-lede">Everything is set up. Want to change something? Give your agent a new link.</p>
+              <h1>{t('onboarding.agentSetup.changeTitle', { brand: brandName() })}</h1>
+              <p className="ob-lede">{t('onboarding.agentSetup.changeLede')}</p>
             </>
           ) : (
             <>
-              <h1>Set up {brandName()} with your AI agent</h1>
+              <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
               <p className="ob-lede">
-                Your agent connects to this server and does the whole setup with you: the AI, a phone carrier, email,
-                your business and its number. <b>About 10 minutes.</b> You create the accounts; it asks before anything
-                that costs money.
+                <T k="onboarding.agentSetup.lede" values={{ b: chunks => <b>{chunks}</b> }} />
               </p>
             </>
           )}
@@ -286,46 +287,50 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
         {/* Before the state is read, this page's own address stands for the server's: the note shows at once. */}
         <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />
 
-        <section className="as-card" aria-label="Your agent">
+        <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
           <ol className="as-steps">
             <li>
               <b className="as-step-title">
-                Give your agent a setup link
+                {t('onboarding.agentSetup.link.title')}
                 <HelpTip
-                  label="About the setup link"
-                  text={`It lets your agent set up this server for you, using setup tools only, email and sign-in included. For security, the link stops working after ${SETUP_KEY_HOURS} hours. You can end it here at any time.`}
+                  label={t('onboarding.agentSetup.link.helpLabel')}
+                  text={t('onboarding.agentSetup.link.help', { hours: SETUP_KEY_HOURS })}
                 />
               </b>
               <AgentPicker client={client} onPick={pick} />
               {cloudBlocked && (
-                <Note tone="warning" title={`${agentClientLabels[client]} can’t reach this server`}>
-                  {agentClientLabels[client]} runs in the cloud and can only reach a public https address. This server
-                  is at {state?.mcpUrl.replace(/\/mcp\/setup$/, '')}: use Claude Code, Codex or Cursor on this computer,
-                  or open {brandName()} on its public address.
+                <Note
+                  tone="warning"
+                  title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentClientLabels[client] })}
+                >
+                  {t('onboarding.agentSetup.cloudBlocked.body', {
+                    agent: agentClientLabels[client],
+                    address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
+                    brand: brandName(),
+                  })}
                 </Note>
               )}
               {hasLink ? (
                 <>
                   <div className="as-link">
                     <span className="as-small">
-                      Ready, valid until {timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? '')}.
+                      {t('onboarding.agentSetup.link.ready', {
+                        until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
+                      })}
                     </span>
                     <Button
                       size="sm"
                       busy={busy === 'end'}
                       onClick={() => void endAccess()}
-                      title="The setup link stops working at once"
+                      title={t('onboarding.agentSetup.link.endTitle')}
                     >
-                      End access
+                      {t('onboarding.agentSetup.link.end')}
                     </Button>
                   </div>
                   {created ? (
                     <StartAgent client={client} url={created.url} />
                   ) : (
-                    <span className="as-small">
-                      This link was created in another browser and is shown only there. To start an agent here, end
-                      access and create a new link.
-                    </span>
+                    <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
                   )}
                 </>
               ) : skeleton ? (
@@ -339,7 +344,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                   {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
                   <div>
                     <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
-                      Create a setup link
+                      {t('onboarding.agentSetup.link.create')}
                     </Button>
                   </div>
                 </div>
@@ -361,7 +366,11 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
         ) : skeleton ? (
           <ProgressSkeleton reserved={reserved} />
         ) : (
-          <LoadProblem what="The setup progress" message={loadError ?? undefined} onRetry={() => void load()} />
+          <LoadProblem
+            what={t('onboarding.agentSetup.progressWhat')}
+            message={loadError ?? undefined}
+            onRetry={() => void load()}
+          />
         )}
 
         <div className="as-foot">
@@ -374,13 +383,13 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
               type="button"
               className="as-manual"
               onClick={stepByStep}
-              title="Go through the server’s setup steps yourself; what is set up stays"
+              title={t('onboarding.agentSetup.stepByStepTitle')}
             >
-              Step by step
+              {t('onboarding.agentSetup.stepByStep')}
             </button>
           ) : (
-            <button type="button" className="as-manual" onClick={manual} title="Go through the setup steps yourself">
-              Set up by hand instead
+            <button type="button" className="as-manual" onClick={manual} title={t('onboarding.agentSetup.manualTitle')}>
+              {t('onboarding.agentSetup.manual')}
             </button>
           )}
         </div>
@@ -415,8 +424,9 @@ export function stepSkeletonRow(id: string): { label: number; action?: number } 
 
 /** The setup checklist while its first state is read: its card, head, group headings, dropdown and rows. */
 export function ProgressSkeleton({ reserved }: { reserved: boolean }) {
+  const t = useT()
   return (
-    <section className="as-card as-progress" aria-label="Setup progress">
+    <section className="as-card as-progress" aria-label={t('onboarding.agentSetup.progress.label')}>
       <SkeletonPart reserved={reserved}>
         <div className="as-progress-head">
           <Skeleton shape="text" width={176} />
@@ -426,7 +436,7 @@ export function ProgressSkeleton({ reserved }: { reserved: boolean }) {
           <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
             {group.id === 'business' ? (
               <div className="as-ws-head">
-                <span className="as-group-label">Workspace</span>
+                <span className="as-group-label">{t('onboarding.agentSetup.workspace.label')}</span>
                 <Skeleton width={184} height={28} />
               </div>
             ) : (
@@ -461,6 +471,7 @@ function Progress({
   /** The state just arrived after the skeleton: the card fades in. */
   fadeIn: boolean
 }) {
+  const t = useT()
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
   const [calledHere, setCalledHere] = useState(false)
   const onCalled = useCallback(() => {
@@ -478,37 +489,43 @@ function Progress({
     if (resume) clearResume()
   }, [resume])
   // Picking a workspace makes it the app's active one (the page reloads into it), so its rows' buttons act on it.
-  const switchTo = useCallback((id: string) => {
-    setSwitching(id)
-    setSwitchError(null)
-    switchToWorkspace(id, null).catch(e => {
-      setSwitching(null)
-      setSwitchError(e instanceof Error ? e.message : 'Could not switch the workspace')
-    })
-  }, [])
+  const switchTo = useCallback(
+    (id: string) => {
+      setSwitching(id)
+      setSwitchError(null)
+      switchToWorkspace(id, null).catch(e => {
+        setSwitching(null)
+        setSwitchError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.switch'))
+      })
+    },
+    [t],
+  )
   // One click is enough: a row button for another workspace switches to it and carries on there after the reload.
   // The test call asks for the microphone inside this click, before the switch: the call after the reload then
   // finds it allowed, and a refusal is said here and switches nothing.
-  const switchAndDo = useCallback(async (id: string, action: ResumeAction) => {
-    setSwitchingFor(action)
-    setSwitchError(null)
-    if (action === 'test_call') {
-      const blocked = await microphoneAllowed()
-      if (blocked) {
-        setSwitchingFor(null)
-        setSwitchError(blocked)
-        return
+  const switchAndDo = useCallback(
+    async (id: string, action: ResumeAction) => {
+      setSwitchingFor(action)
+      setSwitchError(null)
+      if (action === 'test_call') {
+        const blocked = await microphoneAllowed()
+        if (blocked) {
+          setSwitchingFor(null)
+          setSwitchError(blocked)
+          return
+        }
       }
-    }
-    saveResume(id, action)
-    try {
-      await switchToWorkspace(id, null)
-    } catch (e) {
-      clearResume()
-      setSwitchingFor(null)
-      setSwitchError(e instanceof Error ? e.message : 'Could not switch the workspace')
-    }
-  }, [])
+      saveResume(id, action)
+      try {
+        await switchToWorkspace(id, null)
+      } catch (e) {
+        clearResume()
+        setSwitchingFor(null)
+        setSwitchError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.switch'))
+      }
+    },
+    [t],
+  )
   const { allDone } = state.progress
   const steps = withTestCallMade(state.progress.steps, calledHere)
   // The workspace the rows are about; its buttons work right here once it is the app's active workspace.
@@ -516,24 +533,26 @@ function Progress({
   const here = selected && active?.id === selected.id ? active : null
   const done = steps.filter(s => s.state === 'done').length
   return (
-    <section className={cx('as-card', 'as-progress', fadeIn && 'ld-in')} aria-label="Setup progress" aria-live="polite">
+    <section
+      className={cx('as-card', 'as-progress', fadeIn && 'ld-in')}
+      aria-label={t('onboarding.agentSetup.progress.label')}
+      aria-live="polite"
+    >
       <div className="as-progress-head">
         {allDone ? (
-          <b>Everything is set up</b>
+          <b>{t('onboarding.agentSetup.progress.allDone')}</b>
         ) : connected ? (
           <b>
-            <span className="as-dot" aria-hidden /> Your agent is connected
+            <span className="as-dot" aria-hidden /> {t('onboarding.agentSetup.progress.connected')}
           </b>
         ) : state.key ? (
           <b className="as-waiting">
-            <Spinner /> Waiting for your agent
+            <Spinner /> {t('onboarding.agentSetup.progress.waiting')}
           </b>
         ) : (
-          <b>What your agent will set up</b>
+          <b>{t('onboarding.agentSetup.progress.willSetUp')}</b>
         )}
-        <span className="as-small">
-          {done} of {steps.length} done
-        </span>
+        <span className="as-small">{t('onboarding.agentSetup.progress.count', { done, total: steps.length })}</span>
       </div>
       {/* By part of the setup: the admin's own, the server's (once per install), then the picked workspace's. */}
       {stepsByGroup(steps).map(group => (
@@ -565,14 +584,16 @@ function Progress({
                     {step.label}
                     {step.hint && <span className="as-hint"> · {step.hint}</span>}
                   </span>
-                  {step.state === 'failing' && <span className="as-small">failing</span>}
+                  {step.state === 'failing' && (
+                    <span className="as-small">{t('onboarding.agentSetup.progress.failing')}</span>
+                  )}
                   <StepAction
                     step={step}
                     workspace={here}
                     onSwitch={selected && !here ? action => void switchAndDo(selected.id, action) : null}
                     switching={switchingFor ?? (switching ? 'workspace' : null)}
                     resume={here ? resume : null}
-                    assistantName={selected?.assistantName ?? 'your assistant'}
+                    assistantName={selected?.assistantName ?? t('onboarding.agentSetup.yourAssistant')}
                     onCalled={onCalled}
                     reload={reload}
                   />
@@ -587,7 +608,9 @@ function Progress({
       {(allDone || connected) && steps.some(s => s.id === 'workspace' && s.state === 'done') && (
         <div>
           <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
-            {allDone ? `Open ${brandName()}` : `Open ${brandName()} now`}
+            {allDone
+              ? t('onboarding.agentSetup.open', { brand: brandName() })
+              : t('onboarding.agentSetup.openNow', { brand: brandName() })}
           </Button>
         </div>
       )}
@@ -601,15 +624,29 @@ function Progress({
  * then "New workspace…".
  */
 export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[]) {
+  const { t } = i18n()
   return [
     ...(workspaces.length
       ? workspaces.map(w => ({
           value: w.id,
           label: w.name,
-          description: w.done >= w.total ? 'Set up' : `${w.done} of ${w.total} done`,
+          description:
+            w.done >= w.total
+              ? t('onboarding.agentSetup.workspace.setUp')
+              : t('onboarding.agentSetup.progress.count', { done: w.done, total: w.total }),
         }))
-      : [{ value: NO_WORKSPACE, label: 'No workspace yet', description: 'Your agent creates it, or add one here' }]),
-    { value: NEW_WORKSPACE, label: 'New workspace…', description: 'Another business or location' },
+      : [
+          {
+            value: NO_WORKSPACE,
+            label: t('onboarding.agentSetup.workspace.none'),
+            description: t('onboarding.agentSetup.workspace.noneDescription'),
+          },
+        ]),
+    {
+      value: NEW_WORKSPACE,
+      label: t('onboarding.agentSetup.workspace.new'),
+      description: t('onboarding.agentSetup.workspace.newDescription'),
+    },
   ]
 }
 
@@ -629,28 +666,30 @@ export function WorkspacePicker({
   busy: string | null
   onPick: (id: string) => void
 }) {
+  const t = useT()
   const options = workspaceOptions(workspaces)
   return (
     <div className="as-ws-head" id="as-group-business">
-      <span className="as-group-label">Workspace</span>
+      <span className="as-group-label">{t('onboarding.agentSetup.workspace.label')}</span>
       <Select
-        label="Workspace whose steps are shown"
+        label={t('onboarding.agentSetup.workspace.select')}
         value={busy ?? selectedId ?? NO_WORKSPACE}
         options={options}
         disabled={Boolean(busy)}
         size="sm"
         onChange={onPick}
       />
-      <HelpTip text="This server is set up once. A workspace is one business or location, with its own assistant, phone number, calls and team; you can have several. Pick one to see its steps and finish them here." />
+      <HelpTip text={t('onboarding.agentSetup.workspace.help')} />
     </div>
   )
 }
 
 /** The agent ended its own access at the end of the setup (setup_endAccess): when, in this browser's time. */
 export function AgentEndedNote({ at }: { at: string }) {
+  const t = useT()
   return (
     <span className="as-small" role="status">
-      Your agent ended its access at {dateTimeLabel(new Date(at))}. Create a new link any time to let it in again.
+      {t('onboarding.agentSetup.agentEnded', { when: dateTimeLabel(new Date(at)) })}
     </span>
   )
 }
@@ -693,6 +732,7 @@ export function StepAction({
   onCalled: () => void
   reload: () => Promise<void>
 }) {
+  const t = useT()
   if (step.id === 'test_call') {
     // Also once done ("Call again"), so a call in progress keeps its panel when the row turns done.
     if (workspace)
@@ -717,14 +757,14 @@ export function StepAction({
             icon="phone-in"
             busy={switching === 'test_call'}
             disabled={Boolean(switching)}
-            title="Opens this workspace in this tab, then calls"
+            title={t('onboarding.agentSetup.step.callNowTitle')}
             onClick={() => onSwitch('test_call')}
           >
-            Call {assistantName} now
+            {t('onboarding.agentSetup.step.callNow', { name: assistantName })}
           </Button>
         </span>
       )
-    return <span className="as-small">here, once the workspace exists</span>
+    return <span className="as-small">{t('onboarding.agentSetup.step.onceWorkspaceExists')}</span>
   }
   if (step.id === 'forwarding' && step.state !== 'done') {
     if (workspace)
@@ -741,10 +781,10 @@ export function StepAction({
             variant="secondary"
             busy={switching === 'forwarding'}
             disabled={Boolean(switching)}
-            title="Opens this workspace in this tab, then its forwarding settings"
+            title={t('onboarding.agentSetup.step.forwardingTitle')}
             onClick={() => onSwitch('forwarding')}
           >
-            Set up forwarding
+            {t('onboarding.rowActions.forwarding')}
           </Button>
         </span>
       )
@@ -758,12 +798,17 @@ export function StepAction({
  * steps are the way: one command or link where the agent connects itself, the prompt to copy where pasting it is.
  */
 export function StartAgent({ client, url }: { client: AgentClient; url: string }) {
+  const t = useT()
   const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url)
   const promptToCopy = (primary: boolean) => (
     <>
       <pre className="as-prompt">{prompt}</pre>
       <div>
-        <CopyButton text={prompt} label="Copy prompt" variant={primary ? 'primary' : 'secondary'} />
+        <CopyButton
+          text={prompt}
+          label={t('onboarding.agentSetup.copyPrompt')}
+          variant={primary ? 'primary' : 'secondary'}
+        />
       </div>
     </>
   )
@@ -816,21 +861,25 @@ export function StartAgent({ client, url }: { client: AgentClient; url: string }
  * putting it on a server (docs/hosting.md). Nothing on a public install.
  */
 export function HostingNote({ address }: { address: string }) {
+  const t = useT()
   const place = installPlace(address)
   if (place === 'public') return null
   const local = place === 'this_computer'
   return (
-    <Note tone="warning" title={local ? 'Real phone calls can’t reach this copy' : 'This server has no https address'}>
+    <Note
+      tone="warning"
+      title={t(local ? 'onboarding.agentSetup.hosting.localTitle' : 'onboarding.agentSetup.hosting.noHttpsTitle')}
+    >
       {local
-        ? `${brandName()} is running on this computer. You can set it up and try it here, but callers can only reach it on a server with a public address.`
-        : 'Browsers block the microphone for test calls, and Claude or ChatGPT on the web cannot connect.'}{' '}
+        ? t('onboarding.agentSetup.hosting.local', { brand: brandName() })
+        : t('onboarding.agentSetup.hosting.noHttps')}{' '}
       <a
         href={local ? HOSTING_GUIDE_URL : `${HOSTING_GUIDE_URL}#your-own-domain`}
         target="_blank"
         rel="noreferrer"
-        title="How to put it on a server: providers, one-command install, ports"
+        title={t('onboarding.agentSetup.hosting.guideTitle')}
       >
-        {local ? 'Put it on a server' : 'Add an https address'}
+        {local ? t('onboarding.agentSetup.hosting.putOnServer') : t('onboarding.agentSetup.hosting.addHttps')}
       </a>
     </Note>
   )

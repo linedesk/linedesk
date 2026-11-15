@@ -22,6 +22,7 @@ import {
   type ResolvedCode,
   searchForwardingGuides,
 } from '@linedesk/actions'
+import { T, useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { useAssistants } from '../store.tsx'
@@ -68,8 +69,10 @@ export function useForwardingGuide(
   return [state.id, pick, state.byOwner]
 }
 
-const guideDescription = (g: ForwardingGuide) =>
-  g.network ? `${guideKindLabels[g.kind]} · ${g.network} network` : guideKindLabels[g.kind]
+const guideDescription = (g: ForwardingGuide, t: ReturnType<typeof useT>) =>
+  g.network
+    ? t('onboarding.forwarding.guideNetwork', { kind: guideKindLabels[g.kind], network: g.network })
+    : guideKindLabels[g.kind]
 
 const countryKey = (numberId: string) => `linedesk.forwardingCountry.${numberId}`
 
@@ -306,10 +309,15 @@ export function CarrierPicker({
   label?: string
   country: string
 }) {
+  const t = useT()
   const items = useCallback(
     (query: string) =>
-      searchForwardingGuides(query, country).map(g => ({ id: g.id, name: g.name, description: guideDescription(g) })),
-    [country],
+      searchForwardingGuides(query, country).map(g => ({
+        id: g.id,
+        name: g.name,
+        description: guideDescription(g, t),
+      })),
+    [country, t],
   )
   const fallback = guidesForCountry(country).find(g => g.kind === 'mobile' && /other-mobile$/.test(g.id))
   return (
@@ -319,24 +327,26 @@ export function CarrierPicker({
       value={value}
       onChange={onChange}
       items={items}
-      placeholder="Search carriers and phone systems"
-      listLabel="Carriers and phone systems"
-      empty={`No match. Pick “${fallback?.name ?? 'Another cell carrier'}”, or search for your phone app.`}
+      placeholder={t('onboarding.forwarding.carrierSearch')}
+      listLabel={t('onboarding.forwarding.carrierList')}
+      empty={t('onboarding.forwarding.carrierEmpty', {
+        fallback: fallback?.name ?? t('onboarding.forwarding.carrierFallback'),
+      })}
     />
   )
 }
 
-const countryOptions: readonly PickerItem[] = [
+const countryOptions = (otherDescription: string): readonly PickerItem[] => [
   ...forwardingCountries.map(c => ({ id: c.code, name: c.name })),
-  { id: otherCountryOption.code, name: otherCountryOption.name, description: 'Standard codes and phone settings' },
+  { id: otherCountryOption.code, name: otherCountryOption.name, description: otherDescription },
 ]
 const countryWords = (name: string) => ` ${name.toLowerCase()}`
 
 /** Countries with guides, then "Other country". Typing filters by name or code ("ger", "de"). */
-function searchCountries(typed: string): PickerItem[] {
+function searchCountries(options: readonly PickerItem[], typed: string): PickerItem[] {
   const query = typed.trim().toLowerCase()
-  if (!query) return [...countryOptions]
-  return countryOptions.filter(
+  if (!query) return [...options]
+  return options.filter(
     c => countryWords(c.name).includes(` ${query}`) || c.id.toLowerCase() === query || c.id === OTHER_COUNTRY,
   )
 }
@@ -357,18 +367,24 @@ export function GuidePickers({
   guideId: string | null
   onGuide: (guideId: string) => void
 }) {
+  const t = useT()
+  const otherDescription = t('onboarding.forwarding.otherCountryDescription')
+  const countries = useCallback(
+    (typed: string) => searchCountries(countryOptions(otherDescription), typed),
+    [otherDescription],
+  )
   return (
     <div className="fg-pickers">
       <SearchPicker
         id={`${id}-country`}
-        label="Country"
+        label={t('onboarding.forwarding.country')}
         className="fg-country"
         value={country}
         onChange={onCountry}
-        items={searchCountries}
-        placeholder="Country"
-        listLabel="Countries"
-        empty="No match. Pick “Other country”."
+        items={countries}
+        placeholder={t('onboarding.forwarding.country')}
+        listLabel={t('common.phone.countries')}
+        empty={t('onboarding.forwarding.countryEmpty', { other: otherCountryOption.name })}
       />
       <CarrierPicker id={id} label={label} value={guideId} onChange={onGuide} country={country} />
     </div>
@@ -432,6 +448,7 @@ export function ForwardingSteps({
   country?: string
   compact?: boolean
 }) {
+  const t = useT()
   const steps = forwardingInstructions(guide, mode, e164, country)
   // The way that works on every phone is typing the code in the Phone app: an iPhone blocks links that turn on call
   // forwarding (Apple's call forwarding guide), so a tel: link (Dial, the QR code) is only an extra for Android. A
@@ -448,7 +465,7 @@ export function ForwardingSteps({
   if (!steps)
     return (
       <div className="fg-card">
-        <p className="fg-none">{guide.note ?? `${guide.name} has no documented way to do this.`}</p>
+        <p className="fg-none">{guide.note ?? t('onboarding.forwarding.noSteps', { carrier: guide.name })}</p>
         <Sources guide={guide} />
       </div>
     )
@@ -461,8 +478,8 @@ export function ForwardingSteps({
         <>
           <p className="fg-lead">
             {mobile
-              ? `Type ${steps.on.length > 1 ? 'these codes, one after the other,' : 'this code'} in your business cell phone’s Phone app and press call:`
-              : `From your business line (the desk phone), dial${steps.on.length > 1 ? ' these one after the other:' : ':'}`}
+              ? t('onboarding.forwarding.leadMobile', { count: steps.on.length })
+              : t('onboarding.forwarding.leadDesk', { count: steps.on.length })}
           </p>
           <div className={cx('fg-dial', mobile && !touch && 'with-qr')}>
             <ol className="fg-codes">
@@ -473,15 +490,15 @@ export function ForwardingSteps({
                     {c.when && <span className="help">{c.when}</span>}
                   </span>
                   <span className="fg-acts">
-                    <CopyButton text={c.code} label="Copy" />
+                    <CopyButton text={c.code} label={t('common.copy.copy')} />
                     {mobile && path === 'dial' && (
                       <a
                         className="k-btn k-btn-ghost k-btn-sm"
                         href={c.href}
-                        title="Android: open the phone’s dialer with this code (Enter). On an iPhone, type it instead."
+                        title={t('onboarding.forwarding.dialTitle')}
                       >
                         <Icon name="phone" size={14} />
-                        <span>Dial</span>
+                        <span>{t('onboarding.forwarding.dial')}</span>
                       </a>
                     )}
                     {mobile && !touch && steps.on.length > 1 && (
@@ -489,10 +506,10 @@ export function ForwardingSteps({
                         type="button"
                         className="k-btn k-btn-ghost k-btn-sm"
                         aria-pressed={i === qrIndex}
-                        title="Show this code as the QR code (Enter)"
+                        title={t('onboarding.forwarding.showQrTitle')}
                         onClick={() => setQrIndex(i)}
                       >
-                        <span>Show QR</span>
+                        <span>{t('onboarding.forwarding.showQr')}</span>
                       </button>
                     )}
                   </span>
@@ -501,54 +518,56 @@ export function ForwardingSteps({
             </ol>
             {mobile && !touch && qrCode && (
               <figure className="fg-qr-box">
-                <QrCode text={qrCode.href} label={`QR code that dials ${qrCode.code}`} />
-                <figcaption>
-                  Android: scan with the phone’s camera to dial {qrCode.code}. iPhone blocks forwarding links: type the
-                  code in the Phone app.
-                </figcaption>
+                <QrCode text={qrCode.href} label={t('onboarding.forwarding.qrLabel', { code: qrCode.code })} />
+                <figcaption>{t('onboarding.forwarding.qrCaption', { code: qrCode.code })}</figcaption>
               </figure>
             )}
           </div>
           <p className="fg-meta">
-            {steps.off.length > 0 ? (
-              <>
-                Turn it off with <code>{codesText(steps.off)}</code>
-              </>
-            ) : (
-              `Ask ${guide.name} how to turn it off`
-            )}
-            {steps.check.length > 0 && (
-              <>
-                . Check it with <code>{codesText(steps.check)}</code>
-              </>
-            )}
-            .
+            <T
+              k={
+                steps.off.length > 0
+                  ? steps.check.length > 0
+                    ? 'onboarding.forwarding.offCodesCheck'
+                    : 'onboarding.forwarding.offCodes'
+                  : steps.check.length > 0
+                    ? 'onboarding.forwarding.offAskCheck'
+                    : 'onboarding.forwarding.offAsk'
+              }
+              values={{
+                off: codesText(steps.off),
+                check: codesText(steps.check),
+                carrier: guide.name,
+                code: chunks => <code>{chunks}</code>,
+              }}
+            />
           </p>
         </>
       ) : (
         <>
-          <p className="fg-lead">In {steps.where}:</p>
+          <p className="fg-lead">{t('onboarding.forwarding.leadSettings', { where: steps.where })}</p>
           <ol className="fg-steps">
             {steps.on.map(s => (
               <li key={s}>{s}</li>
             ))}
           </ol>
           <p className="fg-meta">
-            To turn it off: {steps.off.join(' ')}
-            {steps.check && ` Check it in ${steps.check}.`}
+            {steps.check
+              ? t('onboarding.forwarding.settingsOffCheck', { steps: steps.off.join(' '), where: steps.check })
+              : t('onboarding.forwarding.settingsOff', { steps: steps.off.join(' ') })}
           </p>
         </>
       )}
       {guide.note && <p className="fg-meta">{guide.note}</p>}
       {(guide.pitfalls.length > 0 || (mobile && !compact)) && (
         <details className="fg-more" open={!compact}>
-          <summary>Good to know</summary>
+          <summary>{t('onboarding.forwarding.goodToKnow')}</summary>
           <ul>
             {guide.pitfalls.map(p => (
               <li key={p}>{p}</li>
             ))}
             {mobile && !compact && (
-              <li>Before testing, so your phone doesn’t answer first: {phoneChecklist.join(' ')}</li>
+              <li>{t('onboarding.forwarding.checklist', { checklist: phoneChecklist.join(' ') })}</li>
             )}
           </ul>
         </details>
@@ -559,9 +578,8 @@ export function ForwardingSteps({
 }
 
 function Sources({ guide }: { guide: ForwardingGuide }) {
-  return (
-    <p className="fg-src">
-      Source:{' '}
+  const links = (
+    <>
       {guide.sources.map((s, i) => (
         <span key={s.url}>
           {i > 0 && ', '}
@@ -570,6 +588,11 @@ function Sources({ guide }: { guide: ForwardingGuide }) {
           </a>
         </span>
       ))}
+    </>
+  )
+  return (
+    <p className="fg-src">
+      <T k="onboarding.forwarding.source" values={{ links }} />
     </p>
   )
 }

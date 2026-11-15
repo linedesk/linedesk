@@ -202,6 +202,9 @@ test('where the proposal came from', () => {
     'From your Google listing and 1 page of brightwater-plumbing.example. Check it and change anything.',
   )
   expect(sourcesLine([], false)).toBe('Check it and change anything.')
+  expect(sourcesLine([], true)).toBe('From your Google listing. Check it and change anything.')
+  const pages = [proposal().pages[0]!, { url: 'https://brightwater-plumbing.example/services', title: 'Services' }]
+  expect(sourcesLine(pages, false)).toBe('From 2 pages of brightwater-plumbing.example. Check it and change anything.')
 })
 
 describe('websiteChoice', () => {
@@ -224,13 +227,13 @@ describe('websiteChoice', () => {
 test('a provider the step could not use says what happened and, for admins, where to fix it', () => {
   const refused = providerProblem({ provider: 'business', reason: 'auth' }, 'search')
   expect(refused.text).toMatch(/Google refused this server's key\. Enter your business yourself\.$/)
-  expect(refused.adminFix).toBe('Check the key under')
+  expect(refused.adminFix).toBe('onboarding.business.problem.fixCheckKey')
   // The link goes to the group that fixes it.
   expect(refused.group).toBe('business')
   expect(providerProblem({ provider: 'business', reason: 'config' }, 'listing').text).toMatch(/Fill in the rest below/)
   expect(providerProblem({ provider: 'llm', reason: 'config' }, 'search')).toEqual({
     text: 'Reading your website needs a language model.',
-    adminFix: 'Set one up under',
+    adminFix: 'onboarding.business.problem.fixSetOneUp',
     group: 'answering',
   })
 })

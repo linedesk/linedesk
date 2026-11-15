@@ -2,6 +2,8 @@
 // or every call. The choices speak as the business ("we"). Business hours are asked only for "when we're closed". The choice picks the forwarding
 // code on the phone step; routing stays with the number's mode and the hours (no new call routing).
 import type { PickupMode, WorkspaceSettingsData } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { HoursGrid, TimeZoneSelect } from '../settings/BusinessHours.tsx'
 import { type DayHours, hoursProblem, spansOf } from '../settings/businessHoursModel.ts'
@@ -31,33 +33,33 @@ type StepProps = {
   onMemory: (memory: PickupMemory) => void
 }
 
-const choiceText = (mode: PickupMode, name: string): { title: string; description: string } =>
-  ({
-    no_answer: {
-      title: "When we can't answer",
-      description: `Busy, or no answer after about 4 rings. Most businesses start here.`,
-    },
-    after_hours: {
-      title: "When we're closed",
-      description: `Outside your business hours ${name} tells callers when you open again. Calls you miss while open reach ${name} as well.`,
-    },
-    always: {
-      title: 'Every call',
-      description: `${name} answers every call. Who ${name} puts callers through to, you set up later.`,
-    },
-  })[mode]
+const choiceText: Record<PickupMode, { title: MessageKey; description: MessageKey }> = {
+  no_answer: {
+    title: msg('onboarding.pickup.noAnswer.title'),
+    description: msg('onboarding.pickup.noAnswer.description'),
+  },
+  after_hours: {
+    title: msg('onboarding.pickup.afterHours.title'),
+    description: msg('onboarding.pickup.afterHours.description'),
+  },
+  always: {
+    title: msg('onboarding.pickup.always.title'),
+    description: msg('onboarding.pickup.always.description'),
+  },
+}
 
 export function PickupStep(p: StepProps) {
   const { onBack, onNext } = p
+  const t = useT()
   const settings = useWorkspaceSettings()
   const name = useAssistantName()
   if (settings.data) return <PickupForm saved={settings.data} {...p} />
   return (
     <>
       <div className="ob-body">
-        <h1>When should {name} pick up?</h1>
+        <h1>{t('onboarding.pickup.title', { name })}</h1>
         <Loading
-          what="Your settings"
+          what={t('onboarding.pickup.loading')}
           loading
           error={settings.error}
           onRetry={() => void settings.reload()}
@@ -65,7 +67,7 @@ export function PickupStep(p: StepProps) {
         />
       </div>
       {settings.error ? (
-        <Foot onBack={onBack} onContinue={onNext} canContinue label="Later" />
+        <Foot onBack={onBack} onContinue={onNext} canContinue label={t('onboarding.action.later')} />
       ) : (
         <Foot onBack={onBack} onContinue={onNext} canContinue={false} />
       )}
@@ -74,6 +76,7 @@ export function PickupStep(p: StepProps) {
 }
 
 function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { saved: WorkspaceSettingsData }) {
+  const t = useT()
   const run = useRun()
   const write = useWriteAction()
   const name = useAssistantName()
@@ -116,25 +119,26 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { s
   return (
     <>
       <div className="ob-body">
-        <h1>When should {name} pick up?</h1>
-        <p className="ob-lede">You keep your number. You can change this later.</p>
-        <div className="k-radios ob-pickup" role="radiogroup" aria-label={`When ${name} picks up`}>
+        <h1>{t('onboarding.pickup.title', { name })}</h1>
+        <p className="ob-lede">{t('onboarding.pickup.lede')}</p>
+        <div className="k-radios ob-pickup" role="radiogroup" aria-label={t('onboarding.pickup.groupLabel', { name })}>
           {pickupOrder.map(m => (
             <RadioCard
               key={m}
               name="ob-pickup"
               checked={mode === m}
               onPick={() => setMode(m)}
-              {...choiceText(m, name)}
+              title={t(choiceText[m].title)}
+              description={t(choiceText[m].description, { name })}
             />
           ))}
         </div>
         {needsHours && (
           <>
-            <Field id="ob-tz" label="Time zone">
+            <Field id="ob-tz" label={t('onboarding.pickup.timeZone')}>
               <TimeZoneSelect id="ob-tz" value={timeZone} onChange={setTimeZone} />
             </Field>
-            <span className="ob-label">Business hours</span>
+            <span className="ob-label">{t('onboarding.pickup.businessHours')}</span>
             <HoursGrid days={days} set={set} canEdit />
           </>
         )}

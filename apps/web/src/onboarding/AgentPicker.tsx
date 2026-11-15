@@ -12,6 +12,7 @@
 //   black or white.
 // "Other" (any MCP client) has no brand: it gets the app's plug icon, muted.
 import { type AgentClient, agentClientLabels, agentClients } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { cx, Icon } from '../ui/kit.tsx'
 
 const brandSvg = (d: string, fill: string) => (
@@ -63,8 +64,9 @@ export function AgentMark({ client }: { client: AgentClient }) {
 
 /** One option per agent, recommended first; the chosen one shows its steps below. */
 export function AgentPicker({ client, onPick }: { client: AgentClient; onPick: (client: AgentClient) => void }) {
+  const t = useT()
   return (
-    <div className="as-agents" role="radiogroup" aria-label="Which agent">
+    <div className="as-agents" role="radiogroup" aria-label={t('onboarding.agentPicker.label')}>
       {agentClients.map(id => (
         <button
           key={id}
@@ -73,7 +75,7 @@ export function AgentPicker({ client, onPick }: { client: AgentClient; onPick: (
           aria-checked={client === id}
           className={cx('as-agent', client === id && 'on')}
           onClick={() => onPick(id)}
-          title={`Show the steps for ${agentClientLabels[id]}`}
+          title={t('onboarding.agentPicker.showSteps', { agent: agentClientLabels[id] })}
         >
           <AgentMark client={id} />
           {agentClientLabels[id]}

@@ -1,6 +1,7 @@
 // The phone step: connect a number the assistant answers, then (for a number the business keeps) the forwarding code.
 // It leads with keeping the business's number: a new number to give out reaches the assistant only when dialled.
 import type { PhoneNumber } from '@linedesk/db/types'
+import { T, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
@@ -50,7 +51,10 @@ type Props = {
 }
 
 /** A number is never skipped, only connected later: it stays in the go-live checklist. */
-const LATER = { laterLabel: 'Connect later', laterTitle: 'It stays in your go-live checklist' }
+function useLater() {
+  const t = useT()
+  return { laterLabel: t('onboarding.phone.later'), laterTitle: t('onboarding.phone.laterTitle') }
+}
 
 export function PhoneStep(p: Props) {
   const number = useRows('phone_numbers')[0]
@@ -85,29 +89,39 @@ function Unavailable({
   onBack: () => void
   onNext: () => void
 }) {
+  const t = useT()
+  const later = useLater()
   useStepKeys({ onEnter: onNext, onEscape: onBack })
   return (
     <>
       <div className="ob-body">
-        <h1>No phone carrier on this server yet.</h1>
+        <h1>{t('onboarding.phone.unavailable.title')}</h1>
         <p className="ob-lede">
-          Connect your number later: it stays in your go-live checklist.{' '}
           {/* The same as Settings › Phone numbers: admins get the place to fix it, everyone else whom to ask. */}
           {admin ? (
-            <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
-              Connect a carrier in Server admin › Providers
-            </a>
+            <T
+              k="onboarding.phone.unavailable.ledeAdmin"
+              values={{
+                link: chunks => (
+                  <a className="k-link" href="#admin/providers/telephony" title={detail ?? undefined}>
+                    {chunks}
+                  </a>
+                ),
+              }}
+            />
           ) : (
-            'Ask whoever runs this server.'
+            t('onboarding.phone.unavailable.lede')
           )}
         </p>
       </div>
-      <Foot onBack={onBack} onContinue={onNext} canContinue label={LATER.laterLabel} />
+      <Foot onBack={onBack} onContinue={onNext} canContinue label={later.laterLabel} />
     </>
   )
 }
 
 function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode }: Props & { firstAreaCode: string }) {
+  const t = useT()
+  const later = useLater()
   const run = useRun()
   const name = useAssistantName()
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
@@ -180,12 +194,13 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
       <div className="ob-body">
         <h1>
           {forwarding === 'forward_all'
-            ? 'Keep your number, forward your calls.'
-            : 'Keep your number, forward the calls you miss.'}
+            ? t('onboarding.phone.choose.titleAll')
+            : t('onboarding.phone.choose.titleMissed')}
         </h1>
         <p className="ob-lede">
-          Callers keep dialing the number they know, and{' '}
-          {forwarding === 'forward_all' ? 'every call' : 'the calls you miss'} reach {name}.
+          {forwarding === 'forward_all'
+            ? t('onboarding.phone.choose.ledeAll', { name })
+            : t('onboarding.phone.choose.ledeMissed', { name })}
         </p>
         {option === 'existing' ? (
           <div className="ob-existing">
@@ -194,7 +209,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
           </div>
         ) : (
           <>
-            <div className="k-radios" role="radiogroup" aria-label="Phone number">
+            <div className="k-radios" role="radiogroup" aria-label={t('onboarding.phone.choose.label')}>
               {phoneOptions.map(o => (
                 <RadioCard
                   key={o}
@@ -212,12 +227,13 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
             )}
           </>
         )}
-        {dev && option === 'existing' && (
-          <p className="ob2-note">Development mode: any number works, nothing is called.</p>
-        )}
+        {dev && option === 'existing' && <p className="ob2-note">{t('onboarding.phone.choose.dev')}</p>}
         {nothingToConnect ? null : option === 'existing' ? (
           <>
-            <Field id="ob-number" label={carrier ? `Number in ${carrier}` : 'Number'}>
+            <Field
+              id="ob-number"
+              label={carrier ? t('onboarding.phone.choose.numberIn', { carrier }) : t('onboarding.phone.choose.number')}
+            >
               <CarrierNumberInput
                 id="ob-number"
                 value={typed}
@@ -230,14 +246,26 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
               />
             </Field>
             {buyable && (
-              <button type="button" className="ob-link" onClick={toChoices} title="Back to the choices (Esc)">
-                Back to the choices
+              <button
+                type="button"
+                className="ob-link"
+                onClick={toChoices}
+                title={t('onboarding.phone.choose.backToChoicesTip', { key: 'Esc' })}
+              >
+                {t('onboarding.phone.choose.backToChoices')}
               </button>
             )}
           </>
         ) : (
           <>
-            <Field id="ob-area" label={option === 'forward' ? `Area code for ${name}'s number` : 'Area code'}>
+            <Field
+              id="ob-area"
+              label={
+                option === 'forward'
+                  ? t('onboarding.phone.choose.areaCodeFor', { name })
+                  : t('onboarding.phone.choose.areaCode')
+              }
+            >
               <AreaCodeInput
                 id="ob-area"
                 value={areaCode}
@@ -255,10 +283,10 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
                 <span>{buyQuestion(status.provider, areaCode)}</span>
                 <span className="ob2-row">
                   <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={sending}>
-                    Cancel
+                    {t('common.action.cancel')}
                   </Button>
                   <Button size="sm" variant="primary" busy={sending} onClick={() => send(true)}>
-                    {dev ? 'Add test number' : 'Buy number'}
+                    {dev ? t('onboarding.phone.choose.addTestNumber') : t('onboarding.phone.choose.buyNumber')}
                   </Button>
                 </span>
               </div>
@@ -271,11 +299,17 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         onBack={onBack}
         onContinue={primary}
         onSkipStep={nothingToConnect ? undefined : onNext}
-        {...LATER}
+        {...later}
         canContinue={!confirming}
         busy={sending && !confirming}
         label={
-          nothingToConnect ? LATER.laterLabel : buying ? (dev ? 'Add a test number' : 'Get a number') : 'Connect number'
+          nothingToConnect
+            ? later.laterLabel
+            : buying
+              ? dev
+                ? t('onboarding.phone.choose.addATestNumber')
+                : t('onboarding.phone.choose.getNumber')
+              : t('onboarding.phone.choose.connectNumber')
         }
       />
     </>
@@ -298,6 +332,7 @@ function Connected({
   onBack: () => void
   onNext: () => void
 }) {
+  const t = useT()
   // No carrier is assumed: until the owner picks one or the lookup finds it, the picker is empty and no codes show.
   const {
     country,
@@ -325,7 +360,7 @@ function Connected({
     setForwardProblem(null)
     // The mode change syncs back as the row's mode: this screen then shows the forwarding code.
     write('phoneNumber.update', { phoneNumberId: number.id, mode: offer }).catch(() =>
-      setForwardProblem("Couldn't switch on forwarding. Try again in a moment."),
+      setForwardProblem(t('onboarding.phone.connected.forwardFailed')),
     )
   }
   // For the setup funnel: how many reach the forwarding code. The server keeps only the first time, so once per page load is enough.
@@ -338,24 +373,27 @@ function Connected({
   return (
     <>
       <div className="ob-body">
-        <h1>{all ? 'Forward your calls.' : forwards ? 'Forward the calls you miss.' : 'Your number is ready.'}</h1>
+        <h1>
+          {all
+            ? t('onboarding.phone.connected.titleAll')
+            : forwards
+              ? t('onboarding.phone.connected.titleMissed')
+              : t('onboarding.phone.connected.titleReady')}
+        </h1>
         <div className="ob-prompt ok">
           <Icon name="check" size={16} />
-          <span>
-            {name} answers {formatNumber(number.e164)}.
-          </span>
+          <span>{t('onboarding.phone.connected.answers', { name, number: formatNumber(number.e164) })}</span>
         </div>
         {offer && (
           <>
             <p className="ob-lede">
-              Only calls to {formatNumber(number.e164)} reach {name}. Calls to your current number ring as they do
-              today.
+              {t('onboarding.phone.connected.onlyNew', { name, number: formatNumber(number.e164) })}
             </p>
             <div className="ob2-row">
               <Button variant="secondary" onClick={forwardToo}>
                 {offer === 'forward_all'
-                  ? 'Forward my current number to it too'
-                  : 'Forward the calls I miss on my current number too'}
+                  ? t('onboarding.phone.connected.forwardAllToo')
+                  : t('onboarding.phone.connected.forwardMissedToo')}
               </Button>
             </div>
             {forwardProblem && <Note tone="danger">{forwardProblem}</Note>}
@@ -365,8 +403,8 @@ function Connected({
           <>
             <p className="ob-lede">
               {all
-                ? `Keep your business number. Every call goes to ${name}.`
-                : `Keep your business number. Missed and busy calls go to ${name}.`}
+                ? t('onboarding.phone.connected.keepAll', { name })
+                : t('onboarding.phone.connected.keepMissed', { name })}
             </p>
             <ForwardingCheck
               number={number}
@@ -377,7 +415,7 @@ function Connected({
             >
               <div className="field">
                 <label htmlFor="ob-carrier" className="ob-label">
-                  Your carrier or phone system
+                  {t('onboarding.phone.connected.carrier')}
                 </label>
                 <GuidePickers
                   id="ob-carrier"
@@ -401,7 +439,7 @@ function Connected({
                   country={country}
                 />
               ) : (
-                <p className="ob2-note">Pick your carrier or phone system to see how to forward.</p>
+                <p className="ob2-note">{t('onboarding.phone.connected.pickCarrier')}</p>
               )}
             </ForwardingCheck>
           </>

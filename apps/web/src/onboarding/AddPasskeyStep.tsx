@@ -1,6 +1,7 @@
 // The admin's passkey as step 1 of every first-run setup page (the agent setup page, the setup by hand, the start
 // page): only they can add it, on this device, so it comes before anything an agent or the walkthrough does. The same
 // registration as Account › Sign-in & security (settings/account/add-passkey.ts), with its words and errors.
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { passkeySupported } from '../auth.ts'
 import { signInAgain as startSignInAgain } from '../localData.ts'
@@ -65,36 +66,37 @@ export type PasskeyHere = ReturnType<typeof usePasskeyHere>
 
 /** Step 1: add your passkey, or (once added) one done line with its mark. */
 export function PasskeyFirstStep({ step, passkey }: { step: Exclude<PasskeyStep, 'none'>; passkey: PasskeyHere }) {
+  const t = useT()
   if (step === 'loading')
     return (
-      <li className="as-later" aria-busy="true" aria-label="Checking your passkey">
+      <li className="as-later" aria-busy="true" aria-label={t('onboarding.passkey.checking')}>
         <Skeleton className="as-skel" />
       </li>
     )
   if (step === 'done')
     return (
       <li className="as-passed">
-        <StatusMark state="works" label="Done" className="as-passed-mark" />
-        <span>Passkey added</span>
+        <StatusMark state="works" label={t('onboarding.passkey.done')} className="as-passed-mark" />
+        <span>{t('onboarding.passkey.added')}</span>
       </li>
     )
   return (
     <li>
-      <b>Add your passkey</b>
+      <b>{t('onboarding.passkey.title')}</b>
       <div className="as-step">
         <span className="as-why">
-          So only you can sign in to this server.
-          <HelpTip text="A passkey is your fingerprint, face or device PIN. Email and sign-in decide who can sign in, so changing them needs your passkey, also when your agent does it. Your agent can’t add one for you: only you can, on your device. It can start without it meanwhile." />
+          {t('onboarding.passkey.why')}
+          <HelpTip text={t('onboarding.passkey.help')} />
         </span>
         {passkey.supported && passkey.showCode && (
           <div className="as-code-field">
             <TextInput
-              label="Enrolment code"
-              placeholder="Enrolment code"
+              label={t('onboarding.passkey.enrolmentCode')}
+              placeholder={t('onboarding.passkey.enrolmentCode')}
               value={passkey.code}
               onChange={passkey.setCode}
             />
-            <HelpTip text="Because you are a server admin, your first passkey needs a one-time code. The admin who made you a server admin has it." />
+            <HelpTip text={t('onboarding.passkey.codeHelp')} />
           </div>
         )}
         {passkey.supported ? (
@@ -103,8 +105,7 @@ export function PasskeyFirstStep({ step, passkey }: { step: Exclude<PasskeyStep,
           </div>
         ) : (
           <Note>
-            This browser can’t add a passkey here. Your agent can start without it; try another browser, or add it later
-            in <AccountSecurityLink />.
+            <T k="onboarding.passkey.unsupported" values={{ link: () => <AccountSecurityLink /> }} />
           </Note>
         )}
         <PasskeyProblem passkey={passkey} from="step" />
@@ -114,6 +115,7 @@ export function PasskeyFirstStep({ step, passkey }: { step: Exclude<PasskeyStep,
 }
 
 export function AddPasskeyButton({ passkey, from, size }: { passkey: PasskeyHere; from: PasskeyPlace; size?: 'sm' }) {
+  const t = useT()
   if (!passkey.supported) return null
   const busy = passkey.busy === from
   return (
@@ -122,15 +124,16 @@ export function AddPasskeyButton({ passkey, from, size }: { passkey: PasskeyHere
       size={size}
       disabled={passkey.busy !== null}
       onClick={() => void passkey.run(from)}
-      title="Create a passkey on this device for your account"
+      title={t('auth.addPasskey.addTitle')}
     >
-      {busy ? 'Waiting for your device…' : 'Add passkey'}
+      {busy ? t('auth.addPasskey.waitingDevice') : t('auth.addPasskey.add')}
     </Button>
   )
 }
 
 /** Why the passkey was not added, where it was clicked: calm when the prompt was only closed, with a retry. */
 export function PasskeyProblem({ passkey, from }: { passkey: PasskeyHere; from: PasskeyPlace }) {
+  const t = useT()
   const { problem } = passkey
   if (!problem || problem.from !== from) return null
   return (
@@ -140,43 +143,40 @@ export function PasskeyProblem({ passkey, from }: { passkey: PasskeyHere; from: 
       action={
         <>
           {problem.signInAgain ? (
-            <Button
-              size="sm"
-              onClick={() => void startSignInAgain()}
-              title="Sign out and sign in again, then come back here"
-            >
-              Sign in again
+            <Button size="sm" onClick={() => void startSignInAgain()} title={t('onboarding.passkey.signInAgainTitle')}>
+              {t('auth.addPasskey.signInAgain')}
             </Button>
           ) : (
             <Button
               size="sm"
               disabled={passkey.busy !== null}
               onClick={() => void passkey.run(from)}
-              title="Add your passkey again"
+              title={t('onboarding.passkey.tryAgainTitle')}
             >
-              Try again
+              {t('common.action.tryAgain')}
             </Button>
           )}
           <AccountSecurityLink />
         </>
       }
     >
-      {problem.cancelled ? 'No passkey was added. You can try again whenever you are ready.' : problem.text}
+      {problem.cancelled ? t('onboarding.passkey.notAdded') : problem.text}
     </Note>
   )
 }
 
 /** Account › Sign-in & security in a new tab, so the setup stays where it is (design principle 14). */
 function AccountSecurityLink() {
+  const t = useT()
   return (
     <a
       className="as-quiet-link"
       href="#account/security"
       target="_blank"
       rel="noreferrer"
-      title="Your passkeys in Account › Sign-in & security, in a new tab"
+      title={t('onboarding.passkey.securityLinkTitle')}
     >
-      Account › Security
+      {t('onboarding.passkey.securityLink')}
     </a>
   )
 }
