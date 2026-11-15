@@ -4,7 +4,9 @@
 // whose words fit the assistant's lines is the assistant, and the one who said most of the rest is the caller. The assistant's lines are
 // exact already (the text its voice spoke), so they are the anchors: the words of the new text are aligned with the
 // words of the call's lines (longest common subsequence), and the words between the anchors go to the caller's lines
-// there. Only the caller's lines change; the assistant's, the team's and the tool lines stay as they are. Pure.
+// there. Only the caller's lines change; the assistant's, the team's and the tool lines stay as they are. A caller who
+// cuts the assistant off leaves its line unfinished ("I can take a"), while the recording still has the rest ("message
+// for"): words heard right after such a line are the assistant's, never the caller's (cutOff). Pure.
 
 /** A line of the call's transcript as stored (transcript_segments), in order. */
 export type StoredLine = { id: string; speaker: 'agent' | 'caller' | 'human' | 'system'; text: string }
@@ -101,6 +103,9 @@ function rolesOf(lines: StoredLine[], turns: Turn[]): Map<string, Role> {
 const fits = (role: Role, speaker: StoredLine['speaker']) =>
   role === null || (role === 'agent' ? speaker !== 'caller' : speaker === 'caller')
 
+/** An assistant line the caller cut off: it does not end like a sentence ("I can take a"). */
+const unfinished = (line: StoredLine) => line.speaker === 'agent' && !/[.!?…:;"”')\]]\s*$/.test(line.text)
+
 function tokensOf(lines: StoredLine[]): RefToken[] {
   return lines.flatMap((line, index) =>
     line.speaker === 'system'
@@ -168,14 +173,24 @@ export function alignCallerLines(
   // Each run of unmatched words between two matches goes to the lines there, in order: split by how many of each
   // line's words are unmatched in that stretch (the words the new text heard differently).
   const bounds: [number, number][] = [[-1, -1], ...pairs, [ref.length, hyp.length]]
+  // Caller lines after a cut-off assistant line whose words could not be told apart: they keep their text.
+  const keptAsStored = new Set<number>()
   for (let k = 0; k + 1 < bounds.length; k++) {
     const [r0, h0] = bounds[k]!
     const [r1, h1] = bounds[k + 1]!
     const run = hyp.slice(h0 + 1, h1).map((_, i) => h0 + 1 + i)
     if (!run.length) continue
+    // Right after the last word of a cut-off assistant line: the rest of what the assistant said, then perhaps the
+    // caller. Which words are whose is not known, so the caller's line there is not changed (keptAsStored), and
+    // words heard where the caller's line has none are the assistant's.
+    const cutOff = r0 >= 0 && (r0 + 1 >= ref.length || ref[r0 + 1]!.line !== ref[r0]!.line) && unfinished(lines[ref[r0]!.line]!)
     const weights = new Map<number, number>()
     for (let r = r0 + 1; r < r1; r++)
       if (!matchedRef.has(r)) weights.set(ref[r]!.line, (weights.get(ref[r]!.line) ?? 0) + 1)
+    if (weights.size && cutOff) {
+      for (const line of weights.keys()) keptAsStored.add(line)
+      continue
+    }
     if (weights.size) {
       const total = [...weights.values()].reduce((a, b) => a + b, 0)
       const slots = [...weights.entries()]
@@ -191,7 +206,7 @@ export function alignCallerLines(
     // Words heard where the lines have none (nothing unmatched between): the caller's line on either side.
     const before = r0 >= 0 ? ref[r0]!.line : -1
     const after = r1 < ref.length ? ref[r1]!.line : -1
-    const target = [before, after].find(line => line >= 0 && lines[line]!.speaker === 'caller') ?? -1
+    const target = cutOff ? -1 : ([before, after].find(line => line >= 0 && lines[line]!.speaker === 'caller') ?? -1)
     for (const h of run) lineOfHyp[h] = target
   }
 
@@ -214,7 +229,7 @@ export function alignCallerLines(
   const byLine = new Map<number, number[]>()
   hyp.forEach((token, h) => {
     const line = lineOfHyp[h]!
-    if (line < 0 || lines[line]!.speaker !== 'caller') return
+    if (line < 0 || lines[line]!.speaker !== 'caller' || keptAsStored.has(line)) return
     const list = byLine.get(line) ?? []
     if (list.at(-1) !== token.word) list.push(token.word)
     byLine.set(line, list)

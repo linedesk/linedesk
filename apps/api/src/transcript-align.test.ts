@@ -118,4 +118,32 @@ describe('alignCallerLines', () => {
       { id: 'c1', text: 'My sink is leaking badly.' },
     ])
   })
+
+  // Staging call test (gpt-transcribe, 2026-11-15): the caller cut Maya off after "I can take a"; the recording still
+  // had "message for", which went into the caller's line in place of "Afternoon.".
+  it("keeps words after a cut-off assistant line out of the caller's line", () => {
+    const lines = [
+      line('a1', 'agent', 'Could the owner call you back about the quote? I can take a'),
+      line('c1', 'caller', 'Afternoon.'),
+      line('a2', 'agent', 'Got it, afternoons are best. What number should the owner call?'),
+      line('c2', 'caller', 'Yes. Please have him call me at this number. Thanks.'),
+    ]
+    const heard =
+      'Could the owner call you back about the quote? I can take a message for Got it, afternoons are best. What number should the owner call? Yes, please have him call me at this number. Thanks.'
+    const updates = Object.fromEntries(alignCallerLines(lines, heard).map(u => [u.id, u.text]))
+    expect(updates.c1).toBeUndefined()
+    expect(updates.c2).toBe('Yes, please have him call me at this number. Thanks.')
+  })
+
+  it('after a cut-off assistant line, the rest of its words are not added to the caller line that follows', () => {
+    const lines = [
+      line('a1', 'agent', 'I can take a'),
+      line('c1', 'caller', 'Afternoons are best'),
+      line('a2', 'agent', 'Thanks, I will pass that on.'),
+    ]
+    const heard = 'I can take a message for the team. Afternoons are best. Thanks, I will pass that on.'
+    expect(alignCallerLines(lines, heard).find(u => u.id === 'c1')?.text ?? 'Afternoons are best').toBe(
+      'Afternoons are best.',
+    )
+  })
 })
