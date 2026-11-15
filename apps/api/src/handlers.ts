@@ -901,6 +901,9 @@ const handlers: Record<string, Handler> = {
       mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),
       purchased: !existing,
       verified_at: !existing && (input.mode ?? 'new') === 'new' ? now : null,
+      // The API's clock, as calls.started_at: forwardingVerifiedFor compares the two, and the database's clock
+      // (transaction start, microseconds) can be a few milliseconds ahead of a call that comes in right after.
+      created_at: now,
     }).returning()
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace')

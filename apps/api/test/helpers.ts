@@ -121,7 +121,10 @@ export async function createWorkspace(name: string, emailVerified = true) {
   const id: string = body.workspace.id
   const [assistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, id))
   const number = randomNumber()
-  await db.insert(phone_numbers).values({ id: uid('pn'), workspace_id: id, e164: number, provider: 'dev' })
+  // Set up as phoneNumber.setup does: created_at on the API's clock, the one calls.started_at uses.
+  await db
+    .insert(phone_numbers)
+    .values({ id: uid('pn'), workspace_id: id, e164: number, provider: 'dev', created_at: new Date().toISOString() })
   const [contact] = await db
     .insert(contacts)
     .values({ id: uid('ct'), workspace_id: id, phone: randomNumber(), name: 'Known Caller' })

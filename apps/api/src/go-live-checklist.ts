@@ -141,6 +141,7 @@ export async function forwardingVerifiedFor(tx: Tx, workspaceId: string): Promis
   if (number.verified_at) return true
   if (!forwardsCalls(number.mode)) return false
   // Only calls since the number was set up here: one to the same number before it was released and set up again says nothing.
+  // Both times are the API's clock (phoneNumber.setup writes created_at), so a call right after the setup is never before it.
   const { rows } = await tx.execute<{ yes: boolean }>(sql`select exists (
     select 1 from calls c
     where c.workspace_id = ${workspaceId} and c.to_number = ${number.e164} and c.started_at >= ${number.created_at}
