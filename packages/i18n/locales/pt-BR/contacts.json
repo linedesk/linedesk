@@ -50,6 +50,8 @@
   "import.label": "Importar contatos",
   "import.noRows": "O arquivo não tem linhas abaixo dos nomes das colunas. A primeira linha nomeia as colunas.",
   "import.notCsv": "Este arquivo não é um CSV. Exporte seus contatos como CSV (separado por vírgula ou ponto e vírgula) e tente novamente.",
+  "import.note.extension": "Ramal {extension}",
+  "import.note.otherNumber": "Outro número: {number}",
   "import.nothing": "Nada foi importado: {message}",
   "import.pickPhone": "Escolha a coluna com o número de telefone.",
   "import.planAdded": "{count, plural, one {# contato novo} many {# contatos novos} other {# contatos novos}}",

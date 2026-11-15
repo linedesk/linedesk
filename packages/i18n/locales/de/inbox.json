@@ -146,6 +146,8 @@
   "row.sample": "Beispiel",
   "row.select": "Auswählen",
   "row.selectedUnselect": "Ausgewählt, Auswahl aufheben",
+  "row.spamLikely": "Wahrscheinlich Spam",
+  "row.spamLikelyTitle": "Die Spam-Prüfung des Telefonanbieters hat diese Nummer markiert",
   "row.unread": "ungelesen",
   "row.unreadMarkRead": "Ungelesen, als gelesen markieren",
   "sample.line": "<b>Beispielanrufe.</b> {count, plural, one {# Beispiel} other {# Beispiele}} dafür, wie Anrufe hier ankommen. Probier {done}, {assign} und {open} daran aus.",

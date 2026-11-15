@@ -146,6 +146,8 @@
   "row.sample": "サンプル",
   "row.select": "選択",
   "row.selectedUnselect": "選択済み、選択を解除",
+  "row.spamLikely": "迷惑電話の可能性",
+  "row.spamLikelyTitle": "通信事業者の迷惑電話チェックでこの番号が検出されました",
   "row.unread": "未読",
   "row.unreadMarkRead": "未読、既読にする",
   "sample.line": "<b>サンプル通話</b> 通話がここに届く様子の例が{count, plural, other {#件}}あります。{done}、{assign}、{open}を試してみてください。",

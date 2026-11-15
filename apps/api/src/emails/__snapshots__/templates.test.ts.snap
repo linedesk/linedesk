@@ -972,14 +972,14 @@ Linedesk · desk.example.com
   [
     "sign-in-code",
     "482913 es tu código de inicio de sesión de Linedesk",
-    "Sign in to Linedesk
+    "Inicia sesión en Linedesk
 
-Click the button to sign in to Linedesk at desk.example.com. It works in the browser where you asked for the code.
+Haz clic en el botón para iniciar sesión en Linedesk en desk.example.com. Funciona en el navegador donde pediste el código.
 
-Sign in to Linedesk:
+Iniciar sesión en Linedesk:
 https://desk.example.com/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
 
-Or enter this code on the sign-in page at desk.example.com:
+O ingresa este código en la página de inicio de sesión de desk.example.com:
 
     482913
 
@@ -1048,18 +1048,18 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert",
-    "Admin sign-in from a new device on Linedesk: ann@brightwater.example",
+    "Inicio de sesión de administrador desde un dispositivo nuevo en Linedesk: ann@brightwater.example",
     "Alerta de administración
 
-Admin sign-in from a new device on Linedesk: ann@brightwater.example
+Inicio de sesión de administrador desde un dispositivo nuevo en Linedesk: ann@brightwater.example
 
-ann@brightwater.example, a server admin, confirmed with their passkey from a device not seen before for them.
+ann@brightwater.example, administrador del servidor, confirmó con su llave de acceso desde un dispositivo que no había usado antes.
 
-Time: 14 nov 2026, 17:05 UTC
-Browser: Chrome on macOS
-Address: 203.0.113.9
+Hora: 14 nov 2026, 17:05 UTC
+Navegador: Chrome en macOS
+Dirección: 203.0.113.9
 
-If this was them, nothing to do. If not, someone has their passkey, authenticator app or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.
+Si fue esa persona, no hay nada que hacer. Si no, alguien tiene su llave de acceso, su app de autenticación o su dispositivo: inicia sesión con tu propia llave de acceso y luego, en Administración del servidor › Usuarios, desactiva la cuenta y restablece sus llaves de acceso.
 
 Abrir el registro de auditoría:
 https://desk.example.com/#admin/audit
@@ -1073,18 +1073,18 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert-provider-failure",
-    "ElevenLabs is failing on Linedesk: quota or credit used up",
+    "ElevenLabs está fallando en Linedesk: cuota o crédito agotado",
     "Alerta de administración
 
-ElevenLabs is failing on Linedesk: quota or credit used up
+ElevenLabs está fallando en Linedesk: cuota o crédito agotado
 
-ElevenLabs started failing.
+ElevenLabs empezó a fallar.
 
-Last error: quota_exceeded: This request exceeds your quota of 10000.
+Último error: quota_exceeded: This request exceeds your quota of 10000.
 
-Calls or emails that need it may not work until it is fixed. Server admin › Providers shows the latest failure; a successful test or call clears it.
+Las llamadas o los correos que lo necesitan podrían no funcionar hasta que se solucione. Administración del servidor › Proveedores muestra el fallo más reciente; una prueba o una llamada exitosa lo borra.
 
-You get this email once per failure, not for every call.
+Recibes este correo una vez por fallo, no por cada llamada.
 
 Abrir el registro de auditoría:
 https://desk.example.com/#admin/audit
@@ -1098,16 +1098,16 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert-settings-agent",
-    "Email now sent with Resend by an AI agent",
+    "El correo ahora se envía con Resend por un agente de IA",
     "Alerta de administración
 
-Email now sent with Resend by an AI agent
+El correo ahora se envía con Resend por un agente de IA
 
-ann@brightwater.example switched email to Resend through the AI agent setup link lds_7Qp2…, made 14 nov 2026, 16:40 UTC. They decide how people sign in or get sign-in codes.
+ann@brightwater.example cambió el envío de correo a Resend mediante el enlace de configuración para agentes de IA lds_7Qp2…, creado el 14 nov 2026, 16:40 UTC. Esta configuración decide cómo inician sesión las personas o cómo reciben los códigos de inicio de sesión.
 
-If you did not expect this, sign in with your passkey and check Server admin › Providers and Audit log.
+Si no lo esperabas, inicia sesión con tu llave de acceso y revisa Administración del servidor › Proveedores y el Registro de auditoría.
 
-That admin ends the link with End access on the setup page; disabling the admin ends it too.
+Ese administrador termina el enlace con Terminar el acceso en la página de configuración; desactivar al administrador también lo termina.
 
 Abrir el registro de auditoría:
 https://desk.example.com/#admin/audit
@@ -1121,58 +1121,58 @@ Linedesk · desk.example.com
   ],
   [
     "spending-cap-80",
-    "Brightwater Plumbing & Heating used 80 % of its monthly spending cap",
-    "Spending cap
+    "Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual",
+    "Límite de gasto
 
-Brightwater Plumbing & Heating used 80 % of its monthly spending cap
+Brightwater Plumbing & Heating usó el 80 % de su límite de gasto mensual
 
-Brightwater Plumbing & Heating used about 40,20 US$ of its monthly spending cap of 50,00 US$ (80 %, estimated).
+Brightwater Plumbing & Heating usó unos 40,20 US$ de su límite de gasto mensual de 50,00 US$ (80 %, estimado).
 
-When it reaches the cap, the assistant stops answering calls until the end of the month (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.
+Al alcanzar el límite, el asistente deja de contestar llamadas hasta fin de mes (UTC): quien llama oye que la empresa le devolverá la llamada, y cada llamada aparece en la bandeja de entrada como una llamada perdida que hay que devolver.
 
-A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+Un administrador del servidor puede cambiar el límite en Administración del servidor › Espacios de trabajo › Brightwater Plumbing & Heating.
 
 --
 
-You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+Recibes este correo porque eres propietario de Brightwater Plumbing & Heating o administrador del servidor de desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "spending-cap-100",
-    "Brightwater Plumbing & Heating reached its monthly spending cap",
-    "CAP REACHED · Spending cap
+    "Brightwater Plumbing & Heating alcanzó su límite de gasto mensual",
+    "LÍMITE ALCANZADO · Límite de gasto
 
-Brightwater Plumbing & Heating reached its monthly spending cap
+Brightwater Plumbing & Heating alcanzó su límite de gasto mensual
 
-Brightwater Plumbing & Heating reached its monthly spending cap of 50,00 US$ (estimated cost this month: about 50,35 US$).
+Brightwater Plumbing & Heating alcanzó su límite de gasto mensual de 50,00 US$ (costo estimado este mes: unos 50,35 US$).
 
-Until the end of the month (UTC) the assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with “Call back”. Test calls are off too.
+Hasta fin de mes (UTC) el asistente ya no contesta llamadas: quien llama oye que la empresa le devolverá la llamada, y cada llamada aparece en la bandeja de entrada como llamada perdida con “Devolver la llamada”. Las llamadas de prueba también están desactivadas.
 
-A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+Un administrador del servidor puede cambiar el límite en Administración del servidor › Espacios de trabajo › Brightwater Plumbing & Heating.
 
 --
 
-You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+Recibes este correo porque eres propietario de Brightwater Plumbing & Heating o administrador del servidor de desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "install-test",
-    "204816 is your Linedesk test code",
-    "Your email works
+    "204816 es tu código de prueba de Linedesk",
+    "Tu correo funciona
 
-Enter this code in the setup to finish the test:
+Ingresa este código en la configuración para terminar la prueba:
 
     204816
 
-It expires in 10 minutes.
+Vence en 10 minutos.
 
 --
 
-You got this email because you tested email in the Linedesk setup at desk.example.com.
+Recibes este correo porque probaste el correo en la configuración de Linedesk en desk.example.com.
 
 Linedesk · desk.example.com
 ",
@@ -1284,44 +1284,44 @@ Linedesk · desk.example.com
   ],
   [
     "impersonation-started",
-    "A server admin signed in to your Linedesk account",
+    "Un administrador del servidor inició sesión en tu cuenta de Linedesk",
     "Aviso de seguridad
 
-A server admin signed in as you
+Un administrador del servidor inició sesión como tú
 
-Ann Lee signed in as you at desk.example.com on 14 nov 2026, 17:05 UTC, in the workspace Brightwater Plumbing & Heating, to see Linedesk as you do.
+Ann Lee inició sesión como tú en desk.example.com el 14 nov 2026, 17:05 UTC, en el espacio de trabajo Brightwater Plumbing & Heating, para ver Linedesk como lo ves tú.
 
-The reason they gave: Ticket 1042: calls not showing in the inbox
+El motivo que dio: Ticket 1042: calls not showing in the inbox
 
-This access ends after 60 minutes at the latest. It cannot change your password, email address, passkeys or sign-in methods, and everything done in it is in the audit log under their name.
+Este acceso termina como máximo después de 60 minutos. No puede cambiar tu contraseña, tu dirección de correo, tus llaves de acceso ni tus métodos de inicio de sesión, y todo lo que se haga en él queda en el registro de auditoría a su nombre.
 
-If you did not expect this, tell your administrator.
+Si no lo esperabas, avísale a tu administrador.
 
 --
 
-You got this email because the server admins of desk.example.com have turned on notices about support access.
+Recibes este correo porque los administradores del servidor de desk.example.com activaron los avisos de acceso de soporte.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "impersonation-api-key",
-    "A server admin created an API key in your Linedesk account",
+    "Un administrador del servidor creó una clave de API en tu cuenta de Linedesk",
     "Aviso de seguridad
 
-A server admin created an API key for you
+Un administrador del servidor creó una clave de API para ti
 
-Ann Lee created an API key while signed in as you at desk.example.com on 14 nov 2026, 17:12 UTC, in the workspace Brightwater Plumbing & Heating.
+Ann Lee creó una clave de API mientras tenía la sesión iniciada como tú en desk.example.com el 14 nov 2026, 17:12 UTC, en el espacio de trabajo Brightwater Plumbing & Heating.
 
-The key: Zapier support (ld_3fK9aQ2x…), with the Member role.
+La clave: Zapier support (ld_3fK9aQ2x…), con el rol Miembro.
 
-The key keeps working after the support access ends, until it is revoked. It is listed in Workspace settings › Developers with the admin's name, and everything done with it is in the audit log under their name.
+La clave sigue funcionando después de que termine el acceso de soporte, hasta que se revoque. Aparece en Configuración del espacio de trabajo › Desarrolladores con el nombre del administrador, y todo lo que se haga con ella queda en el registro de auditoría a su nombre.
 
-If you do not need it, revoke it in Workspace settings › Developers. If you did not expect this, tell your administrator.
+Si no la necesitas, revócala en Configuración del espacio de trabajo › Desarrolladores. Si no lo esperabas, avísale a tu administrador.
 
 --
 
-You got this email because the server admins of desk.example.com have turned on notices about support access.
+Recibes este correo porque los administradores del servidor de desk.example.com activaron los avisos de acceso de soporte.
 
 Linedesk · desk.example.com
 ",

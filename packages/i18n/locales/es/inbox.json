@@ -146,6 +146,8 @@
   "row.sample": "Ejemplo",
   "row.select": "Seleccionar",
   "row.selectedUnselect": "Seleccionada, quitar selección",
+  "row.spamLikely": "Posible spam",
+  "row.spamLikelyTitle": "La comprobación de spam del operador telefónico marcó este número",
   "row.unread": "no leída",
   "row.unreadMarkRead": "No leída, marcar como leída",
   "sample.line": "<b>Llamadas de ejemplo.</b> {count, plural, one {# ejemplo} many {# ejemplos} other {# ejemplos}} de cómo llegan las llamadas aquí. Prueba {done}, {assign} y {open} con ellas.",

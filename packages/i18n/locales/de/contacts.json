@@ -50,6 +50,8 @@
   "import.label": "Kontakte importieren",
   "import.noRows": "Die Datei hat unter den Spaltennamen keine Zeilen. Die erste Zeile benennt die Spalten.",
   "import.notCsv": "Diese Datei ist keine CSV-Datei. Exportiere deine Kontakte als CSV (durch Komma oder Semikolon getrennt) und versuch es noch einmal.",
+  "import.note.extension": "Durchwahl {extension}",
+  "import.note.otherNumber": "Weitere Nummer: {number}",
   "import.nothing": "Nichts wurde importiert: {message}",
   "import.pickPhone": "Wähl die Spalte mit der Telefonnummer.",
   "import.planAdded": "{count, plural, one {# neuer Kontakt} other {# neue Kontakte}}",

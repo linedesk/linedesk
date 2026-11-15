@@ -50,6 +50,8 @@
   "import.label": "連絡先をインポート",
   "import.noRows": "列名の下に行がありません。1行目は列名です。",
   "import.notCsv": "このファイルはCSVではありません。連絡先をCSV（カンマ区切りまたはセミコロン区切り）でエクスポートして、もう一度お試しください。",
+  "import.note.extension": "内線{extension}",
+  "import.note.otherNumber": "その他の番号：{number}",
   "import.nothing": "何もインポートされませんでした：{message}",
   "import.pickPhone": "電話番号の列を選んでください。",
   "import.planAdded": "{count, plural, other {新しい連絡先#件}}",
