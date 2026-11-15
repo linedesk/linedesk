@@ -145,6 +145,12 @@ a fallback (`name ?? 'Assistant'`) and an error message the page shows are all u
   Use `useFormat()` in components and `fmt()` or `intlLocale()` (`apps/web/src/i18n/format.ts`) elsewhere; a machine
   format on purpose (`en-CA` for ISO dates) gets `// i18n-ignore: <why>`. Reading the browser's time zone
   (`Intl.DateTimeFormat().resolvedOptions().timeZone`) is not formatting.
+- Emails and notifications (checked, no baseline): every word of every email, push notification and the pages their
+  links open is written in `apps/api/src/emails`, and the whole folder is scanned like the web app; formatting there
+  without the reader's locale fails too. Elsewhere on the server (`apps/api/src`, `apps/agent/src`, `packages`) the
+  check fails on English handed straight to a sender (`sender.send({ subject: 'Hi', … })`, `sendNotice`,
+  `alertInstanceAdmins`), in an object with a text `subject` or with a `title` and a `body`, and in an email's
+  `subject`, `preheader`, `heading`, `eyebrow` or `html`. See "Emails and notifications" below.
 - Server-side text: the same scan over `packages/actions` and `apps/api` is reported, not checked yet (the count is in
   the check's output; `pnpm i18n:check --server-text` lists every string). See "Server-side text" below.
 
@@ -158,14 +164,35 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   with `getT('en')`, so they stay English (the table below) without a second copy of the text.
 - Refusals and errors the web app shows (`RefusedError`, API error bodies) carry a code; the web app maps the code to
   a key, as `sign-in-code.ts` does for sign-in errors. The English message stays in the body for logs and API clients.
-- Emails: the templates already render with `getT(locale)` in the recipient's language (the table below). What is
-  left around them (admin alert texts, the email provider's status lines) moves the same way: keys rendered with the
-  recipient's `getT(locale)`, never a literal in the email.
+- Emails: done, and checked (below). The email provider's status lines in Server admin are provider status, with
+  the rest.
 - Data shipped as content (carrier guides, area codes, sample calls) moves to its own catalog namespace per area,
   translated in the release pass like the rest. What the assistant says stays in the workspace's language
   (`spoken-lines.ts`), not the reader's.
 - Order: what the web app shows most (provider status, carrier steps, field labels, refusals), then emails, then the
   rest. Once an area is done, the check fails on new English there, as it does for the web app.
+
+## Emails and notifications
+
+Every email, push notification and the page an email's link opens (the setup emails' unsubscribe page) is fully in
+the recipient's language, frame and body alike (Janik, 2026-11-15: an admin alert went out with a Japanese frame and an
+English body).
+
+- Write their text only in `apps/api/src/emails`: `templates.ts` (account, team, calls, setup), `alerts.ts` (the alerts
+  to every server admin, the spending cap, the setup's test email), `push-text.ts`, `pages.ts`. Keys live in
+  `locales/en/email.json`. A feature hands over facts (who, which provider, a time as an ISO string) and the email
+  says the rest; never a sentence, a fallback name ("Your workspace", "A server admin") or a formatted date built
+  elsewhere.
+- Each recipient gets their own language (the table below): an admin alert is a function of the locale
+  (`alertInstanceAdmins(alert)`, `AdminAlertText`) that is built once per admin; a job stores data, not text, and the
+  email is rendered when it is sent.
+- Dates, times and amounts come from `getT(locale).format` (`dateTime`, `currency`, `number`), never `Intl` with a
+  written locale or `toISOString()` in a sentence.
+- Not translated: what a person, a browser or a provider wrote (names, user agents, addresses, an error message
+  quoted as it came), brand names (Chrome, macOS, Telnyx) and codes.
+- Test it: `getT('en-XA')` renders the pseudo-locale on the server too; `apps/api/src/emails/alerts.test.ts` checks
+  that nothing but data is left outside the ⟦ ⟧. `pnpm --filter @linedesk/api email:preview --locale en-XA`
+  renders every email, and `apps/api/src/emails/templates.test.ts` snapshots each one in English and Spanish.
 
 ## Which language a reader gets
 

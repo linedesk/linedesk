@@ -10,8 +10,10 @@ import { member, member_notification_settings } from '@linedesk/db'
 import { timingSafeEqual } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import type { Env, Hono } from 'hono'
-import { brandName } from './branding.ts'
+import { localeForUser } from '@linedesk/i18n/server'
 import { db } from './db.ts'
+import { localeForUserId } from './email-locale.ts'
+import { setupUnsubscribePage } from './emails/pages.ts'
 import { WEB_ORIGIN } from './emails/templates.ts'
 import { hasSecretsKey, signWithSecretsKey } from './secrets.ts'
 
@@ -69,36 +71,28 @@ export async function unsubscribeFromSetupEmails(workspaceId: string, userId: st
   return true
 }
 
-const htmlEscape = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
-
-/** A plain page: the CSP allows no inline styles or scripts, and none are needed. */
-function page(title: string, body: string) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${htmlEscape(title)}</title></head><body><main><h1>${htmlEscape(title)}</h1>${body}</main></body></html>`
+/** The page's language: the member's own when the token names one, else the browser's (Accept-Language). */
+async function pageLocale(who: { userId: string } | null, acceptLanguage: string | undefined) {
+  if (who) return localeForUserId(db, who.userId).catch(() => localeForUser(null, acceptLanguage))
+  return localeForUser(null, acceptLanguage)
 }
-
-const INVALID = page(
-  'This link is not valid',
-  '<p>Turn off setup emails in Account settings, Notifications after signing in instead.</p>',
-)
 
 export function registerSetupUnsubscribeRoutes<E extends Env>(app: Hono<E>) {
   // The link in the email: a confirm page, so a link scanner that opens it unsubscribes nobody.
-  app.get(SETUP_UNSUBSCRIBE_PATH, c => {
+  app.get(SETUP_UNSUBSCRIBE_PATH, async c => {
     const token = c.req.query('t')
-    if (!readSetupUnsubscribeToken(token)) return c.html(INVALID, 400)
-    return c.html(
-      page(
-        'Turn off setup emails?',
-        `<p>You stop getting the emails that help set up ${htmlEscape(brandName())}. Call emails are not affected.</p><form method="post" action="${SETUP_UNSUBSCRIBE_PATH}?t=${htmlEscape(token ?? '')}"><button type="submit">Turn off setup emails</button></form>`,
-      ),
-    )
+    const who = readSetupUnsubscribeToken(token)
+    const locale = await pageLocale(who, c.req.header('accept-language'))
+    if (!who) return c.html(setupUnsubscribePage('invalid', locale), 400)
+    return c.html(setupUnsubscribePage('confirm', locale, `${SETUP_UNSUBSCRIBE_PATH}?t=${token ?? ''}`))
   })
   // The confirm page's button, and mail apps' one-click POST (body "List-Unsubscribe=One-Click", not read).
   app.post(SETUP_UNSUBSCRIBE_PATH, async c => {
     const who = readSetupUnsubscribeToken(c.req.query('t'))
-    if (!who) return c.html(INVALID, 400)
+    const locale = await pageLocale(who, c.req.header('accept-language'))
+    if (!who) return c.html(setupUnsubscribePage('invalid', locale), 400)
     await unsubscribeFromSetupEmails(who.workspaceId, who.userId)
     // The same answer for a member who left: the token says nothing more than it did.
-    return c.html(page('Setup emails are off', '<p>You won’t get any more of them. Call emails are not affected.</p>'))
+    return c.html(setupUnsubscribePage('done', locale))
   })
 }

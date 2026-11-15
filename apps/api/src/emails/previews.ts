@@ -1,10 +1,9 @@
 // Every email with demo data (Brightwater Plumbing & Heating), for the preview script and the tests.
 
-import { brandName } from '../branding.ts'
+import { adminAlertEmail, adminSignInAlert, installTestEmail, providerFailureAlert, settingsChangedAlert, spendingCapEmail } from './alerts.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
   addedToWorkspaceEmail,
-  adminAlertEmail,
   bookingConfirmationEmail,
   callEmail,
   confirmationCodeEmail,
@@ -27,6 +26,7 @@ import {
   signInCodeEmail,
   weekSummaryEmail,
   welcomeEmail,
+  slotInZone,
   workspaceDeletedEmail,
 } from './templates.ts'
 
@@ -37,6 +37,7 @@ const WORKSPACE_ID = 'ws_demo'
 /** The partner block of day 3 shows in the previews whether or not this install has a partner directory. */
 const partners = PARTNER_DIRECTORY_URL ?? 'https://linedesk.ai/partners'
 
+// i18n-ignore: demo data (Brightwater Plumbing & Heating): what a business and its callers wrote, never translated
 const call = {
   workspaceId: WORKSPACE_ID,
   callId: 'call_demo_01',
@@ -51,10 +52,11 @@ const call = {
   durationSec: 214,
   timeZone: 'America/Los_Angeles',
   nextSteps: ['Confirm the technician can bring a replacement tank', 'Text Sarah the arrival window'],
-  booking: { what: 'Emergency repair', when: 'Tuesday, November 10 at 1:00 PM PST' },
+  booking: { what: 'Emergency repair', at: '2026-11-10T21:00:00Z' },
   workspace: 'Brightwater Plumbing & Heating',
 }
 
+// i18n-ignore: demo data, as above
 const setup = {
   workspaceId: WORKSPACE_ID,
   workspace: 'Brightwater Plumbing & Heating',
@@ -67,8 +69,10 @@ const setup = {
 
 /** Every email in `locale` (a UI language; English by default). */
 export function previewEmails(origin: string, locale?: string | null): Preview[] {
+  const booked = { what: call.booking.what, when: slotInZone(call.booking.at, call.timeZone, locale) }
+  // i18n-ignore: demo data (names, summaries, addresses as people wrote them); every other word comes from t()
   return [
-    { name: 'call-summary', email: callEmail(call, origin, locale) },
+    { name: 'call-summary', email: callEmail({ ...call, booking: booked }, origin, locale) },
     {
       name: 'call-summary-plain',
       email: callEmail(
@@ -145,12 +149,56 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
     {
       name: 'admin-alert',
       email: adminAlertEmail(
-        `Admin sign-in to ${brandName()}: ann@brightwater.example`,
-        'ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.\n\nAddress: 203.0.113.9\nBrowser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)\n\nIf this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.',
+        adminSignInAlert({
+          who: 'ann@brightwater.example',
+          method: 'passkey',
+          browser: { browser: 'Chrome', os: 'macOS' },
+          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0 Safari/537.36',
+          address: '203.0.113.9',
+          at: '2026-11-14T17:05:00Z',
+        })(locale),
         origin,
         locale,
       ),
     },
+    {
+      name: 'admin-alert-provider-failure',
+      email: adminAlertEmail(
+        providerFailureAlert('ElevenLabs', 'quota', 'quota_exceeded: This request exceeds your quota of 10000.')(locale),
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'admin-alert-settings-agent',
+      email: adminAlertEmail(
+        settingsChangedAlert({
+          change: 'switched',
+          provider: 'Resend',
+          actor: { email: 'ann@brightwater.example' },
+          agent: { prefix: 'lds_7Qp2', createdAt: '2026-11-14T16:40:00Z' },
+        })(locale),
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'spending-cap-80',
+      email: spendingCapEmail(
+        { workspace: 'Brightwater Plumbing & Heating', level: 80, capUsd: 50, spentUsd: 40.2 },
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'spending-cap-100',
+      email: spendingCapEmail(
+        { workspace: 'Brightwater Plumbing & Heating', level: 100, capUsd: 50, spentUsd: 50.35 },
+        origin,
+        locale,
+      ),
+    },
+    { name: 'install-test', email: installTestEmail('204816', origin, locale) },
     {
       name: 'invitation',
       email: invitationEmail(
@@ -224,7 +272,8 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         {
           workspace: 'Brightwater Plumbing & Heating',
           by: 'Mike Brennan',
-          when: 'November 14, 2026 at 9:05 AM PST',
+          at: '2026-11-14T17:05:00Z',
+          timeZone: 'America/Los_Angeles',
           accountDeleted: true,
         },
         origin,
@@ -237,7 +286,8 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         {
           workspace: 'Brightwater Plumbing & Heating',
           by: 'Mike Brennan (mike@brightwater.example)',
-          when: 'November 14, 2026 at 9:05 AM PST',
+          at: '2026-11-14T17:05:00Z',
+          timeZone: 'America/Los_Angeles',
           accountDeleted: true,
           removed: true,
         },
@@ -251,7 +301,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         {
           business: 'Brightwater Plumbing & Heating',
           what: 'repair visit',
-          when: 'Tuesday, November 17 at 9:00 AM PST',
+          when: slotInZone('2026-11-17T17:00:00Z', 'America/Los_Angeles', locale),
           minutes: 60,
           address: '2140 SE Division St, Portland, OR 97202',
           phone: '+15035550100',

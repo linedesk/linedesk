@@ -18,7 +18,6 @@ import { forgetMember, ownerJoined } from './memberships.ts'
 import { LEAVE_SIGN_IN_AGAIN, leaveNeedsFreshSignIn, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from './owner-step-up.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
-import { deletedWhen } from './workspace-delete-own.ts'
 import { getT } from '@linedesk/i18n/server'
 import { invitationLocale } from './email-locale.ts'
 
@@ -124,12 +123,18 @@ export const ONLY_OWNER_DELETES_ACCOUNTS =
  * Tells someone whose account a removal deleted (team.removeMember, membership.remove), queued in the removal's
  * transaction with the same email as a workspace delete (workspace.deletedEmail, `removed`). `by`: who removed them.
  */
-export async function queueRemovedEmail(tx: Tx, to: string, workspaceId: string, by: string, now: string) {
+export async function queueRemovedEmail(
+  tx: Tx,
+  to: string,
+  workspaceId: string,
+  by: { name: string | null; role: 'serverAdmin' | 'admin' },
+  now: string,
+) {
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
   const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, workspaceId))
   await queueWorkspaceDeletedEmails(tx, [{
-    to, workspace: emailSafeName(ws?.name, 'Your workspace'), by, when: deletedWhen(now, settings?.timezone),
+    to, workspace: emailSafeName(ws?.name, '') || null, by: by.name, byRole: by.role, at: now, timeZone: settings?.timezone ?? null,
     accountDeleted: true, removed: true,
   }])
 }
@@ -153,7 +158,7 @@ export async function cancelSentInvitations(tx: Tx, workspaceId: string, senderI
 /** How a removal email names the member who removed someone: "Name (email)", else the address. */
 async function removerLabel(tx: Tx, actorId: string) {
   const [who] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actorId))
-  if (!who) return 'A workspace admin'
+  if (!who) return null
   const name = emailSafeName(who.name, '')
   return name ? `${name} (${who.email})` : who.email
 }
@@ -309,7 +314,7 @@ export const teamHandlers: Record<string, Handler> = {
     // Their last workspace: the account goes too when the owner asks (workspace-delete.ts), and they are told.
     const accountDeleted = deleteAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
     if (accountDeleted && subject.email)
-      await queueRemovedEmail(tx, subject.email, workspaceId, await removerLabel(tx, actor.actorId), now)
+      await queueRemovedEmail(tx, subject.email, workspaceId, { name: await removerLabel(tx, actor.actorId), role: 'admin' }, now)
     return { rows: { calls: forgotten.calls }, data: { accountDeleted, invitationsCanceled, subject } }
   },
 }

@@ -10,6 +10,7 @@ import { db } from '../src/db.ts'
 import { LEAVE_SAY_ACCOUNT, ONLY_OWNER_DELETES_ACCOUNTS, OWNER_STAYS } from '../src/team.ts'
 import { LEAVE_SIGN_IN_AGAIN, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from '../src/owner-step-up.ts'
 import { setJobQueue, WORKSPACE_DELETED_EMAIL, type WorkspaceDeletedJob } from '../src/jobs.ts'
+import { workspaceDeletedEmail } from '../src/emails/templates.ts'
 import { type Email, emailSender } from '../src/email.ts'
 import { act, addMember, agent, anonymous, appRequest, asServerAdmin, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
 
@@ -700,8 +701,9 @@ describe('deleting accounts (LIN-264)', () => {
       const res = await asServerAdmin(operator, () => act(operator, 'membership.remove', { memberId }))
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
       expect(queued.map(q => q.data)).toEqual([
-        expect.objectContaining({ to: email, accountDeleted: true, removed: true, by: expect.stringMatching(/^The server admin of /) }),
+        expect.objectContaining({ to: email, accountDeleted: true, removed: true, by: null, byRole: 'serverAdmin' }),
       ])
+      expect(workspaceDeletedEmail(queued[0]!.data).text).toMatch(/^The server admin of \S+ removed you from/m)
     })
   })
 

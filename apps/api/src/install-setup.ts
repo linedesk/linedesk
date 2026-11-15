@@ -24,6 +24,8 @@ import { passkeyStillNeeded } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { localeForUserId } from './email-locale.ts'
+import { installTestEmail, TEST_EMAIL_MINUTES } from './emails/alerts.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { followEmailSettings, restartState } from './instance-env.ts'
 import { problemOfError, problemOfResponse } from './provider-errors.ts'
@@ -101,7 +103,7 @@ const tryLimit = createRateLimiter({ max: 20, windowMs: 3_600_000 })
 const emailLimit = createRateLimiter({ max: 5, windowMs: 3_600_000 })
 
 /** The code of the last test email per admin: only its hash, for ten minutes, five tries. */
-const EMAIL_CODE_MS = 10 * 60_000
+const EMAIL_CODE_MS = TEST_EMAIL_MINUTES * 60_000
 /** `sentWith`: the email provider and settings that sent it (a real mail server, not the API log), for the checklist. */
 type SentWith = { provider: ProviderName; config: ProviderConfig } | null
 const emailCodes = new Map<string, { hash: string; expires: number; tries: number; sentWith: SentWith }>()
@@ -315,12 +317,9 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
   // Which settings send it, read before sending (a real mail server only, not the API log).
   const active = emailSender.kind === 'smtp' ? await activeProvider(tx, 'email') : null
+  const locale = await localeForUserId(tx, actorId)
   const sent = await emailSender
-    .send({
-      to: me.email,
-      subject: `${code} is your Linedesk test code`,
-      text: `Your email works.\n\nEnter this code in the setup to finish the test:\n\n    ${code}\n\nIt expires in 10 minutes.`,
-    })
+    .send({ to: me.email, ...installTestEmail(code, undefined, locale) })
     .then(
       () => true,
       (e: unknown) => {

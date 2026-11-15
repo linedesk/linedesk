@@ -10,8 +10,11 @@ import { calls, contacts, member, member_notification_settings, push_subscriptio
 import type { Call } from '@linedesk/db/types'
 import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import webpush from 'web-push'
+import { localeForUser } from '@linedesk/i18n/server'
 import { formatNumber } from './call-notifications.ts'
 import type { Actor } from './context.ts'
+import { assignedPushText, callPushTitle } from './emails/push-text.ts'
+import type { EmailLocale } from './emails/templates.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { publicLookup } from './webhooks.ts'
@@ -107,11 +110,12 @@ export function pushPayload(
   kind: PushKind,
   callerName: string | null,
   withSummary: boolean,
+  locale?: EmailLocale,
 ): PushPayload {
   const who = callerName || formatNumber(call.from_number)
   const urgent = kind === 'urgent' || call.urgency === 'urgent'
   const message = kind === 'message' || call.outcome === 'message'
-  const title = urgent ? `Urgent call from ${who}` : message ? `Message from ${who}` : `New call from ${who}`
+  const title = callPushTitle(urgent ? 'urgent' : message ? 'message' : 'finished', who, locale)
   const lastMessage = message ? call.action_items.at(-1)?.text : undefined
   const about = call.title || lastMessage || call.summary || ''
   return { callId: call.id, kind, urgent, title, body: withSummary && about ? oneLine(about) : '' }
@@ -127,6 +131,8 @@ async function pushRecipients(tx: Tx, workspaceId: string, userId?: string) {
       p256dh: push_subscriptions.p256dh,
       auth: push_subscriptions.auth,
       summary: member_notification_settings.push_summary,
+      locale: user.locale,
+      localeAuto: user.localeAuto,
     })
     .from(push_subscriptions)
     .innerJoin(
@@ -226,7 +232,7 @@ export async function notifyCallPush(
   if (!('id' in call)) return call
   const callerName = await callerNameOf(tx, call)
   const recipients = await pushRecipients(tx, call.workspace_id)
-  return deliver(tx, sender, call, recipients, r => pushPayload(call, kind, callerName, r.summary === true), options)
+  return deliver(tx, sender, call, recipients, r => pushPayload(call, kind, callerName, r.summary === true, localeForUser(r)), options)
 }
 
 /** Tells one member on their browsers that `byName` assigned them the call. */
@@ -242,7 +248,7 @@ export async function notifyAssignedPush(
   if (!('id' in call)) return call
   const callerName = await callerNameOf(tx, call)
   const recipients = await pushRecipients(tx, call.workspace_id, userId)
-  return deliver(tx, sender, call, recipients, r => assignedPushPayload(call, callerName, byName, r.summary === true), options)
+  return deliver(tx, sender, call, recipients, r => assignedPushPayload(call, callerName, byName, r.summary === true, localeForUser(r)), options)
 }
 
 /** "Mike assigned you a call", who called, and with `withSummary` what about. */
@@ -251,16 +257,11 @@ export function assignedPushPayload(
   callerName: string | null,
   byName: string,
   withSummary: boolean,
+  locale?: EmailLocale,
 ): PushPayload {
   const who = callerName || formatNumber(call.from_number)
-  const about = withSummary && call.title ? ` · ${call.title}` : ''
-  return {
-    callId: call.id,
-    kind: 'assigned',
-    urgent: call.urgency === 'urgent',
-    title: `${byName} assigned you a call`,
-    body: oneLine(`From ${who}${about}`),
-  }
+  const { title, body } = assignedPushText(byName, who, withSummary && call.title ? call.title : null, locale)
+  return { callId: call.id, kind: 'assigned', urgent: call.urgency === 'urgent', title, body: oneLine(body) }
 }
 
 /** The caller's push settings in their workspace, for notifications.get. */

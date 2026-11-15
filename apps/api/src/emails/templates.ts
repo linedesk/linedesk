@@ -255,15 +255,39 @@ export function memberAddedByAdminEmail(
   })
 }
 
+/** "November 14, 2026 at 9:05 AM PST" in the reader's language and the workspace's zone (UTC when unknown). */
+export function deletedWhen(at: string, timeZone: string | null | undefined, locale?: EmailLocale): string {
+  const { format } = getT(locale)
+  const options = {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  } as const
+  try {
+    return format.dateTime(new Date(at), { ...options, timeZone: timeZone || 'UTC' })
+  } catch {
+    return format.dateTime(new Date(at), { ...options, timeZone: 'UTC' })
+  }
+}
+
 /**
  * To every other member when a workspace is deleted (workspace.deleteOwn, workspace.delete), and with `removed` to
- * someone whose account a removal deleted. `workspace` and `by` are already email-safe; `when` is formatted in the
- * workspace's time zone. `accountDeleted`: their account went with it (no other workspace).
+ * someone whose account a removal deleted. `workspace` and `by` are already email-safe, null when there is no usable
+ * name (then `byRole` says who in words). `at` and `timeZone`: when, shown in the workspace's zone in the reader's
+ * language. `accountDeleted`: their account went with it (no other workspace). Sent from a job (jobs.ts).
  */
 export type WorkspaceDeletedEmail = {
-  workspace: string
-  by: string
-  when: string
+  workspace: string | null
+  by: string | null
+  /** Who did it when `by` is null: the server admin of the install, the owner, or a workspace admin. */
+  byRole?: 'serverAdmin' | 'owner' | 'admin'
+  at?: string
+  timeZone?: string | null
+  /** Jobs queued by an older release: the time already formatted, in English. */
+  when?: string
   accountDeleted: boolean
   /**
    * They were removed from the workspace, which stays (team.removeMember by the owner, membership.remove; LIN-264).
@@ -273,13 +297,23 @@ export type WorkspaceDeletedEmail = {
 }
 
 export function workspaceDeletedEmail(
-  { workspace, by, when, accountDeleted, removed = false }: WorkspaceDeletedEmail,
+  content: WorkspaceDeletedEmail,
   origin = WEB_ORIGIN,
   locale?: EmailLocale,
 ): RenderedEmail {
+  const { accountDeleted, removed = false } = content
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
   const brand = brandName()
+  const workspace = content.workspace || t('email.fallback.yourWorkspace')
+  const by =
+    content.by ||
+    (content.byRole === 'serverAdmin'
+      ? t('email.workspaceDeleted.byServerAdmin', { site })
+      : content.byRole === 'owner'
+        ? t('email.fallback.owner')
+        : t('email.fallback.workspaceAdmin'))
+  const when = content.at ? deletedWhen(content.at, content.timeZone, locale) : (content.when ?? '')
   return renderEmail({
     locale: lang,
     subject: removed
@@ -321,7 +355,7 @@ export function workspaceDeletedEmail(
 
 /** No code in it: codes expire in 10 minutes, a welcome may be read later. The sign-in page sends one. */
 export function welcomeEmail(
-  { name, email }: { name: string; email: string },
+  { name, email }: { name: string | null; email: string },
   origin = WEB_ORIGIN,
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -332,7 +366,7 @@ export function welcomeEmail(
     locale: lang,
     subject: t('email.welcome.subject', { brand }),
     preheader: t('email.welcome.preheader', { site }),
-    heading: t('email.welcome.heading', { name }),
+    heading: name ? t('email.welcome.heading', { name }) : t('email.welcome.headingNoName'),
     blocks: [
       { kind: 'text', text: t('email.welcome.text', { brand, site }) },
       { kind: 'facts', rows: [[t('email.signInWith'), email]] },
@@ -659,36 +693,6 @@ export function impersonationApiKeyEmail(
       { kind: 'text', tone: 'muted', text: t('email.impersonationApiKey.unexpected') },
     ],
     reason: t('email.impersonationStarted.why', { site }),
-    origin,
-  })
-}
-
-/**
- * An alert to every server admin (admin-alerts.ts). `text` is already plain and link-free; blank lines split
- * paragraphs. The subject and text come from the alert itself (English); the frame is in the recipient's language.
- */
-export function adminAlertEmail(
-  subject: string,
-  text: string,
-  origin = WEB_ORIGIN,
-  locale?: EmailLocale,
-): RenderedEmail {
-  const { t, locale: lang } = getT(locale)
-  const paragraphs = text
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(Boolean)
-  return renderEmail({
-    locale: lang,
-    subject,
-    preheader: paragraphs[0] ?? subject,
-    eyebrow: t('email.adminAlert.eyebrow'),
-    heading: subject,
-    blocks: [
-      ...paragraphs.map(p => ({ kind: 'text', text: p }) as const),
-      { kind: 'button', label: t('email.adminAlert.button'), url: `${origin}/#admin/audit` },
-    ],
-    reason: t('email.adminAlert.reason', { site: siteHost(origin) }),
     origin,
   })
 }

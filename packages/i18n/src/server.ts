@@ -5,6 +5,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import {
   createTranslator,
+  enMessages,
   flatten,
   isUiLocale,
   matchLocale,
@@ -13,6 +14,8 @@ import {
   type Translator,
   type UiLocale,
 } from './index.ts'
+import { type ActiveLocale, PSEUDO_LOCALE } from '../locales.ts'
+import { pseudoMessages } from './pseudo.ts'
 
 const LOCALES_DIR = new URL('../locales/', import.meta.url)
 
@@ -31,15 +34,22 @@ export function readCatalog(locale: string): Record<string, string> {
   return flatten(catalogs)
 }
 
-const translators = new Map<UiLocale, Translator>()
+const translators = new Map<ActiveLocale, Translator>()
 
-/** `{ t, format }` for a UI language; anything else gives English. */
+/**
+ * `{ t, format }` for a UI language, or the pseudo-locale en-XA (tests and email previews: text that shows without
+ * its ⟦ ⟧ is not translated); anything else gives English. No account ever has en-XA (localeForUser takes UI languages
+ * only), so no real email goes out in it.
+ */
 export function getT(locale: string | null | undefined): Translator {
-  const ui = isUiLocale(locale) ? locale : SOURCE
-  let translator = translators.get(ui)
+  const active: ActiveLocale = locale === PSEUDO_LOCALE ? PSEUDO_LOCALE : isUiLocale(locale) ? locale : SOURCE
+  let translator = translators.get(active)
   if (!translator) {
-    translator = createTranslator(ui, ui === SOURCE ? {} : readCatalog(ui))
-    translators.set(ui, translator)
+    translator = createTranslator(
+      active,
+      active === SOURCE ? {} : active === PSEUDO_LOCALE ? pseudoMessages(enMessages) : readCatalog(active),
+    )
+    translators.set(active, translator)
   }
   return translator
 }

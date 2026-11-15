@@ -16,12 +16,17 @@ import {
   refineProblem,
   smtpProblem,
 } from '../src/provider-failures.ts'
+import { adminAlertEmail } from '../src/emails/alerts.ts'
 import { act, agent, createWorkspace } from './helpers.ts'
 
 const alerts = vi.hoisted(() => ({ sent: [] as { subject: string; text: string }[] }))
 vi.mock('../src/admin-alerts.ts', async importOriginal => ({
   ...(await importOriginal<typeof import('../src/admin-alerts.ts')>()),
-  alertInstanceAdmins: async (subject: string, text: string) => void alerts.sent.push({ subject, text }),
+  // The alert as an English-speaking admin reads it.
+  alertInstanceAdmins: async (alert: (locale: string) => { subject: string; blocks: unknown[] }) => {
+    const { subject, blocks } = alert('en')
+    alerts.sent.push({ subject, text: JSON.stringify(blocks) })
+  },
 }))
 
 // Providers no other instance-wide test records failures for.
@@ -105,7 +110,9 @@ describe('record and clear', () => {
     const long = { reason: 'unknown' as const, message: `see https://evil.example/x ${'x'.repeat(400)}` }
     await recordProviderFailure(db, 'mistral', long, 'llm', { diagnose: async () => null })
     expect((await mine())[0]!.message.length).toBeLessThanOrEqual(300)
-    expect(providerFailureEmail('mistral', long).text).not.toContain('https://')
+    const email = adminAlertEmail(providerFailureEmail('mistral', long)('en'))
+    expect(email.text).not.toContain('https://')
+    expect(email.html).not.toContain('https://evil')
   })
 })
 

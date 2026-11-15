@@ -3,6 +3,7 @@ import { changedKeys, humanLocales, usages } from './changed.ts'
 import {
   checkBaselineEmpty,
   checkFormatting,
+  checkMessages,
   checkRatchet,
   checkUsage,
   type Report,
@@ -10,7 +11,7 @@ import {
 } from './check.ts'
 import { type Glossary, hash, lockEntry, planLocale, structureErrors, validateTranslation } from './lib.ts'
 import { updateLock } from './lock.ts'
-import { countHardcoded, findFormatting, findHardcoded, ignoreComments, scanKeys } from './scan.ts'
+import { countHardcoded, findFormatting, findHardcoded, findMessageText, ignoreComments, scanKeys } from './scan.ts'
 import { styleFor } from './translate.ts'
 
 const glossary: Glossary = { neverTranslate: ['Linedesk', 'Maya'], terms: {}, identical: { es: ['common.ok'] } }
@@ -210,6 +211,44 @@ describe('hardcoded ratchet', () => {
         return <p title="Open it">{where}</p>
       }`
     expect(findHardcoded('a.tsx', source).map(hit => hit.text)).toEqual(['Search', 'is deleted.', 'Open it'])
+  })
+  it('finds the English an email or notification gets outside apps/api/src/emails', () => {
+    const source = `
+      export function adminSignInEmail(who: string, at: Date) {
+        return {
+          subject: \`Admin sign-in from a new device: \${who}\`,
+          text: [\`Time: \${at.toISOString()} UTC\`, '', 'If this was them, nothing to do.'].join('\\n'),
+        }
+      }
+      const cap = (workspace: string) => ({ to, subject: \`\${workspace} reached its monthly cap\`, text: body })
+      await sender.send({ to, subject: 'Your test code', text: 'Your email works.' })
+      await alertInstanceAdmins(locale => ({ subject: 'Passkeys reset', blocks: [] }))
+      sendNotice({ to, ...email }, 'passkeys reset email')
+      throw new Reject('the last instance admin cannot be revoked')
+      console.error('admin sign-in alert failed', err)
+      await http.send('reading the test object back', url)
+      const done = { audit: { subject: { email } }, message: 'Shown to the admin as before' }
+    `
+    expect(findMessageText('a.ts', source).map(hit => hit.text)).toEqual([
+      'Admin sign-in from a new device:',
+      'Time: UTC',
+      'If this was them, nothing to do.',
+      'reached its monthly cap',
+      'Your test code',
+      'Your email works.',
+      'Passkeys reset',
+    ])
+  })
+  it('reports message text and formatting in emails as errors, no baseline', () => {
+    const report: Report = { errors: [], warnings: [] }
+    checkMessages(
+      { 'apps/api/src/admin-alerts.ts': [{ line: 3, text: 'Admin sign-in' }] },
+      [{ file: 'apps/api/src/emails/x.ts', line: 9, code: "toLocaleString('en-US')", kind: 'fixed' }],
+      report,
+    )
+    expect(report.errors).toHaveLength(2)
+    expect(report.errors[0]).toContain('apps/api/src/admin-alerts.ts:3: "Admin sign-in"')
+    expect(report.errors[1]).toContain('apps/api/src/emails/x.ts:9')
   })
   it('fails a file above its baseline, new files start at 0, reports lowered ones', () => {
     const report: Report = { errors: [], warnings: [] }

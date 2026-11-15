@@ -8,41 +8,28 @@ import { eq } from 'drizzle-orm'
 import { type DeviceCookieJar, knownDevice, knownDeviceWith } from './admin-devices.ts'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { signInMethod } from './audit.ts'
-import { brandName } from './branding.ts'
 import { db } from './db.ts'
 import { type EmailSender, emailSender, sendNotice } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
-import { adminAlertEmail } from './emails/templates.ts'
+import { type AdminAlertText, adminAlertEmail, adminSignInAlert, type BrowserGuess } from './emails/alerts.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
 import { takeSetupSignIn } from './setup.ts'
 
 /**
- * Emails every enabled instance admin. Resolves once the list and their languages are read; the sends run on their own. Without email set
- * up: skipped with one log line (no stack, nothing to retry).
+ * Emails every enabled instance admin, each in their own language: `alert` builds the alert's text for one language
+ * (emails/alerts.ts). Resolves once the list and their languages are read; the sends run on their own. Without email
+ * set up: skipped with one log line (no stack, nothing to retry).
  */
-export async function alertInstanceAdmins(subject: string, text: string, sender: EmailSender = emailSender) {
+export async function alertInstanceAdmins(alert: AdminAlertText, sender: EmailSender = emailSender) {
   if (sender.kind === 'none') {
-    console.log(`Admin alert not sent (email is not set up): ${subject}`)
+    console.log(`Admin alert not sent (email is not set up): ${alert(SOURCE).subject}`)
     return
   }
-  // The frame in each admin's language; the alert itself (subject and text) stays English.
   const admins = await instanceAdminEmails()
   const locales = await Promise.all(admins.map(to => localeForEmail(db, to).catch(() => SOURCE)))
   admins.forEach((to, i) =>
-    sendNotice({ to, ...adminAlertEmail(subject, text, undefined, locales[i]) }, 'admin alert email', sender),
+    sendNotice({ to, ...adminAlertEmail(alert(locales[i]), undefined, locales[i]) }, 'admin alert email', sender),
   )
-}
-
-const methodNames: Record<string, string> = {
-  password: 'a password',
-  email_code: 'an email code',
-  email_link: 'an email link',
-  passkey: 'a passkey',
-  authenticator: 'their authenticator app',
-  google: 'Google',
-  microsoft: 'Microsoft',
-  github: 'GitHub',
-  other: 'a sign-in method this server does not recognise',
 }
 
 type SignIn = {
@@ -56,21 +43,25 @@ type SignIn = {
 
 /**
  * Text from the request (the browser's User-Agent, a provider id) goes into an email: no links that
- * could be clicked, nothing long. URLs become "[link]"; at most 120 characters.
+ * could be clicked, nothing long. URLs become "[link]"; at most 120 characters; '' when there is none.
  */
 export function plainSnippet(text: string | null | undefined, max = 120): string {
-  if (!text) return 'unknown'
+  if (!text) return ''
   const plain = text
     .replace(/\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi, '[link]')
     .replace(/\s+/g, ' ')
     .trim()
-  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain || 'unknown'
+  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain
 }
 
-/** "Chrome on macOS" from a User-Agent; null when neither is recognised. Approximate: the header is the browser's say. */
-export function browserOf(userAgent: string | null | undefined): string | null {
+/**
+ * The browser and system named in a User-Agent (brand names, never translated); null when neither is recognised.
+ * Approximate: the header is the browser's say. The email says "Chrome on macOS" in the reader's language.
+ */
+export function browserOf(userAgent: string | null | undefined): BrowserGuess | null {
   if (!userAgent) return null
   const ua = userAgent
+  // i18n-ignore: brand names of browsers and systems, never translated
   const browser = /Edg(?:e|A|iOS)?\//.test(ua)
     ? 'Edge'
     : /OPR\/|Opera/.test(ua)
@@ -82,6 +73,7 @@ export function browserOf(userAgent: string | null | undefined): string | null {
           : /Safari\//.test(ua)
             ? 'Safari'
             : null
+  // i18n-ignore: brand names of browsers and systems, never translated
   const os = /iPhone|iPad|iPod/.test(ua)
     ? 'iOS'
     : /Android/.test(ua)
@@ -95,31 +87,19 @@ export function browserOf(userAgent: string | null | undefined): string | null {
             : /Linux/.test(ua)
               ? 'Linux'
               : null
-  if (browser && os) return `${browser} on ${os}`
-  return browser ?? (os ? `a browser on ${os}` : null)
+  return browser || os ? { browser, os } : null
 }
 
-/** The email about an admin's passkey check (or, with the rule off, sign-in) from a new device; exported for tests. */
-export function adminSignInEmail(who: string, method: string, s: SignIn, at = new Date()) {
-  const how = methodNames[method] ?? plainSnippet(method, 40)
-  const what =
-    method === 'passkey'
-      ? `${who}, a server admin, confirmed with their passkey from a device not seen before for them.`
-      : method === 'authenticator'
-        ? `${who}, a server admin, confirmed with their authenticator app from a device not seen before for them.`
-        : `${who}, a server admin, signed in with ${how} from a device not seen before for them.`
-  return {
-    subject: `Admin sign-in from a new device on ${brandName()}: ${who}`,
-    text: [
-      what,
-      '',
-      `Time: ${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
-      `Browser: ${browserOf(s.userAgent) ?? plainSnippet(s.userAgent)}`,
-      `Address: ${plainSnippet(s.ipAddress, 64)}`,
-      '',
-      'If this was them, nothing to do. If not, someone has their passkey, authenticator app or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.',
-    ].join('\n'),
-  }
+/** The alert about an admin's passkey check (or, with the rule off, sign-in) from a new device; exported for tests. */
+export function adminSignInEmail(who: string, method: string, s: SignIn, at = new Date()): AdminAlertText {
+  return adminSignInAlert({
+    who,
+    method: plainSnippet(method, 40),
+    browser: browserOf(s.userAgent),
+    userAgent: plainSnippet(s.userAgent),
+    address: plainSnippet(s.ipAddress, 64),
+    at,
+  })
 }
 
 /** Whether this instance is opened on localhost (PUBLIC_URL, else WEB_ORIGIN): local development. */
@@ -160,8 +140,7 @@ export async function alertOnAdminSignIn(created: SignIn, ctx: unknown) {
       return false
     })
     if (known || setupSignIn) return
-    const { subject, text } = adminSignInEmail(account.email, method, created)
-    await alertInstanceAdmins(subject, text)
+    await alertInstanceAdmins(adminSignInEmail(account.email, method, created))
   } catch (err) {
     console.error('admin sign-in alert failed', err)
   }
@@ -185,8 +164,7 @@ export async function alertOnAuthenticatorCheck(
       return false
     })
     if (known) return
-    const { subject, text } = adminSignInEmail(account.email, 'authenticator', { userId: account.id, ...request })
-    await alertInstanceAdmins(subject, text)
+    await alertInstanceAdmins(adminSignInEmail(account.email, 'authenticator', { userId: account.id, ...request }))
   } catch (err) {
     console.error('admin authenticator alert failed', err)
   }

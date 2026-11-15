@@ -8,7 +8,9 @@ import { and, eq, gte, isNull, notInArray, sql } from 'drizzle-orm'
 import { costEstimate } from './admin-overview.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import type { Email, EmailSender } from './email.ts'
-import { emailSafeName } from './emails/templates.ts'
+import { localeForEmail } from './email-locale.ts'
+import { spendingCapEmail } from './emails/alerts.ts'
+import { type EmailLocale, emailSafeName } from './emails/templates.ts'
 import { instanceAdminEmails } from './instance-admin.ts'
 import { queueSpendingCapAlert } from './jobs.ts'
 
@@ -61,23 +63,15 @@ export async function queueSpendingAlerts(tx: Tx, workspaceId: string, now: stri
   }
 }
 
-const usd = (value: number) => `$${value.toFixed(2)}`
-
-/** The email at one level, the same for owners and instance admins. */
-export function spendingAlertEmail(workspace: string, level: number, cap: SpendingCap, to: string): Email {
-  const change = `A server admin can change the cap in Server admin › Workspaces › ${workspace} (${WEB_ORIGIN}).`
-  if (level >= 100) {
-    return {
-      to,
-      subject: `${workspace} reached its monthly spending cap`,
-      text: `${workspace} reached its monthly spending cap of ${usd(cap.capUsd)} (estimated cost this month: about ${usd(cap.spentUsd)}).\n\nUntil the end of the month (UTC) the assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with "Call back". Test calls are off too.\n\n${change}`,
-    }
-  }
-  return {
-    to,
-    subject: `${workspace} used ${level}% of its monthly spending cap`,
-    text: `${workspace} used about ${usd(cap.spentUsd)} of its monthly spending cap of ${usd(cap.capUsd)} (${level}%, estimated).\n\nWhen it reaches the cap, the assistant stops answering calls until the end of the month (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.\n\n${change}`,
-  }
+/** The email at one level, the same for owners and instance admins, in the recipient's language. */
+export function spendingAlertEmail(
+  workspace: string | null,
+  level: number,
+  cap: SpendingCap,
+  to: string,
+  locale?: EmailLocale,
+): Email {
+  return { to, ...spendingCapEmail({ workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd }, WEB_ORIGIN, locale) }
 }
 
 /** Sends one alert to the workspace's owners and the instance admins, each address once. Run by a job. */
@@ -96,7 +90,8 @@ export async function sendSpendingAlert(tx: Tx, sender: EmailSender, { workspace
   let failed = 0
   for (const to of addresses) {
     try {
-      await sender.send(spendingAlertEmail(emailSafeName(workspace.name, 'Your workspace'), level, cap, to))
+      const locale = await localeForEmail(tx, to)
+      await sender.send(spendingAlertEmail(emailSafeName(workspace.name, '') || null, level, cap, to, locale))
       sent++
     } catch (e) {
       failed++

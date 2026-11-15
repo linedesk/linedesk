@@ -15,7 +15,6 @@ import {
   type ProviderName,
   isPerCallProviderError,
   passingProviderFailure,
-  providerFailureReasonLabels,
   providerNames,
   providerSpec,
   providersIn,
@@ -23,10 +22,10 @@ import {
 import { provider_failures, type Tx } from '@linedesk/db'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { alertInstanceAdmins, plainSnippet } from './admin-alerts.ts'
-import { brandName } from './branding.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { onEmailResult } from './email.ts'
+import { type AdminAlertText, providerFailureAlert } from './emails/alerts.ts'
 import type { Handler } from './handler-context.ts'
 import type { ProviderProblem } from './provider-errors.ts'
 import { activeProvider, resolveProvider } from './provider-settings.ts'
@@ -40,19 +39,13 @@ const clip = (text: string) =>
 const alerts = (provider: ProviderName, source: ProviderFailureSource) =>
   source !== 'test' && providerSpec(provider).category !== 'email'
 
-/** The email about a provider that started failing; exported for tests. */
-export function providerFailureEmail(provider: ProviderName, problem: ProviderProblem) {
-  const { label } = providerSpec(provider)
-  return {
-    subject: `${label} is failing on ${brandName()}: ${providerFailureReasonLabels[problem.reason].toLowerCase()}`,
-    text: [
-      `${label} started failing. ${plainSnippet(problem.message, PROVIDER_FAILURE_MESSAGE_MAX)}`,
-      '',
-      'Calls or emails that need it may not work until it is fixed. Server admin › Providers shows the latest failure; a successful test or call clears it.',
-      '',
-      'You get this email once per failure, not for every call.',
-    ].join('\n'),
-  }
+/** The alert about a provider that started failing; exported for tests. */
+export function providerFailureEmail(provider: ProviderName, problem: ProviderProblem): AdminAlertText {
+  return providerFailureAlert(
+    providerSpec(provider).label,
+    problem.reason,
+    plainSnippet(problem.message, PROVIDER_FAILURE_MESSAGE_MAX),
+  )
 }
 
 /** Who reads a provider failure in the app: an instance admin can fix it under Server admin › Providers. */
@@ -145,8 +138,7 @@ export async function recordProviderFailure(
     .where(and(eq(provider_failures.provider, provider), isNull(provider_failures.alerted_at)))
     .returning({ provider: provider_failures.provider })
   if (!claimed.length) return { ...stored, alerted: false }
-  const { subject, text } = providerFailureEmail(provider, stored)
-  await alertInstanceAdmins(subject, text)
+  await alertInstanceAdmins(providerFailureEmail(provider, stored))
   return { ...stored, alerted: true }
 }
 

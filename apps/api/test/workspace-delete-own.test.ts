@@ -8,7 +8,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { setJobQueue, WORKSPACE_DELETED_EMAIL, type WorkspaceDeletedJob } from '../src/jobs.ts'
-import { deletedWhen } from '../src/workspace-delete-own.ts'
+import { deletedWhen, workspaceDeletedEmail } from '../src/emails/templates.ts'
 import { act, addMember, agent, createWorkspace, request, type User } from './helpers.ts'
 
 const queued: { name: string; data: WorkspaceDeletedJob }[] = []
@@ -224,7 +224,8 @@ describe('deleting', () => {
     expect(byAddress[operatorEmail]).toMatchObject({ accountDeleted: false })
     // "Test User" is the fixture's name; the address says which one.
     expect(byAddress[onlyHereEmail]!.by).toBe(`Test User (${ownerEmail})`)
-    expect(byAddress[onlyHereEmail]!.when).toMatch(/\d{4} at \d{1,2}:\d{2} (AM|PM) /)
+    expect(byAddress[onlyHereEmail]!.at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(workspaceDeletedEmail(byAddress[onlyHereEmail]!).text).toMatch(/\d{4} at \d{1,2}:\d{2}\s(AM|PM) /)
 
     // In the audit log, as the owner's.
     const [logged] = await db
@@ -286,8 +287,10 @@ describe('deleting', () => {
   })
 })
 
-test('the time in the email is in the workspace time zone, UTC when unknown', () => {
-  expect(deletedWhen('2026-11-14T17:05:00Z', 'America/Los_Angeles')).toBe('November 14, 2026 at 9:05 AM PST')
-  expect(deletedWhen('2026-11-14T17:05:00Z', 'Not/AZone')).toBe('November 14, 2026 at 5:05 PM UTC')
-  expect(deletedWhen('2026-11-14T17:05:00Z', null)).toBe('November 14, 2026 at 5:05 PM UTC')
+test('the time in the email is in the workspace time zone, UTC when unknown, in the reader language', () => {
+  const plain = (text: string) => text.replace(/\s/g, ' ')
+  expect(plain(deletedWhen('2026-11-14T17:05:00Z', 'America/Los_Angeles'))).toBe('November 14, 2026 at 9:05 AM PST')
+  expect(plain(deletedWhen('2026-11-14T17:05:00Z', 'Not/AZone'))).toBe('November 14, 2026 at 5:05 PM UTC')
+  expect(plain(deletedWhen('2026-11-14T17:05:00Z', null))).toBe('November 14, 2026 at 5:05 PM UTC')
+  expect(deletedWhen('2026-11-14T17:05:00Z', 'Europe/Berlin', 'de')).toMatch(/^14\. November 2026 um 18:05 MEZ$/)
 })

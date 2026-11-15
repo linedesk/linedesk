@@ -19,6 +19,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import type { Email, EmailSender } from '../src/email.ts'
 import { setJobQueue, WORKSPACE_DELETED_EMAIL, type WorkspaceDeletedJob } from '../src/jobs.ts'
+import { workspaceDeletedEmail } from '../src/emails/templates.ts'
 import { joinOnSignIn } from '../src/memberships.ts'
 import { sendSetupEmailFor } from '../src/setup-emails.ts'
 import {
@@ -238,8 +239,10 @@ describe("a server admin's workspace.delete", () => {
     expect(byAddress[ownerEmail]).toMatchObject({ workspace: 'Summit Roofing Co', accountDeleted: true })
     expect(byAddress[onlyHereEmail]).toMatchObject({ accountDeleted: true })
     expect(byAddress[elsewhereEmail]).toMatchObject({ accountDeleted: false })
-    expect(byAddress[onlyHereEmail]!.by).toBe('The server admin of localhost:5173')
-    expect(byAddress[onlyHereEmail]!.when).toMatch(/\d{4} at \d{1,2}:\d{2} (AM|PM) /)
+    expect(byAddress[onlyHereEmail]).toMatchObject({ by: null, byRole: 'serverAdmin' })
+    const email = workspaceDeletedEmail(byAddress[onlyHereEmail]!)
+    expect(email.text).toContain('The server admin of localhost:5173 deleted the workspace')
+    expect(email.text).toMatch(/\d{4} at \d{1,2}:\d{2}\s(AM|PM) /)
   })
 
   test('a refused delete (wrong name) queues nothing', async () => {

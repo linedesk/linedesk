@@ -273,17 +273,18 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert",
-    "Admin sign-in to Linedesk: ann@brightwater.example",
+    "Admin sign-in from a new device on Linedesk: ann@brightwater.example",
     "Admin alert
 
-Admin sign-in to Linedesk: ann@brightwater.example
+Admin sign-in from a new device on Linedesk: ann@brightwater.example
 
-ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.
+ann@brightwater.example, a server admin, confirmed with their passkey from a device not seen before for them.
 
+Time: Nov 14, 2026, 5:05 PM UTC
+Browser: Chrome on macOS
 Address: 203.0.113.9
-Browser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
 
-If this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.
+If this was them, nothing to do. If not, someone has their passkey, authenticator app or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.
 
 Open the audit log:
 https://desk.example.com/#admin/audit
@@ -291,6 +292,112 @@ https://desk.example.com/#admin/audit
 --
 
 You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-provider-failure",
+    "ElevenLabs is failing on Linedesk: quota or credit used up",
+    "Admin alert
+
+ElevenLabs is failing on Linedesk: quota or credit used up
+
+ElevenLabs started failing.
+
+Last error: quota_exceeded: This request exceeds your quota of 10000.
+
+Calls or emails that need it may not work until it is fixed. Server admin › Providers shows the latest failure; a successful test or call clears it.
+
+You get this email once per failure, not for every call.
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-settings-agent",
+    "Email now sent with Resend by an AI agent",
+    "Admin alert
+
+Email now sent with Resend by an AI agent
+
+ann@brightwater.example switched email to Resend through the AI agent setup link lds_7Qp2…, made Nov 14, 2026, 4:40 PM UTC. They decide how people sign in or get sign-in codes.
+
+If you did not expect this, sign in with your passkey and check Server admin › Providers and Audit log.
+
+That admin ends the link with End access on the setup page; disabling the admin ends it too.
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-80",
+    "Brightwater Plumbing & Heating used 80% of its monthly spending cap",
+    "Spending cap
+
+Brightwater Plumbing & Heating used 80% of its monthly spending cap
+
+Brightwater Plumbing & Heating used about $40.20 of its monthly spending cap of $50.00 (80%, estimated).
+
+When it reaches the cap, the assistant stops answering calls until the end of the month (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.
+
+A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100",
+    "Brightwater Plumbing & Heating reached its monthly spending cap",
+    "CAP REACHED · Spending cap
+
+Brightwater Plumbing & Heating reached its monthly spending cap
+
+Brightwater Plumbing & Heating reached its monthly spending cap of $50.00 (estimated cost this month: about $50.35).
+
+Until the end of the month (UTC) the assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with “Call back”. Test calls are off too.
+
+A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "install-test",
+    "204816 is your Linedesk test code",
+    "Your email works
+
+Enter this code in the setup to finish the test:
+
+    204816
+
+It expires in 10 minutes.
+
+--
+
+You got this email because you tested email in the Linedesk setup at desk.example.com.
 
 Linedesk · desk.example.com
 ",
@@ -642,7 +749,7 @@ Próximos pasos
 
 Reservada
 Qué: Emergency repair
-Cuándo: Tuesday, November 10 at 1:00 PM PST
+Cuándo: martes, 10 de noviembre, 13:00 GMT-8
 
 Abrir la llamada:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
@@ -895,17 +1002,18 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert",
-    "Admin sign-in to Linedesk: ann@brightwater.example",
+    "Admin sign-in from a new device on Linedesk: ann@brightwater.example",
     "Alerta de administración
 
-Admin sign-in to Linedesk: ann@brightwater.example
+Admin sign-in from a new device on Linedesk: ann@brightwater.example
 
-ann@brightwater.example, an instance admin, signed in with a password from a device or address not seen before.
+ann@brightwater.example, a server admin, confirmed with their passkey from a device not seen before for them.
 
+Time: 14 nov 2026, 17:05 UTC
+Browser: Chrome on macOS
 Address: 203.0.113.9
-Browser: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
 
-If this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.
+If this was them, nothing to do. If not, someone has their passkey, authenticator app or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.
 
 Abrir el registro de auditoría:
 https://desk.example.com/#admin/audit
@@ -913,6 +1021,112 @@ https://desk.example.com/#admin/audit
 --
 
 Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-provider-failure",
+    "ElevenLabs is failing on Linedesk: quota or credit used up",
+    "Alerta de administración
+
+ElevenLabs is failing on Linedesk: quota or credit used up
+
+ElevenLabs started failing.
+
+Last error: quota_exceeded: This request exceeds your quota of 10000.
+
+Calls or emails that need it may not work until it is fixed. Server admin › Providers shows the latest failure; a successful test or call clears it.
+
+You get this email once per failure, not for every call.
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-settings-agent",
+    "Email now sent with Resend by an AI agent",
+    "Alerta de administración
+
+Email now sent with Resend by an AI agent
+
+ann@brightwater.example switched email to Resend through the AI agent setup link lds_7Qp2…, made 14 nov 2026, 16:40 UTC. They decide how people sign in or get sign-in codes.
+
+If you did not expect this, sign in with your passkey and check Server admin › Providers and Audit log.
+
+That admin ends the link with End access on the setup page; disabling the admin ends it too.
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-80",
+    "Brightwater Plumbing & Heating used 80 % of its monthly spending cap",
+    "Spending cap
+
+Brightwater Plumbing & Heating used 80 % of its monthly spending cap
+
+Brightwater Plumbing & Heating used about 40,20 US$ of its monthly spending cap of 50,00 US$ (80 %, estimated).
+
+When it reaches the cap, the assistant stops answering calls until the end of the month (UTC): callers hear that the business will call them back, and each call shows up in the inbox as a missed call to return.
+
+A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "spending-cap-100",
+    "Brightwater Plumbing & Heating reached its monthly spending cap",
+    "CAP REACHED · Spending cap
+
+Brightwater Plumbing & Heating reached its monthly spending cap
+
+Brightwater Plumbing & Heating reached its monthly spending cap of 50,00 US$ (estimated cost this month: about 50,35 US$).
+
+Until the end of the month (UTC) the assistant no longer answers calls: callers hear that the business will call them back, and each call shows up in the inbox as a missed call with “Call back”. Test calls are off too.
+
+A server admin can change the cap in Server admin › Workspaces › Brightwater Plumbing & Heating.
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating or are a server admin of desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "install-test",
+    "204816 is your Linedesk test code",
+    "Your email works
+
+Enter this code in the setup to finish the test:
+
+    204816
+
+It expires in 10 minutes.
+
+--
+
+You got this email because you tested email in the Linedesk setup at desk.example.com.
 
 Linedesk · desk.example.com
 ",
@@ -1187,7 +1401,7 @@ Linedesk · desk.example.com
 
 Se eliminó Brightwater Plumbing & Heating
 
-Mike Brennan eliminó el espacio de trabajo Brightwater Plumbing & Heating el November 14, 2026 at 9:05 AM PST. Sus llamadas, contactos, grabaciones y configuración ya no existen, y nadie puede volver a abrirlo.
+Mike Brennan eliminó el espacio de trabajo Brightwater Plumbing & Heating el 14 de noviembre de 2026, 9:05 GMT-8. Sus llamadas, contactos, grabaciones y configuración ya no existen, y nadie puede volver a abrirlo.
 
 Tu cuenta de Linedesk en desk.example.com se eliminó junto con él, porque no pertenecías a ningún otro espacio de trabajo. Ya no puedes iniciar sesión allí.
 
@@ -1207,7 +1421,7 @@ Linedesk · desk.example.com
 
 Te quitaron de Brightwater Plumbing & Heating
 
-Mike Brennan (mike@brightwater.example) te quitó del espacio de trabajo Brightwater Plumbing & Heating el November 14, 2026 at 9:05 AM PST. Ya no tienes acceso a sus llamadas, contactos ni configuración.
+Mike Brennan (mike@brightwater.example) te quitó del espacio de trabajo Brightwater Plumbing & Heating el 14 de noviembre de 2026, 9:05 GMT-8. Ya no tienes acceso a sus llamadas, contactos ni configuración.
 
 Tu cuenta de Linedesk en desk.example.com también se eliminó, porque no pertenecías a ningún otro espacio de trabajo. Ya no puedes iniciar sesión allí.
 
@@ -1222,13 +1436,13 @@ Linedesk · desk.example.com
   ],
   [
     "booking-confirmation",
-    "Confirmada: tu repair visit con Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
+    "Confirmada: tu repair visit con Brightwater Plumbing & Heating, martes, 17 de noviembre, 9:00 GMT-8",
     "Reserva confirmada
 
 repair visit: tu reserva está lista
 
 Brightwater Plumbing & Heating
-Cuándo: Tuesday, November 17 at 9:00 AM PST
+Cuándo: martes, 17 de noviembre, 9:00 GMT-8
 Duración: 60 minutos
 Dónde: 2140 SE Division St, Portland, OR 97202
 

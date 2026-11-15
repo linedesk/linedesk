@@ -44,7 +44,8 @@ import { markSetupSignIn } from '../src/setup.ts'
 import { deviceCookie, deviceHash, pruneOldAdminDevices } from '../src/admin-devices.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
 import { forgetTests } from '../src/setup-checklist.ts'
-import { decodeLogo, resetBranding } from '../src/branding.ts'
+import { brandName, decodeLogo, resetBranding } from '../src/branding.ts'
+import { adminAlertEmail, passkeysResetAlert } from '../src/emails/alerts.ts'
 import { signInCodeEmail } from '../src/emails/templates.ts'
 import {
   adminSecondFactorGap,
@@ -3661,7 +3662,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       expect(alerts[0]!.text).toMatch(/confirmed with their passkey from a device not seen before/)
       expect(alerts[0]!.text).toContain('Browser: Chrome on macOS')
       expect(alerts[0]!.text).toContain('Address: 203.0.113.7')
-      expect(alerts[0]!.text).toMatch(/Time: \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/)
+      expect(alerts[0]!.text).toMatch(/Time: \w{3} \d{1,2}, \d{4}, \d{1,2}:\d{2}\s(AM|PM) UTC/)
       expect(alerts[0]!.text).toMatch(/disable the account and reset its passkeys/)
       // Only the token's hash is stored; the browser keeps the token.
       const token = [...laptop.jar.values()][0]!
@@ -3912,23 +3913,35 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
 
     test('F4: the alert carries no links and no long browser strings', () => {
       const ua = `Mozilla/5.0 (evil) visit https://phish.example/reset?x=1 or www.phish.example now ${'A'.repeat(300)}`
-      const { text } = adminSignInEmail('ann@linedesk.test', 'password', {
+      const signIn = adminSignInEmail('ann@linedesk.test', 'password', {
         userId: 'u',
         ipAddress: '203.0.113.9',
         userAgent: ua,
       })
-      expect(text).not.toMatch(/https?:|www\./)
+      const { text, html } = adminAlertEmail(signIn('en'), 'https://desk.example.com')
+      // The one link is the alert's own button to the install's audit log.
+      expect(text.replace('https://desk.example.com/#admin/audit', '')).not.toMatch(/https?:|www\./)
+      expect(html).not.toMatch(/https?:\/\/phish|www\.phish/)
       expect(text).toContain('[link]')
-      const browserLine = text.split('\n').find(line => line.startsWith('Browser: '))!
+      const browserLine = text.split('\n').find((line: string) => line.startsWith('Browser: '))!
       expect(browserLine.length).toBeLessThanOrEqual('Browser: '.length + 120)
-      expect(plainSnippet(null)).toBe('unknown')
-      expect(browserOf('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1')).toBe(
-        'Safari on iOS',
+      expect(plainSnippet(null)).toBe('')
+      expect(adminAlertEmail(adminSignInEmail('ann@linedesk.test', 'password', { userId: 'u' })('en')).text).toContain(
+        'Browser: Unknown\nAddress: Unknown',
       )
-      expect(browserOf('Mozilla/5.0 (Windows NT 10.0) Chrome/131.0 Safari/537.36 Edg/131.0')).toBe('Edge on Windows')
-      expect(browserOf('Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0')).toBe(
-        'Firefox on Linux',
+      const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1'
+      expect(browserOf(iphone)).toEqual({ browser: 'Safari', os: 'iOS' })
+      expect(adminAlertEmail(adminSignInEmail('a@b.test', 'passkey', { userId: 'u', userAgent: iphone })('en')).text).toContain(
+        'Browser: Safari on iOS',
       )
+      expect(browserOf('Mozilla/5.0 (Windows NT 10.0) Chrome/131.0 Safari/537.36 Edg/131.0')).toEqual({
+        browser: 'Edge',
+        os: 'Windows',
+      })
+      expect(browserOf('Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0')).toEqual({
+        browser: 'Firefox',
+        os: 'Linux',
+      })
       expect(browserOf('curl/8.0')).toBeNull()
     })
 
@@ -4911,13 +4924,13 @@ describe('alerts without email set up (the CLI on a fresh install)', () => {
     const sender = noEmail()
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await alertInstanceAdmins('Passkeys reset on Linedesk: ann@example.com', 'text', sender)
+    await alertInstanceAdmins(passkeysResetAlert({ operator: true }, 'ann@example.com', 1, false), sender)
     sendNotice({ to: 'ann@example.com', subject: 's', text: 't' }, 'passkeys reset email', sender)
     await new Promise(resolve => setTimeout(resolve, 10))
     expect(sender.send).not.toHaveBeenCalled()
     expect(error).not.toHaveBeenCalled()
     expect(log.mock.calls).toEqual([
-      ['Admin alert not sent (email is not set up): Passkeys reset on Linedesk: ann@example.com'],
+      [`Admin alert not sent (email is not set up): Passkeys reset on ${brandName()}: ann@example.com`],
       ['passkeys reset email not sent: email is not set up (Server admin › Providers › Email).'],
     ])
   })
@@ -4929,8 +4942,8 @@ describe('alerts without email set up (the CLI on a fresh install)', () => {
       send: async e => void sent.push(e),
       check: async () => ({ ok: true, message: '' }),
     }
-    await alertInstanceAdmins('Subject', 'text', sender)
+    await alertInstanceAdmins(locale => ({ subject: `Subject ${locale}`, blocks: [] }), sender)
     await vi.waitFor(() => expect(sent.length).toBeGreaterThan(0))
-    expect(sent.every(e => e.subject === 'Subject')).toBe(true)
+    expect(sent.every(e => e.subject === 'Subject en')).toBe(true)
   })
 })

@@ -11,6 +11,9 @@
  *   `hardcoded-baseline.json` says (empty: none has any).
  * - Formatting: no `Intl` formatter or `toLocale…String()` in the web app without the app's locale (an error), or with
  *   a locale written in the code (a warning).
+ * - Emails and notifications: no hardcoded English in apps/api/src/emails (where every email and push notification is
+ *   written) and none handed to a sender or set as an email's subject anywhere on the server (MESSAGE_ROOTS,
+ *   findMessageText); no formatting there without the reader's locale.
  * - Server-side text: user-visible English in packages/actions and apps/api, counted and reported, not yet checked
  *   (`--server-text` lists it).
  */
@@ -42,6 +45,8 @@ import {
   ignoreComments,
   KEY_ROOTS,
   type KeyScan,
+  MESSAGE_ROOTS,
+  messageTextIn,
   RATCHET_ROOT,
   SERVER_TEXT_ROOTS,
   scanKeys,
@@ -207,6 +212,21 @@ export function serverTextSummary(hits: Record<string, Hardcoded[]>, list: boole
   return lines.join('\n')
 }
 
+/** Emails and notifications: no hardcoded English at all (no baseline), no formatting outside the reader's locale. */
+export function checkMessages(hits: Record<string, Hardcoded[]>, formatting: FormattingUse[], report: Report) {
+  for (const [file, fileHits] of Object.entries(hits))
+    report.errors.push(
+      `${file}: ${fileHits.length} hardcoded strings in emails or notifications. Add each to ` +
+        'packages/i18n/locales/en/email.json and render it with getT(locale).t() in apps/api/src/emails, in the ' +
+        'recipient\'s language (docs/translations.md, "Emails and notifications")' +
+        fileHits.map(hit => `\n    ${file}:${hit.line}: ${JSON.stringify(hit.text)}`).join(''),
+    )
+  for (const use of formatting)
+    report.errors.push(
+      `${use.file}:${use.line}: an email formats ${use.kind === 'browser' ? "in the server's language" : 'with a locale written in the code'} (${use.code}). Use getT(locale).format, in the reader's language`,
+    )
+}
+
 export const ratchetIgnore = (glossary: Glossary) => new Set(glossary.neverTranslate ?? [])
 
 function main() {
@@ -246,8 +266,19 @@ function main() {
       )
   }
 
+  const messageFiles = MESSAGE_ROOTS.flatMap(root => sourceFiles(root))
+  checkMessages(
+    messageTextIn(ignore),
+    messageFiles.flatMap(file => findFormatting(file, readFileSync(`${REPO_DIR}${file}`, 'utf8'))),
+    report,
+  )
+  const messageIgnores = messageFiles.reduce(
+    (sum, file) => sum + ignoreComments(readFileSync(`${REPO_DIR}${file}`, 'utf8')),
+    0,
+  )
+
   console.log(serverTextSummary(hardcodedIn(SERVER_TEXT_ROOTS, ignore), args.has('--server-text')))
-  console.log(`// i18n-ignore comments in the web app: ${ignores}`)
+  console.log(`// i18n-ignore comments in the web app: ${ignores}, in emails and notifications: ${messageIgnores}`)
 
   for (const warning of report.warnings) console.warn(`warning: ${warning}`)
   for (const error of report.errors) console.error(`error: ${error}`)

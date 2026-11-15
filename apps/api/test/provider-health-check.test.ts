@@ -20,7 +20,11 @@ import { setupChecklist } from '../src/setup-checklist.ts'
 const alerts = vi.hoisted(() => ({ sent: [] as { subject: string; text: string }[] }))
 vi.mock('../src/admin-alerts.ts', async importOriginal => ({
   ...(await importOriginal<typeof import('../src/admin-alerts.ts')>()),
-  alertInstanceAdmins: async (subject: string, text: string) => void alerts.sent.push({ subject, text }),
+  // The alert as an English-speaking admin reads it.
+  alertInstanceAdmins: async (alert: (locale: string) => { subject: string; blocks: unknown[] }) => {
+    const { subject, blocks } = alert('en')
+    alerts.sent.push({ subject, text: JSON.stringify(blocks) })
+  },
 }))
 
 const KEY = 'KEY-made-up-health-0123456789'

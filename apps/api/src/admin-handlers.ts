@@ -19,12 +19,21 @@ import {
 } from '@linedesk/db'
 import { emailDelivery } from './auth-methods.ts'
 import { createEmailSender, type EmailSender, emailSender, emailSettingsOf, sendNotice } from './email.ts'
-import { emailSafeName, passkeyEnrolmentIssuedEmail, WEB_ORIGIN, welcomeEmail } from './emails/templates.ts'
-import { siteHost } from './emails/layout.ts'
+import { emailSafeName, passkeyEnrolmentIssuedEmail, welcomeEmail } from './emails/templates.ts'
 import { db } from './db.ts'
 import { and, eq, ne, or, sql } from 'drizzle-orm'
 import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
+import { SOURCE } from '@linedesk/i18n'
 import { alertInstanceAdmins } from './admin-alerts.ts'
+import {
+  type AlertActor,
+  actorLabel,
+  adminGrantedAlert,
+  enrolmentIssuedAlert,
+  passkeysResetAlert,
+  type SettingsChange,
+  settingsChangedAlert,
+} from './emails/alerts.ts'
 import { forgetAdminDevices } from './admin-devices.ts'
 import { removeAuthenticator } from './authenticator.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
@@ -54,9 +63,7 @@ import { s3EndpointProblem } from './s3-endpoint.ts'
 import { dropUserPush } from './push.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
-import { brandName } from './branding.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
-import { deletedWhen } from './workspace-delete-own.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import type { AuditSubject } from './audit.ts'
 import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
@@ -179,18 +186,15 @@ function refuseEnrolmentCode(actor: Actor) {
   if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden('confirm with your passkey to do this')
 }
 
-/** Who did it, for the alert emails: their address, or the server operator. */
-async function actorName(actor: Actor): Promise<string> {
-  if (actor.actorId === 'cli') return 'The server operator (command line)'
+/** Who did it, for the alert emails: their address, or the server operator (named in each reader's language). */
+async function actorOf(actor: Actor): Promise<AlertActor> {
+  if (actor.actorId === 'cli') return { operator: true }
   const [who] = await db.select({ email: user.email }).from(user).where(eq(user.id, actor.actorId))
-  return who?.email ?? 'A server admin'
+  return { email: who?.email ?? null }
 }
 
 async function alertAdminGranted(actor: Actor, email: string) {
-  await alertInstanceAdmins(
-    `New instance admin on ${brandName()}: ${email}`,
-    `${await actorName(actor)} made ${email} a server admin.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Users and Audit log.`,
-  )
+  await alertInstanceAdmins(adminGrantedAlert(await actorOf(actor), email))
 }
 
 /**
@@ -205,18 +209,18 @@ function alertSenders(before: EmailSender, beforeSettings: string): EmailSender[
   return [before, after]
 }
 
-/** What changed, for the alert: its subject ("Resend settings changed") and what the actor did ("changed the …"). */
-type Change = { subject: string; did: string; actor: Actor }
-const keysChange = (provider: ProviderName, what: 'changed' | 'removed', actor: Actor): Change => {
-  const { label } = providerSpec(provider)
-  return { subject: `${label} settings ${what}`, did: `${what} the ${label} settings`, actor }
-}
+/** What changed, for the alert (emails/alerts.ts settingsChangedAlert): which provider, and how. */
+type Change = { change: SettingsChange['change']; provider: string; actor: Actor }
+const keysChange = (provider: ProviderName, what: 'changed' | 'removed', actor: Actor): Change => ({
+  change: what,
+  provider: providerSpec(provider).label,
+  actor,
+})
 
 /** Every instance admin hears about a change of email or sign-in (admin-alerts.ts), through `senders`. */
-async function alertChange({ subject, did, actor }: Change, senders: EmailSender[] = [emailSender]) {
-  const how = await viaWhat(actor)
-  const text = `${await actorName(actor)} ${did} ${how.body}. They decide how people sign in or get sign-in codes.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Providers and Audit log.${how.after}`
-  for (const sender of senders) await alertInstanceAdmins(`${subject}${how.subject}`, text, sender)
+async function alertChange({ change, provider, actor }: Change, senders: EmailSender[] = [emailSender]) {
+  const alert = settingsChangedAlert({ change, provider, actor: await actorOf(actor), agent: await agentOf(actor) })
+  for (const sender of senders) await alertInstanceAdmins(alert, sender)
 }
 
 /**
@@ -245,18 +249,16 @@ function afterSignInChange(onCommit: HandlerCtx['onCommit'], category: ProviderC
   else void apply().catch(e => console.error('email or sign-in change:', e))
 }
 
-/** Where a change came from, for the alert: the app, or an AI agent with a setup link (named by its prefix and time). */
-async function viaWhat(actor: Actor): Promise<{ subject: string; body: string; after: string }> {
-  if (!actor.setupKeyId) return { subject: '', body: '(Server admin › Providers)', after: '' }
+/** Where a change came from, for the alert: the app (null), or an AI agent with a setup link (its prefix and time). */
+async function agentOf(actor: Actor): Promise<SettingsChange['agent']> {
+  if (!actor.setupKeyId) return null
   const [key] = await db
     .select({ prefix: agent_setup_keys.prefix, createdAt: agent_setup_keys.created_at })
     .from(agent_setup_keys)
     .where(eq(agent_setup_keys.id, actor.setupKeyId))
-  const made = key ? `, made ${new Date(key.createdAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` : ''
   return {
-    subject: ' by an AI agent',
-    body: `through the AI agent setup link ${key?.prefix ?? actor.setupKeyId}…${made}`,
-    after: ` That admin ends the link with End access on the setup page; disabling the admin ends it too.`,
+    prefix: key?.prefix ?? actor.setupKeyId,
+    createdAt: key ? new Date(key.createdAt).toISOString() : null,
   }
 }
 
@@ -293,9 +295,11 @@ async function deleteWorkspaceAndTell(
     .from(organization)
     .where(eq(organization.id, input.workspaceId))
   const content = {
-    workspace: emailSafeName(workspace?.name, 'Your workspace'),
-    by: `The server admin of ${siteHost(WEB_ORIGIN)}`,
-    when: deletedWhen(now, settings?.timezone),
+    workspace: emailSafeName(workspace?.name, '') || null,
+    by: null,
+    byRole: 'serverAdmin' as const,
+    at: now,
+    timeZone: settings?.timezone ?? null,
   }
   // Queued before the numbers are released at the carrier: a failure here undoes the delete before anything left
   // the database.
@@ -332,11 +336,7 @@ export const adminHandlers: Record<string, Handler> = {
     // Which mail service sends applies at once, like its keys, and the admins are told (afterSignInChange).
     if (input.category === 'email') {
       const label = input.provider ? providerSpec(input.provider).label : null
-      afterSignInChange(onCommit, 'email', {
-        subject: label ? `Email now sent with ${label}` : 'Email provider pick cleared',
-        did: label ? `switched email to ${label}` : 'cleared which email provider sends',
-        actor,
-      })
+      afterSignInChange(onCommit, 'email', { change: label ? 'switched' : 'cleared', provider: label ?? '', actor })
     }
     return { rows: {}, data: { active: (await providerStatus(tx)).active } }
   },
@@ -438,7 +438,12 @@ export const adminHandlers: Record<string, Handler> = {
       await noticeAddedByAdmin(tx, actor, { email, name: input.name }, workspace, role, 'invited')
     } else {
       try {
-        await emailSender.send({ to: email, ...welcomeEmail({ name: emailSafeName(input.name, 'there'), email }) })
+        // A new account has no language yet: the admin's who made it.
+        const locale = actor.actorId === 'cli' ? SOURCE : await localeForUserId(tx, actor.actorId)
+        await emailSender.send({
+          to: email,
+          ...welcomeEmail({ name: emailSafeName(input.name, '') || null, email }, undefined, locale),
+        })
       } catch (e) {
         throw new Reject(
           `the account was not created: the welcome email could not be sent (${e instanceof Error ? e.message : e})`,
@@ -526,10 +531,7 @@ export const adminHandlers: Record<string, Handler> = {
     const isAdmin = isInstanceAdmin(account)
     const ended = await removeAllPasskeys(tx, { id: account.id, email: account.email, isAdmin })
     const enrolment = isAdmin ? await issuePasskeyEnrolment(tx, account.id) : {}
-    await alertInstanceAdmins(
-      `Passkeys reset on ${brandName()}: ${account.email}`,
-      `${await actorName(actor)} removed every passkey of ${account.email} (${ended.removed} removed) and ended their sessions and AI agent setup links.${isAdmin ? ' They are an instance admin and got a new enrolment code for their first passkey.' : ''}\n\nIf you did not expect this, sign in with your passkey and check Server admin › Audit log.`,
-    )
+    await alertInstanceAdmins(passkeysResetAlert(await actorOf(actor), account.email, ended.removed, isAdmin))
     return { rows: {}, data: { userId: account.id, ...ended, ...enrolment } }
   },
 
@@ -552,17 +554,13 @@ export const adminHandlers: Record<string, Handler> = {
       throw new Reject(
         `${account.email} has a passkey already. To start over, reset their passkeys: that also signs them out everywhere and ends their AI agent setup links`,
       )
+    const issuedBy = await actorOf(actor)
+    const locale = await localeForUserId(tx, account.id)
     sendNotice(
-      {
-        to: account.email,
-        ...passkeyEnrolmentIssuedEmail(await actorName(actor), undefined, await localeForUserId(tx, account.id)),
-      },
+      { to: account.email, ...passkeyEnrolmentIssuedEmail(actorLabel(issuedBy, locale), undefined, locale) },
       'passkey enrolment email',
     )
-    await alertInstanceAdmins(
-      `Passkey enrolment code issued on ${brandName()}: ${account.email}`,
-      `${await actorName(actor)} issued a one-time code for the first passkey of ${account.email}, an instance admin without a passkey. Nothing was removed and their sessions and AI agent setup links keep working.\n\nIf you did not expect this, sign in with your passkey and check Server admin › Audit log.`,
-    )
+    await alertInstanceAdmins(enrolmentIssuedAlert(issuedBy, account.email))
     return { rows: {}, data: { userId: account.id, ...enrolment } }
   },
 

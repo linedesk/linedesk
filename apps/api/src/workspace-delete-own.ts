@@ -70,25 +70,6 @@ export async function deletePreview({ tx, actor }: HandlerCtx) {
   return { rows: {}, data }
 }
 
-/** "November 14, 2026 at 9:05 AM PST" in the workspace's zone (UTC when it has none or an unknown one). */
-export function deletedWhen(now: string, timeZone: string | null | undefined): string {
-  const format = (zone: string) =>
-    new Intl.DateTimeFormat('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZoneName: 'short',
-      timeZone: zone,
-    }).format(new Date(now))
-  try {
-    return format(timeZone || 'UTC')
-  } catch {
-    return format('UTC')
-  }
-}
-
 export async function deleteOwn(
   { tx, actor, now, telephony }: HandlerCtx,
   input: { name: string; keepOwnAccount?: boolean; keepAccounts?: boolean },
@@ -125,11 +106,13 @@ export async function deleteOwn(
   const deleted = new Set(result.usersDeleted)
   const ownGoes = !!owner && deleted.has(owner.email)
   const name = emailSafeName(owner?.name, '')
-  const by = name ? `${name} (${owner!.email})` : (owner?.email ?? 'The owner')
+  const by = name ? `${name} (${owner!.email})` : (owner?.email ?? null)
   const content = {
-    workspace: emailSafeName(workspace.name, 'Your workspace'),
+    workspace: emailSafeName(workspace.name, '') || null,
     by,
-    when: deletedWhen(now, settings?.timezone),
+    byRole: 'owner' as const,
+    at: now,
+    timeZone: settings?.timezone ?? null,
   }
   await queueWorkspaceDeletedEmails(
     tx,

@@ -22,8 +22,10 @@ import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
-import { siteHost } from './emails/layout.ts'
-import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail, WEB_ORIGIN } from './emails/templates.ts'
+import type { UiLocale } from '@linedesk/i18n'
+import { getT } from '@linedesk/i18n/server'
+import { type AlertActor, actorLabel } from './emails/alerts.ts'
+import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail } from './emails/templates.ts'
 import { recordSetupEvent } from './setup-events.ts'
 import { cancelSentInvitations, insertInvitation, makeOwner, pendingInvitationTo, queueRemovedEmail, sendInvitation } from './team.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
@@ -291,11 +293,11 @@ export async function inviteToWorkspace(
   await sendInvitation(tx, invite, role)
 }
 
-/** How a notice names the instance admin: their name, else their address. */
-async function adminLabel(tx: Tx, actor: Actor) {
-  if (actor.actorId === 'cli') return 'The server operator'
+/** How a notice names the instance admin: their name, else their address, else in words (actorLabel). */
+async function adminOf(tx: Tx, actor: Actor): Promise<AlertActor> {
+  if (actor.actorId === 'cli') return { operator: true }
   const [who] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actor.actorId))
-  return emailSafeName(who?.name || who?.email, 'An administrator')
+  return { email: emailSafeName(who?.name || who?.email, '') || null }
 }
 
 /** Notices are best effort: a failure is logged and never undoes the change. */
@@ -322,27 +324,31 @@ export async function noticeAddedByAdmin(
   role: string,
   how: 'added' | 'invited',
 ) {
-  const admin = await adminLabel(tx, actor)
-  const ws = emailSafeName(workspace.name, 'your workspace')
+  const admin = await adminOf(tx, actor)
+  const ws = emailSafeName(workspace.name, '')
   const who = emailSafeName(person.name || person.email, person.email)
-  if (how === 'added')
+  // The names in the reader's language: the admin when they have none, the workspace when its name is not usable.
+  const named = (locale: UiLocale) => ({
+    admin: actorLabel(admin, locale),
+    workspace: ws || getT(locale).t('email.fallback.workspace'),
+  })
+  if (how === 'added') {
+    const locale = await localeForEmail(tx, person.email)
     await sendNotice(
       person.email,
-      addedNoticeEmail(
-        { admin, workspace: ws, workspaceId: workspace.id, role },
-        undefined,
-        await localeForEmail(tx, person.email),
-      ),
+      addedNoticeEmail({ ...named(locale), workspaceId: workspace.id, role }, undefined, locale),
     )
+  }
   const owners = await tx
     .select({ email: user.email, id: user.id })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.organizationId, workspace.id), eq(member.role, 'owner')))
-  const fields = { admin, who, workspace: ws, workspaceId: workspace.id, role, pending: how === 'invited' }
   for (const owner of owners) {
     if (owner.id === actor.actorId || owner.email.toLowerCase() === person.email.toLowerCase()) continue
-    await sendNotice(owner.email, memberAddedByAdminEmail(fields, undefined, await localeForUserId(tx, owner.id)))
+    const locale = await localeForUserId(tx, owner.id)
+    const fields = { ...named(locale), who, workspaceId: workspace.id, role, pending: how === 'invited' }
+    await sendNotice(owner.email, memberAddedByAdminEmail(fields, undefined, locale))
   }
 }
 
@@ -447,7 +453,7 @@ export const membershipHandlers: Record<string, Handler> = {
     // A server admin keeps the default of deleting it (Q16, unchanged by LIN-264); the person is told.
     const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
     if (accountDeleted && subject.email)
-      await queueRemovedEmail(tx, subject.email, target.organizationId, `The server admin of ${siteHost(WEB_ORIGIN)}`, now)
+      await queueRemovedEmail(tx, subject.email, target.organizationId, { name: null, role: 'serverAdmin' }, now)
     return { rows: {}, data: { accountDeleted, invitationsCanceled, subject } }
   },
 

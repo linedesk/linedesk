@@ -284,6 +284,11 @@ const looksLikeProse = (raw: string) => {
     (/^\p{Lu}\p{Ll}/u.test(text) || (/^[\p{Ll} ,.!?’']+$/u.test(text) && FUNCTION_WORDS.test(text)))
   )
 }
+/**
+ * Inside a message (findMessageText) a stricter test: any two words, also lowercase after an argument
+ * (`${workspace} reached its monthly cap`). Messages hold no class names or HTML outside apps/api/src/emails.
+ */
+const looksLikeWords = (text: string) => !/^[\w.-]+:\/\//.test(text) && /\p{L}{2,}[,.:;!?)]?\s+\(?\p{L}{2,}/u.test(text)
 /** One capitalised word or a few ("Reopen", "Synced"): text only where a value is chosen (inTextPosition). */
 const looksLikeWord = (text: string) => /^\p{Lu}\p{Ll}+(?:[ ’'-]\p{L}+)*[.!?…]?$/u.test(text) && !NOT_TEXT.has(text)
 
@@ -333,8 +338,8 @@ function ignoredStarts(source: string, comments: Node[]): Set<number> {
 /** How many `// i18n-ignore:` comments a file has (the check prints the total, so they stay few and visible). */
 export const ignoreComments = (source: string) => (source.match(/\/\/[ \t]*i18n-ignore:[ \t]*\S/g) ?? []).length
 
-/** Walks with the chain of parents; `visit` returning false skips the node's children. */
-function walkWithParents(root: Node, visit: (node: Node, parent: Node | null) => boolean) {
+/** Walks with the chain of parents (`stack`, outermost first); `visit` returning false skips the node's children. */
+function walkWithParents(root: Node, visit: (node: Node, parent: Node | null, stack: readonly Node[]) => boolean) {
   const stack: Node[] = []
   const go = (node: Node) => {
     if (!node || typeof node !== 'object') return
@@ -343,7 +348,7 @@ function walkWithParents(root: Node, visit: (node: Node, parent: Node | null) =>
       return
     }
     if (typeof node.type !== 'string') return
-    if (!visit(node, stack[stack.length - 1] ?? null)) return
+    if (!visit(node, stack[stack.length - 1] ?? null, stack)) return
     stack.push(node)
     for (const [key, value] of Object.entries(node))
       if (key !== 'parent' && value && typeof value === 'object') go(value)
@@ -371,19 +376,36 @@ const SKIPPED = new Set([
  * keyboard keys, keys passed to `t()`, never-translate words alone (brand names), and whatever an `// i18n-ignore:`
  * comment covers.
  */
-export function findHardcoded(file: string, source: string, ignore: ReadonlySet<string> = new Set()): Hardcoded[] {
+export function findHardcoded(
+  file: string,
+  source: string,
+  ignore: ReadonlySet<string> = new Set(),
+  options: {
+    /** Only text inside what this accepts counts (findMessageText); everything by default. */
+    within?: (stack: readonly Node[]) => boolean
+    /**
+     * Emails and notifications: also what a plumbing method is called on (`['A sentence.', …].join('\n')`), whose
+     * arguments alone are plumbing. Off for the web app's ratchet.
+     */
+    readReceivers?: boolean
+  } = {},
+): Hardcoded[] {
+  const { within, readReceivers = false } = options
   const { program, comments } = parse(file, source)
   const skip = ignoredStarts(source, comments)
   const hits: Hardcoded[] = []
   const clean = (text: string | null) => (text ? text.replace(/\s+/g, ' ').trim() : '')
+  let ancestors: readonly Node[] = []
+  const plumbing = new Set<Node>()
   const counts = (text: string | null) => {
     const trimmed = clean(text)
-    return !!trimmed && hasLetters(trimmed) && !ignore.has(trimmed)
+    return !!trimmed && hasLetters(trimmed) && !ignore.has(trimmed) && (!within || within(ancestors))
   }
   const add = (node: Node, text: string | null) => hits.push({ line: lineOf(source, node.start), text: clean(text) })
 
-  walkWithParents(program, (node, parent) => {
-    if (skip.has(node.start) || SKIPPED.has(node.type)) return false
+  walkWithParents(program, (node, parent, stack) => {
+    ancestors = stack
+    if (skip.has(node.start) || SKIPPED.has(node.type) || plumbing.has(node)) return false
     if (node.type.startsWith('TS') && !KEEP_TS.has(node.type)) return false
     switch (node.type) {
       case 'JSXText':
@@ -410,7 +432,13 @@ export function findHardcoded(file: string, source: string, ignore: ReadonlySet<
           add(node, textOf(node.arguments[0]))
           return false
         }
-        if (name && (KEY_CALLS.has(name) || PLUMBING_CALLS.has(name))) return false
+        if (name && (KEY_CALLS.has(name) || PLUMBING_CALLS.has(name))) {
+          // The arguments are plumbing ('\n' in `.join('\n')`, a key in `t('…')`); what the method is called on is
+          // not: `['A sentence.', …].join('\n')` is read.
+          if (!readReceivers) return false
+          for (const arg of node.arguments) plumbing.add(arg)
+          return node.callee?.type === 'MemberExpression'
+        }
         return !(node.callee?.type === 'MemberExpression' && LOG_OBJECT.test(keyName(node.callee.object) ?? ''))
       }
       case 'NewExpression':
@@ -438,7 +466,12 @@ export function findHardcoded(file: string, source: string, ignore: ReadonlySet<
         )
           return false
         const trimmed = clean(text)
-        if (looksLikeProse(trimmed) || (looksLikeWord(trimmed) && inTextPosition(node, parent))) add(node, trimmed)
+        if (
+          looksLikeProse(trimmed) ||
+          (within && looksLikeWords(trimmed)) ||
+          (looksLikeWord(trimmed) && inTextPosition(node, parent))
+        )
+          add(node, trimmed)
         return inner
       }
       default:
@@ -454,11 +487,15 @@ export function countHardcoded(file: string, source: string, ignore: ReadonlySet
 }
 
 /** Every file under `roots` with hardcoded text, and that text. */
-export function hardcodedIn(roots: readonly string[], ignore: ReadonlySet<string>): Record<string, Hardcoded[]> {
+export function hardcodedIn(
+  roots: readonly string[],
+  ignore: ReadonlySet<string>,
+  options: { readReceivers?: boolean } = {},
+): Record<string, Hardcoded[]> {
   const out: Record<string, Hardcoded[]> = {}
   for (const root of roots)
     for (const file of sourceFiles(root)) {
-      const hits = findHardcoded(file, readFileSync(`${REPO_DIR}${file}`, 'utf8'), ignore)
+      const hits = findHardcoded(file, readFileSync(`${REPO_DIR}${file}`, 'utf8'), ignore, options)
       if (hits.length) out[file] = hits
     }
   return out
@@ -469,6 +506,95 @@ export function hardcodedCounts(ignore: ReadonlySet<string>): Record<string, num
   return Object.fromEntries(
     Object.entries(hardcodedIn([RATCHET_ROOT], ignore)).map(([file, hits]) => [file, hits.length]),
   )
+}
+
+/**
+ * Emails and push notifications (checked, like the web app): every word of them is written in apps/api/src/emails, in
+ * the recipient's language with getT(locale) (docs/translations.md, "Emails and notifications"). Any hardcoded English
+ * there fails the check, and so does formatting without the reader's locale.
+ */
+export const MESSAGE_ROOTS = ['apps/api/src/emails'] as const
+
+/**
+ * The rest of the server (checked for what goes into a message): the API, the voice agent and the packages. Their own
+ * English (API errors, logs, the CLI) stays English, but text handed straight to a sender or set as an email's subject
+ * belongs in apps/api/src/emails.
+ */
+export const MESSAGE_SENDER_ROOTS = ['apps/api/src', 'apps/agent/src', 'packages'] as const
+
+/** Calls that send or render a message: text in their arguments is what a person reads. */
+const MESSAGE_CALLS = new Set(['sendNotice', 'alertInstanceAdmins', 'renderEmail', 'adminAlertEmail'])
+/**
+ * Calls named like a sender's: a message only when made on a sender (`emailSender.send`, `transport.sendMail`) or
+ * given the message itself (`send({ to, subject, … })`); `http.send(url, …)` and `send('reading…', url)` are not.
+ */
+const SEND_CALLS = new Set(['send', 'sendMail', 'sendNotification'])
+const SENDER_OBJECT = /(?:sender|senders|mailer|transport|emails?|webpush)$/i
+
+const isMessageCall = (node: Node) => {
+  const name = callName(node) ?? ''
+  if (MESSAGE_CALLS.has(name)) return true
+  if (!SEND_CALLS.has(name)) return false
+  const object = node.callee?.type === 'MemberExpression' ? keyName(node.callee.object) : null
+  return SENDER_OBJECT.test(object ?? '') || node.arguments[0]?.type === 'ObjectExpression'
+}
+/** Properties that hold an email's parts. */
+const MESSAGE_KEYS = new Set(['subject', 'preheader', 'heading', 'eyebrow', 'html'])
+
+const TEXT_VALUES = ['Literal', 'TemplateLiteral', 'ConditionalExpression', 'BinaryExpression', 'CallExpression']
+const propertyNames = (node: Node) => new Set(node.properties.map((p: Node) => keyName(p.key)))
+
+/**
+ * An object with a text `subject` (`{ to, subject: …, text: … }`): an email; or with a `title` and a `body` (a push
+ * notification's payload). Every part of it is read by a person.
+ */
+const isEmailObject = (node: Node) =>
+  node.type === 'ObjectExpression' &&
+  ((propertyNames(node).has('title') && propertyNames(node).has('body')) ||
+    node.properties.some(
+      (p: Node) => p.type === 'Property' && keyName(p.key) === 'subject' && TEXT_VALUES.includes(p.value?.type),
+    ))
+
+/** Calls whose later arguments are not text people read: `sendNotice(email, 'what, for the log')`. */
+const FIRST_ARGUMENT_ONLY = new Set(['sendNotice'])
+
+const inMessage = (stack: readonly Node[]) =>
+  stack.some(
+    (node, i) =>
+      ((node.type === 'CallExpression' || node.type === 'NewExpression') &&
+        isMessageCall(node) &&
+        (!FIRST_ARGUMENT_ONLY.has(callName(node) ?? '') || stack[i + 1] === node.arguments[0])) ||
+      (node.type === 'Property' && MESSAGE_KEYS.has(keyName(node.key) ?? '')) ||
+      isEmailObject(node),
+  )
+
+/**
+ * Hardcoded text that goes into an email or notification from outside apps/api/src/emails: in the arguments of a
+ * sender (`sender.send({ subject: 'Hi', text: '…' })`, `sendNotice`, `alertInstanceAdmins`), in an object with a text
+ * `subject` (an email built elsewhere: `return { subject: …, text: … }`), or as the value of an email's `subject`,
+ * `preheader`, `heading`, `eyebrow` or `html`. `// i18n-ignore: <why>` covers a real exception.
+ */
+export function findMessageText(file: string, source: string, ignore: ReadonlySet<string> = new Set()): Hardcoded[] {
+  if (
+    !/\b(?:send\w*|alertInstanceAdmins|renderEmail|adminAlertEmail)\(|\b(?:subject|preheader|heading|eyebrow|html|body)\b/.test(
+      source,
+    )
+  )
+    return []
+  return findHardcoded(file, source, ignore, { within: inMessage, readReceivers: true })
+}
+
+/** Every email and notification text that is not translated: all of MESSAGE_ROOTS, and findMessageText elsewhere. */
+export function messageTextIn(ignore: ReadonlySet<string>): Record<string, Hardcoded[]> {
+  const out: Record<string, Hardcoded[]> = hardcodedIn(MESSAGE_ROOTS, ignore, { readReceivers: true })
+  const checked = new Set(Object.keys(out))
+  for (const root of MESSAGE_SENDER_ROOTS)
+    for (const file of sourceFiles(root)) {
+      if (checked.has(file) || MESSAGE_ROOTS.some(r => file.startsWith(`${r}/`))) continue
+      const hits = findMessageText(file, readFileSync(`${REPO_DIR}${file}`, 'utf8'), ignore)
+      if (hits.length) out[file] = hits
+    }
+  return out
 }
 
 /**
