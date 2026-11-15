@@ -6,7 +6,7 @@ import { user } from '@linedesk/db'
 import { SOURCE } from '@linedesk/i18n'
 import { eq } from 'drizzle-orm'
 import { type DeviceCookieJar, knownDevice, knownDeviceWith } from './admin-devices.ts'
-import { adminSecondFactorRequired } from './admin-second-factor.ts'
+import { adminSecondFactorRequired, localOnlyInstall } from './admin-second-factor.ts'
 import { signInMethod } from './audit.ts'
 import { db } from './db.ts'
 import { type EmailSender, emailSender, sendNotice } from './email.ts'
@@ -102,16 +102,8 @@ export function adminSignInEmail(who: string, method: string, s: SignIn, at = ne
   })
 }
 
-/** Whether this instance is opened on localhost (PUBLIC_URL, else WEB_ORIGIN): local development. */
-export function isLocalInstance(env: Record<string, string | undefined> = process.env): boolean {
-  const origin = env.PUBLIC_URL || env.WEB_ORIGIN || 'http://localhost'
-  try {
-    const host = new URL(origin).hostname
-    return host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]'
-  } catch {
-    return false
-  }
-}
+/** Whether this instance runs on this machine only (local development): the same check as the passkey rule's. */
+export const isLocalInstance = (env: Record<string, string | undefined> = process.env) => localOnlyInstall(env)
 
 /**
  * Whether this sign-in is the admin's passkey check: the one that opens Server admin (admin-second-factor.ts). With the

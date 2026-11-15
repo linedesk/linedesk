@@ -11,7 +11,9 @@
 // An admin without a passkey adds one first, with a one-time enrolment code (passkey-enrolment.ts: from another admin,
 // the first-run setup, the API log at start, or `user-passkeys.ts --enrol` / `--remove` on the server).
 // Impersonation sessions never count. Installs that cannot use passkeys at all (no https) turn the rule off with
-// ADMIN_SECOND_FACTOR=off; the API then warns at every start.
+// ADMIN_SECOND_FACTOR=off; the API then warns at every start. An install on this machine only (its addresses are
+// localhost, 127.0.0.1, [::1] or a *.localhost name: local development, localOnlyInstall) has it off by itself, for admins and for the
+// owner's step-ups (Tim, 2026-11-15); ADMIN_SECOND_FACTOR=on turns it on there, to try the passkey check.
 import type { Permission } from '@linedesk/actions'
 import { passkeySignInEnabled } from './auth-methods.ts'
 
@@ -24,9 +26,38 @@ export const ADMIN_PASSKEY_HOURS = 12
  */
 export type AdminSecondFactor = 'email' | 'enrol' | 'confirm'
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/** The addresses an install is reached at; each one that is set must be local for a local install. */
+const ADDRESS_VARS = ['PUBLIC_URL', 'WEB_ORIGIN', 'BETTER_AUTH_URL'] as const
+
+const isLocalAddress = (url: string) => {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return LOCAL_HOSTS.has(host) || host.endsWith('.localhost')
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether the install runs on this machine only: every address that is set (PUBLIC_URL, WEB_ORIGIN, BETTER_AUTH_URL)
+ * is localhost, 127.0.0.1, [::1] or a *.localhost name, and at least one is set. A tunnel (scripts/tunnel.sh,
+ * scripts/local-public.sh) or any server sets a public one, so this is false there. Also what keeps the admin alerts
+ * quiet in local development (admin-alerts.ts).
+ */
+export function localOnlyInstall(env: Record<string, string | undefined> = process.env): boolean {
+  const set = ADDRESS_VARS.map(name => env[name]?.trim()).filter((url): url is string => Boolean(url))
+  return set.length > 0 && set.every(isLocalAddress)
+}
+
 /** Read on every request, so tests and operators can switch it without a restart. */
-export const adminSecondFactorRequired = (env: Record<string, string | undefined> = process.env) =>
-  env.ADMIN_SECOND_FACTOR?.trim().toLowerCase() !== 'off'
+export function adminSecondFactorRequired(env: Record<string, string | undefined> = process.env): boolean {
+  const setting = env.ADMIN_SECOND_FACTOR?.trim().toLowerCase()
+  if (setting === 'off') return false
+  if (setting === 'on') return true
+  return !localOnlyInstall(env)
+}
 
 /** Whether a sign-in at `at` lies within the last `hours`; a time in the future never counts. */
 export function signedInWithin(at: Date | string | null | undefined, hours: number, now = Date.now()): boolean {
@@ -81,6 +112,8 @@ export function adminSecondFactorGap(
 /** Said loudly at every start while the rule is off (server.ts): it is easy to forget in a .env. */
 export function secondFactorOffWarning(env: Record<string, string | undefined> = process.env): string | null {
   if (adminSecondFactorRequired(env)) return null
+  if (env.ADMIN_SECOND_FACTOR?.trim().toLowerCase() !== 'off')
+    return 'Server admin opens without a passkey: this install has only local addresses (local development). ADMIN_SECOND_FACTOR=on turns the check on.'
   const line = '!'.repeat(78)
   return [
     line,
