@@ -145,20 +145,27 @@ services:
     # Starts only once Valkey answers. After a reboot Valkey is still loading its data; LiveKit used to exit on that,
     # and Docker then restarted it just as it brought back livekit-sip and livekit-egress, which share this network.
     # Joining a network that is restarting fails, Docker gives up, and no call came in until SIP was started by hand.
+    # Media goes over the default network only: on the voice network too, LiveKit opens its UDP port on both addresses
+    # and announces both as the node IP, no client completes the connection and calls stay silent. Which interface is
+    # eth0 is not fixed: Docker gives no guarantee on the order it connects networks (Engine 28.0 release notes), and
+    # `priority` did not keep default first. So the entrypoint picks the interface that carries the default route: voice
+    # is internal and never gets one, default always does. That name replaces MEDIA_INTERFACE in rtc.interfaces below.
     entrypoint:
       - /bin/sh
       - -c
-      - until printf 'PING\r\n' | nc -w 1 redis 6379 2>/dev/null | grep -q PONG; do sleep 1; done; exec /livekit-server "$$@"
+      - |
+        until printf 'PING\r\n' | nc -w 1 redis 6379 2>/dev/null | grep -q PONG; do sleep 1; done
+        media=$$(awk '$$2 == "00000000" { print $$1; exit }' /proc/net/route)
+        if [ -z "$$media" ]; then echo "livekit: no default route, cannot pick the media interface" >&2; exit 1; fi
+        echo "livekit: media interface $$media ($$(ip -4 -o addr show dev "$$media" | awk '{ print $$4 }'))"
+        LIVEKIT_CONFIG=$$(printf '%s\n' "$$LIVEKIT_CONFIG" | sed "s/MEDIA_INTERFACE/$$media/")
+        export LIVEKIT_CONFIG
+        exec /livekit-server "$$@"
       - livekit-server
     # The address clients are told to send media to. 127.0.0.1 for local development;
     # the server's public IP when carriers and browsers connect from outside.
     command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
-    # Media goes over the default network only (rtc.interfaces): on the voice network too, LiveKit opens its UDP port on
-    # both addresses and announces both as the node IP; when Docker happens to create the voice interface first, no
-    # client completes the connection and calls stay silent. Default is connected first, so it is eth0.
-    networks:
-      default: { priority: 10 }
-      voice: {}
+    networks: [default, voice]
     environment:
       LIVEKIT_CONFIG: |
         port: 7880
@@ -167,7 +174,7 @@ services:
           udp_port: 7882
           use_external_ip: false
           interfaces:
-            includes: [eth0]
+            includes: [MEDIA_INTERFACE] # set by the entrypoint above
         redis:
           address: redis:6379
         # LiveKit hands a call to a worker only while the worker's reported CPU load is below target_load (default
