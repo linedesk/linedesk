@@ -27,6 +27,7 @@ import {
   meantEdit,
   type PhoneCountryOption,
   phoneCountryOptions,
+  phoneCountrySearchPlaceholder,
   searchPhoneCountries,
 } from './phoneInputModel.ts'
 import './phone-input.css'
@@ -148,7 +149,13 @@ export function PhoneInput({
         className,
       )}
     >
-      <CountryPicker country={field.country} onPick={pickCountry} disabled={disabled} size={size} />
+      <CountryPicker
+        country={field.country}
+        viewer={defaultCountry}
+        onPick={pickCountry}
+        disabled={disabled}
+        size={size}
+      />
       <input
         {...combobox}
         ref={input}
@@ -174,6 +181,8 @@ export function PhoneInput({
 
 type PickerProps = {
   country: string
+  /** The viewer's country (the field's defaultCountry): first among the common ones, its calling code in the search. */
+  viewer: string
   onPick: (country: string) => void
   disabled?: boolean
   size: 'sm' | 'md'
@@ -183,7 +192,7 @@ type PickerProps = {
  * The country of the number: a button with the flag and calling code; its list opens with a search. Arrow keys
  * move, Enter picks, Esc closes; typing a letter or digit on the button opens the list searching for it.
  */
-function CountryPicker({ country, onPick, disabled, size }: PickerProps) {
+function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -191,7 +200,7 @@ function CountryPicker({ country, onPick, disabled, size }: PickerProps) {
   const button = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const listId = useId()
-  const options = phoneCountryOptions()
+  const options = phoneCountryOptions(viewer)
   const current = options.find(o => o.value === country)
   const matches = useMemo(
     () => (open ? searchPhoneCountries(options, query).slice(0, SHOWN_MAX) : []),
@@ -298,7 +307,7 @@ function CountryPicker({ country, onPick, disabled, size }: PickerProps) {
           <input
             autoFocus
             className="k-phone-search"
-            placeholder="Search a country or +1"
+            placeholder={phoneCountrySearchPlaceholder(viewer)}
             aria-label="Search countries"
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}

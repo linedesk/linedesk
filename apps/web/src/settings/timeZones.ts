@@ -83,6 +83,15 @@ export function gmtOffset(zone: string, now: number): string {
   }
 }
 
+/**
+ * The offset the time zone search shows as its example: the browser's own zone's at `now` ("GMT+9" in Tokyo,
+ * "GMT+5:30" in Kolkata), else GMT-5 (also for a zone at GMT itself, where "GMT" alone would match every zone).
+ */
+export function timeZoneSearchExample(zone: string | null | undefined, now: number): string {
+  const offset = zone ? gmtOffset(zone, now) : ''
+  return /^GMT[+-]\d/.test(offset) ? offset : 'GMT-5'
+}
+
 /** The time in a zone at `now`: "1:31 PM"; '' when Intl does not know the zone. */
 export function clockIn(zone: string, now: number): string {
   try {

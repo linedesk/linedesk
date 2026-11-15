@@ -3,7 +3,15 @@
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAnchoredList } from '../ui/floating.ts'
 import { cx, Icon } from '../ui/kit.tsx'
-import { clockIn, gmtOffset, searchTimeZones, timeZoneLabel, timeZoneOptions } from './timeZones.ts'
+import {
+  browserTimeZone,
+  clockIn,
+  gmtOffset,
+  searchTimeZones,
+  timeZoneLabel,
+  timeZoneOptions,
+  timeZoneSearchExample,
+} from './timeZones.ts'
 
 /** The time shown moves on while the page is open. */
 function useNow(everyMs = 30_000) {
@@ -119,7 +127,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
           <input
             autoFocus
             className="tz-search"
-            placeholder="Search a city, region or GMT-5"
+            placeholder={`Search a city, region or ${timeZoneSearchExample(browserTimeZone(), now)}`}
             aria-label="Search time zones"
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}

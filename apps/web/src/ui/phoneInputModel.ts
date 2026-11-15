@@ -1,6 +1,6 @@
 // The country list of the phone field (PhoneInput.tsx): each country with its flag and calling code, common ones
 // first, the search over name, ISO code and calling code, and where the caret goes when the number is formatted.
-import { callingCodeOf, phoneCountryCodes, phoneCountryName } from '@linedesk/actions'
+import { callingCodeOf, isPhoneCountry, phoneCountryCodes, phoneCountryName } from '@linedesk/actions'
 
 export type PhoneCountryOption = {
   /** ISO 3166-1 alpha-2, "DE". */
@@ -15,7 +15,7 @@ export type PhoneCountryOption = {
   group?: string
 }
 
-/** Shown first, in this order, like the common currencies of the currency menu. */
+/** Shown first, in this order, like the common currencies of the currency menu (the viewer's country before them). */
 export const COMMON_PHONE_COUNTRIES = ['US', 'CA', 'GB', 'AU'] as const
 export const ALL_COUNTRIES_GROUP = 'All countries'
 
@@ -31,18 +31,62 @@ const optionOf = (value: string, group?: string): PhoneCountryOption => ({
   ...(group ? { group } : {}),
 })
 
-let cached: PhoneCountryOption[] | null = null
+/** The browser's first preferred language ("en-GB"), null without a browser or when it does not say. */
+export function browserLocale(
+  nav: Pick<Navigator, 'language' | 'languages'> | null = globalThis.navigator ?? null,
+): string | null {
+  try {
+    return nav?.languages?.[0] || nav?.language || null
+  } catch {
+    return null
+  }
+}
 
-/** The common countries, then every other one A–Z by name under "All countries". */
-export function phoneCountryOptions(): PhoneCountryOption[] {
-  if (cached) return cached
-  const common = new Set<string>(COMMON_PHONE_COUNTRIES)
+/** The viewer's country ("de" → "DE"), or null when it is not a country a phone number can have. */
+const countryOf = (viewer: string | null | undefined): string | null => {
+  const country = viewer?.trim().toUpperCase()
+  return isPhoneCountry(country) ? country : null
+}
+
+/**
+ * The common countries, in order: the viewer's country (the workspace's, else the browser's; useDefaultPhoneCountry)
+ * first when it is not one of them, then COMMON_PHONE_COUNTRIES. "DE" → DE, US, CA, GB, AU; "GB" or none → US, CA,
+ * GB, AU.
+ */
+export function commonPhoneCountries(viewer?: string | null): string[] {
+  const own = countryOf(viewer)
+  const common: string[] = [...COMMON_PHONE_COUNTRIES]
+  return own && !common.includes(own) ? [own, ...common] : common
+}
+
+/** The country search's placeholder with the viewer's calling code: "GB" → "Search a country or +44"; else +1. */
+export function phoneCountrySearchPlaceholder(viewer?: string | null): string {
+  const own = countryOf(viewer)
+  let code = '1'
+  try {
+    if (own) code = callingCodeOf(own) || code
+  } catch {
+    // Unknown to the phone library: the US example stays.
+  }
+  return `Search a country or +${code}`
+}
+
+const cached = new Map<string, PhoneCountryOption[]>()
+
+/** The common countries (commonPhoneCountries), then every other one A–Z by name under "All countries". */
+export function phoneCountryOptions(viewer?: string | null): PhoneCountryOption[] {
+  const firsts = commonPhoneCountries(viewer)
+  const key = firsts.join(',')
+  const known = cached.get(key)
+  if (known) return known
+  const common = new Set(firsts)
   const others = phoneCountryCodes()
     .filter(c => !common.has(c))
     .map(c => optionOf(c, ALL_COUNTRIES_GROUP))
     .sort((a, b) => a.name.localeCompare(b.name, 'en'))
-  cached = [...COMMON_PHONE_COUNTRIES.map(c => optionOf(c)), ...others]
-  return cached
+  const options = [...firsts.map(c => optionOf(c)), ...others]
+  cached.set(key, options)
+  return options
 }
 
 const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()

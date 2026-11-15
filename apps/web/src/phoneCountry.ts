@@ -2,6 +2,7 @@
 import { defaultPhoneCountry } from '@linedesk/actions'
 import { useMemo } from 'react'
 import { useWorkspaceSettings } from './settings/settings-api.ts'
+import { browserLocale } from './ui/phoneInputModel.ts'
 import { useAssistant, useRows } from './store.tsx'
 
 /**
@@ -21,6 +22,6 @@ export function useDefaultPhoneCountry(): string {
     assistantNumber,
     workspaceCountry,
     businessNumber,
-    locale: typeof navigator === 'undefined' ? null : navigator.language,
+    locale: browserLocale(),
   })
 }
