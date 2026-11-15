@@ -6,13 +6,13 @@
 import type { AgentSetupState } from '@linedesk/actions'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { AdminSignInRequired, loadAgentSetup } from '../admin/api.ts'
-import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
+import { SECOND_FACTOR_BUTTON, SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { CreateWorkspace, LostWorkspace } from '../CreateWorkspace.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { AuthPage, Button } from '../ui/kit.tsx'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { Loading, LoadProblem, SkeletonFields } from '../ui/LoadStates.tsx'
 import { openAgentSetup } from './AgentSetup.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
 
@@ -123,7 +123,8 @@ export function AdminStart({
 
 /**
  * The way by hand: the passkey check while it is due, then (once the setup state is known) the server's parts when
- * they are missing, else naming the business. Never the form before the state is known.
+ * they are missing, else naming the business. Never the form while the state is loading; when loading it failed (and
+ * no check is due), the error with Try again, and naming the business below it (the server still decides).
  */
 export function ByHand({
   state,
@@ -147,12 +148,29 @@ export function ByHand({
   if (checkDue)
     return (
       <>
-        <p>Setting up this server and your business needs your passkey check first.</p>
+        <p>
+          {checkDue === 'email'
+            ? 'Setting up this server and your business needs your passkey check, and adding a passkey needs a confirmed email address first.'
+            : 'Setting up this server and your business needs your passkey check first.'}
+        </p>
         <div>
-          <Button onClick={onConfirm} title="Confirm it is you with your passkey">
-            Confirm with your passkey
+          <Button
+            onClick={onConfirm}
+            title={
+              checkDue === 'email' ? 'Confirm your email address with a code' : 'Confirm it is you with your passkey'
+            }
+          >
+            {SECOND_FACTOR_BUTTON[checkDue]}
           </Button>
         </div>
+      </>
+    )
+  if (loadFailed && !state)
+    return (
+      <>
+        <LoadProblem what="The setup state" onRetry={onRetry} />
+        <p>You can still name your business now.</p>
+        <CreateWorkspace onDone={onDone} embedded onSecondFactor={onSecondFactor} />
       </>
     )
   return (

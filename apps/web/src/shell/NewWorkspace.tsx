@@ -3,7 +3,8 @@
 // the server checks again. Refused because the session's passkey check ran out meanwhile (403 `admin_second_factor`):
 // the dialog offers the passkey prompt (Server admin opens on it) instead of an error line.
 import { useState } from 'react'
-import { createWorkspace } from '../auth.ts'
+import { SECOND_FACTOR_BUTTON } from '../admin/SecondFactorPrompt.tsx'
+import { type AdminSecondFactor, createWorkspace } from '../auth.ts'
 import { secondFactorDue } from '../CreateWorkspace.tsx'
 import { type CreatingPhase, CreatingStatus } from '../CreatingStatus.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
@@ -19,7 +20,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<CreatingPhase>('idle')
-  const [passkeyFirst, setPasskeyFirst] = useState(false)
+  const [passkeyFirst, setPasskeyFirst] = useState<AdminSecondFactor | null>(null)
   const busy = phase !== 'idle'
 
   async function create() {
@@ -37,7 +38,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
     } catch (e) {
       const due = await secondFactorDue()
       setPhase('idle')
-      if (due) setPasskeyFirst(true)
+      if (due) setPasskeyFirst(due)
       else setError(e instanceof Error ? e.message : String(e))
     }
   }
@@ -60,7 +61,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
           </Button>
           {passkeyFirst ? (
             <Button type="submit" variant="primary" shortcut={['⏎']} title="Open Server admin's passkey check">
-              Confirm with your passkey
+              {SECOND_FACTOR_BUTTON[passkeyFirst]}
             </Button>
           ) : (
             <Button type="submit" variant="primary" busy={busy} shortcut={['⏎']}>
@@ -72,7 +73,9 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
     >
       {passkeyFirst && (
         <Note tone="info">
-          Creating a workspace needs Server admin's passkey check. Confirm with your passkey, then create it again.
+          {passkeyFirst === 'email'
+            ? "Creating a workspace needs Server admin's passkey check, and adding a passkey needs a confirmed email address. Confirm your email first, then create it again."
+            : `Creating a workspace needs Server admin's passkey check. ${SECOND_FACTOR_BUTTON[passkeyFirst]}, then create it again.`}
         </Note>
       )}
       <FormField id="new-ws-name" label="Business name" error={error}>

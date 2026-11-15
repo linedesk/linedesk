@@ -84,11 +84,23 @@ describe('the start page by hand (AdminStart)', () => {
     )
 
   it('offers the passkey check instead of the business form while it is due', () => {
+    const button = { confirm: 'Confirm with your passkey', enrol: 'Add a passkey', email: 'Confirm your email first' }
     for (const checkDue of ['confirm', 'enrol', 'email'] as const) {
       const html = render({ checkDue, state: state(true) })
-      expect(html).toContain('Confirm with your passkey')
+      expect(html).toContain(button[checkDue])
       expect(html).not.toContain('Business name')
     }
+    // The address comes first: the button is about the email, not the passkey.
+    expect(render({ checkDue: 'email' })).not.toContain('Confirm with your passkey')
+  })
+
+  it('a setup state that does not load: the error with Try again, and the business form still below it', () => {
+    const html = render({ loadFailed: true })
+    expect(html).toContain('could not be loaded')
+    expect(html).toContain('Try again')
+    expect(html).toContain('Business name')
+    // While the check is due, still only the check.
+    expect(render({ loadFailed: true, checkDue: 'confirm' })).not.toContain('Business name')
   })
 
   it('shows the business form only once the setup state is known and the server parts are in place', () => {

@@ -9,7 +9,8 @@ type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
 /**
  * Better Auth endpoints refused while impersonating: passwords (also checking one), the profile, email, deleting the account, other
  * sessions (listing them would hand out their tokens), linked sign-in accounts and their tokens,
- * passkeys (adding, renaming, removing or listing them), and joining a workspace by invitation.
+ * passkeys (adding, renaming, removing or listing them), joining a workspace by invitation, and confirming the
+ * user's email address (also asking for a confirmation code: `refusedConfirmationRequest`).
  */
 export const IMPERSONATION_REFUSED_PATHS = [
   '/change-password',
@@ -22,6 +23,8 @@ export const IMPERSONATION_REFUSED_PATHS = [
   // Moving the account to another address (email-change.ts): the admin could then sign in as the user for good.
   '/email-otp/request-email-change',
   '/email-otp/change-email',
+  // Confirming an unconfirmed member's address: the admin must not prove an address they can't read for the user.
+  '/email-otp/verify-email',
   '/delete-user',
   '/list-sessions',
   '/revoke-session',
@@ -77,9 +80,17 @@ export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean
 
 const refusedPath = (path: string) => IMPERSONATION_REFUSED_PATHS.some(p => path === p || path.startsWith(`${p}/`))
 
+/**
+ * `/email-otp/send-verification-otp` also sends sign-in codes, which need no session; only a confirmation code
+ * (`email-verification`) for the signed-in user is refused, the request half of `/email-otp/verify-email`.
+ */
+const refusedConfirmationRequest = (ctx: AuthCtx) =>
+  ctx.path === '/email-otp/send-verification-otp' &&
+  (ctx.body as { type?: unknown } | undefined)?.type === 'email-verification'
+
 /** Throws 403 when the request is for a refused endpoint and its session is an impersonation. */
 export async function refuseWhileImpersonating(ctx: AuthCtx) {
-  if (!refusedPath(ctx.path)) return
+  if (!refusedPath(ctx.path) && !refusedConfirmationRequest(ctx)) return
   const session = await getSessionFromCtx(ctx).catch(() => null)
   if ((session?.session as { impersonatedBy?: string | null } | undefined)?.impersonatedBy) {
     throw new APIError('FORBIDDEN', { code: 'NOT_WHILE_IMPERSONATING', message: NOT_WHILE_IMPERSONATING })

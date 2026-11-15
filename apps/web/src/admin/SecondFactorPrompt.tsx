@@ -44,6 +44,16 @@ const TEXT: Record<Exclude<AdminSecondFactor, 'email'>, { title: string; why: st
   },
 }
 
+/**
+ * The button that opens this prompt from elsewhere (the start page by hand, New workspace): for `email` the next step
+ * is confirming the address, not the passkey.
+ */
+export const SECOND_FACTOR_BUTTON: Record<AdminSecondFactor, string> = {
+  email: 'Confirm your email first',
+  enrol: 'Add a passkey',
+  confirm: 'Confirm with your passkey',
+}
+
 /** A passkey sign-in that did not count for Server admin: the device did not check the person. */
 export const PASSKEY_NOT_VERIFIED_FOR_ADMIN =
   "This passkey doesn't check your fingerprint, face or PIN, so it can't open Server admin. Use one that does, or ask another admin to reset your passkeys (on the server: user-passkeys.ts --remove)."

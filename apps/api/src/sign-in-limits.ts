@@ -54,6 +54,10 @@ const isCodeRequest = (path: string) =>
  * A code that confirms the signed-in member's own address (`email-verification`, the in-app
  * "Confirm your email" prompt after a password sign-up): only for that session's address, and only
  * while it is unconfirmed. Nobody else can have such a code sent, or use one.
+ *
+ * This is the only guard on `/email-otp/verify-email` now: Better Auth drops no unproven access there, and the
+ * hooks that did were removed with the email links (#750). Keep it in `limitSignIns` (and its test in
+ * email-confirmation.test.ts) when refactoring.
  */
 async function refuseForeignConfirmation(ctx: Ctx) {
   const current = await getSessionFromCtx(ctx).catch(() => null)

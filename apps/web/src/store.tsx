@@ -156,7 +156,9 @@ const noStore = () => () => {}
 /** Whether read sync has not reached the server for a while; false outside a workspace (Admin without one). */
 export function useReadSyncDown(): boolean {
   const store = useContext(StoreContext)?.store
-  return useSyncExternalStore(store?.subscribe ?? noStore, () => store?.getSnapshot().readSyncDown ?? false)
+  const read = () => store?.getSnapshot().readSyncDown ?? false
+  // The same for a static render (the start page's tests render LoadProblem outside a store).
+  return useSyncExternalStore(store?.subscribe ?? noStore, read, read)
 }
 
 /** Whether the workspace is disabled, as the server's latest answer said; null until one did. */

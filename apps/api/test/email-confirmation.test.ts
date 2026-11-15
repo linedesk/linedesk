@@ -1,4 +1,4 @@
-import { account, api_keys, assistants, auth_events, calendar_connections, member, passkey, phone_numbers, user, webhook_endpoints } from '@linedesk/db'
+import { account, api_keys, assistants, auth_events, calendar_connections, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
@@ -128,6 +128,53 @@ test('confirmation codes require a session of that address, including when redee
   expect(
     (await request(ws.owner, 'POST', '/api/auth/email-otp/verify-email', { email: owner!.email, otp }, extra())).status,
   ).toBe(200)
+})
+
+test('an admin signed in as an unconfirmed member can neither ask for nor redeem their confirmation code', async () => {
+  const ws = await createWorkspace('Confirmation impersonated')
+  await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
+  const admin = await createWorkspace('Confirming admin')
+  const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+  const extra = () => ({ origin: 'http://localhost:5173', [FROM]: randomIp() })
+  const askForCode = () =>
+    request(
+      ws.owner,
+      'POST',
+      '/api/auth/email-otp/send-verification-otp',
+      { email: owner!.email, type: 'email-verification' },
+      extra(),
+    )
+  const redeem = (otp: string) =>
+    request(ws.owner, 'POST', '/api/auth/email-otp/verify-email', { email: owner!.email, otp }, extra())
+  const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+  // A valid code, asked for by the member themselves.
+  expect((await askForCode()).status).toBe(200)
+  await vi.waitFor(() => expect(send).toHaveBeenCalled())
+  const otp = send.mock.calls.at(-1)![0].subject.slice(0, 6)
+  send.mockClear()
+  const impersonate = (by: string | null) =>
+    db.update(session).set({ impersonatedBy: by }).where(eq(session.userId, ws.owner.userId))
+  await impersonate(admin.owner.userId)
+  expect(await askForCode()).toMatchObject({ status: 403, body: { code: 'NOT_WHILE_IMPERSONATING' } })
+  expect(send).not.toHaveBeenCalled()
+  expect(await redeem(otp)).toMatchObject({ status: 403, body: { code: 'NOT_WHILE_IMPERSONATING' } })
+  expect((await db.select().from(user).where(eq(user.id, ws.owner.userId)))[0]!.emailVerified).toBe(false)
+  // Sign-in codes go through the same endpoint and stay as they were.
+  expect(
+    (
+      await request(
+        ws.owner,
+        'POST',
+        '/api/auth/email-otp/send-verification-otp',
+        { email: owner!.email, type: 'sign-in' },
+        extra(),
+      )
+    ).status,
+  ).toBe(200)
+  // The refused attempt left the member's own code alone.
+  await impersonate(null)
+  expect((await redeem(otp)).status).toBe(200)
+  expect((await db.select().from(user).where(eq(user.id, ws.owner.userId)))[0]!.emailVerified).toBe(true)
 })
 
 test('code sign-in removes legacy access only while the address is unconfirmed', async () => {
