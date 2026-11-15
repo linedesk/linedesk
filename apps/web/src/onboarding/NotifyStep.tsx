@@ -14,15 +14,15 @@ import { setNotificationSettings, useNotificationQuery } from '../shell/useCallN
 import { useAssistant, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
 import { Checkbox, RadioCard } from '../ui/controls.tsx'
-import { Input } from '../ui/form.tsx'
 import { Note } from '../ui/kit.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { Loading, Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
+import { usE164, withUnfinishedNumber } from './us-number.ts'
 import {
   EMERGENCY_NOTE,
   firstWhoHears,
   mobileErrorText,
-  toE164,
   URGENT_CONTACT_ID,
   type UrgentChoice,
   urgentCasesFrom,
@@ -75,7 +75,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
   const [email, setEmail] = useState<boolean | null>(null)
   const settings = notifications.data ?? null
   const emailOn = email ?? settings?.effective.email ?? true
-  const problem = whoHearsProblem(draft, assistant.transfers)
+  const problem = withUnfinishedNumber(draft, whoHearsProblem(draft, assistant.transfers))
   // "Take a message and alert me" alerts by email or push; with both off nobody hears of an urgent call until they look.
   // Email that this server cannot send alerts nobody either.
   const emailWorks = emailOn && settings?.emailReady !== false
@@ -95,7 +95,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
     if (transfers && !emailConfirmed && setsTransferNumber({ transfers }))
       return setError({ message: mobileErrorText('Confirm your email first', contactName), mobile: false })
     // The server refuses a number of this workspace too; said here at once, without a round trip.
-    const typed = draft.urgent === 'transfer' ? toE164(draft.mobile) : null
+    const typed = draft.urgent === 'transfer' ? usE164(draft.mobile) : null
     if (typed && numbers.some(n => n.e164 === typed))
       return setError({ message: `That is a ${brandName()} number. Enter your own mobile.`, mobile: true })
     if (settings && emailOn !== settings.effective.email) {
@@ -182,15 +182,12 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
               tip="Where urgent calls, and callers who ask for a person, are put through."
               error={mobileError}
             >
-              <Input
+              <PhoneInput
                 id="ob-mobile"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="Your mobile number"
+                defaultCountry="US"
                 value={draft.mobile}
                 invalid={mobileInvalid}
-                onChange={e => set({ mobile: e.target.value })}
+                onChange={mobile => set({ mobile })}
                 onBlur={() => draft.mobile.trim() && setShown(true)}
               />
             </Field>

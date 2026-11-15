@@ -2,8 +2,10 @@
 // then the rest as on the contact page. Enter saves (Shift+Enter is a new line in the note), Esc closes.
 import { type FormEvent, type KeyboardEvent, useRef, useState } from 'react'
 import { useAssistants, useRun } from '../store.tsx'
-import { Card, FormField, Input } from '../ui/form.tsx'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
+import { Card, FormField } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { ContactField } from './ContactDetail.tsx'
 import {
   CONTACT_DETAIL_FIELDS,
@@ -34,6 +36,7 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
   const [form, setForm] = useState<NewContactForm>(EMPTY_NEW_CONTACT)
   const [problem, setProblem] = useState<string | null>(null)
   const phoneInput = useRef<HTMLInputElement>(null)
+  const defaultCountry = useDefaultPhoneCountry()
   const set = (field: keyof NewContactForm) => (e: { target: { value: string } }) =>
     setForm(f => ({ ...f, [field]: e.target.value }))
 
@@ -68,16 +71,15 @@ export function NewContact({ existing, onAdded, onClose }: Props) {
               onChange={set('name')}
             />
             <FormField id="ct-new-phone" label="Phone" error={problem}>
-              <Input
+              <PhoneInput
                 id="ct-new-phone"
                 value={form.phone}
-                inputMode="tel"
+                defaultCountry={defaultCountry}
                 autoComplete="off"
-                placeholder="+1 503 555 0100"
-                ref={phoneInput}
+                inputRef={phoneInput}
                 invalid={!!problem}
-                onChange={e => {
-                  set('phone')(e)
+                onChange={phone => {
+                  setForm(f => ({ ...f, phone }))
                   setProblem(null)
                 }}
               />

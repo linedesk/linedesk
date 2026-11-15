@@ -117,6 +117,11 @@ describe('the review draft', () => {
       website: expect.stringMatching(/website address/),
     })
     expect(draftProblems({ ...draftFrom(proposal()), phone: '', website: '' })).toEqual({})
+    // The phone field's value: any country, but whole
+    expect(draftProblems({ ...draftFrom(proposal()), phone: '+4930123456' })).toEqual({})
+    expect(draftProblems({ ...draftFrom(proposal()), phone: '+4930' })).toEqual({
+      phone: "This number doesn't look complete for Germany.",
+    })
   })
 
   test('coming back: the review starts from the saved profile, and saving it again keeps it', () => {

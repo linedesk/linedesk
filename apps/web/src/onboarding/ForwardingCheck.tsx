@@ -8,8 +8,8 @@ import { callAction, readAction, useWriteAction } from '../settings/settings-api
 import { Field } from '../settings/fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
 import { useAssistantName, useRun } from '../store.tsx'
-import { Input } from '../ui/form.tsx'
 import { Button, cx, Icon, Note } from '../ui/kit.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
 import {
   checkResultText,
   type GuidePickedBy,
@@ -18,7 +18,8 @@ import {
   noCheckText,
   SIMULATED_MARK,
 } from './forwarding-check.ts'
-import { formatNumber, toE164 } from './flow.ts'
+import { formatNumber } from './flow.ts'
+import { usE164 } from './us-number.ts'
 
 const POLL_MS = 2000
 /** Reads that fail in a row before the check says so and offers to try again; until then it backs off. */
@@ -60,7 +61,7 @@ export function ForwardingCheck({
   const write = useWriteAction()
   const run = useRun()
   const [typed, setTyped] = useState(() => {
-    const known = number.forwarded_from ?? (given && toE164(given))
+    const known = number.forwarded_from ?? (given && usE164(given))
     return known ? formatNumber(known) : ''
   })
   const [edited, setEdited] = useState(false)
@@ -79,12 +80,12 @@ export function ForwardingCheck({
   const looked = useRef<string | null>(null)
   const editedRef = useRef(edited)
   editedRef.current = edited
-  const businessNumber = toE164(typed)
+  const businessNumber = usE164(typed)
   const dialing = check?.status === 'dialing'
 
   // The business phone from the first step can arrive after this opens: it fills the field while that is empty.
   useEffect(() => {
-    const e164 = given && toE164(given)
+    const e164 = given && usE164(given)
     if (e164) setTyped(current => current || formatNumber(e164))
   }, [given])
 
@@ -200,12 +201,13 @@ export function ForwardingCheck({
           label="Your business number"
           tip="The number your callers dial today. We look up its carrier for the right codes."
         >
-          <Input
+          <PhoneInput
             id={fieldId}
             value={typed}
-            placeholder="The number, with area code"
-            onChange={e => {
-              setTyped(e.target.value)
+            defaultCountry="US"
+            autoComplete="off"
+            onChange={value => {
+              setTyped(value)
               setEdited(true)
               setProblem(null)
             }}

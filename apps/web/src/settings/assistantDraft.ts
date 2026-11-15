@@ -7,6 +7,7 @@ import {
   TRANSFER_CONTACTS_MAX,
   TRANSFER_NAME_MAX,
   onCallNumberProblem,
+  phoneNumberProblem,
   DEFAULT_SILENCE_CLOSING,
   DEFAULT_SILENCE_REMINDER,
   localizedDefault,
@@ -37,7 +38,8 @@ import {
   type VoicePipeline,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
-import { formatNumber, renameInGreeting, toE164 } from '../onboarding/flow.ts'
+import { formatNumber, renameInGreeting } from '../onboarding/flow.ts'
+import { usE164 } from '../onboarding/us-number.ts'
 
 /** `greeting_outside`: used outside business hours; empty = the same as during hours. */
 export type Draft = {
@@ -291,15 +293,18 @@ export function hangUpSummary(d: Pick<Draft, 'silence_hang_up_s' | 'max_call_min
 
 /** "(503) 555-0199" and "+1 503 555 0199" are the same number: both show as the latter. */
 function normalizedNumber(typed: string): string {
-  const e164 = toE164(typed)
+  const e164 = usE164(typed)
   return e164 ? formatNumber(e164) : typed.trim()
 }
 
 /** Why a transfer contact's number cannot be used, or null (empty is fine: the contact waits for one). */
 export function numberProblem(typed: string): string | null {
   if (!typed.trim()) return null
-  const e164 = toE164(typed)
-  return e164 ? onCallNumberProblem(e164) : 'Enter a US number with its area code, like +1 503 555 0100.'
+  const e164 = usE164(typed)
+  if (e164) return onCallNumberProblem(e164)
+  // The phone field's value (E.164 as typed): an unfinished number says so for its country.
+  const unfinished = typed.trim().startsWith('+') ? phoneNumberProblem(typed) : null
+  return unfinished ?? 'Enter a US number with its area code, like +1 503 555 0100.'
 }
 
 export type TransferField = 'name' | 'number' | 'condition'
@@ -326,7 +331,7 @@ export function transferProblem(d: Pick<Draft, 'transfers'>): TransferProblem | 
 
 /** The transfer contacts to save. */
 export const transfersToSave = (d: Pick<Draft, 'transfers'>): TransferContact[] =>
-  d.transfers.map(c => ({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: toE164(c.number) }))
+  d.transfers.map(c => ({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: usE164(c.number) }))
 
 /** Starting points for a new contact: blank, or someone for callers who ask for a person. */
 export type TransferPreset = 'blank' | 'person'

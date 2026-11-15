@@ -10,6 +10,7 @@ import {
   businessWebsiteProblem,
   greetingFor,
   INSTRUCTIONS_MAX,
+  phoneNumberProblem,
   workspaceNameProblem,
 } from '@linedesk/actions'
 import type { BusinessProfile } from '@linedesk/db/types'
@@ -184,7 +185,9 @@ export function draftProblems(draft: ProfileDraft): Partial<Record<'name' | 'pho
   const problems: Partial<Record<'name' | 'phone' | 'website', string>> = {}
   const name = draft.name.trim() ? workspaceNameProblem(draft.name) : 'Give the business a name.'
   if (name) problems.name = name
-  const phone = businessPhoneProblem(draft.phone)
+  // The phone field's value is E.164 as far as typed: an unfinished number says so for its country.
+  const phone =
+    (draft.phone.trim().startsWith('+') ? phoneNumberProblem(draft.phone) : null) ?? businessPhoneProblem(draft.phone)
   if (phone) problems.phone = phone
   const website = businessWebsiteProblem(draft.website)
   if (website) problems.website = website

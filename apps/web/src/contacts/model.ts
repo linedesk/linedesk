@@ -1,8 +1,7 @@
 // The Contacts list is derived from the synced contacts and calls: who called, how often, when last and about what.
-import { CONTACT_IMPORT_LIMITS } from '@linedesk/actions'
+import { CONTACT_IMPORT_LIMITS, phoneNumberProblem } from '@linedesk/actions'
 import type { Call, Contact } from '@linedesk/db/types'
 import { formatPhone } from '../inbox-model.ts'
-import { toE164 } from '../onboarding/flow.ts'
 import { parseTs } from '../time.ts'
 
 export type ContactRow = {
@@ -151,15 +150,17 @@ export type NewContactInput = { phone: string; name?: string } & Partial<Record<
 
 /**
  * contact.create's input from New contact, or the problem with the phone number (the one field that can be wrong):
- * empty, not a US number, or already in Contacts (`existing`, in E.164). Blank fields are left out.
+ * empty, not a whole number for its country (phoneNumberProblem), or already in Contacts (`existing`, in E.164).
+ * `form.phone` is the phone field's value, E.164 as far as typed. Blank fields are left out.
  */
 export function newContactInput(
   form: NewContactForm,
   existing: ReadonlySet<string>,
 ): { input: NewContactInput; problem?: undefined } | { problem: string; input?: undefined } {
-  const e164 = toE164(form.phone)
-  if (!form.phone.trim()) return { problem: 'Enter a phone number.' }
-  if (!e164) return { problem: 'Enter a US phone number, like +1 503 555 0100.' }
+  const e164 = form.phone.trim()
+  if (!e164) return { problem: 'Enter a phone number.' }
+  const problem = phoneNumberProblem(e164)
+  if (problem) return { problem }
   if (existing.has(e164)) return { problem: 'That number is already in Contacts.' }
   const input: NewContactInput = { phone: e164 }
   for (const field of ['name', ...CONTACT_DETAIL_FIELDS.map(f => f.field)] as const) {

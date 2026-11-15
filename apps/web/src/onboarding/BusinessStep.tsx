@@ -18,6 +18,8 @@ import { callAction, patchWorkspaceSettings } from '../settings/settings-api.ts'
 import { useAssistant, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
   draftFrom,
@@ -381,6 +383,7 @@ function ReviewProfile({
   onNext: () => void
 }) {
   const run = useRun()
+  const phoneCountry = useDefaultPhoneCountry()
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFrom(proposal))
   const problem = draftProblem(draft)
   const problems = draftProblems(draft)
@@ -453,9 +456,11 @@ function ReviewProfile({
             />
           </Field>
           <Field id="ob-biz-phone" label="Phone" error={problems.phone}>
-            <TextInput
+            <PhoneInput
               id="ob-biz-phone"
               value={draft.phone}
+              defaultCountry={phoneCountry}
+              autoComplete="off"
               onChange={v => set({ phone: v })}
               invalid={!!problems.phone}
             />

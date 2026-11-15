@@ -8,6 +8,9 @@ import { useRef, useState } from 'react'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Input, Textarea } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
+import { formatNumber } from '../onboarding/flow.ts'
+import { usE164 } from '../onboarding/us-number.ts'
 import {
   canAddTransfer,
   moveTransfer,
@@ -32,6 +35,12 @@ const fallbackShort: Record<TransferFallback, string> = {
 const ringOptions: SelectOption<string>[] = [10, 15, 20, 25, 30, 45, 60]
   .filter(s => s >= RING_SECONDS_MIN && s <= RING_SECONDS_MAX)
   .map(s => ({ value: String(s), label: `${s} seconds` }))
+
+/** The number in the contact's row: a US number spaced out ("+1 503 555 0100"), whatever the field sent. */
+const numberLabel = (typed: string) => {
+  const e164 = usE164(typed)
+  return e164 ? formatNumber(e164) : typed.trim() || 'No number'
+}
 
 /** The id of a contact's field, for the label and for putting the cursor there after a failed save. */
 export const transferFieldId = (index: number, field: TransferProblem['field']) => `tc-${index}-${field}`
@@ -154,7 +163,7 @@ function ContactRow(props: RowProps) {
         <button type="button" className="tc-main" onClick={onToggle} aria-expanded={open} title={open ? 'Close' : 'Edit'}>
           <span className="tc-title">
             <b>{name}</b>
-            <span className="tc-number">{c.number.trim() || 'No number'}</span>
+            <span className="tc-number">{numberLabel(c.number)}</span>
             {inactive && <span className="tc-status">{inactive}</span>}
           </span>
           <span className="tc-cond">{c.condition.trim() || 'No condition yet'}</span>
@@ -181,13 +190,13 @@ function ContactRow(props: RowProps) {
               />
             </Field>
             <Field id={id('number')} label="Phone number" error={error('number')} tip={`A US mobile or landline: the person's own phone, not a ${brandName()} number.`}>
-              <Input
+              <PhoneInput
                 id={id('number')}
                 value={c.number}
-                onChange={e => onChange({ number: e.target.value })}
+                defaultCountry="US"
+                autoComplete="off"
+                onChange={number => onChange({ number })}
                 onBlur={() => onLeave('number')}
-                placeholder="+1 503 555 0100"
-                inputMode="tel"
                 invalid={!!error('number')}
               />
             </Field>

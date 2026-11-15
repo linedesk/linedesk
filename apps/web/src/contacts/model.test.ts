@@ -171,7 +171,7 @@ describe('New contact', () => {
   it('sends every field filled in, trimmed, with the number in E.164', () => {
     const typed = form({
       name: ' Dana Ortiz ',
-      phone: '(503) 555-0100',
+      phone: '+15035550100',
       company: 'Ortiz Bakery',
       email: ' dana@ortiz.example ',
       address: '12 Oak St, Portland',
@@ -190,17 +190,25 @@ describe('New contact', () => {
   })
 
   it('leaves out blank fields: a number alone is enough', () => {
-    expect(newContactInput(form({ phone: '+1 503 555 0100', email: '   ', note: '' }), none)).toEqual({
+    expect(newContactInput(form({ phone: '+15035550100', email: '   ', note: '' }), none)).toEqual({
       input: { phone: '+15035550100' },
     })
   })
 
-  it('says what is wrong with the number: empty, not a US number, or already in Contacts', () => {
+  it('takes numbers of every country', () => {
+    expect(newContactInput(form({ phone: '+4930123456' }), none)).toEqual({ input: { phone: '+4930123456' } })
+    expect(newContactInput(form({ phone: '+447946095800' }), none).problem).toBeUndefined()
+  })
+
+  it('says what is wrong with the number: empty, incomplete for its country, or already in Contacts', () => {
     expect(newContactInput(form({ name: 'Dana' }), none)).toEqual({ problem: 'Enter a phone number.' })
-    expect(newContactInput(form({ phone: '555' }), none)).toEqual({
-      problem: 'Enter a US phone number, like +1 503 555 0100.',
+    expect(newContactInput(form({ phone: '+1503555' }), none)).toEqual({
+      problem: "This number doesn't look complete for the United States.",
     })
-    expect(newContactInput(form({ phone: '503 555 0100', email: 'a@b.example' }), new Set(['+15035550100']))).toEqual({
+    expect(newContactInput(form({ phone: '+4930' }), none)).toEqual({
+      problem: "This number doesn't look complete for Germany.",
+    })
+    expect(newContactInput(form({ phone: '+15035550100', email: 'a@b.example' }), new Set(['+15035550100']))).toEqual({
       problem: 'That number is already in Contacts.',
     })
   })

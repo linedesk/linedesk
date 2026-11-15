@@ -110,6 +110,10 @@ describe('transfer contacts', () => {
     expect(transferProblem(draft({ name: 'mike' }))).toMatchObject({ index: 1, field: 'name', message: 'Another contact is called "mike".' })
     expect(transferProblem(draft({ number: '555-0199' }))).toMatchObject({ index: 1, field: 'number', message: expect.stringMatching(/area code/) })
     expect(transferProblem(draft({ number: '+1 900 555 0199' }))).toMatchObject({ field: 'number', message: expect.stringMatching(/Premium-rate/) })
+    // The phone field's value (E.164 as far as typed): unfinished says so for its country; another country is not taken
+    expect(transferProblem(draft({ number: '+1503555' }))).toMatchObject({ field: 'number', message: "This number doesn't look complete for the United States." })
+    expect(transferProblem(draft({ number: '+4930123456' }))).toMatchObject({ field: 'number', message: expect.stringMatching(/US number/) })
+    expect(transferProblem(draft({ number: '+15035550199' }))).toBeNull()
     expect(transferProblem(draft({ condition: '' }))).toMatchObject({ index: 1, field: 'condition' })
     expect(draftProblem(draft({ condition: '' }))).toBe('Say when calls go to this contact.')
   })
