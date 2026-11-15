@@ -162,10 +162,15 @@ describe('workspace.updateSettings', () => {
   })
 
   it('counts each currency in its minor units, as Intl does: cents, whole yen for JPY', () => {
-    for (const currency of jobValueCurrencies)
+    // ISO 4217 has 2 minor units for COP, HUF and IDR; ICU 78 (CLDR 48, Node 22.23) formats them without decimals,
+    // older ICU with 2. Stored amounts follow ISO, so these three are left out of the comparison with Intl.
+    const isoOverIcu = new Set(['COP', 'HUF', 'IDR'])
+    for (const currency of jobValueCurrencies.filter(c => !isoOverIcu.has(c)))
       expect(currencyDigits(currency)).toBe(
         new Intl.NumberFormat('en-US', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits,
       )
+    expect(currencyDigits('COP')).toBe(2)
+    expect(currencyDigits('HUF')).toBe(2)
     expect(currencyDigits('JPY')).toBe(0)
     expect(currencyDigits('KRW')).toBe(0)
     expect(currencyDigits('CLP')).toBe(0)

@@ -106,7 +106,8 @@ export function gmtOffset(zone: string, now: number): string {
  */
 export function timeZoneSearchExample(zone: string | null | undefined, now: number): string {
   const offset = zone ? gmtOffset(zone, now) : ''
-  return /^GMT[+-]\d/.test(offset) ? offset : 'GMT-5'
+  // Newer ICU (78) writes a zone at GMT itself as "GMT+0", older ones as "GMT": both match every zone.
+  return /^GMT[+-]\d/.test(offset) && !/^GMT[+-]0(:00)?$/.test(offset) ? offset : 'GMT-5'
 }
 
 /** The time in a zone at `now`: "1:31 PM"; '' when Intl does not know the zone. */
