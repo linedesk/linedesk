@@ -1,5 +1,5 @@
 import type { TeamData, TeamMember } from '@linedesk/actions'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   canEditMember,
   canEditRole,
@@ -10,11 +10,13 @@ import {
   isMe,
   isOnTeam,
   joinedLabel,
+  needsSignInAgain,
   PROFILE_HASH,
   roleInSentence,
   rolesFor,
   sentInvitations,
   teamRemoveConfirmation,
+  teamRunner,
 } from './team-model.ts'
 import { parseHash } from '../shell/useRoute.ts'
 import { OWN_NOTIFICATIONS_HASH } from '../settings/Notifications.tsx'
@@ -121,5 +123,36 @@ describe('removing someone from the team (LIN-264)', () => {
     expect(teamRemoveConfirmation('Ana', true, 0).list).toHaveLength(1)
     expect(teamRemoveConfirmation('Ana', false, 1).list[1]).toBe('The pending invitation they sent will be canceled.')
     expect(teamRemoveConfirmation('Ana', true, 3).list[1]).toBe('The 3 pending invitations they sent will be canceled.')
+  })
+})
+
+describe('team changes (teamRunner)', () => {
+  const refusal = Object.assign(new Error('Sign in again to delete their account.'), { code: 'SIGN_IN_AGAIN' })
+
+  it('a change from the page: a toast either way, the team read again, whether it went through', async () => {
+    const toast = vi.fn()
+    const load = vi.fn(async () => {})
+    const run = teamRunner(toast, load)
+    expect(await run(async () => {}, 'Done.')).toBe(true)
+    expect(await run(() => Promise.reject(new Error('No.')), 'Done.')).toBe(false)
+    expect(toast.mock.calls).toEqual([['Done.'], ['No.']])
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('a refused change confirmed in a dialog rejects, so the dialog ends busy and shows why (LIN-266)', async () => {
+    const toast = vi.fn()
+    const load = vi.fn(async () => {})
+    const run = teamRunner(toast, load)
+    await expect(run(() => Promise.reject(refusal), 'Removed.', { inDialog: true })).rejects.toBe(refusal)
+    expect(toast).not.toHaveBeenCalled() // the dialog says it, not a toast behind it
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(await run(async () => {}, 'Removed.', { inDialog: true })).toBe(true)
+    expect(toast).toHaveBeenCalledWith('Removed.')
+  })
+
+  it("tells the server's sign-in-again refusal from others", () => {
+    expect(needsSignInAgain(refusal)).toBe(true)
+    expect(needsSignInAgain(new Error('No.'))).toBe(false)
+    expect(needsSignInAgain(null)).toBe(false)
   })
 })

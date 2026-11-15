@@ -36,7 +36,7 @@ import { StatusList } from '../admin/StatusCard.tsx'
 import { TryOut } from '../admin/TryOut.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
-import { peekQuery, setQueryData } from '../cachedQuery.ts'
+import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { forgetEnrolmentCode, readEnrolmentCode } from '../enrolment-code.ts'
 import { passkeySupported } from '../auth.ts'
 import { addPasskey, confirmWithPasskey } from '../settings/account/account-api.ts'
@@ -92,7 +92,7 @@ export function InstallSetup({ onExit }: Props) {
     openFrom = 'left'
   }, [])
   const [setup, setSetup] = useState<InstallSetupState | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [setupError, setSetupError] = useState<string | null>(null)
   const [step, setStep] = useState<InstallStep | null>(null)
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   // "Skip for now" on the passkey screen: Email shows, and its save asks for the passkey then (PasskeyStepUp).
@@ -100,15 +100,16 @@ export function InstallSetup({ onExit }: Props) {
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
   // Step 1 on the welcome screen: the passkey added right there shows as done at once, then the setup is read again.
   const [passkeyAddedHere, setPasskeyAddedHere] = useState(false)
-  // Read here and shared with Admin's cache (the page opens before the session settles the cache's scope, so a cached
-  // read could miss its answer).
-  const [data, setData] = useState<AdminData | null>(() => peekQuery(ADMIN_DATA) ?? null)
+  // Shared with Server admin: what one loads, the other shows at once.
+  const adminData = useQuery(ADMIN_DATA, loadAdminData)
+  const data = adminData.data ?? null
+  const loadError = data ? setupError : (setupError ?? (adminData.error && problemText(errorText(adminData.error))))
   const status = useProviderStatus(data)
 
   const loadSetup = useCallback(async () => {
     const next = await loadInstallSetup()
     setSetup(next)
-    setLoadError(null)
+    setSetupError(null)
     return next
   }, [])
   useEffect(() => {
@@ -118,21 +119,13 @@ export function InstallSetup({ onExit }: Props) {
         if (!s.enabled) window.location.hash = '#admin/providers'
         setStep(current => current ?? openingStep(s.progress, from.current))
       },
-      e => setLoadError(problemText(errorText(e))),
+      e => setSetupError(problemText(errorText(e))),
     )
   }, [loadSetup])
 
-  const reloadData = useCallback(async () => {
-    const next = await loadAdminData()
-    setData(next)
-    setQueryData(ADMIN_DATA, next)
-  }, [])
-  useEffect(() => {
-    reloadData().catch(e => setLoadError(problemText(errorText(e))))
-  }, [reloadData])
   const reloadAll = useCallback(async () => {
-    await Promise.all([reloadData(), loadSetup().catch(() => null)])
-  }, [reloadData, loadSetup])
+    await Promise.all([fetchQuery(ADMIN_DATA, loadAdminData, {}, true), loadSetup().catch(() => null)])
+  }, [loadSetup])
   const passkey = usePasskeyHere(
     useCallback(() => {
       setPasskeyAddedHere(true)

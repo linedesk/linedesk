@@ -10,7 +10,7 @@ import {
   type TeamMember,
   type TeamRole,
 } from '@linedesk/actions'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
 import { onlyAdmins } from '../settings/readOnly.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
@@ -42,7 +42,10 @@ import {
   PROFILE_HASH,
   roleLabel,
   rolesFor,
+  needsSignInAgain,
+  type TeamRun,
   teamRemoveConfirmation,
+  teamRunner,
 } from './team-model.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
@@ -52,8 +55,6 @@ const roleHelp = {
   admin: msg('team.role.adminHelp'),
   member: msg('team.role.memberHelp'),
 } satisfies Record<TeamRole, MessageKey>
-
-type Run = (work: () => Promise<unknown>, done: string) => Promise<boolean>
 
 function RoleSelect<R extends TeamRole>({
   id,
@@ -122,7 +123,7 @@ function OwnerConfirm({
   )
 }
 
-function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: Run; onEdit: () => void }) {
+function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: TeamRun; onEdit: () => void }) {
   const t = useT()
   const [removing, setRemoving] = useState(false)
   // Deleting their account needs a recent sign-in: the dialog then offers "Sign in again" (LIN-264 review F3).
@@ -195,12 +196,15 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
                 setSignInFirst(false)
                 const remove = () =>
                   teamApi.remove(m.memberId, deleteAccount).catch((err: unknown) => {
-                    // Deleting their account needs a sign-in in the last 10 minutes (the server's SIGN_IN_AGAIN).
-                    if ((err as { code?: unknown }).code === 'SIGN_IN_AGAIN') setSignInFirst(true)
+                    // Deleting their account needs a sign-in in the last 10 minutes: the note below offers it.
+                    if (needsSignInAgain(err)) setSignInFirst(true)
                     throw err
                   })
-                if (await run(remove, t('team.member.removed', { name }))) setRemoving(false)
+                // A refusal is thrown to the dialog: it shows why and stays usable.
+                await run(remove, t('team.member.removed', { name }), { inDialog: true })
+                setRemoving(false)
               }}
+              explains={needsSignInAgain}
               onClose={() => {
                 setSignInFirst(false)
                 setRemoving(false)
@@ -230,7 +234,7 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
   )
 }
 
-function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; canManage: boolean; run: Run }) {
+function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; canManage: boolean; run: TeamRun }) {
   const t = useT()
   const [confirming, setConfirming] = useState(false)
   return (
@@ -277,7 +281,7 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
   )
 }
 
-function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (text: string) => void }) {
+function InviteForm({ data, run, toast }: { data: TeamData; run: TeamRun; toast: (text: string) => void }) {
   const t = useT()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<AssignableRole>('member')
@@ -358,6 +362,12 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
   const [deleteAccount, setDeleteAccount] = useState(true)
   // Deleting the account needs a sign-in in the last 10 minutes (the server's SIGN_IN_AGAIN).
   const [signInFirst, setSignInFirst] = useState(false)
+  // Leave had the focus and was disabled while it ran: after a refusal the focus goes back into the dialog (Esc, Tab).
+  const [failures, setFailures] = useState(0)
+  const leaveButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (failures > 0) leaveButton.current?.focus()
+  }, [failures])
   const workspaces = useWorkspaces()
   const me = data.members.find(m => m.userId === data.me)
   if (!me) return null
@@ -372,7 +382,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
     setError(null)
     try {
       const { nextWorkspaceId, accountDeleted } = await teamApi.leave(lastWorkspace && deleteAccount)
-      markLeft()
+      markLeft({ accountDeleted })
       if (accountDeleted) {
         // The account and its sessions are gone: forget what this browser kept, then the sign-in page.
         await signOutAndForget().catch(() => {})
@@ -380,10 +390,11 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
       } else if (nextWorkspaceId) await switchToWorkspace(nextWorkspaceId)
       else window.location.replace('/')
     } catch (err) {
-      const signIn = (err as { code?: unknown }).code === 'SIGN_IN_AGAIN'
+      const signIn = needsSignInAgain(err)
       setSignInFirst(signIn)
       setError(signIn ? null : err instanceof Error ? err.message : String(err))
       setBusy(false)
+      setFailures(n => n + 1)
     }
   }
   return (
@@ -415,7 +426,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
               <Button variant="ghost" onClick={() => setAsking(false)} disabled={busy}>
                 {t('common.action.cancel')}
               </Button>
-              <Button busy={busy} type="submit" variant="danger" disabled={busy}>
+              <Button ref={leaveButton} busy={busy} type="submit" variant="danger" disabled={busy}>
                 {busy ? t('team.leave.leaving') : t('team.leave.title')}
               </Button>
             </>
@@ -455,18 +466,7 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const error = data ? null : team.error
   const load = team.reload
 
-  const run: Run = async (work, done) => {
-    try {
-      await work()
-      toast(done)
-      return true
-    } catch (e) {
-      toast(e instanceof Error ? e.message : String(e))
-      return false
-    } finally {
-      await load()
-    }
-  }
+  const run = teamRunner(toast, load)
 
   return (
     <>

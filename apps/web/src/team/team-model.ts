@@ -119,3 +119,31 @@ export function removeMemberConfirmation(name: string, where?: string) {
     option: t('team.remove.keepAccount'),
   }
 }
+
+/** A team change run from the page: `done` is the toast on success. */
+export type TeamRun = (work: () => Promise<unknown>, done: string, options?: { inDialog?: boolean }) => Promise<boolean>
+
+/**
+ * Runs team changes and reads the team again after each. Whether it went through: a failure is a toast, or, for a
+ * change confirmed in a dialog (`inDialog`), thrown, so the dialog shows why and stays usable (LIN-266: a refused
+ * removal left the Remove dialog stuck on "Removing…").
+ */
+export function teamRunner(toast: (text: string) => void, load: () => Promise<void>): TeamRun {
+  return async (work, done, { inDialog = false } = {}) => {
+    try {
+      await work()
+      toast(done)
+      return true
+    } catch (e) {
+      if (inDialog) throw e
+      toast(e instanceof Error ? e.message : String(e))
+      return false
+    } finally {
+      await load()
+    }
+  }
+}
+
+/** The server refused because deleting an account needs a sign-in in the last 10 minutes (its SIGN_IN_AGAIN). */
+export const needsSignInAgain = (err: unknown) =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'SIGN_IN_AGAIN'

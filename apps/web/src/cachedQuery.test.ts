@@ -113,6 +113,55 @@ describe('cached queries', () => {
     unsubscribe()
   })
 
+  test('a query on screen while the page forgets what it kept keeps its screen and loads again (LIN-266)', async () => {
+    // A server admin without a workspace reloads Server admin: the page forgets the local data (scope stays '')
+    // while the admin lists are on their way.
+    forgetQueries()
+    const answers: ((value: string) => void)[] = []
+    const load = vi.fn(() => new Promise<string>(resolve => answers.push(resolve)))
+    const seen = vi.fn(() => queryState('admin.data').data)
+    const unsubscribe = subscribeQuery('admin.data', seen)
+    void fetchQuery('admin.data', load)
+    forgetQueries()
+    expect(load).toHaveBeenCalledTimes(2) // loaded again for the screen
+    answers[0]?.('answer from before the forget')
+    await Promise.resolve()
+    expect(queryState('admin.data').data).toBeUndefined()
+    answers[1]?.('admin lists')
+    await vi.waitFor(() => expect(seen).toHaveLastReturnedWith('admin lists'))
+    // "Try again" still has the loader, and always asks the server.
+    void fetchQuery('admin.data', undefined, {}, true)
+    expect(load).toHaveBeenCalledTimes(3)
+    unsubscribe()
+  })
+
+  test('trying again asks the server again even while an earlier load has not answered; the newest answer counts', async () => {
+    const answers: ((value: string) => void)[] = []
+    const load = vi.fn(() => new Promise<string>(resolve => answers.push(resolve)))
+    void fetchQuery('team', load)
+    void fetchQuery('team') // a second component: joins the load on its way
+    expect(load).toHaveBeenCalledTimes(1)
+    const again = fetchQuery('team', undefined, {}, true)
+    expect(load).toHaveBeenCalledTimes(2)
+    answers[1]?.('new team')
+    await again
+    answers[0]?.('old team')
+    await Promise.resolve()
+    expect(peekQuery('team')).toBe('new team')
+  })
+
+  test("an answer of the old scope still on its way is not stored under the new one's", async () => {
+    let answer!: (value: string) => void
+    const unsubscribe = subscribeQuery('settings', () => {}, { persist: true })
+    void fetchQuery('settings', () => new Promise<string>(resolve => (answer = resolve)), { persist: true })
+    const first = answer
+    setQueryScope('member-2/ws-1')
+    first('settings of member-1')
+    await Promise.resolve()
+    expect(storage.keys()).not.toContain('linedesk-q:member-2/ws-1:settings')
+    unsubscribe()
+  })
+
   test("sign-out forgets every member's answers but keeps what the sign-in page shows", async () => {
     setQueryScope('')
     await fetchQuery('auth-methods', async () => ({ password: true }), { persist: true })

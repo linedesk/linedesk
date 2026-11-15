@@ -13,7 +13,7 @@ import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Icon, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
-import { readDeleted, signedOutOfWorkspace } from './session.ts'
+import { leftAndDeleted, readDeleted, signedOutOfWorkspace } from './session.ts'
 import { isUiLocale, PSEUDO_LOCALE } from '@linedesk/i18n'
 import { useLocale } from '@linedesk/i18n/react'
 import { activate } from './i18n/index.tsx'
@@ -55,11 +55,15 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   // The server ended the session this device had (a removal, a password change, another device's "Sign out other
   // sessions"…): which workspace it was in (A7).
   const [ended] = useState(() => (reauth ? null : signedOutOfWorkspace()))
+  // Someone who left their last workspace with "Also delete my account" (TeamPage.tsx LeaveWorkspace).
+  const [left] = useState(() => (reauth ? null : leftAndDeleted()))
   const lostNote = deleted?.accountDeleted
     ? t('auth.deleted')
-    : ended
-      ? t('auth.signedOutOf', { workspace: ended })
-      : null
+    : left
+      ? t('auth.leftAndDeleted', { workspace: left })
+      : ended
+        ? t('auth.signedOutOf', { workspace: ended })
+        : null
   // `busy` is what is running ('email', 'password', a provider id); it stays set after a success that leaves this page.
   const [busy, setBusy] = useState<string | null>(null)
   const [lastUsed] = useState(readLastUsedMethod)

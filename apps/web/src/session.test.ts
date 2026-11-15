@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from './session.ts'
 
 vi.mock('./auth.ts', () => ({ signedInAccount: vi.fn(async () => null) }))
-const { expectSessionChange, forgetMe, loadSession, rememberedSession, sameSession, signedOutOfWorkspace } = await import('./session.ts')
+const { expectSessionChange, forgetMe, leftAndDeleted, loadSession, markLeft, rememberedSession, sameSession, signedOutOfWorkspace } = await import('./session.ts')
 const { signedInAccount } = await import('./auth.ts')
 const { i18n } = await import('./i18n/index.tsx')
 
@@ -182,5 +182,24 @@ describe('warm start from this device', () => {
     expect(sameSession(shown, ready({ ...me, workspace: { id: 'ws2', name: 'Other' } }))).toBe(false)
     expect(sameSession(shown, ready(me, true))).toBe(false)
     expect(sameSession(shown, { state: 'signedOut' })).toBe(false)
+  })
+})
+
+describe('leaving the last workspace with the account (LIN-266)', () => {
+  it('the sign-in page learns that the account is gone, and which workspace was left', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, me)))
+    await loadSession()
+    markLeft({ accountDeleted: true })
+    forgetMe() // signed out and forgotten right after (TeamPage.tsx LeaveWorkspace)
+    expect(leftAndDeleted()).toBe('Tims Org')
+  })
+  it('says nothing when the account stays, or once a workspace opens again', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, me)))
+    await loadSession()
+    markLeft()
+    expect(leftAndDeleted()).toBeNull()
+    markLeft({ accountDeleted: true })
+    await loadSession()
+    expect(leftAndDeleted()).toBeNull()
   })
 })

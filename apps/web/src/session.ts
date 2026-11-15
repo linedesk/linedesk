@@ -126,14 +126,30 @@ export function forgetMe() {
 }
 
 const LEFT_KEY = 'linedesk.leftWorkspace'
+/** Set with LEFT_KEY when the person's account went with leaving (their last workspace, "Also delete my account"). */
+const LEFT_DELETED_KEY = 'linedesk.leftAccountDeleted'
 
-/** Before leaving a workspace on purpose: the screen after it says "You left …", not "You no longer have access". */
-export function markLeft() {
+/**
+ * Before leaving a workspace on purpose: the screen after it says "You left …", not "You no longer have access".
+ * `accountDeleted`: the account went too, so the sign-in page says so (leftAndDeleted).
+ */
+export function markLeft({ accountDeleted = false }: { accountDeleted?: boolean } = {}) {
   expectSessionChange()
   const name = remembered()?.workspace?.name
   try {
     if (name) sessionStorage.setItem(LEFT_KEY, name)
+    if (accountDeleted) sessionStorage.setItem(LEFT_DELETED_KEY, '1')
+    else sessionStorage.removeItem(LEFT_DELETED_KEY)
   } catch {}
+}
+
+/** The workspace this tab left with its account deleted (markLeft), for the sign-in page; null otherwise. */
+export function leftAndDeleted(): string | null {
+  try {
+    return sessionStorage.getItem(LEFT_DELETED_KEY) === '1' ? sessionStorage.getItem(LEFT_KEY) : null
+  } catch {
+    return null
+  }
 }
 
 /** Whether this tab left the workspace of that name itself (markLeft). */
@@ -183,6 +199,7 @@ export const deletedOnPurpose = (workspaceName: string | null) =>
 function forgetLeft() {
   try {
     sessionStorage.removeItem(LEFT_KEY)
+    sessionStorage.removeItem(LEFT_DELETED_KEY)
   } catch {}
 }
 

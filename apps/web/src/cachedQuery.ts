@@ -20,16 +20,27 @@ export type Query<T> = QueryState<T> & { reload: () => Promise<void> }
  */
 type Options = { persist?: boolean; freshMs?: number; idle?: boolean }
 
+/** One query's answer for the current member and workspace (setQueryScope); a new scope starts new entries. */
 type Entry = {
   state: QueryState<unknown>
-  load?: () => Promise<unknown>
   persist: boolean
-  freshMs: number
-  idle: boolean
   loadedAt: number
   /** How often the page put an answer in place itself (setQueryData). */
   changes: number
+  /** The load whose answer counts: an earlier one still on its way is dropped when it lands (reload). */
+  latest: number
   inflight?: Promise<void>
+}
+
+/**
+ * What a query is, across scopes: how it loads and who shows it. Kept apart from the answers, so a scope change or a
+ * sign-out that drops the answers never loses a loader or a screen's subscription (a screen that stayed on "Loading"
+ * with "Try again" doing nothing: LIN-266).
+ */
+type Registration = {
+  load?: () => Promise<unknown>
+  freshMs: number
+  idle: boolean
   listeners: Set<() => void>
 }
 
@@ -39,6 +50,7 @@ const FRESH_MS = 5_000
 const EMPTY: QueryState<never> = { data: undefined, error: null }
 
 const entries = new Map<string, Entry>()
+const registrations = new Map<string, Registration>()
 let scope = ''
 
 const storageKey = (key: string) => `${STORAGE_PREFIX}${scope}:${key}`
@@ -67,11 +79,9 @@ function entryFor(key: string, persist = false): Entry {
     entry = {
       state: stored === undefined ? EMPTY : { data: stored, error: null },
       persist,
-      freshMs: FRESH_MS,
-      idle: false,
       loadedAt: 0,
       changes: 0,
-      listeners: new Set(),
+      latest: 0,
     }
     entries.set(key, entry)
   }
@@ -79,10 +89,39 @@ function entryFor(key: string, persist = false): Entry {
   return entry
 }
 
+function registrationFor(key: string): Registration {
+  let registration = registrations.get(key)
+  if (!registration) {
+    registration = { freshMs: FRESH_MS, idle: false, listeners: new Set() }
+    registrations.set(key, registration)
+  }
+  return registration
+}
+
+const shownKeys = () => [...registrations].filter(([, r]) => r.listeners.size > 0).map(([key]) => key)
+
+function notify(key: string) {
+  for (const listener of registrations.get(key)?.listeners ?? []) listener()
+}
+
 function publish(key: string, entry: Entry, state: QueryState<unknown>) {
   entry.state = state
   if (entry.persist && state.data !== undefined) writeStored(key, state.data)
-  for (const listener of entry.listeners) listener()
+  notify(key)
+}
+
+/**
+ * Drops every answer in memory. A query that is on screen stays subscribed: it shows the new scope's answer (empty, or
+ * the stored one) at once and loads again; an answer of the old scope still on its way is dropped when it lands.
+ */
+function dropAnswers() {
+  const shown = shownKeys().map(key => [key, entries.get(key)?.persist ?? false] as const)
+  entries.clear()
+  for (const [key, persist] of shown) {
+    entryFor(key, persist)
+    notify(key)
+    void fetchQuery(key)
+  }
 }
 
 /**
@@ -93,44 +132,46 @@ function publish(key: string, entry: Entry, state: QueryState<unknown>) {
 export function setQueryScope(next: string) {
   if (next === scope) return
   scope = next
-  const shown = [...entries].filter(([, entry]) => entry.listeners.size > 0)
-  entries.clear()
-  for (const [key, old] of shown) {
-    const entry = entryFor(key, old.persist)
-    // The same set, so the component's unsubscribe still finds its listener; an answer of the old scope
-    // still on its way lands in the old entry, which nobody listens to any more.
-    entry.listeners = old.listeners
-    old.listeners = new Set()
-    entry.load = old.load
-    entry.freshMs = old.freshMs
-    entry.idle = old.idle
-    for (const listener of entry.listeners) listener()
-    void fetchQuery(key)
-  }
+  dropAnswers()
 }
 
-/** Loads the query now (once at a time) and shares the answer. A failure keeps the last answer. */
-export function fetchQuery<T>(key: string, load?: () => Promise<T>, options: Options = {}): Promise<void> {
+/**
+ * Loads the query now and shares the answer. A load already on its way is joined, unless `again` (the person asked
+ * to try again): then a new load starts and only its answer counts. A failure keeps the last answer.
+ */
+export function fetchQuery<T>(
+  key: string,
+  load?: () => Promise<T>,
+  options: Options = {},
+  again = false,
+): Promise<void> {
   const entry = entryFor(key, options.persist)
-  if (load) entry.load = load
-  if (entry.inflight) return entry.inflight
-  const run = entry.load
+  const registration = registrationFor(key)
+  if (load) registration.load = load
+  if (entry.inflight && !again) return entry.inflight
+  const run = registration.load
   if (!run) return Promise.resolve()
   const changesBefore = entry.changes
-  const inflight = run().then(
-    // An answer the server gave before a change the page made since would undo that change on screen.
-    data => (entry.changes !== changesBefore ? undefined : publish(key, entry, { data, error: null })),
-    (err: unknown) =>
-      publish(key, entry, {
-        data: entry.state.data,
-        error: err instanceof Error ? err.message : String(err),
-      }),
+  const id = ++entry.latest
+  // Still the answer that counts: the same scope (no sign-out or switch since), no newer load, no change the page made
+  // since (an answer the server gave before it would undo that change on screen).
+  const counts = () => entries.get(key) === entry && entry.latest === id && entry.changes === changesBefore
+  const settled = run().then(
+    data => {
+      if (counts()) publish(key, entry, { data, error: null })
+    },
+    (err: unknown) => {
+      if (counts())
+        publish(key, entry, { data: entry.state.data, error: err instanceof Error ? err.message : String(err) })
+    },
   )
-  entry.inflight = inflight.finally(() => {
+  const inflight = settled.finally(() => {
+    if (entry.latest !== id) return
     entry.inflight = undefined
     entry.loadedAt = Date.now()
   })
-  return entry.inflight
+  entry.inflight = inflight
+  return inflight
 }
 
 /** Loads the query again in the background, if anything has loaded it before. */
@@ -157,7 +198,6 @@ export const peekStoredQuery = <T>(key: string): T | undefined => entryFor(key, 
  * Answers without a member (what the sign-in page shows) stay.
  */
 export function forgetQueries() {
-  entries.clear()
   scope = ''
   const signedOut = storageKey('')
   try {
@@ -166,6 +206,9 @@ export function forgetQueries() {
   } catch {
     /* nothing was stored */
   }
+  // Also when the scope stays '' (an instance admin without a workspace, whose Server admin is on screen while the
+  // page forgets what it kept: localData.ts forgetBeyond): what is shown keeps its place and loads again.
+  dropAnswers()
 }
 
 /** Another account signed in on this browser: the answers stored for every other member go; this member's stay. */
@@ -184,8 +227,10 @@ export function forgetOtherMembersQueries(actorId: string) {
 /** Queries someone is looking at are checked again when the window gets focus back (not right after a load). */
 function refreshShown() {
   const now = Date.now()
-  for (const [key, entry] of entries)
-    if (entry.listeners.size > 0 && !entry.idle && now - entry.loadedAt > entry.freshMs) void fetchQuery(key)
+  for (const key of shownKeys()) {
+    const { idle, freshMs } = registrationFor(key)
+    if (!idle && now - entryFor(key).loadedAt > freshMs) void fetchQuery(key)
+  }
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('focus', refreshShown)
@@ -197,8 +242,8 @@ if (typeof window !== 'undefined') {
 
 /** Calls `listener` whenever the query's answer changes (what a component showing it does); returns the unsubscribe. */
 export function subscribeQuery(key: string, listener: () => void, options: Options = {}): () => void {
-  // The set, not the entry: after a scope change the set moves to the new scope's entry (setQueryScope).
-  const listeners = entryFor(key, options.persist).listeners
+  entryFor(key, options.persist)
+  const { listeners } = registrationFor(key)
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
@@ -223,11 +268,17 @@ export function useQuery<T>(key: string | null, load: () => Promise<T>, options:
   useEffect(() => {
     if (!key) return
     const entry = entryFor(key, options.persist)
-    entry.load = load
-    entry.freshMs = options.freshMs ?? FRESH_MS
-    entry.idle = Boolean(options.idle)
-    if (!entry.inflight && !entry.idle && Date.now() - entry.loadedAt > entry.freshMs) void fetchQuery(key)
+    const registration = registrationFor(key)
+    registration.load = load
+    registration.freshMs = options.freshMs ?? FRESH_MS
+    registration.idle = Boolean(options.idle)
+    if (!entry.inflight && !registration.idle && Date.now() - entry.loadedAt > registration.freshMs)
+      void fetchQuery(key)
   }, [key, options.idle, options.freshMs])
-  const reload = useCallback(() => (key ? fetchQuery(key) : Promise.resolve()), [key])
+  // "Try again": always a new request, even while an earlier one has not answered.
+  const reload = useCallback(
+    () => (key ? fetchQuery(key, undefined, { persist: options.persist }, true) : Promise.resolve()),
+    [key, options.persist],
+  )
   return { ...state, reload }
 }

@@ -191,6 +191,7 @@ function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
       run={run}
       onClose={onClose}
       blocked={stepUp === 'signIn'}
+      explains={err => err instanceof SignInFirst}
     >
       {keep => {
         const warning = ownAccountWarning(p, keep)

@@ -105,7 +105,16 @@
   box-shadow: 0 0 0 1px var(--danger);
   border-color: var(--danger);
 }
+/* A field that cannot be changed has the same filled frame as a disabled select beside it, also when it is read-only
+   (a setting only admins change, a key to copy): its text stays readable and selectable. */
+.k-input:has(input:read-only),
 .k-input:has(input:disabled) {
+  background: var(--surface-hover);
+}
+.k-input input:read-only {
+  cursor: default;
+}
+.ta:read-only {
   background: var(--surface-hover);
 }
 .k-input input:disabled {

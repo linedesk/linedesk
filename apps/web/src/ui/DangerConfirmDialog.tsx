@@ -2,7 +2,7 @@
 // disabling, granting admin): what it affects in a danger note, an optional checkbox, the name typed to unlock
 // the button, and why it failed in one short sentence. The caller's `run` does the work; on success the dialog stays
 // busy until the caller closes it or the page moves on.
-import { type FormEvent, type ReactNode, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { stepUpRefusalText } from '../admin/PasskeyStepUp.tsx'
 import { errorText } from '../admin/notify.ts'
 import { rejectionReason } from '../shell/rejections.ts'
@@ -43,6 +43,13 @@ export function confirmErrorText(err: unknown): string {
   return rejectionReason(/^The server answered \d{3}$/.test(text) ? '' : text)
 }
 
+/**
+ * What the dialog's error note says when `run` failed: nothing when the caller explains that refusal itself (a note
+ * in `children`, like "Sign in again first"), so it is not said twice.
+ */
+export const confirmFailureText = (err: unknown, explains?: (err: unknown) => boolean): string | null =>
+  explains?.(err) ? null : confirmErrorText(err)
+
 /** Whether the typed text unlocks the button: the same name, case and outer spaces aside (as the API checks it). */
 export const typedMatches = (typed: string, expected: string | undefined) =>
   !expected || typed.trim().toLowerCase() === expected.trim().toLowerCase()
@@ -56,15 +63,27 @@ type Props = {
   children?: ReactNode | ((option: boolean) => ReactNode)
   /** Keeps the confirming button locked (something must happen first, said in `children`). */
   blocked?: boolean
+  /** Refusals the caller explains in `children` (the dialog then adds no error note of its own). */
+  explains?: (err: unknown) => boolean
 }
 
-export function DangerConfirmDialog({ confirm, run, onClose, children, blocked = false }: Props) {
+export function DangerConfirmDialog({ confirm, run, onClose, children, blocked = false, explains }: Props) {
   const t = useT()
   const [typed, setTyped] = useState('')
   const [option, setOption] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The confirming button had the focus and was disabled while `run` ran, so the focus fell out of the dialog: after
+  // a failure it goes back in (that button, or Cancel while it stays locked), so Esc and Tab work again.
+  const [failures, setFailures] = useState(0)
+  const confirmButton = useRef<HTMLButtonElement>(null)
+  const cancelButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (failures === 0) return
+    const confirmTarget = confirmButton.current
+    ;(confirmTarget && !confirmTarget.disabled ? confirmTarget : cancelButton.current)?.focus()
+  }, [failures])
   const reasonGiven = !confirm.reason || reason.trim().length >= confirm.reason.min
   const unlocked = !blocked && typedMatches(typed, confirm.typed) && reasonGiven
   async function submit(e: FormEvent, work: (option: boolean, reason: string) => Promise<unknown> = run) {
@@ -75,8 +94,10 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
     try {
       await work(option, reason.trim())
     } catch (err) {
-      setError(confirmErrorText(err))
+      // Busy ends with any failure: the dialog is usable again (Cancel, Esc, the box, another try).
+      setError(confirmFailureText(err, explains))
       setBusy(false)
+      setFailures(n => n + 1)
     }
   }
   return (
@@ -88,7 +109,7 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
       onSubmit={submit}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
+          <Button ref={cancelButton} variant="ghost" onClick={onClose} disabled={busy}>
             {t('common.action.cancel')}
           </Button>
           {confirm.alternative && (
@@ -101,7 +122,13 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
               {confirm.alternative.action}
             </Button>
           )}
-          <Button busy={busy} type="submit" variant={confirm.variant ?? 'danger'} disabled={!unlocked || busy}>
+          <Button
+            ref={confirmButton}
+            busy={busy}
+            type="submit"
+            variant={confirm.variant ?? 'danger'}
+            disabled={!unlocked || busy}
+          >
             {busy && confirm.busyAction ? confirm.busyAction : confirm.action}
           </Button>
         </>
