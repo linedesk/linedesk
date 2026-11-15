@@ -3,7 +3,7 @@ import { describe, expect, it, test, vi } from 'vitest'
 import { addedToMessage, nudgeIfQuiet, saidMeanwhile, stepFacts } from './collect-tools.ts'
 import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
 import { Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
-import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, upcomingDates } from './collectors.ts'
+import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, todayFact } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
 describe('spoken input', () => {
@@ -188,14 +188,11 @@ test('a phone number confirmed after the message was saved is added to it; nothi
   expect(added).toHaveLength(1)
 })
 
-test('the date step lists the next days with their weekday and date, so the model never counts days', () => {
-  expect(upcomingDates('2026-11-12', 7)).toBe(
-    'Today is Thursday 2026-11-12. The days after it: Friday 2026-11-13; Saturday 2026-11-14; Sunday 2026-11-15; Monday 2026-11-16; Tuesday 2026-11-17; Wednesday 2026-11-18; Thursday 2026-11-19.',
-  )
-  // Across a month and a year.
-  expect(upcomingDates('2026-12-30', 3)).toContain('Thursday 2026-12-31; Friday 2027-01-01; Saturday 2027-01-02.')
+test('a step knows today, but no list of days: the tool works out the day from the caller\'s words', () => {
+  expect(todayFact('2026-11-12')).toBe('Today is Thursday, November 12, 2026.')
   const day = dateCollector({ what: 'preferred day', today: '2026-11-12' })
-  expect(day.instructions).toContain('Wednesday 2026-11-18')
+  expect(day.instructions).not.toContain('2026-11-18')
+  expect(day.instructions).toContain('never count days yourself')
   expect(day.instructions).toContain('never count days yourself')
 })
 
@@ -253,10 +250,10 @@ describe('a question during a step (LIN-103)', () => {
     expect(askedAgainAfterPutOff(undefined, 'Which date is Wednesday?')).toBe(false)
   })
 
-  it('gives the step the next days with their dates and the business hours to answer from', () => {
+  it('gives the step today and the business hours to answer from, no list of days', () => {
     const facts = stepFacts({ today: '2026-11-12', hours: 'Open now, until 6 PM.', address: ' 1200 SE Morrison St, Portland ' })
-    expect(facts).toContain('Wednesday 2026-11-18')
-    expect(facts).toContain('Friday 2026-11-20')
+    expect(facts).toContain('Today is Thursday, November 12, 2026.')
+    expect(facts).not.toContain('2026-11-18')
     expect(facts).toContain('Business hours: Open now, until 6 PM.')
     expect(facts).toContain('Business address: 1200 SE Morrison St, Portland')
     expect(stepFacts({ today: '2026-11-12' })).not.toContain('Business')

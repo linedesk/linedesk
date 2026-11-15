@@ -63,5 +63,6 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).not.toContain('You can do')
   expect(prompt).toContain('say your reply in the same response as the tool call')
   expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on
-  expect(buildInstructions(null)).toContain('take_message')
+  // take_message's own rule (once per call) is in its description now; the prompt names the collection tools.
+  expect(buildInstructions(null)).toContain('get_name')
 })

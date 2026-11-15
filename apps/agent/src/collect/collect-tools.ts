@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
 import { type CollectOutcome, describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
-import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector, upcomingDates } from './collectors.ts'
+import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector, todayFact } from './collectors.ts'
 import { phoneStepRefusal } from '../callback-number.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
@@ -41,7 +41,7 @@ export type CollectContext = {
  * date, and the business hours and address when known. Anything else goes back to the assistant (hand_back).
  */
 export function stepFacts({ today, hours, address }: { today: string; hours?: string | null; address?: string | null }): string {
-  return [upcomingDates(today), hours && `Business hours: ${hours}`, address?.trim() && `Business address: ${address.trim()}`].filter(Boolean).join('\n')
+  return [todayFact(today), hours && `Business hours: ${hours}`, address?.trim() && `Business address: ${address.trim()}`].filter(Boolean).join('\n')
 }
 
 /**

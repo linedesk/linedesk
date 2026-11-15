@@ -168,7 +168,7 @@ export const nameCollector: Collector<{ first_name: string; last_name: string; l
   display: n => `${n.first} ${n.last}`,
   readBack: n => `${n.first} ${n.last}, last name spelled ${readLetters(n.last)}`,
   instructions:
-    'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). If the caller gave their name earlier in the call, use it and only ask for the spelling. Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the business\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
+    'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the business\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
   ask: 'Ask for their first and last name (if they already said it, ask them to spell the last name).',
 }
 
@@ -284,17 +284,12 @@ export function parseDate(said: string, today: string): string | null {
   return date.toISOString().slice(0, 10)
 }
 
-/** A day as the date step names it: "Thursday 2026-11-12". */
-const withWeekday = (iso: string) => `${new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} ${iso}`
-
 /**
- * Today and the next two weeks, each with its weekday: the model reads "next Tuesday" off this list instead of counting
- * days from today's date, where it is sometimes a day off (gpt-realtime-mini, LIN-92).
+ * Today, for a step's facts: "Today is Thursday, November 12, 2026." No list of the days after it: a step takes days in
+ * the caller's words and code works out the date (resolveDay), like the booking tools.
  */
-export function upcomingDates(today: string, days = 14): string {
-  const [y, m, d] = today.split('-').map(Number)
-  const dates = Array.from({ length: days }, (_, i) => new Date(Date.UTC(y!, m! - 1, d! + i + 1, 12)).toISOString().slice(0, 10))
-  return `Today is ${withWeekday(today)}. The days after it: ${dates.map(withWeekday).join('; ')}.`
+export function todayFact(today: string): string {
+  return `Today is ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.`
 }
 
 /** "next Tuesday afternoon" → "next Tuesday": the date step collects the day; a time of day said with it is not part of it. */
@@ -321,7 +316,7 @@ export function dateCollector({ what, today, notBefore, notAfter }: DateOptions)
     },
     display: iso => iso,
     readBack: iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }),
-    instructions: `You collect the ${what}. ${upcomingDates(today)} Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"). Pass the day in the caller's own words; the tool works out the date (never count days yourself), and when the words can mean two days ("next Tuesday") it tells you to ask which one. Use the list only to answer a question about a date. Read the date back with the weekday, month, day and year in words.`,
+    instructions: `You collect the ${what}. Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"). Pass the day in the caller's own words; the tool works out the date (never count days yourself), and when the words can mean two days ("next Tuesday") it tells you to ask which one. Read the date back with the weekday, month, day and year in words.`,
     ask: `Ask for the ${what}.`,
   }
 }
