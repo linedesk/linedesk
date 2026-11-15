@@ -28,8 +28,23 @@ improved by people.
    `master-dev` like any other change.
 3. The release pull request (`master-dev` → `master-prod`) runs `pnpm i18n:check --complete` in its own job,
    `release-translations` (`.github/workflows/ci.yml`): every key in every language present and made from the
-   current English. It turns red otherwise and lists each missing or stale key in the log and the run's summary.
-   Releases never ship untranslated text; a red release pull request is not merged.
+   current English, and `hardcoded-baseline.json` empty (no web app file with hardcoded English left). It turns red
+   otherwise and lists each missing or stale key, and each file still in the baseline, in the log and the run's
+   summary. Releases never ship untranslated or hardcoded text; a red release pull request is not merged. The one
+   exception is a hotfix (below).
+
+### Hotfixes: no translation pass
+
+A hotfix release skips the release translation pass (Janik, 2026-11-15): a fix for production must not wait for
+translations. The fix still goes to `master-dev` first, like every change; then label the release pull request
+`hotfix` (`gh pr create --base master-prod --head master-dev --label hotfix …`, or add the label on GitHub). The
+`release-translations` job reads the label when it runs and then passes without checking, with a note in the run's
+summary; if it already ran red before the label was added, re-run that job (`gh run rerun <run id> --failed`, or Re-run
+jobs on GitHub). Everything else on the release pull request still runs. New or changed strings show in English in
+production until the next regular release, whose pass covers them (`pnpm i18n:changed` counts from the newest `v*`
+tag, the hotfix's included, so pass `--since <the last regular release's tag>`). The label exists once in the
+repository (`gh label create hotfix --description "Release without the translation pass"`); only a coordinator adds
+it.
 
 ### The release translation pass (required before every release)
 
@@ -107,10 +122,12 @@ Then remove it from `BETA_LOCALES` in `packages/i18n/locales.ts`.
 - English: valid ICU, sorted keys, no duplicates, no empty strings.
 - Code and catalogs: every key the code uses exists, every English key is used (or under an `i18n-dynamic` prefix).
 - Other languages: no keys English lacks, the same arguments, tags and plural forms, a lock entry for every key.
-- `--complete` (release pull requests only): every key translated and current.
-- The ratchet: `hardcoded-baseline.json` counts the user-visible English still in each web app file. A file may only
-  go down; a new file starts at 0. After moving strings out, `pnpm i18n:check --update-baseline` writes the new
-  counts.
+- `--complete` (release pull requests only): every key translated and current, and `hardcoded-baseline.json` empty.
+  A file listed there fails the release with a note to move its strings to keys and use `t()`.
+- The ratchet: `hardcoded-baseline.json` counts the user-visible English still in each web app file. It is empty now:
+  every file is at 0, a new file starts at 0, and a pull request that adds hardcoded English fails `pnpm i18n:check`.
+  After moving strings out, `pnpm i18n:check --update-baseline` writes the new counts. Never raise it to pass a
+  check; a non-English literal the scanner counts (a key shape such as `sk-…`) goes into a named constant instead.
 
 ## Which language a reader gets
 

@@ -11,6 +11,9 @@ import { runAdmin } from './api.ts'
 import { errorText } from './notify.ts'
 import { useT } from '@linedesk/i18n/react'
 
+/** The shape of an OpenAI key, not text to translate: the same in every language. */
+const KEY_PLACEHOLDER = 'sk-…'
+
 export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => Promise<void> }) {
   const t = useT()
   const [key, setKey] = useState('')
@@ -51,7 +54,7 @@ export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => 
         }}
       >
         <FormField id="adm-onekey" label={t('admin.oneKey.keyLabel')}>
-          <SecretInput id="adm-onekey" value={key} onChange={setKey} placeholder="sk-…" />
+          <SecretInput id="adm-onekey" value={key} onChange={setKey} placeholder={KEY_PLACEHOLDER} />
         </FormField>
         <Button
           busy={busy}

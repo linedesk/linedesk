@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { changedKeys, humanLocales, usages } from './changed.ts'
-import { checkRatchet, checkUsage, type Report } from './check.ts'
+import { checkBaselineEmpty, checkRatchet, checkUsage, type Report } from './check.ts'
 import { type Glossary, hash, lockEntry, planLocale, structureErrors, validateTranslation } from './lib.ts'
 import { updateLock } from './lock.ts'
 import { countHardcoded, scanKeys } from './scan.ts'
@@ -153,6 +153,15 @@ describe('hardcoded ratchet', () => {
     expect(report.errors).toHaveLength(1)
     expect(report.errors[0]).toMatch(/^b\.tsx: 1 hardcoded/)
     expect(lowered).toEqual(['c.tsx: 4 → 1'])
+  })
+  it('--complete: fails while the baseline lists any file, passes when it is empty', () => {
+    const report: Report = { errors: [], warnings: [] }
+    checkBaselineEmpty({ 'a.tsx': 2 }, report)
+    expect(report.errors).toHaveLength(1)
+    expect(report.errors[0]).toMatch(/^hardcoded-baseline\.json lists a\.tsx \(2\): .*use t\(\)/)
+    const clean: Report = { errors: [], warnings: [] }
+    checkBaselineEmpty({}, clean)
+    expect(clean.errors).toEqual([])
   })
 })
 

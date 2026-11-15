@@ -5,7 +5,8 @@
  * - English: valid ICU, keys sorted, no duplicate keys, no empty strings.
  * - Code vs catalogs: every key the code uses exists, every English key is used (or under an `// i18n-dynamic` prefix).
  * - Other languages: no keys English lacks, the same arguments, tags and plural categories, a lock entry per key.
- * - `--complete`: every key translated and current (its English unchanged since).
+ * - `--complete`: every key translated and current (its English unchanged since), and `hardcoded-baseline.json`
+ *   empty: a release ships no hardcoded English.
  * - Ratchet: no web app file has more hardcoded English than `hardcoded-baseline.json` says.
  */
 import { readFileSync } from 'node:fs'
@@ -145,6 +146,15 @@ export function checkRatchet(
   return { lowered }
 }
 
+/** `--complete`: the baseline must be empty, so a release has no file with hardcoded English left. */
+export function checkBaselineEmpty(baseline: Record<string, number>, report: Report) {
+  for (const [file, count] of Object.entries(baseline))
+    report.errors.push(
+      `hardcoded-baseline.json lists ${file} (${count}): a release allows no hardcoded English. Move its strings to ` +
+        'keys in packages/i18n/locales/en/ and use t(), then run pnpm i18n:check --update-baseline (docs/translations.md)',
+    )
+}
+
 export const ratchetIgnore = (glossary: Glossary) => new Set(glossary.neverTranslate ?? [])
 
 function main() {
@@ -167,7 +177,9 @@ function main() {
       `hardcoded-baseline.json: ${Object.values(counts).reduce((a, b) => a + b, 0)} strings in ${Object.keys(counts).length} files`,
     )
   } else {
-    const { lowered } = checkRatchet(counts, readJson(BASELINE_FILE, {}), report)
+    const baseline = readJson<Record<string, number>>(BASELINE_FILE, {})
+    if (complete) checkBaselineEmpty(baseline, report)
+    const { lowered } = checkRatchet(counts, baseline, report)
     if (lowered.length)
       console.log(
         `Fewer hardcoded strings than the baseline (run pnpm i18n:check --update-baseline):\n  ${lowered.join('\n  ')}`,

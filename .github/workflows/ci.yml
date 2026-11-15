@@ -30,23 +30,51 @@ jobs:
             { echo "master-prod only takes merges of master-dev, not $HEAD_REPO:$HEAD_REF"; exit 1; }
 
   # The release translation pass (docs/translations.md) is required: a release pull request (base master-prod) turns
-  # red while any string is untranslated in a language or was translated from older English. The failing keys are
-  # listed in the log and in the run's summary; `pnpm i18n:changed` lists what the pass has to cover.
+  # red while any string is untranslated in a language or was translated from older English, or while
+  # hardcoded-baseline.json still lists a file with hardcoded English. The failing keys are listed in the log and in
+  # the run's summary; `pnpm i18n:changed` lists what the pass has to cover.
+  # Hotfix: a release pull request labelled `hotfix` skips the pass (Janik, 2026-11-15); the next release catches up.
+  # The label is read when the job runs, so labelling after the run means re-running this job.
   release-translations:
     if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Hotfix label
+        id: hotfix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name')
+          if printf '%s\n' "$labels" | grep -qx hotfix; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Labelled hotfix: the release translation pass is skipped (docs/translations.md, \"Hotfixes\")."
+            {
+              echo "## Hotfix: translation pass skipped"
+              echo
+              echo "This release pull request is labelled \`hotfix\`, so \`pnpm i18n:check --complete\` did not run."
+              echo "New or changed strings show in English until the next release's translation pass."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.hotfix.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - if: steps.hotfix.outputs.skip != 'true'
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - if: steps.hotfix.outputs.skip != 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Every string translated and current
+      - if: steps.hotfix.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Every string translated and current, no hardcoded English left
+        if: steps.hotfix.outputs.skip != 'true'
         run: |
           set +e
           pnpm i18n:check --complete > i18n-check.log 2>&1
@@ -54,9 +82,9 @@ jobs:
           cat i18n-check.log
           if [ "$status" -ne 0 ]; then
             {
-              echo "## Translations missing or stale"
+              echo "## Translations missing or stale, or hardcoded English left"
               echo
-              echo "Run the release translation pass (docs/translations.md), then push to master-dev."
+              echo "Run the release translation pass (docs/translations.md) and move any hardcoded English to keys, then push to master-dev."
               echo
               echo '```'
               grep '^error:' i18n-check.log | head -300

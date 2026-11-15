@@ -1,5 +1,6 @@
 // A select with a search field on top of its list, for long lists (the workspace's country, its language). Arrow
 // keys move, Enter picks, Esc closes; the search owns its keys, so none reaches the app's shortcuts.
+import { useT } from '@linedesk/i18n/react'
 import { Fragment, type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
@@ -57,6 +58,7 @@ export function SearchSelect({
   id,
   disabled,
 }: Props) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -146,8 +148,8 @@ export function SearchSelect({
           <input
             autoFocus
             className="k-ssel-search"
-            placeholder={placeholder ?? 'Search'}
-            aria-label={`Search: ${label}`}
+            placeholder={placeholder ?? t('common.searchSelect.placeholder')}
+            aria-label={t('common.searchSelect.searchLabel', { label })}
             aria-controls={listId}
             aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
             value={query}
@@ -182,7 +184,7 @@ export function SearchSelect({
                 </div>
               </Fragment>
             ))}
-            {!matches.length && <div className="k-ssel-empty">Nothing matches "{query}".</div>}
+            {!matches.length && <div className="k-ssel-empty">{t('common.searchSelect.noMatch', { query })}</div>}
           </div>
         </div>
       )}

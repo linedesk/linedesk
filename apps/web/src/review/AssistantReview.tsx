@@ -3,6 +3,7 @@
 // answered once into About the business or dismissed. Owners and admins only (the API refuses everyone else).
 import type { CallEvaluation, QuestionGroup } from '@linedesk/actions'
 import type { Assistant, Call, Contact } from '@linedesk/db/types'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { callerName, callTitle } from '../inbox-model.ts'
@@ -43,10 +44,15 @@ export function AssistantReview({ assistant, toast, onAnswered }: Props) {
 
 /** The score in words, as a quiet badge; the number and the judge in its tooltip. */
 export function ScoreBadge({ evaluation }: { evaluation: CallEvaluation }) {
+  const t = useT()
   return (
     <Badge
       tone={needsALook(evaluation.score) ? 'outline' : 'neutral'}
-      title={`Score ${evaluation.score} of 5, judged by ${evaluation.model ?? 'the language model'}`}
+      title={
+        evaluation.model
+          ? t('settings.review.scoreTip', { score: evaluation.score, model: evaluation.model })
+          : t('settings.review.scoreTipDefault', { score: evaluation.score })
+      }
     >
       {scoreWords(evaluation.score)}
     </Badge>
@@ -66,6 +72,7 @@ export function DoneButton({
   assistantId: string | null
   toast?: (text: string) => void
 }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const done = evaluation.reviewedAt !== null
@@ -74,7 +81,7 @@ export function DoneButton({
     setError(null)
     try {
       await setEvaluationDone(evaluation, assistantId, !done)
-      toast?.(done ? 'Back on the list.' : 'Marked as checked.')
+      toast?.(done ? t('settings.review.backOnList') : t('settings.review.markedChecked'))
     } catch (e) {
       if (toast) toast((e as Error).message)
       else setError((e as Error).message)
@@ -90,7 +97,7 @@ export function DoneButton({
         icon={done ? undefined : 'check'}
         busy={busy}
         onClick={() => void toggle()}
-        title={done ? 'Put it back on the list' : 'You looked at it: take it off the list'}
+        title={done ? t('settings.review.reopenTip') : t('settings.review.checkTip')}
       >
         {checkLabel(done)}
       </Button>
@@ -100,31 +107,34 @@ export function DoneButton({
 }
 
 function CallsCard({ assistant, toast }: { assistant: Assistant; toast: (text: string) => void }) {
+  const t = useT()
   const [showDone, setShowDone] = useState(false)
   const query = useQuery(reviewListKey(assistant.id, !showDone), loadReviewList(assistant.id, !showDone))
   const calls = useTable('calls')
   const contacts = useTable('contacts')
-  const name = assistant.name.trim() || 'The assistant'
+  const name = assistant.name.trim()
   const list = query.data?.evaluations.filter(e => !calls.get(e.callId)?.deleted_at)
   return (
     <Section
       id="rv-calls"
       title={reviewTitle(assistant.name)}
-      description={`Calls ${name} could have handled better. Look at each one, then mark it as checked.`}
+      description={
+        name ? t('settings.review.calls.description', { name }) : t('settings.review.calls.descriptionDefault')
+      }
       actions={
         <Button
           size="sm"
           variant="ghost"
           aria-pressed={showDone}
           onClick={() => setShowDone(s => !s)}
-          title={showDone ? 'Show the calls still to look at' : 'Show the calls marked as checked'}
+          title={showDone ? t('settings.review.calls.showOpenTip') : t('settings.review.calls.showCheckedTip')}
         >
           {listToggleLabel(showDone)}
         </Button>
       }
     >
       <Loading
-        what="The calls"
+        what={t('settings.review.calls.loading')}
         loading={list === undefined}
         error={query.error}
         onRetry={() => void query.reload()}
@@ -132,7 +142,11 @@ function CallsCard({ assistant, toast }: { assistant: Assistant; toast: (text: s
       >
         {list === undefined ? null : list.length === 0 ? (
           <p className="help rv-empty">
-            {showDone ? 'Nothing checked yet.' : `Nothing to look at. ${name} handled every call well.`}
+            {showDone
+              ? t('settings.review.calls.noneChecked')
+              : name
+                ? t('settings.review.calls.none', { name })
+                : t('settings.review.calls.noneDefault')}
           </p>
         ) : (
           <ul className="kn-list rv-list">
@@ -166,13 +180,16 @@ function CallRow({
   assistantId: string
   toast: (text: string) => void
 }) {
-  const who = call ? callerName(call, call.contact_id ? contacts.get(call.contact_id) : undefined) : 'A call'
+  const t = useT()
+  const who = call
+    ? callerName(call, call.contact_id ? contacts.get(call.contact_id) : undefined)
+    : t('settings.review.calls.unknownCaller')
   const when = listTime(parseTs(call?.started_at ?? evaluation.createdAt))
   return (
     <li className="kn-row rv-row">
       <div className="kn-main">
-        <a className="rv-call" href={`#call/${evaluation.callId}`} title="Open the call">
-          <b>{call ? callTitle(call) : 'Call'}</b>
+        <a className="rv-call" href={`#call/${evaluation.callId}`} title={t('settings.review.openCall')}>
+          <b>{call ? callTitle(call) : t('settings.review.calls.untitled')}</b>
           <span className="kn-sub">
             {who} · {when}
           </span>
@@ -196,25 +213,28 @@ function CallRow({
 // --- Questions the assistant could not answer ----------------------------------------------
 
 function QuestionsCard({ assistant, toast, onAnswered }: Props) {
+  const t = useT()
   const query = useQuery(questionsKey(assistant.id), loadQuestions(assistant.id))
   const rows = useRows('knowledge_questions')
-  const name = assistant.name.trim() || 'The assistant'
+  const name = assistant.name.trim()
   const groups = query.data && openGroups(query.data, rows)
   return (
     <Section
       id="rv-questions"
-      title={`Questions ${name} couldn't answer`}
-      description="Answer once; it is added to About the business for every caller."
+      title={name ? t('settings.review.questions.title', { name }) : t('settings.review.questions.titleDefault')}
+      description={t('settings.review.questions.description')}
     >
       <Loading
-        what="The questions"
+        what={t('settings.review.questions.loading')}
         loading={groups === undefined}
         error={query.error}
         onRetry={() => void query.reload()}
         skeleton={<SkeletonList rows={2} action />}
       >
         {groups === undefined ? null : groups.length === 0 ? (
-          <p className="help rv-empty">No open questions. {name} could answer everything callers asked.</p>
+          <p className="help rv-empty">
+            {name ? t('settings.review.questions.none', { name }) : t('settings.review.questions.noneDefault')}
+          </p>
         ) : (
           <ul className="kn-list rv-list">
             {groups.map(g => (
@@ -236,6 +256,7 @@ function QuestionRow({
   toast: (text: string) => void
   onAnswered: Props['onAnswered']
 }) {
+  const t = useT()
   const write = useWriteAction()
   const calls = useTable('calls')
   const [answering, setAnswering] = useState(false)
@@ -255,8 +276,8 @@ function QuestionRow({
       )
       if (action === 'knowledgeQuestion.answer') {
         onAnswered(group.question, answer.trim())
-        toast('Added to About the business.')
-      } else toast('Dismissed.')
+        toast(t('settings.review.questions.added'))
+      } else toast(t('settings.review.questions.dismissed'))
     } catch (e) {
       toast((e as Error).message)
       setBusy(null)
@@ -275,7 +296,7 @@ function QuestionRow({
             return (
               <span key={id}>
                 {i === 0 ? ' · ' : ', '}
-                <a href={`#call/${id}`} title="Open the call">
+                <a href={`#call/${id}`} title={t('settings.review.openCall')}>
                   {listTime(parseTs(call.started_at))}
                 </a>
               </span>
@@ -300,8 +321,8 @@ function QuestionRow({
               id={fieldId}
               value={answer}
               autoFocus
-              placeholder="Your answer"
-              aria-label={`Answer to: ${group.question}`}
+              placeholder={t('settings.review.questions.answerPlaceholder')}
+              aria-label={t('settings.review.questions.answerLabel', { question: group.question })}
               disabled={busy !== null}
               onChange={e => setAnswer(e.target.value)}
             />
@@ -311,26 +332,26 @@ function QuestionRow({
               variant="primary"
               busy={busy === 'answer'}
               disabled={busy !== null || !answer.trim()}
-              title="Add the question and answer to About the business (enter)"
+              title={t('settings.review.questions.saveTip')}
             >
-              Save
+              {t('common.action.save')}
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={busy !== null}
               onClick={() => setAnswering(false)}
-              title="Cancel (esc)"
+              title={t('settings.review.questions.cancelTip')}
             >
-              Cancel
+              {t('common.action.cancel')}
             </Button>
           </form>
         )}
       </div>
       {!answering && (
         <div className="rv-actions">
-          <Button size="sm" onClick={() => setAnswering(true)} title="Write the answer once, for every caller">
-            Add answer
+          <Button size="sm" onClick={() => setAnswering(true)} title={t('settings.review.questions.addTip')}>
+            {t('settings.review.questions.add')}
           </Button>
           <Button
             size="sm"
@@ -338,9 +359,9 @@ function QuestionRow({
             busy={busy === 'dismiss'}
             disabled={busy !== null}
             onClick={() => void run('knowledgeQuestion.dismiss')}
-            title="Not worth an answer: hide it"
+            title={t('settings.review.questions.dismissTip')}
           >
-            Dismiss
+            {t('settings.review.questions.dismiss')}
           </Button>
         </div>
       )}
