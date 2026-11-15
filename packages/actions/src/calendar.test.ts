@@ -9,7 +9,7 @@ describe('calendar.findSlots', () => {
   })
 
   it('is read-only, like the other reads, tests and proposals that change nothing', () => {
-    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'assistant.version', 'assistant.versions', 'business.import', 'business.search', 'calendar.findSlots', 'calendar.listCalendars', 'call.askWebhook', 'call.export', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'call.listNumbers', 'call.listen', 'call.lookUpCaller', 'call.takeOver', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'evaluation.listQuestions', 'holidays.lookup', 'insights.get', 'invitation.listMine', 'knowledge.import', 'member.list', 'notifications.get', 'onboarding.goLiveChecklist', 'outbound.countries', 'outboundCountries.get', 'phoneNumber.forwardingCheck', 'phoneNumber.listCarrierNumbers', 'phoneNumber.lookupLine', 'provider.confirmEmail', 'provider.test', 'provider.tryOut', 'setupEmails.get', 'team.getMember', 'team.list', 'voice.catalog', 'voice.options', 'voiceCloning.get', 'voicePipelinePolicy.get', 'webhook.deliveries', 'webhook.test', 'workspace.deletePreview', 'workspace.getSettings'])
+    expect([...actions.values()].filter(a => a.readOnly).map(a => a.name).sort()).toEqual(['apiKey.list', 'assistant.startTestCall', 'assistant.version', 'assistant.versions', 'business.import', 'business.search', 'calendar.findSlots', 'calendar.listCalendars', 'calendarTools.get', 'call.askWebhook', 'call.export', 'call.findForTest', 'call.getEvaluation', 'call.listEvaluations', 'call.listNumbers', 'call.listen', 'call.lookUpCaller', 'call.takeOver', 'carrier.get', 'carrier.test', 'carrier.transferTrunk', 'evaluation.listQuestions', 'holidays.lookup', 'insights.get', 'invitation.listMine', 'knowledge.import', 'member.list', 'notifications.get', 'onboarding.goLiveChecklist', 'outbound.countries', 'outboundCountries.get', 'phoneNumber.forwardingCheck', 'phoneNumber.listCarrierNumbers', 'phoneNumber.lookupLine', 'provider.confirmEmail', 'provider.test', 'provider.tryOut', 'setupEmails.get', 'team.getMember', 'team.list', 'voice.catalog', 'voice.options', 'voiceCloning.get', 'voicePipelinePolicy.get', 'webhook.deliveries', 'webhook.test', 'workspace.deletePreview', 'workspace.getSettings'])
   })
 
   it.each(['owner', 'admin', 'member'] satisfies Role[])('can be called by %s', role => {
@@ -43,7 +43,7 @@ describe('calendar.findSlots', () => {
 
 describe('calendar accounts and the assistant calendars', () => {
   it('only owners and admins connect, list, disconnect and change calendars', () => {
-    for (const name of ['calendar.connectStart', 'calendar.connectFinish', 'calendar.listCalendars', 'calendar.disconnect', 'assistantCalendar.add', 'assistantCalendar.update', 'assistantCalendar.setDefault', 'assistantCalendar.remove']) {
+    for (const name of ['calendar.connectStart', 'calendar.connectFinish', 'calendar.connectWithPassword', 'calendar.listCalendars', 'calendar.disconnect', 'assistantCalendar.add', 'assistantCalendar.update', 'assistantCalendar.setDefault', 'assistantCalendar.remove']) {
       const def = actions.get(name)!
       expect(def.permission, name).toBe('settings:write')
       expect(rolePermissions.member).not.toContain(def.permission)
@@ -51,8 +51,9 @@ describe('calendar accounts and the assistant calendars', () => {
     }
   })
 
-  it('the OAuth code is redacted in the command log', () => {
+  it('the OAuth code and a CalDAV password are redacted in the command log', () => {
     expect(actions.get('calendar.connectFinish')!.sensitive).toEqual(['code'])
+    expect(actions.get('calendar.connectWithPassword')!.sensitive).toEqual(['password'])
   })
 
   it('assistantCalendar.update applies the instruction and the switch locally, and nothing it was not given', () => {
@@ -65,8 +66,16 @@ describe('calendar accounts and the assistant calendars', () => {
     expect(def.input.safeParse({ assistantCalendarId: 'acal_1', instruction: 'x'.repeat(301) }).success).toBe(false)
   })
 
-  it('connectStart takes Google or Microsoft only', () => {
+  it('connectStart takes Google or Microsoft only; a password connect only a password provider', () => {
     expect(actions.get('calendar.connectStart')!.input.safeParse({ provider: 'yahoo' }).success).toBe(false)
+    expect(actions.get('calendar.connectStart')!.input.safeParse({ provider: 'caldav' }).success).toBe(false)
+    const login = { serverUrl: 'https://caldav.icloud.com', username: 'mike@brightwater.example', password: 'abcd-efgh-ijkl-mnop' }
+    expect(actions.get('calendar.connectWithPassword')!.input.safeParse({ provider: 'caldav', ...login }).success).toBe(true)
+    expect(actions.get('calendar.connectWithPassword')!.input.safeParse({ provider: 'google', ...login }).success).toBe(false)
+    // HTTP Basic: a colon ends the user name, control characters break the header.
+    for (const username of ['mike:admin', 'mike\nX: 1', 'mike\u0000'])
+      expect(actions.get('calendar.connectWithPassword')!.input.safeParse({ provider: 'caldav', ...login, username }).success, username).toBe(false)
+    expect(actions.get('calendar.connectWithPassword')!.input.safeParse({ provider: 'caldav', ...login, password: 'a\r\nb' }).success).toBe(false)
   })
 })
 

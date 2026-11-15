@@ -199,6 +199,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'user.issuePasskeyEnrolment': 'admin',
   // The install's name, logo and color, and whether "Powered by Linedesk" shows.
   'branding.set': 'admin',
+  // Which calendar tools members may connect, and how.
+  'calendarTools.set': 'admin',
   'user.impersonate': 'impersonation',
   'impersonation.stop': 'impersonation',
   'team.invite': 'team',

@@ -168,17 +168,26 @@ export const appointmentTypeDelete = defineAction({
   permission: 'settings:write',
 })
 
-// Calendar accounts and the calendars an assistant books into. Connecting is OAuth: connectStart
-// returns the provider's consent URL; the provider sends the browser back to
-// GET /v1/calendar/callback/<provider>, which runs connectFinish for the signed-in member.
+// Calendar accounts and the calendars an assistant books into. Google and Microsoft connect by OAuth:
+// connectStart returns the provider's consent URL; the provider sends the browser back to
+// GET /v1/calendar/callback/<provider>, which runs connectFinish for the signed-in member. CalDAV
+// accounts (iCloud and others) connect with a user name and an app-specific password instead, Cal.com and Calendly
+// with an API key or personal access token.
 
-export const calendarProvider = z.enum(['google', 'microsoft'])
+export const oauthCalendarProvider = z.enum(['google', 'microsoft', 'calendly', 'calcom'])
+export const passwordCalendarProvider = z.enum(['caldav', 'calcom', 'calendly'])
+export const calendarProvider = z.enum([...new Set([...oauthCalendarProvider.options, ...passwordCalendarProvider.options])] as [
+  'google' | 'microsoft' | 'calendly' | 'calcom' | 'caldav',
+  ...('google' | 'microsoft' | 'calendly' | 'calcom' | 'caldav')[],
+])
 export type CalendarProviderId = z.infer<typeof calendarProvider>
+export type OAuthCalendarProviderId = z.infer<typeof oauthCalendarProvider>
 
 export const calendarConnectStart = defineAction({
   name: 'calendar.connectStart',
-  description: "Start connecting a Google or Microsoft calendar account to the workspace. Returns the URL of the provider's consent page.",
-  input: z.object({ provider: calendarProvider }),
+  description:
+    "Start connecting a calendar account by consent page: Google or Microsoft, and Calendly or Cal.com when the install has their OAuth app. Returns the URL of the provider's consent page.",
+  input: z.object({ provider: oauthCalendarProvider }),
   permission: 'settings:write',
 })
 
@@ -188,9 +197,62 @@ export type ConnectStartData = { url: string }
 export const calendarConnectFinish = defineAction({
   name: 'calendar.connectFinish',
   description: 'Finish connecting a calendar account with the code the provider sent back. Run by the OAuth callback route.',
-  input: z.object({ provider: calendarProvider, state: z.string().min(16).max(200), code: z.string().min(1).max(4000) }),
+  input: z.object({ provider: oauthCalendarProvider, state: z.string().min(16).max(200), code: z.string().min(1).max(4000) }),
   permission: 'settings:write',
   sensitive: ['code'],
+})
+
+export const calendarConnectWithPassword = defineAction({
+  name: 'calendar.connectWithPassword',
+  description:
+    "Connect a calendar account that signs in with a key instead of OAuth: CalDAV (iCloud, Fastmail, Nextcloud and others) with server, user name and app-specific password; Cal.com (Cal.com's cloud only) with an API key; Calendly with a personal access token. The login is checked with the provider before it is stored, encrypted. Connecting the same account again replaces its key.",
+  input: z.object({
+    provider: passwordCalendarProvider,
+    /** The CalDAV server, e.g. https://caldav.icloud.com; not for Cal.com or Calendly, which are always their own API. */
+    serverUrl: z.string().trim().min(1).max(500).optional(),
+    // CalDAV only. HTTP Basic: a colon would end the user name early, control characters break the header.
+    username: z
+      .string()
+      .trim()
+      .min(1)
+      .max(254)
+      .regex(/^[^:\p{Cc}]+$/u, 'The user name cannot contain a colon or control characters.')
+      .optional(),
+    password: z.string().min(1).max(500).regex(/^[^\p{Cc}]+$/u, 'The password cannot contain control characters.'),
+  }),
+  permission: 'settings:write',
+  sensitive: ['password'],
+})
+
+/** `data` of calendar.connectWithPassword. */
+export type ConnectWithPasswordData = { connectionId: string }
+
+// Calendar tools beyond Google and Microsoft are off until an instance admin switches them on, each in one way:
+// members paste their own key (`keys`), or the install's OAuth app connects them with one click (`oauth`; CalDAV has
+// none). Server admin › Providers › Calendar.
+
+export const calendarToolMode = z.enum(['off', 'keys', 'oauth'])
+export type CalendarToolMode = z.infer<typeof calendarToolMode>
+export type CalendarTool = z.infer<typeof passwordCalendarProvider>
+export type CalendarToolModes = Record<CalendarTool, CalendarToolMode>
+
+export const calendarToolsGet = defineAction({
+  name: 'calendarTools.get',
+  description: 'Which calendar tools (CalDAV, Calendly, Cal.com) members may connect, and how; and which OAuth apps are set up.',
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+
+/** `data` of calendarTools.get and calendarTools.set. `apps`: the tools whose OAuth app is set up. */
+export type CalendarToolsData = { modes: CalendarToolModes; apps: CalendarTool[] }
+
+export const calendarToolsSet = defineAction({
+  name: 'calendarTools.set',
+  description:
+    "Switch a calendar tool on or off for the whole install: off, members connect with their own key, or with one click through the install's OAuth app (Calendly and Cal.com; the app must be set up first).",
+  input: z.object({ tool: passwordCalendarProvider, mode: calendarToolMode }),
+  permission: 'instance:admin',
 })
 
 const connectionId = z.object({ connectionId: z.string().min(1) })
@@ -204,7 +266,7 @@ export const calendarListCalendars = defineAction({
 })
 
 /** `data` of calendar.listCalendars. */
-export type ListCalendarsData = { calendars: { id: string; name: string; primary: boolean; canWrite: boolean }[] }
+export type ListCalendarsData = { calendars: { id: string; name: string; primary: boolean; canWrite: boolean; durationMin?: number }[] }
 
 export const calendarDisconnect = defineAction({
   name: 'calendar.disconnect',

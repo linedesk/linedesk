@@ -33,8 +33,10 @@ export type ProviderGroupSpec = {
   why: string
 }
 
-/** The sign-in apps that also connect calendars: one connection serves both. */
-export const CALENDAR_APPS: readonly ProviderName[] = ['google', 'microsoft']
+/** The OAuth apps that connect calendars: Google's and Microsoft's also serve sign-in; Calendly's and Cal.com's only calendars. */
+export const CALENDAR_APPS: readonly ProviderName[] = ['google', 'microsoft', 'calendly', 'calcom']
+/** The apps people sign in with (the rest of the sign-in category connects calendars only). */
+export const SIGN_IN_APPS: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oidc']
 /** The three stages that answer calls when no realtime model does. */
 export const STAGE_CATEGORIES = ['stt', 'llm', 'tts'] as const satisfies readonly ProviderCategory[]
 
@@ -72,6 +74,7 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     label: 'Sign-in',
     needed: false,
     categories: ['sign_in'],
+    only: SIGN_IN_APPS,
     why: 'Sign in with Google, Microsoft, GitHub or your own single sign-on.',
   },
   {
@@ -80,7 +83,7 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     needed: false,
     categories: ['sign_in'],
     only: CALENDAR_APPS,
-    why: 'Bookings in Google or Microsoft calendars. The same apps as for sign-in: connected once for both.',
+    why: 'Bookings in Google or Microsoft calendars (the same apps as for sign-in), and one-click connecting for Calendly and Cal.com. iCloud and other CalDAV calendars need no app; without an app, Calendly and Cal.com connect with a key.',
   },
   {
     id: 'recording',
@@ -109,7 +112,7 @@ export const providersOfGroup = (id: ProviderGroupId): ProviderName[] => {
 /** The group a provider is managed in (Google and Microsoft: sign-in, they show under calendar too). */
 export function groupOfProvider(provider: ProviderName): ProviderGroupId {
   const category = providerSpec(provider).category
-  return providerGroups.find(g => g.categories.includes(category))!.id
+  return providerGroups.find(g => g.categories.includes(category) && (!g.only || g.only.includes(provider)))!.id
 }
 
 /** A category's group: old links like #admin/providers/stt land on Answering calls. */

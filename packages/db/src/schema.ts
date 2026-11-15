@@ -594,7 +594,12 @@ export const calendar_connections = pgTable(
   {
     id: id(),
     workspace_id: workspaceId(),
-    provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+    /**
+     * `caldav`: connected with a user name and an app-specific password; `calcom`, `calendly`: with an API key or
+     * personal token (calendar_credentials holds the login).
+     */
+    provider: text('provider', { enum: ['google', 'microsoft', 'caldav', 'calcom', 'calendly'] }).notNull(),
+    /** The account's address; for a CalDAV login without one, `<user name>@<server host>`. */
     account_email: text('account_email').notNull(),
     /** `needs_reconnect`: the provider refused the grant (revoked, expired); someone has to connect it again. */
     status: text('status', { enum: ['connected', 'needs_reconnect'] })
@@ -614,6 +619,8 @@ export const calendar_connections = pgTable(
 )
 
 // OAuth tokens of a calendar connection, AES-256-GCM with SECRETS_KEY (apps/api/src/secrets.ts). Never synced.
+// A connection by password (CalDAV) keeps its login (JSON: server, user name, password) where the access token goes,
+// an empty refresh token and no real expiry (PASSWORD_LOGIN_EXPIRES in apps/api/src/calendar-connections.ts).
 export const calendar_credentials = pgTable('calendar_credentials', {
   connection_id: text('connection_id')
     .primaryKey()
@@ -633,7 +640,7 @@ export const calendar_oauth_states = pgTable('calendar_oauth_states', {
   id: id(),
   workspace_id: workspaceId(),
   user_id: text('user_id').notNull(),
-  provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+  provider: text('provider', { enum: ['google', 'microsoft', 'calendly', 'calcom'] }).notNull(),
   code_verifier: text('code_verifier').notNull(),
   expires_at: ts('expires_at').notNull(),
   created_at: createdAt(),
@@ -660,6 +667,12 @@ export const assistant_calendars = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     /** Used when no instruction fits. At most one per assistant. */
     is_default: boolean('is_default').notNull().default(false),
+    /**
+     * A scheduling tool's event type (Cal.com, Calendly): its length in minutes. Such a calendar is its own appointment
+     * type: the tool decides length, availability and rules; Linedesk's appointment types and hours do not apply. Null
+     * for a plain calendar (Google, Microsoft, CalDAV).
+     */
+    duration_min: integer('duration_min'),
     created_at: createdAt(),
     version: version(),
   },

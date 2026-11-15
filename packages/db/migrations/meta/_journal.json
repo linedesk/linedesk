@@ -694,6 +694,13 @@
       "when": 1794748260690,
       "tag": "0098_call_transfer_seconds",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1794750703098,
+      "tag": "0099_tool_calendar_duration",
+      "breakpoints": true
     }
   ]
 }

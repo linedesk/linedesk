@@ -128,6 +128,16 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.microsoft'),
     keysUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
   },
+  calendly: {
+    mark: { icon: 'calendar' },
+    blurb: msg('admin.provider.blurb.calendly'),
+    keysUrl: 'https://calendly.com/app/developer',
+  },
+  calcom: {
+    mark: { icon: 'calendar' },
+    blurb: msg('admin.provider.blurb.calcom'),
+    keysUrl: 'https://app.cal.com/settings/developer/oauth',
+  },
   github: {
     mark: { brand: 'github' },
     blurb: msg('admin.provider.blurb.github'),
@@ -144,6 +154,8 @@ export function redirectUris(provider: ProviderName, origin: string): string[] {
   if (provider === 'google' || provider === 'microsoft')
     return [`${origin}/api/auth/callback/${provider}`, `${origin}/v1/calendar/callback/${provider}`]
   if (provider === 'github') return [`${origin}/api/auth/callback/github`]
+  // Calendly allows exactly one redirect URI per app: the calendar one.
+  if (provider === 'calendly' || provider === 'calcom') return [`${origin}/v1/calendar/callback/${provider}`]
   if (provider === 'oidc') return [`${origin}/api/auth/oauth2/callback/oidc`]
   return []
 }

@@ -40,7 +40,9 @@ export const pricePerMinute: Record<ProviderName, number> = {
   // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
   file: 0,
   s3: 0,
-  // Email and sign-in are not billed per call minute either.
+  // Email, sign-in and calendar apps are not billed per call minute either.
+  calendly: 0,
+  calcom: 0,
   smtp: 0,
   resend: 0,
   postmark: 0,

@@ -6,7 +6,128 @@ import { i18n } from '../i18n/index.tsx'
 import { shortDuration } from '../time.ts'
 
 export type ProviderId = CalendarConnection['provider']
-export const PROVIDER_LABEL: Record<ProviderId, string> = { google: 'Google', microsoft: 'Microsoft' }
+export const PROVIDER_LABEL: Record<ProviderId, string> = {
+  google: 'Google',
+  microsoft: 'Microsoft',
+  caldav: 'iCloud / CalDAV',
+  calcom: 'Cal.com',
+  calendly: 'Calendly',
+}
+
+/** Providers connected in a form (app-specific password, API key, token), not on the provider's consent page. */
+export type KeyProviderId = Extract<ProviderId, 'caldav' | 'calcom' | 'calendly'>
+export const isPasswordProvider = (provider: ProviderId): provider is KeyProviderId =>
+  provider === 'caldav' || provider === 'calcom' || provider === 'calendly'
+
+/**
+ * Where a key is made: a button to the exact page (new tab) and the steps, folded away. A key is never something the
+ * member has to go and find (docs/design-principles.md, rule 17). Texts are message keys (settings.keyConnect.*).
+ */
+export type KeyGuide = { url?: string; linkLabel?: MessageKey; steps: readonly MessageKey[]; note?: MessageKey }
+
+/** The connect form of a key provider: its key field and where to get the key. */
+export const KEY_FORM: Record<
+  Exclude<KeyProviderId, 'caldav'>,
+  {
+    title: MessageKey
+    description: MessageKey
+    keyLabel: MessageKey
+    help: MessageKey
+    placeholder: string
+    guide: KeyGuide
+  }
+> = {
+  calcom: {
+    title: msg('settings.keyConnect.calcom.title'),
+    description: msg('settings.keyConnect.calcom.description'),
+    keyLabel: msg('settings.keyConnect.calcom.keyLabel'),
+    help: msg('settings.keyConnect.calcom.help'),
+    placeholder: 'cal_live_…',
+    guide: {
+      url: 'https://app.cal.com/settings/developer/api-keys',
+      linkLabel: msg('settings.keyConnect.calcom.linkLabel'),
+      steps: [
+        msg('settings.keyConnect.calcom.step1'),
+        msg('settings.keyConnect.calcom.step2'),
+        msg('settings.keyConnect.calcom.step3'),
+        msg('settings.keyConnect.calcom.step4'),
+      ],
+      note: msg('settings.keyConnect.calcom.note'),
+    },
+  },
+  calendly: {
+    title: msg('settings.keyConnect.calendly.title'),
+    description: msg('settings.keyConnect.calendly.description'),
+    keyLabel: msg('settings.keyConnect.calendly.keyLabel'),
+    help: msg('settings.keyConnect.calendly.help'),
+    placeholder: 'eyJ…',
+    guide: {
+      url: 'https://calendly.com/integrations/api_webhooks',
+      linkLabel: msg('settings.keyConnect.calendly.linkLabel'),
+      steps: [
+        msg('settings.keyConnect.calendly.step1'),
+        msg('settings.keyConnect.calendly.step2'),
+        msg('settings.keyConnect.calendly.step3'),
+        msg('settings.keyConnect.calendly.step4'),
+      ],
+      note: msg('settings.keyConnect.calendly.note'),
+    },
+  },
+}
+
+export type CalDavService = 'icloud' | 'fastmail' | 'other'
+
+/** The CalDAV services the connect form knows: where their server is and how to get an app-specific password. */
+export const CALDAV_SERVICES: Record<
+  CalDavService,
+  { label: MessageKey; serverUrl: string; username: MessageKey; help: MessageKey; guide: KeyGuide }
+> = {
+  icloud: {
+    label: msg('settings.keyConnect.icloud.label'),
+    serverUrl: 'https://caldav.icloud.com',
+    username: msg('settings.keyConnect.icloud.username'),
+    help: msg('settings.keyConnect.icloud.help'),
+    guide: {
+      url: 'https://account.apple.com/account/manage/section/security',
+      linkLabel: msg('settings.keyConnect.icloud.linkLabel'),
+      steps: [
+        msg('settings.keyConnect.icloud.step1'),
+        msg('settings.keyConnect.icloud.step2'),
+        msg('settings.keyConnect.icloud.step3'),
+        msg('settings.keyConnect.icloud.step4'),
+      ],
+      note: msg('settings.keyConnect.icloud.note'),
+    },
+  },
+  fastmail: {
+    label: msg('settings.keyConnect.fastmail.label'),
+    serverUrl: 'https://caldav.fastmail.com',
+    username: msg('settings.keyConnect.fastmail.username'),
+    help: msg('settings.keyConnect.fastmail.help'),
+    guide: {
+      url: 'https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords',
+      linkLabel: msg('settings.keyConnect.fastmail.linkLabel'),
+      steps: [
+        msg('settings.keyConnect.fastmail.step1'),
+        msg('settings.keyConnect.fastmail.step2'),
+        msg('settings.keyConnect.fastmail.step3'),
+      ],
+    },
+  },
+  other: {
+    label: msg('settings.keyConnect.other.label'),
+    serverUrl: '',
+    username: msg('settings.keyConnect.other.username'),
+    help: msg('settings.keyConnect.other.help'),
+    guide: {
+      steps: [
+        msg('settings.keyConnect.other.step1'),
+        msg('settings.keyConnect.other.step2'),
+        msg('settings.keyConnect.other.step3'),
+      ],
+    },
+  },
+}
 
 /** The assistant a connect started from: the callback returns to #assistant/calendar and the page goes back to it. */
 export const CONNECT_RETURN_KEY = 'linedesk.calendarConnectFor'

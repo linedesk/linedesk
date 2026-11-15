@@ -46,7 +46,7 @@ test('unconfirmed members cannot perform sensitive actions, and their own confir
     expect(await act(ws.owner, action, {})).toMatchObject({ status: 403, body: { code: 'EMAIL_NOT_VERIFIED' } })
   }
   // Calendar connections, forwarding and the call export are in the list; the assistant's warm transfer is refused only when it is set.
-  for (const action of ['calendar.connectStart', 'calendar.connectFinish', 'phoneNumber.update', 'call.export'])
+  for (const action of ['calendar.connectStart', 'calendar.connectFinish', 'calendar.connectWithPassword', 'phoneNumber.update', 'call.export'])
     expect(NEEDS_CONFIRMED_EMAIL).toContain(action)
   const assistantId = ws.assistant.id
   const contact = { ...PLANTED_CONTACT, number: '+15035550199' }

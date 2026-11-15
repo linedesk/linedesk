@@ -8,6 +8,7 @@ import {
   foldableLists,
   listsOfGroup,
   orderProviders,
+  pinnedOfList,
   visibleProviders,
   wayAfterKey,
 } from './providerList.ts'
@@ -32,6 +33,8 @@ test('the pinned providers come first in their order (recommended first), then t
     'google',
     'oidc',
     'microsoft',
+    'calendly',
+    'calcom',
     'github',
   ])
 })
@@ -126,4 +129,11 @@ test('arrow keys, Home and End move between the two Answering tabs; other keys d
   expect(wayAfterKey('three_stage', 'Home')).toBe('realtime')
   expect(wayAfterKey('realtime', 'End')).toBe('three_stage')
   expect(wayAfterKey('realtime', 'Enter')).toBeNull()
+})
+
+test("the calendar apps' list never folds: the one-click switches above it point to its Calendly and Cal.com apps", () => {
+  const calendar = ['google', 'microsoft', 'calendly', 'calcom'] as const
+  expect(pinnedOfList('sign_in', calendar)).toEqual(calendar)
+  expect(visibleProviders(calendar, { pinned: pinnedOfList('sign_in', calendar), keep: () => false, expanded: false })).toMatchObject({ hidden: 0 })
+  expect(pinnedOfList('sign_in', providersIn('sign_in'))).toEqual(pinnedProvidersOf('sign_in'))
 })

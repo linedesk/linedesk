@@ -1,10 +1,45 @@
 // What Linedesk needs from a calendar account: its calendars, when they are busy, and events it
 // writes. Google and Microsoft adapters implement it with plain fetch; vendor code stays in them.
 // Tokens are not the adapter's business: it asks `accessToken()` for one per request and, after a
-// 401, once more with `forceRefresh` before it gives up.
+// 401, once more with `forceRefresh` before it gives up. A provider connected with a user name and
+// password instead (CalDAV) gets its login (`CalendarLogin`) and signs in with it on every request.
 import type { Interval } from './slots.ts'
 
-export type CalendarProviderName = 'google' | 'microsoft'
+/**
+ * Providers connected by OAuth: Google and Microsoft with the install's sign-in apps; Calendly and Cal.com with their
+ * own OAuth apps when the install has one (Server admin › Providers), else with a key (PASSWORD_CALENDAR_PROVIDERS).
+ */
+export type OAuthCalendarProviderName = 'google' | 'microsoft' | 'calendly' | 'calcom'
+/**
+ * Providers an account connects to with a user name and app-specific password (CalDAV) or an API key or personal token
+ * (Cal.com, Calendly): no app to register on the install.
+ */
+export const PASSWORD_CALENDAR_PROVIDERS = ['caldav', 'calcom', 'calendly'] as const
+export type PasswordCalendarProviderName = (typeof PASSWORD_CALENDAR_PROVIDERS)[number]
+export type CalendarProviderName = OAuthCalendarProviderName | PasswordCalendarProviderName
+
+export const isPasswordProvider = (name: CalendarProviderName): name is PasswordCalendarProviderName =>
+  (PASSWORD_CALENDAR_PROVIDERS as readonly string[]).includes(name)
+
+export const CALENDAR_PROVIDER_LABEL: Record<CalendarProviderName, string> = {
+  google: 'Google',
+  microsoft: 'Microsoft',
+  caldav: 'CalDAV',
+  calcom: 'Cal.com',
+  calendly: 'Calendly',
+}
+
+/** Where a token provider's API is: always its own (Cal.com is supported in Cal.com's cloud only, not self-hosted). */
+export const DEFAULT_SERVER_URL: Partial<Record<PasswordCalendarProviderName, string>> = {
+  calcom: 'https://api.cal.com/',
+  calendly: 'https://api.calendly.com/',
+}
+
+/**
+ * How a password provider signs in: the server's address, the account's user name and its (app-specific) password.
+ * For Cal.com and Calendly `password` is the API key or personal access token and `username` is not used.
+ */
+export type CalendarLogin = { serverUrl: string; username: string; password: string }
 
 export type ProviderCalendar = {
   /** The provider's calendar id. */
@@ -14,6 +49,11 @@ export type ProviderCalendar = {
   primary: boolean
   /** Events can be written into it. */
   canWrite: boolean
+  /**
+   * A scheduling tool's event type (Cal.com, Calendly): its length in minutes. The tool then decides the appointment
+   * itself (type, length, availability, buffers, notice); Linedesk's appointment types and hours do not apply.
+   */
+  durationMin?: number
 }
 
 export type CalendarEventInput = {
@@ -22,6 +62,8 @@ export type CalendarEventInput = {
   start: string
   end: string
   location?: string
+  /** Who the appointment is for: a scheduling tool books it in their name (a calendar only shows the title). */
+  attendee?: { name?: string; email?: string | null; phone?: string | null }
 }
 
 export type CalendarEvent = { id: string; title: string; start: string; end: string; cancelled: boolean }
@@ -32,11 +74,20 @@ export interface CalendarProvider {
   /** Busy intervals of these calendars inside `window`, in one request where the provider allows it. */
   busy(calendarIds: readonly string[], window: Interval): Promise<Interval[]>
   createEvent(calendarId: string, event: CalendarEventInput): Promise<{ id: string }>
-  updateEvent(calendarId: string, eventId: string, event: Partial<CalendarEventInput>): Promise<void>
+  /** A scheduling tool may give a moved booking a new id (Cal.com, Calendly): the caller keeps that one from then on. */
+  // biome-ignore lint/suspicious/noConfusingVoidType: calendars change the event in place and return nothing
+  updateEvent(calendarId: string, eventId: string, event: Partial<CalendarEventInput>): Promise<void | { id: string }>
   /** Deleting an event that is gone already is not an error. */
   deleteEvent(calendarId: string, eventId: string): Promise<void>
   /** null when the event does not exist (any more). */
   getEvent(calendarId: string, eventId: string): Promise<CalendarEvent | null>
+  /**
+   * Scheduling tools that decide availability themselves (Cal.com, Calendly): the start times inside `window` they would
+   * accept a booking at. Linedesk then offers only those (within its own hours and rules); `busy` returns nothing.
+   */
+  slots?(calendarId: string, window: Interval): Promise<string[]>
+  /** The account's address, for a provider connected with a key (shown as the account's name). */
+  accountEmail?(): Promise<string>
 }
 
 /** Gives the adapter an access token; `forceRefresh` after the provider refused the last one. */
@@ -63,7 +114,7 @@ export class CalendarError extends Error {
   readonly code: string | undefined
 
   constructor(provider: CalendarProviderName, kind: CalendarErrorKind, message: string, status?: number, code?: string) {
-    super(`${provider === 'google' ? 'Google' : 'Microsoft'}: ${message}`)
+    super(`${CALENDAR_PROVIDER_LABEL[provider]}: ${message}`)
     this.provider = provider
     this.kind = kind
     this.status = status
@@ -162,7 +213,7 @@ export type OAuthClient = { clientId: string; clientSecret: string }
 
 /** The OAuth side of a provider: consent URL, code exchange, refresh, revoke, and whose account it is. */
 export interface CalendarOAuth {
-  readonly name: CalendarProviderName
+  readonly name: OAuthCalendarProviderName
   readonly scopes: readonly string[]
   authorizeUrl(params: { redirectUri: string; state: string; codeChallenge: string }): string
   exchangeCode(params: { code: string; redirectUri: string; codeVerifier: string }): Promise<OAuthTokens>
@@ -173,12 +224,20 @@ export interface CalendarOAuth {
 }
 
 /** POSTs a form to a token endpoint and normalizes the answer. */
-export async function tokenRequest(provider: CalendarProviderName, what: string, url: string, form: Record<string, string>, doFetch: typeof fetch, timeoutMs: number): Promise<OAuthTokens> {
+export async function tokenRequest(
+  provider: CalendarProviderName,
+  what: string,
+  url: string,
+  form: Record<string, string>,
+  doFetch: typeof fetch,
+  timeoutMs: number,
+  headers: Record<string, string> = {},
+): Promise<OAuthTokens> {
   let res: Response
   try {
     res = await doFetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json', ...headers },
       body: new URLSearchParams(form).toString(),
       signal: AbortSignal.timeout(timeoutMs),
     })
@@ -211,4 +270,21 @@ export async function pkcePair(): Promise<{ verifier: string; challenge: string 
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+}
+
+/** Services known to hand each account a server of its own under their domain (iCloud: p42-caldav.icloud.com). */
+const PER_ACCOUNT_HOSTS = ['icloud.com']
+
+const underDomain = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`)
+
+/**
+ * Whether a password provider may send its login to `target`, given the server the member entered: the same scheme
+ * and host (port included), or both under a service known to move accounts to a host of their own (iCloud). Nothing
+ * else: two names under one public suffix (a.synology.me, b.synology.me) belong to different people.
+ */
+export function sameSite(server: URL, target: URL): boolean {
+  if (server.protocol !== target.protocol) return false
+  if (server.host === target.host) return true
+  const [a, b] = [server.hostname.toLowerCase(), target.hostname.toLowerCase()]
+  return PER_ACCOUNT_HOSTS.some(domain => underDomain(a, domain) && underDomain(b, domain))
 }

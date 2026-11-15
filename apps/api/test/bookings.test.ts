@@ -8,7 +8,7 @@ import { appointment_types, assistant_calendars, assistants, availability_rules,
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import {
-  BOOKING_CHANGES_LOCKED, BOOKING_MISSES_NOTE, BOOKING_MISSES_PER_DAY, BOOKINGS_PER_CALL, bookedNameOf, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS,
+  BOOKING_CHANGES_LOCKED, BOOKING_MISSES_NOTE, BOOKING_MISSES_PER_DAY, BOOKINGS_PER_CALL, bookedNameOf, bookingContext, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS,
   namesMatch, NO_MATCHING_BOOKING, slotLabel, TIME_NOT_FREE, withoutLinks,
 } from '../src/bookings.ts'
 import type { CalendarServices } from '../src/calendar-connections.ts'
@@ -703,6 +703,113 @@ async function missesOf(tx: Tx, callId: string) {
   const [call] = await tx.select({ misses: calls.booking_misses }).from(calls).where(eq(calls.id, callId))
   return call!.misses
 }
+
+/** A scheduling tool in memory (Cal.com, Calendly): it offers start times itself, books under new ids, moves under new ids. */
+function fakeTool(offered: string[]) {
+  const events = new Map<string, CalendarEventInput & { calendarId: string; cancelled?: boolean }>()
+  let next = 0
+  let busyAsked = 0
+  const taken = () => new Set([...events.values()].filter(e => !e.cancelled).map(e => e.start))
+  const provider: CalendarProvider = {
+    name: 'calcom',
+    listCalendars: async () => [],
+    busy: async () => {
+      busyAsked++
+      return []
+    },
+    slots: async (_id, window) => offered.filter(t => t >= window.start && t < window.end && !taken().has(t)),
+    createEvent: async (calendarId, event) => {
+      if (!offered.includes(event.start) || taken().has(event.start)) throw new CalendarError('calcom', 'invalid', 'book failed: not available')
+      const id = `tool${++next}`
+      events.set(id, { ...event, calendarId })
+      return { id }
+    },
+    updateEvent: async (calendarId, id, change) => {
+      const old = events.get(id)!
+      old.cancelled = true
+      const moved = `tool${++next}`
+      events.set(moved, { ...old, ...change, calendarId, cancelled: false })
+      return { id: moved }
+    },
+    deleteEvent: async (_calendarId, id) => {
+      const e = events.get(id)
+      if (e) e.cancelled = true
+    },
+    getEvent: async (_calendarId, id) => {
+      const e = events.get(id)
+      return e ? { id, title: e.title, start: e.start, end: e.end, cancelled: Boolean(e.cancelled) } : null
+    },
+  }
+  const services: CalendarServices = { oauth: () => null, provider: () => provider }
+  return { services, events, busyAsked: () => busyAsked }
+}
+
+describe('scheduling tools (Cal.com, Calendly): their event type is the appointment type', () => {
+  /** Makes the workspace's calendar a tool's event type of `minutes` (inside the rolled-back transaction). */
+  const asTool = (tx: Tx, minutes = 60) => tx.update(assistant_calendars).set({ duration_min: minutes, name: 'Repair visit' }).where(eq(assistant_calendars.id, ws.assistantCalendar.id))
+  const toolTypeId = () => `cal:${ws.assistantCalendar.id}`
+
+  test("the tool's start times as they are: no Linedesk hours, buffers or grid; the length is the event type's", async () => {
+    // 8:00 is before the default hours, 9:15 off the half-hour grid: the tool decides, so both are offered.
+    const tool = fakeTool([at('08:00'), at('09:15'), at('11:00')])
+    await inRollback(async tx => {
+      await asTool(tx, 45)
+      const { data } = await run(tx, owner, tool.services, 'calendar.findSlots', { appointmentTypeId: toolTypeId(), fromDate: MONDAY, toDate: MONDAY, limit: 50 })
+      expect(data!.appointmentTypeId).toBe(toolTypeId())
+      expect(data!.slots).toEqual([at('08:00'), at('09:15'), at('11:00')].map(start => ({ start, end: new Date(Date.parse(start) + 45 * 60_000).toISOString(), label: slotLabel(start, ZONE) })))
+      expect(tool.busyAsked()).toBe(0)
+      // Named with a Linedesk type, the tool's calendar still follows its own event type.
+      const named = await run(tx, owner, tool.services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
+      expect(named.data!.appointmentTypeId).toBe(toolTypeId())
+    })
+  })
+
+  test("a booking goes to the tool in the caller's name with their number, under no Linedesk type; a time it does not offer is refused", async () => {
+    const tool = fakeTool([at('11:00')])
+    await inRollback(async tx => {
+      await asTool(tx)
+      const book_ = (start: string, extra = {}) => book(start, { appointmentTypeId: toolTypeId(), assistantId: ws.assistant.id, ...extra })
+      await expect(run(tx, agent_(ws.id), tool.services, 'appointment.book', book_(at('10:00')))).rejects.toThrow(/not free/)
+      expect(tool.events.size).toBe(0)
+      const { rows, data } = await run(tx, agent_(ws.id), tool.services, 'appointment.book', book_(at('11:00'), { callerEmail: 'sam@brightwater.example' }))
+      expect(rows.bookings).toMatchObject([{ external_event_id: 'tool1', appointment_type_id: null, title: 'Repair visit · Sam Patel' }])
+      expect(data).toMatchObject({ start: at('11:00'), end: at('12:00'), calendarName: 'Repair visit' })
+      expect(tool.events.get('tool1')!.attendee).toEqual({ name: 'Sam Patel', email: 'sam@brightwater.example', phone: ws.call.from_number })
+      // Booked: the tool no longer offers it.
+      const { data: after } = await run(tx, owner, tool.services, 'calendar.findSlots', { appointmentTypeId: toolTypeId(), fromDate: MONDAY, toDate: MONDAY, limit: 50 })
+      expect(after!.slots).toEqual([])
+    })
+  })
+
+  test('a move keeps the new id the tool gives, so a later cancel reaches the moved booking; the agent moves it by day and name', async () => {
+    const tool = fakeTool([at('09:00'), at('13:00'), at('15:00')])
+    await inRollback(async tx => {
+      await asTool(tx)
+      const { data } = await run(tx, owner, tool.services, 'appointment.book', book(at('09:00'), { appointmentTypeId: toolTypeId() }))
+      const bookingId = data!.bookingId as string
+      const moved = await run(tx, owner, tool.services, 'appointment.reschedule', { bookingId, start: at('13:00') })
+      expect(moved.rows.bookings).toMatchObject([{ id: bookingId, external_event_id: 'tool2', status: 'rescheduled' }])
+      expect(tool.events.get('tool1')!.cancelled).toBe(true)
+      const byAgent = await run(tx, agent_(ws.id), tool.services, 'appointment.reschedule', {
+        callId: ws.call.id, bookingDate: MONDAY, bookedName: 'Sam Patel', start: at('15:00'), appointmentTypeId: toolTypeId(), calendarId: ws.assistantCalendar.id,
+      })
+      expect(byAgent.data).toMatchObject({ changed: true })
+      await run(tx, owner, tool.services, 'appointment.cancel', { bookingId })
+      expect(tool.events.get('tool3')!.cancelled).toBe(true)
+    })
+  })
+
+  test('the agent sees a tool calendar as a type of its own; Linedesk types only while a plain calendar is there', async () => {
+    const tool = fakeTool([])
+    await inRollback(async tx => {
+      await asTool(tx)
+      const booking = await bookingContext(tx, ws.id, new Date().toISOString(), { assistantId: ws.assistant.id })
+      expect(booking!.appointmentTypes).toEqual([{ id: toolTypeId(), name: 'Repair visit', duration_min: 60, required_fields: ['name'], instruction: expect.any(String) }])
+      expect(booking!.calendars.map(c => c.id)).toEqual([ws.assistantCalendar.id])
+      void tool
+    })
+  })
+})
 
 describe('appointment types', () => {
   test('add, change, and delete; one with bookings is switched off instead', async () => {

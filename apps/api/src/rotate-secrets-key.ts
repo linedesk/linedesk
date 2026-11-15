@@ -9,7 +9,7 @@
 // the old key and cannot read what was rotated. Links the API signed with the old key (recording links) stop
 // working. Back up the database first. It prints counts only, never a value.
 import { readFileSync } from 'node:fs'
-import { calendar_credentials, instance_settings, provider_settings, webhook_secrets } from '@linedesk/db'
+import { calendar_connections, calendar_credentials, instance_settings, provider_settings, webhook_secrets } from '@linedesk/db'
 import { eq, isNull } from 'drizzle-orm'
 import { calendarSlot } from './calendar-connections.ts'
 import { db, pool } from './db.ts'
@@ -45,13 +45,17 @@ async function rotate(apply: boolean) {
           .set({ secret_encrypted: again(row.secret_encrypted, secretSlot(row.endpoint_id)) })
           .where(eq(webhook_secrets.endpoint_id, row.endpoint_id))
       }
-      const calendars = await tx.select().from(calendar_credentials)
-      for (const row of calendars) {
+      const calendars = await tx
+        .select({ credentials: calendar_credentials, provider: calendar_connections.provider })
+        .from(calendar_credentials)
+        .innerJoin(calendar_connections, eq(calendar_connections.id, calendar_credentials.connection_id))
+      for (const { credentials: row, provider } of calendars) {
+        const connection = { id: row.connection_id, provider }
         await tx
           .update(calendar_credentials)
           .set({
-            access_token_encrypted: again(row.access_token_encrypted, calendarSlot(row.connection_id, 'access')),
-            refresh_token_encrypted: again(row.refresh_token_encrypted, calendarSlot(row.connection_id, 'refresh')),
+            access_token_encrypted: again(row.access_token_encrypted, calendarSlot(connection, 'access')),
+            refresh_token_encrypted: again(row.refresh_token_encrypted, calendarSlot(connection, 'refresh')),
           })
           .where(eq(calendar_credentials.connection_id, row.connection_id))
       }

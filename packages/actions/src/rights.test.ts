@@ -92,6 +92,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'calendar.connectFinish',
     'calendar.listCalendars',
     'calendar.disconnect',
+    // Connecting a CalDAV, Calendly or Cal.com account with its key (only the tools Server admin switched on).
+    'calendar.connectWithPassword',
     'assistantCalendar.add',
     'assistantCalendar.update',
     'assistantCalendar.setDefault',
@@ -160,6 +162,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voicePipelinePolicy.get',
     'voicePipelinePolicy.set',
     'branding.set',
+    // Which calendar tools (CalDAV, Calendly, Cal.com) businesses may connect, and how.
+    'calendarTools.get',
+    'calendarTools.set',
     'install.setProgress',
     'provider.tryOut',
     'provider.confirmEmail',

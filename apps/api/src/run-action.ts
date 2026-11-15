@@ -75,6 +75,7 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'calendar.connectFinish',
   // Every call of a range in one answer.
   'call.export',
+  'calendar.connectWithPassword',
   // Deletes the workspace and the accounts of members who have no other one.
   'workspace.deleteOwn',
 ])

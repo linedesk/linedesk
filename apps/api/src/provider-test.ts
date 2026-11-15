@@ -490,14 +490,16 @@ async function resendDomain(values: Values, doFetch: typeof fetch): Promise<Prov
 
 // --- Sign-in and calendar apps ------------------------------------------------------------------
 
-type OAuthApp = 'google' | 'microsoft' | 'github' | 'oidc'
-const oauthApps: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oidc']
+type OAuthApp = 'google' | 'microsoft' | 'github' | 'oidc' | 'calendly' | 'calcom'
+const oauthApps: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oidc', 'calendly', 'calcom']
 const isOAuthApp = (provider: ProviderName): provider is OAuthApp => oauthApps.includes(provider)
 
 /** Where an OAuth app exchanges a code for tokens. OIDC: from its discovery document. */
 async function tokenEndpoint(provider: OAuthApp, values: Values, doFetch: typeof fetch): Promise<string> {
   if (provider === 'google') return 'https://oauth2.googleapis.com/token'
   if (provider === 'github') return 'https://github.com/login/oauth/access_token'
+  if (provider === 'calendly') return 'https://auth.calendly.com/oauth/token'
+  if (provider === 'calcom') return 'https://api.cal.com/v2/auth/oauth2/token'
   if (provider === 'microsoft')
     return `https://login.microsoftonline.com/${encodeURIComponent(values.tenant_id || 'common')}/oauth2/v2.0/token`
   const res = await doFetch(values.discovery_url!, { redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) })
@@ -530,7 +532,12 @@ async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof 
     const res = await doFetch(await tokenEndpoint(provider, values, doFetch), {
       method: 'POST',
       body,
-      headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+        // Calendly takes the client ID and secret as HTTP Basic only.
+        ...(provider === 'calendly' && { authorization: `Basic ${btoa(`${values.client_id}:${values.client_secret}`)}` }),
+      },
       redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })

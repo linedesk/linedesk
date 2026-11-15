@@ -12,6 +12,7 @@ import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
 import { WEB_ORIGIN } from './auth.ts'
 import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
 import { noteCalendarAppFailure, providerFor } from './calendar-connections.ts'
+import { calendarToolModes, connectWays } from './calendar-tools.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, lockCall, Reject } from './handler-context.ts'
 import { brandName } from './branding.ts'
@@ -150,6 +151,8 @@ type SlotSearch = {
 /** Free slots: the engine over working hours (or the default ones), exceptions, bookings and the calendar's busy times at the provider. */
 async function availableSlots(tx: Tx, workspaceId: string, timeZone: string, { type, window, now, limit, calendar, excludeBookingId }: SlotSearch) {
   if (Date.parse(window.end) <= Date.parse(window.start)) return []
+  // A scheduling tool decides itself: its event type's start times, nothing of Linedesk's hours or rules.
+  if (calendar && isToolType(type)) return toolSlots(calendar, type, window, now, limit, timeZone)
   const rules = await bookingHours(tx, workspaceId)
   const { before, after } = buffersOf(type)
   const buffer = Math.max(before, after) * 60_000
@@ -172,6 +175,59 @@ async function availableSlots(tx: Tx, workspaceId: string, timeZone: string, { t
     now,
     limit,
   }).map(slot => ({ ...slot, label: slotLabel(slot.start, timeZone) }))
+}
+
+// --- Scheduling tools (Cal.com, Calendly) ---------------------------------------------------------------------------
+// A calendar of a scheduling tool is one of the tool's event types: the tool decides length, availability, buffers and
+// notice. It is its own appointment type, `cal:<assistant calendar id>`, and Linedesk's appointment types and hours do
+// not apply to it. The agent sees it among the types (bookingContext) and searches and books with it like with any.
+
+const TOOL_TYPE_PREFIX = 'cal:'
+/** How far ahead a scheduling tool's times are offered (the tool's own rules may stop earlier). */
+const TOOL_DAYS_AHEAD = 60
+
+const isToolCalendar = (calendar: Pick<AssistantCalendar, 'duration_min'>) => calendar.duration_min !== null
+const isToolType = (type: Pick<AppointmentType, 'id'>) => type.id.startsWith(TOOL_TYPE_PREFIX)
+/** The assistant calendar a `cal:` type stands for, or null for a Linedesk appointment type. */
+const toolCalendarIdOf = (typeId: string) => (typeId.startsWith(TOOL_TYPE_PREFIX) ? typeId.slice(TOOL_TYPE_PREFIX.length) : null)
+
+/** A scheduling tool's calendar as the appointment type the rest of the booking code works with. */
+function toolType(calendar: AssistantCalendar): AppointmentType {
+  const type: AppointmentType = {
+    id: `${TOOL_TYPE_PREFIX}${calendar.id}`, workspace_id: calendar.workspace_id, name: calendar.name, duration_min: calendar.duration_min ?? 30,
+    buffer_min: 0, buffer_before_min: 0, buffer_after_min: 0, book_when: 'any_time', min_notice_hours: 0, max_days_ahead: TOOL_DAYS_AHEAD,
+    location: 'on_site', enabled: calendar.enabled, required_fields: [], name_required: true, instruction: calendar.instruction,
+    created_at: calendar.created_at, version: calendar.version,
+  }
+  return type
+}
+
+/** The tool's start times inside `window`, after now, earliest first. */
+async function toolSlots(calendar: { row: AssistantCalendar; provider: CalendarProvider }, type: AppointmentType, window: Interval, now: string, limit: number, timeZone: string) {
+  if (!calendar.provider.slots) throw new Reject(`${calendar.row.name} cannot offer times`)
+  const starts = await atProvider(() => calendar.provider.slots!(calendar.row.external_id, window))
+  const lo = Math.max(Date.parse(window.start), Date.parse(now))
+  return [...new Set(starts.map(t => Date.parse(t)))]
+    .filter(t => t >= lo && t < Date.parse(window.end))
+    .sort((a, b) => a - b)
+    .slice(0, limit)
+    .map(t => {
+      const start = new Date(t).toISOString()
+      return { start, end: shift(start, type.duration_min * 60_000), label: slotLabel(start, timeZone) }
+    })
+}
+
+/**
+ * The type and calendar a search or booking follows. A `cal:` type names its calendar; a scheduling tool's calendar
+ * is its own type, whatever type was named with it; otherwise a Linedesk appointment type, on the calendar named.
+ */
+async function typeAndCalendar(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspaceId: string, typeId: string, calendarId: string | undefined, assistantId: string | undefined) {
+  const toolCalendarId = toolCalendarIdOf(typeId)
+  const id = toolCalendarId ?? calendarId
+  const calendar = id ? await bookableCalendar(tx, ctx, workspaceId, id, assistantId) : undefined
+  if (calendar && isToolCalendar(calendar.calendar)) return { type: toolType(calendar.calendar), calendar }
+  if (toolCalendarId) throw new Reject('appointment type not found')
+  return { type: await enabledType(tx, workspaceId, typeId), calendar }
 }
 
 async function enabledType(tx: Tx, workspaceId: string, id: string) {
@@ -426,8 +482,8 @@ async function cancelBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspa
 async function moveBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspaceId: string, booking: BookingRow, startAt: string, now: string): Promise<HandlerResult> {
   const at = await calendarOfBooking(tx, ctx, workspaceId, booking.calendar_id)
   if (!at || !booking.external_event_id) throw new Reject('that booking has no calendar event to move')
-  if (!booking.appointment_type_id) throw new Reject('that booking has no appointment type')
-  const type = await enabledType(tx, workspaceId, booking.appointment_type_id)
+  if (!isToolCalendar(at.calendar) && !booking.appointment_type_id) throw new Reject('that booking has no appointment type')
+  const type = isToolCalendar(at.calendar) ? toolType(at.calendar) : await enabledType(tx, workspaceId, booking.appointment_type_id!)
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking:${at.calendar.id}`}))`)
   const timeZone = await timeZoneOf(tx, workspaceId)
   const start = new Date(startAt).toISOString()
@@ -442,7 +498,11 @@ async function moveBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspace
   })
   if (free[0]?.start !== start) throw new Reject(TIME_NOT_FREE)
   const rows = await tx.update(bookings).set({ start_at: start, end_at: end, status: 'rescheduled' }).where(eq(bookings.id, booking.id)).returning()
-  await atProvider(() => at.provider.updateEvent(at.calendar.external_id, booking.external_event_id!, { start, end }))
+  const moved = await atProvider(() => at.provider.updateEvent(at.calendar.external_id, booking.external_event_id!, { start, end }))
+  // A scheduling tool gives the moved booking a new id: that one is cancelled or moved from now on.
+  if (moved && moved.id !== booking.external_event_id) {
+    rows.splice(0, rows.length, ...(await tx.update(bookings).set({ external_event_id: moved.id }).where(eq(bookings.id, booking.id)).returning()))
+  }
   const data: BookData & { changed: true } = { changed: true, bookingId: booking.id, start, end, label: slotLabel(start, timeZone), calendarName: at.calendar.name }
   return { rows: { bookings: rows }, data }
 }
@@ -450,12 +510,11 @@ async function moveBooking(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspace
 export const bookingHandlers: Record<string, Handler> = {
   'calendar.findSlots': async ({ tx, actor, now, ...ctx }, input: FindSlotsArgs) => {
     const workspaceId = workspaceOf(actor)
-    const type = await enabledType(tx, workspaceId, input.appointmentTypeId)
     const timeZone = await timeZoneOf(tx, workspaceId)
     // On a call only the calendars of the assistant that answered it (an agent of the release before sends no call).
     const [call] = input.callId ? await tx.select({ assistant_id: calls.assistant_id }).from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId))) : []
     if (input.callId && !call) throw new Reject('call not found')
-    const calendar = input.calendarId ? await bookableCalendar(tx, ctx, workspaceId, input.calendarId, call?.assistant_id ?? undefined) : undefined
+    const { type, calendar } = await typeAndCalendar(tx, ctx, workspaceId, input.appointmentTypeId, input.calendarId, call?.assistant_id ?? undefined)
     // Nothing is bookable after the horizon, so nothing is loaded for it either.
     const horizon = shift(now, (type.max_days_ahead + 1) * DAY_MS)
     const from = input.from ?? (input.fromDate ? new Date(zonedTimeToInstant(input.fromDate, '00:00', timeZone)).toISOString() : now)
@@ -470,7 +529,6 @@ export const bookingHandlers: Record<string, Handler> = {
   // calls cannot book the same time. The event is written last; if the booking row then fails, it is deleted.
   'appointment.book': async ({ tx, actor, now, onRollback, ...ctx }, input: BookArgs) => {
     const workspaceId = workspaceOf(actor)
-    const type = await enabledType(tx, workspaceId, input.appointmentTypeId)
     if (input.callId) await lockCall(tx, input.callId)
     const [call] = input.callId ? await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, workspaceId))) : []
     if (input.callId && !call) throw new Reject('call not found')
@@ -480,7 +538,10 @@ export const bookingHandlers: Record<string, Handler> = {
     }
     // On a call, the assistant that answered it decides which calendars may be used.
     if (call?.assistant_id && input.assistantId && call.assistant_id !== input.assistantId) throw new Reject("that calendar is not one of the assistant's calendars")
-    const { calendar, provider } = await bookableCalendar(tx, ctx, workspaceId, input.calendarId, call?.assistant_id ?? input.assistantId)
+    const resolved = await typeAndCalendar(tx, ctx, workspaceId, input.appointmentTypeId, input.calendarId, call?.assistant_id ?? input.assistantId)
+    if (!resolved.calendar) throw new Reject("that calendar is not one of the assistant's calendars")
+    const { type } = resolved
+    const { calendar, provider } = resolved.calendar
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking:${calendar.id}`}))`)
 
     const timeZone = await timeZoneOf(tx, workspaceId)
@@ -498,6 +559,7 @@ export const bookingHandlers: Record<string, Handler> = {
     const title = input.callerName ? `${type.name} · ${withoutLinks(input.callerName)}` : type.name
     const event = await atProvider(() => provider.createEvent(calendar.external_id, {
       title, start, end, location: input.address && withoutLinks(input.address), description: eventDescription({ reason: input.reason, phone, address: input.address, callId: call?.id }),
+      attendee: { name: input.callerName && withoutLinks(input.callerName), email, phone },
     }))
     onRollback?.(async () => {
       await provider.deleteEvent(calendar.external_id, event.id)
@@ -507,7 +569,8 @@ export const bookingHandlers: Record<string, Handler> = {
     if (skipped) console.warn(`booking confirmation for workspace ${workspaceId} skipped: ${skipped}`)
     const confirmation = email ? (skipped ? 'skipped' : 'queued') : null
     const rows = await tx.insert(bookings).values({
-      id: newId('bk'), workspace_id: workspaceId, call_id: call?.id ?? null, contact_id: call?.contact_id ?? null, appointment_type_id: type.id,
+      // A scheduling tool's booking has no Linedesk type: its calendar is its type.
+      id: newId('bk'), workspace_id: workspaceId, call_id: call?.id ?? null, contact_id: call?.contact_id ?? null, appointment_type_id: isToolType(type) ? null : type.id,
       start_at: start, end_at: end, calendar_id: calendar.id, external_event_id: event.id, title, calendar_name: calendar.name, caller_email: email, address: input.address ?? null,
       confirmation,
     }).returning()
@@ -545,8 +608,8 @@ export const bookingHandlers: Record<string, Handler> = {
     const caller = await describingCaller(tx, workspaceId, input, now)
     if ('refused' in caller) return caller.refused
     const { call } = caller
-    const type = await enabledType(tx, workspaceId, input.appointmentTypeId)
-    const searched = await bookableCalendar(tx, ctx, workspaceId, input.calendarId, call.assistant_id ?? undefined)
+    const { type, calendar: searched } = await typeAndCalendar(tx, ctx, workspaceId, input.appointmentTypeId, input.calendarId, call.assistant_id ?? undefined)
+    if (!searched) throw new Reject("that calendar is not one of the assistant's calendars")
     // Locked before the check, as moveBooking locks it: nobody books the time between the check and the move.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`booking:${searched.calendar.id}`}))`)
     const start = new Date(input.start).toISOString()
@@ -608,9 +671,10 @@ export async function bookingContext(tx: Tx, workspaceId: string, now: string, {
     name_required: appointment_types.name_required, instruction: appointment_types.instruction,
   }).from(appointment_types)
     .where(and(eq(appointment_types.workspace_id, workspaceId), eq(appointment_types.enabled, true))).orderBy(asc(appointment_types.created_at))
-  if (!typeRows.length) return null
-  const types = typeRows.map(t => ({ id: t.id, name: t.name, duration_min: t.duration_min, required_fields: bookingFieldsOf(t), instruction: t.instruction }))
-  const calendars = await tx.select({ id: assistant_calendars.id, name: assistant_calendars.name, instruction: assistant_calendars.instruction, is_default: assistant_calendars.is_default })
+  const rows = await tx.select({
+    id: assistant_calendars.id, name: assistant_calendars.name, instruction: assistant_calendars.instruction, is_default: assistant_calendars.is_default,
+    duration_min: assistant_calendars.duration_min, provider: calendar_connections.provider,
+  })
     .from(assistant_calendars)
     .innerJoin(calendar_connections, eq(calendar_connections.id, assistant_calendars.connection_id))
     .innerJoin(assistants, eq(assistants.id, assistant_calendars.assistant_id))
@@ -619,7 +683,19 @@ export async function bookingContext(tx: Tx, workspaceId: string, now: string, {
       assistantId ? eq(assistant_calendars.assistant_id, assistantId) : undefined,
     ))
     .orderBy(asc(assistant_calendars.created_at))
-  if (!calendars.length) return null
+  // Calendars of a tool switched off in Server admin are left out.
+  const ways = connectWays(await calendarToolModes(tx))
+  const usable = rows.filter(c => c.provider === 'google' || c.provider === 'microsoft' || ways[c.provider])
+  // Linedesk's appointment types are for plain calendars; a scheduling tool's calendar is a type of its own, with the
+  // tool's length and the owner's note on when to use it.
+  const plain = usable.filter(c => c.duration_min === null)
+  const tools = usable.filter(c => c.duration_min !== null)
+  const types = [
+    ...(plain.length ? typeRows.map(t => ({ id: t.id, name: t.name, duration_min: t.duration_min, required_fields: bookingFieldsOf(t), instruction: t.instruction })) : []),
+    ...tools.map(c => ({ id: `${TOOL_TYPE_PREFIX}${c.id}`, name: c.name, duration_min: c.duration_min!, required_fields: ['name' as const], instruction: c.instruction })),
+  ]
+  const calendars = (types.some(t => !t.id.startsWith(TOOL_TYPE_PREFIX)) ? usable : tools).map(({ duration_min: _, provider: __, ...c }) => c)
+  if (!types.length || !calendars.length) return null
   const timeZone = await timeZoneOf(tx, workspaceId)
   const today = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(now))
   const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now))

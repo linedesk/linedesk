@@ -7,6 +7,8 @@ import { i18n } from '../i18n/index.tsx'
 import {
   type AgentSetupState,
   type BrandingInput,
+  type CalendarTool,
+  type CalendarToolMode,
   type InstallSetupState,
   type InstallStep,
   type MembershipRole,
@@ -280,6 +282,8 @@ type AdminInputs = {
   'voiceCloning.set': { on: boolean }
   'voicePipelinePolicy.get': Record<string, never>
   'voicePipelinePolicy.set': { policy: VoicePipelinePolicy }
+  'calendarTools.get': Record<string, never>
+  'calendarTools.set': { tool: CalendarTool; mode: CalendarToolMode }
   'setupEmails.get': Record<string, never>
   'setupEmails.set': { on: boolean }
   'workspace.create': { name: string; timeZone?: string; owner: { email: string; name?: string } }

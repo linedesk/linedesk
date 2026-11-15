@@ -1,7 +1,8 @@
-// Settings › Assistant › Calendar: connected Google and Microsoft accounts, the calendars this
+// Settings › Assistant › Calendar: connected Google, Microsoft and CalDAV (iCloud) accounts, the calendars this
 // assistant books into (on or off, a note on when to use each, one default), and the appointment
 // types it offers. Changes apply at once (not part of the page's Save): connecting leaves the page
-// for the provider's consent screen anyway, and the rest are small, single changes through the outbox.
+// for the provider's consent screen anyway (or checks a CalDAV login in a dialog), and the rest are small,
+// single changes through the outbox.
 import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@linedesk/actions'
 import { CONDITION_MAX } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
@@ -32,6 +33,8 @@ import {
   DURATIONS,
   durationLabel,
   fieldLabel,
+  isPasswordProvider,
+  type KeyProviderId,
   PROVIDER_LABEL,
   type ProviderId,
   requiredLabel,
@@ -39,8 +42,9 @@ import {
   typeFields,
 } from './calendarModel.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
+import { KeyConnectDialog } from './KeyConnect.tsx'
 import { Field, Section } from './fields.tsx'
-import { useCalendarProviders } from './calendar-providers.ts'
+import { useCalendarConnectWays } from './calendar-providers.ts'
 import { callAction, useWriteAction } from './settings-api.ts'
 import './calendar.css'
 
@@ -63,13 +67,22 @@ const noSubmit = (e: KeyboardEvent) => {
 
 /**
  * Connecting an account: opens the provider's consent page, and the callback brings the browser back
- * to this app. `busy` is the provider whose page is opening.
+ * to this app; a key provider (CalDAV, Cal.com, Calendly) opens `dialog` instead, and `onConnected` gets the new
+ * account. `busy` is the provider whose page is opening.
  */
-function useConnect(assistantId: string, toast: (text: string) => void) {
-  const providers = useCalendarProviders()
+function useConnect(assistantId: string, toast: (text: string) => void, onConnected?: (connectionId: string) => void) {
+  const t = useT()
+  const connectable = useCalendarConnectWays()
+  const providers = connectable?.providers ?? null
   const [busy, setBusy] = useState<ProviderId | null>(null)
+  const [askKey, setAskKey] = useState<KeyProviderId | null>(null)
 
   async function connect(provider: ProviderId) {
+    // A key form, or the provider's consent page: as Server admin set it up.
+    if (isPasswordProvider(provider) && connectable?.ways[provider] !== 'oauth') {
+      setAskKey(provider)
+      return
+    }
     setBusy(provider)
     try {
       const { url } = await callAction<ConnectStartData>('calendar.connectStart', { provider })
@@ -83,13 +96,24 @@ function useConnect(assistantId: string, toast: (text: string) => void) {
       setBusy(null)
     }
   }
-  return { providers, busy, connect }
+  const dialog = askKey && (
+    <KeyConnectDialog
+      provider={askKey}
+      onClose={() => setAskKey(null)}
+      onConnected={connectionId => {
+        setAskKey(null)
+        toast(t('settings.calendar.connected'))
+        onConnected?.(connectionId)
+      }}
+    />
+  )
+  return { providers, busy, connect, dialog }
 }
 
 /** One button per calendar provider this install offers. Used in onboarding. */
 export function ConnectButtons({ assistantId, toast }: { assistantId: string; toast: (text: string) => void }) {
   const t = useT()
-  const { providers, busy, connect } = useConnect(assistantId, toast)
+  const { providers, busy, connect, dialog } = useConnect(assistantId, toast)
   if (!providers)
     return (
       <Loading what={t('settings.calendar.loadProviders')} loading skeleton={<Skeleton width={190} height={32} />} />
@@ -110,6 +134,7 @@ export function ConnectButtons({ assistantId, toast }: { assistantId: string; to
             : t('settings.calendar.connect', { provider: PROVIDER_LABEL[p] })}
         </Button>
       ))}
+      {dialog}
     </div>
   )
 }
@@ -164,13 +189,13 @@ function AddAccount({ providers, busy, connect }: ReturnType<typeof useConnect>)
   )
 }
 
-function Accounts({ assistant, canEdit, toast }: Props) {
+function Accounts({ assistant, canEdit, toast, onConnected }: Props & { onConnected: (connectionId: string) => void }) {
   const t = useT()
   const write = useWriteAction()
   const connections = useRows('calendar_connections').sort((a, b) => a.created_at.localeCompare(b.created_at))
   const accountsLoad = useLoadState('calendar_connections')
   const ready = accountsLoad === 'ready'
-  const connector = useConnect(assistant.id, toast)
+  const connector = useConnect(assistant.id, toast, onConnected)
   const [busy, setBusy] = useState<string | null>(null)
 
   // No "are you sure?": connecting again is a click away, and booked events stay.
@@ -236,6 +261,7 @@ function Accounts({ assistant, canEdit, toast }: Props) {
           <ListEmpty>{t('settings.calendar.noAccount', { name: assistant.name })}</ListEmpty>
         )}
       </Loading>
+      {connector.dialog}
     </Section>
   )
 }
@@ -312,7 +338,15 @@ function CalendarRow({
           {calendar.is_default && <Badge tone="outline">{t('settings.calendar.default')}</Badge>}
         </>
       }
-      sub={account?.account_email}
+      sub={
+        calendar.duration_min !== null && account
+          ? t('settings.calendar.eventTypeOf', {
+              provider: PROVIDER_LABEL[account.provider],
+              duration: durationLabel(calendar.duration_min),
+              email: account.account_email,
+            })
+          : account?.account_email
+      }
       actions={
         <>
           <Switch
@@ -440,7 +474,13 @@ export function AddCalendar({
               <ListRow
                 key={c.id}
                 title={c.name}
-                sub={c.primary ? t('settings.calendar.main') : undefined}
+                sub={
+                  c.durationMin
+                    ? t('settings.calendar.eventType', { duration: durationLabel(c.durationMin) })
+                    : c.primary
+                      ? t('settings.calendar.main')
+                      : undefined
+                }
                 actions={
                   <Button
                     busy={adding === c.id}
@@ -474,6 +514,10 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
   const ready = useCalendarsReady()
   /** The picker is open, on this account ('' for the first one). */
   const [adding, setAdding] = useState<string | null>(canEdit ? pickFrom : null)
+  // An account connected on this page (CalDAV): its calendars open to pick one.
+  useEffect(() => {
+    if (canEdit && pickFrom) setAdding(pickFrom)
+  }, [canEdit, pickFrom])
   const connected = connections.filter(c => c.status === 'connected')
   return (
     <Section
@@ -658,9 +702,12 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
   )
 }
 
-function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
+function AppointmentTypes({ assistant, canEdit }: Omit<Props, 'toast'>) {
   const t = useT()
   const run = useRun()
+  // A scheduling tool's calendar (Calendly, Cal.com) is an event type with its own length and rules: these types are
+  // for the plain calendars only.
+  const someTools = calendarsOf(useRows('assistant_calendars'), assistant.id).some(c => c.duration_min !== null)
   const types = useRows('appointment_types')
     .filter(type => type.enabled)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -669,6 +716,7 @@ function AppointmentTypes({ canEdit }: Omit<Props, 'assistant' | 'toast'>) {
     <Section
       id="as-cal-types"
       title={t('settings.calendar.types')}
+      help={someTools ? t('settings.calendar.typesToolsHelp') : undefined}
       actions={
         canEdit &&
         editing !== 'new' && (
@@ -746,12 +794,13 @@ function useConnectResult(toast: (text: string) => void): string | null {
 }
 
 export function CalendarSettings(props: Props) {
-  const connected = useConnectResult(props.toast)
+  const returned = useConnectResult(props.toast)
+  const [connectedHere, setConnectedHere] = useState<string | null>(null)
   return (
     <>
-      <Accounts {...props} />
-      <Calendars {...props} pickFrom={connected} />
-      <AppointmentTypes canEdit={props.canEdit} />
+      <Accounts {...props} onConnected={setConnectedHere} />
+      <Calendars {...props} pickFrom={connectedHere ?? returned} />
+      <AppointmentTypes assistant={props.assistant} canEdit={props.canEdit} />
     </>
   )
 }

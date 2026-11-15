@@ -11,7 +11,6 @@ import {
   type ProviderCategory,
   type ProviderLine,
   type ProviderName,
-  pinnedProvidersOf,
   providerCategories,
   recommendedProviders,
   type StatusState,
@@ -28,6 +27,7 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
+import { CalendarTools } from './CalendarTools.tsx'
 import { PipelinePolicy } from './PipelinePolicy.tsx'
 import { ProviderError } from './ProviderError.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
@@ -39,8 +39,7 @@ import {
   listsOfGroup,
   visibleProviders,
   wayAfterKey,
-  wayOfCategory,
-} from './providerList.ts'
+  wayOfCategory, pinnedOfList } from './providerList.ts'
 import { groupAttention, groupHelp, groupNote, groupProblem, rowStatus } from './providerStatus.ts'
 
 /** "Works", "Failing: Key rejected", "Partly works: voice missing", in red only when it fails. */
@@ -179,6 +178,7 @@ export function ProviderGroup({
         </div>
       )}
       {group.id === 'call-audio' && <CallAudio group={group} health={health} />}
+      {group.id === 'calendar' && <CalendarTools />}
       {answering && (
         <AnsweringWayTabs
           selected={way}
@@ -240,7 +240,7 @@ function ProviderList({
   const expanded = open ?? ownExpanded
   const setExpanded = onOpenChange ?? setOwnExpanded
   const keep = keepShown(data, lines)
-  const list = visibleProviders(providers, { pinned: pinnedProvidersOf(category), keep, expanded })
+  const list = visibleProviders(providers, { pinned: pinnedOfList(category, providers), keep, expanded })
   // "Recommended" helps to pick one: shown until a provider of the list is set up, then the marks say what is used.
   const picking = !providers.some(p => {
     const status = data.providers.find(s => s.provider === p)

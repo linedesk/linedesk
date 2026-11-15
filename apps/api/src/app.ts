@@ -30,7 +30,7 @@ import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
-import { configuredCalendarProviders } from '@linedesk/calendar'
+import { calendarToolModes, connectWays } from './calendar-tools.ts'
 import {
   ACCOUNT_HEADER,
   accessLost,
@@ -447,8 +447,12 @@ app.get('/v1/assistant/status', async c => {
   return c.json({ voiceReady: ready, voiceFailing: ready && (await voiceFailing(db)) })
 })
 
-// Which calendar providers this install can connect (their OAuth apps are set in env).
-app.get('/v1/calendar/providers', c => c.json({ providers: configuredCalendarProviders(process.env) }))
+// Which calendar providers members may connect on this install, and how: by consent page (an OAuth app) or with a
+// key. Google and Microsoft when their app is set up; CalDAV, Calendly and Cal.com only when switched on in Server admin.
+app.get('/v1/calendar/providers', async c => {
+  const ways = connectWays(await calendarToolModes())
+  return c.json({ providers: Object.keys(ways), ways })
+})
 
 registerAdminRoutes(app)
 registerImpersonationRoutes(app)

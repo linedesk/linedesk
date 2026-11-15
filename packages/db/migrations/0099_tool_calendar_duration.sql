@@ -1,0 +1,1 @@
+ALTER TABLE "assistant_calendars" ADD COLUMN "duration_min" integer;

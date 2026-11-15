@@ -38,6 +38,9 @@ const INSTANCE_WIDE_FILES = [
   'test/team-member-edit.test.ts',
   'test/admin-passkey-recovery.test.ts',
   'test/outbound.test.ts',
+  // Switches calendar tools on and off for the install (instance_settings).
+  'test/calendar-connections.test.ts',
+  'test/calendar-tools.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

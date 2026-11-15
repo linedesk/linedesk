@@ -3,6 +3,7 @@
 // recommended one leads), then the rest in their usual order. A list of more than three is short until "Show more":
 // the pinned providers and every provider that is already set up, being tested or failing.
 import {
+  CALENDAR_APPS,
   type GroupStatus,
   type ProviderCategory,
   type ProviderGroupId,
@@ -28,6 +29,16 @@ export type VisibleProviders = {
   /** Whether the list can fold at all (more than SHORT_LIST providers). */
   foldable: boolean
 }
+
+/**
+ * The providers a list always shows: the category's pinned ones; the calendar apps all (Google, Microsoft, and the
+ * Calendly and Cal.com apps the one-click switches above them point to).
+ */
+export const pinnedOfList = (
+  category: ProviderCategory,
+  providers: readonly ProviderName[],
+): readonly ProviderName[] =>
+  providers.length && providers.every(p => CALENDAR_APPS.includes(p)) ? providers : pinnedProvidersOf(category)
 
 export function orderProviders(providers: readonly ProviderName[], pinned: readonly ProviderName[]): ProviderName[] {
   const rank = (p: ProviderName) => (pinned.includes(p) ? pinned.indexOf(p) : pinned.length)
@@ -97,7 +108,8 @@ export function foldableLists(
     .filter(
       l =>
         open.has(l.key) ||
-        visibleProviders(l.providers, { pinned: pinnedProvidersOf(l.category), keep, expanded: false }).hidden > 0,
+        visibleProviders(l.providers, { pinned: pinnedOfList(l.category, l.providers), keep, expanded: false }).hidden >
+          0,
     )
     .map(l => l.key)
 }

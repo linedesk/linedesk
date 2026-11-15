@@ -22,6 +22,7 @@ import { assistantForNumber, assistantHandlers, assistantIn } from './assistants
 import { assistantVersionHandlers, recordVersion, versionForCall, versionOf, VERSIONED_ACTIONS, withVersion } from './assistant-versions.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
+import { calendarToolHandlers } from './calendar-tools.ts'
 import { callerHistory } from './caller-history.ts'
 import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace, tryLockWorkspaceCarrier } from './workspace-carrier.ts'
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
@@ -503,6 +504,7 @@ const handlers: Record<string, Handler> = {
   ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
+  ...calendarToolHandlers,
   ...carrierHandlers(),
   ...forwardingCheckHandlers(queueForwardingCheck),
   ...transferTrunkHandlers(),

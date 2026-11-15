@@ -302,6 +302,26 @@ const guides = {
     ],
     cost: 'Free.',
   },
+  calendly: {
+    url: 'https://calendly.com/app/developer',
+    steps: [
+      'Sign in to Calendly (any plan) and open Profile menu → Developer → OAuth apps → Create OAuth app.',
+      'Environment Production (Sandbox for a test install on localhost), and exactly one redirect URI: the calendar one shown below.',
+      'Scopes: users:read, event_types:read and scheduled_events:write.',
+      'Copy the client ID and the client secret right away (Calendly shows them once) and paste them here.',
+    ],
+    cost: 'Free. Each business that books through it may need a paid Calendly plan.',
+  },
+  calcom: {
+    url: 'https://app.cal.com/settings/developer/oauth',
+    steps: [
+      'Sign in to Cal.com and open Settings → Developer → OAuth → New OAuth client.',
+      'Redirect URI: the calendar one shown below (up to 10 per client, so staging and production can share one).',
+      'Scopes: PROFILE_READ, EVENT_TYPE_READ, BOOKING_READ and BOOKING_WRITE.',
+      'Cal.com reviews the client before it works for others (you get an email). Then paste the client ID and the secret here.',
+    ],
+    cost: 'Free. Cal.com cloud only (cal.com), not a self-hosted Cal.com.',
+  },
   github: {
     url: 'https://github.com/settings/developers',
     steps: [
@@ -747,6 +767,27 @@ export const providers = {
       tenant_id: { label: 'Tenant', env: 'MICROSOFT_TENANT_ID', secret: false, optional: true, hint: 'common' },
     },
     help: 'In Microsoft Entra, register an app (Web) with the redirect URIs below and the delegated permissions Calendars.ReadWrite, offline_access and User.Read. Work accounts sign in only with the optional ID-token claims xms_edov and email (Token configuration). Tenant: an ID limits sign-in to one organization.',
+  },
+  // Calendar apps of scheduling tools: a business connects by consent page. Without one, it pastes a key.
+  calendly: {
+    label: 'Calendly',
+    category: 'sign_in',
+    guide: guides.calendly,
+    fields: {
+      client_id: { label: 'Client ID', env: 'CALENDLY_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'CALENDLY_CLIENT_SECRET', secret: true },
+    },
+    help: 'An OAuth app in Calendly (Developer → OAuth apps) with the redirect URI below. Businesses then connect Calendly with one click. Without it, they paste a personal access token.',
+  },
+  calcom: {
+    label: 'Cal.com',
+    category: 'sign_in',
+    guide: guides.calcom,
+    fields: {
+      client_id: { label: 'Client ID', env: 'CALCOM_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'CALCOM_CLIENT_SECRET', secret: true },
+    },
+    help: 'An OAuth client in Cal.com (Settings → Developer → OAuth), approved by Cal.com, with the redirect URI below. Businesses then connect Cal.com with one click. Without it, they paste an API key.',
   },
   github: {
     label: 'GitHub',

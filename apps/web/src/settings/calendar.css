@@ -63,3 +63,33 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Where a key is made (KeyConnect.tsx): the button to the page, and the steps folded away. */
+.key-guide {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  font-size: 13px;
+}
+.key-guide details {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+}
+.key-guide summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.key-guide details[open] summary {
+  margin-bottom: 6px;
+}
+.key-guide ol {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+.key-guide .help {
+  margin: 0;
+}

@@ -48,5 +48,7 @@ export function createFailureLimiter({
     },
     /** How many keys are kept (tests). */
     size: () => failures.size,
+    /** Forgets every key (tests). */
+    clear: () => failures.clear(),
   }
 }

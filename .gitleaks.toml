@@ -10,3 +10,10 @@ useDefault = true
 description = "Fake keys marked with 0123456789"
 regexTarget = "secret"
 regexes = ['''0123456789''']
+
+# A made-up Calendly token in a test, committed before it carried 0123456789 (PR #688). Only that commit and file.
+[[allowlists]]
+description = "Fake Calendly token in scheduling-tools.test.ts, commit 2b7660fc"
+condition = "AND"
+commits = ["2b7660fc5bba18589c0447f49d39b180c018af23"]
+paths = ['''^packages/calendar/src/scheduling-tools\.test\.ts$''']
