@@ -138,6 +138,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.google_places'),
     keysUrl: 'https://console.cloud.google.com/google/maps-apis/credentials',
   },
+  stripe: {
+    mark: { icon: 'chart' },
+    blurb: msg('admin.provider.blurb.stripe'),
+    keysUrl: 'https://dashboard.stripe.com/apikeys',
+  },
   google: {
     mark: { brand: 'google' },
     blurb: msg('admin.provider.blurb.google'),

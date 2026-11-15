@@ -114,6 +114,7 @@ describe('states', () => {
       ['recording', 'off'],
       ['transcript', 'off'],
       ['business', 'off'],
+      ['billing', 'off'],
     ])
     expect(body.ready).toBe(false)
     // No keys, no LiveKit in env: nothing to ask.

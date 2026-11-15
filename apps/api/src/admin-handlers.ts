@@ -4,6 +4,7 @@ import {
   type ProviderCategory,
   type ProviderName,
   providerSpec,
+  moneyCategories,
   signInCategories,
   type UserInviteData,
 } from '@linedesk/actions'
@@ -58,6 +59,7 @@ import {
   setProviderKeys,
 } from './provider-settings.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
+import { billingOffWithKeys, refusedStripeKey, refuseMoneyKeysChange, refuseStripeKeysWhileOn } from './billing-settings.ts'
 import { missingFields, testProvider } from './provider-test.ts'
 import { recentTest, rememberTest } from './setup-checklist.ts'
 import { s3EndpointProblem } from './s3-endpoint.ts'
@@ -213,7 +215,7 @@ function alertSenders(before: EmailSender, beforeSettings: string): EmailSender[
 }
 
 /** What changed, for the alert (emails/alerts.ts settingsChangedAlert): which provider, and how. */
-type Change = { change: SettingsChange['change']; provider: string; actor: Actor }
+type Change = { change: SettingsChange['change']; provider: string; actor: Actor; money?: boolean }
 const keysChange = (provider: ProviderName, what: 'changed' | 'removed', actor: Actor): Change => ({
   change: what,
   provider: providerSpec(provider).label,
@@ -221,8 +223,14 @@ const keysChange = (provider: ProviderName, what: 'changed' | 'removed', actor: 
 })
 
 /** Every instance admin hears about a change of email or sign-in (admin-alerts.ts), through `senders`. */
-async function alertChange({ change, provider, actor }: Change, senders: EmailSender[] = [emailSender]) {
-  const alert = settingsChangedAlert({ change, provider, actor: await actorOf(actor), agent: await agentOf(actor) })
+async function alertChange({ change, provider, actor, money }: Change, senders: EmailSender[] = [emailSender]) {
+  const alert = settingsChangedAlert({
+    change,
+    provider,
+    actor: await actorOf(actor),
+    agent: await agentOf(actor),
+    ...(money ? { money } : {}),
+  })
   for (const sender of senders) await alertInstanceAdmins(alert, sender)
 }
 
@@ -233,6 +241,7 @@ async function alertChange({ change, provider, actor }: Change, senders: EmailSe
  * the previous sender (alertSenders). Other processes follow within 15 s.
  */
 function afterSignInChange(onCommit: HandlerCtx['onCommit'], category: ProviderCategory, change: Change) {
+  if (moneyCategories.includes(category)) return afterMoneyChange(onCommit, change)
   if (!signInCategories.includes(category)) return
   const apply = async () => {
     if (category !== 'email') {
@@ -250,6 +259,16 @@ function afterSignInChange(onCommit: HandlerCtx['onCommit'], category: ProviderC
   // Without the action runner (handler tests): at once.
   if (onCommit) onCommit(apply)
   else void apply().catch(e => console.error('email or sign-in change:', e))
+}
+
+/**
+ * After a change of the billing keys, once it committed: every instance admin hears of it (whoever holds the Stripe key
+ * controls charges, refunds and customers). Nothing restarts; billing reads the keys per use.
+ */
+function afterMoneyChange(onCommit: HandlerCtx['onCommit'], change: Change) {
+  const apply = () => alertChange({ ...change, money: true })
+  if (onCommit) onCommit(apply)
+  else void apply().catch(e => console.error('billing keys change:', e))
 }
 
 /** Where a change came from, for the alert: the app (null), or an AI agent with a setup link (its prefix and time). */
@@ -322,12 +341,23 @@ export const adminHandlers: Record<string, Handler> = {
       const refused = await s3EndpointProblem(input.values.endpoint)
       if (refused) throw new Reject(refused.message)
     }
+    // Billing keys: only an admin as themselves with the passkey, never while billing is on, never a live key where
+    // the server does not allow one (billing-settings.ts).
+    if (moneyCategories.includes(providerSpec(input.provider).category)) refuseMoneyKeysChange(actor)
+    if (input.provider === 'stripe') {
+      await refuseStripeKeysWhileOn(tx, input.values, actor, now)
+      const liveRefused = refusedStripeKey(input.values.secret_key)
+      if (liveRefused) throw new Reject(liveRefused)
+    }
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
     afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'changed', actor))
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },
 
-  'provider.clearKeys': async ({ tx, actor, onCommit }, input) => {
+  'provider.clearKeys': async ({ tx, actor, now, onCommit }, input) => {
+    if (moneyCategories.includes(providerSpec(input.provider).category)) refuseMoneyKeysChange(actor)
+    // Billing goes off with its keys (an emergency removal stops billing at once).
+    if (input.provider === 'stripe') await billingOffWithKeys(tx, actor, now)
     await clearProviderKeys(tx, input.provider)
     afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'removed', actor))
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
@@ -336,6 +366,7 @@ export const adminHandlers: Record<string, Handler> = {
   'provider.setActive': async ({ tx, actor, now, onCommit }, input) => {
     // After-call transcription uploads recordings: only its own action selects it (afterCallTranscript.set).
     if (input.category === 'transcript') throw new Reject('select after-call transcription with afterCallTranscript.set')
+    if (moneyCategories.includes(input.category)) refuseMoneyKeysChange(actor)
     if (input.provider) await shareOpenAiKey(tx, input.provider, actor.actorId, now)
     await setActiveProvider(tx, input.category, input.provider, actor.actorId, now)
     // Which mail service sends applies at once, like its keys, and the admins are told (afterSignInChange).

@@ -152,30 +152,50 @@ export type SettingsChange = {
   actor: AlertActor
   /** Set when an AI agent made the change with a setup link: the link's prefix and when it was made. */
   agent: { prefix: string; createdAt: string | null } | null
+  /** Billing keys (Stripe): the email says they control money, not sign-in. */
+  money?: boolean
 }
 
 /** A change of email or sign-in settings: they decide how people sign in or get sign-in codes. */
 export const settingsChangedAlert =
-  ({ change, provider, actor, agent }: SettingsChange): AdminAlertText =>
+  ({ change, provider, actor, agent, money }: SettingsChange): AdminAlertText =>
   locale => {
     const { t } = getT(locale)
     const values = { change, provider, actor: actorLabel(actor, locale) }
+    const agentValues = agent && {
+      ...values,
+      prefix: agent.prefix,
+      made: agent.createdAt ? utcTime(agent.createdAt, locale) : '',
+      hasMade: agent.createdAt ? 'yes' : 'no',
+    }
+    const text = money
+      ? agentValues
+        ? t('email.adminAlert.settings.moneyTextAgent', agentValues)
+        : t('email.adminAlert.settings.moneyText', values)
+      : agentValues
+        ? t('email.adminAlert.settings.textAgent', agentValues)
+        : t('email.adminAlert.settings.text', values)
     return {
       subject: t('email.adminAlert.settings.subject', { change, provider, agent: agent ? 'yes' : 'no' }),
       blocks: [
-        {
-          kind: 'text',
-          text: agent
-            ? t('email.adminAlert.settings.textAgent', {
-                ...values,
-                prefix: agent.prefix,
-                made: agent.createdAt ? utcTime(agent.createdAt, locale) : '',
-                hasMade: agent.createdAt ? 'yes' : 'no',
-              })
-            : t('email.adminAlert.settings.text', values),
-        },
+        { kind: 'text', text },
         { kind: 'text', text: t('email.adminAlert.checkProviders') },
         ...(agent ? [{ kind: 'text', text: t('email.adminAlert.settings.agentEnds') } as const] : []),
+      ],
+    }
+  }
+
+/** Billing was turned on or off (billingEnabled.set): on, businesses are charged; off, nothing is. */
+export const billingSwitchAlert =
+  ({ on, actor, account, mode }: { on: boolean; actor: AlertActor; account: string | null; mode: 'test' | 'live' | null }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const values = { on: on ? 'yes' : 'no', actor: actorLabel(actor, locale), account: account ?? '', mode: mode ?? '' }
+    return {
+      subject: t('email.adminAlert.billingSwitch.subject', values),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.billingSwitch.text', values) },
+        { kind: 'text', text: t('email.adminAlert.checkProviders') },
       ],
     }
   }

@@ -1,0 +1,9 @@
+{
+  "name": "@linedesk/billing",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p .", "test": "vitest run" },
+  "dependencies": { "stripe": "22.2.2" },
+  "devDependencies": { "@types/node": "^26.6.6", "vitest": "^5.1.0" }
+}

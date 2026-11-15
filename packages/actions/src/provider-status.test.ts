@@ -56,6 +56,7 @@ describe('groups', () => {
       'recording',
       'transcript',
       'business',
+      'billing',
     ])
     expect(providerGroups.filter(g => g.needed).map(g => g.id)).toEqual([
       'email',
@@ -143,6 +144,7 @@ describe('statusGroups', () => {
       ['recording', 'off'],
       ['transcript', 'off'],
       ['business', 'off'],
+      ['billing', 'off'],
     ])
     expect(ready).toBe(false)
     expect(readiness(groups)).toMatchObject({ state: 'missing', headline: 'Not ready for calls yet' })

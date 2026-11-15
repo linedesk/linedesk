@@ -28,6 +28,7 @@ import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
 import { AfterCallTranscript } from './AfterCallTranscript.tsx'
+import { BillingSwitch } from './BillingSwitch.tsx'
 import { CalendarTools } from './CalendarTools.tsx'
 import { PipelinePolicy } from './PipelinePolicy.tsx'
 import { ProviderError } from './ProviderError.tsx'
@@ -213,6 +214,7 @@ export function ProviderGroup({
           ))}
         </div>
       )}
+      {group.id === 'billing' && <BillingSwitch data={data} />}
     </section>
   )
 }

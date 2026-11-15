@@ -225,6 +225,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return t('admin.audit.afterCallTranscriptSet')
     case 'setupEmails.set':
       return t('admin.audit.setupEmailsSet')
+    case 'billingEnabled.set':
+      return t('admin.audit.billingEnabledSet', { on: input.on === true ? 'yes' : 'no' })
     case 'calendar.connectFinish': {
       const calendar = calendarNames[String(input.provider)]
       return t('admin.audit.calendarConnected', { calendar: calendar ?? '', known: known(calendar) })

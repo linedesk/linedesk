@@ -4,6 +4,7 @@ import * as authenticator from './authenticator.ts'
 import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
 import * as assistantVersions from './assistant-versions.ts'
+import * as billing from './billing.ts'
 import * as branding from './branding.ts'
 import * as business from './business.ts'
 import * as calendar from './calendar.ts'
@@ -45,6 +46,7 @@ export * from './install-setup.ts'
 export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
 export * from './assistant-versions.ts'
+export * from './billing.ts'
 export * from './branding.ts'
 export * from './business.ts'
 export * from './calendar.ts'
@@ -227,6 +229,8 @@ const all = [
   admin.impersonationStop,
   admin.setupEmailsGet,
   admin.setupEmailsSet,
+  billing.billingEnabledGet,
+  billing.billingEnabledSet,
   admin.impersonationEmailsGet,
   admin.impersonationEmailsSet,
   workspaceCreation.workspaceCreate,

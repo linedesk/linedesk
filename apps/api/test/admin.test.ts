@@ -179,6 +179,8 @@ describe('access', () => {
       'afterCallTranscript.get',
       'afterCallTranscript.set',
       'agentSetup.createKey',
+      'billingEnabled.get',
+      'billingEnabled.set',
       'branding.set',
       'calendarTools.get',
       'calendarTools.set',
@@ -407,6 +409,7 @@ describe('provider keys', () => {
       recording: { provider: null, chosen: false },
       transcript: { provider: null, chosen: false },
       business: { provider: null, chosen: false },
+      billing: { provider: null, chosen: false },
     })
 
     // Only OpenRouter is set up: it is used although OpenAI, the default, comes first in the registry.
@@ -732,6 +735,7 @@ describe('provider keys', () => {
       'github',
       'oidc',
       'google_places',
+      'stripe',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'
@@ -2263,6 +2267,8 @@ describe('impersonation', () => {
       'apiKey.revoke',
       'assistant.version',
       'assistant.versions',
+      // Read-only and instance:admin, as above.
+      'billingEnabled.get',
       'calendar.findSlots',
       'calendar.listCalendars',
       'calendarTools.get',

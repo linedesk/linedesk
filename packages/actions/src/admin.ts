@@ -17,6 +17,7 @@ export type ProviderCategory =
   | 'recording'
   | 'transcript'
   | 'business'
+  | 'billing'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
@@ -28,6 +29,7 @@ export const providerCategories: Record<ProviderCategory, string> = {
   recording: 'Recording storage',
   transcript: 'After-call transcription',
   business: 'Business lookup',
+  billing: 'Billing',
 }
 
 /** Categories where every provider that is set up is in use at once (no pick): sign-in with Google and GitHub, say. */
@@ -44,6 +46,14 @@ export const restartCategories: readonly ProviderCategory[] = ['sign_in']
  * anyone, so a change needs the passkey step-up (admin-step-up.ts) and every instance admin is told (admin-alerts.ts).
  */
 export const signInCategories: readonly ProviderCategory[] = ['email', 'sign_in']
+/**
+ * Categories whose keys control money: whoever holds the Stripe key controls charges, refunds and customers
+ * (docs/billing.md §8). A change needs the passkey session like every Server admin action, and every instance admin
+ * is told (admin-alerts.ts), as for sign-in.
+ */
+export const moneyCategories: readonly ProviderCategory[] = ['billing']
+/** A change of these categories' keys emails every instance admin. */
+export const alertedCategories: readonly ProviderCategory[] = [...signInCategories, ...moneyCategories]
 /** The variable that picks a category's provider when none is picked in the admin area. */
 export const categoryEnv: Partial<Record<ProviderCategory, string>> = {
   telephony: 'TELEPHONY_PROVIDER',
@@ -384,6 +394,15 @@ const guides = {
     ],
     cost: 'Billed per search and per picked listing at Google’s prices.',
   },
+  stripe: {
+    url: 'https://dashboard.stripe.com/apikeys',
+    steps: [
+      'In the Stripe Dashboard, Developers → API keys → Create restricted key, with the permissions in docs/billing.md (§7). A secret key works too.',
+      'Developers → Webhooks → Add endpoint for https://<your server>/v1/billing/stripe/webhook; copy its signing secret (whsec_…).',
+      'Paste both here. Use test keys (sk_test_ or rk_test_) until go-live; a dev install refuses live keys.',
+    ],
+    cost: 'Stripe’s fees per charge, plus Stripe Billing and Stripe Tax.',
+  },
 } as const satisfies Record<string, ProviderGuide>
 
 /**
@@ -401,6 +420,7 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   recording: 'file',
   transcript: 'openai_transcript',
   business: 'google_places',
+  billing: 'stripe',
 }
 
 /**
@@ -911,6 +931,19 @@ export const providers = {
     fields: { api_key: apiKey('GOOGLE_PLACES_API_KEY') },
     help: 'An API key with the Places API (New) enabled, restricted to it. Onboarding uses it to find a business by name and city and prefill its address, phone, hours and website. Google bills each search as Text Search Pro and each picked listing as Place Details Enterprise (the hours and the website are in that tier). BUSINESS_LOOKUP_DAILY_CAP limits the requests per day.',
   },
+  // Billing (Linedesk Cloud only, docs/billing.md): bills, trials and usage through Stripe. Without keys, or while
+  // billing is off (billingEnabled.set), nothing is billed: every self-hosted install.
+  stripe: {
+    label: 'Stripe',
+    category: 'billing',
+    guide: guides.stripe,
+    fields: {
+      // `env` is never read for billing keys (provider-settings.ts): they come only from the store.
+      secret_key: { label: 'Secret key', env: 'STRIPE_SECRET_KEY', secret: true, hint: 'rk_test_… (a restricted key)' },
+      webhook_secret: { label: 'Webhook signing secret', env: 'STRIPE_WEBHOOK_SECRET', secret: true, hint: 'whsec_…' },
+    },
+    help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below.',
+  },
 } as const satisfies Record<string, ProviderSpec>
 
 export type ProviderName = keyof typeof providers
@@ -920,6 +953,8 @@ export const providersIn = (category: ProviderCategory) =>
   providerNames.filter(name => providers[name].category === category)
 
 const provider = z.enum(providerNames)
+/** A Stripe secret or restricted key, test or live (the same format @linedesk/billing reads the mode from). */
+const STRIPE_SECRET_KEY = /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/
 
 export const providerSetKeys = defineAction({
   name: 'provider.setKeys',
@@ -952,6 +987,13 @@ export const providerSetKeys = defineAction({
         ctx.addIssue({ code: 'custom', message: 'the discovery URL must be an https URL' })
       if (provider === 's3' && values.prefix !== undefined && !isRecordingPrefix(values.prefix))
         ctx.addIssue({ code: 'custom', message: 'prefix may only hold letters, digits, - _ . and /' })
+      if (provider === 'stripe' && values.secret_key !== undefined && !STRIPE_SECRET_KEY.test(values.secret_key))
+        ctx.addIssue({
+          code: 'custom',
+          message: 'the secret key is a Stripe secret key (sk_test_…, sk_live_…) or restricted key (rk_test_…, rk_live_…)',
+        })
+      if (provider === 'stripe' && values.webhook_secret !== undefined && !/^whsec_[A-Za-z0-9]+$/.test(values.webhook_secret))
+        ctx.addIssue({ code: 'custom', message: 'the webhook signing secret starts with whsec_' })
     }),
   permission: 'instance:admin',
   sensitive: ['values'],

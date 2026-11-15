@@ -371,3 +371,65 @@ test('google_places: a free IDs-only Place Details request with the key in a hea
   expect(headers.get('x-goog-fieldmask')).toBe('id')
   expect(await testProvider('google_places', config({ api_key: KEY }), answer(403))).toMatchObject({ ok: false })
 })
+
+describe('billing: Stripe', () => {
+  /** A made-up Stripe key, put together at run time so the secret scan never sees a key-shaped string in the repo. */
+  const fakeStripeKey = (kind: 'sk' | 'rk', mode: 'test' | 'live', body: string) => [kind, mode, body].join('_')
+  const TEST_KEY = fakeStripeKey('rk', 'test', '51MadeUpKey0123456789')
+  const LIVE_KEY = fakeStripeKey('sk', 'live', '51MadeUpKey0123456789')
+  const keys = (secret_key: string) => config({ secret_key, webhook_secret: 'whsec_MadeUp0123' })
+  const account = { id: 'acct_1Made', object: 'account', country: 'US', default_currency: 'usd' }
+
+  test('reads the account once: mode, country and currency, never the key', async () => {
+    const fake = provider({ 'GET api.stripe.com/v1/account': [200, account] })
+    const result = await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})
+    expect(result).toEqual({
+      ok: true,
+      status: 'ok',
+      message: 'Connected, test mode (US, USD), account acct_1Made: nothing is charged',
+    })
+    expect(fake.calls).toEqual(['GET https://api.stripe.com/v1/account'])
+    expect(JSON.stringify(result)).not.toContain(TEST_KEY)
+  })
+
+  test('a live key says real cards are charged', async () => {
+    const fake = provider({ 'GET api.stripe.com/v1/account': [200, account] })
+    const result = await testProvider('stripe', keys(LIVE_KEY), fake.doFetch, { BILLING_LIVE_KEYS: '1' })
+    expect(result).toMatchObject({ ok: true, message: expect.stringMatching(/live mode .*real cards are charged$/) })
+  })
+
+  test('a live key is refused without asking Stripe unless the server allows it, and always in dev mode', async () => {
+    const fake = provider({ 'GET api.stripe.com/v1/account': [200, account] })
+    for (const env of [{}, { BILLING_LIVE_KEYS: 'yes' }, { BILLING_LIVE_KEYS: '1', LINEDESK_MODE: 'dev' }]) {
+      const result = await testProvider('stripe', keys(LIVE_KEY), fake.doFetch, env)
+      expect(result, JSON.stringify(env)).toMatchObject({
+        ok: false,
+        reason: 'config',
+        message: expect.stringMatching(/Live Stripe keys are refused on this install/),
+      })
+    }
+    expect(fake.calls).toEqual([])
+    // A test key is fine everywhere.
+    expect((await testProvider('stripe', keys(TEST_KEY), fake.doFetch, { LINEDESK_MODE: 'dev' })).ok).toBe(true)
+  })
+
+  test.each([
+    [401, 'auth', /rejected the secret key/],
+    [403, 'permission', /may not read the account/],
+    [500, 'network', /Stripe answered HTTP 500/],
+  ])('HTTP %i is %s, with Stripe’s own text left out', async (status, reason, message) => {
+    const fake = provider({
+      'GET api.stripe.com/v1/account': [status, { error: { message: `Invalid API Key provided: ${TEST_KEY}` } }],
+    })
+    const result = await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})
+    expect(result).toMatchObject({ ok: false, status: 'error', reason, message: expect.stringMatching(message) })
+    expect(JSON.stringify(result)).not.toContain(TEST_KEY)
+  })
+
+  test('not a secret key: refused before any request', async () => {
+    const fake = provider({})
+    const result = await testProvider('stripe', keys('pk_test_abc'), fake.doFetch, {})
+    expect(result).toMatchObject({ ok: false, reason: 'config' })
+    expect(fake.calls).toEqual([])
+  })
+})

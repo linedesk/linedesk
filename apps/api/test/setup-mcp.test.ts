@@ -1363,9 +1363,11 @@ describe('every key through the agent (LIN-182)', () => {
       app_links: Record<string, string>
     }
     // Every group a first call does not need, in the registry's order (a new optional group shows up here on its own).
-    const optionalIds = providerGroups.filter(g => !g.needed).map(g => g.id)
+    // Billing is not offered: its keys decide where money goes, so only an admin in the app sets them.
+    const optionalIds = providerGroups.filter(g => !g.needed && g.id !== 'billing').map(g => g.id)
     expect(optionalIds).toEqual(expect.arrayContaining(['sign-in', 'calendar', 'recording', 'transcript', 'business']))
     expect(status.optional.map(o => o.id)).toEqual(optionalIds)
+    expect(JSON.stringify(data(await call(key, 'providers_list')))).not.toContain('"stripe"')
     // None is set up on a fresh install, and each says how through these tools: never an empty how-to that leaves the
     // agent to send the admin to the app, and never a tool call the server refuses (transcription is not provider_setActive).
     for (const o of status.optional) {

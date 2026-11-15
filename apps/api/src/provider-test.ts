@@ -13,6 +13,7 @@ import {
   providerSpec,
   type RecordingStoreName,
 } from '@linedesk/actions'
+import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
 import { smtpCheck } from './email.ts'
 import { s3EndpointProblem, s3Fetch } from './s3-endpoint.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
@@ -431,7 +432,7 @@ const googlePlaces: Check = async (values, http) => {
   return answer.ok ? ok() : failed(answer.problem)
 }
 
-type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService>
+type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService | 'stripe'>
 /** How to test each provider of the registry (packages/actions/src/admin.ts) that answers over HTTP. */
 const checks: Record<HttpProvider, Check> = {
   telnyx,
@@ -455,7 +456,54 @@ const checks: Record<HttpProvider, Check> = {
   elevenlabs_transcript: elevenLabsStt,
 }
 
-// --- Email --------------------------------------------------------------------------------------
+// --- Billing ------------------------------------------------------------------------------------
+// Stripe (docs/billing.md §7): GET /v1/account through the billing adapter, free and readable with a restricted key.
+// It names the mode, country and default currency; live keys are refused unless the server allows them
+// (BILLING_LIVE_KEYS=1, production only; packages/billing/src/keys.ts).
+
+/** What a failed Stripe request means. Stripe's own text is not passed on (it can quote part of the key). */
+function stripeProblem(e: unknown): ProviderProblem {
+  const status = typeof e === 'object' && e && 'statusCode' in e ? Number(e.statusCode) : undefined
+  const type = typeof e === 'object' && e && 'type' in e ? String(e.type) : ''
+  if (type === 'StripeAuthenticationError' || status === 401)
+    return { reason: 'auth', message: 'Stripe rejected the secret key (HTTP 401). Copy it again from the Stripe Dashboard, Developers, API keys.' }
+  if (type === 'StripePermissionError' || status === 403)
+    return {
+      reason: 'permission',
+      message: 'The restricted key may not read the account (HTTP 403). Give it the permissions in docs/billing.md §7.',
+    }
+  if (type === 'StripeRateLimitError' || status === 429)
+    return { reason: 'network', message: 'Stripe is rate limiting this key (HTTP 429). Test again in a minute.' }
+  if (type === 'StripeConnectionError')
+    return { reason: 'network', message: "Could not reach Stripe. Check the server's connection and status.stripe.com." }
+  return { reason: status && status >= 500 ? 'network' : 'unknown', message: `Stripe answered ${status ? `HTTP ${status}` : 'with an error'}.` }
+}
+
+export async function testStripe(
+  values: Values,
+  doFetch: typeof fetch,
+  env: Record<string, string | undefined>,
+): Promise<ProviderTestData> {
+  const secretKey = values.secret_key!
+  const mode = stripeKeyMode(secretKey)
+  if (!mode) return error('config', 'The secret key is not a Stripe secret key (sk_…) or restricted key (rk_…).')
+  if (mode === 'live' && !liveKeysAllowed(env))
+    return error('config', LIVE_KEYS_REFUSED)
+  try {
+    const provider = await loadBillingProvider({ secretKey, webhookSecret: values.webhook_secret! }, doFetch)
+    const account = await provider.account()
+    if (!account) return error('config', 'Not set up')
+    const where = [account.country, account.defaultCurrency?.toUpperCase()].filter(Boolean).join(', ')
+    const line = `Connected, ${mode} mode${where ? ` (${where})` : ''}, account ${account.id}`
+    return ok(mode === 'live' ? `${line}: real cards are charged` : `${line}: nothing is charged`)
+  } catch (e) {
+    if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError'))
+      return error('timeout', `Stripe did not answer within ${TIMEOUT_MS / 1000} seconds`)
+    return failed(stripeProblem(e))
+  }
+}
+
+// --- Email -----------------------------------------------------------------------------------
 
 /**
  * SMTP: connect and log in. The answer is cut down to what an operator needs (which host, a
@@ -685,6 +733,7 @@ export async function testProvider(
     return (await resendDomain(values, doFetch).catch(() => null)) ?? login
   }
   if (isOAuthApp(provider)) return testOAuthApp(provider, values, doFetch)
+  if (provider === 'stripe') return testStripe(values, doFetch, env)
 
   // Whatever comes back, a key must not travel on: drop every secret value that appears in the text.
   const scrub = (text: string) =>

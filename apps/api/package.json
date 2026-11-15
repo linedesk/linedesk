@@ -23,6 +23,7 @@
     "@better-auth/passkey": "1.7.19",
     "@hono/node-server": "^2.1.8",
     "@linedesk/actions": "workspace:*",
+    "@linedesk/billing": "workspace:*",
     "@linedesk/calendar": "workspace:*",
     "@linedesk/db": "workspace:*",
     "@linedesk/i18n": "workspace:*",

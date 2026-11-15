@@ -165,6 +165,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voicePipelinePolicy.set',
     'afterCallTranscript.get',
     'afterCallTranscript.set',
+    // Billing through Stripe on or off for the install (docs/billing.md §7).
+    'billingEnabled.get',
+    'billingEnabled.set',
     'branding.set',
     // Which calendar tools (CalDAV, Calendly, Cal.com) businesses may connect, and how.
     'calendarTools.get',

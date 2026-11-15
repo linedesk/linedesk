@@ -17,6 +17,7 @@ export const providerGroupIds = [
   'recording',
   'transcript',
   'business',
+  'billing',
 ] as const
 export type ProviderGroupId = (typeof providerGroupIds)[number]
 export const isProviderGroupId = (value: string): value is ProviderGroupId =>
@@ -106,6 +107,13 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     needed: false,
     categories: ['business'],
     why: 'Finds a business by name and city in onboarding and fills in its details.',
+  },
+  {
+    id: 'billing',
+    label: 'Billing',
+    needed: false,
+    categories: ['billing'],
+    why: 'Linedesk Cloud only: bills, trials and call minutes through Stripe. Off until Stripe is connected and billing is turned on; a self-hosted install bills nobody.',
   },
 ]
 export const groupSpec = (id: ProviderGroupId) => providerGroups.find(g => g.id === id)!
@@ -458,6 +466,10 @@ export function statusGroups(input: StatusInput): StatusGroups {
       }
       case 'business':
         return several(configured(providersIn('business')))
+      case 'billing': {
+        const used = inUse('billing')
+        return used ? fromLine(used) : empty('off')
+      }
     }
   }
   const groups = providerGroups.map(spec => {

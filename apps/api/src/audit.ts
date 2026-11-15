@@ -185,6 +185,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'voicePipelinePolicy.set': 'admin',
   'afterCallTranscript.set': 'admin',
   'setupEmails.set': 'admin',
+  // Billing through Stripe on or off for the whole install (docs/billing.md §7).
+  'billingEnabled.set': 'admin',
   'user.invite': 'admin',
   'user.disable': 'admin',
   'user.enable': 'admin',

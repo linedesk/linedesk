@@ -1,9 +1,11 @@
-// Provider keys: the value stored in the admin area wins, the environment variable is the fallback.
+// Provider keys: the value stored in the admin area wins, the environment variable is the fallback (never for
+// billing keys: moneyCategories).
 // Read on every use, so a change in the admin area applies without a restart.
 import {
   categoryEnv,
   anyModeLanguages,
   categoryNames,
+  moneyCategories,
   type Language,
   providerNames,
   providerSpec,
@@ -101,7 +103,9 @@ export async function resolveProvider(tx: Tx, provider: ProviderName, env: Env =
         return [field, { value: decryptSecret(row.value_encrypted, slot(provider, field)), source: 'app' as const }]
       if (field === KEY_FIELD && shared)
         return [field, { value: decryptSecret(shared.value_encrypted, slot(from, KEY_FIELD)), source: 'app' as const }]
-      const fromEnv = env[spec.env]
+      // Billing keys only from the store (security review of #850): an `.env` key would skip the live-key refusal,
+      // the step-up and the change alert, and could not be removed in the app.
+      const fromEnv = moneyCategories.includes(providerSpec(provider).category) ? undefined : env[spec.env]
       return [field, fromEnv ? { value: fromEnv, source: 'env' as const } : undefined]
     }),
   )

@@ -8,7 +8,8 @@
 // registry actions in SETUP_ACTIONS, run through runAction as the admin (same permissions and command log, marked as
 // done with the setup key). Every business tool names its workspace (workspaceId) and runs only where the admin is
 // owner or admin (setupActorIn, LIN-237). Nothing else: no users, admins, other people's workspaces, API keys,
-// impersonation or deleting. Every provider key can be set here (LIN-182: the admin never pastes a key into the app); provider_setKeys
+// impersonation or deleting. Every provider key but billing's can be set here (LIN-182: the admin never pastes a key into the app; the
+// billing keys only in the app, billing-settings.ts); provider_setKeys
 // runs the free provider test right after saving and returns it, and answers with "set" and the last 4 of a secret,
 // never the secret. One access level: the key was made in a session that passed the admin's passkey check, so it sets
 // email and sign-in too, with no second Allow step (Janik, 2026-11-15). The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
@@ -33,6 +34,7 @@ import {
   installPlace,
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
+  moneyCategories,
   NUMBER_BUY_COUNTRIES,
   oneKey,
   onboardingSteps,
@@ -344,6 +346,11 @@ function groupStep(group: GroupStatus, how: readonly string[], alias?: string): 
   }
 }
 
+/** Provider groups of billing keys only: not offered here (billing-settings.ts, refuseMoneyKeysChange). */
+const moneyGroups = new Set<string>(
+  providerGroups.filter(g => g.categories.every(c => moneyCategories.includes(c))).map(g => g.id),
+)
+
 /** How to set up one provider: its guide from the registry, written for an agent. */
 const guideLines = (provider: ProviderName) => {
   const { label, category, guide } = providerSpec(provider)
@@ -533,7 +540,7 @@ function redirectUris(provider: ProviderName): string[] {
 }
 
 /**
- * The groups a first call does not need (sign-in, calendar, recording, after-call transcription, business lookup):
+ * The groups a first call does not need (sign-in, calendar, recording, after-call transcription, business lookup; not billing):
  * their state and how to set them up through these tools, offered once the needed steps are done. Calendars themselves
  * are connected per business by signing in to Google or Microsoft in the browser (Assistant settings › Booking &
  * calendar), the one part an agent cannot do. After-call transcription is turned on by the admin in the app (Server
@@ -562,7 +569,8 @@ function optionalSteps(groups: GroupStatus[]) {
     business: guideLines(recommendedProviders.business),
   }
   return providerGroups
-    .filter(g => !g.needed)
+    // Billing keys decide where money goes: only an instance admin in the app sets them (billing-settings.ts).
+    .filter(g => !g.needed && !moneyGroups.has(g.id))
     .map(spec => {
       const group = groups.find(g => g.id === spec.id)
       const state = group ? GROUP_STATE[group.state] : 'todo'
@@ -890,15 +898,19 @@ function registerTools(server: McpServer, actor: Actor) {
     'providers_list',
     {
       description:
-        'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
-      inputSchema: z.object({ category: z.enum(Object.keys(providerCategories) as [ProviderCategory]).optional() }),
+        'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
+      inputSchema: z.object({
+        category: z
+          .enum(Object.keys(providerCategories).filter(c => !moneyCategories.includes(c as ProviderCategory)) as [ProviderCategory])
+          .optional(),
+      }),
       annotations: read,
     },
     async ({ category }) =>
       guard('providers_list', async () => {
         const status = await providerStatus(db)
         const rows = status.providers
-          .filter(p => !category || p.category === category)
+          .filter(p => (!category || p.category === category) && !moneyCategories.includes(p.category))
           .map(p => {
             const spec = providerSpec(p.provider)
             const fieldSpec = (field: string) =>
