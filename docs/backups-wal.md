@@ -16,7 +16,7 @@ Postgres stays on its internal network with no keys and no internet: only the ho
 ## Security
 
 - WAL is every change, nearly as it happens, and not encrypted: sign-in sessions, OAuth tokens of connected calendars and email codes pass through it, as they do through the nightly dumps. Anyone with the bucket key can read it, so the key stays in `backup.env` (mode 600) on the server only.
-- The same key can delete the backups. Recommended, and Tim's decision: an R2 bucket lock (retention rule) on the backup bucket for at least as long as the scripts keep things (7 days for `base/`, 8 for `wal/`, 30 for the dumps), so a leaked key cannot wipe them.
+- The same key can delete the backups. Recommended, and Tim's decision: an R2 bucket lock (retention rule) on the backup bucket for at least as long as the scripts keep things (7 days for `base/`, 8 for `wal/`, 30 for the dumps), so a leaked key cannot wipe them. Production's backup bucket has it, and WAL archiving is on there (Tim, 2026-11-15).
 
 ## Numbers
 
@@ -47,6 +47,5 @@ A drill on the staging server, with a throwaway Postgres 17 (the stack's image) 
 ## Not (yet)
 
 - Encryption of WAL (depends on the decision about encrypted backups; the scripts refuse while `BACKUP_AGE_RECIPIENT` is set).
-- A bucket lock (see Security; Tim's decision).
 - A second bucket or account for backups (today one key can delete dumps and WAL).
 - A standby server (a restore still takes minutes, not seconds).

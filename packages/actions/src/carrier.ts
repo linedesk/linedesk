@@ -1,5 +1,5 @@
 // A workspace's own carrier account: by default a workspace uses the install's telephony provider
-// (Server admin › Providers); an owner or admin can bring their own Twilio or Telnyx account instead. The
+// (Server admin › Providers); an owner or admin can bring their own Telnyx or Twilio account instead. The
 // credentials are stored encrypted per workspace and never come back to the browser.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
@@ -47,7 +47,7 @@ const twilioValues = z
 export const carrierSet = defineAction({
   name: 'carrier.set',
   description:
-    "Choose the carrier account the workspace's phone numbers use: `default` (the install's), or the workspace's own Twilio or Telnyx account with its credentials. The credentials are replaced as a whole and stored encrypted.",
+    "Choose the carrier account the workspace's phone numbers use: `default` (the install's), or the workspace's own Telnyx or Twilio account with its credentials. The credentials are replaced as a whole and stored encrypted.",
   input: z.discriminatedUnion('carrier', [
     z.object({ carrier: z.literal('default') }).strict(),
     z.object({ carrier: z.literal('twilio'), values: twilioValues }).strict(),
