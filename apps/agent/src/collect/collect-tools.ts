@@ -165,7 +165,7 @@ export function collectTools(ctx: CollectContext) {
       execute: async (_args, opts) => runStep(ctx, opts, addressCollector),
     }),
     get_email: llm.tool({
-      description: "Get the caller's email address, spelled, and confirm it.",
+      description: "Get the caller's email address, spelled, and confirm it: only when the appointment type asks for one, or the caller wants a confirmation by email.",
       execute: async (_args, opts) => runStep(ctx, opts, emailCollector),
     }),
     get_date: llm.tool({

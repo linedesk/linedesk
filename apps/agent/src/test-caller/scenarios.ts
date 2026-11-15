@@ -149,7 +149,7 @@ export const scenarios = {
     },
     businessHours: {
       openNow: false,
-      summary: 'Business hours: Monday–Friday 7 AM–6 PM (America/Los_Angeles). Closed now; opens tomorrow at 7 AM.',
+      summary: 'Business hours: Monday–Friday 7 AM–6 PM. Closed now; opens tomorrow at 7 AM.',
     },
     outsideGreeting:
       "Thanks for calling. You've reached our after-hours line; the office is closed right now. How can I help?",

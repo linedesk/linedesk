@@ -73,7 +73,7 @@ async function nudged(opts: llm.ToolOptions, result: Promise<string>): Promise<s
 function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record<string, llm.AnonFunctionTool<any, any, any>> {
   if (!call.booking) return {}
   const booking = bookingTools(api, call, log)
-  const typeId = z.string().describe('The id of the appointment type whose "Use when" condition fits the request, from the list in your instructions.')
+  const typeId = z.string().describe('The id of the appointment type whose "use when" fits the request, from the list in your instructions.')
   const calendarId = z.string().nullish().describe('The id of the calendar whose "use when" fits the request, from the list in your instructions; leave it out when no calendars are listed.')
   const bookingDate = z.string().describe('The day of the appointment the caller wants to change, as the caller said it, in English ("Tuesday", "the 17th", "November 17") or YYYY-MM-DD.')
   return {
@@ -88,7 +88,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
       execute: (args, opts) => nudged(opts, booking.findSlots(args)),
     }),
     book_appointment: llm.tool({
-      description: 'Book a time the caller chose from find_slots. Only after the caller said yes to that exact time; never a time you picked for them without their yes.',
+      description: 'Book a time the caller chose from find_slots, only after the caller said yes to that exact time.',
       parameters: z.object({
         appointment_type_id: typeId,
         calendar_id: calendarId,
@@ -135,7 +135,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     ...lookupTools(api, call, log),
     take_message: llm.tool({
-      description: 'Save a message for the team. Use it whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself.',
+      description: 'Save a message for the team: whenever the caller wants a callback, a visit, a quote or anything you cannot do yourself. Once per call; if the caller adds a detail after you saved it (a callback number, an address), call it again with only that detail.',
       parameters: z.object({
         message: z
           .string()
@@ -160,8 +160,8 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       },
     }),
     end_call: llm.tool({
-      description:
-        'Hang up: when the caller said they need nothing else, or said goodbye. Call it without saying anything first; you say your goodbye right after it.',
+      // How (no words first, the goodbye after it) is in the prompt's closing rule.
+      description: 'Hang up: when the caller said they need nothing else, or said goodbye.',
       // The goodbye is the reply to this result; the call ends once it has played (hangUpAfterGoodbye).
       execute: async (_, { ctx }) => {
         endCall(ctx.speechHandle)
@@ -169,7 +169,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       },
     }),
     flag_urgent: llm.tool({
-      description: 'Flag this call as urgent. Use it when the call is urgent by what the business wants you to know, or when the caller says it is urgent. Whenever you tell the caller you are flagging or marking the call as urgent, call this in that same response; never say it without calling it.',
+      description: 'Flag this call as urgent: when it is urgent by what the business wants you to know, or the caller says it is. Call it in the same response in which you tell the caller.',
       execute: async () => {
         await flagUrgent()
         return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'

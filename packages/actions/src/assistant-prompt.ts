@@ -73,7 +73,9 @@ export const BEHAVIOURS = [
     id: 'offer_callback',
     label: "Offer a callback when you can't answer",
     on: true,
-    say: 'When you cannot answer a question or help with a request, offer that someone from the team calls the caller back, and take a message.',
+    // On: the call rules already take a message for whatever the assistant can't handle; no line of its own.
+    say: null,
+    sayOff: "Don't offer a callback on your own; take a message only when the caller asks for one.",
   },
   {
     id: 'confirm_number',
