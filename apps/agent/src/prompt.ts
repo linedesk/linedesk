@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, isE164, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE, workspaceLanguageName } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, isE164, type Language, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE, workspaceLanguageName } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 import { displayNumber } from './transfer.ts'
@@ -330,14 +330,34 @@ export function languageInstructions(assistant: Pick<Assistant, 'languages'> | n
   ].join(' ')
 }
 
-/** The language rule for a collection step (collect-task.ts); null: English only, the step's default. */
-export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | null): string | null {
+/**
+ * The language rule for a collection step (collect-task.ts); null: English only, the step's default. `spoken`: the
+ * language spoken on the call now (followCallerLanguage). Once the caller switched to another allowed language, the step
+ * speaks only that one: its own instructions and the tools' lines are English, and a rule that names the main language
+ * as the fallback made steps ask for the name and number in the main language.
+ */
+export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | null, spoken?: Language): string | null {
   const main = mainLanguageOf(assistant?.languages)
   const others = otherLanguagesOf(assistant?.languages)
   if (main === 'en' && !others.length) return null
   const keep = 'Say what the tools tell you in that language; keep names, numbers, addresses and email addresses exactly as they are.'
   if (!others.length) return `Speak ${LANGUAGES[main]}. ${keep}`
-  return `Speak the language the caller has been speaking in this call if it is ${languageNames([main, ...others], 'or')}, else ${LANGUAGES[main]}. ${keep}`
+  if (spoken && spoken !== main && others.includes(spoken)) {
+    const name = LANGUAGES[spoken]
+    return `The caller speaks ${name}: speak only ${name} in this step, from the first question on. These instructions and what the tools tell you are in English: say it in ${name}, and read numbers digit by digit and spelled letters back in ${name}; keep names, numbers, addresses and email addresses exactly as they are.`
+  }
+  return `Speak the language the caller has been speaking in this call if it is ${languageNames([main, ...others], 'or')}, else ${LANGUAGES[main]}; these instructions and the tools' lines being in English never change it. ${keep}`
+}
+
+/**
+ * What the assistant is told once the caller switched to another allowed language (followCallerLanguage); null while
+ * the main language is spoken. Without it a reply after a tool (a goodbye after end_call) went back to the main language.
+ */
+export function spokenLanguageRule(assistant: Pick<Assistant, 'languages'> | null, spoken: Language): string | null {
+  const main = mainLanguageOf(assistant?.languages)
+  if (spoken === main || !otherLanguagesOf(assistant?.languages).includes(spoken)) return null
+  const name = LANGUAGES[spoken]
+  return `The caller is speaking ${name} now: reply only in ${name}, also after a tool and in your goodbye, until the caller switches language. Read numbers and spelled letters back in ${name}.`
 }
 
 /**

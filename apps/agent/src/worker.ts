@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -36,7 +36,7 @@ import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, h
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
-import { buildInstructions, canChangeBookings, collectLanguageRule } from './prompt.ts'
+import { buildInstructions, canChangeBookings, collectLanguageRule, spokenLanguageRule } from './prompt.ts'
 import { describeRecording, livekitRecorder, resolveRecording, saveRecording, startRecording, stopRecording, stopRecordingOrThrow } from './recording.ts'
 import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
@@ -377,7 +377,9 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const speak = fixedLineSpeaker(session, voiceOfLines, realtimeLines)
   // Fixed lines during the call are in the language spoken now: the main one until the caller switches. A realtime model
   // follows the caller's language itself: with other languages allowed it is asked to say a fixed line in it (fixedLineSpeaker).
-  const spokenNow = pipeline ? followCallerLanguage(session, pipeline.tts, languages, call.callId) : () => languages.main
+  // Each switch also changes what the assistant and a running collection step are told to reply in (switched.to, set once the assistant exists).
+  const switched: { to: (language: Language) => void } = { to: () => {} }
+  const spokenNow = pipeline ? followCallerLanguage(session, pipeline.tts, languages, call.callId, language => switched.to(language)) : () => languages.main
   const lines = () => spokenLines(spokenNow())
   // Silence only counts once the greeting has played (remindOnSilence).
   const greeted = greetingPlayed(session)
@@ -474,18 +476,28 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
-  const instructionsNow = () => buildInstructions(withCallLanguages(call.assistant, languages), call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country)
+  // Once the caller switched to another allowed language, the assistant is told to reply in it (spokenLanguageRule).
+  const callAssistant = withCallLanguages(call.assistant, languages)
+  const instructionsNow = () =>
+    [buildInstructions(callAssistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country), spokenLanguageRule(callAssistant, spokenNow())]
+      .filter(Boolean)
+      .join('\n\n')
   const instructions = instructionsNow()
   const collect: CollectContext = {
     log,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
-    languageRule: collectLanguageRule(withCallLanguages(call.assistant, languages)) ?? undefined,
+    languageRule: () => collectLanguageRule(callAssistant, spokenNow()) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
     callerId: callerIdOf(call),
     country: call.country,
     facts: () => stepFacts({ today: collect.today(), hours: call.businessHours?.summary, address: call.assistant?.business_profile?.address }),
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect) })
+  switched.to = () => {
+    const failed = (e: unknown) => console.warn(`call ${call.callId}: reply language not updated: ${e instanceof Error ? e.message : String(e)}`)
+    void agent.updateInstructions(instructionsNow()).catch(failed)
+    void collect.step?.languageChanged(collect.languageRule?.()).catch(failed)
+  }
   if (stages) void warmUpLlm(stages.llm, instructions)
   await session.start({
     agent,

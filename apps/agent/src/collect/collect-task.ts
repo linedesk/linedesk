@@ -44,8 +44,13 @@ export type CollectTaskOptions = {
   facts?: string
 }
 
+/** A step's instructions: the shared rules, the language rule, the collector's own and the facts. */
+const stepInstructions = (languageRule: string, collector: AnyCollector, facts?: string) =>
+  `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}${facts ? `\n\nFacts you may answer from:\n${facts}` : ''}`
+
 export class CollectTask extends voice.AgentTask<CollectOutcome> {
   private readonly collection: Collection<Record<string, unknown>, unknown>
+  private readonly facts: string | undefined
 
   constructor({ collector, chatCtx, facts, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
     const collection = new Collection(collector)
@@ -57,7 +62,7 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
       return reply.outcome ? undefined : reply.say
     }
     super({
-      instructions: `${STEP_RULES}\n${languageRule}\n\n${collector.instructions}${facts ? `\n\nFacts you may answer from:\n${facts}` : ''}`,
+      instructions: stepInstructions(languageRule, collector, facts),
       ...(chatCtx ? { chatCtx } : {}),
       tools: {
         [`record_${kind}`]: llm.tool({
@@ -87,6 +92,13 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
     })
     self.task = this
     this.collection = collection
+    this.facts = facts
+  }
+
+  /** The caller switched language during the step: it speaks the new one from its next line (collectLanguageRule). */
+  async languageChanged(languageRule: string | undefined) {
+    if (this.done) return
+    await this.updateInstructions(stepInstructions(languageRule ?? COLLECT_ENGLISH_ONLY, this.collection.collector, this.facts))
   }
 
   /**

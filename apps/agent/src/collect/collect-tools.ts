@@ -14,8 +14,13 @@ export type CollectContext = {
   log: CallLog
   /** Today in the business's time zone, YYYY-MM-DD. */
   today: () => string
-  /** Which language the steps speak (collectLanguageRule in prompt.ts); default English only. */
-  languageRule?: string
+  /**
+   * Which language a step speaks (collectLanguageRule in prompt.ts), asked when it starts: the caller may have switched
+   * language by then. Missing or undefined: English only.
+   */
+  languageRule?: () => string | undefined
+  /** The step running now (set by runStep): told when the caller switches language during it (languageChanged). */
+  step?: CollectTask | null
   /**
    * Adds a detail to the message already saved on this call (call.takeMessage); false when there is no message yet
    * or it could not be saved. A number confirmed after the message would otherwise be lost.
@@ -50,16 +55,19 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
   if (ctx.log.onHold) return ON_HOLD_REPLY
   const chatCtx = run.session.currentAgent.chatCtx.copy({ excludeFunctionCall: true, excludeInstructions: true })
   try {
+    const languageRule = ctx.languageRule?.()
     const task = new CollectTask({
       collector,
       chatCtx,
-      ...(ctx.languageRule ? { languageRule: ctx.languageRule } : {}),
+      ...(languageRule ? { languageRule } : {}),
       ...(ctx.facts ? { facts: ctx.facts() } : {}),
     })
     // While a step runs: if the call ends now, the call log still files a call back (mergeToolResults).
     ctx.log.collecting = collector.label
+    ctx.step = task
     const outcome = await task.run().finally(() => {
       ctx.log.collecting = null
+      if (ctx.step === task) ctx.step = null
     })
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
@@ -128,7 +136,7 @@ export function collectTools(ctx: CollectContext) {
         ? "Get a phone number from the caller and confirm it. The caller's own number is known from caller ID and saved as the callback number by itself: use this for a callback number only when the caller said they want to be called back on a different number."
         : 'Get a phone number from the caller and confirm it.',
       parameters: z.object({
-        what: z.string().nullish().describe('What the number is for, e.g. "callback number". Default: callback number.'),
+        what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
         reason: z
           .string()
           .nullish()
@@ -153,13 +161,13 @@ export function collectTools(ctx: CollectContext) {
     }),
     get_date: llm.tool({
       description: 'Get a date from the caller (for example a preferred day or a date of birth) and confirm it.',
-      parameters: z.object({ what: z.string().describe('What the date is for, e.g. "preferred day" or "callback day" (not the day itself).') }),
+      parameters: z.object({ what: z.string().describe('What the date is for, in English, e.g. "preferred day" or "callback day" (not the day itself).') }),
       execute: async ({ what }, opts) => runStep(ctx, opts, dateCollector({ what, today: ctx.today() })),
     }),
     get_digits: llm.tool({
       description: 'Get a number made of digits (an account number, a ZIP code) and confirm it.',
       parameters: z.object({
-        what: z.string().describe('What it is, e.g. "account number".'),
+        what: z.string().describe('What it is, in English, e.g. "account number".'),
         min_digits: z.number().int().min(1).max(20).describe('Fewest digits it can have.'),
         max_digits: z.number().int().min(1).max(20).describe('Most digits it can have.'),
       }),

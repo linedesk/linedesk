@@ -44,12 +44,16 @@ export function nextLanguage(
   return !target || target === current ? null : target
 }
 
-/** Switches the call's voice to each allowed language the caller speaks; returns the language spoken now. */
+/**
+ * Switches the call's voice to each allowed language the caller speaks; returns the language spoken now. `onSwitch`:
+ * after each switch, so the replies' instructions follow the voice (worker.ts).
+ */
 export function followCallerLanguage(
   session: voice.AgentSession,
   tts: LanguageVoice,
   languages: CallLanguages,
   callId: string,
+  onSwitch?: (language: Language) => void,
 ): () => Language {
   let current = languages.main
   if (!languages.others.length) return () => current
@@ -60,6 +64,7 @@ export function followCallerLanguage(
     tts.updateOptions({ language: next })
     console.log(`call ${callId}: speaking ${next} (caller's language: ${language})`)
     current = next
+    onSwitch?.(next)
   })
   return () => current
 }
