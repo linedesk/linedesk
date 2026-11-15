@@ -62,6 +62,14 @@ export const TEST_CALL_LIMIT_MS = 5 * 60_000
 
 
 /** A booking tool's result; the assistant is asked to go on when its reply to it comes back empty (as after a collection step). */
+/**
+ * A tool that saves something (a booking, a message, the urgent flag): from its start the caller can't interrupt the
+ * turn, so an interruption never cancels the tool after the API saved and the assistant always hears the result.
+ */
+function saving(opts: llm.ToolOptions): void {
+  opts.ctx.disallowInterruptions()
+}
+
 async function nudged(opts: llm.ToolOptions, result: Promise<string>): Promise<string> {
   const text = await result
   nudgeIfQuiet(opts.ctx.session)
@@ -99,14 +107,14 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
         email: z.string().nullish().describe("The caller's email address, if they gave one: the confirmation goes there."),
       }),
       // The name the caller confirmed letter by letter wins over the model's spelling of it.
-      execute: (args, opts) => nudged(opts, booking.book({ ...args, caller_name: log.confirmedName ?? args.caller_name })),
+      execute: (args, opts) => (saving(opts), nudged(opts, booking.book({ ...args, caller_name: log.confirmedName ?? args.caller_name }))),
     }),
     ...(canChangeBookings(call.booking)
       ? {
           cancel_appointment: llm.tool({
             description: 'Cancel an appointment of the caller, described by the day it is on. It goes by the name the caller confirmed with get_name: get that first.',
             parameters: z.object({ booking_date: bookingDate }),
-            execute: (args, opts) => nudged(opts, booking.cancel(args)),
+            execute: (args, opts) => (saving(opts), nudged(opts, booking.cancel(args))),
           }),
           reschedule_appointment: llm.tool({
             description: 'Move an appointment of the caller, described by its day, to a time from find_slots the caller agreed to. It goes by the name the caller confirmed with get_name: get that first.',
@@ -116,7 +124,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
               calendar_id: calendarId.describe('The calendar id you used for find_slots.'),
               start: z.string().describe('The key in brackets of the new time from find_slots, like s3.'),
             }),
-            execute: ({ start, appointment_type_id, calendar_id, ...which }, opts) => nudged(opts, booking.reschedule(which, start, { appointment_type_id, calendar_id })),
+            execute: ({ start, appointment_type_id, calendar_id, ...which }, opts) => (saving(opts), nudged(opts, booking.reschedule(which, start, { appointment_type_id, calendar_id }))),
           }),
         }
       : {}),
@@ -145,7 +153,8 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
               : 'One complete sentence: who wants what, with the callback number confirmed with get_phone_number.',
           ),
       }),
-      execute: async ({ message: said }) => {
+      execute: async ({ message: said }, opts) => {
+        saving(opts)
         // A number the caller said can come out garbled ("503 551 42"): only a whole one is saved.
         const partial = partialPhoneNumberIn(said, call.country)
         if (partial) return `"${partial}" is not a complete phone number. Get the callback number with get_phone_number first, then call take_message again with the confirmed number.`
@@ -170,7 +179,8 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     }),
     flag_urgent: llm.tool({
       description: 'Flag this call as urgent: when it is urgent by what the business wants you to know, or the caller says it is. Call it in the same response in which you tell the caller.',
-      execute: async () => {
+      execute: async (_, opts) => {
+        saving(opts)
         await flagUrgent()
         return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'
       },
