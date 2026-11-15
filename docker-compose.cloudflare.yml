@@ -2,6 +2,10 @@
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.https.yml:docker-compose.cloudflare.yml
 # - Caddy trusts only Cloudflare's addresses and takes the visitor from CF-Connecting-IP, which Cloudflare sets
 #   itself; the API's rate limits and logs see the visitor. A CF-Connecting-IP from anywhere else is ignored.
+# - The visitor's country from CF-IPCountry (Cloudflare › Network › IP Geolocation, on by default) goes to the API as
+#   X-Linedesk-Country: New workspace is prefilled with it. Only the two-letter code, never stored with an IP. Caddy
+#   copies it only from requests that came from Cloudflare's addresses (docker/Caddyfile); still let the origin accept
+#   only Cloudflare (the firewall rules in the README, or Authenticated Origin Pulls).
 # - TLS: Cloudflare's SSL mode "Full (strict)", with a Cloudflare Origin CA certificate for PUBLIC_URL's host in
 #   LINEDESK_ORIGIN_CERT_DIR (origin.pem, and origin.key readable by uid 1000, mode 600). It lasts up to 15 years
 #   and needs no renewal; Caddy's own certificates (HTTP-01) would stop renewing once only Cloudflare reaches 80/443.
@@ -16,6 +20,7 @@ services:
         104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
         2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
       LINEDESK_CLIENT_IP_HEADERS: CF-Connecting-IP
+      LINEDESK_COUNTRY_HEADER: CF-IPCountry
       LINEDESK_TLS: origin
     volumes:
       - ${LINEDESK_ORIGIN_CERT_DIR:?set LINEDESK_ORIGIN_CERT_DIR to the directory with origin.pem and origin.key}:/etc/caddy/certs:ro

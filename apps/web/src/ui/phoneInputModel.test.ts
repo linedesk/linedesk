@@ -50,7 +50,7 @@ describe("the viewer's country", () => {
   })
 
   test('the workspace country wins over the browser', () => {
-    const viewer = defaultPhoneCountry({ workspaceCountry: 'AU', locale: 'pt-BR' })
+    const viewer = defaultPhoneCountry({ country: 'AU', locale: 'pt-BR' })
     expect(phoneCountrySearchPlaceholder(viewer)).toBe('Search a country or +61')
     expect(commonPhoneCountries(viewer)).toEqual(['US', 'CA', 'GB', 'AU'])
   })

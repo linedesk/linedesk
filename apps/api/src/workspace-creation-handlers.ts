@@ -2,7 +2,7 @@
 // makes a workspace for a business and gives it its one owner, or makes one of their own (the app's New workspace,
 // POST /v1/workspaces in app.ts, and the setup MCP's workspace_create). Who may create workspaces at all:
 // workspace-creation.ts.
-import type { WorkspaceCreateData } from '@linedesk/actions'
+import { type CountryHint, countryHintOf, type WorkspaceCreateData } from '@linedesk/actions'
 import { agent_setup_keys, assistants, organization, session, user, workspace_settings } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -26,15 +26,45 @@ const slugOf = (name: string) =>
 
 type Created = WorkspaceCreateData & { subject: { email: string; workspaceId: string } }
 
-/** The workspace with its assistant and settings. */
-async function insertWorkspace({ tx, now }: HandlerCtx, name: string, timeZone: string | undefined) {
+type CreateInput = {
+  name: string
+  timeZone?: string
+  country?: string
+  countryHint?: CountryHint
+  owner?: { email: string; name?: string }
+}
+
+/**
+ * The country hint a new workspace keeps: what the app prefilled its country with, else the country of the time zone
+ * the caller sent (never the stored fallback, US Eastern, which nobody said). For another owner, never the admin's
+ * own sign-up location: the hint is about where the business is, and that is not where the admin sits.
+ */
+export function creationHint(input: Pick<CreateInput, 'timeZone' | 'countryHint'>, forOther: boolean) {
+  const given = input.countryHint
+  if (given && !(forOther && given.source === 'sign_up_location')) return given
+  return countryHintOf({ timeZone: input.timeZone })
+}
+
+/**
+ * The workspace with its assistant and settings. The country only as picked (left as prefilled it stays Automatic,
+ * so a number connected later still decides it), and the country hint (creationHint): only a code and its source.
+ */
+async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInput, forOther = false) {
+  const { name } = input
   const id = crypto.randomUUID().replaceAll('-', '')
   const [org] = await tx
     .insert(organization)
     .values({ id, name, slug: slugOf(name), createdAt: new Date(now) })
     .returning({ id: organization.id, name: organization.name })
   await tx.insert(assistants).values(newAssistant(org!.id, name))
-  await tx.insert(workspace_settings).values(newWorkspaceSettings(org!.id, timeZone))
+  const settings = newWorkspaceSettings(org!.id, input.timeZone)
+  const hint = creationHint(input, forOther)
+  await tx.insert(workspace_settings).values({
+    ...settings,
+    country: input.country ?? null,
+    country_hint: hint?.country ?? null,
+    country_hint_source: hint?.source ?? null,
+  })
   return org!
 }
 
@@ -61,7 +91,7 @@ export const SETUP_LINK_NO_OWNER = "A setup link creates only the admin's own wo
  * check in front). The `signup` milestone is recorded here, once, by addToWorkspace (memberships.ts, ownerJoined):
  * the owner is in the workspace from its first moment.
  */
-async function createOwn(ctx: HandlerCtx, input: { name: string; timeZone?: string }): Promise<Created> {
+async function createOwn(ctx: HandlerCtx, input: CreateInput): Promise<Created> {
   const { tx, actor, now } = ctx
   const me = await lockedAdmin(ctx)
   if (actor.setupKeyId) {
@@ -73,7 +103,7 @@ async function createOwn(ctx: HandlerCtx, input: { name: string; timeZone?: stri
     if (!key) throw new Forbidden(WORKSPACE_CREATION_CLOSED)
     if ((await workspacesMadeBy(tx, key.id)) >= SETUP_LINK_WORKSPACE_CAP) throw new Reject(SETUP_LINK_CAP_TEXT)
   }
-  const org = await insertWorkspace(ctx, input.name, input.timeZone)
+  const org = await insertWorkspace(ctx, input)
   await addToWorkspace(tx, me, org, 'owner', now)
   if (actor.sessionId)
     await tx.update(session).set({ activeOrganizationId: org.id }).where(eq(session.id, actor.sessionId))
@@ -93,10 +123,7 @@ export const workspaceCreationHandlers: Record<string, Handler> = {
    * the setup emails count from when the owner joins (memberships.ts, ownerJoined), not from when the admin typed the
    * name. Without an owner, or with the admin's own address as the owner: the admin's own workspace (createOwn).
    */
-  'workspace.create': async (
-    ctx,
-    input: { name: string; timeZone?: string; owner?: { email: string; name?: string } },
-  ) => {
+  'workspace.create': async (ctx, input: CreateInput) => {
     if (!input.owner) return { rows: {}, data: await createOwn(ctx, input) }
     const { tx } = ctx
     // No setup tool passes an owner today; one that did would get past the link's cap (security review of #761, F3).
@@ -108,7 +135,7 @@ export const workspaceCreationHandlers: Record<string, Handler> = {
     const [existing] = await tx.select({ name: user.name }).from(user).where(sql`lower(${user.email}) = ${email}`)
     const ownerName = input.owner.name ?? existing?.name
     if (!ownerName) throw new Reject(`${email} has no account yet: enter the owner's name`)
-    const org = await insertWorkspace(ctx, input.name, input.timeZone)
+    const org = await insertWorkspace(ctx, input, true)
     const added = await adminHandlers['user.invite']!(ctx, {
       email,
       name: ownerName,

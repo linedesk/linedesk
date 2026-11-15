@@ -1,4 +1,5 @@
 import { type EnrolmentCode, rememberEnrolmentCode } from './enrolment-code.ts'
+import { browserPlace } from './countryHint.ts'
 import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, inferAdditionalFields, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
@@ -155,13 +156,18 @@ export async function completeSetup(input: { code: string; name: string; email: 
   return body
 }
 
-export async function createWorkspace(name: string) {
+/**
+ * `country`: where the business is, only when picked (saved as set); null: left as prefilled, so it stays Automatic and
+ * a number connected later still decides it. The time zone and browser language go along: the API keeps the country
+ * hint the field was prefilled with (country-hint.ts), only its two-letter code.
+ */
+export async function createWorkspace(name: string, country: string | null) {
   const res = await fetch('/v1/workspaces', {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },
     // The workspace's time zone for working hours; the API falls back to US Eastern.
-    body: JSON.stringify({ name, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+    body: JSON.stringify({ name, ...(country ? { country } : {}), ...browserPlace() }),
   })
   const body = (await res.json().catch(() => ({}))) as { error?: string; workspace?: { id: string } }
   if (!res.ok) throw new Error(body.error ?? i18n().t('auth.createWorkspace.failed'))

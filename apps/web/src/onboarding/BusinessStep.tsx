@@ -9,21 +9,24 @@ import {
   type BusinessTemplateId,
   businessTemplateIds,
   businessTemplates,
-  countryOfNumber,
+  phoneCountryName,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from 'react'
 import { T, useLocale, useT } from '@linedesk/i18n/react'
-import { appLink } from '../ui/AppLink.tsx'
+import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
-import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from '../settings/workspaceLocaleModel.ts'
+import { CountrySelect } from '../settings/CountrySelect.tsx'
+import { AUTOMATIC, languageOptions } from '../settings/workspaceLocaleModel.ts'
 import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { useAssistant, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
+import { flagOf } from '../ui/phoneInputModel.ts'
+import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
@@ -226,17 +229,22 @@ function FindBusiness({
               }
             />
           )}
-          <p className="ob-tight">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setError(null)
-                setPhase({ kind: 'manual' })
+          <p className="ob-biz-manual">
+            <T
+              k="onboarding.business.find.manualOr"
+              values={{
+                link: chunks => (
+                  <LinkButton
+                    onClick={() => {
+                      setError(null)
+                      setPhase({ kind: 'manual' })
+                    }}
+                  >
+                    {chunks}
+                  </LinkButton>
+                ),
               }}
-            >
-              {t('onboarding.business.find.manual')}
-            </Button>
+            />
           </p>
         </>
       )}
@@ -291,6 +299,21 @@ function FindBusiness({
       {error && typeof error !== 'string' && <ProblemNote problem={error} admin={admin} alert />}
     </FindForm>
   )
+}
+
+/**
+ * What the Business step saves of country and language: only what the owner picked (Change, or the language select).
+ * A country left as shown is not saved as set (it stays Automatic, so a number connected later still decides it).
+ */
+export function localeToSave(
+  pickedCountry: string | null,
+  pickedLanguage: string | null,
+  savedCountry: string | null,
+): { country?: string; language?: string | null } {
+  return {
+    ...(pickedCountry !== null && pickedCountry !== savedCountry ? { country: pickedCountry } : {}),
+    ...(pickedLanguage !== null ? { language: pickedLanguage === AUTOMATIC ? null : pickedLanguage } : {}),
+  }
 }
 
 /**
@@ -429,18 +452,13 @@ function ReviewProfile({
   const phoneCountry = useDefaultPhoneCountry()
   const settings = useWorkspaceSettings().data
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFrom(proposal))
-  // Where the business is and its language: what the workspace has (set, else worked out), the business phone's
-  // country once one is typed, until the owner picks.
+  // Where the business is and its language: what the workspace has, set when it was made (New workspace) or worked out
+  // by the API (workspace-locale.ts, the same order as Workspace settings › General), until the owner picks.
   const [pickedCountry, setPickedCountry] = useState<string | null>(null)
+  const [changingCountry, setChangingCountry] = useState(false)
   const [pickedLanguage, setPickedLanguage] = useState<string | null>(null)
-  const country =
-    pickedCountry ??
-    settings?.country ??
-    countryOfNumber(draft.phone) ??
-    (settings?.countrySource !== 'default' ? settings?.resolvedCountry : null) ??
-    phoneCountry
+  const country = pickedCountry ?? phoneCountry
   const language = pickedLanguage ?? settings?.language ?? AUTOMATIC
-  const countryChoices = useMemo(() => countryOptions(country, 'explicit').slice(1), [country])
   const ui = useLocale()
   const languageChoices = useMemo(() => languageOptions(country, ui), [country, ui])
   const problem = draftProblem(draft)
@@ -451,14 +469,15 @@ function ReviewProfile({
     if (problem) return
     const { assistant: changes, hours, timeZone, rename } = profileSave(draft, assistant.business_profile, businessName)
     void run('assistant.update', { assistantId: assistant.id, ...changes })
-    // The country shown was confirmed with the profile; the language only when picked (else it follows the country).
-    const locale = {
-      ...(country !== settings?.country ? { country } : {}),
-      ...(pickedLanguage !== null ? { language: pickedLanguage === AUTOMATIC ? null : pickedLanguage } : {}),
-    }
+    // Saved as set only what the owner picked: a country left as shown stays Automatic, so a number connected later
+    // (or the business phone) still decides it. The language likewise (else it follows the country).
+    const locale = localeToSave(pickedCountry, pickedLanguage, settings?.country ?? null)
     if (Object.keys(locale).length) {
       void run('workspace.updateSettings', locale)
-      patchWorkspaceSettings({ ...locale, resolvedCountry: country, countrySource: 'explicit' })
+      patchWorkspaceSettings({
+        ...locale,
+        ...(locale.country ? { resolvedCountry: locale.country, countrySource: 'explicit' as const } : {}),
+      })
     }
     // The business name is the workspace's name: renamed with it, shown at once in the menu.
     if (rename) {
@@ -551,30 +570,56 @@ function ReviewProfile({
           </Field>
           <Field
             id="ob-biz-country"
-            label={t('onboarding.business.field.country')}
-            tip={t('onboarding.business.field.countryTip')}
+            label={t('settings.general.country.label')}
+            tip={t('settings.general.country.tip')}
           >
-            <SearchSelect
-              id="ob-biz-country"
-              label={t('onboarding.business.field.country')}
-              value={country}
-              options={countryChoices}
-              search={searchCountries}
-              placeholder={t('onboarding.business.field.countrySearch')}
-              onChange={setPickedCountry}
-            />
+            {changingCountry ? (
+              <CountrySelect id="ob-biz-country" value={country} onChange={setPickedCountry} />
+            ) : (
+              <span className="ob-biz-country">
+                <span id="ob-biz-country">
+                  {flagOf(country)} {phoneCountryName(country)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title={t('onboarding.business.field.countryChangeTip')}
+                  onClick={() => setChangingCountry(true)}
+                >
+                  {t('onboarding.business.field.countryChange')}
+                </Button>
+              </span>
+            )}
           </Field>
           <Field
             id="ob-biz-language"
-            label={t('common.language.label')}
-            tip={t('onboarding.business.field.languageTip', { assistant: assistant.name })}
+            label={t('settings.general.language.label')}
+            // The same texts as Workspace settings › General; a walkthrough step opens other places in a new tab
+            // (design principles 14 and 18).
+            help={
+              <T
+                k="settings.general.language.help"
+                values={{ link: appLink(sectionHash('account', 'preferences'), { newTab: true }) }}
+              />
+            }
+            tip={{
+              text: (
+                <T
+                  k="settings.general.language.tip"
+                  values={{
+                    languages: appLink(sectionHash('assistant', 'general'), { newTab: true }),
+                    voice: appLink(sectionHash('assistant', 'general'), { newTab: true }),
+                  }}
+                />
+              ),
+            }}
           >
             <SearchSelect
               id="ob-biz-language"
-              label={t('common.language.label')}
+              label={t('settings.general.language.label')}
               value={language}
               options={languageChoices}
-              placeholder={t('onboarding.business.field.languageSearch')}
+              placeholder={t('settings.general.language.search')}
               onChange={setPickedLanguage}
             />
           </Field>

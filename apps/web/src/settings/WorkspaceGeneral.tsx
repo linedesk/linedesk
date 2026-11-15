@@ -17,7 +17,8 @@ import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, patchWorkspaceSettings, refreshWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { renameCheck } from './workspaceGeneral.ts'
-import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from './workspaceLocaleModel.ts'
+import { CountrySelect } from './CountrySelect.tsx'
+import { AUTOMATIC, languageOptions } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
 
 /** Where an assistant's languages and voice are (the workspace's first assistant, AssistantSettings.tsx). */
@@ -128,10 +129,9 @@ function Country({ canEdit }: { canEdit: boolean }) {
   const t = useT()
   const settings = useWorkspaceSettings()
   const data = settings.data
-  const resolved = data?.resolvedCountry ?? 'US'
-  const options = useMemo(
-    () => countryOptions(resolved, data?.countrySource ?? 'default'),
-    [resolved, data?.countrySource],
+  const automatic = useMemo(
+    () => ({ country: data?.resolvedCountry ?? 'US', source: data?.countrySource ?? ('default' as const) }),
+    [data?.resolvedCountry, data?.countrySource],
   )
   const change = (value: string) => {
     const country = value === AUTOMATIC ? null : value
@@ -153,13 +153,10 @@ function Country({ canEdit }: { canEdit: boolean }) {
         skeleton={<Skeleton shape="field" width="100%" />}
       >
         {data && (
-          <SearchSelect
+          <CountrySelect
             id="ws-country"
-            label={t('settings.general.country.label')}
             value={data.country ?? AUTOMATIC}
-            options={options}
-            search={searchCountries}
-            placeholder={t('settings.general.country.search')}
+            automatic={automatic}
             onChange={change}
             disabled={!canEdit}
           />

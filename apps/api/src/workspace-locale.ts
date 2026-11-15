@@ -1,5 +1,6 @@
 // The workspace's country and language as they apply now (workspace-locale.ts in @linedesk/actions): the ones the owner
-// set in Workspace settings › General, else worked out from the workspace's numbers and holidays. Read by
+// set in Workspace settings › General, else worked out from the workspace's numbers, holidays and the country hint
+// saved when it was made. Read by
 // workspace.getSettings, call.start (the voice agent's phone region and language) and the setup MCP.
 import { resolveWorkspaceLanguage, type WorkspaceCountrySource, workspaceCountryOf } from '@linedesk/actions'
 import { assistants, phone_numbers, type Tx, workspace_settings } from '@linedesk/db'
@@ -15,7 +16,10 @@ export type WorkspaceLocale = {
   resolvedLanguage: string
 }
 
-type SettingsRow = Pick<typeof workspace_settings.$inferSelect, 'country' | 'language' | 'holidays'>
+type SettingsRow = Pick<
+  typeof workspace_settings.$inferSelect,
+  'country' | 'language' | 'holidays' | 'country_hint' | 'country_hint_source'
+>
 
 /** The workspace's country and language; `settings` when the caller has read its workspace_settings row already. */
 export async function workspaceLocale(
@@ -31,6 +35,8 @@ export async function workspaceLocale(
               country: workspace_settings.country,
               language: workspace_settings.language,
               holidays: workspace_settings.holidays,
+              country_hint: workspace_settings.country_hint,
+              country_hint_source: workspace_settings.country_hint_source,
             })
             .from(workspace_settings)
             .where(eq(workspace_settings.workspace_id, workspaceId))
@@ -59,6 +65,7 @@ export async function workspaceLocale(
     assistantNumbers: numbers.map(n => n.e164),
     businessPhone: (assistant?.profile as { phone?: string | null } | undefined)?.phone ?? null,
     holidayCountry: row?.holidays?.country ?? null,
+    hint: row ? { country: row.country_hint, source: row.country_hint_source } : null,
   })
   return {
     country: explicit,

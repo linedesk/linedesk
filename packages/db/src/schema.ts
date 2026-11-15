@@ -391,10 +391,20 @@ export const workspace_settings = pgTable('workspace_settings', {
   closure: jsonb('closure').$type<Closure>(),
   /**
    * Where the business is (ISO 3166-1 alpha-2, upper case: "DE"). null: never set, worked out when read
-   * (resolveWorkspaceCountry in @linedesk/actions: the assistant's number, the business phone, the holidays, else US).
+   * (resolveWorkspaceCountry in @linedesk/actions: the assistant's number, the business phone, the holidays, the
+   * country hint, the time zone, else US). A workspace made in the app starts with it set.
    * The default region for phone numbers, the forwarding guide, the holiday calendar and the currency.
    */
   country: text('country'),
+  /**
+   * A guess at the country, saved once when the workspace was made (countryHintOf in @linedesk/actions): the country
+   * code a proxy in front of the install sent with the request (CF-IPCountry), else the time zone's country, else the
+   * browser language's region. Only the two-letter code; never the address. null: none known.
+   * What New workspace prefilled; counts for Automatic after the holidays.
+   */
+  country_hint: text('country_hint'),
+  /** Where country_hint came from. */
+  country_hint_source: text('country_hint_source', { enum: ['sign_up_location', 'time_zone', 'browser_language'] }),
   /**
    * The language the workspace works in (BCP 47 primary tag: "de"). null: never set, the main language of the
    * country (resolveWorkspaceLanguage). The assistant's greeting when it has no main language of its own, and the
@@ -453,7 +463,14 @@ export const workspace_settings = pgTable('workspace_settings', {
     .default('USD'),
   created_at: createdAt(),
   version: version(),
-})
+}, t => [
+  // The hint is only ever a two-letter code with one of the known sources (or neither).
+  check('workspace_settings_country_hint', sql`${t.country_hint} ~ '^[A-Z]{2}$'`),
+  check(
+    'workspace_settings_country_hint_source',
+    sql`${t.country_hint_source} in ('sign_up_location', 'time_zone', 'browser_language')`,
+  ),
+])
 
 // A member's own new-call notifications in one workspace. null: the workspace default applies.
 // Not synced: read and written through notifications.* actions (the caller's own row), and by the workspace's

@@ -6,6 +6,7 @@ import {
   type WorkspaceCreateData,
   workspaceNameProblem,
 } from '@linedesk/actions'
+import { requestCountryHint } from './country-hint.ts'
 import { member, organization, passkey, user, workspace_icons, tableNames, type TableName } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -178,6 +179,16 @@ registerSignInLinkRoutes(app)
 
 export { WORKSPACE_CREATION_CLOSED }
 
+// What New workspace prefills its country with (country-hint.ts): the visitor's country from the proxy in front, else
+// the time zone's, else the browser language's region; null when none says. Signed-in accounts only; nothing is stored.
+app.get('/v1/workspaces/country-hint', async c => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers })
+  if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
+  const hint = requestCountryHint(c.req.raw.headers, { timeZone: c.req.query('timeZone'), locale: c.req.query('locale') })
+  c.header('cache-control', 'no-store')
+  return c.json({ ok: true, hint })
+})
+
 // Create a workspace (= organization) for the signed-in server admin, with its assistant, and make it active: the
 // app's New workspace. The checks below answer as before; the workspace itself is made by workspace.create without an
 // owner (workspace-creation-handlers.ts), in one transaction, logged and audited like every other way to make one.
@@ -196,14 +207,22 @@ app.post('/v1/workspaces', async c => {
   if (!('actor' in caller) || !mayCreateWorkspace(caller.actor))
     return c.json({ ok: false, code: 'workspace_creation_closed', error: WORKSPACE_CREATION_CLOSED }, 403)
   const body = await c.req
-    .json<{ name?: unknown; timeZone?: unknown }>()
-    .catch(() => ({ name: undefined, timeZone: undefined }))
+    .json<{ name?: unknown; timeZone?: unknown; country?: unknown; locale?: unknown }>()
+    .catch(() => ({ name: undefined, timeZone: undefined, country: undefined, locale: undefined }))
   const problem = workspaceNameProblem(body.name)
   if (problem) return c.json({ ok: false, error: problem }, 422)
   const name = (body.name as string).trim()
   // A time zone that is not one falls back to the default, as before (onboarding.ts, workspaceTimeZone).
   const timeZone = typeof body.timeZone === 'string' && body.timeZone.length <= 64 ? body.timeZone : undefined
-  const made = await runAction('workspace.create', { name, ...(timeZone ? { timeZone } : {}) }, caller.actor)
+  // The country only when picked in New workspace (workspace.create checks it; left as prefilled it stays Automatic),
+  // and the hint it was prefilled with: from this request (country-hint.ts), as GET /v1/workspaces/country-hint gave it.
+  const country = typeof body.country === 'string' && body.country ? body.country : undefined
+  const countryHint = requestCountryHint(headers, { timeZone, locale: body.locale })
+  const made = await runAction(
+    'workspace.create',
+    { name, ...(timeZone ? { timeZone } : {}), ...(country ? { country } : {}), ...(countryHint ? { countryHint } : {}) },
+    caller.actor,
+  )
   // Refused by workspace.create: 403 as before; invalid input stays 422.
   if (!made.body.ok) return c.json(made.body, made.status === 409 ? 403 : made.status)
   const { workspace } = made.body.data as WorkspaceCreateData

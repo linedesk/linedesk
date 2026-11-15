@@ -56,3 +56,9 @@ test('an assistant without a main language shows the workspace language, its def
   expect(draftOf(base, 'he').languages.main).toBe('en')
   expect(draftOf({ ...base, languages: { main: 'en', mode: 'english', allowed: [] } }, 'es').languages.main).toBe('en')
 })
+
+test('Automatic says where a hinted country came from: sign-up location, time zone or browser language', () => {
+  expect(countryOptions('DE', 'sign_up_location')[0]?.label).toBe('Automatic (Germany, from where the workspace was created)')
+  expect(countryOptions('ES', 'time_zone')[0]?.label).toBe('Automatic (Spain, from the time zone it was created in)')
+  expect(countryOptions('AT', 'browser_language')[0]?.label).toBe('Automatic (Austria, from the browser language it was created in)')
+})

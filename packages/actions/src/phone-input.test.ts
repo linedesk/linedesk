@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest'
 import {
   completePhone,
   countryOfNumber,
-  defaultPhoneCountry,
   nanpAreaCode,
   phoneFromValue,
   phoneNumberProblem,
@@ -87,16 +86,6 @@ test('the country of a number; a North American one libphonenumber cannot place 
   expect(countryOfNumber('+15555550100')).toBe('US')
   expect(countryOfNumber('(503) 555-0142')).toBeNull()
   expect(countryOfNumber(null)).toBeNull()
-})
-
-test('the default country: assistant number, workspace, business phone, locale, then the US', () => {
-  expect(defaultPhoneCountry({ assistantNumber: '+4930123456', workspaceCountry: 'GB', locale: 'en-US' })).toBe('DE')
-  expect(defaultPhoneCountry({ assistantNumber: null, workspaceCountry: 'gb', locale: 'de-DE' })).toBe('GB')
-  expect(defaultPhoneCountry({ businessNumber: '+61 2 9876 5432', locale: 'de-DE' })).toBe('AU')
-  expect(defaultPhoneCountry({ businessNumber: '(503) 555-0142', locale: 'de-DE' })).toBe('DE')
-  expect(defaultPhoneCountry({ locale: 'de' })).toBe('DE')
-  expect(defaultPhoneCountry({ workspaceCountry: 'XX', locale: 'nonsense-' })).toBe('US')
-  expect(defaultPhoneCountry({})).toBe('US')
 })
 
 test('the placeholder is an example number of the country', () => {

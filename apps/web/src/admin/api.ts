@@ -9,6 +9,7 @@ import {
   type BrandingInput,
   type CalendarTool,
   type CalendarToolMode,
+  type CountryHint,
   type InstallSetupState,
   type InstallStep,
   type MembershipRole,
@@ -291,7 +292,13 @@ type AdminInputs = {
   'setupEmails.set': { on: boolean }
   'impersonationEmails.get': Record<string, never>
   'impersonationEmails.set': { on: boolean }
-  'workspace.create': { name: string; timeZone?: string; owner: { email: string; name?: string } }
+  'workspace.create': {
+    name: string
+    timeZone?: string
+    country?: string
+    countryHint?: CountryHint
+    owner: { email: string; name?: string }
+  }
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>
   'agentSetup.revoke': Record<string, never>

@@ -1,17 +1,86 @@
 // Where a workspace is and which language it works in (workspace_settings.country and .language, Workspace settings ›
-// General). Both are optional: a workspace that never set them gets them worked out when they are read, from the
-// number its assistant answers, the business's own phone, its holiday calendar, else the US and English. So a US
-// workspace from before these settings behaves as it always did. The country is the default region for phone numbers
+// General). A workspace made in the app starts with its country set (New workspace asks for it, prefilled from the
+// country hint). One made without it (the API, the setup MCP, the command line), or from before, gets it worked out
+// when it is read: from the number its assistant answers, the business's own phone, its holiday calendar, the country
+// hint saved when it was made, its time zone, else the US; the language from the country. One function for the API and
+// the web app (workspaceCountryOf), so both always say the same. The country is the default region for phone numbers
 // (the phone field, the voice agent reading a number a caller says), the forwarding guide, the holiday calendar and
 // the currency; the language is what the assistant greets in (unless the assistant has its own main language) and
 // what call summaries and messages for the team are written in.
 import { z } from 'zod'
 import { type Language, LANGUAGES, languageCodes } from './languages.ts'
-import { countryOfNumber, isPhoneCountry, phoneCountryCodes, phoneCountryName } from './phone-input.ts'
+import {
+  countryOfNumber,
+  isPhoneCountry,
+  localeRegion,
+  phoneCountryCodes,
+  phoneCountryName,
+} from './phone-input.ts'
 import type { JobValueCurrency } from './insights.ts'
+import { TIME_ZONES_BY_COUNTRY } from './time-zone-countries.ts'
 
-/** Where the resolved country came from: set by the owner, or worked out from one of the workspace's numbers or its holidays. */
-export type WorkspaceCountrySource = 'explicit' | 'assistant_number' | 'business_phone' | 'holidays' | 'default'
+/**
+ * Where a country hint came from, most telling first: the country of the address the workspace was made from (only
+ * the country code a proxy in front of the install adds, CF-IPCountry behind Cloudflare; never the address itself),
+ * the time zone's country, the region of the browser's language ("de-AT": AT).
+ */
+export const countryHintSources = ['sign_up_location', 'time_zone', 'browser_language'] as const
+export type CountryHintSource = (typeof countryHintSources)[number]
+/** A guess at where a business is, from the moment its workspace was made (workspace_settings.country_hint). */
+export type CountryHint = { country: string; source: CountryHintSource }
+
+/**
+ * Where the resolved country came from: set by the owner, one of the workspace's numbers, its holidays, the hint saved
+ * when it was made (its source), its time zone, else the US.
+ */
+export type WorkspaceCountrySource =
+  | 'explicit'
+  | 'assistant_number'
+  | 'business_phone'
+  | 'holidays'
+  | CountryHintSource
+  | 'default'
+
+let zoneCountries: Map<string, string> | null = null
+/** The country of an IANA time zone ("Europe/Madrid": ES, "US/Eastern": US); null for UTC and unknown names. */
+export function countryOfTimeZone(timeZone: string | null | undefined): string | null {
+  if (!timeZone) return null
+  zoneCountries ??= new Map(
+    Object.entries(TIME_ZONES_BY_COUNTRY).flatMap(([country, zones]) => zones.split(' ').map(z => [z, country])),
+  )
+  const country = zoneCountries.get(timeZone.trim())
+  return country && isPhoneCountry(country) ? country : null
+}
+
+/**
+ * The country hint for a new workspace: the sign-up location's country code, else the time zone's country, else the
+ * region of the browser's language; null when none says. Only a two-letter code and its source are kept.
+ */
+export function countryHintOf(from: {
+  /** The country code a trusted proxy sent with the request (CF-IPCountry); "XX" and "T1" (Tor) count as none. */
+  ipCountry?: string | null
+  timeZone?: string | null
+  /** The browser's language tag ("de-DE"). */
+  locale?: string | null
+}): CountryHint | null {
+  const ip = countryCode(from.ipCountry)
+  if (ip) return { country: ip, source: 'sign_up_location' }
+  const zone = countryOfTimeZone(from.timeZone)
+  if (zone) return { country: zone, source: 'time_zone' }
+  const region = localeRegion(from.locale)
+  if (region) return { country: region, source: 'browser_language' }
+  return null
+}
+
+/** workspace.create `countryHint`: what the app prefilled the country with, and where that came from. */
+export const countryHintSchema = z.object({
+  country: z
+    .string()
+    .trim()
+    .transform(code => code.toUpperCase())
+    .refine(code => phoneCountryCodes().includes(code), 'a country code like US or CA'),
+  source: z.enum(countryHintSources),
+})
 
 export type WorkspaceCountryInput = {
   /** workspace_settings.country: what the owner set; null: not set. */
@@ -22,9 +91,11 @@ export type WorkspaceCountryInput = {
   businessPhone?: string | null
   /** The country of the workspace's public holiday calendar. */
   holidayCountry?: string | null
+  /** The hint saved when the workspace was made (workspace_settings.country_hint and its source). */
+  hint?: { country: string | null; source: string | null } | null
 }
 
-const countryCode = (value: string | null | undefined): string | null => {
+function countryCode(value: string | null | undefined): string | null {
   const code = value?.trim().toUpperCase()
   return code && isPhoneCountry(code) ? code : null
 }
@@ -39,12 +110,35 @@ export function workspaceCountryOf(input: WorkspaceCountryInput): { country: str
   if (business) return { country: business, source: 'business_phone' }
   const holidays = countryCode(input.holidayCountry)
   if (holidays) return { country: holidays, source: 'holidays' }
+  const hinted = countryCode(input.hint?.country)
+  const hintSource = countryHintSources.find(s => s === input.hint?.source)
+  if (hinted && hintSource) return { country: hinted, source: hintSource }
   return { country: 'US', source: 'default' }
 }
 
 /**
+ * Whether something the business did names the country (set, a number, the business phone, holidays), not only a
+ * guess (a hint or the US fallback). Buying a number follows only a named country: with a guess, the area code picked
+ * names it and the bought number then sets it, so a hint from where the workspace was made never blocks a purchase
+ * (LIN-300, security review of #826 F2).
+ */
+export const countryNamed = (source: WorkspaceCountrySource): boolean =>
+  source !== 'default' && !countryHintSources.some(s => s === source)
+
+/**
+ * The country a phone field starts with: the workspace's country by the same order (workspaceCountryOf), and where
+ * nothing of the workspace says, the region of the browser's language, else the US. Before the workspace settings
+ * have loaded the web app passes what it has (its numbers, the business phone, the browser's own hint).
+ */
+export function defaultPhoneCountry(from: WorkspaceCountryInput & { locale?: string | null }): string {
+  const { country, source } = workspaceCountryOf(from)
+  return source === 'default' ? (localeRegion(from.locale) ?? country) : country
+}
+
+/**
  * The workspace's country (ISO 3166-1 alpha-2, upper case): the one set, else the country of the first number the
- * assistant answers, else the business phone's (written with its country code), else the holiday calendar's, else 'US'.
+ * assistant answers, else the business phone's (written with its country code), else the holiday calendar's, else the
+ * hint saved when the workspace was made, else its time zone's country, else 'US'.
  */
 export const resolveWorkspaceCountry = (input: WorkspaceCountryInput): string => workspaceCountryOf(input).country
 
@@ -184,6 +278,9 @@ const SOURCE_WORDS: Record<WorkspaceCountrySource, string> = {
   assistant_number: "from your assistant's number",
   business_phone: 'from your business phone',
   holidays: 'from your holiday calendar',
+  sign_up_location: 'from where the workspace was created',
+  time_zone: 'from the time zone it was created in',
+  browser_language: 'from the browser language it was created in',
   default: 'nothing else set',
 }
 

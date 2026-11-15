@@ -199,10 +199,10 @@ describe('saving', () => {
 
 test('where the proposal came from', () => {
   expect(sourcesLine(proposal().pages, true)).toBe(
-    'From your Google listing and 1 page of brightwater-plumbing.example. Check it and change anything.',
+    'From your Google Business Profile and 1 page of brightwater-plumbing.example. Check it and change anything.',
   )
   expect(sourcesLine([], false)).toBe('Check it and change anything.')
-  expect(sourcesLine([], true)).toBe('From your Google listing. Check it and change anything.')
+  expect(sourcesLine([], true)).toBe('From your Google Business Profile. Check it and change anything.')
   const pages = [proposal().pages[0]!, { url: 'https://brightwater-plumbing.example/services', title: 'Services' }]
   expect(sourcesLine(pages, false)).toBe('From 2 pages of brightwater-plumbing.example. Check it and change anything.')
 })
@@ -226,7 +226,7 @@ describe('websiteChoice', () => {
 
 test('a provider the step could not use says what happened and, for admins, where to fix it', () => {
   const refused = providerProblem({ provider: 'business', reason: 'auth' }, 'search')
-  expect(refused.text).toMatch(/Google refused this server's key\. Enter your business yourself\.$/)
+  expect(refused.text).toMatch(/Google refused this server's key\. Enter your details yourself\.$/)
   expect(refused.adminFix).toBe('onboarding.business.problem.fixCheckKey')
   // The link goes to the group that fixes it.
   expect(refused.group).toBe('business')

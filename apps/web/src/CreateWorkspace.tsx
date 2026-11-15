@@ -2,7 +2,9 @@ import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { type AdminSecondFactor, createWorkspace, fetchMe, type Me } from './auth.ts'
+import { useCountryHint } from './countryHint.ts'
 import { type CreatingPhase, CreatingStatus } from './CreatingStatus.tsx'
+import { CountrySelect } from './settings/CountrySelect.tsx'
 import { signOutAndForget } from './localData.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
 import { AuthPage, Note, Spinner } from './ui/kit.tsx'
@@ -42,6 +44,10 @@ export function CreateWorkspace({
 }) {
   const t = useT()
   const [name, setName] = useState('')
+  // Where the business is: the country hint until picked (countryHint.ts). Saved as set only when picked.
+  const hint = useCountryHint()
+  const [picked, setPicked] = useState<string | null>(null)
+  const country = picked ?? hint?.country ?? ''
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<CreatingPhase>('idle')
   const busy = phase !== 'idle'
@@ -65,11 +71,12 @@ export function CreateWorkspace({
     if (busy) return
     if (created) return window.location.reload()
     if (!name.trim()) return setError(t('auth.create.nameMissing'))
+    if (!country) return setError(t('shell.newWorkspace.countryMissing'))
     setPhase('creating')
     setError(null)
     let made = false // state would be stale in the catch below
     try {
-      await createWorkspace(name)
+      await createWorkspace(name, picked)
       made = true
       setCreated(true)
       // Stays until the app has loaded the new workspace and replaces this page.
@@ -111,6 +118,11 @@ export function CreateWorkspace({
           disabled={busy}
         />
       </label>
+      <div className="auth-field">
+        <label htmlFor="create-ws-country">{t('settings.general.country.label')}</label>
+        <CountrySelect id="create-ws-country" value={country} onChange={setPicked} disabled={busy} />
+        <span className="auth-hint">{t('shell.newWorkspace.countryHelp')}</span>
+      </div>
       {error && <Note tone="danger">{error}</Note>}
       <button
         type="submit"

@@ -233,3 +233,23 @@
   margin-top: -6px;
   padding-left: 26px;
 }
+
+/* Business step: the country set when the workspace was made, with Change to pick another (CountrySelect). */
+.ob-biz-country {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--control-h-lg);
+}
+/* Business lookup: the Search button is as tall as the field beside it (controls in one row share one size). */
+.ob .ob-biz-search .k-btn {
+  height: var(--control-h-lg);
+  padding: 0 14px;
+}
+/* The other way in, for a business that isn't on Google Maps: a plain line under the search, flush with the field. */
+.ob-biz-manual {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+}

@@ -12,6 +12,10 @@
   text-overflow: ellipsis;
   text-align: left;
 }
+/* Nothing picked yet ("Choose a country"): like a placeholder. */
+.k-ssel .k-select-btn > span.k-ssel-empty {
+  color: var(--ink-muted);
+}
 .k-ssel-icon {
   flex: none;
   font-size: 15px;

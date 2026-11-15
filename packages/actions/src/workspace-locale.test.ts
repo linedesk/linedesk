@@ -1,11 +1,15 @@
 import { describe, expect, test } from 'vitest'
 import { mainLanguageOf, otherLanguagesOf } from './languages.ts'
-import { defaultPhoneCountry, phoneFromDigits, phoneGroups } from './phone-input.ts'
+import { phoneFromDigits, phoneGroups } from './phone-input.ts'
 import { callRules, EMERGENCY_RULE, emergencyRule } from './assistant-prompt.ts'
 import { workspaceUpdateSettings } from './settings.ts'
 import {
   automaticCountryLabel,
   COUNTRY_LANGUAGES,
+  countryHintOf,
+  countryNamed,
+  countryOfTimeZone,
+  defaultPhoneCountry,
   currencyOfCountry,
   emergencyNumberOf,
   isVoiceLanguage,
@@ -36,6 +40,30 @@ describe('resolveWorkspaceCountry', () => {
     })
     // An unknown code is not a country.
     expect(resolveWorkspaceCountry({ country: 'XX' })).toBe('US')
+  })
+
+  test('after the holidays: the hint saved when the workspace was made, then US', () => {
+    const hint = { country: 'DE', source: 'sign_up_location' }
+    // A German business made in Madrid's time zone: Germany, from where it was made.
+    expect(workspaceCountryOf({ hint })).toEqual({
+      country: 'DE',
+      source: 'sign_up_location',
+    })
+    expect(workspaceCountryOf({ holidayCountry: 'AT', hint })).toEqual({
+      country: 'AT',
+      source: 'holidays',
+    })
+    expect(workspaceCountryOf({ hint: { country: 'FR', source: 'browser_language' } })).toEqual({
+      country: 'FR',
+      source: 'browser_language',
+    })
+    expect(workspaceCountryOf({ hint: null })).toEqual({ country: 'US', source: 'default' })
+    // A hint with an unknown source or country counts for nothing.
+    expect(workspaceCountryOf({ hint: { country: 'DE', source: 'guess' } })).toEqual({
+      country: 'US',
+      source: 'default',
+    })
+    expect(workspaceCountryOf({ hint: { country: 'XX', source: 'time_zone' } }).source).toBe('default')
   })
 
   test('an existing US workspace stays US and English', () => {
@@ -160,9 +188,58 @@ test('the label of the automatic country says where it came from', () => {
   expect(automaticCountryLabel('US', 'default')).toBe('Automatic (United States, nothing else set)')
 })
 
+test('the label of a hinted country says where the hint came from', () => {
+  expect(automaticCountryLabel('DE', 'sign_up_location')).toBe('Automatic (Germany, from where the workspace was created)')
+  expect(automaticCountryLabel('ES', 'time_zone')).toBe('Automatic (Spain, from the time zone it was created in)')
+  expect(automaticCountryLabel('AT', 'browser_language')).toBe('Automatic (Austria, from the browser language it was created in)')
+})
+
 test('the phone field starts with the country set first', () => {
-  expect(defaultPhoneCountry({ country: 'gb', assistantNumber: '+15035550142' })).toBe('GB')
-  expect(defaultPhoneCountry({ assistantNumber: '+15035550142', workspaceCountry: 'GB' })).toBe('US')
+  expect(defaultPhoneCountry({ country: 'gb', assistantNumbers: ['+15035550142'] })).toBe('GB')
+  expect(defaultPhoneCountry({ assistantNumbers: ['+15035550142'], holidayCountry: 'GB' })).toBe('US')
+})
+
+test('the phone field follows the workspace order: numbers, business phone, holidays, hint, locale, US', () => {
+  expect(defaultPhoneCountry({ assistantNumbers: ['+4930123456'], holidayCountry: 'GB', locale: 'en-US' })).toBe('DE')
+  expect(defaultPhoneCountry({ holidayCountry: 'gb', locale: 'de-DE' })).toBe('GB')
+  expect(defaultPhoneCountry({ businessPhone: '+61 2 9876 5432', holidayCountry: 'GB', locale: 'de-DE' })).toBe('AU')
+  expect(defaultPhoneCountry({ businessPhone: '(503) 555-0142', locale: 'de-DE' })).toBe('DE')
+  expect(defaultPhoneCountry({ hint: { country: 'ES', source: 'time_zone' }, locale: 'de-DE' })).toBe('ES')
+  expect(defaultPhoneCountry({ hint: { country: 'DE', source: 'sign_up_location' }, locale: 'fr-FR' })).toBe('DE')
+  expect(defaultPhoneCountry({ locale: 'de' })).toBe('DE')
+  expect(defaultPhoneCountry({ holidayCountry: 'XX', locale: 'nonsense-' })).toBe('US')
+  expect(defaultPhoneCountry({})).toBe('US')
+})
+
+describe('the country hint', () => {
+  test('the time zone names its country, old link names too; UTC and unknown names none', () => {
+    expect(countryOfTimeZone('Europe/Madrid')).toBe('ES')
+    expect(countryOfTimeZone('Europe/Berlin')).toBe('DE')
+    expect(countryOfTimeZone('America/Los_Angeles')).toBe('US')
+    expect(countryOfTimeZone('US/Eastern')).toBe('US')
+    expect(countryOfTimeZone('Asia/Calcutta')).toBe('IN')
+    expect(countryOfTimeZone('Europe/Zurich')).toBe('CH')
+    expect(countryOfTimeZone('UTC')).toBeNull()
+    expect(countryOfTimeZone('Etc/GMT+2')).toBeNull()
+    expect(countryOfTimeZone('Nowhere/Town')).toBeNull()
+    expect(countryOfTimeZone(null)).toBeNull()
+  })
+
+  test('the sign-up location first, then the time zone, then the browser language', () => {
+    const all = { ipCountry: 'de', timeZone: 'Europe/Madrid', locale: 'fr-FR' }
+    expect(countryHintOf(all)).toEqual({ country: 'DE', source: 'sign_up_location' })
+    expect(countryHintOf({ ...all, ipCountry: null })).toEqual({ country: 'ES', source: 'time_zone' })
+    expect(countryHintOf({ ...all, ipCountry: null, timeZone: 'UTC' })).toEqual({
+      country: 'FR',
+      source: 'browser_language',
+    })
+    expect(countryHintOf({})).toBeNull()
+  })
+
+  test("Cloudflare's unknown (XX) and Tor (T1) are no country", () => {
+    expect(countryHintOf({ ipCountry: 'XX', timeZone: 'Europe/Berlin' })?.source).toBe('time_zone')
+    expect(countryHintOf({ ipCountry: 'T1' })).toBeNull()
+  })
 })
 
 describe('phone numbers from spoken digits', () => {
@@ -210,5 +287,12 @@ describe('the emergency number of the workspace country', () => {
     expect(callRules({ country: 'GB' })).not.toContain('911')
     expect(callRules({ country: 'AU' })).toContain('call 000 right away')
     expect(callRules({ country: 'BR' })).toContain('call the local emergency number right away')
+  })
+})
+
+describe('countryNamed', () => {
+  test('a set country, a number, the business phone or holidays name it; a hint or the US fallback do not', () => {
+    for (const source of ['explicit', 'assistant_number', 'business_phone', 'holidays'] as const) expect(countryNamed(source)).toBe(true)
+    for (const source of ['sign_up_location', 'time_zone', 'browser_language', 'default'] as const) expect(countryNamed(source)).toBe(false)
   })
 })

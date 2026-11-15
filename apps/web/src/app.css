@@ -89,6 +89,30 @@ body,
   border-color: var(--focus);
   box-shadow: 0 0 0 1px var(--focus);
 }
+.auth-card .auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auth-card .auth-field .auth-hint {
+  color: var(--ink-muted);
+}
+/* A search select on a sign-in page (New workspace's country): the large height; its search field keeps its own look. */
+.auth-card .k-ssel .k-select-btn {
+  height: var(--control-h-lg);
+  font-size: 14px;
+}
+.auth-card input.k-ssel-search {
+  width: auto;
+  height: auto;
+  margin: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  border-radius: var(--radius-xs);
+}
+.auth-card input.k-ssel-search:focus {
+  box-shadow: none;
+}
 .auth-card .k-btn {
   justify-content: center;
   height: var(--control-h-lg);

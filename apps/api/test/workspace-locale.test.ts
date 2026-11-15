@@ -1,10 +1,22 @@
 // The workspace's country and language (workspace_settings.country, .language): set in Workspace settings › General,
 // else worked out when read. A US workspace reads US and English as before; call.start brings both to the agent.
-import { phone_numbers } from '@linedesk/db'
+import { phone_numbers, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
+import { COUNTRY_HEADER } from '../src/country-hint.ts'
 import { db } from '../src/db.ts'
-import { act, addMember, agent, createWorkspace, randomNumber } from './helpers.ts'
+import {
+  act,
+  addMember,
+  agent,
+  anonymous,
+  asServerAdmin,
+  createWorkspace,
+  randomNumber,
+  request,
+  signUp,
+  type User,
+} from './helpers.ts'
 
 describe('workspace country and language', () => {
   test('a US workspace: automatic, US and English, USD; call.start brings them', async () => {
@@ -78,5 +90,175 @@ describe('workspace country and language', () => {
     const ws = await createWorkspace('Locale Holidays Plumbing')
     await act(ws.owner, 'workspace.updateSettings', { country: 'GB' })
     expect((await act(ws.owner, 'holidays.lookup', {})).body.data.country).toBe('GB')
+  })
+})
+
+/** A server admin's own new workspace through POST /v1/workspaces (New workspace); its settings row. */
+async function created(body: Record<string, unknown>, headers: Record<string, string> = {}) {
+  const owner = await signUp()
+  const name = `Hint ${crypto.randomUUID().slice(0, 8)}`
+  const res = await asServerAdmin(owner, () => request(owner, 'POST', '/v1/workspaces', { name, ...body }, headers))
+  expect(res.status).toBe(200)
+  const id: string = res.body.workspace.id
+  const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, id))
+  return { owner, id, row: row! }
+}
+const settingsOf = async (who: User) => (await act(who, 'workspace.getSettings', {})).body.data
+
+describe('the country at sign-up: set in New workspace, with a hint of where it was guessed from', () => {
+  test('the country picked is saved as set; the hint keeps the sign-up location the proxy named, no address', async () => {
+    const { owner, row } = await created(
+      { country: 'DE', timeZone: 'Europe/Madrid', locale: 'es-ES' },
+      { [COUNTRY_HEADER]: 'de' },
+    )
+    expect(row).toMatchObject({ country: 'DE', country_hint: 'DE', country_hint_source: 'sign_up_location' })
+    expect(await settingsOf(owner)).toMatchObject({ country: 'DE', resolvedCountry: 'DE', countrySource: 'explicit' })
+  })
+
+  test("without the proxy: the time zone, then the browser language; Cloudflare's XX counts as none", async () => {
+    const zone = await created(
+      { country: 'ES', timeZone: 'Europe/Madrid', locale: 'de-DE' },
+      { [COUNTRY_HEADER]: 'XX' },
+    )
+    expect(zone.row).toMatchObject({ country_hint: 'ES', country_hint_source: 'time_zone' })
+    const language = await created({ country: 'AT', timeZone: 'UTC', locale: 'de-AT' })
+    expect(language.row).toMatchObject({ country: 'AT', country_hint: 'AT', country_hint_source: 'browser_language' })
+  })
+
+  test('made without a country (API, setup MCP, command line): Automatic, from the hint, before the US default', async () => {
+    const { owner, row } = await created({ timeZone: 'Europe/Madrid' }, { [COUNTRY_HEADER]: 'DE' })
+    expect(row).toMatchObject({ country: null, country_hint: 'DE', country_hint_source: 'sign_up_location' })
+    expect(await settingsOf(owner)).toMatchObject({
+      country: null,
+      resolvedCountry: 'DE',
+      countrySource: 'sign_up_location',
+      resolvedLanguage: 'de',
+      jobValueCurrency: 'EUR',
+    })
+  })
+
+  test('an unknown country is refused and nothing is made', async () => {
+    const owner = await signUp()
+    const res = await asServerAdmin(owner, () =>
+      request(owner, 'POST', '/v1/workspaces', { name: `Hint ${crypto.randomUUID().slice(0, 8)}`, country: 'XX' }),
+    )
+    expect(res.status).toBe(422)
+  })
+
+  test('workspace.create takes the country and the hint the app prefilled it with', async () => {
+    const admin = await signUp()
+    const name = `Hint ${crypto.randomUUID().slice(0, 8)}`
+    const made = await asServerAdmin(admin, () =>
+      act(admin, 'workspace.create', {
+        name,
+        country: 'fr',
+        countryHint: { country: 'BE', source: 'browser_language' },
+      }),
+    )
+    expect(made.status).toBe(200)
+    const [row] = await db
+      .select()
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, made.body.data.workspace.id))
+    expect(row).toMatchObject({ country: 'FR', country_hint: 'BE', country_hint_source: 'browser_language' })
+    const refused = await asServerAdmin(admin, () =>
+      act(admin, 'workspace.create', { name: `${name} 2`, countryHint: { country: 'DE', source: 'guess' } }),
+    )
+    expect(refused.status).toBe(422)
+  })
+
+  test('the prefilled country left as it is stays Automatic: a number connected later still decides it', async () => {
+    // New workspace sends no country when the field was not changed; the hint is all that is kept.
+    const { row } = await created({ timeZone: 'Europe/Berlin', locale: 'de-DE' }, { [COUNTRY_HEADER]: 'DE' })
+    expect(row).toMatchObject({ country: null, country_hint: 'DE', country_hint_source: 'sign_up_location' })
+    // A workspace with a US number and the same hint: the number wins, so the assistant says 911, not 112.
+    const ws = await createWorkspace('Hint Number Wins Plumbing')
+    await db
+      .update(workspace_settings)
+      .set({ country: null, country_hint: 'DE', country_hint_source: 'sign_up_location' })
+      .where(eq(workspace_settings.workspace_id, ws.id))
+    expect(await settingsOf(ws.owner)).toMatchObject({ resolvedCountry: 'US', countrySource: 'assistant_number' })
+  })
+
+  test('the hint comes from the time zone the caller sent, never from the US Eastern fallback', async () => {
+    const admin = await signUp()
+    const rowOf = async (input: Record<string, unknown>) => {
+      const made = await asServerAdmin(admin, () =>
+        act(admin, 'workspace.create', { name: `Hint ${crypto.randomUUID().slice(0, 8)}`, ...input }),
+      )
+      expect(made.status).toBe(200)
+      const [row] = await db
+        .select()
+        .from(workspace_settings)
+        .where(eq(workspace_settings.workspace_id, made.body.data.workspace.id))
+      return row!
+    }
+    // The setup MCP or the command line without a time zone: nothing known, so no hint (not "US, from the time zone").
+    expect(await rowOf({})).toMatchObject({ timezone: 'America/New_York', country_hint: null, country_hint_source: null })
+    expect(await rowOf({ timeZone: 'Europe/Madrid' })).toMatchObject({
+      country_hint: 'ES',
+      country_hint_source: 'time_zone',
+    })
+  })
+
+  test("for another owner, never the admin's own sign-up location", async () => {
+    const admin = await signUp()
+    const made = await asServerAdmin(admin, () =>
+      act(admin, 'workspace.create', {
+        name: `Hint ${crypto.randomUUID().slice(0, 8)}`,
+        timeZone: 'America/Chicago',
+        countryHint: { country: 'DE', source: 'sign_up_location' },
+        owner: { email: `hint-${crypto.randomUUID().slice(0, 8)}@example.com`, name: 'Dana Ruiz' },
+      }),
+    )
+    expect(made.status).toBe(200)
+    const [row] = await db
+      .select()
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, made.body.data.workspace.id))
+    expect(row).toMatchObject({ country: null, country_hint: 'US', country_hint_source: 'time_zone' })
+    // A hint from the browser (time zone, language) is kept as sent.
+    const browser = await asServerAdmin(admin, () =>
+      act(admin, 'workspace.create', {
+        name: `Hint ${crypto.randomUUID().slice(0, 8)}`,
+        countryHint: { country: 'CA', source: 'browser_language' },
+        owner: { email: `hint-${crypto.randomUUID().slice(0, 8)}@example.com`, name: 'Kim Lee' },
+      }),
+    )
+    const [kept] = await db
+      .select()
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, browser.body.data.workspace.id))
+    expect(kept).toMatchObject({ country_hint: 'CA', country_hint_source: 'browser_language' })
+  })
+
+  test('the database refuses a hint that is not a code with a known source', async () => {
+    const ws = await createWorkspace('Hint Check Plumbing')
+    const set = (values: Record<string, unknown>) =>
+      db.update(workspace_settings).set(values).where(eq(workspace_settings.workspace_id, ws.id))
+    await expect(set({ country_hint: 'de' })).rejects.toThrow()
+    await expect(set({ country_hint_source: 'guess' })).rejects.toThrow()
+    await set({ country_hint: 'DE', country_hint_source: 'time_zone' })
+  })
+})
+
+describe('GET /v1/workspaces/country-hint', () => {
+  test("the hint for New workspace: the proxy's country, else the time zone, else the language; never stored", async () => {
+    const who = await signUp()
+    const path = '/v1/workspaces/country-hint?timeZone=Europe%2FMadrid&locale=fr-FR'
+    expect((await request(who, 'GET', path, undefined, { [COUNTRY_HEADER]: 'DE' })).body).toEqual({
+      ok: true,
+      hint: { country: 'DE', source: 'sign_up_location' },
+    })
+    expect((await request(who, 'GET', path)).body.hint).toEqual({ country: 'ES', source: 'time_zone' })
+    expect((await request(who, 'GET', '/v1/workspaces/country-hint?locale=fr-FR')).body.hint).toEqual({
+      country: 'FR',
+      source: 'browser_language',
+    })
+    expect((await request(who, 'GET', '/v1/workspaces/country-hint')).body.hint).toBeNull()
+  })
+
+  test('only for signed-in accounts', async () => {
+    expect((await request(anonymous, 'GET', '/v1/workspaces/country-hint')).status).toBe(401)
   })
 })

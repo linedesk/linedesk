@@ -413,6 +413,18 @@ describe('telephony handlers', () => {
       await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow(/^Area code 503 is in the United States, but this workspace is in Puerto Rico/)
     }))
 
+    test('only a hint names the country (left as prefilled at creation): the area code decides, as with nothing known', () => inRollback(async tx => {
+      // A US owner who made the workspace from Germany: Automatic on a German sign-up hint (#826) must not block buying.
+      await tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'Europe/Berlin', country_hint: 'DE', country_hint_source: 'sign_up_location' })
+        .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country: null, country_hint: 'DE', country_hint_source: 'sign_up_location' } })
+      const account = carrier()
+      const search = vi.spyOn(account, 'searchNumbers')
+      expect((await setup(tx, { areaCode: '503', purchase: true }, account)).rows.phone_numbers?.[0]).toMatchObject({ purchased: true })
+      expect(search).toHaveBeenCalledWith({ country: 'US', areaCode: '503', limit: 5 })
+      // The bought number now names the country, above the hint: a Canadian code is refused like for any US workspace.
+      await expect(setup(tx, { areaCode: '416', purchase: true }, account)).rejects.toThrow(/^Area code 416 is in Canada, but this workspace is in the United States/)
+    }))
+
     test('nothing names the country yet: a typed Puerto Rican number is bought; one outside the buying countries is refused', () => inRollback(async tx => {
       const account = carrier()
       await expect(setup(tx, { e164: '+18765550101', purchase: true }, account)).rejects.toThrow(

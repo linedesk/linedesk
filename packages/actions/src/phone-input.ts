@@ -83,29 +83,6 @@ export function localeRegion(locale: string | null | undefined): string | null {
   }
 }
 
-/**
- * The country a phone field starts with, most telling first: the country set in Workspace settings › General, the
- * country of the number the workspace's assistant answers, the workspace's holiday calendar country, the business's
- * own phone (when written with its country code), the browser's locale, else the US.
- */
-export function defaultPhoneCountry(from: {
-  /** workspace_settings.country: the country the owner set (not the one worked out). */
-  country?: string | null
-  assistantNumber?: string | null
-  workspaceCountry?: string | null
-  businessNumber?: string | null
-  locale?: string | null
-}): string {
-  const found = [
-    from.country?.toUpperCase(),
-    countryOfNumber(from.assistantNumber),
-    from.workspaceCountry?.toUpperCase(),
-    countryOfNumber(from.businessNumber),
-    localeRegion(from.locale),
-  ].find(isPhoneCountry)
-  return found ?? 'US'
-}
-
 const trunkPrefixes = new Map<string, string>()
 /** The digits a country dials before a number at home ("0" in Germany, "" in the US), from its example number. */
 function trunkPrefix(country: string): string {

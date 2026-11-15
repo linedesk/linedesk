@@ -144,6 +144,8 @@
   "nav.unassigned": "Unassigned",
   "newVersion.reload": "Reload",
   "newVersion.text": "A new version is available.",
+  "newWorkspace.countryHelp": "Sets the defaults for phone numbers, holidays and the call language. You can change it later.",
+  "newWorkspace.countryMissing": "Choose the country the business is in.",
   "newWorkspace.create": "Create workspace",
   "newWorkspace.created.added": "Created {name}; {email} is its owner.",
   "newWorkspace.created.invited": "Created {name}; {email} gets an email and becomes its owner once they confirm their address.",

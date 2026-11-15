@@ -277,7 +277,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // The owner calling from their own phone to try it out: kept on the call, so it never counts as a real caller.
   const fromOwnNumber = source === 'phone' && isE164(from) && (await isOwnNumber(tx, workspace_id, from))
   // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
-  const [zone] = await tx.select({ timezone: workspace_settings.timezone, country: workspace_settings.country, language: workspace_settings.language, holidays: workspace_settings.holidays }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  const [zone] = await tx.select({ timezone: workspace_settings.timezone, country: workspace_settings.country, language: workspace_settings.language, holidays: workspace_settings.holidays, country_hint: workspace_settings.country_hint, country_hint_source: workspace_settings.country_hint_source }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
   const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
   // Where the business is and its language (Workspace settings › General, else worked out): the region numbers callers
   // say are read in, the greeting's language when the assistant has none of its own, the summary's for the team (and

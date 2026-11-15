@@ -35,21 +35,35 @@
 # (`public` or `internal`); it replaces any X-Linedesk-Entry the client sent, and the API accepts the voice
 # agent's tokens only on `internal` requests (apps/api/src/context.ts).
 (api) {
-	reverse_proxy {
-		header_up X-Linedesk-Entry {args[0]}
-		# The client as Caddy determined it (the trusted proxies above), as the only hop: the API's rate limits
-		# and logs then see the visitor, also behind Cloudflare, whose own address would otherwise be the last hop.
-		header_up X-Forwarded-For {client_ip}
-		dynamic a {
-			name {$API_HOST:api}
-			port 3100
-			refresh 1s
+	# In this order (route): the visitor's country as the proxy in front names it, for the country a new workspace is
+	# prefilled with (apps/api/src/country-hint.ts). Any X-Linedesk-Country the client sent is dropped. It is set only
+	# when LINEDESK_COUNTRY_HEADER names a header (CF-IPCountry behind Cloudflare, docker-compose.cloudflare.yml) and
+	# the request came through a trusted proxy (LINEDESK_TRUSTED_PROXY_RANGES): a client that reaches Caddy directly
+	# never picks it. Without the setting the header read is X-Linedesk-Country-Unset, removed first, so never set.
+	route {
+		request_header -X-Linedesk-Country
+		request_header -X-Linedesk-Country-Unset
+		@countryFromProxy {
+			vars {http.vars.trusted_proxy} true
+			header {$LINEDESK_COUNTRY_HEADER:X-Linedesk-Country-Unset} *
 		}
-		lb_try_duration 30s
-		lb_try_interval 250ms
-		fail_duration {$LINEDESK_PROXY_FAIL_DURATION:10s}
-		# Flush at once: /v1/shape/* responses are long-lived streams.
-		flush_interval -1
+		request_header @countryFromProxy X-Linedesk-Country {http.request.header.{$LINEDESK_COUNTRY_HEADER:X-Linedesk-Country-Unset}}
+		reverse_proxy {
+			header_up X-Linedesk-Entry {args[0]}
+			# The client as Caddy determined it (the trusted proxies above), as the only hop: the API's rate limits
+			# and logs then see the visitor, also behind Cloudflare, whose own address would otherwise be the last hop.
+			header_up X-Forwarded-For {client_ip}
+			dynamic a {
+				name {$API_HOST:api}
+				port 3100
+				refresh 1s
+			}
+			lb_try_duration 30s
+			lb_try_interval 250ms
+			fail_duration {$LINEDESK_PROXY_FAIL_DURATION:10s}
+			# Flush at once: /v1/shape/* responses are long-lived streams.
+			flush_interval -1
+		}
 	}
 }
 

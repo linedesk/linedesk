@@ -5,13 +5,18 @@
 // owner, who becomes it at once (an existing confirmed account) or after confirming the emailed invitation; the admin
 // does not join it and stays where they are. Refused because the session's passkey check ran out meanwhile (403
 // `admin_second_factor`): the dialog offers the passkey prompt (Server admin opens on it) instead of an error line.
+// Country: required, prefilled from the country hint (countryHint.ts). Saved as the workspace's country only when
+// picked; left as prefilled it stays Automatic on that hint, so a number connected later still decides it. For another
+// owner the prefill is this browser's own hint (time zone, language), never the admin's sign-up location.
 import type { WorkspaceCreateData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { runAdmin } from '../admin/api.ts'
 import { type AdminSecondFactor, createWorkspace } from '../auth.ts'
 import { secondFactorDue } from '../CreateWorkspace.tsx'
 import { type CreatingPhase, CreatingStatus } from '../CreatingStatus.tsx'
+import { localCountryHint, useCountryHint } from '../countryHint.ts'
+import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { emailError } from '../sign-in-code.ts'
 import { Select } from '../ui/controls.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
@@ -23,8 +28,8 @@ const openPasskeyCheck = () => {
 }
 
 export type Owner = 'me' | 'other'
-type Form = { name: string; owner: Owner; ownerEmail: string; ownerName: string }
-type Errors = { name?: string; ownerEmail?: string; form?: string }
+type Form = { name: string; country: string; owner: Owner; ownerEmail: string; ownerName: string }
+type Errors = { name?: string; country?: string; ownerEmail?: string; form?: string }
 
 /** What `workspace.create` is sent for an owner by email: the address, and the name only when one was given. */
 export function ownerInput(form: Pick<Form, 'ownerEmail' | 'ownerName'>): { email: string; name?: string } {
@@ -40,6 +45,7 @@ export function formErrors(
 ): Errors {
   const errors: Errors = {}
   if (!form.name.trim()) errors.name = t('shell.newWorkspace.nameMissing')
+  if (!form.country) errors.country = t('shell.newWorkspace.countryMissing')
   if (form.owner === 'other') {
     const email = checkEmail(form.ownerEmail)
     if (email) errors.ownerEmail = email
@@ -65,15 +71,21 @@ type Props = {
 
 export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !returnTo, onCreatedForOwner }: Props) {
   const t = useT()
-  const [form, setForm] = useState<Form>({ name: '', owner: 'me', ownerEmail: '', ownerName: '' })
+  const signUpHint = useCountryHint()
+  const browserHint = useMemo(localCountryHint, [])
+  const [form, setForm] = useState<Omit<Form, 'country'>>({ name: '', owner: 'me', ownerEmail: '', ownerName: '' })
+  // The hint until the admin picks one.
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null)
   const [errors, setErrors] = useState<Errors>({})
   const [phase, setPhase] = useState<CreatingPhase>('idle')
   const [passkeyFirst, setPasskeyFirst] = useState<AdminSecondFactor | null>(null)
   const [created, setCreated] = useState<string | null>(null)
   const busy = phase !== 'idle'
   const forOther = ownerChoice && form.owner === 'other'
+  const hint = forOther ? browserHint : signUpHint
+  const country = pickedCountry ?? hint?.country ?? ''
 
-  const set = (patch: Partial<Form>) => {
+  const set = (patch: Partial<Omit<Form, 'country'>>) => {
     setForm(f => ({ ...f, ...patch }))
     setErrors({})
   }
@@ -86,10 +98,12 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
 
   async function create() {
     if (busy) return
-    const found = formErrors({ ...form, owner: forOther ? 'other' : 'me' }, t)
-    if (found.name || found.ownerEmail) {
+    const found = formErrors({ ...form, country, owner: forOther ? 'other' : 'me' }, t)
+    if (found.name || found.country || found.ownerEmail) {
       setErrors(found)
-      document.getElementById(found.name ? 'new-ws-name' : 'new-ws-owner-email')?.focus()
+      document
+        .getElementById(found.name ? 'new-ws-name' : found.country ? 'new-ws-country' : 'new-ws-owner-email')
+        ?.focus()
       return
     }
     setPhase('creating')
@@ -99,6 +113,8 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
         const data = (await runAdmin('workspace.create', {
           name: form.name.trim(),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          ...(pickedCountry ? { country: pickedCountry } : {}),
+          ...(hint ? { countryHint: hint } : {}),
           owner: ownerInput(form),
         })) as unknown as WorkspaceCreateData
         const text = createdText(data)
@@ -112,7 +128,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
         return
       }
       // The new workspace is the session's active one now; reloading opens it with its own local store.
-      await createWorkspace(form.name.trim())
+      await createWorkspace(form.name.trim(), pickedCountry)
       // The page stays on screen until the reload has loaded the app again: say so meanwhile.
       setPhase('opening')
       window.location.hash = returnTo
@@ -197,6 +213,22 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
           // A business someone else owns: Server admin's example name (the same in English).
           placeholder={forOther ? t('admin.example.business') : t('shell.newWorkspace.namePlaceholder')}
           onChange={e => set({ name: e.target.value })}
+        />
+      </FormField>
+      <FormField
+        id="new-ws-country"
+        label={t('settings.general.country.label')}
+        description={t('shell.newWorkspace.countryHelp')}
+        error={errors.country}
+      >
+        <CountrySelect
+          id="new-ws-country"
+          value={country}
+          disabled={busy}
+          onChange={c => {
+            setPickedCountry(c)
+            setErrors({})
+          }}
         />
       </FormField>
       {ownerChoice && (

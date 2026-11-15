@@ -55,6 +55,7 @@ import {
   type SetupStepGroup,
   setupStepNames,
   type WorkspaceCreateData,
+  countryNamed,
 } from '@linedesk/actions'
 import {
   assistants,
@@ -831,7 +832,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: [
         'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new").',
-        numberSetupHow(w, locale.countrySource === 'default' ? null : locale.resolvedCountry),
+        numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
         `Then onboarding_setStep { ${w}, step: "done" }.`,
       ],
     },

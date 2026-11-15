@@ -28,6 +28,8 @@ type Props = {
   placeholder?: string
   id?: string
   disabled?: boolean
+  /** Shown while the value is none of the options (nothing picked yet). */
+  empty?: string
 }
 
 const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -57,6 +59,7 @@ export function SearchSelect({
   placeholder,
   id,
   disabled,
+  empty,
 }: Props) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -128,7 +131,7 @@ export function SearchSelect({
         className="k-select-btn"
         disabled={disabled}
         title={label}
-        aria-label={`${label}: ${current?.label ?? value}`}
+        aria-label={`${label}: ${current?.label ?? (empty || value)}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => (open ? close() : show())}
@@ -140,7 +143,7 @@ export function SearchSelect({
         }}
       >
         {current?.icon && <span className="k-ssel-icon">{current.icon}</span>}
-        <span className="k-ssel-label">{current?.label ?? value}</span>
+        <span className={cx('k-ssel-label', !current && empty && 'k-ssel-empty')}>{current?.label ?? (empty || value)}</span>
         <Icon name="down" size={14} />
       </button>
       {open && (

@@ -4,7 +4,7 @@
 // the number, so buying and releasing in a loop counts too; the row is committed before the carrier is
 // asked, so a purchase whose action fails afterwards (and is released again) still counts.
 import { number_purchases, phone_numbers, type Tx } from '@linedesk/db'
-import { buyableAreaCode, canBuyNumbersIn, countryOfNumber, nameInSentence } from '@linedesk/actions'
+import { buyableAreaCode, canBuyNumbersIn, countryNamed, countryOfNumber, nameInSentence } from '@linedesk/actions'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { ownCommitDb } from './db.ts'
@@ -56,13 +56,13 @@ export const BUY_COUNTRIES_ONLY = 'Buying numbers is available in the US, Canada
 
 /**
  * The country a purchase is in: the workspace's, as set or worked out (a number, the business phone, holidays). When
- * nothing names it yet, the area code or the number being bought does, not a US default: a new business in Puerto
+ * nothing names it yet (only a hint or the US fallback, countryNamed), the area code or the number being bought does: a new business in Puerto
  * Rico buys a 787 number and the number then sets the workspace's country (workspaceCountryOf). `wanted` is that area
  * code or number; one outside the buying countries names nothing. LIN-300.
  */
 export async function purchaseCountry(tx: Tx, workspaceId: string, wanted: { areaCode?: string; e164?: string }): Promise<string> {
   const locale = await workspaceLocale(tx, workspaceId)
-  if (locale.countrySource !== 'default') return locale.resolvedCountry
+  if (countryNamed(locale.countrySource)) return locale.resolvedCountry
   const named = wanted.e164 ? countryOfNumber(wanted.e164) : wanted.areaCode ? buyableAreaCode(wanted.areaCode)?.country : null
   return named && canBuyNumbersIn(named) ? named : locale.resolvedCountry
 }
