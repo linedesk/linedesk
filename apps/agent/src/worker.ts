@@ -711,8 +711,9 @@ async function main() {
   // How long a new process may take to load the agent. Under a running call on a small box this takes
   // well over the library's 10 s, and a process that times out is killed and started again in a loop.
   const initializeProcessTimeout = Number(process.env.AGENT_INIT_TIMEOUT_MS) || 60_000
-  // LiveKit stops giving a worker jobs above this CPU load (0.7 by default in production). On a small
-  // single-box install that refuses calls, and the second job of a call test, while one call runs.
+  // The worker reports itself full above this CPU load. LiveKit has its own limit (agents.target_load, 0.7 by
+  // default), which docker-compose.yml sets from the same AGENT_LOAD_THRESHOLD: at 0.7 a small single-box install
+  // refuses calls, and the second job of a call test, while one call runs.
   const loadThreshold = Number(process.env.AGENT_LOAD_THRESHOLD) || 0.95
   // On SIGTERM (an update) the worker takes no new calls and finishes the ones it has. A call put through to a
   // person lasts up to CALL_MAX_MINUTES, longer than the library's 60 minutes; the container's
