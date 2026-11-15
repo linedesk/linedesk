@@ -186,7 +186,10 @@ export function facetValues(voices: readonly PickerVoice[], field: 'language' | 
       : voices.map(v => norm(v[field])).filter(Boolean),
   )
   const label = field === 'language' ? languageName : field === 'gender' ? genderName : capitalize
-  return [...values].map(value => ({ value, label: label(value) })).sort((a, b) => a.label.localeCompare(b.label))
+  const locale = intlLocale()
+  return [...values]
+    .map(value => ({ value, label: label(value) }))
+    .sort((a, b) => a.label.localeCompare(b.label, locale))
 }
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)

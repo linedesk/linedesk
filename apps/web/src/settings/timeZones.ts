@@ -64,7 +64,7 @@ export function timeZoneOptions(current: string): SelectOption<string>[] {
     ...allZones()
       .filter(z => !US_ZONES.includes(z))
       .map(toOption)
-      .sort((a, b) => a.label.localeCompare(b.label)),
+      .sort((a, b) => a.label.localeCompare(b.label, intlLocale())),
   ]
   return !current || known.some(o => o.value === current) ? known : [toOption(current), ...known]
 }
