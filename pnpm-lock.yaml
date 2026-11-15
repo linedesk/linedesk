@@ -1145,8 +1145,8 @@ packages:
   '@livekit/protocol@1.53.0':
     resolution: {integrity: sha512-dM562Q7sEQbJ9ZghjIpcVuRxRApGNwJW/JfXRub+dJT8J1cC2Tep0SyYkDzOawix7+0x969fnjXt0qEZOxkjbQ==}
 
-  '@livekit/protocol@1.54.0':
-    resolution: {integrity: sha512-981RI+N+cZl52IYIUfW2F2gBLOvPHY2fpROADxJlLLuZ1n/cBZsza142lRpn2U08YLfeI4totefzJuq24+/nIQ==}
+  '@livekit/protocol@1.54.1':
+    resolution: {integrity: sha512-eW6iAeKQdljAD4aDmANnV2SE0iQ06Atw2F1F4kIiy4lXaD5bNTlfAnH27B+ZKgu49Nrnn172JnRQ3WxXVBhlBQ==}
 
   '@livekit/rtc-ffi-bindings-darwin-arm64@0.13.2':
     resolution: {integrity: sha512-XPdp00ZHM5kiCRdKNxGer5eDrlq1KO4ck7CAisX+fWENUxTXzMhOPzbIxfjH28fMVw24Ajs8ViMJwvIUIKuBQA==}
@@ -3690,7 +3690,7 @@ snapshots:
       '@livekit/blingfire': 1.2.0
       '@livekit/local-inference': 0.3.1
       '@livekit/mutex': 1.1.1
-      '@livekit/protocol': 1.54.0
+      '@livekit/protocol': 1.54.1
       '@livekit/rtc-node': 1.2.2
       '@livekit/throws-transformer': 0.1.8(typescript@7.0.2)
       '@livekit/typed-emitter': 3.0.0
@@ -3824,7 +3824,7 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
-  '@livekit/protocol@1.54.0':
+  '@livekit/protocol@1.54.1':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
