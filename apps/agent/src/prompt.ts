@@ -43,8 +43,15 @@ export function forHours(assistant: Assistant | null, hours: BusinessHours | nul
 }
 
 /** What the assistant says about opening hours: the hours and where now falls; nothing when the workspace does not use hours. */
+/**
+ * With no hours set, a realtime model made some up ("Monday through Saturday, 8 to 6", staging 2026-11-15): the prompt
+ * says it does not know them, unless the business's own text gives them.
+ */
+export const NO_HOURS =
+  'No business hours are set: never say when the business is open unless what the business wants you to know says it; if the caller asks, say the team will let them know, and offer to take a message.'
+
 function hoursContext(hours: BusinessHours | null | undefined, canBook: boolean): string | null {
-  if (!hours) return null
+  if (!hours) return NO_HOURS
   if (hours.openNow) return hours.summary
   // find_slots offers no time on closed days, so a booking while closed is one for when the business is back.
   if (hours.closure) {

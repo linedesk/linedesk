@@ -2,7 +2,7 @@ import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules, EMERGENCY_RULE } from 
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS,
+import { NO_HOURS, bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS,
   CHANGE_LISTED_BOOKING_NAME_CHECKED, callerHistoryInstructions, callerIdInstructions, callerNoteOf, TEST_CALL_CALLER_ID, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
@@ -89,8 +89,9 @@ test('business hours: the ready sentence goes into the prompt; closed means a me
   expect(buildInstructions(assistant(), open)).toContain(open.summary)
   expect(buildInstructions(assistant(), open)).not.toContain('closed right now')
   expect(buildInstructions(assistant(), closed)).toContain(`${closed.summary} The office is closed right now: take a message as usual and tell the caller the team will call back when the office opens`)
-  // Hours off (null): no sentence about hours at all.
-  expect(buildInstructions(assistant(), null)).not.toMatch(/business hours|office is (open|closed)/i)
+  // Hours off (null): only the line that none are set, so the assistant makes none up.
+  expect(buildInstructions(assistant(), null)).not.toMatch(/office is (open|closed)|Open now|Closed now/i)
+  expect(buildInstructions(assistant(), null)).toContain(NO_HOURS)
 })
 
 test('outside business hours the outside greeting applies; the instructions are the same at any hour', () => {
@@ -375,4 +376,9 @@ test('"Ask for the booking name before changing an appointment" (off by default)
   expect(on).toContain(CHANGE_LISTED_BOOKING_NAME_CHECKED)
   // No booking changes on this call: nothing to keep back.
   expect(buildInstructions(assistant({ behaviours: { ask_booking_name: true } }), null, { ...booking, canChangeBookings: false }, [], linda)).not.toMatch(/Never say this name/)
+})
+
+test('no business hours set: the assistant is told it does not know them, so it makes none up', () => {
+  expect(buildInstructions(assistant(), null)).toContain(NO_HOURS)
+  expect(buildInstructions(assistant(), { openNow: true, summary: 'Business hours: Monday to Friday 7:00 AM–6:00 PM. Open now, until 6:00 PM.' })).not.toContain(NO_HOURS)
 })
