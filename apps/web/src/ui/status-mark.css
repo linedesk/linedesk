@@ -20,8 +20,16 @@
   vertical-align: middle;
   line-height: 1;
 }
-.k-mark svg {
-  stroke-width: 3;
+/* The glyph inside any circled mark (MarkGlyph): an icon whose ink is centred on its viewBox, laid out by the
+   circle's grid, so nothing depends on a font's metrics or the line-height around it. One stroke weight for every
+   size: 1.25px on screen (3 units at 10px, as before). */
+.k-mark-glyph {
+  display: block;
+  flex: none;
+  stroke-width: 1.25px;
+}
+.k-mark-glyph > * {
+  vector-effect: non-scaling-stroke;
 }
 .k-mark-works {
   background: var(--ink);
@@ -37,11 +45,6 @@
 }
 .k-mark-empty {
   border: 1.5px solid var(--line-control);
-}
-.k-mark-bang {
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
 }
 .k-mark-busy .k-spin {
   width: 12px;

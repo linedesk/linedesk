@@ -32,6 +32,7 @@ import { SETUP_LINK_KEY } from '../localData.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
 import {
   AddPasskeyButton,
   PasskeyFirstStep,
@@ -572,7 +573,11 @@ function Progress({
               <Fragment key={step.id}>
                 <li className={cx('as-item', step.state)}>
                   <span className="as-mark" aria-hidden>
-                    {step.state === 'done' ? <Icon name="check" size={12} /> : step.state === 'failing' ? '!' : null}
+                    {step.state === 'done' ? (
+                      <MarkGlyph kind="works" size={12} />
+                    ) : step.state === 'failing' ? (
+                      <MarkGlyph kind="partly" size={12} />
+                    ) : null}
                   </span>
                   <span className="as-item-label">
                     {step.label}

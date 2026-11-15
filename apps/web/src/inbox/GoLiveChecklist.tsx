@@ -30,6 +30,7 @@ import { useTeam } from '../team/team-api.ts'
 import { Backdrop } from '../ui/Backdrop.tsx'
 import { type CommandItem, CommandMenu } from '../ui/CommandMenu.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
 import { useMediaQuery } from '../ui/useMediaQuery.ts'
 import {
@@ -401,7 +402,7 @@ export function GoLiveChecklist({
             onKeyDown={item.done ? undefined : event => onRowKey(event, item)}
           >
             <span className="golive-mark" aria-hidden="true">
-              {item.done && <Icon name="check" size={12} />}
+              {item.done && <MarkGlyph kind="works" size={12} />}
             </span>
             {item.href && !item.done ? (
               <a href={item.href} className="golive-target">

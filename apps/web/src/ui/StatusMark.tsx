@@ -10,6 +10,21 @@ import './status-mark.css'
 
 export type MarkKind = 'works' | 'partly' | 'failing' | 'empty' | 'busy'
 
+/** The shapes drawn inside a circle: check, exclamation mark, cross. */
+export type GlyphKind = 'works' | 'partly' | 'failing'
+const glyphIcons = { works: 'check', partly: 'exclamation', failing: 'close' } as const
+
+/**
+ * The one way to draw a glyph inside a circle (StatusMark, the setup page's step marks, Try it's result, the go-live
+ * checklist). Always an icon, never a text character: a text "!" sits wherever its font's ascent, descent and the
+ * inherited line-height put it (a pixel low in a 20px row), while each icon's ink is centred on its viewBox, so the
+ * circle's `place-items: center` centres the ink itself, at any size and pixel ratio. Same stroke everywhere
+ * (status-mark.css, `.k-mark-glyph`), whatever the icon's size.
+ */
+export function MarkGlyph({ kind, size }: { kind: GlyphKind; size: number }) {
+  return <Icon name={glyphIcons[kind]} size={size} className="k-mark-glyph" />
+}
+
 /** The shape a state is drawn with. */
 export const markKind = (state: StatusState): MarkKind =>
   state === 'works'
@@ -40,15 +55,7 @@ export function StatusMark({ state, label, className }: Props) {
     )
   return (
     <span className={cx('k-mark', `k-mark-${kind}`, className)} role="img" aria-label={words} title={words}>
-      {kind === 'works' ? (
-        <Icon name="check" size={10} />
-      ) : kind === 'failing' ? (
-        <Icon name="close" size={10} />
-      ) : kind === 'partly' ? (
-        <span className="k-mark-bang" aria-hidden="true">
-          !
-        </span>
-      ) : null}
+      {kind === 'empty' ? null : <MarkGlyph kind={kind} size={10} />}
     </span>
   )
 }

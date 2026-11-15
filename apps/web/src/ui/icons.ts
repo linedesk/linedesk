@@ -238,6 +238,9 @@ export const icons = {
       },
     ],
   ],
+  // The exclamation mark of a status mark (StatusMark's MarkGlyph): its ink runs from the top of the bar to the bottom
+  // of the dot, 5 - w/2 to 19 + w/2 for any stroke width w, so it is centred on 12 like check and close.
+  exclamation: [['path', { d: 'M12 5v7.5M12 19h.01' }]],
   alert: [
     ['circle', { cx: 12, cy: 12, r: 9 }],
     ['path', { d: 'M12 8v4.5M12 16h.01' }],

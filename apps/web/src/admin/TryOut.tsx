@@ -6,7 +6,8 @@ import { type ProviderCategory, type TryOutData, type TryOutKind, usAreaCode } f
 import { type KeyboardEvent, useId, useState } from 'react'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
 import { Input } from '../ui/form.tsx'
-import { Button, cx, Icon } from '../ui/kit.tsx'
+import { Button, cx } from '../ui/kit.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { problemText } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { errorText } from './notify.ts'
@@ -120,7 +121,7 @@ export function TryOut({
       {result && (
         <div className={cx('adm-try-result', result.ok ? 'ok' : 'bad')} role="status">
           <span className="adm-try-mark" aria-hidden>
-            {result.ok ? <Icon name="check" size={12} /> : '!'}
+            <MarkGlyph kind={result.ok ? 'works' : 'partly'} size={12} />
           </span>
           <div className="adm-try-body">
             <span>{result.message}</span>
@@ -175,7 +176,7 @@ export function TryOut({
       {confirmed && (
         <div className="adm-try-result ok" role="status">
           <span className="adm-try-mark" aria-hidden>
-            <Icon name="check" size={12} />
+            <MarkGlyph kind="works" size={12} />
           </span>
           <span>{confirmed}</span>
         </div>
