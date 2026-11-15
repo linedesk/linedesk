@@ -1,13 +1,15 @@
 // Settings, Recordings: how long call recordings are kept, and the notice the assistant says after the
 // greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
-// and summary stay.
+// and summary stay. With recording off on the server (no recording store) both stay as saved but greyed out: nothing
+// is recorded and the assistant does not say the notice, until recording is turned on.
 import { onlyAdmins } from './readOnly.ts'
 import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
-import { useT } from '@linedesk/i18n/react'
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
+import { providerAudience } from '../providerAudience.ts'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Field, Section, SkeletonSwitchRows, SwitchRow, TextInput } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
@@ -33,6 +35,32 @@ function retentionOptions(t: ReturnType<typeof useT>): SelectOption<Choice>[] {
 const choiceOf = (days: number | null): Choice => (days === null ? 'forever' : (`${days}` as Choice))
 const daysOf = (choice: Choice): Days | null => (choice === 'forever' ? null : (Number(choice) as Days))
 
+/**
+ * Recording is off on this server: what turns it on. Server admins get the place (Server admin › Providers, Recording
+ * storage); everyone else is told to ask (providerAudience.ts, as in MissingProviderNote).
+ */
+export function RecordingOffNote() {
+  const t = useT()
+  return (
+    <Note tone="warning" title={t('settings.recordings.offOnServer')}>
+      {providerAudience() === 'admin' ? (
+        <T
+          k="settings.recordings.offAdmin"
+          values={{
+            link: chunks => (
+              <a className="k-link" href="#admin/providers/recording">
+                {chunks}
+              </a>
+            ),
+          }}
+        />
+      ) : (
+        t('settings.recordings.offAsk')
+      )}
+    </Note>
+  )
+}
+
 export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
   const t = useT()
   const run = useRun()
@@ -40,6 +68,8 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
   const days = settings.data?.recordingRetentionDays
   const recordingOn = settings.data?.recordingOn ?? true
   const error = settings.data ? null : settings.error
+  // Recording off on the server: the saved choices are shown but cannot change, they apply once it is on.
+  const editable = canEdit && recordingOn
 
   function change(choice: Choice) {
     const next = daysOf(choice)
@@ -60,9 +90,9 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
     <Section
       id="st-recordings"
       title={t('settings.recordings.title')}
-      description={recordingOn ? undefined : t('settings.recordings.offOnServer')}
       help={recordingOn ? t('settings.recordings.help') : t('settings.recordings.helpOff')}
     >
+      {settings.data && !recordingOn && <RecordingOffNote />}
       <Loading
         what={t('settings.recordings.loadWhat')}
         loading={days === undefined}
@@ -78,7 +108,11 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
         }
       >
         {days !== undefined && (
-          <Field id="st-retention" label={t('settings.recordings.keepFor')} help={canEdit ? undefined : onlyAdmins()}>
+          <Field
+            id="st-retention"
+            label={t('settings.recordings.keepFor')}
+            help={canEdit || !recordingOn ? undefined : onlyAdmins()}
+          >
             <div>
               <Select
                 id="st-retention"
@@ -86,7 +120,7 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
                 options={retentionOptions(t)}
                 onChange={change}
                 label={t('settings.recordings.keepFor')}
-                disabled={!canEdit}
+                disabled={!editable}
               />
             </div>
           </Field>
@@ -95,7 +129,8 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           <RecordingNotice
             on={settings.data.recordingNoticeOn}
             saved={settings.data.recordingNotice}
-            canEdit={canEdit}
+            canEdit={editable}
+            inEffect={recordingOn}
             toast={toast}
           />
         )}
@@ -104,10 +139,11 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
   )
 }
 
-type NoticeProps = { on: boolean; saved: string; canEdit: boolean; toast: (text: string) => void }
+/** `inEffect` false: recording is off on the server, so the assistant does not say it (greyed out, kept as saved). */
+type NoticeProps = { on: boolean; saved: string; canEdit: boolean; inEffect: boolean; toast: (text: string) => void }
 
 /** The switch and the sentence the assistant says right after the greeting. */
-function RecordingNotice({ on, saved, canEdit, toast }: NoticeProps) {
+function RecordingNotice({ on, saved, canEdit, inEffect, toast }: NoticeProps) {
   const t = useT()
   const run = useRun()
   const [draft, setDraft] = useState(saved)
@@ -140,6 +176,7 @@ function RecordingNotice({ on, saved, canEdit, toast }: NoticeProps) {
         on={on}
         onChange={toggle}
         disabled={!canEdit}
+        dimmed={!inEffect}
       />
       {on && (
         <Field id="st-notice" label={t('settings.recordings.noticeLabel')} error={problem}>
@@ -156,6 +193,7 @@ function RecordingNotice({ on, saved, canEdit, toast }: NoticeProps) {
               onChange={setDraft}
               label={t('settings.recordings.noticeLabel')}
               invalid={Boolean(problem)}
+              disabled={!canEdit}
             />
             {canEdit && text !== saved && (
               <Button

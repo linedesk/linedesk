@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { callOrigin, startCall } from './call-session.ts'
+import { announceRecording, callOrigin, startCall } from './call-session.ts'
 import { BLOCKED_LINE, BUSY_LINE, OVER_CAP_LINE, unansweredLine } from './busy-line.ts'
 import { buildInstructions } from './prompt.ts'
 
@@ -87,17 +87,32 @@ test('outside business hours the call uses the outside greeting; the call test m
   expect((await startCall(api(null), origin)).assistant?.greeting).toBe('After-hours line.')
 })
 
-test('the recording notice from call.start is said right after the greeting, also outside hours', async () => {
+test('the recording notice from call.start is said right after the greeting, also outside hours, when the call is recorded', async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
   const api = (recordingNotice: unknown, hours: unknown = null) =>
     ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours, recordingNotice } }) }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const notice = 'This call may be recorded.'
-  expect((await startCall(api(notice), phone)).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
-  expect((await startCall(api(notice, { openNow: false, summary: 'Closed now.' }), phone)).assistant?.greeting).toBe(
-    'We are closed. This call may be recorded.',
-  )
-  for (const off of [null, undefined, '  ']) expect((await startCall(api(off), phone)).assistant?.greeting).toBe(row.greeting)
+  const opening = async (recordingNotice: unknown, hours: unknown = null, canRecord = true) =>
+    announceRecording(await startCall(api(recordingNotice, hours), phone), canRecord).assistant?.greeting
+  expect(await opening(notice)).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(await opening(notice, { openNow: false, summary: 'Closed now.' })).toBe('We are closed. This call may be recorded.')
+  for (const off of [null, undefined, '  ']) expect(await opening(off)).toBe(row.greeting)
+})
+
+test('no recording store on this server: the notice is not said, though the workspace turned it on', async () => {
+  const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
+  const api = (hours: unknown = null) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours, recordingNotice: 'This call may be recorded.' } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const started = await startCall(api(), phone)
+  // Registered without it: the worker adds it only once it knows it records.
+  expect(started.assistant?.greeting).toBe('Hello, this is Maya.')
+  expect(started.recordingNotice).toBe('This call may be recorded.')
+  expect(announceRecording(started, false).assistant?.greeting).toBe('Hello, this is Maya.')
+  expect(announceRecording(await startCall(api({ openNow: false, summary: 'Closed now.' }), phone), false).assistant?.greeting).toBe('We are closed.')
+  // Turned on later: the saved notice applies from the next call.
+  expect(announceRecording(started, true).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
 })
 
 test('every request about the call after call.start goes with the call token it returned', async () => {
@@ -147,7 +162,7 @@ test('a returning phone caller hears the usual greeting; their history reaches t
     ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact, callerHistory: history, recordingNotice: 'This call may be recorded.' } }) }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const linda = { id: 'ct_1', name: 'Linda Park', name_source: 'member', note: null, phone: phone.from }
-  const known = await startCall(api(row, linda, callerHistory), phone)
+  const known = announceRecording(await startCall(api(row, linda, callerHistory), phone), true)
   expect(known.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
   expect(known.caller).toEqual({ name: 'Linda Park', note: null, phone: phone.from, nameConfirmed: true, history: callerHistory })
   // A name only a caller gave (or an API of an older version, without name_source): the history goes in all the same;
@@ -157,7 +172,7 @@ test('a returning phone caller hears the usual greeting; their history reaches t
     expect(unconfirmed.caller).toMatchObject({ name: 'Linda Park', nameConfirmed: false, history: callerHistory })
   }
   // An assistant row of the release before still carries the old text for returning callers: not said.
-  const older = await startCall(api({ ...row, greeting_known_caller: 'Welcome back, {first_name}!' }, linda, callerHistory), phone)
+  const older = announceRecording(await startCall(api({ ...row, greeting_known_caller: 'Welcome back, {first_name}!' }, linda, callerHistory), phone), true)
   expect(older.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
   const withheld = await startCall(api(row, null, null), { ...phone, from: 'anonymous' })
   expect(withheld.caller).toBeNull()

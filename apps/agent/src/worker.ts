@@ -19,7 +19,7 @@ import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { retryEmptyReplies } from './empty-reply.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
-import { callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
+import { announceRecording, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withRealtimeModel } from './config.ts'
 import { requireLivekitEnv, workerAgentName } from './env.ts'
@@ -631,41 +631,43 @@ async function entry(ctx: JobContext) {
     return caller
   })
   callerJoined.catch(() => {}) // a caller who never comes: the session closes with the room; awaited below where needed
-  const call = (await early) ?? (await startCall(api, callOrigin(ctx.job.metadata, (await callerJoined).attributes, ctx.room.name ?? '')))
+  const registered = (await early) ?? (await startCall(api, callOrigin(ctx.job.metadata, (await callerJoined).attributes, ctx.room.name ?? '')))
   setup.mark('registered')
-  if (call.forwardingCheck) {
+  if (registered.forwardingCheck) {
     // Our own forwarding check arrived: the API recorded it. Nobody is on the line, so nothing is said.
     await ctx.deleteRoom()
     return ctx.shutdown('forwarding check')
   }
-  if (call.blocked) {
+  if (registered.blocked) {
     // The API already filed the call: in Spam (blocked caller) or as missed with a callback (busy, over the spending
     // cap). Each caller hears one line first, once the voice is set up.
-    await tellCaller(ctx, call, unansweredLine(call), ready, callerJoined)
+    await tellCaller(ctx, registered, unansweredLine(registered), ready, callerJoined)
     await ctx.deleteRoom()
-    return ctx.shutdown(call.overCap ? 'workspace over its monthly spending cap' : call.busy ? 'too many calls at once in the workspace' : 'blocked caller')
+    return ctx.shutdown(registered.overCap ? 'workspace over its monthly spending cap' : registered.busy ? 'too many calls at once in the workspace' : 'blocked caller')
   }
   // The call-start webhook is asked now, so its answer is on the way while the voice is set up. Not on a test call.
-  const callerDetails = call.businessNumber === null ? Promise.resolve(null) : lookUpCaller(api, call)
+  const callerDetails = registered.businessNumber === null ? Promise.resolve(null) : lookUpCaller(api, registered)
   const readiness = await ready
   if (!readiness.ready) {
-    await declineCall(call, readiness, () => ctx.deleteRoom())
+    await declineCall(registered, readiness, () => ctx.deleteRoom())
     return ctx.shutdown('assistant not set up')
   }
   setup.mark('providers')
   // The assistant's pipeline (Settings › Assistant); the other one when that is not set up.
   // A call test may compare realtime models without changing the install's (call-test --realtime-model).
   const config = withRealtimeModel(
-    configForAssistant(readiness.config, call.assistant?.voice_pipeline, line => console.warn(`call ${call.callId}: ${line}`)),
-    call.realtimeModel,
+    configForAssistant(readiness.config, registered.assistant?.voice_pipeline, line => console.warn(`call ${registered.callId}: ${line}`)),
+    registered.realtimeModel,
   )
-  if (isRealtime(config)) console.log(`call ${call.callId}: realtime model ${config.realtime.model}`)
+  if (isRealtime(config)) console.log(`call ${registered.callId}: realtime model ${config.realtime.model}`)
+  const recorder = livekitRecorder(config.recording, process.env, async () =>
+    (await api.run(callStartRecording, { callId: registered.callId }, registered)).data!.egressId as string)
+  // The recording notice is said only when this agent can record: with no recording store, nothing is recorded.
+  const call = announceRecording(registered, recorder !== null)
   const log = new CallLog(call)
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error
   // while setting up the conversation, and at job shutdown as the last resort.
-  const recorder = livekitRecorder(config.recording, process.env, async () =>
-    (await api.run(callStartRecording, { callId: call.callId }, call)).data!.egressId as string)
   const recording = startRecording(recorder, call, ctx.room.name ?? call.callId)
   // Stopped at hang-up, or earlier when a warm transfer connects (the on-call conversation is not recorded).
   const stopCallRecording = async () => stopRecording(recorder, await recording) // at hang-up

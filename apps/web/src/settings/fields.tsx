@@ -55,6 +55,7 @@ type TextProps = {
   placeholder?: string
   label?: string
   invalid?: boolean
+  disabled?: boolean
 }
 
 /** `size` as on Input: "sm" in a row of small selects and buttons (one height per row). */
@@ -65,6 +66,7 @@ export function TextInput({
   placeholder,
   label,
   invalid,
+  disabled,
   size,
 }: TextProps & { size?: 'sm' | 'md' }) {
   return (
@@ -75,6 +77,7 @@ export function TextInput({
       placeholder={placeholder}
       aria-label={label}
       invalid={invalid}
+      disabled={disabled}
       onChange={e => onChange(e.target.value)}
     />
   )

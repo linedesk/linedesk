@@ -72,6 +72,11 @@ export interface CallSession {
   /** false: the workspace keeps no recordings (Settings, Recordings: Don't keep), so the call is not recorded. Missing: record. */
   keepRecording?: boolean
   /**
+   * The workspace's recording notice from call.start (null: off). Not in the greeting yet: it is added only once the
+   * worker knows this agent records (announceRecording), so nobody hears it on a server that records nothing.
+   */
+  recordingNotice?: string | null
+  /**
    * The matched contact with their last calls and upcoming bookings, and whether the greeting used their first
    * name (then it is not the cached greeting); null: no contact (withheld number).
    */
@@ -194,6 +199,16 @@ export function withRecordingNotice(assistant: Assistant | null, notice: string 
   if (!assistant || !sentence) return assistant
   const greeting = assistant.greeting?.trim()
   return { ...assistant, greeting: greeting ? `${greeting} ${sentence}` : sentence }
+}
+
+/**
+ * The call with the recording notice after its greeting when this agent can record (a recording store is set up, in
+ * Linedesk or in RECORDING_STORE). Without one nothing is recorded, so the assistant does not say the call may be;
+ * the workspace's notice setting stays as saved and applies once recording is turned on.
+ */
+export function announceRecording(call: CallSession, canRecord: boolean): CallSession {
+  if (!canRecord || !call.recordingNotice) return call
+  return { ...call, assistant: withRecordingNotice(call.assistant, call.recordingNotice) }
 }
 
 /**
@@ -324,10 +339,8 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
       : own
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
-  const assistant = withRecordingNotice(
-    withAiNote(forHours(inMainLanguage(configured), businessHours)),
-    started.recordingNotice,
-  )
+  // The recording notice is added later, once it is known that the call is recorded (announceRecording).
+  const assistant = withAiNote(forHours(inMainLanguage(configured), businessHours))
   // A test room (the web app's test call, a call test): there is no caller ID, and the prompt says so (B4).
   const played = origin.kind === 'test' ? origin.caller : undefined
   const caller = played
@@ -349,6 +362,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     caller,
     timeZone: started.timeZone ?? booking?.timeZone ?? null,
     keepRecording: started.keepRecording !== false,
+    recordingNotice: started.recordingNotice?.trim() || null,
     lookups: started.lookups ?? [],
     country: started.workspaceCountry ?? 'US',
     teamLanguage: started.workspaceLanguage ?? 'en',
