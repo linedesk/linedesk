@@ -2,7 +2,7 @@ import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
 import { addedToMessage, nudgeIfQuiet, saidMeanwhile, stepFacts } from './collect-tools.ts'
 import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
-import { Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
+import { ASK_FIRST, Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, todayFact } from './collectors.ts'
 import { readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
@@ -229,6 +229,9 @@ describe('the date step works out the day the caller names, like the booking too
 describe('a question during a step (LIN-103)', () => {
   it('hands the question back to the assistant with what was heard so far', () => {
     const step = new Collection(phoneCollector('callback number'))
+    // Before the caller said anything in the step there is nothing to hand back: words from earlier in the call.
+    expect(step.handBack('Can the owner call me back?')).toEqual({ say: ASK_FIRST })
+    step.heardCaller()
     step.record({ phone_number: '503 555' })
     const reply = step.handBack('Which date is Wednesday next week?')
     expect(reply.outcome).toEqual({ status: 'question', label: 'callback number', question: 'Which date is Wednesday next week?', partial: '503 555' })

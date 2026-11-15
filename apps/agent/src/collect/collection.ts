@@ -84,8 +84,14 @@ export class Collection<Args extends Record<string, unknown>, T> {
     return this.finish({ status: 'declined', label: this.collector.label, reason })
   }
 
-  /** The caller asked something only the assistant can answer: the step hands back with the question. */
+  /**
+   * The caller asked something only the assistant can answer: the step hands back with the question. Not before the
+   * caller said anything in the step: a realtime model handed back at once on words from earlier in the call, so the
+   * assistant started the step again and again (callback-message, 2026-11-15).
+   */
   handBack(question: string): StepReply {
+    if (this.outcome) return { say: 'This step is over.' }
+    if (!this.callerTurns) return { say: ASK_FIRST }
     return this.finish({ status: 'question', label: this.collector.label, question, partial: this.pending ? this.collector.display(this.pending.value) : this.lastHeard })
   }
 
