@@ -3,10 +3,9 @@
 // POST /v1/workspaces in app.ts, and the setup MCP's workspace_create). Who may create workspaces at all:
 // workspace-creation.ts.
 import type { WorkspaceCreateData } from '@linedesk/actions'
-import { agent_setup_keys, assistants, member, organization, session, user, workspace_settings } from '@linedesk/db'
-import { count, eq, sql } from 'drizzle-orm'
+import { agent_setup_keys, assistants, organization, session, user, workspace_settings } from '@linedesk/db'
+import { eq, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
-import { WORKSPACE_LIMIT, workspaceLimitText } from './auth.ts'
 import type { Handler, HandlerCtx } from './handler-context.ts'
 import { Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
@@ -40,20 +39,31 @@ async function insertWorkspace({ tx, now }: HandlerCtx, name: string, timeZone: 
 }
 
 /**
- * A workspace of the admin's own: they are its owner at once, through a member row (no invitation), and it becomes
- * the active workspace of the session that made it. Their account row is locked first and checked again under the
- * lock (not disabled, still a server admin: either can change after the caller was resolved), so two creations at
- * once cannot both pass the workspace limit (WORKSPACE_LIMIT, auth.ts), which counts the admin's memberships as Better
- * Auth's organizationLimit did. Made with a setup link: its row is locked too and its cap counted in this transaction,
- * so API processes running side by side cannot pass it either (setup-mcp.ts keeps its own quick check in front). The
- * `signup` milestone is recorded here, once, by addToWorkspace (memberships.ts, ownerJoined): the owner is in the
- * workspace from its first moment.
+ * The caller's account row, locked for this transaction and checked again under the lock: not disabled, still a server
+ * admin (either can change after the caller was resolved). Every creation goes through it, with an owner or without.
  */
-async function createOwn(ctx: HandlerCtx, input: { name: string; timeZone?: string }): Promise<Created> {
-  const { tx, actor, now } = ctx
+async function lockedAdmin({ tx, actor }: HandlerCtx) {
   const [me] = await tx.select().from(user).where(eq(user.id, actor.actorId)).for('update')
   if (!me) throw new Reject('user not found')
   if (me.disabledAt || !isInstanceAdmin(me)) throw new Forbidden(WORKSPACE_CREATION_CLOSED)
+  return me
+}
+
+/** A setup link makes only the admin's own workspaces: its cap is counted there (createOwn). */
+export const SETUP_LINK_NO_OWNER = "A setup link creates only the admin's own workspaces."
+
+/**
+ * A workspace of the admin's own: they are its owner at once, through a member row (no invitation), and it becomes
+ * the active workspace of the session that made it. Their account row is locked first and checked again under the
+ * lock (not disabled, still a server admin: either can change after the caller was resolved). There is no limit on
+ * how many (WORKSPACE_LIMIT is retired, workspace-creation.ts). Made with a setup link: its row is locked and its cap
+ * counted in this transaction, so API processes running side by side cannot pass it (setup-mcp.ts keeps its own quick
+ * check in front). The `signup` milestone is recorded here, once, by addToWorkspace (memberships.ts, ownerJoined):
+ * the owner is in the workspace from its first moment.
+ */
+async function createOwn(ctx: HandlerCtx, input: { name: string; timeZone?: string }): Promise<Created> {
+  const { tx, actor, now } = ctx
+  const me = await lockedAdmin(ctx)
   if (actor.setupKeyId) {
     const [key] = await tx
       .select({ id: agent_setup_keys.id })
@@ -62,10 +72,6 @@ async function createOwn(ctx: HandlerCtx, input: { name: string; timeZone?: stri
       .for('update')
     if (!key) throw new Forbidden(WORKSPACE_CREATION_CLOSED)
     if ((await workspacesMadeBy(tx, key.id)) >= SETUP_LINK_WORKSPACE_CAP) throw new Reject(SETUP_LINK_CAP_TEXT)
-  }
-  if (WORKSPACE_LIMIT !== null) {
-    const [mine] = await tx.select({ n: count() }).from(member).where(eq(member.userId, me.id))
-    if ((mine?.n ?? 0) >= WORKSPACE_LIMIT) throw new Reject(workspaceLimitText(WORKSPACE_LIMIT))
   }
   const org = await insertWorkspace(ctx, input.name, input.timeZone)
   await addToWorkspace(tx, me, org, 'owner', now)
@@ -93,10 +99,12 @@ export const workspaceCreationHandlers: Record<string, Handler> = {
   ) => {
     if (!input.owner) return { rows: {}, data: await createOwn(ctx, input) }
     const { tx } = ctx
+    // No setup tool passes an owner today; one that did would get past the link's cap (security review of #761, F3).
+    if (ctx.actor.setupKeyId) throw new Forbidden(SETUP_LINK_NO_OWNER)
+    const self = await lockedAdmin(ctx)
     const email = input.owner.email.trim().toLowerCase()
-    // Their own address as the owner is their own workspace: the same path, lock and workspace limit as without one.
-    const [self] = await tx.select({ email: user.email }).from(user).where(eq(user.id, ctx.actor.actorId))
-    if (self && self.email.toLowerCase() === email) return { rows: {}, data: await createOwn(ctx, input) }
+    // Their own address as the owner is their own workspace: the same path and checks as without one.
+    if (self.email.toLowerCase() === email) return { rows: {}, data: await createOwn(ctx, input) }
     const [existing] = await tx.select({ name: user.name }).from(user).where(sql`lower(${user.email}) = ${email}`)
     const ownerName = input.owner.name ?? existing?.name
     if (!ownerName) throw new Reject(`${email} has no account yet: enter the owner's name`)

@@ -907,7 +907,8 @@ const adminAction = <S extends z.ZodType>(name: string, description: string, inp
  * Server admin › Users › Add user: puts someone into a workspace with a role (apps/api/src/admin-handlers.ts). A new
  * address gets an account and an invitation to the workspace, which they accept once their address is confirmed;
  * an account whose address is confirmed joins at once. `workspaceId` may be left out only for a new instance admin
- * (`admin`), who can run the server without a workspace, and by the server operator's `user:create`.
+ * (`admin`), who can run the server without a workspace (also the server operator's `user:create`, which makes only
+ * those).
  */
 export const userInvite = defineAction({
   name: 'user.invite',

@@ -197,7 +197,7 @@ app.post('/v1/workspaces', async c => {
   // A time zone that is not one falls back to the default, as before (onboarding.ts, workspaceTimeZone).
   const timeZone = typeof body.timeZone === 'string' && body.timeZone.length <= 64 ? body.timeZone : undefined
   const made = await runAction('workspace.create', { name, ...(timeZone ? { timeZone } : {}) }, caller.actor)
-  // Refused (the workspace limit, auth.ts): 403 as Better Auth answered; invalid input stays 422.
+  // Refused by workspace.create: 403 as before; invalid input stays 422.
   if (!made.body.ok) return c.json(made.body, made.status === 409 ? 403 : made.status)
   const { workspace } = made.body.data as WorkspaceCreateData
   return c.json({ ok: true, workspace })

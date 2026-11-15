@@ -42,6 +42,8 @@ const offWarning = secondFactorOffWarning() ?? passkeysOffWarning()
 if (offWarning) console.warn(offWarning)
 const signUpWarning = (await import('./auth-methods.ts')).signUpSettingRemovedWarning()
 if (signUpWarning) console.warn(signUpWarning)
+const workspaceLimitWarning = (await import('./workspace-creation.ts')).workspaceLimitRemovedWarning()
+if (workspaceLimitWarning) console.warn(workspaceLimitWarning)
 // Live calls whose agent went away are ended after a while (stale-calls.ts).
 startStaleCallSweep(db)
 // Recording files the agent never reported are linked to their calls (orphan-recordings.ts).

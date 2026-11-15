@@ -141,7 +141,6 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
  * Only workspaces it owns and was the first member of (the one who created it): an unconfirmed account
  * cannot be made owner or admin of someone else's workspace (membership.add invites it instead,
  * membership.setRole refuses), and if it were, that business's call routing stays as it is.
- * A workspace the server operator provisioned for it (workspace-create.ts --owner) counts as its own.
  */
 /** An assistant with a transfer contact that has a number (switched on or not). */
 const hasTransferNumber = sql`jsonb_path_exists(${assistants.transfers}, '$[*] ? (@.number != null)')`

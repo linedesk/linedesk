@@ -27,6 +27,16 @@ export const WORKSPACE_CREATION_CLOSED =
 export const ADMIN_CHECK_FIRST =
   'Confirm it is you first: open Server admin and finish the sign-in check there, then create the workspace.'
 
+/**
+ * WORKSPACE_LIMIT is retired (Janik, 2026-11-15, Q2): only server admins create workspaces, so there is nobody for it to
+ * stop until self-serve creation comes with billing. A server that still sets it hears so once at start (server.ts),
+ * and nothing changes. The setup link's cap below stays.
+ */
+export function workspaceLimitRemovedWarning(env: Record<string, string | undefined> = process.env): string | null {
+  if (env.WORKSPACE_LIMIT === undefined) return null
+  return 'WORKSPACE_LIMIT is no longer read: only server admins create workspaces, and there is no workspace limit until self-serve creation comes with billing. Remove it from the environment.'
+}
+
 /** The most workspaces one setup link creates (review of #711): a leaked link cannot fill the install. */
 export const SETUP_LINK_WORKSPACE_CAP = 10
 export const SETUP_LINK_CAP_TEXT = `This setup link can create up to ${SETUP_LINK_WORKSPACE_CAP} workspaces. Create a new setup link on the setup page to add more, or create them in the app.`

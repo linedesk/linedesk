@@ -1,6 +1,6 @@
 // Sign-in hardening that only shows on the running app: limits on auth requests and on workspaces.
 import { describe, expect, test } from 'vitest'
-import { auth, parseWorkspaceLimit, WORKSPACE_LIMIT } from '../src/auth.ts'
+import { auth } from '../src/auth.ts'
 import { asServerAdmin, randomIp, request, signUp, FROM, appRequest } from './helpers.ts'
 
 // Several password hashes or workspaces in one test: slow when the files run in parallel.
@@ -38,9 +38,8 @@ describe('account linking', () => {
 })
 
 describe('POST /v1/workspaces', () => {
-  test('no workspace limit by default: a server admin makes a 6th and more (WORKSPACE_LIMIT unset)', async () => {
-    expect(WORKSPACE_LIMIT).toBeNull()
-    expect(auth.options.plugins.find(p => p.id === 'organization')?.options?.organizationLimit).toBeUndefined()
+  test('no workspace limit: a server admin makes a 6th and more (WORKSPACE_LIMIT is retired)', async () => {
+    expect(auth.options.plugins.find(p => p.id === 'organization')?.options).not.toHaveProperty('organizationLimit')
     const user = await signUp()
     await asServerAdmin(user, async () => {
       for (let i = 1; i <= 7; i++) {
@@ -58,14 +57,3 @@ describe('POST /v1/workspaces', () => {
   })
 })
 
-describe('WORKSPACE_LIMIT', () => {
-  test('unset or empty: no limit; a positive whole number: that limit; anything else stops the start', () => {
-    expect(parseWorkspaceLimit(undefined)).toBeNull()
-    expect(parseWorkspaceLimit('')).toBeNull()
-    expect(parseWorkspaceLimit('  ')).toBeNull()
-    expect(parseWorkspaceLimit('2')).toBe(2)
-    expect(parseWorkspaceLimit(' 50 ')).toBe(50)
-    for (const bad of ['0', '-1', '2.5', 'five', '1e3', 'Infinity', '10000000000'])
-      expect(() => parseWorkspaceLimit(bad), bad).toThrow(/WORKSPACE_LIMIT must be a positive whole number/)
-  })
-})

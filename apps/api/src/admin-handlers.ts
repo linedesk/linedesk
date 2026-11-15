@@ -389,9 +389,9 @@ export const adminHandlers: Record<string, Handler> = {
     if (input.admin) refuseEnrolmentCode(actor)
     const email = input.email.trim().toLowerCase()
     const workspace = input.workspaceId ? await openWorkspace(tx, input.workspaceId) : null
-    // Only a server admin may be without a workspace. The server operator's user:create makes a bare account for
-    // workspace-create.ts --owner, as before.
-    if (!workspace && !input.admin && actor.actorId !== 'cli')
+    // Only a server admin may be without a workspace, also for the server operator's user:create (Q9: a business owner
+    // comes with their workspace, workspace-create.ts runs workspace.create).
+    if (!workspace && !input.admin)
       throw new Reject('choose a workspace: only an instance admin can be added without one')
     if (!workspace && input.role) throw new Reject('a role needs a workspace')
     const role: MembershipRole = input.role ?? 'member'

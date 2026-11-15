@@ -86,26 +86,6 @@ function devOrigins(): string[] {
 
 export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(WEB_ORIGIN), ...devOrigins()])]
 
-/**
- * How many workspaces a member can create (`WORKSPACE_LIMIT` in .env): a positive whole number, or unset or empty for
- * no limit (the default). Anything else stops the API at start instead of quietly running without the limit meant.
- */
-export function parseWorkspaceLimit(raw: string | undefined): number | null {
-  const value = raw?.trim()
-  if (!value) return null
-  if (!/^[1-9][0-9]{0,8}$/.test(value))
-    throw new Error(
-      `WORKSPACE_LIMIT must be a positive whole number (the most workspaces one member can create), or empty for no limit; got "${value}"`,
-    )
-  return Number(value)
-}
-
-/** The workspace limit per member; null: none. */
-export const WORKSPACE_LIMIT = parseWorkspaceLimit(process.env.WORKSPACE_LIMIT)
-
-/** What a member hears at the limit: the app's New workspace and the setup agent say the same. */
-export const workspaceLimitText = (limit: number) => `You can create up to ${limit} workspaces.`
-
 /** Where the browser asks for a passkey challenge, and how often one address may (per minute). */
 export const PASSKEY_CHALLENGE_PATH = '/passkey/generate-authenticate-options'
 export const PASSKEY_CHALLENGE_LIMIT = { window: 60, max: 20 }
@@ -169,8 +149,8 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
  * assistant and settings with it (workspace-creation-handlers.ts, for the app's POST /v1/workspaces,
  * the setup MCP and Server admin), and nothing else may delete a workspace and leave its numbers,
  * contacts and assistants behind. Better Auth's own endpoints for these are off over HTTP. Only the
- * seed and the workspace-create.ts CLI still call `auth.api.createOrganization`: Better Auth's
- * `organizationLimit` guards nothing else; workspace.create applies WORKSPACE_LIMIT itself.
+ * seed still calls `auth.api.createOrganization`. There is no workspace limit (WORKSPACE_LIMIT is retired until
+ * self-serve creation comes with billing, workspace-creation.ts); a setup link's cap is in workspace.create.
  */
 const WORKSPACE_WRITE_PATHS = ['/organization/create', '/organization/update', '/organization/delete']
 const TEAM_WRITE_PATHS = [
@@ -319,8 +299,6 @@ export const auth = betterAuth({
   },
   plugins: [
     organization({
-      // No limit unless WORKSPACE_LIMIT sets one: Better Auth checks the count only when this is a number.
-      organizationLimit: WORKSPACE_LIMIT ?? undefined,
       // Only the invited address, and only once it is verified, can accept.
       requireEmailVerificationOnInvitation: true,
       organizationHooks: {

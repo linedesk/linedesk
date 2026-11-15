@@ -74,7 +74,6 @@ import {
   WORKSPACE_CREATION_CLOSED,
   workspacesMadeBy,
 } from './workspace-creation.ts'
-import { WORKSPACE_LIMIT } from './auth.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
@@ -835,7 +834,7 @@ function registerTools(server: McpServer, actor: Actor) {
   server.registerTool(
     'workspace_create',
     {
-      description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (${WORKSPACE_LIMIT === null ? '' : `up to ${WORKSPACE_LIMIT} workspaces per admin; `}this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status. Only for businesses the admin runs themselves: a business for someone else is created in Server admin › Workspaces › New workspace with its owner's email.`,
+      description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status. Only for businesses the admin runs themselves: a business for someone else is created in Server admin › Workspaces › New workspace with its owner's email.`,
       inputSchema: z.object({
         name: z.string().trim().min(1).max(80).describe("The business's name, as callers know it"),
         timeZone: z.string().max(64).optional().describe('IANA time zone, e.g. America/Los_Angeles'),
@@ -849,8 +848,7 @@ function registerTools(server: McpServer, actor: Actor) {
         const keyId = actor.setupKeyId
         if (!keyId) return refusal('could not create the workspace')
         // The one path for a new workspace (workspace.create without an owner: the admin becomes its owner), logged with
-        // this link like every setup tool. At the workspace limit (WORKSPACE_LIMIT, auth.ts) it says so, like the app's
-        // New workspace, never "internal error".
+        // this link like every setup tool. A refusal is said as it is, never "internal error".
         const made = await oneCreateAtATime(keyId, async () => {
           // A leaked link must not fill the install with workspaces: the command log counts what it made.
           if ((await workspacesMadeBy(db, keyId)) >= SETUP_LINK_WORKSPACE_CAP) return 'link_cap' as const
