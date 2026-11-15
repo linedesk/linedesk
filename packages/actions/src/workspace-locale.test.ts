@@ -181,7 +181,7 @@ describe('the emergency number of the workspace country', () => {
 
   test("a US workspace's rule is unchanged; others name their own number", () => {
     expect(EMERGENCY_RULE).toBe(
-      'Emergencies (danger to people, fire, a break-in, a gas smell): tell the caller to hang up and call 911 right away, before anything else. Damage to a home, a car or equipment is not one of these, even when the caller says it is an emergency: never send it to 911; flag the call as urgent and take a message.',
+      'Only when someone is in danger (a person hurt or at risk, a fire, a break-in, a gas smell): tell the caller to hang up and call 911 right away, before anything else. Never send anything else to 911, even when the caller says it is an emergency: damage to a home, a car or equipment is urgent, not a call for 911, so flag the call as urgent and take a message.',
     )
     expect(emergencyRule()).toBe(EMERGENCY_RULE)
     expect(callRules()).toContain(EMERGENCY_RULE)
