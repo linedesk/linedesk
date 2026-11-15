@@ -1397,6 +1397,23 @@ export const workspace_icons = pgTable('workspace_icons', {
   updated_by: text('updated_by'),
 })
 
+// The browsers in which a server admin passed the passkey check (apps/api/src/admin-alerts.ts): only a check from a
+// browser not listed here emails every server admin. The browser keeps a random token in a long-lived cookie; only its
+// SHA-256 is stored, one row per admin and browser. Cleared cookie: the browser counts as new again. Not synced.
+export const admin_devices = pgTable(
+  'admin_devices',
+  {
+    user_id: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** SHA-256 (hex) of the browser's device token. */
+    device_hash: text('device_hash').notNull(),
+    created_at: createdAt(),
+    last_seen_at: ts('last_seen_at').notNull().defaultNow(),
+  },
+  t => [primaryKey({ columns: [t.user_id, t.device_hash] })],
+)
+
 // A person's profile picture (Account settings › Profile; apps/api/src/user-avatar.ts): stored like the workspace
 // icon, a checked PNG of at most 512×512 pixels, base64. One row per account that has a picture; no row: the
 // initials show. `version` changes with every new picture and is part of its address

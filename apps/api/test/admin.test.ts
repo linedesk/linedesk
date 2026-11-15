@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { actions, REDACTED, recordingKey } from '@linedesk/actions'
 import {
+  admin_devices,
   api_keys,
   assistants,
   auth_events,
@@ -33,12 +34,14 @@ import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   adminSignInEmail,
+  browserOf,
   alertInstanceAdmins,
   alertOnAdminSignIn,
   isLocalInstance,
   plainSnippet,
 } from '../src/admin-alerts.ts'
 import { markSetupSignIn } from '../src/setup.ts'
+import { deviceCookie, deviceHash, pruneOldAdminDevices } from '../src/admin-devices.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
 import { forgetTests } from '../src/setup-checklist.ts'
 import { decodeLogo, resetBranding } from '../src/branding.ts'
@@ -66,6 +69,7 @@ import { loadInstanceEnv } from '../src/instance-env.ts'
 import {
   createAdminWithPassword,
   grantFirstUser,
+  instanceAdminEmails,
   instanceAdminHooks,
   refuseUnverifiedAdminAddress,
 } from '../src/instance-admin.ts'
@@ -3341,54 +3345,253 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
         .filter(m => subject.test(m.subject))
         .map(m => m.to)
 
-    test('when an admin signs in with a password, every admin hears of it', async () => {
+    /** A browser's sign-in request as the hook sees it: Better Auth's endpoint context with that browser's cookies. */
+    const browser = () => {
+      const jar = new Map<string, string>()
+      const ctx = (path: string) => ({
+        path,
+        getCookie: (name: string) => jar.get(name) ?? null,
+        setCookie: (name: string, value: string) => void jar.set(name, value),
+        context: { createAuthCookie: (name: string) => ({ name: `better-auth.${name}`, attributes: {} }) },
+      })
+      return { jar, passkey: () => ctx('/passkey/verify-authentication'), at: (path: string) => ctx(path) }
+    }
+    const checked = { passkeyVerifiedAt: new Date() }
+    const devicesOf = (who: User) => db.select().from(admin_devices).where(eq(admin_devices.user_id, who.userId))
+
+    test("a server admin's passkey check from a new device emails every admin once; a known device sends nothing", async () => {
       process.env.ADMIN_SECOND_FACTOR = 'on'
       const send = mails()
-      expect((await signIn(admin)).status).toBe(200)
-      const adminAddresses = [await emailOf(admin), await emailOf(operator)]
-      await vi.waitFor(() => expect(sentTo(send, /^Admin sign-in/)).toEqual(expect.arrayContaining(adminAddresses)))
-      const mail = send.mock.calls.map(([m]) => m).find(m => /^Admin sign-in/.test(m.subject))!
-      expect(mail.text).toMatch(/signed in with a password/)
-    })
-
-    test("a sign-in from a known device sends nothing, with any method; from a new one it does; a member's sign-in never", async () => {
-      const send = mails()
-      const device = { ipAddress: '203.0.113.7', userAgent: `Browser ${crypto.randomUUID()}` }
-      const passkeySignIn = { path: '/passkey/verify-authentication' }
-      const record = () =>
-        db
-          .insert(auth_events)
-          .values({
-            id: `ae_${crypto.randomUUID().slice(0, 12)}`,
-            user_id: admin.userId,
-            event: 'sign_in',
-            method: 'passkey',
-            ip_address: device.ipAddress,
-            user_agent: device.userAgent,
-          })
-      await record() // this sign-in, as the audit log records it first
-      await alertOnAdminSignIn({ userId: admin.userId, ...device }, passkeySignIn)
-      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator)) // first time from here
+      const laptop = browser()
+      const device = {
+        ipAddress: '203.0.113.7',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0 Safari/537.36',
+      }
+      await alertOnAdminSignIn({ userId: admin.userId, ...device, ...checked }, laptop.passkey())
+      // Every enabled admin, each once, the admin themselves included.
+      const adminAddresses = await instanceAdminEmails()
+      expect(adminAddresses).toEqual(expect.arrayContaining([await emailOf(admin), await emailOf(operator)]))
+      const alerts = send.mock.calls.map(([m]) => m).filter(m => /^Admin sign-in/.test(m.subject))
+      expect(alerts.map(m => m.to).sort()).toEqual([...adminAddresses].sort())
+      expect(alerts[0]!.text).toMatch(/confirmed with their passkey from a device not seen before/)
+      expect(alerts[0]!.text).toContain('Browser: Chrome on macOS')
+      expect(alerts[0]!.text).toContain('Address: 203.0.113.7')
+      expect(alerts[0]!.text).toMatch(/Time: \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/)
+      expect(alerts[0]!.text).toMatch(/disable the account and reset its passkeys/)
+      // Only the token's hash is stored; the browser keeps the token.
+      const token = [...laptop.jar.values()][0]!
+      expect((await devicesOf(admin)).map(d => d.device_hash)).toContain(deviceHash(token))
+      expect((await devicesOf(admin)).map(d => d.device_hash)).not.toContain(token)
       send.mockClear()
-      await record()
-      await alertOnAdminSignIn({ userId: admin.userId, ...device }, passkeySignIn)
-      await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
-      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
-      await alertOnAdminSignIn({ userId: member.userId, ...device }, { path: '/sign-in/email' })
+      // The same browser again, from another address: known, nothing sent; the token is replaced (rotated).
       await alertOnAdminSignIn(
-        { userId: admin.userId, impersonatedBy: operator.userId, ...device },
-        { path: '/sign-in/email' },
+        { userId: admin.userId, ipAddress: '198.51.100.1', userAgent: 'x', ...checked },
+        laptop.passkey(),
       )
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      const rotated = [...laptop.jar.values()][0]!
+      expect(rotated).not.toBe(token)
+      const hashes = (await devicesOf(admin)).map(d => d.device_hash)
+      expect(hashes).toContain(deviceHash(rotated))
+      expect(hashes).not.toContain(deviceHash(token))
     })
 
-    test("the first admin's sign-in right after setup sends no alert; the next one does", async () => {
+    test('M1: a token the server did not issue is replaced and never stored; the browser counts as new', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
       const send = mails()
-      const device = { ipAddress: '203.0.113.8', userAgent: `Browser ${crypto.randomUUID()}` }
-      markSetupSignIn(admin.userId)
-      await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
+      const planted = browser()
+      const token = randomBytes(32).toString('base64url') // well-formed, e.g. tossed in from a subdomain
+      planted.jar.set('admin_device', token)
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, planted.passkey())
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
+      expect(planted.jar.get('admin_device')).not.toBe(token)
+      const all = await db.select().from(admin_devices)
+      expect(all.map(d => d.device_hash)).not.toContain(deviceHash(token))
+      // On https the name is `__Host-`: browsers then refuse it with a Domain, so no subdomain can toss one in.
+      const https = deviceCookie(true)
+      expect(https.name).toBe('__Host-admin_device')
+      expect(https.attributes).toMatchObject({ secure: true, path: '/', httpOnly: true })
+      expect(https.attributes).not.toHaveProperty('domain')
+      expect(deviceCookie(false).name).toBe('admin_device')
+    })
+
+    test('L3: a copied cookie shows up as a new device once the real browser checked again', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const laptop = browser()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey())
+      const thief = browser()
+      for (const [name, value] of laptop.jar) thief.jar.set(name, value)
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey())
+      send.mockClear()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, thief.passkey())
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
+    })
+
+    test('L1: when the device cannot be read or stored, the alert goes out', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const laptop = browser()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey())
+      send.mockClear()
+      const failing = vi.spyOn(db, 'execute').mockRejectedValueOnce(new Error('database is down'))
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey()) // a known browser
+      } finally {
+        failing.mockRestore()
+        logged.mockRestore()
+      }
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
+    })
+
+    test('L2: passkeys reset, admin revoked and account disabled forget the browsers; old rows are pruned daily', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      mails()
+      const now = new Date()
+      await addPasskey()
+      await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
+      const remember = async (who: User) => {
+        await db.insert(admin_devices).values({ user_id: who.userId, device_hash: deviceHash(crypto.randomUUID()) })
+        expect(await devicesOf(who)).toHaveLength(1)
+      }
+      const reset = await signUp()
+      await setAdmin(reset, true)
+      await remember(reset)
+      expect((await act(admin, 'user.resetPasskeys', { userId: reset.userId })).status).toBe(200)
+      expect(await devicesOf(reset)).toEqual([])
+      await remember(reset)
+      expect((await act(admin, 'instanceAdmin.revoke', { userId: reset.userId })).status).toBe(200)
+      expect(await devicesOf(reset)).toEqual([])
+      const disabled = await signUp()
+      await setAdmin(disabled, true)
+      await remember(disabled)
+      expect((await act(admin, 'user.disable', { userId: disabled.userId })).status).toBe(200)
+      expect(await devicesOf(disabled)).toEqual([])
+      await setAdmin(disabled, false)
+      // Daily prune: rows not seen for longer than the cookie lives (400 days).
+      const day = 24 * 60 * 60 * 1000
+      const old = deviceHash(crypto.randomUUID())
+      const recent = deviceHash(crypto.randomUUID())
+      await db.insert(admin_devices).values([
+        { user_id: operator.userId, device_hash: old, last_seen_at: new Date(Date.now() - 401 * day).toISOString() },
+        { user_id: operator.userId, device_hash: recent, last_seen_at: new Date(Date.now() - 10 * day).toISOString() },
+      ])
+      expect(await pruneOldAdminDevices(db)).toBeGreaterThanOrEqual(1)
+      const left = (await devicesOf(operator)).map(d => d.device_hash)
+      expect(left).not.toContain(old)
+      expect(left).toContain(recent)
+    })
+
+    test('a browser whose device cookie was cleared counts as new again', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const laptop = browser()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey())
+      laptop.jar.clear()
+      send.mockClear()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey())
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
+      // A cookie that is not one of ours is not trusted either.
+      laptop.jar.set('admin_device', 'forged')
+      send.mockClear()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, laptop.passkey())
+      expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
+    })
+
+    test('one browser, two admins: each switch between them is reported once (rotation, accepted)', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const shared = browser()
+      const alertedFor = () => send.mock.calls.map(([m]) => m.subject).filter(subject => /^Admin sign-in/.test(subject))
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, shared.passkey())
+      await alertOnAdminSignIn({ userId: operator.userId, ...checked }, shared.passkey())
+      expect(new Set(alertedFor())).toEqual(
+        new Set([expect.stringContaining(await emailOf(admin)), expect.stringContaining(await emailOf(operator))]),
+      )
+      send.mockClear()
+      // The operator's check replaced the token, so the admin's next check there is new once, then known.
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, shared.passkey())
+      expect(new Set(alertedFor())).toEqual(new Set([expect.stringContaining(await emailOf(admin))]))
+      send.mockClear()
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, shared.passkey())
       expect(sentTo(send, /^Admin sign-in/)).toEqual([])
-      await alertOnAdminSignIn({ userId: admin.userId, ...device }, { path: '/sign-in/email' })
+    })
+
+    test("a sign-in that is not the passkey check, a member's check and an impersonation send nothing and remember no device", async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const before = (await devicesOf(admin)).length
+      for (const path of ['/sign-in/email', '/sign-in/email-otp', '/callback/google']) {
+        const fresh = browser()
+        await alertOnAdminSignIn({ userId: admin.userId, ipAddress: '203.0.113.20', userAgent: 'x' }, fresh.at(path))
+        expect(fresh.jar.size, path).toBe(0)
+      }
+      await alertOnAdminSignIn({ userId: member.userId, ...checked }, browser().passkey())
+      const impersonating = browser()
+      await alertOnAdminSignIn(
+        { userId: admin.userId, impersonatedBy: operator.userId, ...checked },
+        impersonating.passkey(),
+      )
+      expect(impersonating.jar.size).toBe(0)
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      expect((await devicesOf(admin)).length).toBe(before)
+      expect(await devicesOf(member)).toEqual([])
+    })
+
+    test('a password sign-in of an admin sends no alert but is still in the audit log', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'on'
+      const send = mails()
+      const before = await db.select().from(auth_events).where(eq(auth_events.user_id, admin.userId))
+      expect((await signIn(admin)).status).toBe(200)
+      const after = await db.select().from(auth_events).where(eq(auth_events.user_id, admin.userId))
+      expect(after.length).toBe(before.length + 1)
+      expect(after.find(e => !before.some(b => b.id === e.id))).toMatchObject({ event: 'sign_in', method: 'password' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+    })
+
+    test('with ADMIN_SECOND_FACTOR=off every sign-in opens Server admin: a new device is reported, through the real endpoint', async () => {
+      process.env.ADMIN_SECOND_FACTOR = 'off'
+      try {
+        const send = mails()
+        const ip = randomIp()
+        const post = (cookie?: string) =>
+          appRequest('/api/auth/sign-in/email', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              origin: 'http://localhost:5173',
+              [FROM]: ip,
+              ...(cookie ? { cookie } : {}),
+            },
+            body: JSON.stringify({ email: operatorEmail, password: 'test-password-1234' }),
+          })
+        const first = await post()
+        expect(first.status).toBe(200)
+        await vi.waitFor(() => expect(sentTo(send, /^Admin sign-in/)).toContain(operatorEmail))
+        const device = first.headers.getSetCookie().find(c => /admin_device=/.test(c))
+        expect(device).toMatch(/HttpOnly/i)
+        expect(device).toMatch(/Max-Age=34560000/)
+        send.mockClear()
+        expect(device).toMatch(/^admin_device=/) // http here; on https `__Host-admin_device` (Secure, Path=/)
+        const second = await post(device!.split(';')[0])
+        expect(second.status).toBe(200)
+        const rotated = second.headers.getSetCookie().find(c => /admin_device=/.test(c))
+        expect(rotated?.split(';')[0]).not.toBe(device!.split(';')[0])
+        await new Promise(resolve => setTimeout(resolve, 50))
+        expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      } finally {
+        process.env.ADMIN_SECOND_FACTOR = 'on'
+      }
+    })
+
+    test("the first admin's sign-in right after setup sends no alert; the next one from a new device does", async () => {
+      const send = mails()
+      markSetupSignIn(admin.userId)
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, browser().passkey())
+      expect(sentTo(send, /^Admin sign-in/)).toEqual([])
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, browser().passkey())
       expect(sentTo(send, /^Admin sign-in/)).toContain(await emailOf(operator))
     })
 
@@ -3396,10 +3599,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       const send = mails()
       process.env.WEB_ORIGIN = 'http://localhost:8490'
       try {
-        await alertOnAdminSignIn(
-          { userId: admin.userId, ipAddress: '198.51.100.9', userAgent: `Browser ${crypto.randomUUID()}` },
-          { path: '/sign-in/email' },
-        )
+        await alertOnAdminSignIn({ userId: admin.userId, ...checked }, browser().passkey())
       } finally {
         process.env.WEB_ORIGIN = 'https://app.linedesk.test'
       }
@@ -3410,13 +3610,14 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       expect(isLocalInstance({ WEB_ORIGIN: 'http://livemode.localhost:8490' })).toBe(true)
     })
 
-    test('F1: an admin session from an endpoint the alert does not know is still reported, as another method', async () => {
+    test('F1: a passkey check from an endpoint the alert does not know is still reported, as another method', async () => {
       const send = mails()
       await alertOnAdminSignIn(
-        { userId: admin.userId, ipAddress: '198.51.100.4', userAgent: 'x' },
-        { path: '/some/new-endpoint' },
+        { userId: admin.userId, ipAddress: '198.51.100.4', userAgent: 'x', ...checked },
+        browser().at('/some/new-endpoint'),
       )
-      await alertOnAdminSignIn({ userId: admin.userId }, undefined)
+      // No request to read a device cookie from: never a known device.
+      await alertOnAdminSignIn({ userId: admin.userId, ...checked }, undefined)
       const alerts = send.mock.calls
         .map(([m]) => m)
         .filter(m => /^Admin sign-in/.test(m.subject) && m.to === operatorEmail)
@@ -3426,7 +3627,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
 
     test('F4: the alert carries no links and no long browser strings', () => {
       const ua = `Mozilla/5.0 (evil) visit https://phish.example/reset?x=1 or www.phish.example now ${'A'.repeat(300)}`
-      const { text } = adminSignInEmail('ann@linedesk.test', 'password', true, {
+      const { text } = adminSignInEmail('ann@linedesk.test', 'password', {
         userId: 'u',
         ipAddress: '203.0.113.9',
         userAgent: ua,
@@ -3436,6 +3637,14 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       const browserLine = text.split('\n').find(line => line.startsWith('Browser: '))!
       expect(browserLine.length).toBeLessThanOrEqual('Browser: '.length + 120)
       expect(plainSnippet(null)).toBe('unknown')
+      expect(browserOf('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1')).toBe(
+        'Safari on iOS',
+      )
+      expect(browserOf('Mozilla/5.0 (Windows NT 10.0) Chrome/131.0 Safari/537.36 Edg/131.0')).toBe('Edge on Windows')
+      expect(browserOf('Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0')).toBe(
+        'Firefox on Linux',
+      )
+      expect(browserOf('curl/8.0')).toBeNull()
     })
 
     test('when admin is granted and when passkeys are reset', async () => {

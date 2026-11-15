@@ -43,7 +43,7 @@ snapshot() {
     --exclude-table-data=public.calendar_oauth_states --exclude-table-data=public.calendar_credentials \
     --exclude-table-data=public.provider_settings --exclude-table-data=public.webhook_secrets \
     --exclude-table-data=public.push_subscriptions --exclude-table-data=public.commands \
-    --exclude-table-data=public.auth_events --exclude-table-data="pgboss.*" "$1"' sh "$db" > "$tmp"
+    --exclude-table-data=public.auth_events --exclude-table-data=public.admin_devices --exclude-table-data="pgboss.*" "$1"' sh "$db" > "$tmp"
   chmod 600 "$tmp" && mv "$tmp" "$file"
   echo "saved $project/$db to $file ($(du -h "$file" | cut -f1))"
 }

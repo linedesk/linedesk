@@ -7,6 +7,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { agent_setup_keys, passkey, type SetupKeyEndReason, session, type Tx, user } from '@linedesk/db'
 import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
+import { forgetAdminDevices } from './admin-devices.ts'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
 import { passkeysResetEmail } from './emails/templates.ts'
@@ -106,6 +107,8 @@ export async function removeAllPasskeys(
   const sessions = await tx.delete(session).where(eq(session.userId, target.id)).returning({ id: session.id })
   // A setup link the admin confirmed with a passkey could still change email and sign-in: it ends with the rest.
   const setupLinksEnded = await revokeSetupKeysOf(tx, target.id, 'passkeys_reset')
+  // The browsers that passed their passkey check before are new again (admin-devices.ts).
+  await forgetAdminDevices(tx, target.id)
   if (removed.length || target.isAdmin)
     sendNotice(
       { to: target.email, ...passkeysResetEmail(removed.length, undefined, await localeForUserId(tx, target.id)) },

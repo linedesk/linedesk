@@ -25,6 +25,7 @@ import { db } from './db.ts'
 import { and, eq, ne, or, sql } from 'drizzle-orm'
 import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
+import { forgetAdminDevices } from './admin-devices.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
 import { checkInstanceEnvSoon, followEmailSettings } from './instance-env.ts'
@@ -464,6 +465,7 @@ export const adminHandlers: Record<string, Handler> = {
     // Their sessions end, and so do the impersonations they started (Better Auth's own endpoints do not check those).
     await tx.delete(session).where(or(eq(session.userId, account.id), eq(session.impersonatedBy, account.id)))
     await revokeSetupKeysOf(tx, account.id, 'account_disabled')
+    await forgetAdminDevices(tx, account.id)
     await dropUserPush(tx, account.id)
     return { rows: {}, data: { userId: account.id, disabled_at: now, subject: accountSubject(account) } }
   },
@@ -573,6 +575,8 @@ export const adminHandlers: Record<string, Handler> = {
     await tx.delete(session).where(eq(session.impersonatedBy, account.id))
     // So do their AI agent setup links: they stop working now, and must not come back with a later grant.
     await revokeSetupKeysOf(tx, account.id, 'admin_role_removed')
+    // Their known browsers too: a later grant starts with none (admin-devices.ts).
+    await forgetAdminDevices(tx, account.id)
     return { rows: {}, data: { userId: account.id, instance_admin: false, subject: accountSubject(account) } }
   },
 }

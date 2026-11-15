@@ -1,10 +1,12 @@
 // Every instance admin hears about what could take over the admin role (docs/architecture.md §12):
-// an admin's sign-in from a device or address not seen before, and admin granted or passkeys reset.
+// an admin passing the passkey check from a browser not seen before, and admin granted or passkeys reset.
 // No sign-in alerts on an instance that runs on localhost: local development, nobody to warn. Sent without waiting: a failed email never stops
 // the sign-in or the action it is about.
-import { auth_events, user } from '@linedesk/db'
+import { user } from '@linedesk/db'
 import { SOURCE } from '@linedesk/i18n'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { knownDevice } from './admin-devices.ts'
+import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { signInMethod } from './audit.ts'
 import { brandName } from './branding.ts'
 import { db } from './db.ts'
@@ -42,26 +44,13 @@ const methodNames: Record<string, string> = {
   other: 'a sign-in method this server does not recognise',
 }
 
-type SignIn = { userId: string; impersonatedBy?: string | null; ipAddress?: string | null; userAgent?: string | null }
-
-/**
- * Whether this account signed in before from this address and browser. Runs after the audit log
- * recorded this sign-in, so one earlier record makes two; unknown address or browser: never known.
- */
-async function knownDevice(s: SignIn): Promise<boolean> {
-  if (!s.ipAddress || !s.userAgent) return false
-  const [row] = await db
-    .select({ n: count() })
-    .from(auth_events)
-    .where(
-      and(
-        eq(auth_events.user_id, s.userId),
-        inArray(auth_events.event, ['sign_in', 'sign_up']),
-        eq(auth_events.ip_address, s.ipAddress),
-        eq(auth_events.user_agent, s.userAgent),
-      ),
-    )
-  return (row?.n ?? 0) >= 2
+type SignIn = {
+  userId: string
+  impersonatedBy?: string | null
+  ipAddress?: string | null
+  userAgent?: string | null
+  /** Set only on a session started by a passkey sign-in the device verified (admin-second-factor.ts). */
+  passkeyVerifiedAt?: Date | string | null
 }
 
 /**
@@ -77,18 +66,55 @@ export function plainSnippet(text: string | null | undefined, max = 120): string
   return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain || 'unknown'
 }
 
-/** The email about an admin's sign-in; exported for tests. */
-export function adminSignInEmail(who: string, method: string, newDevice: boolean, s: SignIn) {
+/** "Chrome on macOS" from a User-Agent; null when neither is recognised. Approximate: the header is the browser's say. */
+export function browserOf(userAgent: string | null | undefined): string | null {
+  if (!userAgent) return null
+  const ua = userAgent
+  const browser = /Edg(?:e|A|iOS)?\//.test(ua)
+    ? 'Edge'
+    : /OPR\/|Opera/.test(ua)
+      ? 'Opera'
+      : /Firefox\/|FxiOS\//.test(ua)
+        ? 'Firefox'
+        : /Chrome\/|CriOS\//.test(ua)
+          ? 'Chrome'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : null
+  const os = /iPhone|iPad|iPod/.test(ua)
+    ? 'iOS'
+    : /Android/.test(ua)
+      ? 'Android'
+      : /Mac OS X|Macintosh/.test(ua)
+        ? 'macOS'
+        : /Windows/.test(ua)
+          ? 'Windows'
+          : /CrOS/.test(ua)
+            ? 'ChromeOS'
+            : /Linux/.test(ua)
+              ? 'Linux'
+              : null
+  if (browser && os) return `${browser} on ${os}`
+  return browser ?? (os ? `a browser on ${os}` : null)
+}
+
+/** The email about an admin's passkey check (or, with the rule off, sign-in) from a new device; exported for tests. */
+export function adminSignInEmail(who: string, method: string, s: SignIn, at = new Date()) {
   const how = methodNames[method] ?? plainSnippet(method, 40)
+  const what =
+    method === 'passkey'
+      ? `${who}, a server admin, confirmed with their passkey from a device not seen before for them.`
+      : `${who}, a server admin, signed in with ${how} from a device not seen before for them.`
   return {
-    subject: `Admin sign-in to ${brandName()}: ${who}`,
+    subject: `Admin sign-in from a new device on ${brandName()}: ${who}`,
     text: [
-      `${who}, a server admin, signed in with ${how}${newDevice ? ' from a device or address not seen before' : ''}.`,
+      what,
       '',
+      `Time: ${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+      `Browser: ${browserOf(s.userAgent) ?? plainSnippet(s.userAgent)}`,
       `Address: ${plainSnippet(s.ipAddress, 64)}`,
-      `Browser: ${plainSnippet(s.userAgent)}`,
       '',
-      'If this was not them, sign in with your passkey, then in Server admin › Users: disable the account and reset its passkeys.',
+      'If this was them, nothing to do. If not, someone has their passkey or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.',
     ].join('\n'),
   }
 }
@@ -104,19 +130,34 @@ export function isLocalInstance(env: Record<string, string | undefined> = proces
   }
 }
 
-/** Better Auth `session.create.after`, merged after the audit log's (auth.ts). */
+/**
+ * Whether this sign-in is the admin's passkey check: the one that opens Server admin (admin-second-factor.ts). With the
+ * rule off (ADMIN_SECOND_FACTOR=off) every sign-in opens it, so every sign-in counts.
+ */
+const passedAdminCheck = (s: SignIn) => !adminSecondFactorRequired() || Boolean(s.passkeyVerifiedAt)
+
+/**
+ * Better Auth `session.create.after`, merged after the audit log's (auth.ts), which records every sign-in either way.
+ * Emails every admin only when an admin passes the passkey check from a browser that has not passed theirs before.
+ */
 export async function alertOnAdminSignIn(created: SignIn, ctx: unknown) {
+  // Impersonation is never a check and never remembers a device.
   if (created.impersonatedBy || isLocalInstance()) return
   // The first admin's sign-in at setup: the account was made seconds ago by the person signing in.
-  if (takeSetupSignIn(created.userId)) return
-  // Every session an admin gets counts; one made by an endpoint not known here is reported as 'other'.
+  const setupSignIn = takeSetupSignIn(created.userId)
+  if (!passedAdminCheck(created)) return
+  // A check from an endpoint not known here is reported as 'other'.
   const method = signInMethod(ctx as Parameters<typeof signInMethod>[0]) ?? 'other'
   try {
     const [account] = await db.select().from(user).where(eq(user.id, created.userId))
     if (!account || !isInstanceAdmin(account)) return
-    // Only a device or address not seen before for this account is worth a warning, whatever the method.
-    if (await knownDevice(created)) return
-    const { subject, text } = adminSignInEmail(account.email, method, true, created)
+    // A failure to read or store the device counts as a new device: the alert goes out (fails closed).
+    const known = await knownDevice(db, account.id, ctx).catch(err => {
+      console.error('admin device check failed', err)
+      return false
+    })
+    if (known || setupSignIn) return
+    const { subject, text } = adminSignInEmail(account.email, method, created)
     await alertInstanceAdmins(subject, text)
   } catch (err) {
     console.error('admin sign-in alert failed', err)
