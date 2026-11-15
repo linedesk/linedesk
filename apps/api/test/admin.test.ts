@@ -177,7 +177,6 @@ describe('access', () => {
   test('the registry has the admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
       'agentSetup.createKey',
-      'agentSetup.endOwnAccess',
       'branding.set',
       'calendarTools.get',
       'calendarTools.set',

@@ -111,7 +111,7 @@ const AUDITED_ACTION_NAMES = [
   'invitation.revoke', 'invitation.resend', 'apiKey.create', 'apiKey.revoke', 'webhook.create', 'webhook.update',
   'webhook.delete', 'webhook.test', 'calendar.connectFinish', 'calendar.disconnect', 'phoneNumber.setup',
   'phoneNumber.release', 'agentSetup.createKey', 'agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey',
-  'agentSetup.revoke', 'agentSetup.endOwnAccess',
+  'agentSetup.revoke', 'agentSetup.endOwnAccess', 'agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace',
 ]
 
 describe('every audited action reads as words', () => {

@@ -28,6 +28,7 @@ import {
   ALLOWED_TRIES,
   afterPasswordReset,
   endSessionsAfterReset,
+  endSetupLinksAfterSessionChange,
   guardPasswordReset,
   PASSWORD_RESET_PATHS,
   sameAnswerForRefusedCodes,
@@ -140,6 +141,7 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
   await clearProfileChangeAfterOwnUpdate(ctx)
   await notifyPasskeyChange(ctx)
   await endSessionsAfterReset(ctx)
+  await endSetupLinksAfterSessionChange(ctx)
   sameAnswerForRefusedCodes(ctx)
   sameAnswerForEmailChange(ctx)
 })

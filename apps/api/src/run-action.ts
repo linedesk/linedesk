@@ -10,6 +10,8 @@ import {
   ownerStepUpRefusal,
   removeNeedsFreshSignIn,
   removeSignInRefusal,
+  setupLinkNeedsFreshSignIn,
+  setupLinkSignInRefusal,
 } from './owner-step-up.ts'
 import { actions, droppedFields, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
@@ -59,6 +61,8 @@ function unknownFieldsRefusal(name: string, rawInput: unknown, parsed: unknown, 
  */
 export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'apiKey.create',
+  // A workspace owner's AI agent setup link: like an API key, a way in for an agent.
+  'agentSetup.createWorkspaceKey',
   'webhook.create',
   'webhook.update',
   'team.invite',
@@ -79,6 +83,15 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   // Deletes the workspace and the accounts of members who have no other one.
   'workspace.deleteOwn',
 ])
+
+/** What a workspace setup key hears outside its workspace. */
+export const WORKSPACE_KEY_SCOPE = "This setup link is for one workspace only: it cannot change the server or another workspace."
+/** Whether a workspace setup key's actor reaches past its one workspace (run before every action, as a backstop). */
+export function workspaceKeyOutOfScope(def: Pick<ActionDef, 'name' | 'permission'>, actor: Actor): boolean {
+  if (def.permission === 'instance:admin') return true
+  if (actor.workspaceId === null) return def.name !== 'agentSetup.endOwnAccess'
+  return actor.workspaceId !== actor.setupWorkspaceId
+}
 
 /**
  * Whether running `name` with this input waits for a confirmed email. An assistant change that puts calls
@@ -163,6 +176,9 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (refusal) return { status: 403, body: refusal }
   const allowed = actor.role === 'agent' && def.agent ? actor.permissions.includes('agent') : actor.permissions.includes(def.permission)
   if (!allowed) return forbidden(`missing permission ${def.permission}`)
+  // A workspace owner's setup key (agent-setup.ts): its own workspace only, never the server's or another workspace's,
+  // whatever the actor says otherwise; outside one, only ending its own link.
+  if (actor.setupWorkspaceId && workspaceKeyOutOfScope(def, actor)) return forbidden(WORKSPACE_KEY_SCOPE)
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
@@ -183,6 +199,9 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   // So does the owner deleting a removed member's account (owner-step-up.ts; LIN-264 review F3).
   if (name === 'team.removeMember' && (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown; keepAccount?: unknown })))
     return { status: 403, body: removeSignInRefusal }
+  // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
+  if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))
+    return { status: 403, body: setupLinkSignInRefusal }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))

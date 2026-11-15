@@ -252,6 +252,9 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'agentSetup.revoke': 'integrations',
   // The agent ending its own setup link at the end of the setup (marked with the key, viaSetupKey).
   'agentSetup.endOwnAccess': 'integrations',
+  // A workspace owner's setup link for their one workspace, and ending it.
+  'agentSetup.createWorkspaceKey': 'integrations',
+  'agentSetup.revokeWorkspace': 'integrations',
 }
 
 /**

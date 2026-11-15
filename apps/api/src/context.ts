@@ -36,6 +36,11 @@ export interface Actor {
   apiKeyImpersonator?: string
   /** An AI agent setting up the install with an instance admin's setup key (agent-setup.ts): setup tools only. */
   setupKeyId?: string
+  /**
+   * That setup key is a workspace owner's (agent_setup_keys.workspace_id): it acts in this workspace only, never on
+   * the server's providers or in another workspace (agent-setup.ts setupActorIn, run-action.ts).
+   */
+  setupWorkspaceId?: string
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
   /** When that session ends unless it is used again (Better Auth extends it as it is used). */

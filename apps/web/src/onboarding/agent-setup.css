@@ -429,3 +429,10 @@
     margin: 5.5px 0;
   }
 }
+/* A workspace owner's page: the one workspace, named, where the admin's page has the dropdown. */
+.as-ws-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

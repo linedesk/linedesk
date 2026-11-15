@@ -28,9 +28,15 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
     headers: { ...workspaceHeaders(), 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
     body: JSON.stringify(input),
   }).catch(() => null)
-  const body = (await res?.json().catch(() => null)) as ActionResult | { ok: false; error?: string } | null
+  const body = (await res?.json().catch(() => null)) as
+    | ActionResult
+    | { ok: false; error?: string; code?: string }
+    | null
+  // The code goes with the error, for pages that act on it (SIGN_IN_AGAIN: the setup link offers "Sign in again").
   if (!res?.ok || !body?.ok)
-    throw new Error((body && !body.ok && body.error) || i18n().t('errors.unreachable'))
+    throw Object.assign(new Error((body && !body.ok && body.error) || i18n().t('errors.unreachable')), {
+      code: body && !body.ok && 'code' in body ? body.code : undefined,
+    })
   return body
 }
 

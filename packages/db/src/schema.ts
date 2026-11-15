@@ -21,7 +21,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { user } from './auth-schema.ts'
+import { organization, user } from './auth-schema.ts'
 import {
   DEFAULT_TRANSFERS,
   type ActionItem,
@@ -1051,6 +1051,14 @@ export type SetupKeyEndReason =
   | 'password_reset'
   | 'account_recovery'
   | 'admin_role_removed'
+  /** A workspace key's maker is no longer that workspace's owner (handed over, or found so on use). */
+  | 'owner_lost'
+  /** A workspace key's workspace was disabled. */
+  | 'workspace_disabled'
+  /** The maker changed or set their password. */
+  | 'password_changed'
+  /** The maker signed out their other sessions. */
+  | 'sessions_ended'
 export const agent_setup_keys = pgTable(
   'agent_setup_keys',
   {
@@ -1058,8 +1066,15 @@ export const agent_setup_keys = pgTable(
     /** The key's first characters ("lds_AbCd1234"), to tell keys apart; not enough to use one. */
     prefix: text('prefix').notNull(),
     key_hash: text('key_hash').notNull().unique(),
-    /** The instance admin who made it; the key acts as this user. */
+    /** The instance admin who made it (or, with workspace_id, the workspace's owner); the key acts as this user. */
     created_by: text('created_by').notNull(),
+    /**
+     * Null: an install key, made by an instance admin (the server's providers and every workspace they manage). Set: a
+     * workspace key, made by that workspace's owner (agentSetup.createWorkspaceKey): only this workspace's own setup,
+     * never the server's or another workspace's (apps/api/src/agent-setup.ts setupKeyAccess, setupActorIn).
+     */
+    // Its keys go with a deleted workspace.
+    workspace_id: text('workspace_id').references(() => organization.id, { onDelete: 'cascade' }),
     created_at: createdAt(),
     expires_at: ts('expires_at').notNull(),
     last_used_at: ts('last_used_at'),

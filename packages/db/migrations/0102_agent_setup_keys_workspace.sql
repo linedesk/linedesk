@@ -1,0 +1,2 @@
+ALTER TABLE "agent_setup_keys" ADD COLUMN "workspace_id" text;--> statement-breakpoint
+ALTER TABLE "agent_setup_keys" ADD CONSTRAINT "agent_setup_keys_workspace_id_organization_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;

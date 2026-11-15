@@ -15,7 +15,7 @@ import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
-import { agentSetupState, setupActor } from './agent-setup.ts'
+import { agentSetupState, setupActor, workspaceSetupActor } from './agent-setup.ts'
 import { installSetupState } from './install-setup.ts'
 import { setupProgress } from './setup-mcp.ts'
 import { setupChecklist, storedTests, statusContext } from './setup-checklist.ts'
@@ -237,6 +237,19 @@ export function registerAdminRoutes(app: Hono<Env>) {
       (await setupActor(actor.actorId, 'page', { passkeyConfirmed: actor.passkeyConfirmed === true })) ?? actor
     const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null)
     return c.json({ ...(await agentSetupState(actor.actorId)), progress })
+  })
+
+  // A workspace owner's agent setup (agent-setup.ts, workspace keys): their working setup link for the session's
+  // workspace (never the key) and that workspace's steps as its agent sees them, nothing of the server's. Owner only
+  // (workspace:own; never through an API key, a setup key or the voice agent, none of which has it).
+  app.get('/v1/workspace/agent-setup', requirePermission('workspace:own'), async c => {
+    const actor = c.get('actor')
+    const workspaceId = actor.workspaceId
+    const asAgent =
+      workspaceId && actor.role === 'owner' ? await workspaceSetupActor(actor.actorId, 'page', workspaceId) : null
+    if (!workspaceId || !asAgent) return c.json({ ok: false, error: 'only the workspace owner sets it up' }, 403)
+    const progress = await setupProgress(asAgent, workspaceId)
+    return c.json({ ...(await agentSetupState(actor.actorId, workspaceId)), progress })
   })
 
   // Install setup by hand (install-setup.ts): where the walkthrough is, and whether a saved change waits for a restart.

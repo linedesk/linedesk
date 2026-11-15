@@ -10,6 +10,10 @@
 // the forwarding and the test call always act on the workspace shown.
 // Once everything is set up the page stays the way to change things: a new link for the agent, or the install
 // walkthrough step by step (Server admin › Providers on Cloud, where the walkthrough is off).
+// `scope="workspace"`: the same page for a workspace owner who is no server admin (a Linedesk Cloud customer). Their
+// link is for the active workspace only (agentSetup.createWorkspaceKey, GET /v1/workspace/agent-setup): the page shows
+// only that workspace's steps, no server part, no workspace dropdown and nothing of Server admin; setting up by hand
+// leads into the step-by-step onboarding.
 import {
   AGENT_SETUP_HASH,
   type AgentClient,
@@ -21,6 +25,7 @@ import {
   SETUP_KEY_HOURS,
   HOSTING_GUIDE_URL,
   installPlace,
+  type SetupScope,
   type SetupWorkspaceSummary,
   setupStepGroups,
   setupStepNames,
@@ -36,7 +41,8 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
-import { SETUP_LINK_KEY } from '../localData.ts'
+import { SETUP_LINK_KEY, signInAgain as signOutAndSignIn } from '../localData.ts'
+import { callAction } from '../settings/settings-api.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
@@ -53,6 +59,7 @@ import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
 import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
+import { loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
 import './agent-setup.css'
 
 export { choseManualSetup, rememberManual } from './setup-choice.ts'
@@ -81,25 +88,32 @@ const POLL_MS = 3000
  * The setup link made in this browser, kept until it ends: it expires, a new one is made, the admin ends agent access
  * or signs out (localData.ts). So a reload, another tab or picking another agent still shows the link and how to
  * start with it. The page shows it only while the server says this admin's working link is this one (AgentSetup).
- * In memory too, for private windows without storage.
+ * In memory too, for private windows without storage. One slot per link: the install link, and each workspace
+ * owner's link under its workspace's id (setupLinkSlot), so one workspace's page never holds another's link.
  */
-let shownKey: AgentSetupKeyCreated | null = null
+const shownKeys = new Map<string, AgentSetupKeyCreated>()
 const unexpired = (link: AgentSetupKeyCreated | null) => (link && Date.parse(link.expiresAt) > Date.now() ? link : null)
-function stillShown(): AgentSetupKeyCreated | null {
-  if (unexpired(shownKey)) return shownKey
+/** Where a link is kept: the install link at SETUP_LINK_KEY, a workspace owner's link under that workspace. */
+export const setupLinkSlot = (scope: SetupScope, workspaceId: string | null) =>
+  scope === 'workspace' ? `${SETUP_LINK_KEY}.workspace.${workspaceId ?? 'none'}` : SETUP_LINK_KEY
+function stillShown(slot: string): AgentSetupKeyCreated | null {
+  const inMemory = unexpired(shownKeys.get(slot) ?? null)
+  if (inMemory) return inMemory
+  shownKeys.delete(slot)
   try {
-    const saved = unexpired(JSON.parse(localStorage.getItem(SETUP_LINK_KEY) ?? 'null') as AgentSetupKeyCreated | null)
-    if (!saved) localStorage.removeItem(SETUP_LINK_KEY)
+    const saved = unexpired(JSON.parse(localStorage.getItem(slot) ?? 'null') as AgentSetupKeyCreated | null)
+    if (!saved) localStorage.removeItem(slot)
     return saved
   } catch {
     return null
   }
 }
-function keepShown(link: AgentSetupKeyCreated | null) {
-  shownKey = link
+function keepShown(slot: string, link: AgentSetupKeyCreated | null) {
+  if (link) shownKeys.set(slot, link)
+  else shownKeys.delete(slot)
   try {
-    if (link) localStorage.setItem(SETUP_LINK_KEY, JSON.stringify(link))
-    else localStorage.removeItem(SETUP_LINK_KEY)
+    if (link) localStorage.setItem(slot, JSON.stringify(link))
+    else localStorage.removeItem(slot)
   } catch {
     // Private windows: the link lasts while this page is open.
   }
@@ -120,35 +134,57 @@ type Props = {
    * admin there), and the test call and the forwarding check run in it. Picking another workspace switches it.
    */
   active?: SetupWorkspace
+  /**
+   * `workspace`: a workspace owner's page for the active workspace (`active` is required then, `workspaceName` names
+   * it): their own link and that workspace's steps only. Default `install`: an instance admin's.
+   */
+  scope?: SetupScope
+  workspaceName?: string
 }
 
-export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props) {
+export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope = 'install', workspaceName }: Props) {
   const t = useT()
+  const owner = scope === 'workspace'
   const [state, setState] = useState<AgentSetupState | null>(null)
   const activeId = active?.id ?? null
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [created, setShown] = useState<AgentSetupKeyCreated | null>(stillShown)
+  const slot = setupLinkSlot(scope, owner ? activeId : null)
+  const [created, setShown] = useState<AgentSetupKeyCreated | null>(() => stillShown(slot))
   // When the link on the page was set (0: kept from before), and when the shown state was asked for: only a state
   // asked for after the link was set can say it ended.
   const linkSetAt = useRef(0)
   const stateAskedAt = useRef(0)
-  const setCreated = useCallback((key: AgentSetupKeyCreated | null) => {
-    keepShown(key)
-    linkSetAt.current = Date.now()
-    setShown(key)
-  }, [])
+  const setCreated = useCallback(
+    (key: AgentSetupKeyCreated | null) => {
+      keepShown(slot, key)
+      linkSetAt.current = Date.now()
+      setShown(key)
+    },
+    [slot],
+  )
+  // Another workspace in this tab: its own link (or none), never the one before.
+  const shownSlot = useRef(slot)
+  useEffect(() => {
+    if (shownSlot.current === slot) return
+    shownSlot.current = slot
+    linkSetAt.current = 0
+    setShown(stillShown(slot))
+  }, [slot])
 
   const [client, setClient] = useState<AgentClient>(savedClient)
   const [busy, setBusy] = useState<'create' | 'end' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // A workspace owner's link needs a sign-in from the last 10 minutes (the server's SIGN_IN_AGAIN).
+  const [signInFirst, setSignInFirst] = useState(false)
   // The passkey check ran out (12 hours): the page turns into the passkey prompt, never an error line.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
-  useEffect(() => watchAdminSignIn(setSignInAgain), [])
+  // Server admin's passkey check: not the owner's page, which is no part of Server admin.
+  useEffect(() => (owner ? undefined : watchAdminSignIn(setSignInAgain)), [owner])
 
   const load = useCallback(async () => {
     try {
       const asked = Date.now()
-      const next = await loadAgentSetup(activeId)
+      const next = owner ? await loadWorkspaceAgentSetup() : await loadAgentSetup(activeId)
       if (asked < stateAskedAt.current) return // an older answer that arrived late
       stateAskedAt.current = asked
       setState(next)
@@ -156,7 +192,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.read'))
     }
-  }, [activeId, t])
+  }, [activeId, owner, t])
   // The agent works in another window: show its progress as it goes (only while this tab is visible).
   useEffect(() => {
     void load()
@@ -185,10 +221,16 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
   const createKey = async () => {
     setBusy('create')
     setError(null)
+    setSignInFirst(false)
     try {
-      setCreated((await runAdmin('agentSetup.createKey', {})) as AgentSetupKeyCreated)
+      setCreated(
+        owner
+          ? await callAction<AgentSetupKeyCreated>('agentSetup.createWorkspaceKey')
+          : ((await runAdmin('agentSetup.createKey', {})) as AgentSetupKeyCreated),
+      )
       await load()
     } catch (e) {
+      if ((e as { code?: unknown }).code === 'SIGN_IN_AGAIN') return setSignInFirst(true)
       setError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.create'))
     } finally {
       setBusy(null)
@@ -198,7 +240,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     setBusy('end')
     setError(null)
     try {
-      await runAdmin('agentSetup.revoke', {})
+      if (owner) await callAction('agentSetup.revokeWorkspace')
+      else await runAdmin('agentSetup.revoke', {})
       setCreated(null)
       await load()
     } catch (e) {
@@ -208,13 +251,15 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     }
   }
   const manual = () => {
+    // The owner's choice is kept by the page around this one (setup-choice.ts, per workspace).
+    if (owner) return onManual(false)
     rememberManual(true)
     onManual(state ? installPartsMissing(state.progress.steps) : false)
   }
   // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
   // first part, nothing saved is reset; off on Cloud, where Server admin › Providers is the way by hand).
   const allDone = state?.progress.allDone ?? false
-  const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
+  const install = useQuery(owner ? null : ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
   const stepByStep = () => {
     if (install?.enabled === false) window.location.hash = '#admin/providers'
     else openInstallSetup({ from: 'start' })
@@ -271,21 +316,33 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
             </SkeletonPart>
           ) : allDone ? (
             <>
-              <h1>{t('onboarding.agentSetup.changeTitle', { brand: brandName() })}</h1>
+              <h1>
+                {owner
+                  ? t('onboarding.agentSetup.owner.changeTitle', { workspace: workspaceName ?? brandName() })
+                  : t('onboarding.agentSetup.changeTitle', { brand: brandName() })}
+              </h1>
               <p className="ob-lede">{t('onboarding.agentSetup.changeLede')}</p>
             </>
           ) : (
             <>
-              <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
+              <h1>
+                {owner
+                  ? t('onboarding.agentSetup.owner.title', { workspace: workspaceName ?? brandName() })
+                  : t('onboarding.agentSetup.title', { brand: brandName() })}
+              </h1>
               <p className="ob-lede">
-                <T k="onboarding.agentSetup.lede" values={{ b: chunks => <b>{chunks}</b> }} />
+                <T
+                  k={owner ? 'onboarding.agentSetup.owner.lede' : 'onboarding.agentSetup.lede'}
+                  values={{ b: chunks => <b>{chunks}</b> }}
+                />
               </p>
             </>
           )}
         </div>
 
-        {/* Before the state is read, this page's own address stands for the server's: the note shows at once. */}
-        <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />
+        {/* Before the state is read, this page's own address stands for the server's: the note shows at once. Where
+            the server runs is its admin's business, not a workspace owner's. */}
+        {!owner && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
 
         <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
           <ol className="as-steps">
@@ -294,7 +351,9 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                 {t('onboarding.agentSetup.link.title')}
                 <HelpTip
                   label={t('onboarding.agentSetup.link.helpLabel')}
-                  text={t('onboarding.agentSetup.link.help', { hours: SETUP_KEY_HOURS })}
+                  text={t(owner ? 'onboarding.agentSetup.owner.linkHelp' : 'onboarding.agentSetup.link.help', {
+                    hours: SETUP_KEY_HOURS,
+                  })}
                 />
               </b>
               <AgentPicker client={client} onPick={pick} />
@@ -328,7 +387,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                     </Button>
                   </div>
                   {created ? (
-                    <StartAgent client={client} url={created.url} />
+                    <StartAgent client={client} url={created.url} scope={scope} />
                   ) : (
                     <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
                   )}
@@ -351,6 +410,19 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
               )}
             </li>
           </ol>
+          {signInFirst && (
+            <Note
+              tone="warning"
+              title={t('onboarding.agentSetup.owner.signInFirst.title')}
+              action={
+                <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signOutAndSignIn()}>
+                  {t('account.signInAgain.button')}
+                </Button>
+              }
+            >
+              {t('onboarding.agentSetup.owner.signInFirst.text')}
+            </Note>
+          )}
           {error && <Note tone="danger">{error}</Note>}
         </section>
 
@@ -362,9 +434,10 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
             active={active ?? null}
             reload={load}
             fadeIn={view.fadeIn}
+            single={owner}
           />
         ) : skeleton ? (
-          <ProgressSkeleton reserved={reserved} />
+          <ProgressSkeleton reserved={reserved} single={owner} />
         ) : (
           <LoadProblem
             what={t('onboarding.agentSetup.progressWhat')}
@@ -378,7 +451,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
             <SkeletonPart reserved={reserved}>
               <Skeleton shape="text" width={132} />
             </SkeletonPart>
-          ) : allDone ? (
+          ) : allDone && owner ? null : allDone ? (
             <button
               type="button"
               className="as-manual"
@@ -423,8 +496,10 @@ export function stepSkeletonRow(id: string): { label: number; action?: number } 
 }
 
 /** The setup checklist while its first state is read: its card, head, group headings, dropdown and rows. */
-export function ProgressSkeleton({ reserved }: { reserved: boolean }) {
+export function ProgressSkeleton({ reserved, single = false }: { reserved: boolean; single?: boolean }) {
   const t = useT()
+  // A workspace owner's page: the workspace's part only.
+  const groups = single ? setupStepGroups.filter(g => g.id === 'business') : setupStepGroups
   return (
     <section className="as-card as-progress" aria-label={t('onboarding.agentSetup.progress.label')}>
       <SkeletonPart reserved={reserved}>
@@ -432,7 +507,7 @@ export function ProgressSkeleton({ reserved }: { reserved: boolean }) {
           <Skeleton shape="text" width={176} />
           <Skeleton shape="text" width={72} />
         </div>
-        {setupStepGroups.map(group => (
+        {groups.map(group => (
           <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
             {group.id === 'business' ? (
               <div className="as-ws-head">
@@ -462,6 +537,7 @@ function Progress({
   active,
   reload,
   fadeIn,
+  single = false,
 }: {
   state: AgentSetupState
   connected: boolean
@@ -470,6 +546,8 @@ function Progress({
   reload: () => Promise<void>
   /** The state just arrived after the skeleton: the card fades in. */
   fadeIn: boolean
+  /** A workspace owner's page: one workspace, named, with no dropdown (no switching, no new workspace). */
+  single?: boolean
 }) {
   const t = useT()
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
@@ -557,7 +635,9 @@ function Progress({
       {/* By part of the setup: the admin's own, the server's (once per install), then the picked workspace's. */}
       {stepsByGroup(steps).map(group => (
         <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
-          {group.id === 'business' ? (
+          {group.id === 'business' && single ? (
+            <WorkspaceHeading name={selected?.name ?? ''} />
+          ) : group.id === 'business' ? (
             <WorkspacePicker
               workspaces={state.progress.workspaces ?? []}
               selectedId={selected?.id ?? null}
@@ -684,6 +764,17 @@ export function WorkspacePicker({
   )
 }
 
+/** The heading of the workspace steps on a workspace owner's page: their one workspace, by name. */
+export function WorkspaceHeading({ name }: { name: string }) {
+  const t = useT()
+  return (
+    <div className="as-ws-head" id="as-group-business">
+      <span className="as-group-label">{t('onboarding.agentSetup.workspace.label')}</span>
+      <b className="as-ws-name">{name}</b>
+    </div>
+  )
+}
+
 /** The agent ended its own access at the end of the setup (setup_endAccess): when, in this browser's time. */
 export function AgentEndedNote({ at }: { at: string }) {
   const t = useT()
@@ -797,9 +888,17 @@ export function StepAction({
  * button comes first and the command or prompt to copy waits behind a quiet "Or …" (opened on request). Elsewhere the
  * steps are the way: one command or link where the agent connects itself, the prompt to copy where pasting it is.
  */
-export function StartAgent({ client, url }: { client: AgentClient; url: string }) {
+export function StartAgent({
+  client,
+  url,
+  scope = 'install',
+}: {
+  client: AgentClient
+  url: string
+  scope?: SetupScope
+}) {
   const t = useT()
-  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url)
+  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url, scope)
   const promptToCopy = (primary: boolean) => (
     <>
       <pre className="as-prompt">{prompt}</pre>

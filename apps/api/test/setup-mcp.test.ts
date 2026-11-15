@@ -1568,11 +1568,12 @@ describe('the agent ends its own access', () => {
     // An actor holding a key id that is not its own working key: nothing changes.
     const otherAdmin = await newAdmin()
     const theirs = await makeKey(otherAdmin)
+    // As a setup key's actor is (setupActor): ending its own link is setupLink:end.
     const forged: Actor = {
       actorId: admin.userId,
       role: 'owner',
       workspaceId: null,
-      permissions: ['instance:admin'],
+      permissions: ['instance:admin', 'setupLink:end'],
       setupKeyId: theirs.keyId,
     }
     const res = await runAction('agentSetup.endOwnAccess', {}, forged)

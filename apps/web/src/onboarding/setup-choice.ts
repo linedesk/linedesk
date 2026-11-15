@@ -19,3 +19,44 @@ export function rememberManual(on: boolean) {
     // Not saved (offline, signed out): the choice lasts this page only.
   })
 }
+
+// A workspace owner who is no server admin (2026-11-15): their onboarding starts with the AI agent too, with a setup
+// link for their one workspace (agentSetup.createWorkspaceKey); setting up by hand leads into the step-by-step
+// onboarding. Their choice is kept per workspace in this browser: the server keeps nothing for it, and a new browser
+// simply offers the agent first again (one click to go by hand).
+const OWNER_BY_HAND = 'linedesk.ownerSetup.byHand.'
+
+/** Whether this owner chose to set up this workspace by hand: in this tab just now, or before in this browser. */
+export function ownerChoseByHand(workspaceId: string, here: boolean): boolean {
+  if (here) return true
+  try {
+    return localStorage.getItem(OWNER_BY_HAND + workspaceId) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Remembers (or forgets, `on` false: back to the agent) the owner's choice for this workspace in this browser. */
+export function rememberOwnerByHand(workspaceId: string, on: boolean) {
+  try {
+    if (on) localStorage.setItem(OWNER_BY_HAND + workspaceId, '1')
+    else localStorage.removeItem(OWNER_BY_HAND + workspaceId)
+  } catch {
+    // Private windows: the choice lasts this page only.
+  }
+}
+
+/**
+ * Whether the owner's agent setup page shows instead of the app: for the workspace's owner (only the owner, one per
+ * workspace; admins of it keep the step-by-step onboarding), signed in as themselves, with a confirmed address (making
+ * the link needs one, like an API key), in a workspace that is not disabled; never for a server admin, who has the
+ * install's own agent setup. It opens on #setup-agent, and on its own while onboarding is open unless they chose by hand.
+ */
+export function ownerAgentSetupDue(
+  me: Pick<Me, 'role' | 'onboarding' | 'impersonation' | 'emailUnconfirmed' | 'workspace'>,
+  { instanceAdmin, hashOpen, byHand }: { instanceAdmin: boolean; hashOpen: boolean; byHand: boolean },
+): boolean {
+  if (instanceAdmin || me.role !== 'owner' || me.impersonation || me.emailUnconfirmed || me.workspace?.disabled)
+    return false
+  return hashOpen || (Boolean(me.onboarding) && !byHand)
+}

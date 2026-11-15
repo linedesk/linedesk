@@ -59,13 +59,24 @@ const ACCOUNT_KEY = 'linedesk-account'
 const SEEN_INVITATIONS_KEY = 'linedesk.seenInvitations'
 /**
  * The setup link this browser made (onboarding/AgentSetup.tsx), kept until it ends. Not part of forgetLocalData: an
- * admin without a workspace passes through that on every load. Signing out ends it here.
+ * admin without a workspace passes through that on every load. Signing out ends it here, and every workspace owner's
+ * link kept under it (`linedesk.setup.link.workspace.<id>`).
  */
 export const SETUP_LINK_KEY = 'linedesk.setup.link'
 
 function forgetKeys(keys: string[]) {
   try {
     for (const key of keys) localStorage.removeItem(key)
+  } catch {
+    /* private window: nothing was stored */
+  }
+}
+
+/** Every setup link this browser kept: the install link and each workspace owner's (AgentSetup.tsx setupLinkSlot). */
+function forgetSetupLinks() {
+  try {
+    const kept = Object.keys(localStorage).filter(k => k === SETUP_LINK_KEY || k.startsWith(`${SETUP_LINK_KEY}.`))
+    forgetKeys(kept)
   } catch {
     /* private window: nothing was stored */
   }
@@ -88,7 +99,7 @@ export async function signOutAndForget() {
   await auth.signOut()
   setReportedMember(null)
   await forgetLocalData()
-  forgetKeys([SETUP_LINK_KEY])
+  forgetSetupLinks()
   forgetEnrolmentCode()
 }
 

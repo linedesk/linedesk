@@ -8,6 +8,7 @@ import { invitation, member, organization, type Tx, user, user_avatars, workspac
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { insertAuthEvent, invitationSubject, memberSubject } from './audit.ts'
+import { revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
 import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
@@ -189,6 +190,9 @@ async function lockedOwner(tx: Tx, workspaceId: string) {
 export async function makeOwner(tx: Tx, target: { id: string; organizationId: string }, previousOwnerId: string | null) {
   if (previousOwnerId) await tx.update(member).set({ role: 'admin' }).where(eq(member.id, previousOwnerId))
   await tx.update(member).set({ role: 'owner' }).where(eq(member.id, target.id))
+  // The owner before loses their workspace setup links for good (security review #822 F1): a link must not come back
+  // if the workspace is handed back within its hours. The new owner never made one here (only owners make them).
+  await revokeWorkspaceSetupKeys(tx, target.organizationId, 'owner_lost')
   // A server admin giving an ownerless workspace its owner (membership.setRole) starts the setup emails' clock.
   await ownerJoined(tx, target.organizationId, 'owner', new Date().toISOString())
   await tx.update(invitation).set({ status: 'canceled' })

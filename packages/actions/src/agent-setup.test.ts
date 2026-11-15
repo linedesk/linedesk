@@ -9,6 +9,7 @@ import {
   reachableFromCloud,
   SETUP_KEY_HOURS,
   SETUP_MCP_INSTRUCTIONS,
+  SETUP_MCP_WORKSPACE_INSTRUCTIONS,
   setupStepNames,
   shellQuote,
   startPlan,
@@ -171,5 +172,30 @@ describe('setup step names', () => {
     expect(SETUP_MCP_INSTRUCTIONS).toMatch(/takes workspaceId/)
     expect(SETUP_MCP_INSTRUCTIONS).toMatch(/owner or admin; any other id is refused/)
     expect(SETUP_MCP_INSTRUCTIONS).not.toMatch(/workspace_create makes only that one|afterwards in the app/)
+  })
+})
+
+describe("a workspace owner's link: only the business, never the server", () => {
+  test('every way to start says business, never server, and asks for no provider account or key', () => {
+    for (const client of agentClients) {
+      const plan = startPlan(client, URL, 'workspace')
+      const all = JSON.stringify(plan)
+      expect(all, client).not.toMatch(/on my server|provider_setKeys|phone carrier and an AI provider|workspace_create/)
+      expect(plan.prompt, client).toMatch(/set up my business/)
+      expect(plan.prompt, client).toMatch(/setup_endAccess/)
+    }
+    // The command start carries the business prompt too, and the setup key stays out of any website link.
+    expect(startPlan('claude_code', URL, 'workspace').steps[0]!.code).toMatch(/set up my business in Linedesk/)
+    expect(startPlan('claude', URL, 'workspace').steps.at(-1)!.link!.href).not.toContain('lds_')
+    // The admin's own prompt is unchanged.
+    expect(startPlan('claude_code', URL).prompt).toBe(agentSetupPrompt(URL))
+    expect(agentSetupPrompt(URL)).toMatch(/on my server/)
+  })
+
+  test('the setup server instructions for a workspace key name no server step or provider key', () => {
+    expect(SETUP_MCP_WORKSPACE_INSTRUCTIONS).not.toMatch(/provider_setKeys|provider_connectOneKey|workspace_create|Telnyx API key/)
+    expect(SETUP_MCP_WORKSPACE_INSTRUCTIONS).toMatch(/this one workspace only/)
+    expect(SETUP_MCP_WORKSPACE_INSTRUCTIONS).toMatch(new RegExp(`${SETUP_KEY_HOURS} hours`))
+    expect(SETUP_MCP_WORKSPACE_INSTRUCTIONS).not.toBe(SETUP_MCP_INSTRUCTIONS)
   })
 })

@@ -13,7 +13,7 @@
 //   session is no passkey sign-in, so changing passkeys and the admin step-ups still need one
 //   (passkeys.ts, admin-step-up.ts);
 // - the account is told by email, and the audit log has it.
-import { account, session, user } from '@linedesk/db'
+import { account, type SetupKeyEndReason, session, user } from '@linedesk/db'
 import { APIError, type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { and, eq, sql } from 'drizzle-orm'
 import { dropUnprovenAccessOf } from './account-linking.ts'
@@ -120,6 +120,26 @@ export function sameAnswerForRefusedCodes(ctx: Ctx) {
   if (!isAPIError(returned)) return
   const code = (returned.body as { code?: unknown } | undefined)?.code
   if (code === 'OTP_EXPIRED' || code === 'TOO_MANY_ATTEMPTS') throw refusedCode()
+}
+
+/**
+ * The signed-in person's own endpoints that end their other sessions, and why each ends their setup links too
+ * (security review #822 F2): a link acts as them for hours, so "sign out everywhere else" and a new password must end
+ * it as well. Better Auth's `/revoke-session` (one device) is left alone. Setting a first password (account.ts) ends
+ * them itself.
+ */
+const SETUP_LINKS_END_ON: Record<string, SetupKeyEndReason> = {
+  '/change-password': 'password_changed',
+  '/revoke-other-sessions': 'sessions_ended',
+  '/revoke-sessions': 'sessions_ended',
+}
+
+/** After one of SETUP_LINKS_END_ON succeeded: every setup link (install and workspace) of that person ends. */
+export async function endSetupLinksAfterSessionChange(ctx: Ctx) {
+  const reason = SETUP_LINKS_END_ON[ctx.path]
+  if (!reason || isAPIError(ctx.context.returned)) return
+  const userId = (ctx.context.session as { user?: { id?: string } } | null)?.user?.id
+  if (userId) await revokeSetupKeysOf(db, userId, reason)
 }
 
 /**

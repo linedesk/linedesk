@@ -90,6 +90,20 @@ export async function revokeSetupKeysOf(tx: Tx, userId: string, reason: SetupKey
   return ended.length
 }
 
+/**
+ * Ends every working workspace setup link for one workspace (agent_setup_keys.workspace_id): when it is handed to
+ * another owner or disabled. Ended for good, so a link never works again when the owner or the workspace comes back
+ * within its hours. Install links are not touched. Returns how many were working.
+ */
+export async function revokeWorkspaceSetupKeys(tx: Tx, workspaceId: string, reason: SetupKeyEndReason): Promise<number> {
+  const ended = await tx
+    .update(agent_setup_keys)
+    .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
+    .where(and(eq(agent_setup_keys.workspace_id, workspaceId), isNull(agent_setup_keys.revoked_at)))
+    .returning({ id: agent_setup_keys.id })
+  return ended.length
+}
+
 export type PasskeysRemoved = { removed: number; sessionsEnded: number; setupLinksEnded: number }
 
 /**

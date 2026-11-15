@@ -47,6 +47,7 @@ import {
   issuePasskeyEnrolment,
   removeAllPasskeys,
   revokeSetupKeysOf,
+  revokeWorkspaceSetupKeys,
 } from './passkey-enrolment.ts'
 import {
   clearProviderKeys,
@@ -148,6 +149,8 @@ async function setWorkspaceDisabled(tx: Tx, workspaceId: string, disabledAt: Dat
     .where(eq(organization.id, workspaceId))
     .returning({ id: organization.id })
   if (!workspace) throw new Reject('workspace not found')
+  // Its owner's setup link ends for good: enabling the workspace again does not bring it back (review #822 F1).
+  if (disabledAt) await revokeWorkspaceSetupKeys(tx, workspaceId, 'workspace_disabled')
   return { rows: {}, data: { workspaceId, disabled_at: disabledAt?.toISOString() ?? null } }
 }
 

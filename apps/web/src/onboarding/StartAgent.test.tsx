@@ -65,3 +65,15 @@ describe('StartAgent: the open link first where there is one', () => {
     expect(at(claude, /Add custom connector/)).toBeLessThan(at(claude, />Open Claude</))
   })
 })
+
+describe("StartAgent for a workspace owner's link", () => {
+  test('the same way to start, with the business prompt: nothing about the server', () => {
+    for (const client of agentClients) {
+      const html = renderToStaticMarkup(<StartAgent client={client} url={URL} scope="workspace" />)
+      expect(html, client).not.toMatch(/on my server|provider_setKeys/)
+    }
+    expect(renderToStaticMarkup(<StartAgent client="other" url={URL} scope="workspace" />)).toMatch(
+      /set up my business in Linedesk/,
+    )
+  })
+})

@@ -6,6 +6,8 @@ import type { Context } from 'hono'
 import { authMethods } from './auth-methods.ts'
 import { auth } from './auth.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { db } from './db.ts'
+import { revokeSetupKeysOf } from './passkey-enrolment.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
 export const RECENT_SIGN_IN_MS = 10 * 60_000
@@ -37,5 +39,7 @@ export async function setFirstPassword(c: Context) {
   }
   // Anyone else holding a session of this account is signed out.
   await auth.api.revokeOtherSessions({ headers })
+  // And their setup links: a password set from a session someone else may hold ends those too (review #822 F2).
+  await revokeSetupKeysOf(db, session.user.id, 'password_changed')
   return c.json({ ok: true })
 }

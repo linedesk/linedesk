@@ -31,6 +31,7 @@ const INSTANCE_WIDE_FILES = [
   'test/setup-checklist.test.ts',
   'test/provider-failures.test.ts',
   'test/setup-mcp.test.ts',
+  'test/setup-mcp-workspace.test.ts',
   'test/workspace-limit-retired.test.ts',
   'test/workspace-create-cli.test.ts',
   'test/install-setup.test.ts',

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../admin/api.ts', () => ({ runAdmin: vi.fn(async () => ({})) }))
-const { choseManualSetup, rememberManual } = await import('./setup-choice.ts')
+const { choseManualSetup, ownerAgentSetupDue, ownerChoseByHand, rememberManual, rememberOwnerByHand } = await import(
+  './setup-choice.ts'
+)
 const { runAdmin } = await import('../admin/api.ts')
 
 beforeEach(() => {
@@ -52,5 +54,44 @@ describe('set up by hand: the choice belongs to the admin and the install', () =
     vi.mocked(runAdmin).mockRejectedValueOnce(new Error('offline'))
     expect(() => rememberManual(true)).not.toThrow()
     await Promise.resolve()
+  })
+})
+
+describe("a workspace owner's setup: the agent first, by hand as the alternative", () => {
+  const onboarding = {
+    step: 'business' as const,
+    phone: { provider: null, available: false, detail: null, canAttach: false },
+  }
+  const owner = { role: 'owner', onboarding, impersonation: null, workspace: { id: 'ws_1', name: 'Brightwater' } }
+  const due = (
+    me: Partial<typeof owner> & Record<string, unknown>,
+    more: Partial<{ instanceAdmin: boolean; hashOpen: boolean; byHand: boolean }> = {},
+  ) =>
+    ownerAgentSetupDue({ ...owner, ...me } as never, { instanceAdmin: false, hashOpen: false, byHand: false, ...more })
+
+  it('opens for the owner while onboarding is open, and on #setup-agent', () => {
+    expect(due({})).toBe(true)
+    expect(due({ onboarding: null } as never)).toBe(false)
+    expect(due({ onboarding: null } as never, { hashOpen: true })).toBe(true)
+    expect(due({}, { byHand: true })).toBe(false)
+  })
+
+  it('never for an admin or member of the workspace, a server admin, an impersonation, an unconfirmed address or a disabled workspace', () => {
+    expect(due({ role: 'admin' })).toBe(false)
+    expect(due({ role: 'member' }, { hashOpen: true })).toBe(false)
+    expect(due({}, { instanceAdmin: true, hashOpen: true })).toBe(false)
+    expect(due({ impersonation: { by: 'x' } } as never)).toBe(false)
+    expect(due({ emailUnconfirmed: true } as never)).toBe(false)
+    expect(due({ workspace: { id: 'ws_1', name: 'B', disabled: true } } as never)).toBe(false)
+  })
+
+  it('remembers by hand per workspace in this browser, and forgets it again', () => {
+    expect(ownerChoseByHand('ws_1', false)).toBe(false)
+    expect(ownerChoseByHand('ws_1', true)).toBe(true)
+    rememberOwnerByHand('ws_1', true)
+    expect(ownerChoseByHand('ws_1', false)).toBe(true)
+    expect(ownerChoseByHand('ws_2', false)).toBe(false)
+    rememberOwnerByHand('ws_1', false)
+    expect(ownerChoseByHand('ws_1', false)).toBe(false)
   })
 })

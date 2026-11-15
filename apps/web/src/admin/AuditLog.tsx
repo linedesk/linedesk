@@ -179,6 +179,10 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return t('admin.audit.agentSetupCreateKey')
     case 'agentSetup.revoke':
       return t('admin.audit.agentSetupRevoke')
+    case 'agentSetup.createWorkspaceKey':
+      return t('admin.audit.agentSetupCreateWorkspaceKey')
+    case 'agentSetup.revokeWorkspace':
+      return t('admin.audit.agentSetupRevokeWorkspace')
     // The Allow step, gone since the one-level setup link; past entries still show.
     case 'agentSetup.confirmPasskey':
       return t('admin.audit.agentSetupConfirmPasskey')

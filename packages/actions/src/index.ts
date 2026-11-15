@@ -202,6 +202,8 @@ const all = [
   agentSetup.agentSetupCreateKey,
   agentSetup.agentSetupRevoke,
   agentSetup.agentSetupEndOwnAccess,
+  agentSetup.agentSetupCreateWorkspaceKey,
+  agentSetup.agentSetupRevokeWorkspace,
   admin.providerSetKeys,
   admin.providerClearKeys,
   admin.providerSetActive,

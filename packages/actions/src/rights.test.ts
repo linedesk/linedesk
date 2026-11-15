@@ -205,7 +205,13 @@ const expectedRights: Record<Right, readonly string[]> = {
     'invitation.revoke',
     'invitation.resend',
   ],
-  owner: ['workspace.deleteOwn', 'workspace.deletePreview', 'team.transferOwnership'],
+  owner: [
+    'workspace.deleteOwn',
+    'workspace.deletePreview',
+    'team.transferOwnership',
+    'agentSetup.createWorkspaceKey',
+    'agentSetup.revokeWorkspace',
+  ],
   impersonation: ['impersonation.stop'],
   account: ['invitation.listMine', 'invitation.accept', 'invitation.decline'],
 }
@@ -241,8 +247,10 @@ describe('workspace rights', () => {
     }
   })
 
-  it('only the owner deletes the workspace or hands it over', () => {
+  it('only the owner deletes the workspace, hands it over or gives an AI agent a setup link for it', () => {
     expect([...expectedRights.owner].sort()).toEqual([
+      'agentSetup.createWorkspaceKey',
+      'agentSetup.revokeWorkspace',
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',

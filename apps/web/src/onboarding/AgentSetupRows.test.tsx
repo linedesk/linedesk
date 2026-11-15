@@ -4,9 +4,11 @@ import { expect, test } from 'vitest'
 import {
   AgentEndedNote,
   NEW_WORKSPACE,
+  ProgressSkeleton,
   StepAction,
   WorkspacePicker,
   withTestCallMade,
+  WorkspaceHeading,
   workspaceOptions,
 } from './AgentSetup.tsx'
 import type { ResumeAction } from './resume-after-switch.ts'
@@ -131,4 +133,15 @@ test('after the reload into the clicked workspace the row carries on by itself: 
   expect(row(step('test_call', 'admin_only'), workspace, null, { resume: 'test_call' })).toMatch(/aria-busy="true"/)
   // Only the row it was clicked on.
   expect(row(step('forwarding', 'todo'), workspace, null, { resume: 'test_call' })).not.toMatch(/aria-busy="true"/)
+})
+
+test("a workspace owner's page names its one workspace: no dropdown, no New workspace, no server part", () => {
+  const heading = renderToStaticMarkup(<WorkspaceHeading name="Brightwater Plumbing & Heating" />)
+  expect(heading).toContain('Workspace')
+  expect(heading).toContain('as-ws-name')
+  expect(heading).not.toContain('k-select')
+  expect(heading).not.toContain('New workspace')
+  const skeleton = renderToStaticMarkup(<ProgressSkeleton reserved={false} single />)
+  expect(skeleton).not.toContain('This server')
+  expect(renderToStaticMarkup(<ProgressSkeleton reserved={false} />)).toContain('This server')
 })

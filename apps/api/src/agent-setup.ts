@@ -18,6 +18,15 @@
 // an agent still using it gets 401 SETUP_KEY_ENDED with a coarse reason (setupKeyAccess), which does not count towards
 // the address's limit on unknown keys. Removing the admin role ends them too. At the end of the setup the agent ends
 // its own key (agentSetup.endOwnAccess, setup MCP setup_endAccess): that key only, nothing else.
+//
+// Workspace keys (2026-11-15): a workspace owner who is no server admin (a Linedesk Cloud customer) sets up their one
+// business with an agent too. agentSetup.createWorkspaceKey makes a key with agent_setup_keys.workspace_id set to the
+// session's workspace. It acts as the owner in that workspace only (workspaceSetupActor, setupActorIn): no
+// instance:admin, no server step or tool (setup-mcp.ts leaves them out), any other workspaceId refused, and run-action.ts
+// refuses everything outside the workspace once more. It works while its maker is still that workspace's owner, the
+// account and the workspace are not disabled, and its 4 hours last; the same one-link-per-person rule, End access
+// (agentSetup.revokeWorkspace), the agent's own end, the same revocations (revokeSetupKeysOf) and the command log with
+// the key's id (audit log). Owners need no passkey for it (like API keys); a confirmed email address (run-action.ts).
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AgentSetupKeyCreated,
@@ -28,7 +37,7 @@ import {
   SETUP_KEY_PREFIX,
 } from '@linedesk/actions'
 import { agent_setup_keys, member, organization, user } from '@linedesk/db'
-import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { addressBucket } from './client-ip.ts'
@@ -58,6 +67,8 @@ export const setupMcpUrl = () => `${webAddress()}/mcp/setup`
 /** Per key, working or ended, checked in setupKeyAccess before any other work on it. */
 const allowRequest = createRateLimiter({ max: SETUP_KEY_REQUESTS_PER_MINUTE, windowMs: 60_000 })
 /** Unknown setup keys per address: 10 in 10 minutes, then unknown keys from that address get a 429 (a working key never). */
+/** Workspace setup links one owner may make (security review #822 F6): each ends the one before, so this is only a brake. */
+const allowWorkspaceKeyMint = createRateLimiter({ max: 10, windowMs: 10 * 60_000 })
 const refused = createFailureLimiter({ max: 10, windowMs: 10 * 60_000 })
 export const tooManyRefusedSetupKeys = (ip: string | null) => refused.blocked(addressBucket(ip))
 
@@ -93,13 +104,49 @@ export async function setupActor(
     actorId: userId,
     role: 'member',
     workspaceId: null,
-    permissions: ['instance:admin'],
+    // setupLink:end: the agent ends its own link (agentSetup.endOwnAccess) without the passkey check.
+    permissions: ['instance:admin', 'setupLink:end'],
     setupKeyId: keyId,
     // A key made in a session that passed the admin's passkey check carries that check for its 4 hours
     // (keyPasskeyConfirmed). setup-mcp.ts keeps it to the provider and install tools.
     ...(passkeyConfirmed ? { passkeyConfirmed: true as const } : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
   }
+}
+
+/**
+ * The actor of a workspace key (agent_setup_keys.workspace_id): its maker, while still the owner of that workspace,
+ * with no permission of its own besides ending its link. Like setupActor it is in no workspace: every business tool
+ * names it (setupActorIn, which allows only this one). Null when the account is gone or disabled, the maker is no
+ * longer that workspace's owner, or the workspace is disabled or gone: the key then answers as ended.
+ */
+export async function workspaceSetupActor(userId: string, keyId: string, workspaceId: string): Promise<Actor | null> {
+  const [found] = await db
+    .select({ disabledAt: user.disabledAt, emailVerified: user.emailVerified, role: member.role })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId), isNull(organization.disabledAt)))
+  if (!found || found.disabledAt || found.role !== 'owner') return null
+  return {
+    actorId: userId,
+    role: 'member',
+    workspaceId: null,
+    permissions: ['setupLink:end'],
+    setupKeyId: keyId,
+    setupWorkspaceId: workspaceId,
+    ...(mustConfirmEmail(found.emailVerified) ? { emailUnverified: true as const } : {}),
+  }
+}
+
+/**
+ * The workspaces a setup key may set up: for an install key, every one its admin manages (managedWorkspaces); for a
+ * workspace key, only its own, and only while its maker is still the owner there.
+ */
+export async function setupWorkspaces(actor: Actor): Promise<ManagedWorkspace[]> {
+  const all = await managedWorkspaces(actor.actorId)
+  if (!actor.setupWorkspaceId) return all
+  return all.filter(w => w.id === actor.setupWorkspaceId && w.role === 'owner')
 }
 
 /**
@@ -115,7 +162,9 @@ export const keyPasskeyConfirmed = (row: { passkey_confirmed_until: string | nul
  * owner or admin of `workspaceId` (or it is disabled): the agent never reaches another workspace.
  */
 export async function setupActorIn(actor: Actor, workspaceId: string): Promise<Actor | null> {
-  const ws = (await managedWorkspaces(actor.actorId)).find(w => w.id === workspaceId)
+  // A workspace key: its own workspace only (setupWorkspaces checks the owner role again).
+  if (actor.setupWorkspaceId && workspaceId !== actor.setupWorkspaceId) return null
+  const ws = (await setupWorkspaces(actor)).find(w => w.id === workspaceId)
   if (!ws) return null
   const { passkeyConfirmed: _, ...rest } = actor
   return {
@@ -183,18 +232,37 @@ export async function setupKeyAccess(key: string, ip: string | null): Promise<Se
   if (row.revoked_at) return { kind: 'ended', reason: shownEndReason(row.ended_reason) }
   const now = new Date().toISOString()
   if (new Date(row.expires_at).getTime() <= Date.parse(now)) return { kind: 'ended', reason: 'expired' }
+  // A workspace owner's key: that workspace only, never instance admin rights, so the server's passkey rule is not its.
+  if (row.workspace_id) {
+    const actor = await workspaceSetupActor(row.created_by, row.id, row.workspace_id)
+    if (!actor) {
+      // Ended for good: the link must not work again if the owner role or the workspace comes back (review #822 F1).
+      await db
+        .update(agent_setup_keys)
+        .set({ revoked_at: now, ended_reason: 'owner_lost' })
+        .where(and(eq(agent_setup_keys.id, row.id), isNull(agent_setup_keys.revoked_at)))
+      return { kind: 'ended', reason: 'ended' }
+    }
+    noteUse(row, now)
+    return { kind: 'ok', actor }
+  }
   // Made without the passkey check (ADMIN_SECOND_FACTOR=off then) while the rule is on now: the link does not work.
   const passkeyConfirmed = keyPasskeyConfirmed(row)
   if (!passkeyConfirmed && adminSecondFactorRequired()) return { kind: 'ended', reason: 'ended' }
   const actor = await setupActor(row.created_by, row.id, { passkeyConfirmed })
   if (!actor) return { kind: 'ended', reason: 'ended' }
+  noteUse(row, now)
+  return { kind: 'ok', actor }
+}
+
+/** Notes when a key was last used (the setup page's "connected"), at most once a minute. */
+function noteUse(row: { id: string; last_used_at: string | null }, now: string) {
   if (!row.last_used_at || Date.now() - Date.parse(row.last_used_at) > LAST_USED_EVERY_MS)
     void db
       .update(agent_setup_keys)
       .set({ last_used_at: now })
       .where(eq(agent_setup_keys.id, row.id))
       .catch(e => console.error(`could not note the use of setup key ${row.id}: ${e instanceof Error ? e.message : e}`))
-  return { kind: 'ok', actor }
 }
 
 /** What an ended key's holder is told: replaced, ended by itself, or a plain `ended` for everything else. */
@@ -208,40 +276,77 @@ function refuseNonPerson(actor: Actor) {
   if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
 }
 
+/**
+ * Makes a setup key: an install key (workspaceId null) or a workspace key. One key at a time per person, whatever its
+ * kind: making a new one ends the old ones (a copied prompt from earlier stops working).
+ */
+async function insertKey(
+  tx: Parameters<Handler>[0]['tx'],
+  actor: Actor,
+  now: string,
+  workspaceId: string | null,
+): Promise<AgentSetupKeyCreated> {
+  // One maker at a time (security review #822 F3): two mints at once would otherwise both see no newer key and both
+  // stay working. Held until the transaction ends.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`agent-setup-key:${actor.actorId}`}))`)
+  await tx
+    .update(agent_setup_keys)
+    .set({ revoked_at: now, ended_reason: 'replaced' })
+    .where(and(eq(agent_setup_keys.created_by, actor.actorId), isNull(agent_setup_keys.revoked_at)))
+  const key = newKey()
+  const expiresAt = new Date(Date.parse(now) + SETUP_KEY_HOURS * 3_600_000).toISOString()
+  const [row] = await tx
+    .insert(agent_setup_keys)
+    .values({
+      id: newId(),
+      prefix: key.slice(0, SHOWN_LENGTH),
+      key_hash: hashSetupKey(key),
+      created_by: actor.actorId,
+      workspace_id: workspaceId,
+      expires_at: expiresAt,
+      // Whether this session passed the passkey check: an install key made without it (the rule off) stops working
+      // once the rule is on again (setupKeyAccess). A workspace key never carries it.
+      passkey_confirmed_until: !workspaceId && actor.passkeyConfirmed ? expiresAt : null,
+    })
+    .returning()
+  return { keyId: row!.id, key, url: `${setupMcpUrl()}/${key}`, prefix: row!.prefix, expiresAt }
+}
+
 export const agentSetupHandlers: Record<string, Handler> = {
   'agentSetup.createKey': async ({ tx, actor, now }) => {
     refuseNonPerson(actor)
     // Checked before the handler too (run-action.ts): only a session that passed the passkey check makes a link.
     if (adminSecondFactorRequired() && !actor.passkeyConfirmed)
       throw new Forbidden('Confirm with your passkey to create a setup link.')
-    // One key at a time per admin: making a new one ends the old ones (a copied prompt from earlier stops working).
-    await tx
+    return { rows: {}, data: await insertKey(tx, actor, now, null) }
+  },
+
+  // A workspace owner's key for the session's workspace (workspace:own, checked by run-action.ts; disabled workspaces
+  // keep read permissions only). Only a person signed in as themselves: never a key, an agent or impersonation.
+  'agentSetup.createWorkspaceKey': async ({ tx, actor, now }) => {
+    refuseNonPerson(actor)
+    if (!actor.workspaceId || actor.role !== 'owner')
+      throw new Forbidden('Only the workspace owner makes a setup link for it.')
+    if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject('Too many setup links. Try again in a few minutes.')
+    return { rows: {}, data: await insertKey(tx, actor, now, actor.workspaceId) }
+  },
+
+  // End access on the owner's setup page: their keys for this workspace. Any session of the owner may.
+  'agentSetup.revokeWorkspace': async ({ tx, actor, now }) => {
+    refuseNonPerson(actor)
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    const ended = await tx
       .update(agent_setup_keys)
-      .set({ revoked_at: now, ended_reason: 'replaced' })
-      .where(and(eq(agent_setup_keys.created_by, actor.actorId), isNull(agent_setup_keys.revoked_at)))
-    const key = newKey()
-    const expiresAt = new Date(Date.parse(now) + SETUP_KEY_HOURS * 3_600_000).toISOString()
-    const [row] = await tx
-      .insert(agent_setup_keys)
-      .values({
-        id: newId(),
-        prefix: key.slice(0, SHOWN_LENGTH),
-        key_hash: hashSetupKey(key),
-        created_by: actor.actorId,
-        expires_at: expiresAt,
-        // Whether this session passed the passkey check: a key made without it (the rule off) stops working once the
-        // rule is on again (setupKeyAccess).
-        passkey_confirmed_until: actor.passkeyConfirmed ? expiresAt : null,
-      })
-      .returning()
-    const data: AgentSetupKeyCreated = {
-      keyId: row!.id,
-      key,
-      url: `${setupMcpUrl()}/${key}`,
-      prefix: row!.prefix,
-      expiresAt,
-    }
-    return { rows: {}, data }
+      .set({ revoked_at: now, ended_reason: 'ended_by_admin' })
+      .where(
+        and(
+          eq(agent_setup_keys.created_by, actor.actorId),
+          eq(agent_setup_keys.workspace_id, actor.workspaceId),
+          isNull(agent_setup_keys.revoked_at),
+        ),
+      )
+      .returning({ id: agent_setup_keys.id })
+    return { rows: {}, data: { ended: ended.length } }
   },
 
   'agentSetup.revoke': async ({ tx, actor, now }) => {
@@ -276,14 +381,25 @@ export const agentSetupHandlers: Record<string, Handler> = {
   },
 }
 
-/** GET /v1/admin/agent-setup: the admin's working key (never the key itself) and where agents connect. */
-export async function agentSetupState(userId: string): Promise<Omit<AgentSetupState, 'progress'>> {
+/** Keys of one kind: the install's (no workspace) or one workspace's. */
+const ofScope = (workspaceId: string | null) =>
+  workspaceId ? eq(agent_setup_keys.workspace_id, workspaceId) : isNull(agent_setup_keys.workspace_id)
+
+/**
+ * GET /v1/admin/agent-setup (`workspaceId` null: the admin's install key) and GET /v1/workspace/agent-setup (the
+ * owner's key for that workspace): the working key (never the key itself) and where agents connect.
+ */
+export async function agentSetupState(
+  userId: string,
+  workspaceId: string | null = null,
+): Promise<Omit<AgentSetupState, 'progress'>> {
   const [row] = await db
     .select()
     .from(agent_setup_keys)
     .where(
       and(
         eq(agent_setup_keys.created_by, userId),
+        ofScope(workspaceId),
         isNull(agent_setup_keys.revoked_at),
         gt(agent_setup_keys.expires_at, new Date().toISOString()),
       ),
@@ -291,11 +407,12 @@ export async function agentSetupState(userId: string): Promise<Omit<AgentSetupSt
     .orderBy(desc(agent_setup_keys.created_at))
     .limit(1)
   // A key made with the passkey rule off does not work while it is on (setupKeyAccess): the page offers a new one.
-  const working = row && (keyPasskeyConfirmed(row) || !adminSecondFactorRequired()) ? row : undefined
+  // A workspace key never needs it.
+  const working = row && (workspaceId || keyPasskeyConfirmed(row) || !adminSecondFactorRequired()) ? row : undefined
   return {
     mcpUrl: setupMcpUrl(),
     reachableFromCloud: reachableFromCloud(webAddress()),
-    endedByAgentAt: working ? null : await endedByAgentAt(userId),
+    endedByAgentAt: working ? null : await endedByAgentAt(userId, workspaceId),
     key: working
       ? {
           id: working.id,
@@ -309,11 +426,11 @@ export async function agentSetupState(userId: string): Promise<Omit<AgentSetupSt
 }
 
 /** When the agent ended the admin's newest setup link itself, within a link's lifetime; null otherwise (agentSetupState). */
-async function endedByAgentAt(userId: string): Promise<string | null> {
+async function endedByAgentAt(userId: string, workspaceId: string | null): Promise<string | null> {
   const [newest] = await db
     .select({ reason: agent_setup_keys.ended_reason, at: agent_setup_keys.revoked_at })
     .from(agent_setup_keys)
-    .where(eq(agent_setup_keys.created_by, userId))
+    .where(and(eq(agent_setup_keys.created_by, userId), ofScope(workspaceId)))
     .orderBy(desc(agent_setup_keys.created_at))
     .limit(1)
   if (newest?.reason !== 'ended_by_agent' || !newest.at) return null

@@ -13,6 +13,7 @@ import {
 } from './session.ts'
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
+import { ownerAgentSetupDue, ownerChoseByHand, rememberOwnerByHand } from './onboarding/setup-choice.ts'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { Onboarding } from './onboarding/Onboarding.tsx'
@@ -114,6 +115,8 @@ export function App() {
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
+  // A workspace owner sets up their workspace with an AI agent first too (setup-choice.ts), unless they chose by hand.
+  const [ownerByHand, setOwnerByHand] = useState(false)
   // The "Add a passkey" page was answered in this tab (or is not needed): on into the app.
   const [passkeyPageDone, setPasskeyPageDone] = useState(false)
   const shown = useRef(session)
@@ -326,6 +329,16 @@ export function App() {
       />
     )
   }
+  // A workspace owner who is no server admin: the agent setup for this one workspace first (AgentSetup, scope
+  // "workspace"); by hand opens the step-by-step onboarding. Inside the store: the test call and forwarding need it.
+  const ownerSetup = ownerAgentSetupDue(session.me, {
+    instanceAdmin: isInstanceAdmin(session.me),
+    hashOpen: agentSetupHash,
+    byHand: ownerChoseByHand(session.me.workspace!.id, ownerByHand) || onboarded,
+  })
+  const leaveOwnerSetup = () => {
+    if (isAgentSetupHash(window.location.hash)) window.location.hash = ''
+  }
   // Another member or workspace than on screen (the answer to a warm start): everything below starts over.
   return (
     <ImpersonationFrame
@@ -338,8 +351,26 @@ export function App() {
         readOnly={session.me.workspace?.disabled ? disabledWorkspaceText() : undefined}
       >
         <TabWorkspaceGuard me={session.me}>
-          {/* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */}
-          {session.me.onboarding && !onboarded && !(adminHash && isInstanceAdmin(session.me)) ? (
+          {ownerSetup ? (
+            <AgentSetup
+              scope="workspace"
+              workspaceName={session.me.workspace!.name}
+              active={{ id: session.me.workspace!.id, account: session.me.actorId }}
+              onManual={() => {
+                rememberOwnerByHand(session.me.workspace!.id, true)
+                setOwnerByHand(true)
+                leaveOwnerSetup()
+              }}
+              onDone={() => {
+                // Done with the agent: the app as it is now (onboarding where the agent left it, or the inbox).
+                rememberOwnerByHand(session.me.workspace!.id, true)
+                setOwnerByHand(true)
+                leaveOwnerSetup()
+                void refresh()
+              }}
+            />
+          ) : /* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */
+          session.me.onboarding && !onboarded && !(adminHash && isInstanceAdmin(session.me)) ? (
             <Onboarding
               me={session.me}
               state={session.me.onboarding}

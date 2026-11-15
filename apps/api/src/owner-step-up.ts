@@ -119,3 +119,19 @@ export async function removeNeedsFreshSignIn(
   if (owner?.userId !== actor.actorId) return false
   return !(await signedInJustNow(tx, actor, now))
 }
+
+/** agentSetup.createWorkspaceKey without a sign-in in the last 10 minutes (security review #822 F2, F4). */
+export const SETUP_LINK_SIGN_IN_AGAIN =
+  'Sign in again to create a setup link. Creating one needs a sign-in from the last 10 minutes.'
+
+/** The refusal run-action answers before the link is made: the setup page offers "Sign in again" on the code. */
+export const setupLinkSignInRefusal = { ok: false as const, error: SETUP_LINK_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
+
+/**
+ * A workspace owner's setup link (agentSetup.createWorkspaceKey) needs a sign-in within the last 10 minutes
+ * (signedInJustNow): the link reaches the workspace's numbers and transfer number for 4 hours, and owners need no
+ * passkey for it, so a stolen or forgotten long-lived session must not hand one out.
+ */
+export async function setupLinkNeedsFreshSignIn(tx: Tx | typeof db, actor: Actor, now = Date.now()): Promise<boolean> {
+  return !(await signedInJustNow(tx, actor, now))
+}
