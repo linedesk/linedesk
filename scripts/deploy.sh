@@ -58,6 +58,15 @@ fi
 # The deploy-dev.sh of a checkout from before the rename sets LINEDESK_LIVE_UPDATED.
 [ -n "${LINEDESK_LIVE_UPDATED:-}" ] && export LINEDESK_DEV_UPDATED=1
 
+# AGENT_LOAD_THRESHOLD goes to the agent and, as agents.target_load, into LiveKit's config: a value outside
+# 0 < x <= 1 makes the two disagree (0 dispatches no call at all) and a non-number breaks LiveKit's config.
+load_threshold=${AGENT_LOAD_THRESHOLD-$(sed -n 's/^AGENT_LOAD_THRESHOLD=//p' .env 2>/dev/null | tail -1 | sed "s/^[\"']//; s/[\"']\$//")}
+if [ -n "$load_threshold" ] && ! { [[ "$load_threshold" =~ ^[0-9]+(\.[0-9]+)?$ ]] &&
+  awk -v v="$load_threshold" 'BEGIN { exit !(v > 0 && v <= 1) }'; }; then
+  echo "AGENT_LOAD_THRESHOLD is '$load_threshold'; it is a number above 0 and at most 1 (e.g. 0.8), or empty. Not deploying; the running version keeps serving." >&2
+  exit 1
+fi
+
 mode=${LINEDESK_MODE-$(sed -n 's/^LINEDESK_MODE=//p' .env 2>/dev/null | tail -1)}
 case "$mode" in
   dev)
@@ -114,6 +123,26 @@ pull_prebuilt() {
   done
   rm -rf "$docker_config"
   trap - EXIT
+}
+
+# Sentry release (packages/scrub/src/sentry-node.ts): linedesk@<commit>, from REVISION (written by the server's
+# deploy command), so "resolved in the next release" works. Without REVISION (a checkout updated by git pull)
+# SENTRY_RELEASE stays what the environment or .env says.
+revision=$(cat REVISION 2>/dev/null || true)
+release=''
+[[ "$revision" =~ ^[0-9a-f]{7,40}$ ]] && release="linedesk@$revision"
+
+# The release a service's new container gets: a running container whose image did not change keeps its own, so
+# the new value alone does not replace it (an unchanged agent is not replaced).
+release_of() {
+  local container
+  container=$(containers_of "$1" | head -1)
+  if [ -n "$container" ] && [ "$(docker inspect -f '{{.Image}}' "$container")" = \
+    "$(docker image inspect -f '{{.Id}}' "$(docker inspect -f '{{.Config.Image}}' "$container")" 2>/dev/null)" ]; then
+    docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" | sed -n 's/^SENTRY_RELEASE=//p'
+  else
+    echo "$release"
+  fi
 }
 
 # Old build cache and untagged images pile up with several deploys an hour; images in use and volumes stay.
@@ -358,17 +387,20 @@ fi
 
 if [ -z "$(docker compose ps -q api)" ]; then
   log "nothing running yet: starting the stack"
+  [ -z "$release" ] || export SENTRY_RELEASE="$release"
   docker compose up -d --no-build --remove-orphans
   clean_up
   exit 0
 fi
 
+if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of api); export SENTRY_RELEASE; fi
 roll api
 roll web
 update_proxy
 log "other services: recreating only what changed"
 # shellcheck disable=SC2046 # one service name per word
 docker compose up -d --no-build --no-deps --remove-orphans $(others)
+if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of agent); export SENTRY_RELEASE; fi
 roll agent
 update_call_services
 clean_up

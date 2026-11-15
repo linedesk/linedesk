@@ -31,6 +31,12 @@ done
 [ "$(id -u)" = 0 ] || [ "$dry" = 1 ] || { echo "run as root (sudo)" >&2; exit 1; }
 [ -f "$app_dir/.env" ] || { echo "no $app_dir/.env: install Linedesk first (scripts/install.sh)" >&2; exit 1; }
 user=$(stat -c %U "$app_dir/.env")
+# The alerts are mailed with SMTP_URL and EMAIL_FROM from the app's .env. Email connected in Server admin › Providers
+# does not count: it is stored encrypted in the database, which the alert script cannot read.
+for name in SMTP_URL EMAIL_FROM; do
+  [ -n "$(sed -n "s/^$name=//p" "$app_dir/.env" | tail -1)" ] ||
+    echo "WARNING: $name is empty in $app_dir/.env: alerts cannot be sent. Set SMTP_URL and EMAIL_FROM there, also when email is connected in Server admin." >&2
+done
 
 changed=0
 say() { echo "$*"; }

@@ -63,6 +63,15 @@ fill() {
   esac
 }
 
+# AGENT_LOAD_THRESHOLD also goes into LiveKit's config (agents.target_load): only a number above 0 and at most 1
+# keeps the agent and LiveKit in agreement (0 dispatches no call; a non-number breaks LiveKit's config).
+load_threshold=$(current AGENT_LOAD_THRESHOLD)
+if [ -n "$load_threshold" ] && ! { printf '%s\n' "$load_threshold" | grep -Eqx '[0-9]+(\.[0-9]+)?' &&
+  awk -v v="$load_threshold" 'BEGIN { exit !(v > 0 && v <= 1) }'; }; then
+  echo "AGENT_LOAD_THRESHOLD in .env is '$load_threshold'; it is a number above 0 and at most 1 (e.g. 0.8), or empty." >&2
+  exit 1
+fi
+
 echo "Secrets:"
 fill BETTER_AUTH_SECRET "$(b64 32)"
 fill SECRETS_KEY "$(b64 32)"
