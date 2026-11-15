@@ -203,6 +203,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'calendarTools.set': 'admin',
   'user.impersonate': 'impersonation',
   'impersonation.stop': 'impersonation',
+  // Whether users are emailed when an admin signs in as them (impersonation.ts).
+  'impersonationEmails.set': 'impersonation',
   'team.invite': 'team',
   'team.resendInvite': 'team',
   'team.revokeInvite': 'team',

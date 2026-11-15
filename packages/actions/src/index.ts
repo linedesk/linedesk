@@ -217,6 +217,8 @@ const all = [
   admin.impersonationStop,
   admin.setupEmailsGet,
   admin.setupEmailsSet,
+  admin.impersonationEmailsGet,
+  admin.impersonationEmailsSet,
   workspaceCreation.workspaceCreate,
   team.teamList,
   team.teamInvite,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { auditLabel } from './AuditLog.tsx'
+import { auditLabel, auditReason } from './AuditLog.tsx'
 
 const label = (what: string, input: unknown = {}, subject: string | null = null) =>
   auditLabel({ what, method: null, input, subject: subject ? { email: subject } : null })
@@ -104,7 +104,7 @@ const AUDITED_ACTION_NAMES = [
   'carrier.provisionTransferTrunk', 'voiceCloning.set', 'voicePipelinePolicy.set', 'setupEmails.set', 'user.invite',
   'user.disable', 'user.enable', 'workspace.disable', 'workspace.enable', 'workspace.delete', 'workspace.setSpendingCap',
   'instanceAdmin.grant', 'instanceAdmin.revoke', 'user.resetPasskeys', 'user.issuePasskeyEnrolment', 'branding.set',
-  'user.impersonate', 'impersonation.stop', 'team.invite', 'team.resendInvite', 'team.revokeInvite', 'team.setRole',
+  'user.impersonate', 'impersonation.stop', 'impersonationEmails.set', 'team.invite', 'team.resendInvite', 'team.revokeInvite', 'team.setRole',
   'team.transferOwnership', 'team.removeMember', 'team.leave', 'team.updateMemberProfile', 'team.setMemberAvatar',
   'team.removeMemberAvatar', 'team.updateMemberNotifications', 'workspace.deleteOwn', 'invitation.accept',
   'invitation.decline', 'membership.add', 'workspace.create', 'membership.setRole', 'membership.remove',
@@ -184,4 +184,19 @@ test('entries without a name, an address or a host still read as a sentence', ()
   expect(auditLabel({ what: 'provider_linked', method: 'github', input: null, subject: null })).toBe(
     'Added GitHub sign-in',
   )
+})
+
+describe('signing in as a user', () => {
+  test('names whom it was and shows the reason; older entries without either still read', () => {
+    expect(label('user.impersonate', { userId: 'u1', reason: 'Ticket 7' }, 'mike@example.com')).toBe(
+      'Signed in as mike@example.com',
+    )
+    expect(label('user.impersonate', { userId: 'u1' })).toBe('Signed in as a user')
+    expect(auditReason({ what: 'user.impersonate', input: { userId: 'u1', reason: ' Ticket 7 ' } })).toBe(
+      'Reason: Ticket 7',
+    )
+    expect(auditReason({ what: 'user.impersonate', input: { userId: 'u1' } })).toBeNull()
+    expect(auditReason({ what: 'team.invite', input: { reason: 'x' } })).toBeNull()
+    expect(label('impersonationEmails.set', { on: true })).toBe('Turned on emails to users when an admin signs in as them')
+  })
 })

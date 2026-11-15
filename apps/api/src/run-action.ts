@@ -18,7 +18,7 @@ import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, preparers, Reject, runHandler, type Undo } from './handlers.ts'
-import { mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
@@ -120,7 +120,32 @@ export function agentRefusal(def: ActionDef, input: unknown, actor: Actor): stri
   return null
 }
 
+/**
+ * Reads that still get a command row when an instance admin is behind them (impersonatorOf: signed in as the user, or
+ * an API key made during support access), so `impersonated_by` puts them in the audit log: every call of a range.
+ */
+export const READS_LOGGED_WHEN_IMPERSONATED: ReadonlySet<string> = new Set(['call.export'])
+
 async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promise<RunResult> {
+  const result = await runRead(def, input, actor)
+  const impersonator = impersonatorOf(actor)
+  if (impersonator && READS_LOGGED_WHEN_IMPERSONATED.has(def.name)) {
+    // Who, when, which action and the (redacted) input; never the data read. Its own id: a read is not replayed.
+    await db.insert(commands).values({
+      id: crypto.randomUUID(),
+      workspace_id: actor.workspaceId,
+      actor_id: actor.actorId,
+      impersonated_by: impersonator,
+      setup_key_id: actor.setupKeyId ?? null,
+      action: def.name,
+      input: storedInput(def, redactInput(def, input)) as object,
+      result: result.body.ok ? { ok: true, rows: {} } : result.body,
+    })
+  }
+  return result
+}
+
+async function runRead(def: ActionDef, input: unknown, actor: Actor): Promise<RunResult> {
   try {
     return { status: 200, body: { ok: true, ...(await runHandler({ tx: db, actor, now: new Date().toISOString() }, def, input)) } }
   } catch (e) {
@@ -175,7 +200,7 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
     id: commandId,
     workspace_id: actor.workspaceId,
     actor_id: actor.actorId,
-    impersonated_by: actor.impersonation?.by ?? null,
+    impersonated_by: impersonatorOf(actor),
     // An AI agent with the admin's setup key (agent-setup.ts): the audit log says so.
     setup_key_id: actor.setupKeyId ?? null,
     action: name,

@@ -190,6 +190,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'user.impersonate',
     'setupEmails.get',
     'setupEmails.set',
+    'impersonationEmails.get',
+    'impersonationEmails.set',
     'outboundCountries.get',
     'outboundCountries.set',
     'workspace.create',

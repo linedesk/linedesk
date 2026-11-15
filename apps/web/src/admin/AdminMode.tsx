@@ -213,6 +213,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             users={data.users}
             onDeleted={() => go({ section: 'workspaces', id: null })}
             viewerWorkspaces={viewerWorkspaces}
+            currentUserId={currentUserId}
             {...shared}
           />
         ) : (

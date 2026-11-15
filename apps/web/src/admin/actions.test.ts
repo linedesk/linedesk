@@ -6,9 +6,11 @@ import {
   deletedWorkspaceText,
   deleteWorkspaceText,
   existingPasskeysText,
+  signInAsOwnerAction,
+  userActions,
   workspaceActions,
 } from './actions.tsx'
-import type { AdminWorkspace } from './api.ts'
+import type { AdminUser, AdminWorkspace } from './api.ts'
 import { StepUpRequired } from './PasskeyStepUp.tsx'
 
 const workspace = {
@@ -134,4 +136,56 @@ test('granting server admin names the passkeys that already open the admin area'
     { name: '', device_type: 'singleDevice', created_at: null },
   ] as never)
   expect(two).toMatch(/^They already have 2 passkeys: Synced passkey, Passkey on a device\./)
+})
+
+const person = (id: string, role: string, extra: Partial<AdminUser> = {}) =>
+  ({
+    id,
+    name: `Person ${id}`,
+    email: `${id}@example.com`,
+    disabled_at: null,
+    instance_admin: false,
+    instance_admin_by_env: false,
+    workspaces: [{ id: 'ws-1', name: 'Brightwater Plumbing', role, member_id: `m-${id}` }],
+    invitations: [],
+    ...extra,
+  }) as unknown as AdminUser
+
+test('Sign in as owner names the owner, asks for a reason and opens this workspace', async () => {
+  const sent: { url: string; body: unknown }[] = []
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    sent.push({ url, body: JSON.parse(String(init.body)) })
+    return new Response(JSON.stringify({ ok: false, error: 'stop here' }), { status: 409 })
+  })
+  try {
+    const users = [person('a', 'member'), person('o', 'owner')]
+    const action = signInAsOwnerAction(workspace, users, 'me')!
+    expect(action.label).toBe('Sign in as Person o…')
+    expect(action.disabledReason).toBeUndefined()
+    expect(action.confirm?.reason).toMatchObject({ min: 3, max: 300 })
+    await expect(action.run(false, 'Ticket 1')).rejects.toThrow('stop here')
+    expect(sent.at(-1)).toEqual({
+      url: '/v1/impersonation/start',
+      body: { userId: 'o', reason: 'Ticket 1', workspaceId: 'ws-1' },
+    })
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+test('Sign in as owner: no owner, no button; yourself, disabled or a server admin, a disabled button with the reason', () => {
+  expect(signInAsOwnerAction(workspace, [person('a', 'admin')], 'me')).toBeNull()
+  expect(signInAsOwnerAction(workspace, [person('me', 'owner')], 'me')?.disabledReason).toMatch(/You are the owner/)
+  expect(
+    signInAsOwnerAction(workspace, [person('o', 'owner', { disabled_at: '2026-11-01T00:00:00Z' })], 'me')
+      ?.disabledReason,
+  ).toBe('Person o is disabled: enable the account first to sign in as them.')
+  expect(
+    signInAsOwnerAction(workspace, [person('o', 'owner', { instance_admin: true })], 'me')?.disabledReason,
+  ).toMatch(/server admin/)
+})
+
+test('Sign in as … on a user asks for a reason too', () => {
+  const action = userActions(person('u', 'member'), 'me', async () => {}).find(a => a.id === 'impersonate')!
+  expect(action.confirm?.reason).toBeDefined()
 })

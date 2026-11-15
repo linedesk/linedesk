@@ -395,7 +395,14 @@
 .adm-actbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+/* Why a button of the row is disabled (Sign in as owner: the owner is a server admin, disabled, or you). */
+.adm-actbar-why {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--ink-muted);
 }
 .adm-row:has(> .adm-cell-acts) {
   position: relative;

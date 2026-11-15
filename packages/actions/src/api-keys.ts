@@ -31,6 +31,10 @@ export const apiKeyList = defineAction({
 export type ApiKeySummary = {
   id: string; name: string; prefix: string; role: 'member' | 'admin'; created_by: string; created_at: string
   last_used_at: string | null; revoked_at: string | null
+  /** Made while an instance admin was signed in as `created_by` (support access): the list says so. */
+  created_during_support: boolean
+  /** That admin's name (else their address), for "Created by … during support access"; null otherwise or once the account is gone. */
+  created_during_support_by: string | null
 }
 export type ApiKeyListData = { keys: ApiKeySummary[] }
 

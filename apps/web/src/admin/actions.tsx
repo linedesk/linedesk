@@ -6,7 +6,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
-import { confirmText, startImpersonation } from '../impersonation.ts'
+import { confirmText, reasonField, startImpersonation } from '../impersonation.ts'
 import { keepAccountsOption, numberLines, workspaceDeleteList } from '../settings/dangerZoneModel.ts'
 import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
@@ -28,14 +28,19 @@ export type AdminAction = {
   /** What it does, for the tooltip. */
   tip: string
   confirm?: Confirmation
-  /** May resolve with a PasskeyEnrolment when the action made one (shown once, in its dialog). `option`: whether the confirmation's checkbox is ticked. */
-  run: (option?: boolean) => Promise<unknown>
+  /**
+   * May resolve with a PasskeyEnrolment when the action made one (shown once, in its dialog). `option`: whether the
+   * confirmation's checkbox is ticked; `reason`: the text its confirmation asked for (`confirm.reason`).
+   */
+  run: (option?: boolean, reason?: string) => Promise<unknown>
   /** The toast afterwards; a function gets what `run` resolved with. */
   done?: string | ((made: unknown) => string)
   /** Whom it is about, for its result ("Give this code to …"). */
   subject?: string
   /** Destroys data (Delete workspace): its button is red, as in Workspace settings › Danger zone. */
   danger?: boolean
+  /** Why it cannot run now: the detail page shows the button disabled with this next to it. */
+  disabledReason?: string
 }
 
 const userLabel = (u: AdminUser) => u.name || u.email
@@ -138,9 +143,10 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
         text: confirmText(name),
         action: t('admin.actions.user.impersonate.action', { name }),
         variant: 'primary',
+        reason: reasonField(),
       },
       // Reloads into the app as this user; throws with the reason when refused.
-      run: () => startImpersonation(u.id),
+      run: (_option, reason) => startImpersonation(u.id, reason ?? ''),
     })
   if (!u.instance_admin && !u.disabled_at)
     actions.push({
@@ -290,6 +296,47 @@ export function deletedWorkspaceText(name: string, data: unknown): string {
   ].join(' ')
 }
 
+/** The workspace's owner among the users, if it has one (one owner per workspace). */
+export const ownerOf = (w: Pick<AdminWorkspace, 'id'>, users: readonly AdminUser[]) =>
+  users.find(u => u.workspaces.some(m => m.id === w.id && m.role === 'owner'))
+
+/**
+ * Server admin › Workspaces › a workspace: sign in as its owner, opening in this workspace. The same refusals as
+ * Users › Sign in as (yourself, a disabled user, a server admin) show as a disabled button with the reason; no
+ * owner, no button.
+ */
+export function signInAsOwnerAction(
+  w: Pick<AdminWorkspace, 'id'>,
+  users: readonly AdminUser[],
+  currentUserId: string,
+): AdminAction | null {
+  const owner = ownerOf(w, users)
+  if (!owner) return null
+  const name = userLabel(owner)
+  const disabledReason =
+    owner.id === currentUserId
+      ? t('admin.actions.workspace.signInAsOwner.self')
+      : owner.disabled_at
+        ? t('admin.actions.workspace.signInAsOwner.disabled', { name })
+        : owner.instance_admin
+          ? t('admin.actions.workspace.signInAsOwner.admin', { name })
+          : undefined
+  return {
+    id: 'impersonate-owner',
+    label: t('admin.actions.user.impersonate.label', { name }),
+    icon: 'user',
+    tip: t('admin.actions.workspace.signInAsOwner.tip', { brand: brandName(), name }),
+    confirm: {
+      text: confirmText(name),
+      action: t('admin.actions.user.impersonate.action', { name }),
+      variant: 'primary',
+      reason: reasonField(),
+    },
+    run: (_option, reason) => startImpersonation(owner.id, reason ?? '', w.id),
+    ...(disabledReason ? { disabledReason } : {}),
+  }
+}
+
 /** `onDeleted`: leave the page of a workspace that is gone. `viewerIsMember`: the admin is a member of it. */
 export function workspaceActions(
   w: AdminWorkspace,
@@ -386,7 +433,7 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
           ? { alternative: { ...confirm.alternative, run: async () => settle(await confirm.alternative!.run()) } }
           : {}),
       }}
-      run={async option => settle(await action.run(option))}
+      run={async (option, reason) => settle(await action.run(option, reason))}
       onClose={onClose}
     />
   )
@@ -411,6 +458,7 @@ export function useActionRunner(notify: Notify) {
 /** The detail page's actions: a row of buttons under the title. */
 export function ActionBar({ actions, onPick }: { actions: AdminAction[]; onPick: (action: AdminAction) => void }) {
   if (!actions.length) return null
+  const blocked = actions.filter(a => a.disabledReason)
   return (
     <div className="adm-actbar">
       {actions.map(a => (
@@ -419,11 +467,18 @@ export function ActionBar({ actions, onPick }: { actions: AdminAction[]; onPick:
           size="sm"
           icon={a.icon}
           variant={a.danger ? 'danger-outline' : undefined}
-          title={a.tip}
+          title={a.disabledReason ?? a.tip}
+          disabled={!!a.disabledReason}
+          aria-describedby={a.disabledReason ? `adm-act-why-${a.id}` : undefined}
           onClick={() => onPick(a)}
         >
           {a.label}
         </Button>
+      ))}
+      {blocked.map(a => (
+        <span key={a.id} id={`adm-act-why-${a.id}`} className="adm-actbar-why">
+          {a.disabledReason}
+        </span>
       ))}
     </div>
   )

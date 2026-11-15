@@ -1,6 +1,7 @@
 // An instance admin signed in as another user (docs/architecture.md §12). Starting and stopping
 // change which session the browser holds, so both end in a full reload; changes still waiting
 // in the outbox are sent first, and the local data of the session that ends is deleted.
+import { IMPERSONATION_REASON_MAX, IMPERSONATION_REASON_MIN } from '@linedesk/actions'
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './admin/PasskeyStepUp.tsx'
 import { forgetLocalData } from './localData.ts'
 import { flushAllStores } from './storeCache.ts'
@@ -31,6 +32,14 @@ export const bannerText = (imp: Impersonation) => ({
 export const confirmText = (name: string) =>
   i18n().t('admin.impersonation.confirm', { brand: brandName(), name })
 
+/** The reason the start asks for (user.impersonate): kept in the audit log, and in the email to the user when that is on. */
+export const reasonField = () => ({
+  label: i18n().t('admin.impersonation.reason'),
+  placeholder: i18n().t('admin.impersonation.reasonPlaceholder'),
+  min: IMPERSONATION_REASON_MIN,
+  max: IMPERSONATION_REASON_MAX,
+})
+
 export class UnsentChanges extends Error {}
 
 const unsentText = (n: number) => i18n().t('shell.impersonation.unsent', { count: n })
@@ -55,11 +64,17 @@ function reloadAt(hash: string) {
   window.location.reload()
 }
 
-/** Signs this browser in as `userId` and opens their inbox. Throws with the reason when refused. */
-export async function startImpersonation(userId: string) {
+/**
+ * Signs this browser in as `userId` and opens their inbox, in `workspaceId` when given (one of theirs: Server admin ›
+ * Workspaces › Sign in as owner), else their first. `reason` is kept in the audit log. Throws with the reason when refused.
+ */
+export async function startImpersonation(userId: string, reason: string, workspaceId?: string) {
   const unsent = await flushAllStores()
   if (unsent > 0) throw new UnsentChanges(unsentText(unsent))
-  await withPasskeyStepUp(() => post('/v1/impersonation/start', { userId }), i18n().t('admin.stepUp.what.impersonate'))
+  await withPasskeyStepUp(
+    () => post('/v1/impersonation/start', { userId, reason, ...(workspaceId ? { workspaceId } : {}) }),
+    i18n().t('admin.stepUp.what.impersonate'),
+  )
   await forgetLocalData()
   reloadAt('#calls')
 }

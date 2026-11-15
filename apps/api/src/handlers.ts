@@ -30,6 +30,7 @@ import { outboundHandlers, outboundRefusal, syncInstallDestinations } from './ou
 import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
+import { impersonatorOf } from './impersonation-guard.ts'
 import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
 import { installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
@@ -906,7 +907,7 @@ const handlers: Record<string, Handler> = {
       await refreshTransferTrunk(tx, workspace_id, {
         actorId: actor.actorId,
         trigger: 'phoneNumber.setup',
-        impersonatedBy: actor.impersonation?.by,
+        impersonatedBy: impersonatorOf(actor),
       })
     // An install-account number in a new country: the install's carrier profiles may call it too, once this commits
     // (Telnyx; logged, never fails the setup). Own-account numbers never widen the install's profiles.
@@ -955,7 +956,7 @@ const handlers: Record<string, Handler> = {
       await refreshTransferTrunk(tx, actor.workspaceId, {
         actorId: actor.actorId,
         trigger: 'phoneNumber.release',
-        impersonatedBy: actor.impersonation?.by,
+        impersonatedBy: impersonatorOf(actor),
       })
     if (number.carrier_account !== 'workspace') onCommit?.(() => syncInstallDestinations())
     return { rows: {}, deleted: { phone_numbers: [number.id] }, data: { releasedAtCarrier, unroutedAtCarrier } }

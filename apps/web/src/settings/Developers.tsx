@@ -120,6 +120,15 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
           {apiKey.role === 'admin' ? t('settings.developers.role.admin') : t('settings.developers.role.member')}
         </Badge>
       }
+      below={
+        apiKey.created_during_support && (
+          <p className="dev-support" title={t('settings.developers.supportAccessTip')}>
+            {apiKey.created_during_support_by
+              ? t('settings.developers.supportAccessBy', { name: apiKey.created_during_support_by })
+              : t('settings.developers.supportAccess')}
+          </p>
+        )
+      }
       actions={
         <Button
           size="sm"
@@ -168,11 +177,17 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
         created_at: new Date().toISOString(),
         last_used_at: null,
         revoked_at: null,
+        // Made during support access is for the server to say: the list is read again below.
+        created_during_support: false,
+        created_during_support_by: null,
       }
       setQueryData<ApiKeyListData | undefined>(API_KEYS, d => ({ keys: [summary, ...(d?.keys ?? [])] }), {
         persist: true,
       })
       setCreated(result.key)
+      void loadKeys()
+        .then(d => setQueryData<ApiKeyListData | undefined>(API_KEYS, d, { persist: true }))
+        .catch(() => {})
     } catch (err) {
       setError((err as Error).message)
     } finally {

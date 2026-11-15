@@ -4,7 +4,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { fmt } from '../i18n/format.ts'
 import { Card, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
-import { ActionBar, RowActions, useActionRunner, workspaceActions } from './actions.tsx'
+import { ActionBar, RowActions, signInAsOwnerAction, useActionRunner, workspaceActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { WorkspaceMembersCard } from './Memberships.tsx'
@@ -131,15 +131,29 @@ type DetailProps = {
   /** Back to the list, once the workspace is deleted. */
   onDeleted: () => void
   viewerWorkspaces: ReadonlySet<string>
+  /** The signed-in admin: signing in as an owner who is you is refused. */
+  currentUserId: string
 }
 
-export function WorkspaceDetail({ workspace: w, users, notify, reload, onDeleted, viewerWorkspaces }: DetailProps) {
+export function WorkspaceDetail({
+  workspace: w,
+  users,
+  notify,
+  reload,
+  onDeleted,
+  viewerWorkspaces,
+  currentUserId,
+}: DetailProps) {
   const runner = useActionRunner(notify)
   const t = useT()
+  const signInAsOwner = signInAsOwnerAction(w, users, currentUserId)
   return (
     <>
       <ActionBar
-        actions={workspaceActions(w, reload, { onDeleted, viewerIsMember: viewerWorkspaces.has(w.id) })}
+        actions={[
+          ...(signInAsOwner ? [signInAsOwner] : []),
+          ...workspaceActions(w, reload, { onDeleted, viewerIsMember: viewerWorkspaces.has(w.id) }),
+        ]}
         onPick={runner.pick}
       />
       <Card title={t('admin.workspaces.details')} className="adm-detail">

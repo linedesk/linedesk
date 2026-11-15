@@ -15,6 +15,7 @@ import { phone_numbers, provider_settings, type Tx, workspace_settings } from '@
 import { createTelnyxProvider, createTwilioProvider, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, eq, sql } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
+import { impersonatorOf } from './impersonation-guard.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import { resolveProvider, telephonyProvider } from './provider-settings.ts'
 import { refreshTransferTrunk, removeTransferTrunks } from './transfer-trunk.ts'
@@ -343,7 +344,7 @@ export function carrierHandlers(doFetch: () => typeof fetch = () => fetch): Reco
       await refreshTransferTrunk(
         tx,
         actor.workspaceId,
-        { actorId: actor.actorId, trigger: 'carrier.set', impersonatedBy: actor.impersonation?.by },
+        { actorId: actor.actorId, trigger: 'carrier.set', impersonatedBy: impersonatorOf(actor) },
         { fetch: doFetch() },
       )
       return { rows: {}, data: await carrierStatus(tx, actor.workspaceId) }

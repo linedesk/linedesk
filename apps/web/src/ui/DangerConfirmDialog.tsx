@@ -7,7 +7,7 @@ import { stepUpRefusalText } from '../admin/PasskeyStepUp.tsx'
 import { errorText } from '../admin/notify.ts'
 import { rejectionReason } from '../shell/rejections.ts'
 import { Checkbox } from './controls.tsx'
-import { Dialog, Input } from './form.tsx'
+import { Dialog, FormField, Input } from './form.tsx'
 import { Button, Note } from './kit.tsx'
 import { useT } from '@linedesk/i18n/react'
 
@@ -27,6 +27,11 @@ export type DangerConfirmation = {
   option?: string
   /** A second way to confirm, next to the main button (resolves like `run`). */
   alternative?: { action: string; tip: string; run: () => Promise<unknown> }
+  /**
+   * A short text the action needs (why an admin signs in as a user): the button unlocks once it has `min` characters;
+   * `run` gets it, trimmed.
+   */
+  reason?: { label: string; placeholder: string; min: number; max: number }
 }
 
 /** Why a confirmed action did not go through, in one short sentence for the dialog's error note. */
@@ -44,8 +49,8 @@ export const typedMatches = (typed: string, expected: string | undefined) =>
 
 type Props = {
   confirm: DangerConfirmation
-  /** Does the work; throws to show why it failed. `option`: whether the checkbox is ticked. */
-  run: (option: boolean) => Promise<void>
+  /** Does the work; throws to show why it failed. `option`: whether the checkbox is ticked; `reason`: the text asked for. */
+  run: (option: boolean, reason: string) => Promise<void>
   onClose: () => void
   /** Shown after the list, before the checkbox (a separate warning); gets whether the checkbox is ticked. */
   children?: ReactNode | ((option: boolean) => ReactNode)
@@ -57,16 +62,18 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
   const t = useT()
   const [typed, setTyped] = useState('')
   const [option, setOption] = useState(false)
+  const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const unlocked = !blocked && typedMatches(typed, confirm.typed)
-  async function submit(e: FormEvent, work: (option: boolean) => Promise<unknown> = run) {
+  const reasonGiven = !confirm.reason || reason.trim().length >= confirm.reason.min
+  const unlocked = !blocked && typedMatches(typed, confirm.typed) && reasonGiven
+  async function submit(e: FormEvent, work: (option: boolean, reason: string) => Promise<unknown> = run) {
     e.preventDefault()
     if (!unlocked || busy) return
     setBusy(true)
     setError(null)
     try {
-      await work(option)
+      await work(option, reason.trim())
     } catch (err) {
       setError(confirmErrorText(err))
       setBusy(false)
@@ -116,6 +123,19 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
         <Checkbox checked={option} onChange={setOption} disabled={busy}>
           {confirm.option}
         </Checkbox>
+      )}
+      {confirm.reason && (
+        <FormField id="danger-confirm-reason" label={confirm.reason.label}>
+          <Input
+            id="danger-confirm-reason"
+            value={reason}
+            placeholder={confirm.reason.placeholder}
+            maxLength={confirm.reason.max}
+            autoComplete="off"
+            disabled={busy}
+            onChange={e => setReason(e.target.value)}
+          />
+        </FormField>
       )}
       {confirm.typed && (
         <Input

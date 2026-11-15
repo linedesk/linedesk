@@ -15,6 +15,7 @@ import {
   emailChangedEmail,
   emailChangeRefusedEmail,
   firstCallEmail,
+  impersonationApiKeyEmail,
   invitationEmail,
   memberAddedByAdminEmail,
   passkeyChangedEmail,
@@ -104,6 +105,32 @@ describe('the layout', () => {
     expect(defuseLinks('https://x')).not.toContain('://')
     expect(defuseLinks('$3.50 for 2.5 hours')).toBe('$3.50 for 2.5 hours')
     expect(escapeHtml(`<a href="x">'`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;')
+  })
+})
+
+describe('API key made during support access', () => {
+  it('names the admin, the key and the workspace; nothing the admin typed becomes a link', () => {
+    const email = impersonationApiKeyEmail(
+      {
+        admin: { name: 'Visit evil.example', email: 'ann@brightwater.example' },
+        keyName: 'Sync https://evil.example/now',
+        prefix: 'ld_3fK9aQ2x',
+        role: 'admin',
+        at: '2026-11-14T17:12:00Z',
+        workspace: 'Brightwater Plumbing',
+      },
+      ORIGIN,
+    )
+    expect(email.subject).toBe('A server admin created an API key in your Linedesk account')
+    expect(email.text).toContain('ld_3fK9aQ2x…')
+    expect(email.text).toContain('Admin role')
+    expect(email.text).toContain('Brightwater Plumbing')
+    expect(email.text).toContain('UTC')
+    // A URL-like name falls back to the address, defused; the key name keeps its words, not its link.
+    expect(email.text).not.toContain('Visit evil.example')
+    expect(email.text).toContain('Sync')
+    expect(email.text).not.toContain('https://evil.example')
+    expect(email.html).not.toContain('href="https://evil.example')
   })
 })
 

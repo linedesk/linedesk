@@ -50,6 +50,14 @@ const known = (value: unknown) => (value === undefined || value === null || valu
 /** A role as the messages select on it. */
 const roleOf = (role: unknown) => (role === 'owner' || role === 'admin' ? role : 'member')
 
+/** Why an admin signed in as a user (user.impersonate's reason), or null: entries from before it was asked for have none. */
+export function auditReason(e: Pick<AuditEntry, 'what' | 'input'>): string | null {
+  const reason = (e.input as { reason?: unknown } | null)?.reason
+  return e.what === 'user.impersonate' && typeof reason === 'string' && reason.trim()
+    ? t('admin.audit.reason', { reason: reason.trim() })
+    : null
+}
+
 /** What happened, in a few words. */
 export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges'>): string {
   const input = (e.input ?? {}) as Record<string, unknown>
@@ -88,7 +96,12 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
     case 'call_routing_reset':
       return t('admin.audit.callRoutingReset')
     case 'user.impersonate':
-      return t('admin.audit.impersonate')
+      // Whom it was: kept by the handler since the reason was added; older entries have none.
+      return subject ? t('admin.audit.impersonateAs', { who: subject }) : t('admin.audit.impersonate')
+    case 'impersonationEmails.set':
+      return input.on === true
+        ? t('admin.audit.impersonationEmailsOn')
+        : t('admin.audit.impersonationEmailsOff')
     case 'impersonation.stop':
       return t('admin.audit.impersonationStop')
     case 'provider.setKeys':
@@ -452,6 +465,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                         <Badge tone="danger">{t('admin.audit.refused')}</Badge>
                       </>
                     )}
+                    {auditReason(e) && <span className="adm-sub">{auditReason(e)}</span>}
                     {e.ipAddress && <span className="adm-sub">{e.ipAddress}</span>}
                   </td>
                   <td data-label={t('admin.audit.column.workspace')}>

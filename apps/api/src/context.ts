@@ -29,6 +29,11 @@ export interface Actor {
   adminSecondFactor?: AdminSecondFactor
   /** The request came with this workspace API key (api-keys.ts), not a session. */
   apiKeyId?: string
+  /**
+   * That key was made by this instance admin while signed in as its creator (`api_keys.created_by_impersonator`):
+   * every command it runs records the admin in `commands.impersonated_by` (impersonatorOf).
+   */
+  apiKeyImpersonator?: string
   /** An AI agent setting up the install with an instance admin's setup key (agent-setup.ts): setup tools only. */
   setupKeyId?: string
   /** The session of a signed-in member (not an API key or the agent). */

@@ -401,6 +401,50 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "impersonation-started",
+    "A server admin signed in to your Linedesk account",
+    "Security notice
+
+A server admin signed in as you
+
+Ann Lee signed in as you at desk.example.com on Nov 14, 2026, 5:05 PM UTC, in the workspace Brightwater Plumbing & Heating, to see Linedesk as you do.
+
+The reason they gave: Ticket 1042: calls not showing in the inbox
+
+This access ends after 60 minutes at the latest. It cannot change your password, email address, passkeys or sign-in methods, and everything done in it is in the audit log under their name.
+
+If you did not expect this, tell your administrator.
+
+--
+
+You got this email because the server admins of desk.example.com have turned on notices about support access.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "impersonation-api-key",
+    "A server admin created an API key in your Linedesk account",
+    "Security notice
+
+A server admin created an API key for you
+
+Ann Lee created an API key while signed in as you at desk.example.com on Nov 14, 2026, 5:12 PM UTC, in the workspace Brightwater Plumbing & Heating.
+
+The key: Zapier support (ld_3fK9aQ2x…), with the Member role.
+
+The key keeps working after the support access ends, until it is revoked. It is listed in Workspace settings › Developers with the admin's name, and everything done with it is in the audit log under their name.
+
+If you do not need it, revoke it in Workspace settings › Developers. If you did not expect this, tell your administrator.
+
+--
+
+You got this email because the server admins of desk.example.com have turned on notices about support access.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "passkey-enrolment-issued",
     "A passkey enrolment code was issued for your Linedesk account",
     "Security notice
@@ -974,6 +1018,50 @@ Si no lo pediste, avísale a tu administrador.
 --
 
 Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "impersonation-started",
+    "A server admin signed in to your Linedesk account",
+    "Aviso de seguridad
+
+A server admin signed in as you
+
+Ann Lee signed in as you at desk.example.com on 14 nov 2026, 17:05 UTC, in the workspace Brightwater Plumbing & Heating, to see Linedesk as you do.
+
+The reason they gave: Ticket 1042: calls not showing in the inbox
+
+This access ends after 60 minutes at the latest. It cannot change your password, email address, passkeys or sign-in methods, and everything done in it is in the audit log under their name.
+
+If you did not expect this, tell your administrator.
+
+--
+
+You got this email because the server admins of desk.example.com have turned on notices about support access.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "impersonation-api-key",
+    "A server admin created an API key in your Linedesk account",
+    "Aviso de seguridad
+
+A server admin created an API key for you
+
+Ann Lee created an API key while signed in as you at desk.example.com on 14 nov 2026, 17:12 UTC, in the workspace Brightwater Plumbing & Heating.
+
+The key: Zapier support (ld_3fK9aQ2x…), with the Member role.
+
+The key keeps working after the support access ends, until it is revoked. It is listed in Workspace settings › Developers with the admin's name, and everything done with it is in the audit log under their name.
+
+If you do not need it, revoke it in Workspace settings › Developers. If you did not expect this, tell your administrator.
+
+--
+
+You got this email because the server admins of desk.example.com have turned on notices about support access.
 
 Linedesk · desk.example.com
 ",

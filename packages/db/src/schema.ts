@@ -760,6 +760,8 @@ export const api_keys = pgTable(
       .notNull()
       .default('member'),
     created_by: text('created_by').notNull(),
+    /** The instance admin who made it while signed in as `created_by` (impersonation), else null. */
+    created_by_impersonator: text('created_by_impersonator'),
     created_at: createdAt(),
     last_used_at: ts('last_used_at'),
     revoked_at: ts('revoked_at'),

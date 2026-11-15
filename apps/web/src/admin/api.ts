@@ -286,6 +286,8 @@ type AdminInputs = {
   'calendarTools.set': { tool: CalendarTool; mode: CalendarToolMode }
   'setupEmails.get': Record<string, never>
   'setupEmails.set': { on: boolean }
+  'impersonationEmails.get': Record<string, never>
+  'impersonationEmails.set': { on: boolean }
   'workspace.create': { name: string; timeZone?: string; owner: { email: string; name?: string } }
   'branding.set': BrandingInput
   'agentSetup.createKey': Record<string, never>

@@ -7,6 +7,7 @@ import { commands, type Tx } from '@linedesk/db'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { agentAway } from './admin-overview.ts'
 import type { Actor } from './context.ts'
+import { impersonatorOf } from './impersonation-guard.ts'
 import { Reject } from './handlers.ts'
 import { livekitToken } from './livekit-status.ts'
 import { pipelinesSetUp } from './provider-settings.ts'
@@ -104,7 +105,7 @@ async function recordToken(tx: Tx, actor: Actor, room: string, assistantId?: str
     action: TEST_CALL_TOKEN,
     input: assistantId ? { assistantId } : {},
     result: { ok: true, rows: {}, data: { room } },
-    impersonated_by: actor.impersonation?.by ?? null,
+    impersonated_by: impersonatorOf(actor),
   })
 }
 

@@ -3,6 +3,14 @@
 // impersonation outlive its hour. Runs before Better Auth's own endpoints.
 import { IMPERSONATION_MINUTES } from '@linedesk/actions'
 import { APIError, getSessionFromCtx } from 'better-auth/api'
+import type { Actor } from './context.ts'
+
+/**
+ * The instance admin behind what this actor does, for `commands.impersonated_by`: the admin signed in as the user, or
+ * the admin who made the API key in use during support access (`api_keys.created_by_impersonator`). Null otherwise.
+ */
+export const impersonatorOf = (actor: Pick<Actor, 'impersonation' | 'apiKeyImpersonator'>): string | null =>
+  actor.impersonation?.by ?? actor.apiKeyImpersonator ?? null
 
 type AuthCtx = Parameters<typeof getSessionFromCtx>[0]
 
@@ -52,11 +60,16 @@ export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another 
  * Registry actions an impersonated session may run, besides reading (docs/architecture.md §12). An
  * impersonation is for seeing Linedesk as the user does: everything else is refused centrally in
  * run-action, so no new action can give the admin access that outlasts the hour (invite themselves,
- * mint an API key, point a webhook or a transfer elsewhere, change the carrier or numbers).
- * Only the inbox triage the user would not mind, and ending the impersonation.
+ * point a webhook or a transfer elsewhere, change the carrier or numbers). API keys are the one deliberate
+ * exception (they do outlast it, and are marked). Only the inbox triage the user would not mind, API keys (marked as made by the admin), and ending the impersonation.
  */
 export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
   'impersonation.stop',
+  // Support is often about exactly this (decision 2026-11-15). A key made now outlasts the hour, so it names the admin
+  // (api_keys.created_by_impersonator; its commands record commands.impersonated_by) and is listed with their name.
+  // Otherwise it is a key like any other, and the admin revokes keys as the user could (api-keys.ts).
+  'apiKey.create',
+  'apiKey.revoke',
   'call.markRead',
   'call.markUnread',
   'call.markDone',

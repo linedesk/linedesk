@@ -180,6 +180,8 @@ describe('access', () => {
       'branding.set',
       'calendarTools.get',
       'calendarTools.set',
+      'impersonationEmails.get',
+      'impersonationEmails.set',
       'install.setProgress',
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
@@ -2136,8 +2138,9 @@ describe('impersonation', () => {
       headers: { ...who.headers, 'content-type': 'application/json' },
       body: JSON.stringify(body),
     })
-  async function start(who: Caller, userId: string) {
-    const res = await post(who, '/v1/impersonation/start', { userId })
+  /** A reason is required; `extra` adds or overrides fields of the input (workspaceId, another reason). */
+  async function start(who: Caller, userId: string, extra: Record<string, unknown> = {}) {
+    const res = await post(who, '/v1/impersonation/start', { userId, reason: 'Support ticket 1042', ...extra })
     return { status: res.status, body: await res.json(), as: afterResponse(who, res) }
   }
   async function stop(who: Caller) {
@@ -2239,7 +2242,10 @@ describe('impersonation', () => {
       .map(def => def.name)
       .sort()
     expect(allowed).toEqual([
+      // API keys stay possible while signed in as the user (support needs them; decision 2026-11-15), marked as the admin's.
+      'apiKey.create',
       'apiKey.list',
+      'apiKey.revoke',
       'assistant.version',
       'assistant.versions',
       'calendar.findSlots',
@@ -2261,6 +2267,8 @@ describe('impersonation', () => {
       'evaluation.listQuestions',
       'holidays.lookup',
       'impersonation.stop',
+      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
+      'impersonationEmails.get',
       'insights.get',
       'invitation.listMine',
       'member.list',
@@ -2322,7 +2330,9 @@ describe('impersonation', () => {
           { assistantId: other.assistant.id, hooks: ['call_end'], url: 'https://collector.example.com/hook' },
         ],
         ['webhook.update', { endpointId: other.webhookEndpoint.id, url: 'https://collector.example.com/hook' }],
-        ['apiKey.create', { name: 'Backdoor', role: 'admin' }],
+        // Deleting the workspace, connecting a calendar: never as the user.
+        ['workspace.deleteOwn', { name: 'any' }],
+        ['calendar.connectStart', { provider: 'google' }],
         ['carrier.set', {}],
         ['phoneNumber.release', { phoneNumberId: 'any' }],
         ['assistant.update', { id: other.assistant.id, patch: { name: 'Taken over' } }],
@@ -2524,6 +2534,276 @@ describe('impersonation', () => {
   test('stop is refused for a session that is no impersonation', async () => {
     expect((await stop(operator)).status).toBe(403)
     expect((await stop(target)).status).toBe(403)
+  })
+
+  test('a reason is required: missing, blank or too short is refused and no session is made', async () => {
+    for (const reason of [undefined, '', '   ', 'ok']) {
+      const res = await post(operator, '/v1/impersonation/start', { userId: target.userId, reason })
+      expect(res.status, String(reason)).toBe(422)
+      expect(afterResponse(operator, res).headers.cookie).toBe(operator.headers.cookie)
+    }
+    expect((await start(operator, target.userId, { reason: 'x'.repeat(301) })).status).toBe(422)
+    expect(await impersonations()).toEqual([])
+  })
+
+  test('workspaceId opens the session in that workspace of the user; one they are not a member of is refused', async () => {
+    const both = await addMember(other.id, 'member')
+    expect((await act(operator, 'membership.add', { userId: both.userId, workspaceId: home.id, role: 'member' })).status).toBe(200)
+    const { status, body, as } = await start(operator, both.userId, { workspaceId: home.id })
+    expect(status).toBe(200)
+    expect(body.data).toMatchObject({ workspaceId: home.id, subject: { workspaceId: home.id } })
+    const [started] = (await sessionsOf(both.userId)).filter(s => s.impersonatedBy)
+    expect(started).toMatchObject({ activeOrganizationId: home.id })
+    expect((await request(as, 'GET', '/v1/me')).body).toMatchObject({ workspace: { id: home.id } })
+    await stop(as)
+    // Not a member of `home`: refused, no session, no cookie.
+    const refused = await start(operator, target.userId, { workspaceId: home.id })
+    expect(refused).toMatchObject({ status: 409, body: { error: 'this user is not a member of that workspace' } })
+    expect(refused.as.headers.cookie).toBe(operator.headers.cookie)
+    expect(await impersonations()).toEqual([])
+  })
+
+  test('the start keeps the reason and whom it was in the audit log, filed under the workspace', async () => {
+    const { as, body } = await start(operator, target.userId, { reason: 'Ticket 77: calls missing' })
+    await stop(as)
+    const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=20')).body
+    const entry = entries.find(
+      (e: { what: string; at: string }) => e.what === 'user.impersonate' && Date.now() - Date.parse(e.at) < 60_000,
+    )
+    expect(entry).toMatchObject({
+      actor: { id: operator.userId },
+      input: { userId: target.userId, reason: 'Ticket 77: calls missing' },
+      subject: { email: await emailOf(target) },
+      workspace: { id: other.id },
+    })
+    expect(body.data.notified).toBe(false)
+  })
+
+  test('the email to the user is off by default; turned on, one email at the start names the admin, the reason and the workspace', async () => {
+    const mails: { to: string; subject: string; text: string }[] = []
+    vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as never))
+    vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('smtp')
+    try {
+      expect((await act(operator, 'impersonationEmails.get', {})).body.data).toMatchObject({ on: false })
+      const quiet = await start(operator, target.userId)
+      await stop(quiet.as)
+      expect(mails.filter(m => m.to === (quiet.body.data.subject.email as string))).toEqual([])
+      // Only an instance admin changes it, and the change is audited.
+      expect((await act(other.owner, 'impersonationEmails.set', { on: true })).status).toBe(403)
+      expect(await act(operator, 'impersonationEmails.set', { on: true })).toMatchObject({ status: 200, body: { data: { on: true } } })
+      const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=20')).body
+      expect(entries.some((e: { what: string }) => e.what === 'impersonationEmails.set')).toBe(true)
+      const loud = await start(operator, target.userId, { reason: 'Ticket 99: voicemail https://evil.example' })
+      expect(loud.body.data.notified).toBe(true)
+      const targetEmail = await emailOf(target)
+      const sent = mails.filter(m => m.to === targetEmail)
+      expect(sent).toHaveLength(1)
+      expect(sent[0]!.subject).toBe('A server admin signed in to your Linedesk account')
+      expect(sent[0]!.text).toContain('Ticket 99: voicemail')
+      expect(sent[0]!.text).not.toContain('https://evil.example')
+      expect(sent[0]!.text).toContain('UTC')
+      expect(sent[0]!.text).toContain('Brightwater Plumbing')
+      await stop(loud.as)
+      // Ending it sends nothing more.
+      expect(mails.filter(m => m.to === targetEmail)).toHaveLength(1)
+    } finally {
+      await act(operator, 'impersonationEmails.set', { on: false })
+      vi.restoreAllMocks()
+    }
+  })
+
+  test('API keys stay possible while signed in as the user: the key and the command name the admin, the list marks it', async () => {
+    const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    const otherOwner = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, other.owner.userId))
+    await db.update(memberTable).set({ role: 'admin' }).where(otherOwner)
+    await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
+    try {
+      const { as } = await start(operator, target.userId)
+      const key = crypto.randomUUID()
+      const made = await act(as, 'apiKey.create', { name: 'Support made', role: 'member' }, key)
+      expect(made.status).toBe(200)
+      const [row] = await db.select().from(api_keys).where(eq(api_keys.id, made.body.data.apiKeyId))
+      expect(row).toMatchObject({ created_by: target.userId, created_by_impersonator: operator.userId })
+      expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({
+        actor_id: target.userId,
+        impersonated_by: operator.userId,
+      })
+      const listed = (await act(as, 'apiKey.list', {})).body.data.keys
+      expect(listed.find((k: { id: string }) => k.id === row!.id)).toMatchObject({ created_during_support: true })
+      expect(JSON.stringify(listed)).not.toContain(operator.userId)
+      expect((await act(as, 'apiKey.revoke', { apiKeyId: row!.id })).status).toBe(200)
+      await stop(as)
+      // The user's own keys are not marked.
+      const own = await act(target, 'apiKey.create', { name: 'Mine', role: 'member' })
+      const mine = (await act(target, 'apiKey.list', {})).body.data.keys
+      expect(mine.find((k: { id: string }) => k.id === own.body.data.apiKeyId)).toMatchObject({ created_during_support: false })
+      // An API key still never manages keys.
+      expect((await request({ headers: { authorization: `Bearer ${own.body.data.key}` } }, 'POST', '/v1/actions/apiKey.list', {})).status).toBe(403)
+    } finally {
+      await db.update(memberTable).set({ role: 'member' }).where(targetMember)
+      await db.update(memberTable).set({ role: 'owner' }).where(otherOwner)
+    }
+  })
+
+  describe('API keys made during support access', () => {
+    const bearer = (key: string): Caller => ({ headers: { authorization: `Bearer ${key}` } })
+    const targetMember = () => and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    const otherOwner = () => and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, other.owner.userId))
+    // The user is the workspace's owner here, so an admin key would work for them.
+    beforeEach(async () => {
+      await db.update(memberTable).set({ role: 'admin' }).where(otherOwner())
+      await db.update(memberTable).set({ role: 'owner' }).where(targetMember())
+    })
+    afterEach(async () => {
+      await db.update(memberTable).set({ role: 'member' }).where(targetMember())
+      await db.update(memberTable).set({ role: 'owner' }).where(otherOwner())
+      vi.restoreAllMocks()
+    })
+
+    test('such a key has every feature of a normal key: the asked role, call.export, and the admin revokes any key', async () => {
+      const own = await act(target, 'apiKey.create', { name: 'The user\'s', role: 'member' })
+      const { as } = await start(operator, target.userId)
+      const revokeCmd = crypto.randomUUID()
+      const made = await act(as, 'apiKey.create', { name: 'Support admin key', role: 'admin' })
+      try {
+        expect(made.status).toBe(200)
+        const [row] = await db.select().from(api_keys).where(eq(api_keys.id, made.body.data.apiKeyId))
+        expect(row).toMatchObject({ role: 'admin', created_by_impersonator: operator.userId })
+        // Revoking any key of the workspace, like the user could; the command names the admin.
+        expect((await act(as, 'apiKey.revoke', { apiKeyId: own.body.data.apiKeyId }, revokeCmd)).status).toBe(200)
+      } finally {
+        await stop(as)
+      }
+      expect((await db.select().from(commands).where(eq(commands.id, revokeCmd)))[0]).toMatchObject({
+        actor_id: target.userId,
+        impersonated_by: operator.userId,
+      })
+      expect((await act(bearer(made.body.data.key), 'call.export', { from: '2026-01-01', to: '2026-01-31' })).status).toBe(200)
+    })
+
+    test('every command the key runs records the admin; the user\'s own key records nobody', async () => {
+      const { as } = await start(operator, target.userId)
+      const made = await act(as, 'apiKey.create', { name: 'Support integration', role: 'member' })
+      await stop(as)
+      const cmd = crypto.randomUUID()
+      expect((await act(bearer(made.body.data.key), 'call.markRead', { callId: other.call.id }, cmd)).status).toBe(200)
+      expect((await db.select().from(commands).where(eq(commands.id, cmd)))[0]).toMatchObject({
+        actor_id: `apikey:${made.body.data.apiKeyId}`,
+        impersonated_by: operator.userId,
+      })
+      // The audit log lists it under impersonation, naming the admin.
+      const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=50')).body
+      expect(entries.find((e: { id?: string; what: string; impersonatedBy?: unknown }) => e.what === 'call.markRead' && (e as { input?: { callId?: string } }).input?.callId === other.call.id && e.impersonatedBy)).toMatchObject({
+        impersonatedBy: { id: operator.userId },
+      })
+      const own = await act(target, 'apiKey.create', { name: 'Own key', role: 'member' })
+      const ownCmd = crypto.randomUUID()
+      expect((await act(bearer(own.body.data.key), 'call.markRead', { callId: other.call.id }, ownCmd)).status).toBe(200)
+      expect((await db.select().from(commands).where(eq(commands.id, ownCmd)))[0]).toMatchObject({ impersonated_by: null })
+    })
+
+    test('call.export with such a key leaves a command row naming the admin; with a normal key, none', async () => {
+      const exports = async () => db.select().from(commands).where(eq(commands.action, 'call.export'))
+      const range = { from: '2026-01-01', to: '2026-01-31' }
+      const { as } = await start(operator, target.userId)
+      const made = await act(as, 'apiKey.create', { name: 'Support export', role: 'admin' })
+      await stop(as)
+      const before = (await exports()).map(r => r.id)
+      expect((await act(bearer(made.body.data.key), 'call.export', range)).status).toBe(200)
+      const logged = (await exports()).filter(r => !before.includes(r.id))
+      expect(logged).toHaveLength(1)
+      expect(logged[0]).toMatchObject({
+        actor_id: `apikey:${made.body.data.apiKeyId}`,
+        impersonated_by: operator.userId,
+        workspace_id: other.id,
+        input: { from: range.from, to: range.to },
+        result: { ok: true, rows: {} },
+      })
+      // In the audit log, under impersonation, naming the admin.
+      const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=50')).body
+      expect(entries.find((e: { id?: string; what: string }) => e.what === 'call.export')).toMatchObject({
+        impersonatedBy: { id: operator.userId },
+      })
+      // The user's own key: a read as before, no row.
+      const own = await act(target, 'apiKey.create', { name: 'Own export', role: 'admin' })
+      const ownBefore = (await exports()).length
+      expect((await act(bearer(own.body.data.key), 'call.export', range)).status).toBe(200)
+      expect(await exports()).toHaveLength(ownBefore)
+    })
+
+    test('the list names the admin who made the key', async () => {
+      const { as } = await start(operator, target.userId)
+      try {
+        const made = await act(as, 'apiKey.create', { name: 'Named', role: 'member' })
+        const [admin] = await db.select().from(user).where(eq(user.id, operator.userId))
+        const listed = (await act(as, 'apiKey.list', {})).body.data.keys
+        expect(listed.find((k: { id: string }) => k.id === made.body.data.apiKeyId)).toMatchObject({
+          created_during_support: true,
+          created_during_support_by: admin!.name || admin!.email,
+        })
+      } finally {
+        await stop(as)
+      }
+      const own = await act(target, 'apiKey.create', { name: 'Not named', role: 'member' })
+      const mine = (await act(target, 'apiKey.list', {})).body.data.keys
+      expect(mine.find((k: { id: string }) => k.id === own.body.data.apiKeyId)).toMatchObject({
+        created_during_support: false,
+        created_during_support_by: null,
+      })
+    })
+
+    test('with impersonation emails on, the user is emailed when such a key is made; off, nothing', async () => {
+      const mails: { to: string; subject: string; text: string; html: string }[] = []
+      vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as never))
+      vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('smtp')
+      const targetEmail = await emailOf(target)
+      const quiet = await start(operator, target.userId)
+      await act(quiet.as, 'apiKey.create', { name: 'Quiet', role: 'member' })
+      await stop(quiet.as)
+      expect(mails.filter(m => m.to === targetEmail)).toEqual([])
+      try {
+        await act(operator, 'impersonationEmails.set', { on: true })
+        const loud = await start(operator, target.userId)
+        mails.length = 0
+        const made = await act(loud.as, 'apiKey.create', { name: 'Sync to evil.example https://evil.example', role: 'admin' })
+        await stop(loud.as)
+        const sent = mails.filter(m => m.to === targetEmail)
+        expect(sent).toHaveLength(1)
+        expect(sent[0]!.subject).toBe('A server admin created an API key in your Linedesk account')
+        expect(sent[0]!.text).toContain(made.body.data.prefix)
+        expect(sent[0]!.text).toContain('Admin role')
+        expect(sent[0]!.text).toContain('Brightwater Plumbing')
+        expect(sent[0]!.text).not.toContain('https://evil.example')
+        expect(sent[0]!.html).not.toContain('href="https://evil.example')
+        // The user making their own key gets nothing.
+        mails.length = 0
+        await act(target, 'apiKey.create', { name: 'Own', role: 'member' })
+        expect(mails.filter(m => m.to === targetEmail)).toEqual([])
+      } finally {
+        await act(operator, 'impersonationEmails.set', { on: false })
+      }
+    })
+  })
+
+  test('notified means a notice was queued: only with email over SMTP, as impersonationEmails.get reports it', async () => {
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined as never)
+    const kind = vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('log')
+    try {
+      await act(operator, 'impersonationEmails.set', { on: true })
+      expect((await act(operator, 'impersonationEmails.get', {})).body.data).toMatchObject({ on: true, emailConnected: false })
+      const logged = await start(operator, target.userId)
+      expect(logged.body.data.notified).toBe(false)
+      await stop(logged.as)
+      kind.mockReturnValue('smtp')
+      const queued = await start(operator, target.userId)
+      expect(queued.body.data.notified).toBe(true)
+      await stop(queued.as)
+      const targetEmail = await emailOf(target)
+      expect(send.mock.calls.filter(([e]) => (e as { to: string }).to === targetEmail)).toHaveLength(1)
+    } finally {
+      await act(operator, 'impersonationEmails.set', { on: false })
+      vi.restoreAllMocks()
+    }
   })
 
   test('the audit log has the start, what was done as the user, and the stop, each naming the admin', async () => {
