@@ -13,7 +13,7 @@ type Event = { type?: string; audio?: string; audio_end_ms?: number }
 const base64Bytes = (text: string) => Math.floor((text.length * 3) / 4) - (text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0)
 
 /** One realtime reply: the parts of ReplyTimes, with OpenAI's model time split into starting the reply and its first audio. */
-export type RealtimeReply = ReplyTimes & { startMs: number; firstAudioMs: number; lagMs: number }
+export type RealtimeReply = ReplyTimes & { modelMs: number; serverMs: number; startMs: number; firstAudioMs: number; lagMs: number }
 
 /** The log line for one realtime reply. */
 export const describeRealtimeReply = (r: RealtimeReply) =>

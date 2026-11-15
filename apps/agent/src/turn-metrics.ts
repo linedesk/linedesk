@@ -8,9 +8,11 @@ type Metrics = { type: string; speechId?: string; cancelled?: boolean } & Record
 /**
  * One reply's time in milliseconds, split by where it went: end-of-turn detection, the model (until its first token;
  * a realtime model until its first audio), the voice (until its first audio; none on a realtime call) and the agent
- * itself (the rest until the audio plays). `at`: when the caller stopped speaking.
+ * itself (the rest until the audio plays). `at`: when the caller stopped speaking. A part that was not measured is left
+ * out: the model's or the voice's (LiveKit reports -1, e.g. when the voice failed and the fallback voice spoke), and
+ * then the agent's too, since the rest would hold the part not measured.
  */
-export type ReplyTimes = { at: string; turnMs: number; modelMs: number; voiceMs?: number; serverMs: number; totalMs: number }
+export type ReplyTimes = { at: string; turnMs: number; modelMs?: number; voiceMs?: number; serverMs?: number; totalMs: number }
 
 /** The log line for one metrics event, or null for the kinds that do not affect reply latency. */
 export function describeMetrics(m: Metrics): string | null {
@@ -29,6 +31,9 @@ export function logTurnMetrics(session: voice.AgentSession, label: string) {
   })
 }
 
+/** A measured time in whole milliseconds; undefined for LiveKit's "not measured" (-1) or anything else not a time. */
+const measured = (ms: number): number | undefined => (Number.isFinite(ms) && ms >= 0 ? Math.round(ms) : undefined)
+
 type Pending = { speechEnd?: number; turnMs?: number; modelMs?: number; voiceMs?: number; playing?: number }
 
 /**
@@ -45,15 +50,22 @@ export function cascadedReplyTimer(onReply: (reply: ReplyTimes) => void, now: ()
     const r = replies.get(id)
     if (!r || r.speechEnd === undefined || r.turnMs === undefined || r.modelMs === undefined || r.voiceMs === undefined || r.playing === undefined) return
     replies.delete(id)
+    // No moment the caller stopped speaking (LiveKit reports 0 then): no total to put the parts in, so no reply time.
+    if (!(r.speechEnd > 0)) return
     const totalMs = Math.round(r.playing - r.speechEnd)
+    const turnMs = measured(r.turnMs)
+    const modelMs = measured(r.modelMs)
+    const voiceMs = measured(r.voiceMs)
+    if (turnMs === undefined) return
+    const parts = turnMs + (modelMs ?? 0) + (voiceMs ?? 0)
     // The parts never add up to more than the total: if they do, the reply was matched wrong (no reply time then).
-    if (Math.round(r.turnMs) + Math.round(r.modelMs) + Math.round(r.voiceMs) > totalMs) return
+    if (parts > totalMs) return
     onReply({
       at: new Date(r.speechEnd).toISOString(),
-      turnMs: Math.round(r.turnMs),
-      modelMs: Math.round(r.modelMs),
-      voiceMs: Math.round(r.voiceMs),
-      serverMs: Math.max(0, totalMs - Math.round(r.turnMs) - Math.round(r.modelMs) - Math.round(r.voiceMs)),
+      turnMs,
+      ...(modelMs !== undefined && { modelMs }),
+      ...(voiceMs !== undefined && { voiceMs }),
+      ...(modelMs !== undefined && voiceMs !== undefined && { serverMs: totalMs - parts }),
       totalMs,
     })
   }
