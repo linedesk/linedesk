@@ -1,0 +1,76 @@
+// The options of Workspace settings › General › Country and Language (and the onboarding business step): every country
+// of the phone field (flags, common ones first) and the languages calls can be answered in, each list opened by
+// "Automatic (…)": the country or language worked out when none is set (workspace-locale.ts in @linedesk/actions).
+import {
+  automaticCountryLabel,
+  automaticLanguageLabel,
+  COUNTRY_LANGUAGES,
+  isVoiceLanguage,
+  LANGUAGES,
+  languageCodes,
+  type WorkspaceCountrySource,
+  workspaceLanguageName,
+} from '@linedesk/actions'
+import { phoneCountryOptions, searchPhoneCountries } from '../ui/phoneInputModel.ts'
+import { type SearchOption, searchOptions } from '../ui/SearchSelect.tsx'
+
+/** The value of "Automatic": nothing set (null in workspace.updateSettings). */
+export const AUTOMATIC = ''
+
+/** What the country list shows: `resolvedCountry` and its source while none is set. */
+export function countryOptions(resolvedCountry: string, source: WorkspaceCountrySource): SearchOption[] {
+  const automatic: SearchOption = {
+    value: AUTOMATIC,
+    label:
+      source === 'explicit'
+        ? 'Automatic (from your numbers and holidays)'
+        : automaticCountryLabel(resolvedCountry, source),
+  }
+  return [
+    automatic,
+    ...phoneCountryOptions().map(o => ({
+      value: o.value,
+      label: o.name,
+      icon: o.flag,
+      meta: o.value,
+      ...(o.group ? { group: o.group } : {}),
+    })),
+  ]
+}
+
+/** The country search of the phone field (name, ISO code), with "Automatic" kept when it matches. */
+export function searchCountries(options: readonly SearchOption[], query: string): SearchOption[] {
+  if (!query.trim()) return [...options]
+  const automatic = options.filter(o => o.value === AUTOMATIC && searchOptions([o], query).length)
+  const phone = phoneCountryOptions()
+  const found = new Set(searchPhoneCountries(phone, query).map(o => o.value))
+  const byCode = new Map(options.map(o => [o.value, o]))
+  return [...automatic, ...[...found].map(code => ({ ...byCode.get(code)!, group: undefined }))]
+}
+
+/** The language a country speaks (COUNTRY_LANGUAGES), the one "Automatic" stands for. */
+export const countryLanguage = (country: string): string => COUNTRY_LANGUAGES[country] ?? 'en'
+
+/**
+ * "Automatic (German, from your country)"; for a country whose language calls cannot be answered in yet, what they
+ * are answered in instead: "Automatic (Korean summaries; calls in English)".
+ */
+export function automaticLanguageOption(country: string): SearchOption {
+  const language = countryLanguage(country)
+  return {
+    value: AUTOMATIC,
+    label: isVoiceLanguage(language)
+      ? automaticLanguageLabel(language)
+      : `Automatic (${workspaceLanguageName(language)} summaries; calls in English)`,
+  }
+}
+
+/** "Automatic", then every language calls can be answered in, A–Z. */
+export function languageOptions(country: string): SearchOption[] {
+  return [
+    automaticLanguageOption(country),
+    ...[...languageCodes]
+      .sort((a, b) => LANGUAGES[a].localeCompare(LANGUAGES[b], 'en'))
+      .map(code => ({ value: code, label: LANGUAGES[code], meta: code })),
+  ]
+}

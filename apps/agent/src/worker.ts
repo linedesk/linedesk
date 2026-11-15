@@ -147,10 +147,10 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       }),
       execute: async ({ message: said }) => {
         // A number the caller said can come out garbled ("503 551 42"): only a whole one is saved.
-        const partial = partialPhoneNumberIn(said)
+        const partial = partialPhoneNumberIn(said, call.country)
         if (partial) return `"${partial}" is not a complete phone number. Get the callback number with get_phone_number first, then call take_message again with the confirmed number.`
         // With caller ID that is the callback number; another one only as get_phone_number confirmed it.
-        const checked = withCallbackNumber(said, callerId, { confirmed: log.confirmedNumbers, saved: log.messages })
+        const checked = withCallbackNumber(said, callerId, { confirmed: log.confirmedNumbers, saved: log.messages, country: call.country })
         if ('refusal' in checked) return checked.refusal
         const message = checked.text
         await api.run(callTakeMessage, { callId, message }, call)
@@ -474,7 +474,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
-  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0)
+  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country)
   const instructions = instructionsNow()
   const collect: CollectContext = {
     log,
@@ -482,6 +482,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     languageRule: collectLanguageRule(call.assistant) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
     callerId: callerIdOf(call),
+    country: call.country,
     facts: () => stepFacts({ today: collect.today(), hours: call.businessHours?.summary, address: call.assistant?.business_profile?.address }),
   }
   const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect) })

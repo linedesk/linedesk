@@ -1,7 +1,8 @@
-// Which languages an assistant speaks with callers (`assistants.languages`): a main language (English unless set)
-// and, besides it, none, a picked list, or every supported language. The greeting and the fixed lines are in the
-// main language (spoken-lines.ts); the call's summary is written in English for the team, its transcript stays in
-// the language spoken.
+// Which languages an assistant speaks with callers (`assistants.languages`): a main language (unless set, the
+// workspace language when calls can be answered in it, else English) and, besides it, none, a picked list, or every
+// supported language. The greeting and the fixed lines are in the main language (spoken-lines.ts); the call's summary
+// is written in the workspace language for the team (English unless set, workspace-locale.ts), its transcript stays
+// in the language spoken.
 import { z } from 'zod'
 
 /**
@@ -40,13 +41,16 @@ export const ENGLISH_ONLY: AssistantLanguages = { main: 'en', mode: 'english', a
 
 type StoredLanguages = { main?: string; mode?: string; allowed?: readonly string[] } | null | undefined
 
-/** The main language; English when none (or an unknown one) is stored. */
-export const mainLanguageOf = (languages: StoredLanguages): Language =>
-  languageCodes.find(code => code === languages?.main) ?? 'en'
+/**
+ * The main language: the one stored; when none (or an unknown one) is, `fallback` (the workspace language) when calls
+ * can be answered in it, else English.
+ */
+export const mainLanguageOf = (languages: StoredLanguages, fallback?: string | null): Language =>
+  languageCodes.find(code => code === languages?.main) ?? languageCodes.find(code => code === fallback) ?? 'en'
 
 /** The languages besides the main one a call may switch to (none: the main language only). Unknown codes are dropped. */
-export function otherLanguagesOf(languages: StoredLanguages): Language[] {
-  const main = mainLanguageOf(languages)
+export function otherLanguagesOf(languages: StoredLanguages, fallback?: string | null): Language[] {
+  const main = mainLanguageOf(languages, fallback)
   if (languages?.mode === 'any') return languageCodes.filter(code => code !== main)
   if (languages?.mode !== 'allowed') return []
   return languageCodes.filter(code => code !== main && languages.allowed?.includes(code))

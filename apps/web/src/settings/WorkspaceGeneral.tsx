@@ -1,17 +1,19 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
-// the workspace icon (WorkspaceIconField), the time zone (moved here from the assistant's Advanced section;
+// the workspace icon (WorkspaceIconField), the country and language (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
 import { ONLY_ADMINS } from './readOnly.ts'
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
+import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, Section } from './fields.tsx'
-import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
+import { callAction, patchWorkspaceSettings, refreshWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { renameCheck } from './workspaceGeneral.ts'
+import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
 
 const READ_ONLY = ONLY_ADMINS
@@ -29,6 +31,8 @@ export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
     <Section id="ws-general" title="General">
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
       <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={READ_ONLY} toast={toast} />
+      <Country canEdit={canEdit} />
+      <Language canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
     </Section>
@@ -78,6 +82,113 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
         onKeyDown={onKeyDown}
         onBlur={save}
       />
+    </Field>
+  )
+}
+
+/**
+ * Saves the country or language, then reads the settings again: what Automatic stands for, the language that follows
+ * the country and the currency of an unset appointment value are worked out by the API.
+ */
+async function saveLocale(change: { country?: string | null; language?: string | null }) {
+  try {
+    await callAction('workspace.updateSettings', change)
+  } catch (e) {
+    console.warn(`could not save the workspace ${Object.keys(change).join(' and ')}: ${(e as Error).message}`)
+  }
+  // Also after a failure: the field goes back to what is saved.
+  void refreshWorkspaceSettings()
+}
+
+/**
+ * Where the business is: the default country of phone numbers, the forwarding guide, the holidays and the currency, and
+ * how the assistant reads numbers callers say. Automatic until set: from the assistant's number, the business phone or
+ * the holiday calendar, else the United States. Saves at once.
+ */
+function Country({ canEdit }: { canEdit: boolean }) {
+  const settings = useWorkspaceSettings()
+  const data = settings.data
+  const resolved = data?.resolvedCountry ?? 'US'
+  const options = useMemo(
+    () => countryOptions(resolved, data?.countrySource ?? 'default'),
+    [resolved, data?.countrySource],
+  )
+  const change = (value: string) => {
+    const country = value === AUTOMATIC ? null : value
+    patchWorkspaceSettings({ country, ...(country ? { resolvedCountry: country, countrySource: 'explicit' } : {}) })
+    void saveLocale({ country })
+  }
+  return (
+    <Field
+      id="ws-country"
+      label="Country"
+      help={canEdit ? undefined : READ_ONLY}
+      tip="Where the business is. Phone numbers, the forwarding guide, holidays and the currency start with it, and the assistant reads the numbers callers say the way they are written there."
+    >
+      <Loading
+        what="The country"
+        loading={!data}
+        error={settings.error}
+        onRetry={() => void settings.reload()}
+        skeleton={<Skeleton shape="field" width="100%" />}
+      >
+        {data && (
+          <SearchSelect
+            id="ws-country"
+            label="Country"
+            value={data.country ?? AUTOMATIC}
+            options={options}
+            search={searchCountries}
+            placeholder="Search a country"
+            onChange={change}
+            disabled={!canEdit}
+          />
+        )}
+      </Loading>
+    </Field>
+  )
+}
+
+/**
+ * The workspace language: what assistants without a main language of their own greet and speak in, and what call
+ * summaries and messages for the team are written in. Only the languages calls can be answered in. Saves at once.
+ */
+function Language({ canEdit }: { canEdit: boolean }) {
+  const settings = useWorkspaceSettings()
+  const data = settings.data
+  const country = data?.resolvedCountry ?? 'US'
+  const options = useMemo(() => languageOptions(country), [country])
+  const change = (value: string) => {
+    const language = value === AUTOMATIC ? null : value
+    patchWorkspaceSettings({ language, ...(language ? { resolvedLanguage: language } : {}) })
+    void saveLocale({ language })
+  }
+  return (
+    <Field
+      id="ws-language"
+      label="Language"
+      help={canEdit ? undefined : READ_ONLY}
+      tip="Your assistant greets callers in it unless it has its own main language (Settings › Assistant › Languages), and call summaries are written in it. Every voice speaks every language listed; Settings › Assistant › Voice suggests voices native in it."
+    >
+      <Loading
+        what="The language"
+        loading={!data}
+        error={settings.error}
+        onRetry={() => void settings.reload()}
+        skeleton={<Skeleton shape="field" width="100%" />}
+      >
+        {data && (
+          <SearchSelect
+            id="ws-language"
+            label="Language"
+            value={data.language ?? AUTOMATIC}
+            options={options}
+            placeholder="Search a language"
+            onChange={change}
+            disabled={!canEdit}
+          />
+        )}
+      </Loading>
     </Field>
   )
 }

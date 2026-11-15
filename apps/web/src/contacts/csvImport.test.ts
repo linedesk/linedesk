@@ -9,6 +9,7 @@ import {
   importPhone,
   parseCsv,
   planImport,
+  planSummary,
   tableOf,
 } from './csvImport.ts'
 
@@ -107,8 +108,41 @@ describe('importPhone', () => {
         '+44 20 7946 0958',
         '555-0142',
         '+1 555',
-      ].map(importPhone),
+      ].map(t => importPhone(t)),
     ).toEqual(['+15035550142', '+15035550142', '+15035550142', '+49301234567', '+442079460958', null, null])
+  })
+
+  it('never turns a national number of another country into a made-up +1 number', () => {
+    // Ten digits with a trunk 0 is no US number: refused, not +1 031… .
+    expect(importPhone('03-1234-5678')).toBeNull()
+    expect(importPhone('020 7946 0958')).toBeNull()
+  })
+
+  it('reads national numbers the way the workspace country writes them', () => {
+    expect(importPhone('020 7946 0958', 'GB')).toBe('+442079460958')
+    expect(importPhone('07400 123456', 'GB')).toBe('+447400123456')
+    expect(importPhone('55 1234 5678', 'MX')).toBe('+525512345678')
+    expect(importPhone('03-1234-5678', 'JP')).toBe('+81312345678')
+    // With + or 00 and a country code, from anywhere.
+    expect(importPhone('+1 503 555 0142', 'GB')).toBe('+15035550142')
+    expect(importPhone('0044 20 7946 0958', 'GB')).toBe('+442079460958')
+    // A US number written without +1 is not a UK one.
+    expect(importPhone('(503) 555-0142', 'GB')).toBeNull()
+  })
+
+  it('says why a row is left out', () => {
+    const plan = planImport(
+      [['Alex Roe', '020 79'], ['Bea Lee', ''], ['Cy Park', '020 7946 0958 12345']],
+      ['name', 'phone'],
+      [],
+      2,
+      'GB',
+    )
+    expect(plan.unreadable).toEqual([
+      { row: 2, text: '020 79', problem: 'too_short' },
+      { row: 3, text: '', problem: 'missing' },
+      { row: 4, text: '020 7946 0958 12345', problem: 'too_long' },
+    ])
   })
 })
 
@@ -141,5 +175,14 @@ describe('the example file', () => {
       },
       { phone: '+15035550144', name: 'Grace Kim', email: 'grace.kim@example.com' },
     ])
+  })
+})
+
+describe('planSummary', () => {
+  it('names each unreadable row with why, and where numbers need a country code', () => {
+    const us = planImport([['Alex Roe', '555-01'], ['Bea Lee', '']], ['name', 'phone'], [])
+    expect(planSummary(us)).toContain('2 rows without a readable phone number left out: row 2 (555-01: too short), row 3 (no number). Numbers outside the US need + and the country code.')
+    const gb = planImport([['Alex Roe', '(503) 555-0142']], ['name', 'phone'], [], 2, 'GB')
+    expect(planSummary(gb, 'GB')).toContain('row 2 ((503) 555-0142: not a valid number). Numbers outside the United Kingdom need + and the country code.')
   })
 })

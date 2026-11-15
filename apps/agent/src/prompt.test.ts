@@ -19,6 +19,13 @@ test('the call rules: no number or known name asked, booking per setup, emergenc
   expect(callRules()).not.toMatch(/burst pipe|no heat|leak/)
 })
 
+test("the emergency number is the workspace country's: 911 in the US, 999 in the UK", () => {
+  expect(buildInstructions(assistant())).toContain('hang up and call 911 right away')
+  const uk = buildInstructions(assistant(), null, null, [], null, null, Date.now(), null, false, 'en', 'GB')
+  expect(uk).toContain('hang up and call 999 right away')
+  expect(uk).not.toContain('911')
+})
+
 test('the call rules hold only the cases of this call, and leave name, number, prices and promises to their own parts', () => {
   // With booking the booking section says how: no appointment line here.
   expect(callRules({ booking: true })).not.toContain('Appointments:')

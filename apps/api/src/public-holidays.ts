@@ -10,6 +10,7 @@ import type { HolidayCalendar, HolidayChange } from '@linedesk/db/types'
 import Holidays from 'date-holidays'
 import { and, asc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 
 /** Same default as the workspace settings. */
 const DEFAULT_TIME_ZONE = 'America/New_York'
@@ -84,8 +85,17 @@ function checkPlace(country: string, state: string | null): HolidayPlace[] {
   return states
 }
 
-export function lookupHolidays(input: { country?: string; state?: string }, timeZone: string): HolidayLookupData {
-  const country = input.country ?? countryOfTimeZone(timeZone) ?? 'US'
+/**
+ * Without a country asked for: the workspace's country (`workspaceCountry`, set or worked out from its numbers) when
+ * there is a holiday calendar for it, else the time zone's, else the US.
+ */
+export function lookupHolidays(
+  input: { country?: string; state?: string },
+  timeZone: string,
+  workspaceCountry?: string | null,
+): HolidayLookupData {
+  const known = workspaceCountry && countries().some(c => c.code === workspaceCountry) ? workspaceCountry : null
+  const country = input.country ?? known ?? countryOfTimeZone(timeZone) ?? 'US'
   const state = input.state ?? null
   const states = checkPlace(country, state)
   return { countries: countries(), country, states, state, holidays: holidayList(country, state, todayIn(timeZone)) }
@@ -231,7 +241,10 @@ export const publicHolidayHandlers: Record<string, Handler> = {
   'holidays.lookup': async ({ tx, actor }, input: { country?: string; state?: string }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const { timeZone } = await settingsOf(tx, actor.workspaceId)
-    return { rows: {}, data: lookupHolidays(input, timeZone) }
+    // The workspace's country picks the calendar it opens with, unless it is only the US fallback (then the time zone).
+    const locale = input.country ? null : await workspaceLocale(tx, actor.workspaceId)
+    const country = locale && locale.countrySource !== 'default' ? locale.resolvedCountry : null
+    return { rows: {}, data: lookupHolidays(input, timeZone, country) }
   },
 
   'holidays.set': async ({ tx, actor }, input: HolidayCalendar) => {

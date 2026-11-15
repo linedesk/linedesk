@@ -25,6 +25,8 @@ export type CollectContext = {
   callerId?: string | null
   /** What a step may answer a short question from (stepFacts); missing: only the value. */
   facts?: () => string
+  /** The workspace's country: phone numbers are read as written there (CallSession.country); missing: US. */
+  country?: string
 }
 
 /**
@@ -138,7 +140,7 @@ export function collectTools(ctx: CollectContext) {
         if (refusal) return refusal
         // Only with caller ID is a callback number "another" one, and the reason worth a line for the team.
         if (ctx.callerId && reason?.trim()) ctx.log.record('system', `Asked for another ${label}: ${reason.trim()}`)
-        return runStep(ctx, opts, phoneCollector(label))
+        return runStep(ctx, opts, phoneCollector(label, ctx.country))
       },
     }),
     get_address: llm.tool({

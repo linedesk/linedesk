@@ -1,5 +1,5 @@
 // After hang-up: one LLM call turns the transcript into the call's title, summary and outcome.
-import { CALLER_NAME_MAX, outcome, urgency } from '@linedesk/actions'
+import { CALLER_NAME_MAX, outcome, urgency, workspaceLanguageName } from '@linedesk/actions'
 import { z } from 'zod'
 import type { CallResult, Speaker } from './call-session.ts'
 
@@ -23,7 +23,9 @@ const summarySchema = z.object({
   caller_name: z.string().nullish().transform(name => name?.trim().slice(0, CALLER_NAME_MAX) || null),
 })
 
-const SYSTEM = `You summarize a phone call between a business's assistant and a caller for the business owner's inbox.
+/** The system prompt; `language` is the team's (the workspace language): what the title, summary and items are written in. */
+export function summarySystem(language = 'en'): string {
+  return `You summarize a phone call between a business's assistant and a caller for the business owner's inbox.
 Answer with one JSON object and nothing else:
 {
   "title": short headline of what the call is about, at most 8 words, no caller name,
@@ -34,8 +36,16 @@ Answer with one JSON object and nothing else:
   "caller_name": the caller's name if they gave it, else null
 }
 Outcomes: "booked" when the assistant booked an appointment, "message" when the assistant took a message, "callback" when the caller expects a call back, "answered" when the question was fully answered, "transferred" when the caller was put through to a person, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. A caller who said what they wanted and then gave up or hung up before anything was saved is "callback", with an action item to call them back about it (with their name and number if they gave them), never "hangup". Use "urgent" only for emergencies.
-Write the title, summary and action items in English, also when the call was in another language. When it was not in English, begin the summary with "Call in <language>." (for example "Call in Spanish.").
+${languageRule(language)}
 Lines starting with "system:" are tools the assistant used. Messages the assistant already saved are listed after the transcript: they are action items already, never repeat or rephrase them in "action_items".`
+}
+
+/** In English as before; in another team language, the summary says in that language when the call was in another one. */
+function languageRule(language: string): string {
+  if (language === 'en') return 'Write the title, summary and action items in English, also when the call was in another language. When it was not in English, begin the summary with "Call in <language>." (for example "Call in Spanish.").'
+  const name = workspaceLanguageName(language)
+  return `Write the title, summary and action items in ${name} (language code "${language}"), also when the call was in another language. When it was not in ${name}, begin the summary with a short sentence in ${name} naming the language of the call. Keep names, phone numbers, email addresses and street addresses exactly as they were said.`
+}
 
 const formatTranscript = (lines: TranscriptLine[]) => lines.map(l => `${l.speaker}: ${l.text}`).join('\n')
 
@@ -97,10 +107,13 @@ function endedMidStep(result: CallResult, tools: Parameters<typeof mergeToolResu
 const NOT_A_MESSAGE = new Set<CallResult['outcome']>(['answered', 'hangup'])
 const ONLY_BY_TOOLS = new Set<CallResult['outcome']>(['booked', 'transferred'])
 
-/** `savedMessages` are the action items taken during the call; the LLM is told not to repeat them. */
-export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJson, savedMessages: string[] = []): Promise<CallResult> {
+/**
+ * `savedMessages` are the action items taken during the call; the LLM is told not to repeat them. `teamLanguage`: the
+ * workspace language the owner reads it in.
+ */
+export async function summarizeCall(lines: TranscriptLine[], complete: CompleteJson, savedMessages: string[] = [], teamLanguage = 'en'): Promise<CallResult> {
   if (!lines.some(l => l.speaker === 'caller')) return hangupResult
-  const parsed = summarySchema.parse(JSON.parse(await complete(SYSTEM, summaryRequest(lines, savedMessages))))
+  const parsed = summarySchema.parse(JSON.parse(await complete(summarySystem(teamLanguage), summaryRequest(lines, savedMessages))))
   return {
     title: parsed.title, summary: parsed.summary, outcome: parsed.outcome, urgency: parsed.urgency,
     actionItems: parsed.action_items.map(text => ({ text })),

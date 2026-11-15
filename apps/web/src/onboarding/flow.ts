@@ -2,6 +2,7 @@
 import {
   type BusinessHoursSpan,
   completePhone,
+  emergencyNumberOf,
   type ForwardingGuide,
   type ForwardingMode,
   forwardingInstructions,
@@ -443,9 +444,12 @@ export function urgentCasesFrom(instructions: string | undefined): string | null
   return null
 }
 
-/** The fixed line under "Urgent means": emergencies are not the business's to handle (EMERGENCY_RULE in the prompt). */
-export const EMERGENCY_NOTE = (name: string) =>
-  `Emergencies (danger to people, fire, a gas smell): ${name} tells the caller to hang up and call 911.`
+/**
+ * The fixed line under "Urgent means": emergencies are not the business's to handle (emergencyRule in the prompt), with
+ * the emergency number of the workspace country (911 in the US).
+ */
+export const EMERGENCY_NOTE = (name: string, country = 'US') =>
+  `Emergencies (danger to people, fire, a gas smell): ${name} tells the caller to hang up and call ${emergencyNumberOf(country)}.`
 
 /** What is wrong, and where: no choice made, the mobile field, the condition, or the contact list itself. */
 export type WhoHearsProblem = { field: 'choice' | 'mobile' | 'condition' | 'list'; message: string }

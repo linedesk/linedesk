@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, isE164, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, type CallerHistory, callRules, fenceData, isE164, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PRICE_RULE, workspaceLanguageName } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 import { displayNumber } from './transfer.ts'
@@ -288,25 +288,31 @@ export function callerIdInstructions(caller: CallerContext | null | undefined): 
  */
 export type CallerContext = Pick<Contact, 'name' | 'note'> & { phone?: string | null; nameConfirmed?: boolean; history?: CallerHistory | null }
 
-const TEAM_LANGUAGE_RULE =
-  'Whatever language you speak, write the messages, notes and booking details you save with tools in English, so the team can read them; keep names as the caller gives them.'
+/** The messages, notes and booking details saved with tools are in the team's language (the workspace language). */
+const teamLanguageRule = (team: string) =>
+  `Whatever language you speak, write the messages, notes and booking details you save with tools in ${workspaceLanguageName(team)}, so the team can read them; keep names as the caller gives them.`
 /** Tool results and the example lines in these instructions are English: without this a model goes back to English after a tool. */
 const SPOKEN_LANGUAGE_RULE =
   'What tools tell you to say and the example lines in these instructions are in English: say them in the language you are speaking with the caller, up to your goodbye.'
 
-/** Which languages the assistant speaks (assistants.languages): its main language, and the ones it may switch to. */
-export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null): string {
+/**
+ * Which languages the assistant speaks (assistants.languages): its main language, and the ones it may switch to.
+ * `teamLanguage`: the workspace language, what it writes messages for the team in (English unless set).
+ */
+export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null, teamLanguage = 'en'): string {
   const main = mainLanguageOf(assistant?.languages)
   const others = otherLanguagesOf(assistant?.languages)
   const mainName = LANGUAGES[main]
+  const teamRule = teamLanguageRule(teamLanguage)
   if (!others.length) {
     const only = `Speak ${mainName} only. If the caller speaks another language, say in ${mainName} that you can only help in ${mainName} and offer to take a message.`
-    return main === 'en' ? only : `${only} ${TEAM_LANGUAGE_RULE} ${SPOKEN_LANGUAGE_RULE}`
+    if (main === 'en') return teamLanguage === 'en' ? only : `${only} ${teamRule}`
+    return `${only} ${teamRule} ${SPOKEN_LANGUAGE_RULE}`
   }
   return [
     `Start in ${mainName}. You also speak ${languageNames(others)}: when the caller speaks one of these, reply in that language from then on, and switch back if they switch.`,
     `If the caller speaks any other language, reply in ${mainName}: say politely that you can help in ${languageNames([main, ...others], 'or')}, and offer to take a message.`,
-    TEAM_LANGUAGE_RULE,
+    teamRule,
     SPOKEN_LANGUAGE_RULE,
   ].join(' ')
 }
@@ -354,6 +360,8 @@ export function buildInstructions(
   now: number = Date.now(),
   callerDetails?: CallerDetails | null,
   lookup = false,
+  teamLanguage = 'en',
+  country = 'US',
 ): string {
   const transfer = transfers.length > 0
   const name = assistant?.name ?? 'the assistant'
@@ -362,7 +370,7 @@ export function buildInstructions(
   const clock = clockInstructions(timeZone ?? booking?.timeZone, now)
   return [
     `You are ${name}, the AI assistant answering the phone. You are on a live phone call: keep every reply to one or two short spoken sentences, start with a short first sentence, ask one question at a time, and never use lists, markdown or emojis.`,
-    languageInstructions(assistant),
+    languageInstructions(assistant, teamLanguage),
     // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
     aiDisclosureInstructions(assistant?.ai_disclosure),
     communicationStyleInstructions(assistant?.communication_style),
@@ -374,7 +382,7 @@ export function buildInstructions(
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     PRICE_RULE,
     // The owner's own words win over the general rules (what is urgent for them, their way of handling a call).
-    `How to handle calls${knowledge ? ' (where what the business wants you to know says otherwise, follow the business)' : ''}:\n${callRules({ booking: !!booking, transfer })}`,
+    `How to handle calls${knowledge ? ' (where what the business wants you to know says otherwise, follow the business)' : ''}:\n${callRules({ booking: !!booking, transfer, country })}`,
     behavioursInstructions(assistant),
     COLLECT_INSTRUCTIONS,
     `When you use a tool other than the collection tools${transfer ? ' and transfer_call' : ''} (which speak for themselves), say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.`,

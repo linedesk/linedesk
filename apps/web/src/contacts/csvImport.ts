@@ -1,10 +1,10 @@
 // Contacts from a CSV file: read its bytes, parse it, guess which column is what, and plan the import
 // (what is new, what matches an existing contact by number or email, what cannot be read). Pure, so it
 // is tested without a browser; the dialog (ImportContacts.tsx) shows the plan and sends it with contact.import.
-import { CONTACT_IMPORT_LIMITS } from '@linedesk/actions'
+import { CONTACT_IMPORT_LIMITS, type NationalPhoneProblem, nameInSentence, phoneFromDigits } from '@linedesk/actions'
 import type { Contact } from '@linedesk/db/types'
 import type { Table } from '../insights/spreadsheet.ts'
-import { formatNumber, toE164 } from '../onboarding/flow.ts'
+import { formatNumber } from '../onboarding/flow.ts'
 
 export const IMPORT_FIELDS = ['phone', 'name', 'company', 'email', 'address', 'note'] as const
 export type ImportField = (typeof IMPORT_FIELDS)[number]
@@ -186,8 +186,11 @@ export type ImportPlan = {
   /** Rows that become new contacts, and rows that match an existing one (filling its empty fields). */
   added: number
   matched: number
-  /** Rows without a number that can be read: their spreadsheet row number and what the phone columns said. */
-  unreadable: { row: number; text: string }[]
+  /**
+   * Rows without a number that can be read: their spreadsheet row number, what the phone columns said and why (no
+   * number at all, or the first one is too short, too long or not a number of the workspace country).
+   */
+  unreadable: { row: number; text: string; problem: UnreadablePhone }[]
   /** Rows whose number already came earlier in the file. */
   repeated: number
   /** Rows whose number belongs to a contact someone deleted; contact.import leaves those out. */
@@ -206,29 +209,38 @@ export function splitExtension(text: string): { number: string; extension: strin
   return m ? { number: text.slice(0, m.index), extension: m[1]! } : { number: text, extension: null }
 }
 
-/** One number in E.164: US numbers as people write them, others with + or 00 and the country code. */
-function onePhone(text: string): string | null {
-  let compact = splitExtension(text)
+/** Why a row's number cannot be imported: there is none, or what is wrong with the first one (phoneFromDigits). */
+export type UnreadablePhone = 'missing' | NationalPhoneProblem
+
+/**
+ * One number in E.164, read the way the workspace country (`country`, ISO alpha-2) writes numbers: a national number
+ * of that country ("(503) 555-0142" in the US, "020 7946 0958" in the UK), or any number with + or 00 and its country
+ * code. Only a whole, valid number counts, so a national number of another country never becomes a made-up +1 one.
+ */
+function onePhone(text: string, country: string): { ok: true; e164: string } | { ok: false; problem: NationalPhoneProblem } {
+  const compact = splitExtension(text)
     .number.replace(/\(0\)/g, '')
     .replace(/[^\d+]/g, '')
-  if (compact.startsWith('00')) compact = `+${compact.slice(2)}`
-  if (compact.startsWith('+') && !compact.startsWith('+1')) return /^\+[1-9]\d{6,14}$/.test(compact) ? compact : null
-  return toE164(compact)
+  if (!compact.replace(/\D/g, '')) return { ok: false, problem: 'too_short' }
+  return phoneFromDigits(compact, country)
 }
 
-/** Every number in a cell ("503-555-0142 / 503-555-0199" has two), in E.164. */
-export function importPhones(text: string): string[] {
-  return text
+const numbersIn = (text: string, country: string) =>
+  text
     .split(/\s*(?:\/|,|;|\bor\b|\boder\b)\s*/i)
-    .map(onePhone)
-    .filter((p): p is string => p !== null)
+    .filter(part => /\d/.test(part))
+    .map(part => onePhone(part, country))
+
+/** Every number in a cell ("503-555-0142 / 503-555-0199" has two), in E.164, for a workspace in `country` (US). */
+export function importPhones(text: string, country = 'US'): string[] {
+  return numbersIn(text, country).flatMap(p => (p.ok ? [p.e164] : []))
 }
 
 /** The first number in a cell, in E.164, or null. */
-export const importPhone = (text: string): string | null => importPhones(text)[0] ?? null
+export const importPhone = (text: string, country = 'US'): string | null => importPhones(text, country)[0] ?? null
 
 /** One row of the file as contact fields: the first readable number; other numbers and an extension go in the note. */
-function rowOf(cells: string[], columns: ColumnMap) {
+function rowOf(cells: string[], columns: ColumnMap, country: string) {
   const fields: Partial<Record<TextField, string>> = {}
   const phoneCells: string[] = []
   columns.forEach((field, col) => {
@@ -239,7 +251,9 @@ function rowOf(cells: string[], columns: ColumnMap) {
     if (!fields[field]) fields[field] = text
     else if (join) fields[field] += join + text
   })
-  const numbers = [...new Set(phoneCells.flatMap(importPhones))]
+  const read = phoneCells.flatMap(cell => numbersIn(cell, country))
+  const numbers = [...new Set(read.flatMap(p => (p.ok ? [p.e164] : [])))]
+  const problem: UnreadablePhone = read.find(p => !p.ok)?.problem ?? 'missing'
   const extension = phoneCells.map(t => splitExtension(t).extension).find(Boolean)
   const extra = [
     extension && `Extension ${extension}`,
@@ -252,18 +266,20 @@ function rowOf(cells: string[], columns: ColumnMap) {
     fields[field] = fields[field]!.slice(0, CONTACT_IMPORT_LIMITS[field]).trim()
     shortened = true
   }
-  return { fields, phone: numbers[0] ?? null, phoneText: phoneCells.join(' / '), shortened }
+  return { fields, phone: numbers[0] ?? null, phoneText: phoneCells.join(' / '), problem, shortened }
 }
 
 /**
  * The rows of the file (without the header) as contacts to import, checked against the existing ones
- * (deleted ones included, as contact.import skips their numbers). `firstRow` is the spreadsheet row number of data[0].
+ * (deleted ones included, as contact.import skips their numbers). `firstRow` is the spreadsheet row number of data[0];
+ * `country` the workspace country (resolveWorkspaceCountry), which national numbers are read as.
  */
 export function planImport(
   data: string[][],
   columns: ColumnMap,
   existing: Iterable<Contact>,
   firstRow = 2,
+  country = 'US',
 ): ImportPlan {
   const phones = new Map<string, 'live' | 'deleted'>()
   const emails = new Set<string>()
@@ -276,8 +292,8 @@ export function planImport(
   const plan: ImportPlan = { rows: [], added: 0, matched: 0, unreadable: [], repeated: 0, deleted: 0, shortened: 0 }
   data.forEach((cells, i) => {
     if (!hasText(cells)) return
-    const { fields, phone, phoneText, shortened } = rowOf(cells, columns)
-    if (!phone) return void plan.unreadable.push({ row: firstRow + i, text: phoneText })
+    const { fields, phone, phoneText, problem, shortened } = rowOf(cells, columns, country)
+    if (!phone) return void plan.unreadable.push({ row: firstRow + i, text: phoneText, problem })
     if (phones.get(phone) === 'deleted') return void plan.deleted++
     if (shortened) plan.shortened++
     const earlier = byPhone.get(phone)
@@ -293,4 +309,39 @@ export function planImport(
     else plan.added++
   })
   return plan
+}
+
+const plural = (n: number, word: string) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
+
+const UNREADABLE: Record<UnreadablePhone, string> = {
+  missing: 'no number',
+  too_short: 'too short',
+  too_long: 'too long',
+  invalid: 'not a valid number',
+}
+
+/** "outside the US", "outside the United Kingdom": where a number needs + and its country code. */
+const outside = (country: string) => (country === 'US' ? 'the US' : nameInSentence(country))
+
+/** What the preview says the import will do, in one line; `country`: the workspace country national numbers are read in. */
+export function planSummary(plan: ImportPlan, country = 'US'): string {
+  const more = plan.unreadable.length - 3
+  const unreadable = plan.unreadable
+    .slice(0, 3)
+    .map(u => {
+      const text = u.text.length > 30 ? `${u.text.slice(0, 30)}…` : u.text
+      return `row ${u.row} (${text ? `${text}: ` : ''}${UNREADABLE[u.problem]})`
+    })
+    .join(', ')
+  return [
+    plural(plan.added, 'new contact'),
+    `${plan.matched.toLocaleString('en-US')} fill empty fields of existing contacts`,
+    plan.repeated && `${plural(plan.repeated, 'repeated number')} combined`,
+    plan.deleted && `${plural(plan.deleted, 'row')} of deleted contacts left out`,
+    plan.shortened && `${plural(plan.shortened, 'row')} with text too long for a contact, cut to fit`,
+    plan.unreadable.length &&
+      `${plural(plan.unreadable.length, 'row')} without a readable phone number left out: ${unreadable}${more > 0 ? ` and ${more.toLocaleString('en-US')} more` : ''}. Numbers outside ${outside(country)} need + and the country code.`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }

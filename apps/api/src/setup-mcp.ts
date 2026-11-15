@@ -75,6 +75,7 @@ import { ensureWorkspaceRows } from './onboarding.ts'
 import { providerStatus } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
 import { setupChecklist } from './setup-checklist.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 import { recordSignup } from './setup-events.ts'
 
 /**
@@ -610,6 +611,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const [ws] = await db.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
   const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   const assistant = await firstAssistant(workspaceId)
+  const locale = await workspaceLocale(db, workspaceId, settings ?? null)
   const numbers = await db
     .select({ id: phone_numbers.id, e164: phone_numbers.e164, mode: phone_numbers.mode })
     .from(phone_numbers)
@@ -649,7 +651,10 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       label: 'The business (workspace)',
       state: 'done',
       // The name is a member's text: quoted, as data.
-      detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, assistant ${assistant?.id ?? 'none'}`,
+      detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, country ${locale.resolvedCountry}${locale.country ? '' : ` (automatic, ${locale.countrySource})`}, language ${locale.resolvedLanguage}${locale.language ? '' : ' (automatic, from the country)'}, assistant ${assistant?.id ?? 'none'}`,
+      how: [
+        `Check the country and language with the admin: workspace_updateSettings { ${w}, country: "US", language: "en" } (ISO country code and one of the listed language codes; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; the language is what the assistant greets in (unless it has its own main language) and what call summaries are written in.`,
+      ],
     },
     {
       id: 'business',
@@ -844,7 +849,7 @@ function registerTools(server: McpServer, actor: Actor) {
     'forwarding_guide',
     {
       description:
-        "How to forward a workspace's business line to its assistant's number: codes to dial (or settings to change) for the line's carrier or phone system, to turn forwarding on and off. Pass the business line's country (ISO 3166-1 alpha-2, e.g. \"US\", \"DE\"; default US): the guides are that country's carriers and phone systems, and the number is written the way that country dials it. A country without guides of its own gets the standard GSM codes and the phone's own settings (the answer's `countries` lists the countries with guides). Needs a number in a forwarding mode in that workspace.",
+        "How to forward a workspace's business line to its assistant's number: codes to dial (or settings to change) for the line's carrier or phone system, to turn forwarding on and off. Pass the business line's country (ISO 3166-1 alpha-2, e.g. \"US\", \"GB\"; default the workspace's country): the guides are that country's carriers and regional phone systems plus the international phone systems (RingCentral, Dialpad, 8x8, Teams Phone, 3CX …, listed in every country), and the number is written the way that country dials it. A country without carrier guides of its own gets the standard GSM codes and the phone's own settings (the answer's `countries` lists the countries with carrier guides). Needs a number in a forwarding mode in that workspace.",
       inputSchema: z.object({
         carrier: z
           .string()
@@ -858,7 +863,7 @@ function registerTools(server: McpServer, actor: Actor) {
           .regex(/^[A-Za-z]{2}$/, 'a two-letter country code (ISO 3166-1 alpha-2), e.g. US or GB')
           .transform(c => c.toUpperCase())
           .optional()
-          .describe('The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "CA", "GB"); default US'),
+          .describe('The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "CA", "GB"); default the workspace\'s country (workspace settings, else worked out from its numbers)'),
         mode: z.enum(['forward_conditional', 'forward_all']).default('forward_conditional'),
         workspaceId: workspaceIdField,
       }),
@@ -875,7 +880,7 @@ function registerTools(server: McpServer, actor: Actor) {
           .limit(1)
         if (!number) return refusal(`no number in mode ${mode} yet: phoneNumber_setup first`)
         // A country without guides of its own gets the "Other country" guides (standard GSM codes, phone settings).
-        const requested = asked ?? 'US'
+        const requested = asked ?? (await workspaceLocale(db, inWs.workspaceId)).resolvedCountry
         const country = hasForwardingCountry(requested) ? requested : OTHER_COUNTRY
         const countries = forwardingCountries.map(c => c.code)
         // The country's carriers, or the "Other country" ones, and the phone systems sold in the country asked for.
@@ -892,7 +897,7 @@ function registerTools(server: McpServer, actor: Actor) {
           country: requested,
           ...(country === OTHER_COUNTRY
             ? {
-                note: `No guides for ${requested} yet: these are the standard GSM codes (the number written internationally) and the phone's own settings. Codes can differ by carrier.`,
+                note: `No carrier guides for ${requested} yet: these are the standard GSM codes (the number written internationally), the phone's own settings and the international phone systems. Codes can differ by carrier.`,
               }
             : {}),
           ...(warning

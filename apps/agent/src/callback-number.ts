@@ -11,11 +11,14 @@ export const callerIdOf = (call: { contact?: { phone?: string | null } | null })
   return isE164(phone) ? phone : null
 }
 
-/** Every whole phone number in a text, as E.164. Short numbers (a ZIP, a time, a price) do not count. */
-export function phoneNumbersIn(text: string): string[] {
+/**
+ * Every whole phone number in a text, as E.164, read as numbers are written in `country` (the workspace's). Short
+ * numbers (a ZIP, a time, a price) do not count.
+ */
+export function phoneNumbersIn(text: string, country = 'US'): string[] {
   const found: string[] = []
   for (const [match] of text.matchAll(/\+?\d[\d\s().-]{4,}\d/g)) {
-    const parsed = toE164(match)
+    const parsed = toE164(match, country)
     if (parsed.ok && !found.includes(parsed.value)) found.push(parsed.value)
   }
   return found
@@ -36,10 +39,10 @@ export type CallbackCheck = { text: string } | { refusal: string }
 export function withCallbackNumber(
   message: string,
   callerId: string | null,
-  { confirmed, saved }: { confirmed: readonly string[]; saved: readonly string[] },
+  { confirmed, saved, country = 'US' }: { confirmed: readonly string[]; saved: readonly string[]; country?: string },
 ): CallbackCheck {
   if (!callerId) return { text: message }
-  const numbers = phoneNumbersIn(message)
+  const numbers = phoneNumbersIn(message, country)
   const unconfirmed = numbers.filter(number => number !== callerId && !confirmed.includes(number))
   if (unconfirmed.length) {
     return {
@@ -48,7 +51,7 @@ export function withCallbackNumber(
   }
   // A number in this message or an earlier one, or one the caller confirmed (meant for the team): caller ID is not added.
   const callbackSaved =
-    numbers.length > 0 || confirmed.length > 0 || saved.some(text => phoneNumbersIn(text).length > 0)
+    numbers.length > 0 || confirmed.length > 0 || saved.some(text => phoneNumbersIn(text, country).length > 0)
   const line = ` Callback number: ${callerId} (caller ID).`
   if (callbackSaved || message.length + line.length > MESSAGE_MAX) return { text: message }
   return { text: message.trimEnd() + line }

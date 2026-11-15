@@ -9,12 +9,15 @@ import {
   type BusinessTemplateId,
   businessTemplateIds,
   businessTemplates,
+  countryOfNumber,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
-import { type KeyboardEvent, type ReactNode, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useMemo, useState } from 'react'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
-import { callAction, patchWorkspaceSettings } from '../settings/settings-api.ts'
+import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
+import { AUTOMATIC, countryOptions, languageOptions, searchCountries } from '../settings/workspaceLocaleModel.ts'
+import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { useAssistant, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
@@ -230,7 +233,12 @@ function FindBusiness({
             <TextInput id="ob-biz-name" value={name} onChange={setName} placeholder="Your business name" />
           </Field>
           {site === 'field' && (
-            <Field id="ob-biz-site" label="Website" aside="Optional" tip="We read a few pages to fill in your services.">
+            <Field
+              id="ob-biz-site"
+              label="Website"
+              aside="Optional"
+              tip="We read a few pages to fill in your services."
+            >
               <TextInput id="ob-biz-site" value={website} onChange={setWebsite} placeholder="yourbusiness.com" />
             </Field>
           )}
@@ -384,7 +392,21 @@ function ReviewProfile({
 }) {
   const run = useRun()
   const phoneCountry = useDefaultPhoneCountry()
+  const settings = useWorkspaceSettings().data
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFrom(proposal))
+  // Where the business is and its language: what the workspace has (set, else worked out), the business phone's
+  // country once one is typed, until the owner picks.
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null)
+  const [pickedLanguage, setPickedLanguage] = useState<string | null>(null)
+  const country =
+    pickedCountry ??
+    settings?.country ??
+    countryOfNumber(draft.phone) ??
+    (settings?.countrySource !== 'default' ? settings?.resolvedCountry : null) ??
+    phoneCountry
+  const language = pickedLanguage ?? settings?.language ?? AUTOMATIC
+  const countryChoices = useMemo(() => countryOptions(country, 'explicit').slice(1), [country])
+  const languageChoices = useMemo(() => languageOptions(country), [country])
   const problem = draftProblem(draft)
   const problems = draftProblems(draft)
   const set = (change: Partial<ProfileDraft>) => setDraft(d => ({ ...d, ...change }))
@@ -393,6 +415,15 @@ function ReviewProfile({
     if (problem) return
     const { assistant: changes, hours, timeZone, rename } = profileSave(draft, assistant.business_profile, businessName)
     void run('assistant.update', { assistantId: assistant.id, ...changes })
+    // The country shown was confirmed with the profile; the language only when picked (else it follows the country).
+    const locale = {
+      ...(country !== settings?.country ? { country } : {}),
+      ...(pickedLanguage !== null ? { language: pickedLanguage === AUTOMATIC ? null : pickedLanguage } : {}),
+    }
+    if (Object.keys(locale).length) {
+      void run('workspace.updateSettings', locale)
+      patchWorkspaceSettings({ ...locale, resolvedCountry: country, countrySource: 'explicit' })
+    }
     // The business name is the workspace's name: renamed with it, shown at once in the menu.
     if (rename) {
       void run('workspace.rename', { name: rename })
@@ -472,6 +503,31 @@ function ReviewProfile({
               onChange={v => set({ website: v })}
               invalid={!!problems.website}
               placeholder="yourbusiness.com"
+            />
+          </Field>
+          <Field id="ob-biz-country" label="Country" tip="Phone numbers, holidays and the currency start with it.">
+            <SearchSelect
+              id="ob-biz-country"
+              label="Country"
+              value={country}
+              options={countryChoices}
+              search={searchCountries}
+              placeholder="Search a country"
+              onChange={setPickedCountry}
+            />
+          </Field>
+          <Field
+            id="ob-biz-language"
+            label="Language"
+            tip={`What ${assistant.name} greets callers in and call summaries are written in.`}
+          >
+            <SearchSelect
+              id="ob-biz-language"
+              label="Language"
+              value={language}
+              options={languageChoices}
+              placeholder="Search a language"
+              onChange={setPickedLanguage}
             />
           </Field>
         </div>

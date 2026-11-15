@@ -85,6 +85,13 @@ export interface CallSession {
   simulatedOnCallLine?: string
   /** A call test's realtime model instead of the install's (call-test --realtime-model); missing on every other call. */
   realtimeModel?: string
+  /**
+   * The workspace's country (ISO 3166-1 alpha-2): the region phone numbers the caller says are read in ("0151…" in
+   * Germany). Missing: 'US'.
+   */
+  country?: string
+  /** The workspace language: what the summary and messages for the team are written in. Missing: 'en'. */
+  teamLanguage?: string
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
   /** Stores how long the replies took (call.recordTimings), for the admin overview. */
@@ -116,6 +123,20 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   timeZone?: string | null
   /** The webhook's during-call lookups; missing from an older API. */
   lookups?: WebhookLookup[]
+  /** The workspace's country and language as they apply (workspace-locale.ts); missing from an older API: US, English. */
+  workspaceCountry?: string
+  workspaceLanguage?: string
+}
+
+/**
+ * The assistant with its main language: the one it has; without one, the workspace language when calls can be answered
+ * in it (a German workspace greets in German), else English as before.
+ */
+export function withWorkspaceLanguage(assistant: Assistant | null, workspaceLanguage: string | null | undefined): Assistant | null {
+  if (!assistant || assistant.languages?.main) return assistant
+  const main = mainLanguageOf(assistant.languages, workspaceLanguage)
+  if (main === 'en') return assistant
+  return { ...assistant, languages: { ...(assistant.languages ?? { mode: 'english', allowed: [] }), main } }
 }
 
 /**
@@ -252,17 +273,18 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const languages = origin.kind === 'test' ? origin.languages : undefined
   const mainLanguage = origin.kind === 'test' ? origin.mainLanguage : undefined
   const pipeline = origin.kind === 'test' ? origin.pipeline : undefined
+  const own = withWorkspaceLanguage(started.assistant, started.workspaceLanguage)
   const configured =
-    started.assistant && (outsideGreeting || onCall || languages || mainLanguage || pipeline)
+    own && (outsideGreeting || onCall || languages || mainLanguage || pipeline)
       ? {
-          ...started.assistant,
+          ...own,
           ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
           ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
-          ...(languages ? { languages: { mode: 'allowed' as const, allowed: languages } } : {}),
+          ...(languages ? { languages: { ...(own.languages?.main ? { main: own.languages.main } : {}), mode: 'allowed' as const, allowed: languages } } : {}),
           ...(mainLanguage ? { languages: { main: mainLanguage, mode: 'english' as const, allowed: [] } } : {}),
           ...(pipeline ? { voice_pipeline: pipeline } : {}),
         }
-      : started.assistant
+      : own
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
   const assistant = withRecordingNotice(
@@ -287,6 +309,8 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     timeZone: started.timeZone ?? booking?.timeZone ?? null,
     keepRecording: started.keepRecording !== false,
     lookups: started.lookups ?? [],
+    country: started.workspaceCountry ?? 'US',
+    teamLanguage: started.workspaceLanguage ?? 'en',
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     ...(origin.kind === 'test' && origin.realtimeModel ? { realtimeModel: origin.realtimeModel } : {}),
     ...simulatedOnCallOf(origin),

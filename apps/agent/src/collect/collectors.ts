@@ -2,6 +2,7 @@
 // Ported from LiveKit's Python ready-made tasks (beta/workflows: GetPhoneNumberTask, GetNameTask,
 // GetEmailTask, GetAddressTask, GetDOBTask): the same prompts and checks, but the
 // normalizing of spoken input is done in code (spoken.ts), so it is the same on every model.
+import { callingCodeOf, isPhoneCountry, phoneCountryName, phoneFromDigits, phoneGroups, phonePlaceholder } from '@linedesk/actions'
 import { z } from 'zod'
 import { resolveDay } from '../spoken-day.ts'
 import { capitalizeName, readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
@@ -53,11 +54,13 @@ export function digitsCollector({ what, minDigits, maxDigits }: DigitsOptions): 
   }
 }
 
-// ---------- phone number (E.164, US by default) ----------
+// ---------- phone number (E.164, in the workspace's country by default) ----------
+
+/** Countries of the North American plan (+1: the US, Canada, …): their numbers are read as before, 10 digits. */
+const isNorthAmerican = (country: string) => isPhoneCountry(country) && callingCodeOf(country) === '1'
 
 /** A US number in E.164 from what was said: 10 digits, 11 with a leading 1, or + and a country code. */
-export function toE164(said: string): Parsed<string> {
-  const digits = spokenDigits(said)
+function northAmericanE164(digits: string): Parsed<string> {
   const plain = digits.replace('+', '')
   if (digits.startsWith('+') && !plain.startsWith('1')) {
     return plain.length >= 8 && plain.length <= 15 ? ok(`+${plain}`) : problem('That number is too short or too long. Ask again, area code first.')
@@ -69,27 +72,65 @@ export function toE164(said: string): Parsed<string> {
   return ok(`+1${national}`)
 }
 
+/**
+ * A phone number in E.164 from what was said, read as numbers are written in `country` (the workspace's): in the US
+ * (and the rest of +1) 10 digits, 11 with a leading 1; elsewhere a national number with its leading 0 ("0151 2345
+ * 6789" in Germany, "010-1234-5678" in Korea), checked with libphonenumber. A number with + and a country code is
+ * taken from any country.
+ */
+export function toE164(said: string, country = 'US'): Parsed<string> {
+  const digits = spokenDigits(said)
+  if (isNorthAmerican(country) || !isPhoneCountry(country)) return northAmericanE164(digits)
+  if (!digits.replace('+', '')) return problem('No digits heard. Ask for the number again.')
+  const found = phoneFromDigits(digits, country)
+  if (found.ok) return ok(found.e164)
+  if (found.problem === 'too_short') return problem(`Only ${found.digits} digits heard. Ask for the full number with the area code.`)
+  if (found.problem === 'too_long') return problem('Too many digits heard. Ask for the number again, area code first.')
+  return problem(`That is not a valid number in ${phoneCountryName(country)}. Ask again; a number from another country needs its country code.`)
+}
+
 /** Whether what was said or typed is a whole phone number (see toE164). */
-export const isWholePhoneNumber = (said: string) => toE164(said).ok
+export const isWholePhoneNumber = (said: string, country = 'US') => toE164(said, country).ok
 
 /** A phone number in a text that is not whole ("call back on 503-551-42"), or null. Short numbers (a ZIP, a time) do not count. */
-export function partialPhoneNumberIn(text: string): string | null {
+export function partialPhoneNumberIn(text: string, country = 'US'): string | null {
   for (const [found] of text.matchAll(/\+?\d[\d\s().-]{4,}\d/g)) {
     const digits = found.replace(/\D/g, '').length
-    if (digits >= 7 && !isWholePhoneNumber(found)) return found.trim()
+    if (digits >= 7 && !isWholePhoneNumber(found, country)) return found.trim()
   }
   return null
 }
 
-export function phoneCollector(what = 'callback number'): Collector<{ phone_number: string }, string> {
+/**
+ * How the number is read back: in the US as before ("5 0 3, 5 5 5, 0 1 4 2", "plus 4 4 …"); elsewhere in the groups the
+ * country writes it in ("0 1 5 1, 2 3 4 5, 6 7 8 9"), a number from another country with its country code first
+ * ("+ 4 4, 2 0, 7 9 4 6, 0 9 5 8"), so it can be said in any language.
+ */
+export function readBackPhone(e164: string, country = 'US'): string {
+  if (isNorthAmerican(country) || !isPhoneCountry(country)) {
+    return e164.startsWith('+1') ? readDigits(e164.slice(2), [3, 3]) : `plus ${readDigits(e164.slice(1))}`
+  }
+  return phoneGroups(e164, country)
+    .map(group => (group.startsWith('+') ? `+ ${readDigits(group)}` : readDigits(group)))
+    .join(', ')
+}
+
+const US_PHONE_INSTRUCTIONS = (what: string) =>
+  `You collect the caller's ${what}. Callers say numbers as words ("five oh three"), in groups, or "area code …". Pass what they said; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`
+
+export function phoneCollector(what = 'callback number', country = 'US'): Collector<{ phone_number: string }, string> {
+  const home = !isNorthAmerican(country) && isPhoneCountry(country)
+  const example = home ? phonePlaceholder(country) : ''
   return {
     kind: 'phone_number',
     label: what,
     parameters: z.object({ phone_number: z.string().describe('The number as the caller said or typed it, digits or words.') }),
-    parse: ({ phone_number }) => toE164(phone_number),
+    parse: ({ phone_number }) => toE164(phone_number, country),
     display: e164 => e164,
-    readBack: e164 => (e164.startsWith('+1') ? readDigits(e164.slice(2), [3, 3]) : `plus ${readDigits(e164.slice(1))}`),
-    instructions: `You collect the caller's ${what}. Callers say numbers as words ("five oh three"), in groups, or "area code …". Pass what they said; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`,
+    readBack: e164 => readBackPhone(e164, country),
+    instructions: home
+      ? `You collect the caller's ${what}. The business is in ${phoneCountryName(country)}: callers give numbers the way they are written there${example ? `, like ${example}` : ''}, with the leading 0, or a number from another country with + or 00 and its country code. Callers say digits as words in their language, in groups, or with "double". Pass the digits as numerals (0-9), with a leading + when they gave a country code; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`
+      : US_PHONE_INSTRUCTIONS(what),
     ask: `Ask for the ${what}.`,
   }
 }

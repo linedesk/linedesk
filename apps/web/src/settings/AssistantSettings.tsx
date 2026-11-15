@@ -39,6 +39,7 @@ import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
+import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Checkbox, Select, type SelectOption } from '../ui/controls.tsx'
 import { Button } from '../ui/kit.tsx'
@@ -469,7 +470,7 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
     <Section
       id="as-languages"
       title="Languages"
-      help={`${assistantName(draft)} greets and speaks in the main language; the greeting, goodbye and other fixed lines are said in it (a greeting that is still the default changes with it). When a caller speaks another language you allow, it answers in that language from then on; otherwise it goes on in the main language. Summaries and messages for the team are in English, transcripts stay in the language spoken. Same price per minute; the first reply after a switch can take a moment longer.`}
+      help={`${assistantName(draft)} greets and speaks in the main language; the greeting, goodbye and other fixed lines are said in it (a greeting that is still the default changes with it). When a caller speaks another language you allow, it answers in that language from then on; otherwise it goes on in the main language. Without a main language of its own it follows the workspace language (Workspace settings › General). Summaries and messages for the team are in the workspace language, transcripts stay in the language spoken. Every voice speaks every language listed; Voice suggests ones native in it. Same price per minute; the first reply after a switch can take a moment longer.`}
     >
       <div className="as-languages-row">
         <Field id="as-languages-main" label="Main language">
@@ -643,7 +644,8 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
   const testCall = useTestCall(canEdit, assistant, isInstanceAdmin)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
-  const savedJson = JSON.stringify(draftOf(assistant))
+  const workspaceLanguage = useWorkspaceLanguage()
+  const savedJson = JSON.stringify(draftOf(assistant, workspaceLanguage))
   const saved = useMemo(() => JSON.parse(savedJson) as Draft, [savedJson])
   const [draft, setDraft] = useState(() => keptDraft(assistant.id) ?? saved) // an edit left unsaved earlier comes back
   const mergedFrom = useRef(saved)

@@ -434,7 +434,7 @@ type CalendarDialogProps = {
 }
 
 /**
- * Which public holidays close the business: a country (first the saved one, else the workspace time zone's)
+ * Which public holidays close the business: a country (first the saved one, else the workspace country, else its time zone's)
  * and a state, and its holidays of the next twelve months, checked unless the business is open on them every
  * year. Unchecked holidays stay unchecked in later years too.
  */

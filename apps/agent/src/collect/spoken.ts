@@ -6,7 +6,20 @@
 const DIGIT_WORDS: Record<string, string> = {
   zero: '0', oh: '0', o: '0', nought: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
   six: '6', seven: '7', eight: '8', nine: '9',
+  // The other languages calls are answered in, for when speech recognition writes words: Spanish, French, Italian,
+  // Portuguese (not "um", an English filler; nor French "un", an article) and German.
+  cero: '0', uno: '1', dos: '2', tres: '3', cuatro: '4', cinco: '5', seis: '6', siete: '7', ocho: '8', nueve: '9',
+  zéro: '0', deux: '2', trois: '3', quatre: '4', cinq: '5', sept: '7', huit: '8', neuf: '9',
+  due: '2', tre: '3', quattro: '4', cinque: '5', sei: '6', sette: '7', otto: '8', nove: '9',
+  dois: '2', duas: '2', três: '3', quatro: '4', sete: '7', oito: '8',
+  null: '0', eins: '1', zwei: '2', zwo: '2', drei: '3', vier: '4', fünf: '5', fuenf: '5', sechs: '6', sieben: '7',
+  acht: '8', neun: '9',
 }
+/** Korean digits as said in phone numbers (Sino-Korean, 공 or 영 for zero), often written without spaces ("공일공"). */
+const KOREAN_DIGITS: Record<string, string> = {
+  공: '0', 영: '0', 일: '1', 이: '2', 삼: '3', 사: '4', 오: '5', 육: '6', 륙: '6', 칠: '7', 팔: '8', 구: '9',
+}
+const KOREAN_NUMBER = /^[공영일이삼사오육륙칠팔구]+$/
 const TEEN_WORDS: Record<string, string> = {
   ten: '10', eleven: '11', twelve: '12', thirteen: '13', fourteen: '14', fifteen: '15', sixteen: '16',
   seventeen: '17', eighteen: '18', nineteen: '19',
@@ -77,6 +90,7 @@ export function spokenDigits(text: string): string {
     if (digit !== undefined) out += digit.repeat(repeat)
     else if (TEEN_WORDS[word]) out += TEEN_WORDS[word]
     else if (TENS_WORDS[word]) tens = TENS_WORDS[word]!
+    else if (KOREAN_NUMBER.test(word)) out += [...word].map(ch => KOREAN_DIGITS[ch]).join('')
     else if (word === 'hundred' && out && out !== '+') out += '00'
     else if (word === 'thousand' && out && out !== '+') out += '000'
     else {

@@ -8,7 +8,9 @@ import { useMemo, useRef, useState } from 'react'
 import { formatPhone } from '../inbox-model.ts'
 import { CSV_TYPE, saveFile, toCsv } from '../insights/spreadsheet.ts'
 import { useWriteAction } from '../settings/settings-api.ts'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { useRows } from '../store.tsx'
+import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { Select } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
@@ -27,6 +29,7 @@ import {
   MULTI_COLUMN_FIELDS,
   parseCsv,
   planImport,
+  planSummary,
   tableOf,
 } from './csvImport.ts'
 
@@ -44,26 +47,6 @@ const PREVIEW_ROWS = 5
 const plural = (n: number, word: string) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
 
 type File = CsvTable & { name: string }
-
-/** What the preview says the import will do, in one line. */
-function planSummary(plan: ImportPlan): string {
-  const more = plan.unreadable.length - 3
-  const unreadable = plan.unreadable
-    .slice(0, 3)
-    .map(u => `row ${u.row}${u.text ? ` (${u.text.length > 30 ? `${u.text.slice(0, 30)}…` : u.text})` : ''}`)
-    .join(', ')
-  return [
-    plural(plan.added, 'new contact'),
-    `${plan.matched.toLocaleString('en-US')} fill empty fields of existing contacts`,
-    plan.repeated && `${plural(plan.repeated, 'repeated number')} combined`,
-    plan.deleted && `${plural(plan.deleted, 'row')} of deleted contacts left out`,
-    plan.shortened && `${plural(plan.shortened, 'row')} with text too long for a contact, cut to fit`,
-    plan.unreadable.length &&
-      `${plural(plan.unreadable.length, 'row')} without a readable phone number left out: ${unreadable}${more > 0 ? ` and ${more.toLocaleString('en-US')} more` : ''}. Numbers outside the US need + and the country code.`,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-}
 
 /** The import in parts contact.import takes, or the first row it would refuse (checked before anything is sent). */
 function importParts(rows: ImportRow[]): { parts: { rows: ImportRow[] }[] } | { problem: string } {
@@ -105,7 +88,14 @@ export function ImportContacts({ onClose, toast }: Props) {
   const [columns, setColumns] = useState<ColumnMap>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const plan = useMemo(() => (file ? planImport(file.data, columns, contacts) : null), [file, columns, contacts])
+  // National numbers are read as the workspace country writes them (the API's resolved country; until it loads, the
+  // phone fields' default).
+  const fallbackCountry = useDefaultPhoneCountry()
+  const country = useWorkspaceCountry()?.country ?? fallbackCountry
+  const plan = useMemo(
+    () => (file ? planImport(file.data, columns, contacts, undefined, country) : null),
+    [file, columns, contacts, country],
+  )
 
   async function read(picked: globalThis.File | undefined) {
     if (!picked) return
@@ -238,7 +228,7 @@ export function ImportContacts({ onClose, toast }: Props) {
           ) : (
             plan && (
               <>
-                <p className="help">{planSummary(plan)}</p>
+                <p className="help">{planSummary(plan, country)}</p>
                 <table className="imp-preview">
                   <thead>
                     <tr>

@@ -20,6 +20,7 @@ import { Loading, Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { useOutboundCountries, withUnfinishedNumber } from './outbound-number.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
+import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import {
   EMERGENCY_NOTE,
   firstWhoHears,
@@ -64,6 +65,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
   const run = useRun()
   const me = useMember(actorId)
   const numbers = useRows('phone_numbers')
+  const workspaceCountry = useWorkspaceCountry()
   // "Urgent means" starts from the urgent cases the business step's common calls already name.
   const [draft, setDraft] = useState<WhoHearsDraft>(() =>
     firstWhoHears(assistant.transfers, urgentCasesFrom(assistant.business_profile.instructions)),
@@ -195,7 +197,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
                 onBlur={() => draft.mobile.trim() && setShown(true)}
               />
             </Field>
-            <Field id="ob-urgent-means" label="Urgent means" help={EMERGENCY_NOTE(name)} error={conditionError}>
+            <Field id="ob-urgent-means" label="Urgent means" help={EMERGENCY_NOTE(name, workspaceCountry?.country)} error={conditionError}>
               <TextArea
                 id="ob-urgent-means"
                 value={draft.condition}

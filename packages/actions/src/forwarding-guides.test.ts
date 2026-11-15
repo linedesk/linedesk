@@ -13,7 +13,10 @@ import {
   guideInCountry,
   guideModes,
   guidesForCountry,
+  hasForwardingCountry,
+  INTERNATIONAL_SYSTEM_MIN_COUNTRIES,
   isFallbackGuide,
+  isInternationalSystem,
   OTHER_COUNTRY,
   otherCountryOption,
   phoneCountry,
@@ -326,7 +329,7 @@ describe('countries', () => {
     }
   })
 
-  test('the countries with carrier guides, and how many each has (cell phones and landlines)', () => {
+  test('the countries with carrier guides, and how many each has (cell phones and landlines, the FRITZ!Box across Europe)', () => {
     const counts = Object.fromEntries(
       forwardingCountries.map(c => [c.code, guidesForCountry(c.code).filter(g => g.kind !== 'phone_system').length]),
     )
@@ -335,32 +338,32 @@ describe('countries', () => {
       AR: 5,
       AT: 5,
       AU: 6,
-      BE: 6,
+      BE: 7,
       BR: 5,
       CA: 15,
       CH: 8,
       CL: 6,
       CO: 7,
       DE: 9,
-      DK: 7,
-      ES: 7,
-      FI: 4,
-      FR: 8,
-      GB: 8,
-      IE: 5,
+      DK: 8,
+      ES: 8,
+      FI: 5,
+      FR: 9,
+      GB: 9,
+      IE: 6,
       IL: 5,
       IN: 5,
-      IT: 9,
+      IT: 10,
       JP: 6,
-      LU: 4,
+      LU: 5,
       MX: 5,
       NL: 6,
-      NO: 6,
+      NO: 7,
       NZ: 6,
       PH: 5,
-      PL: 7,
-      PT: 5,
-      SE: 6,
+      PL: 8,
+      PT: 6,
+      SE: 7,
       SG: 5,
       US: 24,
       ZA: 6,
@@ -401,7 +404,7 @@ describe('countries', () => {
 
   test('a country gets its own guides, cell phones first, then landlines, then phone systems', () => {
     const us = guidesForCountry('us')
-    expect(us.every(g => guideInCountry(g, 'US'))).toBe(true)
+    expect(us.every(g => guideInCountry(g, 'US') || isInternationalSystem(g))).toBe(true)
     expect(us.map(g => g.id)).toContain('verizon')
     expect(us.map(g => g.id)).not.toContain('zz-other-mobile')
     const kinds = us.map(g => g.kind)
@@ -423,6 +426,56 @@ describe('countries', () => {
     const gsm = findGuide('zz-other-mobile')!
     expect(gsm.how === 'dial' && gsm.numberFormat).toBe('international')
     expect(gsm.note).toMatch(/can differ/)
+  })
+
+  test('international phone systems are listed in every country, regional ones only in theirs', () => {
+    const systems = (cc: string) => guidesForCountry(cc).filter(g => g.kind === 'phone_system').map(g => g.id)
+    const international = [
+      '8x8',
+      '3cx',
+      'aircall',
+      'cloudtalk',
+      'dialpad',
+      'google-voice',
+      'justcall',
+      'teams-phone',
+      'nfon',
+      'placetel',
+      'ringcentral',
+      'vonage',
+      'webex-calling',
+      'zoom-phone',
+    ]
+    expect(INTERNATIONAL_SYSTEM_MIN_COUNTRIES).toBe(10)
+    expect(forwardingGuides.filter(isInternationalSystem).map(g => g.id).sort()).toEqual([...international].sort())
+    // Korea has no carrier guides: "Other country" with every international system, A–Z by name.
+    expect(hasForwardingCountry('KR')).toBe(false)
+    expect(preselectForwardingCountry({ workspaceCountry: 'KR' })).toBe(OTHER_COUNTRY)
+    for (const cc of ['KR', OTHER_COUNTRY]) {
+      const ids = guidesForCountry(cc).map(g => g.id)
+      expect(ids.slice(0, 2)).toEqual(['zz-other-mobile', 'zz-phone-settings'])
+      expect(systems(cc)).toEqual(
+        forwardingGuides
+          .filter(isInternationalSystem)
+          .sort((a, b) => a.name.localeCompare(b.name, 'en'))
+          .map(g => g.id),
+      )
+      expect(systems(cc)).toEqual(expect.arrayContaining(['dialpad', '8x8', 'teams-phone', '3cx']))
+    }
+    // Every country with guides lists them all too, after its regional ones.
+    for (const { code } of forwardingCountries) expect(systems(code)).toEqual(expect.arrayContaining(international))
+    const us = systems('US')
+    expect(us.slice(0, 4)).toEqual(['grasshopper', 'ooma-office', 'nextiva', 'quo'])
+    expect(systems('DE').slice(0, 2)).toEqual(['sipgate', 'de-easybell'])
+    for (const regional of ['grasshopper', 'ooma-office', 'nextiva', 'quo', 'sipgate', 'de-easybell']) {
+      expect(systems(OTHER_COUNTRY)).not.toContain(regional)
+      expect(systems('JP')).not.toContain(regional)
+    }
+    // The FRITZ!Box router: its own countries and the rest of Europe, never elsewhere.
+    const ids = (cc: string) => guidesForCountry(cc).map(g => g.id)
+    for (const cc of ['DE', 'AT', 'CH', 'NL', 'FR', 'GB', 'PL', 'NO']) expect(ids(cc), cc).toContain('fritzbox')
+    for (const cc of ['US', 'JP', OTHER_COUNTRY]) expect(ids(cc), cc).not.toContain('fritzbox')
+    expect(forwardingCountries.map(c => c.code)).not.toContain('KR')
   })
 
   test('a phone system for any country is listed in every country', () => {

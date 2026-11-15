@@ -42,6 +42,7 @@ import { insightsHandlers } from './insights.ts'
 import { userAvatarHandlers } from './user-avatar.ts'
 import { workspaceIconHandlers } from './workspace-icon.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 import { publicHolidayHandlers } from './public-holidays.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
@@ -258,8 +259,11 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
   // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
-  const [zone] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  const [zone] = await tx.select({ timezone: workspace_settings.timezone, country: workspace_settings.country, language: workspace_settings.language, holidays: workspace_settings.holidays }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
   const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
+  // Where the business is and its language (Workspace settings › General, else worked out): the region numbers callers
+  // say are read in, the greeting's language when the assistant has none of its own, the summary's for the team.
+  const locale = await workspaceLocale(tx, workspace_id, zone ?? null)
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
@@ -275,7 +279,7 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const answeredBy = assistant && { ...assistant, voice_pipeline: pipelineChoiceUnder(await voicePipelinePolicy(tx), assistant.voice_pipeline) }
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact?.row ?? null, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups, workspaceCountry: locale.resolvedCountry, workspaceLanguage: locale.resolvedLanguage },
   }
 }
 

@@ -720,19 +720,45 @@ export const hasForwardingCountry = (code: string | null | undefined): boolean =
 const KIND_ORDER: readonly GuideKind[] = ['mobile', 'landline', 'phone_system']
 
 /**
- * The guides for a country: its carriers and the phone systems sold there, and the apps for every country ('any');
- * cell phones first, then landlines, then phone systems. A country without carrier guides of its own (or
- * OTHER_COUNTRY) gets the "Other country" guides (the standard GSM codes and the phone's own settings) and the phone
- * systems sold in it.
+ * A phone system sold in at least this many countries counts as international: it is listed in every country of the
+ * picker, "Other country" included, whatever its own country list says (a business abroad often signs up with one
+ * anyway, and listing more beats missing the one the owner has). Below it a system is regional (Grasshopper, Nextiva,
+ * sipgate …) and shown only in its own countries. Systems for 'any' country (3CX) are international too.
+ */
+export const INTERNATIONAL_SYSTEM_MIN_COUNTRIES = 10
+
+/** Whether a phone system is listed in every country (INTERNATIONAL_SYSTEM_MIN_COUNTRIES). */
+export const isInternationalSystem = (g: ForwardingGuide): boolean =>
+  g.kind === 'phone_system' && (g.countries === 'any' || g.countries.length >= INTERNATIONAL_SYSTEM_MIN_COUNTRIES)
+
+/** The EU and EEA countries, Switzerland and the United Kingdom: where AVM sells the FRITZ!Box. */
+const EUROPE = 'AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO CH GB'.split(' ')
+
+/**
+ * Guides also listed in countries beyond their own (whose carrier guides they don't make): the FRITZ!Box router is
+ * sold across Europe, its guide is the same everywhere.
+ */
+const ALSO_LISTED_IN: Readonly<Record<string, readonly string[]>> = { fritzbox: EUROPE }
+
+/**
+ * The guides for a country: its carriers (cell phones first, then landlines), then the phone systems: the regional ones
+ * sold there first, then every international one A–Z (isInternationalSystem). A country without carrier guides of its
+ * own (or OTHER_COUNTRY) gets the "Other country" guides (the standard GSM codes and the phone's own settings).
  */
 export function guidesForCountry(code: string): ForwardingGuide[] {
   const asked = code.toUpperCase()
   const carriers = hasForwardingCountry(asked) ? asked : OTHER_COUNTRY
-  return forwardingGuides
+  const carrierGuides = forwardingGuides
     .map((g, i) => ({ g, i }))
-    .filter(({ g }) => guideInCountry(g, g.kind === 'phone_system' ? asked : carriers))
+    .filter(
+      ({ g }) => g.kind !== 'phone_system' && (guideInCountry(g, carriers) || !!ALSO_LISTED_IN[g.id]?.includes(asked)),
+    )
     .sort((a, b) => KIND_ORDER.indexOf(a.g.kind) - KIND_ORDER.indexOf(b.g.kind) || a.i - b.i)
     .map(({ g }) => g)
+  const systems = forwardingGuides.filter(g => g.kind === 'phone_system')
+  const regional = systems.filter(g => !isInternationalSystem(g) && guideInCountry(g, asked))
+  const international = systems.filter(isInternationalSystem).sort((a, b) => a.name.localeCompare(b.name, 'en'))
+  return [...carrierGuides, ...regional, ...international]
 }
 
 /** The country of a number in E.164 ("+4930…": "DE"), or null when it can't be told. */
@@ -754,18 +780,20 @@ function localeCountry(locale: string | null | undefined): string | null {
 }
 
 /**
- * The country the forwarding guide opens with, most likely first: the assistant number's country, else the
- * workspace's country (its holiday calendar, else the business's own number), else the browser's locale, else the
- * US. A number or workspace in a country without guides of its own opens "Other country"; a locale only picks a
- * country that has guides.
+ * The country the forwarding guide opens with, most likely first: the country set in Workspace settings › General,
+ * else the assistant number's country, else the workspace's country (its holiday calendar, else the business's own
+ * number), else the browser's locale, else the US. A number or workspace in a country without guides of its own opens
+ * "Other country"; a locale only picks a country that has guides.
  */
 export function preselectForwardingCountry(from: {
+  /** workspace_settings.country: the country the owner set (not the one worked out). */
+  country?: string | null
   assistantNumber?: string | null
   workspaceCountry?: string | null
   businessNumber?: string | null
   locale?: string | null
 }): string {
-  for (const strong of [phoneCountry(from.assistantNumber), from.workspaceCountry, phoneCountry(from.businessNumber)]) {
+  for (const strong of [from.country, phoneCountry(from.assistantNumber), from.workspaceCountry, phoneCountry(from.businessNumber)]) {
     if (strong) return hasForwardingCountry(strong) ? strong.toUpperCase() : OTHER_COUNTRY
   }
   const locale = localeCountry(from.locale)

@@ -84,17 +84,20 @@ export function localeRegion(locale: string | null | undefined): string | null {
 }
 
 /**
- * The country a phone field starts with, most telling first: the country of the number the workspace's assistant
- * answers, the workspace's country (its holiday calendar), the business's own phone (when written with its country
- * code), the browser's locale, else the US.
+ * The country a phone field starts with, most telling first: the country set in Workspace settings › General, the
+ * country of the number the workspace's assistant answers, the workspace's holiday calendar country, the business's
+ * own phone (when written with its country code), the browser's locale, else the US.
  */
 export function defaultPhoneCountry(from: {
+  /** workspace_settings.country: the country the owner set (not the one worked out). */
+  country?: string | null
   assistantNumber?: string | null
   workspaceCountry?: string | null
   businessNumber?: string | null
   locale?: string | null
 }): string {
   const found = [
+    from.country?.toUpperCase(),
     countryOfNumber(from.assistantNumber),
     from.workspaceCountry?.toUpperCase(),
     countryOfNumber(from.businessNumber),
@@ -203,4 +206,68 @@ export function nanpAreaCode(number: string | null | undefined): string | null {
   const parsed = parsePhoneNumberFromString(text, text.startsWith('+') ? undefined : 'US')
   if (parsed?.countryCallingCode !== '1' || !parsed.isValid()) return null
   return parsed.nationalNumber.slice(0, 3)
+}
+
+/** Why digits are not a phone number of a country: too few, too many, or not one of its numbers. */
+export type NationalPhoneProblem = 'too_short' | 'too_long' | 'invalid'
+
+/**
+ * Digits a caller said (or typed) as a phone number, read the way people write numbers in `country`: a national
+ * number with its trunk prefix ("01512345678" in Germany, "01012345678" in Korea), or with + and a country code from
+ * anywhere ("+442079460958"); in a country whose international prefix is 00, "0044…" counts as +44. E.164 when it is a
+ * whole number of its country, else why not.
+ */
+export function phoneFromDigits(
+  digits: string,
+  country: string,
+): { ok: true; e164: string } | { ok: false; problem: NationalPhoneProblem; digits: number } {
+  const plain = digits.replace(/[^\d+]/g, '')
+  const region = (isPhoneCountry(country) ? country.toUpperCase() : 'US') as CountryCode
+  const international = plain.startsWith('+')
+    ? plain
+    : plain.startsWith('00') && !plain.startsWith('000')
+      ? `+${plain.slice(2)}`
+      : null
+  // "00" may also be how a national number starts (rare): the international reading counts only when it is valid.
+  const candidates = international && !plain.startsWith('+') ? [international, plain] : [international ?? plain]
+  let first: { problem: NationalPhoneProblem; digits: number } | null = null
+  for (const text of candidates) {
+    const parsed = text.startsWith('+') ? parsePhoneNumberFromString(text) : parsePhoneNumberFromString(text, region)
+    if (parsed?.isValid()) return { ok: true, e164: parsed.number }
+    const length = text.startsWith('+') ? validatePhoneNumberLength(text) : validatePhoneNumberLength(text, region)
+    const count = text.replace(/\D/g, '').length
+    // Some countries have short numbers (Germany's run from 5 digits): fewer than 7 is never a callback number.
+    const short = length === 'TOO_SHORT' || length === 'NOT_A_NUMBER' || count < 7
+    first ??= { problem: length === 'TOO_LONG' ? 'too_long' : short ? 'too_short' : 'invalid', digits: count }
+  }
+  return { ok: false, ...first! }
+}
+
+/** Splits a long group of digits the way people say it: up to 5 together, longer ones in threes and fours. */
+function spokenGroups(group: string): string[] {
+  const parts: string[] = []
+  let rest = group
+  while (rest.length > 5) {
+    const size = rest.length % 4 === 0 ? 4 : 3
+    parts.push(rest.slice(0, size))
+    rest = rest.slice(size)
+  }
+  if (rest) parts.push(rest)
+  return parts
+}
+
+/**
+ * A number in E.164 in the groups people say it in, as written in `country`: a number of that country in its national
+ * format ("0151 2345 6789" → ["0151", "2345", "6789"], "010-1234-5678" → ["010", "1234", "5678"]), one from elsewhere
+ * with its country code first (["+44", "20", "7946", "0958"]). Long groups are split (spokenGroups).
+ */
+export function phoneGroups(e164: string, country: string): string[] {
+  const parsed = parsePhoneNumberFromString(e164)
+  if (!parsed) return [e164]
+  const home = parsed.country === country.toUpperCase() || (!parsed.country && isPhoneCountry(country) && callingCodeOf(country) === parsed.countryCallingCode)
+  const written = home ? parsed.formatNational() : parsed.formatInternational()
+  return written
+    .split(/[\s\-().]+/)
+    .filter(Boolean)
+    .flatMap(group => (group.startsWith('+') ? [group] : spokenGroups(group)))
 }

@@ -6,9 +6,9 @@ import { browserLocale } from './ui/phoneInputModel.ts'
 import { useAssistant, useRows } from './store.tsx'
 
 /**
- * The country of the number the assistant answers (the oldest), else the workspace's holiday calendar country, else
- * the business phone's (when written with its country code), else the browser's locale, else the US. Follows the
- * workspace settings once they load.
+ * The country set in Workspace settings › General, else the country of the number the assistant answers (the
+ * oldest), else the workspace's holiday calendar country, else the business phone's (when written with its country
+ * code), else the browser's locale, else the US. Follows the workspace settings once they load.
  */
 export function useDefaultPhoneCountry(): string {
   const numbers = useRows('phone_numbers')
@@ -16,11 +16,12 @@ export function useDefaultPhoneCountry(): string {
     () => [...numbers].sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.e164 ?? null,
     [numbers],
   )
-  const workspaceCountry = useWorkspaceSettings().data?.holidays?.country ?? null
+  const settings = useWorkspaceSettings().data
   const businessNumber = useAssistant()?.business_profile.phone ?? null
   return defaultPhoneCountry({
+    country: settings?.country ?? null,
     assistantNumber,
-    workspaceCountry,
+    workspaceCountry: settings?.holidays?.country ?? null,
     businessNumber,
     locale: browserLocale(),
   })

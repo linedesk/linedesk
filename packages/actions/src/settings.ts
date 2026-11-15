@@ -11,7 +11,8 @@ import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { usAreaCode } from './area-codes.ts'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
-import { assistantLanguages } from './languages.ts'
+import { assistantLanguages, languageCodes } from './languages.ts'
+import { type WorkspaceCountrySource, workspaceCountrySchema, workspaceLanguageSchema } from './workspace-locale.ts'
 import { transferContacts } from './transfer.ts'
 import { voiceId } from './voices.ts'
 import type { WorkspaceDeleteData } from './admin.ts'
@@ -313,7 +314,7 @@ const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `english` (English only, the default), `allowed` (English plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in English. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers.",
+    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers.",
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().trim().min(1).max(60).optional(),
@@ -355,7 +356,7 @@ export const assistantUpdate = defineAction({
           ) as Partial<Record<BehaviourId, boolean>>,
       )
       .optional(),
-    /** Which languages the assistant speaks with callers besides English. */
+    /** The assistant's main language and which languages it speaks with callers besides it. */
     languages: assistantLanguages.optional(),
     /** How calls are answered (VOICE_PIPELINES); null: the install default. */
     voice_pipeline: z.enum(VOICE_PIPELINES).nullable().optional(),
@@ -455,6 +456,16 @@ export type WorkspaceSettingsData = {
   jobValueCurrency?: JobValueCurrency
   /** When the assistant picks up, as chosen in onboarding; null: never chosen. Missing from an older API. */
   pickupMode?: PickupMode | null
+  /** The country the owner set (ISO 3166-1 alpha-2); null: automatic. Missing from an older API. */
+  country?: string | null
+  /** The language the owner set (one of LANGUAGES); null: automatic, from the country. Missing from an older API. */
+  language?: string | null
+  /** The country in use: the one set, else worked out (resolveWorkspaceCountry). Missing from an older API: US. */
+  resolvedCountry?: string
+  /** Where resolvedCountry came from. */
+  countrySource?: WorkspaceCountrySource
+  /** The language in use: the one set, else the country's (resolveWorkspaceLanguage; may be one calls are not answered in). */
+  resolvedLanguage?: string
 }
 
 /**
@@ -621,7 +632,9 @@ export const workspaceUpdateSettings = defineAction({
   description:
     'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
     jobValueCurrencies.join(', ') +
-    '; USD until set; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
+    '; until set, the currency of the workspace country; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in), `language` (the workspace language: ' +
+    languageCodes.join(', ') +
+    '; null: automatic, the main language of the country, English when calls cannot be answered in it; the greeting and fixed lines of an assistant without its own main language, and the language of call summaries and messages for the team); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
@@ -638,6 +651,8 @@ export const workspaceUpdateSettings = defineAction({
     jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
     jobValueCurrency: z.enum(jobValueCurrencies).optional(),
     pickupMode: z.enum(pickupModes).optional(),
+    country: workspaceCountrySchema.nullable().optional(),
+    language: workspaceLanguageSchema.nullable().optional(),
   }),
   permission: 'settings:write',
 })

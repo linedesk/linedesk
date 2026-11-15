@@ -75,8 +75,8 @@ const countryKey = (numberId: string) => `linedesk.forwardingCountry.${numberId}
 
 /**
  * The country whose carriers the guide lists for a number: the one picked for it in this browser, else the country of
- * the guide picked, else the most likely one (preselectForwardingCountry: the assistant number's country, the
- * workspace's, the business number's, the browser's locale, the US). Worked out on every render, so it follows the
+ * the guide picked, else the most likely one (preselectForwardingCountry: the workspace's country as set, the
+ * assistant number's country, the workspace's, the business number's, the browser's locale, the US). Worked out on every render, so it follows the
  * workspace settings once they load, until the owner picks one.
  */
 function useForwardingCountry(numberId: string, e164: string, guideId: string | null): [string, (c: string) => void] {
@@ -95,6 +95,7 @@ function useForwardingCountry(numberId: string, e164: string, guideId: string | 
     picked ??
     (guide ? guideCountry(guide) : null) ??
     preselectForwardingCountry({
+      country: settings?.country ?? null,
       assistantNumber: e164,
       workspaceCountry: settings?.holidays?.country ?? null,
       businessNumber,

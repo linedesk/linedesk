@@ -99,16 +99,24 @@ export function foldProfile(p: BusinessProfile): string {
     .join('\n')
 }
 
-export function draftOf(a: Assistant): Draft {
+/**
+ * `workspaceLanguage`: the workspace language (Workspace settings › General). An assistant without a main language of
+ * its own speaks it when calls can be answered in it, as the voice agent does: shown as its main language, with the
+ * default greeting and closing line in it.
+ */
+export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft {
   const p = a.business_profile
+  const main = mainLanguageOf(a.languages, workspaceLanguage)
+  const inherited = !a.languages?.main && main !== 'en'
+  const local = (text: string) => (inherited && text.trim() ? swapDefault(text, 'en', main) : text)
   // Same rule as the voice agent: empty instructions mean the older fields still apply, so show those.
   return {
     name: a.name,
-    greeting: a.greeting,
+    greeting: local(a.greeting),
     ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE),
     communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE,
     instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
-    greeting_outside: a.greeting_outside ?? '',
+    greeting_outside: local(a.greeting_outside ?? ''),
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
     website: p.website ?? '',
@@ -118,11 +126,11 @@ export function draftOf(a: Assistant): Draft {
     silence_hang_up_s: String(a.silence_hang_up_s ?? SILENCE_HANG_UP_DEFAULT_S),
     max_call_minutes: String(a.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES),
     // None stored: the default line, shown so it can be edited.
-    silence_closing: a.silence_closing ?? DEFAULT_SILENCE_CLOSING,
-    silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, mainLanguageOf(a.languages)),
+    silence_closing: local(a.silence_closing ?? DEFAULT_SILENCE_CLOSING),
+    silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, main),
     talking_speed_pct: talkingSpeedPctOf(a),
     behaviours: behavioursOf(a.behaviours),
-    languages: languagesOf(a.languages),
+    languages: languagesOf(a.languages, workspaceLanguage),
     // A row synced before the column existed has none: the install default.
     voice_pipeline: a.voice_pipeline ?? null,
   }
@@ -136,11 +144,14 @@ const behavioursOf = (stored: Assistant['behaviours'] | undefined) =>
 export const behavioursToSave = (d: Pick<Draft, 'behaviours'>): Partial<Record<BehaviourId, boolean>> =>
   Object.fromEntries(BEHAVIOURS.filter(b => d.behaviours[b.id] !== b.on).map(b => [b.id, d.behaviours[b.id]]))
 
-/** The stored setting with only known codes; a row synced before the column existed: English only. */
-function languagesOf(stored: Assistant['languages'] | undefined): AssistantLanguages {
-  if (!stored) return ENGLISH_ONLY
+/**
+ * The stored setting with only known codes; without a main language, the workspace language when calls can be
+ * answered in it. A row synced before the column existed: the main language only.
+ */
+function languagesOf(stored: Assistant['languages'] | undefined, workspaceLanguage?: string | null): AssistantLanguages {
+  if (!stored) return { ...ENGLISH_ONLY, main: mainLanguageOf(null, workspaceLanguage) }
   return {
-    main: mainLanguageOf(stored),
+    main: mainLanguageOf(stored, workspaceLanguage),
     mode: stored.mode,
     allowed: languageCodes.filter(code => stored.allowed.includes(code)),
   }

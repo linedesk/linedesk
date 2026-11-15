@@ -72,13 +72,13 @@ export const SUMMARY_RETRY_DELAY_MS = 2000
 /** Summarizes; a failed request (a rate limit, a bad answer) is tried once more after a short pause. */
 async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
   try {
-    return await summarizeCall(log.lines, complete, log.messages)
+    return await summarizeCall(log.lines, complete, log.messages, call.teamLanguage)
   } catch (e) {
     if (isTimeout(e)) throw e
     console.warn(`summary of call ${call.callId} failed, trying once more: ${message(e)}`)
     const pause = retry?.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
     await pause(SUMMARY_RETRY_DELAY_MS)
-    return summarizeCall(log.lines, complete, log.messages)
+    return summarizeCall(log.lines, complete, log.messages, call.teamLanguage)
   }
 }
 

@@ -1,6 +1,6 @@
 // Step 2, "Meet your assistant": its name, the greeting callers hear and its voice, then a test call in the
 // browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
-import { mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+import { localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useState } from 'react'
 import { ASSISTANT_NAME_MAX, staleGreetingName } from '../settings/assistantDraft.ts'
@@ -10,6 +10,7 @@ import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistant, useRun } from '../store.tsx'
+import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
@@ -35,9 +36,12 @@ export function AssistantStep(p: Props) {
 function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & { assistant: Assistant }) {
   const run = useRun()
   const write = useWriteAction()
+  // Without a main language of its own the assistant greets in the workspace language: the default greeting shows in it.
+  const workspaceLanguage = useWorkspaceLanguage()
+  const main = mainLanguageOf(assistant.languages, workspaceLanguage)
   const [draft, setDraft] = useState<AssistantDraft>(() => ({
     name: assistant.name,
-    greeting: assistant.greeting,
+    greeting: assistant.languages?.main ? assistant.greeting : localizedDefault(assistant.greeting, main),
     voice: assistant.voice,
   }))
   // The test call's lines ("Maya can't take calls yet") use the name on screen, not the saved one.
@@ -124,8 +128,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
           onPick={voice => setDraft(d => ({ ...d, voice }))}
           canEdit
           toast={setMessage}
-          language={mainLanguageOf(assistant.languages)}
-          otherLanguages={otherLanguagesOf(assistant.languages)}
+          language={main}
+          otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
           assistantName={name || assistant.name}
         />
         <div className="ob-talk">

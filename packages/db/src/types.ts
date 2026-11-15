@@ -97,7 +97,7 @@ export type HolidayCalendar = {
   changes: HolidayChange[]
 }
 export type HolidayChange = { date: string; name: string; open: boolean; start: string | null; end: string | null }
-/** The main language an assistant speaks (missing: English) and the ones besides it (`languages.ts` in @linedesk/actions validates the codes). */
+/** The main language an assistant speaks (missing: the workspace language when calls can be answered in it, else English) and the ones besides it (`languages.ts` in @linedesk/actions validates the codes). */
 export type AssistantLanguages = { main?: string; mode: 'english' | 'allowed' | 'any'; allowed: string[] }
 export type BusinessProfile = {
   /** Free text from the business: what the assistant should know and do. When set, the agent uses it instead of the fields below. */

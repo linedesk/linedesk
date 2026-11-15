@@ -370,6 +370,18 @@ export const workspace_settings = pgTable('workspace_settings', {
     .default('default'),
   /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
   closure: jsonb('closure').$type<Closure>(),
+  /**
+   * Where the business is (ISO 3166-1 alpha-2, upper case: "DE"). null: never set, worked out when read
+   * (resolveWorkspaceCountry in @linedesk/actions: the assistant's number, the business phone, the holidays, else US).
+   * The default region for phone numbers, the forwarding guide, the holiday calendar and the currency.
+   */
+  country: text('country'),
+  /**
+   * The language the workspace works in (BCP 47 primary tag: "de"). null: never set, the main language of the
+   * country (resolveWorkspaceLanguage). The assistant's greeting when it has no main language of its own, and the
+   * language of call summaries and messages for the team.
+   */
+  language: text('language'),
   /** The public holiday calendar the workspace follows; null: never set up. */
   holidays: jsonb('holidays').$type<HolidayCalendar>(),
   /** What a booked job is worth on average, in the minor units of job_value_currency (cents; whole units for JPY, KRW and CLP), for Insights ("≈ $X in booked work"). null: not set. */

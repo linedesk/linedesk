@@ -30,7 +30,7 @@ export type BusinessTemplate = {
 
 /**
  * Every template starts with what is urgent for that trade. Emergencies (danger to people, fire, a break-in, a gas
- * smell) are not in them: every prompt sends those to 911 already (EMERGENCY_RULE). Whether an urgent call is put
+ * smell) are not in them: every prompt sends those to the emergency number already (emergencyRule). Whether an urgent call is put
  * through is up to Settings › Transfers, so the line only says to mark it urgent.
  */
 const urgent = (when: string, take: string) => `When a caller ${when}, treat it as urgent: take ${take} and mark the message urgent.`

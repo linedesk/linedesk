@@ -99,7 +99,7 @@ describe('content', () => {
   it('skips empty rows and names unreadable ones by their spreadsheet row', () => {
     const { plan } = loaded('09-empty-rows.csv')
     expect(plan.rows.map(r => r.name)).toEqual(['Alex Roe', 'Bea Lee'])
-    expect(plan.unreadable).toEqual([{ row: 10, text: '' }])
+    expect(plan.unreadable).toEqual([{ row: 10, text: '', problem: 'missing' }])
   })
 
   it('finds the header below a title line', () => {

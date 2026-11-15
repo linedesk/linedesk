@@ -652,6 +652,13 @@
       "when": 1794708403087,
       "tag": "0092_invitation_join_on_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1794711741298,
+      "tag": "0093_workspace_locale",
+      "breakpoints": true
     }
   ]
 }

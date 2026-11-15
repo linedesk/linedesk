@@ -75,6 +75,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'carrier.get',
     'carrier.test',
     'assistant.startTestCall',
+    // Also the workspace country and language (LIN-258): settings like the time zone, admins and the owner only.
     'workspace.updateSettings',
     'workspace.rename',
     'workspace.setIcon',

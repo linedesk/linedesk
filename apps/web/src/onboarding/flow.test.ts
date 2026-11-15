@@ -2,6 +2,7 @@ import { forwardingGuideById, resumeStep } from '@linedesk/actions'
 import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
 import { describe, expect, it, test } from 'vitest'
 import {
+  EMERGENCY_NOTE,
   ALSO_PERSON,
   areaCodeOf,
   assistantChanges,
@@ -499,4 +500,10 @@ test('a carrier failure says what it is and who fixes it (LIN-111)', () => {
 test('a missing phone carrier sends admins to Server admin › Providers (LIN-111)', () => {
   expect(phoneSetupErrorText('phone setup is not configured', 'admin')).toMatch(/under Server admin › Providers\.$/)
   expect(phoneSetupErrorText('phone setup is not configured', 'member')).toMatch(/Ask whoever runs it/)
+})
+
+test('the emergency note under "Urgent means" names the workspace country\'s number', () => {
+  expect(EMERGENCY_NOTE('Maya')).toBe('Emergencies (danger to people, fire, a gas smell): Maya tells the caller to hang up and call 911.')
+  expect(EMERGENCY_NOTE('Maya', 'AU')).toContain('call 000.')
+  expect(EMERGENCY_NOTE('Maya', 'BR')).toContain('call the local emergency number.')
 })

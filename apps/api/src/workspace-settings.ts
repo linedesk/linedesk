@@ -7,6 +7,7 @@ import {
   JOB_VALUE_MAX_CENTS,
   type JobValueCurrency,
   type PickupMode,
+  currencyOfCountry,
   rescaleMinorUnits,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
@@ -17,6 +18,7 @@ import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 
 /**
  * Whether calls are recorded on this server: a recording store is picked in the admin area (and set
@@ -39,6 +41,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       .select()
       .from(availability_rules)
       .where(eq(availability_rules.workspace_id, actor.workspaceId))
+    const locale = await workspaceLocale(tx, actor.workspaceId, row ?? null)
     const data: WorkspaceSettingsData = {
       recordingRetentionDays: row ? row.recording_retention_days : DEFAULT_RECORDING_RETENTION_DAYS,
       businessHoursOn: row?.business_hours_on ?? false,
@@ -54,8 +57,9 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       derivedDays: await derivedDaysOf(tx, actor.workspaceId, row?.timezone ?? DEFAULT_TIME_ZONE),
       closure: row?.closure ?? null,
       jobValueCents: row?.job_value_cents ?? null,
-      jobValueCurrency: row?.job_value_currency ?? 'USD',
+      jobValueCurrency: jobValueCurrencyOf(row, locale.resolvedCountry),
       pickupMode: row?.pickup_mode ?? null,
+      ...locale,
     }
     return { rows: {}, data }
   },
@@ -88,6 +92,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       jobValueCents?: number | null
       jobValueCurrency?: JobValueCurrency
       pickupMode?: PickupMode
+      country?: string | null
+      language?: string | null
     },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
@@ -105,6 +111,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(jobValueCents !== undefined ? { job_value_cents: jobValueCents } : {}),
       ...(input.jobValueCurrency !== undefined ? { job_value_currency: input.jobValueCurrency } : {}),
       ...(input.pickupMode !== undefined ? { pickup_mode: input.pickupMode } : {}),
+      ...(input.country !== undefined ? { country: input.country } : {}),
+      ...(input.language !== undefined ? { language: input.language } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
     const [row] = await tx
@@ -126,6 +134,9 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         jobValueCents: row!.job_value_cents,
         jobValueCurrency: row!.job_value_currency,
         pickupMode: row!.pickup_mode,
+        ...(input.country !== undefined || input.language !== undefined
+          ? await workspaceLocale(tx, actor.workspaceId, row!)
+          : {}),
       } satisfies Pick<
         WorkspaceSettingsData,
         | 'recordingRetentionDays'
@@ -137,7 +148,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         | 'jobValueCents'
         | 'jobValueCurrency'
         | 'pickupMode'
-      >,
+      > &
+        Partial<WorkspaceSettingsData>,
     }
   },
 
@@ -238,4 +250,16 @@ async function rescaledJobValue(tx: Tx, workspaceId: string, to: JobValueCurrenc
   if (cents > JOB_VALUE_MAX_CENTS)
     throw new Reject(`The appointment value is too large in ${to}; set jobValueCents with it.`)
   return cents
+}
+
+/**
+ * The currency of the appointment value: the one saved with a value; while no value is set, the currency of the
+ * workspace's country (EUR in Germany), so the field starts in the money the business counts in. USD in the US, as before.
+ */
+function jobValueCurrencyOf(
+  row: { job_value_cents: number | null; job_value_currency: JobValueCurrency } | undefined,
+  country: string,
+): JobValueCurrency {
+  if (row && row.job_value_cents !== null) return row.job_value_currency
+  return currencyOfCountry(country) ?? row?.job_value_currency ?? 'USD'
 }
