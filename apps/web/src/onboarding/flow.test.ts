@@ -182,6 +182,22 @@ test('an existing number is attached and never bought, forwarding as chosen', ()
   expect(phoneSetupInput({ kind: 'existing', number: '0142' })).toHaveProperty('problem')
 })
 
+test('an existing number from the phone field is sent in E.164, in any country', () => {
+  expect(phoneSetupInput({ kind: 'existing', number: '+15035550142' })).toEqual({
+    input: { e164: '+15035550142', purchase: false },
+  })
+  expect(phoneSetupInput({ kind: 'existing', number: '+4930123456' }, 'forward_all')).toEqual({
+    input: { e164: '+4930123456', purchase: false, mode: 'forward_all' },
+  })
+  // Never read as a US number (toE164 alone would make +4930123456 into +14930123456).
+  expect(phoneSetupInput({ kind: 'existing', number: '+4930' })).toEqual({
+    problem: "This number doesn't look complete for Germany.",
+  })
+  expect(phoneSetupInput({ kind: 'existing', number: '' })).toEqual({
+    problem: 'Enter the number with its area code, like +1 503 555 0100.',
+  })
+})
+
 test('a bought number the business forwards to is bought with that forwarding, not as a new number to give out', () => {
   expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: true }, 'forward_conditional')).toEqual({
     input: { areaCode: '503', purchase: true, mode: 'forward_conditional' },
@@ -416,6 +432,12 @@ test('the area code comes from a number the owner gave, never an example', () =>
   // A toll-free business number has no area code a number can be bought in: the next number gives it.
   expect(areaCodeOf('+18005550100', '+15035550142')).toBe('503')
   expect(areaCodeOf('+18885550100')).toBe('')
+  // Another country's number is never read as a US one: +49 30 123456 has ten digits, but no area code 493.
+  expect(areaCodeOf('+4930123456')).toBe('')
+  expect(areaCodeOf('+4930123456', '+15035550142')).toBe('503')
+  expect(areaCodeOf('+442071838750')).toBe('')
+  // A Canadian number is North American, but no US area code a number can be bought in.
+  expect(areaCodeOf('+14165550100')).toBe('')
   expect(phoneOptionSetup('new', { number: '', areaCode: '', confirmed: true }, undefined as never)).toEqual({
     problem: 'Pick an area code for the new number from the list.',
   })

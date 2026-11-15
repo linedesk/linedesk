@@ -5,6 +5,7 @@ import {
   fieldErrors,
   initialValues,
   isConfigured,
+  isPhone,
   formatMinutes,
   formatUsd,
   parseSpendingCap,
@@ -113,4 +114,25 @@ test('the spending cap field: empty is no cap, dollars with up to two decimals, 
   expect(parseSpendingCap('0')).toEqual({ capUsd: 0 })
   for (const bad of ['-5', 'ten', '1.999', '100001']) expect(parseSpendingCap(bad), bad).toHaveProperty('problem')
   expect(formatUsd(12.5)).toBe('$12.50')
+})
+
+test('the forwarding check number is a phone field: a typed number must be whole, a saved one stays', () => {
+  const telnyx = (over: Partial<ProviderField>): ProviderStatus => ({
+    provider: 'telnyx',
+    label: 'Telnyx',
+    category: 'telephony',
+    fields: [field({ field: 'check_number', label: 'Forwarding check number', secret: false, ...over })],
+  })
+  const check = telnyx({})
+  expect(isPhone(check, check.fields[0]!)).toBe(true)
+  expect(isPhone(provider(sid({})), sid({}))).toBe(false)
+  expect(fieldErrors(check, { check_number: '' })).toEqual({})
+  expect(fieldErrors(check, { check_number: '+15035550142' })).toEqual({})
+  expect(fieldErrors(check, { check_number: '+4930123456' })).toEqual({})
+  expect(fieldErrors(check, { check_number: '+1503555' })).toEqual({
+    check_number: "This number doesn't look complete for the United States.",
+  })
+  // Saved before as it was typed: not checked again until it is changed.
+  const saved = telnyx({ source: 'app', value: '(503) 555-0142' })
+  expect(fieldErrors(saved, { check_number: '(503) 555-0142' })).toEqual({})
 })

@@ -191,3 +191,16 @@ export function phoneNumberProblem(e164: string | null | undefined): string | nu
 /** The value as E.164 when it is a whole phone number (phoneNumberProblem has nothing to say), else null. */
 export const completePhone = (e164: string | null | undefined): string | null =>
   e164?.trim() && !phoneNumberProblem(e164) ? e164.trim() : null
+
+/**
+ * The area code of a valid North American number (+1, the US and its neighbours): "+1 503 555 0142" → "503", also
+ * typed without its country code ("(503) 555-0142"). Null for anything else, so another country's number is never
+ * read as a US one ("+4930123456" has ten digits, but no area code 493).
+ */
+export function nanpAreaCode(number: string | null | undefined): string | null {
+  const text = number?.trim()
+  if (!text) return null
+  const parsed = parsePhoneNumberFromString(text, text.startsWith('+') ? undefined : 'US')
+  if (parsed?.countryCallingCode !== '1' || !parsed.isValid()) return null
+  return parsed.nationalNumber.slice(0, 3)
+}

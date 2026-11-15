@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type FocusEvent,
   Fragment,
+  type InputHTMLAttributes,
   type KeyboardEvent,
   type Ref,
   useEffect,
@@ -52,7 +53,15 @@ type Props = {
   className?: string
   /** The number field, to focus it (e.g. when the form shows a problem under it). */
   inputRef?: Ref<HTMLInputElement | null>
+  /** A list of suggestions under the field (CarrierNumberInput): the number field as its combobox. */
+  combobox?: ComboboxProps
 }
+
+/** What makes the number field a combobox for a list of suggestions it opens. */
+type ComboboxProps = Pick<
+  InputHTMLAttributes<HTMLInputElement>,
+  'role' | 'aria-expanded' | 'aria-controls' | 'aria-autocomplete' | 'aria-activedescendant' | 'onFocus' | 'onClick'
+>
 
 /** Shows at most this many countries at once; the search narrows the rest. */
 const SHOWN_MAX = 250
@@ -72,6 +81,7 @@ export function PhoneInput({
   size = 'md',
   className,
   inputRef,
+  combobox,
 }: Props) {
   const [field, setField] = useState(() => phoneFromValue(value, defaultCountry))
   // The value this field sent last: a value from outside (a reset, a saved number) is shown anew, its own is not.
@@ -140,6 +150,7 @@ export function PhoneInput({
     >
       <CountryPicker country={field.country} onPick={pickCountry} disabled={disabled} size={size} />
       <input
+        {...combobox}
         ref={input}
         id={id}
         type="tel"

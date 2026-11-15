@@ -1,5 +1,5 @@
 // Pure helpers of the admin page: sorting, the usage grid, and a provider's keys (the status: providerStatus.ts).
-import { providers as providerSpecs } from '@linedesk/actions'
+import { phoneNumberProblem, providers as providerSpecs } from '@linedesk/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 
 export type SortDir = 'asc' | 'desc'
@@ -75,12 +75,14 @@ export function providerState(provider: ProviderStatus): ProviderState {
   return provider.fields.some(f => f.source === 'env') ? 'env' : 'none'
 }
 
-type FieldSpec = { optional?: true; switch?: true }
+type FieldSpec = { optional?: true; switch?: true; phone?: true }
 const fieldSpecOf = (provider: ProviderStatus, field: string): FieldSpec | undefined =>
   (providerSpecs[provider.provider].fields as Record<string, FieldSpec>)[field]
 export const isOptional = (provider: ProviderStatus, field: ProviderField) =>
   !!fieldSpecOf(provider, field.field)?.optional
 export const isSwitch = (provider: ProviderStatus, field: ProviderField) => !!fieldSpecOf(provider, field.field)?.switch
+/** A phone number field (the carriers' forwarding check number): the phone field, its value in E.164. */
+export const isPhone = (provider: ProviderStatus, field: ProviderField) => !!fieldSpecOf(provider, field.field)?.phone
 
 /** Every field a connection needs has a value, here or on the server. A provider without fields needs none. */
 export const isConfigured = (provider: ProviderStatus) =>
@@ -105,7 +107,12 @@ export function fieldErrors(provider: ProviderStatus, values: Record<string, str
   const errors: Record<string, string> = {}
   for (const f of provider.fields) {
     const typed = (values[f.field] ?? '').trim()
-    if (typed) continue
+    if (typed) {
+      // A number typed here must be a whole one; a value saved before as it was typed stays as it is.
+      const problem = isPhone(provider, f) && typed !== (f.value ?? '') ? phoneNumberProblem(typed) : null
+      if (problem) errors[f.field] = problem
+      continue
+    }
     if (f.source === 'app' && !f.secret && f.value) errors[f.field] = 'Cannot be empty. Disconnect clears every key.'
     else if (!f.source && !isOptional(provider, f)) errors[f.field] = 'Required.'
   }

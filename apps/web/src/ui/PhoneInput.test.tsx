@@ -31,3 +31,17 @@ test('the label points at the number field, a phone keyboard and the list behind
   expect(out).toContain('aria-haspopup="listbox"')
   expect(out).toContain('aria-expanded="false"')
 })
+
+test('a list of suggestions under the field makes the number field its combobox', () => {
+  const out = renderToStaticMarkup(
+    <PhoneInput
+      id="cn"
+      value=""
+      defaultCountry="US"
+      onChange={() => {}}
+      combobox={{ role: 'combobox', 'aria-expanded': true, 'aria-controls': 'list', 'aria-autocomplete': 'list' }}
+    />,
+  )
+  expect(out).toMatch(/<input[^>]*role="combobox"[^>]*aria-expanded="true"[^>]*aria-controls="list"/)
+  expect(out).toMatch(/<input[^>]*id="cn"[^>]*type="tel"/)
+})

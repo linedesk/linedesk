@@ -56,9 +56,18 @@ export const categoryNames = Object.keys(providerCategories) as [ProviderCategor
 /**
  * `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a
  * connection. `hint` says what an empty field means (shown in the empty input). `switch` fields hold
- * "true" or "false" and show as a checkbox.
+ * "true" or "false" and show as a checkbox. `phone` fields hold a phone number and show as the phone field
+ * (country picker, value in E.164).
  */
-type ProviderField = { label: string; env: string; secret: boolean; optional?: true; hint?: string; switch?: true }
+type ProviderField = {
+  label: string
+  env: string
+  secret: boolean
+  optional?: true
+  hint?: string
+  switch?: true
+  phone?: true
+}
 /** Values the edit form can fill in for a known service (`<...>` parts are the operator's to replace). */
 export type ProviderPreset = { label: string; values: Record<string, string>; help: string }
 /**
@@ -372,6 +381,7 @@ const checkNumber = (env: string): ProviderField => ({
   secret: false,
   optional: true,
   hint: 'any unused number in this account',
+  phone: true,
 })
 const FORWARDING_CHECK_HELP =
   'Forwarding checks call a business from the forwarding check number, a number in this account that no workspace uses (a few cents a check). Empty: the first such number in the account.'

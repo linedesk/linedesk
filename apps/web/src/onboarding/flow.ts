@@ -1,14 +1,17 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import {
   type BusinessHoursSpan,
+  completePhone,
   type ForwardingGuide,
   type ForwardingMode,
   forwardingInstructions,
   isActiveContact,
+  nanpAreaCode,
   type OnboardingStep,
   onboardingSteps,
   onCallNumberProblem,
   type PickupMode,
+  phoneNumberProblem,
   type ProviderName,
   providerNames,
   providerSpec,
@@ -173,10 +176,16 @@ export function phoneSetupInput(
   forwarding?: Forwarding,
 ): { input: PhoneSetupInput } | { problem: string } {
   if (choice.kind === 'existing') {
-    const e164 = toE164(choice.number)
-    return e164
-      ? { input: { e164, purchase: false, ...(forwarding ? { mode: forwarding } : {}) } }
-      : { problem: 'Enter the number with its area code, like +1 503 555 0100.' }
+    // The phone field's value is E.164 in any country (phoneNumber.setup takes any); a number typed without its
+    // country code is a US one.
+    const typed = choice.number.trim()
+    const international = typed.startsWith('+')
+    const e164 = international ? completePhone(typed) : toE164(typed)
+    if (e164) return { input: { e164, purchase: false, ...(forwarding ? { mode: forwarding } : {}) } }
+    return {
+      problem:
+        (international && phoneNumberProblem(typed)) || 'Enter the number with its area code, like +1 503 555 0100.',
+    }
   }
   if (!usAreaCode(choice.areaCode)) return { problem: 'Pick an area code for the new number from the list.' }
   if (!choice.confirmed) return { problem: 'Confirm the monthly cost first.' }
@@ -539,12 +548,12 @@ export function mobileErrorText(error: string, name: string): string {
 
 /**
  * The area code for a new number: from the first of the numbers the owner already gave (the business phone, their
- * mobile) that is a US number with an area code a number can be bought in (not toll-free); empty without one, never a
- * made-up example.
+ * mobile) that is a valid North American number with a US area code a number can be bought in (not toll-free); empty
+ * without one, never a made-up example. Another country's number gives none (+4930123456 is not area code 493).
  */
 export function areaCodeOf(...numbers: (string | null | undefined)[]): string {
   for (const n of numbers) {
-    const code = n ? toE164(n)?.slice(2, 5) : undefined
+    const code = nanpAreaCode(n)
     if (code && usAreaCode(code)) return code
   }
   return ''

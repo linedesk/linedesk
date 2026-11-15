@@ -17,6 +17,7 @@ import { brandName } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
 import { Dialog, FormField, Input, SecretInput } from '../ui/form.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import {
@@ -25,6 +26,7 @@ import {
   initialValues,
   isConfigured,
   isOptional,
+  isPhone,
   isSwitch,
   providerState,
 } from './model.ts'
@@ -513,6 +515,20 @@ function ProviderInput(props: InputProps) {
           placeholder={field.source === 'env' ? 'Set on the server' : undefined}
           autoFocus={autoFocus}
           invalid={!!error}
+        />
+      ) : isPhone(provider, field) ? (
+        // The install's forwarding checks call US businesses, and the server reads ten digits as a US number: the
+        // field starts on the US.
+        <PhoneInput
+          id={id}
+          value={value}
+          defaultCountry="US"
+          autoComplete="off"
+          autoFocus={autoFocus}
+          disabled={disabled}
+          invalid={!!error}
+          placeholder={field.hint ?? undefined}
+          onChange={onChange}
         />
       ) : (
         <Input

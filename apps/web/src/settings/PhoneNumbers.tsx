@@ -25,7 +25,8 @@ import {
   pickupNumberMode,
   priceNote,
 } from '../onboarding/flow.ts'
-import { confirmsNumber, phoneNumberModes } from '@linedesk/actions'
+import { confirmsNumber, countryOfNumber, phoneFromValue, phoneNumberModes } from '@linedesk/actions'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
@@ -33,12 +34,13 @@ import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button, cx, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
+import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { AreaCodeInput } from './AreaCodeInput.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
-import { Field, Section, TextInput } from './fields.tsx'
+import { Field, Section } from './fields.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { brandName } from '../brand.ts'
 
@@ -368,9 +370,13 @@ function CheckWhenEditing({
  * back, so the number has to be typed. The row disappears through sync once the server is done.
  */
 function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: () => void }) {
+  const defaultCountry = useDefaultPhoneCountry()
   const run = useRun()
   const name = useAssistantName()
+  // E.164 as far as typed (PhoneInput), compared by digits with the number (confirmsNumber), as the server does.
   const [typed, setTyped] = useState('')
+  // The field starts in the number's own country, so its digits are typed as written there.
+  const phoneCountry = countryOfNumber(number.e164) ?? defaultCountry
   const [sent, setSent] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const carrier = carrierName(number.provider) ?? 'the carrier'
@@ -417,14 +423,16 @@ function ReleaseNumber({ number, onCancel }: { number: PhoneNumber; onCancel: ()
           : `${name} stops answering it. The number stays in your ${carrier === 'the carrier' ? 'carrier' : carrier} account.${number.carrier_account === 'workspace' ? ` It is taken off ${brandName()}'s routing there and stops answering until you route it again.` : ''}${number.mode === 'forward_conditional' || number.mode === 'forward_all' ? ' Turn off call forwarding on your business phone too.' : ''}`}
       </span>
       <Field id={`rel-in-${number.id}`} label="Type the number to confirm">
-        <TextInput
+        <PhoneInput
           id={`rel-in-${number.id}`}
           value={typed}
+          defaultCountry={phoneCountry}
+          autoComplete="off"
           onChange={v => {
             setTyped(v)
             setProblem(null)
           }}
-          placeholder={formatted}
+          placeholder={phoneFromValue(number.e164, phoneCountry).display}
         />
       </Field>
       {problem && <Note tone="danger">{problem}</Note>}
@@ -505,7 +513,9 @@ function ConnectNumber({
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
   const [option, setOption] = useState<PhoneOption>(connectOptions[0]!)
+  // E.164 as far as typed (PhoneInput).
   const [typed, setTyped] = useState('')
+  const phoneCountry = useDefaultPhoneCountry()
   const businessPhone = (useAssistants()[0]?.business_profile as { phone?: string } | undefined)?.phone
   // Like onboarding: the business phone's area code, else that of a number the workspace already has.
   const [areaCode, setAreaCode] = useState(() => areaCodeOf(businessPhone, ...numbers.map(n => n.e164)))
@@ -604,7 +614,7 @@ function ConnectNumber({
                 setTyped(v)
                 setProblem(null)
               }}
-              placeholder="The number, with area code"
+              defaultCountry={phoneCountry}
             />
           </Field>
           {dev && <p className="help">Development mode: any number works, nothing is called.</p>}

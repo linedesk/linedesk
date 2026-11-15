@@ -3,6 +3,7 @@
 import type { PhoneNumber } from '@linedesk/db/types'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
 import { CarrierNumberInput } from '../settings/CarrierNumberInput.tsx'
 import { Field } from '../settings/fields.tsx'
@@ -109,7 +110,9 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
   const [option, setOption] = useState<PhoneOption>(phoneOptions[0]!)
+  // E.164 as far as typed (PhoneInput). No number is connected yet, so no forwarding guide has picked a country.
   const [typed, setTyped] = useState('')
+  const phoneCountry = useDefaultPhoneCountry()
   // Prefilled from a number the owner already gave; empty otherwise (no example that looks filled in).
   const [areaCode, setAreaCode] = useState(firstAreaCode)
   const [confirming, setConfirming] = useState(false)
@@ -214,7 +217,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
                   setProblem(null)
                   clearError()
                 }}
-                placeholder="The number, with area code"
+                defaultCountry={phoneCountry}
               />
             </Field>
             <button type="button" className="ob-link" onClick={toChoices} title="Back to the choices (Esc)">

@@ -3,6 +3,7 @@ import {
   completePhone,
   countryOfNumber,
   defaultPhoneCountry,
+  nanpAreaCode,
   phoneFromValue,
   phoneNumberProblem,
   phonePlaceholder,
@@ -101,4 +102,18 @@ test('the default country: assistant number, workspace, business phone, locale, 
 test('the placeholder is an example number of the country', () => {
   expect(phonePlaceholder('US')).toMatch(/^\(\d{3}\) \d{3}-\d{4}$/)
   expect(phonePlaceholder('XX')).toBe('')
+})
+
+test("the area code of a valid North American number only; another country's number has none", () => {
+  expect(nanpAreaCode('+15035550142')).toBe('503')
+  expect(nanpAreaCode('(206) 555-0100')).toBe('206')
+  expect(nanpAreaCode('+14165550100')).toBe('416')
+  // Ten digits after the +, but German: no area code 493.
+  expect(nanpAreaCode('+4930123456')).toBeNull()
+  expect(nanpAreaCode('+442071838750')).toBeNull()
+  // Typed without a country code, but not a valid US number.
+  expect(nanpAreaCode('4930123456')).toBeNull()
+  expect(nanpAreaCode('555-0142')).toBeNull()
+  expect(nanpAreaCode('')).toBeNull()
+  expect(nanpAreaCode(null)).toBeNull()
 })
