@@ -3,12 +3,14 @@
 // transcribed, the voice played, numbers listed without buying. It costs a little (a few tokens, a second of speech),
 // unlike Test again, the free key check.
 import { type ProviderCategory, type TryOutData, type TryOutKind, usAreaCode } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useId, useState } from 'react'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
 import { Input } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
-import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { problemText } from '../ui/LoadStates.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { runAdmin } from './api.ts'
 import { errorText } from './notify.ts'
 
@@ -18,20 +20,19 @@ export const tryKindOf = (category: ProviderCategory): TryOutKind | null =>
     ? category
     : null
 
-const tryLabels: Record<TryOutKind, string> = {
-  email: 'Send me a test email',
-  llm: 'Ask it a caller’s question',
-  stt: 'Transcribe a sample call',
-  tts: 'Hear the voice',
-  telephony: 'Find available numbers',
+const tryLabels: Record<TryOutKind, MessageKey> = {
+  email: msg('admin.tryOut.label.email'),
+  llm: msg('admin.tryOut.label.llm'),
+  stt: msg('admin.tryOut.label.stt'),
+  tts: msg('admin.tryOut.label.tts'),
+  telephony: msg('admin.tryOut.label.telephony'),
 }
-const tryHelp: Record<TryOutKind, string> = {
-  email:
-    'Sends a six-digit code to your own address. Enter it here to confirm emails actually arrive, not just that they are sent.',
-  llm: 'Asks the current model a short question a caller might ask, and shows the answer and how long it took.',
-  stt: 'Transcribes a short sample recording and checks the result against what was said.',
-  tts: 'Plays the greeting a caller would hear, right here in the page.',
-  telephony: 'Looks up three available numbers in an area code. Nothing is purchased.',
+const tryHelp: Record<TryOutKind, MessageKey> = {
+  email: msg('admin.tryOut.help.email'),
+  llm: msg('admin.tryOut.help.llm'),
+  stt: msg('admin.tryOut.help.stt'),
+  tts: msg('admin.tryOut.help.tts'),
+  telephony: msg('admin.tryOut.help.telephony'),
 }
 
 /** Try it can run: the numbers lookup needs an area code from the list (the picker leaves it empty until then). */
@@ -47,6 +48,7 @@ export function TryOut({
   primary: boolean
   onTried: () => Promise<void>
 }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<TryOutData | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -91,11 +93,11 @@ export function TryOut({
     if (!busy && /^\d{6}$/.test(code.trim())) void confirm()
   }
   return (
-    <section className="adm-try" aria-label="Try it">
+    <section className="adm-try" aria-label={t('admin.tryOut.title')}>
       <div className="adm-try-head">
         <div>
-          <b>Try it</b>
-          <span className="help">{tryHelp[kind]}</span>
+          <b>{t('admin.tryOut.title')}</b>
+          <span className="help">{t(tryHelp[kind])}</span>
         </div>
         {/* Not a form: it sits inside the provider dialog's own form, so Enter here runs it, not Save. */}
         <div className="adm-try-form">
@@ -104,7 +106,7 @@ export function TryOut({
             // code there; otherwise it runs Try it here.
             // biome-ignore lint/a11y/noStaticElementInteractions: only passes Enter on from the field inside
             <div className="adm-try-area" onKeyDown={e => onEnter(e, startTry)}>
-              <AreaCodeInput id={areaId} label="US area code" value={areaCode} onChange={setAreaCode} />
+              <AreaCodeInput id={areaId} label={t('admin.tryOut.areaCode')} value={areaCode} onChange={setAreaCode} />
             </div>
           )}
           <Button
@@ -113,7 +115,7 @@ export function TryOut({
             disabled={busy || !canTry(kind, areaCode)}
             onClick={startTry}
           >
-            {result ? 'Try again' : tryLabels[kind]}
+            {result ? t('common.action.tryAgain') : t(tryLabels[kind])}
           </Button>
         </div>
       </div>
@@ -127,16 +129,16 @@ export function TryOut({
             <span>{result.message}</span>
             {result.reply && (
               <blockquote className="adm-try-quote">
-                <span className="help">Caller: Hi, my water heater is leaking. Can someone come out today?</span>
+                <span className="help">{t('admin.tryOut.callerQuestion')}</span>
                 {result.reply}
               </blockquote>
             )}
             {result.heard !== undefined && (
               <dl className="adm-try-heard">
-                <dt>Said</dt>
+                <dt>{t('admin.tryOut.said')}</dt>
                 <dd>{result.expected}</dd>
-                <dt>Heard</dt>
-                <dd>{result.heard || '(nothing)'}</dd>
+                <dt>{t('admin.tryOut.heard')}</dt>
+                <dd>{result.heard || t('admin.tryOut.nothingHeard')}</dd>
               </dl>
             )}
             {result.audio && (
@@ -158,8 +160,8 @@ export function TryOut({
         <div className="adm-try-form adm-try-code">
           <Input
             className="adm-try-code-input"
-            aria-label="The code from the email"
-            placeholder="6-digit code"
+            aria-label={t('admin.tryOut.codeLabel')}
+            placeholder={t('admin.tryOut.codePlaceholder')}
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
@@ -169,7 +171,7 @@ export function TryOut({
             autoFocus
           />
           <Button variant="primary" busy={busy} disabled={busy || code.trim().length !== 6} onClick={startConfirm}>
-            Confirm
+            {t('admin.tryOut.confirm')}
           </Button>
         </div>
       )}

@@ -6,16 +6,12 @@
 // (`#admin/providers/stt`) land on their group.
 // "Show all providers" at the right of the heading opens every group's short list at once (and "Show fewer" folds
 // them again); each list's own "Show more" still works, and the top button follows what the lists show.
-import {
-  type InstallSetupState,
-  isMultiCategory,
-  listWords,
-  providerCategories,
-  type ProviderName,
-} from '@linedesk/actions'
+import { type InstallSetupState, isMultiCategory, type ProviderName, providerCategories } from '@linedesk/actions'
+import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
 import { type InstallSetupFrom, openInstallSetup } from '../onboarding/InstallSetup.tsx'
 import { HelpTip } from '../ui/form.tsx'
@@ -27,8 +23,8 @@ import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } fr
 import { ProviderDialog } from './ProviderDialog.tsx'
 import { groupAnchor, type ListFolds, ProviderGroup } from './ProviderGroup.tsx'
 import { allOpen, foldableLists, keepShown, listsOfGroup } from './providerList.ts'
-import { providersTarget } from './route.ts'
 import type { ProviderStatusState } from './providerStatus.ts'
+import { providersTarget } from './route.ts'
 
 /** Cache key of the install walkthrough's state (offered next to the agent while it is on and not finished). */
 export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
@@ -42,6 +38,7 @@ export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
  * admin › Providers as a note; on the overview's card as a quiet line.
  */
 export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: boolean; complete?: boolean }) {
+  const t = useT()
   const install = useQuery(ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
   const label = agentFirstLabels(install, complete)
   const buttons = (
@@ -51,11 +48,7 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
         variant="primary"
         icon="spark"
         onClick={openAgentSetup}
-        title={
-          complete
-            ? 'Let Claude, ChatGPT or another AI agent change this install with you'
-            : 'Let Claude, ChatGPT or another AI agent set up this install with you'
-        }
+        title={complete ? t('admin.providers.agent.changeTip') : t('admin.providers.agent.setUpTip')}
       >
         {label.agent}
       </Button>
@@ -64,7 +57,7 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
           size="sm"
           variant="ghost"
           onClick={() => openInstallSetup({ from: label.stepsFrom })}
-          title="Go through each group yourself, one screen at a time, with a real test for each"
+          title={t('admin.providers.agent.stepsTip')}
         >
           {label.steps}
         </Button>
@@ -94,12 +87,13 @@ export function agentFirstLabels(
   install: Pick<InstallSetupState, 'enabled' | 'progress'> | undefined,
   complete = false,
 ): { agent: string; steps: string | null; stepsFrom: InstallSetupFrom } {
-  const agent = complete ? 'Change with an AI agent' : 'Set up with an AI agent'
+  const { t } = i18n()
+  const agent = complete ? t('admin.providers.agent.change') : t('admin.providers.agent.setUp')
   if (!install?.enabled) return { agent, steps: null, stepsFrom: 'start' }
   const started = install.progress.step !== 'welcome' && !install.progress.finishedAt
   return !complete && started
-    ? { agent, steps: 'Continue step by step', stepsFrom: 'left' }
-    : { agent, steps: 'Step by step', stepsFrom: 'start' }
+    ? { agent, steps: t('admin.providers.agent.stepsContinue'), stepsFrom: 'left' }
+    : { agent, steps: t('admin.providers.agent.steps'), stepsFrom: 'start' }
 }
 
 type DialogForProps = {
@@ -114,6 +108,7 @@ type DialogForProps = {
 
 /** The provider's dialog with everything it needs from the admin data: the same on every screen. */
 export function ProviderDialogFor({ name, data, status, oauthReturn, reload, notify, onClose }: DialogForProps) {
+  const t = useT()
   const opened = data.providers.find(p => p.provider === name)
   const line = status.status?.lines[name]
   if (!opened || !line) return null
@@ -130,10 +125,10 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
       await set(provider)
       notify(
         provider
-          ? `${providerCategories[category]} uses ${opened!.label} now.`
+          ? t('admin.providers.use.now', { category: providerCategories[category], provider: opened!.label })
           : category === 'recording'
-            ? 'Calls are not recorded now.'
-            : `${providerCategories[category]} uses the default now.`,
+            ? t('admin.providers.use.recordingOff')
+            : t('admin.providers.use.default', { category: providerCategories[category] }),
         () => set(before),
       )
     } catch (err) {
@@ -180,20 +175,23 @@ type Props = {
 
 /** "Show all providers" / "Show fewer": every group's short list at once. */
 function ShowAll({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const t = useT()
   return (
     <Button
       size="sm"
       variant="ghost"
       aria-expanded={open}
       onClick={onToggle}
-      title={open ? 'Show only the recommended providers and those in use' : "Show every group's providers"}
+      title={open ? t('admin.providers.showAll.fewerTip') : t('admin.providers.showAll.allTip')}
     >
-      {open ? 'Show fewer' : 'Show all providers'}
+      {open ? t('admin.providers.showAll.fewer') : t('admin.providers.showAll.all')}
     </Button>
   )
 }
 
 export function Providers({ data, status, id, onClearId, notify, reload, headActions }: Props) {
+  const t = useT()
+  const format = useFormat()
   const target = providersTarget(id)
   // Back from "Connect with OpenRouter": its dialog opens and finishes the connection.
   const [oauthReturn] = useState<OpenRouterReturn | null>(() => peekOpenRouterReturn())
@@ -242,17 +240,20 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
         )}
       {!data.canStoreKeys && (
         <Note tone="warning">
-          No encryption key on the server, so keys can't be saved.{' '}
-          <HelpTip text="Whoever runs the server sets SECRETS_KEY (make one with openssl rand -base64 32) and restarts the API. Keys are then saved encrypted." />
+          {t('admin.providers.noSecretsKey')}{' '}
+          <HelpTip text={t('admin.providers.noSecretsKeyHelp', { command: 'openssl rand -base64 32' })} />
         </Note>
       )}
       {status.status &&
         (missing.length > 0 ? (
           <AgentFirst
-            lead={`${listWords(missing.map(g => g.label))} ${missing.length > 1 ? 'are' : 'is'} not set up yet. An AI agent can set up the rest with you in about 10 minutes.`}
+            lead={t('admin.providers.missingLead', {
+              groups: format.list(missing.map(g => g.label)),
+              count: missing.length,
+            })}
           />
         ) : (
-          <AgentFirst lead="Everything calls need is set up. Want to change something?" complete />
+          <AgentFirst lead={t('admin.providers.allSetLead')} complete />
         ))}
       {status.status &&
         groups.map(g => (
@@ -265,7 +266,7 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
             onOpen={setOpen}
             onOneKey={async () => {
               await reload()
-              notify('Calls are answered with OpenAI now.')
+              notify(t('admin.providers.oneKeyDone'))
             }}
             onPipelinePolicy={reload}
             folds={folds}

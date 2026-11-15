@@ -24,10 +24,11 @@ import {
 } from '@linedesk/actions'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
+import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { ADMIN_HEALTH, type AdminData, type AdminHealth, loadHealth, type ProviderStatus, testProvider } from './api.ts'
 import { isConfigured } from './model.ts'
 import { errorText } from './notify.ts'
-import { fmt } from '../i18n/format.ts'
 
 /** Changes whenever the keys in effect change: a test of other keys no longer counts. */
 export const keysSignature = (p: ProviderStatus) => JSON.stringify(p.fields.map(f => [f.source, f.last4, f.value]))
@@ -86,7 +87,6 @@ export function providerStatus(
   return { ...status, lines }
 }
 
-/** "tested 4 min ago", "tested just now", "tested Nov 13". */
 /**
  * The line under a group's heading, or null: only what everyone must read, i.e. what is wrong while the group fails
  * or is half set up. Why the group is there is help on demand (groupHelp), behind the (?) next to the heading.
@@ -122,17 +122,20 @@ export function groupAttention(group: Pick<GroupStatus, 'state' | 'needed'>): St
 /**
  * A provider row's status: a working provider shows only its mark, the words are its tooltip and accessible label;
  * a state that needs attention (failing, partly, being tested, not tested) keeps its words next to the mark. `use` is
- * "In use" or "Not in use" where there is a choice; only "Not in use" is shown, "In use" goes into the tooltip.
+ * "in_use" or "not_in_use" where there is a choice; only "Not in use" is shown, "In use" goes into the tooltip.
  * `fromServer`: its keys come from the server's settings, said in the tooltip (the dialog shows it per field).
  */
 export function rowStatus(
   line: Pick<ProviderLine, 'state' | 'detail'>,
-  { use = null, fromServer = false }: { use?: 'In use' | 'Not in use' | null; fromServer?: boolean } = {},
+  { use = null, fromServer = false }: { use?: 'in_use' | 'not_in_use' | null; fromServer?: boolean } = {},
 ): { label: string; words: string | null } {
+  const { t } = i18n()
   const text = statusText(line)
-  const label = [text, use, fromServer ? 'Keys set on the server' : null].filter(Boolean).join(' · ')
-  if (line.state === 'works') return { label, words: use === 'Not in use' ? use : null }
-  return { label, words: [text, use].filter(Boolean).join(' · ') }
+  const useText =
+    use === 'in_use' ? t('admin.providers.row.inUse') : use === 'not_in_use' ? t('admin.providers.row.notInUse') : null
+  const label = [text, useText, fromServer ? t('admin.providers.row.keysFromServer') : null].filter(Boolean).join(' · ')
+  if (line.state === 'works') return { label, words: use === 'not_in_use' ? useText : null }
+  return { label, words: [text, useText].filter(Boolean).join(' · ') }
 }
 
 /**
@@ -150,12 +153,12 @@ export function groupProblem(group: GroupStatus): { line: string; detail: string
   const server = group.message?.replace(/\s*\(run setup-sip\)$/, '') ?? null
   if (group.id === 'call-audio' && group.state === 'partly') {
     return {
-      line: "Calls can't come in yet: no SIP trunk.",
+      line: i18n().t('admin.providerStatus.callAudio.noTrunk'),
       detail: [server && `${server}.`, callAudioGuide.steps[2]].filter(Boolean).join(' '),
     }
   }
   if (group.id === 'call-audio') {
-    return { line: "LiveKit can't be reached, so calls have no audio.", detail: server && `${server}.` }
+    return { line: i18n().t('admin.providerStatus.callAudio.unreachable'), detail: server && `${server}.` }
   }
   // One short line (a provider's raw error never: providerErrorSummary); the full text behind the (?).
   if (!group.message) return { line: statusText(group), detail: null }
@@ -168,14 +171,18 @@ export function groupValue(group: GroupStatus): string | null {
   return group.answeredBy?.length ? group.answeredBy.join(' · ') : group.providerLabel
 }
 
+/** "tested 4 min ago", "tested just now", "tested Nov 13". */
 export function testedAgo(at: string | null, now = Date.now()): string | null {
   if (!at) return null
+  const { t } = i18n()
   const minutes = Math.round((now - new Date(at).getTime()) / 60_000)
-  if (minutes < 1) return 'tested just now'
-  if (minutes < 60) return `tested ${minutes} min ago`
+  if (minutes < 1) return t('admin.providerStatus.tested.justNow')
+  if (minutes < 60) return t('admin.providerStatus.tested.minutes', { count: minutes })
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `tested ${hours} h ago`
-  return `tested ${fmt().dateTime(new Date(at), { month: 'short', day: 'numeric' })}`
+  if (hours < 24) return t('admin.providerStatus.tested.hours', { count: hours })
+  return t('admin.providerStatus.tested.date', {
+    date: fmt().dateTime(new Date(at), { month: 'short', day: 'numeric' }),
+  })
 }
 
 /**

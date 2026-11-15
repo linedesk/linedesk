@@ -1,5 +1,7 @@
 // Workspaces: a searchable list; a click opens the workspace with its facts and actions.
-import { type FormEvent, useEffect, useState } from 'react'
+import { useT } from '@linedesk/i18n/react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { fmt } from '../i18n/format.ts'
 import { Card, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { ActionBar, RowActions, useActionRunner, workspaceActions } from './actions.tsx'
@@ -11,42 +13,43 @@ import { errorText, type Notify } from './notify.ts'
 import { day, EMPTY, when } from './parts.tsx'
 import { formatNumber } from '../onboarding/flow.ts'
 import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
-import { useT } from '@linedesk/i18n/react'
 
-const columns: Column<AdminWorkspace>[] = [
+type Translate = ReturnType<typeof useT>
+
+const workspaceColumns = (t: Translate): Column<AdminWorkspace>[] => [
   {
     key: 'name',
-    label: 'Workspace',
+    label: t('admin.workspaces.column.workspace'),
     sort: w => w.name,
     render: w => (
       <span className="adm-strong">
         {w.name}
-        {w.disabled_at && <Badge>Disabled</Badge>}
+        {w.disabled_at && <Badge>{t('admin.workspaces.badge.disabled')}</Badge>}
       </span>
     ),
   },
   {
     key: 'numbers',
-    label: 'Number',
+    label: t('admin.workspaces.column.number'),
     wide: true,
     render: w => (
       <span className="adm-mono">
         {w.phone_numbers[0] ? formatNumber(w.phone_numbers[0]) : EMPTY}
-        {w.phone_numbers.length > 1 && ` +${w.phone_numbers.length - 1}`}
+        {w.phone_numbers.length > 1 && ` ${t('admin.workspaces.moreNumbers', { count: w.phone_numbers.length - 1 })}`}
       </span>
     ),
   },
   {
     key: 'calls',
-    label: 'Calls, 30 days',
+    label: t('admin.workspaces.column.calls30d'),
     numeric: true,
     firstDir: 'desc',
     sort: w => w.calls_30d,
-    render: w => w.calls_30d,
+    render: w => fmt().number(w.calls_30d),
   },
   {
     key: 'last',
-    label: 'Last call',
+    label: t('admin.workspaces.column.lastCall'),
     firstDir: 'desc',
     wide: true,
     sort: w => (w.last_call_at ? Date.parse(w.last_call_at) : null),
@@ -92,6 +95,8 @@ function NewWorkspaceButton({ notify, reload }: { notify: Notify; reload: () => 
 
 export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, viewerWorkspaces }: ListProps) {
   const runner = useActionRunner(notify)
+  const t = useT()
+  const columns = useMemo(() => workspaceColumns(t), [t])
   return (
     <>
       <NewWorkspaceButton notify={notify} reload={reload} />
@@ -101,10 +106,11 @@ export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, vi
         columns={columns}
         initialSort={{ key: 'name', dir: 'asc' }}
         searchText={w => `${w.name} ${w.phone_numbers.join(' ')}`}
-        searchLabel="Search workspaces"
+        searchLabel={t('admin.workspaces.search')}
+        label={t('admin.sections.workspaces.label')}
         onOpen={w => onOpen(w.id)}
         keysRef={keysRef}
-        empty="No workspaces yet."
+        empty={t('admin.workspaces.empty')}
         rowActions={w => (
           <RowActions
             actions={workspaceActions(w, reload, { viewerIsMember: viewerWorkspaces.has(w.id) })}
@@ -129,23 +135,32 @@ type DetailProps = {
 
 export function WorkspaceDetail({ workspace: w, users, notify, reload, onDeleted, viewerWorkspaces }: DetailProps) {
   const runner = useActionRunner(notify)
+  const t = useT()
   return (
     <>
       <ActionBar
         actions={workspaceActions(w, reload, { onDeleted, viewerIsMember: viewerWorkspaces.has(w.id) })}
         onPick={runner.pick}
       />
-      <Card title="Details" className="adm-detail">
+      <Card title={t('admin.workspaces.details')} className="adm-detail">
         <dl className="adm-facts">
-          <Fact label="Status">{w.disabled_at ? `Disabled ${when(w.disabled_at)}` : 'Active'}</Fact>
-          <Fact label="Phone numbers">
-            <span className="adm-mono">{w.phone_numbers.map(formatNumber).join(', ') || 'None'}</span>
+          <Fact label={t('admin.workspaces.fact.status')}>
+            {w.disabled_at
+              ? t('admin.workspaces.fact.disabledAt', { when: when(w.disabled_at) })
+              : t('admin.workspaces.fact.active')}
           </Fact>
-          <Fact label="Calls, last 30 days">{w.calls_30d}</Fact>
-          <Fact label="Answered this month">{formatMinutes(w.minutes_this_month)}</Fact>
-          <Fact label="Estimated cost this month">{formatUsd(w.cost_this_month)}</Fact>
-          <Fact label="Last call">{when(w.last_call_at)}</Fact>
-          <Fact label="Created">{day(w.created_at)}</Fact>
+          <Fact label={t('admin.workspaces.fact.phoneNumbers')}>
+            <span className="adm-mono">
+              {w.phone_numbers.length
+                ? fmt().list(w.phone_numbers.map(formatNumber), { type: 'unit', style: 'short' })
+                : t('admin.workspaces.fact.noNumbers')}
+            </span>
+          </Fact>
+          <Fact label={t('admin.workspaces.fact.calls30d')}>{fmt().number(w.calls_30d)}</Fact>
+          <Fact label={t('admin.workspaces.fact.answeredMonth')}>{formatMinutes(w.minutes_this_month)}</Fact>
+          <Fact label={t('admin.workspaces.fact.costMonth')}>{formatUsd(w.cost_this_month)}</Fact>
+          <Fact label={t('admin.workspaces.fact.lastCall')}>{when(w.last_call_at)}</Fact>
+          <Fact label={t('admin.workspaces.fact.created')}>{day(w.created_at)}</Fact>
         </dl>
       </Card>
       <SpendingCapCard workspace={w} notify={notify} reload={reload} />
@@ -165,6 +180,7 @@ function SpendingCapCard({
   notify: Notify
   reload: () => Promise<void>
 }) {
+  const t = useT()
   const saved = w.spending_cap_usd === null ? '' : String(w.spending_cap_usd)
   const [text, setText] = useState(saved)
   const [problem, setProblem] = useState<string | null>(null)
@@ -182,8 +198,8 @@ function SpendingCapCard({
       await reload()
       notify(
         parsed.capUsd === null
-          ? `${w.name} has no spending cap.`
-          : `${w.name}'s monthly spending cap is ${formatUsd(parsed.capUsd)}.`,
+          ? t('admin.workspaces.cap.none', { name: w.name })
+          : t('admin.workspaces.cap.set', { name: w.name, amount: formatUsd(parsed.capUsd) }),
       )
     } catch (err) {
       setProblem(errorText(err))
@@ -193,28 +209,33 @@ function SpendingCapCard({
   }
   return (
     <Card
-      title="Monthly spending cap"
-      description="On the estimated cost of this month's calls (UTC). Once reached, the assistant stops answering: callers hear that the business will call back, and each call is filed as missed with Call back. Owners and instance admins get an email at 80% and 100%."
+      title={t('admin.workspaces.cap.title')}
+      description={t('admin.workspaces.cap.description')}
       className="adm-detail"
     >
       <form onSubmit={save} className="adm-cap-form">
-        <FormField id="adm-spending-cap" label="Cap in USD" aside="Empty: no cap" error={problem}>
+        <FormField
+          id="adm-spending-cap"
+          label={t('admin.workspaces.cap.label')}
+          aside={t('admin.workspaces.cap.aside')}
+          error={problem}
+        >
           <Input
             id="adm-spending-cap"
             inputMode="decimal"
-            placeholder="No cap"
+            placeholder={t('admin.workspaces.cap.placeholder')}
             value={text}
             invalid={!!problem}
             onChange={e => setText(e.target.value)}
           />
         </FormField>
         <Button type="submit" variant="primary" disabled={saving || text.trim() === saved}>
-          Save
+          {t('common.action.save')}
         </Button>
       </form>
       {reached && (
         <Note tone="danger" className="adm-cap-note">
-          Reached this month: the assistant is not answering this workspace's calls.
+          {t('admin.workspaces.cap.reached')}
         </Note>
       )}
     </Card>

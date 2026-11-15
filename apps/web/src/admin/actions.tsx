@@ -1,9 +1,11 @@
 // What an admin can do to a user or a workspace, in one place: the detail page shows the actions as
 // a row of buttons, the list as quick icon buttons on each row (and a ⋯ menu on touch screens).
 // Actions that change access ask once in a dialog; the rest run at once.
+import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { confirmText, startImpersonation } from '../impersonation.ts'
 import { keepAccountsOption, numberLines, workspaceDeleteList } from '../settings/dangerZoneModel.ts'
 import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
@@ -14,6 +16,9 @@ import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 
 type Confirmation = DangerConfirmation
+type Translate = ReturnType<typeof i18n>['t']
+/** The active language's `t`, looked up on each call (the language can change while the module stays loaded). */
+const t = ((...args: Parameters<Translate>) => i18n().t(...args)) as Translate
 
 export type AdminAction = {
   id: string
@@ -57,10 +62,14 @@ export function EnrolmentCodeDialog({
   enrolment: PasskeyEnrolment
   onClose: () => void
 }) {
+  const t = useT()
   return (
     <Dialog
-      title="Passkey enrolment code"
-      description={`Give this code to ${who}. Their first passkey needs it (Account, Sign-in & security, Add passkey). It works once, until ${fmt().dateTime(new Date(enrolment.expiresAt), { dateStyle: 'medium', timeStyle: 'short' })}, and is not shown again.`}
+      title={t('admin.actions.enrolment.title')}
+      description={t('admin.actions.enrolment.description', {
+        who,
+        until: fmt().dateTime(new Date(enrolment.expiresAt), { dateStyle: 'medium', timeStyle: 'short' }),
+      })}
       size="sm"
       onClose={onClose}
       onSubmit={e => {
@@ -69,29 +78,35 @@ export function EnrolmentCodeDialog({
       }}
       footer={
         <Button type="submit" variant="primary">
-          Done
+          {t('admin.actions.enrolment.done')}
         </Button>
       }
     >
-      <Input readOnly value={enrolment.code} aria-label="Enrolment code" onFocus={e => e.currentTarget.select()} />
+      <Input
+        readOnly
+        value={enrolment.code}
+        aria-label={t('admin.actions.enrolment.codeLabel')}
+        onFocus={e => e.currentTarget.select()}
+      />
     </Dialog>
   )
 }
 
 /** A user's passkeys as the grant dialog lists them: they become the new admin's second factor. */
 export function existingPasskeysText(passkeys: NonNullable<AdminUser['passkeys']>): string {
-  const list = passkeys
-    .map(
-      p =>
-        `${p.name || (p.device_type === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device')}${p.created_at ? ` (added ${fmt().date(new Date(p.created_at))})` : ''}`,
-    )
-    .join(', ')
-  return `They already have ${passkeys.length === 1 ? 'a passkey' : `${passkeys.length} passkeys`}: ${list}. These open the admin area for them. If you are not sure they are all theirs, reset them instead: you get a one-time code for their new first passkey.`
+  const list = passkeys.map(p => {
+    const name =
+      p.name || t(p.device_type === 'multiDevice' ? 'admin.actions.passkey.synced' : 'admin.actions.passkey.device')
+    return p.created_at ? t('admin.actions.passkey.addedOn', { name, date: fmt().date(new Date(p.created_at)) }) : name
+  })
+  return t('admin.actions.passkey.existing', {
+    count: passkeys.length,
+    list: fmt().list(list, { type: 'unit', style: 'short' }),
+  })
 }
 
 /** What granting server admin means, said before it happens (detail, row and Add user). */
-export const adminGrantText = (who: string) =>
-  `Make ${who} a server admin? They can see every workspace and user, change provider keys and sign in as other users.`
+export const adminGrantText = (who: string) => t('admin.actions.grantText', { who })
 
 /** The actions that apply to this user: none of them on yourself except what is harmless. */
 export function userActions(u: AdminUser, currentUserId: string, reload: () => Promise<void>): AdminAction[] {
@@ -116,29 +131,33 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
   if (!isSelf && !u.instance_admin && !u.disabled_at)
     actions.push({
       id: 'impersonate',
-      label: `Sign in as ${name}…`,
+      label: t('admin.actions.user.impersonate.label', { name }),
       icon: 'user',
-      tip: `See ${brandName()} exactly as they do, for up to an hour. Recorded as done by you.`,
-      confirm: { text: confirmText(name), action: `Sign in as ${name}`, variant: 'primary' },
+      tip: t('admin.actions.user.impersonate.tip', { brand: brandName() }),
+      confirm: {
+        text: confirmText(name),
+        action: t('admin.actions.user.impersonate.action', { name }),
+        variant: 'primary',
+      },
       // Reloads into the app as this user; throws with the reason when refused.
       run: () => startImpersonation(u.id),
     })
   if (!u.instance_admin && !u.disabled_at)
     actions.push({
       id: 'grant',
-      label: 'Make server admin…',
+      label: t('admin.actions.user.grant.label'),
       icon: 'shield',
-      tip: 'Sees every workspace and user, and sets the provider keys.',
+      tip: t('admin.actions.user.grant.tip'),
       confirm: {
         text: u.passkeys?.length ? `${adminGrantText(name)} ${existingPasskeysText(u.passkeys)}` : adminGrantText(name),
-        action: 'Make server admin',
+        action: t('admin.actions.user.grant.action'),
         variant: 'danger-outline',
         // Their existing passkeys become the admin second factor: start over when unsure they are all theirs.
         ...(u.passkeys?.length
           ? {
               alternative: {
-                action: 'Reset passkeys and make server admin',
-                tip: 'Removes their passkeys, signs them out and gives you a one-time code for their new first passkey.',
+                action: t('admin.actions.user.grant.alternative'),
+                tip: t('admin.actions.user.grant.alternativeTip'),
                 run: async () => {
                   await runAdmin('instanceAdmin.grant', { userId: u.id })
                   const data = await runAdmin('user.resetPasskeys', { userId: u.id })
@@ -151,71 +170,75 @@ export function userActions(u: AdminUser, currentUserId: string, reload: () => P
       },
       run: act('instanceAdmin.grant'),
       subject: name,
-      done: `${name}: now a server admin.`,
+      done: t('admin.actions.user.grant.done', { name }),
     })
   if (u.instance_admin && !isSelf && !u.instance_admin_by_env)
     actions.push({
       id: 'revoke',
-      label: 'Remove server admin…',
+      label: t('admin.actions.user.revoke.label'),
       icon: 'shield',
-      tip: 'They keep their workspaces and lose access to Server admin.',
-      confirm: { text: `${name} loses access to Server admin.`, action: 'Remove server admin' },
+      tip: t('admin.actions.user.revoke.tip'),
+      confirm: {
+        text: t('admin.actions.user.revoke.text', { name }),
+        action: t('admin.actions.user.revoke.action'),
+      },
       run: act('instanceAdmin.revoke'),
-      done: `${name}: no longer a server admin.`,
+      done: t('admin.actions.user.revoke.done', { name }),
     })
   // An admin without a passkey only needs the code for their first: nothing to reset, nobody signed out.
   if (u.instance_admin && !isSelf && !u.disabled_at && u.passkeys?.length === 0)
     actions.push({
       id: 'enrolment-code',
-      label: 'Give passkey code…',
+      label: t('admin.actions.user.enrolmentCode.label'),
       icon: 'shield',
-      tip: 'A one-time code for their first passkey. Nothing is removed and they stay signed in.',
+      tip: t('admin.actions.user.enrolmentCode.tip'),
       confirm: {
-        text: `Make a one-time code for the first passkey of ${name}? They are emailed; their sessions and AI agent setup links keep working.`,
-        action: 'Make code',
+        text: t('admin.actions.user.enrolmentCode.text', { name }),
+        action: t('admin.actions.user.enrolmentCode.action'),
         variant: 'primary',
       },
       run: act('user.issuePasskeyEnrolment'),
       subject: name,
-      done: `The code for ${name} is made.`,
+      done: t('admin.actions.user.enrolmentCode.done', { name }),
     })
   if (!isSelf && !u.disabled_at)
     actions.push({
       id: 'reset-passkeys',
-      label: 'Reset passkeys…',
+      label: t('admin.actions.user.resetPasskeys.label'),
       icon: 'restart',
-      tip: 'Removes every passkey of theirs, for a lost device or a passkey they did not add. Signs them out everywhere and ends their AI agent setup links. They are emailed.',
+      tip: t('admin.actions.user.resetPasskeys.tip'),
       confirm: {
-        text: u.instance_admin
-          ? `Remove every passkey of ${name}? They are signed out everywhere, their AI agent setup links end, they are emailed, and you get a one-time code for their new first passkey.`
-          : `Remove every passkey of ${name}? They are signed out everywhere, their AI agent setup links end and they are emailed; they sign in with an email code or password and add a new one.`,
-        action: 'Reset passkeys',
+        text: t(
+          u.instance_admin ? 'admin.actions.user.resetPasskeys.textAdmin' : 'admin.actions.user.resetPasskeys.textUser',
+          { name },
+        ),
+        action: t('admin.actions.user.resetPasskeys.action'),
       },
       run: act('user.resetPasskeys'),
       subject: name,
-      done: `The passkeys of ${name} are removed.`,
+      done: t('admin.actions.user.resetPasskeys.done', { name }),
     })
   if (u.disabled_at)
     actions.push({
       id: 'enable',
-      label: 'Enable',
+      label: t('admin.actions.user.enable.label'),
       icon: 'restart',
-      tip: 'They can sign in again.',
+      tip: t('admin.actions.user.enable.tip'),
       run: act('user.enable'),
-      done: `${name} can sign in again.`,
+      done: t('admin.actions.user.enable.done', { name }),
     })
   else if (!isSelf)
     actions.push({
       id: 'disable',
-      label: 'Disable…',
+      label: t('admin.actions.user.disable.label'),
       icon: 'ban',
-      tip: 'Signs them out everywhere; they cannot sign in until enabled.',
+      tip: t('admin.actions.user.disable.tip'),
       confirm: {
-        text: `${name} is signed out everywhere and cannot sign in again until enabled.`,
-        action: 'Disable user',
+        text: t('admin.actions.user.disable.text', { name }),
+        action: t('admin.actions.user.disable.action'),
       },
       run: act('user.disable'),
-      done: `${name} is disabled and signed out.`,
+      done: t('admin.actions.user.disable.done', { name }),
     })
   return actions
 }
@@ -232,7 +255,7 @@ export function deleteWorkspaceText(
 ): Pick<Confirmation, 'text' | 'list' | 'after' | 'option'> {
   const accountsDeleted = w.members_only_here
   return {
-    text: `This deletes ${w.name} and all its data for good.`,
+    text: t('admin.actions.workspace.delete.text', { name: w.name }),
     list: workspaceDeleteList({
       calls: w.calls_total,
       contacts: w.contacts,
@@ -241,21 +264,30 @@ export function deleteWorkspaceText(
       accountsDeleted,
     }),
     option: keepAccountsOption({ accountsDeleted, ownAccountDeleted: false }),
-    after: 'This cannot be undone.',
+    after: t('admin.actions.workspace.delete.after'),
   }
 }
-
-const count = (n: number, one: string, many = `${one}s`) => `${fmt().number(n)} ${n === 1 ? one : many}`
 
 /** The toast after a delete: numbers left at the carrier are named, since someone has to release them there. */
 export function deletedWorkspaceText(name: string, data: unknown): string {
   const numbers = (
     (data as { numbers?: { e164: string; carrier: string; note?: string }[] } | null)?.numbers ?? []
   ).filter(n => n.carrier === 'left')
-  const left = numbers.map(n => `${n.e164}: ${n.note ?? 'left at the carrier'}`).join('; ')
+  const left = numbers
+    .map(n =>
+      t('admin.actions.workspace.deleted.number', {
+        number: n.e164,
+        note: n.note ?? t('admin.actions.workspace.deleted.leftAtCarrier'),
+      }),
+    )
+    .join('; ')
   const users = (data as { usersDeleted?: string[] } | null)?.usersDeleted?.length ?? 0
-  const accounts = users ? ` ${count(users, 'account')} deleted with it.` : ''
-  return `${name} is deleted.${accounts}${left ? ` Still at the carrier: ${left}.` : ''}`
+  // Whole sentences, one after the other.
+  return [
+    t('admin.actions.workspace.deleted.done', { name }),
+    ...(users ? [t('admin.actions.workspace.deleted.accounts', { count: users })] : []),
+    ...(left ? [t('admin.actions.workspace.deleted.atCarrier', { numbers: left })] : []),
+  ].join(' ')
 }
 
 /** `onDeleted`: leave the page of a workspace that is gone. `viewerIsMember`: the admin is a member of it. */
@@ -270,14 +302,14 @@ export function workspaceActions(
   }
   const remove: AdminAction = {
     id: 'delete',
-    label: 'Delete workspace…',
+    label: t('admin.actions.workspace.delete.label'),
     icon: 'trash',
     danger: true,
-    tip: 'Deletes it with all its calls, contacts, numbers and settings, and the accounts of members who belong to no other workspace.',
+    tip: t('admin.actions.workspace.delete.tip'),
     confirm: {
       ...deleteWorkspaceText(w, viewerIsMember),
-      action: 'Delete workspace',
-      busyAction: 'Deleting…',
+      action: t('admin.actions.workspace.delete.action'),
+      busyAction: t('admin.actions.workspace.delete.busy'),
       typed: w.name,
     },
     run: async keepAccounts => {
@@ -299,26 +331,26 @@ export function workspaceActions(
     ? [
         {
           id: 'enable',
-          label: 'Enable',
+          label: t('admin.actions.workspace.enable.label'),
           icon: 'restart',
-          tip: 'Calls to its numbers are answered again.',
+          tip: t('admin.actions.workspace.enable.tip'),
           run: set(false),
-          done: `${w.name} is enabled. Its calls are answered again.`,
+          done: t('admin.actions.workspace.enable.done', { name: w.name }),
         },
       ]
     : [
         {
           id: 'disable',
-          label: 'Disable…',
+          label: t('admin.actions.workspace.disable.label'),
           icon: 'ban',
-          tip: 'Its numbers stop being answered; members can still sign in and read.',
+          tip: t('admin.actions.workspace.disable.tip'),
           confirm: {
-            text: `Calls to ${w.name} will no longer be answered and its members can only read.`,
-            action: 'Disable workspace',
+            text: t('admin.actions.workspace.disable.text', { name: w.name }),
+            action: t('admin.actions.workspace.disable.action'),
             typed: w.name,
           },
           run: set(true),
-          done: `${w.name} is disabled. Its calls are no longer answered.`,
+          done: t('admin.actions.workspace.disable.done', { name: w.name }),
         },
       ]
   return [...toggle, remove]
@@ -338,7 +370,14 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
     onClose()
   }
   const confirm = action.confirm!
-  if (enrolment) return <EnrolmentCodeDialog who={action.subject ?? 'them'} enrolment={enrolment} onClose={onClose} />
+  if (enrolment)
+    return (
+      <EnrolmentCodeDialog
+        who={action.subject ?? t('admin.actions.enrolment.them')}
+        enrolment={enrolment}
+        onClose={onClose}
+      />
+    )
   return (
     <DangerConfirmDialog
       confirm={{
@@ -392,6 +431,7 @@ export function ActionBar({ actions, onPick }: { actions: AdminAction[]; onPick:
 
 /** A row's quick actions: icon buttons on hover or focus, a ⋯ menu on touch screens. */
 export function RowActions({ actions, onPick }: { actions: AdminAction[]; onPick: (action: AdminAction) => void }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -435,10 +475,10 @@ export function RowActions({ actions, onPick }: { actions: AdminAction[]; onPick
           size="sm"
           variant="ghost"
           icon="more"
-          aria-label="Actions"
+          aria-label={t('admin.actions.menu')}
           aria-haspopup="menu"
           aria-expanded={open}
-          title="Actions"
+          title={t('admin.actions.menu')}
           onClick={() => setOpen(o => !o)}
         />
         {open && (

@@ -27,9 +27,22 @@ test('the Answering tabs: tablist, the chosen tab selected and focusable, In use
   expect(html).toContain('aria-label="Works, not in use"')
 })
 
+/** A component's element tree, made inside a render: its hooks (the language) need one. */
+let captured: ReactElement | null = null
+function Capture({ make }: { make: () => ReactElement }) {
+  captured = make()
+  return null
+}
+function elementOf(make: () => ReactElement): ReactElement {
+  renderToStaticMarkup(<Capture make={make} />)
+  return captured!
+}
+
 test('switching tabs, by click or arrow key, only changes the view: it does not change which one answers calls', () => {
   const onSelect = vi.fn()
-  const el = AnsweringWayTabs({ selected: 'realtime', marks: { realtime: 'in_use', three_stage: null }, onSelect })
+  const el = elementOf(() =>
+    AnsweringWayTabs({ selected: 'realtime', marks: { realtime: 'in_use', three_stage: null }, onSelect }),
+  )
   const [realtime, three] = tabsOf(el as ReactElement<{ children: ReactElement<TabProps>[] }>)
   three!.props.onClick()
   expect(onSelect).toHaveBeenLastCalledWith('three_stage')
@@ -39,4 +52,18 @@ test('switching tabs, by click or arrow key, only changes the view: it does not 
   realtime!.props.onKeyDown(key('a'))
   expect(onSelect).toHaveBeenCalledTimes(2)
   expect(runAdmin).not.toHaveBeenCalled()
+})
+
+test('the Answering tabs say every word through the catalog (pseudo-locale)', async () => {
+  const { enMessages, PSEUDO_LOCALE } = await import('@linedesk/i18n')
+  const { pseudoMessages } = await import('@linedesk/i18n/pseudo')
+  const { createI18n, I18nProvider } = await import('@linedesk/i18n/react')
+  const html = renderToStaticMarkup(
+    <I18nProvider value={createI18n(PSEUDO_LOCALE, pseudoMessages(enMessages))}>
+      <AnsweringWayTabs selected="realtime" marks={{ realtime: 'in_use', three_stage: 'works' }} onSelect={() => {}} />
+    </I18nProvider>,
+  )
+  expect(html).not.toContain('One realtime model')
+  expect(html).not.toContain('>In use<')
+  expect(html).toContain('⟦')
 })

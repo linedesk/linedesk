@@ -9,6 +9,8 @@ import { AuthError } from '../ui/AuthError.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { brandName } from '../brand.ts'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 export const PASSKEY_STEP_UP_REQUIRED = 'PASSKEY_STEP_UP_REQUIRED'
 /** `confirm`: sign in with your passkey; `enrol`: add a first passkey (enrolment code). */
@@ -29,16 +31,16 @@ export function stepUpOf(json: { code?: unknown; stepUp?: unknown } | null): Ste
   return json.stepUp === 'enrol' ? 'enrol' : 'confirm'
 }
 
-/** Where an admin without a passkey adds the first (the enrolment code comes from another admin or the CLI). */
-const ENROL_WHERE =
-  'under Account › Sign-in & security, with the enrolment code from another admin or from user:passkeys --enrol on the server.'
+/** The command that prints an enrolment code on the server, named where an admin without a passkey adds the first. */
+const ENROL_COMMAND = 'user:passkeys --enrol'
 
 /** Why an action that needed a passkey did not run, or null when `err` is not a step-up refusal. */
 export function stepUpRefusalText(err: unknown): string | null {
   if (!(err instanceof StepUpRequired)) return null
+  const { t } = i18n()
   return err.stepUp === 'enrol'
-    ? `Add a passkey first ${ENROL_WHERE} Nothing changed.`
-    : 'Not confirmed with your passkey. Nothing changed.'
+    ? t('admin.stepUp.refused.enrol', { command: ENROL_COMMAND })
+    : t('admin.stepUp.refused.confirm')
 }
 
 type Request = { stepUp: StepUp; what: string; done: (confirmed: boolean) => void }
@@ -98,10 +100,14 @@ export function PasskeyStepUpHost() {
 }
 
 /** The dialog's line under the title: what is confirmed, then why a passkey ("Delete workspace Riverside Electric. …"). */
-export const stepUpReason = (what: string) =>
-  `${what.charAt(0).toUpperCase()}${what.slice(1)}. This needs a passkey sign-in from the last 12 hours.`
+export function stepUpReason(what: string) {
+  const { t, locale } = i18n()
+  const first = what.charAt(0).toLocaleUpperCase(locale)
+  return t('admin.stepUp.reason', { what: `${first}${what.slice(1)}` })
+}
 
 function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: boolean) => void }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function confirm() {
@@ -114,7 +120,7 @@ function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: 
   }
   return (
     <Dialog
-      title="Confirm with your passkey"
+      title={t('admin.stepUp.confirm.title')}
       description={stepUpReason(what)}
       size="sm"
       onClose={() => onClose(false)}
@@ -125,46 +131,47 @@ function ConfirmPasskey({ what, onClose }: { what: string; onClose: (confirmed: 
       footer={
         <>
           <Button variant="ghost" onClick={() => onClose(false)}>
-            Cancel
+            {t('common.action.cancel')}
           </Button>
           <Button
             type="submit"
             variant="primary"
             disabled={busy || !passkeySupported()}
-            title="Sign in with your passkey"
+            title={t('admin.stepUp.confirm.tip')}
           >
-            {busy ? 'Waiting for your device…' : 'Confirm with passkey'}
+            {busy ? t('admin.stepUp.waiting') : t('admin.stepUp.confirm.button')}
           </Button>
         </>
       }
     >
-      {!passkeySupported() && <AuthError message={`Passkeys need https. Open ${brandName()} at its https address.`} />}
+      {!passkeySupported() && <AuthError message={t('admin.stepUp.httpsNeeded', { brand: brandName() })} />}
       {error && <AuthError message={error} />}
     </Dialog>
   )
 }
 
 function EnrolFirst({ what, onClose }: { what: string; onClose: (confirmed: boolean) => void }) {
+  const t = useT()
   return (
     <Dialog
-      title={`Add a passkey first: ${what}`}
-      description={`This needs a passkey. Add your first ${ENROL_WHERE}`}
+      title={t('admin.stepUp.enrol.title', { what })}
+      description={t('admin.stepUp.enrol.description', { command: ENROL_COMMAND })}
       size="sm"
       onClose={() => onClose(false)}
       footer={
         <>
           <Button variant="ghost" onClick={() => onClose(false)}>
-            Cancel
+            {t('common.action.cancel')}
           </Button>
           <Button
             variant="primary"
-            title="Open Account, Sign-in & security"
+            title={t('admin.stepUp.enrol.tip')}
             onClick={() => {
               onClose(false)
               window.location.hash = '#account/security'
             }}
           >
-            Go to Sign-in & security
+            {t('admin.stepUp.enrol.button')}
           </Button>
         </>
       }

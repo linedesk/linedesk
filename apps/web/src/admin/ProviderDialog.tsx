@@ -12,6 +12,7 @@ import {
   providers as providerSpecs,
   restartCategories,
 } from '@linedesk/actions'
+import { useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { Switch } from '../ui/controls.tsx'
@@ -31,7 +32,7 @@ import {
   providerState,
 } from './model.ts'
 import { errorText } from './notify.ts'
-import { exchangeCode, type OpenRouterReturn, startOpenRouterConnect } from './openrouterAuth.ts'
+import { exchangeCode, type OpenRouterReturn, openRouterErrorText, startOpenRouterConnect } from './openrouterAuth.ts'
 import { stepUpRefusalText } from './PasskeyStepUp.tsx'
 import { ProviderError } from './ProviderError.tsx'
 import { StatusWords } from './ProviderGroup.tsx'
@@ -39,12 +40,12 @@ import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx
 import { testedAgo } from './providerStatus.ts'
 import { TryOut, tryKindOf } from './TryOut.tsx'
 
-export const SERVER_SETTING_TIP = 'Set on the server. A value saved here takes priority.'
-
 /** A value that comes from the server's settings: a small server icon, the rest in its tooltip. */
 export function ServerSet() {
+  const t = useT()
+  const tip = t('admin.providerDialog.serverSetTip')
   return (
-    <span className="adm-server" role="img" aria-label={SERVER_SETTING_TIP} title={SERVER_SETTING_TIP}>
+    <span className="adm-server" role="img" aria-label={tip} title={tip}>
       <Icon name="server" size={12} />
     </span>
   )
@@ -83,6 +84,8 @@ const presetsOf = (provider: ProviderStatus) =>
 export function ProviderDialog(props: Props) {
   const { provider, line, inUse, chosen, canUse, canStore, oauthReturn } = props
   const { onTested, onUse, onStopUsing, reload, notify, onClose, keyUsers = [] } = props
+  const t = useT()
+  const format = useFormat()
   const meta = providerMeta[provider.provider]
   const [values, setValues] = useState(() => initialValues(provider))
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -144,7 +147,7 @@ export function ProviderDialog(props: Props) {
   useEffect(() => {
     if (!oauthReturn || finishing.current) return
     finishing.current = true
-    if ('error' in oauthReturn) return setResult({ ok: false, message: oauthReturn.error })
+    if ('error' in oauthReturn) return setResult({ ok: false, message: openRouterErrorText(oauthReturn.error) })
     void (async () => {
       setPhase('saving')
       try {
@@ -174,9 +177,7 @@ export function ProviderDialog(props: Props) {
       if (inUse && chosen) await onStopUsing()
       await reload()
       notify(
-        keyUsers.length
-          ? `${[provider, ...keyUsers].map(p => p.label).join(', ')} disconnected.`
-          : `${provider.label} disconnected.`,
+        t('admin.providerDialog.disconnected', { providers: format.list([provider, ...keyUsers].map(p => p.label)) }),
       )
       onClose()
     } catch (err) {
@@ -187,7 +188,8 @@ export function ProviderDialog(props: Props) {
 
   const fieldId = (field: string) => `prov-${provider.provider}-${field}`
   const tryKind = tryKindOf(provider.category)
-  const useLabel = provider.category === 'recording' ? 'Record here' : 'Use for calls'
+  const useLabel =
+    provider.category === 'recording' ? t('admin.providerDialog.recordHere') : t('admin.providerDialog.useForCalls')
   const keysUrl = preset ? presetMeta[preset.label]?.keysUrl : meta.keysUrl
   /** "Get a key" goes next to the first field the provider's key page hands out. */
   const keyField = provider.fields.find(f => f.secret || f.field === 'access_key_id' || f.field === 'account_sid')
@@ -196,25 +198,28 @@ export function ProviderDialog(props: Props) {
   const redirects = redirectUris(provider.provider, window.location.origin)
   const primaryLabel =
     phase === 'saving'
-      ? 'Saving…'
+      ? t('common.action.saving')
       : phase === 'testing'
-        ? 'Testing…'
+        ? t('admin.providerDialog.testing')
         : configured && !dirty
-          ? 'Test again'
+          ? t('admin.providerDialog.testAgain')
           : configured
-            ? 'Save'
-            : 'Connect'
+            ? t('common.action.save')
+            : t('admin.providers.connect')
 
   const footer =
     phase === 'confirm-disconnect' || phase === 'disconnecting' ? (
       <>
         <span className="k-dialog-foot-start adm-confirm-text">
-          Delete the stored {provider.label} keys?
+          {t('admin.providerDialog.confirmDisconnect', { provider: provider.label })}
           {keyUsers.length > 0 &&
-            ` ${keyUsers.map(p => p.label).join(' and ')} use${keyUsers.length === 1 ? 's' : ''} the same key and stop too.`}
+            ` ${t('admin.providerDialog.confirmSharedKey', {
+              providers: format.list(keyUsers.map(p => p.label)),
+              count: keyUsers.length,
+            })}`}
         </span>
         <Button variant="ghost" onClick={() => setPhase('idle')} disabled={phase === 'disconnecting'}>
-          Cancel
+          {t('common.action.cancel')}
         </Button>
         <Button
           busy={phase === 'disconnecting'}
@@ -223,7 +228,7 @@ export function ProviderDialog(props: Props) {
           onClick={() => void disconnect()}
           disabled={phase === 'disconnecting'}
         >
-          {phase === 'disconnecting' ? 'Disconnecting…' : 'Disconnect'}
+          {phase === 'disconnecting' ? t('admin.providerDialog.disconnecting') : t('admin.providerDialog.disconnect')}
         </Button>
       </>
     ) : (
@@ -235,7 +240,7 @@ export function ProviderDialog(props: Props) {
             disabled={busy || !canStore}
             onClick={() => setPhase('confirm-disconnect')}
           >
-            Disconnect
+            {t('admin.providerDialog.disconnect')}
           </Button>
         )}
         {provider.category === 'recording' && inUse && chosen && provider.fields.length === 0 && (
@@ -245,7 +250,7 @@ export function ProviderDialog(props: Props) {
             disabled={busy}
             onClick={() => void onStopUsing().then(onClose)}
           >
-            Stop recording
+            {t('admin.providerDialog.stopRecording')}
           </Button>
         )}
         {canUse && !inUse && (connected || result?.ok) && !dirty && (
@@ -255,12 +260,12 @@ export function ProviderDialog(props: Props) {
         )}
         {working ? (
           <Button variant="primary" onClick={onClose}>
-            Done
+            {t('admin.providerDialog.done')}
           </Button>
         ) : (
           <>
             <Button variant="ghost" onClick={onClose} disabled={busy}>
-              Cancel
+              {t('common.action.cancel')}
             </Button>
             {manual && (
               <Button
@@ -270,9 +275,9 @@ export function ProviderDialog(props: Props) {
                 disabled={busy || (dirty && !canStore)}
                 title={
                   dirty
-                    ? 'Save and test (⌘S)'
+                    ? t('admin.providerDialog.saveTip', { key: '⌘S' })
                     : configured
-                      ? 'Check the keys again: free, nothing is spent (⌘S)'
+                      ? t('admin.providerDialog.testAgainTip', { key: '⌘S' })
                       : undefined
                 }
               >
@@ -287,19 +292,20 @@ export function ProviderDialog(props: Props) {
   return (
     <Dialog
       title={provider.label}
-      description={`${providerCategories[provider.category]} · ${meta.blurb}`}
+      description={t('admin.providerDialog.description', {
+        category: providerCategories[provider.category],
+        blurb: t(meta.blurb),
+      })}
       icon={<Logo mark={meta.mark} size={40} />}
       onClose={busy ? () => {} : onClose}
       onSubmit={save}
       footer={footer}
     >
-      {!canStore && provider.fields.length > 0 && (
-        <Note tone="warning">No encryption key on the server, so keys can't be saved.</Note>
-      )}
+      {!canStore && provider.fields.length > 0 && <Note tone="warning">{t('admin.providers.noSecretsKey')}</Note>}
       {configured && (
         <p className="adm-group-status" role="status">
           <StatusMark state={phase === 'testing' ? 'checking' : line.state} />{' '}
-          {phase === 'testing' ? 'Testing…' : <StatusWords status={line} />}
+          {phase === 'testing' ? t('admin.providerDialog.testing') : <StatusWords status={line} />}
           {phase !== 'testing' && testedAgo(line.testedAt) ? ` · ${testedAgo(line.testedAt)}` : ''}
           {phase !== 'testing' && line.state === 'failing' && line.message && !result ? (
             <ProviderError message={line.message} at={line.failedAt} />
@@ -333,7 +339,7 @@ export function ProviderDialog(props: Props) {
           <span className="adm-result">
             {result.ok
               ? appliesOnRestart && savedNow
-                ? `Connected. ${brandName()} restarts in the background to apply it (a few seconds).`
+                ? t('admin.providerDialog.connectedRestart', { brand: brandName() })
                 : resultLine(result.message)
               : result.message}
           </span>
@@ -348,10 +354,11 @@ export function ProviderDialog(props: Props) {
 
 /** How to get a key for this provider: the registry's steps, the page, what it costs. Open until it works. */
 function KeyGuide({ provider, open }: { provider: ProviderStatus; open: boolean }) {
+  const t = useT()
   const { guide, label } = providerSpec(provider.provider)
   return (
     <details className="adm-guide" open={open}>
-      <summary>How to get a key</summary>
+      <summary>{t('admin.providerDialog.howToGetKey')}</summary>
       <ol className="adm-guide-steps">
         {guide.steps.map(step => (
           <li key={step}>{step}</li>
@@ -360,8 +367,8 @@ function KeyGuide({ provider, open }: { provider: ProviderStatus; open: boolean 
       <p className="help">
         {guide.url && (
           <>
-            <a href={guide.url} target="_blank" rel="noreferrer" title="Opens in a new tab">
-              Open {label}
+            <a href={guide.url} target="_blank" rel="noreferrer" title={t('admin.providerDialog.opensNewTab')}>
+              {t('admin.providerDialog.openProvider', { provider: label })}
             </a>
             {' · '}
           </>
@@ -398,13 +405,14 @@ type FormProps = {
 export function ProviderForm(props: FormProps) {
   const { provider, values, errors, canStore, busy, configured, manual, oauthDone, preset, keysUrl, keyField } = props
   const { redirects, fieldId, onManual, onPreset, onChange } = props
+  const t = useT()
   const presets = presetsOf(provider)
   return (
     <>
       {helpOf(provider) && provider.category !== 'recording' && <p className="k-field-desc">{helpOf(provider)}</p>}
       {presets.length > 0 && (
-        <FormField label="Service" description={preset?.help}>
-          <div className="adm-presets" role="radiogroup" aria-label="Service">
+        <FormField label={t('admin.providerDialog.service')} description={preset?.help}>
+          <div className="adm-presets" role="radiogroup" aria-label={t('admin.providerDialog.service')}>
             {presets.map(p => (
               <button
                 key={p.label}
@@ -422,7 +430,7 @@ export function ProviderForm(props: FormProps) {
           </div>
         </FormField>
       )}
-      {provider.fields.length === 0 && <p className="k-field-desc">Nothing to set up.</p>}
+      {provider.fields.length === 0 && <p className="k-field-desc">{t('admin.providerDialog.nothingToSetUp')}</p>}
       {!manual && !oauthDone && (
         <div className="adm-oauth">
           <Button
@@ -430,12 +438,12 @@ export function ProviderForm(props: FormProps) {
             variant="primary"
             disabled={busy || !canStore}
             onClick={() => void startOpenRouterConnect()}
-            title={`Sign in to OpenRouter and create a key for ${brandName()}`}
+            title={t('admin.providerDialog.openrouter.tip', { brand: brandName() })}
           >
-            {busy ? 'Connecting…' : 'Connect with OpenRouter'}
+            {busy ? t('admin.providerDialog.openrouter.connecting') : t('admin.providerDialog.openrouter.connect')}
           </Button>
           <button type="button" className="k-link" onClick={onManual}>
-            Enter a key instead
+            {t('admin.providerDialog.openrouter.manual')}
           </button>
         </div>
       )}
@@ -451,7 +459,7 @@ export function ProviderForm(props: FormProps) {
             disabled={!canStore || busy}
             autoFocus={i === 0 && !configured}
             keysUrl={field.field === keyField ? keysUrl : undefined}
-            keysLabel={provider.category === 'sign_in' ? 'Create an app' : undefined}
+            keysLabel={provider.category === 'sign_in' ? t('admin.providerDialog.createApp') : undefined}
             onChange={value => onChange(field.field, value)}
           />
         ))}
@@ -478,22 +486,28 @@ type InputProps = {
 }
 
 function ProviderInput(props: InputProps) {
-  const { id, provider, field, value, error, disabled, autoFocus, keysUrl, keysLabel = 'Get a key', onChange } = props
+  const t = useT()
+  const { id, provider, field, value, error, disabled, autoFocus, keysUrl, onChange } = props
+  const keysLabel = props.keysLabel ?? t('admin.providerDialog.getKey')
   const fromServer = field.source === 'env' && <ServerSet />
   const getKey = keysUrl && (
-    <a className="k-link adm-getkey" href={keysUrl} target="_blank" rel="noreferrer" title="Opens in a new tab">
+    <a
+      className="k-link adm-getkey"
+      href={keysUrl}
+      target="_blank"
+      rel="noreferrer"
+      title={t('admin.providerDialog.opensNewTab')}
+    >
       {keysLabel}
     </a>
   )
   const shared = field.key_from && (
-    <span
-      className="help"
-      title="One-key mode: Disconnect there ends it here too; a key saved here is this provider's own"
-    >
-      Uses the {providerSpecs[field.key_from].label} key
+    <span className="help" title={t('admin.providerDialog.sharedKeyTip')}>
+      {t('admin.providerDialog.sharedKey', { provider: providerSpecs[field.key_from].label })}
     </span>
   )
-  const aside = fromServer || shared || getKey || (isOptional(provider, field) ? 'Optional' : undefined)
+  const aside =
+    fromServer || shared || getKey || (isOptional(provider, field) ? t('admin.providerDialog.optional') : undefined)
   if (isSwitch(provider, field)) {
     const on = (value || field.value || 'true') !== 'false'
     return (
@@ -512,7 +526,7 @@ function ProviderInput(props: InputProps) {
           value={value}
           onChange={onChange}
           storedLast4={field.source === 'app' ? (field.last4 ?? '••••') : null}
-          placeholder={field.source === 'env' ? 'Set on the server' : undefined}
+          placeholder={field.source === 'env' ? t('admin.providerDialog.setOnServer') : undefined}
           autoFocus={autoFocus}
           invalid={!!error}
         />
@@ -549,6 +563,7 @@ function ProviderInput(props: InputProps) {
 
 /** The addresses to add to the provider's OAuth app, each with a copy button. */
 function RedirectUris({ uris }: { uris: string[] }) {
+  const t = useT()
   const [copied, setCopied] = useState<string | null>(null)
   const copy = (uri: string) =>
     navigator.clipboard.writeText(uri).then(
@@ -556,12 +571,21 @@ function RedirectUris({ uris }: { uris: string[] }) {
       () => setCopied(null),
     )
   return (
-    <FormField label="Redirect URIs" description="Add these to the app's allowed redirect URIs.">
+    <FormField
+      label={t('admin.providerDialog.redirects.label')}
+      description={t('admin.providerDialog.redirects.description')}
+    >
       <ul className="adm-redirects">
         {uris.map(uri => (
           <li key={uri}>
             <code>{uri}</code>
-            <Button variant="ghost" size="sm" onClick={() => void copy(uri)} title="Copy" aria-label={`Copy ${uri}`}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void copy(uri)}
+              title={t('common.copy.copy')}
+              aria-label={t('common.copy.copyThis', { text: uri })}
+            >
               <Icon name={copied === uri ? 'check' : 'copy'} size={14} />
             </Button>
           </li>

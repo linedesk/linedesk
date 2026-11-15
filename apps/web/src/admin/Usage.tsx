@@ -1,3 +1,4 @@
+import { useT } from '@linedesk/i18n/react'
 import type { AdminWorkspace, UsageRow } from './api.ts'
 import { formatMinutes, monthLabel, recentMonths, sortRows, usageByWorkspace } from './model.ts'
 import { EMPTY, SortTh, useSort } from './parts.tsx'
@@ -7,6 +8,7 @@ type Props = { workspaces: AdminWorkspace[]; usage: UsageRow[]; months: number }
 
 /** Answered minutes and calls per workspace and calendar month (UTC). */
 export function Usage({ workspaces, usage, months }: Props) {
+  const t = useT()
   const { sort, toggle } = useSort<Column>({ key: 'month', dir: 'desc' })
   const columns = recentMonths(months)
   const grid = usageByWorkspace(usage)
@@ -19,7 +21,7 @@ export function Usage({ workspaces, usage, months }: Props) {
         <table className="adm-table adm-stack adm-stack-grid">
           <thead>
             <tr>
-              <SortTh label="Workspace" column="name" sort={sort} onSort={toggle} />
+              <SortTh label={t('admin.usage.workspace')} column="name" sort={sort} onSort={toggle} />
               {columns.map((month, i) =>
                 i === 0 ? (
                   <SortTh
@@ -48,11 +50,7 @@ export function Usage({ workspaces, usage, months }: Props) {
                   return (
                     <td key={month} className="adm-num" data-label={monthLabel(month)}>
                       {cell ? formatMinutes(cell.minutes) : EMPTY}
-                      {cell ? (
-                        <span className="adm-sub">
-                          {cell.calls} {cell.calls === 1 ? 'call' : 'calls'}
-                        </span>
-                      ) : null}
+                      {cell ? <span className="adm-sub">{t('admin.usage.calls', { count: cell.calls })}</span> : null}
                     </td>
                   )
                 })}

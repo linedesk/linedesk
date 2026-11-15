@@ -19,6 +19,8 @@ import {
   statusWords,
   type VoicePipeline,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { HelpTip } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
@@ -47,7 +49,10 @@ export function StatusWords({ status }: { status: { state: StatusState; detail: 
 }
 
 /** The two ways Answering works, as two tabs over its lists. */
-const wayLabels: Record<VoicePipeline, string> = { realtime: 'One realtime model', three_stage: 'Three parts' }
+const wayLabels: Record<VoicePipeline, MessageKey> = {
+  realtime: msg('admin.providers.way.realtime'),
+  three_stage: msg('admin.providers.way.threeStage'),
+}
 const wayTabId = (way: VoicePipeline) => `adm-way-tab-${way}`
 const wayPanelId = 'adm-way-panel'
 
@@ -63,8 +68,9 @@ type WayTabsProps = {
  * used shows its check. Arrow keys, Home and End move between them.
  */
 export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
+  const t = useT()
   return (
-    <div className="ib-tabs adm-way-tabs" role="tablist" aria-label="How calls are answered">
+    <div className="ib-tabs adm-way-tabs" role="tablist" aria-label={t('admin.providers.way.tabsLabel')}>
       {answeringWays.map(way => (
         <button
           key={way}
@@ -84,9 +90,9 @@ export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
             e.currentTarget.parentElement?.querySelector<HTMLElement>(`#${wayTabId(next)}`)?.focus()
           }}
         >
-          {wayLabels[way]}
-          {marks[way] === 'in_use' && <span className="adm-way-use">In use</span>}
-          {marks[way] === 'works' && <StatusMark state="works" label="Works, not in use" />}
+          {t(wayLabels[way])}
+          {marks[way] === 'in_use' && <span className="adm-way-use">{t('admin.providers.way.inUse')}</span>}
+          {marks[way] === 'works' && <StatusMark state="works" label={t('admin.providers.way.worksNotInUse')} />}
         </button>
       ))}
     </div>
@@ -227,6 +233,7 @@ function ProviderList({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
+  const t = useT()
   const active = data.activeProviders[category]?.provider ?? null
   const setUp = providers.filter(p => lines[p]?.state !== 'missing')
   const [ownExpanded, setOwnExpanded] = useState(false)
@@ -252,8 +259,8 @@ function ProviderList({
           const use =
             configured && category !== 'sign_in' && (setUp.length > 1 || category === 'recording')
               ? active === name
-                ? 'In use'
-                : 'Not in use'
+                ? 'in_use'
+                : 'not_in_use'
               : null
           const shown = line && rowStatus(line, { use, fromServer: providerState(status) === 'env' })
           return (
@@ -262,7 +269,7 @@ function ProviderList({
               <span className="adm-prov-name">
                 <b>{status.label}</b>
                 {picking && recommendedProviders[category] === name && (
-                  <span className="adm-recommended">Recommended</span>
+                  <span className="adm-recommended">{t('admin.providers.recommended')}</span>
                 )}
                 {configured && line && shown && (
                   <span className={cx('adm-tile-status', line.state === 'failing' && 'adm-status-bad')}>
@@ -279,9 +286,13 @@ function ProviderList({
                   size="sm"
                   variant={configured ? 'ghost' : 'secondary'}
                   onClick={() => onOpen(name)}
-                  title={configured ? `Edit ${status.label}` : `Connect ${status.label}`}
+                  title={
+                    configured
+                      ? t('admin.providers.editTip', { provider: status.label })
+                      : t('admin.providers.connectTip', { provider: status.label })
+                  }
                 >
-                  {configured ? 'Edit' : 'Connect'}
+                  {configured ? t('admin.providers.edit') : t('admin.providers.connect')}
                 </Button>
               </span>
             </li>
@@ -295,9 +306,11 @@ function ProviderList({
           className="adm-provlist-more"
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
-          title={expanded ? 'Show only the recommended and the providers in use' : `Show ${list.hidden} more providers`}
+          title={
+            expanded ? t('admin.providers.list.lessTip') : t('admin.providers.list.moreTip', { count: list.hidden })
+          }
         >
-          {expanded ? 'Show less' : 'Show more'}
+          {expanded ? t('admin.providers.list.less') : t('admin.providers.list.more')}
         </Button>
       )}
     </>
@@ -306,9 +319,10 @@ function ProviderList({
 
 /** LiveKit and SIP as the server reports them, and how to set them up; nothing to edit here. */
 function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth | null }) {
+  const t = useT()
   const rows = [
-    { label: 'LiveKit server', status: health?.livekit },
-    { label: 'Phone calls (SIP)', status: health?.sip },
+    { label: t('admin.providers.callAudio.livekit'), status: health?.livekit },
+    { label: t('admin.providers.callAudio.sip'), status: health?.sip },
   ]
   return (
     <>
@@ -323,7 +337,7 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
                   label={row.status?.message}
                 />
                 {/* Working: the mark alone, its message is the tooltip. */}
-                {row.status?.ok ? null : (row.status?.message ?? 'Checking…')}
+                {row.status?.ok ? null : (row.status?.message ?? t('admin.providers.checking'))}
               </span>
             </span>
           </li>
@@ -331,7 +345,7 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
       </ul>
       {group.state !== 'works' && (
         <details className="adm-guide" open={group.state === 'missing'}>
-          <summary>How to set it up</summary>
+          <summary>{t('admin.providers.callAudio.howTo')}</summary>
           <ol className="adm-guide-steps">
             {callAudioGuide.steps.map(step => (
               <li key={step}>{step}</li>
@@ -339,7 +353,7 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
           </ol>
           <p className="help">
             <a href={callAudioGuide.url} target="_blank" rel="noreferrer">
-              Ports and firewall
+              {t('admin.providers.callAudio.ports')}
             </a>
             {' · '}
             {callAudioGuide.cost}

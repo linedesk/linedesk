@@ -7,6 +7,7 @@ import {
   StepUpRequired,
   stepUpOf,
   stepUpReason,
+  stepUpRefusalText,
   withPasskeyStepUp,
 } from './PasskeyStepUp.tsx'
 
@@ -62,4 +63,24 @@ test('the passkey dialog says what it confirms: a workspace to delete by its nam
   expect(what).toBe('delete workspace Riverside Electric')
   expect(stepUpReason(what)).toMatch(/^Delete workspace Riverside Electric\. /)
   expect(stepUpLabel('instanceAdmin.grant')).toBe('make an instance admin')
+})
+
+test('the passkey texts follow the active language (pseudo-locale)', async () => {
+  const { activate } = await import('../i18n/index.tsx')
+  await activate('en-XA', { remember: false })
+  try {
+    const what = stepUpLabel('workspace.delete', { workspaceId: 'ws_1', name: 'Riverside Electric' })
+    expect(what).not.toBe('delete workspace Riverside Electric')
+    expect(what).toContain('Riverside Electric')
+    expect(stepUpRefusalText(new StepUpRequired('x', 'confirm'))).toMatch(/^⟦/)
+  } finally {
+    await activate('en', { remember: false })
+  }
+  expect(stepUpRefusalText(new StepUpRequired('x', 'confirm'))).toBe(
+    'Not confirmed with your passkey. Nothing changed.',
+  )
+  expect(stepUpRefusalText(new StepUpRequired('x', 'enrol'))).toMatch(
+    /user:passkeys --enrol on the server\. Nothing changed\.$/,
+  )
+  expect(stepUpRefusalText(new Error('x'))).toBeNull()
 })

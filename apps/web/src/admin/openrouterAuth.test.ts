@@ -3,9 +3,10 @@ import { describe, expect, test, vi } from 'vitest'
 import {
   captureOpenRouterReturn,
   challengeOf,
+  clearOpenRouterReturn,
   exchangeCode,
   OPENROUTER_KEYS_URL,
-  clearOpenRouterReturn,
+  openRouterErrorText,
   peekOpenRouterReturn,
   startOpenRouterConnect,
 } from './openrouterAuth.ts'
@@ -67,10 +68,12 @@ describe('OpenRouter connect (PKCE)', () => {
     expect(captureOpenRouterReturn('?code=abc&state=x', storage)).toBeNull()
     await startOpenRouterConnect(storage, () => {}, 'http://x.localhost')
     captureOpenRouterReturn('?code=abc&state=forged', storage)
-    expect(takeOpenRouterReturn(storage)).toEqual({ error: expect.stringContaining("didn't match") })
+    expect(takeOpenRouterReturn(storage)).toEqual({ error: 'mismatch' })
+    expect(openRouterErrorText('mismatch')).toContain("didn't match")
     const url = new URL(await startOpenRouterConnect(storage, () => {}, 'http://x.localhost'))
     captureOpenRouterReturn(`?state=${url.searchParams.get('state')}`, storage)
-    expect(takeOpenRouterReturn(storage)).toEqual({ error: expect.stringContaining('cancelled') })
+    expect(takeOpenRouterReturn(storage)).toEqual({ error: 'cancelled' })
+    expect(openRouterErrorText('cancelled')).toContain('cancelled')
   })
 
   test('coming back without an answer (Back, a reload) drops the verifier', async () => {
@@ -97,5 +100,7 @@ describe('OpenRouter connect (PKCE)', () => {
       throw new TypeError('fetch failed')
     })
     await expect(exchangeCode('c', 'v', offline)).rejects.toThrow(/Couldn't reach OpenRouter/)
+    const down = vi.fn(async () => new Response('', { status: 502 }))
+    await expect(exchangeCode('c', 'v', down)).rejects.toThrow('OpenRouter answered 502. Try again.')
   })
 })

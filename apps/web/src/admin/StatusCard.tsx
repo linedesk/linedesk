@@ -14,12 +14,15 @@ import {
   type StatusState,
   statusText,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { refreshQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { HelpTip } from '../ui/form.tsx'
-import { cx, Button, Icon } from '../ui/kit.tsx'
-import { List, ListRow } from '../ui/list.tsx'
+import { Button, cx, Icon } from '../ui/kit.tsx'
 import { Skeleton } from '../ui/LoadStates.tsx'
+import { List, ListRow } from '../ui/list.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { ADMIN_HEALTH, type AdminHealth, type HealthPart } from './api.ts'
 import { AgentFirst } from './Providers.tsx'
@@ -40,10 +43,10 @@ export type Row = {
   href: string
 }
 
-const serverParts: { key: HealthPart; label: string }[] = [
-  { key: 'api', label: 'API' },
-  { key: 'readSync', label: 'Read sync' },
-  { key: 'agent', label: 'Voice agent' },
+const serverParts: { key: HealthPart; label: MessageKey }[] = [
+  { key: 'api', label: msg('admin.status.part.api') },
+  { key: 'readSync', label: msg('admin.status.part.readSync') },
+  { key: 'agent', label: msg('admin.status.part.agent') },
 ]
 
 /** What a working server part says beyond its mark: only the voice agent's last check-in is worth a line. */
@@ -67,15 +70,20 @@ export const groupRow = (g: GroupStatus): Row => {
 /** The server's own parts, as the health check reports them. */
 export const serverRows = (health: AdminHealth | null): Row[] =>
   serverParts.map(({ key, label }) => {
+    const { t } = i18n()
     const status = health?.[key]
     const state: StatusState = !status ? 'checking' : status.ok ? 'works' : 'failing'
     const failing = status && !status.ok
     return {
       id: key,
-      label,
+      label: t(label),
       state,
       // The status word once in the mark; the error once, short, under the name, its full text behind the (?).
-      mark: !status ? 'Checking…' : status.ok ? 'Responding' : 'Failing',
+      mark: !status
+        ? t('admin.providers.checking')
+        : status.ok
+          ? t('admin.status.responding')
+          : t('admin.status.failing'),
       value: failing || (status?.ok && quietWhenOk.includes(key)) ? null : (status?.message ?? null),
       problem: failing ? providerErrorSummary(status.message) : null,
       help: failing && providerErrorSummary(status.message) !== status.message.trim() ? status.message : null,
@@ -84,6 +92,7 @@ export const serverRows = (health: AdminHealth | null): Row[] =>
   })
 
 function StatusRow({ row, link }: { row: Row; link: boolean }) {
+  const t = useT()
   const bad = row.state === 'failing'
   return (
     <ListRow
@@ -99,7 +108,7 @@ function StatusRow({ row, link }: { row: Row; link: boolean }) {
       }
       title={
         link ? (
-          <a className="adm-status-link" href={row.href} title={`Open ${row.label}`}>
+          <a className="adm-status-link" href={row.href} title={t('admin.status.openTip', { part: row.label })}>
             {row.label}
           </a>
         ) : (
@@ -129,20 +138,21 @@ export function StatusList({
   health?: AdminHealth | null
   links?: boolean
 }) {
+  const t = useT()
   const parts = overviewGroups(groups).map(groupRow)
   const server = health !== undefined ? serverRows(health) : null
   return (
     <div className="adm-health" aria-live="polite">
-      {server && <h3 className="adm-health-sub">Providers</h3>}
-      <List label="Providers">
+      {server && <h3 className="adm-health-sub">{t('admin.status.providers')}</h3>}
+      <List label={t('admin.status.providers')}>
         {parts.map(row => (
           <StatusRow key={row.id} row={row} link={links} />
         ))}
       </List>
       {server && (
         <>
-          <h3 className="adm-health-sub">System</h3>
-          <List label="System">
+          <h3 className="adm-health-sub">{t('admin.status.system')}</h3>
+          <List label={t('admin.status.system')}>
             {server.map(row => (
               <StatusRow key={row.id} row={row} link={links} />
             ))}
@@ -164,6 +174,7 @@ const headlineMark = (state: ReturnType<typeof readiness>['state'], serverDown: 
         : 'missing'
 
 export function StatusCard({ status }: { status: ProviderStatusState }) {
+  const t = useT()
   const [open, setOpen] = useState<boolean | null>(null)
   if (!status.status) return <Skeleton className="adm-card adm-skel-card" />
   const { groups } = status.status
@@ -173,13 +184,15 @@ export function StatusCard({ status }: { status: ProviderStatusState }) {
   const allGood = ready.state === 'ready' && !serverDown && server.every(r => r.state === 'works')
   const expanded = open ?? !allGood
   const notSetUp = groups.some(g => g.needed && g.state === 'missing')
-  const headline = serverDown && ready.state === 'ready' ? `${serverDown.label} is failing` : ready.headline
+  const headline =
+    serverDown && ready.state === 'ready' ? t('admin.status.partFailing', { part: serverDown.label }) : ready.headline
   const mark = headlineMark(ready.state, !!serverDown)
   const line = allGood
-    ? 'Email, phone carrier, answering calls and call audio work.'
-    : (ready.reason ?? (serverDown ? `${serverDown.label}: ${serverDown.problem}` : null))
+    ? t('admin.status.allGood')
+    : (ready.reason ??
+      (serverDown ? t('admin.status.partProblem', { part: serverDown.label, problem: serverDown.problem }) : null))
   return (
-    <section className="adm-card adm-ready" aria-label="Ready for calls">
+    <section className="adm-card adm-ready" aria-label={t('admin.status.readyLabel')}>
       <div className="adm-ready-head">
         <StatusMark state={mark} label={headline} />
         <div className="adm-ready-text">
@@ -190,9 +203,9 @@ export function StatusCard({ status }: { status: ProviderStatusState }) {
           size="sm"
           variant="ghost"
           onClick={() => void refreshQuery(ADMIN_HEALTH)}
-          title="Ask LiveKit, the read sync and the voice agent again"
+          title={t('admin.status.checkAgainTip')}
         >
-          Check again
+          {t('admin.status.checkAgain')}
         </Button>
       </div>
       <button
@@ -200,16 +213,16 @@ export function StatusCard({ status }: { status: ProviderStatusState }) {
         className="adm-ready-toggle"
         aria-expanded={expanded}
         onClick={() => setOpen(!expanded)}
-        title={expanded ? 'Hide the parts' : 'Show every part and what it uses'}
+        title={expanded ? t('admin.status.details.hideTip') : t('admin.status.details.showTip')}
       >
         <Icon name="down" size={12} />
-        {expanded ? 'Hide details' : 'Show details'}
+        {expanded ? t('admin.status.details.hide') : t('admin.status.details.show')}
       </button>
       {expanded && <StatusList groups={groups} health={status.health} />}
       {notSetUp ? (
-        <AgentFirst lead="Not set up yet? An AI agent sets up the rest with you in about 10 minutes." quiet />
+        <AgentFirst lead={t('admin.status.agentNotSetUpLead')} quiet />
       ) : (
-        <AgentFirst lead="Everything is set up. Want to change something?" quiet complete />
+        <AgentFirst lead={t('admin.status.agentAllSetLead')} quiet complete />
       )}
     </section>
   )

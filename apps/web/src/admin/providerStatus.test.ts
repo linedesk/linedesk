@@ -1,4 +1,11 @@
-import { groupSpec, type ProviderFailure, type ProviderName, providerNames, providerSpec, statusText } from '@linedesk/actions'
+import {
+  groupSpec,
+  type ProviderFailure,
+  type ProviderName,
+  providerNames,
+  providerSpec,
+  statusText,
+} from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import type { ActiveProviders, AdminData, AdminHealth, ProviderStatus } from './api.ts'
 import {
@@ -175,7 +182,11 @@ test('a raw realtime error: "Failing" once, no line above the card, a short line
     workspace_id: null,
     call_id: null,
   }
-  const status = providerStatus(data(['resend'], { tests: { resend: passed }, providerFailures: [failure] }), {}, health)
+  const status = providerStatus(
+    data(['resend'], { tests: { resend: passed }, providerFailures: [failure] }),
+    {},
+    health,
+  )
   const email = groupOf(status, 'email')
   expect(status.lines.resend).toMatchObject({ state: 'failing', detail: null, failedAt: failure.last_at })
   expect(statusText(status.lines.resend)).toBe('Failing')
@@ -196,18 +207,18 @@ test('a group heading shows a status only for a problem: failing, partly, or not
 test('a working provider shows only its mark; its words, the choice and keys from the server go in the tooltip', () => {
   const works = { state: 'works' as const, detail: null }
   expect(rowStatus(works)).toEqual({ label: 'Works', words: null })
-  expect(rowStatus(works, { use: 'In use', fromServer: true })).toEqual({
+  expect(rowStatus(works, { use: 'in_use', fromServer: true })).toEqual({
     label: 'Works · In use · Keys set on the server',
     words: null,
   })
   // Not in use where there is a choice: worth saying.
-  expect(rowStatus(works, { use: 'Not in use' })).toEqual({ label: 'Works · Not in use', words: 'Not in use' })
+  expect(rowStatus(works, { use: 'not_in_use' })).toEqual({ label: 'Works · Not in use', words: 'Not in use' })
   // States that need attention keep their words next to the mark.
   expect(rowStatus({ state: 'failing', detail: 'Key rejected' })).toEqual({
     label: 'Failing: Key rejected',
     words: 'Failing: Key rejected',
   })
-  expect(rowStatus({ state: 'untested', detail: null }, { use: 'In use' }).words).toBe('Not tested · In use')
+  expect(rowStatus({ state: 'untested', detail: null }, { use: 'in_use' }).words).toBe('Not tested · In use')
   expect(rowStatus({ state: 'checking', detail: null }).words).toBe('Checking…')
 })
 

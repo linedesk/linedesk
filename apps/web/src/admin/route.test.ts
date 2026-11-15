@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { adminHash, nextSection, parseAdminHash, providersTarget, tabSwitchesSection } from './route.ts'
+import { adminHash, adminSections, nextSection, parseAdminHash, providersTarget, tabSwitchesSection } from './route.ts'
 
 test('admin hashes name a section and optionally a row', () => {
   expect(parseAdminHash('#admin')).toEqual({ section: 'overview', id: null })
@@ -37,4 +37,13 @@ test('Tab switches sections only from the page body, never from a control', () =
   expect(tabSwitchesSection(null)).toBe(true)
   expect(tabSwitchesSection(body)).toBe(true)
   expect(tabSwitchesSection(button)).toBe(false)
+})
+
+test('section names and descriptions are message keys, so every language shows its own', async () => {
+  const { enMessages } = await import('@linedesk/i18n')
+  for (const section of adminSections) {
+    expect(enMessages[section.label], section.id).toBeTruthy()
+    if (section.description) expect(enMessages[section.description], section.id).toBeTruthy()
+  }
+  expect(enMessages[adminSections.find(s => s.id === 'audit')!.label]).toBe('Audit log')
 })

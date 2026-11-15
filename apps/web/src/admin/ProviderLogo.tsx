@@ -2,6 +2,7 @@
 // dialog, and where the provider hands out keys. Typed per provider, so a new entry in the registry
 // needs one here too.
 import type { ProviderName } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import type { IconName } from '../ui/icons.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 import { type BrandMark, brandMarks } from './logos.ts'
@@ -9,113 +10,130 @@ import { type BrandMark, brandMarks } from './logos.ts'
 /** A brand mark from Simple Icons, or a neutral icon where there is none (Telnyx, Cartesia, Local disk). */
 type Mark = { brand: BrandMark } | { icon: IconName }
 
-type Meta = { mark: Mark; blurb: string; keysUrl?: string }
+/** `blurb`: the dialog's one line, a message key. */
+type Meta = { mark: Mark; blurb: MessageKey; keysUrl?: string }
 
 export const providerMeta: Record<ProviderName, Meta> = {
   telnyx: {
     mark: { icon: 'phone' },
-    blurb: 'Phone numbers and calls.',
+    blurb: msg('admin.provider.blurb.phoneCarrier'),
     keysUrl: 'https://portal.telnyx.com/#/api-keys',
   },
-  twilio: { mark: { brand: 'twilio' }, blurb: 'Phone numbers and calls.', keysUrl: 'https://console.twilio.com/' },
+  twilio: {
+    mark: { brand: 'twilio' },
+    blurb: msg('admin.provider.blurb.phoneCarrier'),
+    keysUrl: 'https://console.twilio.com/',
+  },
   deepgram: {
     mark: { brand: 'deepgram' },
-    blurb: 'Real-time speech recognition.',
+    blurb: msg('admin.provider.blurb.deepgram'),
     keysUrl: 'https://console.deepgram.com/',
   },
   openrouter: {
     mark: { brand: 'openrouter' },
-    blurb: 'Many models behind one key.',
+    blurb: msg('admin.provider.blurb.openrouter'),
     keysUrl: 'https://openrouter.ai/settings/keys',
   },
   openai: {
     mark: { brand: 'openai' },
-    blurb: 'GPT models from OpenAI.',
+    blurb: msg('admin.provider.blurb.openai'),
     keysUrl: 'https://platform.openai.com/api-keys',
   },
   anthropic: {
     mark: { brand: 'anthropic' },
-    blurb: 'Claude models.',
+    blurb: msg('admin.provider.blurb.anthropic'),
     keysUrl: 'https://console.anthropic.com/settings/keys',
   },
   gemini: {
     mark: { brand: 'googlegemini' },
-    blurb: 'Gemini models from Google.',
+    blurb: msg('admin.provider.blurb.gemini'),
     keysUrl: 'https://aistudio.google.com/apikey',
   },
-  groq: { mark: { icon: 'spark' }, blurb: 'Open models, very fast.', keysUrl: 'https://console.groq.com/keys' },
-  mistral: { mark: { brand: 'mistralai' }, blurb: 'Mistral models.', keysUrl: 'https://console.mistral.ai/api-keys' },
+  groq: { mark: { icon: 'spark' }, blurb: msg('admin.provider.blurb.groq'), keysUrl: 'https://console.groq.com/keys' },
+  mistral: {
+    mark: { brand: 'mistralai' },
+    blurb: msg('admin.provider.blurb.mistral'),
+    keysUrl: 'https://console.mistral.ai/api-keys',
+  },
   elevenlabs_stt: {
     mark: { brand: 'elevenlabs' },
-    blurb: 'Streaming speech recognition with Scribe.',
+    blurb: msg('admin.provider.blurb.elevenlabs_stt'),
     keysUrl: 'https://elevenlabs.io/app/settings/api-keys',
   },
   openai_stt: {
     mark: { brand: 'openai' },
-    blurb: 'Streaming transcription from OpenAI.',
+    blurb: msg('admin.provider.blurb.openai_stt'),
     keysUrl: 'https://platform.openai.com/api-keys',
   },
   elevenlabs: {
     mark: { brand: 'elevenlabs' },
-    blurb: 'Natural voices.',
+    blurb: msg('admin.provider.blurb.elevenlabs'),
     keysUrl: 'https://elevenlabs.io/app/settings/api-keys',
   },
-  cartesia: { mark: { icon: 'waveform' }, blurb: 'Fast, expressive voices.', keysUrl: 'https://play.cartesia.ai/keys' },
+  cartesia: {
+    mark: { icon: 'waveform' },
+    blurb: msg('admin.provider.blurb.cartesia'),
+    keysUrl: 'https://play.cartesia.ai/keys',
+  },
   openai_realtime: {
     mark: { brand: 'openai' },
-    blurb: 'Hears and speaks in one model.',
+    blurb: msg('admin.provider.blurb.openai_realtime'),
     keysUrl: 'https://platform.openai.com/api-keys',
   },
-  file: { mark: { icon: 'disk' }, blurb: 'Recordings stay on this server.' },
-  s3: { mark: { brand: 'amazons3' }, blurb: 'AWS S3, R2, Hetzner, Backblaze, MinIO.' },
-  smtp: { mark: { icon: 'mail' }, blurb: 'Sign-in codes, invitations and call emails.' },
-  resend: { mark: { brand: 'resend' }, blurb: 'Email with an API key.', keysUrl: 'https://resend.com/api-keys' },
+  file: { mark: { icon: 'disk' }, blurb: msg('admin.provider.blurb.file') },
+  s3: { mark: { brand: 'amazons3' }, blurb: msg('admin.provider.blurb.s3') },
+  smtp: { mark: { icon: 'mail' }, blurb: msg('admin.provider.blurb.smtp') },
+  resend: {
+    mark: { brand: 'resend' },
+    blurb: msg('admin.provider.blurb.withApiKey'),
+    keysUrl: 'https://resend.com/api-keys',
+  },
   postmark: {
     mark: { icon: 'mail' },
-    blurb: 'Email with a server token.',
+    blurb: msg('admin.provider.blurb.postmark'),
     keysUrl: 'https://account.postmarkapp.com/servers',
   },
   sendgrid: {
     mark: { icon: 'mail' },
-    blurb: 'Email with an API key.',
+    blurb: msg('admin.provider.blurb.withApiKey'),
     keysUrl: 'https://app.sendgrid.com/settings/api_keys',
   },
   brevo: {
     mark: { brand: 'brevo' },
-    blurb: 'Email with an SMTP key.',
+    blurb: msg('admin.provider.blurb.brevo'),
     keysUrl: 'https://app.brevo.com/settings/keys/smtp',
   },
   mailgun: {
     mark: { brand: 'mailgun' },
-    blurb: 'Email with SMTP credentials.',
+    blurb: msg('admin.provider.blurb.mailgun'),
     keysUrl: 'https://app.mailgun.com/mg/sending/domains',
   },
   gmail: {
     mark: { brand: 'gmail' },
-    blurb: 'Email from a Gmail address.',
+    blurb: msg('admin.provider.blurb.gmail'),
     keysUrl: 'https://myaccount.google.com/apppasswords',
   },
   google_places: {
     mark: { brand: 'google' },
-    blurb: 'Finds a business by name and city in onboarding.',
+    blurb: msg('admin.provider.blurb.google_places'),
     keysUrl: 'https://console.cloud.google.com/google/maps-apis/credentials',
   },
   google: {
     mark: { brand: 'google' },
-    blurb: 'Sign in with Google and Google Calendar.',
+    blurb: msg('admin.provider.blurb.google'),
     keysUrl: 'https://console.cloud.google.com/apis/credentials',
   },
   microsoft: {
     mark: { brand: 'microsoft' },
-    blurb: 'Sign in with Microsoft and Outlook calendars.',
+    blurb: msg('admin.provider.blurb.microsoft'),
     keysUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
   },
   github: {
     mark: { brand: 'github' },
-    blurb: 'Sign in with GitHub.',
+    blurb: msg('admin.provider.blurb.github'),
     keysUrl: 'https://github.com/settings/developers',
   },
-  oidc: { mark: { icon: 'shield' }, blurb: 'Okta, Entra ID, Keycloak, Authentik and others.' },
+  oidc: { mark: { icon: 'shield' }, blurb: msg('admin.provider.blurb.oidc') },
 }
 
 /**

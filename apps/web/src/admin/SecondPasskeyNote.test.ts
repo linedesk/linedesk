@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { readDismissed, rememberDismissed, SECOND_PASSKEY_TEXT, showSecondPasskeyNote } from './SecondPasskeyNote.tsx'
+import { readDismissed, rememberDismissed, secondPasskeyText, showSecondPasskeyNote } from './SecondPasskeyNote.tsx'
 
 const memory = () => {
   const items = new Map<string, string>()
@@ -17,7 +17,7 @@ describe('the second passkey note on Server admin', () => {
   })
 
   test('says why in one sentence', () => {
-    expect(SECOND_PASSKEY_TEXT).toBe(
+    expect(secondPasskeyText()).toBe(
       'Add a second passkey, e.g. on your phone or a security key, so a lost device does not lock you out.',
     )
   })

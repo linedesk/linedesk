@@ -1,6 +1,8 @@
 // Server admin › Audit log: who did what on this install, newest first. Sign-ins with their method,
 // sign-in methods added or removed, admin actions, team changes, provider keys and impersonation.
 // Kept forever; filters by kind, person, workspace and dates; "Show older" pages back.
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useCallback, useEffect, useState } from 'react'
 import { dateTimeLabel } from '../time.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
@@ -13,222 +15,252 @@ import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 import { EMPTY } from './parts.tsx'
 
-const kinds: SelectOption<AuditKind | 'all'>[] = [
-  { value: 'all', label: 'Everything' },
-  { value: 'sign_in', label: 'Sign-ins' },
-  { value: 'account', label: 'Sign-in methods' },
-  { value: 'admin', label: 'Admin actions' },
-  { value: 'team', label: 'Team changes' },
-  { value: 'keys', label: 'Provider keys' },
-  { value: 'integrations', label: 'API keys, webhooks and AI agent setup' },
-  { value: 'impersonation', label: 'Signed in as a user' },
+type Translate = ReturnType<typeof i18n>['t']
+/** The active language's `t`, looked up on each call (the language can change while the module stays loaded). */
+const t = ((...args: Parameters<Translate>) => i18n().t(...args)) as Translate
+
+const kinds: { value: AuditKind | 'all'; label: MessageKey }[] = [
+  { value: 'all', label: msg('admin.audit.kind.all') },
+  { value: 'sign_in', label: msg('admin.audit.kind.signIn') },
+  { value: 'account', label: msg('admin.audit.kind.account') },
+  { value: 'admin', label: msg('admin.audit.kind.admin') },
+  { value: 'team', label: msg('admin.audit.kind.team') },
+  { value: 'keys', label: msg('admin.audit.kind.keys') },
+  { value: 'integrations', label: msg('admin.audit.kind.integrations') },
+  { value: 'impersonation', label: msg('admin.audit.kind.impersonation') },
 ]
 
-const methods: Record<string, string> = {
-  password: 'password',
-  email_code: 'email code',
-  passkey: 'passkey',
-  google: 'Google',
-  microsoft: 'Microsoft',
-  github: 'GitHub',
-  oidc: 'single sign-on',
-  email_link: 'email link',
+const methods: Record<string, MessageKey> = {
+  password: msg('admin.audit.method.password'),
+  email_code: msg('admin.audit.method.emailCode'),
+  passkey: msg('admin.audit.method.passkey'),
+  oidc: msg('admin.audit.method.oidc'),
+  email_link: msg('admin.audit.method.emailLink'),
 }
-const method = (m: string | null) => (m ? (methods[m] ?? m) : '')
+/** Brand names stay as they are. */
+const brandMethods: Record<string, string> = { google: 'Google', microsoft: 'Microsoft', github: 'GitHub' }
+const method = (m: string | null) => {
+  if (!m) return ''
+  const key = methods[m]
+  return key ? t(key) : (brandMethods[m] ?? m)
+}
+
+/** For messages with an optional name: `known` is "yes" when there is one. */
+const known = (value: unknown) => (value === undefined || value === null || value === '' ? 'no' : 'yes')
+/** A role as the messages select on it. */
+const roleOf = (role: unknown) => (role === 'owner' || role === 'admin' ? role : 'member')
 
 /** What happened, in a few words. */
 export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject'>): string {
   const input = (e.input ?? {}) as Record<string, unknown>
-  const who = e.subject?.email ?? 'a member'
-  const invitee = e.subject?.email ?? 'someone'
+  const subject = e.subject?.email ?? ''
+  const who = { who: subject, known: known(subject) }
+  const provider = { provider: String(input.provider ?? ''), known: known(input.provider) }
+  const name = { name: typeof input.name === 'string' ? input.name : '', named: known(input.name) }
   switch (e.what) {
     case 'sign_in':
-      return `Signed in with ${method(e.method)}`
+      return t('admin.audit.signIn', { method: method(e.method) })
     case 'sign_up':
-      return `Signed up with ${method(e.method)}`
+      return t('admin.audit.signUp', { method: method(e.method) })
     case 'provider_linked':
-      return e.method === 'password' ? 'Set a password' : `Added ${method(e.method)} sign-in`
+      return e.method === 'password'
+        ? t('admin.audit.passwordSet')
+        : t('admin.audit.signInAdded', { method: method(e.method) })
     case 'passkey_added':
-      return 'Added a passkey'
+      return t('admin.audit.passkeyAdded')
     case 'passkey_removed':
-      return 'Removed a passkey'
+      return t('admin.audit.passkeyRemoved')
     case 'password_changed':
-      return 'Changed the password'
+      return t('admin.audit.passwordChanged')
     case 'email_changed':
-      return e.method ? `Changed the email address to ${e.method}` : 'Changed the email address'
+      return t('admin.audit.emailChanged', { email: e.method ?? '', known: known(e.method) })
     case 'invitation_accepted':
-      return e.method === 'admin_created' ? 'Joined a workspace a server admin added them to' : 'Joined a workspace'
+      return e.method === 'admin_created' ? t('admin.audit.joinedByAdmin') : t('admin.audit.joined')
     case 'sign_up_undone':
-      return 'Account removed again: its invitation was gone'
+      return t('admin.audit.signUpUndone')
     case 'invitation_reassigned':
       // The subject is the owner it passed to, while that account exists.
       return e.subject?.email
-        ? i18n().t('admin.audit.invitationReassignedTo', { email: e.method ?? '', owner: e.subject.email })
-        : i18n().t('admin.audit.invitationReassigned', { email: e.method ?? '' })
+        ? t('admin.audit.invitationReassignedTo', { email: e.method ?? '', owner: e.subject.email })
+        : t('admin.audit.invitationReassigned', { email: e.method ?? '' })
     case 'invitation_withdrawn':
-      return i18n().t('admin.audit.invitationWithdrawn', { email: e.method ?? '' })
+      return t('admin.audit.invitationWithdrawn', { email: e.method ?? '' })
     case 'call_routing_reset':
-      return 'Warm transfer and call forwarding reset when the address was proven'
+      return t('admin.audit.callRoutingReset')
     case 'user.impersonate':
-      return 'Signed in as a user'
+      return t('admin.audit.impersonate')
     case 'impersonation.stop':
-      return 'Returned to admin'
+      return t('admin.audit.impersonationStop')
     case 'provider.setKeys':
-      return `Changed keys of ${String(input.provider ?? 'a provider')}`
+      return t('admin.audit.providerSetKeys', provider)
     case 'provider.clearKeys':
-      return `Removed keys of ${String(input.provider ?? 'a provider')}`
-    case 'branding.set': {
-      const changed = `Changed the branding to ${quoted(input.name)}`.trim()
-      return input.poweredBy === false ? `${changed}, Powered by Linedesk hidden` : changed
-    }
+      return t('admin.audit.providerClearKeys', provider)
+    case 'branding.set':
+      return input.poweredBy === false
+        ? t('admin.audit.brandingSetPoweredByHidden', name)
+        : t('admin.audit.brandingSet', name)
     case 'provider.setActive':
-      return `Picked ${String(input.provider ?? 'none')} for ${String(input.category ?? 'a category')}`
+      return t('admin.audit.providerSetActive', {
+        ...provider,
+        category: String(input.category ?? ''),
+        hasCategory: known(input.category),
+      })
     case 'team.setRole':
     case 'membership.setRole':
-      return `Made ${who} ${roleName(input.role)}`
+      return t('admin.audit.setRole', { ...who, role: roleOf(input.role) })
     case 'team.invite':
-      return `Invited ${String(input.email ?? 'someone')}`
+      return t('admin.audit.teamInvite', { email: String(input.email ?? ''), known: known(input.email) })
     case 'team.resendInvite':
     case 'invitation.resend':
-      return `Sent the invitation to ${invitee} again`
+      return t('admin.audit.inviteResent', who)
     case 'team.revokeInvite':
     case 'invitation.revoke':
-      return `Revoked the invitation to ${invitee}`
+      return t('admin.audit.inviteRevoked', who)
     case 'team.removeMember':
     case 'membership.remove':
-      return `Removed ${who} from the workspace`
+      return t('admin.audit.memberRemoved', who)
     case 'team.leave':
-      return 'Left the workspace'
+      return t('admin.audit.left')
     case 'team.updateMemberProfile':
-      return `Changed the name of ${who}`
+      return t('admin.audit.memberNameChanged', who)
     case 'team.setMemberAvatar':
-      return `Changed the picture of ${who}`
+      return t('admin.audit.memberAvatarSet', who)
     case 'team.removeMemberAvatar':
-      return `Removed the picture of ${who}`
+      return t('admin.audit.memberAvatarRemoved', who)
     case 'team.updateMemberNotifications':
-      return `Changed the notifications of ${who} (${changedFields(input)})`
-    case 'user.invite':
+      return t('admin.audit.memberNotificationsChanged', { ...who, fields: changedFields(input) })
+    case 'user.invite': {
+      const email = input.email ?? subject
+      const args = { email: String(email ?? ''), known: known(email), admin: input.admin ? 'yes' : 'no' }
       return input.workspaceId
-        ? `Added ${String(input.email ?? who)} as ${roleName(input.role ?? 'member')}${input.admin ? ' and server admin' : ''}`
-        : `Added ${String(input.email ?? 'someone')}${input.admin ? ' as server admin' : ''}`
+        ? t('admin.audit.userInviteToWorkspace', { ...args, role: roleOf(input.role ?? 'member') })
+        : t('admin.audit.userInvite', args)
+    }
     case 'membership.add':
-      return `Added ${who} as ${roleName(input.role)}`
+      return t('admin.audit.membershipAdded', { ...who, role: roleOf(input.role) })
     case 'invitation.accept':
-      return 'Accepted an invitation'
+      return t('admin.audit.invitationAccepted')
     case 'invitation.decline':
-      return 'Declined an invitation'
+      return t('admin.audit.invitationDeclined')
     case 'apiKey.create':
-      return `Created API key ${quoted(input.name)}`.trim()
+      return t('admin.audit.apiKeyCreated', name)
     case 'apiKey.revoke':
-      return 'Revoked an API key'
+      return t('admin.audit.apiKeyRevoked')
     case 'webhook.create':
-      return `Added a webhook to ${hostOf(input.url)}`
+      return t('admin.audit.webhookCreated', hostOf(input.url))
     case 'webhook.update':
-      return input.url ? `Changed a webhook to ${hostOf(input.url)}` : 'Changed a webhook'
+      return input.url ? t('admin.audit.webhookChangedTo', hostOf(input.url)) : t('admin.audit.webhookChanged')
     case 'workspace.delete':
-      return `Deleted the workspace ${quoted(input.name)}`.trim()
+      return t('admin.audit.workspaceDeleted', name)
     case 'user.resetPasskeys':
-      return "Reset a user's passkeys"
+      return t('admin.audit.passkeysReset')
     case 'user.issuePasskeyEnrolment':
-      return "Issued an admin's first passkey code"
+      return t('admin.audit.passkeyEnrolmentIssued')
     case 'webhook.delete':
-      return 'Removed a webhook'
+      return t('admin.audit.webhookRemoved')
     case 'webhook.test':
-      return 'Sent a test to a webhook'
+      return t('admin.audit.webhookTested')
     case 'agentSetup.endOwnAccess':
-      return 'AI agent ended its own setup link'
+      return t('admin.audit.agentSetupEndOwnAccess')
     case 'agentSetup.createKey':
-      return 'Created an AI agent setup link'
+      return t('admin.audit.agentSetupCreateKey')
     case 'agentSetup.revoke':
-      return 'Ended AI agent setup links'
+      return t('admin.audit.agentSetupRevoke')
     // The Allow step, gone since the one-level setup link; past entries still show.
     case 'agentSetup.confirmPasskey':
-      return 'Allowed email and sign-in for an AI agent (old)'
+      return t('admin.audit.agentSetupConfirmPasskey')
     case 'agentSetup.withdrawPasskey':
-      return 'Withdrew email and sign-in for an AI agent (old)'
+      return t('admin.audit.agentSetupWithdrawPasskey')
     case 'provider.connectOneKey':
-      return `Connected ${String(input.provider ?? 'a provider')} with one key`
+      return t('admin.audit.providerConnectOneKey', provider)
     case 'carrier.set':
-      return "Changed the workspace's own carrier account"
+      return t('admin.audit.carrierSet')
     case 'carrier.provisionTransferTrunk':
-      return 'Set up the transfer line at the carrier'
+      return t('admin.audit.carrierTransferTrunk')
     // These take only a user id: the address is the subject their handlers keep; older entries have none.
     case 'user.disable':
-      return e.subject?.email ? `Disabled ${e.subject.email}` : 'Disabled a user'
+      return t('admin.audit.userDisabled', who)
     case 'user.enable':
-      return e.subject?.email ? `Enabled ${e.subject.email}` : 'Enabled a user'
+      return t('admin.audit.userEnabled', who)
     case 'instanceAdmin.grant':
-      return `Made ${e.subject?.email ?? 'someone'} a server admin`
+      return t('admin.audit.adminGranted', who)
     case 'instanceAdmin.revoke':
-      return `Removed ${e.subject?.email ?? 'someone'} as server admin`
+      return t('admin.audit.adminRevoked', who)
     case 'workspace.disable':
-      return 'Disabled the workspace'
+      return t('admin.audit.workspaceDisabled')
     case 'workspace.enable':
-      return 'Enabled the workspace'
+      return t('admin.audit.workspaceEnabled')
     case 'workspace.setSpendingCap':
-      return input.capUsd == null ? 'Removed the spending cap' : `Set the spending cap to $${String(input.capUsd)}`
+      return input.capUsd == null
+        ? t('admin.audit.spendingCapRemoved')
+        : t('admin.audit.spendingCapSet', { amount: usd(input.capUsd) })
     case 'team.transferOwnership':
-      return `Handed the workspace over to ${who}`
+      return t('admin.audit.ownershipTransferred', who)
     case 'workspace.deleteOwn':
-      return withName('Owner deleted the workspace', input.name)
+      return t('admin.audit.workspaceDeletedByOwner', name)
     case 'workspace.create':
-      return `${withName('Created the workspace', input.name)} with owner ${who}`
+      return t('admin.audit.workspaceCreated', { ...name, ...who })
     case 'voiceCloning.set':
-      return 'Changed voice cloning for the server'
+      return t('admin.audit.voiceCloningSet')
     case 'voicePipelinePolicy.set':
-      return 'Changed who picks how calls are answered'
+      return t('admin.audit.pipelinePolicySet')
     case 'setupEmails.set':
-      return 'Changed the setup emails'
-    case 'calendar.connectFinish':
-      return calendarNames[String(input.provider)]
-        ? `Connected a ${calendarNames[String(input.provider)]} calendar`
-        : 'Connected a calendar'
+      return t('admin.audit.setupEmailsSet')
+    case 'calendar.connectFinish': {
+      const calendar = calendarNames[String(input.provider)]
+      return t('admin.audit.calendarConnected', { calendar: calendar ?? '', known: known(calendar) })
+    }
     case 'calendar.disconnect':
-      return 'Disconnected a calendar'
+      return t('admin.audit.calendarDisconnected')
     case 'phoneNumber.setup':
-      return input.purchase ? 'Bought a phone number' : 'Connected a phone number'
+      return input.purchase ? t('admin.audit.numberBought') : t('admin.audit.numberConnected')
     case 'phoneNumber.release':
-      return 'Released a phone number'
+      return t('admin.audit.numberReleased')
     default:
       return e.what
   }
 }
 
 const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft' }
-/** "Created the workspace “Brightwater”", or without the name when the entry has none. */
-const withName = (text: string, name: unknown) => `${text} ${quoted(name)}`.trim()
+
+/** A spending cap in dollars, without cents when it is whole ("$50", "$12.50"). */
+const usd = (value: unknown) => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return String(value)
+  return fmt().currency(amount, 'USD', { minimumFractionDigits: Number.isInteger(amount) ? 0 : 2 })
+}
 
 /** A webhook URL's host only: its path or query can carry a bearer token (the API sends only the host already). */
-const hostOf = (url: unknown) => {
+const hostOf = (url: unknown): { host: string; known: string } => {
+  let host = ''
   try {
-    return new URL(String(url)).host || 'a URL'
+    host = new URL(String(url)).host
   } catch {
-    return typeof url === 'string' && url && !url.includes('/') ? url : 'a URL'
+    host = typeof url === 'string' && url && !url.includes('/') ? url : ''
   }
+  return { host, known: known(host) }
 }
 
 /** Which notification settings a change named: "email for every call, setup emails". */
-const notificationFields: Record<string, string> = {
-  email: 'email for every call',
-  assignedEmail: 'assigned-call email',
-  setupEmails: 'setup emails',
-  pushSummary: 'push summary',
+const notificationFields: Record<string, MessageKey> = {
+  email: msg('admin.audit.notification.email'),
+  assignedEmail: msg('admin.audit.notification.assignedEmail'),
+  setupEmails: msg('admin.audit.notification.setupEmails'),
+  pushSummary: msg('admin.audit.notification.pushSummary'),
 }
-const changedFields = (input: Record<string, unknown>) =>
-  Object.keys(notificationFields)
+const changedFields = (input: Record<string, unknown>) => {
+  const names = Object.keys(notificationFields)
     .filter(key => input[key] !== undefined)
-    .map(key => notificationFields[key])
-    .join(', ') || 'none'
-
-/** "owner", "an admin", "a member": a role as it reads in a sentence. */
-const roleName = (role: unknown) => (role === 'owner' ? 'owner' : role === 'admin' ? 'an admin' : 'a member')
-const quoted = (name: unknown) => (typeof name === 'string' && name ? `“${name}”` : '')
+    .map(key => t(notificationFields[key]!))
+  return names.length ? fmt().list(names, { type: 'unit', style: 'short' }) : t('admin.audit.notification.none')
+}
 
 const today = () => new Date().toISOString().slice(0, 10)
 /** The day after, so "to" includes the whole day picked. */
 const dayAfter = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
 
 export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
+  const t = useT()
   const [filter, setFilter] = useState<{
     kind: AuditKind | 'all'
     who: string
@@ -299,83 +331,105 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
     (value: (typeof filter)[K]) =>
       setFilter(f => ({ ...f, [key]: value }))
   const workspaceOptions: SelectOption<string>[] = [
-    { value: 'all', label: 'All workspaces' },
+    { value: 'all', label: t('admin.audit.allWorkspaces') },
     ...workspaces.map(w => ({ value: w.id, label: w.name })),
   ]
 
   return (
     <div className="adm-card">
       <div className="adm-audit-filters">
-        <Select value={filter.kind} options={kinds} onChange={set('kind')} label="What" />
+        <Select
+          value={filter.kind}
+          options={kinds.map(k => ({ value: k.value, label: t(k.label) }))}
+          onChange={set('kind')}
+          label={t('admin.audit.column.what')}
+        />
         <Input
           className="adm-audit-who"
           value={filter.who}
           onChange={e => set('who')(e.target.value)}
-          placeholder="Person (email or name)"
-          aria-label="Person"
+          placeholder={t('admin.audit.personPlaceholder')}
+          aria-label={t('admin.audit.person')}
         />
-        <Select value={filter.workspace} options={workspaceOptions} onChange={set('workspace')} label="Workspace" />
+        <Select
+          value={filter.workspace}
+          options={workspaceOptions}
+          onChange={set('workspace')}
+          label={t('admin.audit.column.workspace')}
+        />
         <DateInput
           value={filter.from}
           max={filter.to || today()}
           onChange={set('from')}
-          placeholder="From"
-          aria-label="From"
+          placeholder={t('admin.audit.from')}
+          aria-label={t('admin.audit.from')}
         />
         <DateInput
           value={filter.to}
           min={filter.from || undefined}
           max={today()}
           onChange={set('to')}
-          placeholder="To"
-          aria-label="To"
+          placeholder={t('admin.audit.to')}
+          aria-label={t('admin.audit.to')}
         />
       </div>
       {(error || entries === null) && (
         <Loading
-          what="The audit log"
+          what={t('admin.audit.loadingWhat')}
           loading
           error={error}
           onRetry={() => setFilter(f => ({ ...f }))}
           skeleton={<SkeletonRows rows={8} columns={4} className="adm-sk-rows" />}
         />
       )}
-      {!error && entries && entries.length === 0 && <p className="adm-notice">No entries.</p>}
+      {!error && entries && entries.length === 0 && <p className="adm-notice">{t('admin.audit.empty')}</p>}
       {!error && entries && entries.length > 0 && (
         <div className="adm-scroll">
           <table className="adm-table adm-stack">
             <thead>
               <tr>
-                <th scope="col">When</th>
-                <th scope="col">Who</th>
-                <th scope="col">What</th>
-                <th scope="col">Workspace</th>
+                <th scope="col">{t('admin.audit.column.when')}</th>
+                <th scope="col">{t('admin.audit.column.who')}</th>
+                <th scope="col">{t('admin.audit.column.what')}</th>
+                <th scope="col">{t('admin.audit.column.workspace')}</th>
               </tr>
             </thead>
             <tbody>
               {entries.map(e => (
                 <tr key={e.id}>
-                  <td data-label="When">
-                    <time dateTime={e.at} title={fmt().dateTime(new Date(e.at), { dateStyle: 'full', timeStyle: 'long' })}>
+                  <td data-label={t('admin.audit.column.when')}>
+                    <time
+                      dateTime={e.at}
+                      title={fmt().dateTime(new Date(e.at), { dateStyle: 'full', timeStyle: 'long' })}
+                    >
                       {dateTimeLabel(new Date(e.at))}
                     </time>
                   </td>
                   <th scope="row">
-                    {e.actor.email ?? (e.actor.id ? e.actor.id : 'Command line')}
-                    {e.impersonatedBy && <span className="adm-sub">by {e.impersonatedBy.email ?? 'an admin'}</span>}
-                    {e.viaSetupKey && <span className="adm-sub">via AI agent setup link</span>}
+                    {e.actor.email ?? (e.actor.id ? e.actor.id : t('admin.audit.commandLine'))}
+                    {e.impersonatedBy && (
+                      <span className="adm-sub">
+                        {t('admin.audit.impersonatedBy', {
+                          email: e.impersonatedBy.email ?? '',
+                          known: e.impersonatedBy.email ? 'yes' : 'no',
+                        })}
+                      </span>
+                    )}
+                    {e.viaSetupKey && <span className="adm-sub">{t('admin.audit.viaSetupKey')}</span>}
                   </th>
-                  <td data-label="What">
+                  <td data-label={t('admin.audit.column.what')}>
                     {auditLabel(e)}
                     {e.refused && (
                       <>
                         {' '}
-                        <Badge tone="danger">Refused</Badge>
+                        <Badge tone="danger">{t('admin.audit.refused')}</Badge>
                       </>
                     )}
                     {e.ipAddress && <span className="adm-sub">{e.ipAddress}</span>}
                   </td>
-                  <td data-label="Workspace">{e.workspace ? (e.workspace.name ?? e.workspace.id) : EMPTY}</td>
+                  <td data-label={t('admin.audit.column.workspace')}>
+                    {e.workspace ? (e.workspace.name ?? e.workspace.id) : EMPTY}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -389,9 +443,9 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
             size="sm"
             disabled={loadingMore}
             onClick={() => void older()}
-            title="Load older entries"
+            title={t('admin.audit.olderTip')}
           >
-            Show older
+            {t('admin.audit.older')}
           </Button>
         </div>
       )}

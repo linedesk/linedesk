@@ -7,7 +7,9 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Toast } from '../shell/Toast.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { SettingsLayout } from '../ui/SettingsLayout.tsx'
-import { useT } from '@linedesk/i18n/react'
+import { useFormat, useT } from '@linedesk/i18n/react'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { i18n } from '../i18n/index.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import type { ListKeys } from './AdminList.tsx'
@@ -71,7 +73,7 @@ function useAdminToast() {
     setToast(null)
     try {
       await run()
-      notify('Undone.')
+      notify(i18n().t('admin.mode.undone'))
     } catch (err) {
       notify(errorText(err))
     }
@@ -79,17 +81,19 @@ function useAdminToast() {
   return { toast, notify, undo }
 }
 
-const partNames: Record<HealthPart, string> = {
-  api: 'API',
-  readSync: 'Read sync',
-  livekit: 'LiveKit',
-  sip: 'Phone (SIP)',
-  agent: 'Voice agent',
-  email: 'Email',
+// API and LiveKit are names; the rest are message keys.
+const partNames: Record<HealthPart, { name: string } | { key: MessageKey }> = {
+  api: { name: 'API' },
+  readSync: { key: msg('admin.mode.part.readSync') },
+  livekit: { name: 'LiveKit' },
+  sip: { key: msg('admin.mode.part.sip') },
+  agent: { key: msg('admin.mode.part.agent') },
+  email: { key: msg('admin.mode.part.email') },
 }
 
 /** The parts of the install that report a problem, checked when admin opens and every few minutes. */
 function useHealthProblems(): string[] {
+  const t = useT()
   // The same answer the overview's Health card shows; the overview says when it cannot be read.
   const health = useQuery(ADMIN_HEALTH, loadHealth).data
   useEffect(() => {
@@ -98,13 +102,19 @@ function useHealthProblems(): string[] {
   }, [])
   if (!health) return []
   // An API older than this page may not report every part yet.
-  return (Object.keys(partNames) as HealthPart[]).filter(k => health[k] && !health[k].ok).map(k => partNames[k])
+  return (Object.keys(partNames) as HealthPart[])
+    .filter(k => health[k] && !health[k].ok)
+    .map(k => {
+      const part = partNames[k]
+      return 'name' in part ? part.name : t(part.key)
+    })
 }
 
 type Props = { currentUserId: string; onExit: () => void }
 
 export function AdminMode({ currentUserId, onExit }: Props) {
   const t = useT()
+  const format = useFormat()
   const { place, go } = useAdminPlace()
   const { name: productName } = useBrand()
   // Shown at once when admin is opened again in this page; loaded again in the background.
@@ -184,7 +194,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       return (
         <div className="adm-card adm-listcard">
           <Loading
-            what="Server admin"
+            what={t('shell.page.admin')}
             loading
             error={error}
             onRetry={() => void reload()}
@@ -193,7 +203,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         </div>
       )
     // Providers' ids are groups and providers (Providers.tsx), not rows.
-    if (place.id && !detailTitle && place.section !== 'providers') return <p className="adm-notice">Not found.</p>
+    if (place.id && !detailTitle && place.section !== 'providers')
+      return <p className="adm-notice">{t('admin.mode.notFound')}</p>
     switch (place.section) {
       case 'workspaces':
         return workspace ? (
@@ -253,11 +264,15 @@ export function AdminMode({ currentUserId, onExit }: Props) {
 
   const sections = adminSections.map((s, i) => ({
     id: s.id,
-    label: s.label,
+    label: t(s.label),
     shortcut: String(i + 1),
     mark:
       s.id === 'overview' && problems.length > 0 ? (
-        <StatusMark state="failing" className="adm-nav-mark" label={`Needs attention: ${problems.join(', ')}`} />
+        <StatusMark
+          state="failing"
+          className="adm-nav-mark"
+          label={t('admin.mode.needsAttention', { parts: format.list(problems, { type: 'unit', style: 'short' }) })}
+        />
       ) : undefined,
   }))
 
@@ -270,7 +285,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           icon="left"
           className="adm-back"
           aria-label={t('admin.frame.back', { brand: productName })}
-          title={`${t('admin.frame.back', { brand: productName })} (esc)`}
+          title={t('common.withKey', { label: t('admin.frame.back', { brand: productName }), key: 'esc' })}
           onClick={onExit}
         />
         <b>{t('shell.page.admin')}</b>
@@ -284,20 +299,23 @@ export function AdminMode({ currentUserId, onExit }: Props) {
                   type="button"
                   className="adm-crumb"
                   onClick={() => go({ section: place.section, id: null })}
-                  title={`${t('admin.frame.backTo', { section: meta.label })} (esc)`}
+                  title={t('common.withKey', {
+                    label: t('admin.frame.backTo', { section: t(meta.label) }),
+                    key: 'esc',
+                  })}
                 >
                   <Icon name="left" size={13} />
-                  {meta.label}
+                  {t(meta.label)}
                 </button>
                 <h2>{detailTitle}</h2>
               </>
             ) : (
               <>
                 <div className="adm-head-row">
-                  <h2>{meta.label}</h2>
+                  <h2>{t(meta.label)}</h2>
                   <div className="adm-head-actions" ref={setHeadActions} />
                 </div>
-                {meta.description && <p>{meta.description}</p>}
+                {meta.description && <p>{t(meta.description)}</p>}
               </>
             )}
           </header>
@@ -319,12 +337,13 @@ export function AdminMode({ currentUserId, onExit }: Props) {
 
 /** For someone who opens an admin address without being a server admin. */
 export function AdminNotice() {
+  const t = useT()
   return (
     <div className="page">
       <div className="page-in">
         <div className="empty">
-          <b>Server admin is for server admins</b>
-          <span>Ask your server admin for access.</span>
+          <b>{t('admin.mode.notice.title')}</b>
+          <span>{t('admin.mode.notice.body')}</span>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 // Where admin mode is: `#admin/<section>` and `#admin/<section>/<id>` (a workspace, a user, or on Providers a group
 // or a provider).
-// Kept in the hash like the rest of the app, so reload and the browser's Back work.
+// Kept in the hash like the rest of the app, so reload and the browser's Back work. Labels are message keys (t()).
 import {
   groupOfCategory,
   isProviderGroupId,
@@ -10,23 +10,32 @@ import {
   type ProviderName,
   providers as providerRegistry,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { useEffect, useState } from 'react'
 
 export const adminSections = [
-  { id: 'overview', label: 'Overview', description: '' },
-  { id: 'workspaces', label: 'Workspaces', description: 'Every workspace on this server.' },
-  { id: 'users', label: 'Users', description: 'Everyone who can sign in.' },
-  { id: 'usage', label: 'Usage', description: 'Calls and costs per workspace.' },
+  { id: 'overview', label: msg('admin.sections.overview.label'), description: null },
+  {
+    id: 'workspaces',
+    label: msg('admin.sections.workspaces.label'),
+    description: msg('admin.sections.workspaces.description'),
+  },
+  { id: 'users', label: msg('admin.sections.users.label'), description: msg('admin.sections.users.description') },
+  { id: 'usage', label: msg('admin.sections.usage.label'), description: msg('admin.sections.usage.description') },
   {
     id: 'onboarding',
-    label: 'Onboarding',
-    description: 'New workspaces on their way to their first real call, and who is stuck.',
+    label: msg('admin.sections.onboarding.label'),
+    description: msg('admin.sections.onboarding.description'),
   },
-  { id: 'providers', label: 'Providers', description: '' },
-  { id: 'branding', label: 'Branding', description: 'Your name and logo instead of Linedesk.' },
-  { id: 'system', label: 'System', description: 'Set on the server.' },
-  { id: 'audit', label: 'Audit log', description: 'Who changed what, newest first.' },
-] as const
+  { id: 'providers', label: msg('admin.sections.providers.label'), description: null },
+  {
+    id: 'branding',
+    label: msg('admin.sections.branding.label'),
+    description: msg('admin.sections.branding.description'),
+  },
+  { id: 'system', label: msg('admin.sections.system.label'), description: msg('admin.sections.system.description') },
+  { id: 'audit', label: msg('admin.sections.audit.label'), description: msg('admin.sections.audit.description') },
+] as const satisfies readonly { id: string; label: MessageKey; description: MessageKey | null }[]
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }
 

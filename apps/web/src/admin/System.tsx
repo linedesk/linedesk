@@ -8,6 +8,7 @@ import {
   phoneCountryName,
   type VoiceCloningData,
 } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Checkbox, Switch } from '../ui/controls.tsx'
@@ -17,17 +18,23 @@ import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { brandName } from '../brand.ts'
+import { fmt } from '../i18n/format.ts'
 
 const LIVEKIT = 'admin.livekit'
 
 function Service({ name, status }: { name: string; status: ServiceStatus | null }) {
+  const t = useT()
   return (
     <div>
       <dt>{name}</dt>
       <dd>
         <span className={cx('adm-tile-status', status && !status.ok && 'adm-status-bad')}>
           <StatusMark state={!status ? 'checking' : status.ok ? 'works' : 'failing'} label={status?.message} />
-          {!status ? 'Checking…' : status.ok ? status.message : `Problem: ${status.message}`}
+          {!status
+            ? t('admin.system.checking')
+            : status.ok
+              ? status.message
+              : t('admin.system.problem', { message: status.message })}
         </span>
       </dd>
     </div>
@@ -35,6 +42,7 @@ function Service({ name, status }: { name: string; status: ServiceStatus | null 
 }
 
 function Livekit() {
+  const t = useT()
   const query = useQuery(LIVEKIT, loadLivekitStatus)
   const status = query.data ?? null
   const error = status ? null : query.error
@@ -55,28 +63,28 @@ function Livekit() {
       title="LiveKit"
       actions={
         <Button busy={asked} size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
-          {asked ? 'Checking…' : 'Check again'}
+          {asked ? t('admin.system.checking') : t('admin.system.checkAgain')}
         </Button>
       }
     >
       {error ? (
         <p className="k-field-msg" role="alert">
-          Could not check: {error}
+          {t('admin.system.couldNotCheck', { error })}
         </p>
       ) : (
         <dl className="adm-facts" aria-live="polite">
           <div>
-            <dt>URL</dt>
+            <dt>{t('admin.system.url')}</dt>
             <dd className="adm-mono">
               {status ? (
-                (status.url ?? 'Not set')
+                (status.url ?? t('admin.system.notSet'))
               ) : (
-                <Loading what="The URL" loading skeleton={<Skeleton shape="text" width={180} />} />
+                <Loading what={t('admin.system.urlWhat')} loading skeleton={<Skeleton shape="text" width={180} />} />
               )}
             </dd>
           </div>
-          <Service name="Server" status={status?.server ?? null} />
-          <Service name="SIP trunks" status={status?.sip ?? null} />
+          <Service name={t('admin.system.server')} status={status?.server ?? null} />
+          <Service name={t('admin.system.sipTrunks')} status={status?.sip ?? null} />
         </dl>
       )}
     </Card>
@@ -88,6 +96,7 @@ const loadCloning = async () => (await runAdmin('voiceCloning.get', {})) as Voic
 
 /** Voice cloning for every workspace: off by default; existing clones keep working when it is turned off. */
 function VoiceCloning() {
+  const t = useT()
   const query = useQuery(CLONING, loadCloning)
   const [problem, setProblem] = useState<string | null>(null)
   const on = query.data?.on ?? false
@@ -98,26 +107,28 @@ function VoiceCloning() {
       await runAdmin('voiceCloning.set', { on: next })
     } catch (e) {
       setQueryData<VoiceCloningData | undefined>(CLONING, { on: !next })
-      setProblem(e instanceof Error ? e.message : 'Could not change voice cloning.')
+      setProblem(e instanceof Error ? e.message : t('admin.system.cloningFailed'))
     }
   }
   return (
-    <Card
-      title="Voice cloning"
-      help={`Lets workspaces create a voice from a recording of a real person, who must have agreed to it; ${brandName()} keeps who confirmed that and when. Turning this off stops new clones, but existing ones keep working.`}
-    >
+    <Card title={t('admin.system.cloning')} help={t('admin.system.cloningHelp', { brand: brandName() })}>
       <div className="swrow">
         <div>
-          <b>Allow voice cloning</b>
+          <b>{t('admin.system.cloningAllow')}</b>
         </div>
         <Loading
-          what="Voice cloning"
+          what={t('admin.system.cloning')}
           loading={!query.data}
           error={query.error}
           onRetry={() => void query.reload()}
           skeleton={<Skeleton width={34} height={20} className="sk-round" />}
         >
-          <Switch on={on} onChange={v => void change(v)} label="Allow voice cloning" disabled={!query.data} />
+          <Switch
+            on={on}
+            onChange={v => void change(v)}
+            label={t('admin.system.cloningAllow')}
+            disabled={!query.data}
+          />
         </Loading>
       </div>
       {problem && (
@@ -138,6 +149,7 @@ const loadOutbound = async () => (await runAdmin('outboundCountries.get', {})) a
  * countries the install's Twilio account still blocks (its Geo permissions are changed in Twilio, never by Linedesk).
  */
 function OutboundCalls() {
+  const t = useT()
   const query = useQuery(OUTBOUND, loadOutbound)
   const data = query.data ?? null
   const [typed, setTyped] = useState<string | null>(null)
@@ -162,18 +174,15 @@ function OutboundCalls() {
       setQueryData<OutboundCountriesData | undefined>(OUTBOUND, saved)
       setTyped(null)
     } catch (e) {
-      setProblem(e instanceof Error ? e.message : 'Could not save the countries.')
+      setProblem(e instanceof Error ? e.message : t('admin.system.outboundFailed'))
     } finally {
       setBusy(false)
     }
   }
   return (
-    <Card
-      title="Calls to other countries"
-      help="Transfers and forwarding checks call out, and every call costs money. Each workspace may call the countries of its own phone numbers. Allow more countries only for businesses that need them: calls abroad cost more and are a common target of phone fraud."
-    >
+    <Card title={t('admin.system.outbound')} help={t('admin.system.outboundHelp')}>
       <Loading
-        what="Outbound countries"
+        what={t('admin.system.outboundWhat')}
         loading={!data}
         error={query.error}
         onRetry={() => void query.reload()}
@@ -182,13 +191,13 @@ function OutboundCalls() {
         {data && (
           <>
             <label className="k-field-label" htmlFor="adm-outbound">
-              Also allow, for calls through this server’s carrier account (country codes, like CA, MX)
+              {t('admin.system.outboundLabel')}
             </label>
             <div className="ob2-row">
               <Input
                 id="adm-outbound"
                 value={value}
-                placeholder="None: each workspace calls only its own numbers' countries"
+                placeholder={t('admin.system.outboundPlaceholder')}
                 disabled={data.fromEnv || busy}
                 invalid={unknown.length > 0}
                 onChange={e => {
@@ -202,50 +211,59 @@ function OutboundCalls() {
                   disabled={!changed || unknown.length > 0 || (risky.length > 0 && !confirmed)}
                   onClick={() => void save()}
                 >
-                  Save
+                  {t('common.action.save')}
                 </Button>
               )}
             </div>
             <p className="k-field-msg">
               {unknown.length
-                ? `Not a country code: ${unknown.join(', ')}`
+                ? t('admin.system.notCountryCode', {
+                    count: unknown.length,
+                    codes: fmt().list(unknown, { type: 'unit', style: 'short' }),
+                  })
                 : wanted.length
-                  ? `Allowed besides their own: ${countryList(wanted)}.`
-                  : 'Only the countries of each workspace’s own numbers.'}
-              {data.fromEnv && ' Set by OUTBOUND_COUNTRIES on this server.'}
+                  ? t('admin.system.allowedBesides', { countries: countryList(wanted) })
+                  : t('admin.system.onlyOwn')}
+              {data.fromEnv && ` ${t('admin.system.fromEnv', { env: 'OUTBOUND_COUNTRIES' })}`}
             </p>
             {risky.length > 0 && !data.fromEnv && (
               <Note tone="danger">
-                {countryList(risky)} {risky.length === 1 ? 'is a' : 'are'} frequent toll-fraud destination
-                {risky.length === 1 ? '' : 's'}: numbers there are rented to fraudsters who are paid for every minute
-                called. Allow {risky.length === 1 ? 'it' : 'them'} only for a business you know needs it.
+                {t('admin.system.riskyWarning', { count: risky.length, countries: countryList(risky) })}
                 <Checkbox checked={confirmed} onChange={setConfirmed}>
-                  I understand the risk: allow calls to {countryList(risky)}
+                  {t('admin.system.riskyConfirm', { countries: countryList(risky) })}
                 </Checkbox>
               </Note>
             )}
             {data.twilioBlocked?.length ? (
               <Note tone="warning">
-                Twilio blocks calls to {countryList(data.twilioBlocked)}. Turn on{' '}
-                {data.twilioBlocked.map(phoneCountryName).join(', ')} in Twilio Console › Voice › Settings › Geo
-                permissions.
+                {t('admin.system.twilioBlocked', {
+                  countries: countryList(data.twilioBlocked),
+                  names: fmt().list(data.twilioBlocked.map(phoneCountryName), { type: 'unit', style: 'short' }),
+                })}
               </Note>
             ) : null}
             <dl className="adm-facts">
               <div>
-                <dt>Last 24 hours</dt>
+                <dt>{t('admin.system.last24h')}</dt>
                 <dd>
-                  {data.usage.transfers} transfers ({data.usage.transferMinutes} min,{' '}
-                  {data.usage.installTransferMinutes} min of them through this server’s carrier account),{' '}
-                  {data.usage.forwardingChecks} forwarding checks
+                  {t('admin.system.usage', {
+                    transfers: data.usage.transfers,
+                    minutes: data.usage.transferMinutes,
+                    installMinutes: data.usage.installTransferMinutes,
+                    checks: data.usage.forwardingChecks,
+                  })}
                 </dd>
               </div>
               <div>
-                <dt>Limits</dt>
+                <dt>{t('admin.system.limits')}</dt>
                 <dd>
                   {data.limits.minutesPerWorkspaceDay && data.limits.minutesInstallDay && data.limits.transferMaxMinutes
-                    ? `${data.limits.minutesPerWorkspaceDay} transfer minutes per workspace a day, ${data.limits.minutesInstallDay} for the whole server through its carrier account, ${data.limits.transferMaxMinutes} min per transferred call`
-                    : 'Transfers are off (a limit is 0)'}
+                    ? t('admin.system.limitsText', {
+                        workspace: data.limits.minutesPerWorkspaceDay,
+                        install: data.limits.minutesInstallDay,
+                        perCall: data.limits.transferMaxMinutes,
+                      })
+                    : t('admin.system.transfersOff')}
                 </dd>
               </div>
             </dl>

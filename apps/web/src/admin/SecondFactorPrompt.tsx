@@ -22,41 +22,48 @@ import { addPasskeyForThisDevice, confirmWithPasskey, SignInAgain } from '../set
 import { passkeyAddCancelled } from '../settings/account/add-passkey.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
 type Props = { state: AdminSecondFactor; onExit: () => void }
 
 /** How long the passkey check counts (apps/api/src/admin-second-factor.ts ADMIN_PASSKEY_HOURS). */
 export const ADMIN_PASSKEY_HOURS = 12
 
-/** Where an admin without a passkey gets the one-time enrolment code; said on the page and in its tests. */
-export const ENROLMENT_CODE_WHERE =
-  'Use the code from your first-run setup, ask another admin for one (Server admin › Users › Give passkey code), or run this on the server:'
-export const ENROLMENT_COMMAND = 'docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <your email>'
+/** The server command that prints a one-time enrolment code; said on the page and in its tests. */
+export const enrolmentCommand = () =>
+  `docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <${i18n().t('admin.secondFactor.yourEmail')}>`
 
-const TEXT: Record<Exclude<AdminSecondFactor, 'email'>, { title: string; why: string }> = {
-  confirm: {
-    title: 'Confirm with your passkey',
-    why: `Server admin needs your passkey. Confirm once and it counts for ${ADMIN_PASSKEY_HOURS} hours in this browser. Your workspaces work without it.`,
-  },
-  enrol: {
-    title: 'Add a passkey for Server admin',
-    why: 'Server admin needs a passkey, so only you can change this server. Your workspaces work without it.',
-  },
+/** The page's title and why, per state. */
+function textOf(state: Exclude<AdminSecondFactor, 'email'>): { title: string; why: string } {
+  const { t } = i18n()
+  return state === 'confirm'
+    ? {
+        title: t('admin.stepUp.confirm.title'),
+        why: t('admin.secondFactor.confirm.why', { hours: ADMIN_PASSKEY_HOURS }),
+      }
+    : { title: t('admin.secondFactor.enrol.title'), why: t('admin.secondFactor.enrol.why') }
 }
 
 /**
  * The button that opens this prompt from elsewhere (the start page by hand, New workspace): for `email` the next step
- * is confirming the address, not the passkey.
+ * is confirming the address, not the passkey. Read when shown, in the active language.
  */
-export const SECOND_FACTOR_BUTTON: Record<AdminSecondFactor, string> = {
-  email: 'Confirm your email first',
-  enrol: 'Add a passkey',
-  confirm: 'Confirm with your passkey',
+export const SECOND_FACTOR_BUTTON: Readonly<Record<AdminSecondFactor, string>> = {
+  get email() {
+    return i18n().t('admin.secondFactor.button.email')
+  },
+  get enrol() {
+    return i18n().t('admin.secondFactor.button.enrol')
+  },
+  get confirm() {
+    return i18n().t('admin.stepUp.confirm.title')
+  },
 }
 
 /** A passkey sign-in that did not count for Server admin: the device did not check the person. */
-export const PASSKEY_NOT_VERIFIED_FOR_ADMIN =
-  "This passkey doesn't check your fingerprint, face or PIN, so it can't open Server admin. Use one that does, or ask another admin to reset your passkeys (on the server: user-passkeys.ts --remove)."
+export const passkeyNotVerifiedForAdmin = () =>
+  i18n().t('admin.secondFactor.notVerified', { command: 'user-passkeys.ts --remove' })
 
 /** The new session (or passkey) is in: load the app again at this address. The form stays busy until then. */
 const reload = async () => {
@@ -65,6 +72,7 @@ const reload = async () => {
 }
 
 export function SecondFactorPrompt({ state, onExit }: Props) {
+  const t = useT()
   // The app's account data is loaded once: after confirming in another tab, ask again on the way in.
   useEffect(() => {
     let current = true
@@ -80,8 +88,8 @@ export function SecondFactorPrompt({ state, onExit }: Props) {
     return (
       <Login
         reauth={{
-          title: 'Confirm your email for Server admin',
-          why: 'Server admin needs a passkey, and adding one needs a confirmed email address. Continue with Email: signing in with the code confirms it.',
+          title: t('admin.secondFactor.email.title'),
+          why: t('admin.secondFactor.email.why'),
           onBack: onExit,
         }}
         onDone={reload}
@@ -93,6 +101,7 @@ export function SecondFactorPrompt({ state, onExit }: Props) {
 type Busy = 'add' | 'confirm' | null
 
 function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: () => void }) {
+  const t = useT()
   const [busy, setBusy] = useState<Busy>(null)
   const [error, setError] = useState<string | null>(null)
   const [needsSignIn, setNeedsSignIn] = useState(false)
@@ -110,19 +119,19 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
       await confirmWithPasskey()
       // Signed in with the passkey, but Server admin still asks: the device did not verify the person.
       if ((await fetchMe())?.adminSecondFactor === 'confirm') {
-        setError(PASSKEY_NOT_VERIFIED_FOR_ADMIN)
+        setError(passkeyNotVerifiedForAdmin())
         setBusy(null)
         return
       }
       await reload()
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      setError(message === passkeyNotVerifiedText() ? PASSKEY_NOT_VERIFIED_FOR_ADMIN : message)
+      setError(message === passkeyNotVerifiedText() ? passkeyNotVerifiedForAdmin() : message)
       setBusy(null)
     }
   }
   const addThenConfirm = async () => {
-    if (!code.trim()) return setError('Enter your passkey enrolment code first.')
+    if (!code.trim()) return setError(t('admin.secondFactor.codeFirst'))
     setBusy('add')
     setError(null)
     setNeedsSignIn(false)
@@ -132,7 +141,7 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
     } catch (e) {
       // A sign-in older than a day may not add a passkey (Better Auth's fresh age): sign in again, then come back.
       setNeedsSignIn(e instanceof SignInAgain)
-      setError(passkeyAddCancelled(e) ? 'No passkey was added. Try again when you are ready.' : String((e as Error).message ?? e))
+      setError(passkeyAddCancelled(e) ? t('admin.secondFactor.notAdded') : String((e as Error).message ?? e))
       setBusy(null)
       return
     }
@@ -140,13 +149,13 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
     await confirm()
   }
 
-  const text = state === 'enrol' && added ? TEXT.confirm : TEXT[state]
+  const text = textOf(state === 'enrol' && added ? 'confirm' : state)
   return (
     <AuthPage>
       <div className="auth-card" role="main" aria-label={text.title}>
         <h1>{text.title}</h1>
         <p className="auth-why">{text.why}</p>
-        {!supported && <AuthError message={`Passkeys need https. Open ${brandName()} at its https address.`} />}
+        {!supported && <AuthError message={t('admin.stepUp.httpsNeeded', { brand: brandName() })} />}
         {enrol && supported && (
           <form
             className="auth-form"
@@ -157,11 +166,11 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
             }}
           >
             <p className="auth-hint">
-              {ENROLMENT_CODE_WHERE} <code className="auth-command">{ENROLMENT_COMMAND}</code>
+              {t('admin.secondFactor.enrolmentWhere')} <code className="auth-command">{enrolmentCommand()}</code>
             </p>
             <input
-              aria-label="Enrolment code"
-              placeholder="Enrolment code"
+              aria-label={t('admin.secondFactor.codeLabel')}
+              placeholder={t('admin.secondFactor.codeLabel')}
               value={code}
               onChange={e => setCode(e.target.value)}
               autoComplete="one-time-code"
@@ -171,7 +180,7 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
             {error && <AuthError message={error} />}
             {needsSignIn ? (
               <button type="button" className="k-btn k-btn-primary" onClick={() => void signInAgain()}>
-                Sign in again
+                {t('admin.secondFactor.signInAgain')}
               </button>
             ) : (
               <button
@@ -179,10 +188,10 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
                 className={cx('k-btn k-btn-primary', busy && 'is-busy')}
                 disabled={busy !== null || !code.trim()}
                 aria-busy={busy !== null || undefined}
-                title="Create a passkey on this device, then confirm with it"
+                title={t('admin.secondFactor.addTip')}
               >
                 {busy && <Spinner />}
-                {busy ? 'Waiting for your device…' : 'Add passkey'}
+                {busy ? t('admin.stepUp.waiting') : t('admin.secondFactor.add')}
               </button>
             )}
           </form>
@@ -196,17 +205,17 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
               disabled={busy !== null}
               aria-busy={busy !== null || undefined}
               autoFocus
-              title="Sign in with your passkey"
+              title={t('admin.stepUp.confirm.tip')}
               onClick={() => void confirm()}
             >
               {busy && <Spinner />}
-              {busy ? 'Waiting for your device…' : 'Confirm with passkey'}
+              {busy ? t('admin.stepUp.waiting') : t('admin.stepUp.confirm.button')}
             </button>
           </>
         )}
         <EndAgentAccess />
-        <button type="button" className="auth-switch" title="Back to where you were" onClick={onExit}>
-          Back
+        <button type="button" className="auth-switch" title={t('admin.secondFactor.backTip')} onClick={onExit}>
+          {t('admin.secondFactor.back')}
         </button>
       </div>
     </AuthPage>
@@ -215,6 +224,7 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
 
 /** Ends the admin's own agent setup links without the passkey check (agentSetup.revoke, setupLink:end). */
 function EndAgentAccess() {
+  const t = useT()
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'none' | 'failed'>('idle')
   const end = async () => {
     setState('busy')
@@ -225,19 +235,19 @@ function EndAgentAccess() {
       setState('failed')
     }
   }
-  if (state === 'done') return <p className="auth-note">Agent access ended: your setup link no longer works.</p>
-  if (state === 'none') return <p className="auth-note">No setup link of yours was active.</p>
+  if (state === 'done') return <p className="auth-note">{t('admin.secondFactor.agent.ended')}</p>
+  if (state === 'none') return <p className="auth-note">{t('admin.secondFactor.agent.none')}</p>
   return (
     <>
-      {state === 'failed' && <AuthError message="Could not end agent access. Try again." />}
+      {state === 'failed' && <AuthError message={t('admin.secondFactor.agent.failed')} />}
       <button
         type="button"
         className="auth-switch"
         disabled={state === 'busy'}
-        title="Every AI agent setup link you made stops working at once. No passkey needed."
+        title={t('admin.secondFactor.agent.tip')}
         onClick={() => void end()}
       >
-        End agent access
+        {t('admin.secondFactor.agent.end')}
       </button>
     </>
   )

@@ -1,5 +1,6 @@
 // A list for the admin pages: search, sorting by a column, a keyboard cursor (J/K, Enter opens,
 // / searches) and a click that opens the row. `rowActions` adds quick actions at the end of a row.
+import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { cx, Icon } from '../ui/kit.tsx'
 import { ShortcutHints } from '../ui/listPage.tsx'
@@ -27,6 +28,8 @@ type Props<T> = {
   initialSort: { key: string; dir: SortDir }
   searchText: (row: T) => string
   searchLabel: string
+  /** The table's name for screen readers ("Workspaces"); the search label when not given. */
+  label?: string
   onOpen: (row: T) => void
   keysRef: { current: ListKeys | null }
   empty: string
@@ -43,12 +46,14 @@ export function AdminList<T>({
   initialSort,
   searchText,
   searchLabel,
+  label,
   onOpen,
   keysRef,
   empty,
   rowActions,
   tools,
 }: Props<T>) {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState(initialSort)
   const [cursor, setCursor] = useState(0)
@@ -113,7 +118,7 @@ export function AdminList<T>({
           <kbd className="k-kbd">/</kbd>
         </label>
         {tools}
-        <div className="adm-list" role="table" aria-label={searchLabel.replace('Search ', '')} ref={list}>
+        <div className="adm-list" role="table" aria-label={label ?? searchLabel} ref={list}>
           <div className="adm-row adm-row-head" role="row">
             {columns.map(c => (
               <div
@@ -126,7 +131,7 @@ export function AdminList<T>({
                   <button
                     type="button"
                     className="adm-sort"
-                    title={`Sort by ${c.label.toLowerCase()}`}
+                    title={t('admin.list.sortBy', { column: c.label })}
                     onClick={() => toggle(c)}
                   >
                     {c.label}
@@ -156,13 +161,13 @@ export function AdminList<T>({
               {rowActions && <div className="adm-cell adm-cell-acts">{rowActions(row)}</div>}
             </div>
           ))}
-          {!shown.length && <p className="adm-empty">{query ? `Nothing matches “${query}”.` : empty}</p>}
+          {!shown.length && <p className="adm-empty">{query ? t('admin.list.noMatch', { query }) : empty}</p>}
         </div>
       </div>
       <ShortcutHints
         hints={[
-          [['⏎'], 'open'],
-          [['esc'], 'back'],
+          [['⏎'], t('common.shortcut.open')],
+          [['esc'], t('admin.list.back')],
         ]}
       />
     </>

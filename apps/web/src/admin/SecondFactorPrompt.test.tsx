@@ -13,9 +13,8 @@ vi.mock('../ui/kit.tsx', async importOriginal => ({
 }))
 vi.mock('../enrolment-code.ts', () => ({ readEnrolmentCode: () => null }))
 
-const { ADMIN_PASSKEY_HOURS, ENROLMENT_COMMAND, PASSKEY_NOT_VERIFIED_FOR_ADMIN, SecondFactorPrompt } = await import(
-  './SecondFactorPrompt.tsx'
-)
+const { ADMIN_PASSKEY_HOURS, enrolmentCommand, passkeyNotVerifiedForAdmin, SECOND_FACTOR_BUTTON, SecondFactorPrompt } =
+  await import('./SecondFactorPrompt.tsx')
 
 const noop = () => {}
 
@@ -36,7 +35,7 @@ describe('the passkey check before Server admin', () => {
   })
 
   test('a passkey sign-in the device did not verify says why it does not open Server admin', () => {
-    expect(PASSKEY_NOT_VERIFIED_FOR_ADMIN).toBe(
+    expect(passkeyNotVerifiedForAdmin()).toBe(
       "This passkey doesn't check your fingerprint, face or PIN, so it can't open Server admin. Use one that does, or ask another admin to reset your passkeys (on the server: user-passkeys.ts --remove).",
     )
   })
@@ -45,9 +44,15 @@ describe('the passkey check before Server admin', () => {
     const html = renderToStaticMarkup(<SecondFactorPrompt state="enrol" onExit={noop} />)
     expect(html).toContain('Add a passkey for Server admin')
     expect(html).toContain('Enrolment code')
-    expect(html).toContain(ENROLMENT_COMMAND.replace('<', '&lt;').replace('>', '&gt;'))
-    expect(ENROLMENT_COMMAND).toMatch(/user-passkeys\.ts --enrol --email/)
+    expect(html).toContain(enrolmentCommand().replace('<', '&lt;').replace('>', '&gt;'))
+    expect(enrolmentCommand()).toMatch(/user-passkeys\.ts --enrol --email <your email>$/)
     expect(html).toContain('Add passkey')
     expect(html).not.toContain('Confirm with passkey')
+  })
+
+  test('the buttons that open the prompt from elsewhere name the next step', () => {
+    expect(SECOND_FACTOR_BUTTON.email).toBe('Confirm your email first')
+    expect(SECOND_FACTOR_BUTTON.enrol).toBe('Add a passkey')
+    expect(SECOND_FACTOR_BUTTON.confirm).toBe('Confirm with your passkey')
   })
 })

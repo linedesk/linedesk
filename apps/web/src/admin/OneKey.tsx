@@ -9,8 +9,10 @@ import { Button } from '../ui/kit.tsx'
 import { problemText } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { errorText } from './notify.ts'
+import { useT } from '@linedesk/i18n/react'
 
 export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => Promise<void> }) {
+  const t = useT()
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -32,10 +34,9 @@ export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => 
   const ready = !disabled && !busy && !!key.trim()
   return (
     <div className="adm-onekey">
-      <b>Or use one key for speech, model and voice</b>
+      <b>{t('admin.oneKey.title')}</b>
       <p className="help">
-        An {oneKey.label} key covers all three, so the first call needs two accounts instead of four. {oneKey.caveat}{' '}
-        {oneKey.cost}
+        {t('admin.oneKey.intro', { provider: oneKey.label })} {oneKey.caveat} {oneKey.cost}
       </p>
       <ol className="adm-guide-steps">
         {oneKey.steps.map(step => (
@@ -49,7 +50,7 @@ export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => 
           if (key.trim() && !busy) void use()
         }}
       >
-        <FormField id="adm-onekey" label="OpenAI API key">
+        <FormField id="adm-onekey" label={t('admin.oneKey.keyLabel')}>
           <SecretInput id="adm-onekey" value={key} onChange={setKey} placeholder="sk-…" />
         </FormField>
         <Button
@@ -59,13 +60,13 @@ export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => 
           disabled={!ready}
           title={
             disabled
-              ? 'Keys cannot be saved until SECRETS_KEY is set in .env'
+              ? t('admin.oneKey.tip.noSecrets', { name: 'SECRETS_KEY', file: '.env' })
               : ready
-                ? 'Test the key and use it when it works (Enter)'
-                : 'Paste an OpenAI API key first'
+                ? t('admin.oneKey.tip.ready', { key: 'Enter' })
+                : t('admin.oneKey.tip.paste')
           }
         >
-          {busy ? 'Connecting…' : 'Use one key'}
+          {busy ? t('admin.oneKey.connecting') : t('admin.oneKey.use')}
         </Button>
       </form>
       {problem && (
@@ -75,7 +76,7 @@ export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => 
       )}
       <p className="help">
         <a href={oneKey.url} target="_blank" rel="noreferrer">
-          Open OpenAI API keys
+          {t('admin.oneKey.openKeys')}
         </a>
       </p>
     </div>

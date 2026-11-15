@@ -3,6 +3,7 @@
 // sentence, never raw JSON), cut with an ellipsis so it never widens or stretches its card; the provider's full text
 // and when it happened only behind "Details".
 import { providerErrorSummary } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { cx } from '../ui/kit.tsx'
 import { when } from './parts.tsx'
 
@@ -16,6 +17,7 @@ export function ProviderError({
   at?: string | null
   className?: string
 }) {
+  const t = useT()
   const summary = providerErrorSummary(message)
   const full = message.trim()
   return (
@@ -25,7 +27,7 @@ export function ProviderError({
       </span>
       {(full !== summary || at) && (
         <details className="adm-prov-error-details">
-          <summary title="The provider's full error">Details</summary>
+          <summary title={t('admin.providerError.fullTip')}>{t('admin.providerError.details')}</summary>
           <span className="adm-prov-error-full">
             {at && <time dateTime={at}>{when(at)}</time>}
             {full}

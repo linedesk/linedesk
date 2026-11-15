@@ -3,6 +3,8 @@
 // their assistant yet. Each shows the setup milestones it reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on
 // help comes from partners, not from us.
 import type { SetupEmailsData } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, Switch } from '../ui/controls.tsx'
@@ -18,13 +20,12 @@ const loadSetupEmails = async () => (await runAdmin('setupEmails.get', {})) as S
  * The one line under the switch while email is not connected (only the log, or nowhere): no setup email goes out
  * then, so it cannot be turned on; one already on can still be turned off.
  */
-function notConnectedLine(on: boolean): string {
-  return on
-    ? 'Email is not connected under Providers: none go out until it is.'
-    : 'Connect email under Providers first: until then no setup email can reach anyone.'
+function notConnectedLine(on: boolean): MessageKey {
+  return on ? msg('admin.onboarding.emailNotConnectedOn') : msg('admin.onboarding.emailNotConnectedOff')
 }
 
 function SetupEmails() {
+  const t = useT()
   const query = useQuery(SETUP_EMAILS, loadSetupEmails)
   const [problem, setProblem] = useState<string | null>(null)
   const data = query.data
@@ -38,22 +39,21 @@ function SetupEmails() {
       await runAdmin('setupEmails.set', { on: next })
     } catch (e) {
       setQueryData<SetupEmailsData | undefined>(SETUP_EMAILS, { ...data, on: !next })
-      setProblem(e instanceof Error ? e.message : 'Could not change setup emails.')
+      setProblem(e instanceof Error ? e.message : t('admin.onboarding.setupEmailsFailed'))
     }
   }
-  const partner = data?.partnerDirectoryUrl ? ' (with a link to the partner directory)' : ''
   return (
     <Card
-      title="Setup emails"
-      help={`To the owners of new workspaces: what is left a few hours after the owner joined, the next step on day 1 and day 3${partner}, their first real call, and a summary after the first week. They stop once a real call came in, each goes out once, and owners can turn them off.`}
+      title={t('admin.onboarding.setupEmails')}
+      help={t('admin.onboarding.setupEmailsHelp', { partner: data?.partnerDirectoryUrl ? 'yes' : 'no' })}
     >
       <div className="swrow">
         <div>
-          <b>Send setup emails</b>
-          {note && <span className="help">{note}</span>}
+          <b>{t('admin.onboarding.sendSetupEmails')}</b>
+          {note && <span className="help">{t(note)}</span>}
         </div>
         <Loading
-          what="Setup emails"
+          what={t('admin.onboarding.setupEmails')}
           loading={!data}
           error={query.error}
           onRetry={() => void query.reload()}
@@ -62,7 +62,7 @@ function SetupEmails() {
           <Switch
             on={on}
             onChange={v => void change(v)}
-            label="Send setup emails"
+            label={t('admin.onboarding.sendSetupEmails')}
             disabled={!data || (!on && !data.emailConnected)}
           />
         </Loading>
@@ -80,99 +80,100 @@ function SetupEmails() {
  * Setup milestones in the order a business reaches them (setup_events). The number and forwarding ones are the go-live
  * checklist's first steps ("Connect your number", "Turn on call forwarding"). number_connected comes with #488 (LIN-85).
  */
-const milestoneLabels: Record<string, string> = {
-  signup: 'Added',
-  business_found: 'Business found',
-  assistant_heard: 'Heard the assistant',
-  mobile_added: 'Mobile added',
-  number_connected: 'Number connected',
-  forwarding_instructions_shown: 'Forwarding steps shown',
-  forwarding_verified: 'Forwarding verified',
-  onboarding_skipped: 'Skipped onboarding',
-  onboarding_done: 'Finished onboarding',
+const milestoneLabels: Record<string, MessageKey> = {
+  signup: msg('admin.onboarding.milestone.signup'),
+  business_found: msg('admin.onboarding.milestone.businessFound'),
+  assistant_heard: msg('admin.onboarding.milestone.assistantHeard'),
+  mobile_added: msg('admin.onboarding.milestone.mobileAdded'),
+  number_connected: msg('admin.onboarding.milestone.numberConnected'),
+  forwarding_instructions_shown: msg('admin.onboarding.milestone.forwardingShown'),
+  forwarding_verified: msg('admin.onboarding.milestone.forwardingVerified'),
+  onboarding_skipped: msg('admin.onboarding.milestone.skipped'),
+  onboarding_done: msg('admin.onboarding.milestone.done'),
 }
-const emailLabels: Record<string, string> = {
-  setup_day0: 'Day 0',
-  setup_day1: 'Day 1',
-  setup_day3: 'Day 3',
-  first_call: 'First call',
-  week_summary: 'Week',
+const emailLabels: Record<string, MessageKey> = {
+  setup_day0: msg('admin.onboarding.email.day0'),
+  setup_day1: msg('admin.onboarding.email.day1'),
+  setup_day3: msg('admin.onboarding.email.day3'),
+  first_call: msg('admin.onboarding.email.firstCall'),
+  week_summary: msg('admin.onboarding.email.week'),
 }
 
 /** The milestones reached, oldest first. */
-const reached = (w: AtRiskWorkspace) =>
+const reached = (w: AtRiskWorkspace, t: ReturnType<typeof useT>) =>
   Object.entries(w.milestones)
     .sort(([, a], [, b]) => a.localeCompare(b))
-    .map(([event, at]) => ({ label: milestoneLabels[event] ?? event, at }))
+    .map(([event, at]) => {
+      const key = milestoneLabels[event]
+      return { label: key ? t(key) : event, at }
+    })
 
 const DAYS = ['1', '3', '7', '14'] as const
 
 /** An empty list: either every workspace old enough had a real call, or none is old enough to judge yet (a new install). */
-function emptyText(oldEnough: number, days: string) {
-  const ago = `more than ${days} ${days === '1' ? 'day' : 'days'} ago`
-  if (oldEnough === 0) return `No workspaces in onboarding: none was added ${ago} yet.`
-  if (oldEnough === 1) return `No workspaces in onboarding. The one added ${ago} has had a real call.`
-  return `No workspaces in onboarding. All ${oldEnough} added ${ago} have had a real call.`
+function emptyText(t: ReturnType<typeof useT>, oldEnough: number, days: string) {
+  return t('admin.onboarding.empty', { count: oldEnough, days: Number(days) })
 }
 
 function AtRisk() {
+  const t = useT()
   const [days, setDays] = useState<(typeof DAYS)[number]>('1')
   const key = `admin.onboarding.${days}`
   const query = useQuery(key, () => loadAtRisk(Number(days)))
   const rows = query.data?.workspaces ?? null
   return (
     <Card
-      title="At risk"
-      description="Added a while ago, no real call yet. Where each one stopped."
+      title={t('admin.onboarding.atRisk')}
+      description={t('admin.onboarding.atRiskDescription')}
       actions={
         <Select
           size="sm"
           align="end"
-          label="Added more than"
+          label={t('admin.onboarding.addedMoreThan')}
           value={days}
           onChange={setDays}
-          options={DAYS.map(d => ({ value: d, label: `More than ${d} ${d === '1' ? 'day' : 'days'} ago` }))}
+          options={DAYS.map(d => ({ value: d, label: t('admin.onboarding.moreThanDays', { days: Number(d) }) }))}
         />
       }
     >
       {!rows ? (
         <Loading
-          what="The list"
+          what={t('admin.onboarding.listWhat')}
           loading
           error={query.error}
           onRetry={() => void query.reload()}
           skeleton={<SkeletonRows rows={6} columns={4} className="adm-sk-rows" />}
         />
       ) : rows.length === 0 ? (
-        <p className="adm-empty">{emptyText(query.data?.oldEnough ?? 0, days)}</p>
+        <p className="adm-empty">{emptyText(t, query.data?.oldEnough ?? 0, days)}</p>
       ) : (
         <div className="adm-scroll">
           <table className="adm-table">
             <thead>
               <tr>
-                <th scope="col">Workspace</th>
-                <th scope="col">Added</th>
-                <th scope="col">Stopped after</th>
-                <th scope="col">Setup emails</th>
+                <th scope="col">{t('admin.onboarding.column.workspace')}</th>
+                <th scope="col">{t('admin.onboarding.column.added')}</th>
+                <th scope="col">{t('admin.onboarding.column.stoppedAfter')}</th>
+                <th scope="col">{t('admin.onboarding.setupEmails')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(w => {
-                const steps = reached(w)
+                const steps = reached(w, t)
                 const last = steps.at(-1)
                 return (
                   <tr key={w.id}>
                     <th scope="row">
                       <a href={`#admin/workspaces/${encodeURIComponent(w.id)}`}>{w.name}</a>
-                      <span className="adm-sub">{w.owner_email ?? 'No owner'}</span>
+                      <span className="adm-sub">{w.owner_email ?? t('admin.onboarding.noOwner')}</span>
                     </th>
                     <td>{day(w.signed_up_at)}</td>
                     <td>
-                      {last ? last.label : 'Added'}
+                      {last ? last.label : t('admin.onboarding.milestone.signup')}
                       {last && <span className="adm-sub">{when(last.at)}</span>}
                       {steps.length > 1 && (
                         <details className="adm-steps">
-                          <summary>All steps</summary>
+                          <summary>{t('admin.onboarding.allSteps')}</summary>
                           <ol>
                             {steps.map(s => (
                               <li key={s.label}>
@@ -189,10 +190,10 @@ function AtRisk() {
                             .sort(([, a], [, b]) => a.localeCompare(b))
                             .map(([kind, at]) => (
                               <span key={kind} className="adm-line" title={when(at)}>
-                                {emailLabels[kind] ?? kind}
+                                {emailLabels[kind] ? t(emailLabels[kind]) : kind}
                               </span>
                             ))
-                        : 'None'}
+                        : t('admin.onboarding.noEmails')}
                     </td>
                   </tr>
                 )

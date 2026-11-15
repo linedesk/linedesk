@@ -4,6 +4,7 @@
 import { type MembershipRole, membershipRoles, type UserInviteData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
+import { i18n } from '../i18n/index.tsx'
 import { emailError } from '../sign-in-code.ts'
 import { roleLabel } from '../team/team-model.ts'
 import { Checkbox, Select } from '../ui/controls.tsx'
@@ -27,9 +28,8 @@ type Errors = { email?: string; name?: string; workspace?: string; form?: string
 const NONE = 'none'
 /** More workspaces than this: a search field above the list instead of a plain select. */
 const SEARCH_FROM = 8
-const roleOptions = membershipRoles.map(r => ({ value: r, label: roleLabel(r) }))
-const WORKSPACE_HELP =
-  'The workspace they join, with the role below. Only a server admin can be added without one: they run this server and can be added to a workspace later.'
+/** Built on each use: the labels follow the active language. */
+const roleOptions = () => membershipRoles.map(r => ({ value: r, label: roleLabel(r) }))
 
 /** The workspaces that have an owner, or an owner invitation pending: the server refuses a second one. */
 export function workspacesWithOwner(users: Pick<AdminUser, 'workspaces' | 'invitations'>[]): Set<string> {
@@ -43,21 +43,24 @@ export function workspacesWithOwner(users: Pick<AdminUser, 'workspaces' | 'invit
 
 /** The roles to pick from in `workspaceId`: Owner is shown off, with why, where the workspace has one. */
 export function roleChoices(hasOwner: boolean) {
-  return roleOptions.map(o =>
-    o.value === 'owner' && hasOwner ? { ...o, disabled: true, description: 'Has an owner' } : o,
+  return roleOptions().map(o =>
+    o.value === 'owner' && hasOwner ? { ...o, disabled: true, description: i18n().t('admin.addUser.hasOwner') } : o,
   )
 }
 
 /** What happened, in one line for the toast. */
 export function addedText(data: Pick<UserInviteData, 'email' | 'existing' | 'delivery' | 'workspace'>): string {
+  const { t } = i18n()
   const ws = data.workspace
   const inLog = data.delivery === 'log'
-  if (data.existing && ws?.joined === 'added') return `Already has an account; added to ${ws.name}.`
-  if (data.existing && ws)
-    return `Already has an account; invited to ${ws.name}. They join once they confirm their address.`
+  if (data.existing && ws?.joined === 'added') return t('admin.addUser.added.existingAdded', { workspace: ws.name })
+  if (data.existing && ws) return t('admin.addUser.added.existingInvited', { workspace: ws.name })
   if (ws)
-    return `Added ${data.email} to ${ws.name}. ${inLog ? 'Their email is in the server log.' : 'They get an email to sign in and join.'}`
-  return `Added ${data.email} as server admin. ${inLog ? 'Their email is in the server log.' : 'They get an email to sign in.'}`
+    return t(inLog ? 'admin.addUser.added.toWorkspaceLog' : 'admin.addUser.added.toWorkspace', {
+      email: data.email,
+      workspace: ws.name,
+    })
+  return t(inLog ? 'admin.addUser.added.adminLog' : 'admin.addUser.added.admin', { email: data.email })
 }
 
 /** Workspaces whose name matches the search, at most `limit`, by name. */
@@ -77,14 +80,23 @@ type PickerProps = {
 
 /** A select for a few workspaces; with many, a search field and the matches to pick from. */
 function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: PickerProps) {
+  const t = useT()
   const [query, setQuery] = useState('')
-  const none = { value: NONE, label: 'None' }
+  const none = { value: NONE, label: t('admin.addUser.none') }
   if (workspaces.length <= SEARCH_FROM) {
     const options = [
       ...(allowNone ? [none] : []),
       ...matchWorkspaces(workspaces, '', workspaces.length).map(w => ({ value: w.id, label: w.name })),
     ]
-    return <Select id="adm-add-workspace" value={value} options={options} label="Workspace" onChange={onPick} />
+    return (
+      <Select
+        id="adm-add-workspace"
+        value={value}
+        options={options}
+        label={t('admin.addUser.workspace')}
+        onChange={onPick}
+      />
+    )
   }
   const shown = matchWorkspaces(workspaces, query)
   return (
@@ -93,12 +105,12 @@ function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: Pick
         id="adm-add-workspace"
         type="search"
         value={query}
-        placeholder="Search workspaces"
+        placeholder={t('admin.addUser.searchWorkspaces')}
         autoComplete="off"
         invalid={invalid}
         onChange={e => setQuery(e.target.value)}
       />
-      <div className="adm-pick" role="radiogroup" aria-label="Workspace">
+      <div className="adm-pick" role="radiogroup" aria-label={t('admin.addUser.workspace')}>
         {allowNone && (
           <button
             type="button"
@@ -108,7 +120,7 @@ function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: Pick
             onClick={() => onPick(NONE)}
           >
             <span className="st-member-t">
-              <b>None</b>
+              <b>{t('admin.addUser.none')}</b>
             </span>
           </button>
         )}
@@ -126,7 +138,7 @@ function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: Pick
             </span>
           </button>
         ))}
-        {!shown.length && <p className="help">No workspace matches.</p>}
+        {!shown.length && <p className="help">{t('admin.addUser.noMatch')}</p>}
       </div>
     </>
   )
@@ -177,8 +189,10 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
     if (busy || confirmingAdmin) return
     const found: Errors = {
       email: emailError(form.email) ?? undefined,
-      name: form.name.trim() ? undefined : 'Enter their name.',
-      workspace: form.workspaceId ? undefined : form.admin ? 'Choose a workspace, or None.' : 'Choose a workspace.',
+      name: form.name.trim() ? undefined : t('admin.addUser.nameMissing'),
+      workspace: form.workspaceId
+        ? undefined
+        : t(form.admin ? 'admin.addUser.workspaceOrNone' : 'admin.addUser.workspaceMissing'),
     }
     if (found.email || found.name || found.workspace) {
       setErrors(found)
@@ -221,28 +235,34 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
         <EnrolmentCodeDialog who={enrolment.who} enrolment={enrolment.enrolment} onClose={() => setEnrolment(null)} />
       )}
       <div>
-        <Button size="sm" icon="plus" title="Add someone to a workspace" onClick={() => setShown(true)}>
-          Add user
+        <Button size="sm" icon="plus" title={t('admin.addUser.openTip')} onClick={() => setShown(true)}>
+          {t('admin.addUser.open')}
         </Button>
       </div>
       {shown && !confirmingAdmin && (
         <Dialog
-          title="Add user"
+          title={t('admin.addUser.title')}
           onClose={close}
           onSubmit={submit}
           size="sm"
           footer={
             <>
               <Button variant="ghost" onClick={close} disabled={busy}>
-                Cancel
+                {t('common.action.cancel')}
               </Button>
-              <Button busy={busy} type="submit" variant="primary" disabled={busy} title="Add user (⌘S)">
-                {busy ? 'Adding…' : 'Add user'}
+              <Button
+                busy={busy}
+                type="submit"
+                variant="primary"
+                disabled={busy}
+                title={t('common.withKey', { label: t('admin.addUser.submit'), key: '⌘S' })}
+              >
+                {busy ? t('admin.addUser.adding') : t('admin.addUser.submit')}
               </Button>
             </>
           }
         >
-          <FormField id="adm-add-email" label="Email" error={errors.email}>
+          <FormField id="adm-add-email" label={t('admin.addUser.email')} error={errors.email}>
             <Input
               id="adm-add-email"
               type="email"
@@ -253,7 +273,7 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
               onChange={e => set({ email: e.target.value })}
             />
           </FormField>
-          <FormField id="adm-add-name" label="Name" error={errors.name}>
+          <FormField id="adm-add-name" label={t('admin.addUser.name')} error={errors.name}>
             <Input
               id="adm-add-name"
               maxLength={80}
@@ -263,7 +283,12 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
               onChange={e => set({ name: e.target.value })}
             />
           </FormField>
-          <FormField id="adm-add-workspace" label="Workspace" help={WORKSPACE_HELP} error={errors.workspace}>
+          <FormField
+            id="adm-add-workspace"
+            label={t('admin.addUser.workspace')}
+            help={t('admin.addUser.workspaceHelp')}
+            error={errors.workspace}
+          >
             <WorkspacePicker
               workspaces={open}
               value={form.workspaceId}
@@ -273,35 +298,38 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
             />
           </FormField>
           {!noWorkspace && (
-            <FormField id="adm-add-role" label={picked ? `Role in ${picked.name}` : 'Role'}>
+            <FormField
+              id="adm-add-role"
+              label={picked ? t('admin.addUser.roleIn', { workspace: picked.name }) : t('admin.addUser.role')}
+            >
               <Select
                 id="adm-add-role"
                 value={form.role}
                 options={roleChoices(owned.has(form.workspaceId))}
-                label="Role"
+                label={t('admin.addUser.role')}
                 onChange={role => set({ role })}
               />
             </FormField>
           )}
           <Checkbox checked={form.admin} onChange={admin => set({ admin })}>
-            Server admin
+            {t('admin.addUser.serverAdmin')}
           </Checkbox>
           {errors.form && <FormMessage>{errors.form}</FormMessage>}
         </Dialog>
       )}
       {confirmingAdmin && (
         <Dialog
-          title="Add as server admin?"
+          title={t('admin.addUser.confirmAdmin.title')}
           description={adminGrantText(form.email.trim())}
           size="sm"
           onClose={() => setConfirmingAdmin(false)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setConfirmingAdmin(false)}>
-                Cancel
+                {t('common.action.cancel')}
               </Button>
               <Button variant="danger-outline" onClick={() => void send()}>
-                Add as server admin
+                {t('admin.addUser.confirmAdmin.action')}
               </Button>
             </>
           }

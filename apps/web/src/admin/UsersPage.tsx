@@ -1,6 +1,8 @@
 // Users: a searchable list with Add user; a click opens the user with their workspaces and actions.
 import { useT } from '@linedesk/i18n/react'
 import { useMemo, useState } from 'react'
+import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { Select } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Avatar, Badge } from '../ui/kit.tsx'
@@ -16,10 +18,12 @@ import { Fact } from './WorkspacesPage.tsx'
 
 const label = (u: AdminUser) => u.name || u.email
 
-const columns: Column<AdminUser>[] = [
+type Translate = ReturnType<typeof useT>
+
+const userColumns = (t: Translate): Column<AdminUser>[] => [
   {
     key: 'name',
-    label: 'User',
+    label: t('admin.users.column.user'),
     sort: label,
     render: u => (
       <span className="adm-person">
@@ -27,30 +31,41 @@ const columns: Column<AdminUser>[] = [
         <span className="adm-who">
           <span className="adm-strong">
             {label(u)}
-            {u.instance_admin && <Badge>Server admin</Badge>}
-            {u.disabled_at && <Badge>Disabled</Badge>}
+            {u.instance_admin && <Badge>{t('admin.users.badge.serverAdmin')}</Badge>}
+            {u.disabled_at && <Badge>{t('admin.users.badge.disabled')}</Badge>}
           </span>
           <span className="adm-sub">{u.email}</span>
         </span>
       </span>
     ),
   },
-  { key: 'workspaces', label: 'Workspaces', wide: true, render: u => <WorkspacesCell user={u} /> },
+  {
+    key: 'workspaces',
+    label: t('admin.users.column.workspaces'),
+    wide: true,
+    render: u => <WorkspacesCell user={u} />,
+  },
   {
     key: 'signin',
-    label: 'Last sign-in',
+    label: t('admin.users.column.lastSignIn'),
     firstDir: 'desc',
     sort: u => (u.last_sign_in_at ? Date.parse(u.last_sign_in_at) : null),
     render: u => when(u.last_sign_in_at),
   },
 ]
 
+const names = (items: string[]) => fmt().list(items, { type: 'unit', style: 'short' })
+
 /** Their workspaces; none yet: where they are invited, else "No workspace", both muted. */
 export function workspacesText(u: Pick<AdminUser, 'workspaces' | 'invitations'>): { text: string; muted: boolean } {
-  if (u.workspaces.length) return { text: u.workspaces.map(w => w.name).join(', '), muted: false }
+  const { t } = i18n()
+  if (u.workspaces.length) return { text: names(u.workspaces.map(w => w.name)), muted: false }
   if (u.invitations.length)
-    return { text: `Invited to ${u.invitations.map(i => i.workspace_name).join(', ')}`, muted: true }
-  return { text: 'No workspace', muted: true }
+    return {
+      text: t('admin.users.invitedTo', { workspaces: names(u.invitations.map(i => i.workspace_name)) }),
+      muted: true,
+    }
+  return { text: t('admin.users.noWorkspace'), muted: true }
 }
 
 function WorkspacesCell({ user }: { user: AdminUser }) {
@@ -73,6 +88,7 @@ export function UsersList({ users, workspaces, currentUserId, onOpen, keysRef, n
   const t = useT()
   const [filter, setFilter] = useState<UserFilter>('all')
   const shown = useMemo(() => filterUsers(users, filter), [users, filter])
+  const columns = useMemo(() => userColumns(t), [t])
   const filters = [
     { value: 'all' as const, label: t('admin.users.filter.all') },
     { value: 'noWorkspace' as const, label: t('admin.users.filter.noWorkspace') },
@@ -84,17 +100,24 @@ export function UsersList({ users, workspaces, currentUserId, onOpen, keysRef, n
         rows={shown}
         tools={
           <div className="adm-list-tools">
-            <Select value={filter} options={filters} onChange={setFilter} label={t('admin.users.filter.label')} size="sm" />
+            <Select
+              value={filter}
+              options={filters}
+              onChange={setFilter}
+              label={t('admin.users.filter.label')}
+              size="sm"
+            />
           </div>
         }
         rowId={u => u.id}
         columns={columns}
         initialSort={{ key: 'name', dir: 'asc' }}
         searchText={u => `${u.name} ${u.email} ${u.workspaces.map(w => w.name).join(' ')}`}
-        searchLabel="Search users"
+        searchLabel={t('admin.users.search')}
+        label={t('admin.sections.users.label')}
         onOpen={u => onOpen(u.id)}
         keysRef={keysRef}
-        empty={filter === 'noWorkspace' ? t('admin.users.noWorkspaceEmpty') : 'No users yet.'}
+        empty={filter === 'noWorkspace' ? t('admin.users.noWorkspaceEmpty') : t('admin.users.empty')}
         rowActions={u => <RowActions actions={userActions(u, currentUserId, reload)} onPick={runner.pick} />}
       />
       {runner.dialog}
@@ -112,20 +135,25 @@ type DetailProps = {
 
 export function UserDetail({ user: u, workspaces, currentUserId, notify, reload }: DetailProps) {
   const runner = useActionRunner(notify)
+  const t = useT()
   const actions = userActions(u, currentUserId, reload)
   return (
     <>
       <ActionBar actions={actions} onPick={runner.pick} />
-      <Card title="Details" className="adm-detail">
+      <Card title={t('admin.users.details')} className="adm-detail">
         <dl className="adm-facts">
-          <Fact label="Email">{u.email}</Fact>
-          <Fact label="Status">{u.disabled_at ? `Disabled ${when(u.disabled_at)}` : 'Active'}</Fact>
-          <Fact label="Server admin">
-            {u.instance_admin ? 'Yes' : 'No'}
+          <Fact label={t('admin.users.fact.email')}>{u.email}</Fact>
+          <Fact label={t('admin.users.fact.status')}>
+            {u.disabled_at
+              ? t('admin.users.fact.disabledAt', { when: when(u.disabled_at) })
+              : t('admin.users.fact.active')}
+          </Fact>
+          <Fact label={t('admin.users.fact.serverAdmin')}>
+            {u.instance_admin ? t('admin.users.fact.yes') : t('admin.users.fact.no')}
             {u.instance_admin_by_env && <ServerSet />}
           </Fact>
-          <Fact label="Last sign-in">{when(u.last_sign_in_at)}</Fact>
-          <Fact label="Created">{day(u.created_at)}</Fact>
+          <Fact label={t('admin.users.fact.lastSignIn')}>{when(u.last_sign_in_at)}</Fact>
+          <Fact label={t('admin.users.fact.created')}>{day(u.created_at)}</Fact>
         </dl>
       </Card>
       <UserWorkspaces user={u} workspaces={workspaces} notify={notify} reload={reload} />

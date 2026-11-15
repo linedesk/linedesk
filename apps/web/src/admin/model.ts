@@ -2,6 +2,7 @@
 import { phoneNumberProblem, providers as providerSpecs } from '@linedesk/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 
 export type SortDir = 'asc' | 'desc'
 export type Sort<K extends string> = { key: K; dir: SortDir }
@@ -44,15 +45,15 @@ export function usageByWorkspace(usage: readonly UsageRow[]): Map<string, Map<st
 }
 
 /** Answered minutes; a month with calls but under a tenth of a minute says so instead of a dash. */
-export const formatMinutes = (minutes: number) =>
-  minutes >= 0.1
-    ? `${fmt().number(minutes, { maximumFractionDigits: 1 })} min`
-    : minutes > 0
-      ? '<0.1 min'
-      : '0 min'
+export function formatMinutes(minutes: number) {
+  const inMinutes = (value: number) =>
+    fmt().number(value, { style: 'unit', unit: 'minute', unitDisplay: 'short', maximumFractionDigits: 1 })
+  return minutes >= 0.1 ? inMinutes(minutes) : minutes > 0 ? `<${inMinutes(0.1)}` : inMinutes(0)
+}
 
-/** US dollars with cents: 12.5 → "$12.50". */
-export const formatUsd = (value: number) => `$${value.toFixed(2)}`
+/** US dollars with cents, in the active language's number format: 12.5 → "$12.50". */
+export const formatUsd = (value: number) =>
+  fmt().currency(value, 'USD', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** The highest monthly spending cap the API takes (SPENDING_CAP_MAX_USD in packages/actions). */
 const SPENDING_CAP_MAX_USD = 100_000
@@ -61,11 +62,10 @@ const SPENDING_CAP_MAX_USD = 100_000
 export function parseSpendingCap(text: string): { capUsd: number | null } | { problem: string } {
   const value = text.trim().replace(/^\$/, '').replace(/,/g, '')
   if (!value) return { capUsd: null }
-  if (!/^\d+(\.\d{1,2})?$/.test(value))
-    return { problem: 'Enter an amount in dollars, like 50 or 49.99, or leave it empty for no cap.' }
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) return { problem: i18n().t('admin.model.spendingCap.invalid') }
   const capUsd = Number(value)
   if (capUsd > SPENDING_CAP_MAX_USD)
-    return { problem: `The cap can be at most ${formatUsd(SPENDING_CAP_MAX_USD)} a month.` }
+    return { problem: i18n().t('admin.model.spendingCap.max', { amount: formatUsd(SPENDING_CAP_MAX_USD) }) }
   return { capUsd }
 }
 
@@ -114,8 +114,8 @@ export function fieldErrors(provider: ProviderStatus, values: Record<string, str
       if (problem) errors[f.field] = problem
       continue
     }
-    if (f.source === 'app' && !f.secret && f.value) errors[f.field] = 'Cannot be empty. Disconnect clears every key.'
-    else if (!f.source && !isOptional(provider, f)) errors[f.field] = 'Required.'
+    if (f.source === 'app' && !f.secret && f.value) errors[f.field] = i18n().t('admin.model.field.emptied')
+    else if (!f.source && !isOptional(provider, f)) errors[f.field] = i18n().t('admin.model.field.required')
   }
   return errors
 }

@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { expect, test, vi } from 'vitest'
-import { confirmErrorText, deleteWorkspaceText, workspaceActions } from './actions.tsx'
+import {
+  adminGrantText,
+  confirmErrorText,
+  deletedWorkspaceText,
+  deleteWorkspaceText,
+  existingPasskeysText,
+  workspaceActions,
+} from './actions.tsx'
 import type { AdminWorkspace } from './api.ts'
 import { StepUpRequired } from './PasskeyStepUp.tsx'
 
@@ -95,4 +102,36 @@ test('an admin without a passkey is told how to add one, not a raw refusal', () 
   expect(confirmErrorText(new StepUpRequired('This needs a passkey.', 'enrol'))).toBe(
     'Add a passkey first under Account › Sign-in & security, with the enrolment code from another admin or from user:passkeys --enrol on the server. Nothing changed.',
   )
+})
+
+test('the toast after a delete counts the accounts and names the numbers left at the carrier', () => {
+  expect(deletedWorkspaceText('Brightwater', { usersDeleted: [], numbers: [] })).toBe('Brightwater is deleted.')
+  expect(deletedWorkspaceText('Brightwater', { usersDeleted: ['u1'] })).toBe(
+    'Brightwater is deleted. 1 account deleted with it.',
+  )
+  expect(
+    deletedWorkspaceText('Brightwater', {
+      usersDeleted: ['u1', 'u2'],
+      numbers: [
+        { e164: '+15550100', carrier: 'left' },
+        { e164: '+15550101', carrier: 'left', note: 'release it in Telnyx' },
+        { e164: '+15550102', carrier: 'released' },
+      ],
+    }),
+  ).toBe(
+    'Brightwater is deleted. 2 accounts deleted with it. Still at the carrier: +15550100: left at the carrier; +15550101: release it in Telnyx.',
+  )
+})
+
+test('granting server admin names the passkeys that already open the admin area', () => {
+  expect(adminGrantText('Ana')).toBe(
+    'Make Ana a server admin? They can see every workspace and user, change provider keys and sign in as other users.',
+  )
+  const one = existingPasskeysText([{ name: 'MacBook', device_type: 'singleDevice', created_at: null }] as never)
+  expect(one).toMatch(/^They already have a passkey: MacBook\. These open the admin area for them\./)
+  const two = existingPasskeysText([
+    { name: '', device_type: 'multiDevice', created_at: null },
+    { name: '', device_type: 'singleDevice', created_at: null },
+  ] as never)
+  expect(two).toMatch(/^They already have 2 passkeys: Synced passkey, Passkey on a device\./)
 })

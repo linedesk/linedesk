@@ -19,6 +19,12 @@ describe('Add user', () => {
     expect(
       addedText({ email: 'a@x.test', existing: false, delivery: 'smtp', workspace: { ...ws, joined: 'invited' } }),
     ).toBe('Added a@x.test to Brightwater Plumbing & Heating. They get an email to sign in and join.')
+    expect(
+      addedText({ email: 'a@x.test', existing: false, delivery: 'log', workspace: { ...ws, joined: 'invited' } }),
+    ).toBe('Added a@x.test to Brightwater Plumbing & Heating. Their email is in the server log.')
+    expect(addedText({ email: 'a@x.test', existing: false, delivery: 'smtp', workspace: null })).toBe(
+      'Added a@x.test as server admin. They get an email to sign in.',
+    )
     expect(addedText({ email: 'a@x.test', existing: false, delivery: 'log', workspace: null })).toBe(
       'Added a@x.test as server admin. Their email is in the server log.',
     )
@@ -54,7 +60,9 @@ describe('Add user: Owner only where the workspace has none (A16)', () => {
       { workspaces: [{ id: 'w2', name: 'Harbor Lane', role: 'admin', member_id: 'm2' }], invitations: [] },
       {
         workspaces: [],
-        invitations: [{ id: 'i1', workspace_id: 'w3', workspace_name: 'Alder Electric', role: 'owner', expires_at: '' }],
+        invitations: [
+          { id: 'i1', workspace_id: 'w3', workspace_name: 'Alder Electric', role: 'owner', expires_at: '' },
+        ],
       },
     ])
     expect([...owned].sort()).toEqual(['w1', 'w3'])
@@ -64,7 +72,11 @@ describe('Add user: Owner only where the workspace has none (A16)', () => {
     const owner = (hasOwner: boolean) => roleChoices(hasOwner).find(o => o.value === 'owner')
     expect(owner(true)).toMatchObject({ disabled: true, description: 'Has an owner' })
     expect(owner(false)).not.toHaveProperty('disabled')
-    expect(roleChoices(true).filter(o => !('disabled' in o)).map(o => o.value)).toEqual(['admin', 'member'])
+    expect(
+      roleChoices(true)
+        .filter(o => !('disabled' in o))
+        .map(o => o.value),
+    ).toEqual(['admin', 'member'])
   })
 })
 
@@ -82,13 +94,29 @@ describe('Users list', () => {
       muted: true,
     })
     expect(workspacesText({ workspaces: [], invitations: [] })).toEqual({ text: 'No workspace', muted: true })
+    expect(
+      workspacesText({
+        workspaces: [],
+        invitations: [invite, { ...invite, id: 'i2', workspace_name: 'Alder Electric' }],
+      }),
+    ).toEqual({ text: 'Invited to Harbor Lane, Alder Electric', muted: true })
   })
 })
 
 test('Users › No workspace: accounts without a membership, invited ones included (A9)', () => {
   const user = (id: string, workspaces: AdminUser['workspaces'], invited = false) =>
-    ({ id, workspaces, invitations: invited ? [{ id: 'i1', workspace_id: 'w1', workspace_name: 'Shop', role: 'member', expires_at: '' }] : [] }) as unknown as AdminUser
-  const users = [user('in', [{ id: 'w1', name: 'Shop', role: 'member', member_id: 'm1' }]), user('none', []), user('invited', [], true)]
+    ({
+      id,
+      workspaces,
+      invitations: invited
+        ? [{ id: 'i1', workspace_id: 'w1', workspace_name: 'Shop', role: 'member', expires_at: '' }]
+        : [],
+    }) as unknown as AdminUser
+  const users = [
+    user('in', [{ id: 'w1', name: 'Shop', role: 'member', member_id: 'm1' }]),
+    user('none', []),
+    user('invited', [], true),
+  ]
   expect(filterUsers(users, 'noWorkspace').map(u => u.id)).toEqual(['none', 'invited'])
   expect(filterUsers(users, 'all').map(u => u.id)).toEqual(['in', 'none', 'invited'])
 })

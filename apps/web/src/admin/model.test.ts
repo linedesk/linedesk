@@ -114,6 +114,10 @@ test('the spending cap field: empty is no cap, dollars with up to two decimals, 
   expect(parseSpendingCap('0')).toEqual({ capUsd: 0 })
   for (const bad of ['-5', 'ten', '1.999', '100001']) expect(parseSpendingCap(bad), bad).toHaveProperty('problem')
   expect(formatUsd(12.5)).toBe('$12.50')
+  expect(parseSpendingCap('100001')).toEqual({ problem: 'The cap can be at most $100,000.00 a month.' })
+  expect(parseSpendingCap('ten')).toEqual({
+    problem: 'Enter an amount in dollars, like 50 or 49.99, or leave it empty for no cap.',
+  })
 })
 
 test('the forwarding check number is a phone field: a typed number must be whole, a saved one stays', () => {

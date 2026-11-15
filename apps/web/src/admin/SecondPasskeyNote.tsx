@@ -4,9 +4,10 @@
 import { useEffect, useState } from 'react'
 import { loadPasskeys } from '../settings/account/account-api.ts'
 import { Button, Note } from '../ui/kit.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 
-export const SECOND_PASSKEY_TEXT =
-  'Add a second passkey, e.g. on your phone or a security key, so a lost device does not lock you out.'
+export const secondPasskeyText = () => i18n().t('admin.secondPasskey.text')
 
 const key = (account: string) => `linedesk.secondPasskeyNote.${account}`
 
@@ -38,6 +39,7 @@ function storage(): Storage | null {
 }
 
 export function SecondPasskeyNote({ account }: { account: string }) {
+  const t = useT()
   const [count, setCount] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(() => readDismissed(account))
   useEffect(() => {
@@ -56,24 +58,28 @@ export function SecondPasskeyNote({ account }: { account: string }) {
     <Note
       action={
         <>
-          <a className="k-btn k-btn-sm k-btn-secondary" href="#account/security" title="Account › Sign-in & security">
-            Add passkey
+          <a
+            className="k-btn k-btn-sm k-btn-secondary"
+            href="#account/security"
+            title={t('admin.secondPasskey.addTip')}
+          >
+            {t('admin.secondFactor.add')}
           </a>
           <Button
             size="sm"
             variant="ghost"
-            title="Hide this note"
+            title={t('admin.secondPasskey.dismissTip')}
             onClick={() => {
               rememberDismissed(account)
               setDismissed(true)
             }}
           >
-            Dismiss
+            {t('admin.secondPasskey.dismiss')}
           </Button>
         </>
       }
     >
-      {SECOND_PASSKEY_TEXT}
+      {t('admin.secondPasskey.text')}
     </Note>
   )
 }

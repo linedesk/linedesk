@@ -138,3 +138,24 @@ test("a removed member's invitation that the removal canceled (LIN-264 review F1
     'Invitation to new@example.com canceled: its sender was removed from the workspace',
   )
 })
+
+test('entries without a name, an address or a host still read as a sentence', () => {
+  expect(label('branding.set', { poweredBy: false })).toBe('Changed the branding, Powered by Linedesk hidden')
+  expect(label('apiKey.create', {})).toBe('Created an API key')
+  expect(label('workspace.create', {})).toBe('Created the workspace')
+  expect(label('webhook.create', { url: 'not a url/' })).toBe('Added a webhook to a URL')
+  expect(label('provider.setActive', { provider: 'deepgram', category: 'stt' })).toBe('Picked deepgram for stt')
+  expect(label('provider.setActive', {})).toBe('Picked none for a category')
+  expect(label('membership.add', { role: 'admin' })).toBe('Added a member as an admin')
+  expect(label('team.updateMemberNotifications', { pushSummary: true })).toBe(
+    'Changed the notifications of a member (push summary)',
+  )
+  expect(label('team.updateMemberNotifications', {})).toBe('Changed the notifications of a member (none)')
+  expect(label('workspace.setSpendingCap', { capUsd: 12.5 })).toBe('Set the spending cap to $12.50')
+  expect(auditLabel({ what: 'sign_in', method: 'email_code', input: null, subject: null })).toBe(
+    'Signed in with email code',
+  )
+  expect(auditLabel({ what: 'provider_linked', method: 'github', input: null, subject: null })).toBe(
+    'Added GitHub sign-in',
+  )
+})

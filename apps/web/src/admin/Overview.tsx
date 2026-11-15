@@ -2,6 +2,7 @@
 // says whether the parts of the install work). Usage (calls, minutes), roughly what it costs per provider, and how many
 // workspaces and people there are.
 import { providerCategories } from '@linedesk/actions'
+import { T, useT } from '@linedesk/i18n/react'
 import type { ReactNode } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { cx } from '../ui/kit.tsx'
@@ -9,9 +10,12 @@ import { LoadProblem, Skeleton, SkeletonRows, useLoading } from '../ui/LoadState
 import { type AdminOverview, loadOverview } from './api.ts'
 import { ReplyDelay } from './ReplyDelay.tsx'
 import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { EMPTY } from './parts.tsx'
 
-const money = (usd: number) => (usd < 0.01 && usd > 0 ? '< $0.01' : `$${usd.toFixed(2)}`)
+const usd = (amount: number) => fmt().currency(amount, 'USD', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = (amount: number) =>
+  amount < 0.01 && amount > 0 ? i18n().t('admin.overview.lessThan', { amount: usd(0.01) }) : usd(amount)
 const count = (n: number) => fmt().number(n)
 
 /** The last answer at once when admin is opened again, a fresh one in the background. */
@@ -62,22 +66,23 @@ function Card({
 function Costs({ overview }: { overview: AdminOverview }) {
   const total7d = overview.costs.reduce((sum, c) => sum + c.cost7d, 0)
   const totalMonth = overview.costs.reduce((sum, c) => sum + c.costMonth, 0)
+  const t = useT()
   return (
-    <Card title="Costs" note="Estimated from list prices.">
+    <Card title={t('admin.overview.costs.title')} note={t('admin.overview.costs.note')}>
       <div className="adm-scroll">
         <table className="adm-table">
           <thead>
             <tr>
-              <th scope="col">Part</th>
-              <th scope="col">In use</th>
+              <th scope="col">{t('admin.overview.costs.part')}</th>
+              <th scope="col">{t('admin.overview.costs.inUse')}</th>
               <th scope="col" className="adm-num">
-                Minutes, 7 days
+                {t('admin.overview.costs.minutes7d')}
               </th>
               <th scope="col" className="adm-num">
-                Cost over 7 days
+                {t('admin.overview.costs.cost7d')}
               </th>
               <th scope="col" className="adm-num">
-                Cost this month
+                {t('admin.overview.costs.costMonth')}
               </th>
             </tr>
           </thead>
@@ -85,14 +90,14 @@ function Costs({ overview }: { overview: AdminOverview }) {
             {overview.costs.map(c => (
               <tr key={c.category}>
                 <th scope="row">{providerCategories[c.category]}</th>
-                <td>{c.label ?? <span className="help">Not set up</span>}</td>
+                <td>{c.label ?? <span className="help">{t('admin.overview.costs.notSetUp')}</span>}</td>
                 <td className="adm-num">{count(c.minutes7d)}</td>
                 <td className="adm-num">{c.provider ? money(c.cost7d) : EMPTY}</td>
                 <td className="adm-num">{c.provider ? money(c.costMonth) : EMPTY}</td>
               </tr>
             ))}
             <tr className="adm-total">
-              <th scope="row">Total</th>
+              <th scope="row">{t('admin.overview.costs.total')}</th>
               <td />
               <td />
               <td className="adm-num">{money(total7d)}</td>
@@ -107,7 +112,10 @@ function Costs({ overview }: { overview: AdminOverview }) {
 
 type Props = { onOpen: (section: 'workspaces' | 'users' | 'providers' | 'system') => void }
 
+const bold = (chunks: ReactNode[]) => <b>{chunks}</b>
+
 export function Overview({ onOpen }: Props) {
+  const t = useT()
   const overview = useLoad('admin.overview', loadOverview)
   // The numbers wait behind the loading gate (no flash, no blink); the labels and card titles show at once.
   const view = useLoading(!overview.value)
@@ -117,7 +125,7 @@ export function Overview({ onOpen }: Props) {
     return (
       <LoadProblem
         className="adm-card"
-        what="The overview"
+        what={t('admin.overview.what')}
         message={overview.error ?? undefined}
         onRetry={() => void overview.retry()}
       />
@@ -127,21 +135,30 @@ export function Overview({ onOpen }: Props) {
       <div className="adm-stats">
         {o ? (
           <>
-            <Stat label="Calls today" value={count(o.calls.today)} note="Since midnight UTC" />
-            <Stat label="Calls, 7 days" value={count(o.calls.last7d)} />
             <Stat
-              label="Minutes, 7 days"
+              label={t('admin.overview.stat.callsToday')}
+              value={count(o.calls.today)}
+              note={t('admin.overview.stat.callsTodayNote')}
+            />
+            <Stat label={t('admin.overview.stat.calls7d')} value={count(o.calls.last7d)} />
+            <Stat
+              label={t('admin.overview.costs.minutes7d')}
               value={count(o.minutes.last7d)}
-              note={`${count(o.minutes.month)} this month`}
+              note={t('admin.overview.stat.minutesMonth', { count: o.minutes.month })}
             />
             <Stat
-              label="Cost over 7 days"
+              label={t('admin.overview.costs.cost7d')}
               value={money(o.costs.reduce((sum, c) => sum + c.cost7d, 0))}
-              note="About, at provider list prices"
+              note={t('admin.overview.stat.costNote')}
             />
           </>
         ) : (
-          ['Calls today', 'Calls, 7 days', 'Minutes, 7 days', 'Cost over 7 days'].map(label => (
+          [
+            t('admin.overview.stat.callsToday'),
+            t('admin.overview.stat.calls7d'),
+            t('admin.overview.costs.minutes7d'),
+            t('admin.overview.costs.cost7d'),
+          ].map(label => (
             <div key={label} className={cx('adm-stat', busy)} aria-busy="true">
               <span>{label}</span>
               <Skeleton width={56} height={22} className="adm-sk-value" />
@@ -153,24 +170,32 @@ export function Overview({ onOpen }: Props) {
       {o ? (
         <Costs overview={o} />
       ) : (
-        <Card title="Costs" note="Estimated from list prices.">
+        <Card title={t('admin.overview.costs.title')} note={t('admin.overview.costs.note')}>
           <div className={busy}>
             <SkeletonRows rows={4} columns={4} className="adm-sk-rows" />
           </div>
         </Card>
       )}
       {o && (
-        <Card title="People">
+        <Card title={t('admin.overview.people.title')}>
           <div className="adm-people">
             <button type="button" className="adm-link" onClick={() => onOpen('workspaces')}>
-              <b>{count(o.workspaces.total)}</b> {o.workspaces.total === 1 ? 'workspace' : 'workspaces'}
-              {o.workspaces.disabled > 0 && <span className="help"> · {o.workspaces.disabled} disabled</span>}
-              {o.workspaces.new7d > 0 && <span className="help"> · {o.workspaces.new7d} new this week</span>}
+              <T k="admin.overview.people.workspaces" values={{ count: o.workspaces.total, b: bold }} />
+              {o.workspaces.disabled > 0 && (
+                <span className="help"> {t('admin.overview.people.disabled', { count: o.workspaces.disabled })}</span>
+              )}
+              {o.workspaces.new7d > 0 && (
+                <span className="help"> {t('admin.overview.people.newThisWeek', { count: o.workspaces.new7d })}</span>
+              )}
             </button>
             <button type="button" className="adm-link" onClick={() => onOpen('users')}>
-              <b>{count(o.users.total)}</b> {o.users.total === 1 ? 'user' : 'users'}
-              {o.users.disabled > 0 && <span className="help"> · {o.users.disabled} disabled</span>}
-              {o.users.new7d > 0 && <span className="help"> · {o.users.new7d} new this week</span>}
+              <T k="admin.overview.people.users" values={{ count: o.users.total, b: bold }} />
+              {o.users.disabled > 0 && (
+                <span className="help"> {t('admin.overview.people.disabled', { count: o.users.disabled })}</span>
+              )}
+              {o.users.new7d > 0 && (
+                <span className="help"> {t('admin.overview.people.newThisWeek', { count: o.users.new7d })}</span>
+              )}
             </button>
           </div>
         </Card>

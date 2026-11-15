@@ -2,6 +2,8 @@
 // local store, and its writes skip the outbox on purpose: an outbox entry is kept in IndexedDB,
 // and a provider key must never be stored in the browser.
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { i18n } from '../i18n/index.tsx'
 import {
   type AgentSetupState,
   type BrandingInput,
@@ -193,11 +195,11 @@ async function body<T>(res: Response): Promise<T> {
     const state: AdminSecondFactor =
       json.secondFactor === 'email' || json.secondFactor === 'enrol' ? json.secondFactor : 'confirm'
     for (const listener of signInListeners) listener(state)
-    throw new AdminSignInRequired(json.error ?? 'Server admin needs your passkey.', state)
+    throw new AdminSignInRequired(json.error ?? i18n().t('admin.api.needsPasskey'), state)
   }
   const stepUp = stepUpOf(json)
-  if (stepUp) throw new StepUpRequired(json?.error ?? 'Confirm with your passkey.', stepUp)
-  if (!res.ok || !json) throw new Error(json?.error ?? `The server answered ${res.status}`)
+  if (stepUp) throw new StepUpRequired(json?.error ?? i18n().t('admin.api.confirmPasskey'), stepUp)
+  if (!res.ok || !json) throw new Error(json?.error ?? i18n().t('admin.api.serverAnswered', { status: res.status }))
   return json
 }
 
@@ -318,30 +320,31 @@ export async function runAdminOnce<N extends keyof AdminInputs>(name: N, input: 
 }
 
 /** What the passkey dialog says it confirms. */
-const stepUpLabels: Partial<Record<keyof AdminInputs, string>> = {
-  'instanceAdmin.grant': 'make an instance admin',
-  'instanceAdmin.revoke': 'remove an instance admin',
-  'user.resetPasskeys': 'reset passkeys',
-  'user.issuePasskeyEnrolment': 'issue a passkey enrolment code',
-  'user.invite': 'add a user',
-  'user.disable': 'disable an admin',
-  'user.enable': 'enable an admin',
-  'membership.add': 'add someone to a workspace',
-  'membership.setRole': 'change a role',
-  'membership.remove': 'remove an admin from a workspace',
-  'workspace.delete': 'delete a workspace',
-  'workspace.create': 'create a workspace and give it an owner',
-  'provider.setKeys': 'save email or sign-in keys',
-  'provider.clearKeys': 'disconnect email or sign-in',
-  'outboundCountries.set': 'change where calls may go',
+const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
+  'instanceAdmin.grant': msg('admin.stepUp.what.instanceAdminGrant'),
+  'instanceAdmin.revoke': msg('admin.stepUp.what.instanceAdminRevoke'),
+  'user.resetPasskeys': msg('admin.stepUp.what.resetPasskeys'),
+  'user.issuePasskeyEnrolment': msg('admin.stepUp.what.issuePasskeyEnrolment'),
+  'user.invite': msg('admin.stepUp.what.userInvite'),
+  'user.disable': msg('admin.stepUp.what.userDisable'),
+  'user.enable': msg('admin.stepUp.what.userEnable'),
+  'membership.add': msg('admin.stepUp.what.membershipAdd'),
+  'membership.setRole': msg('admin.stepUp.what.membershipSetRole'),
+  'membership.remove': msg('admin.stepUp.what.membershipRemove'),
+  'workspace.delete': msg('admin.stepUp.what.workspaceDelete'),
+  'workspace.create': msg('admin.stepUp.what.workspaceCreate'),
+  'provider.setKeys': msg('admin.stepUp.what.providerSetKeys'),
+  'provider.clearKeys': msg('admin.stepUp.what.providerClearKeys'),
+  'outboundCountries.set': msg('admin.stepUp.what.outboundCountriesSet'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {
+  const { t } = i18n()
   if (name === 'workspace.delete') {
     const workspace = (input as AdminInputs['workspace.delete'] | undefined)?.name?.trim()
-    if (workspace) return `delete workspace ${workspace}`
+    if (workspace) return t('admin.stepUp.what.workspaceDeleteNamed', { name: workspace })
   }
-  return stepUpLabels[name] ?? 'this admin change'
+  return t(stepUpLabels[name] ?? 'admin.stepUp.what.other')
 }
 
 /** The providers that use this one's stored key (one-key mode): Disconnect ends them too. */

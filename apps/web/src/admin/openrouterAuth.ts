@@ -4,6 +4,8 @@
 // sessionStorage only until the return; the key goes straight into provider.setKeys (sensitive,
 // redacted in the command log) and is never kept in the browser.
 
+import { i18n } from '../i18n/index.tsx'
+
 export const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth'
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/api/v1/auth/keys'
 const PENDING_KEY = 'linedesk.openrouter.pending'
@@ -11,8 +13,16 @@ const RETURN_KEY = 'linedesk.openrouter.return'
 
 /** What the admin was doing when they left for OpenRouter. */
 type Pending = { verifier: string; state: string }
-/** What came back: a code to exchange (with its verifier), or why there is none. */
-export type OpenRouterReturn = { code: string; verifier: string } | { error: string }
+/**
+ * What came back: a code to exchange (with its verifier), or why there is none (a code, said in the reader's language
+ * by openRouterErrorText: the answer is kept before the app's language is loaded).
+ */
+export type OpenRouterReturn = { code: string; verifier: string } | { error: OpenRouterError }
+export type OpenRouterError = 'mismatch' | 'cancelled'
+
+/** Why there is no code, in words. */
+export const openRouterErrorText = (error: OpenRouterError): string =>
+  error === 'mismatch' ? i18n().t('admin.openrouter.mismatch') : i18n().t('admin.openrouter.cancelled')
 
 const base64url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes))
@@ -80,10 +90,10 @@ export function captureOpenRouterReturn(search: string, storage: Storage = sessi
   if (!code && !params.has('error') && !params.has('state')) return null
   const result: OpenRouterReturn =
     params.get('state') !== pending.state
-      ? { error: "OpenRouter's answer didn't match this sign-in. Try again." }
+      ? { error: 'mismatch' }
       : code
         ? { code, verifier: pending.verifier }
-        : { error: 'Connecting with OpenRouter was cancelled.' }
+        : { error: 'cancelled' }
   storage.setItem(RETURN_KEY, JSON.stringify(result))
   return '#admin/providers/answering'
 }
@@ -103,13 +113,13 @@ export async function exchangeCode(code: string, verifier: string, fetchImpl: ty
       body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }),
     })
   } catch {
-    throw new Error("Couldn't reach OpenRouter. Try again.")
+    throw new Error(i18n().t('admin.openrouter.unreachable'))
   }
   const body = (await res.json().catch(() => null)) as { key?: unknown } | null
   if (res.ok && typeof body?.key === 'string' && body.key) return body.key
   throw new Error(
     res.status === 400 || res.status === 403
-      ? 'OpenRouter did not accept the sign-in, or it expired. Try again.'
-      : `OpenRouter answered ${res.status}. Try again.`,
+      ? i18n().t('admin.openrouter.refused')
+      : i18n().t('admin.openrouter.status', { status: res.status }),
   )
 }
