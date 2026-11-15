@@ -29,8 +29,7 @@ jobs:
           [ "$HEAD_REF" = master-dev ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] ||
             { echo "master-prod only takes merges of master-dev, not $HEAD_REPO:$HEAD_REF"; exit 1; }
 
-  # Fast checks only while we build: typecheck and lint (~10 s). The test suite runs in tests.yml,
-  # by hand or for a release, not on every pull request (docs/ci.md).
+  # Fast checks only: typecheck and lint (~10 s). The test suite runs only locally, when wanted (docs/ci.md).
   check:
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
