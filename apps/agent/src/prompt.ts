@@ -115,6 +115,10 @@ export const CHANGE_BOOKING_INSTRUCTIONS =
 export const CHANGE_LISTED_BOOKING_INSTRUCTIONS =
   "The caller's upcoming appointments are listed further down, with what you know about this caller: you can tell them the day and time and help them confirm, cancel or move one. To cancel or move one, get their full name with get_name, then use cancel_appointment, or find_slots and then reschedule_appointment, with the appointment's day from the list; the tools use that name. If the tool says no booking matches, do not guess or try other names or days: take a message for the team instead."
 
+/** The listed-bookings rule with the booking-name check (the owner's "Ask for the booking name …" switch). */
+export const CHANGE_LISTED_BOOKING_NAME_CHECKED =
+  "The caller's upcoming appointments are listed further down, with what you know about this caller: you can tell them the day and time and help them confirm, cancel or move one, but never say the name an appointment is booked under. To cancel or move one, get the full name it is booked under from the caller with get_name, then use cancel_appointment, or find_slots and then reschedule_appointment, with the appointment's day from the list; the tools check that name. If the tool says no booking matches, do not guess or try other names or days: take a message for the team instead."
+
 /** Whether the assistant may offer booking changes on this call; an API of an older version did not say, so no. */
 export const canChangeBookings = (booking: BookingContext) => booking.canChangeBookings === true
 
@@ -154,9 +158,11 @@ export type BookingPromptOptions = {
   listed?: boolean
   /** Caller ID gave the caller's number. */
   callerNumber?: boolean
+  /** The owner's booking-name check is on (behaviour ask_booking_name). */
+  nameChecked?: boolean
 }
 
-export function bookingInstructions(booking: BookingContext, { listed = false, callerNumber = false }: BookingPromptOptions = {}): string {
+export function bookingInstructions(booking: BookingContext, { listed = false, callerNumber = false, nameChecked = false }: BookingPromptOptions = {}): string {
   const types = booking.appointmentTypes.map(t => typeLine(t, callerNumber)).join('\n')
   const calendars = booking.calendars.map(calendarLine).join('\n')
   return [
@@ -171,7 +177,7 @@ export function bookingInstructions(booking: BookingContext, { listed = false, c
     // Kept in the prompt as well as at the tools: the costliest mistakes a light model makes when booking.
     'Only offer times find_slots returned, and book only a time the caller said yes to in their own words; getting other details (an address) is not a yes.',
     canChangeBookings(booking)
-      ? listed ? CHANGE_LISTED_BOOKING_INSTRUCTIONS : CHANGE_BOOKING_INSTRUCTIONS
+      ? listed ? (nameChecked ? CHANGE_LISTED_BOOKING_NAME_CHECKED : CHANGE_LISTED_BOOKING_INSTRUCTIONS) : CHANGE_BOOKING_INSTRUCTIONS
       : 'You cannot cancel or move appointments on this call. If the caller asks to, take a message for the team.',
   ].filter(Boolean).join('\n\n')
 }
@@ -270,7 +276,12 @@ export const TEST_CALL_CALLER_ID =
   "This is a test call from the app: there is no caller ID. If the caller says to use the number they are calling from, accept that, note 'test call, no caller ID', and go on."
 
 /** `readBack`: the owner's "Confirm the callback number" switch is on, so the number is read back once (behaviourLines). */
-export function callerIdInstructions(caller: CallerContext | null | undefined, { readBack = false } = {}): string {
+/**
+ * `keepNameBack`: the owner's "Ask for the booking name before changing an appointment" switch is on and the caller
+ * can cancel or move an appointment, which the server checks by day and booked name; then the assistant never says
+ * the contact's name first.
+ */
+export function callerIdInstructions(caller: CallerContext | null | undefined, { readBack = false, keepNameBack = false } = {}): string {
   const phone = isE164(caller?.phone) ? caller.phone : null
   if (!phone) {
     const unknown = "The caller's number is unknown (caller ID withheld or not sent): ask for a number the team can call back on."
@@ -279,7 +290,8 @@ export function callerIdInstructions(caller: CallerContext | null | undefined, {
   const number = `The caller is calling from ${displayNumber(phone)} (caller ID). It is saved as the callback number with every message: never ask for a callback number or which number to call back on${readBack ? '' : ', and do not read it out'}. Only if the caller says on their own that they want to be called back on a different number, get it with get_phone_number.`
   const name = caller?.name?.trim()
   if (!name) return number
-  return `The caller is ${quotedData(name, CALLER_NAME_MAX)} (a saved contact). ${number} So do not ask for the caller's name to take a message.`
+  const keep = keepNameBack ? ' Never say this name to the caller before they say it themselves: cancelling or moving an appointment checks it.' : ''
+  return `The caller is ${quotedData(name, CALLER_NAME_MAX)} (a saved contact). ${number} So do not ask for the caller's name to take a message.${keep}`
 }
 
 /**
@@ -390,6 +402,7 @@ export function buildInstructions(
   country = 'US',
 ): string {
   const transfer = transfers.length > 0
+  const nameChecked = behaviourOn(assistant?.behaviours, 'ask_booking_name')
   const name = assistant?.name ?? 'the assistant'
   const knowledge = assistant ? businessKnowledge(assistant) : ''
   // The booking context carries the business's time zone too, so a call that can book always has the clock line.
@@ -403,7 +416,7 @@ export function buildInstructions(
     // A contact held while the office is closed: the assistant must not say it cannot transfer calls.
     cannotInstructions({ booking: !!booking, transfer: transfer || heldTransferContacts(assistant, hours).length > 0, lookup }),
     booking
-      ? bookingInstructions(booking, { listed: !!(behaviourOn(assistant?.behaviours, 'caller_history') && caller?.history?.upcomingBookings.length), callerNumber: !!caller })
+      ? bookingInstructions(booking, { listed: !!(behaviourOn(assistant?.behaviours, 'caller_history') && caller?.history?.upcomingBookings.length), callerNumber: !!caller, nameChecked })
       : null,
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     PRICE_RULE,
@@ -420,7 +433,7 @@ export function buildInstructions(
     CALL_HEADING,
     clock,
     hoursContext(hours, !!booking),
-    callerIdInstructions(caller, { readBack: behaviourOn(assistant?.behaviours, 'confirm_number') }),
+    callerIdInstructions(caller, { readBack: behaviourOn(assistant?.behaviours, 'confirm_number'), keepNameBack: nameChecked && !!booking && canChangeBookings(booking) }),
     transfer ? transferInstructions() : heldTransferInstructions(heldTransferContacts(assistant, hours)),
     callerNotesInstructions(caller),
     callerDetailsInstructions(callerDetails),

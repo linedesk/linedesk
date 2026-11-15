@@ -1,5 +1,6 @@
 // One call as the agent sees it: start, append transcript segments, finish.
 import {
+  BEHAVIOUR_IDS,
   type BookingContext,
   type CallerHistory,
   callAppendTranscript,
@@ -261,10 +262,19 @@ type TestMetadata = {
   realtimeModel?: string
   /** A returning caller this test call plays (call-test returning-caller): a saved contact with a note and history. */
   caller?: TestCaller
+  /** Behaviour switches this test call uses instead of the assistant's (call-test spoofed-cancel). */
+  behaviours?: Record<string, boolean>
 }
 
 /** The caller a call test plays: the contact's name, the team's note and the records call.start would send. */
 export type TestCaller = { name: string; note?: string; phone: string; history?: CallerHistory }
+
+/** Behaviour switches from job metadata: only known ids with true or false. */
+function testBehaviours(value: unknown): Record<string, boolean> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const entries = Object.entries(value).filter(([id, on]) => (BEHAVIOUR_IDS as readonly string[]).includes(id) && typeof on === 'boolean')
+  return entries.length ? (Object.fromEntries(entries) as Record<string, boolean>) : undefined
+}
 
 /** A test caller from job metadata; only plain strings and the history's shape, else none. */
 function parseTestCaller(value: unknown): TestCaller | undefined {
@@ -298,11 +308,13 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const languages = origin.kind === 'test' ? origin.languages : undefined
   const mainLanguage = origin.kind === 'test' ? origin.mainLanguage : undefined
   const pipeline = origin.kind === 'test' ? origin.pipeline : undefined
+  const behaviours = origin.kind === 'test' ? origin.behaviours : undefined
   const own = withWorkspaceLanguage(started.assistant, started.workspaceLanguage)
   const configured =
-    own && (outsideGreeting || onCall || languages || mainLanguage || pipeline)
+    own && (outsideGreeting || onCall || languages || mainLanguage || pipeline || behaviours)
       ? {
           ...own,
+          ...(behaviours ? { behaviours: { ...(own.behaviours ?? {}), ...behaviours } } : {}),
           ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
           ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
           ...(languages ? { languages: { ...(own.languages?.main ? { main: own.languages.main } : {}), mode: 'allowed' as const, allowed: languages } } : {}),
@@ -407,6 +419,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       pipeline?: unknown
       realtimeModel?: unknown
       caller?: unknown
+      behaviours?: unknown
     }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
@@ -435,6 +448,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
         : {}),
       ...(isRealtimeModelId(parsed.realtimeModel) ? { realtimeModel: parsed.realtimeModel } : {}),
       ...(parseTestCaller(parsed.caller) ? { caller: parseTestCaller(parsed.caller) } : {}),
+      ...(testBehaviours(parsed.behaviours) ? { behaviours: testBehaviours(parsed.behaviours) } : {}),
     }
   } catch {
     return null

@@ -2,7 +2,8 @@ import { AI_DISCLOSURE_MODES, CALLER_NAME_MAX, callRules, EMERGENCY_RULE } from 
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test } from 'vitest'
 import type { CallerHistory } from '@linedesk/actions'
-import { bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS, callerHistoryInstructions, callerIdInstructions, callerNoteOf, TEST_CALL_CALLER_ID, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
+import { bookingInstructions, buildInstructions, CALL_HEADING, cannotInstructions, callerDetailsInstructions, heldTransferContacts, CALLER_NOTE_MAX_CHARS, CHANGE_BOOKING_INSTRUCTIONS, CHANGE_LISTED_BOOKING_INSTRUCTIONS,
+  CHANGE_LISTED_BOOKING_NAME_CHECKED, callerHistoryInstructions, callerIdInstructions, callerNoteOf, TEST_CALL_CALLER_ID, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
@@ -359,4 +360,17 @@ test('cancel or move: the privacy core stays in the prompt, the rest is with the
   expect(CHANGE_BOOKING_INSTRUCTIONS).toContain('ask which day it is on and get their full name with get_name')
   // What the tools already say: they refuse without a confirmed name, and their errors say not to guess.
   expect(CHANGE_BOOKING_INSTRUCTIONS).not.toMatch(/do not guess|the tools use the name/)
+})
+
+test('"Ask for the booking name before changing an appointment" (off by default) keeps the name back when bookings can change', () => {
+  const linda = { name: 'Linda Park', note: null, phone: '+15035550142', history: { recentCalls: [], upcomingBookings: [{ date: '2026-11-18', when: 'Wednesday, November 18 at 9:00 AM', type: 'Repair visit' }] } }
+  const booking = { timeZone: 'America/Los_Angeles', today: 'Wednesday', todayDate: '2026-11-11', appointmentTypes: [], calendars: [], upcoming: [], canChangeBookings: true }
+  const off = buildInstructions(assistant(), null, booking, [], linda)
+  expect(off).not.toMatch(/Never say this name|never say the name an appointment is booked under/)
+  expect(off).toContain(CHANGE_LISTED_BOOKING_INSTRUCTIONS)
+  const on = buildInstructions(assistant({ behaviours: { ask_booking_name: true } }), null, booking, [], linda)
+  expect(on).toMatch(/Never say this name to the caller before they say it themselves/)
+  expect(on).toContain(CHANGE_LISTED_BOOKING_NAME_CHECKED)
+  // No booking changes on this call: nothing to keep back.
+  expect(buildInstructions(assistant({ behaviours: { ask_booking_name: true } }), null, { ...booking, canChangeBookings: false }, [], linda)).not.toMatch(/Never say this name/)
 })

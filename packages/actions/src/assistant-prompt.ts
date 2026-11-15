@@ -90,6 +90,15 @@ export const BEHAVIOURS = [
     on: true,
     say: null,
   },
+  {
+    // Not a line: with it on, the prompt keeps the contact's and the booked name back when the caller can cancel or
+    // move an appointment (the server checks a change by day and booked name; caller ID can be faked). Off by default:
+    // Tim accepts that risk (2026-11-15).
+    id: 'ask_booking_name',
+    label: 'Ask for the booking name before changing an appointment',
+    on: false,
+    say: null,
+  },
 ] as const satisfies readonly { id: string; label: string; on: boolean; say: string | null; sayOff?: string }[]
 
 export type BehaviourId = (typeof BEHAVIOURS)[number]['id']

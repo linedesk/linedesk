@@ -4,6 +4,7 @@
   "areaCode.search": "Search a city, state or area code",
   "assistant.answering.by": "Answered by",
   "assistant.answering.title": "Answering calls",
+  "assistant.behaviour.askBookingName": "Ask for the booking name before changing an appointment",
   "assistant.behaviour.askName": "Ask for the caller's name if unknown",
   "assistant.behaviour.callerHistory": "Know the caller's previous calls",
   "assistant.behaviour.confirmNumber": "Confirm the callback number",
