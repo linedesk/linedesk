@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, otherLanguagesOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, callTakeMessage, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -25,7 +25,7 @@ import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoad
 import { requireLivekitEnv, workerAgentName } from './env.ts'
 import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
-import { type CallLanguages, createPipeline, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
+import { type CallLanguages, callLanguagesOf, callVoicesOf, createPipeline, withCallLanguages, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
@@ -326,7 +326,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
-  const languages = { main: mainLanguageOf(call.assistant?.languages), others: otherLanguagesOf(call.assistant?.languages) }
+  const languages = callLanguagesOf(call.assistant?.languages, stages ? callVoicesOf(stages.tts) : [], stages?.stt)
   const speed = talkingSpeedOf(call.assistant)
   const pipeline = stages && createPipeline(stages, call.assistant?.voice, silence.firstGapS, languages, speed)
   // The realtime session (again after a reconnect), and the caller's finished turns in it, for the fixed lines.
@@ -474,12 +474,12 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
-  const instructionsNow = () => buildInstructions(call.assistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country)
+  const instructionsNow = () => buildInstructions(withCallLanguages(call.assistant, languages), call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country)
   const instructions = instructionsNow()
   const collect: CollectContext = {
     log,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
-    languageRule: collectLanguageRule(call.assistant) ?? undefined,
+    languageRule: collectLanguageRule(withCallLanguages(call.assistant, languages)) ?? undefined,
     addToMessage: detail => addToMessage(api, call, log, detail),
     callerId: callerIdOf(call),
     country: call.country,

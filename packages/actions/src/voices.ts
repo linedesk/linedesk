@@ -102,6 +102,16 @@ export type VoiceOptionsData = {
    * provider's own. `name` when it is a curated voice. null when it cannot be told.
    */
   defaultVoice: { id: string; name: string | null } | null
+  /**
+   * The languages calls can be answered in on this install: those a voice provider set up speaks (spokenLanguages);
+   * an assistant may pick only these. Missing from an older API: every one of LANGUAGES.
+   */
+  languages?: string[]
+  /**
+   * What "any language" covers on this install (anyModeLanguages): with a Deepgram Flux model Flux's 10 of `languages`,
+   * else all of them. Missing from an older API: `languages`.
+   */
+  anyLanguages?: string[]
 }
 
 export const voiceOptions = defineAction({

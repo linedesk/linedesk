@@ -6,22 +6,62 @@
 import { z } from 'zod'
 
 /**
- * The languages an assistant can speak: the ones Deepgram's multilingual models (Flux `flux-general-multi`,
- * Nova-3 `multi`) recognize, which ElevenLabs Flash v2.5 and Cartesia Sonic also speak.
+ * Every language an assistant can speak, with who supports it (checked against the official docs on 2026-11-15):
+ * - `flux`: Deepgram Flux multilingual (`flux-general-multi`) recognizes it; a call whose languages all have it keeps
+ *   Flux (its turn detection), any other call uses Deepgram Nova-3 `multi` (pipeline.ts createStt), which
+ *   recognizes all of them (developers.deepgram.com/docs/models-languages-overview).
+ * - `elevenlabs`: ElevenLabs Flash v2.5 (and Turbo v2.5) speak it (elevenlabs.io/docs/overview/models).
+ * - `cartesia`: Cartesia Sonic 3 speaks it (docs.cartesia.ai/build-with-cartesia/tts-models/latest).
+ * - `codes`: the provider's code where it is not ours (none so far; Filipino would be `fil` at ElevenLabs, `tl` at
+ *   Deepgram and Cartesia).
+ * A language is offered only when a connected voice provider speaks it (spokenLanguages); every one needs its fixed
+ * lines (spoken-lines.ts) and a preview text (apps/api/src/voices.ts).
  */
-export const LANGUAGES = {
-  en: 'English',
-  es: 'Spanish',
-  fr: 'French',
-  de: 'German',
-  it: 'Italian',
-  pt: 'Portuguese',
-  nl: 'Dutch',
-  ru: 'Russian',
-  hi: 'Hindi',
-  ja: 'Japanese',
-} as const
-export type Language = keyof typeof LANGUAGES
+type LanguageSupport = {
+  name: string
+  flux: boolean
+  elevenlabs: boolean
+  cartesia: boolean
+  codes?: Partial<Record<LanguageProvider, string>>
+}
+/** The providers whose language codes can differ from ours. */
+export type LanguageProvider = 'deepgram' | 'elevenlabs' | 'cartesia'
+
+const all = { elevenlabs: true, cartesia: true } as const
+export const LANGUAGE_SUPPORT = {
+  en: { name: 'English', flux: true, ...all },
+  es: { name: 'Spanish', flux: true, ...all },
+  fr: { name: 'French', flux: true, ...all },
+  de: { name: 'German', flux: true, ...all },
+  it: { name: 'Italian', flux: true, ...all },
+  pt: { name: 'Portuguese', flux: true, ...all },
+  nl: { name: 'Dutch', flux: true, ...all },
+  ru: { name: 'Russian', flux: true, ...all },
+  hi: { name: 'Hindi', flux: true, ...all },
+  ja: { name: 'Japanese', flux: true, ...all },
+  zh: { name: 'Chinese (Mandarin)', flux: false, ...all },
+  ko: { name: 'Korean', flux: false, ...all },
+  pl: { name: 'Polish', flux: false, ...all },
+  tr: { name: 'Turkish', flux: false, ...all },
+  vi: { name: 'Vietnamese', flux: false, ...all },
+  id: { name: 'Indonesian', flux: false, ...all },
+  sv: { name: 'Swedish', flux: false, ...all },
+  ar: { name: 'Arabic', flux: false, ...all },
+  uk: { name: 'Ukrainian', flux: false, ...all },
+  ro: { name: 'Romanian', flux: false, ...all },
+  cs: { name: 'Czech', flux: false, ...all },
+  el: { name: 'Greek', flux: false, ...all },
+  da: { name: 'Danish', flux: false, ...all },
+  fi: { name: 'Finnish', flux: false, ...all },
+  no: { name: 'Norwegian', flux: false, ...all },
+  hu: { name: 'Hungarian', flux: false, ...all },
+} as const satisfies Record<string, LanguageSupport>
+
+/** The languages an assistant can speak: code → English name (LANGUAGE_SUPPORT). */
+export const LANGUAGES = Object.fromEntries(Object.entries(LANGUAGE_SUPPORT).map(([code, l]) => [code, l.name])) as {
+  readonly [code in keyof typeof LANGUAGE_SUPPORT]: (typeof LANGUAGE_SUPPORT)[code]['name']
+}
+export type Language = keyof typeof LANGUAGE_SUPPORT
 export const languageCodes = Object.keys(LANGUAGES) as Language[]
 const languageCode = z.enum(languageCodes as [Language, ...Language[]])
 
@@ -60,4 +100,88 @@ export function otherLanguagesOf(languages: StoredLanguages, fallback?: string |
 export function languageNames(codes: readonly string[], joiner: 'and' | 'or' = 'and'): string {
   const names = codes.map(code => LANGUAGES[code as Language] ?? code)
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} ${joiner} ${names.at(-1)}` : (names[0] ?? '')
+}
+
+/** Whether Deepgram Flux multilingual recognizes a language (else the call needs Nova-3 `multi`). */
+export const fluxRecognizes = (code: Language): boolean => LANGUAGE_SUPPORT[code]?.flux ?? false
+
+/** The code a provider takes for one of our languages. */
+export const providerLanguageCode = (code: Language, provider: LanguageProvider): string =>
+  (LANGUAGE_SUPPORT[code] as LanguageSupport | undefined)?.codes?.[provider] ?? code
+
+/** The languages Cartesia's Sonic 2 speaks (docs.cartesia.ai, older models); Sonic 3 speaks every `cartesia` one. */
+const SONIC_2_LANGUAGES: readonly string[] = [
+  'en',
+  'fr',
+  'de',
+  'es',
+  'pt',
+  'zh',
+  'ja',
+  'hi',
+  'it',
+  'ko',
+  'nl',
+  'pl',
+  'ru',
+  'sv',
+  'tr',
+]
+/** Eleven Multilingual v2 speaks Flash v2.5's languages but these (elevenlabs.io/docs/overview/models). */
+const NOT_MULTILINGUAL_V2: readonly string[] = ['hu', 'no', 'vi']
+
+/** A connected voice provider and the model it speaks with (none set: the one the agent uses by default). */
+export type SpeakingVoice = { provider: string; model?: string | null }
+
+/**
+ * Whether a voice provider speaks a language with its model: the table's column for the default models (ElevenLabs
+ * Flash v2.5, Cartesia Sonic 3), less what an older model lacks (Eleven Multilingual v2, the English-only Eleven v2
+ * models, Cartesia Sonic 2). Another provider: no.
+ */
+export function voiceSpeaks({ provider, model }: SpeakingVoice, code: Language): boolean {
+  const support = LANGUAGE_SUPPORT[code]
+  if (!support) return false
+  const m = model?.trim().toLowerCase() ?? ''
+  if (provider === 'elevenlabs') {
+    if (/^eleven_(flash|turbo)_v2$|^eleven_monolingual/.test(m)) return code === 'en'
+    if (m.startsWith('eleven_multilingual_v2')) return support.elevenlabs && !NOT_MULTILINGUAL_V2.includes(code)
+    return support.elevenlabs
+  }
+  if (provider === 'cartesia')
+    return m.startsWith('sonic-2') || m === 'sonic' ? SONIC_2_LANGUAGES.includes(code) : support.cartesia
+  return false
+}
+
+/** The languages Flux recognizes: what an install without a voice provider (a realtime model only) offers. */
+export const FLUX_LANGUAGES: readonly Language[] = languageCodes.filter(fluxRecognizes)
+
+/**
+ * The languages calls can be answered in on an install: those at least one connected voice provider speaks (English
+ * always). No voice provider (calls answered by a realtime model only): the Flux languages, as before more were added.
+ */
+export function spokenLanguages(voices: readonly SpeakingVoice[]): Language[] {
+  if (!voices.length) return [...FLUX_LANGUAGES]
+  return languageCodes.filter(code => code === 'en' || voices.some(v => voiceSpeaks(v, code)))
+}
+
+/** The speech recognition in use: provider and model (none set: the provider's default; Deepgram's is Flux). */
+export type HearingModel = { provider: string; model?: string | null }
+
+/**
+ * What "any language" (`mode: 'any'`) covers: every language the install speaks (`spoken`), but with a Deepgram Flux
+ * model only Flux's 10, so those assistants stay on Flux (coordinator decision on LIN-268). A language outside them is
+ * used only when picked as the main language or in the allowed list.
+ */
+export function anyModeLanguages(spoken: readonly Language[], stt?: HearingModel | null): Language[] {
+  const flux = stt?.provider === 'deepgram' && (stt.model?.trim() || 'flux').startsWith('flux')
+  return spoken.filter(code => !flux || fluxRecognizes(code))
+}
+
+/** The codes of `languages` (as stored) that the install can't answer calls in (spokenLanguages); none: it can save them. */
+export function unspokenLanguages(languages: StoredLanguages, spoken: readonly string[]): string[] {
+  const codes = [
+    ...(languages?.main ? [languages.main] : []),
+    ...(languages?.mode === 'allowed' ? (languages.allowed ?? []) : []),
+  ]
+  return [...new Set(codes)].filter(code => !spoken.includes(code))
 }

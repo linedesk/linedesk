@@ -5,8 +5,10 @@ import {
   cloningProviders,
   type Language,
   languageCodes,
+  providerLanguageCode,
   type ProviderName,
   type VoiceLanguage,
+  voiceSpeaks,
 } from '@linedesk/actions'
 
 const TIMEOUT_MS = 20_000
@@ -20,6 +22,11 @@ export const ELEVENLABS_PREVIEW_MODEL = 'eleven_flash_v2_5'
 export const CARTESIA_LIST_VERSION = '2026-08-14'
 const CARTESIA_TTS_VERSION = '2025-04-16'
 const CARTESIA_DEFAULT_MODEL = 'sonic-2'
+/** A sample's model when none is set: Sonic 2, or Sonic 3 for a language Sonic 2 does not speak (what calls use then). */
+export const cartesiaSampleModel = (language?: Language) =>
+  language && !voiceSpeaks({ provider: 'cartesia', model: CARTESIA_DEFAULT_MODEL }, language)
+    ? 'sonic-3'
+    : CARTESIA_DEFAULT_MODEL
 /** ElevenLabs models that take `language_code` (the language to speak `text` in). */
 const LANGUAGE_CODE_MODELS = /^eleven_(flash|turbo)_v2_5$/
 /** Where ElevenLabs hosts its voice samples (public, no key). */
@@ -460,7 +467,10 @@ function elevenlabs({ api_key, model }: Values, doFetch: typeof fetch): VoicePro
     model: previewModel,
     async synthesize(voiceId, text, language) {
       // Only Flash and Turbo v2.5 take a language to enforce; other models tell it from the text.
-      const languageCode = language && LANGUAGE_CODE_MODELS.test(previewModel) ? { language_code: language } : {}
+      const languageCode =
+        language && LANGUAGE_CODE_MODELS.test(previewModel)
+          ? { language_code: providerLanguageCode(language, 'elevenlabs') }
+          : {}
       const res = await doFetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_64`,
         {
@@ -522,10 +532,10 @@ function cartesia({ api_key, model }: Values, doFetch: typeof fetch): VoiceProvi
         method: 'POST',
         headers: { 'x-api-key': api_key, 'cartesia-version': CARTESIA_TTS_VERSION, 'content-type': 'application/json' },
         body: JSON.stringify({
-          model_id: previewModel,
+          model_id: model || cartesiaSampleModel(language),
           transcript: text,
           voice: { mode: 'id', id: voiceId },
-          ...(language ? { language } : {}),
+          ...(language ? { language: providerLanguageCode(language, 'cartesia') } : {}),
           output_format: { container: 'mp3', sample_rate: 44100, bit_rate: 64000 },
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),

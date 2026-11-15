@@ -41,6 +41,7 @@ import { problemOfStatus } from './provider-errors.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import {
   activeProvider,
+  installLanguageOptions,
   pipelinesSetUp,
   resolveProvider,
   setVoicePipelinePolicy,
@@ -69,6 +70,22 @@ export const PREVIEW_TEXTS: Record<Language, string> = {
   ru: 'Здравствуйте, спасибо за звонок. Вот так я звучу по телефону. Чем могу помочь сегодня?',
   hi: 'नमस्ते, कॉल करने के लिए धन्यवाद। फ़ोन पर मेरी आवाज़ ऐसी सुनाई देती है। आज मैं आपकी क्या मदद करूँ?',
   ja: 'お電話ありがとうございます。電話ではこのような声でお話しします。本日はどのようなご用件でしょうか？',
+  zh: '您好，感谢您的来电。这就是我在电话里的声音。今天有什么可以帮您？',
+  ko: '안녕하세요, 전화해 주셔서 감사합니다. 전화로는 이런 목소리로 들립니다. 오늘 무엇을 도와드릴까요?',
+  pl: 'Dzień dobry, dziękujemy za telefon. Tak brzmi mój głos przez telefon. W czym mogę dziś pomóc?',
+  tr: 'Merhaba, aradığınız için teşekkürler. Telefonda sesim böyle duyuluyor. Bugün size nasıl yardımcı olabilirim?',
+  vi: 'Xin chào, cảm ơn quý khách đã gọi. Đây là giọng của tôi qua điện thoại. Hôm nay tôi có thể giúp gì cho quý khách?',
+  id: 'Halo, terima kasih telah menelepon. Beginilah suara saya di telepon. Ada yang bisa saya bantu hari ini?',
+  sv: 'Hej, tack för att du ringer. Så här låter jag i telefon. Vad kan jag hjälpa dig med i dag?',
+  ar: 'مرحبًا، شكرًا لاتصالك. هكذا يبدو صوتي على الهاتف. كيف يمكنني مساعدتك اليوم؟',
+  uk: 'Добрий день, дякуємо за дзвінок. Ось так я звучу телефоном. Чим можу допомогти сьогодні?',
+  ro: 'Bună ziua, vă mulțumim pentru apel. Așa sun la telefon. Cu ce vă pot ajuta astăzi?',
+  cs: 'Dobrý den, děkujeme za zavolání. Takhle zním do telefonu. Jak vám dnes mohu pomoci?',
+  el: 'Γεια σας, σας ευχαριστούμε για την κλήση. Έτσι ακούγομαι στο τηλέφωνο. Πώς μπορώ να σας βοηθήσω σήμερα;',
+  da: 'Hej, tak fordi du ringer. Sådan lyder jeg i telefonen. Hvad kan jeg hjælpe dig med i dag?',
+  fi: 'Hei, kiitos soitostasi. Tältä kuulostan puhelimessa. Miten voin auttaa tänään?',
+  no: 'Hei, takk for at du ringer. Slik høres jeg ut på telefonen. Hva kan jeg hjelpe deg med i dag?',
+  hu: 'Jó napot, köszönjük a hívását. Így hangzom telefonon. Miben segíthetek ma?',
 }
 /** The English preview: what the bundled samples say, and what the install's speech test listens for. */
 export const PREVIEW_TEXT = PREVIEW_TEXTS.en
@@ -295,6 +312,7 @@ export const voiceHandlers: Record<string, Handler> = {
         id: fallback.voiceId,
         name: (curatedVoices[fallback.provider] ?? []).find(v => v.id === fallback.voiceId)?.name ?? null,
       },
+      ...(await installLanguageOptions(tx)),
     }
     return { rows: {}, data }
   },

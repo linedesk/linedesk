@@ -104,7 +104,7 @@ describe('the workspace language on a call', () => {
     expect(withWorkspaceLanguage(own, 'de')).toBe(own)
     const plain = assistant({ mode: 'english', allowed: [] })
     expect(withWorkspaceLanguage(plain, 'en')).toBe(plain)
-    expect(withWorkspaceLanguage(plain, 'ko')).toBe(plain)
+    expect(withWorkspaceLanguage(plain, 'he')).toBe(plain)
     expect(withWorkspaceLanguage(plain, undefined)).toBe(plain)
   })
 
@@ -116,8 +116,8 @@ describe('the workspace language on a call', () => {
     const german = withWorkspaceLanguage(english, 'de')
     expect(languageInstructions(german, 'de')).toMatch(/^Speak German only\..*in German, so the team/)
     expect(collectLanguageRule(german)).toMatch(/^Speak German\./)
-    // A Korean workspace: calls in English, messages in Korean.
-    expect(languageInstructions(english, 'ko')).toMatch(/Speak English only\..*in Korean, so the team/)
+    // A Hebrew workspace: calls in English, messages in Hebrew.
+    expect(languageInstructions(english, 'he')).toMatch(/Speak English only\..*in Hebrew, so the team/)
   })
 
   test('the summary is in the team language; English as before', () => {

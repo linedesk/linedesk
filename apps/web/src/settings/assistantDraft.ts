@@ -169,6 +169,16 @@ export function languagesProblem(d: Pick<Draft, 'languages'>): string | null {
     : null
 }
 
+/**
+ * The languages the pickers offer: those calls can be answered in on this install (`installed`, voice.options; missing
+ * from an older API: every one), plus the ones the draft already has, so a choice made before the voice providers
+ * changed stays visible.
+ */
+export function offeredLanguages(installed: readonly string[] | undefined, d: Pick<Draft, 'languages'>): Language[] {
+  const kept = [mainOf(d), ...pickedOthers(d)]
+  return languageCodes.filter(code => !installed || installed.includes(code) || kept.includes(code))
+}
+
 /** What assistant.update takes: no list unless the allow-list is used, never the main language in it. */
 export const languagesToSave = (d: Draft) => ({
   languages: {

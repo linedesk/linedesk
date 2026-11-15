@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, languageNames, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -29,7 +29,7 @@ import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
-import { telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
+import { installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
@@ -385,6 +385,20 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], workspaceId: string,
   )
 }
 
+/**
+ * An assistant may speak only languages a voice provider of the install speaks (installLanguages): the main one and the
+ * picked ones. Those the assistant already has stay saveable (the voice providers may have changed since; a call then
+ * leaves out what its voice can't speak), and `any` stays allowed: a call then speaks every language the voice does.
+ */
+async function checkAssistantLanguages(tx: Tx, workspaceId: string, assistantId: string, languages: StoredLanguages) {
+  const stored = (await assistantIn(tx, workspaceId, assistantId))?.languages
+  const kept = unspokenLanguages(stored, [])
+  const missing = unspokenLanguages(languages, await installLanguages(tx)).filter(code => !kept.includes(code))
+  if (missing.length)
+    throw new Reject(`The voice providers set up can't speak ${languageNames(missing)}: pick another language`)
+}
+type StoredLanguages = Parameters<typeof unspokenLanguages>[0]
+
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
 export const preparers: Record<string, Preparer> = { ...voicePreparers }
 
@@ -400,6 +414,7 @@ const handlers: Record<string, Handler> = {
   'assistant.update': async (ctx, input) => {
     if (!ctx.actor.workspaceId) throw new Reject('no workspace')
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
+    if (input.languages) await checkAssistantLanguages(ctx.tx, ctx.actor.workspaceId, input.assistantId, input.languages)
     // Only contacts that can be dialled: one switched off because its line forwards to Linedesk
     // (switchOffLoopingTransfers) keeps its number, and the rest of the list stays editable.
     for (const contact of (input.transfers ?? []) as TransferContact[])
@@ -422,6 +437,10 @@ const handlers: Record<string, Handler> = {
     await checkAssistantVoice(tx, workspaceId, fields.voice).catch(e => {
       throw new Reject(`Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`)
     })
+    if (fields.languages)
+      await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages).catch(e => {
+        throw new Reject(`Version ${input.number}'s languages can't be used any more (${errorMessage(e)}): pick the languages and save instead`)
+      })
     for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
     const restored = await tx.update(assistants).set(fields).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
     await releaseUnusedClones(tx, workspaceId)

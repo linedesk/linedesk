@@ -1,4 +1,5 @@
-// The fixed lines an assistant says on a call, in each language it can speak (languages.ts): the default
+// The fixed lines an assistant says on a call, in each language it can speak (languages.ts; spoken-lines.test.ts
+// checks every language has every line): the default
 // greeting, the AI note, goodbye, silence and limit lines, busy lines and quick tool replies.
 // Owner-written texts (greeting, closing line, recording notice) are kept as written; only when one is still
 // the English default and the main language is another is it swapped for that language's default (localizedDefault).
@@ -251,7 +252,387 @@ const ja: SpokenLines = {
   recordingNotice: 'この通話は録音される場合があります。',
 }
 
-const LINES: Record<Language, SpokenLines> = { en, es, fr, de, it, pt, nl, ru, hi, ja }
+const zh: SpokenLines = {
+  greeting: (b, n, ai) => `感谢您致电${b}。我是${ai ? 'AI助理' : ''}${n}。请问有什么可以帮您？`,
+  fallbackGreeting: '感谢您的来电。请问有什么可以帮您？',
+  aiSentence: n => `我是AI助理${n}。`,
+  aiNote: /AI|人工智能/,
+  consentQuestion: '您看可以吗？',
+  goodbye: '感谢您的来电，再见！',
+  stillThere: '请问您还在线吗？',
+  callLimit: '非常抱歉，本次通话已达到时长上限。我已为团队记录了所有内容，稍后会有人与您联系。再见！',
+  testCallLimit: '本次测试通话已达到时长上限，现在结束通话。再见！',
+  silenceClosing: '线路上听不到声音，我先挂断了。欢迎您随时再打来。',
+  busy: '非常抱歉，我们的线路目前全部占线。请过几分钟再拨打。',
+  overCap: '非常抱歉，我们现在无法接听您的电话。我们会尽快给您回电。',
+  blocked: '非常抱歉，我们无法接听您的电话。再见。',
+  messageSaved: '谢谢，我已经转达了您的留言，团队会与您联系。还有其他可以帮您的吗？',
+  urgentFlagged: '我已为团队将此事标记为紧急。请问用您现在拨打的这个号码联系您最方便吗？',
+  recordingNotice: '本次通话可能会被录音。',
+}
+
+const ko: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `${b}에 전화해 주셔서 감사합니다. ${ai ? 'AI 어시스턴트 ' : ''}${n}입니다. 무엇을 도와드릴까요?`,
+  fallbackGreeting: '전화해 주셔서 감사합니다. 무엇을 도와드릴까요?',
+  aiSentence: n => `AI 어시스턴트 ${n}입니다.`,
+  aiNote: /AI|인공지능/,
+  consentQuestion: '괜찮으시겠어요?',
+  goodbye: '전화해 주셔서 감사합니다. 좋은 하루 보내세요!',
+  stillThere: '여보세요, 아직 통화 중이신가요?',
+  callLimit:
+    '죄송합니다, 이번 통화가 최대 통화 시간에 도달했습니다. 모든 내용을 팀에 전달해 두었으니 곧 연락드리겠습니다. 좋은 하루 보내세요!',
+  testCallLimit: '테스트 통화가 최대 시간에 도달해서 지금 종료하겠습니다. 감사합니다!',
+  silenceClosing: '아무 소리도 들리지 않아 지금 전화를 끊겠습니다. 언제든지 다시 전화해 주세요.',
+  busy: '죄송합니다, 지금은 모든 회선이 통화 중입니다. 몇 분 후에 다시 전화해 주세요.',
+  overCap: '죄송합니다, 지금은 전화를 받을 수 없습니다. 최대한 빨리 다시 연락드리겠습니다.',
+  blocked: '죄송합니다, 전화를 받을 수 없습니다. 안녕히 계세요.',
+  messageSaved: '감사합니다. 메시지를 팀에 전달했고, 팀에서 연락드릴 예정입니다. 더 도와드릴 일이 있을까요?',
+  urgentFlagged: '팀에 긴급 건으로 표시해 두었습니다. 지금 거신 번호로 연락드리면 될까요?',
+  recordingNotice: '이 통화는 녹음될 수 있습니다.',
+}
+
+const pl: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Dzień dobry, dziękujemy za telefon do firmy ${b}. Z tej strony ${n}${ai ? ', asystent AI' : ''}. W czym mogę pomóc?`,
+  fallbackGreeting: 'Dzień dobry, dziękujemy za telefon. W czym mogę pomóc?',
+  aiSentence: n => `Z tej strony ${n}, asystent AI.`,
+  aiNote: /\bAI\b|sztuczn\w+ inteligencj\w+/i,
+  consentQuestion: 'Czy to w porządku?',
+  goodbye: 'Dziękujemy za telefon. Do widzenia!',
+  stillThere: 'Halo, czy jest ktoś na linii?',
+  callLimit:
+    'Przepraszam, osiągnęliśmy maksymalny czas tej rozmowy. Wszystko zostało zanotowane dla zespołu i ktoś się odezwie. Do widzenia!',
+  testCallLimit: 'Ta rozmowa testowa osiągnęła maksymalny czas, więc teraz ją kończę. Do widzenia!',
+  silenceClosing:
+    'Nikogo nie słychać na linii, więc się rozłączam. Zapraszamy do ponownego kontaktu w dowolnej chwili.',
+  busy: 'Przepraszamy, wszystkie nasze linie są teraz zajęte. Prosimy zadzwonić ponownie za kilka minut.',
+  overCap: 'Przepraszamy, nie możemy teraz odebrać połączenia. Oddzwonimy najszybciej, jak to możliwe.',
+  blocked: 'Przepraszamy, nie możemy przyjąć tego połączenia. Do widzenia.',
+  messageSaved: 'Dziękuję, wiadomość została przekazana i zespół się odezwie. Czy mogę jeszcze w czymś pomóc?',
+  urgentFlagged:
+    'Sprawa została oznaczona dla zespołu jako pilna. Czy najlepiej kontaktować się pod numerem, z którego przychodzi to połączenie?',
+  recordingNotice: 'Ta rozmowa może być nagrywana.',
+}
+
+const tr: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Aradığınız için teşekkür ederiz, burası ${b}. Ben ${n}${ai ? ', yapay zekâ asistanıyım' : ''}. Size nasıl yardımcı olabilirim?`,
+  fallbackGreeting: 'Aradığınız için teşekkür ederiz. Size nasıl yardımcı olabilirim?',
+  aiSentence: n => `Ben ${n}, yapay zekâ asistanıyım.`,
+  aiNote: /yapay zek[aâ]|\bAI\b/i,
+  consentQuestion: 'Sizin için uygun mu?',
+  goodbye: 'Aradığınız için teşekkür ederiz. İyi günler!',
+  stillThere: 'Hâlâ hatta mısınız?',
+  callLimit:
+    'Üzgünüm, bu görüşmenin süre sınırına ulaştık. Her şeyi ekip için not ettim, size en kısa sürede dönüş yapılacak. İyi günler!',
+  testCallLimit: 'Bu test araması süre sınırına ulaştı, bu yüzden şimdi sonlandırıyorum. İyi günler!',
+  silenceClosing:
+    'Hatta kimseyi duyamıyorum, bu yüzden şimdi kapatıyorum. Bizi istediğiniz zaman tekrar arayabilirsiniz.',
+  busy: 'Üzgünüz, şu anda tüm hatlarımız meşgul. Lütfen birkaç dakika sonra tekrar arayın.',
+  overCap: 'Üzgünüz, şu anda aramanızı yanıtlayamıyoruz. Sizi en kısa sürede geri arayacağız.',
+  blocked: 'Üzgünüz, aramanızı kabul edemiyoruz. İyi günler.',
+  messageSaved:
+    'Teşekkürler, mesajınızı ilettim; ekip size dönüş yapacak. Başka yardımcı olabileceğim bir konu var mı?',
+  urgentFlagged: 'Bunu ekip için acil olarak işaretledim. Size en iyi şu an aradığınız numaradan mı ulaşabiliriz?',
+  recordingNotice: 'Bu görüşme kaydedilebilir.',
+}
+
+const vi: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Cảm ơn quý khách đã gọi đến ${b}. Tôi là ${n}${ai ? ', trợ lý AI' : ''}. Tôi có thể giúp gì cho quý khách?`,
+  fallbackGreeting: 'Cảm ơn quý khách đã gọi. Tôi có thể giúp gì cho quý khách?',
+  aiSentence: n => `Tôi là ${n}, trợ lý AI.`,
+  aiNote: /\bAI\b|trí tuệ nhân tạo/i,
+  consentQuestion: 'Quý khách thấy như vậy có được không ạ?',
+  goodbye: 'Cảm ơn quý khách đã gọi. Chào quý khách!',
+  stillThere: 'Quý khách còn nghe máy không ạ?',
+  callLimit:
+    'Xin lỗi quý khách, cuộc gọi đã đạt thời lượng tối đa. Tôi đã ghi lại mọi thông tin cho đội ngũ, và sẽ có người liên hệ lại với quý khách. Chào quý khách!',
+  testCallLimit: 'Cuộc gọi thử nghiệm này đã đạt thời lượng tối đa, nên tôi sẽ kết thúc ngay bây giờ. Chào quý khách!',
+  silenceClosing:
+    'Tôi không nghe thấy ai trên đường dây, nên tôi xin phép gác máy. Quý khách có thể gọi lại cho chúng tôi bất cứ lúc nào.',
+  busy: 'Xin lỗi, hiện tất cả các đường dây của chúng tôi đều bận. Quý khách vui lòng gọi lại sau vài phút.',
+  overCap: 'Xin lỗi, hiện chúng tôi không thể nhận cuộc gọi của quý khách. Chúng tôi sẽ gọi lại sớm nhất có thể.',
+  blocked: 'Xin lỗi, chúng tôi không thể nhận cuộc gọi của quý khách. Chào quý khách.',
+  messageSaved:
+    'Cảm ơn quý khách, tôi đã chuyển lời nhắn và đội ngũ sẽ liên hệ lại. Tôi có thể giúp gì thêm cho quý khách không ạ?',
+  urgentFlagged:
+    'Tôi đã đánh dấu việc này là khẩn cấp cho đội ngũ. Số điện thoại quý khách đang gọi có phải là số tốt nhất để liên lạc không ạ?',
+  recordingNotice: 'Cuộc gọi này có thể được ghi âm.',
+}
+
+const id: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Terima kasih telah menghubungi ${b}. Saya ${n}${ai ? ', asisten AI' : ''}. Ada yang bisa saya bantu?`,
+  fallbackGreeting: 'Terima kasih telah menghubungi kami. Ada yang bisa saya bantu?',
+  aiSentence: n => `Saya ${n}, asisten AI.`,
+  aiNote: /\bAI\b|kecerdasan buatan/i,
+  consentQuestion: 'Apakah Anda tidak keberatan?',
+  goodbye: 'Terima kasih telah menelepon. Sampai jumpa!',
+  stillThere: 'Apakah Anda masih di sana?',
+  callLimit:
+    'Mohon maaf, panggilan ini sudah mencapai batas waktu. Saya sudah mencatat semuanya untuk tim, dan seseorang akan menghubungi Anda kembali. Sampai jumpa!',
+  testCallLimit: 'Panggilan uji coba ini sudah mencapai batas waktu, jadi saya akhiri sekarang. Sampai jumpa!',
+  silenceClosing:
+    'Saya tidak mendengar siapa pun di saluran, jadi saya akan menutup telepon. Silakan hubungi kami kembali kapan saja.',
+  busy: 'Mohon maaf, semua saluran kami sedang sibuk. Silakan telepon kembali dalam beberapa menit.',
+  overCap:
+    'Mohon maaf, kami tidak dapat menerima panggilan Anda saat ini. Kami akan menelepon Anda kembali secepatnya.',
+  blocked: 'Mohon maaf, kami tidak dapat menerima panggilan Anda. Sampai jumpa.',
+  messageSaved:
+    'Terima kasih, pesan Anda sudah saya teruskan, dan tim akan menghubungi Anda kembali. Ada lagi yang bisa saya bantu?',
+  urgentFlagged:
+    'Saya sudah menandai ini sebagai mendesak untuk tim. Apakah nomor yang Anda gunakan sekarang adalah nomor terbaik untuk menghubungi Anda?',
+  recordingNotice: 'Panggilan ini mungkin direkam.',
+}
+
+const sv: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Tack för att du ringer ${b}. Du pratar med ${n}${ai ? ', AI-assistenten' : ''}. Vad kan jag hjälpa dig med?`,
+  fallbackGreeting: 'Tack för att du ringer. Vad kan jag hjälpa dig med?',
+  aiSentence: n => `Du pratar med ${n}, AI-assistenten.`,
+  aiNote: /\bAI\b/,
+  consentQuestion: 'Går det bra för dig?',
+  goodbye: 'Tack för att du ringde. Hej då!',
+  stillThere: 'Är du kvar?',
+  callLimit:
+    'Tyvärr har vi nått maxtiden för det här samtalet. Jag har antecknat allt åt teamet, och någon hör av sig till dig. Hej då!',
+  testCallLimit: 'Det här testsamtalet har nått sin maxtid, så jag avslutar det nu. Hej då!',
+  silenceClosing: 'Jag hör ingen på linjen, så jag lägger på nu. Ring oss gärna igen när du vill.',
+  busy: 'Tyvärr är alla våra linjer upptagna just nu. Ring gärna igen om några minuter.',
+  overCap: 'Tyvärr kan vi inte ta ditt samtal just nu. Vi ringer upp dig så snart vi kan.',
+  blocked: 'Tyvärr kan vi inte ta ditt samtal. Hej då.',
+  messageSaved:
+    'Tack, jag har lämnat vidare ditt meddelande, och teamet hör av sig till dig. Är det något mer jag kan hjälpa till med?',
+  urgentFlagged:
+    'Jag har markerat det här som brådskande för teamet. Är numret du ringer från det bästa att nå dig på?',
+  recordingNotice: 'Samtalet kan komma att spelas in.',
+}
+
+const ar: SpokenLines = {
+  greeting: (b, n, ai) => `شكرًا لاتصالك بـ ${b}. معك ${n}${ai ? '، مساعد الذكاء الاصطناعي' : ''}. كيف يمكنني مساعدتك؟`,
+  fallbackGreeting: 'شكرًا لاتصالك. كيف يمكنني مساعدتك؟',
+  aiSentence: n => `معك ${n}، مساعد الذكاء الاصطناعي.`,
+  aiNote: /الذكاء الاصطناعي|\bAI\b/,
+  consentQuestion: 'هل هذا مناسب لك؟',
+  goodbye: 'شكرًا لاتصالك. مع السلامة!',
+  stillThere: 'هل ما زلت على الخط؟',
+  callLimit: 'عذرًا، لقد وصلنا إلى الحد الأقصى لمدة هذه المكالمة. سجّلت كل شيء للفريق، وسيتواصل معك أحدهم. مع السلامة!',
+  testCallLimit: 'وصلت هذه المكالمة التجريبية إلى حدها الأقصى، لذا سأنهيها الآن. مع السلامة!',
+  silenceClosing: 'لا أسمع أحدًا على الخط، لذا سأنهي المكالمة الآن. يسعدنا اتصالك بنا في أي وقت.',
+  busy: 'عذرًا، جميع خطوطنا مشغولة حاليًا. يُرجى معاودة الاتصال بعد بضع دقائق.',
+  overCap: 'عذرًا، لا يمكننا الرد على مكالمتك الآن. سنعاود الاتصال بك في أقرب وقت ممكن.',
+  blocked: 'عذرًا، لا يمكننا استقبال مكالمتك. مع السلامة.',
+  messageSaved: 'شكرًا، لقد نقلت رسالتك وسيتواصل معك الفريق. هل هناك شيء آخر يمكنني مساعدتك فيه؟',
+  urgentFlagged: 'لقد حددت هذا الطلب كعاجل للفريق. هل الرقم الذي تتصل منه هو أفضل رقم للتواصل معك؟',
+  recordingNotice: 'قد يتم تسجيل هذه المكالمة.',
+}
+
+const uk: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Дякуємо, що зателефонували до ${b}. Це ${n}${ai ? ', ШІ-асистент' : ''}. Чим можу допомогти?`,
+  fallbackGreeting: 'Дякуємо за дзвінок. Чим можу допомогти?',
+  aiSentence: n => `Це ${n}, ШІ-асистент.`,
+  aiNote: /ШІ|штучн\S* інтелект|\bAI\b/,
+  consentQuestion: 'Вас це влаштовує?',
+  goodbye: 'Дякуємо за дзвінок. До побачення!',
+  stillThere: 'Ви ще на лінії?',
+  callLimit: 'Перепрошуємо, час цього дзвінка вичерпано. Усе записано для команди, і з вами зв’яжуться. До побачення!',
+  testCallLimit: 'Час цього тестового дзвінка вичерпано, тому дзвінок завершується. До побачення!',
+  silenceClosing: 'На лінії нікого не чути, тому дзвінок завершується. Телефонуйте нам будь-коли.',
+  busy: 'Перепрошуємо, усі лінії зараз зайняті. Будь ласка, зателефонуйте за кілька хвилин.',
+  overCap: 'Перепрошуємо, зараз ми не можемо прийняти ваш дзвінок. Ми передзвонимо вам якнайшвидше.',
+  blocked: 'Перепрошуємо, ми не можемо прийняти ваш дзвінок. До побачення.',
+  messageSaved: 'Дякую, ваше повідомлення передано, і команда з вами зв’яжеться. Чим ще можу допомогти?',
+  urgentFlagged:
+    'Це позначено для команди як термінове. Чи найкраще зв’язатися з вами за номером, з якого ви телефонуєте?',
+  recordingNotice: 'Цей дзвінок може записуватися.',
+}
+
+const ro: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Vă mulțumim că ați sunat la ${b}. Sunt ${n}${ai ? ', asistentul AI' : ''}. Cu ce vă pot ajuta?`,
+  fallbackGreeting: 'Vă mulțumim că ați sunat. Cu ce vă pot ajuta?',
+  aiSentence: n => `Sunt ${n}, asistentul AI.`,
+  aiNote: /\bAI\b|\bIA\b|inteligență artificială/i,
+  consentQuestion: 'Este în regulă pentru dumneavoastră?',
+  goodbye: 'Vă mulțumim că ați sunat. La revedere!',
+  stillThere: 'Mai sunteți la telefon?',
+  callLimit:
+    'Îmi pare rău, am ajuns la durata maximă a acestui apel. Am notat totul pentru echipă și cineva vă va contacta. La revedere!',
+  testCallLimit: 'Acest apel de test a ajuns la durata maximă, așa că îl închei acum. La revedere!',
+  silenceClosing: 'Nu aud pe nimeni la telefon, așa că închid acum. Ne puteți suna oricând.',
+  busy: 'Ne pare rău, toate liniile noastre sunt ocupate în acest moment. Vă rugăm să sunați din nou în câteva minute.',
+  overCap: 'Ne pare rău, nu vă putem prelua apelul acum. Vă vom suna înapoi cât mai curând posibil.',
+  blocked: 'Ne pare rău, nu vă putem prelua apelul. La revedere.',
+  messageSaved: 'Mulțumesc, am transmis mesajul dumneavoastră, iar echipa vă va contacta. Vă mai pot ajuta cu ceva?',
+  urgentFlagged:
+    'Am marcat acest lucru ca urgent pentru echipă. Numărul de pe care sunați este cel mai bun pentru a vă contacta?',
+  recordingNotice: 'Acest apel poate fi înregistrat.',
+}
+
+const cs: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Dobrý den, děkujeme, že voláte do firmy ${b}. U telefonu je ${n}${ai ? ', asistent s umělou inteligencí' : ''}. Jak vám mohu pomoci?`,
+  fallbackGreeting: 'Dobrý den, děkujeme za zavolání. Jak vám mohu pomoci?',
+  aiSentence: n => `U telefonu je ${n}, asistent s umělou inteligencí.`,
+  aiNote: /umělou inteligencí|\bAI\b/i,
+  consentQuestion: 'Je to pro vás v pořádku?',
+  goodbye: 'Děkujeme za zavolání. Na shledanou!',
+  stillThere: 'Jste stále na lince?',
+  callLimit:
+    'Omlouvám se, dosáhli jsme maximální délky tohoto hovoru. Vše je zapsáno pro tým a někdo se vám ozve. Na shledanou!',
+  testCallLimit: 'Tento testovací hovor dosáhl maximální délky, proto ho teď ukončím. Na shledanou!',
+  silenceClosing: 'Na lince nikoho neslyším, proto teď zavěsím. Zavolejte nám kdykoli znovu.',
+  busy: 'Omlouváme se, všechny naše linky jsou právě obsazené. Zavolejte prosím znovu za pár minut.',
+  overCap: 'Omlouváme se, váš hovor teď nemůžeme přijmout. Zavoláme vám zpět, jakmile to bude možné.',
+  blocked: 'Omlouváme se, váš hovor nemůžeme přijmout. Na shledanou.',
+  messageSaved: 'Děkuji, vaše zpráva byla předána a tým se vám ozve. Mohu vám ještě s něčím pomoci?',
+  urgentFlagged: 'Pro tým je to teď označeno jako naléhavé. Jste nejlépe k zastižení na čísle, ze kterého voláte?',
+  recordingNotice: 'Tento hovor může být nahráván.',
+}
+
+const el: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Σας ευχαριστούμε που επικοινωνήσατε με ${b}. Είμαι ${n}${ai ? ', βοηθός τεχνητής νοημοσύνης' : ''}. Πώς μπορώ να σας βοηθήσω;`,
+  fallbackGreeting: 'Σας ευχαριστούμε για την κλήση. Πώς μπορώ να σας βοηθήσω;',
+  aiSentence: n => `Είμαι ${n}, βοηθός τεχνητής νοημοσύνης.`,
+  aiNote: /τεχνητής νοημοσύνης|\bAI\b/,
+  consentQuestion: 'Είναι εντάξει για εσάς;',
+  goodbye: 'Σας ευχαριστούμε για την κλήση. Αντίο σας!',
+  stillThere: 'Είστε ακόμα στη γραμμή;',
+  callLimit:
+    'Λυπάμαι, φτάσαμε στη μέγιστη διάρκεια αυτής της κλήσης. Τα έχω σημειώσει όλα για την ομάδα και κάποιος θα επικοινωνήσει μαζί σας. Αντίο σας!',
+  testCallLimit: 'Αυτή η δοκιμαστική κλήση έφτασε στη μέγιστη διάρκειά της, οπότε την τερματίζω τώρα. Αντίο σας!',
+  silenceClosing: 'Δεν ακούω κανέναν στη γραμμή, οπότε θα κλείσω τώρα. Καλέστε μας ξανά όποτε θέλετε.',
+  busy: 'Λυπούμαστε, όλες οι γραμμές μας είναι κατειλημμένες αυτή τη στιγμή. Παρακαλούμε καλέστε ξανά σε λίγα λεπτά.',
+  overCap:
+    'Λυπούμαστε, δεν μπορούμε να απαντήσουμε στην κλήση σας αυτή τη στιγμή. Θα σας καλέσουμε πίσω το συντομότερο δυνατό.',
+  blocked: 'Λυπούμαστε, δεν μπορούμε να δεχτούμε την κλήση σας. Αντίο σας.',
+  messageSaved:
+    'Ευχαριστώ, μετέφερα το μήνυμά σας και η ομάδα θα επικοινωνήσει μαζί σας. Μπορώ να σας βοηθήσω με κάτι άλλο;',
+  urgentFlagged:
+    'Το σημείωσα ως επείγον για την ομάδα. Ο αριθμός από τον οποίο καλείτε είναι ο καλύτερος για να επικοινωνήσουμε μαζί σας;',
+  recordingNotice: 'Αυτή η κλήση ενδέχεται να καταγράφεται.',
+}
+
+const da: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Tak fordi du ringer til ${b}. Du taler med ${n}${ai ? ', AI-assistenten' : ''}. Hvad kan jeg hjælpe med?`,
+  fallbackGreeting: 'Tak fordi du ringer. Hvad kan jeg hjælpe med?',
+  aiSentence: n => `Du taler med ${n}, AI-assistenten.`,
+  aiNote: /\bAI\b/,
+  consentQuestion: 'Er det i orden med dig?',
+  goodbye: 'Tak fordi du ringede. Farvel!',
+  stillThere: 'Er du der stadig?',
+  callLimit:
+    'Beklager, vi har nået den maksimale længde for dette opkald. Jeg har noteret det hele til teamet, og nogen vender tilbage til dig. Farvel!',
+  testCallLimit: 'Dette testopkald har nået sin maksimale længde, så jeg afslutter det nu. Farvel!',
+  silenceClosing:
+    'Jeg kan ikke høre nogen på linjen, så jeg lægger på nu. Du er velkommen til at ringe igen når som helst.',
+  busy: 'Beklager, alle vores linjer er optaget lige nu. Ring venligst igen om et par minutter.',
+  overCap: 'Beklager, vi kan ikke tage dit opkald lige nu. Vi ringer dig op igen så hurtigt som muligt.',
+  blocked: 'Beklager, vi kan ikke tage dit opkald. Farvel.',
+  messageSaved:
+    'Tak, jeg har givet din besked videre, og teamet vender tilbage til dig. Er der andet, jeg kan hjælpe med?',
+  urgentFlagged:
+    'Jeg har markeret det som hastende for teamet. Er det nummer, du ringer fra, det bedste at fange dig på?',
+  recordingNotice: 'Opkaldet kan blive optaget.',
+}
+
+const fi: SpokenLines = {
+  greeting: (b, n, ai) => `Kiitos soitostasi. ${b}, täällä ${n}${ai ? ', tekoälyavustaja' : ''}. Miten voin auttaa?`,
+  fallbackGreeting: 'Kiitos soitostasi. Miten voin auttaa?',
+  aiSentence: n => `Täällä ${n}, tekoälyavustaja.`,
+  aiNote: /tekoäly|\bAI\b/i,
+  consentQuestion: 'Sopiiko se sinulle?',
+  goodbye: 'Kiitos soitostasi. Näkemiin!',
+  stillThere: 'Oletko vielä linjalla?',
+  callLimit:
+    'Valitettavasti tämän puhelun enimmäiskesto on täynnä. Kirjasin kaiken tiimille, ja joku on sinuun yhteydessä. Näkemiin!',
+  testCallLimit: 'Tämä testipuhelu on saavuttanut enimmäiskestonsa, joten lopetan sen nyt. Näkemiin!',
+  silenceClosing: 'En kuule linjalla ketään, joten lopetan puhelun nyt. Soita meille uudelleen milloin tahansa.',
+  busy: 'Valitettavasti kaikki linjamme ovat juuri nyt varattuja. Soita uudelleen muutaman minuutin kuluttua.',
+  overCap: 'Valitettavasti emme voi vastata puheluusi juuri nyt. Soitamme sinulle takaisin mahdollisimman pian.',
+  blocked: 'Valitettavasti emme voi vastaanottaa puheluasi. Näkemiin.',
+  messageSaved: 'Kiitos, välitin viestisi, ja tiimi on sinuun yhteydessä. Voinko auttaa vielä jossain muussa?',
+  urgentFlagged: 'Merkitsin tämän tiimille kiireelliseksi. Tavoittaako sinut parhaiten numerosta, josta soitat?',
+  recordingNotice: 'Tämä puhelu saatetaan tallentaa.',
+}
+
+const no: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `Takk for at du ringer ${b}. Du snakker med ${n}${ai ? ', AI-assistenten' : ''}. Hva kan jeg hjelpe deg med?`,
+  fallbackGreeting: 'Takk for at du ringer. Hva kan jeg hjelpe deg med?',
+  aiSentence: n => `Du snakker med ${n}, AI-assistenten.`,
+  aiNote: /\bAI\b|\bKI\b/,
+  consentQuestion: 'Er det greit for deg?',
+  goodbye: 'Takk for at du ringte. Ha det bra!',
+  stillThere: 'Er du der fortsatt?',
+  callLimit:
+    'Beklager, vi har nådd maksimal lengde for denne samtalen. Jeg har notert alt for teamet, og noen tar kontakt med deg. Ha det bra!',
+  testCallLimit: 'Denne testsamtalen har nådd maksimal lengde, så jeg avslutter den nå. Ha det bra!',
+  silenceClosing: 'Jeg hører ingen på linjen, så jeg legger på nå. Ring oss gjerne igjen når som helst.',
+  busy: 'Beklager, alle linjene våre er opptatt akkurat nå. Ring gjerne igjen om noen minutter.',
+  overCap: 'Beklager, vi kan ikke ta samtalen din akkurat nå. Vi ringer deg tilbake så snart vi kan.',
+  blocked: 'Beklager, vi kan ikke ta samtalen din. Ha det bra.',
+  messageSaved:
+    'Takk, jeg har gitt beskjeden din videre, og teamet tar kontakt med deg. Er det noe annet jeg kan hjelpe med?',
+  urgentFlagged: 'Jeg har markert dette som haster for teamet. Er nummeret du ringer fra, det beste å nå deg på?',
+  recordingNotice: 'Denne samtalen kan bli tatt opp.',
+}
+
+const hu: SpokenLines = {
+  greeting: (b, n, ai) =>
+    `${b}, köszönjük a hívását. ${n} vagyok${ai ? ', mesterségesintelligencia-asszisztens' : ''}. Miben segíthetek?`,
+  fallbackGreeting: 'Köszönjük a hívását. Miben segíthetek?',
+  aiSentence: n => `${n} vagyok, mesterségesintelligencia-asszisztens.`,
+  aiNote: /mesterséges\s*intelligencia|\bAI\b|\bMI\b/i,
+  consentQuestion: 'Ez így megfelel Önnek?',
+  goodbye: 'Köszönjük a hívását. Viszonthallásra!',
+  stillThere: 'Halló, ott van még?',
+  callLimit:
+    'Elnézést, elértük a hívás maximális időtartamát. Mindent feljegyeztem a csapatnak, és hamarosan felveszik Önnel a kapcsolatot. Viszonthallásra!',
+  testCallLimit: 'Ez a teszthívás elérte a maximális időtartamát, ezért most befejezem. Viszonthallásra!',
+  silenceClosing: 'Nem hallok senkit a vonalban, ezért most leteszem. Hívjon minket bármikor újra.',
+  busy: 'Elnézést, jelenleg minden vonalunk foglalt. Kérjük, hívjon újra néhány perc múlva.',
+  overCap: 'Elnézést, most nem tudjuk fogadni a hívását. A lehető leghamarabb visszahívjuk.',
+  blocked: 'Elnézést, nem tudjuk fogadni a hívását. Viszonthallásra.',
+  messageSaved:
+    'Köszönöm, továbbítottam az üzenetét, és a csapat felveszi Önnel a kapcsolatot. Segíthetek még valamiben?',
+  urgentFlagged: 'Ezt sürgősként jelöltem meg a csapatnak. Azon a számon érhetjük el a legjobban, amelyről most hív?',
+  recordingNotice: 'Ez a hívás rögzítésre kerülhet.',
+}
+
+const LINES: Record<Language, SpokenLines> = {
+  en,
+  es,
+  fr,
+  de,
+  it,
+  pt,
+  nl,
+  ru,
+  hi,
+  ja,
+  zh,
+  ko,
+  pl,
+  tr,
+  vi,
+  id,
+  sv,
+  ar,
+  uk,
+  ro,
+  cs,
+  el,
+  da,
+  fi,
+  no,
+  hu,
+}
 
 /** The fixed lines in a language; English for an unknown one. */
 export const spokenLines = (language: string | null | undefined): SpokenLines => LINES[language as Language] ?? en

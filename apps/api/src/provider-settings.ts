@@ -2,13 +2,16 @@
 // Read on every use, so a change in the admin area applies without a restart.
 import {
   categoryEnv,
+  anyModeLanguages,
   categoryNames,
+  type Language,
   providerNames,
   providerSpec,
   providersIn,
   type PipelinesSetUp,
   type ProviderCategory,
   type ProviderName,
+  spokenLanguages,
   VOICE_PIPELINE_POLICIES,
   type VoicePipelinePolicy,
 } from '@linedesk/actions'
@@ -225,6 +228,23 @@ const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = t
       .map(([field]) => [field, config[field]?.value ?? null]),
   ),
 })
+
+/**
+ * The languages calls can be answered in on this install: those a voice provider set up speaks with its model
+ * (spokenLanguages; none set up: Flux's languages). Never throws.
+ */
+export async function installLanguages(tx: Tx, env: Env = serverEnv()): Promise<Language[]> {
+  const voices = await setUpProviders(tx, 'tts', env).catch(() => [])
+  return spokenLanguages(voices.map(v => ({ provider: v.provider, model: v.config.model?.value ?? null })))
+}
+
+/** voice.options' languages: those calls can be answered in, and what "any language" covers (anyModeLanguages). */
+export async function installLanguageOptions(tx: Tx, env: Env = serverEnv()) {
+  const languages = await installLanguages(tx, env)
+  const stt = await activeProvider(tx, 'stt', env).catch(() => null)
+  const hearing = stt && { provider: stt.provider, model: stt.config.model?.value ?? null }
+  return { languages, anyLanguages: anyModeLanguages(languages, hearing) }
+}
 
 /** Whether a realtime model is connected: the install default for assistants that chose no pipeline. Never throws. */
 export async function realtimeInUse(tx: Tx, env: Env = serverEnv()): Promise<boolean> {

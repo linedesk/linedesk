@@ -1,4 +1,5 @@
 {
+  "assistant.languages.anyNote": "Covers the 10 core languages. Pick others under “These languages” or as the main language.",
   "missingProvider.answering.add": "Add a realtime model, or speech to text, a language model and a voice under <link>Server admin › Providers</link>.",
   "missingProvider.answering.title": "Calls aren't answered yet",
   "missingProvider.ask": "Ask your server admin.",

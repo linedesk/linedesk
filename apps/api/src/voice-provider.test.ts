@@ -13,6 +13,7 @@ import {
   LIBRARY_LANGUAGES,
   LIBRARY_PER_LANGUAGE,
   type ProviderVoice,
+  cartesiaSampleModel,
 } from './voice-provider.ts'
 
 const KEY = 'xi-test-key'
@@ -84,7 +85,34 @@ describe('ElevenLabs Voice Library voices', () => {
       expect(ofLanguage).toHaveLength(LIBRARY_PER_LANGUAGE - 1) // the fake has five that fit
       expect(ofLanguage.map(v => v.id)).toContain(`${language}-m1`)
     }
-    expect(LIBRARY_LANGUAGES).toEqual(['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+    // Every language an assistant can speak (LIN-268 added Chinese to Hungarian), so the picker has native voices for each.
+    expect(LIBRARY_LANGUAGES).toEqual([
+      'es',
+      'fr',
+      'de',
+      'it',
+      'pt',
+      'nl',
+      'ru',
+      'hi',
+      'ja',
+      'zh',
+      'ko',
+      'pl',
+      'tr',
+      'vi',
+      'id',
+      'sv',
+      'ar',
+      'uk',
+      'ro',
+      'cs',
+      'el',
+      'da',
+      'fi',
+      'no',
+      'hu',
+    ])
     expect(voices.find(v => v.id === 'es-m1')).toEqual({
       id: 'es-m1',
       name: 'es-m1 - Warm and Clear',
@@ -434,4 +462,11 @@ describe('samples in a language', () => {
     await createVoiceProvider('cartesia', { api_key: 'sk' }, fake.doFetch)!.synthesize('v', 'Hallo', 'de')
     expect(fake.bodies[0]).toMatchObject({ transcript: 'Hallo', language: 'de', voice: { mode: 'id', id: 'v' } })
   })
+})
+
+test("a Cartesia sample without a model set uses Sonic 3 for a language Sonic 2 doesn't speak", () => {
+  expect(cartesiaSampleModel()).toBe('sonic-2')
+  expect(cartesiaSampleModel('ko')).toBe('sonic-2')
+  expect(cartesiaSampleModel('vi')).toBe('sonic-3')
+  expect(cartesiaSampleModel('hu')).toBe('sonic-3')
 })

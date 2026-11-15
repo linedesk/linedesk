@@ -91,13 +91,15 @@ describe('resolveWorkspaceLanguage', () => {
 
   test('calls are answered in it when the voice pipeline speaks it, else in English', () => {
     expect(voiceLanguageOf('de')).toBe('de')
-    expect(voiceLanguageOf('ko')).toBe('en')
+    expect(voiceLanguageOf('ko')).toBe('ko') // Nova-3, since LIN-268
+    expect(voiceLanguageOf('he')).toBe('en')
     expect(voiceLanguageOf(null)).toBe('en')
   })
 
   test('an assistant without a main language follows the workspace language', () => {
     expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'de')).toBe('de')
-    expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'ko')).toBe('en')
+    expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'ko')).toBe('ko')
+    expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'he')).toBe('en')
     expect(mainLanguageOf({ main: 'en', mode: 'english', allowed: [] }, 'de')).toBe('en')
     expect(mainLanguageOf({ mode: 'english', allowed: [] })).toBe('en')
     expect(otherLanguagesOf({ mode: 'allowed', allowed: ['de', 'es'] }, 'de')).toEqual(['es'])
@@ -125,8 +127,9 @@ test('workspace.updateSettings takes a country code and a supported language, or
   expect(parse({ language: 'de' }).success).toBe(true)
   expect(parse({ country: 'XX' }).success).toBe(false)
   expect(parse({ country: 'Germany' }).success).toBe(false)
-  // Korean is not a language calls can be answered in yet.
-  expect(parse({ language: 'ko' }).success).toBe(false)
+  expect(parse({ language: 'ko' }).success).toBe(true)
+  // Hebrew is not a language calls can be answered in yet.
+  expect(parse({ language: 'he' }).success).toBe(false)
   expect(parse({ language: 'de-DE' }).success).toBe(false)
 })
 

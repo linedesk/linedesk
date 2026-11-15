@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure } from '@linedesk/actions'
-import { draftOf, draftProblem, languagesToSave, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, hangUpSummary, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
+import { draftOf, draftProblem, languagesToSave, offeredLanguages, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, hangUpSummary, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
 const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
@@ -179,5 +179,16 @@ describe('a keypad menu saved by an older release', () => {
     expect(Object.keys(draft).some(k => k.startsWith('keypad'))).toBe(false)
     expect(isDirty(draft, draftOf(assistant()))).toBe(false)
     expect(draftProblem(draft)).toBeNull()
+  })
+})
+
+describe('offeredLanguages', () => {
+  it('offers the languages the install can answer calls in, and keeps the ones already picked', () => {
+    const d = { languages: { main: 'en' as const, mode: 'allowed' as const, allowed: ['vi' as const] } }
+    expect(offeredLanguages(['en', 'es', 'ko'], d)).toEqual(['en', 'es', 'ko', 'vi'])
+    expect(offeredLanguages(['en', 'es', 'ko'], { languages: { main: 'hu', mode: 'english', allowed: [] } })).toEqual(['en', 'es', 'ko', 'hu'])
+  })
+  it('offers every language when an older API does not say', () => {
+    expect(offeredLanguages(undefined, { languages: { main: 'en', mode: 'english', allowed: [] } })).toContain('pl')
   })
 })

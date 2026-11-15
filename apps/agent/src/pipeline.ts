@@ -4,7 +4,7 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { type Language, mainLanguageOf, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import { anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import { tts as ttsTypes, type voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -62,28 +62,100 @@ export function greetingVoice(config: AgentConfig, call: { assistant?: ({ voice?
 /** Deepgram's multilingual Flux: same price and turn detection as English Flux, 10 languages, switches mid-call. */
 export const FLUX_MULTILINGUAL = 'flux-general-multi'
 
-/** The languages a call is spoken in: the assistant's main language first, then the others it may switch to. */
-export type CallLanguages = { main: Language; others: readonly Language[] }
+/**
+ * The languages a call is spoken in: the assistant's main language first, then the others it may switch to.
+ * `everyLanguage`: the assistant speaks every language the install offers (`mode: 'any'`), so speech recognition
+ * detects the language rather than being biased toward a long list.
+ */
+export type CallLanguages = { main: Language; others: readonly Language[]; everyLanguage?: boolean }
 export const ENGLISH_CALL: CallLanguages = { main: 'en', others: [] }
 
 /**
- * Speech recognition for a call. English only: the configured model as it is. Any other main language, or other
- * languages allowed: the multilingual model of the same family, biased toward the call's languages, so each
- * transcript reports the language spoken. An English-only model would turn other languages into nonsense.
+ * A call's languages from the assistant's setting: its main language, and the others it may switch to that a voice
+ * provider of the install speaks (spokenLanguages; `voices`: the call's voice providers, none for a realtime call).
+ * "Any language" with a Flux model (`stt`) means Flux's 10, as before more languages were added (coordinator decision on
+ * LIN-268: existing assistants are not moved off Flux); the others are used only when picked as the main language or
+ * in the allowed list.
  */
-export function createStt({ provider, apiKey, model }: AgentConfig['stt'], { main, others }: CallLanguages = ENGLISH_CALL) {
-  const multi = main !== 'en' || others.length > 0
-  // ElevenLabs Scribe and OpenAI transcription stream and detect the end of a turn on their side. With other languages
-  // allowed they detect the language of each turn (reported with the transcript); else they are told the one.
+export function callLanguagesOf(
+  stored: Parameters<typeof otherLanguagesOf>[0],
+  voices: readonly SpeakingVoice[] = [],
+  stt?: HearingModel | null,
+): CallLanguages {
+  const spoken = spokenLanguages(voices)
+  const any = stored?.mode === 'any'
+  const allowed = any ? anyModeLanguages(spoken, stt) : spoken
+  return {
+    main: mainLanguageOf(stored),
+    others: otherLanguagesOf(stored).filter(code => allowed.includes(code)),
+    ...(any ? { everyLanguage: true } : {}),
+  }
+}
+
+/**
+ * The assistant as this call speaks: its languages replaced by the call's (callLanguagesOf), so the instructions name
+ * the languages the speech recognition and voice can handle.
+ */
+export function withCallLanguages<A extends { languages?: unknown }>(assistant: A | null, { main, others }: CallLanguages): A | null {
+  if (!assistant) return assistant
+  return { ...assistant, languages: { main, mode: others.length ? 'allowed' : 'english', allowed: [...others] } }
+}
+
+/** The voice providers a call can speak with: the one in use and every other one with a key. */
+export const callVoicesOf = (tts: AgentConfig['tts']): SpeakingVoice[] => [tts, ...(tts.others ?? [])].map(v => ({ provider: v.provider, model: ttsModelOf(v) }))
+
+/** Deepgram's recommended endpointing for code-switching (Nova-3 `multi`), in ms. */
+export const NOVA_MULTI_ENDPOINTING_MS = 100
+
+/** Whether a call speaks only English (no multilingual model needed). */
+const englishOnly = ({ main, others }: CallLanguages) => main === 'en' && others.length === 0
+/** Whether Flux multilingual recognizes every language of the call; else it needs Nova-3 `multi`. */
+export const fluxCovers = ({ main, others }: CallLanguages) => [main, ...others].every(fluxRecognizes)
+
+/** What Deepgram is asked for: Flux (its own protocol and turn detection) or Nova. */
+export type DeepgramChoice =
+  | { protocol: 'flux'; model: string; languageHint?: string[] }
+  | { protocol: 'nova'; model: string; language?: 'multi'; languageHint?: string[]; endpointing?: number }
+
+/**
+ * The Deepgram model for a call. English only: the configured model as it is. A Flux model and languages Flux
+ * multilingual covers: `flux-general-multi`, biased toward them. Any language outside Flux's 10 (or a Nova model):
+ * Nova-3 `multi`, which code-switches across all of LANGUAGES, with the call's languages as hints (Deepgram's codes;
+ * only the main one when the assistant speaks every language). An English-only model would turn other languages into
+ * nonsense.
+ */
+export function deepgramChoice(model: string, languages: CallLanguages = ENGLISH_CALL): DeepgramChoice {
+  const flux = model.startsWith('flux')
+  if (englishOnly(languages)) return { protocol: flux ? 'flux' : 'nova', model }
+  const { main, others, everyLanguage } = languages
+  const hinted = (codes: readonly Language[]) => codes.map(code => providerLanguageCode(code, 'deepgram'))
+  if (flux && fluxCovers(languages)) return { protocol: 'flux', model: FLUX_MULTILINGUAL, languageHint: hinted([main, ...others]) }
+  // Only Nova-3 detects the language on a live stream (`multi`).
+  return {
+    protocol: 'nova',
+    model: 'nova-3',
+    language: 'multi',
+    languageHint: hinted(everyLanguage ? [main] : [main, ...others]),
+    endpointing: NOVA_MULTI_ENDPOINTING_MS,
+  }
+}
+
+/**
+ * Speech recognition for a call (deepgramChoice for Deepgram). ElevenLabs Scribe and OpenAI transcription stream and
+ * detect the end of a turn on their side. With other languages allowed they detect the language of each turn
+ * (reported with the transcript); else they are told the one.
+ */
+export function createStt({ provider, apiKey, model }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) {
+  const multi = !englishOnly(languages)
+  const { main } = languages
   if (provider === 'elevenlabs_stt') return new elevenlabs.STT({ apiKey, model, useRealtime: true, ...(multi ? {} : { languageCode: main }) })
   if (provider === 'openai_stt') return new openai.STT({ apiKey, model, useRealtime: true, detectLanguage: multi, language: main })
-  const languageHint = multi ? [main, ...others] : undefined
+  const choice = deepgramChoice(model, languages)
+  const { languageHint } = choice
   // Deepgram's Flux models speak a different protocol than Nova.
-  if (model.startsWith('flux')) {
-    return new deepgram.STTv2({ apiKey, model: multi ? FLUX_MULTILINGUAL : model, eagerEotThreshold: EAGER_END_OF_TURN, ...(languageHint ? { languageHint } : {}) })
-  }
-  // Only Nova-3 detects the language on a live stream (`multi`).
-  return multi ? new deepgram.STT({ apiKey, model: 'nova-3', language: 'multi', languageHint }) : new deepgram.STT({ apiKey, model })
+  if (choice.protocol === 'flux') return new deepgram.STTv2({ apiKey, model: choice.model, eagerEotThreshold: EAGER_END_OF_TURN, ...(languageHint ? { languageHint } : {}) })
+  if (!choice.language) return new deepgram.STT({ apiKey, model: choice.model })
+  return new deepgram.STT({ apiKey, model: choice.model, language: choice.language, languageHint, endpointing: choice.endpointing })
 }
 
 /** The model the voice provider is asked for (ElevenLabs gets its fast default). */
@@ -113,7 +185,7 @@ export function createTts(config: AgentConfig['tts'], assistantVoice?: Assistant
 }
 
 function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, language: Language, speedPct: number) {
-  const spoken = language === 'en' ? {} : { language }
+  const spoken = language === 'en' ? {} : { language: providerLanguageCode(language, tts.provider) }
   const speed = speedPct !== TALKING_SPEED_PCT_DEFAULT ? speedPct / 100 : undefined
   if (tts.provider === 'cartesia')
     return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
@@ -151,7 +223,12 @@ export class VoiceWithBackup extends ttsTypes.FallbackAdapter {
 
   /** The language goes to the voice providers that take one; OpenAI's speech model reads it from the text. */
   updateOptions(opts: { language?: string }) {
-    for (const instance of this.ttsInstances) if (instance instanceof elevenlabs.TTS || instance instanceof cartesia.TTS) instance.updateOptions(opts)
+    const codeFor = (provider: 'elevenlabs' | 'cartesia') =>
+      opts.language ? { ...opts, language: providerLanguageCode(opts.language as Language, provider) } : opts
+    for (const instance of this.ttsInstances) {
+      if (instance instanceof elevenlabs.TTS) instance.updateOptions(codeFor('elevenlabs'))
+      else if (instance instanceof cartesia.TTS) instance.updateOptions(codeFor('cartesia'))
+    }
   }
 }
 
@@ -181,9 +258,11 @@ function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
 
 /**
  * Whether the speech recognition says where a turn ends: Flux, ElevenLabs Scribe and OpenAI transcription do. With
- * another Deepgram model the session falls back to its own detection.
+ * another Deepgram model (also Nova-3 `multi` for a language outside Flux's 10) the session falls back to its own
+ * detection.
  */
-export const sttDetectsTurns = ({ provider, model }: AgentConfig['stt']) => provider !== 'deepgram' || model.startsWith('flux')
+export const sttDetectsTurns = ({ provider, model }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) =>
+  provider !== 'deepgram' || deepgramChoice(model, languages).protocol === 'flux'
 
 /**
  * How many tool rounds in a row one caller turn may take before the model must answer with tools off (LiveKit's
@@ -194,7 +273,7 @@ export const MAX_TOOL_STEPS = 8
 
 /** Session options for one call. */
 export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: CallVoice } {
-  const sttTurns = sttDetectsTurns(config.stt)
+  const sttTurns = sttDetectsTurns(config.stt, languages)
   return {
     vad: null,
     stt: createStt(config.stt, languages),

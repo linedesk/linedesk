@@ -30,14 +30,13 @@ import {
   templateNames,
   type AssistantLanguages,
   type Language,
-  languageCodes,
   LANGUAGES,
   answeredQuestionLine,
   otherLanguagesOf,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageLabel } from '@linedesk/i18n'
-import { useLocale } from '@linedesk/i18n/react'
+import { useLocale, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
@@ -57,6 +56,7 @@ import {
   keepDraft,
   languagesProblem,
   languagesToSave,
+  offeredLanguages,
   mainOf,
   pickedOthers,
   withMainLanguage,
@@ -457,18 +457,35 @@ const alsoModes = (main: string): { value: AssistantLanguages['mode']; label: st
   { value: 'any', label: 'Any supported language', description: 'Every language listed below' },
 ]
 
-function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLanguage: (code: Language) => void }) {
+export function Languages({
+  draft,
+  set,
+  onMainLanguage,
+  installed,
+  anyCovers,
+}: SectionProps & {
+  onMainLanguage: (code: Language) => void
+  installed?: readonly string[]
+  /** What "Any supported language" covers on this install (voice.options anyLanguages); missing: every one offered. */
+  anyCovers?: readonly string[]
+}) {
   const ui = useLocale()
+  const t = useT()
   const { mode } = draft.languages
   const main = mainOf(draft)
+  // Only languages a connected voice provider speaks (voice.options), and the ones already picked.
+  const offered = offeredLanguages(installed, draft)
   // Each language in its own name and in the UI language ("Español · Spanish"), in the registry's order.
-  const languageOptions = languageCodes.map(code => ({ value: code, label: languageLabel(code, ui) }))
+  const languageOptions = offered.map(code => ({ value: code, label: languageLabel(code, ui) }))
+  const coveredByAny = (code: Language) => !anyCovers || anyCovers.includes(code)
+  // With a Flux model "any" keeps Flux's languages; the others only when picked (coordinator decision on LIN-268).
+  const anyLimited = mode === 'any' && offered.some(code => !coveredByAny(code))
   const others = pickedOthers(draft)
   const problem = languagesProblem(draft)
   const toggle = (code: Language, on: boolean) =>
     set('languages', {
       ...draft.languages,
-      allowed: languageCodes.filter(c => c !== main && (c === code ? on : others.includes(c))),
+      allowed: offered.filter(c => c !== main && (c === code ? on : others.includes(c))),
     })
   return (
     <Section
@@ -486,7 +503,11 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
             onChange={onMainLanguage}
           />
         </Field>
-        <Field id="as-languages-mode" label="Also speak">
+        <Field
+          id="as-languages-mode"
+          label="Also speak"
+          help={anyLimited ? t('settings.assistant.languages.anyNote') : undefined}
+        >
           <Select
             id="as-languages-mode"
             label="Also speak"
@@ -498,12 +519,12 @@ function Languages({ draft, set, onMainLanguage }: SectionProps & { onMainLangua
       </div>
       {mode !== 'english' && (
         <div className="as-languages" role="group" aria-label={`Languages besides ${LANGUAGES[main]}`}>
-          {languageCodes
+          {offered
             .filter(code => code !== main)
             .map(code => (
               <Checkbox
                 key={code}
-                checked={mode === 'any' || others.includes(code)}
+                checked={mode === 'any' ? coveredByAny(code) : others.includes(code)}
                 disabled={mode === 'any'}
                 onChange={on => toggle(code, on)}
               >
@@ -721,7 +742,11 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
           : {}),
         ...silenceToSave(clean),
         behaviours: behavioursToSave(clean),
-        ...languagesToSave(clean),
+        // Only when changed: the server checks the languages against the voice providers set up, and a main language
+        // that follows the workspace language is not the assistant's own choice to check.
+        ...(JSON.stringify(languagesToSave(clean)) !== JSON.stringify(languagesToSave(normalized(saved)))
+          ? languagesToSave(clean)
+          : {}),
         voice: clean.voice,
         talking_speed_pct: clean.talking_speed_pct,
         voice_pipeline: clean.voice_pipeline,
@@ -758,7 +783,13 @@ function Form({ assistant, assistants, numbers, onPick, canEdit, toast, isInstan
           <>
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
-            <Languages draft={draft} set={set} onMainLanguage={changeMainLanguage} />
+            <Languages
+              draft={draft}
+              set={set}
+              onMainLanguage={changeMainLanguage}
+              installed={voiceOptions?.languages}
+              anyCovers={voiceOptions?.anyLanguages ?? voiceOptions?.languages}
+            />
             <NotAnswered setUp={setUp} />
             {realtime ? (
               <RealtimeVoice canSwitch={setUp?.three_stage === true} />

@@ -17,10 +17,13 @@ test('the country list starts with Automatic and where it came from, then every 
 test('the language list: Automatic from the country, then the languages calls can be answered in', () => {
   expect(languageOptions('US', 'en')[0]?.label).toBe('Automatic (English, from your country)')
   expect(languageOptions('MX', 'en')[0]?.label).toBe('Automatic (Español · Spanish, from your country)')
-  expect(languageOptions('KR', 'en')[0]?.label).toBe('Automatic (Korean summaries; calls in English)')
+  // Korean calls can be answered since LIN-268 (Nova-3); Hebrew still not.
+  expect(languageOptions('KR', 'en')[0]?.label).toBe('Automatic (한국어 · Korean, from your country)')
+  expect(languageOptions('IL', 'en')[0]?.label).toBe('Automatic (Hebrew summaries; calls in English)')
   const codes = languageOptions('US', 'en').map(o => o.value)
   expect(codes).toContain('es')
-  expect(codes).not.toContain('ko')
+  expect(codes).toContain('ko')
+  expect(codes).not.toContain('he')
   expect(searchOptions(languageOptions('US', 'en'), 'span').map(o => o.value)).toEqual(['es'])
 })
 
@@ -49,6 +52,7 @@ test('an assistant without a main language shows the workspace language, its def
   expect(draftOf(base).languages.main).toBe('en')
   expect(draftOf(base, 'en').languages.main).toBe('en')
   expect(draftOf(base, 'es').languages.main).toBe('es')
-  expect(draftOf(base, 'ko').languages.main).toBe('en')
+  expect(draftOf(base, 'ko').languages.main).toBe('ko')
+  expect(draftOf(base, 'he').languages.main).toBe('en')
   expect(draftOf({ ...base, languages: { main: 'en', mode: 'english', allowed: [] } }, 'es').languages.main).toBe('en')
 })

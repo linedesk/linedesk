@@ -1,7 +1,7 @@
 import { initializeLogger } from '@livekit/agents'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig } from './config.ts'
-import { chatJson, createPipeline, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { callLanguagesOf, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -173,4 +173,68 @@ test('ElevenLabs Scribe and OpenAI transcription detect the end of a turn, like 
 test('every conversation request is capped, with OpenRouter fallbacks as `models`', () => {
   expect(replyRequestFields('live/fast', [])).toEqual({ max_tokens: REPLY_MAX_TOKENS })
   expect(replyRequestFields('live/fast', ['live/backup'])).toEqual({ max_tokens: REPLY_MAX_TOKENS, models: ['live/fast', 'live/backup'] })
+})
+
+test('Flux stays for calls in its 10 languages; any other language takes Nova-3 multi with Deepgram hints', () => {
+  // English only: the configured model as it is.
+  expect(deepgramChoice('flux-general-en')).toEqual({ protocol: 'flux', model: 'flux-general-en' })
+  expect(deepgramChoice('nova-3')).toEqual({ protocol: 'nova', model: 'nova-3' })
+  // Languages Flux multilingual covers: Flux multi, as before.
+  expect(deepgramChoice('flux-general-en', { main: 'en', others: ['es', 'de'] })).toEqual({ protocol: 'flux', model: 'flux-general-multi', languageHint: ['en', 'es', 'de'] })
+  expect(deepgramChoice('flux-general-en', { main: 'ja', others: [] })).toMatchObject({ protocol: 'flux', model: 'flux-general-multi' })
+  // A language outside Flux's 10, as the main one or besides: Nova-3 multi, hinted, with Deepgram's endpointing for it.
+  const nova = { protocol: 'nova', model: 'nova-3', language: 'multi', endpointing: NOVA_MULTI_ENDPOINTING_MS }
+  expect(deepgramChoice('flux-general-en', { main: 'en', others: ['es', 'ko'] })).toEqual({ ...nova, languageHint: ['en', 'es', 'ko'] })
+  expect(deepgramChoice('flux-general-en', { main: 'zh', others: [] })).toEqual({ ...nova, languageHint: ['zh'] })
+  expect(deepgramChoice('nova-3', { main: 'de', others: ['pl'] })).toEqual({ ...nova, languageHint: ['de', 'pl'] })
+  // Every language: detected, hinted toward the main one only.
+  expect(deepgramChoice('flux-general-en', { main: 'en', others: ['es', 'ko', 'pl'], everyLanguage: true })).toEqual({ ...nova, languageHint: ['en'] })
+  // Flux detects turns, Nova-3 does not: the session falls back to its own detection.
+  const stt = { provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' } as const
+  expect(sttDetectsTurns(stt, { main: 'en', others: ['fr'] })).toBe(true)
+  expect(sttDetectsTurns(stt, { main: 'en', others: ['ko'] })).toBe(false)
+})
+
+test('a Flux call that needs Nova-3 multi detects turns in the session, not in the speech recognition', async () => {
+  const stages = await configFromEnv({ DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' })
+  expect(stages.stt.model).toMatch(/^flux/)
+  expect(createPipeline(stages, null, undefined, { main: 'pl', others: [] }).turnHandling?.turnDetection).toBeUndefined()
+  expect(createPipeline(stages, null, undefined, { main: 'fr', others: [] }).turnHandling?.turnDetection).toBe('stt')
+})
+
+test("a call's languages keep only those a voice provider of the install speaks", () => {
+  const elevenlabs = [{ provider: 'elevenlabs', model: 'eleven_flash_v2_5' }]
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['ko', 'pl'] }, elevenlabs)).toEqual({ main: 'en', others: ['ko', 'pl'] })
+  // Cartesia's Sonic 2 has no Vietnamese; Eleven Multilingual v2 none either.
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['ko', 'vi'] }, [{ provider: 'cartesia', model: 'sonic-2' }]).others).toEqual(['ko'])
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['vi'] }, [{ provider: 'elevenlabs', model: 'eleven_multilingual_v2' }]).others).toEqual([])
+  // Every language with a Flux model: Flux's 10, so the call stays on Flux (coordinator decision on LIN-268).
+  const flux = { provider: 'deepgram', model: 'flux-general-en' } as const
+  const anyOnFlux = callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, flux)
+  expect(anyOnFlux).toEqual({ main: 'en', others: ['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'], everyLanguage: true })
+  expect(deepgramChoice(flux.model, anyOnFlux)).toMatchObject({ protocol: 'flux', model: 'flux-general-multi' })
+  // A new language picked explicitly still takes it: as the main language, or in the allowed list.
+  expect(callLanguagesOf({ main: 'ko', mode: 'any', allowed: [] }, elevenlabs, flux).main).toBe('ko')
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['pl'] }, elevenlabs, flux).others).toEqual(['pl'])
+  // Every language with another speech model (Nova, Scribe): all the voice speaks, detected rather than hinted.
+  const any = callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, { provider: 'deepgram', model: 'nova-3' })
+  expect(any.everyLanguage).toBe(true)
+  expect(any.others).toEqual(expect.arrayContaining(['es', 'zh', 'ko', 'pl', 'hu']))
+  expect(callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' }).others).toContain('ko')
+  // No voice provider (a realtime call): Flux's languages, as before more were added.
+  expect(callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }).others).toEqual(['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+  expect(callVoicesOf({ provider: 'elevenlabs', apiKey: 'k', others: [{ provider: 'cartesia', apiKey: 'c' }] })).toEqual([
+    { provider: 'elevenlabs', model: 'eleven_flash_v2_5' },
+    { provider: 'cartesia', model: undefined },
+  ])
+})
+
+test('the instructions name the languages the call speaks, not the stored "any"', () => {
+  const assistant = { name: 'Maya', languages: { main: 'en', mode: 'any', allowed: [] } }
+  expect(withCallLanguages(assistant, { main: 'en', others: ['es', 'de'], everyLanguage: true })).toEqual({
+    name: 'Maya',
+    languages: { main: 'en', mode: 'allowed', allowed: ['es', 'de'] },
+  })
+  expect(withCallLanguages(assistant, { main: 'ko', others: [] })?.languages).toEqual({ main: 'ko', mode: 'english', allowed: [] })
+  expect(withCallLanguages(null, { main: 'en', others: [] })).toBeNull()
 })

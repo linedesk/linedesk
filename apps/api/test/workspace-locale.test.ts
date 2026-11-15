@@ -70,7 +70,7 @@ describe('workspace country and language', () => {
     const member = await addMember(ws.id, 'member')
     expect((await act(member, 'workspace.updateSettings', { country: 'GB' })).status).toBe(403)
     expect((await act(ws.owner, 'workspace.updateSettings', { country: 'XX' })).status).toBe(422)
-    expect((await act(ws.owner, 'workspace.updateSettings', { language: 'ko' })).status).toBe(422)
+    expect((await act(ws.owner, 'workspace.updateSettings', { language: 'he' })).status).toBe(422)
     expect((await act(member, 'workspace.getSettings', {})).body.data.country).toBeNull()
   })
 

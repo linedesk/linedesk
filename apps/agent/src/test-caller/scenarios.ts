@@ -236,6 +236,42 @@ export const scenarios = {
     },
     mainLanguage: 'es',
   },
+  // LIN-268: languages outside Flux's 10 (the call runs on Deepgram Nova-3 multi). Like spanish-caller: the language
+  // allowed besides English, the caller speaks only it; the summary stays English. Checks speed and quality before
+  // a language stays in the list.
+  'mandarin-caller': {
+    persona:
+      '你是王丽。你只说普通话，不说英语。你家卫生间的马桶一直漏水，你希望水管工这周给你回电话安排维修。对方问名字时告诉他们。最后说"再见"，然后挂断电话。',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /(谢谢|名字|姓名|帮您|电话|回电|水管|马桶)/,
+      summarySays: /\b(Chinese|Mandarin)\b/,
+    },
+    languages: ['zh'],
+  },
+  'korean-caller': {
+    persona:
+      '당신은 김민지입니다. 한국어만 하고 영어는 전혀 하지 않습니다. 욕실 변기에서 물이 새서 이번 주에 배관공이 전화해서 수리 일정을 잡아 주기를 원합니다. 이름을 물어보면 알려 주세요. 마지막에 "안녕히 계세요"라고 말하고 전화를 끊으세요.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /(감사|성함|이름|도와|전화|연락|배관|변기)/,
+      summarySays: /\bKorean\b/,
+    },
+    languages: ['ko'],
+  },
+  'polish-caller': {
+    persona:
+      'Jesteś Anną Kowalską. Mówisz tylko po polsku, wcale nie po angielsku. Toaleta w twojej łazience przecieka i chcesz, żeby hydraulik oddzwonił w tym tygodniu i umówił naprawę. Podaj imię i nazwisko, gdy cię o nie poproszą. Na koniec powiedz "do widzenia" i się rozłącz.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(dziękuj\w*|imi\w*|nazwisk\w*|pomóc|pomoc\w*|oddzwoni\w*|hydraulik\w*|toalet\w*|kontakt\w*)/i,
+      summarySays: /\bPolish\b/,
+    },
+    languages: ['pl'],
+  },
 } satisfies Record<string, Scenario>
 
 export type ScenarioName = keyof typeof scenarios
