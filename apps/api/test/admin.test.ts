@@ -176,6 +176,8 @@ describe('access', () => {
 
   test('the registry has the admin actions', () => {
     expect(adminActions.map(def => def.name).sort()).toEqual([
+      'afterCallTranscript.get',
+      'afterCallTranscript.set',
       'agentSetup.createKey',
       'branding.set',
       'calendarTools.get',
@@ -403,6 +405,7 @@ describe('provider keys', () => {
       email: { provider: null, chosen: false },
       sign_in: { provider: null, chosen: false },
       recording: { provider: null, chosen: false },
+      transcript: { provider: null, chosen: false },
       business: { provider: null, chosen: false },
     })
 
@@ -700,6 +703,10 @@ describe('provider keys', () => {
       'deepgram',
       'elevenlabs_stt',
       'openai_stt',
+      'openai_transcript',
+      'deepgram_transcript',
+      'assemblyai',
+      'elevenlabs_transcript',
       'openai',
       'openrouter',
       'anthropic',
@@ -2248,6 +2255,8 @@ describe('impersonation', () => {
       .map(def => def.name)
       .sort()
     expect(allowed).toEqual([
+      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
+      'afterCallTranscript.get',
       // API keys stay possible while signed in as the user (support needs them; decision 2026-11-15), marked as the admin's.
       'apiKey.create',
       'apiKey.list',

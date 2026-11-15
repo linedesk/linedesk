@@ -137,6 +137,8 @@ const all = [
   voices.voiceCloningSet,
   settings.voicePipelinePolicyGet,
   settings.voicePipelinePolicySet,
+  settings.afterCallTranscriptGet,
+  settings.afterCallTranscriptSet,
   branding.brandingSet,
   settings.phoneNumberSetup,
   settings.phoneNumberListCarrierNumbers,

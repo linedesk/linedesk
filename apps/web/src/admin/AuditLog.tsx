@@ -221,6 +221,8 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return t('admin.audit.voiceCloningSet')
     case 'voicePipelinePolicy.set':
       return t('admin.audit.pipelinePolicySet')
+    case 'afterCallTranscript.set':
+      return t('admin.audit.afterCallTranscriptSet')
     case 'setupEmails.set':
       return t('admin.audit.setupEmailsSet')
     case 'calendar.connectFinish': {

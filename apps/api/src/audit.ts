@@ -183,6 +183,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   // Install-wide switches a server admin sets for every workspace.
   'voiceCloning.set': 'admin',
   'voicePipelinePolicy.set': 'admin',
+  'afterCallTranscript.set': 'admin',
   'setupEmails.set': 'admin',
   'user.invite': 'admin',
   'user.disable': 'admin',

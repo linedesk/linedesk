@@ -54,6 +54,7 @@ describe('groups', () => {
       'sign-in',
       'calendar',
       'recording',
+      'transcript',
       'business',
     ])
     expect(providerGroups.filter(g => g.needed).map(g => g.id)).toEqual([
@@ -140,6 +141,7 @@ describe('statusGroups', () => {
       ['sign-in', 'off'],
       ['calendar', 'off'],
       ['recording', 'off'],
+      ['transcript', 'off'],
       ['business', 'off'],
     ])
     expect(ready).toBe(false)

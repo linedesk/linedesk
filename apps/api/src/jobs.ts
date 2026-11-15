@@ -13,6 +13,7 @@ import { emailSender } from './email.ts'
 import { type WorkspaceDeletedEmail, workspaceDeletedEmail } from './emails/templates.ts'
 import { runForwardingCheck } from './forwarding-check.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
+import { transcribeCallAgain, transcriberInEffect } from './after-call-transcript.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { pruneOldCommands } from './command-log.ts'
@@ -51,6 +52,8 @@ const ASSIGNED_DELAY_SECONDS = 10
 export const BOOKING_CONFIRM = 'booking.confirm'
 /** How the assistant handled a finished call, judged by the language model (evaluations.ts). */
 export const CALL_EVALUATE = 'call.evaluate'
+/** After-call transcription of a call whose recording was saved (after-call-transcript.ts). */
+export const CALL_TRANSCRIBE = 'call.transcribe'
 /** One webhook delivery (webhooks.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
 export const WEBHOOK_DELIVER = 'webhook.deliver'
 /** Webhook deliveries one API process sends at the same time. */
@@ -131,6 +134,17 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
+  // A failure (model or bucket down) is logged and tried again; after the last try the live transcript stays. No
+  // transaction around it: the model takes seconds; the lines are written in one short transaction at the end.
+  await instance.work<{ callId: string }>(CALL_TRANSCRIBE, async ([job]) => {
+    const callId = job!.data.callId
+    try {
+      return await transcribeCallAgain(db, callId, await transcriberInEffect(db, env), recordingStoreCache(db, env))
+    } catch (e) {
+      console.warn(`after-call transcription of call ${callId} failed: ${e instanceof Error ? e.message : String(e)}`)
+      throw e
+    }
+  })
   await instance.work<{ checkId: string }>(FORWARDING_CHECK, { localConcurrency: FORWARDING_CHECK_WORKERS }, async ([job]) => ({
     status: await runForwardingCheck(job!.data.checkId),
   }))
@@ -190,6 +204,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(WORKSPACE_DELETED_EMAIL, { retryLimit: 6, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
+  await instance.createQueue(CALL_TRANSCRIBE, { retryLimit: 3, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 })
   await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
   await instance.createQueue(WEBHOOK_CLEANUP)
   await instance.createQueue(COMMAND_PRUNE)
@@ -258,6 +273,11 @@ export async function queueBookingConfirmation(tx: Tx, bookingId: string) {
 /** Queues the evaluation of a finished call, in the caller's transaction (like the notification). */
 export async function queueCallEvaluation(tx: Tx, callId: string) {
   await boss?.send(CALL_EVALUATE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 })
+}
+
+/** Queues the after-call transcription of a call in call.setRecording's transaction: it runs once the recording is reported. */
+export async function queueCallTranscript(tx: Tx, callId: string) {
+  await boss?.send(CALL_TRANSCRIBE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 })
 }
 
 /** Queues one webhook delivery in the transaction that caused it, `afterSec` later. Without a queue (tests) it stays pending. */

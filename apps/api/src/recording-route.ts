@@ -17,7 +17,8 @@ import { RecordingConfigError, recordingStoreNamed, S3RequestError } from './rec
 import { SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 const SIGNED_URL_TTL_SEC = 300
-const contentType = (key: string) =>
+/** The media type of a recording file, by its extension. */
+export const recordingContentType = (key: string) =>
   key.endsWith('.ogg') ? 'audio/ogg' : key.endsWith('.wav') ? 'audio/wav' : 'application/octet-stream'
 const error = (status: number, message: string) => Response.json({ ok: false, error: message }, { status })
 
@@ -50,7 +51,7 @@ function fileResponse(path: string, size: number, type: string, rangeHeader: str
 }
 
 /** The stored key, if it is the one this call can have. Anything else in the column is not served. */
-function ownKey(call: { id: string; workspace_id: string; recording_key: string | null }): string | null {
+export function ownRecordingKey(call: { id: string; workspace_id: string; recording_key: string | null }): string | null {
   const key = call.recording_key
   const own =
     key &&
@@ -108,7 +109,7 @@ async function serveCallRecording(which: SQL | undefined, rangeHeader: string | 
     })
     .from(calls)
     .where(and(which, isNull(calls.deleted_at)))
-  const key = call && ownKey(call)
+  const key = call && ownRecordingKey(call)
   if (!key) return error(404, 'no recording for this call')
   try {
     const store = await recordingStoreNamed(db, call.recording_store)
@@ -120,7 +121,7 @@ async function serveCallRecording(which: SQL | undefined, rangeHeader: string | 
         status: 302,
         headers: { location: location.url, 'cache-control': 'private, no-store' },
       })
-    return fileResponse(location.path, location.size, contentType(key), rangeHeader)
+    return fileResponse(location.path, location.size, recordingContentType(key), rangeHeader)
   } catch (e) {
     // The bucket refused or is gone: recorded for the admins (provider-failures.ts).
     if (e instanceof S3RequestError) void noteProviderFailure('s3', s3Problem(e), 'recording')

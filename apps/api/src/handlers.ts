@@ -52,7 +52,8 @@ import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers
 import { sampleHandlers } from './sample-calls.ts'
 import { goLiveChecklistHandlers } from './go-live-checklist.ts'
 import { isOwnNumber, recordCallFinished, recordCallStarted, recordOnboardingStep, recordSetupEvent } from './setup-events.ts'
-import { queueAssignNotification, queueCallEvaluation, queueForwardingCheck, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
+import { queueAssignNotification, queueCallEvaluation, queueCallTranscript, queueForwardingCheck, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
+import { afterCallTranscriptHandlers, transcribesAfterCalls } from './after-call-transcript.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
@@ -547,6 +548,7 @@ const handlers: Record<string, Handler> = {
   ...installSetupHandlers,
   ...bookingHandlers,
   ...evaluationHandlers(queueCallEvaluation),
+  ...afterCallTranscriptHandlers,
   ...webhookHandlers,
   ...knowledgeHandlers,
   ...businessHandlers,
@@ -803,6 +805,8 @@ const handlers: Record<string, Handler> = {
     const rows = await tx.update(calls).set({ recording_key, recording_store }).where(eq(calls.id, call.id)).returning()
     // A workspace that keeps no recordings (an agent that recorded anyway: older, or the setting changed mid-call).
     if (!(await keepsRecordings(tx, call.workspace_id))) await queueRecordingDeletion(tx, call.id)
+    // A stronger model hears the recording again and corrects the caller's lines (after-call-transcript.ts).
+    else if (await transcribesAfterCalls(tx)) await queueCallTranscript(tx, call.id)
     return { rows: { calls: rows } }
   },
 

@@ -15,7 +15,7 @@ import { assistantLanguages, languageCodes } from './languages.ts'
 import { type WorkspaceCountrySource, workspaceCountrySchema, workspaceLanguageSchema } from './workspace-locale.ts'
 import { transferContacts } from './transfer.ts'
 import { realtimeVoiceChoice, voiceId } from './voices.ts'
-import type { WorkspaceDeleteData } from './admin.ts'
+import type { ProviderName, WorkspaceDeleteData } from './admin.ts'
 
 const defined = <T extends object>(o: T) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>
@@ -289,6 +289,58 @@ export const voicePipelinePolicySet = defineAction({
 })
 /** `data` of `voicePipelinePolicy.get` and `voicePipelinePolicy.set`. */
 export type VoicePipelinePolicyData = { policy: VoicePipelinePolicy }
+
+/**
+ * After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording is saved, it is uploaded
+ * to the transcription provider an instance admin selected (Server admin › Providers › After-call transcription) and
+ * the caller's lines are replaced with what it heard. Off until an admin selects one.
+ */
+export const transcriptProviders = [
+  'openai_transcript',
+  'deepgram_transcript',
+  'assemblyai',
+  'elevenlabs_transcript',
+] as const satisfies readonly ProviderName[]
+export type TranscriptProviderName = (typeof transcriptProviders)[number]
+/** The model each one uses. */
+export const transcriptModels: Record<TranscriptProviderName, string> = {
+  openai_transcript: 'gpt-transcribe',
+  deepgram_transcript: 'nova-3',
+  assemblyai: 'universal',
+  elevenlabs_transcript: 'scribe_v2',
+}
+
+export const afterCallTranscriptGet = defineAction({
+  name: 'afterCallTranscript.get',
+  description:
+    'The transcription providers for finished calls: which one is selected (none: off), which are connected, and which can use a key already saved for an active provider.',
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+export const afterCallTranscriptSet = defineAction({
+  name: 'afterCallTranscript.set',
+  description:
+    'Select the provider that transcribes each finished call again from its recording (the recording file is uploaded to it), or null to turn it off. A provider without a key of its own uses the key saved for the active provider of the same service (OpenAI language model or realtime model, Deepgram or ElevenLabs).',
+  input: z.object({ provider: z.enum(transcriptProviders).nullable() }),
+  permission: 'instance:admin',
+})
+/**
+ * One transcription provider: `in_use` (selected), `connected` (has a key, its own or linked), `reusable` (a key
+ * saved for the active provider `reuseFrom` can be used with one click) or `none` (connect it with its key).
+ */
+export type AfterCallTranscriptOption = {
+  provider: TranscriptProviderName
+  model: string
+  state: 'in_use' | 'connected' | 'reusable' | 'none'
+  reuseFrom: ProviderName | null
+}
+/** `data` of `afterCallTranscript.get` and `.set`. `recording`: a recording store is in use (else nothing to hear). */
+export type AfterCallTranscriptData = {
+  selected: TranscriptProviderName | null
+  recording: boolean
+  options: AfterCallTranscriptOption[]
+}
 
 /**
  * The pipeline that answers an assistant's calls: its choice (null: the install default, the realtime model when one

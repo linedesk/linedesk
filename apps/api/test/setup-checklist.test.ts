@@ -112,6 +112,7 @@ describe('states', () => {
       ['sign-in', 'off'],
       ['calendar', 'off'],
       ['recording', 'off'],
+      ['transcript', 'off'],
       ['business', 'off'],
     ])
     expect(body.ready).toBe(false)

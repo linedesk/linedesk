@@ -6,7 +6,13 @@
 // (`#admin/providers/stt`) land on their group.
 // "Show all providers" at the right of the heading opens every group's short list at once (and "Show fewer" folds
 // them again); each list's own "Show more" still works, and the top button follows what the lists show.
-import { type InstallSetupState, isMultiCategory, type ProviderName, providerCategories } from '@linedesk/actions'
+import {
+  type InstallSetupState,
+  isMultiCategory,
+  type ProviderName,
+  providerCategories,
+  type TranscriptProviderName,
+} from '@linedesk/actions'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -17,7 +23,7 @@ import { type InstallSetupFrom, openInstallSetup } from '../onboarding/InstallSe
 import { HelpTip } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { type AdminData, keyUsersOf, loadInstallSetup, runAdmin } from './api.ts'
-import { isConfigured } from './model.ts'
+import { isConfigured, selectsOnConnect } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
 import { ProviderDialog } from './ProviderDialog.tsx'
@@ -118,7 +124,10 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
   async function use(provider: ProviderName | null) {
     const before = active.chosen ? active.provider : null
     const set = async (next: ProviderName | null) => {
-      await runAdmin('provider.setActive', { category, provider: next })
+      // After-call transcription has its own action (it uploads recordings; audited as an admin change).
+      if (category === 'transcript')
+        await runAdmin('afterCallTranscript.set', { provider: next as TranscriptProviderName | null })
+      else await runAdmin('provider.setActive', { category, provider: next })
       await reload()
     }
     try {
@@ -128,6 +137,8 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
           ? t('admin.providers.use.now', { category: providerCategories[category], provider: opened!.label })
           : category === 'recording'
             ? t('admin.providers.use.recordingOff')
+            : category === 'transcript'
+              ? t('admin.providers.use.transcriptOff')
             : t('admin.providers.use.default', { category: providerCategories[category] }),
         () => set(before),
       )
@@ -145,7 +156,7 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
       chosen={active.chosen}
       canUse={
         !isMultiCategory(category) &&
-        (data.providers.filter(p => p.category === category).length > 1 || category === 'recording')
+        (data.providers.filter(p => p.category === category).length > 1 || selectsOnConnect(category))
       }
       canStore={data.canStoreKeys}
       keyUsers={keyUsersOf(data.providers, opened.provider)}

@@ -1378,6 +1378,11 @@
   border-top: 0;
 }
 
+/* Server admin › Providers › After-call transcription: the upload line above its providers (AfterCallTranscript.tsx). */
+.adm-after-call {
+  margin: 12px 0 4px;
+}
+
 /* The kind ask before "Powered by Linedesk" is hidden (Branding.tsx). */
 .adm-brand-ask {
   margin: 0;

@@ -1,5 +1,5 @@
 // Pure helpers of the admin page: sorting, the usage grid, and a provider's keys (the status: providerStatus.ts).
-import { phoneNumberProblem, providers as providerSpecs } from '@linedesk/actions'
+import { type ProviderCategory, phoneNumberProblem, providers as providerSpecs } from '@linedesk/actions'
 import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -88,6 +88,12 @@ export const isPhone = (provider: ProviderStatus, field: ProviderField) => !!fie
 /** Every field a connection needs has a value, here or on the server. A provider without fields needs none. */
 export const isConfigured = (provider: ProviderStatus) =>
   provider.fields.every(f => f.source !== null || isOptional(provider, f))
+
+/**
+ * Categories that are off until an admin selects a provider (no first-set-up fallback): recording storage and
+ * after-call transcription. Connecting the first one there selects it, and the dialog can stop using it.
+ */
+export const selectsOnConnect = (category: ProviderCategory) => category === 'recording' || category === 'transcript'
 
 /** The form's start: non-secret values as stored, secrets always empty (they never come back). */
 export const initialValues = (provider: ProviderStatus): Record<string, string> =>

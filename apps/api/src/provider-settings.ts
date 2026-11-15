@@ -147,8 +147,9 @@ function providerFromEnv(category: ProviderCategory, env: Env): ProviderName | n
  * Whether a category without a pick uses the first provider that is set up. Not recording storage:
  * the local disk needs no settings, so it would always be "set up" and every install would record
  * calls without being asked to. Recording is on once a store is picked or RECORDING_STORE names one.
+ * After-call transcription uploads recordings to the provider: on only once an instance admin picked one.
  */
-const autoPicks = (category: ProviderCategory) => category !== 'recording'
+const autoPicks = (category: ProviderCategory) => category !== 'recording' && category !== 'transcript'
 
 /**
  * The provider a category uses and its config: the one picked in the admin area,

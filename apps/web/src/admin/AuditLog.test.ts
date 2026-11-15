@@ -101,7 +101,7 @@ describe('audit labels', () => {
 // A copy of the keys of AUDITED_ACTIONS (apps/api/src/audit.ts): add a new audited action here and give it a label.
 const AUDITED_ACTION_NAMES = [
   'provider.setKeys', 'provider.clearKeys', 'provider.setActive', 'provider.connectOneKey', 'carrier.set',
-  'carrier.provisionTransferTrunk', 'voiceCloning.set', 'voicePipelinePolicy.set', 'setupEmails.set', 'user.invite',
+  'carrier.provisionTransferTrunk', 'voiceCloning.set', 'voicePipelinePolicy.set', 'afterCallTranscript.set', 'setupEmails.set', 'user.invite',
   'user.disable', 'user.enable', 'workspace.disable', 'workspace.enable', 'workspace.delete', 'workspace.setSpendingCap',
   'instanceAdmin.grant', 'instanceAdmin.revoke', 'user.resetPasskeys', 'user.issuePasskeyEnrolment', 'branding.set',
   'user.impersonate', 'impersonation.stop', 'impersonationEmails.set', 'team.invite', 'team.resendInvite', 'team.revokeInvite', 'team.setRole',

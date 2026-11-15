@@ -248,6 +248,25 @@ const openaiStt: Check = async (values, http) => {
   return ok()
 }
 
+// --- After-call transcription ---------------------------------------------------------------------
+// The free reads only (no audio is sent): the key, and for OpenAI that it may use gpt-transcribe.
+
+const openaiTranscript: Check = async (values, http) => {
+  const found = await http.json(
+    'https://api.openai.com/v1/models/gpt-transcribe',
+    { headers: { authorization: `Bearer ${values.api_key}` } },
+    'the model gpt-transcribe',
+  )
+  return found.ok ? ok() : failed(found.problem)
+}
+
+const assemblyai: Check = async (values, http) => {
+  const res = await http.send('https://api.assemblyai.com/v2/transcript?limit=1', {
+    headers: { authorization: values.api_key! },
+  })
+  return res.ok ? ok() : failed(await problemOfResponse('assemblyai', res, 'the key'))
+}
+
 // --- Language models ----------------------------------------------------------------------------
 
 /** The first model of a "model, fallback" list, else the provider's default. */
@@ -430,6 +449,10 @@ const checks: Record<HttpProvider, Check> = {
   elevenlabs,
   cartesia,
   google_places: googlePlaces,
+  openai_transcript: openaiTranscript,
+  deepgram_transcript: deepgram,
+  assemblyai,
+  elevenlabs_transcript: elevenLabsStt,
 }
 
 // --- Email --------------------------------------------------------------------------------------

@@ -161,6 +161,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voiceCloning.set',
     'voicePipelinePolicy.get',
     'voicePipelinePolicy.set',
+    'afterCallTranscript.get',
+    'afterCallTranscript.set',
     'branding.set',
     // Which calendar tools (CalDAV, Calendly, Cal.com) businesses may connect, and how.
     'calendarTools.get',

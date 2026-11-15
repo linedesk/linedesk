@@ -15,6 +15,7 @@ export const providerGroupIds = [
   'sign-in',
   'calendar',
   'recording',
+  'transcript',
   'business',
 ] as const
 export type ProviderGroupId = (typeof providerGroupIds)[number]
@@ -91,6 +92,13 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     needed: false,
     categories: ['recording'],
     why: 'Where call recordings are kept. Off: calls are not recorded.',
+  },
+  {
+    id: 'transcript',
+    label: 'After-call transcription',
+    needed: false,
+    categories: ['transcript'],
+    why: 'After each call, the recording file is uploaded to the provider you select, which transcribes it again; the caller’s lines of the transcript are corrected. Off until you select one.',
   },
   {
     id: 'business',
@@ -442,6 +450,10 @@ export function statusGroups(input: StatusInput): StatusGroups {
         return several(configured(CALENDAR_APPS))
       case 'recording': {
         const used = inUse('recording')
+        return used ? fromLine(used) : empty('off')
+      }
+      case 'transcript': {
+        const used = inUse('transcript')
         return used ? fromLine(used) : empty('off')
       }
       case 'business':

@@ -86,6 +86,7 @@ test('every provider has a category, and the first of each category is the defau
     ['email', ['smtp', 'resend', 'postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail']],
     ['sign_in', ['google', 'microsoft', 'calendly', 'calcom', 'github', 'oidc']],
     ['recording', ['file', 's3']],
+    ['transcript', ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript']],
     ['business', ['google_places']],
   ])
   // Sign-in apps are all in use at once: nothing to pick.

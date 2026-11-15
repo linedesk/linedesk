@@ -31,6 +31,7 @@ import {
   isPhone,
   isSwitch,
   providerState,
+  selectsOnConnect,
 } from './model.ts'
 import { errorText } from './notify.ts'
 import { exchangeCode, type OpenRouterReturn, openRouterErrorText, startOpenRouterConnect } from './openrouterAuth.ts'
@@ -134,8 +135,8 @@ export function ProviderDialog(props: Props) {
       setResult(tested)
       onTested(tested)
       if (dirty) await reload()
-      // Recording storage that works and nothing records yet: connecting it means "record there".
-      if (tested.ok && provider.category === 'recording' && !inUse && !chosen) await onUse()
+      // Recording storage or after-call transcription that works and none is selected yet: connecting it means "use it".
+      if (tested.ok && selectsOnConnect(provider.category) && !inUse && !chosen) await onUse()
     } catch (err) {
       setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
     } finally {
@@ -190,7 +191,11 @@ export function ProviderDialog(props: Props) {
   const fieldId = (field: string) => `prov-${provider.provider}-${field}`
   const tryKind = tryKindOf(provider.category)
   const useLabel =
-    provider.category === 'recording' ? t('admin.providerDialog.recordHere') : t('admin.providerDialog.useForCalls')
+    provider.category === 'recording'
+      ? t('admin.providerDialog.recordHere')
+      : provider.category === 'transcript'
+        ? t('admin.providerDialog.useAfterCalls')
+        : t('admin.providerDialog.useForCalls')
   const keysUrl = preset ? presetMeta[preset.label]?.keysUrl : meta.keysUrl
   /** "Get a key" goes next to the first field the provider's key page hands out. */
   const keyField = provider.fields.find(f => f.secret || f.field === 'access_key_id' || f.field === 'account_sid')
@@ -242,6 +247,16 @@ export function ProviderDialog(props: Props) {
             onClick={() => setPhase('confirm-disconnect')}
           >
             {t('admin.providerDialog.disconnect')}
+          </Button>
+        )}
+        {provider.category === 'transcript' && inUse && chosen && (
+          <Button
+            variant="ghost"
+            className="k-dialog-foot-start"
+            disabled={busy}
+            onClick={() => void onStopUsing().then(onClose)}
+          >
+            {t('admin.afterCallTranscript.stop')}
           </Button>
         )}
         {provider.category === 'recording' && inUse && chosen && provider.fields.length === 0 && (

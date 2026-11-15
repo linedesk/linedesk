@@ -27,6 +27,7 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
+import { AfterCallTranscript } from './AfterCallTranscript.tsx'
 import { CalendarTools } from './CalendarTools.tsx'
 import { PipelinePolicy } from './PipelinePolicy.tsx'
 import { ProviderError } from './ProviderError.tsx'
@@ -138,6 +139,7 @@ export function ProviderGroup({
   embedded,
   folds,
 }: Props) {
+  const t = useT()
   // Answering shows one of its two ways at a time (tabs); the other groups all their lists.
   const [pickedWay, setPickedWay] = useState<VoicePipeline | null>(null)
   const answering = group.id === 'answering'
@@ -158,6 +160,7 @@ export function ProviderGroup({
       {!embedded && (
         <h2>
           {group.label}
+          {group.id === 'transcript' && <span className="adm-recommended">{t('admin.providers.recommended')}</span>}
           {help && <HelpTip text={help} />}
           {status}
         </h2>
@@ -189,7 +192,8 @@ export function ProviderGroup({
           onSelect={setPickedWay}
         />
       )}
-      {group.id !== 'call-audio' && (
+      {group.id === 'transcript' && <AfterCallTranscript data={data} onOpen={onOpen} />}
+      {group.id !== 'call-audio' && group.id !== 'transcript' && (
         <div
           className="adm-provlists"
           {...(answering ? { id: wayPanelId, role: 'tabpanel', 'aria-labelledby': wayTabId(way) } : {})}

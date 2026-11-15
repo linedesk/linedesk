@@ -20,6 +20,7 @@ import {
   type StatusGroups,
   type StatusInput,
   type StoredTest,
+  type TranscriptProviderName,
   type TryOutKind,
   type VoicePipelinePolicy,
   providers as providerRegistry,
@@ -282,6 +283,8 @@ type AdminInputs = {
   'voiceCloning.set': { on: boolean }
   'voicePipelinePolicy.get': Record<string, never>
   'voicePipelinePolicy.set': { policy: VoicePipelinePolicy }
+  'afterCallTranscript.get': Record<string, never>
+  'afterCallTranscript.set': { provider: TranscriptProviderName | null }
   'calendarTools.get': Record<string, never>
   'calendarTools.set': { tool: CalendarTool; mode: CalendarToolMode }
   'setupEmails.get': Record<string, never>

@@ -65,6 +65,26 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.openai_stt'),
     keysUrl: 'https://platform.openai.com/api-keys',
   },
+  openai_transcript: {
+    mark: { brand: 'openai' },
+    blurb: msg('admin.provider.blurb.openai_transcript'),
+    keysUrl: 'https://platform.openai.com/api-keys',
+  },
+  deepgram_transcript: {
+    mark: { brand: 'deepgram' },
+    blurb: msg('admin.provider.blurb.deepgram_transcript'),
+    keysUrl: 'https://console.deepgram.com/',
+  },
+  assemblyai: {
+    mark: { icon: 'waveform' },
+    blurb: msg('admin.provider.blurb.assemblyai'),
+    keysUrl: 'https://www.assemblyai.com/dashboard/api-keys',
+  },
+  elevenlabs_transcript: {
+    mark: { brand: 'elevenlabs' },
+    blurb: msg('admin.provider.blurb.elevenlabs_transcript'),
+    keysUrl: 'https://elevenlabs.io/app/settings/api-keys',
+  },
   elevenlabs: {
     mark: { brand: 'elevenlabs' },
     blurb: msg('admin.provider.blurb.elevenlabs'),

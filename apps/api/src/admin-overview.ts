@@ -37,6 +37,11 @@ export const pricePerMinute: Record<ProviderName, number> = {
   // gpt-realtime (the default), audio in and out with a call's growing context, measured on test calls (2026-11-13):
   // about $0.12 a minute; gpt-realtime-mini about $0.03. In place of the three stages.
   openai_realtime: 0.12,
+  // After-call transcription, per minute of the recording (only the selected one runs).
+  openai_transcript: 0.0045,
+  deepgram_transcript: 0.0043,
+  assemblyai: 0.0035,
+  elevenlabs_transcript: 0.0067,
   // Recording storage is billed per stored byte, not per call minute: not part of this estimate.
   file: 0,
   s3: 0,
@@ -130,6 +135,8 @@ async function activeRates(tx: Tx): Promise<ActiveRate[]> {
     'sign_in',
     'business',
     ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
+    // After-call transcription only while an admin has selected a provider (off by default).
+    ...((await activeProvider(tx, 'transcript').catch(() => null)) ? [] : ['transcript']),
   ]
   for (const category of categoryNames.filter(c => !skipped.includes(c))) {
     const active = await activeProvider(tx, category).catch(() => null)
