@@ -144,6 +144,8 @@
   "nav.unassigned": "Nicht zugewiesen",
   "newVersion.reload": "Neu laden",
   "newVersion.text": "Eine neue Version ist verfügbar.",
+  "newWorkspace.countryHelp": "Legt die Standards für Telefonnummern, Feiertage und die Sprache der Anrufe fest. Du kannst es später ändern.",
+  "newWorkspace.countryMissing": "Wähle das Land, in dem das Unternehmen sitzt.",
   "newWorkspace.create": "Workspace erstellen",
   "newWorkspace.created.added": "{name} erstellt; {email} ist der Inhaber.",
   "newWorkspace.created.invited": "{name} erstellt; {email} bekommt eine E-Mail und wird Inhaber, sobald die Adresse bestätigt ist.",

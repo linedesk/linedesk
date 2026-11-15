@@ -144,6 +144,8 @@
   "nav.unassigned": "Non attribués",
   "newVersion.reload": "Recharger",
   "newVersion.text": "Une nouvelle version est disponible.",
+  "newWorkspace.countryHelp": "Définit les valeurs par défaut des numéros de téléphone, des jours fériés et de la langue des appels. Vous pourrez le modifier plus tard.",
+  "newWorkspace.countryMissing": "Choisissez le pays de l'entreprise.",
   "newWorkspace.create": "Créer l'espace de travail",
   "newWorkspace.created.added": "{name} créé ; {email} en est le propriétaire.",
   "newWorkspace.created.invited": "{name} créé ; {email} reçoit un e-mail et en deviendra le propriétaire après avoir confirmé son adresse.",

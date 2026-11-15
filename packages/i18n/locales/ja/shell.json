@@ -144,6 +144,8 @@
   "nav.unassigned": "未割り当て",
   "newVersion.reload": "再読み込み",
   "newVersion.text": "新しいバージョンがあります。",
+  "newWorkspace.countryHelp": "電話番号、祝日、通話の言語の初期値になります。あとで変更できます。",
+  "newWorkspace.countryMissing": "ビジネスの所在国を選択してください。",
   "newWorkspace.create": "ワークスペースを作成",
   "newWorkspace.created.added": "{name}を作成しました。{email}がオーナーです。",
   "newWorkspace.created.invited": "{name}を作成しました。{email}にメールが届き、アドレスを確認するとオーナーになります。",
