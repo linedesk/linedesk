@@ -5,6 +5,7 @@
   "assistant.answering.by": "Answered by",
   "assistant.answering.title": "Answering calls",
   "assistant.behaviour.askName": "Ask for the caller's name if unknown",
+  "assistant.behaviour.callerHistory": "Know the caller's previous calls",
   "assistant.behaviour.confirmNumber": "Confirm the callback number",
   "assistant.behaviour.offerCallback": "Offer a callback when you can't answer",
   "assistant.disclosure.atStart": "At the start of the call",

@@ -74,13 +74,10 @@ async function upcomingBookings(tx: Tx, workspaceId: string, contact: Pick<Conta
     })
 }
 
-/** Whether the contact's name may unlock their history: one the team gave or confirmed, never one only a caller said. */
-export const nameUnlocksHistory = (contact: Pick<Contact, 'name' | 'name_source'>) => !!contact.name?.trim() && contact.name_source === 'member'
-
 /**
- * `canChangeBookings`: from the call's booking context; bookings are listed only when the caller may change them.
- * Empty unless the name on file is the team's (nameUnlocksHistory): caller ID can be faked, and a name a caller
- * said on an earlier call proves nothing, so whoever says it again must not hear the records.
+ * `canChangeBookings`: from the call's booking context; bookings are listed only when the caller may change them, and
+ * only those booked under the contact's name. Whether the assistant gets the history at all is its owner's switch
+ * ("Know the caller's previous calls", call.start); there is no name check (Tim, 2026-11-15).
  */
 export async function callerHistory(
   tx: Tx,
@@ -88,7 +85,6 @@ export async function callerHistory(
   contact: Pick<Contact, 'id' | 'name' | 'name_source'>,
   { callId, now, canChangeBookings }: { callId: string; now: string; canChangeBookings: boolean },
 ): Promise<CallerHistory> {
-  if (!nameUnlocksHistory(contact)) return { recentCalls: [], upcomingBookings: [] }
   const timeZone = await timeZoneOf(tx, workspaceId)
   return {
     recentCalls: await recentCalls(tx, workspaceId, contact.id, callId, timeZone),

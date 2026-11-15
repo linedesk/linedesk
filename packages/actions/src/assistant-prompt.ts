@@ -83,6 +83,13 @@ export const BEHAVIOURS = [
     on: false,
     say: 'Before you save a message, read the number the team will call back on to the caller and ask them to confirm it.',
   },
+  {
+    // Not a line: whether the prompt holds the caller's earlier calls, open next steps and upcoming appointments.
+    id: 'caller_history',
+    label: "Know the caller's previous calls",
+    on: true,
+    say: null,
+  },
 ] as const satisfies readonly { id: string; label: string; on: boolean; say: string | null; sayOff?: string }[]
 
 export type BehaviourId = (typeof BEHAVIOURS)[number]['id']

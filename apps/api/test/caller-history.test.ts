@@ -1,6 +1,6 @@
 // call.start tells the agent about a returning caller: their last calls and upcoming bookings, only for the
 // contact matched in the same workspace, nothing for a withheld number.
-import { appointment_types, bookings, calls, contacts } from '@linedesk/db'
+import { appointment_types, assistants, bookings, calls, contacts } from '@linedesk/db'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
@@ -73,34 +73,27 @@ async function finishedCall(ws: { id: string; number: string }, from: string, ca
   return body.data as { callId: string; contact: { id: string } }
 }
 
-test('a name only callers gave unlocks no history: two calls from a faked number with the same made-up name hear nothing', async () => {
+test('any matched contact gets its history, also one named only by a caller; the owner\'s switch off sends none', async () => {
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const number = randomNumber()
-  // The real customer's call: the summary found their name, saved on the new contact as a caller's.
+  // The first call: the summary found the caller's name, saved on the new contact as a caller's.
   const first = await finishedCall(ws, number, 'Linda Park')
   expect(await getContact(first.contact.id)).toMatchObject({ name: 'Linda Park', name_source: 'caller' })
-  // Someone with that caller ID, twice, saying the same name: no records reach the assistant either time.
-  for (let i = 0; i < 2; i++) {
-    const again = await finishedCall(ws, number, 'Linda Park')
-    const { body } = await act(agent(), 'call.start', { from: number, to: ws.number })
-    expect(body.data.contact).toMatchObject({ id: again.contact.id, name: 'Linda Park', name_source: 'caller' })
-    expect(body.data.callerHistory).toEqual({ recentCalls: [], upcomingBookings: [] })
-  }
-
-  // A member confirms the name (saved again as it is): from now on it checks the caller, and the records come.
-  const confirmed = await act(ws.owner, 'contact.update', { contactId: first.contact.id, name: 'Linda Park' })
-  expect(confirmed.body.rows.contacts).toMatchObject([{ name: 'Linda Park', name_source: 'member' }])
+  // The next call from that number: its earlier call reaches the assistant (no name check, Tim 2026-11-15).
   const { body } = await act(agent(), 'call.start', { from: number, to: ws.number })
-  expect(body.data.callerHistory.recentCalls.map((c: { title: string }) => c.title)).toEqual(['Leaking water heater', 'Leaking water heater', 'Leaking water heater'])
-  // A later caller's name never replaces it, nor its source.
+  expect(body.data.contact).toMatchObject({ id: first.contact.id, name: 'Linda Park', name_source: 'caller' })
+  expect(body.data.callerHistory.recentCalls.map((c: { title: string }) => c.title)).toEqual(['Leaking water heater'])
+  // A later caller's name never replaces it.
   await act(agent(ws.id), 'call.finish', { callId: body.data.callId, callerName: 'Someone Else' })
-  expect(await getContact(first.contact.id)).toMatchObject({ name: 'Linda Park', name_source: 'member' })
-  // A member clearing the name leaves nothing to check against.
-  const cleared = await act(ws.owner, 'contact.update', { contactId: first.contact.id, name: null })
-  expect(cleared.body.rows.contacts).toMatchObject([{ name: null, name_source: null }])
+  expect(await getContact(first.contact.id)).toMatchObject({ name: 'Linda Park', name_source: 'caller' })
+
+  // "Know the caller's previous calls" off: call.start sends no history at all.
+  await db.update(assistants).set({ behaviours: { caller_history: false } }).where(eq(assistants.workspace_id, ws.id))
+  const off = await act(agent(), 'call.start', { from: number, to: ws.number })
+  expect(off.body.data.callerHistory).toBeNull()
 })
 
-test('a name a member typed unlocks the history: contact.create, contact.update, contact.import', async () => {
+test('a name a member typed is the team\'s: contact.create, contact.update, contact.import', async () => {
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const [typed, renamed, imported] = [randomNumber(), randomNumber(), randomNumber()]
   const created = await act(ws.owner, 'contact.create', { phone: typed, name: 'Dana Ortiz' })

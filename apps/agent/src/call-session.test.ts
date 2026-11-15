@@ -133,9 +133,9 @@ test('the contact call.start matched reaches the instructions with its note; a w
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const known = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'member', note: 'Prefers mornings.' }), phone)
   expect(buildInstructions(known.assistant, known.businessHours, known.booking, [], known.caller)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
-  // A name only a caller gave: the notes stay out.
+  // A name only a caller gave: the notes go in too (no name check).
   const unconfirmed = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'caller', note: 'Prefers mornings.' }), phone)
-  expect(buildInstructions(unconfirmed.assistant, unconfirmed.businessHours, unconfirmed.booking, [], unconfirmed.caller)).not.toContain('caller_notes')
+  expect(buildInstructions(unconfirmed.assistant, unconfirmed.businessHours, unconfirmed.booking, [], unconfirmed.caller)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
   const withheld = await startCall(api(null), { ...phone, from: 'anonymous' })
   expect(buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, [], withheld.caller)).not.toContain('caller_notes')
 })
@@ -150,10 +150,11 @@ test('a returning phone caller hears the usual greeting; their history reaches t
   const known = await startCall(api(row, linda, callerHistory), phone)
   expect(known.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
   expect(known.caller).toEqual({ name: 'Linda Park', note: null, phone: phone.from, nameConfirmed: true, history: callerHistory })
-  // A name only a caller gave (or an API of an older version, without name_source): the history stays out.
+  // A name only a caller gave (or an API of an older version, without name_source): the history goes in all the same;
+  // nameConfirmed is only for a transfer's briefing.
   for (const name_source of ['caller', undefined]) {
     const unconfirmed = await startCall(api(row, { ...linda, name_source }, callerHistory), phone)
-    expect(unconfirmed.caller).toMatchObject({ name: 'Linda Park', nameConfirmed: false, history: null })
+    expect(unconfirmed.caller).toMatchObject({ name: 'Linda Park', nameConfirmed: false, history: callerHistory })
   }
   // An assistant row of the release before still carries the old text for returning callers: not said.
   const older = await startCall(api({ ...row, greeting_known_caller: 'Welcome back, {first_name}!' }, linda, callerHistory), phone)

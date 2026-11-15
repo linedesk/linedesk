@@ -46,7 +46,7 @@ test('the call-test command line: the scenario comes first or after flags, the p
 
 test('every speaking caller is told to end the call, never reveal the test, and today\'s date', () => {
   expect(scenarioNames).toEqual([
-    'callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter',
+    'callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'returning-caller',
     'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence', 'silence-closing', 'silence-mid-call', 'transfer-next', 'transfer-person', 'spanish-caller', 'spanish-only',
     'mandarin-caller', 'korean-caller', 'polish-caller',
   ])

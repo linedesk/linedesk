@@ -140,9 +140,9 @@ export function withWorkspaceLanguage(assistant: Assistant | null, workspaceLang
 }
 
 /**
- * The caller for the prompt: the matched contact's name and note, and their history when call.start sent it. Only a
- * name the team gave or confirmed (contacts.name_source) checks who is calling; with any other the history is left
- * out, whatever an API of an older version sent.
+ * The caller for the prompt: the matched contact's name and note, and their history when call.start sent it.
+ * `nameConfirmed` (the team gave or confirmed the name) is only for what a person is told about the caller (a
+ * transfer's briefing); the prompt has no name check.
  */
 export function callerOf(
   contact: Contact | null,
@@ -156,7 +156,7 @@ export function callerOf(
     note: contact.note,
     phone: contact.phone,
     nameConfirmed,
-    history: nameConfirmed ? (history ?? null) : null,
+    history: history ?? null,
     ...(testCall ? { testCall } : {}),
   }
 }
@@ -259,6 +259,20 @@ type TestMetadata = {
   pipeline?: VoicePipeline
   /** The realtime model this test call uses instead of the install's (call-test --realtime-model). */
   realtimeModel?: string
+  /** A returning caller this test call plays (call-test returning-caller): a saved contact with a note and history. */
+  caller?: TestCaller
+}
+
+/** The caller a call test plays: the contact's name, the team's note and the records call.start would send. */
+export type TestCaller = { name: string; note?: string; phone: string; history?: CallerHistory }
+
+/** A test caller from job metadata; only plain strings and the history's shape, else none. */
+function parseTestCaller(value: unknown): TestCaller | undefined {
+  const c = value as Partial<TestCaller> | undefined
+  if (!c || typeof c.name !== 'string' || !c.name.trim() || typeof c.phone !== 'string') return undefined
+  const h = c.history as Partial<CallerHistory> | undefined
+  const history = h && Array.isArray(h.recentCalls) && Array.isArray(h.upcomingBookings) ? (h as CallerHistory) : undefined
+  return { name: c.name, phone: c.phone, ...(typeof c.note === 'string' ? { note: c.note } : {}), ...(history ? { history } : {}) }
 }
 
 /** An OpenAI realtime model id a test call may ask for: gpt-realtime, gpt-realtime-mini, a dated one. */
@@ -303,7 +317,10 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     started.recordingNotice,
   )
   // A test room (the web app's test call, a call test): there is no caller ID, and the prompt says so (B4).
-  const caller = callerOf(contact, started.callerHistory, { testCall: origin.kind === 'test' })
+  const played = origin.kind === 'test' ? origin.caller : undefined
+  const caller = played
+    ? { name: played.name, note: played.note ?? null, phone: played.phone, history: played.history ?? null }
+    : callerOf(contact, started.callerHistory, { testCall: origin.kind === 'test' })
   const booking = started.booking ?? null
   const startedAt = Date.now()
   return {
@@ -389,6 +406,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       mainLanguage?: unknown
       pipeline?: unknown
       realtimeModel?: unknown
+      caller?: unknown
     }
     if (parsed.source !== 'test' || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) return null
     const hours = parsed.businessHours as Partial<BusinessHours> | undefined
@@ -416,6 +434,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
         ? { pipeline: parsed.pipeline as VoicePipeline }
         : {}),
       ...(isRealtimeModelId(parsed.realtimeModel) ? { realtimeModel: parsed.realtimeModel } : {}),
+      ...(parseTestCaller(parsed.caller) ? { caller: parseTestCaller(parsed.caller) } : {}),
     }
   } catch {
     return null

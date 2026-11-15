@@ -1,7 +1,7 @@
 // Scenarios for the call test: who the test caller plays, and what the business's call must look
 // like afterwards. English only. Add one by adding an entry.
 import { type Language, languageNames } from '@linedesk/actions'
-import type { SimulatedOnCall } from '../call-session.ts'
+import type { SimulatedOnCall, TestCaller } from '../call-session.ts'
 
 export interface Expectation {
   /** The call's outcome must be one of these. */
@@ -56,6 +56,8 @@ export interface Scenario {
    * answers instead of a phone (nothing is dialled). With --phone the assistant's real settings apply.
    */
   onCall?: SimulatedOnCall
+  /** No-phone test only: the business's agent treats the caller as this saved contact (name, team note, history). */
+  caller?: TestCaller
   /** A silent caller (empty persona) stays on the line this long; default SILENT_CALLER_MS. */
   silentForMs?: number
   /**
@@ -137,6 +139,22 @@ export const scenarios = {
     expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1 },
   },
   // Without a phone the business is closed by the scenario; over the phone the workspace's real hours apply.
+  // A returning caller (LIN prompt review, 2026-11-15): the assistant has the contact's name, the team's note and the
+  // last call, with no name check, and brings up the open next step without being told.
+  'returning-caller': {
+    persona:
+      "You are Linda Park. Last week you called because your garbage disposal hums but does not turn, and nobody has called you back yet. Ask whether they got your message and when someone will call you. Do not explain the problem again unless you are asked; let the assistant say what it knows. If asked when suits you, say any time.",
+    expect: { outcome: MESSAGE_OUTCOMES, actionItems: 1, assistantSays: /\b(disposal|last week|your (earlier|last|previous) (call|message))\b/i },
+    caller: {
+      name: 'Linda Park',
+      phone: '+15035550199',
+      note: 'Prefers to be called back in the morning.',
+      history: {
+        recentCalls: [{ when: 'Tuesday, November 10', title: 'Garbage disposal jammed', summary: 'The disposal hums but does not turn.', outcome: 'message', openSteps: ['Call Linda back about the disposal'] }],
+        upcomingBookings: [],
+      },
+    },
+  },
   'after-hours': {
     persona:
       'You are Jordan Kim. Your toilet keeps running; it is not an emergency. Ask whether they are open right now and when someone will call you back, then leave your name and ask for a call back.',
