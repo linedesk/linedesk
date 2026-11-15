@@ -20,6 +20,7 @@ type TextField = Exclude<ImportField, 'phone'>
  * (a test imports it), fictional US contacts; an empty cell and a value with commas show how those look.
  */
 export const EXAMPLE_FILE_NAME = 'linedesk-contacts-example.csv'
+// i18n-ignore: an example file to fill in; its column names are the ones guessColumns reads
 export const EXAMPLE_CONTACTS: Table = {
   header: ['Name', 'Phone', 'Company', 'Email', 'Address', 'Note'],
   rows: [
@@ -257,8 +258,8 @@ function rowOf(cells: string[], columns: ColumnMap, country: string) {
   const problem: UnreadablePhone = read.find(p => !p.ok)?.problem ?? 'missing'
   const extension = phoneCells.map(t => splitExtension(t).extension).find(Boolean)
   const extra = [
-    extension && `Extension ${extension}`,
-    ...numbers.slice(1).map(n => `Other number: ${formatNumber(n)}`),
+    extension && i18n().t('contacts.import.note.extension', { extension }),
+    ...numbers.slice(1).map(n => i18n().t('contacts.import.note.otherNumber', { number: formatNumber(n) })),
   ].filter(Boolean)
   if (numbers[0] && extra.length) fields.note = [fields.note, ...extra].filter(Boolean).join('\n')
   let shortened = false

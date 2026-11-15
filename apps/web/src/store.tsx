@@ -219,20 +219,25 @@ export function useAssistants() {
 export function useAssistant() {
   return useAssistants()[0]
 }
-export const useAssistantName = () => useAssistant()?.name ?? 'Assistant'
+export function useAssistantName() {
+  const t = useT()
+  return useAssistant()?.name ?? t('common.assistant.unnamed')
+}
 /**
  * The default assistant's name, or null while the assistants have not arrived on this device yet: headers that name
  * the assistant show a skeleton then (`SkeletonText`) rather than a generic word that flips to the name (rule 15).
  */
 export function useAssistantNameOrNull(): string | null {
+  const t = useT()
   const name = useAssistant()?.name
   const loaded = useSnapshotValue(s => s.synced.has('assistants') || s.tables.assistants.size > 0)
-  return name ?? (loaded ? 'Assistant' : null)
+  return name ?? (loaded ? t('common.assistant.unnamed') : null)
 }
 /** The assistant that handled a call (calls from before several assistants: the default one). */
 export function useCallAssistantName(assistantId: string | null): string {
+  const t = useT()
   const assistants = useAssistants()
-  return (assistants.find(a => a.id === assistantId) ?? assistants[0])?.name ?? 'Assistant'
+  return (assistants.find(a => a.id === assistantId) ?? assistants[0])?.name ?? t('common.assistant.unnamed')
 }
 
 // A hot update of this module would create a second context while the old provider stays mounted

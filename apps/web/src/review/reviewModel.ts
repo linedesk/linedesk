@@ -1,13 +1,27 @@
 // How <assistant> did (Assistant area, #assistant/<id>/review): the pure part. The low-scored calls owners and
 // admins look at and mark as checked, and the questions callers asked that the assistant could not answer.
-import { type CallEvaluation, NEEDS_REVIEW_MAX_SCORE, type QuestionGroup, scoreWords } from '@linedesk/actions'
+import { type CallEvaluation, NEEDS_REVIEW_MAX_SCORE, type QuestionGroup } from '@linedesk/actions'
 import type { KnowledgeQuestion } from '@linedesk/db/types'
-
-export { scoreWords }
+import { i18n } from '../i18n/index.tsx'
 
 /** The section's id in the Assistant area, and its title, named after the assistant ("How Maya did"). */
 export const REVIEW_SECTION = 'review'
-export const reviewTitle = (assistantName: string) => `How ${assistantName.trim() || 'the assistant'} did`
+export const reviewTitle = (assistantName: string) =>
+  assistantName.trim()
+    ? i18n().t('settings.review.title', { name: assistantName.trim() })
+    : i18n().t('settings.review.titleDefault')
+
+/** The score in words, in the active language (the API's `scoreWords` is English, for the setup MCP and logs). */
+export const scoreWords = (score: number) =>
+  i18n().t(
+    score >= 5
+      ? 'settings.review.score.handledWell'
+      : score === 4
+        ? 'settings.review.score.mostlyFine'
+        : score === 3
+          ? 'settings.review.score.missedSomething'
+          : 'settings.review.score.wentWrong',
+  )
 
 /** A score worth a look (Missed something, Went wrong): the list holds only these. */
 export const needsALook = (score: number) => score <= NEEDS_REVIEW_MAX_SCORE
@@ -15,11 +29,12 @@ export const needsALook = (score: number) => score <= NEEDS_REVIEW_MAX_SCORE
 /**
  * The words for the checked state. Not "Done": on a call that is the inbox's Done (E), which finishes the call itself.
  */
-export const checkLabel = (checked: boolean) => (checked ? 'Reopen' : 'Mark as checked')
-export const listToggleLabel = (showingChecked: boolean) => (showingChecked ? 'Show open' : 'Show checked')
+export const checkLabel = (checked: boolean) => i18n().t(checked ? 'settings.review.reopen' : 'settings.review.check')
+export const listToggleLabel = (showingChecked: boolean) =>
+  i18n().t(showingChecked ? 'settings.review.showOpen' : 'settings.review.showChecked')
 
 /** "Asked once", "Asked 3×". */
-export const askedLabel = (n: number) => (n <= 1 ? 'Asked once' : `Asked ${n}×`)
+export const askedLabel = (n: number) => i18n().t('settings.review.questions.asked', { count: Math.max(1, n) })
 
 /** An open list after one of its calls was marked as checked (or reopened elsewhere): the call is gone, the total one less. */
 export function withoutCall(list: ReviewList | undefined, callId: string): ReviewList | undefined {

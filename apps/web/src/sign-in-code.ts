@@ -72,6 +72,7 @@ const knownMessages: Record<string, string> = {
   'sign-up is closed on this server': 'SIGNUP_CLOSED',
   'no account for this email. ask your workspace admin for an invitation': 'SIGNUP_CLOSED',
 }
+// i18n-ignore: the browsers' own messages for a failed request, matched, never shown
 const networkMessages = [
   'failed to fetch',
   'network error',

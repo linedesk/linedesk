@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { changedKeys, humanLocales, usages } from './changed.ts'
-import { checkBaselineEmpty, checkRatchet, checkUsage, type Report } from './check.ts'
+import {
+  checkBaselineEmpty,
+  checkFormatting,
+  checkRatchet,
+  checkUsage,
+  type Report,
+  serverTextSummary,
+} from './check.ts'
 import { type Glossary, hash, lockEntry, planLocale, structureErrors, validateTranslation } from './lib.ts'
 import { updateLock } from './lock.ts'
-import { countHardcoded, scanKeys } from './scan.ts'
+import { countHardcoded, findFormatting, findHardcoded, ignoreComments, scanKeys } from './scan.ts'
 import { styleFor } from './translate.ts'
 
 const glossary: Glossary = { neverTranslate: ['Linedesk', 'Maya'], terms: {}, identical: { es: ['common.ok'] } }
@@ -143,6 +150,67 @@ describe('hardcoded ratchet', () => {
     // toast, title, "Hello there", {'Plain'}, aria-label; not className, the key, "·", Kbd keys, "Linedesk".
     expect(countHardcoded('a.tsx', source, new Set(['Linedesk']))).toBe(5)
   })
+  it('counts text in plain .ts files: label helpers, sentences, fallbacks and error messages', () => {
+    const source = `
+      export const checkLabel = (checked: boolean) => (checked ? 'Reopen' : 'Mark as checked')
+      export const askedLabel = (n: number) => (n <= 1 ? 'Asked once' : \`Asked \${n}×\`)
+      export const title = (name: string) => \`How \${name.trim() || 'the assistant'} did\`
+      const fallback = name ?? 'Assistant'
+      const words = { label: 'Missed', hint: 'Shown to everyone.' }
+      if (!res.ok) throw new Error(\`The server answered \${res.status}\`)
+      export const tip = (label: string, key: string) => \`\${label} · Next time, press \${key}\`
+    `
+    expect(findHardcoded('a.ts', source).map(hit => hit.text)).toEqual([
+      'Reopen',
+      'Mark as checked',
+      'Asked once',
+      'Asked ×',
+      'How did',
+      'the assistant',
+      'Assistant',
+      'Missed',
+      'Shown to everyone.',
+      'The server answered',
+      '· Next time, press',
+    ])
+  })
+  it('leaves code alone: ids, keys, classes, URLs, types, comparisons, logs, keyboard keys and t() keys', () => {
+    const source = `
+      import { x } from 'Some Module'
+      type Tone = 'Very loud' | 'Quiet'
+      const KEY = 'account.sessions'
+      const cls = cn('flex items-center gap-2', active && 'text-muted')
+      const link = { href: 'https://example.com/Some Page', id: 'Main', className: 'row wide', keywords: 'nobody no one' }
+      if (event.key === 'Enter' || mode === 'Read only') console.warn('Something went wrong here')
+      logger.error('Could not reach the carrier')
+      switch (kind) { case 'Missed call': break }
+      const label = t('inbox.row.markRead')
+      const keys = ['Enter', 'Escape']
+      localStorage.setItem('Linedesk Draft', value)
+      const table = { 'Some Header': 1 }
+      const brand = 'Linedesk'
+    `
+    expect(findHardcoded('a.ts', source, new Set(['Linedesk']))).toEqual([])
+  })
+  it('skips what an i18n-ignore comment with a reason covers, and counts those comments', () => {
+    const source = `
+      // i18n-ignore: an example file, its column names are read back
+      export const EXAMPLE = { header: ['Name', 'Phone'], rows: [['Sam Patel', 'Gate code 4512']] }
+      // i18n-ignore:
+      const shown = 'Still counted without a reason'
+    `
+    expect(findHardcoded('a.ts', source).map(hit => hit.text)).toEqual(['Still counted without a reason'])
+    expect(ignoreComments(source)).toBe(1)
+  })
+  it('counts text in the code around JSX too, once', () => {
+    const source = `
+      export function A({ search }: { search: string | null }) {
+        const where = search !== null ? 'Search' : viewTitle
+        toaster.show(\`\${name} is deleted.\`)
+        return <p title="Open it">{where}</p>
+      }`
+    expect(findHardcoded('a.tsx', source).map(hit => hit.text)).toEqual(['Search', 'is deleted.', 'Open it'])
+  })
   it('fails a file above its baseline, new files start at 0, reports lowered ones', () => {
     const report: Report = { errors: [], warnings: [] }
     const { lowered } = checkRatchet(
@@ -162,6 +230,67 @@ describe('hardcoded ratchet', () => {
     const clean: Report = { errors: [], warnings: [] }
     checkBaselineEmpty({}, clean)
     expect(clean.errors).toEqual([])
+  })
+})
+
+describe('formatting guard', () => {
+  it('finds formatting without the app locale, and a locale written in the code', () => {
+    const source = `
+      new Intl.DateTimeFormat(undefined, { month: 'short' })
+      new Intl.DisplayNames([], { type: 'language' })
+      Intl.NumberFormat().format(3)
+      date.toLocaleDateString()
+      n.toLocaleString(undefined, {})
+      new Intl.DateTimeFormat('en-US', { weekday: 'long' })
+      date.toLocaleString(['de-DE'])
+      Intl.DateTimeFormat().resolvedOptions().timeZone
+      new Intl.DateTimeFormat(intlLocale(), { hour: 'numeric' })
+      date.toLocaleDateString(locale, { day: 'numeric' })
+      // i18n-ignore: ISO dates in the workspace's time zone, a machine format
+      new Intl.DateTimeFormat('en-CA', { timeZone })
+    `
+    expect(findFormatting('a.ts', source).map(use => use.kind)).toEqual([
+      'browser',
+      'browser',
+      'browser',
+      'browser',
+      'browser',
+      'fixed',
+      'fixed',
+    ])
+  })
+  it('fails on the browser language, warns on a fixed locale', () => {
+    const report: Report = { errors: [], warnings: [] }
+    checkFormatting(
+      [
+        { file: 'a.ts', line: 1, code: 'd.toLocaleDateString()', kind: 'browser' },
+        { file: 'b.ts', line: 2, code: "new Intl.DateTimeFormat('en-CA')", kind: 'fixed' },
+      ],
+      report,
+    )
+    expect(report.errors).toEqual([expect.stringMatching(/^a\.ts:1: formats in the browser's language/)])
+    expect(report.warnings).toEqual([expect.stringMatching(/^b\.ts:2: formats with a locale written in the code/)])
+  })
+})
+
+describe('server-side text', () => {
+  it('counts per root and lists every string only when asked', () => {
+    const hits = {
+      'packages/actions/src/a.ts': [{ line: 3, text: 'Key rejected' }],
+      'apps/api/src/b.ts': [
+        { line: 1, text: 'Missed call' },
+        { line: 9, text: 'Try again in a few minutes.' },
+      ],
+    }
+    expect(serverTextSummary(hits, false)).toBe(
+      'Server-side text (reported, not yet checked): 3 user-visible strings (packages/actions/src 1 in 1 files, ' +
+        'apps/api/src 2 in 1 files). pnpm i18n:check --server-text lists them.',
+    )
+    expect(serverTextSummary(hits, true).split('\n').slice(1)).toEqual([
+      '  packages/actions/src/a.ts:3: "Key rejected"',
+      '  apps/api/src/b.ts:1: "Missed call"',
+      '  apps/api/src/b.ts:9: "Try again in a few minutes."',
+    ])
   })
 })
 

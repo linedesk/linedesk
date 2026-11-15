@@ -328,6 +328,7 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
   // A refused setting, an unknown number and anything else are about this request: the cases above and the default.
   // The provider-failure sentences are the shared package's (@linedesk/actions), English for now, so is their label.
   if (reason !== 'config' && reason !== 'not_found' && reason !== 'unknown')
+    // i18n-ignore: the label goes into the shared package's English sentence (server-side text)
     return providerFailureText(reason, 'The phone carrier', audience)
   return t('onboarding.flow.setupError.failed')
 }
@@ -437,15 +438,18 @@ export const URGENT_CONTACT_ID = 'urgent'
 /** The contact every new assistant has for callers who ask for a person (DEFAULT_TRANSFERS). */
 const PERSON_CONTACT_ID = 'person'
 /** What counts as urgent until the owner says otherwise. */
+// i18n-ignore: stored on the contact for the assistant, like DEFAULT_TRANSFERS (server-side text)
 export const DEFAULT_URGENT_CONDITION = 'An urgent problem that cannot wait until we call back'
 /**
  * The second line of the step's contact when it took over the "asks for a person" contact (one without a number):
  * the owner's mobile serves both, one contact. The step shows and edits only the line before it.
  */
+// i18n-ignore: stored on the contact and matched again later (server-side text)
 export const ALSO_PERSON = 'Also: the caller asks to speak to a person.'
 const withoutPerson = (condition: string) =>
   condition.endsWith(ALSO_PERSON) ? condition.slice(0, -ALSO_PERSON.length).trim() : condition
 /** The contact's name while the member's own name is not known (yet); replaced once it is. */
+// i18n-ignore: stored as the contact's name until the member's own is known (server-side text)
 export const FALLBACK_OWNER_NAME = 'the owner'
 
 /**

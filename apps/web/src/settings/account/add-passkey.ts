@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '../../cachedQuery.ts'
 import { readEnrolmentCode } from '../../enrolment-code.ts'
+import { i18n } from '../../i18n/index.tsx'
 import { authErrorMessage } from '../../sign-in-code.ts'
 import { addPasskeyForThisDevice, loadPasskeyEnrolment, PASSKEY_ENROLMENT } from './account-api.ts'
 
@@ -32,7 +33,7 @@ export function useAddPasskey() {
       codeNeeded = await loadPasskeyEnrolment()
       setAskedAtAdd(codeNeeded)
     }
-    if (codeNeeded && !enrolmentCode.trim()) throw new Error('Enter your passkey enrolment code first.')
+    if (codeNeeded && !enrolmentCode.trim()) throw new Error(i18n().t('account.passkeys.enrolmentCodeFirst'))
     // Names it after this device, uses up a remembered code and remembers the passkey as this device's way in.
     await addPasskeyForThisDevice(codeNeeded ? enrolmentCode : undefined)
     setEnrolmentCode('')

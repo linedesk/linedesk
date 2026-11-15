@@ -359,8 +359,9 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   // it (the sign-in page said so) is only forgotten here.
   useEffect(() => {
     const deleted = takeDeleted()
-    if (deleted && !deleted.accountDeleted) toaster.show(`${deleted.name} is deleted.`, false, NOT_FOUND_TOAST_MS)
-  }, [toaster.show])
+    if (deleted && !deleted.accountDeleted)
+      toaster.show(t('shell.workspaceDeleted', { name: deleted.name }), false, NOT_FOUND_TOAST_MS)
+  }, [toaster.show, t])
 
   // The keyboard cursor wins over a resting mouse: while keys are used, hover does not highlight a second row.
   useEffect(() => {
@@ -396,7 +397,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       : openCall
         ? callTitle(openCall)
         : search !== null
-          ? 'Search'
+          ? t('shell.where.search')
           : viewTitles[tab]
   const brand = useBrand()
   useEffect(() => {

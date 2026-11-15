@@ -4,6 +4,3 @@ import { i18n } from '../i18n/index.tsx'
 
 /** "Only admins can change this." in the active language. */
 export const onlyAdmins = () => i18n().t('settings.readOnly.onlyAdmins')
-
-/** The English text, for team/TeamPage.tsx until it moves to onlyAdmins() (outside settings; LIN-279 follow-up). */
-export const ONLY_ADMINS = 'Only admins can change this.'

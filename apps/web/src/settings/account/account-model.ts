@@ -23,7 +23,9 @@ export function signInMethodLabels(accounts: LinkedAccount[], methods: AuthMetho
   return methods.emailCode ? [...labels, t('account.method.emailCode')] : labels
 }
 
+// i18n-ignore: product names, never translated
 const browsers: [RegExp, string][] = [[/Edg\//, 'Edge'], [/OPR\//, 'Opera'], [/Firefox\//, 'Firefox'], [/Chrome\//, 'Chrome'], [/Safari\//, 'Safari']]
+// i18n-ignore: product names, never translated
 const systems: [RegExp, string][] = [[/iPhone|iPad/, 'iOS'], [/Android/, 'Android'], [/Mac OS X|Macintosh/, 'macOS'], [/Windows/, 'Windows'], [/Linux/, 'Linux']]
 const firstMatch = (table: [RegExp, string][], text: string) => table.find(([pattern]) => pattern.test(text))?.[1]
 

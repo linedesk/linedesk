@@ -1,5 +1,5 @@
 /**
- * `pnpm i18n:check [--complete] [--update-baseline]` (docs/translations.md, "Checks"). Runs in CI on every pull
+ * `pnpm i18n:check [--complete] [--update-baseline] [--server-text]` (docs/translations.md, "Checks"). Runs in CI on every pull
  * request; `--complete` on release pull requests (job `release-translations` in ci.yml).
  *
  * - English: valid ICU, keys sorted, no duplicate keys, no empty strings.
@@ -7,7 +7,12 @@
  * - Other languages: no keys English lacks, the same arguments, tags and plural categories, a lock entry per key.
  * - `--complete`: every key translated and current (its English unchanged since), and `hardcoded-baseline.json`
  *   empty: a release ships no hardcoded English.
- * - Ratchet: no web app file has more hardcoded English than `hardcoded-baseline.json` says.
+ * - Ratchet: no web app file (every `.ts` and `.tsx` under apps/web/src) has more hardcoded English than
+ *   `hardcoded-baseline.json` says (empty: none has any).
+ * - Formatting: no `Intl` formatter or `toLocale…String()` in the web app without the app's locale (an error), or with
+ *   a locale written in the code (a warning).
+ * - Server-side text: user-visible English in packages/actions and apps/api, counted and reported, not yet checked
+ *   (`--server-text` lists it).
  */
 import { readFileSync } from 'node:fs'
 import { NAMESPACES, SOURCE, targetsOf } from '../locales.ts'
@@ -29,7 +34,19 @@ import {
   structureErrors,
   writeJson,
 } from './lib.ts'
-import { hardcodedCounts, KEY_ROOTS, type KeyScan, scanKeys, sourceFiles } from './scan.ts'
+import {
+  type FormattingUse,
+  findFormatting,
+  type Hardcoded,
+  hardcodedIn,
+  ignoreComments,
+  KEY_ROOTS,
+  type KeyScan,
+  RATCHET_ROOT,
+  SERVER_TEXT_ROOTS,
+  scanKeys,
+  sourceFiles,
+} from './scan.ts'
 
 export const BASELINE_FILE = `${PACKAGE_DIR}hardcoded-baseline.json`
 
@@ -131,6 +148,7 @@ export function checkRatchet(
   counts: Record<string, number>,
   baseline: Record<string, number>,
   report: Report,
+  hits: Record<string, Hardcoded[]> = {},
 ): { lowered: string[] } {
   const lowered: string[] = []
   for (const [file, count] of Object.entries(counts)) {
@@ -138,7 +156,8 @@ export function checkRatchet(
     if (count > allowed)
       report.errors.push(
         `${file}: ${count} hardcoded user-visible strings, the baseline allows ${allowed}. Move the new text to ` +
-          'packages/i18n/locales/en/ and use t() (docs/translations.md)',
+          'packages/i18n/locales/en/ and use t() (docs/translations.md)' +
+          (hits[file] ?? []).map(hit => `\n    ${file}:${hit.line}: ${JSON.stringify(hit.text)}`).join(''),
       )
   }
   for (const [file, allowed] of Object.entries(baseline))
@@ -153,6 +172,39 @@ export function checkBaselineEmpty(baseline: Record<string, number>, report: Rep
       `hardcoded-baseline.json lists ${file} (${count}): a release allows no hardcoded English. Move its strings to ` +
         'keys in packages/i18n/locales/en/ and use t(), then run pnpm i18n:check --update-baseline (docs/translations.md)',
     )
+}
+
+/** Formatting outside the app's language: no locale fails, a locale written in the code warns. */
+export function checkFormatting(uses: FormattingUse[], report: Report) {
+  for (const use of uses)
+    if (use.kind === 'browser')
+      report.errors.push(
+        `${use.file}:${use.line}: formats in the browser's language (${use.code}). Use useFormat(), fmt() or ` +
+          'pass intlLocale() (docs/translations.md, "Checks")',
+      )
+    else
+      report.warnings.push(
+        `${use.file}:${use.line}: formats with a locale written in the code (${use.code}). Use the app's locale ` +
+          '(intlLocale()), or mark a machine format with // i18n-ignore: <why>',
+      )
+}
+
+/** The size of the server-side work: strings per root, and every one of them for `--server-text`. */
+export function serverTextSummary(hits: Record<string, Hardcoded[]>, list: boolean): string {
+  const lines: string[] = []
+  const total = Object.values(hits).reduce((sum, h) => sum + h.length, 0)
+  const perRoot = SERVER_TEXT_ROOTS.map(root => {
+    const files = Object.entries(hits).filter(([file]) => file.startsWith(`${root}/`))
+    return `${root} ${files.reduce((sum, [, h]) => sum + h.length, 0)} in ${files.length} files`
+  })
+  lines.push(
+    `Server-side text (reported, not yet checked): ${total} user-visible strings (${perRoot.join(', ')}). ` +
+      (list ? '' : 'pnpm i18n:check --server-text lists them.'),
+  )
+  if (list)
+    for (const [file, fileHits] of Object.entries(hits))
+      for (const hit of fileHits) lines.push(`  ${file}:${hit.line}: ${JSON.stringify(hit.text)}`)
+  return lines.join('\n')
 }
 
 export const ratchetIgnore = (glossary: Glossary) => new Set(glossary.neverTranslate ?? [])
@@ -170,7 +222,15 @@ function main() {
   checkUsage(en, scans, report)
   checkTargets(en, readLock(), glossary, complete, report)
 
-  const counts = hardcodedCounts(ratchetIgnore(glossary))
+  const ignore = ratchetIgnore(glossary)
+  const webFiles = sourceFiles(RATCHET_ROOT)
+  const hits = hardcodedIn([RATCHET_ROOT], ignore)
+  const counts = Object.fromEntries(Object.entries(hits).map(([file, h]) => [file, h.length]))
+  checkFormatting(
+    webFiles.flatMap(file => findFormatting(file, readFileSync(`${REPO_DIR}${file}`, 'utf8'))),
+    report,
+  )
+  const ignores = webFiles.reduce((sum, file) => sum + ignoreComments(readFileSync(`${REPO_DIR}${file}`, 'utf8')), 0)
   if (args.has('--update-baseline')) {
     writeJson(BASELINE_FILE, counts)
     console.log(
@@ -179,12 +239,15 @@ function main() {
   } else {
     const baseline = readJson<Record<string, number>>(BASELINE_FILE, {})
     if (complete) checkBaselineEmpty(baseline, report)
-    const { lowered } = checkRatchet(counts, baseline, report)
+    const { lowered } = checkRatchet(counts, baseline, report, hits)
     if (lowered.length)
       console.log(
         `Fewer hardcoded strings than the baseline (run pnpm i18n:check --update-baseline):\n  ${lowered.join('\n  ')}`,
       )
   }
+
+  console.log(serverTextSummary(hardcodedIn(SERVER_TEXT_ROOTS, ignore), args.has('--server-text')))
+  console.log(`// i18n-ignore comments in the web app: ${ignores}`)
 
   for (const warning of report.warnings) console.warn(`warning: ${warning}`)
   for (const error of report.errors) console.error(`error: ${error}`)

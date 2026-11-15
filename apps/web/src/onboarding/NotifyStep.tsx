@@ -26,9 +26,7 @@ import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import {
   EMERGENCY_NOTE,
   firstWhoHears,
-  mobileErrorText,
   outboundE164,
-  URGENT_CONTACT_ID,
   type UrgentChoice,
   urgentCasesFrom,
   type WhoHearsDraft,
@@ -101,9 +99,8 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
     setShown(true)
     if (problem) return
     const transfers = whoHearsTransfers(assistant.transfers, draft, me?.name ?? '')
-    const contactName = transfers?.find(c => c.id === URGENT_CONTACT_ID)?.name ?? ''
     if (transfers && !emailConfirmed && setsTransferNumber({ transfers }))
-      return setError({ message: mobileErrorText('Confirm your email first', contactName), mobile: false })
+      return setError({ message: t('onboarding.flow.mobileError.confirmEmail'), mobile: false })
     // The server refuses a number of this workspace too; said here at once, without a round trip.
     const typed = draft.urgent === 'transfer' ? outboundE164(draft.mobile) : null
     if (typed && numbers.some(n => n.e164 === typed))

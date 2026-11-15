@@ -12,7 +12,7 @@ import {
 } from '@linedesk/actions'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
-import { ONLY_ADMINS } from '../settings/readOnly.ts'
+import { onlyAdmins } from '../settings/readOnly.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { signInAgain, signOutAndForget } from '../localData.ts'
@@ -472,7 +472,7 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
       <Section
         id="team-members"
         title={t('team.members.title')}
-        description={data && !data.canManage ? ONLY_ADMINS : undefined}
+        description={data && !data.canManage ? onlyAdmins() : undefined}
         help={t('team.members.help')}
       >
         <Loading

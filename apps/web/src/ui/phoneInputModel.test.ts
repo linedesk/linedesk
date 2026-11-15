@@ -2,7 +2,7 @@ import { defaultPhoneCountry } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import { optionGroups } from './controls.tsx'
 import {
-  ALL_COUNTRIES_GROUP,
+  allCountriesGroup,
   browserLocale,
   caretAfterDigits,
   digitsBefore,
@@ -21,7 +21,7 @@ describe('the country list', () => {
   test('common countries first, then every other one A-Z under "All countries"', () => {
     expect(options.slice(0, 4).map(o => o.value)).toEqual(['US', 'CA', 'GB', 'AU'])
     const runs = optionGroups(options)
-    expect(runs.map(r => r.group)).toEqual([undefined, ALL_COUNTRIES_GROUP])
+    expect(runs.map(r => r.group)).toEqual([undefined, allCountriesGroup()])
     const names = runs[1]!.options.map(o => o.name)
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')))
     // Each country once.

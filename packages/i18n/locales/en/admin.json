@@ -582,6 +582,7 @@
   "stepUp.refused.confirm": "Not confirmed with your passkey. Nothing changed.",
   "stepUp.refused.enrol": "Add a passkey first under Account › Sign-in & security, with the enrolment code from another admin or from {command} on the server. Nothing changed.",
   "stepUp.waiting": "Waiting for your device…",
+  "stepUp.what.impersonate": "sign in as this user",
   "stepUp.what.instanceAdminGrant": "make an instance admin",
   "stepUp.what.instanceAdminRevoke": "remove an instance admin",
   "stepUp.what.issuePasskeyEnrolment": "issue a passkey enrolment code",

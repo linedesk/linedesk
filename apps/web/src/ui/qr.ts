@@ -268,6 +268,7 @@ export function encodeQr(text: string, mask?: number): QrMatrix {
   let ver = 1
   // 4 bits mode + 8 bits count + the data must fit the version's data codewords.
   while (ver <= MAX_VERSION && 12 + bytes.length * 8 > dataCodewords(ver) * 8) ver++
+  // i18n-ignore: a programming error (the codes shown are a few characters), never on screen
   if (ver > MAX_VERSION) throw new Error(`Too long for a QR code here: ${bytes.length} bytes`)
   const words = withErrorCorrection(encodeData(bytes, ver), ver)
   let best: { grid: Grid; score: number } | null = null

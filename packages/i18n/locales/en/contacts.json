@@ -50,6 +50,8 @@
   "import.label": "Import contacts",
   "import.noRows": "The file has no rows under its column names. The first row names the columns.",
   "import.notCsv": "This file is not a CSV file. Export your contacts as CSV (comma or semicolon separated) and try again.",
+  "import.note.extension": "Extension {extension}",
+  "import.note.otherNumber": "Other number: {number}",
   "import.nothing": "Nothing was imported: {message}",
   "import.pickPhone": "Pick the column with the phone number.",
   "import.planAdded": "{count, plural, one {# new contact} other {# new contacts}}",

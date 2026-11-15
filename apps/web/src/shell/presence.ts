@@ -2,6 +2,7 @@
 // is connected and the server has the voice stack. Anything else is said plainly, with a way to fix it.
 import { useEffect, useSyncExternalStore } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { useRows, useSnapshot } from '../store.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
 
@@ -58,7 +59,7 @@ type VoiceStatus = { voiceReady: boolean; voiceFailing: boolean }
 const VOICE_STATUS = 'assistant.status.v2'
 async function loadVoiceStatus(): Promise<VoiceStatus> {
   const res = await fetch('/v1/assistant/status', { credentials: 'include' })
-  if (!res.ok) throw new Error(`The server answered ${res.status}`)
+  if (!res.ok) throw new Error(i18n().t('common.serverAnswered', { status: res.status }))
   const body = (await res.json()) as Partial<VoiceStatus>
   return { voiceReady: Boolean(body.voiceReady), voiceFailing: Boolean(body.voiceFailing) }
 }

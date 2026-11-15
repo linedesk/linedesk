@@ -106,6 +106,10 @@ Then remove it from `BETA_LOCALES` in `packages/i18n/locales.ts`.
 
 ## Add text as a developer
 
+This applies to every pull request and every session: Tim's and Janik's, a person's or an AI's, autopilot pull
+requests included. `.ts` files count as much as `.tsx`: a label a model or helper builds (`checked ? 'Reopen' : …`),
+a fallback (`name ?? 'Assistant'`) and an error message the page shows are all user-visible text.
+
 1. Add the key to `packages/i18n/locales/en/<namespace>.json` (sorted; `pnpm i18n:check` says when it isn't) and
    use it with `t()` or `<T>`. Never edit other languages in a feature pull request: the release translation pass
    does that, with the screen in view, which keeps diffs reviewable.
@@ -124,10 +128,44 @@ Then remove it from `BETA_LOCALES` in `packages/i18n/locales.ts`.
 - Other languages: no keys English lacks, the same arguments, tags and plural forms, a lock entry for every key.
 - `--complete` (release pull requests only): every key translated and current, and `hardcoded-baseline.json` empty.
   A file listed there fails the release with a note to move its strings to keys and use `t()`.
-- The ratchet: `hardcoded-baseline.json` counts the user-visible English still in each web app file. It is empty now:
-  every file is at 0, a new file starts at 0, and a pull request that adds hardcoded English fails `pnpm i18n:check`.
-  After moving strings out, `pnpm i18n:check --update-baseline` writes the new counts. Never raise it to pass a
-  check; a non-English literal the scanner counts (a key shape such as `sk-…`) goes into a named constant instead.
+- The ratchet: `hardcoded-baseline.json` counts the user-visible English still in each web app file, every `.ts` and
+  `.tsx` file under `apps/web/src` except tests. It is empty now: every file is at 0, a new file starts at 0, and a
+  pull request that adds hardcoded English fails `pnpm i18n:check`, which lists each string with its line. After
+  moving strings out, `pnpm i18n:check --update-baseline` writes the new counts. Never raise it to pass a check.
+- What the scanner counts (`packages/i18n/scripts/scan.ts`, `findHardcoded`): JSX text, text attributes (`title`,
+  `placeholder`, `aria-label`, `label`, `alt`, `tooltip`) and `toast(…)`; in all code, a string or template that
+  reads like a sentence, and a capitalised word that is returned, chosen, assigned or listed; error messages too. Not
+  counted: types, object keys, comparisons, imports, logs, class names, URLs, ids and keys, keyboard keys, `t()` keys
+  and the glossary's never-translate words alone. Text that is not UI (an example file whose column names are read
+  back, browser messages the code matches, a programming error) gets `// i18n-ignore: <why>` right before its
+  statement; the reason is required, the check prints how many there are, and a reviewer questions each new one. It
+  is never a way to get a pull request green.
+- Dates, numbers and names: an `Intl` formatter or `toLocale…String()` in the web app with no locale, `undefined` or
+  `[]` formats in the browser's language and fails the check; one with a locale written in the code (`'en-US'`) warns.
+  Use `useFormat()` in components and `fmt()` or `intlLocale()` (`apps/web/src/i18n/format.ts`) elsewhere; a machine
+  format on purpose (`en-CA` for ISO dates) gets `// i18n-ignore: <why>`. Reading the browser's time zone
+  (`Intl.DateTimeFormat().resolvedOptions().timeZone`) is not formatting.
+- Server-side text: the same scan over `packages/actions` and `apps/api` is reported, not checked yet (the count is in
+  the check's output; `pnpm i18n:check --server-text` lists every string). See "Server-side text" below.
+
+## Server-side text
+
+The shared actions and the API still write English that people read: provider status words, carrier forwarding
+steps, field labels, country names, voice pipeline labels, refusals the web app shows, and parts of emails. The plan:
+
+- Actions return a key and params, never a sentence: `{ code: 'provider.keyRejected', params: { provider } }`. The
+  web app renders it with `t()` in the reader's language; the setup MCP and the CLI render the same key in English
+  with `getT('en')`, so they stay English (the table below) without a second copy of the text.
+- Refusals and errors the web app shows (`RefusedError`, API error bodies) carry a code; the web app maps the code to
+  a key, as `sign-in-code.ts` does for sign-in errors. The English message stays in the body for logs and API clients.
+- Emails: the templates already render with `getT(locale)` in the recipient's language (the table below). What is
+  left around them (admin alert texts, the email provider's status lines) moves the same way: keys rendered with the
+  recipient's `getT(locale)`, never a literal in the email.
+- Data shipped as content (carrier guides, area codes, sample calls) moves to its own catalog namespace per area,
+  translated in the release pass like the rest. What the assistant says stays in the workspace's language
+  (`spoken-lines.ts`), not the reader's.
+- Order: what the web app shows most (provider status, carrier steps, field labels, refusals), then emails, then the
+  rest. Once an area is done, the check fails on new English there, as it does for the web app.
 
 ## Which language a reader gets
 

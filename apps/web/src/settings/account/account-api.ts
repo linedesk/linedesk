@@ -7,6 +7,7 @@ import { forgetEnrolmentCode } from '../../enrolment-code.ts'
 import { signOutAndForget } from '../../localData.ts'
 import { authErrorMessage } from '../../sign-in-code.ts'
 import { rememberSignInMethod } from '../../sign-in-methods.ts'
+import { i18n } from '../../i18n/index.tsx'
 import { describeDevice, type LinkedAccount, type SessionRow } from './account-model.ts'
 
 type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null }
@@ -19,11 +20,10 @@ export class SignInAgain extends Error {}
  * in the last 12 hours (apps/api/src/passkeys.ts). The page confirms in place (confirmWithPasskey).
  */
 export class ConfirmWithPasskey extends SignInAgain {}
-const PASSKEY_SIGN_IN = 'Confirm with one of your passkeys to do this.'
+const passkeySignIn = () => i18n().t('account.passkeys.confirmToChange')
 
 /** The browser offered another account's passkey and it was used: that session is gone, nothing is retried. */
 export class PasskeyOfAnotherAccount extends Error {}
-const OTHER_ACCOUNT = 'That passkey belongs to another account. You were signed out; sign in again.'
 const RELOAD_AFTER_MS = 3000
 
 /**
@@ -38,13 +38,13 @@ export async function confirmWithPasskey() {
   if (before && (await signedInAccount()) !== before) {
     await signOutAndForget()
     setTimeout(() => window.location.reload(), RELOAD_AFTER_MS)
-    throw new PasskeyOfAnotherAccount(OTHER_ACCOUNT)
+    throw new PasskeyOfAnotherAccount(i18n().t('account.passkeys.otherAccount'))
   }
 }
 
 function unwrap<T>(result: Result<T>, fallback: string): T {
-  if (result.error?.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to do this.')
-  if (result.error?.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
+  if (result.error?.code === 'SESSION_NOT_FRESH') throw new SignInAgain(i18n().t('account.signInAgain.toDoThis'))
+  if (result.error?.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new ConfirmWithPasskey(passkeySignIn())
   if (result.error || result.data === null) throw new Error(result.error?.message || fallback)
   return result.data
 }
@@ -73,7 +73,7 @@ export async function loadAccount(): Promise<Account> {
     fetchAuthMethods({ attempts: 3 }),
     fetchMe().catch(() => null),
   ])
-  const current = unwrap(session, 'You are signed out.')
+  const current = unwrap(session, i18n().t('account.load.signedOut'))
   return {
     user: {
       name: current.user.name,
@@ -81,7 +81,7 @@ export async function loadAccount(): Promise<Account> {
       emailVerified: current.user.emailVerified,
       locale: current.user.locale ?? null,
     },
-    accounts: unwrap(accounts, 'Could not load your sign-in methods.'),
+    accounts: unwrap(accounts, i18n().t('account.load.methodsFailed')),
     methods,
     avatarUrl: me?.avatarUrl ?? null,
     profileChangedBy: me?.profileChangedBy ?? null,
@@ -95,7 +95,7 @@ let tokens = new Map<string, string>()
 /** The member's sessions. Throws SignInAgain when this session is older than a day (Better Auth's rule). */
 export async function loadSessions(): Promise<SessionRow[]> {
   const [current, sessions] = await Promise.all([auth.getSession(), auth.listSessions()])
-  const list = unwrap(sessions, 'Could not load your sessions.')
+  const list = unwrap(sessions, i18n().t('account.sessions.loadFailed'))
   const currentToken = current.data?.session.token
   tokens = new Map(list.map(s => [s.id, s.token]))
   return list.map(s => ({
@@ -107,14 +107,14 @@ export async function loadSessions(): Promise<SessionRow[]> {
 }
 
 export async function changeName(name: string) {
-  unwrap(await auth.updateUser({ name }), 'Could not save your name.')
+  unwrap(await auth.updateUser({ name }), i18n().t('account.profile.nameSaveFailed'))
 }
 
 /** Changes the password and signs every other session out. */
 export async function changePassword(currentPassword: string, newPassword: string) {
   unwrap(
     await auth.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }),
-    'Could not change your password.',
+    i18n().t('account.password.changeFailed'),
   )
 }
 
@@ -128,8 +128,8 @@ export async function setFirstPassword(newPassword: string) {
   })
   if (res.ok) return
   const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string }
-  if (body.code === 'SIGN_IN_AGAIN') throw new SignInAgain(body.error ?? 'Sign in again to set a password.')
-  throw new Error(body.error ?? 'Could not set your password.')
+  if (body.code === 'SIGN_IN_AGAIN') throw new SignInAgain(body.error ?? i18n().t('account.signInAgain.toSetPassword'))
+  throw new Error(body.error ?? i18n().t('account.password.setFailed'))
 }
 
 /**
@@ -159,19 +159,19 @@ export async function changeEmail(newEmail: string, otp: string) {
 
 function emailChangeResult(result: Result<unknown>) {
   if (!result.error) return
-  if (result.error.code === 'SESSION_NOT_FRESH') throw new SignInAgain('Sign in again to change your email address.')
-  if (result.error.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
+  if (result.error.code === 'SESSION_NOT_FRESH') throw new SignInAgain(i18n().t('account.signInAgain.toChangeEmail'))
+  if (result.error.code === 'PASSKEY_CONFIRMATION_REQUIRED') throw new ConfirmWithPasskey(passkeySignIn())
   throw new Error(authErrorMessage(result.error))
 }
 
 export async function signOutSession(id: string) {
   const token = tokens.get(id)
-  if (!token) throw new Error('That session is no longer there.')
-  unwrap(await auth.revokeSession({ token }), 'Could not sign that session out.')
+  if (!token) throw new Error(i18n().t('account.sessions.gone'))
+  unwrap(await auth.revokeSession({ token }), i18n().t('account.sessions.signOutFailed'))
 }
 
 export async function signOutOtherSessions() {
-  unwrap(await auth.revokeOtherSessions(), 'Could not sign the other sessions out.')
+  unwrap(await auth.revokeOtherSessions(), i18n().t('account.sessions.signOutOthersFailed'))
 }
 
 export type PasskeyRow = { id: string; name: string; added: Date | null }
@@ -182,12 +182,12 @@ export async function loadPasskeys(): Promise<PasskeyRow[]> {
     (await auth.$fetch('/passkey/list-user-passkeys', { method: 'GET' })) as Result<
       { id: string; name?: string | null; createdAt?: string | null; deviceType: string }[]
     >,
-    'Could not load your passkeys.',
+    i18n().t('account.passkeys.loadFailed'),
   )
   return list
     .map(p => ({
       id: p.id,
-      name: p.name || (p.deviceType === 'multiDevice' ? 'Synced passkey' : 'Passkey on a device'),
+      name: p.name || i18n().t(p.deviceType === 'multiDevice' ? 'account.passkeys.synced' : 'account.passkeys.onDevice'),
       added: p.createdAt ? new Date(p.createdAt) : null,
     }))
     .sort((a, b) => (b.added?.getTime() ?? 0) - (a.added?.getTime() ?? 0))
@@ -203,9 +203,9 @@ export async function addPasskey(name: string, enrolmentCode?: string) {
   const result = await auth.passkey.addPasskey({ name, ...(headers && { fetchOptions: { headers } }) })
   if (result && 'error' in result && result.error) {
     if ('code' in result.error && result.error.code === 'SESSION_NOT_FRESH')
-      throw new SignInAgain('Sign in again to add a passkey.')
+      throw new SignInAgain(i18n().t('account.signInAgain.toAddPasskey'))
     if ('code' in result.error && result.error.code === 'PASSKEY_CONFIRMATION_REQUIRED')
-      throw new ConfirmWithPasskey(PASSKEY_SIGN_IN)
+      throw new ConfirmWithPasskey(passkeySignIn())
     throw new Error(authErrorMessage(result.error))
   }
 }
@@ -231,6 +231,6 @@ export async function loadPasskeyEnrolment(): Promise<boolean> {
 export async function removePasskey(id: string) {
   unwrap(
     (await auth.$fetch('/passkey/delete-passkey', { method: 'POST', body: { id } })) as Result<unknown>,
-    'Could not remove the passkey.',
+    i18n().t('account.passkeys.removeFailed'),
   )
 }

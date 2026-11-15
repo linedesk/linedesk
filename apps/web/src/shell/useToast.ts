@@ -1,10 +1,15 @@
 // Quiet toasts, plus the "Next time, press E" tip after an action was triggered with the mouse.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { i18n } from '../i18n/index.tsx'
 import { HINT_EVENT, type ShortcutHint } from '../ui/tooltips.ts'
 
 export type ToastState = { text: string; undo: boolean }
 /** How the current action was triggered: a shortcut, ⌘K + Enter, or the mouse. */
 export type Source = 'key' | 'menu-key' | 'mouse'
+
+/** "Archived · Next time, press E", or the tip alone when there is no label. */
+const shortcutTip = (label: string | undefined, key: string) =>
+  label ? i18n().t('shell.shortcutTip.withLabel', { label, key }) : i18n().t('shell.shortcutTip.alone', { key })
 
 const PLAIN_MS = 2600
 const UNDO_MS = 5000
@@ -35,7 +40,7 @@ export function useToast() {
   }, [])
 
   const withTip = useCallback(
-    (label: string, key: string) => (source.current === 'mouse' ? `${label} · Next time, press ${key}` : label),
+    (label: string, key: string) => (source.current === 'mouse' ? shortcutTip(label, key) : label),
     [],
   )
 
@@ -45,7 +50,7 @@ export function useToast() {
       const { label, keys } = (e as CustomEvent<ShortcutHint>).detail
       setTimeout(() => {
         if (Date.now() - lastShownAt.current > 80)
-          show(`${label ? `${label} · ` : ''}Next time, press ${keys.join(' ')}`)
+          show(shortcutTip(label, keys.join(' ')))
       }, 30)
     }
     window.addEventListener(HINT_EVENT, onHint)

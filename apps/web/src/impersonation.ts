@@ -44,8 +44,8 @@ async function post(path: string, body: unknown = {}) {
   })
   const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; resumed?: boolean; code?: unknown; stepUp?: unknown } | null
   const stepUp = stepUpOf(json)
-  if (stepUp) throw new StepUpRequired(json?.error ?? 'Confirm with your passkey.', stepUp)
-  if (!res.ok || !json?.ok) throw new Error(json?.error ?? `The server answered ${res.status}`)
+  if (stepUp) throw new StepUpRequired(json?.error ?? i18n().t('admin.api.confirmPasskey'), stepUp)
+  if (!res.ok || !json?.ok) throw new Error(json?.error ?? i18n().t('admin.api.serverAnswered', { status: res.status }))
   return json
 }
 
@@ -59,7 +59,7 @@ function reloadAt(hash: string) {
 export async function startImpersonation(userId: string) {
   const unsent = await flushAllStores()
   if (unsent > 0) throw new UnsentChanges(unsentText(unsent))
-  await withPasskeyStepUp(() => post('/v1/impersonation/start', { userId }), 'sign in as this user')
+  await withPasskeyStepUp(() => post('/v1/impersonation/start', { userId }), i18n().t('admin.stepUp.what.impersonate'))
   await forgetLocalData()
   reloadAt('#calls')
 }

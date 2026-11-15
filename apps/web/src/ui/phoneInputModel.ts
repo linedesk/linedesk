@@ -1,6 +1,7 @@
 // The country list of the phone field (PhoneInput.tsx): each country with its flag and calling code, common ones
 // first, the search over name, ISO code and calling code, and where the caret goes when the number is formatted.
 import { callingCodeOf, isPhoneCountry, phoneCountryCodes, phoneCountryName } from '@linedesk/actions'
+import { i18n } from '../i18n/index.tsx'
 
 export type PhoneCountryOption = {
   /** ISO 3166-1 alpha-2, "DE". */
@@ -17,7 +18,7 @@ export type PhoneCountryOption = {
 
 /** Shown first, in this order, like the common currencies of the currency menu (the viewer's country before them). */
 export const COMMON_PHONE_COUNTRIES = ['US', 'CA', 'GB', 'AU'] as const
-export const ALL_COUNTRIES_GROUP = 'All countries'
+export const allCountriesGroup = () => i18n().t('common.phoneCountry.allCountries')
 
 /** "DE" → 🇩🇪 (two regional indicator letters). */
 export const flagOf = (country: string): string =>
@@ -68,7 +69,7 @@ export function phoneCountrySearchPlaceholder(viewer?: string | null): string {
   } catch {
     // Unknown to the phone library: the US example stays.
   }
-  return `Search a country or +${code}`
+  return i18n().t('common.phoneCountry.searchPlaceholder', { code: `+${code}` })
 }
 
 const cached = new Map<string, PhoneCountryOption[]>()
@@ -76,13 +77,14 @@ const cached = new Map<string, PhoneCountryOption[]>()
 /** The common countries (commonPhoneCountries), then every other one A–Z by name under "All countries". */
 export function phoneCountryOptions(viewer?: string | null): PhoneCountryOption[] {
   const firsts = commonPhoneCountries(viewer)
-  const key = firsts.join(',')
+  const group = allCountriesGroup()
+  const key = `${firsts.join(',')}|${group}`
   const known = cached.get(key)
   if (known) return known
   const common = new Set(firsts)
   const others = phoneCountryCodes()
     .filter(c => !common.has(c))
-    .map(c => optionOf(c, ALL_COUNTRIES_GROUP))
+    .map(c => optionOf(c, group))
     .sort((a, b) => a.name.localeCompare(b.name, 'en'))
   const options = [...firsts.map(c => optionOf(c)), ...others]
   cached.set(key, options)
