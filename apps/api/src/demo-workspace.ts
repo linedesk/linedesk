@@ -2,7 +2,7 @@
 // website offers, from a data file (demo-businesses.example.ts is the example; --data names an install's own). Every
 // assistant takes messages only: no recording (record_calls off, recordings not kept), at most 2 minutes, English only,
 // says at the start that it is an AI, and puts nobody through. The workspace gets a monthly spending cap as a backstop,
-// no recording notice, no notification emails by default.
+// the recording notice off (nothing is recorded, so it would be untrue), no notification emails by default.
 // The workspace is made like workspace:create (provision in workspace-create.ts: the same owner and --as rules), and
 // every change goes through the registry as that server admin. Safe to run again: an assistant is found by its
 // business's phone number in the data file and updated; a missing one is added. Nothing is deleted: an assistant,

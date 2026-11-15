@@ -45,7 +45,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     const data: WorkspaceSettingsData = {
       recordingRetentionDays: row ? row.recording_retention_days : DEFAULT_RECORDING_RETENTION_DAYS,
       businessHoursOn: row?.business_hours_on ?? false,
-      recordingNoticeOn: row?.recording_notice_on ?? false,
+      recordingNoticeOn: row?.recording_notice_on ?? true,
       recordingNotice: row?.recording_notice ?? DEFAULT_RECORDING_NOTICE,
       timeZone: row?.timezone ?? DEFAULT_TIME_ZONE,
       businessHours: rules
@@ -227,13 +227,14 @@ async function closedDaysOf(tx: Tx, workspaceId: string): Promise<ClosedDay[]> {
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
-/** What the assistant says right after the greeting: the workspace's recording notice, or null when it is off. */
+/** What the assistant says right after the greeting: the workspace's recording notice (on until the owner turns it off), or null when it is off. */
 export async function recordingNoticeFor(tx: Tx, workspaceId: string): Promise<string | null> {
   const [row] = await tx
     .select({ on: workspace_settings.recording_notice_on, text: workspace_settings.recording_notice })
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, workspaceId))
-  return row?.on ? row.text?.trim() || DEFAULT_RECORDING_NOTICE : null
+  if (row && !row.on) return null
+  return row?.text?.trim() || DEFAULT_RECORDING_NOTICE
 }
 
 /**

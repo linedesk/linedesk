@@ -8,7 +8,7 @@ import { callSetRecording, recordingKey, recordingObjectKey, type RecordingStore
 import { EgressClient, EgressStatus, EncodedFileOutput, EncodedFileType, S3Upload } from 'livekit-server-sdk'
 import { z } from 'zod'
 import type { ApiClient } from './api-client.ts'
-import type { CallSession } from './call-session.ts'
+import { callWantsRecording, type CallSession } from './call-session.ts'
 import { livekitHttpUrl, requireLivekitEnv } from './env.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 
@@ -101,7 +101,7 @@ export const RECORDING_RETRY_MS = 1000
  * the transcript and summary come from live speech recognition), or it could not start (tried twice). Never rejects.
  */
 export async function startRecording(recorder: CallRecorder | null, call: CallSession, room: string, retryMs = RECORDING_RETRY_MS): Promise<string | null> {
-  if (!recorder || call.assistant?.record_calls === false || call.keepRecording === false) return null
+  if (!recorder || !callWantsRecording(call)) return null
   const key = recordingKey(call.workspaceId, call.callId)
   try {
     return await recorder.start(room, key)

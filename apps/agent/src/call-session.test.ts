@@ -127,6 +127,50 @@ test('no recording store on this server: the notice is not said, though the work
   expect(announceRecording(started, true).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
 })
 
+test('a call that is not recorded does not say the notice: the assistant does not record, or the workspace keeps no recordings', async () => {
+  const row = { id: 'as_1', greeting: 'Hello, this is Maya.', business_profile: {} }
+  const api = (assistant: unknown, keepRecording?: boolean) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, recordingNotice: 'This call may be recorded.', ...(keepRecording === undefined ? {} : { keepRecording }) } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const opening = async (assistant: unknown, keepRecording?: boolean) =>
+    announceRecording(await startCall(api(assistant, keepRecording), phone), true).assistant?.greeting
+  expect(await opening({ ...row, record_calls: false })).toBe('Hello, this is Maya.')
+  expect(await opening(row, false)).toBe('Hello, this is Maya.')
+  expect(await opening({ ...row, record_calls: true }, true)).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(await opening(row)).toBe('Hello, this is Maya. This call may be recorded.') // an older API sends neither
+})
+
+test('an assistant without a greeting opens with the fallback greeting before the notice, in its main language', async () => {
+  const api = (assistant: unknown) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, recordingNotice: 'This call may be recorded.' } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const opening = async (assistant: unknown) => announceRecording(await startCall(api(assistant), phone), true).assistant?.greeting
+  expect(await opening({ id: 'as_1', greeting: '', business_profile: {} })).toBe(
+    'Thanks for calling. How can I help? This call may be recorded.',
+  )
+  const es = await opening({ id: 'as_1', greeting: '', business_profile: {}, languages: { main: 'es', mode: 'english', allowed: [] } })
+  expect(es).toMatch(/ Esta llamada puede ser grabada\.$/)
+  expect(es!.startsWith('Esta llamada')).toBe(false)
+})
+
+test('the default notice is said in the call\'s main language: the assistant\'s own, else the workspace language', async () => {
+  const row = { id: 'as_1', greeting: 'Hello, this is Maya.', business_profile: {} }
+  const api = (assistant: unknown, workspaceLanguage?: string) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, recordingNotice: 'This call may be recorded.', workspaceLanguage } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const opening = async (assistant: unknown, workspaceLanguage?: string) =>
+    announceRecording(await startCall(api(assistant, workspaceLanguage), phone), true).assistant?.greeting
+  expect(await opening({ ...row, languages: { main: 'es', mode: 'english', allowed: [] } })).toBe(
+    'Hello, this is Maya. Esta llamada puede ser grabada.',
+  )
+  expect(await opening(row, 'de')).toBe('Hello, this is Maya. Dieser Anruf wird möglicherweise aufgezeichnet.')
+  expect(await opening(row, 'en')).toBe('Hello, this is Maya. This call may be recorded.')
+  // The owner's own sentence is said as written, in every language.
+  const own = 'Calls are recorded for training.'
+  const ownApi = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: { ...row, languages: { main: 'fr', mode: 'english', allowed: [] } }, contact: {}, recordingNotice: own } }) } as never
+  expect(announceRecording(await startCall(ownApi, phone), true).assistant?.greeting).toBe(`Hello, this is Maya. ${own}`)
+})
+
 test('every request about the call after call.start goes with the call token it returned', async () => {
   const sent: unknown[] = []
   const api = {

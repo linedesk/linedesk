@@ -621,7 +621,8 @@ async function entry(ctx: JobContext) {
   if (isRealtime(config)) console.log(`call ${registered.callId}: realtime model ${config.realtime.model}, voice ${config.realtime.voice}`)
   const recorder = livekitRecorder(config.recording, process.env, async () =>
     (await api.run(callStartRecording, { callId: registered.callId }, registered)).data!.egressId as string)
-  // The recording notice is said only when this agent can record: with no recording store, nothing is recorded.
+  // The recording notice is said only when the call is recorded: with no recording store, or an assistant or workspace
+  // that does not record, nothing is.
   const call = announceRecording(registered, recorder !== null)
   const log = new CallLog(call)
 

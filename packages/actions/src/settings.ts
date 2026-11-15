@@ -487,7 +487,7 @@ export type BusinessHoursSpan = { weekday: number; start: string; end: string }
 /** `data` of `workspace.getSettings`. `businessHours` empty: no hours set (the assistant says nothing about them). */
 /** `recordingOn`: this server records calls (a recording store is picked under Providers, or RECORDING_STORE names one; the voice agent gets the same setting). */
 /** `businessHoursOn`: the workspace uses its hours for calls (off by default). */
-/** `recordingNoticeOn`, `recordingNotice`: the sentence the assistant says right after the greeting (off by default). */
+/** `recordingNoticeOn`, `recordingNotice`: the sentence the assistant says right after the greeting (on by default). */
 export type WorkspaceSettingsData = {
   recordingRetentionDays: number | null
   recordingNoticeOn: boolean
@@ -684,7 +684,7 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting; off by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting when the call is recorded; on by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
     jobValueCurrencies.join(', ') +
     '; until set, the currency of the workspace country; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in), `language` (the workspace language: ' +
     languageCodes.join(', ') +

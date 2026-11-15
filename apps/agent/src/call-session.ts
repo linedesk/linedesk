@@ -25,6 +25,7 @@ import {
   localizedDefault,
   mainLanguageOf,
   silenceClosingOf,
+  spokenLines,
   VOICE_PIPELINES,
   type VoiceFailure,
   type VoicePipeline,
@@ -205,12 +206,16 @@ export function inMainLanguage(assistant: Assistant | null): Assistant | null {
   }
 }
 
-/** The greeting followed by the recording notice (the English default in the main language), said and cached as one opening. */
+/**
+ * The greeting followed by the recording notice (the English default in the main language), said and cached as one
+ * opening. An assistant without a greeting opens with the fallback greeting, as it would without the notice.
+ */
 export function withRecordingNotice(assistant: Assistant | null, notice: string | null | undefined): Assistant | null {
-  const sentence = notice?.trim() ? localizedDefault(notice.trim(), mainLanguageOf(assistant?.languages)) : null
+  const language = mainLanguageOf(assistant?.languages)
+  const sentence = notice?.trim() ? localizedDefault(notice.trim(), language) : null
   if (!assistant || !sentence) return assistant
-  const greeting = assistant.greeting?.trim()
-  return { ...assistant, greeting: greeting ? `${greeting} ${sentence}` : sentence }
+  const greeting = assistant.greeting?.trim() || spokenLines(language).fallbackGreeting
+  return { ...assistant, greeting: `${greeting} ${sentence}` }
 }
 
 /** A test call from the web app ends by itself after this long, so a forgotten browser tab does not run up provider minutes. */
@@ -239,12 +244,20 @@ export function withDemoOpening(assistant: Assistant | null): Assistant | null {
 }
 
 /**
- * The call with the recording notice after its greeting when this agent can record (a recording store is set up, in
- * Linedesk or in RECORDING_STORE). Without one nothing is recorded, so the assistant does not say the call may be;
- * the workspace's notice setting stays as saved and applies once recording is turned on.
+ * Whether the call is to be recorded, given that this agent can record: not when its assistant does not record calls
+ * or its workspace keeps no recordings (Settings, Recordings: Don't keep).
+ */
+export const callWantsRecording = (call: Pick<CallSession, 'assistant' | 'keepRecording'>): boolean =>
+  call.assistant?.record_calls !== false && call.keepRecording !== false
+
+/**
+ * The call with the recording notice after its greeting when the call is recorded: this agent can record (a recording
+ * store is set up, in Linedesk or in RECORDING_STORE) and the call wants a recording (callWantsRecording). Otherwise
+ * nothing is recorded, so the assistant does not say the call may be; the workspace's notice setting stays as saved
+ * and applies once calls are recorded.
  */
 export function announceRecording(call: CallSession, canRecord: boolean): CallSession {
-  if (!canRecord || !call.recordingNotice) return call
+  if (!canRecord || !callWantsRecording(call) || !call.recordingNotice) return call
   return { ...call, assistant: withRecordingNotice(call.assistant, call.recordingNotice) }
 }
 
