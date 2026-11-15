@@ -13,6 +13,8 @@ import {
   PROFILE_HASH,
   roleInSentence,
   rolesFor,
+  sentInvitations,
+  teamRemoveConfirmation,
 } from './team-model.ts'
 import { parseHash } from '../shell/useRoute.ts'
 import { OWN_NOTIFICATIONS_HASH } from '../settings/Notifications.tsx'
@@ -21,7 +23,7 @@ const member = (userId: string, role: TeamMember['role'], email = `${userId}@x.c
   ({ memberId: `m_${userId}`, userId, name: userId, email, role, joinedAt: '2026-11-01T10:00:00Z' })
 const data = (canManage: boolean, me = 'mike'): TeamData => ({
   members: [member('mike', 'owner'), member('sarah', 'admin'), member('jo', 'member')],
-  invitations: [{ invitationId: 'i1', email: 'new@x.co', role: 'member', invitedBy: 'Mike', expiresAt: '2026-11-17T10:00:00Z', expired: false }],
+  invitations: [{ invitationId: 'i1', email: 'new@x.co', role: 'member', invitedBy: 'Mike', invitedById: 'mike', expiresAt: '2026-11-17T10:00:00Z', expired: false }],
   canManage, me,
 })
 
@@ -99,5 +101,25 @@ describe('roleInSentence', () => {
     expect(roleInSentence('member')).toBe('a member')
     expect(roleInSentence('admin')).toBe('an admin')
     expect(roleInSentence('owner')).toBe('an owner')
+  })
+})
+
+describe('removing someone from the team (LIN-264)', () => {
+  it('only the owner gets the box that deletes the account; it is unticked, so the account stays by default', () => {
+    expect(teamRemoveConfirmation('Ana', true).option).toMatch(/^Also delete their account if this is their only workspace/)
+    expect(teamRemoveConfirmation('Ana', true).list[0]).toMatch(/^Their account stays unless you tick the box/)
+    const byAdmin = teamRemoveConfirmation('Ana', false)
+    expect('option' in byAdmin).toBe(false)
+    expect(byAdmin.list[0]).toMatch(/Only the owner can delete accounts\.$/)
+  })
+
+  it('says how many pending invitations they sent the removal cancels (review F1)', () => {
+    const team = data(true)
+    team.invitations.push({ ...team.invitations[0]!, invitationId: 'i2', email: 'two@x.co', invitedBy: 'sarah', invitedById: 'sarah' })
+    expect(sentInvitations(team, 'mike')).toBe(1)
+    expect(sentInvitations(team, 'jo')).toBe(0)
+    expect(teamRemoveConfirmation('Ana', true, 0).list).toHaveLength(1)
+    expect(teamRemoveConfirmation('Ana', false, 1).list[1]).toBe('The pending invitation they sent will be canceled.')
+    expect(teamRemoveConfirmation('Ana', true, 3).list[1]).toBe('The 3 pending invitations they sent will be canceled.')
   })
 })

@@ -381,7 +381,7 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
   test('a member removed from the workspace their tab is on gets "no access", not "signed out"', async () => {
     const tab = { 'x-workspace-id': home.id }
     const leaving = await addMember(home.id, 'member')
-    // Their only workspace: kept, so the account (and its session) lives on; by default it would be deleted.
+    // Their only workspace: kept (the default since LIN-264), so the account (and its session) lives on.
     expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(leaving.userId, home.id), keepAccount: true })).status).toBe(200)
     expect(await request(leaving, 'POST', '/v1/actions/call.markDone', { callId: home.call.id }, tab)).toMatchObject({
       status: 403,

@@ -1,13 +1,15 @@
 // Team management: who may invite, who may accept, last owner protection, removal and no open sign-up.
-import { account, api_keys, commands, invitation, member, passkey, session, user, webhook_endpoints } from '@linedesk/db'
+import { account, api_keys, auth_events, commands, invitation, member, passkey, session, user, webhook_endpoints } from '@linedesk/db'
 import { dropUnprovenAccess } from '../src/account-linking.ts'
 import type { BetterAuthOptions } from 'better-auth'
 import { createEmailVerificationToken } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
-import { LEAVE_SAY_ACCOUNT, OWNER_STAYS } from '../src/team.ts'
+import { LEAVE_SAY_ACCOUNT, ONLY_OWNER_DELETES_ACCOUNTS, OWNER_STAYS } from '../src/team.ts'
+import { LEAVE_SIGN_IN_AGAIN, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from '../src/owner-step-up.ts'
+import { setJobQueue, WORKSPACE_DELETED_EMAIL, type WorkspaceDeletedJob } from '../src/jobs.ts'
 import { type Email, emailSender } from '../src/email.ts'
 import { act, addMember, agent, anonymous, appRequest, asServerAdmin, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
 
@@ -277,19 +279,19 @@ describe('removing', () => {
   })
   const accountExists = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId))).length === 1
 
-  test('their last workspace: the account is deleted by default, keepAccount keeps it without a workspace', async () => {
-    const gone = await addMember(ws.id, 'member')
-    const removed = await act(admin, 'team.removeMember', { memberId: await memberIdOf(ws.id, gone) })
-    expect(removed).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
-    expect(await accountExists(gone)).toBe(false)
-
+  test('their last workspace: the account stays by default, without a workspace (LIN-264)', async () => {
     const kept = await addMember(ws.id, 'member')
-    const keeping = await act(admin, 'team.removeMember', { memberId: await memberIdOf(ws.id, kept), keepAccount: true })
+    const keeping = await act(admin, 'team.removeMember', { memberId: await memberIdOf(ws.id, kept) })
     expect(keeping).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
     expect(await accountExists(kept)).toBe(true)
     expect(await db.select().from(member).where(eq(member.userId, kept.userId))).toEqual([])
     // Still signed in, without a workspace: the page that waits for an invitation.
     expect((await request(kept, 'GET', '/api/auth/get-session')).body).toMatchObject({ user: { id: kept.userId } })
+    // The owner without deleteAccount, and the older field keepAccount false: kept too.
+    const second = await addMember(ws.id, 'admin')
+    const removed = await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, second), keepAccount: false })
+    expect(removed.body.data).toMatchObject({ accountDeleted: false })
+    expect(await accountExists(second)).toBe(true)
   })
 
   test('a member of another workspace keeps the account and continues there', async () => {
@@ -620,5 +622,259 @@ describe('leaving', () => {
 
   test('the agent cannot leave a workspace', async () => {
     expect((await act(agent(ws.id), 'team.leave', {})).status).toBe(403)
+  })
+})
+
+// Janik's decisions of 2026-11-15 on deleting accounts (LIN-264, Q4).
+describe('deleting accounts (LIN-264)', () => {
+  const queued: { name: string; data: WorkspaceDeletedJob }[] = []
+  function captureJobs() {
+    queued.length = 0
+    setJobQueue({
+      insert: async (name: string, jobs: { data: WorkspaceDeletedJob }[]) => void queued.push(...jobs.map(j => ({ name, data: j.data }))),
+    } as never)
+  }
+  afterEach(() => setJobQueue(null))
+
+  const exists = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId))).length === 1
+  const emailOf = async (who: User) => (await db.select({ email: user.email }).from(user).where(eq(user.id, who.userId)))[0]!.email
+  /** Moves every session of `who` back by `minutes`: their last sign-in was that long ago. */
+  const signedInAgo = (who: User, minutes: number) =>
+    db.update(session).set({ createdAt: new Date(Date.now() - minutes * 60_000) }).where(eq(session.userId, who.userId))
+
+  describe('removing: only the owner deletes the account (Q4a), and the person is emailed (Q4b)', () => {
+    test('an admin asking to delete the account is refused and nothing changes', async () => {
+      const shop = await createWorkspace('Admin Delete Refused Co')
+      const anAdmin = await addMember(shop.id, 'admin')
+      const target = await addMember(shop.id, 'admin')
+      const res = await act(anAdmin, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true })
+      expect(res).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS, code: 'forbidden' } })
+      expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
+      expect(await exists(target)).toBe(true)
+    })
+
+    test('an owner who handed the workspace over is an admin: refused too', async () => {
+      const shop = await createWorkspace('Former Owner Co')
+      const next = await addMember(shop.id, 'admin')
+      const target = await addMember(shop.id, 'member')
+      expect((await act(shop.owner, 'team.transferOwnership', { memberId: await memberIdOf(shop.id, next) })).status).toBe(200)
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true })
+      expect(res).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS } })
+      expect(await exists(target)).toBe(true)
+    })
+
+    test('the owner deletes it: the account goes and the person gets the removal email', async () => {
+      const shop = await createWorkspace('Owner Delete Co')
+      const gone = await addMember(shop.id, 'admin')
+      const email = await emailOf(gone)
+      captureJobs()
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, gone), deleteAccount: true })
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
+      expect(await exists(gone)).toBe(false)
+      expect(queued).toEqual([
+        { name: WORKSPACE_DELETED_EMAIL, data: expect.objectContaining({ to: email, workspace: 'Owner Delete Co', accountDeleted: true, removed: true }) },
+      ])
+      expect(queued[0]!.data.by).toContain(await emailOf(shop.owner))
+    })
+
+    test('deleteAccount with another workspace left: the account stays and nobody is emailed', async () => {
+      const shop = await createWorkspace('Owner Delete Other Co')
+      const elsewhere = await createWorkspace('Owner Delete Elsewhere Co')
+      const both = await addMember(shop.id, 'member')
+      await auth.api.addMember({ body: { userId: both.userId, organizationId: elsewhere.id, role: 'member' } })
+      captureJobs()
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, both), deleteAccount: true })
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
+      expect(await exists(both)).toBe(true)
+      expect(queued).toEqual([])
+    })
+
+    test('a server admin removing (membership.remove) keeps deleting by default, and the person is emailed', async () => {
+      const shop = await createWorkspace('Server Admin Remove Co')
+      const operator = await signUp()
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, operator.userId))
+      const gone = await addMember(shop.id, 'member')
+      const email = await emailOf(gone)
+      const memberId = await memberIdOf(shop.id, gone)
+      captureJobs()
+      const res = await asServerAdmin(operator, () => act(operator, 'membership.remove', { memberId }))
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
+      expect(queued.map(q => q.data)).toEqual([
+        expect.objectContaining({ to: email, accountDeleted: true, removed: true, by: expect.stringMatching(/^The server admin of /) }),
+      ])
+    })
+  })
+
+  describe('leaving the last workspace and deleting the account needs a recent sign-in (Q4c)', () => {
+    test('a sign-in older than 10 minutes is refused with SIGN_IN_AGAIN; nothing changes', async () => {
+      const shop = await createWorkspace('Stale Leave Co')
+      const leaving = await addMember(shop.id, 'member')
+      await signedInAgo(leaving, 11)
+      const res = await act(leaving, 'team.leave', { deleteAccount: true })
+      expect(res).toMatchObject({ status: 403, body: { ok: false, error: LEAVE_SIGN_IN_AGAIN, code: 'SIGN_IN_AGAIN' } })
+      expect(await db.select().from(member).where(eq(member.userId, leaving.userId))).toHaveLength(1)
+      expect(await exists(leaving)).toBe(true)
+    })
+
+    test('a stale session may still leave and keep the account, or leave with another workspace left', async () => {
+      const shop = await createWorkspace('Stale Keep Co')
+      const keeping = await addMember(shop.id, 'member')
+      await signedInAgo(keeping, 30)
+      expect((await act(keeping, 'team.leave', { deleteAccount: false })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: false })
+      const other = await createWorkspace('Stale Other Co')
+      const twoOf = await addMember(shop.id, 'member')
+      await auth.api.addMember({ body: { userId: twoOf.userId, organizationId: other.id, role: 'member' } })
+      await signedInAgo(twoOf, 30)
+      expect((await act(twoOf, 'team.leave', { deleteAccount: true })).body.data).toEqual({ nextWorkspaceId: other.id, accountDeleted: false })
+    })
+
+    test('a sign-in within the last 10 minutes deletes the account', async () => {
+      const shop = await createWorkspace('Fresh Leave Co')
+      const leaving = await addMember(shop.id, 'member')
+      await signedInAgo(leaving, 9)
+      expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: true })
+      expect(await exists(leaving)).toBe(false)
+    })
+  })
+
+  describe('a removal cancels the pending invitations the removed person sent to that workspace (review F1)', () => {
+    const withdrawn = async (who: User) =>
+      (await db.select().from(auth_events).where(eq(auth_events.user_id, who.userId))).filter(e => e.event === 'invitation_withdrawn')
+    const gone = async (id: string) => (await request(anonymous, 'GET', `/v1/invitations/${encodeURIComponent(id)}`)).body
+
+    test('account kept: canceled, the link is gone, one audit line each; the dialog counts them; other senders untouched', async () => {
+      const shop = await createWorkspace('Invite Cancel Kept Co')
+      const sender = await addMember(shop.id, 'admin')
+      const invitee = newEmail()
+      const openId = await invite(sender, invitee)
+      const ownersId = await invite(shop.owner, newEmail())
+      const listed = await act(shop.owner, 'team.list', {})
+      expect(listed.body.data.invitations.find((i: { invitationId: string }) => i.invitationId === openId)).toMatchObject({ invitedById: sender.userId })
+      // As the web sends it for one release (F2: both fields).
+      const removed = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: false, keepAccount: true })
+      expect(removed).toMatchObject({ status: 200, body: { data: { accountDeleted: false, invitationsCanceled: 1 } } })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled', inviterId: sender.userId })
+      expect(await gone(openId)).toEqual({ status: 'gone' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, ownersId)))[0]).toMatchObject({ status: 'pending' })
+      expect(await withdrawn(sender)).toEqual([expect.objectContaining({ method: invitee, workspace_id: shop.id, email: await emailOf(sender) })])
+    })
+
+    test('account deleted by the owner: canceled too, never passed to the owner', async () => {
+      const shop = await createWorkspace('Invite Cancel Deleted Co')
+      const sender = await addMember(shop.id, 'admin')
+      const invitee = newEmail()
+      const openId = await invite(sender, invitee)
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: true, keepAccount: false })
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true, invitationsCanceled: 1 } } })
+      expect(await exists(sender)).toBe(false)
+      // Not re-attributed: the invitation went with the account (inviter on delete cascade), its link is gone.
+      expect(await db.select().from(invitation).where(eq(invitation.id, openId))).toEqual([])
+      expect(await gone(openId)).toEqual({ status: 'gone' })
+      const events = await withdrawn(sender)
+      expect(events).toEqual([expect.objectContaining({ method: invitee, workspace_id: shop.id, email: 'deleted' })])
+      expect((await db.select().from(auth_events).where(eq(auth_events.user_id, sender.userId))).some(e => e.event === 'invitation_reassigned')).toBe(false)
+      const team = await act(shop.owner, 'team.list', {})
+      expect(team.body.data.invitations.map((i: { email: string }) => i.email)).not.toContain(invitee)
+    })
+
+    test('a server admin removing (membership.remove) cancels them as well', async () => {
+      const shop = await createWorkspace('Invite Cancel Server Admin Co')
+      const operator = await signUp()
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, operator.userId))
+      const sender = await addMember(shop.id, 'admin')
+      const openId = await invite(sender, newEmail())
+      const memberId = await memberIdOf(shop.id, sender)
+      const res = await asServerAdmin(operator, () => act(operator, 'membership.remove', { memberId, keepAccount: true }))
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false, invitationsCanceled: 1 } } })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+    })
+  })
+
+  describe('removing and deleting the account needs a recent sign-in too (review F3)', () => {
+    test('the owner on a sign-in older than 10 minutes is refused with SIGN_IN_AGAIN; nothing changes', async () => {
+      const shop = await createWorkspace('Stale Remove Co')
+      const target = await addMember(shop.id, 'member')
+      const openId = await invite(shop.owner, newEmail())
+      await signedInAgo(shop.owner, 11)
+      captureJobs()
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true, keepAccount: false })
+      expect(res).toMatchObject({ status: 403, body: { ok: false, error: REMOVE_SIGN_IN_AGAIN, code: 'SIGN_IN_AGAIN' } })
+      expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
+      expect(await exists(target)).toBe(true)
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'pending' })
+      expect(queued).toEqual([])
+    })
+
+    test('the check: only with deleteAccount, never with keepAccount, never without a session (the handler runs it again)', async () => {
+      const shop = await createWorkspace('Stale Remove Handler Co')
+      const target = await addMember(shop.id, 'member')
+      await signedInAgo(shop.owner, 11)
+      const [owner] = await db.select().from(member).where(and(eq(member.organizationId, shop.id), eq(member.role, 'owner')))
+      const [own] = await db.select().from(session).where(eq(session.userId, shop.owner.userId))
+      const actor = { actorId: owner!.userId, workspaceId: shop.id, sessionId: own!.id } as never
+      expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: true })).toBe(true)
+      expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: true, keepAccount: true })).toBe(false)
+      expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: false })).toBe(false)
+      expect(await removeNeedsFreshSignIn(db, { ...(actor as object), sessionId: undefined } as never, { deleteAccount: true })).toBe(true)
+      expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
+    })
+
+    test('a stale session may still remove and keep the account; an admin asking to delete gets the owner refusal', async () => {
+      const shop = await createWorkspace('Stale Remove Keep Co')
+      const kept = await addMember(shop.id, 'member')
+      const anAdmin = await addMember(shop.id, 'admin')
+      await signedInAgo(shop.owner, 30)
+      await signedInAgo(anAdmin, 30)
+      const other = await addMember(shop.id, 'member')
+      const refused = await act(anAdmin, 'team.removeMember', { memberId: await memberIdOf(shop.id, other), deleteAccount: true })
+      expect(refused).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS } })
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, kept), deleteAccount: false, keepAccount: true })
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
+      expect(await exists(kept)).toBe(true)
+    })
+
+    test('a sign-in within the last 10 minutes deletes the account', async () => {
+      const shop = await createWorkspace('Fresh Remove Co')
+      const gone = await addMember(shop.id, 'member')
+      await signedInAgo(shop.owner, 9)
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, gone), deleteAccount: true, keepAccount: false })
+      expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
+      expect(await exists(gone)).toBe(false)
+    })
+  })
+
+  describe("a deleted account's other pending invitations pass to the owner (Q4d)", () => {
+    test('on a leave with deleteAccount: re-attributed, still open, with an audit line naming the new owner; a canceled one is not touched', async () => {
+      const shop = await createWorkspace('Invite Handover Co')
+      const inviter = await addMember(shop.id, 'admin')
+      const inviterEmail = await emailOf(inviter)
+      const invitee = newEmail()
+      const openId = await invite(inviter, invitee)
+      const revokedId = await invite(inviter, newEmail())
+      expect((await act(shop.owner, 'team.revokeInvite', { invitationId: revokedId })).status).toBe(200)
+      expect((await act(inviter, 'team.leave', { deleteAccount: true })).body.data).toMatchObject({ accountDeleted: true })
+      const [open] = await db.select().from(invitation).where(eq(invitation.id, openId))
+      expect(open).toMatchObject({ status: 'pending', inviterId: shop.owner.userId })
+      // The canceled one is not passed on: it goes with the account, as before.
+      expect(await db.select().from(invitation).where(eq(invitation.id, revokedId))).toEqual([])
+      // The invitee's link still opens.
+      expect((await request(anonymous, 'GET', `/v1/invitations/${encodeURIComponent(openId)}`)).status).toBe(200)
+      // The line names the deleted sender by id (its address becomes 'deleted' with the account, migration 0026's
+      // trigger) and the owner who holds the invitation now (subject_id, review F4).
+      const events = await db.select().from(auth_events).where(eq(auth_events.user_id, inviter.userId))
+      expect(events.filter(e => e.event === 'invitation_reassigned')).toEqual([
+        expect.objectContaining({ email: 'deleted', method: invitee, workspace_id: shop.id, subject_id: shop.owner.userId }),
+      ])
+      expect(JSON.stringify(events)).not.toContain(inviterEmail)
+      // Server admin › Audit log shows the owner as the subject.
+      const operator = await signUp()
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, operator.userId))
+      const audit = await asServerAdmin(operator, () => request(operator, 'GET', `/v1/admin/audit?workspaceId=${shop.id}&kind=team`))
+      expect(audit.body.entries.find((e: { what: string }) => e.what === 'invitation_reassigned')).toMatchObject({
+        method: invitee, subject: { email: await emailOf(shop.owner) },
+      })
+      const team = await act(shop.owner, 'team.list', {})
+      expect(team.body.data.invitations.map((i: { email: string }) => i.email)).toContain(invitee)
+    })
   })
 })

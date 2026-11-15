@@ -122,3 +122,19 @@ describe('every audited action reads as words', () => {
     expect(label('phoneNumber.setup', { e164: '+15035550142', purchase: false })).toBe('Connected a phone number')
   })
 })
+
+test('an invitation passed to the owner names the invited address (LIN-264)', () => {
+  expect(auditLabel({ what: 'invitation_reassigned', method: 'new@example.com', input: null, subject: null })).toBe(
+    "Invitation to new@example.com passed to the workspace owner: its sender's account was deleted",
+  )
+  // The owner it passed to, while that account exists (review F4).
+  expect(auditLabel({ what: 'invitation_reassigned', method: 'new@example.com', input: null, subject: { email: 'mike@example.com' } })).toBe(
+    "Invitation to new@example.com passed to the workspace owner mike@example.com: its sender's account was deleted",
+  )
+})
+
+test("a removed member's invitation that the removal canceled (LIN-264 review F1)", () => {
+  expect(auditLabel({ what: 'invitation_withdrawn', method: 'new@example.com', input: null, subject: null })).toBe(
+    'Invitation to new@example.com canceled: its sender was removed from the workspace',
+  )
+})

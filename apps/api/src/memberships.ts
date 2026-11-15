@@ -22,9 +22,10 @@ import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
-import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail } from './emails/templates.ts'
+import { siteHost } from './emails/layout.ts'
+import { addedNoticeEmail, emailSafeName, memberAddedByAdminEmail, WEB_ORIGIN } from './emails/templates.ts'
 import { recordSetupEvent } from './setup-events.ts'
-import { insertInvitation, makeOwner, pendingInvitationTo, sendInvitation } from './team.ts'
+import { cancelSentInvitations, insertInvitation, makeOwner, pendingInvitationTo, queueRemovedEmail, sendInvitation } from './team.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
 import { localeForEmail, localeForUserId } from './email-locale.ts'
 
@@ -433,16 +434,21 @@ export const membershipHandlers: Record<string, Handler> = {
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
-  'membership.remove': async ({ tx }, input: { memberId: string; keepAccount?: boolean }) => {
+  'membership.remove': async ({ tx, now }, input: { memberId: string; keepAccount?: boolean }) => {
     const target = await loadMember(tx, input.memberId)
     keepTheOwner(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     // The unassigned calls are not returned: the server admin is not in the workspace and does not see its calls.
     await forgetMember(tx, target.organizationId, target.userId)
+    // The invitations they sent to this workspace end with the removal (team.ts, LIN-264 review F1).
+    const invitationsCanceled = await cancelSentInvitations(tx, target.organizationId, target.userId)
     // Their last workspace: the account goes too, unless kept (workspace-delete.ts).
+    // A server admin keeps the default of deleting it (Q16, unchanged by LIN-264); the person is told.
     const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
-    return { rows: {}, data: { accountDeleted, subject } }
+    if (accountDeleted && subject.email)
+      await queueRemovedEmail(tx, subject.email, target.organizationId, `The server admin of ${siteHost(WEB_ORIGIN)}`, now)
+    return { rows: {}, data: { accountDeleted, invitationsCanceled, subject } }
   },
 
   'invitation.revoke': async ({ tx }, input: { invitationId: string }) => {

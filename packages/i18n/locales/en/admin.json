@@ -1,7 +1,14 @@
 {
+  "audit.invitationReassigned": "Invitation to {email} passed to the workspace owner: its sender's account was deleted",
+  "audit.invitationReassignedTo": "Invitation to {email} passed to the workspace owner {owner}: its sender's account was deleted",
+  "audit.invitationWithdrawn": "Invitation to {email} canceled: its sender was removed from the workspace",
   "example.business": "Riverside Electric",
   "example.ownerEmail": "owner@riverside-electric.example",
   "frame.back": "Back to {brand}",
   "frame.backTo": "Back to {section}",
-  "impersonation.confirm": "You will see {brand} exactly as {name} does. Everything you do is recorded as done by you on their behalf. Ends after 1 hour."
+  "impersonation.confirm": "You will see {brand} exactly as {name} does. Everything you do is recorded as done by you on their behalf. Ends after 1 hour.",
+  "users.filter.all": "All users",
+  "users.filter.label": "Show users",
+  "users.filter.noWorkspace": "No workspace",
+  "users.noWorkspaceEmpty": "Every user is in a workspace."
 }

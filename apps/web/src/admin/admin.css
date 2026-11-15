@@ -242,6 +242,9 @@
 .adm-search .k-kbd {
   opacity: 0.6;
 }
+.adm-list-tools {
+  margin: 0 8px 6px;
+}
 .adm-list {
   display: grid;
 }

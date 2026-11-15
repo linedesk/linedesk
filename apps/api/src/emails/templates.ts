@@ -256,14 +256,24 @@ export function memberAddedByAdminEmail(
 }
 
 /**
- * To every other member when an owner deletes the workspace (workspace.deleteOwn). `workspace` and `by` are already
- * email-safe; `when` is formatted in the workspace's time zone. `accountDeleted`: their account went with it (no
- * other workspace).
+ * To every other member when a workspace is deleted (workspace.deleteOwn, workspace.delete), and with `removed` to
+ * someone whose account a removal deleted. `workspace` and `by` are already email-safe; `when` is formatted in the
+ * workspace's time zone. `accountDeleted`: their account went with it (no other workspace).
  */
-export type WorkspaceDeletedEmail = { workspace: string; by: string; when: string; accountDeleted: boolean }
+export type WorkspaceDeletedEmail = {
+  workspace: string
+  by: string
+  when: string
+  accountDeleted: boolean
+  /**
+   * They were removed from the workspace, which stays (team.removeMember by the owner, membership.remove; LIN-264).
+   * Absent in jobs queued by an older release: a delete.
+   */
+  removed?: boolean
+}
 
 export function workspaceDeletedEmail(
-  { workspace, by, when, accountDeleted }: WorkspaceDeletedEmail,
+  { workspace, by, when, accountDeleted, removed = false }: WorkspaceDeletedEmail,
   origin = WEB_ORIGIN,
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -272,17 +282,37 @@ export function workspaceDeletedEmail(
   const brand = brandName()
   return renderEmail({
     locale: lang,
-    subject: t('email.workspaceDeleted.subject', { workspace, brand }),
-    preheader: t('email.workspaceDeleted.preheader', { by, when }),
+    subject: removed
+      ? t('email.workspaceRemoved.subject', { workspace, brand })
+      : t('email.workspaceDeleted.subject', { workspace, brand }),
+    preheader: removed
+      ? t('email.workspaceRemoved.preheader', { by, when })
+      : t('email.workspaceDeleted.preheader', { by, when }),
     eyebrow: t('email.eyebrow.account'),
-    heading: t('email.workspaceDeleted.heading', { workspace }),
+    heading: removed
+      ? t('email.workspaceRemoved.heading', { workspace })
+      : t('email.workspaceDeleted.heading', { workspace }),
     blocks: [
-      { kind: 'text', text: t('email.workspaceDeleted.text', { by, workspace, when }) },
+      {
+        kind: 'text',
+        text: removed
+          ? t('email.workspaceRemoved.text', { by, workspace, when })
+          : t('email.workspaceDeleted.text', { by, workspace, when }),
+      },
       accountDeleted
-        ? { kind: 'text', text: t('email.workspaceDeleted.accountDeleted', { brand, site }) }
+        ? {
+            kind: 'text',
+            text: removed
+              ? t('email.workspaceRemoved.accountDeleted', { brand, site })
+              : t('email.workspaceDeleted.accountDeleted', { brand, site }),
+          }
         : { kind: 'text', text: t('email.workspaceDeleted.accountKept') },
       ...(accountDeleted ? [] : [{ kind: 'button' as const, label: t('email.open', { name: brand }), url: origin }]),
-      { kind: 'text', tone: 'muted', text: t('email.workspaceDeleted.unexpected') },
+      {
+        kind: 'text',
+        tone: 'muted',
+        text: removed ? t('email.workspaceRemoved.unexpected') : t('email.workspaceDeleted.unexpected'),
+      },
     ],
     reason: t('email.workspaceDeleted.reason', { workspace, site }),
     origin,

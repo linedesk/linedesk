@@ -946,6 +946,13 @@ export const auth_events = pgTable(
         // A new account made by a sign-in that ended up in no workspace (its invitation went away) and was deleted.
         'sign_up_undone',
         'call_routing_reset',
+        // A pending invitation whose sender's account was deleted, passed to the workspace's owner. method: the
+        // invited address; user: the deleted account (its `email` here becomes 'deleted' with the account, by the
+        // 0026 trigger, like all its events; the invited address in `method` stays); subject_id: the owner it passed to.
+        'invitation_reassigned',
+        // A pending invitation canceled because its sender was removed from the workspace (team.removeMember,
+        // membership.remove; LIN-264 review F1). method: the invited address; user: the removed sender.
+        'invitation_withdrawn',
       ],
     }).notNull(),
     /**
@@ -954,6 +961,11 @@ export const auth_events = pgTable(
      */
     method: text('method'),
     workspace_id: text('workspace_id'),
+    /**
+     * Another account the event is about, by id (no address kept here: the audit log reads it while the account
+     * exists). invitation_reassigned: the owner the invitation passed to.
+     */
+    subject_id: text('subject_id'),
     ip_address: text('ip_address'),
     user_agent: text('user_agent'),
   },

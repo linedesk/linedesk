@@ -1,10 +1,13 @@
 // Users: a searchable list with Add user; a click opens the user with their workspaces and actions.
+import { useT } from '@linedesk/i18n/react'
+import { useMemo, useState } from 'react'
+import { Select } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Avatar, Badge } from '../ui/kit.tsx'
 import { AddUser } from './AddUser.tsx'
 import { ActionBar, RowActions, useActionRunner, userActions } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
-import type { AdminUser, AdminWorkspace } from './api.ts'
+import { type AdminUser, type AdminWorkspace, filterUsers, type UserFilter } from './api.ts'
 import { UserWorkspaces } from './Memberships.tsx'
 import type { Notify } from './notify.ts'
 import { day, when } from './parts.tsx'
@@ -67,11 +70,23 @@ type ListProps = {
 
 export function UsersList({ users, workspaces, currentUserId, onOpen, keysRef, notify, reload }: ListProps) {
   const runner = useActionRunner(notify)
+  const t = useT()
+  const [filter, setFilter] = useState<UserFilter>('all')
+  const shown = useMemo(() => filterUsers(users, filter), [users, filter])
+  const filters = [
+    { value: 'all' as const, label: t('admin.users.filter.all') },
+    { value: 'noWorkspace' as const, label: t('admin.users.filter.noWorkspace') },
+  ]
   return (
     <>
       <AddUser workspaces={workspaces} users={users} toast={notify} reload={reload} />
       <AdminList
-        rows={users}
+        rows={shown}
+        tools={
+          <div className="adm-list-tools">
+            <Select value={filter} options={filters} onChange={setFilter} label={t('admin.users.filter.label')} size="sm" />
+          </div>
+        }
         rowId={u => u.id}
         columns={columns}
         initialSort={{ key: 'name', dir: 'asc' }}
@@ -79,7 +94,7 @@ export function UsersList({ users, workspaces, currentUserId, onOpen, keysRef, n
         searchLabel="Search users"
         onOpen={u => onOpen(u.id)}
         keysRef={keysRef}
-        empty="No users yet."
+        empty={filter === 'noWorkspace' ? t('admin.users.noWorkspaceEmpty') : 'No users yet.'}
         rowActions={u => <RowActions actions={userActions(u, currentUserId, reload)} onPick={runner.pick} />}
       />
       {runner.dialog}

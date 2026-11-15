@@ -32,6 +32,8 @@ type Props<T> = {
   empty: string
   /** Quick actions at the right end of a row (shown on hover, focus or the cursor). */
   rowActions?: (row: T) => ReactNode
+  /** Controls under the search, such as a filter (Users: "No workspace"). */
+  tools?: ReactNode
 }
 
 export function AdminList<T>({
@@ -45,6 +47,7 @@ export function AdminList<T>({
   keysRef,
   empty,
   rowActions,
+  tools,
 }: Props<T>) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState(initialSort)
@@ -109,6 +112,7 @@ export function AdminList<T>({
           />
           <kbd className="k-kbd">/</kbd>
         </label>
+        {tools}
         <div className="adm-list" role="table" aria-label={searchLabel.replace('Search ', '')} ref={list}>
           <div className="adm-row adm-row-head" role="row">
             {columns.map(c => (

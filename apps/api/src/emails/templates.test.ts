@@ -475,6 +475,15 @@ describe('workspace deleted', () => {
     expect(email.text).toContain('Your account and your other workspaces stay as they are.')
     expect(email.text).not.toContain('was deleted with it')
   })
+  it('removed: says who removed them, that the workspace stays and that their account was deleted (LIN-264)', () => {
+    const email = workspaceDeletedEmail({ ...base, accountDeleted: true, removed: true }, ORIGIN)
+    expect(email.subject).toBe('You were removed from Brightwater Plumbing on Linedesk')
+    expect(email.text).toContain(
+      'Mike Brennan removed you from the workspace Brightwater Plumbing on November 14, 2026 at 9:05 AM PST.',
+    )
+    expect(email.text).toContain('account at desk.example.com was deleted too')
+    expect(email.text).not.toContain('deleted the workspace')
+  })
 })
 
 describe('confirming an address', () => {

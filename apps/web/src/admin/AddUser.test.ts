@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { addedText, matchWorkspaces, roleChoices, workspacesWithOwner } from './AddUser.tsx'
 import { addedNote } from './Memberships.tsx'
-import type { AdminWorkspace } from './api.ts'
+import { type AdminUser, type AdminWorkspace, filterUsers } from './api.ts'
 import { workspacesText } from './UsersPage.tsx'
 
 const ws = { id: 'w1', name: 'Brightwater Plumbing & Heating', role: 'member' as const }
@@ -83,4 +83,12 @@ describe('Users list', () => {
     })
     expect(workspacesText({ workspaces: [], invitations: [] })).toEqual({ text: 'No workspace', muted: true })
   })
+})
+
+test('Users › No workspace: accounts without a membership, invited ones included (A9)', () => {
+  const user = (id: string, workspaces: AdminUser['workspaces'], invited = false) =>
+    ({ id, workspaces, invitations: invited ? [{ id: 'i1', workspace_id: 'w1', workspace_name: 'Shop', role: 'member', expires_at: '' }] : [] }) as unknown as AdminUser
+  const users = [user('in', [{ id: 'w1', name: 'Shop', role: 'member', member_id: 'm1' }]), user('none', []), user('invited', [], true)]
+  expect(filterUsers(users, 'noWorkspace').map(u => u.id)).toEqual(['none', 'invited'])
+  expect(filterUsers(users, 'all').map(u => u.id)).toEqual(['in', 'none', 'invited'])
 })

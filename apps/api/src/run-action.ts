@@ -2,7 +2,15 @@
 // Idempotent per command id: a replayed command returns its first result.
 // Read-only actions skip the command log: nothing to replay, nothing to audit.
 import { adminPasskeyRefusal, secondFactorRefusal } from './admin-second-factor.ts'
-import { OWNER_STEP_UP_ACTIONS, ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
+import {
+  leaveNeedsFreshSignIn,
+  leaveSignInRefusal,
+  OWNER_STEP_UP_ACTIONS,
+  ownerStepUpNeeded,
+  ownerStepUpRefusal,
+  removeNeedsFreshSignIn,
+  removeSignInRefusal,
+} from './owner-step-up.ts'
 import { actions, droppedFields, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -143,6 +151,12 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   // An owner deleting their workspace signs in again first (owner-step-up.ts); the handler checks it once more.
   const ownerStepUp = OWNER_STEP_UP_ACTIONS.has(name) ? await ownerStepUpNeeded(db, actor) : null
   if (ownerStepUp) return { status: 403, body: ownerStepUpRefusal(ownerStepUp) }
+  // Leaving one's last workspace and deleting the account needs a sign-in in the last 10 minutes (owner-step-up.ts).
+  if (name === 'team.leave' && (await leaveNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown })))
+    return { status: 403, body: leaveSignInRefusal }
+  // So does the owner deleting a removed member's account (owner-step-up.ts; LIN-264 review F3).
+  if (name === 'team.removeMember' && (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown; keepAccount?: unknown })))
+    return { status: 403, body: removeSignInRefusal }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))

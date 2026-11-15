@@ -10,6 +10,7 @@ import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AdminWorkspace, type AuditEntry, type AuditFilter, type AuditKind, loadAudit } from './api.ts'
 import { errorText } from './notify.ts'
 import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { EMPTY } from './parts.tsx'
 
 const kinds: SelectOption<AuditKind | 'all'>[] = [
@@ -59,6 +60,13 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return e.method === 'admin_created' ? 'Joined a workspace a server admin added them to' : 'Joined a workspace'
     case 'sign_up_undone':
       return 'Account removed again: its invitation was gone'
+    case 'invitation_reassigned':
+      // The subject is the owner it passed to, while that account exists.
+      return e.subject?.email
+        ? i18n().t('admin.audit.invitationReassignedTo', { email: e.method ?? '', owner: e.subject.email })
+        : i18n().t('admin.audit.invitationReassigned', { email: e.method ?? '' })
+    case 'invitation_withdrawn':
+      return i18n().t('admin.audit.invitationWithdrawn', { email: e.method ?? '' })
     case 'call_routing_reset':
       return 'Warm transfer and call forwarding reset when the address was proven'
     case 'user.impersonate':

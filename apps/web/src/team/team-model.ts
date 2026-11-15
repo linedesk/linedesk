@@ -81,8 +81,32 @@ export function changedByLabel(c: ChangedBy, now = new Date()) {
 }
 
 /**
- * Removing someone (Workspace settings › Team, Server admin): when it is their only workspace their account goes too,
- * unless the box keeps it (they then wait for an invitation). Server admins always keep theirs.
+ * Removing someone in Workspace settings › Team: their account stays by default; only the owner gets the box that
+ * deletes it too when it is their only workspace (the server refuses it from anyone else; Janik, 2026-11-15, LIN-264).
+ * `run` gets whether the box is ticked: delete the account. `invitations`: how many pending invitations they sent to
+ * this workspace; the removal cancels them (LIN-264 review F1).
+ */
+export function teamRemoveConfirmation(name: string, byOwner: boolean, invitations = 0) {
+  const { t } = i18n()
+  return {
+    text: t('team.remove.text', { name, where: t('team.remove.thisWorkspace') }),
+    list: [
+      byOwner ? t('team.remove.ownerAccountStays') : t('team.remove.accountStays'),
+      ...(invitations > 0 ? [t('team.remove.invitationsCanceled', { count: invitations })] : []),
+    ],
+    action: t('team.remove.action'),
+    busyAction: t('team.remove.busy'),
+    ...(byOwner ? { option: t('team.remove.deleteAccount') } : {}),
+  }
+}
+
+/** How many pending invitations this person sent to the workspace (`team.list`; an older API sends no sender id: 0). */
+export const sentInvitations = (data: TeamData, userId: string) =>
+  data.invitations.filter(i => i.invitedById === userId).length
+
+/**
+ * Removing someone in Server admin: when it is their only workspace their account goes too, unless the box keeps it
+ * (they then wait for an invitation). Server admins always keep theirs.
  */
 export function removeMemberConfirmation(name: string, where?: string) {
   const { t } = i18n()

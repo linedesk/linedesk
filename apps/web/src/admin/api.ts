@@ -62,6 +62,14 @@ export type AdminUser = {
   passkeys?: { name: string | null; device_type: string; created_at: string | null }[]
 }
 
+/**
+ * Server admin › Users filter. `noWorkspace`: accounts without a membership (kept on a removal or delete, or older
+ * self-signed-up ones), so the admin can decide about each; nothing is deleted on its own (Janik, 2026-11-15; A9).
+ */
+export type UserFilter = 'all' | 'noWorkspace'
+export const filterUsers = (users: readonly AdminUser[], filter: UserFilter): AdminUser[] =>
+  filter === 'noWorkspace' ? users.filter(u => !u.workspaces.length) : [...users]
+
 export type WorkspaceMember = {
   member_id: string
   user_id: string

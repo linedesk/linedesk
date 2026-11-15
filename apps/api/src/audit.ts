@@ -16,6 +16,8 @@ type AuthEvent = {
   email?: string | null
   method?: string | null
   workspaceId?: string | null
+  /** Another account the event is about (auth_events.subject_id): listed as the entry's subject. */
+  subjectId?: string | null
   ipAddress?: string | null
   userAgent?: string | null
 }
@@ -52,6 +54,7 @@ export async function insertAuthEvent(tx: Db | Tx, e: AuthEvent) {
     event: e.event,
     method: e.method ?? null,
     workspace_id: e.workspaceId ?? null,
+    subject_id: e.subjectId ?? null,
     // Better Auth writes the unspecified address (::) when it has none.
     ip_address: e.ipAddress && !/^[0:.]+$/.test(e.ipAddress) ? e.ipAddress : null,
     user_agent: e.userAgent ?? null,
@@ -265,6 +268,8 @@ const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   invitation_accepted: 'team',
   sign_up_undone: 'sign_in',
   call_routing_reset: 'integrations',
+  invitation_reassigned: 'team',
+  invitation_withdrawn: 'team',
 }
 
 export type AuditEntry = {
@@ -350,7 +355,8 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
-        null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input, null::text as subject_email, false as refused, e.ip_address, 'auth' as source
+        null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input,
+        (select s.email from "user" s where s.id = e.subject_id) as subject_email, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
           sql`, `,

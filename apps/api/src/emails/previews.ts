@@ -201,6 +201,20 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
       ),
     },
     {
+      name: 'removed-account-deleted',
+      email: workspaceDeletedEmail(
+        {
+          workspace: 'Brightwater Plumbing & Heating',
+          by: 'Mike Brennan (mike@brightwater.example)',
+          when: 'November 14, 2026 at 9:05 AM PST',
+          accountDeleted: true,
+          removed: true,
+        },
+        origin,
+        locale,
+      ),
+    },
+    {
       name: 'booking-confirmation',
       email: bookingConfirmationEmail(
         {

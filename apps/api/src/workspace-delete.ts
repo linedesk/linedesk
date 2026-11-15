@@ -23,6 +23,7 @@ import {
   call_events,
   calls,
   commands,
+  invitation,
   member,
   organization,
   phone_numbers,
@@ -34,8 +35,8 @@ import {
 } from '@linedesk/db'
 import type { TelephonyProvider } from '@linedesk/telephony'
 import { and, eq, getTableName, inArray, is, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
-import { getTableConfig, PgTable } from 'drizzle-orm/pg-core'
-import { AUDITED_ACTIONS } from './audit.ts'
+import { alias, getTableConfig, PgTable } from 'drizzle-orm/pg-core'
+import { AUDITED_ACTIONS, insertAuthEvent } from './audit.ts'
 import { pruneSet } from './command-log.ts'
 import { Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
@@ -166,9 +167,35 @@ export async function membersOnlyHere(tx: Tx, workspaceId: string, spareUserId: 
     .map(u => ({ id: u.id, email: u.email }))
 }
 
+/**
+ * The pending invitations these accounts sent pass to their workspace's owner before the accounts go (they would
+ * otherwise go with them, `invitation.inviter_id` on delete cascade, and the invitees' links stop working): Janik,
+ * 2026-11-15, LIN-264. One audit line per invitation (`invitation_reassigned`, naming the owner who holds it now).
+ * A removal cancels the removed person's invitations in that workspace first (cancelSentInvitations, team.ts), so
+ * this moves those of a leave, a workspace delete and invitations in other workspaces. A workspace without another owner
+ * (no owner, or the owner is among the accounts) has no one to pass them to: those go with the account, as before.
+ */
+async function reassignInvitations(tx: Tx, ids: string[]) {
+  const owner = alias(member, 'owner')
+  const pending = await tx
+    .select({ id: invitation.id, workspaceId: invitation.organizationId, email: invitation.email, senderId: invitation.inviterId, ownerId: owner.userId })
+    .from(invitation)
+    .innerJoin(owner, and(eq(owner.organizationId, invitation.organizationId), eq(owner.role, 'owner')))
+    .where(and(inArray(invitation.inviterId, ids), eq(invitation.status, 'pending'), notInArray(owner.userId, ids)))
+    .for('update', { of: invitation })
+  for (const invite of pending) {
+    await tx.update(invitation).set({ inviterId: invite.ownerId }).where(eq(invitation.id, invite.id))
+    // Who sent it (user), to whom (method) and who holds it now (subject: the owner), so the log shows the hand-over.
+    await insertAuthEvent(tx, {
+      event: 'invitation_reassigned', userId: invite.senderId, method: invite.email, workspaceId: invite.workspaceId, subjectId: invite.ownerId,
+    })
+  }
+}
+
 /** Deletes these accounts: sessions, sign-in methods and passkeys go with them (on delete cascade); the audit log keeps its ids. */
 export async function deleteAccounts(tx: Tx, ids: string[]) {
   if (!ids.length) return
+  await reassignInvitations(tx, ids)
   await tx.delete(star_prompts).where(inArray(star_prompts.user_id, ids))
   await tx.delete(user).where(inArray(user.id, ids))
 }

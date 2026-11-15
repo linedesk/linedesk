@@ -535,6 +535,26 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "removed-account-deleted",
+    "You were removed from Brightwater Plumbing & Heating on Linedesk",
+    "Account notice
+
+You were removed from Brightwater Plumbing & Heating
+
+Mike Brennan (mike@brightwater.example) removed you from the workspace Brightwater Plumbing & Heating on November 14, 2026 at 9:05 AM PST. You no longer have access to its calls, contacts and settings.
+
+Your Linedesk account at desk.example.com was deleted too, because you belonged to no other workspace. You can't sign in there anymore.
+
+If you didn't expect this, ask the workspace owner for a new invitation.
+
+--
+
+You got this email because you were a member of Brightwater Plumbing & Heating on desk.example.com. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "booking-confirmation",
     "Confirmed: your repair visit with Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
     "Booking confirmed
@@ -1084,6 +1104,26 @@ Mike Brennan eliminó el espacio de trabajo Brightwater Plumbing & Heating el No
 Tu cuenta de Linedesk en desk.example.com se eliminó junto con él, porque no pertenecías a ningún otro espacio de trabajo. Ya no puedes iniciar sesión allí.
 
 Si no lo esperabas, pregúntale al propietario del espacio de trabajo.
+
+--
+
+Recibes este correo porque eras miembro de Brightwater Plumbing & Heating en desk.example.com. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "removed-account-deleted",
+    "You were removed from Brightwater Plumbing & Heating on Linedesk",
+    "Aviso de la cuenta
+
+You were removed from Brightwater Plumbing & Heating
+
+Mike Brennan (mike@brightwater.example) removed you from the workspace Brightwater Plumbing & Heating on November 14, 2026 at 9:05 AM PST. You no longer have access to its calls, contacts and settings.
+
+Your Linedesk account at desk.example.com was deleted too, because you belonged to no other workspace. You can't sign in there anymore.
+
+If you didn't expect this, ask the workspace owner for a new invitation.
 
 --
 

@@ -15,12 +15,12 @@ import { Section } from '../settings/fields.tsx'
 import { ONLY_ADMINS } from '../settings/readOnly.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
-import { signOutAndForget } from '../localData.ts'
+import { signInAgain, signOutAndForget } from '../localData.ts'
 import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
-import { Avatar, Badge, Button } from '../ui/kit.tsx'
+import { Avatar, Badge, Button, Note } from '../ui/kit.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
@@ -35,11 +35,13 @@ import {
   isEmail,
   isMe,
   isOnTeam,
+  isOwner,
   joinedLabel,
+  sentInvitations,
   PROFILE_HASH,
-  removeMemberConfirmation,
   roleLabel,
   rolesFor,
+  teamRemoveConfirmation,
 } from './team-model.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
@@ -122,6 +124,8 @@ function OwnerConfirm({
 function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: Run; onEdit: () => void }) {
   const t = useT()
   const [removing, setRemoving] = useState(false)
+  // Deleting their account needs a recent sign-in: the dialog then offers "Sign in again" (LIN-264 review F3).
+  const [signInFirst, setSignInFirst] = useState(false)
   const [owning, setOwning] = useState(false)
   const name = m.name || m.email
   const setRole = (role: AssignableRole) =>
@@ -185,12 +189,39 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
           {owning && <OwnerConfirm name={name} onConfirm={transfer} onClose={() => setOwning(false)} />}
           {removing && (
             <DangerConfirmDialog
-              confirm={removeMemberConfirmation(name)}
-              run={async keepAccount => {
-                if (await run(() => teamApi.remove(m.memberId, keepAccount), t('team.member.removed', { name }))) setRemoving(false)
+              confirm={teamRemoveConfirmation(name, isOwner(data), sentInvitations(data, m.userId))}
+              run={async deleteAccount => {
+                setSignInFirst(false)
+                const remove = () =>
+                  teamApi.remove(m.memberId, deleteAccount).catch((err: unknown) => {
+                    // Deleting their account needs a sign-in in the last 10 minutes (the server's SIGN_IN_AGAIN).
+                    if ((err as { code?: unknown }).code === 'SIGN_IN_AGAIN') setSignInFirst(true)
+                    throw err
+                  })
+                if (await run(remove, t('team.member.removed', { name }))) setRemoving(false)
               }}
-              onClose={() => setRemoving(false)}
-            />
+              onClose={() => {
+                setSignInFirst(false)
+                setRemoving(false)
+              }}
+            >
+              {deleteAccount =>
+                signInFirst &&
+                deleteAccount && (
+                  <Note
+                    tone="warning"
+                    title={t('team.remove.signInFirst.title')}
+                    action={
+                      <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signInAgain()}>
+                        {t('account.signInAgain.button')}
+                      </Button>
+                    }
+                  >
+                    {t('team.remove.signInFirst.text')}
+                  </Note>
+                )
+              }
+            </DangerConfirmDialog>
           )}
         </>
       }
@@ -315,7 +346,8 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: Run; toast: (te
 /**
  * Leave this workspace: confirmed in a dialog; then into another workspace, or to the start without one. When it is
  * the person's only workspace the dialog asks "Also delete my account", ticked by default (never for a server admin,
- * whose account stays; the server checks both again).
+ * whose account stays; the server checks both again). Deleting the account needs a sign-in in the last 10 minutes:
+ * otherwise the dialog offers "Sign in again", which comes back to this page.
  */
 export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isInstanceAdmin: boolean }) {
   const t = useT()
@@ -323,12 +355,16 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleteAccount, setDeleteAccount] = useState(true)
+  // Deleting the account needs a sign-in in the last 10 minutes (the server's SIGN_IN_AGAIN).
+  const [signInFirst, setSignInFirst] = useState(false)
   const workspaces = useWorkspaces()
   const me = data.members.find(m => m.userId === data.me)
   if (!me) return null
   // The one owner hands the workspace over before leaving it (or deletes it).
   const lastOwner = me.role === 'owner'
   const lastWorkspace = !isInstanceAdmin && workspaces !== null && workspaces.length <= 1
+  // Until the workspace list is known, "is this my last workspace" is not: a leave then would keep the account silently.
+  const loadingWorkspaces = workspaces === null
   async function leave(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -343,7 +379,9 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
       } else if (nextWorkspaceId) await switchToWorkspace(nextWorkspaceId)
       else window.location.replace('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const signIn = (err as { code?: unknown }).code === 'SIGN_IN_AGAIN'
+      setSignInFirst(signIn)
+      setError(signIn ? null : err instanceof Error ? err.message : String(err))
       setBusy(false)
     }
   }
@@ -352,7 +390,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
       <div className="team-leave">
         <Button
           variant="danger-outline"
-          disabled={lastOwner}
+          disabled={lastOwner || loadingWorkspaces}
           title={lastOwner ? t('team.leave.ownerTitle') : t('team.leave.loseAccess')}
           onClick={() => setAsking(true)}
         >
@@ -386,6 +424,19 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
             <Checkbox checked={deleteAccount} onChange={setDeleteAccount} disabled={busy}>
               {t('team.leave.deleteAccount')}
             </Checkbox>
+          )}
+          {signInFirst && lastWorkspace && deleteAccount && (
+            <Note
+              tone="warning"
+              title={t('team.leave.signInFirst.title')}
+              action={
+                <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signInAgain()}>
+                  {t('account.signInAgain.button')}
+                </Button>
+              }
+            >
+              {t('team.leave.signInFirst.text')}
+            </Note>
           )}
           {error && <FormMessage>{error}</FormMessage>}
         </Dialog>

@@ -186,5 +186,11 @@
   "workspaceDeleted.reason": "You got this email because you were a member of {workspace} on {site}. We always send it.",
   "workspaceDeleted.subject": "{workspace} was deleted on {brand}",
   "workspaceDeleted.text": "{by} deleted the workspace {workspace} on {when}. Its calls, contacts, recordings and settings are gone, and nobody can open it anymore.",
-  "workspaceDeleted.unexpected": "If you didn't expect this, ask the workspace owner."
+  "workspaceDeleted.unexpected": "If you didn't expect this, ask the workspace owner.",
+  "workspaceRemoved.accountDeleted": "Your {brand} account at {site} was deleted too, because you belonged to no other workspace. You can't sign in there anymore.",
+  "workspaceRemoved.heading": "You were removed from {workspace}",
+  "workspaceRemoved.preheader": "{by} removed you on {when}.",
+  "workspaceRemoved.subject": "You were removed from {workspace} on {brand}",
+  "workspaceRemoved.text": "{by} removed you from the workspace {workspace} on {when}. You no longer have access to its calls, contacts and settings.",
+  "workspaceRemoved.unexpected": "If you didn't expect this, ask the workspace owner for a new invitation."
 }

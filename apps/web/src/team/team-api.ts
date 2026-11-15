@@ -14,8 +14,9 @@ async function runTeamAction<T = unknown>(name: string, input: object): Promise<
     headers: { ...workspaceHeaders(), 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
     body: JSON.stringify(input),
   })
-  const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: T } | null
-  if (!res.ok || !body?.ok) throw new Error(body?.error ?? i18n().t('errors.generic'))
+  const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; code?: string; data?: T } | null
+  // The code goes with the error: the leave dialog offers "Sign in again" on SIGN_IN_AGAIN.
+  if (!res.ok || !body?.ok) throw Object.assign(new Error(body?.error ?? i18n().t('errors.generic')), { code: body?.code })
   return body.data as T
 }
 
@@ -27,8 +28,16 @@ export const teamApi = {
   setRole: (memberId: string, role: AssignableRole) => runTeamAction('team.setRole', { memberId, role }),
   /** The owner hands the workspace over: the member becomes the owner, the owner an admin. */
   transferOwnership: (memberId: string) => runTeamAction('team.transferOwnership', { memberId }),
-  remove: (memberId: string, keepAccount = false) => runTeamAction('team.removeMember', { memberId, keepAccount }),
-  /** `deleteAccount`: true deletes the account when this was its last workspace (never a server admin's). */
+  /** `deleteAccount` (the owner only): also delete their account when this was their last workspace. */
+  remove: (memberId: string, deleteAccount = false) =>
+    // keepAccount says the same for an API one release older, which reads a missing keepAccount as "delete" (LIN-264
+    // review F2): a deploy or rollback window must never turn a plain removal into an account delete. keepAccount can
+    // be dropped here (and from the action's input) after the next release, v0.1.14.
+    runTeamAction('team.removeMember', { memberId, deleteAccount, keepAccount: !deleteAccount }),
+  /**
+   * `deleteAccount`: true deletes the account when this was its last workspace (never a server admin's); it needs a
+   * sign-in in the last 10 minutes, else the error has `code` SIGN_IN_AGAIN.
+   */
   leave: (deleteAccount: boolean) => runTeamAction<TeamLeaveData>('team.leave', { deleteAccount }),
   /** A teammate's profile and notifications, for the Edit dialog (owners and admins). */
   getMember: (memberId: string) => runTeamAction<MemberEditData>('team.getMember', { memberId }),

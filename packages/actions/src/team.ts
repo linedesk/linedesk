@@ -20,7 +20,16 @@ export const INVITATION_DAYS = 7
 
 /** `avatarUrl`: the profile picture (user-avatar.ts), null without one (absent in a list an older version cached). */
 export type TeamMember = { memberId: string; userId: string; name: string; email: string; role: 'owner' | 'admin' | 'member'; joinedAt: string; avatarUrl?: string | null }
-export type TeamInvitation = { invitationId: string; email: string; role: AssignableRole; invitedBy: string; expiresAt: string; expired: boolean }
+/** `invitedById`: the sender's user id (the remove dialog counts the invitations a removal cancels). */
+export type TeamInvitation = {
+  invitationId: string
+  email: string
+  role: AssignableRole
+  invitedBy: string
+  invitedById: string
+  expiresAt: string
+  expired: boolean
+}
 /** What `team.list` returns in `data`. `canManage`: whether the caller may invite, change roles and remove. */
 export type TeamData = { members: TeamMember[]; invitations: TeamInvitation[]; canManage: boolean; me: string }
 
@@ -88,7 +97,7 @@ export const teamTransferOwnership = defineAction({
 export const teamLeave = defineAction({
   name: 'team.leave',
   description:
-    'Leave the current workspace; you lose access at once. The owner cannot leave: they hand the workspace over first. When it is your only workspace, deleteAccount must say whether your account goes too (true deletes it, never a server admin\'s; false keeps it); without it the leave is refused.',
+    'Leave the current workspace; you lose access at once. The owner cannot leave: they hand the workspace over first. When it is your only workspace, deleteAccount must say whether your account goes too (true deletes it, never a server admin\'s, and needs a sign-in within the last 10 minutes; false keeps it); without it the leave is refused.',
   input: z.object({ deleteAccount: z.boolean().optional() }),
   permission: 'team:read',
 })
@@ -98,8 +107,9 @@ export type TeamLeaveData = { nextWorkspaceId: string | null; accountDeleted: bo
 export const teamRemoveMember = defineAction({
   name: 'team.removeMember',
   description:
-    'Remove a member from the workspace; they lose access at once. Never the owner. When it was their only workspace their account is deleted too (never a server admin\'s), unless keepAccount is true: then they wait for an invitation.',
-  input: z.object({ memberId: z.string().min(1), keepAccount: z.boolean().optional() }),
+    'Remove a member from the workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner. Their account stays (without a workspace they wait for an invitation). Only the workspace\'s owner may set deleteAccount, with a sign-in within the last 10 minutes: when it was their only workspace their account is deleted too (never a server admin\'s) and they are emailed. keepAccount is the older field and only keeps.',
+  // keepAccount: the field before deleteAccount (removal deleted by default then), taken for one release; it only keeps.
+  input: z.object({ memberId: z.string().min(1), deleteAccount: z.boolean().optional(), keepAccount: z.boolean().optional() }),
   permission: 'team:write',
 })
 

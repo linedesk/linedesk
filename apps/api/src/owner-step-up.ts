@@ -4,9 +4,9 @@
 // code it can act on) and again inside its handler. Impersonation sessions never pass. ADMIN_SECOND_FACTOR=off
 // (an install without https, where passkeys cannot work) leaves only the 10 minutes.
 import type { OwnerStepUp } from '@linedesk/actions'
-import { passkey, session, type Tx } from '@linedesk/db'
-import { and, eq } from 'drizzle-orm'
-import { RECENT_SIGN_IN_MS, SIGN_IN_AGAIN } from './account.ts'
+import { member, passkey, session, type Tx } from '@linedesk/db'
+import { and, eq, ne } from 'drizzle-orm'
+import { RECENT_SIGN_IN_MS, SIGN_IN_AGAIN, signedInRecently } from './account.ts'
 import { adminSecondFactorRequired, signedInWithin } from './admin-second-factor.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
@@ -52,4 +52,66 @@ export function ownerStepUpRefusal(stepUp: OwnerStepUp) {
         stepUp: 'confirm' as const,
       }
     : { ok: false as const, error: 'Sign in again to delete this workspace.', code: SIGN_IN_AGAIN }
+}
+
+/** team.leave deleting the account without a sign-in in the last 10 minutes (Janik, 2026-11-15; LIN-264). */
+export const LEAVE_SIGN_IN_AGAIN = 'Sign in again to delete your account. Deleting it needs a sign-in from the last 10 minutes.'
+
+/** The refusal run-action answers before the leave runs: the web app offers "Sign in again" on the code. */
+export const leaveSignInRefusal = { ok: false as const, error: LEAVE_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
+
+/**
+ * Whether this actor's own session started with a sign-in within the last 10 minutes: the session's own creation time,
+ * as for setting a password (account.ts). No session (an API key, the agent) or an impersonation never passes.
+ */
+async function signedInJustNow(tx: Tx | typeof db, actor: Actor, now: number): Promise<boolean> {
+  if (!actor.sessionId || actor.impersonation) return false
+  const [own] = await tx.select({ createdAt: session.createdAt, impersonatedBy: session.impersonatedBy }).from(session)
+    .where(and(eq(session.id, actor.sessionId), eq(session.userId, actor.actorId)))
+  return !!own && !own.impersonatedBy && signedInRecently(own.createdAt, now)
+}
+
+/**
+ * Leaving one's last workspace with deleteAccount: true (team.leave) needs a sign-in within the last 10 minutes
+ * (signedInJustNow): whoever finds a session left open must not delete the account with it. No passkey step on top.
+ * Leaving with another workspace left deletes nothing and needs none. Checked by run-action before the transaction
+ * (so the web app gets SIGN_IN_AGAIN) and again in the handler.
+ */
+export async function leaveNeedsFreshSignIn(
+  tx: Tx | typeof db,
+  actor: Actor,
+  input: { deleteAccount?: unknown },
+  now = Date.now(),
+): Promise<boolean> {
+  if (input.deleteAccount !== true || !actor.workspaceId) return false
+  const [other] = await tx.select({ id: member.id }).from(member)
+    .where(and(eq(member.userId, actor.actorId), ne(member.organizationId, actor.workspaceId))).limit(1)
+  if (other) return false
+  return !(await signedInJustNow(tx, actor, now))
+}
+
+/** team.removeMember deleting the removed person's account without a sign-in in the last 10 minutes (LIN-264 review F3). */
+export const REMOVE_SIGN_IN_AGAIN =
+  "Sign in again to delete their account. Deleting someone's account needs a sign-in from the last 10 minutes."
+
+/** The refusal run-action answers before the removal runs: the web app offers "Sign in again" on the code. */
+export const removeSignInRefusal = { ok: false as const, error: REMOVE_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
+
+/**
+ * The owner removing someone and deleting their account (team.removeMember with deleteAccount; the older keepAccount:
+ * true keeps, so nothing to check) needs the same recent sign-in as deleting their own (Janik, 2026-11-15, LIN-264
+ * review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
+ * anyone else is refused by the handler (ONLY_OWNER_DELETES_ACCOUNTS), which checks both again under its lock.
+ */
+export async function removeNeedsFreshSignIn(
+  tx: Tx | typeof db,
+  actor: Actor,
+  input: { deleteAccount?: unknown; keepAccount?: unknown },
+  now = Date.now(),
+): Promise<boolean> {
+  if (input.deleteAccount !== true || input.keepAccount === true || !actor.workspaceId) return false
+  const [owner] = await tx.select({ userId: member.userId }).from(member)
+    .where(and(eq(member.organizationId, actor.workspaceId), eq(member.role, 'owner')))
+  if (owner?.userId !== actor.actorId) return false
+  return !(await signedInJustNow(tx, actor, now))
 }

@@ -4,18 +4,21 @@
 // handlers are the only write path and the rules below always apply.
 import { randomBytes } from 'node:crypto'
 import { avatarUrlOf, INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
-import { invitation, member, organization, type Tx, user, user_avatars } from '@linedesk/db'
+import { invitation, member, organization, type Tx, user, user_avatars, workspace_settings } from '@linedesk/db'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { invitationSubject, memberSubject } from './audit.ts'
+import { insertAuthEvent, invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
 import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { forgetMember, ownerJoined } from './memberships.ts'
+import { LEAVE_SIGN_IN_AGAIN, leaveNeedsFreshSignIn, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from './owner-step-up.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
+import { deletedWhen } from './workspace-delete-own.ts'
 import { getT } from '@linedesk/i18n/server'
 import { invitationLocale } from './email-locale.ts'
 
@@ -113,6 +116,48 @@ async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
 export const LEAVE_SAY_ACCOUNT =
   'this is your only workspace: say whether to delete your account too (deleteAccount true or false). In the app, reload the page and leave again'
 
+/** team.removeMember with deleteAccount from someone who is not the workspace's owner (Janik, 2026-11-15; LIN-264). */
+export const ONLY_OWNER_DELETES_ACCOUNTS =
+  "only the workspace's owner can delete a removed member's account; remove them without deleteAccount (their account stays)"
+
+/**
+ * Tells someone whose account a removal deleted (team.removeMember, membership.remove), queued in the removal's
+ * transaction with the same email as a workspace delete (workspace.deletedEmail, `removed`). `by`: who removed them.
+ */
+export async function queueRemovedEmail(tx: Tx, to: string, workspaceId: string, by: string, now: string) {
+  const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
+  const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspaceId))
+  await queueWorkspaceDeletedEmails(tx, [{
+    to, workspace: emailSafeName(ws?.name, 'Your workspace'), by, when: deletedWhen(now, settings?.timezone),
+    accountDeleted: true, removed: true,
+  }])
+}
+
+/**
+ * A removal (team.removeMember, membership.remove) ends the removed person's right to invite to that workspace, so the
+ * pending invitations they sent there are canceled with it, one audit line each (`invitation_withdrawn`; Janik,
+ * 2026-11-15, LIN-264 review F1). Kept or deleted account alike: otherwise their invitations would stay valid, and after
+ * a delete pass to the owner and look like the owner's own. Invitations in other workspaces are not touched here (a
+ * delete passes them to those owners, workspace-delete.ts). Runs before the account delete. Returns how many.
+ */
+export async function cancelSentInvitations(tx: Tx, workspaceId: string, senderId: string): Promise<number> {
+  const canceled = await tx.update(invitation).set({ status: 'canceled' })
+    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.inviterId, senderId), eq(invitation.status, 'pending')))
+    .returning({ email: invitation.email })
+  for (const invite of canceled)
+    await insertAuthEvent(tx, { event: 'invitation_withdrawn', userId: senderId, method: invite.email, workspaceId })
+  return canceled.length
+}
+
+/** How a removal email names the member who removed someone: "Name (email)", else the address. */
+async function removerLabel(tx: Tx, actorId: string) {
+  const [who] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actorId))
+  if (!who) return 'A workspace admin'
+  const name = emailSafeName(who.name, '')
+  return name ? `${name} (${who.email})` : who.email
+}
+
 /** A workspace has exactly one owner (docs/architecture.md, "Workspace rights"): their role only changes by a transfer. */
 export const OWNER_STAYS =
   "the owner's role only changes when they hand the workspace over: they make someone else the owner (Workspace settings › Team)"
@@ -159,7 +204,7 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
   const inviter = alias(user, 'inviter')
   const now = Date.now()
   const invitations: TeamInvitation[] = (await tx
-    .select({ invitationId: invitation.id, email: invitation.email, role: invitation.role, invitedBy: inviter.name, expiresAt: invitation.expiresAt })
+    .select({ invitationId: invitation.id, email: invitation.email, role: invitation.role, invitedBy: inviter.name, invitedById: inviter.id, expiresAt: invitation.expiresAt })
     .from(invitation).innerJoin(inviter, eq(inviter.id, invitation.inviterId))
     .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'))).orderBy(asc(invitation.createdAt)))
     .map(i => ({ ...i, role: i.role === 'admin' ? 'admin' : 'member', expiresAt: i.expiresAt.toISOString(), expired: i.expiresAt.getTime() < now }))
@@ -237,18 +282,34 @@ export const teamHandlers: Record<string, Handler> = {
     // workspace-delete.ts). A request that does not say, e.g. a tab still on an older version, is refused: never a
     // silent delete. Its sessions and passkeys go with the account, its API keys stop working (no membership left).
     if (!next && input.deleteAccount === undefined) throw new Reject(LEAVE_SAY_ACCOUNT)
+    // Deleting the account needs a sign-in in the last 10 minutes; checked by run-action before the transaction too.
+    if (await leaveNeedsFreshSignIn(tx, actor, input)) throw new Forbidden(LEAVE_SIGN_IN_AGAIN)
     const accountDeleted = !next && input.deleteAccount === true && (await deleteAccountWithoutWorkspace(tx, actor.actorId))
     return { rows: {}, data: { nextWorkspaceId: next?.id ?? null, accountDeleted } }
   },
 
-  'team.removeMember': async ({ tx, actor }, input: { memberId: string; keepAccount?: boolean }) => {
-    const target = await loadMember(tx, workspaceOf(actor), input.memberId)
+  'team.removeMember': async ({ tx, actor, now }, input: { memberId: string; deleteAccount?: boolean; keepAccount?: boolean }) => {
+    const workspaceId = workspaceOf(actor)
+    // The account stays by default; only the owner may delete it with the removal (Janik, 2026-11-15; LIN-264), read
+    // from the member row: an owner who handed the workspace over a moment ago is an admin. `keepAccount` (the field
+    // before) is still taken for one release and only ever keeps.
+    const deleteAccount = input.deleteAccount === true && input.keepAccount !== true
+    if (deleteAccount) {
+      const owner = await lockedOwner(tx, workspaceId)
+      if (!owner || owner.userId !== actor.actorId) throw new Forbidden(ONLY_OWNER_DELETES_ACCOUNTS)
+      // And a sign-in in the last 10 minutes, as for deleting one's own (review F3); run-action checks it first too.
+      if (await removeNeedsFreshSignIn(tx, actor, input)) throw new Forbidden(REMOVE_SIGN_IN_AGAIN)
+    }
+    const target = await loadMember(tx, workspaceId, input.memberId)
     guardOwner(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     const forgotten = await forgetMember(tx, target.organizationId, target.userId)
-    // Their last workspace: the account goes too, unless kept (workspace-delete.ts).
-    const accountDeleted = !input.keepAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
-    return { rows: { calls: forgotten.calls }, data: { accountDeleted, subject } }
+    const invitationsCanceled = await cancelSentInvitations(tx, workspaceId, target.userId)
+    // Their last workspace: the account goes too when the owner asks (workspace-delete.ts), and they are told.
+    const accountDeleted = deleteAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
+    if (accountDeleted && subject.email)
+      await queueRemovedEmail(tx, subject.email, workspaceId, await removerLabel(tx, actor.actorId), now)
+    return { rows: { calls: forgotten.calls }, data: { accountDeleted, invitationsCanceled, subject } }
   },
 }
