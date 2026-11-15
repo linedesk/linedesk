@@ -14,7 +14,7 @@ import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet, stepFacts } from './collect/collect-tools.ts'
 import { partialPhoneNumberIn } from './collect/collectors.ts'
 import { callerIdOf, withCallbackNumber } from './callback-number.ts'
-import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS } from './call-log.ts'
+import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS, repeatFilter } from './call-log.ts'
 import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { retryEmptyReplies } from './empty-reply.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
@@ -231,8 +231,10 @@ function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: 
 }
 
 function recordConversation(session: voice.AgentSession, log: CallLog) {
+  const repeated = repeatFilter()
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || !item.textContent) return
+    if (repeated({ id: item.id, role: item.role, text: item.textContent })) return
     if (item.role === 'user') log.record('caller', item.textContent)
     // Put through to a person, the assistant is muted: a reply it still makes (to a tool of the same response) is never heard.
     const said = item.role === 'assistant' && !log.transferred && withoutEndCall(item.textContent)

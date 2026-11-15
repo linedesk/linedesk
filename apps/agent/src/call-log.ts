@@ -8,6 +8,27 @@ import { mergeToolResults, summarizeCall, unsummarizedResult, voiceFailedResult,
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Transcript lines and tool results of one call; writes each line through the API as it happens. */
+/** How long the same words from the same speaker count as a repeat of one line (realtime reports some lines twice); shorter than the "Are you still there?" reminders (5 s apart). */
+export const REPEAT_WINDOW_MS = 4000
+
+/**
+ * Whether a conversation line is one already written: the same item again, or the same words from the same speaker
+ * within REPEAT_WINDOW_MS. On realtime calls the session reported a line twice, 0.9 s and 3.3 s apart (staging,
+ * 2026-11-15): shorter than saying it, so it was said once and only written twice.
+ */
+export function repeatFilter(now: () => number = Date.now) {
+  const ids = new Set<string>()
+  const last = new Map<string, { text: string; at: number }>()
+  return (item: { id?: string; role: string; text: string }): boolean => {
+    if (item.id && ids.has(item.id)) return true
+    if (item.id) ids.add(item.id)
+    const before = last.get(item.role)
+    const at = now()
+    last.set(item.role, { text: item.text, at })
+    return !!before && before.text.trim() === item.text.trim() && at - before.at < REPEAT_WINDOW_MS
+  }
+}
+
 export class CallLog {
   readonly lines: TranscriptLine[] = []
   readonly messages: string[] = []

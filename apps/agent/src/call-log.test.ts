@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { CallLog, finishCall, once } from './call-log.ts'
+import { CallLog, finishCall, once, REPEAT_WINDOW_MS, repeatFilter } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
 import type { CompleteJson } from './summary.ts'
 
@@ -105,4 +105,18 @@ test('the reply times go out at hang-up with the pipeline and providers; a failu
   expect(recordTimings).toHaveBeenCalledWith({ pipeline: 'realtime', providers: { turn: 'openai_realtime', model: 'openai_realtime' }, replies: log.replies })
   expect(call.finish).toHaveBeenCalled()
   warn.mockRestore()
+})
+
+test('a line the session reports twice is written once: same item, or same words from the same speaker soon after', () => {
+  let t = 0
+  const repeated = repeatFilter(() => t)
+  expect(repeated({ id: 'a', role: 'assistant', text: 'Thanks for calling, goodbye!' })).toBe(false)
+  t = 900
+  expect(repeated({ id: 'b', role: 'assistant', text: 'Thanks for calling, goodbye! ' })).toBe(true)
+  expect(repeated({ id: 'a', role: 'assistant', text: 'Thanks for calling, goodbye!' })).toBe(true)
+  // The caller saying the same, or the assistant saying it again later, is a new line.
+  expect(repeated({ id: 'c', role: 'user', text: 'Thanks for calling, goodbye!' })).toBe(false)
+  t += REPEAT_WINDOW_MS + 1
+  expect(repeated({ id: 'd', role: 'assistant', text: 'Thanks for calling, goodbye!' })).toBe(false)
+  expect(repeated({ id: 'e', role: 'assistant', text: 'Is there anything else?' })).toBe(false)
 })
