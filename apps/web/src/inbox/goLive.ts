@@ -15,8 +15,9 @@ import {
   takesAllCalls,
   type TeamData,
 } from '@linedesk/actions'
-import type { AssistantCalendar, CalendarConnection, Call, PhoneNumber } from '@linedesk/db/types'
+import type { AssistantCalendar, CalendarConnection, PhoneNumber } from '@linedesk/db/types'
 import { brandName } from '../brand.ts'
+import { type ForwardedCall, realCallReached } from '../onboarding/forwarding-check.ts'
 
 export type GoLiveId = GoLiveStep
 
@@ -212,13 +213,17 @@ export function forwardingFacts(
   return { forwardingNumberId: number.id, forwardingTakesAllCalls: takesAllCalls(number.mode) }
 }
 
-/** A real caller reached a number in a forwarding mode: forwarding works, whether or not it was checked. */
+/**
+ * A real caller reached the number the forwarding row is about (forwardingNumber, the setup number while it forwards)
+ * since it was set up: forwarding works, whether or not it was checked. The server's rule (realCallReached), seen in
+ * the browser as the call arrives.
+ */
 export function forwardedCallArrived(
-  calls: readonly Pick<Call, 'source' | 'from_own_number' | 'outcome' | 'to_number'>[],
-  numbers: readonly Pick<PhoneNumber, 'e164' | 'mode'>[],
+  calls: readonly ForwardedCall[],
+  numbers: readonly Pick<PhoneNumber, 'id' | 'e164' | 'mode' | 'created_at'>[],
 ): boolean {
-  const forwarded = new Set(numbers.filter(n => forwardsCalls(n.mode)).map(n => n.e164))
-  return calls.some(c => c.source === 'phone' && !c.from_own_number && forwarded.has(c.to_number))
+  const number = forwardingNumber(numbers)
+  return number !== 'none' && number !== null && realCallReached(number, calls)
 }
 
 /** A calendar the assistant can book into: a connection that works, with one of its calendars attached. */

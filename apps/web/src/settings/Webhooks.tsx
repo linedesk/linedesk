@@ -22,6 +22,7 @@ import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
+import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Field, Section, SwitchRow } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
@@ -162,6 +163,7 @@ function EndpointRow({
   const write = useWriteAction()
   const [busy, setBusy] = useState(false)
   const [showLog, setShowLog] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [logVersion, setLogVersion] = useState(0)
 
   async function sendTest(hook: WebhookHook) {
@@ -186,17 +188,10 @@ function EndpointRow({
     }
   }
 
+  // Errors show in the dialog (DangerConfirmDialog); it stays busy until the row is gone.
   async function remove() {
-    if (!window.confirm(`Delete the webhook ${endpoint.url}? Nothing more is sent to it, and its log is deleted.`))
-      return
-    setBusy(true)
-    try {
-      await write('webhook.delete', { endpointId: endpoint.id })
-      toast('Webhook deleted.')
-    } catch (e) {
-      toast((e as Error).message)
-      setBusy(false)
-    }
+    await write('webhook.delete', { endpointId: endpoint.id })
+    toast('Webhook deleted.')
   }
 
   return (
@@ -223,9 +218,20 @@ function EndpointRow({
               })),
               { id: 'log', label: showLog ? 'Hide log' : 'Log', onSelect: () => setShowLog(s => !s) },
               { id: 'edit', label: 'Edit address', onSelect: onEdit },
-              { id: 'delete', label: 'Delete', danger: true, onSelect: () => void remove() },
+              { id: 'delete', label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) },
             ]}
           />
+          {confirmDelete && (
+            <DangerConfirmDialog
+              confirm={{
+                action: 'Delete webhook',
+                busyAction: 'Deleting…',
+                text: `Nothing more is sent to ${endpoint.url}, and its log is deleted.`,
+              }}
+              run={remove}
+              onClose={() => setConfirmDelete(false)}
+            />
+          )}
         </>
       }
       below={showLog && <DeliveryLog endpointId={endpoint.id} version={logVersion} />}

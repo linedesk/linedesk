@@ -493,7 +493,7 @@ function PasskeyFirst({
 const ENROLMENT_CODE_HELP: HelpTipContent = {
   text: 'A one-time code that lets you add your first passkey. Make one on the server:',
   commands: [{ code: 'docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <your email>' }],
-  after: 'Or ask another instance admin for one.',
+  after: 'Or ask another server admin for one.',
 }
 
 type PartProps = {

@@ -104,7 +104,9 @@ function BusinessHoursDialog({ canEdit, onClose }: { canEdit: boolean; onClose: 
             <>
               <HoursGrid days={days} set={hours.set} canEdit={canEdit} />
               <span className="st-tz">
-                <span className="help">Times in</span>
+                <span className="help" style={{ whiteSpace: 'nowrap' }}>
+                  Times in
+                </span>
                 <TimeZoneSelect value={timeZone} onChange={changeTimeZone} disabled={!canEdit} />
               </span>
               {tried && problem && (

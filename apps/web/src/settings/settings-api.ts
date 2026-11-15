@@ -29,7 +29,7 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
   }).catch(() => null)
   const body = (await res?.json().catch(() => null)) as ActionResult | { ok: false; error?: string } | null
   if (!res?.ok || !body?.ok)
-    throw new Error((body && !body.ok && body.error) || 'No connection to the server. Try again.')
+    throw new Error((body && !body.ok && body.error) || "Can't reach the server. Check your connection and try again.")
   return body
 }
 

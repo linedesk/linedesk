@@ -21,6 +21,7 @@ import { HelpTip } from '../ui/HelpTip.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonList } from '../ui/LoadStates.tsx'
 import { Field, Section, TextInput } from './fields.tsx'
+import { MissingProviderNote } from './MissingProviderNote.tsx'
 import { readAction, useWriteAction } from './settings-api.ts'
 import {
   ASSISTANT_FILTER,
@@ -674,7 +675,7 @@ export function VoiceSettings({
   if (options && !provider)
     return (
       <Section id="as-voice" title="Voice">
-        <span className="help">No voice provider yet (Server admin › Providers).</span>
+        <MissingProviderNote kind="voice" />
       </Section>
     )
   return (

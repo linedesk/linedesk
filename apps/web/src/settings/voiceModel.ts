@@ -276,7 +276,7 @@ export function voiceFacts(
  * error text (`status` 0: no answer at all).
  */
 export function previewProblem(status: number, serverError?: string, providerMessage?: string): string {
-  if (status === 0) return 'No connection to the server. Try again.'
+  if (status === 0) return "Can't reach the server. Check your connection and try again."
   if (status === 401) return 'You were signed out. Sign in again to hear samples.'
   if (status === 409) return 'Add a voice provider key in Server admin › Providers to hear samples.'
   if (status === 429) return 'Too many new samples this hour. Try again later.'

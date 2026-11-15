@@ -2,8 +2,10 @@
 // (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, API keys and leaving it.
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
 // webhooks in the assistant's settings (old #settings and #team links are rewritten, shell/useRoute.ts).
+import { useMemo } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { TeamSection } from '../team/TeamPage.tsx'
+import { useTeam } from '../team/team-api.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
 import { DangerZone } from './DangerZone.tsx'
 import { Developers } from './Developers.tsx'
@@ -25,6 +27,16 @@ const sections: readonly PageSection<SectionId>[] = [
 /** Members can't export calls or manage API keys (call:export, settings:write): those sections are not shown. */
 const memberSections = sections.filter(s => s.id !== 'export' && s.id !== 'developers')
 
+/**
+ * What the Danger zone offers this person: the owner can't leave (they hand the workspace over or delete it), everyone
+ * else can only leave (deleting is the owner's). The general words while the role isn't known yet.
+ */
+function dangerDescription(canEdit: boolean, role: string | undefined): string {
+  if (!canEdit || role === 'admin' || role === 'member') return 'Leave this workspace'
+  if (role === 'owner') return 'Hand over or delete this workspace'
+  return 'Leave or delete this workspace'
+}
+
 type Props = {
   canEdit: boolean
   phoneSetup: PhoneSetupStatus | null
@@ -36,7 +48,13 @@ type Props = {
 }
 
 export function WorkspaceSettings({ canEdit, phoneSetup, isInstanceAdmin, workspaceName, onRenamed, toast }: Props) {
-  const shown = canEdit ? sections : memberSections
+  const team = useTeam().data
+  const role = team?.members.find(m => m.userId === team.me)?.role
+  const danger = dangerDescription(canEdit, role)
+  const shown = useMemo(
+    () => (canEdit ? sections : memberSections).map(s => (s.id === 'danger' ? { ...s, description: danger } : s)),
+    [canEdit, danger],
+  )
   const current = useSection('workspace', shown)
   return (
     <div className="page">

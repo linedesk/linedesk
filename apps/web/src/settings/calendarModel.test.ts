@@ -10,9 +10,9 @@ test('the OAuth callback result in the hash becomes a toast', () => {
 })
 
 test('durations and required details read as the owner says them', () => {
-  expect(durationLabel(30)).toBe('30 min')
-  expect(durationLabel(60)).toBe('1 h')
-  expect(durationLabel(90)).toBe('1 h 30 min')
+  expect(durationLabel(30)).toBe('30m')
+  expect(durationLabel(60)).toBe('1h')
+  expect(durationLabel(90)).toBe('1h 30m')
   expect(requiredLabel({ required_fields: [], name_required: true })).toBe('Asks for name')
   expect(requiredLabel({ required_fields: ['address', 'email'], name_required: true })).toBe(
     'Asks for name, email, address',

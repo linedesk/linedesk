@@ -126,21 +126,29 @@ describe('go-live checklist', () => {
     expect(goLiveView(items, [], NOW).open.map(i => i.id)).toContain('push')
   })
 
-  test('a real call to a forwarded number proves forwarding works', () => {
+  test('a real call to the forwarded setup number since it was set up proves forwarding works (the server rule)', () => {
     const numbers = [
-      { e164: '+15035550142', mode: 'forward_conditional' as const },
-      { e164: '+15035550199', mode: 'new' as const },
+      { id: 'n1', e164: '+15035550142', mode: 'forward_conditional' as const, created_at: '2026-11-10T09:00:00.000Z' },
+      { id: 'n2', e164: '+15035550199', mode: 'new' as const, created_at: '2026-11-11T09:00:00.000Z' },
     ]
     const call = {
       source: 'phone' as const,
+      direction: 'in' as const,
       from_own_number: false,
       outcome: 'message' as const,
       to_number: '+15035550142',
+      started_at: '2026-11-12T15:00:00.000Z',
     }
     expect(forwardedCallArrived([call], numbers)).toBe(true)
     expect(forwardedCallArrived([{ ...call, from_own_number: true }], numbers)).toBe(false)
     expect(forwardedCallArrived([{ ...call, source: 'test' }], numbers)).toBe(false)
     expect(forwardedCallArrived([{ ...call, to_number: '+15035550199' }], numbers)).toBe(false)
+    // Outgoing, spam, or before the number was set up: not a forwarded caller.
+    expect(forwardedCallArrived([{ ...call, direction: 'out' }], numbers)).toBe(false)
+    expect(forwardedCallArrived([{ ...call, outcome: 'spam' }], numbers)).toBe(false)
+    expect(forwardedCallArrived([{ ...call, started_at: '2026-11-09T15:00:00.000Z' }], numbers)).toBe(false)
+    // No number forwards: nothing to prove.
+    expect(forwardedCallArrived([call], [{ ...numbers[0]!, mode: 'new' }])).toBe(false)
   })
 
   test('a calendar counts once it works and the assistant uses one of its calendars', () => {

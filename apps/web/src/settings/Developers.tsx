@@ -199,7 +199,7 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
         <Input
           id="dev-key-name"
           maxLength={60}
-          placeholder="e.g. Zapier"
+          placeholder="Zapier"
           value={name}
           invalid={Boolean(error)}
           onChange={e => setName(e.target.value)}

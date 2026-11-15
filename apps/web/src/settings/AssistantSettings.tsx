@@ -91,6 +91,7 @@ import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Webhooks } from './Webhooks.tsx'
+import { MissingProviderNote } from './MissingProviderNote.tsx'
 
 type SectionId =
   | 'general'
@@ -162,10 +163,7 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
   if (!setUp || setUp.realtime || setUp.three_stage) return null
   return (
     <Section id="as-not-answered" title="Answering calls">
-      <span className="help">
-        Calls are not answered yet: an instance admin sets up a realtime model, or speech to text, a language model and
-        a voice, under Server admin › Providers.
-      </span>
+      <MissingProviderNote kind="answering" />
     </Section>
   )
 }
@@ -223,6 +221,8 @@ const OLD_SECTIONS: Record<string, SectionId> = {
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
 const assistantName = (draft: Draft) => draft.name.trim() || 'The assistant'
+/** The name inside a sentence: "The tone Maya uses", or "your assistant" before it has one. */
+const nameInSentence = (draft: Draft) => draft.name.trim() || 'your assistant'
 
 type SectionProps = { draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void }
 
@@ -383,8 +383,8 @@ function Behaviours({ draft, set }: SectionProps) {
   return (
     <Section
       id="as-behaviour"
-      title="How calls are handled"
-      description="Switch on what fits your business."
+      title="Rules"
+      description="How calls are handled"
       help={`Each switch adds a sentence to ${assistantName(draft)}'s instructions.`}
     >
       <div className="as-checklist">
@@ -392,7 +392,7 @@ function Behaviours({ draft, set }: SectionProps) {
         <SelectRow
           id="as-style"
           title="Communication style"
-          description="The tone your assistant uses"
+          description={`The tone ${nameInSentence(draft)} uses`}
           value={draft.communication_style}
           options={styleOptions}
           onChange={style => set('communication_style', style)}
@@ -436,7 +436,7 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
     <SelectRow
       id="as-ai-disclosure"
       title="AI disclosure"
-      description="Whether and when your assistant mentions it's an AI"
+      description={`Whether and when ${nameInSentence(draft)} mentions it's an AI`}
       note={heard && `Callers hear: "${heard}"`}
       value={draft.ai_disclosure}
       options={disclosureOptions}
@@ -527,11 +527,8 @@ function TalkingSpeedSection({ draft, set }: SectionProps) {
       id="as-speed"
       title="Talking speed"
       help="Applies from the next call. Normal is the voice's own pace; arrow keys move the slider by 1%."
-      actions={
-        <span className={pct === TALKING_SPEED_PCT_DEFAULT ? 'as-speed-value' : 'as-speed-value is-changed'}>
-          {label}
-        </span>
-      }
+      // The value only once: at the default the "Normal" stop under the slider already says it.
+      actions={pct !== TALKING_SPEED_PCT_DEFAULT && <span className="as-speed-value is-changed">{label}</span>}
     >
       <div className="as-speed">
         <input
@@ -897,26 +894,63 @@ function assistantInHash(assistants: Assistant[]): Assistant | undefined {
 /** Whether the workspace uses business hours (Settings, Business hours): then greeting and instructions get an outside variant. */
 const useBusinessHoursOn = (): boolean => useWorkspaceSettings().data?.businessHoursOn ?? false
 
-/** Before the assistants first arrive on this device: the page's frame, never "No assistant yet". */
+/** How many cards each section shows, so its skeleton has the same number and nothing jumps when they arrive. */
+const SECTION_CARDS: Record<SectionId, number> = {
+  general: 4,
+  review: 2,
+  business: 1,
+  hours: 3,
+  rules: 1,
+  transfers: 1,
+  booking: 3,
+  webhooks: 1,
+  advanced: 3,
+}
+
+/** The section the hash names (`#assistant/<id>/<section>` or `#assistant/<section>`, old ids too), else the first. */
+function sectionInHash(): SectionId {
+  const [, ...parts] = window.location.hash.replace(/^#/, '').split('?')[0]!.split('/')
+  for (const part of parts.slice(0, 2)) {
+    const id = OLD_SECTIONS[part] ?? part
+    if (sections.some(s => s.id === id)) return id as SectionId
+  }
+  return sections[0]!.id
+}
+
+/**
+ * Before the assistants first arrive on this device: the page's frame, never "No assistant yet". The header has the
+ * real one's shape (the name, the row of number chips, the test call button) and the section one card per real card.
+ */
 function AssistantSkeleton({ slow }: { slow: boolean }) {
   if (slow) return <LoadProblem what="The assistant" />
+  const current = sectionInHash()
   return (
     <SettingsLayout
       page="assistant"
       title="Assistant"
-      heading={<Skeleton shape="title" width={110} />}
+      heading={
+        <div className="as-head">
+          <div className="as-title">
+            <span className="as-name">
+              <Skeleton shape="title" width={110} />
+            </span>
+          </div>
+          <div className="as-numbers">
+            <Skeleton width={120} height={24} />
+          </div>
+        </div>
+      }
+      actions={<Skeleton width={136} height={32} />}
       sections={sections}
-      current={sections[0]!.id}
+      current={current}
     >
       <Loading
         what="The assistant"
         loading
-        skeleton={
-          <>
-            <SkeletonSection fields={1} />
-            <SkeletonSection fields={1} />
-          </>
-        }
+        skeleton={Array.from({ length: SECTION_CARDS[current] }, (_, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: placeholder cards never reorder
+          <SkeletonSection key={i} fields={1} />
+        ))}
       />
     </SettingsLayout>
   )

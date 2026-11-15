@@ -59,7 +59,7 @@ export function NotifyStep(p: Props) {
   )
 }
 
-const LATER = 'Set this up later in Settings › Notifications and Settings › Assistant'
+const LATER = 'Set this up later in Account settings › Notifications and Assistant settings.'
 
 function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext }: Props & { assistant: Assistant }) {
   const run = useRun()

@@ -94,7 +94,7 @@ export function PasskeyFirstStep({ step, passkey }: { step: Exclude<PasskeyStep,
               value={passkey.code}
               onChange={passkey.setCode}
             />
-            <HelpTip text="Because you are an instance admin, your first passkey needs a one-time code. The admin who made you an instance admin has it." />
+            <HelpTip text="Because you are a server admin, your first passkey needs a one-time code. The admin who made you a server admin has it." />
           </div>
         )}
         {passkey.supported ? (

@@ -1,6 +1,6 @@
 // What the owner sees after a forwarding check (onboarding concept, 6c): one line on what happened and the one
 // next thing to try. The check itself runs on the server (phoneNumber.checkForwarding).
-import type { ForwardingCheckView, LineLookupData } from '@linedesk/actions'
+import { type ForwardingCheckView, isRealCall, type LineLookupData } from '@linedesk/actions'
 import type { Call, PhoneNumber } from '@linedesk/db/types'
 
 /**
@@ -124,16 +124,32 @@ export function lookupGuide(
   return pickedByOwner ? { suggest: found } : { preselect: found }
 }
 
+export type ForwardedCall = Pick<Call, 'source' | 'direction' | 'from_own_number' | 'outcome' | 'to_number' | 'started_at'>
+
+/**
+ * A real caller reached this number since it was set up: the server's rule for "forwarding works"
+ * (apps/api/src/go-live-checklist.ts, forwardingVerifiedFor): over the phone, incoming, not from the business's own
+ * phones, not spam (isRealCall), to this number, at or after its `created_at`. In the browser it shows at once, as the
+ * call arrives, before the server's checklist is read again.
+ */
+export function realCallReached(
+  number: Pick<PhoneNumber, 'e164' | 'created_at'>,
+  calls: readonly ForwardedCall[],
+): boolean {
+  const since = Date.parse(number.created_at)
+  return calls.some(c => isRealCall(c) && c.to_number === number.e164 && !(Date.parse(c.started_at) < since))
+}
+
 /**
  * A number the business phone forwards to, whose forwarding nobody has seen work yet: no check verified it
- * (`verified_at`, set with the forwarding_verified milestone) and no real caller reached it. The same rule as the
- * go-live checklist's forwarding row; until then Settings › Phone numbers doesn't say "Answering" for it.
+ * (`verified_at`, set with the forwarding_verified milestone) and no real caller reached it (realCallReached). The same
+ * rule as the go-live checklist's forwarding row; until then Settings › Phone numbers doesn't say "Answering" for it.
  */
 export function forwardingUnverified(
-  number: Pick<PhoneNumber, 'e164' | 'mode' | 'verified_at'>,
-  calls: readonly Pick<Call, 'source' | 'from_own_number' | 'to_number'>[],
+  number: Pick<PhoneNumber, 'e164' | 'mode' | 'verified_at' | 'created_at'>,
+  calls: readonly ForwardedCall[],
 ): boolean {
   if (number.mode !== 'forward_conditional' && number.mode !== 'forward_all') return false
   if (number.verified_at) return false
-  return !calls.some(c => c.source === 'phone' && !c.from_own_number && c.to_number === number.e164)
+  return !realCallReached(number, calls)
 }

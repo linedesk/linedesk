@@ -32,7 +32,8 @@ import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
-import { Button, cx, Note } from '../ui/kit.tsx'
+import { Badge, Button, Note } from '../ui/kit.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
@@ -133,16 +134,25 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
                   forwardingUnverified(n, calls) ? (
                     <button
                       type="button"
-                      className="pn-status pn-status-link"
+                      className="pn-status-link"
                       title="Check the forwarding of this number"
                       onClick={() => setManaging({ id: n.id, release: false })}
                     >
-                      Forwarding not verified
+                      <Badge>
+                        <StatusMark state="untested" label="Forwarding not verified" />
+                        Forwarding not verified
+                      </Badge>
                     </button>
+                  ) : answering ? (
+                    <Badge tone="ok">
+                      <StatusMark state="works" label="Answering" />
+                      Answering
+                    </Badge>
                   ) : (
-                    <span className={cx('pn-status', answering && 'is-on')}>
-                      {answering ? 'Answering' : 'Not answering'}
-                    </span>
+                    <Badge>
+                      <StatusMark state="off" label="Not answering" />
+                      Not answering
+                    </Badge>
                   )
                 }
                 actions={

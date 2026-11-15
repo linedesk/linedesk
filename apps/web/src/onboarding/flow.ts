@@ -479,7 +479,7 @@ export function whoHearsProblem(
   if (!transfers.some(c => c.id === URGENT_CONTACT_ID) && transfers.length >= TRANSFER_CONTACTS_MAX)
     return {
       field: 'list',
-      message: `${TRANSFER_CONTACTS_MAX} transfer contacts is the most an assistant can have. Remove one in Settings, or choose "Take a message".`,
+      message: `${TRANSFER_CONTACTS_MAX} transfer contacts is the most an assistant can have. Remove one in Assistant settings › Transfers, or choose "Take a message".`,
     }
   if (!draft.condition.trim()) return { field: 'condition', message: 'Say which calls are urgent.' }
   // Room for the "asks for a person" line the contact may carry too.

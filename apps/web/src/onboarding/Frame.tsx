@@ -110,7 +110,7 @@ export function Foot({
   busy,
   onSkipStep,
   laterLabel = 'Later',
-  laterTitle = 'Do this later in Settings',
+  laterTitle = 'Do this later in Assistant settings',
 }: FootProps) {
   return (
     <div className="ob-foot">

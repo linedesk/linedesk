@@ -6,7 +6,6 @@ import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@lined
 import { CONDITION_MAX } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { whoSetsUp } from '../providerAudience.ts'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { useRows, useRun } from '../store.tsx'
 import { SignInMark } from '../ui/brand-logos.tsx'
@@ -17,6 +16,7 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import { DeleteButton, EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Loading, Skeleton, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { useQuery } from '../cachedQuery.ts'
+import { MissingProviderNote } from './MissingProviderNote.tsx'
 import {
   BOOK_WHEN_LABEL,
   BOOKING_FIELDS,
@@ -84,13 +84,11 @@ function useConnect(assistantId: string, toast: (text: string) => void) {
   return { providers, busy, connect }
 }
 
-const noProviderText = () => `No calendar provider on this server yet. ${whoSetsUp('a calendar app')}`
-
 /** One button per calendar provider this install offers. Used in onboarding. */
 export function ConnectButtons({ assistantId, toast }: { assistantId: string; toast: (text: string) => void }) {
   const { providers, busy, connect } = useConnect(assistantId, toast)
   if (!providers) return <Loading what="Calendar providers" loading skeleton={<Skeleton width={190} height={32} />} />
-  if (!providers.length) return <p className="help">{noProviderText()}</p>
+  if (!providers.length) return <MissingProviderNote kind="calendar" />
   return (
     <div className="cal-connect">
       {providers.map(p => (
@@ -162,17 +160,12 @@ function Accounts({ assistant, canEdit, toast }: Props) {
   const connector = useConnect(assistant.id, toast)
   const [busy, setBusy] = useState<string | null>(null)
 
+  // No "are you sure?": connecting again is a click away, and booked events stay.
   async function disconnect(connection: CalendarConnection) {
-    if (
-      !window.confirm(
-        `Disconnect ${connection.account_email}? The assistant stops booking into its calendars. Booked events stay.`,
-      )
-    )
-      return
     setBusy(connection.id)
     try {
       const { note } = await write<DisconnectData>('calendar.disconnect', { connectionId: connection.id })
-      toast(note ?? `${connection.account_email} is disconnected.`)
+      toast(note ?? 'Calendar disconnected.')
     } catch (e) {
       toast((e as Error).message)
     } finally {
@@ -209,12 +202,10 @@ function Accounts({ assistant, canEdit, toast }: Props) {
               </AccountRow>
             ))}
           </List>
+        ) : connector.providers?.length === 0 ? (
+          <MissingProviderNote kind="calendar" />
         ) : (
-          <ListEmpty>
-            {connector.providers?.length === 0
-              ? noProviderText()
-              : `No account yet. Add one so ${assistant.name} can book.`}
-          </ListEmpty>
+          <ListEmpty>{`No account yet. Add one so ${assistant.name} can book.`}</ListEmpty>
         )}
       </Loading>
     </Section>

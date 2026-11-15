@@ -412,7 +412,7 @@ function AddDay({
       <Input
         value={name}
         onChange={e => setName(e.target.value)}
-        placeholder="Name, e.g. Staff training"
+        placeholder="Staff training"
         aria-label="Name"
         maxLength={80}
       />

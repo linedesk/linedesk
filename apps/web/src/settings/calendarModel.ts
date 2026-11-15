@@ -1,5 +1,6 @@
 // Settings › Assistant › Calendar without React: what the OAuth callback said, durations, labels.
 import type { AppointmentType, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
+import { shortDuration } from '../time.ts'
 
 export type ProviderId = CalendarConnection['provider']
 export const PROVIDER_LABEL: Record<ProviderId, string> = { google: 'Google', microsoft: 'Microsoft' }
@@ -30,11 +31,12 @@ export function connectResult(hash: string): { ok: boolean; text: string; connec
 
 export const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240] as const
 
-/** 90 → "1 h 30 min". */
+/** 90 → "1h 30m": compact like every duration shown as data (time.ts `shortDuration`, which stops at minutes). */
 export function durationLabel(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  return [h ? `${h} h` : null, m ? `${m} min` : null].filter(Boolean).join(' ') || '0 min'
+  if (!h) return shortDuration(m * 60)
+  return m ? `${h}h ${shortDuration(m * 60)}` : `${h}h`
 }
 
 /** What the assistant can ask for before booking a type, in the order the form shows them. */

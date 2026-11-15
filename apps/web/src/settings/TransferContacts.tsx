@@ -25,6 +25,7 @@ import {
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section } from './fields.tsx'
 import { brandName } from '../brand.ts'
+import { shortDuration } from '../time.ts'
 
 const fallbackOptions: SelectOption<TransferFallback>[] = [
   { value: 'message', label: 'Take a message' },
@@ -87,6 +88,11 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
       id="as-transfer"
       title="Transfers"
       description="Who callers are put through to, and when. When several fit, they are tried from the top."
+      actions={
+        <Button size="sm" icon="plus" disabled={!canAddTransfer({ transfers })} onClick={add}>
+          Add contact
+        </Button>
+      }
       help={`${assistantName} calls the contact first and tells whoever answers who is calling and why. If they press 1 or say yes, ${assistantName} connects the caller; that conversation isn't recorded. If no one picks up in time or they decline, ${assistantName} does what the contact says: take a message (urgent or not) or try the next contact that fits. ${assistantName} always tells the caller what is happening.`}
     >
       {transfers.length ? (
@@ -125,11 +131,6 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
       ) : (
         <p className="tc-empty">No transfer contacts: {assistantName} takes a message on every call.</p>
       )}
-      <div className="tc-add">
-        <Button size="sm" icon="plus" disabled={!canAddTransfer({ transfers })} onClick={add}>
-          Add contact
-        </Button>
-      </div>
     </Section>
   )
 }
@@ -156,7 +157,7 @@ type RowProps = {
 
 /** The muted line under a contact's name: ring time, fallback, hours. */
 function summaryOf(c: TransferDraft, hoursOn: boolean): string {
-  return [`Rings ${c.ring_seconds} s`, fallbackShort[c.if_no_answer], hoursOn && c.hours_only ? 'business hours only' : null]
+  return [`Rings ${shortDuration(c.ring_seconds)}`, fallbackShort[c.if_no_answer], hoursOn && c.hours_only ? 'business hours only' : null]
     .filter(Boolean)
     .join(', ')
 }
@@ -252,7 +253,7 @@ function ContactRow(props: RowProps) {
                 grow(e.target)
               }}
               onBlur={() => onLeave('condition')}
-              placeholder="In plain words, e.g. the caller asks for a person, or billing questions"
+              placeholder="The caller asks for a person"
               invalid={!!error('condition')}
             />
             {!c.condition.trim() && (

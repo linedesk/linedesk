@@ -87,13 +87,29 @@ describe('the carrier lookup and the guide the owner picked', () => {
   })
 
   test('a forwarding number is unverified until a check works or a real caller comes through', () => {
-    const n = { e164: '+15550000001', mode: 'forward_conditional' as const, verified_at: null }
-    const call = { source: 'phone' as const, from_own_number: false, to_number: n.e164 }
+    const n = {
+      e164: '+15550000001',
+      mode: 'forward_conditional' as const,
+      verified_at: null,
+      created_at: '2026-11-12T10:00:00Z',
+    }
+    const call = {
+      source: 'phone' as const,
+      direction: 'in' as const,
+      from_own_number: false,
+      outcome: 'message' as const,
+      to_number: n.e164,
+      started_at: '2026-11-13T09:00:00Z',
+    }
     expect(forwardingUnverified(n, [])).toBe(true)
     expect(forwardingUnverified({ ...n, verified_at: '2026-11-13T10:00:00Z' }, [])).toBe(false)
     expect(forwardingUnverified(n, [call])).toBe(false)
     expect(forwardingUnverified(n, [{ ...call, source: 'test' }])).toBe(true)
     expect(forwardingUnverified(n, [{ ...call, from_own_number: true }])).toBe(true)
+    // The server's rule: incoming, not spam, after the number was set up.
+    expect(forwardingUnverified(n, [{ ...call, direction: 'out' }])).toBe(true)
+    expect(forwardingUnverified(n, [{ ...call, outcome: 'spam' }])).toBe(true)
+    expect(forwardingUnverified(n, [{ ...call, started_at: '2026-11-11T09:00:00Z' }])).toBe(true)
     expect(forwardingUnverified({ ...n, mode: 'new' }, [])).toBe(false)
   })
 })
