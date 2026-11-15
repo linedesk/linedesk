@@ -22,6 +22,8 @@ import {
   HOSTING_GUIDE_URL,
   installPlace,
   type SetupWorkspaceSummary,
+  setupStepGroups,
+  setupStepNames,
   startPlan,
   stepsByGroup,
 } from '@linedesk/actions'
@@ -35,6 +37,7 @@ import { useQuery } from '../cachedQuery.ts'
 import { SETUP_LINK_KEY } from '../localData.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
+import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { AgentPicker } from './AgentPicker.tsx'
@@ -160,7 +163,6 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
     return () => clearInterval(id)
   }, [load])
 
-
   const workspaceReady = state?.progress.steps.some(s => s.id === 'workspace' && s.state === 'done') ?? false
   const told = useRef(false)
   useEffect(() => {
@@ -224,21 +226,47 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
   }, [state, created, setCreated])
   const hasLink = state ? Boolean(state.key) : Boolean(created)
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
+  // Until the first read of the setup state, everything on the page that depends on it is a skeleton of its shape
+  // (docs/design-principles.md rule 15): the title, the link step's button, the checklist and the way by hand. A
+  // failed or endless first read turns the checklist into the load problem; the rest shows as for a new install.
+  const view = useLoading(state === null && !loadError)
+  const skeleton = state === null && (view.phase === 'reserve' || view.phase === 'skeleton')
+  const reserved = view.phase === 'reserve'
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
   return (
-    <div className="ob as" role="main" aria-label={`Set up ${brandName()} with an AI agent`}>
+    <div
+      className="ob as"
+      role="main"
+      aria-label={`Set up ${brandName()} with an AI agent`}
+      aria-busy={skeleton || undefined}
+    >
+      {skeleton && (
+        <span className="sr-only" role="status">
+          Loading the setup
+        </span>
+      )}
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
         <span className="ob-count">Setup</span>
       </div>
       <div className="ob-main as-main">
-        <div className="ob-body">
+        <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
           <span className="as-kicker">
             <Icon name="spark" size={14} /> Recommended
           </span>
-          {allDone ? (
+          {skeleton ? (
+            <SkeletonPart reserved={reserved}>
+              <Skeleton className="as-sk-h1" width="74%" />
+              <span className="ob-lede as-sk-lede">
+                <Skeleton shape="text" width="100%" />
+                <Skeleton shape="text" width="98%" />
+                <Skeleton shape="text" width="94%" />
+                <Skeleton shape="text" width="18%" />
+              </span>
+            </SkeletonPart>
+          ) : allDone ? (
             <>
               <h1>Change {brandName()} with your AI agent</h1>
               <p className="ob-lede">Everything is set up. Want to change something? Give your agent a new link.</p>
@@ -255,7 +283,8 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
           )}
         </div>
 
-        {state && <HostingNote address={state.mcpUrl} />}
+        {/* Before the state is read, this page's own address stands for the server's: the note shows at once. */}
+        <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />
 
         <section className="as-card" aria-label="Your agent">
           <ol className="as-steps">
@@ -299,15 +328,17 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
                     </span>
                   )}
                 </>
+              ) : skeleton ? (
+                <div className="as-step">
+                  <SkeletonPart reserved={reserved}>
+                    <Skeleton width={148} height={32} />
+                  </SkeletonPart>
+                </div>
               ) : (
                 <div className="as-step">
                   {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
                   <div>
-                    <Button
-                      variant="primary"
-                      busy={busy === 'create'}
-                      onClick={() => void createKey()}
-                    >
+                    <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
                       Create a setup link
                     </Button>
                   </div>
@@ -318,17 +349,27 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active }: Props
           {error && <Note tone="danger">{error}</Note>}
         </section>
 
-        <Progress
-          state={state}
-          loadError={loadError}
-          connected={connected}
-          onDone={onDone}
-          active={active ?? null}
-          reload={load}
-        />
+        {state ? (
+          <Progress
+            state={state}
+            connected={connected}
+            onDone={onDone}
+            active={active ?? null}
+            reload={load}
+            fadeIn={view.fadeIn}
+          />
+        ) : skeleton ? (
+          <ProgressSkeleton reserved={reserved} />
+        ) : (
+          <LoadProblem what="The setup progress" message={loadError ?? undefined} onRetry={() => void load()} />
+        )}
 
         <div className="as-foot">
-          {allDone ? (
+          {skeleton ? (
+            <SkeletonPart reserved={reserved}>
+              <Skeleton shape="text" width={132} />
+            </SkeletonPart>
+          ) : allDone ? (
             <button
               type="button"
               className="as-manual"
@@ -355,21 +396,70 @@ export const NEW_WORKSPACE = '__new'
 /** Its value while the admin has no workspace yet. */
 const NO_WORKSPACE = ''
 
+/**
+ * The steps the setup checklist shows while its first state is read, in the server's order (setup-mcp.ts): the
+ * server's, then a workspace's. The rows with a button on this page (forwarding, the test call) are as tall as it.
+ */
+const SKELETON_GROUPS: Record<(typeof setupStepGroups)[number]['id'], readonly string[]> = {
+  server: ['answering', 'telephony', 'email', 'call-audio'],
+  business: ['workspace', 'business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
+}
+const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132 }
+
+/** A step's row width: its name (13px) and, after " · ", its hint (12px), about as long as the words. */
+export function stepSkeletonRow(id: string): { label: number; action?: number } {
+  const name = setupStepNames[id] ?? { label: id }
+  const label = Math.round(name.label.length * 7 + (name.hint ? 12 + name.hint.length * 6 : 0))
+  return SKELETON_ACTIONS[id] ? { label, action: SKELETON_ACTIONS[id] } : { label }
+}
+
+/** The setup checklist while its first state is read: its card, head, group headings, dropdown and rows. */
+export function ProgressSkeleton({ reserved }: { reserved: boolean }) {
+  return (
+    <section className="as-card as-progress" aria-label="Setup progress">
+      <SkeletonPart reserved={reserved}>
+        <div className="as-progress-head">
+          <Skeleton shape="text" width={176} />
+          <Skeleton shape="text" width={72} />
+        </div>
+        {setupStepGroups.map(group => (
+          <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
+            {group.id === 'business' ? (
+              <div className="as-ws-head">
+                <span className="as-group-label">Workspace</span>
+                <Skeleton width={184} height={28} />
+              </div>
+            ) : (
+              <h3 className="as-group-label">{group.label}</h3>
+            )}
+            <SkeletonChecklist
+              rows={SKELETON_GROUPS[group.id].map(stepSkeletonRow)}
+              listClassName="as-list"
+              rowClassName="as-item"
+            />
+          </div>
+        ))}
+      </SkeletonPart>
+    </section>
+  )
+}
+
 /** What the agent has set up so far, live. */
 function Progress({
   state,
-  loadError,
   connected,
   onDone,
   active,
   reload,
+  fadeIn,
 }: {
-  state: AgentSetupState | null
-  loadError: string | null
+  state: AgentSetupState
   connected: boolean
   onDone: () => void
   active: SetupWorkspace | null
   reload: () => Promise<void>
+  /** The state just arrived after the skeleton: the card fades in. */
+  fadeIn: boolean
 }) {
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
   const [calledHere, setCalledHere] = useState(false)
@@ -419,7 +509,6 @@ function Progress({
       setSwitchError(e instanceof Error ? e.message : 'Could not switch the workspace')
     }
   }, [])
-  if (!state) return loadError ? <Note tone="danger">{loadError}</Note> : null
   const { allDone } = state.progress
   const steps = withTestCallMade(state.progress.steps, calledHere)
   // The workspace the rows are about; its buttons work right here once it is the app's active workspace.
@@ -427,7 +516,7 @@ function Progress({
   const here = selected && active?.id === selected.id ? active : null
   const done = steps.filter(s => s.state === 'done').length
   return (
-    <section className="as-card as-progress" aria-label="Setup progress" aria-live="polite">
+    <section className={cx('as-card', 'as-progress', fadeIn && 'ld-in')} aria-label="Setup progress" aria-live="polite">
       <div className="as-progress-head">
         {allDone ? (
           <b>Everything is set up</b>

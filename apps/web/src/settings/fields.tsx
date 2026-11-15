@@ -137,6 +137,22 @@ export function SkeletonSection({ fields = 2 }: { fields?: number }) {
   )
 }
 
+/**
+ * A SelectRow whose value is not read yet: its title at once (words that don't need the data), the description's line
+ * and the dropdown as grey shapes, the same height as the row that comes.
+ */
+export function SkeletonSelectRow({ title, description = true }: { title: ReactNode; description?: boolean }) {
+  return (
+    <div className="selrow">
+      <div className="selrow-text">
+        <b>{title}</b>
+        {description && <Skeleton shape="text" width={260} />}
+      </div>
+      <Skeleton width={150} height={28} />
+    </div>
+  )
+}
+
 /** SwitchRows while they load (ui/LoadStates.tsx): the same rows and gaps, the switch a grey pill. */
 export function SkeletonSwitchRows({ rows = 2, description = true }: { rows?: number; description?: boolean }) {
   return (

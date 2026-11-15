@@ -10,7 +10,8 @@ import {
 } from '@linedesk/actions'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { SelectRow } from '../settings/fields.tsx'
+import { SelectRow, SkeletonSelectRow } from '../settings/fields.tsx'
+import { Loading } from '../ui/LoadStates.tsx'
 import type { SelectOption } from '../ui/controls.tsx'
 import { runAdmin } from './api.ts'
 
@@ -52,15 +53,23 @@ export function PipelinePolicy({ onChanged }: { onChanged: () => Promise<void> }
   }
   return (
     <div className="adm-pipeline-policy">
-      <SelectRow
-        id="adm-pipeline-policy"
-        title="Which one answers calls"
-        description={descriptions[policy]}
-        help={HELP}
-        value={policy}
-        options={options}
-        onChange={next => void change(next)}
-      />
+      <Loading
+        what="How calls are answered"
+        loading={!query.data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonSelectRow title="Which one answers calls" />}
+      >
+        <SelectRow
+          id="adm-pipeline-policy"
+          title="Which one answers calls"
+          description={descriptions[policy]}
+          help={HELP}
+          value={policy}
+          options={options}
+          onChange={next => void change(next)}
+        />
+      </Loading>
       {problem && (
         <p className="k-field-msg" role="alert">
           {problem}

@@ -220,6 +220,59 @@ export function SkeletonRows({
   )
 }
 
+type SkeletonChecklistProps = {
+  /**
+   * One entry per row: the label's width in px (a step's name, as long as the words it stands for), and optionally
+   * the width of the button at the row's right end (a row with an action is as tall as the button).
+   */
+  rows: readonly { label: number; action?: number }[]
+  /** The round mark at the left of every row: its size in px. */
+  mark?: number
+  /** The real list's and row's classes, so the skeleton has the same gaps and heights. */
+  listClassName?: string
+  rowClassName?: string
+}
+
+/**
+ * Rows in the shape of a checklist (setup steps, go-live steps): a round mark, the step's name and, where the step
+ * has one, its button. Pass the real list's classes so the rows are exactly as tall as the steps that come.
+ */
+export function SkeletonChecklist({ rows, mark = 18, listClassName, rowClassName }: SkeletonChecklistProps) {
+  return (
+    <ul className={cx('sk-checklist', listClassName)} aria-hidden="true">
+      {rows.map((row, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
+        <li key={i} className={cx('sk-check', rowClassName)}>
+          <Skeleton width={mark} height={mark} className="sk-round" />
+          <Skeleton shape="text" width={row.label} />
+          {row.action ? <Skeleton width={row.action} height={28} className="sk-check-action" /> : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * A skeleton in one spot of a page whose loading is already announced once (aria-busy and the hidden line on the
+ * page or card around it, see `useLoading`): a title, a button or a line that depends on data that is not there yet.
+ * Pass the `LoadingView` phase: `reserve` holds the space without showing the shape (no flash for a quick load).
+ */
+export function SkeletonPart({
+  reserved,
+  className,
+  children,
+}: {
+  reserved: boolean
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={cx('ld', 'ld-busy', reserved && 'is-reserved', className)} aria-hidden="true" style={pulseInStep()}>
+      {children}
+    </div>
+  )
+}
+
 /** Read sync has not reached the server for a while; it keeps retrying by itself, so there is nothing to press. */
 function ServerUnreachable({ className }: { className?: string }) {
   return (

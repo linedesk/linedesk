@@ -216,9 +216,9 @@ export function useQuery<T>(key: string | null, load: () => Promise<T>, options:
     (listener: () => void) => (key ? subscribeQuery(key, listener, { persist: options.persist }) : () => {}),
     [key, options.persist],
   )
-  const state = useSyncExternalStore(subscribe, () =>
-    key ? queryState(key, { persist: options.persist }) : EMPTY,
-  ) as QueryState<T>
+  const snapshot = () => (key ? queryState(key, { persist: options.persist }) : EMPTY)
+  // The same snapshot when rendered to markup (tests that render a screen with its queries still pending).
+  const state = useSyncExternalStore(subscribe, snapshot, snapshot) as QueryState<T>
   // biome-ignore lint/correctness/useExhaustiveDependencies: the loader is read when it runs; a new function each render must not load again
   useEffect(() => {
     if (!key) return

@@ -323,7 +323,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
             onClick={() => void older()}
             title="Load older entries"
           >
-            {loadingMore ? 'Loading…' : 'Show older'}
+            Show older
           </Button>
         </div>
       )}

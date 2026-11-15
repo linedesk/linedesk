@@ -420,3 +420,22 @@
   background: transparent;
   box-shadow: none;
 }
+/* The title and lede while the setup state is read (AgentSetup, rule 15): a bar in the h1's line, the lede's lines. */
+.as-sk-h1 {
+  height: 22px;
+  margin: 6px 0;
+  border-radius: 11px;
+}
+.as-sk-lede {
+  display: grid;
+}
+.as-sk-lede .sk-text {
+  display: block;
+  margin: 6.5px 0;
+}
+@media (max-width: 719px) {
+  .as-sk-h1 {
+    height: 18px;
+    margin: 5.5px 0;
+  }
+}

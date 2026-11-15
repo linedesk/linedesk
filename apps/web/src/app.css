@@ -1688,6 +1688,25 @@ button.k-link {
     display: none;
   }
 }
+/* A checklist's rows (SkeletonChecklist): mark, name, and the button at the right end where the step has one. The
+   real list's classes give the gaps and heights; these only lay the shapes out like the steps. */
+.sk-checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sk-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.sk-check > .sk-text {
+  flex: 0 1 auto;
+}
+.sk-check > .sk-check-action {
+  margin-left: auto;
+}
 
 .as-stale {
   display: flex;

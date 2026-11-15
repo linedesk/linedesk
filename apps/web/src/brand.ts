@@ -29,6 +29,7 @@ export const useBrand = (): Branding =>
       return () => listeners.delete(listener)
     },
     () => current,
+    () => current,
   )
 
 /** Makes `next` the branding in effect: stored for the next load, applied to the page, shown by every useBrand(). */

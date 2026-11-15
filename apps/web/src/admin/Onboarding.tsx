@@ -7,7 +7,7 @@ import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
-import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
 import { day, when } from './parts.tsx'
 
@@ -52,12 +52,20 @@ function SetupEmails() {
           <b>Send setup emails</b>
           {note && <span className="help">{note}</span>}
         </div>
-        <Switch
-          on={on}
-          onChange={v => void change(v)}
-          label="Send setup emails"
-          disabled={!data || (!on && !data.emailConnected)}
-        />
+        <Loading
+          what="Setup emails"
+          loading={!data}
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<Skeleton width={34} height={20} className="sk-round" />}
+        >
+          <Switch
+            on={on}
+            onChange={v => void change(v)}
+            label="Send setup emails"
+            disabled={!data || (!on && !data.emailConnected)}
+          />
+        </Loading>
       </div>
       {problem && (
         <p className="k-field-msg" role="alert">
