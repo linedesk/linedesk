@@ -65,7 +65,7 @@ test('a call that cannot be answered is logged as missed, naming what is missing
 })
 
 test("the inbox shows a missed call from the caller's side, never setup details", () => {
-  expect(JSON.stringify(missedResult)).not.toMatch(
+  expect(JSON.stringify(missedResult())).not.toMatch(
     /API_KEY|deepgram|openrouter|elevenlabs|cartesia|openai|provider|set up/i,
   )
 })

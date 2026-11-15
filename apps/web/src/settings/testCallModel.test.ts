@@ -7,13 +7,85 @@ import {
   noJoinText,
   noPickupText,
   PICKUP_TIMEOUT_MS,
+  prepareStart,
   SLOW_JOIN_MS,
   TEST_CALL_TIMEOUT_MS,
   TimedOut,
   testCallErrorText,
+  waitText,
   watchPickup,
   within,
 } from './testCallModel.ts'
+
+describe('the start of a test call says what it waits for', () => {
+  // Production, 2026-11-15: about 15 s of "Connecting your microphone…" on a slow network, most of it spent reaching
+  // the assistant, which read like a microphone problem.
+  const deferred = <T>() => {
+    let resolve!: (value: T) => void
+    let reject!: (error: unknown) => void
+    const promise = new Promise<T>((yes, no) => {
+      resolve = yes
+      reject = no
+    })
+    return { promise, resolve, reject }
+  }
+
+  test('the microphone first, then reaching the assistant; the call library loads during the permission prompt', async () => {
+    const mic = deferred<string | null>()
+    const lib = deferred<string>()
+    const library = vi.fn(() => lib.promise)
+    const steps: string[] = []
+    const prepared = prepareStart({ microphone: () => mic.promise, library, step: s => steps.push(s) })
+    expect(steps).toEqual(['microphone'])
+    expect(library).toHaveBeenCalledOnce() // not after the microphone: side by side
+    mic.resolve(null)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(steps).toEqual(['microphone', 'connecting'])
+    lib.resolve('livekit')
+    await expect(prepared).resolves.toEqual({ library: 'livekit' })
+  })
+
+  test('a refused microphone is said, never a library problem; a library that fails after it is', async () => {
+    const steps: string[] = []
+    const refused = await prepareStart({
+      microphone: async () => 'Microphone blocked',
+      library: () => Promise.reject(new Error('offline')),
+      step: s => steps.push(s),
+    })
+    expect(refused).toEqual({ problem: 'Microphone blocked' })
+    expect(steps).toEqual(['microphone'])
+    const failed = await prepareStart({
+      microphone: async () => null,
+      library: () => Promise.reject(new Error('offline')),
+      step: () => {},
+    })
+    expect(failed).toEqual({ problem: expect.any(String) })
+    expect((failed as { problem: string }).problem).not.toMatch(/offline/)
+  })
+
+  test('a permission prompt nobody answers ends the start', async () => {
+    vi.useFakeTimers()
+    const prepared = prepareStart({
+      microphone: () => new Promise(() => {}),
+      library: async () => 'lk',
+      step: () => {},
+      timeoutMs: 1000,
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(await prepared).toEqual({ problem: expect.any(String) })
+    vi.useRealTimers()
+  })
+
+  test('the panel line: microphone, then the assistant by name, still connecting when slow, then waiting for the answer', () => {
+    const at = (phase: 'starting' | 'live', step: 'microphone' | 'connecting', stillConnecting = false) =>
+      waitText({ phase, step, stillConnecting, name: 'Maya' })
+    expect(at('starting', 'microphone')).toBe('Connecting your microphone…')
+    expect(at('starting', 'connecting')).toBe('Connecting to Maya…')
+    expect(at('starting', 'connecting', true)).toBe('Still connecting…')
+    expect(at('live', 'connecting')).toBe('Waiting for Maya to answer…')
+    expect(at('live', 'connecting', true)).toBe('Still connecting…')
+  })
+})
 
 test('a connection that never answers ends after the timeout', async () => {
   vi.useFakeTimers()

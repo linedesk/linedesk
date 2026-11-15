@@ -285,7 +285,7 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
  */
 function reportVoiceFailure(room: Room, call: CallSession, log: CallLog, failure: VoiceFailure) {
   const stage = voiceStageNames[failure.stage]
-  log.voiceFailed ??= stage
+  log.voiceFailed ??= failure.stage
   // No reason on the transcript: the first one may still be refined (below); the call's failure keeps the cause.
   log.record('system', `${stage[0]!.toUpperCase()}${stage.slice(1)} failed: ${voiceProviderLabel(failure.provider)}`)
   const show = (shown: VoiceFailure) =>
@@ -456,7 +456,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
-  remindOnSilence(session, silence, {
+  const stopSilence = remindOnSilence(session, silence, {
     remind: () => void speak(silence.reminder ?? lines().stillThere),
     close: () => {
       log.record('system', 'Hung up after silence on the line')
@@ -466,6 +466,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     onHold: () => log.onHold,
     greeted,
   })
+  // The caller hung up (or the call ended another way): silence on the line no longer counts.
+  session.on(voice.AgentSessionEventTypes.Close, stopSilence)
   // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
   const isTest = call.businessNumber === null
   // A realtime call's lines in its voice are made now, so the first one does not wait for it (then cached for every call).

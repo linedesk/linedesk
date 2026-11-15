@@ -25,5 +25,13 @@ export function preloadLiveKit() {
   return () => clearTimeout(timer)
 }
 
+/**
+ * Fetches the LiveKit client now, for a page that may start a call any moment (the test call button): the click then
+ * does not wait for its download. A failure is tried again when the call starts.
+ */
+export function preloadNow() {
+  void loadLiveKit().catch(() => {})
+}
+
 /** What a member reads when the call code could not load. */
 export const loadFailed = () => i18n().t('call.live.loadFailed')

@@ -8,7 +8,7 @@ import { parseSync } from 'oxc-parser'
 import { REPO_DIR } from './lib.ts'
 
 /** Where keys are used: the web app, the API and every package. */
-export const KEY_ROOTS = ['apps/web/src', 'apps/api/src', 'packages']
+export const KEY_ROOTS = ['apps/web/src', 'apps/api/src', 'apps/agent/src', 'packages']
 /** Where the ratchet counts hardcoded text. */
 export const RATCHET_ROOT = 'apps/web/src'
 

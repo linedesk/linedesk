@@ -65,6 +65,8 @@ import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
+import { matchLocale, type Translator } from '@linedesk/i18n'
+import { getT } from '@linedesk/i18n/server'
 
 export { Forbidden, Reject, type HandlerCtx, type Undo }
 
@@ -253,12 +255,20 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   const blocked = spam || busy || overCap
   // The owner calling from their own phone to try it out: kept on the call, so it never counts as a real caller.
   const fromOwnNumber = source === 'phone' && isE164(from) && (await isOwnNumber(tx, workspace_id, from))
+  // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
+  const [zone] = await tx.select({ timezone: workspace_settings.timezone, country: workspace_settings.country, language: workspace_settings.language, holidays: workspace_settings.holidays }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
+  // Where the business is and its language (Workspace settings › General, else worked out): the region numbers callers
+  // say are read in, the greeting's language when the assistant has none of its own, the summary's for the team (and
+  // the texts a call that is not answered is filed with).
+  const locale = await workspaceLocale(tx, workspace_id, zone ?? null)
+  const t = teamT(locale.resolvedLanguage)
   const [call] = await tx.insert(calls).values({
     id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
     from_own_number: fromOwnNumber,
     assistant_id: assistant?.id ?? null,
     assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
-    ...(spam ? blockedCall(now) : overCap ? overCapCall(now) : busy ? busyCall(now) : {}),
+    ...(spam ? blockedCall(now, t) : overCap ? overCapCall(now, t) : busy ? busyCall(now, t) : {}),
   }).returning()
   await recordCallStarted(tx, call!, spam)
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
@@ -266,12 +276,6 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
-  // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
-  const [zone] = await tx.select({ timezone: workspace_settings.timezone, country: workspace_settings.country, language: workspace_settings.language, holidays: workspace_settings.holidays }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
-  const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
-  // Where the business is and its language (Workspace settings › General, else worked out): the region numbers callers
-  // say are read in, the greeting's language when the assistant has none of its own, the summary's for the team.
-  const locale = await workspaceLocale(tx, workspace_id, zone ?? null)
   const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: contact?.row.id ?? null, assistantId: assistant?.id ?? null })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
@@ -344,27 +348,34 @@ async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
  * A call over the workspace's limit of calls at once: filed as missed, unread, with a callback. The agent tells the
  * caller the lines are busy and hangs up (BUSY_LINE in apps/agent).
  */
-const busyCall = (now: string) => ({
+const busyCall = (now: string, t: TeamT) => ({
   status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
-  title: 'Missed call', summary: `Nobody answered this call: ${LIVE_CALLS_PER_WORKSPACE} other calls were in progress. Call the caller back.`,
-  action_items: [{ text: 'Call back' }],
+  title: t('call.autoSummary.missed.title'), summary: t('call.autoSummary.missed.busy', { count: LIVE_CALLS_PER_WORKSPACE }),
+  action_items: [{ text: t('call.autoSummary.missed.callBack') }],
 })
 
 /**
  * A call while the workspace is over its monthly spending cap: filed as missed, unread, with a callback. The agent
  * tells the caller the business will call back and hangs up (OVER_CAP_LINE in apps/agent).
  */
-const overCapCall = (now: string) => ({
+const overCapCall = (now: string, t: TeamT) => ({
   status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
-  title: 'Missed call', summary: 'Nobody answered this call: the workspace reached its monthly spending cap. Call the caller back.',
-  action_items: [{ text: 'Call back' }],
+  title: t('call.autoSummary.missed.title'), summary: t('call.autoSummary.missed.overCap'),
+  action_items: [{ text: t('call.autoSummary.missed.callBack') }],
 })
 
 /** A call from a blocked number: over before it began, read, in Spam. */
-const blockedCall = (now: string) => ({
+const blockedCall = (now: string, t: TeamT) => ({
   status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'spam' as const, unread: false,
-  title: 'Blocked caller', summary: 'This number is blocked, so the call was not answered.',
+  title: t('call.autoSummary.blocked.title'), summary: t('call.autoSummary.blocked.summary'),
 })
+
+/**
+ * `t()` for the texts filed on a call for the team: in the workspace language like the call summaries (written once per
+ * call; emails, webhooks and exports carry them too), the closest UI language, else English.
+ */
+type TeamT = Translator['t']
+const teamT = (language: string): TeamT => getT(matchLocale([language])).t
 
 /**
  * The on-call number is a person's phone, never a Linedesk number (the workspace's own or any other on the

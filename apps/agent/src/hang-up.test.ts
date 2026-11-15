@@ -179,6 +179,36 @@ test('silence: a reminder every gap, then the closing line at the hang-up time, 
   expect(remind).toHaveBeenCalledTimes(2)
 })
 
+test('a call that ended during the silence (the caller hung up): no reminder, no closing line afterwards', () => {
+  // Production, 2026-11-15: the browser hung up at 26 s, one reminder in; the timer still fired at 31 s, wrote "Hung up
+  // after silence on the line" after the call's end and tried to say the closing line on the closed session.
+  const { session, emit } = userStates()
+  const remind = vi.fn()
+  const close = vi.fn()
+  const stop = remindOnSilence(session, policy, { remind, close, transferred: () => false })
+  emit('away')
+  expect(remind).toHaveBeenCalledTimes(1)
+  stop()
+  vi.advanceTimersByTime(120_000)
+  emit('away')
+  vi.advanceTimersByTime(120_000)
+  expect(remind).toHaveBeenCalledTimes(1)
+  expect(close).not.toHaveBeenCalled()
+})
+
+test('a call that ends before the greeting has played never starts the silence schedule', async () => {
+  const { session, emit } = userStates()
+  const close = vi.fn()
+  let greet = () => {}
+  const greeted = new Promise<void>(resolve => (greet = resolve))
+  const stop = remindOnSilence(session, policy, { remind: vi.fn(), close, transferred: () => false, greeted })
+  emit('away')
+  stop()
+  greet()
+  await vi.advanceTimersByTimeAsync(120_000)
+  expect(close).not.toHaveBeenCalled()
+})
+
 test('a caller who answers stays on, and the reminders start over at the next silence', () => {
   const { session, emit } = userStates()
   const remind = vi.fn()

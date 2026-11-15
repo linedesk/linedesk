@@ -734,6 +734,7 @@
   "testCall.voiceDown": "{name} can't take calls yet: the voice service isn't set up. Ask your server admin.",
   "testCall.voiceDownOperator": "{name} can't take calls yet: the voice service isn't set up. Set it up under Server admin › Providers.",
   "testCall.wait.answer": "Waiting for {name} to answer…",
+  "testCall.wait.assistant": "Connecting to {name}…",
   "testCall.wait.microphone": "Connecting your microphone…",
   "testCall.wait.stillConnecting": "Still connecting…",
   "testCall.wait.summary": "Writing the summary…",

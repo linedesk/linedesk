@@ -216,7 +216,9 @@ type SilenceOptions = {
  * timeout, set from the same policy): the assistant asks whether they are still there, again every `firstGapS`, up
  * to `reminders` times, and at `hangUpS` of silence says the closing line and hangs up (silenceSchedule). A word from
  * the caller starts it over. Never once the call was put through to a person, and not while the caller is on hold.
- * Nothing counts before the greeting has played: the schedule then starts from its end.
+ * Nothing counts before the greeting has played: the schedule then starts from its end. Returns the stop for the end of
+ * the call: a caller who hangs up during the silence must not get a reminder or a closing line (and a "Hung up after
+ * silence" event later than the end) afterwards.
  */
 export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>, { remind, close, transferred, onHold = () => false, greeted }: SilenceOptions) {
   const at = silenceSchedule(policy)
@@ -230,6 +232,7 @@ export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy,
     pending = undefined
   }
   const after = (seconds: number) => {
+    if (ended) return
     pending = setTimeout(step, seconds * 1000)
     pending.unref?.()
   }
@@ -267,6 +270,10 @@ export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy,
     // Silent since before the greeting ended: the session reports no new "away", so the whole schedule counts from now.
     if (away && !pending && !ended) after(at[0]!)
   })
+  return () => {
+    ended = true
+    stop()
+  }
 }
 
 type AgentStates = {

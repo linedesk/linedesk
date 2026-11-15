@@ -1,4 +1,5 @@
 // What happened in one call, and how it ends: every call that was started gets finished.
+import type { VoiceStage } from '@linedesk/actions'
 import type { CallSession, CallTimings, Speaker } from './call-session.ts'
 import type { ReplyTimes } from './turn-metrics.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
@@ -48,8 +49,8 @@ export class CallLog {
   /** How long each reply took (ReplyTimes), sent at hang-up for the admin overview; `timing` says which pipeline and providers. */
   readonly replies: ReplyTimes[] = []
   timing: Omit<CallTimings, 'replies'> | null = null
-  /** The first stage of the voice pipeline that failed on this call, in words ("voice"); null while it works. */
-  voiceFailed: string | null = null
+  /** The first stage of the voice pipeline that failed on this call ("tts"); null while it works. */
+  voiceFailed: VoiceStage | null = null
   private pending: Promise<unknown>[] = []
 
   private call: CallSession
@@ -82,11 +83,11 @@ export async function finishCall(call: CallSession, log: CallLog, complete: Comp
   const silent = !log.lines.some(l => l.speaker === 'caller')
   // No caller ID and no number given: no action item asks the owner to call back (B4).
   const callbackKnown = hasCallbackNumber(callerIdOf(call), { confirmed: log.confirmedNumbers, saved: log.messages, country: call.country })
-  const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed) : await summarizeWithRetry(call, log, complete, callbackKnown, retry).catch(e => {
+  const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed, call.teamLanguage) : await summarizeWithRetry(call, log, complete, callbackKnown, retry).catch(e => {
     console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
-    return unsummarizedResult(log.lines, log.messages)
+    return unsummarizedResult(log.lines, log.messages, call.teamLanguage)
   })
-  await withRetry(() => call.finish(mergeToolResults(summary, log, callbackKnown)), retry)
+  await withRetry(() => call.finish(mergeToolResults(summary, log, callbackKnown, call.teamLanguage)), retry)
 }
 
 /** A timed-out request is not repeated: a second one would not fit into the hang-up budget. */

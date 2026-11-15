@@ -1,7 +1,8 @@
 // After hang-up: one LLM call turns the transcript into the call's title, summary and outcome.
-import { CALLER_NAME_MAX, outcome, urgency, workspaceLanguageName } from '@linedesk/actions'
+import { CALLER_NAME_MAX, outcome, urgency, type VoiceStage, workspaceLanguageName } from '@linedesk/actions'
 import { z } from 'zod'
 import type { CallResult, Speaker } from './call-session.ts'
+import { teamT } from './team-text.ts'
 
 export interface TranscriptLine {
   speaker: Speaker
@@ -49,8 +50,17 @@ function languageRule(language: string): string {
 
 const formatTranscript = (lines: TranscriptLine[]) => lines.map(l => `${l.speaker}: ${l.text}`).join('\n')
 
-/** The action item when the team has no number to call the caller back on. */
+/**
+ * The action item when the team has no number to call the caller back on, as the summary prompt quotes it (in English);
+ * what the team reads is noCallbackText in its language.
+ */
 export const NO_CALLBACK_ITEM = "No callback number: caller didn't give one"
+
+/** NO_CALLBACK_ITEM in the team's language. */
+export function noCallbackText(language = 'en') {
+  const t = teamT(language)
+  return t('call.autoSummary.noCallback')
+}
 
 /** What the summary is told when there is no number to call back on, so it does not ask the owner to. */
 const NO_CALLBACK_NOTE = `The team has no number to call this caller back on (no caller ID, and the caller gave none): never write an action item to call them back; write "${NO_CALLBACK_ITEM}" instead.`
@@ -63,36 +73,52 @@ function summaryRequest(lines: TranscriptLine[], savedMessages: string[], callba
 /** An action item that asks the owner to call the caller back ("Call back Sam", "Call the caller back: …"). */
 const asksToCallBack = (text: string) => /^\s*(please\s+)?(call|phone|ring)\b[^.:]{0,60}\bback\b/i.test(text)
 
-/** `detail` after the missing-number item, as its own sentence. */
-const noCallbackItem = (detail = '') => {
+/** `detail` after the missing-number item, as its own sentence, in the team's language. */
+const noCallbackItem = (language: string, detail = '') => {
+  const t = teamT(language)
   const rest = detail.trim()
-  return rest ? `${NO_CALLBACK_ITEM}. ${rest.charAt(0).toUpperCase()}${rest.slice(1)}` : NO_CALLBACK_ITEM
+  return rest
+    ? t('call.autoSummary.noCallbackWith', { detail: `${rest.charAt(0).toUpperCase()}${rest.slice(1)}` })
+    : noCallbackText(language)
+}
+
+/**
+ * The summary was told to write NO_CALLBACK_ITEM word for word (in English, whatever the team's language): it becomes
+ * the item in the team's language, keeping what follows it.
+ */
+function localizedNoCallback(text: string, language: string): string {
+  if (!text.startsWith(NO_CALLBACK_ITEM)) return text
+  const rest = text.slice(NO_CALLBACK_ITEM.length).replace(/^[.:;,]?\s*/, '')
+  return noCallbackItem(language, rest)
 }
 
 /**
  * Without a number to call back on, an item that asks for a call back says the number is missing instead, keeping
  * what it said after a colon ("Call the caller back: the voice failed" keeps "The voice failed"). Duplicates go.
  */
-function withoutCallBacks(items: { text: string }[]): { text: string }[] {
-  const texts = items.map(({ text }) => (asksToCallBack(text) ? noCallbackItem(text.includes(':') ? text.slice(text.indexOf(':') + 1) : '') : text))
+function withoutCallBacks(items: { text: string }[], language: string): { text: string }[] {
+  const texts = items.map(({ text }) => (asksToCallBack(text) ? noCallbackItem(language, text.includes(':') ? text.slice(text.indexOf(':') + 1) : '') : text))
   return [...new Set(texts)].map(text => ({ text }))
 }
 
-export const hangupResult: CallResult = {
-  outcome: 'hangup', urgency: 'low', title: 'Hung up before speaking', summary: 'The caller hung up without saying anything.',
+/** The caller said nothing: no summary to ask the language model for. In the team's language, like the summaries. */
+export function hangupResult(language = 'en'): CallResult {
+  const t = teamT(language)
+  return { outcome: 'hangup', urgency: 'low', title: t('call.autoSummary.hungUp.title'), summary: t('call.autoSummary.hungUp.summary') }
 }
 
 /**
  * The caller said nothing because a stage of the voice pipeline failed (the voice, speech to text): not a hang-up but a
  * caller the assistant could not help, so it reaches the owner as a call back, with the stage that failed.
  */
-export function voiceFailedResult(stage: string): CallResult {
+export function voiceFailedResult(stage: VoiceStage, language = 'en'): CallResult {
+  const t = teamT(language)
   return {
     outcome: 'callback',
     urgency: 'normal',
-    title: `Missed: the assistant's ${stage} failed`,
-    summary: `The assistant's ${stage} failed on this call, so the caller got no help and hung up.`,
-    actionItems: [{ text: `Call the caller back: the assistant's ${stage} failed on this call.` }],
+    title: t('call.autoSummary.voiceFailed.title', { stage }),
+    summary: t('call.autoSummary.voiceFailed.summary', { stage }),
+    actionItems: [{ text: t('call.autoSummary.voiceFailed.item', { stage }) }],
   }
 }
 
@@ -100,11 +126,12 @@ export function voiceFailedResult(stage: string): CallResult {
  * Used when the LLM call fails, so the call still leaves the live state with what is known. A message the
  * assistant took says what the call was about, so it becomes the title and summary.
  */
-export function unsummarizedResult(lines: TranscriptLine[], savedMessages: string[] = []): CallResult {
+export function unsummarizedResult(lines: TranscriptLine[], savedMessages: string[] = [], language = 'en'): CallResult {
   if (savedMessages.length) {
     return { outcome: 'message', title: headline(savedMessages[0]!), summary: savedMessages.join(' ') }
   }
-  return { outcome: 'answered', title: 'Call (summary unavailable)', summary: lines.find(l => l.speaker === 'caller')?.text ?? '' }
+  const t = teamT(language)
+  return { outcome: 'answered', title: t('call.autoSummary.unavailable.title'), summary: lines.find(l => l.speaker === 'caller')?.text ?? '' }
 }
 
 /** The first sentence of a text, cut at a word boundary to fit a title. */
@@ -119,12 +146,15 @@ function headline(text: string) {
  * The caller hung up while a collection step was asking them for something, before any message, booking or transfer:
  * what the call gathered still reaches the owner as a call back, never as a hang-up without an action item.
  */
-function endedMidStep(result: CallResult, tools: Parameters<typeof mergeToolResults>[1], callbackKnown: boolean): CallResult | null {
+function endedMidStep(result: CallResult, tools: Parameters<typeof mergeToolResults>[1], callbackKnown: boolean, language: string): CallResult | null {
   if (!tools.collecting || tools.messages.length || tools.bookings?.length || tools.transferred) return null
   if (result.outcome !== 'hangup' && result.outcome !== 'answered' && result.actionItems?.length) return null
+  const t = teamT(language)
   const who = [tools.confirmedName, ...(tools.confirmedNumbers ?? [])].filter(Boolean).join(', ')
-  const ended = `the call ended while the assistant was asking for the ${tools.collecting}. ${result.summary ?? ''}`
-  const item = callbackKnown ? `Call the caller back${who ? ` (${who})` : ''}: ${ended}`.trim() : noCallbackItem(ended)
+  const ended = t('call.autoSummary.endedMidStep', { step: tools.collecting, summary: result.summary ?? '' }).trim()
+  const item = callbackKnown
+    ? (who ? t('call.autoSummary.callBackWho', { who, detail: ended }) : t('call.autoSummary.callBack', { detail: ended })).trim()
+    : noCallbackItem(language, ended)
   return { ...result, outcome: 'callback', urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: [{ text: item }, ...(result.actionItems ?? [])] }
 }
 
@@ -144,11 +174,11 @@ export async function summarizeCall(
   teamLanguage = 'en',
   { callbackKnown = true }: { callbackKnown?: boolean } = {},
 ): Promise<CallResult> {
-  if (!lines.some(l => l.speaker === 'caller')) return hangupResult
+  if (!lines.some(l => l.speaker === 'caller')) return hangupResult(teamLanguage)
   const parsed = summarySchema.parse(JSON.parse(await complete(summarySystem(teamLanguage), summaryRequest(lines, savedMessages, callbackKnown))))
   return {
     title: parsed.title, summary: parsed.summary, outcome: parsed.outcome, urgency: parsed.urgency,
-    actionItems: parsed.action_items.map(text => ({ text })),
+    actionItems: parsed.action_items.map(text => ({ text: localizedNoCallback(text, teamLanguage) })),
     callerName: parsed.caller_name ?? undefined,
   }
 }
@@ -157,18 +187,20 @@ export async function summarizeCall(
  * What goes into `call.finish`: tools used during the call win over the summary (a transfer that
  * connected makes it transferred, a booking booked, a taken message a message). `callbackKnown` false: the team has
  * no number to call back on, so no action item asks for a call back; it says that the number is missing instead.
+ * `language`: the team's, which the items this adds are written in.
  */
 export function mergeToolResults(
   result: CallResult,
   tools: { messages: string[]; urgent: boolean; bookings?: string[]; transferred?: boolean; collecting?: string | null; confirmedName?: string | undefined; confirmedNumbers?: readonly string[] },
   callbackKnown = true,
+  language = 'en',
 ): CallResult {
-  const leftMidStep = endedMidStep(result, tools, callbackKnown)
+  const leftMidStep = endedMidStep(result, tools, callbackKnown, language)
   if (leftMidStep) return leftMidStep
   const taken = tools.messages.map(text => ({ text }))
   const summarized = (result.actionItems ?? []).filter(item => !tools.messages.includes(item.text))
   // Without a number, "Call back …" from the summary becomes the one item that says the number is missing.
-  const extra = callbackKnown ? summarized : withoutCallBacks(summarized)
+  const extra = callbackKnown ? summarized : withoutCallBacks(summarized, language)
   // Booked and transferred come only from what the tools did, never from the summary's guess (a caller who
   // agreed on a day is not booked without a booking).
   const guessed = ONLY_BY_TOOLS.has(result.outcome) ? (taken.length ? 'message' : 'callback') : result.outcome
@@ -177,7 +209,9 @@ export function mergeToolResults(
     : tools.bookings?.length ? 'booked' : taken.length && NOT_A_MESSAGE.has(guessed) ? 'message' : guessed
   const items = [...taken, ...extra]
   // A call back or message with nothing to act on would be lost in the inbox: what the call was about becomes the item.
-  if (!items.length && (outcome === 'callback' || outcome === 'message') && result.summary?.trim())
-    items.push({ text: callbackKnown ? `Call the caller back: ${result.summary.trim()}` : NO_CALLBACK_ITEM })
+  if (!items.length && (outcome === 'callback' || outcome === 'message') && result.summary?.trim()) {
+    const t = teamT(language)
+    items.push({ text: callbackKnown ? t('call.autoSummary.callBack', { detail: result.summary.trim() }) : noCallbackText(language) })
+  }
   return { ...result, outcome, urgency: tools.urgent ? 'urgent' : result.urgency, actionItems: items }
 }

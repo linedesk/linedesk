@@ -5,6 +5,7 @@
 import type { CallResult, CallSession } from './call-session.ts'
 import { AgentConfigError, type CallConfig, isRealtime, type Stage } from './config.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
+import { teamT } from './team-text.ts'
 
 /** `reason` is for the operator's log; `stages` names what is missing in words the business may see. */
 export type Readiness = { ready: true; config: CallConfig } | { ready: false; reason: string; stages: Stage[] }
@@ -32,13 +33,16 @@ export function describeReadiness(readiness: Readiness): string {
 /**
  * What the business sees in the inbox: a call nobody answered, from the caller's side. Why the
  * assistant was not answering is a setup problem, shown once in the app's status, not on every call;
- * the operator's detail stays in the worker log.
+ * the operator's detail stays in the worker log. In the team's language, like the summaries.
  */
-export const missedResult: CallResult = {
-  outcome: 'hangup',
-  title: 'Missed call',
-  summary: 'Nobody answered this call: the assistant was not taking calls yet. Call the caller back.',
-  actionItems: [{ text: 'Call back' }],
+export function missedResult(language = 'en'): CallResult {
+  const t = teamT(language)
+  return {
+    outcome: 'hangup',
+    title: t('call.autoSummary.missed.title'),
+    summary: t('call.autoSummary.missed.notReady'),
+    actionItems: [{ text: t('call.autoSummary.missed.callBack') }],
+  }
 }
 
 /** Logs the call as missed and ends it. `hangUp` disconnects the caller. Never throws. */
@@ -51,7 +55,7 @@ export async function declineCall(
   console.warn(`call ${call.callId} not answered: ${readiness.reason}`)
   const logged = (async () => {
     await call.append('system', 'Missed')
-    await withRetry(() => call.finish(missedResult), retry)
+    await withRetry(() => call.finish(missedResult(call.teamLanguage)), retry)
   })().catch(e => console.error(`could not log missed call ${call.callId}: ${e instanceof Error ? e.message : e}`))
   await Promise.all([logged, hangUp().catch(() => {})])
 }

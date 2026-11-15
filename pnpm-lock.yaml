@@ -30,6 +30,9 @@ importers:
       '@linedesk/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@linedesk/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@linedesk/scrub':
         specifier: workspace:*
         version: link:../../packages/scrub

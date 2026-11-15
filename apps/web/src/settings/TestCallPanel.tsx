@@ -14,6 +14,7 @@ import { clock, longDuration, parseTs } from '../time.ts'
 import { Button, Note } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { AudioSink, type TestCallSession } from './TestCall.tsx'
+import { waitText } from './testCallModel.ts'
 import './test-call-panel.css'
 
 /** Where the call stands, in a few words for the header. */
@@ -167,11 +168,7 @@ export function TestCallPanel({
               {!message && !call && phase !== 'ended' && (
                 <p className="tcp-wait">
                   <span className="st-spin" aria-hidden="true" />
-                  {phase === 'starting'
-                    ? t('settings.testCall.wait.microphone')
-                    : stillConnecting
-                      ? t('settings.testCall.wait.stillConnecting')
-                      : t('settings.testCall.wait.answer', { name })}
+                  {waitText({ phase, step: session.step, stillConnecting, name })}
                 </p>
               )}
               {summarizing && (

@@ -138,6 +138,58 @@ export function testCallErrorText(error: string): string {
 
 export class TimedOut extends Error {}
 
+/** What the panel says while a test call starts: the microphone, then reaching the assistant (request, room, join). */
+export type StartStep = 'microphone' | 'connecting'
+
+/**
+ * The start up to the room: the microphone (a permission prompt nobody answers must not hang) and, side by side, the
+ * call library (LiveKit's client; usually preloaded, see preloadTestCall). `step` follows what is being waited for.
+ * The library's own failure is reported once the microphone is allowed: a refused microphone is said first.
+ */
+export async function prepareStart<L>({
+  microphone,
+  library,
+  step,
+  timeoutMs = TEST_CALL_TIMEOUT_MS,
+}: {
+  microphone: () => Promise<string | null>
+  library: () => Promise<L>
+  step: (step: StartStep) => void
+  timeoutMs?: number
+}): Promise<{ problem: string } | { library: L }> {
+  const { t } = i18n()
+  step('microphone')
+  const loading = library().then(
+    loaded => ({ loaded }),
+    () => null,
+  )
+  const blocked = await within(microphone(), timeoutMs).catch(() => t('settings.testCall.micNoResponse'))
+  if (blocked) return { problem: blocked }
+  step('connecting')
+  const loaded = await loading
+  return loaded ? { library: loaded.loaded } : { problem: t('call.live.loadFailed') }
+}
+
+/** The line in the panel while nobody has spoken yet; `stillConnecting`: SLOW_JOIN_MS passed without the assistant. */
+export function waitText({
+  phase,
+  step,
+  stillConnecting,
+  name,
+}: {
+  phase: 'idle' | 'starting' | 'live' | 'ended'
+  step: StartStep
+  stillConnecting: boolean
+  name: string
+}): string {
+  const { t } = i18n()
+  if (phase === 'starting' && step === 'microphone') return t('settings.testCall.wait.microphone')
+  if (stillConnecting) return t('settings.testCall.wait.stillConnecting')
+  return phase === 'starting'
+    ? t('settings.testCall.wait.assistant', { name })
+    : t('settings.testCall.wait.answer', { name })
+}
+
 /** Rejects with TimedOut after `ms`, so a hung connection ends with a clear message. */
 export function within<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined

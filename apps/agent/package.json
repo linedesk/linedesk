@@ -17,6 +17,7 @@
   "dependencies": {
     "@linedesk/actions": "workspace:*",
     "@linedesk/db": "workspace:*",
+    "@linedesk/i18n": "workspace:*",
     "@linedesk/scrub": "workspace:*",
     "@linedesk/telephony": "workspace:*",
     "@livekit/agents": "^1.10.0",

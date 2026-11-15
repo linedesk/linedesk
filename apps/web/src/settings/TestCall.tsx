@@ -10,7 +10,7 @@ import { useAssistantName, useRows } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
-import { loadFailed, loadLiveKit } from '../call/livekit.ts'
+import { loadLiveKit, preloadNow } from '../call/livekit.ts'
 import { microphoneAllowed } from '../call/microphone.ts'
 import { useLiveLines } from '../call/useLiveLines.ts'
 import {
@@ -18,6 +18,9 @@ import {
   noJoinText,
   noPickupText,
   type PickupWatch,
+  prepareStart,
+  SLOW_JOIN_MS,
+  type StartStep,
   TEST_CALL_TIMEOUT_MS,
   TimedOut,
   testCallErrorText,
@@ -66,6 +69,8 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
   const [failure, setFailure] = useState<string | null>(null)
   const [roomName, setRoomName] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
+  /** What the start is waiting for (phase 'starting'): the microphone, then reaching the assistant. */
+  const [step, setStep] = useState<StartStep>('microphone')
   /** The assistant has not joined after a few seconds: still waiting, not failed yet. */
   const [stillConnecting, setStillConnecting] = useState(false)
   const room = useRef<Room | null>(null)
@@ -87,6 +92,12 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     [],
   )
 
+  // A page that offers the test call fetches the call library now, so Start does not wait for its download.
+  const offered = canStart && !voiceDown
+  useEffect(() => {
+    if (offered) preloadNow()
+  }, [offered])
+
   // The call the assistant filed has arrived: it answered.
   useEffect(() => {
     if (call) pickup.current?.heard()
@@ -105,17 +116,22 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     setMuted(false)
     setStillConnecting(false)
     live.clear()
+    setStep('microphone')
     setPhase('starting')
-    // A permission prompt nobody answers must not hang either.
-    const blocked = await within(microphoneAllowed(), TEST_CALL_TIMEOUT_MS).catch(() =>
-      t('settings.testCall.micNoResponse'),
-    )
+    const prepared = await prepareStart({
+      microphone: microphoneAllowed,
+      library: loadLiveKit,
+      step: next => {
+        if (mine === attempt.current) setStep(next)
+      },
+    })
     if (mine !== attempt.current) return
-    if (blocked) return fail(blocked)
-    const livekit = await loadLiveKit().catch(() => null)
-    if (mine !== attempt.current) return
-    if (!livekit) return fail(loadFailed())
-    const { Room, RoomEvent, Track } = livekit
+    if ('problem' in prepared) return fail(prepared.problem)
+    // Reaching the assistant (the request, the room, its join) takes long on a slow network: say so, as when it joins late.
+    const slowStart = setTimeout(() => {
+      if (mine === attempt.current) setStillConnecting(true)
+    }, SLOW_JOIN_MS)
+    const { Room, RoomEvent, Track } = prepared.library
     const next = new Room()
     // Connected, but the assistant never picks up or drops out: say so and hang up instead of a silent call.
     const endWith = (text: string, then: Phase) => {
@@ -178,15 +194,20 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
         })(),
         TEST_CALL_TIMEOUT_MS,
       )
+      clearTimeout(slowStart)
       if (mine !== attempt.current) {
         watch.stop()
         return void next.disconnect()
       }
       room.current = next
       setRoomName(joined)
+      // From here the pickup watch says when it is slow.
+      setStillConnecting(false)
       setPhase('live')
       watch.start()
     } catch (e) {
+      clearTimeout(slowStart)
+      setStillConnecting(false)
       watch.stop()
       void next.disconnect()
       if (mine !== attempt.current) return
@@ -218,6 +239,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     /** Lines still being spoken, after `lines`. */
     pending: live.pending,
     muted,
+    step,
     stillConnecting,
     audio,
     /** Why Start is off, for its tooltip; null when it can start. */
@@ -273,6 +295,9 @@ export function TestCallButton({
         variant={variant}
         icon="phone-in"
         onClick={onStart}
+        // Fetched once the page offers it; again on intent in case that failed (offline for a moment).
+        onPointerEnter={preloadNow}
+        onFocus={preloadNow}
         disabled={!!session.blockedReason || busy}
         title={session.blockedReason ? undefined : t('settings.testCall.startTip')}
       >

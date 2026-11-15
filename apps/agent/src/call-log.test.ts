@@ -58,7 +58,7 @@ test('a silent call after the voice failed is a call back, not a hang-up', async
   const call = fakeCall(undefined, '+15035550142')
   const log = new CallLog(call)
   log.record('agent', 'Thanks for calling. How can I help?')
-  log.voiceFailed = 'voice'
+  log.voiceFailed = 'tts'
   const complete = vi.fn<CompleteJson>(async () => answer)
   await finishCall(call, log, complete, noWait)
   expect(complete).not.toHaveBeenCalled()
@@ -69,7 +69,7 @@ test('a silent call after the voice failed is a call back, not a hang-up', async
   // Without caller ID there is no number to call back on: the item says so, and keeps what failed.
   const withheld = fakeCall()
   const silent = new CallLog(withheld)
-  silent.voiceFailed = 'voice'
+  silent.voiceFailed = 'tts'
   await finishCall(withheld, silent, complete, noWait)
   expect(withheld.finish).toHaveBeenCalledWith(expect.objectContaining({
     outcome: 'callback',
