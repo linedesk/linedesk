@@ -5,7 +5,9 @@
 //   ADMIN_PASSKEY_HOURS. The check is a passkey sign-in in that browser (session.passkey_verified_at, set by the
 //   session.create hook below, server-side and bound to that session; never a client flag). An admin may sign in with
 //   anything and use their workspaces; opening Server admin asks for the passkey once. No email code, password or
-//   provider sign-in counts for the admin level, and there is no other alternative.
+//   provider sign-in counts for the admin level. The one fallback is a code from the admin's authenticator app (TOTP,
+//   authenticator.ts; Tim's decisions 2026-11-15, LIN-275): it marks the session the same way, but the account must
+//   have a passkey all the same (no passkey: `enrol`, whatever was checked).
 // An admin without a passkey adds one first, with a one-time enrolment code (passkey-enrolment.ts: from another admin,
 // the first-run setup, the API log at start, or `user-passkeys.ts --enrol` / `--remove` on the server).
 // Impersonation sessions never count. Installs that cannot use passkeys at all (no https) turn the rule off with
@@ -37,15 +39,31 @@ export function signedInWithin(at: Date | string | null | undefined, hours: numb
 export const passkeyConfirmed = (passkeyVerifiedAt: Date | string | null | undefined, now = Date.now()) =>
   signedInWithin(passkeyVerifiedAt, ADMIN_PASSKEY_HOURS, now)
 
+/** What set a session's check: a passkey sign-in, or a code from the authenticator app (the fallback). */
+export type SecondFactorMethod = 'passkey' | 'authenticator'
+
+/**
+ * Whether the session's check of the last 12 hours was a passkey sign-in, not a code from the authenticator app. A
+ * code is phishable, a passkey is not, so what can take over the account (changing passkeys other than adding one,
+ * the email change without the old-address code, the owner's workspace delete) needs the passkey itself; the app only
+ * opens Server admin and adds a passkey on the computer at hand. A session from before the method was stored was a
+ * passkey sign-in.
+ */
+export const passkeySignedIn = (
+  session: { passkeyVerifiedAt?: Date | string | null; secondFactorMethod?: string | null },
+  now = Date.now(),
+) => passkeyConfirmed(session.passkeyVerifiedAt, now) && session.secondFactorMethod !== 'authenticator'
+
 type AdminSession = {
   passkeyVerifiedAt?: Date | string | null
   impersonatedBy?: string | null
 }
 
 /**
- * null when this instance admin's session may use Server admin; otherwise what is missing. Only a passkey check of the
- * last 12 hours in this session counts (`passkeyVerifiedAt`, set only when the session was started by a passkey,
- * markPasskeySession). `hasPasskey`: whether the account has one (else the gap is `enrol`).
+ * null when this instance admin's session may use Server admin; otherwise what is missing. The account must have a
+ * passkey (else `enrol`, also after a check with the authenticator app), and the session a check of the last 12 hours
+ * (`passkeyVerifiedAt`: set when the session was started by a passkey, markPasskeySession, or by a code from the
+ * admin's authenticator app, the fallback, authenticator.ts).
  */
 export function adminSecondFactorGap(
   account: { emailVerified: boolean },
@@ -55,8 +73,8 @@ export function adminSecondFactorGap(
 ): AdminSecondFactor | null {
   if (session.impersonatedBy) return 'confirm'
   if (!adminSecondFactorRequired()) return null
-  if (passkeyConfirmed(session.passkeyVerifiedAt, now)) return null
   if (!hasPasskey) return account.emailVerified ? 'enrol' : 'email'
+  if (passkeyConfirmed(session.passkeyVerifiedAt, now)) return null
   return 'confirm'
 }
 
@@ -95,7 +113,8 @@ export function passkeysOffWarning(env: Record<string, string | undefined> = pro
 export const SECOND_FACTOR_REQUIRED = 'SECOND_FACTOR_REQUIRED'
 
 const REFUSAL_TEXT: Record<AdminSecondFactor, string> = {
-  confirm: 'Server admin needs your passkey: confirm with it once, then it counts for 12 hours in this browser.',
+  confirm:
+    'Server admin needs your passkey or authenticator app: confirm with it once, then it counts for 12 hours in this browser.',
   enrol:
     'Server admin needs a passkey. Add your first one with the enrolment code from the server (user-passkeys.ts --enrol) or another admin.',
   email: 'Confirm your email address first, then add a passkey for Server admin.',
@@ -154,5 +173,5 @@ export function signInUserVerified(ctx: unknown): boolean {
 export function markPasskeySession<S extends { impersonatedBy?: string | null }>(created: S, ctx: unknown) {
   const path = (ctx as { path?: string } | null | undefined)?.path
   if (path !== '/passkey/verify-authentication' || created.impersonatedBy || !signInUserVerified(ctx)) return undefined
-  return { data: { ...created, passkeyVerifiedAt: new Date() } }
+  return { data: { ...created, passkeyVerifiedAt: new Date(), secondFactorMethod: 'passkey' } }
 }

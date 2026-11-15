@@ -31,6 +31,7 @@ export async function ownerStepUpNeeded(
     .select({
       createdAt: session.createdAt,
       passkeyVerifiedAt: session.passkeyVerifiedAt,
+      secondFactorMethod: session.secondFactorMethod,
       impersonatedBy: session.impersonatedBy,
     })
     .from(session)
@@ -38,7 +39,10 @@ export async function ownerStepUpNeeded(
   if (!own || own.impersonatedBy) return 'signIn'
   const [key] = await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)
   if (key && adminSecondFactorRequired())
-    return signedInWithin(own.passkeyVerifiedAt, RECENT_HOURS, now) ? null : 'passkey'
+    // A passkey sign-in, not a code from the authenticator app (phishable; LIN-275 security review).
+    return signedInWithin(own.passkeyVerifiedAt, RECENT_HOURS, now) && own.secondFactorMethod !== 'authenticator'
+      ? null
+      : 'passkey'
   return signedInWithin(own.createdAt, RECENT_HOURS, now) ? null : 'signIn'
 }
 

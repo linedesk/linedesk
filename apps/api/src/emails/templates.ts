@@ -372,6 +372,33 @@ export function passkeyChangedEmail(
   })
 }
 
+/** An instance admin's authenticator app was added or removed (authenticator.ts). */
+export function authenticatorChangedEmail(
+  change: 'added' | 'removed',
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const brand = brandName()
+  return renderEmail({
+    locale: lang,
+    subject: t('email.authenticatorChanged.subject', { change, brand }),
+    preheader: t('email.security.nothingToDo'),
+    eyebrow: t('email.eyebrow.security'),
+    heading: t('email.authenticatorChanged.heading', { change }),
+    blocks: [
+      {
+        kind: 'text',
+        text: `${t('email.authenticatorChanged.text', { change, brand, site: siteHost(origin) })} ${t('email.security.nothingToDo')}`,
+      },
+      { kind: 'text', text: t('email.authenticatorChanged.notYou', { brand }) },
+      { kind: 'button', label: t('email.security.review'), url: securityUrl(origin) },
+    ],
+    reason: t('email.security.reason'),
+    origin,
+  })
+}
+
 /** After a password reset by emailed code: every session of the account was ended. */
 export function passwordChangedEmail(origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)

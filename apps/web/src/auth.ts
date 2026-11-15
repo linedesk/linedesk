@@ -79,6 +79,10 @@ export type Me = {
   passkeyEnrolment?: boolean
   /** Whether the member has a passkey; null when this install has passkeys off (absent in what an older version remembered). */
   hasPasskey?: boolean | null
+  /** An instance admin's authenticator app, the alternative to the passkey for Server admin; null for everyone else. */
+  hasAuthenticator?: boolean | null
+  /** This session's check was a passkey sign-in (not the app's code): changing the authenticator app needs it. */
+  passkeySignedIn?: boolean
   /** The address is not confirmed yet: the app asks for a code, and sensitive actions wait for it. */
   emailUnconfirmed?: boolean
   /** How this install introduces a new workspace after onboarding: tour, sample calls, both or off. */

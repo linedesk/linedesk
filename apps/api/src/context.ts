@@ -11,7 +11,7 @@ import { createFailureLimiter } from './rate-limit.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
-import { type AdminSecondFactor, adminSecondFactorGap, passkeyConfirmed } from './admin-second-factor.ts'
+import { type AdminSecondFactor, adminSecondFactorGap, passkeyConfirmed, passkeySignedIn } from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { brandName } from './branding.ts'
 
@@ -47,6 +47,8 @@ export interface Actor {
    * server operator (CLI), or an AI agent's setup key (made in such a session): what instance:admin requires.
    */
   passkeyConfirmed?: true
+  /** That check was a passkey sign-in (not the authenticator app's code): adding or removing the app needs it. */
+  passkeySignedIn?: true
   /** The member's address (or an API key's creator's) is not confirmed yet: no sensitive actions (run-action.ts). */
   emailUnverified?: true
 }
@@ -65,7 +67,10 @@ async function checkImpersonation(s: { id: string; createdAt: Date; expiresAt: D
   return { by: admin.id, sessionId: s.id, expiresAt: new Date(Math.min(s.expiresAt.getTime(), endsAt.getTime())) }
 }
 
-/** Whether the account has a passkey: an instance admin without one adds it before Server admin (`enrol`). */
+/**
+ * Whether the account has a passkey: an instance admin without one adds it before Server admin (`enrol`). The
+ * authenticator app is only the fallback to it (authenticator.ts), so it does not count here.
+ */
 async function hasPasskey(userId: string): Promise<boolean> {
   const [any] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, userId)).limit(1)
   return Boolean(any)
@@ -168,13 +173,15 @@ export async function resolveCaller(
     ? ['impersonation:stop']
     : isInstanceAdmin(account)
       ? secondFactorGap
-        ? ['setupLink:end']
-        : ['instance:admin', 'setupLink:end']
+        ? ['setupLink:end', 'secondFactor:own']
+        : ['instance:admin', 'setupLink:end', 'secondFactor:own']
       : []
   const extra = {
     sessionId: session.session.id,
     sessionExpiresAt: new Date(session.session.expiresAt),
     ...(!impersonation && passkeyConfirmed(session.session.passkeyVerifiedAt) ? { passkeyConfirmed: true as const } : {}),
+    // The check was a passkey sign-in, not a code from the authenticator app: changing the app needs it.
+    ...(!impersonation && passkeySignedIn(session.session) ? { passkeySignedIn: true as const } : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
     ...(impersonation ? { impersonation } : {}),
     ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),

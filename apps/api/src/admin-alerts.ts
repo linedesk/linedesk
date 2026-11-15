@@ -5,7 +5,7 @@
 import { user } from '@linedesk/db'
 import { SOURCE } from '@linedesk/i18n'
 import { eq } from 'drizzle-orm'
-import { knownDevice } from './admin-devices.ts'
+import { type DeviceCookieJar, knownDevice, knownDeviceWith } from './admin-devices.ts'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { signInMethod } from './audit.ts'
 import { brandName } from './branding.ts'
@@ -38,6 +38,7 @@ const methodNames: Record<string, string> = {
   email_code: 'an email code',
   email_link: 'an email link',
   passkey: 'a passkey',
+  authenticator: 'their authenticator app',
   google: 'Google',
   microsoft: 'Microsoft',
   github: 'GitHub',
@@ -104,7 +105,9 @@ export function adminSignInEmail(who: string, method: string, s: SignIn, at = ne
   const what =
     method === 'passkey'
       ? `${who}, a server admin, confirmed with their passkey from a device not seen before for them.`
-      : `${who}, a server admin, signed in with ${how} from a device not seen before for them.`
+      : method === 'authenticator'
+        ? `${who}, a server admin, confirmed with their authenticator app from a device not seen before for them.`
+        : `${who}, a server admin, signed in with ${how} from a device not seen before for them.`
   return {
     subject: `Admin sign-in from a new device on ${brandName()}: ${who}`,
     text: [
@@ -114,7 +117,7 @@ export function adminSignInEmail(who: string, method: string, s: SignIn, at = ne
       `Browser: ${browserOf(s.userAgent) ?? plainSnippet(s.userAgent)}`,
       `Address: ${plainSnippet(s.ipAddress, 64)}`,
       '',
-      'If this was them, nothing to do. If not, someone has their passkey or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.',
+      'If this was them, nothing to do. If not, someone has their passkey, authenticator app or device: sign in with your own passkey, then in Server admin › Users disable the account and reset its passkeys.',
     ].join('\n'),
   }
 }
@@ -165,3 +168,26 @@ export async function alertOnAdminSignIn(created: SignIn, ctx: unknown) {
 }
 
 export const adminAlertHooks = { session: { create: { after: alertOnAdminSignIn } } }
+
+/**
+ * After an admin's check with their authenticator app (authenticator-routes.ts): the same rule as for a passkey check,
+ * an email to every admin only from a browser that has not passed their check before.
+ */
+export async function alertOnAuthenticatorCheck(
+  account: { id: string; email: string },
+  jar: DeviceCookieJar,
+  request: { ipAddress?: string | null; userAgent?: string | null },
+) {
+  if (isLocalInstance()) return
+  try {
+    const known = await knownDeviceWith(db, account.id, jar).catch(err => {
+      console.error('admin device check failed', err)
+      return false
+    })
+    if (known) return
+    const { subject, text } = adminSignInEmail(account.email, 'authenticator', { userId: account.id, ...request })
+    await alertInstanceAdmins(subject, text)
+  } catch (err) {
+    console.error('admin authenticator alert failed', err)
+  }
+}

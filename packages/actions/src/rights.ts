@@ -18,6 +18,8 @@ export function rightOf(permission: Permission): Right {
   if (permission === 'instance:admin') return 'server-admin'
   // Ending setup links: only instance admins get it (context.ts), in every session of theirs (agent-setup.ts).
   if (permission === 'setupLink:end') return 'server-admin'
+  // An instance admin's own authenticator app (authenticator.ts): also only instance admins (context.ts).
+  if (permission === 'secondFactor:own') return 'server-admin'
   if (permission === 'impersonation:stop') return 'impersonation'
   // Answering invitations needs no workspace (context.ts gives it to the workspace-less too, through invitee checks).
   if (permission === 'invitation:respond') return 'account'

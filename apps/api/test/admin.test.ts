@@ -253,7 +253,7 @@ describe('access', () => {
     expect((await request(loner, 'GET', '/v1/me')).status).toBe(401)
     await setAdmin(loner, true)
     expect((await request(loner, 'GET', '/v1/me')).body).toMatchObject({
-      permissions: ['instance:admin', 'setupLink:end'],
+      permissions: ['instance:admin', 'setupLink:end', 'secondFactor:own'],
       workspace: null,
     })
     expect((await request(loner, 'GET', '/v1/admin/users')).status).toBe(200)

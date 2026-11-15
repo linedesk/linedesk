@@ -10,13 +10,15 @@ import type { z } from 'zod'
  * `impersonation:stop` belongs to no role either: the API adds it only to a session an instance admin started as another user.
  * `setupLink:end` belongs to no role either: the API adds it to every session of an instance admin (not while
  * impersonating), also before the passkey check, so ending their own agent setup links is never harder than making one.
+ * `secondFactor:own` likewise (every session of an instance admin, not while impersonating): their own authenticator
+ * app, the alternative to the passkey for Server admin (authenticator.ts). Its handlers check the rest.
  */
 /** `call:export`: every call of a date range at once (call.export), owners and admins only. */
 /**
  * `workspace:own`: what only the workspace's one owner does: delete the workspace and hand it over to someone else
  * (workspace rights, docs/architecture.md). Never part of an API key's permissions (api-keys.ts).
  */
-export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'invitation:respond'
+export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'secondFactor:own' | 'invitation:respond'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {

@@ -48,6 +48,8 @@ import { completeSetup, markSetupSignIn, SetupError, setupInput, setupNeeded, ta
 import { COOKIE_ACTIONS } from './impersonation.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
+import { registerAuthenticatorRoutes } from './authenticator-routes.ts'
+import { AUTHENTICATOR_ROUTE_ACTIONS, hasAuthenticator } from './authenticator.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
@@ -327,6 +329,10 @@ app.get('/v1/me', async c => {
     // Whether the member has a passkey, for the app's "Add a passkey" page and card (null: passkeys are off here).
     // Their own account only: the sign-in page never learns this for an address (no account enumeration).
     hasPasskey: await hasPasskeyFor(actor),
+    // An instance admin's authenticator app (authenticator.ts): true or false for instance admins, else null.
+    hasAuthenticator: await hasAuthenticatorFor(actor),
+    // This session's check was a passkey sign-in (not the app's code): adding or removing the app needs it.
+    passkeySignedIn: Boolean(actor.passkeySignedIn),
     // The member's address is not confirmed yet: the app asks for a code (sensitive actions wait for it).
     emailUnconfirmed: Boolean(actor.emailUnverified && !actor.impersonation),
     // How this install introduces a new workspace after onboarding (FIRST_USE).
@@ -364,9 +370,19 @@ async function hasPasskeyFor({ actorId, impersonation }: Actor): Promise<boolean
   return Boolean(any)
 }
 
-/** Whether this is an instance admin (by account, also before the second factor) without a passkey. */
-async function needsPasskeyEnrolment({ actorId, impersonation }: Actor): Promise<boolean> {
-  if (impersonation) return false
+/** Whether the signed-in instance admin has an authenticator app; null for everyone else and while impersonating. */
+async function hasAuthenticatorFor({ actorId, impersonation, permissions }: Actor): Promise<boolean | null> {
+  if (impersonation || !permissions.includes('secondFactor:own')) return null
+  return hasAuthenticator(db, actorId)
+}
+
+/**
+ * Whether this is an instance admin (by account, also before the second factor) without a passkey whose session has
+ * not passed the check: adding a first passkey asks for the enrolment code then (a session checked with the
+ * authenticator app adds it without, passkeys.ts).
+ */
+async function needsPasskeyEnrolment({ actorId, impersonation, passkeyConfirmed }: Actor): Promise<boolean> {
+  if (impersonation || passkeyConfirmed) return false
   const [account] = await db.select().from(user).where(eq(user.id, actorId))
   if (!account || !isInstanceAdmin(account)) return false
   const [any] = await db.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actorId)).limit(1)
@@ -456,6 +472,7 @@ app.get('/v1/calendar/providers', async c => {
 
 registerAdminRoutes(app)
 registerImpersonationRoutes(app)
+registerAuthenticatorRoutes(app)
 
 app.get('/v1/actions', c =>
   c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))),
@@ -482,6 +499,9 @@ app.post('/v1/actions/:name', async c => {
   // These change which session the browser holds, so only their own routes run them.
   if (COOKIE_ACTIONS.includes(c.req.param('name')))
     return c.json({ ok: false, error: 'use POST /v1/impersonation/start or /v1/impersonation/stop' }, 400)
+  // These pass the Server admin check, which also remembers this browser (authenticator-routes.ts).
+  if (AUTHENTICATOR_ROUTE_ACTIONS.includes(c.req.param('name')))
+    return c.json({ ok: false, error: 'use POST /v1/account/authenticator/confirm or /check' }, 400)
   const input = await c.req.json().catch(() => ({}))
   const { status, body } = await runAction(c.req.param('name'), input, c.get('actor'), c.req.header('idempotency-key'))
   return c.json(body, status)

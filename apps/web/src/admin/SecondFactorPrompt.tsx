@@ -10,20 +10,26 @@
 // device verified (fingerprint, face or PIN) counts; one that did not says so here instead of loading again.
 // Ending the admin's own agent setup links needs no passkey check (setupLink:end): offered here too, e.g. when a link
 // leaked and the passkey is not at hand.
+// The fallback to the passkey is the admin's authenticator app (LIN-275), for an emergency or a computer without the
+// passkey: `confirm` offers it below the passkey button when the account has one. The passkey stays required (`enrol`
+// never offers the app). After a check with the app the page offers to add a passkey on this computer.
+
+import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { type AdminSecondFactor, fetchMe, passkeySupported } from '../auth.ts'
+import { checkAuthenticator } from '../authenticator-api.ts'
 import { brandName } from '../brand.ts'
 import { readEnrolmentCode } from '../enrolment-code.ts'
-import { passkeyNotVerifiedText } from '../sign-in-code.ts'
-import { runAdminOnce } from './api.ts'
-import { signInAgain } from '../localData.ts'
+import { i18n } from '../i18n/index.tsx'
 import { Login } from '../Login.tsx'
+import { signInAgain } from '../localData.ts'
 import { addPasskeyForThisDevice, confirmWithPasskey, SignInAgain } from '../settings/account/account-api.ts'
 import { passkeyAddCancelled } from '../settings/account/add-passkey.ts'
+import { AUTHENTICATOR_HOURS, authenticatorErrorText } from '../settings/account/authenticator.tsx'
+import { passkeyNotVerifiedText } from '../sign-in-code.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from '../ui/kit.tsx'
-import { useT } from '@linedesk/i18n/react'
-import { i18n } from '../i18n/index.tsx'
+import { runAdminOnce } from './api.ts'
 
 type Props = { state: AdminSecondFactor; onExit: () => void }
 
@@ -73,11 +79,13 @@ const reload = async () => {
 
 export function SecondFactorPrompt({ state, onExit }: Props) {
   const t = useT()
+  const [hasAuthenticator, setHasAuthenticator] = useState(false)
   // The app's account data is loaded once: after confirming in another tab, ask again on the way in.
   useEffect(() => {
     let current = true
     void fetchMe().then(me => {
       if (current && me && (me.adminSecondFactor ?? null) !== state) window.location.reload()
+      if (current && me) setHasAuthenticator(me.hasAuthenticator === true)
     })
     return () => {
       current = false
@@ -95,13 +103,17 @@ export function SecondFactorPrompt({ state, onExit }: Props) {
         onDone={reload}
       />
     )
-  return <PasskeyGate state={state} onExit={onExit} />
+  return <PasskeyGate state={state} onExit={onExit} hasAuthenticator={hasAuthenticator} />
 }
 
 type Busy = 'add' | 'confirm' | null
 
-function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: () => void }) {
+type GateProps = { state: 'confirm' | 'enrol'; onExit: () => void; hasAuthenticator: boolean }
+
+function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
   const t = useT()
+  // `app`: confirm with a code from the authenticator app; `addHere`: after that, offer a passkey on this computer.
+  const [mode, setMode] = useState<'passkey' | 'app' | 'addHere'>('passkey')
   const [busy, setBusy] = useState<Busy>(null)
   const [error, setError] = useState<string | null>(null)
   const [needsSignIn, setNeedsSignIn] = useState(false)
@@ -150,6 +162,42 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
   }
 
   const text = textOf(state === 'enrol' && added ? 'confirm' : state)
+  // Without passkey support here (no https) the app is the only way in, so it shows at once.
+  const appMode = mode === 'app' || (hasAuthenticator && state === 'confirm' && !supported && mode === 'passkey')
+  if (mode === 'addHere') return <AddPasskeyHere />
+  if (appMode)
+    return (
+      <AuthPage>
+        <div className="auth-card" role="main" aria-label={t('account.authenticator.title')}>
+          <h1>{t('account.authenticator.title')}</h1>
+          <p className="auth-why">{t('account.authenticator.checkWhy', { hours: AUTHENTICATOR_HOURS })}</p>
+          <AuthenticatorCode
+            submitLabel={t('account.authenticator.check')}
+            submitTitle={t('account.authenticator.checkTitle')}
+            onSubmit={async code => {
+              await checkAuthenticator(code)
+              // Checked: Server admin is open. A passkey on this computer makes the app unnecessary next time.
+              if (supported) setMode('addHere')
+              else await reload()
+            }}
+          />
+          {supported && (
+            <button
+              type="button"
+              className="auth-switch"
+              title={t('account.authenticator.usePasskeyTitle')}
+              onClick={() => setMode('passkey')}
+            >
+              {t('account.authenticator.usePasskey')}
+            </button>
+          )}
+          <EndAgentAccess />
+          <button type="button" className="auth-switch" title={t('account.authenticator.backTitle')} onClick={onExit}>
+            {t('account.authenticator.back')}
+          </button>
+        </div>
+      </AuthPage>
+    )
   return (
     <AuthPage>
       <div className="auth-card" role="main" aria-label={text.title}>
@@ -213,9 +261,129 @@ function PasskeyGate({ state, onExit }: { state: 'confirm' | 'enrol'; onExit: ()
             </button>
           </>
         )}
+        {!enrol && hasAuthenticator && (
+          <button
+            type="button"
+            className="auth-switch"
+            title={t('account.authenticator.useTitle')}
+            onClick={() => setMode('app')}
+          >
+            {t('account.authenticator.use')}
+          </button>
+        )}
         <EndAgentAccess />
         <button type="button" className="auth-switch" title={t('admin.secondFactor.backTip')} onClick={onExit}>
           {t('admin.secondFactor.back')}
+        </button>
+      </div>
+    </AuthPage>
+  )
+}
+
+/** The 6-digit code from the authenticator app, with its button; `onSubmit` throws in the app's words. */
+function AuthenticatorCode({
+  submitLabel,
+  submitTitle,
+  onSubmit,
+}: {
+  submitLabel: string
+  submitTitle: string
+  onSubmit: (code: string) => Promise<void>
+}) {
+  const t = useT()
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const submit = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSubmit(value.trim())
+    } catch (e) {
+      setError(authenticatorErrorText(e, t))
+      setBusy(false)
+    }
+  }
+  return (
+    <form
+      className="auth-form"
+      noValidate
+      onSubmit={e => {
+        e.preventDefault()
+        void submit()
+      }}
+    >
+      <input
+        aria-label={t('account.authenticator.code')}
+        placeholder={t('account.authenticator.codePlaceholder')}
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={7}
+        autoFocus
+        disabled={busy}
+      />
+      {error && <AuthError message={error} />}
+      <button
+        type="submit"
+        className={cx('k-btn k-btn-primary', busy && 'is-busy')}
+        disabled={busy || value.trim().length < 6}
+        aria-busy={busy || undefined}
+        title={submitTitle}
+      >
+        {busy && <Spinner />}
+        {submitLabel}
+      </button>
+    </form>
+  )
+}
+
+/**
+ * After a check with the authenticator app: Server admin is open, and this computer had no passkey at hand. Offers to
+ * add one here (the checked session may, without a code); Not now goes on to Server admin.
+ */
+function AddPasskeyHere() {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const add = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await addPasskeyForThisDevice()
+      await reload()
+    } catch (e) {
+      setError(passkeyAddCancelled(e) ? t('account.authenticator.addHereCancelled') : String((e as Error).message ?? e))
+      setBusy(false)
+    }
+  }
+  return (
+    <AuthPage>
+      <div className="auth-card" role="main" aria-label={t('account.authenticator.addHereTitle')}>
+        <h1>{t('account.authenticator.addHereTitle')}</h1>
+        <p className="auth-why">{t('account.authenticator.addHereWhy')}</p>
+        {error && <AuthError message={error} />}
+        <button
+          type="button"
+          className={cx('k-btn k-btn-primary', busy && 'is-busy')}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          autoFocus
+          title={t('account.authenticator.addHereButtonTitle')}
+          onClick={() => void add()}
+        >
+          {busy && <Spinner />}
+          {busy ? t('account.passkeys.waiting') : t('account.passkeys.add')}
+        </button>
+        <button
+          type="button"
+          className="auth-switch"
+          title={t('account.authenticator.notNowTitle')}
+          disabled={busy}
+          onClick={() => void reload()}
+        >
+          {t('account.authenticator.notNow')}
         </button>
       </div>
     </AuthPage>

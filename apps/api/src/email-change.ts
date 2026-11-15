@@ -23,7 +23,7 @@ import { passkey as passkeyTable, session, user } from '@linedesk/db'
 import { APIError, type createAuthMiddleware, getSessionFromCtx, isAPIError } from 'better-auth/api'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { RECENT_SIGN_IN_MS } from './account.ts'
-import { passkeyConfirmed } from './admin-second-factor.ts'
+import { passkeySignedIn } from './admin-second-factor.ts'
 import { recordAuthEvent } from './audit.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { db } from './db.ts'
@@ -161,8 +161,10 @@ async function proven(adapter: InternalAdapter, sessionId: string) {
  * An unconfirmed address can't be proven, so it is not asked for: the new address is then the first
  * one the account proves.
  */
-const needsCurrentAddress = (me: { emailVerified: boolean }, mine: { passkeyVerifiedAt?: Date | null }) =>
-  me.emailVerified && !passkeyConfirmed(mine.passkeyVerifiedAt)
+const needsCurrentAddress = (
+  me: { emailVerified: boolean },
+  mine: { passkeyVerifiedAt?: Date | null; secondFactorMethod?: string | null },
+) => me.emailVerified && !passkeySignedIn(mine)
 
 /** The old address of a change under way, by session id: read after the change, when the account has the new one. */
 const changing = new Map<string, string>()
@@ -177,11 +179,14 @@ export async function guardEmailChange(ctx: Ctx) {
   const current = await getSessionFromCtx(ctx).catch(() => null)
   if (!current?.session) return // the endpoint answers 401 itself
   const { user: me } = current
-  const mine = current.session as typeof current.session & { passkeyVerifiedAt?: Date | null }
+  const mine = current.session as typeof current.session & {
+    passkeyVerifiedAt?: Date | null
+    secondFactorMethod?: string | null
+  }
   const age = Date.now() - new Date(mine.createdAt).getTime()
   if (age >= freshFor(ctx.path))
     throw new APIError('FORBIDDEN', { code: SESSION_NOT_FRESH, message: 'Sign in again to change your email address.' })
-  if ((await hasPasskey(me.id)) && !passkeyConfirmed(mine.passkeyVerifiedAt))
+  if ((await hasPasskey(me.id)) && !passkeySignedIn(mine))
     throw new APIError('FORBIDDEN', {
       code: PASSKEY_CONFIRMATION_REQUIRED,
       message: 'Sign in with one of your passkeys first, then try again.',

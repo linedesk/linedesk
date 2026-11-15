@@ -365,6 +365,13 @@ describe('once an account has a passkey, it guards the passkeys', () => {
     expect(passkeyChangeRefusal(account({ isAdmin: true, enrolmentPending: true }), session, store, now)?.code).toBe(PASSKEY_ENROLMENT_REQUIRED)
     expect(passkeyChangeRefusal(account({ isAdmin: true, enrolmentPending: true, enrolmentCodeValid: true }), session, store, now)).toBeNull()
     expect(passkeyChangeRefusal(account({}), session, store, now)).toBeNull()
+    // A check with the authenticator app (LIN-275): adds a passkey, removes none; never instead of the enrolment code.
+    const byApp = { ...confirmed, secondFactorMethod: 'authenticator' }
+    expect(passkeyChangeRefusal(account({ hasPasskey: true }), byApp, store, now)).toBeNull()
+    expect(passkeyChangeRefusal(account({ hasPasskey: true }), byApp, options, now)).toBeNull()
+    expect(passkeyChangeRefusal(account({ hasPasskey: true }), byApp, '/passkey/delete-passkey', now)?.code).toBe(PASSKEY_CONFIRMATION_REQUIRED)
+    expect(passkeyChangeRefusal(account({ hasPasskey: true }), byApp, '/passkey/update-passkey', now)?.code).toBe(PASSKEY_CONFIRMATION_REQUIRED)
+    expect(passkeyChangeRefusal(account({ isAdmin: true }), byApp, store, now)?.code).toBe(PASSKEY_ENROLMENT_REQUIRED)
   })
 
   test('a code works only as issued and until it expires', async () => {

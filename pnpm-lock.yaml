@@ -212,6 +212,9 @@ importers:
       react-dom:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
+      uqr:
+        specifier: 0.1.3
+        version: 0.1.3
     devDependencies:
       '@linedesk/api':
         specifier: workspace:*
@@ -3314,6 +3317,9 @@ packages:
     resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
     engines: {node: '>=20.18.1'}
 
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
+
   vite@8.3.8:
     resolution: {integrity: sha512-LzOn3h9rG/0vhLdXrV4yJ4QFA9eEoqCl+Yx+kGJd7aB9w6nfNgVHKSYwLPZUHrz4ZGa+t+kXjV9itvcHDLQouA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -5951,6 +5957,8 @@ snapshots:
   undici-types@8.9.0: {}
 
   undici@7.30.2: {}
+
+  uqr@0.1.3: {}
 
   vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15):
     dependencies:

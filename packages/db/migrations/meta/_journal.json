@@ -708,6 +708,13 @@
       "when": 1794751560982,
       "tag": "0100_api_keys_impersonator",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1794754872185,
+      "tag": "0101_admin_authenticators",
+      "breakpoints": true
     }
   ]
 }

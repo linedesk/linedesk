@@ -1,5 +1,6 @@
 import * as admin from './admin.ts'
 import * as agentSetup from './agent-setup.ts'
+import * as authenticator from './authenticator.ts'
 import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
 import * as assistantVersions from './assistant-versions.ts'
@@ -39,6 +40,7 @@ export * from './client.ts'
 export * from './input-errors.ts'
 export * from './admin.ts'
 export * from './agent-setup.ts'
+export * from './authenticator.ts'
 export * from './install-setup.ts'
 export * from './api-keys.ts'
 export * from './assistant-prompt.ts'
@@ -158,6 +160,10 @@ const all = [
   workspaceIcon.workspaceRemoveIcon,
   userAvatar.accountSetAvatar,
   userAvatar.accountRemoveAvatar,
+  authenticator.accountAuthenticatorStart,
+  authenticator.accountAuthenticatorConfirm,
+  authenticator.accountAuthenticatorCheck,
+  authenticator.accountAuthenticatorRemove,
   settings.businessHoursSet,
   settings.closedDaysSet,
   settings.holidaysLookup,

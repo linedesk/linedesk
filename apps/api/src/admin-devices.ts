@@ -60,7 +60,24 @@ export function deviceCookie(secure: boolean) {
 export async function knownDevice(db: typeof Db, userId: string, ctx: unknown): Promise<boolean> {
   const c = cookieCtx(ctx)
   if (!c) return false
-  const cookie = deviceCookie(Boolean(c.context.createAuthCookie('admin_device').attributes.secure))
+  return knownDeviceWith(db, userId, {
+    secure: Boolean(c.context.createAuthCookie('admin_device').attributes.secure),
+    get: name => c.getCookie(name),
+    set: (name, value, attributes) => void c.setCookie(name, value, attributes),
+  })
+}
+
+/** The browser's cookies, from wherever the check runs: a Better Auth endpoint, or our own route (authenticator-routes.ts). */
+export type DeviceCookieJar = {
+  secure: boolean
+  get: (name: string) => string | null | undefined
+  set: (name: string, value: string, attributes: ReturnType<typeof deviceCookie>['attributes']) => void
+}
+
+/** knownDevice with the cookies given directly. */
+export async function knownDeviceWith(db: typeof Db, userId: string, jar: DeviceCookieJar): Promise<boolean> {
+  const c = { getCookie: jar.get, setCookie: jar.set }
+  const cookie = deviceCookie(jar.secure)
   const present = c.getCookie(cookie.name)
   const oldHash = present && DEVICE_TOKEN.test(present) ? deviceHash(present) : null
   const token = randomBytes(32).toString('base64url')

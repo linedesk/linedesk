@@ -1447,6 +1447,24 @@ export const admin_devices = pgTable(
   t => [primaryKey({ columns: [t.user_id, t.device_hash] })],
 )
 
+/**
+ * An instance admin's authenticator app (TOTP, RFC 6238): the alternative to the passkey for Server admin
+ * (apps/api/src/authenticator.ts). One per admin. `secret` is encrypted with SECRETS_KEY; `confirmed_at` is null while
+ * it is being added (the first code from the app confirms it). `last_step` is the 30-second step of the last code
+ * accepted, so a code works once. Wrong codes count up to a short lock (`locked_until`).
+ */
+export const admin_authenticators = pgTable('admin_authenticators', {
+  user_id: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  secret: text('secret').notNull(),
+  confirmed_at: ts('confirmed_at'),
+  last_step: bigint('last_step', { mode: 'number' }),
+  failed_attempts: integer('failed_attempts').notNull().default(0),
+  locked_until: ts('locked_until'),
+  created_at: createdAt(),
+})
+
 // A person's profile picture (Account settings › Profile; apps/api/src/user-avatar.ts): stored like the workspace
 // icon, a checked PNG of at most 512×512 pixels, base64. One row per account that has a picture; no row: the
 // initials show. `version` changes with every new picture and is part of its address

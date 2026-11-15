@@ -25,6 +25,7 @@ async function testDatabaseBase(): Promise<string | null> {
  */
 const INSTANCE_WIDE_FILES = [
   'test/admin.test.ts',
+  'test/authenticator.test.ts',
   'test/admin-subjects.test.ts',
   'test/workspace-delete-own.test.ts',
   'test/setup-checklist.test.ts',

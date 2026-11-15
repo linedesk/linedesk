@@ -197,6 +197,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'instanceAdmin.revoke': 'admin',
   'user.resetPasskeys': 'admin',
   'user.issuePasskeyEnrolment': 'admin',
+  'account.authenticatorStart': 'admin',
+  'account.authenticatorConfirm': 'admin',
+  'account.authenticatorCheck': 'admin',
+  'account.authenticatorRemove': 'admin',
   // The install's name, logo and color, and whether "Powered by Linedesk" shows.
   'branding.set': 'admin',
   // Which calendar tools members may connect, and how.

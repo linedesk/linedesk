@@ -43,6 +43,7 @@ import { teamMemberEditHandlers } from './team-member-edit.ts'
 import { transferHandlers } from './transfers.ts'
 import { insightsHandlers } from './insights.ts'
 import { userAvatarHandlers } from './user-avatar.ts'
+import { authenticatorHandlers, authenticatorPreparers } from './authenticator.ts'
 import { workspaceIconHandlers } from './workspace-icon.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { workspaceLocale } from './workspace-locale.ts'
@@ -421,7 +422,7 @@ async function checkAssistantLanguages(tx: Tx, workspaceId: string, assistantId:
 type StoredLanguages = Parameters<typeof unspokenLanguages>[0]
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
-export const preparers: Record<string, Preparer> = { ...voicePreparers }
+export const preparers: Record<string, Preparer> = { ...voicePreparers, ...authenticatorPreparers }
 
 /**
  * The next steps the API itself put on a call while it ran (BOOKING_MISSES_NOTE when booking changes were locked):
@@ -504,6 +505,7 @@ const handlers: Record<string, Handler> = {
   ...workspaceSettingsHandlers,
   ...workspaceIconHandlers,
   ...userAvatarHandlers,
+  ...authenticatorHandlers,
   ...publicHolidayHandlers,
   ...insightsHandlers,
   ...transferHandlers(businessHoursFor),

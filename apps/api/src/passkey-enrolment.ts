@@ -5,7 +5,7 @@
 // for the first admin of an install. Only the code's SHA-256 is stored; it works once and for ENROLMENT_HOURS.
 // Also here: removing every passkey of a user, the recovery path that does not need their passkeys.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { agent_setup_keys, passkey, type SetupKeyEndReason, session, type Tx, user } from '@linedesk/db'
+import { admin_authenticators, agent_setup_keys, passkey, type SetupKeyEndReason, session, type Tx, user } from '@linedesk/db'
 import { and, eq, isNull, notExists, sql } from 'drizzle-orm'
 import { forgetAdminDevices } from './admin-devices.ts'
 import { db } from './db.ts'
@@ -109,6 +109,9 @@ export async function removeAllPasskeys(
   const setupLinksEnded = await revokeSetupKeysOf(tx, target.id, 'passkeys_reset')
   // The browsers that passed their passkey check before are new again (admin-devices.ts).
   await forgetAdminDevices(tx, target.id)
+  // The authenticator app is the other second factor (authenticator.ts): the recovery reset removes both, so whoever
+  // added one with a stolen session loses it too.
+  await tx.delete(admin_authenticators).where(eq(admin_authenticators.user_id, target.id))
   if (removed.length || target.isAdmin)
     sendNotice(
       { to: target.email, ...passkeysResetEmail(removed.length, undefined, await localeForUserId(tx, target.id)) },

@@ -36,7 +36,7 @@ const SPINNERS: Record<string, number> = {
   'Login.tsx': 5,
   'AddPasskey.tsx': 1,
   'CreateWorkspace.tsx': 1,
-  'admin/SecondFactorPrompt.tsx': 2,
+  'admin/SecondFactorPrompt.tsx': 4,
   'onboarding/AgentSetup.tsx': 1,
 }
 

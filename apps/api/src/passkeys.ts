@@ -5,7 +5,7 @@ import { passkey } from '@better-auth/passkey'
 import { passkey as passkeyTable, user } from '@linedesk/db'
 import { APIError, type createAuthMiddleware, getSessionFromCtx, isAPIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
-import { noteUserVerified, passkeyConfirmed } from './admin-second-factor.ts'
+import { noteUserVerified, passkeyConfirmed, passkeySignedIn } from './admin-second-factor.ts'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
 import { passkeyChangedEmail } from './emails/templates.ts'
@@ -108,7 +108,11 @@ export const PASSKEY_CONFIRMATION_REQUIRED = 'PASSKEY_CONFIRMATION_REQUIRED'
 /** An instance admin's first passkey needs the one-time enrolment code (passkey-enrolment.ts). */
 export const PASSKEY_ENROLMENT_REQUIRED = 'PASSKEY_ENROLMENT_REQUIRED'
 
-type PasskeySession = { createdAt: Date | string; passkeyVerifiedAt?: Date | string | null }
+type PasskeySession = {
+  createdAt: Date | string
+  passkeyVerifiedAt?: Date | string | null
+  secondFactorMethod?: string | null
+}
 
 /** What the rule needs to know about the account and the request. */
 export type PasskeyAccount = {
@@ -139,7 +143,10 @@ export function passkeyChangeRefusal(
   now = Date.now(),
 ): { code: string; message: string } | null {
   if (account.hasPasskey) {
-    if (passkeyConfirmed(session.passkeyVerifiedAt, now)) return null
+    if (passkeySignedIn(session, now)) return null
+    // A check with the authenticator app (the fallback) adds a passkey on the computer at hand, nothing more: renaming
+    // or removing passkeys needs a passkey sign-in (a code is phishable, LIN-275 security review).
+    if (ADD_PATHS.includes(path) && passkeyConfirmed(session.passkeyVerifiedAt, now)) return null
     return { code: PASSKEY_CONFIRMATION_REQUIRED, message: 'Sign in with one of your passkeys first, then try again.' }
   }
   if (!account.isAdmin) return null

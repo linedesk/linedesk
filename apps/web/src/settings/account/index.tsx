@@ -4,7 +4,8 @@
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { passkeySupported } from '../../auth.ts'
+import { fetchMe, passkeySupported } from '../../auth.ts'
+import { removeAuthenticator } from '../../authenticator-api.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { signInAgain } from '../../localData.ts'
@@ -12,7 +13,7 @@ import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.t
 import { refreshTeam } from '../../team/team-api.ts'
 import { changedByLabel } from '../../team/team-model.ts'
 import { dateTimeLabel } from '../../time.ts'
-import { onSaveKey, SaveBar } from '../../ui/form.tsx'
+import { Input, onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonText } from '../../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
@@ -48,6 +49,7 @@ import {
   signInMethodLabels,
 } from './account-model.ts'
 import { useAddPasskey } from './add-passkey.ts'
+import { AUTHENTICATOR_HOURS, AuthenticatorQr, useAuthenticatorSetup } from './authenticator.tsx'
 import { Preferences } from './Preferences.tsx'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
@@ -483,6 +485,7 @@ function SignIn(props: SectionProps) {
         </div>
       </Field>
       {methods.passkey && passkeySupported() && <Passkeys />}
+      <Authenticator />
       {methods.password && <PasswordForm {...props} />}
     </Section>
   )
@@ -593,6 +596,137 @@ function Passkeys() {
           {request.busy ? t('account.passkeys.waiting') : t('account.passkeys.add')}
         </Button>
       </div>
+    </div>
+  )
+}
+
+const AUTHENTICATOR = 'account.authenticator'
+
+/**
+ * A server admin's authenticator app (authenticator-api.ts): the fallback to the passkey for Server admin. Shown only
+ * to instance admins (`hasAuthenticator` is null for everyone else). Only an admin with a passkey adds it, after the
+ * passkey check (asked for in place); removing needs a checked session too.
+ */
+function Authenticator() {
+  const t = useT()
+  const me = useQuery(AUTHENTICATOR, fetchMe)
+  const reload = me.reload
+  const [justAdded, setJustAdded] = useState(false)
+  const setup = useAuthenticatorSetup(async () => {
+    await reload()
+    setJustAdded(true)
+  })
+  const request = useRequest()
+  const [confirming, setConfirming] = useState(false)
+  const data = me.data
+  if (!data || data.hasAuthenticator === null || data.hasAuthenticator === undefined) return null
+  // The app is only the fallback to a passkey: without one there is nothing to add yet.
+  const noPasskey = !data.hasPasskey
+  // A passkey, but this session's check was not a passkey sign-in: confirm with the passkey first, in place.
+  const passkeyFirst = Boolean(data.hasPasskey) && !data.passkeySignedIn
+
+  const start = () =>
+    request.run(async () => {
+      if (passkeyFirst) await confirmWithPasskey()
+      await setup.start()
+      if (passkeyFirst) await reload()
+    })
+  const remove = () =>
+    request.run(async () => {
+      if (passkeyFirst) await confirmWithPasskey()
+      await removeAuthenticator()
+      setConfirming(false)
+      await reload()
+    }, t('account.authenticator.removed'))
+
+  return (
+    <div className="ac-form ac-divided">
+      <Field label={t('account.authenticator.title')} tip={t('account.authenticator.tip')}>
+        <span className="help">
+          {data.hasAuthenticator
+            ? t('account.authenticator.on', { hours: AUTHENTICATOR_HOURS })
+            : noPasskey
+              ? t('account.authenticator.needsPasskey')
+              : t('account.authenticator.none')}
+        </span>
+      </Field>
+      {setup.started && (
+        <form
+          className="ac-form"
+          noValidate
+          onSubmit={e => {
+            e.preventDefault()
+            void setup.confirm()
+          }}
+        >
+          <AuthenticatorQr data={setup.started} />
+          <Field label={t('account.authenticator.code')}>
+            <Input
+              aria-label={t('account.authenticator.code')}
+              placeholder={t('account.authenticator.codePlaceholder')}
+              value={setup.code}
+              onChange={e => setup.setCode(e.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={7}
+              autoFocus
+            />
+          </Field>
+          {setup.error && <Note tone="danger">{setup.error}</Note>}
+          <div className="ac-actions">
+            <Button variant="ghost" title={t('account.authenticator.cancel')} onClick={setup.cancel}>
+              {t('common.action.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              title={t('account.authenticator.confirmTitle')}
+              disabled={setup.busy || setup.code.trim().length < 6}
+            >
+              {t('account.authenticator.confirm')}
+            </Button>
+          </div>
+        </form>
+      )}
+      {!setup.started && (
+        <>
+          <FormStatus request={request} />
+          {justAdded && data.hasAuthenticator && <Note tone="success">{t('account.authenticator.added')}</Note>}
+          {setup.error && <Note tone="danger">{setup.error}</Note>}
+          <div className="ac-actions">
+            {!data.hasAuthenticator && !noPasskey && (
+              <Button
+                title={t('account.authenticator.addTitle')}
+                disabled={request.busy || setup.busy}
+                onClick={() => void start()}
+              >
+                {t('account.authenticator.add')}
+              </Button>
+            )}
+            {data.hasAuthenticator && !confirming && (
+              <Button title={t('account.authenticator.removeTitle')} onClick={() => setConfirming(true)}>
+                {t('account.authenticator.remove')}
+              </Button>
+            )}
+            {data.hasAuthenticator && confirming && (
+              <>
+                <span className="help">{t('account.authenticator.removeQuestion')}</span>
+                <Button variant="ghost" title={t('account.authenticator.keep')} onClick={() => setConfirming(false)}>
+                  {t('common.action.cancel')}
+                </Button>
+                <Button
+                  variant="danger"
+                  title={t('account.authenticator.removeTitle')}
+                  disabled={request.busy}
+                  onClick={() => void remove()}
+                >
+                  {t('account.authenticator.remove')}
+                </Button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
