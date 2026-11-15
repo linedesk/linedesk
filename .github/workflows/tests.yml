@@ -17,9 +17,10 @@ on:
 permissions:
   contents: read
 
-# A newer push to master-dev (or to the same pull request) replaces the run of the older one.
+# A newer push to master-dev (or to the same pull request) replaces the run of the older one. A run by hand has its
+# own group, so it never cancels the push run the release gate reads.
 concurrency:
-  group: tests-${{ github.event.pull_request.number || github.ref }}
+  group: tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
