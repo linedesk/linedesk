@@ -14,6 +14,7 @@ import { bodyLimit } from 'hono/body-limit'
 /** The largest action request body, except voice.clone (a recording). */
 const ACTION_BODY_MAX_BYTES = 4 * 1024 * 1024
 import { setFirstPassword } from './account.ts'
+import { registerDemoCallRoutes } from './demo-call.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
@@ -237,6 +238,10 @@ app.get('/v1/calendar/callback/:provider', async c =>
     await calendarCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN),
   ),
 )
+
+// Public demo calls from the install's own website, asked for by its gateway with a Bearer secret; 404 unless
+// DEMO_CALLS=on (demo-call.ts). Before the guard: nobody is signed in.
+registerDemoCallRoutes(app)
 
 app.use('/v1/*', async (c, next) => {
   // A signed recording link (the after-call webhook's) needs no sign-in: its signature is checked by the route.

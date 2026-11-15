@@ -14,6 +14,7 @@
     "setup:code": "node --env-file-if-exists=../../.env src/setup-code.ts",
     "providers:import": "node --env-file-if-exists=../../.env src/providers-import.ts",
     "workspace:create": "node --env-file-if-exists=../../.env src/workspace-create.ts",
+    "demo:workspace": "node --env-file-if-exists=../../.env src/demo-workspace.ts",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "email:preview": "node --env-file-if-exists=../../.env src/emails/preview-cli.ts"

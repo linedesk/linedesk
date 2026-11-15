@@ -244,3 +244,68 @@ test('listLivekitRooms: the open rooms with their participant count, or null whe
   }) as unknown as typeof fetch
   expect(await listLivekitRooms(env, down)).toBeNull()
 })
+
+test('a public demo call older than its limit and a margin is ended with its room, even with someone in it', async () => {
+  const ws = await createWorkspace('Ridgeline Auto Care')
+  const over = await liveCall(
+    ws.id,
+    3,
+    [
+      ['agent', 0],
+      ['caller', 0.5],
+    ],
+    `demo-${uid('r').slice(2, 18)}`,
+    'test',
+  )
+  const young = await liveCall(ws.id, 2, [['agent', 0]], `demo-${uid('r').slice(2, 18)}`, 'test')
+  const ended: string[] = []
+  const busy = async () =>
+    new Map([
+      [(await getCall(over))!.room!, 2],
+      [(await getCall(young))!.room!, 2],
+    ])
+  const ids = await finishStaleCalls(db, { now, listRooms: busy, endRoom: async room => {
+      ended.push(room)
+      return true
+    },
+  })
+  expect(ids).toContain(over)
+  expect(ids).not.toContain(young)
+  expect(ended).toEqual([(await getCall(over))!.room])
+  expect((await getCall(young))!.status).toBe('live')
+})
+
+test('a demo call whose room cannot be deleted stays live and is tried again next sweep', async () => {
+  const ws = await createWorkspace('Ridgeline Auto Care')
+  const room = `demo-${uid('r').slice(2, 18)}`
+  const over = await liveCall(ws.id, 3, [['agent', 0]], room, 'test')
+  const listRooms = async () => new Map([[room, 2]])
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    const refused = await finishStaleCalls(db, { now, listRooms, endRoom: async () => false })
+    expect(refused).not.toContain(over)
+    const threw = await finishStaleCalls(db, {
+      now,
+      listRooms,
+      endRoom: async () => {
+        throw new TypeError('fetch failed')
+      },
+    })
+    expect(threw).not.toContain(over)
+    expect((await getCall(over))!.status).toBe('live')
+  } finally {
+    warn.mockRestore()
+  }
+  const tries: string[] = []
+  const ids = await finishStaleCalls(db, {
+    now,
+    listRooms,
+    endRoom: async r => {
+      tries.push(r)
+      return true
+    },
+  })
+  expect(ids).toContain(over)
+  expect(tries).toEqual([room]) // deleted once, before the call was filed
+  expect((await getCall(over))!.status).toBe('completed')
+})

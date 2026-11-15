@@ -94,6 +94,13 @@ export type ProvisionInput = {
 
 /** What the command does, without the argument parsing; returns the lines it prints. */
 export async function provisionWorkspace(input: ProvisionInput): Promise<string[]> {
+  return (await provision(input)).lines
+}
+
+/** provisionWorkspace with the workspace and the server admin it ran as, for scripts that go on from there (demo-workspace.ts). */
+export async function provision(
+  input: ProvisionInput,
+): Promise<{ lines: string[]; workspaceId: string; adminId: string }> {
   const out: string[] = []
   const name = input.name.trim()
   const email = input.owner.trim().toLowerCase()
@@ -134,7 +141,7 @@ export async function provisionWorkspace(input: ProvisionInput): Promise<string[
     out.push(await ensureNumber(input.number, workspaceId, admin.id))
     out.push(`Next, in the agent container: node src/setup-sip.ts ${input.number}`)
   }
-  return out
+  return { lines: out, workspaceId, adminId: admin.id }
 }
 
 /**

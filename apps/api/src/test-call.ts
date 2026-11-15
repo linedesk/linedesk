@@ -16,7 +16,7 @@ import { spendingCap } from './spending-cap.ts'
 /** The voice agent's name (apps/agent/src/env.ts); it only joins rooms it is dispatched to by name. */
 const AGENT_NAME = 'linedesk'
 /** LiveKit checks a token only when joining: short, so it cannot open another test call after the room ends. */
-const TOKEN_TTL_SEC = 60
+export const TOKEN_TTL_SEC = 60
 /** A few test calls in a row are normal; more would only cost provider minutes. */
 export const TEST_CALL_BURST = { max: 6, windowMs: 10 * 60_000 }
 
@@ -82,18 +82,25 @@ export const TEST_CALLS_UNAVAILABLE = "Test calls aren't available on this serve
  */
 export async function unanswerable(tx: Tx, actor: Actor, nowMs: number): Promise<string | null> {
   const operator = actor.permissions.includes('instance:admin') || !!actor.adminSecondFactor
-  const setUp = await pipelinesSetUp(tx)
-  if (!setUp.realtime && !setUp.three_stage) {
+  const problem = await voiceAgentProblem(tx, nowMs)
+  if (problem === 'no_pipeline') {
     return operator
       ? 'The voice agent has nothing to answer with: connect speech to text, a language model and a voice (or a realtime model) under Server admin › Providers.'
       : TEST_CALLS_UNAVAILABLE
   }
-  if (agentAway(nowMs)) {
+  if (problem === 'away') {
     return operator
       ? "The voice agent isn't running on this server. Start the agent worker; Server admin › Overview shows its health."
       : TEST_CALLS_UNAVAILABLE
   }
   return null
+}
+
+/** Why nobody would answer a browser call now: no pipeline is set up, or the voice agent has not checked in lately. */
+export async function voiceAgentProblem(tx: Tx, nowMs: number): Promise<'no_pipeline' | 'away' | null> {
+  const setUp = await pipelinesSetUp(tx)
+  if (!setUp.realtime && !setUp.three_stage) return 'no_pipeline'
+  return agentAway(nowMs) ? 'away' : null
 }
 
 /** Logs an issued token (its room, never the token) in the command log, where testCallRefusal counts it. */
@@ -109,9 +116,57 @@ async function recordToken(tx: Tx, actor: Actor, room: string, assistantId?: str
   })
 }
 
-/** What the agent reads from the job metadata of a test room (apps/agent/src/worker.ts). */
-/** `simulateTransfer`: a transfer on a test call reaches a simulated person who accepts, never a real phone. */
-export type TestCallMetadata = { source: 'test'; workspaceId: string; assistantId?: string; simulateTransfer: true }
+/**
+ * What the agent reads from the job metadata of a test room (apps/agent/src/call-session.ts, parseTestMetadata).
+ * `simulateTransfer`: a transfer on a test call reaches a simulated person who accepts, never a real phone.
+ * `demo`: a public demo call from a website (demo-call.ts): it ends after DEMO_CALL_MAX_SECONDS and says it is a demo.
+ */
+export type TestCallMetadata = {
+  source: 'test'
+  workspaceId: string
+  assistantId?: string
+  simulateTransfer: true
+  demo?: true
+}
+
+type LivekitKeys = { LIVEKIT_API_KEY: string; LIVEKIT_API_SECRET: string }
+
+/**
+ * The browser's token for one new room: it may publish the microphone and nothing else, and carries the agent dispatch
+ * with `metadata`, which the browser cannot change without breaking the signature. Valid TOKEN_TTL_SEC.
+ */
+export function browserRoomToken(
+  keys: LivekitKeys,
+  room: string,
+  identity: string,
+  metadata: TestCallMetadata,
+  nowSec: number,
+) {
+  return livekitToken(
+    keys.LIVEKIT_API_KEY,
+    keys.LIVEKIT_API_SECRET,
+    {
+      video: {
+        roomJoin: true,
+        room,
+        canPublish: true,
+        canPublishSources: ['microphone'],
+        canSubscribe: true,
+        canPublishData: false,
+      },
+      // Created on join; the browser, the agent, a recording and a few teammates listening in or taking over
+      // (call.listen, call.takeOver), closed soon after they leave.
+      roomConfig: {
+        emptyTimeout: 60,
+        departureTimeout: 10,
+        maxParticipants: 8,
+        agents: [{ agentName: AGENT_NAME, metadata: JSON.stringify(metadata) }],
+      },
+    },
+    nowSec,
+    { identity, ttlSec: TOKEN_TTL_SEC },
+  )
+}
 
 /**
  * `assistantId` must already be checked to be one of the actor's workspace's (the handler does). Counts and records
@@ -147,29 +202,12 @@ export async function startTestCall(
     simulateTransfer: true,
   }
   const nowSec = Math.floor(nowMs / 1000)
-  const token = livekitToken(
-    LIVEKIT_API_KEY,
-    LIVEKIT_API_SECRET,
-    {
-      video: {
-        roomJoin: true,
-        room,
-        canPublish: true,
-        canPublishSources: ['microphone'],
-        canSubscribe: true,
-        canPublishData: false,
-      },
-      // Created on join; the browser, the agent, a recording and a few teammates listening in or taking over
-      // (call.listen, call.takeOver), closed soon after they leave.
-      roomConfig: {
-        emptyTimeout: 60,
-        departureTimeout: 10,
-        maxParticipants: 8,
-        agents: [{ agentName: AGENT_NAME, metadata: JSON.stringify(metadata) }],
-      },
-    },
+  const token = browserRoomToken(
+    { LIVEKIT_API_KEY, LIVEKIT_API_SECRET },
+    room,
+    `web-${actor.actorId}`,
+    metadata,
     nowSec,
-    { identity: `web-${actor.actorId}`, ttlSec: TOKEN_TTL_SEC },
   )
   // Where the browser reaches LiveKit; the API itself may use an internal address.
   const url = env.LIVEKIT_PUBLIC_URL || LIVEKIT_URL

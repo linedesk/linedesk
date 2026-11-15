@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, ASSISTANT_CALL_MAX_MINUTES, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -18,7 +18,7 @@ import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { retryEmptyReplies } from './empty-reply.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
-import { announceRecording, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
+import { announceRecording, callLimitOf, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantRealtimeVoice, withRealtimeModel } from './config.ts'
 import { requireLivekitEnv, workerAgentName } from './env.ts'
@@ -56,8 +56,6 @@ function loadAgentConfig(): Promise<CallConfig> {
   return configLoader()
 }
 
-/** A test call ends by itself after this long, so a forgotten browser tab does not run up provider minutes. */
-export const TEST_CALL_LIMIT_MS = 5 * 60_000
 
 
 /** A booking tool's result; the assistant is asked to go on when its reply to it comes back empty (as after a collection step). */
@@ -425,20 +423,19 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   // The caller hung up (or the call ended another way): silence on the line no longer counts.
   session.on(voice.AgentSessionEventTypes.Close, stopSilence)
-  // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes.
-  const isTest = call.businessNumber === null
+  // A test call from the web app ends sooner, so a forgotten browser tab does not run up provider minutes; a public demo
+  // call sooner still (callLimitOf).
+  const limit = callLimitOf(call, lines())
   // A realtime call's lines in its voice are made now, so the first one does not wait for it (then cached for every call).
   if (realtimeLines && !languages.others.length) {
-    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().goodbye, isTest ? lines().testCallLimit : lines().callLimit]
+    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().goodbye, limit.line]
     void Promise.allSettled(texts.map(text => lineAudio(voiceOfLines, text)))
   }
-  // A phone call: the assistant's own limit, never above ASSISTANT_CALL_MAX_MINUTES (an older API sends none).
-  const limitMinutes = isTest ? TEST_CALL_LIMIT_MS / 60_000 : Math.min(call.assistant?.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES, ASSISTANT_CALL_MAX_MINUTES)
-  const cancelLimit = hangUpAtCallLimit(limitMinutes * 60_000, {
+  const cancelLimit = hangUpAtCallLimit(limit.ms, {
     transferred,
     goodbye: () => {
-      log.record('system', `Call ended after ${limitMinutes} minutes`)
-      hangUpAfterLine(sayLine(isTest ? lines().testCallLimit : lines().callLimit), deleteRoom)
+      log.record('system', `Call ended after ${limit.ms / 60_000} minutes`)
+      hangUpAfterLine(sayLine(limit.line), deleteRoom)
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)

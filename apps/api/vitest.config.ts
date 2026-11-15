@@ -44,6 +44,10 @@ const INSTANCE_WIDE_FILES = [
   // Switches calendar tools on and off for the install (instance_settings).
   'test/calendar-connections.test.ts',
   'test/calendar-tools.test.ts',
+  // Counts public demo tokens and live demo calls across the install (demo-call.ts).
+  'test/demo-call.test.ts',
+  // Makes a server admin.
+  'test/demo-workspace.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

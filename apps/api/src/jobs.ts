@@ -16,6 +16,7 @@ import { evaluateCall, evaluationModel } from './evaluations.ts'
 import { transcribeCallAgain, transcriberInEffect } from './after-call-transcript.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
+import { clearOldDemoCalls, demoTranscriptDays, stripOldDemoIpHashes } from './demo-rooms.ts'
 import { pruneOldCommands } from './command-log.ts'
 import { pruneExpiredVerifications } from './verifications.ts'
 import { pruneOldAdminDevices } from './admin-devices.ts'
@@ -73,6 +74,11 @@ const HOLIDAY_SYNC_CRON = '17 2 * * *'
 export const FORWARDING_CHECK = 'forwarding.check'
 /** Checks one API process runs at the same time; each mostly waits on the phone ringing. */
 const FORWARDING_CHECK_WORKERS = 5
+
+/** Hourly: public demo calls older than DEMO_TRANSCRIPT_DAYS lose their transcript and summary, demo tokens older than a day their visitor hash (demo-rooms.ts). */
+export const DEMO_CALL_CLEANUP = 'demoCalls.cleanup'
+// Every hour: a demo token's visitor hash is kept DEMO_IP_HASH_HOURS, so at most an hour longer.
+const DEMO_CALL_CLEANUP_CRON = '27 * * * *'
 
 /** The email to owners and instance admins when a workspace reaches 80 % or 100 % of its spending cap. */
 export const SPENDING_CAP_ALERT = 'spending.capAlert'
@@ -174,6 +180,15 @@ async function runJobs(instance: PgBoss, env: Env) {
     for (const id of ids) await db.transaction(tx => syncDerivedDays(tx, id))
     return { workspaces: ids.length }
   })
+  await instance.schedule(DEMO_CALL_CLEANUP, DEMO_CALL_CLEANUP_CRON)
+  await instance.work(DEMO_CALL_CLEANUP, async () => {
+    const { cleared, ipHashes } = await db.transaction(async tx => ({
+      cleared: await clearOldDemoCalls(tx, demoTranscriptDays(env)),
+      ipHashes: await stripOldDemoIpHashes(tx),
+    }))
+    if (cleared.length) console.log(`demo calls cleanup: ${cleared.length} cleared`)
+    return { cleared: cleared.length, ipHashes }
+  })
   await instance.schedule(WEBHOOK_CLEANUP, WEBHOOK_CLEANUP_CRON)
   await instance.work(WEBHOOK_CLEANUP, async () => ({ cleared: await clearOldPayloads(db) }))
   // Several at once, so a few slow endpoints (each up to the 10 s timeout) do not hold up everyone's deliveries.
@@ -207,6 +222,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(CALL_TRANSCRIBE, { retryLimit: 3, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 })
   await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
   await instance.createQueue(WEBHOOK_CLEANUP)
+  await instance.createQueue(DEMO_CALL_CLEANUP)
   await instance.createQueue(COMMAND_PRUNE)
   await instance.createQueue(HOLIDAY_SYNC)
   await instance.createQueue(SETUP_EMAILS)

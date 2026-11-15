@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { languageCodes } from './languages.ts'
-import { type SpokenLines, spokenLines, swapDefault } from './spoken-lines.ts'
+import { businessOfGreeting, type SpokenLines, spokenLines, swapDefault } from './spoken-lines.ts'
 
 const textLines = [
   'fallbackGreeting',
@@ -44,4 +44,12 @@ test('a default greeting or line switches to the new main language and back', ()
     expect(swapDefault(there, code, 'en')).toBe(english)
     expect(swapDefault(spokenLines('en').silenceClosing, 'en', code)).toBe(spokenLines(code).silenceClosing)
   }
+})
+
+test('the business of an English default greeting, with or without the AI note; null for any other text', () => {
+  expect(businessOfGreeting('Thanks for calling Ridgeline Auto Care. This is Maya. How can I help?')).toBe(
+    'Ridgeline Auto Care',
+  )
+  expect(businessOfGreeting(spokenLines('en').greeting('Hale & Ortiz Law', 'Maya', true))).toBe('Hale & Ortiz Law')
+  expect(businessOfGreeting('Hello, you reached the front desk.')).toBeNull()
 })

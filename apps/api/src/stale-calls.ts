@@ -5,9 +5,13 @@
 // never ended. An empty room is deleted: LiveKit keeps the room of a dead agent open, with nobody in it. Only when
 // LiveKit cannot be asked does the sweep fall back to time alone (10 minutes of quiet, 2 for a test call), and then
 // deletes the call's room too: a caller still on an open line is hung up on, and an agent stuck in it stops.
+// A public demo call (demo-call.ts) is ended, room and all, once it is older than DEMO_ROOM_MAX_MS, whoever is in it:
+// the agent says goodbye earlier, so this only catches one that did not. Its room is deleted first, and the call is
+// filed only once that worked: while LiveKit cannot delete it, the call stays live (and counted) for the next sweep.
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { calls, transcript_segments, type Tx } from '@linedesk/db'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { DEMO_ROOM_MAX_MS, isDemoRoom } from './demo-rooms.ts'
 import { deleteLivekitRoom, listLivekitRooms } from './livekit-status.ts'
 
 /** Minutes without a new transcript line after which a live call counts as over, when LiveKit cannot be asked. */
@@ -94,6 +98,19 @@ async function endRoomQuietly(endRoom: EndRoom, room: string) {
   }
 }
 
+/** Deletes the room; whether it is gone now (deleted, or LiveKit no longer had it). A failure is logged, never thrown. */
+async function roomDeleted(endRoom: EndRoom, room: string): Promise<boolean> {
+  try {
+    if (await endRoom(room)) return true
+    console.warn(`stale call sweep: LiveKit room ${room} could not be deleted; trying again next sweep`)
+  } catch (e) {
+    console.warn(
+      `stale call sweep: LiveKit room ${room} could not be deleted (trying again next sweep): ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
+  return false
+}
+
 /** Reads the open rooms; a failure counts as "LiveKit cannot be asked" (null), never thrown. */
 async function openRooms(listRooms: ListRooms): Promise<Map<string, number> | null> {
   try {
@@ -103,7 +120,7 @@ async function openRooms(listRooms: ListRooms): Promise<Map<string, number> | nu
   }
 }
 
-type Verdict = 'live' | 'room-gone' | 'room-empty' | 'quiet'
+type Verdict = 'live' | 'room-gone' | 'room-empty' | 'quiet' | 'demo-over'
 
 /**
  * Whether a live call is over. A call with someone in its LiveKit room stays live; one whose room is gone or empty is
@@ -113,6 +130,7 @@ type Verdict = 'live' | 'room-gone' | 'room-empty' | 'quiet'
 function verdict(call: Activity, rooms: Map<string, number> | null, nowMs: number, staleAfterMin: number): Verdict {
   const startedMs = Date.parse(call.started_at)
   const quietMs = nowMs - (startedMs + (call.last_ms ?? 0))
+  if (call.source === 'test' && isDemoRoom(call.room) && nowMs - startedMs > DEMO_ROOM_MAX_MS) return 'demo-over'
   if (call.transferred && nowMs - startedMs < TRANSFERRED_STALE_MS) return 'live'
   if (rooms && call.room && IN_LIVEKIT.includes(call.source)) {
     const inRoom = rooms.get(call.room)
@@ -152,6 +170,8 @@ export async function finishStaleCalls(
   for (const call of candidates) {
     const over = verdict(call, rooms, nowMs, staleAfterMin)
     if (over === 'live') continue
+    // A demo room may still hold a stuck agent: end it before filing the call, or leave the call live until it can be.
+    if (over === 'demo-over' && call.room && !(await roomDeleted(endRoom, call.room))) continue
     const startedMs = Date.parse(call.started_at)
     const lastActivityMs = startedMs + (call.last_ms ?? 0)
     const { action_items, ...result } = cutOffResult(call.caller_turns, call.last_ms ?? 0)
@@ -172,7 +192,7 @@ export async function finishStaleCalls(
       ended.push(id)
       // A room LiveKit no longer has needs no delete. An empty one is closed, so a restarted agent does not take its
       // job up again; without an answer from LiveKit it may still be open.
-      if (room && over !== 'room-gone') await endRoomQuietly(endRoom, room)
+      if (room && over !== 'room-gone' && over !== 'demo-over') await endRoomQuietly(endRoom, room)
     }
   }
   return ended

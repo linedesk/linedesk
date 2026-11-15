@@ -14,6 +14,11 @@ import {
   callStart,
   callStartTest,
   DEFAULT_AI_DISCLOSURE,
+  ASSISTANT_CALL_MAX_MINUTES,
+  DEMO_CALL_LIMIT_LINE,
+  DEMO_CALL_MAX_SECONDS,
+  DEMO_OPENING_SUFFIX,
+  type SpokenLines,
   greetingWithDisclosure,
   type Language,
   languageCodes,
@@ -93,6 +98,11 @@ export interface CallSession {
   simulatedOnCallLine?: string
   /** A call test's realtime model instead of the install's (call-test --realtime-model); missing on every other call. */
   realtimeModel?: string
+  /**
+   * A public demo call from a website (apps/api/src/demo-call.ts): it ends after DEMO_CALL_MAX_SECONDS with
+   * DEMO_CALL_LIMIT_LINE, and its opening says it is a demo. Missing on every other call.
+   */
+  demo?: boolean
   /**
    * The workspace's country (ISO 3166-1 alpha-2): the region phone numbers the caller says are read in ("0151…" in
    * Germany). Missing: 'US'.
@@ -203,6 +213,31 @@ export function withRecordingNotice(assistant: Assistant | null, notice: string 
   return { ...assistant, greeting: greeting ? `${greeting} ${sentence}` : sentence }
 }
 
+/** A test call from the web app ends by itself after this long, so a forgotten browser tab does not run up provider minutes. */
+export const TEST_CALL_LIMIT_MS = 5 * 60_000
+
+/**
+ * How long the assistant stays on the call and what it says then: a public demo call DEMO_CALL_MAX_SECONDS, a test
+ * call from the web app TEST_CALL_LIMIT_MS, a phone call the assistant's own limit, never above
+ * ASSISTANT_CALL_MAX_MINUTES (an older API sends none).
+ */
+export function callLimitOf(
+  call: Pick<CallSession, 'demo' | 'businessNumber' | 'assistant'>,
+  lines: Pick<SpokenLines, 'callLimit' | 'testCallLimit'>,
+): { ms: number; line: string } {
+  if (call.demo) return { ms: DEMO_CALL_MAX_SECONDS * 1000, line: DEMO_CALL_LIMIT_LINE }
+  if (call.businessNumber === null) return { ms: TEST_CALL_LIMIT_MS, line: lines.testCallLimit }
+  const minutes = Math.min(call.assistant?.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES, ASSISTANT_CALL_MAX_MINUTES)
+  return { ms: minutes * 60_000, line: lines.callLimit }
+}
+
+/** The greeting followed by the sentence that says this is a public demo call, said and cached as one opening. */
+export function withDemoOpening(assistant: Assistant | null): Assistant | null {
+  if (!assistant) return assistant
+  const greeting = assistant.greeting?.trim()
+  return { ...assistant, greeting: greeting ? `${greeting} ${DEMO_OPENING_SUFFIX}` : DEMO_OPENING_SUFFIX }
+}
+
 /**
  * The call with the recording notice after its greeting when this agent can record (a recording store is set up, in
  * Linedesk or in RECORDING_STORE). Without one nothing is recorded, so the assistant does not say the call may be;
@@ -269,6 +304,8 @@ type TestMetadata = {
   onCall?: SimulatedOnCall
   /** A test call from the web app: transfers reach a simulated person who accepts (TEST_CALL_ON_CALL_LINE). */
   simulateTransfer?: boolean
+  /** A public demo call from a website (CallSession.demo). */
+  demo?: boolean
   /** Languages besides English the assistant speaks on this test call. */
   languages?: Language[]
   /** The one language the assistant speaks on this test call, instead of its own setting. */
@@ -347,7 +384,10 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   // The greeting and instructions that apply now: outside business hours, the outside variants.
   // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
   // The recording notice is added later, once it is known that the call is recorded (announceRecording).
-  const assistant = withAiNote(forHours(inMainLanguage(configured), businessHours))
+  // A public demo call says that it is one right after the greeting.
+  const demo = origin.kind === 'test' && origin.demo === true
+  const greeted = withAiNote(forHours(inMainLanguage(configured), businessHours))
+  const assistant = demo ? withDemoOpening(greeted) : greeted
   // A test room (the web app's test call, a call test): there is no caller ID, and the prompt says so (B4).
   const played = origin.kind === 'test' ? origin.caller : undefined
   const caller = played
@@ -375,6 +415,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     teamLanguage: started.workspaceLanguage ?? 'en',
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     ...(origin.kind === 'test' && origin.realtimeModel ? { realtimeModel: origin.realtimeModel } : {}),
+    ...(demo ? { demo: true } : {}),
     ...simulatedOnCallOf(origin),
     async append(speaker, text, toolEvent) {
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, scope)
@@ -437,6 +478,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       outsideGreeting?: unknown
       onCall?: unknown
       simulateTransfer?: unknown
+      demo?: unknown
       languages?: unknown
       mainLanguage?: unknown
       pipeline?: unknown
@@ -464,6 +506,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       ...(outsideGreeting ? { outsideGreeting } : {}),
       ...(onCall ? { onCall } : {}),
       ...(parsed.simulateTransfer === true ? { simulateTransfer: true } : {}),
+      ...(parsed.demo === true ? { demo: true } : {}),
       ...(languages.length ? { languages } : {}),
       ...((languageCodes as readonly unknown[]).includes(parsed.mainLanguage) ? { mainLanguage: parsed.mainLanguage as Language } : {}),
       ...((VOICE_PIPELINES as readonly unknown[]).includes(parsed.pipeline)

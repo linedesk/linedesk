@@ -630,3 +630,20 @@ export function swapDefault(text: string, from: Language, to: Language): string 
 
 /** An owner-written text as a call in `language` says it: the language's default when it is still the English default. */
 export const localizedDefault = (text: string, language: Language): string => swapDefault(text, 'en', language)
+
+/** The business named in a text that is the English default greeting ("Thanks for calling X. This is Maya…"); null otherwise. */
+export const businessOfGreeting = (text: string): string | null =>
+  parseDefaultGreeting(text.trim(), 'en')?.business ?? null
+
+// --- Public demo calls ------------------------------------------------------------------------
+// A public demo call (apps/api/src/demo-call.ts) is a visitor of the install's website talking to a demo assistant in
+// the browser. The agent ends it after DEMO_CALL_MAX_SECONDS and says these lines, in English only: demo assistants
+// speak English (the demo-workspace script sets them so).
+// DRAFT – needs Janik's and Tim's OK before prod.
+
+/** The longest a public demo call runs, in seconds: the agent ends it then, and the API tells the website. */
+export const DEMO_CALL_MAX_SECONDS = 120
+/** Said right after the greeting of a public demo call, as part of the same opening. */
+export const DEMO_OPENING_SUFFIX = 'This is a two-minute demo.'
+/** Said when a public demo call reaches DEMO_CALL_MAX_SECONDS, before the agent hangs up. */
+export const DEMO_CALL_LIMIT_LINE = "That's the two minutes for this demo. Thanks for trying it out. Goodbye!"

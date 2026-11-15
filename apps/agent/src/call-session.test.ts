@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { announceRecording, callOrigin, startCall } from './call-session.ts'
+import { DEMO_CALL_LIMIT_LINE, spokenLines } from '@linedesk/actions'
+import { announceRecording, callLimitOf, callOrigin, startCall, TEST_CALL_LIMIT_MS } from './call-session.ts'
 import { BLOCKED_LINE, BUSY_LINE, OVER_CAP_LINE, unansweredLine } from './busy-line.ts'
 import { buildInstructions } from './prompt.ts'
 
@@ -187,4 +188,53 @@ test('a returning phone caller hears the usual greeting; their history reaches t
   expect(older.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
   const withheld = await startCall(api(row, null, null), { ...phone, from: 'anonymous' })
   expect(withheld.caller).toBeNull()
+})
+
+test('a public demo room is a test call with the demo flag; only true counts', () => {
+  const origin = (demo: unknown) =>
+    callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', assistantId: 'as_1', demo }), {}, 'demo-abc')
+  expect(origin(true)).toEqual({ kind: 'test', workspaceId: 'ws_1', assistantId: 'as_1', room: 'demo-abc', demo: true })
+  expect(origin('yes')).not.toHaveProperty('demo')
+  expect(origin(undefined)).not.toHaveProperty('demo')
+})
+
+test('a public demo call says it is a demo right after the greeting; other test calls do not', async () => {
+  const row = {
+    id: 'as_1',
+    name: 'Maya',
+    greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya. How can I help?',
+    ai_disclosure: 'at_start',
+    business_profile: {},
+  }
+  const api = {
+    run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }),
+  } as never
+  const demo = await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'demo-1', demo: true })
+  expect(demo.demo).toBe(true)
+  expect(demo.assistant?.greeting).toBe(
+    'Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help? This is a two-minute demo.',
+  )
+  const test = await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'test-1' })
+  expect(test).not.toHaveProperty('demo')
+  expect(test.assistant?.greeting).not.toContain('demo')
+})
+
+test("the time limit: two minutes for a public demo call, five for a test call, the assistant's own for a phone call", () => {
+  const lines = spokenLines('en')
+  const assistant = { max_call_minutes: 10 } as never
+  expect(callLimitOf({ demo: true, businessNumber: null, assistant }, lines)).toEqual({
+    ms: 120_000,
+    line: DEMO_CALL_LIMIT_LINE,
+  })
+  expect(callLimitOf({ businessNumber: null, assistant }, lines)).toEqual({
+    ms: TEST_CALL_LIMIT_MS,
+    line: lines.testCallLimit,
+  })
+  expect(callLimitOf({ businessNumber: '+15035550142', assistant }, lines)).toEqual({
+    ms: 600_000,
+    line: lines.callLimit,
+  })
+  expect(callLimitOf({ businessNumber: '+15035550142', assistant: { max_call_minutes: 999 } as never }, lines).ms).toBe(
+    25 * 60_000,
+  )
 })
