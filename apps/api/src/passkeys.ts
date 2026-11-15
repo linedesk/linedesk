@@ -146,7 +146,7 @@ export function passkeyChangeRefusal(
   if (ok) return null
   return {
     code: PASSKEY_ENROLMENT_REQUIRED,
-    message: 'Enter the passkey enrolment code an instance admin gave you. Ask them for a new one if it has expired.',
+    message: 'Enter the passkey enrolment code a server admin gave you. Ask them for a new one if it has expired.',
   }
 }
 

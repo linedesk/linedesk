@@ -79,7 +79,7 @@ export function stepsByGroup<S extends { group: SetupStepGroup }>(steps: readonl
 
 /**
  * What each setup step is called on the setup page and in setup_status: the name of the place in the app where it is
- * changed later (Admin › Providers, Assistant and Workspace settings, Account › Notifications), and where it helps a
+ * changed later (Server admin › Providers, Assistant and Workspace settings, Account › Notifications), and where it helps a
  * short hint with the industry term or the usual providers. Steps not listed keep their own label.
  */
 export const setupStepNames: Readonly<Record<string, { label: string; hint?: string }>> = {

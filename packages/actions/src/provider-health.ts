@@ -2,7 +2,7 @@
 // record per provider while they work (apps/api/src/provider-failures.ts). A used-up quota, a rejected key or a
 // model that no longer exists shows up in Server admin › Providers and the admin overview instead of failing silently.
 import { z } from 'zod'
-import { categoryNames, type ProviderCategory, type ProviderName, providerNames } from './admin.ts'
+import { type ProviderCategory, type ProviderName, providerNames } from './admin.ts'
 import { defineAction } from './define.ts'
 
 /**
@@ -206,7 +206,7 @@ export const passingProviderFailure = (reason: ProviderFailureReason) =>
 export type ProviderCheckStatus = 'ok' | 'warning' | 'error'
 
 /**
- * One failure as the voice agent reports it (`provider.reportFailure`): which stage of the call, which provider,
+ * One failure as the voice agent reports it (`call.reportVoiceFailure`): which stage of the call, which provider,
  * why, and a short text naming the fix. The same shape as the agent's own failure event (LIN-107).
  */
 export type ProviderFailureEvent = {
@@ -240,32 +240,6 @@ export type ProviderFailure = {
 export const PROVIDER_FAILURE_MESSAGE_MAX = 300
 
 const provider = z.enum(providerNames)
-
-export const providerReportFailure = defineAction({
-  name: 'provider.reportFailure',
-  description:
-    'The voice agent reports that a provider failed during a call (quota used up, key rejected, no audio). The instance admins are told once, not per call.',
-  input: z.object({
-    stage: z.enum(categoryNames).optional(),
-    provider,
-    reason: z.enum(providerFailureReasons),
-    message: z.string().trim().min(1).max(PROVIDER_FAILURE_MESSAGE_MAX),
-    callId: z.string().min(1).optional(),
-  }),
-  permission: 'agent',
-})
-
-/**
- * `data` of provider.reportFailure: the failure as recorded. A vague reason (network, no_output, timeout, unknown) is
- * refined by the provider's own test when that finds a clear one (an ElevenLabs stream "with no audio" is a quota used
- * up), so the agent and the test call show the cause, not the symptom.
- */
-export type ProviderFailureReport = {
-  provider: ProviderName
-  reason: ProviderFailureReason
-  message: string
-  alerted: boolean
-}
 
 export const providerReportOk = defineAction({
   name: 'provider.reportOk',

@@ -26,7 +26,7 @@ export function problemText(
   const { label } = providerSpec(provider)
   const http = status ? ` (HTTP ${status})` : ''
   const about = what ? ` (${what})` : ''
-  const settings = `Admin › Providers › ${label}`
+  const settings = `Server admin › Providers › ${label}`
   switch (reason) {
     case 'quota':
       return `${label} quota or credit used up${http}${about}. Add credit or upgrade the plan in your ${label} account.`

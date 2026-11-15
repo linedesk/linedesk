@@ -198,7 +198,6 @@ const all = [
   admin.providerSetActive,
   admin.providerTest,
   admin.providerConnectOneKey,
-  providerHealth.providerReportFailure,
   providerHealth.providerReportOk,
   admin.userInvite,
   admin.userDisable,

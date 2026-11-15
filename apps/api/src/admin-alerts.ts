@@ -74,7 +74,7 @@ export function adminSignInEmail(who: string, method: string, newDevice: boolean
   return {
     subject: `Admin sign-in to ${brandName()}: ${who}`,
     text: [
-      `${who}, an instance admin, signed in with ${how}${newDevice ? ' from a device or address not seen before' : ''}.`,
+      `${who}, a server admin, signed in with ${how}${newDevice ? ' from a device or address not seen before' : ''}.`,
       '',
       `Address: ${plainSnippet(s.ipAddress, 64)}`,
       `Browser: ${plainSnippet(s.userAgent)}`,

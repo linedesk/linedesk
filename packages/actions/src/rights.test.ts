@@ -150,7 +150,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'call.transfer',
     'carrier.transferTrunk',
     'carrier.provisionTransferTrunk',
-    'provider.reportFailure',
     'provider.reportOk',
     'call.lookUpCaller',
     'call.askWebhook',

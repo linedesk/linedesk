@@ -22,7 +22,7 @@ describe('createEmailSender', () => {
     const sender = createEmailSender({ NODE_ENV: 'development' })
     expect(sender.kind).toBe('none')
     await expect(sender.send({ to: 'mike@brightwater.example', subject: 'Hello', text: 'x' })).rejects.toThrow(
-      /Admin, Providers, Email/,
+      /Server admin › Providers › Email/,
     )
   })
 

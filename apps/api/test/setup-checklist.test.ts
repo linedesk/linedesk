@@ -164,7 +164,7 @@ describe('states', () => {
     expect(part(failing, 'deepgram')).toMatchObject({
       state: 'failing',
       detail: 'Key rejected',
-      message: 'Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.',
+      message: 'Deepgram rejected the key (HTTP 401). Enter a valid key under Server admin › Providers › Deepgram.',
     })
 
     // New keys are untested again.

@@ -1,4 +1,4 @@
-// Outgoing email behind one interface. SMTP when it is connected (Admin, Providers, Email, or SMTP_URL); with EMAIL_TO_LOG=true the
+// Outgoing email behind one interface. SMTP when it is connected (Server admin › Providers › Email, or SMTP_URL); with EMAIL_TO_LOG=true the
 // message is printed to the server log instead (development); otherwise nothing can be sent. A change applies at once.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
@@ -124,7 +124,7 @@ const logSender: EmailSender = {
     ),
   check: async () => ({
     ok: true,
-    message: 'Printed to the API log (EMAIL_TO_LOG), not sent. Connect email in Admin, Providers on a real server.',
+    message: 'Printed to the API log (EMAIL_TO_LOG), not sent. Connect email in Server admin › Providers › Email on a real server.',
   }),
 }
 
@@ -134,11 +134,11 @@ export const smtpCheck = (url: string, from?: string) => smtpSender(url, from, S
 const noSender: EmailSender = {
   kind: 'none',
   send: async () => {
-    throw new Error('Email is not set up: connect it in Admin, Providers, Email')
+    throw new Error('Email is not set up: connect it in Server admin › Providers › Email')
   },
   check: async () => ({
     ok: false,
-    message: 'Not set up: connect email in Admin, Providers. Sign-in codes, invitations and call emails cannot go out.',
+    message: 'Not set up: connect email in Server admin › Providers › Email. Sign-in codes, invitations and call emails cannot go out.',
   }),
 }
 
@@ -183,7 +183,7 @@ export const emailSender: EmailSender = {
  */
 export function sendNotice(email: Email, what: string, sender: EmailSender = emailSender) {
   if (sender.kind === 'none') {
-    console.log(`${what} not sent: email is not set up (Admin, Providers, Email).`)
+    console.log(`${what} not sent: email is not set up (Server admin › Providers › Email).`)
     return
   }
   void sender.send(email).catch(err => console.error(`${what} failed`, err))

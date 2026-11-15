@@ -327,7 +327,7 @@ const teammateEmail = (tag: string, key: string) => `${key}+${tag}@brightwater.t
 
 async function findOwnerWorkspace(email: string) {
   const [owner] = await db.select().from(user).where(eq(user.email, email.toLowerCase()))
-  if (!owner) throw new Error(`No user ${email}. Sign in once (or run user:create) first.`)
+  if (!owner) throw new Error(`No user ${email}. Create the workspace in Server admin › Workspaces › New workspace (or workspace-create.ts) first.`)
   const [ws] = await db
     .select({ id: organization.id, name: organization.name })
     .from(organization)
@@ -337,7 +337,7 @@ async function findOwnerWorkspace(email: string) {
     )
     .orderBy(asc(organization.createdAt))
     .limit(1)
-  if (!ws) throw new Error(`${email} owns no workspace. Sign in once and create one first.`)
+  if (!ws) throw new Error(`${email} owns no workspace. Create the workspace in Server admin › Workspaces › New workspace (or workspace-create.ts) first.`)
   return { owner, workspace: ws }
 }
 

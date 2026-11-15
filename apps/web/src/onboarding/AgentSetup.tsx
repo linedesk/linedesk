@@ -66,7 +66,7 @@ function savedClient(): AgentClient {
   }
 }
 
-/** The address of the setup page (#setup-agent): opened from Admin › Overview, or after choosing the manual way. */
+/** The address of the setup page (#setup-agent): opened from Server admin › Overview, or after choosing the manual way. */
 export { AGENT_SETUP_HASH, isAgentSetupHash } from '@linedesk/actions'
 export const openAgentSetup = () => {
   rememberManual(false)
@@ -105,7 +105,7 @@ function keepShown(link: AgentSetupKeyCreated | null) {
 
 type Props = {
   /**
-   * Set up by hand. `installFirst`: the install is not set up yet, so the setup checklist (Admin › Overview) comes
+   * Set up by hand. `installFirst`: the install is not set up yet, so the setup checklist (Server admin › Overview) comes
    * first; otherwise the business onboarding (or "Name your business" before there is a workspace).
    */
   onManual: (installFirst: boolean) => void

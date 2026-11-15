@@ -1,5 +1,5 @@
 // Runtime provider failures (LIN-111), in one place: the API's own provider calls (email, language model, voice
-// previews, calendar, recording storage), the voice agent's reports (provider.reportFailure / provider.reportOk) and
+// previews, calendar, recording storage), the voice agent's reports (call.reportVoiceFailure, provider.reportOk) and
 // provider tests record here. One row per failing provider (provider_failures): the latest reason and message,
 // since when, how often since the last success. A success clears it. Server admin › Providers, the admin overview and
 // the setup checklist read it; the instance admins get one email when a provider starts failing, not one per call, and
@@ -7,9 +7,7 @@
 import {
   PROVIDER_FAILURE_MESSAGE_MAX,
   type ProviderFailure,
-  type ProviderFailureEvent,
   type ProviderFailureReason,
-  type ProviderFailureReport,
   type ProviderFailureSource,
   type ProviderTestData,
   type ProviderAudience,
@@ -236,20 +234,6 @@ export const emailProviders = () => providersIn('email')
  * the whole action. The agent's text is kept short and shown as text only (admin page, plain email).
  */
 export const providerHealthHandlers: Record<string, Handler> = {
-  'provider.reportFailure': async ({ tx, actor }, input: ProviderFailureEvent & { callId?: string }) => {
-    const recorded = await recordProviderFailure(
-      tx,
-      input.provider,
-      { reason: input.reason, message: input.message },
-      'agent',
-      {
-        scope: { workspaceId: actor.workspaceId, callId: actor.callId ?? input.callId ?? null },
-      },
-    )
-    // The reason as stored: refined when the report was vague, so the agent and the test call can show the cause.
-    const data: ProviderFailureReport = { provider: input.provider, ...recorded }
-    return { rows: {}, data }
-  },
   'provider.reportOk': async ({ tx }, input: { providers: ProviderName[] }) => {
     await clearProviderFailures(tx, input.providers)
     return { rows: {}, data: { providers: input.providers } }
@@ -268,7 +252,7 @@ export function smtpProblem(e: unknown): ProviderProblem | null {
   if (err.code === 'EAUTH' || [530, 534, 535].includes(err.responseCode ?? 0))
     return {
       reason: 'auth',
-      message: `The mail server refused the login${status}. Check the key or password under Admin › Providers › Email.`,
+      message: `The mail server refused the login${status}. Check the key or password under Server admin › Providers › Email.`,
     }
   if (
     ['ETIMEDOUT', 'ECONNECTION', 'ESOCKET', 'EDNS', 'ECONNREFUSED'].includes(err.code ?? '') ||
@@ -289,7 +273,7 @@ export function smtpProblem(e: unknown): ProviderProblem | null {
   )
     return {
       reason: 'config',
-      message: `The mail service refused the sender${status}. Verify the From address or its domain at the mail service, or change From under Admin › Providers › Email.`,
+      message: `The mail service refused the sender${status}. Verify the From address or its domain at the mail service, or change From under Server admin › Providers › Email.`,
     }
   return null
 }

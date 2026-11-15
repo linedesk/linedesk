@@ -283,7 +283,7 @@ export const voicePipelinePolicyGet = defineAction({
 export const voicePipelinePolicySet = defineAction({
   name: 'voicePipelinePolicy.set',
   description:
-    'Set how calls are answered for every workspace of this install: `choice` (each assistant chooses under Settings › Assistant), `realtime` or `three_stage` (every assistant uses that one, whatever it chose). When the one picked is not set up, the other answers.',
+    'Set how calls are answered for every workspace of this install: `choice` (each assistant chooses in Assistant settings), `realtime` or `three_stage` (every assistant uses that one, whatever it chose). When the one picked is not set up, the other answers.',
   input: z.object({ policy: z.enum(VOICE_PIPELINE_POLICIES) }),
   permission: 'instance:admin',
 })

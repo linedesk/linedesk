@@ -28,6 +28,9 @@ import {
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
   oneKey,
+  onboardingSteps,
+  pipelineFor,
+  pipelinesAllowed,
   type ProviderCategory,
   type ProviderName,
   providerCategories,
@@ -45,9 +48,9 @@ import {
 import {
   assistants,
   calls,
+  member_notification_settings,
   organization,
   phone_numbers,
-  transcript_segments,
   user,
   workspace_settings,
 } from '@linedesk/db'
@@ -71,12 +74,12 @@ import { db } from './db.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
 import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
-import { ensureWorkspaceRows } from './onboarding.ts'
-import { providerStatus } from './provider-settings.ts'
+import { ensureWorkspaceRows, newAssistant } from './onboarding.ts'
+import { pipelinesSetUp, providerStatus, voicePipelinePolicy } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
-import { recordSignup } from './setup-events.ts'
+import { assistantSpokeIn, recordSignup } from './setup-events.ts'
 
 /**
  * The registry actions an agent gets, by name. Instance: the providers. Workspace: what onboarding does. Each is
@@ -131,17 +134,24 @@ type ToolResult = {
   isError?: boolean
 }
 /**
- * Messages from provider tests and errors are written for the app ("Enter a valid key under Admin › Providers ›
+ * Messages from provider tests and errors are written for the app ("Enter a valid key under Server admin › Providers ›
  * Deepgram."). The agent stores keys itself, so they say what the agent does instead of sending the admin there.
+ * Failures stored before the rename (provider_failures) still say "Admin › Providers" or "Admin, Providers": both match.
  */
 export function forAgent(text: string): string {
   return text
     .replace(
-      /Enter a (valid key|new client secret) under Admin › Providers › [^."]+\./g,
+      /Enter a (valid key|new client secret) under (?:Server admin|Admin) › Providers(?: › [^."]+)?\./g,
       (_, what: string) => `Ask the admin for a ${what} and store it again with provider_setKeys.`,
     )
-    .replace(/ under Admin › Providers › [^."]+\./g, ' with the admin, then store it again with provider_setKeys.')
-    .replace(/[Cc]onnect (it|email) in Admin, Providers(, Email)?/g, 'set up email with provider_setKeys')
+    .replace(
+      / under (?:Server admin|Admin) › Providers(?: › [^."]+)?\./g,
+      ' with the admin, then store it again with provider_setKeys.',
+    )
+    .replace(
+      /[Cc]onnect (it|email) in (?:Server admin|Admin)(?:, | › )Providers(?:(?:, | › )Email)?/g,
+      'set up email with provider_setKeys',
+    )
 }
 const answer = (data: Record<string, unknown>): ToolResult => {
   const text = forAgent(JSON.stringify(data))
@@ -247,7 +257,7 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
 /** Links into the app for the steps only the admin can do there (a test call with their microphone, forwarding). */
 const appLinks = () => {
   const app = webAddress()
-  // One link per provider group (Admin › Providers scrolls to it): providers_email, providers_call_audio, …
+  // One link per provider group (Server admin › Providers scrolls to it): providers_email, providers_call_audio, …
   const groups = Object.fromEntries(
     providerGroupIds.map(id => [`providers_${id.replace('-', '_')}`, `${app}/#admin/providers/${id}`]),
   )
@@ -467,7 +477,7 @@ function redirectUris(provider: ProviderName): string[] {
 /**
  * The groups a first call does not need (sign-in, calendar, recording, business lookup): their state and how to set
  * them up through these tools, offered once the needed steps are done. Calendars themselves are connected per business
- * by signing in to Google or Microsoft in the browser (Settings › Calendar), the one part an agent cannot do.
+ * by signing in to Google or Microsoft in the browser (Assistant settings › Booking & calendar), the one part an agent cannot do.
  */
 function optionalSteps(groups: GroupStatus[]) {
   const how: Record<string, string[]> = {
@@ -477,7 +487,7 @@ function optionalSteps(groups: GroupStatus[]) {
     ],
     calendar: [
       'The Google or Microsoft sign-in app also connects calendars (set it up as for sign-in, with the calendar scopes in its help).',
-      `Connecting a calendar to the business is a Google or Microsoft sign-in in the browser: the admin does it in ${webAddress()}/#settings/assistant after setup. Say so; it is optional.`,
+      `Connecting a calendar to the business is a Google or Microsoft sign-in in the browser: the admin does it in ${webAddress()}/#assistant/booking after setup. Say so; it is optional.`,
     ],
     recording: [
       'Local disk is the simplest: provider_setActive { category: "recording", provider: "file" } and, on the server, docker compose --profile recording up -d (if you can run commands there, do it).',
@@ -560,11 +570,11 @@ async function firstAssistant(workspaceId: string) {
  * something. A test call the agent could not answer (providers not set up: a missed call) does not count.
  */
 async function testCallMade(workspaceId: string): Promise<boolean> {
+  // The same rule as the "Heard the assistant" milestone (setup-events.ts).
   const [call] = await db
     .select({ id: calls.id })
     .from(calls)
-    .innerJoin(transcript_segments, eq(transcript_segments.call_id, calls.id))
-    .where(and(eq(calls.workspace_id, workspaceId), eq(calls.source, 'test'), eq(transcript_segments.speaker, 'agent')))
+    .where(and(eq(calls.workspace_id, workspaceId), eq(calls.source, 'test'), assistantSpokeIn(calls.id)))
     .limit(1)
   return Boolean(call)
 }
@@ -574,12 +584,23 @@ async function whoAmI(actor: Actor) {
   return { name: me?.name ?? null, email: me?.email ?? null, role: 'instance admin' }
 }
 
-const STEP_ORDER = ['business', 'assistant', 'pickup', 'notify', 'phone', 'done'] as const
-/** Whether onboarding has gone past `step` (the web app and onboarding_setStep move it). */
-const past = (current: string | null | undefined, step: (typeof STEP_ORDER)[number]) =>
+/**
+ * Whether onboarding has gone past `step` (the web app and onboarding_setStep move it). "Finish later" (`skipped`) is
+ * past nothing: the owner left onboarding without setting anything up, so what is done follows the data alone.
+ */
+export const past = (current: string | null | undefined, step: (typeof onboardingSteps)[number]) =>
   current === 'done' ||
-  current === 'skipped' ||
-  STEP_ORDER.indexOf(current as (typeof STEP_ORDER)[number]) > STEP_ORDER.indexOf(step)
+  onboardingSteps.indexOf(current as (typeof onboardingSteps)[number]) > onboardingSteps.indexOf(step)
+
+/** The assistant's voice is not its own with the realtime model: the server's voice (Server admin › Providers). */
+const REALTIME_VOICE_NOTE = 'Voice: set for this server (Server admin › Providers › Answering calls)'
+const assistantStepLabel = (realtime: boolean) =>
+  realtime ? 'The assistant: name and greeting' : 'The assistant: name, greeting, voice'
+
+/** The default assistant's name (assistants.name). */
+const DEFAULT_ASSISTANT_NAME = 'Maya'
+/** The transfer contact the notify step of onboarding saves (URGENT_CONTACT_ID, apps/web/src/onboarding/flow.ts). */
+const URGENT_CONTACT_ID = 'urgent'
 
 const BUSINESS_STEPS = [
   ['business', 'What the assistant knows about the business'],
@@ -620,14 +641,30 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const profile = (assistant?.business_profile ?? {}) as Record<string, unknown>
   const hasProfile = Object.values(profile).some(v => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
   const forwarding = numbers.find(n => n.mode === 'forward_conditional' || n.mode === 'forward_all')
-  // What is done follows the data, so an agent that saves a step without moving onboarding on still sees it done:
-  // the assistant and who hears about calls are choices with defaults, passed once a later step is done.
+  // What is done follows the data, so an agent that saves a step without moving onboarding on still sees it done; a
+  // step onboarding went past (not "Finish later") is done too. The assistant and who hears about calls are choices
+  // with defaults: done once changed.
   const step = settings?.onboarding_step
   const businessDone = hasProfile || past(step, 'business')
   const phoneDone = numbers.length > 0
   const pickupDone = Boolean(settings?.pickup_mode)
-  const assistantDone = past(step, 'assistant') || pickupDone || phoneDone
-  const notifyDone = past(step, 'notify') || phoneDone
+  const fresh = newAssistant(workspaceId, ws?.name ?? '')
+  const assistantChanged =
+    !!assistant && (assistant.name !== DEFAULT_ASSISTANT_NAME || assistant.greeting !== fresh.greeting)
+  const assistantDone = assistantChanged || past(step, 'assistant')
+  const [notifyRow] = await db
+    .select({ user_id: member_notification_settings.user_id })
+    .from(member_notification_settings)
+    .where(eq(member_notification_settings.workspace_id, workspaceId))
+    .limit(1)
+  // The "Who hears about calls?" step saves a member's notifications and its own transfer contact (id "urgent",
+  // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts).
+  const notifyDone =
+    !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
+  // With the realtime model the assistant speaks in the server's voice, not one it picks (like Assistant settings).
+  const policy = await voicePipelinePolicy(db)
+  const realtime =
+    pipelineFor(assistant?.voice_pipeline, pipelinesAllowed(await pipelinesSetUp(db), policy)) === 'realtime'
   // Onboarding in the app resumes where the agent got to (never moved back): through the registry, as the admin. The
   // one write of reading the status: bookkeeping, nothing the admin would be asked about.
   const reached =
@@ -642,7 +679,8 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
             : !notifyDone
               ? 'notify'
               : 'phone'
-  if (advance && reached && !past(step, reached) && step !== reached)
+  // A workspace whose owner chose "Finish later" stays so: the app does not reopen onboarding behind their back.
+  if (advance && reached && step !== 'skipped' && !past(step, reached) && step !== reached)
     await runAction('onboarding.setStep', { step: reached }, actor)
   const done = (yes: boolean): StepState => (yes ? 'done' : 'todo')
   return [
@@ -668,12 +706,15 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
     },
     {
       id: 'assistant',
-      label: 'The assistant: name, greeting, voice',
+      label: assistantStepLabel(realtime),
       state: done(assistantDone),
-      detail: assistant ? `${JSON.stringify(assistant.name)}: ${JSON.stringify(assistant.greeting)}` : null,
+      detail: assistant
+        ? `${JSON.stringify(assistant.name)}: ${JSON.stringify(assistant.greeting)}${realtime ? `. ${REALTIME_VOICE_NOTE}` : ''}`
+        : null,
       how: [
         // Quoted: the name and greeting are a member's text, put into the agent's instructions as data.
         `It is called ${JSON.stringify(assistant?.name ?? 'Maya')} and greets with ${JSON.stringify(assistant?.greeting ?? '')}. Ask whether to keep that; change it with assistant_update { ${w}, assistantId, … }.`,
+        ...(realtime ? [`${REALTIME_VOICE_NOTE}: calls are answered by the realtime model, in its own voice.`] : []),
         `Then onboarding_setStep { ${w}, step: "pickup" }.`,
       ],
     },
@@ -683,7 +724,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       state: done(pickupDone),
       detail: settings?.pickup_mode ?? null,
       how: [
-        `workspace_updateSettings { ${w}, pickupMode }: "no_answer" (recommended: the business phone rings first, calls nobody takes go to the assistant), "after_hours" (only when closed; set the hours too), or "always".`,
+        `workspace_updateSettings { ${w}, pickupMode }: "no_answer" (recommended: the business phone rings first, calls nobody takes go to the assistant), "after_hours" (business hours on: outside them the assistant says when you open; calls missed while open reach it too), or "always".`,
         `Then onboarding_setStep { ${w}, step: "notify" }.`,
       ],
     },
@@ -795,7 +836,7 @@ function registerTools(server: McpServer, actor: Actor) {
   server.registerTool(
     'workspace_create',
     {
-      description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (${WORKSPACE_LIMIT === null ? '' : `up to ${WORKSPACE_LIMIT} workspaces per admin; `}this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status.`,
+      description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (${WORKSPACE_LIMIT === null ? '' : `up to ${WORKSPACE_LIMIT} workspaces per admin; `}this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status. Only for businesses the admin runs themselves: a business for someone else is created in Server admin › Workspaces › New workspace with its owner's email.`,
       inputSchema: z.object({
         name: z.string().trim().min(1).max(80).describe("The business's name, as callers know it"),
         timeZone: z.string().max(64).optional().describe('IANA time zone, e.g. America/Los_Angeles'),
@@ -921,7 +962,7 @@ function registerTools(server: McpServer, actor: Actor) {
     'setup_endAccess',
     {
       description:
-        'End your access at the end of the setup: the setup link you are using stops working at once (only this one; with its permission for email and sign-in). Call it last, after your summary to the admin. setup_status.wrap_up says when; with steps still open, ask the admin first. Every later call with this link is refused. The admin can make a new link at any time.',
+        'End your access at the end of the setup: the setup link you are using stops working at once (only this one). Call it last, after your summary to the admin. setup_status.wrap_up says when; with steps still open, ask the admin first. Every later call with this link is refused. The admin can make a new link at any time.',
       inputSchema: z.object({}),
       annotations: { destructiveHint: true, idempotentHint: true },
     },

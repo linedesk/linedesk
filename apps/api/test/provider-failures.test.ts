@@ -163,25 +163,30 @@ test('a failed answer becomes a reason and a text that names the fix, never the 
 })
 
 describe('the voice agent reports through the registry', () => {
-  test('provider.reportFailure records with the workspace; provider.reportOk clears; members may not', async () => {
+  test('a failure the agent reported (call.reportVoiceFailure) is cleared by provider.reportOk; members may not', async () => {
     const ws = await createWorkspace('Provider failures')
-    const failed = await act(agent(ws.id), 'provider.reportFailure', {
-      stage: 'stt',
-      provider: 'elevenlabs_stt',
-      reason: 'no_output',
-      message: 'ElevenLabs Scribe gave no transcript for 20 s of caller audio.',
-    })
-    expect(failed.status).toBe(200)
-    // No keys here, so no diagnosis finds more: the reason stays as reported.
-    expect(failed.body.data).toMatchObject({ provider: 'elevenlabs_stt', reason: 'no_output', alerted: true })
+    // call.reportVoiceFailure records it like this (source agent, with the call's workspace).
+    await recordProviderFailure(
+      db,
+      'elevenlabs_stt',
+      { reason: 'no_output', message: 'ElevenLabs Scribe gave no transcript for 20 s of caller audio.' },
+      'agent',
+      { scope: { workspaceId: ws.id, callId: null } },
+    )
     expect(await mine()).toEqual([
       expect.objectContaining({ provider: 'elevenlabs_stt', reason: 'no_output', source: 'agent', workspace_id: ws.id }),
     ])
-    expect((await act(ws.owner, 'provider.reportOk', { providers: ['elevenlabs_stt'] })).status).toBe(403)
+    // provider.reportFailure is gone: the agent never called it (E10).
     expect(
-      (await act(agent(ws.id), 'provider.reportFailure', { provider: 'elevenlabs_stt', reason: 'nope', message: 'x' }))
-        .status,
-    ).toBe(422)
+      (
+        await act(agent(ws.id), 'provider.reportFailure', {
+          provider: 'elevenlabs_stt',
+          reason: 'no_output',
+          message: 'x',
+        })
+      ).status,
+    ).toBe(404)
+    expect((await act(ws.owner, 'provider.reportOk', { providers: ['elevenlabs_stt'] })).status).toBe(403)
     expect((await act(agent(ws.id), 'provider.reportOk', { providers: ['elevenlabs_stt'] })).status).toBe(200)
     expect(await mine()).toEqual([])
   })

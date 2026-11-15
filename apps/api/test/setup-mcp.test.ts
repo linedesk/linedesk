@@ -13,8 +13,10 @@ import {
   phone_numbers,
   provider_settings,
   session,
+  setup_events,
   transcript_segments,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, desc, eq } from 'drizzle-orm'
 import nodemailer from 'nodemailer'
@@ -37,6 +39,7 @@ import {
 import { mayCreateWorkspace } from '../src/workspace-creation.ts'
 import {
   act,
+  agent,
   appRequest,
   createWorkspace,
   FROM,
@@ -806,7 +809,28 @@ describe('every key through the agent (LIN-182)', () => {
     }
   })
 
-  test('forAgent turns the app wording (under Admin › Providers) into what the agent does', () => {
+  test('forAgent turns the app wording (under Server admin › Providers) into what the agent does', () => {
+    expect(
+      forAgent('Deepgram rejected the key (HTTP 401). Enter a valid key under Server admin › Providers › Deepgram.'),
+    ).toBe(
+      'Deepgram rejected the key (HTTP 401). Ask the admin for a valid key and store it again with provider_setKeys.',
+    )
+    expect(forAgent('Telnyx refused the request. Check the settings under Server admin › Providers › Telnyx.')).toBe(
+      'Telnyx refused the request. Check the settings with the admin, then store it again with provider_setKeys.',
+    )
+    // Without a provider's name (knowledge, evaluations, provider-health).
+    expect(forAgent('No language model is set up. Connect one under Server admin › Providers.')).toBe(
+      'No language model is set up. Connect one with the admin, then store it again with provider_setKeys.',
+    )
+    expect(forAgent('Email is not set up: connect it in Server admin › Providers › Email')).toBe(
+      'Email is not set up: set up email with provider_setKeys',
+    )
+    expect(forAgent('Not set up: connect email in Server admin › Providers › Email. Sign-in codes cannot go out.')).toBe(
+      'Not set up: set up email with provider_setKeys. Sign-in codes cannot go out.',
+    )
+  })
+
+  test('forAgent still rewrites the old wording (Admin › Providers, Admin, Providers) of failures stored before', () => {
     expect(
       forAgent('Deepgram rejected the key (HTTP 401). Enter a valid key under Admin › Providers › Deepgram.'),
     ).toBe(
@@ -817,6 +841,9 @@ describe('every key through the agent (LIN-182)', () => {
     )
     expect(forAgent('Email is not set up: connect it in Admin, Providers, Email')).toBe(
       'Email is not set up: set up email with provider_setKeys',
+    )
+    expect(forAgent('Printed to the API log, not sent. Connect email in Admin, Providers on a real server.')).toBe(
+      'Printed to the API log, not sent. set up email with provider_setKeys on a real server.',
     )
   })
 
@@ -1332,6 +1359,43 @@ describe('the test call on the setup page', () => {
     expect(how).not.toContain(`click "Call ${sneaky} now"`)
   })
 
+  test('a test call the assistant never spoke in: no "Heard the assistant" milestone, and the step stays open', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key } = await makeKey(admin)
+    const made = data(await call(key, 'workspace_create', { name: 'Brightwater Silent', timeZone: 'America/Chicago' }))
+    const workspaceId = (made as { workspace: { id: string } }).workspace.id
+    type Status = { workspaces: { steps: { id: string; state: string }[] }[] }
+    const testCallState = async () =>
+      (data(await call(key, 'setup_status', { read_only: true })) as Status).workspaces[0]!.steps.find(
+        s => s.id === 'test_call',
+      )!.state
+    const heard = async () =>
+      (await db.select().from(setup_events).where(eq(setup_events.workspace_id, workspaceId))).some(
+        e => e.event === 'assistant_heard',
+      )
+    const testCall = async (spoke: boolean) => {
+      const started = await act(agent(workspaceId), 'call.startTest', { room: `silent-${crypto.randomUUID()}` })
+      const callId = started.body.data.callId as string
+      if (spoke)
+        await act(agent(workspaceId), 'call.appendTranscript', {
+          callId,
+          speaker: 'agent',
+          text: 'Thanks for calling Brightwater, this is Maya.',
+          atMs: 10,
+        })
+      expect((await act(agent(workspaceId), 'call.finish', { callId })).status).toBe(200)
+    }
+    // The assistant never answered (providers not set up): neither the milestone nor the setup page count it.
+    await testCall(false)
+    expect(await heard()).toBe(false)
+    expect(await testCallState()).toBe('admin_only')
+    // It spoke: both agree it was heard.
+    await testCall(true)
+    expect(await heard()).toBe(true)
+    expect(await testCallState()).toBe('done')
+  })
+
   test('wrap_up: the test call first, then the summary and setup_endAccess; open steps ask the admin first', () => {
     expect(wrapUp(false, [])).toMatch(/ask the admin first whether to end your access/)
     expect(wrapUp(true, [{ id: 'test_call' }])).toMatch(/make the test call now, right on the setup page/)
@@ -1421,5 +1485,38 @@ describe('the agent ends its own access', () => {
     expect(res).toMatchObject({ status: 409, body: { error: expect.stringMatching(/already ended/) } })
     const [theirsRow] = await db.select().from(agent_setup_keys).where(eq(agent_setup_keys.id, theirs.keyId))
     expect(theirsRow!.revoked_at).toBeNull()
+  })
+})
+
+describe('what is done follows the data (B6)', () => {
+  test('"Finish later" with nothing set up: business, assistant and who hears stay open', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key } = await makeKey(admin)
+    const made = data(await call(key, 'workspace_create', { name: 'Brightwater Later', timeZone: 'America/Denver' }))
+    const workspaceId = (made as { workspace: { id: string } }).workspace.id
+    await db
+      .update(workspace_settings)
+      .set({ onboarding_step: 'skipped' })
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    type Status = { workspaces: { steps: { id: string; state: string }[] }[] }
+    const states = async (readOnly: boolean) =>
+      Object.fromEntries(
+        (data(await call(key, 'setup_status', { read_only: readOnly })) as Status).workspaces[0]!.steps.map(s => [
+          s.id,
+          s.state,
+        ]),
+      )
+    expect(await states(true)).toMatchObject({ business: 'todo', assistant: 'todo', pickup: 'todo', notify: 'todo' })
+
+    // Data marks a step done, whatever the stored step says.
+    await db.update(assistants).set({ name: 'Ava' }).where(eq(assistants.workspace_id, workspaceId))
+    expect(await states(false)).toMatchObject({ business: 'todo', assistant: 'done', notify: 'todo' })
+    // A setup_status that notes progress leaves "Finish later" as it is.
+    const [settings] = await db
+      .select({ step: workspace_settings.onboarding_step })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    expect(settings!.step).toBe('skipped')
   })
 })

@@ -1,6 +1,6 @@
-// Step 2, "Meet your assistant": its name, the greeting callers hear and its voice, then a test call in the
-// browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
-import { localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+// Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (not with the realtime model: that
+// speaks in the server's voice), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
+import { localizedDefault, mainLanguageOf, otherLanguagesOf, pipelineFor } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { useState } from 'react'
 import { ASSISTANT_NAME_MAX, staleGreetingName } from '../settings/assistantDraft.ts'
@@ -8,7 +8,7 @@ import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
-import { VoiceSettings } from '../settings/VoiceSettings.tsx'
+import { useVoiceOptions, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistant, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { Button, Note } from '../ui/kit.tsx'
@@ -49,7 +49,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const [message, setMessage] = useState<string | null>(null)
   const name = draft.name.trim()
   const changes = assistantChanges(assistant, draft)
-  // The same limit as the server's (assistant.update) and Settings › Assistant.
+  // The same limit as the server's (assistant.update) and Assistant settings.
   const nameProblem = !name
     ? 'Give your assistant a name.'
     : name.length > ASSISTANT_NAME_MAX
@@ -59,6 +59,12 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const problem = nameProblem ?? greetingProblem
   // The greeting still names the saved name after a rename: saving renames it there; the hint says so and offers it now.
   const stale = staleGreetingName(draft.greeting, assistant.name, draft.name)
+  // Like Assistant settings: the realtime model speaks in the voice set for the server, so no voice picker then. An API
+  // of an older version (during an update) only says whether a realtime model is connected.
+  const voiceOptions = useVoiceOptions().data
+  const realtime = voiceOptions?.pipelines
+    ? pipelineFor(assistant.voice_pipeline, voiceOptions.pipelines) === 'realtime'
+    : voiceOptions?.realtime === true
 
   function next() {
     if (problem) return
@@ -122,18 +128,22 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
             </span>
           )}
         </Field>
-        <VoiceSettings
-          assistantId={assistant.id}
-          voice={draft.voice}
-          onPick={voice => setDraft(d => ({ ...d, voice }))}
-          canEdit
-          toast={setMessage}
-          language={main}
-          otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
-          assistantName={name || assistant.name}
-        />
+        {realtime ? (
+          <p className="ob2-note">Voice: set for this server (Server admin › Providers › Answering calls)</p>
+        ) : (
+          <VoiceSettings
+            assistantId={assistant.id}
+            voice={draft.voice}
+            onPick={voice => setDraft(d => ({ ...d, voice }))}
+            canEdit
+            toast={setMessage}
+            language={main}
+            otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
+            assistantName={name || assistant.name}
+          />
+        )}
         <div className="ob-talk">
-          {/* The same button and panel as Settings › Assistant; the click saves first. */}
+          {/* The same button and panel as Assistant settings; the click saves first. */}
           <TestCallButton session={session} variant="primary" onStart={() => void talk()} />
           <span className="ob2-note">
             {session.blockedReason ?? 'Use your microphone and ask what a customer would ask.'}

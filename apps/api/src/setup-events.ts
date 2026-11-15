@@ -1,9 +1,9 @@
 // Setup milestones per workspace (setup_events): where a business stops on its way to its first real call.
 // Only the first time counts. A call from the business's own phones (calls.from_own_number) is the owner
 // trying it out, not a real caller, so it never counts as one.
-import { type SetupEventKind, setup_events, type Tx } from '@linedesk/db'
+import { type SetupEventKind, setup_events, transcript_segments, type Tx } from '@linedesk/db'
 import type { Call } from '@linedesk/db/types'
-import { sql } from 'drizzle-orm'
+import { type AnyColumn, type SQL, sql } from 'drizzle-orm'
 import type { db } from './db.ts'
 
 /** A transaction, or the pool for writes outside one (creating a workspace). */
@@ -36,7 +36,21 @@ export const HANDLED: ReadonlySet<Call['outcome']> = new Set<Call['outcome']>([
   'transferred',
 ])
 
-type CallFacts = Pick<Call, 'workspace_id' | 'source' | 'from_own_number' | 'outcome' | 'started_at'>
+type CallFacts = Pick<Call, 'id' | 'workspace_id' | 'source' | 'from_own_number' | 'outcome' | 'started_at'>
+
+/**
+ * SQL: the assistant said something in the call `callId` (a transcript line by `agent`). A test call it could not answer
+ * (providers not set up: a missed call) has none. The one rule for "heard the assistant" (LIN-236): the milestone
+ * here and the test call step of the setup MCP (setup-mcp.ts).
+ */
+export const assistantSpokeIn = (callId: AnyColumn | SQL) =>
+  sql<boolean>`exists (select 1 from ${transcript_segments} where ${transcript_segments.call_id} = ${callId} and ${transcript_segments.speaker} = 'agent')`
+
+/** Whether the assistant said something in this call (assistantSpokeIn). */
+export async function assistantSpoke(tx: Db, callId: string): Promise<boolean> {
+  const { rows } = await tx.execute<{ spoke: boolean }>(sql`select ${assistantSpokeIn(sql`${callId}`)} as spoke`)
+  return rows[0]?.spoke === true
+}
 
 /**
  * A real caller's call just came in (call.start): the first one is the first real call. Spam doesn't count, and only
@@ -47,9 +61,15 @@ export async function recordCallStarted(tx: Db, call: CallFacts, spam: boolean) 
   await recordSetupEvent(tx, call.workspace_id, 'first_real_call', call.started_at)
 }
 
-/** A call ended (call.finish): a test call means the owner heard the assistant; a handled real call means the business is live. */
+/**
+ * A call ended (call.finish): a test call the assistant spoke in means the owner heard it; a handled real call means
+ * the business is live.
+ */
 export async function recordCallFinished(tx: Db, call: CallFacts, at: string) {
-  if (call.source === 'test') return recordSetupEvent(tx, call.workspace_id, 'assistant_heard', at)
+  if (call.source === 'test') {
+    if (await assistantSpoke(tx, call.id)) await recordSetupEvent(tx, call.workspace_id, 'assistant_heard', at)
+    return
+  }
   if (call.source !== 'phone' || call.from_own_number || !HANDLED.has(call.outcome)) return
   await recordSetupEvent(tx, call.workspace_id, 'activated', at)
 }

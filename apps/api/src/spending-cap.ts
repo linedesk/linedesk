@@ -65,7 +65,7 @@ const usd = (value: number) => `$${value.toFixed(2)}`
 
 /** The email at one level, the same for owners and instance admins. */
 export function spendingAlertEmail(workspace: string, level: number, cap: SpendingCap, to: string): Email {
-  const change = `An instance admin can change the cap in Server admin › Workspaces › ${workspace} (${WEB_ORIGIN}).`
+  const change = `A server admin can change the cap in Server admin › Workspaces › ${workspace} (${WEB_ORIGIN}).`
   if (level >= 100) {
     return {
       to,

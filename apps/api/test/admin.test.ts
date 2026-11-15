@@ -4365,7 +4365,7 @@ describe('alerts without email set up (the CLI on a fresh install)', () => {
   const noEmail = (): EmailSender => ({
     kind: 'none',
     send: vi.fn(async () => {
-      throw new Error('Email is not set up: connect it in Admin, Providers, Email')
+      throw new Error('Email is not set up: connect it in Server admin › Providers › Email')
     }),
     check: async () => ({ ok: false, message: 'Not set up' }),
   })
@@ -4381,7 +4381,7 @@ describe('alerts without email set up (the CLI on a fresh install)', () => {
     expect(error).not.toHaveBeenCalled()
     expect(log.mock.calls).toEqual([
       ['Admin alert not sent (email is not set up): Passkeys reset on Linedesk: ann@example.com'],
-      ['passkeys reset email not sent: email is not set up (Admin, Providers, Email).'],
+      ['passkeys reset email not sent: email is not set up (Server admin › Providers › Email).'],
     ])
   })
 

@@ -69,6 +69,8 @@ test('a number to put calls through to is the mobile; a test call means the assi
     ).status,
   ).toBe(200)
   const callId = (await act(agent(ws.id), 'call.startTest', { room: `funnel-${ws.id}` })).body.data.callId as string
+  // Heard: the assistant said something in it (a test call it never answered does not count, setup-mcp.test.ts).
+  await act(agent(ws.id), 'call.appendTranscript', { callId, speaker: 'agent', text: 'Hi, this is Maya.', atMs: 10 })
   await act(agent(ws.id), 'call.finish', { callId })
   expect(await eventsOf(ws.id)).toEqual(['assistant_heard', 'mobile_added', 'signup'])
 })
