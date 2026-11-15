@@ -112,3 +112,8 @@
 		}
 	}
 }
+
+# This server's own extra sites, optional: every *.caddy file in /etc/caddy/sites (docker-compose.sites.yml mounts a
+# directory there), e.g. an old address that redirects to the new one. Without the mount nothing is imported (Caddy
+# logs one warning at start).
+import /etc/caddy/sites/*.caddy
