@@ -40,6 +40,9 @@ const verbs: Record<string, string> = {
   'onboarding.restoreGoLiveStep': 'errors.couldNot.onboarding.restoreGoLiveStep',
 }
 
+/** The browser's words for a request that never reached the server. */
+const OFFLINE = /failed to fetch|networkerror|load failed|network request failed/i
+
 const sentence = (text: string) => {
   const t = text.trim()
   return t ? `${t[0]!.toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}` : ''
@@ -51,8 +54,7 @@ const sentence = (text: string) => {
  */
 export function rejectionReason(error: string): string {
   const t = error.trim()
-  if (/failed to fetch|networkerror|load failed|network request failed/i.test(t))
-    return i18n().t('errors.unreachable')
+  if (OFFLINE.test(t)) return i18n().t('errors.unreachable')
   if (!t || /^HTTP \d{3}$|internal server error|^[[{<]|\n\s*at |\bundefined\b|\bnull\b/i.test(t) || t.length > 240)
     return i18n().t('errors.server')
   return sentence(t)
@@ -81,6 +83,9 @@ const forwardingReasons: [RegExp, MessageKey][] = [
 
 function forwardingCheckErrorText(action: string, error: string): string {
   const t = error.trim()
-  if (forwardingWritten.test(t)) return t
+  // The app's own offline line (errors.unreachable, in the reader's language: retry.ts, settings-api.ts) as it is, only
+  // that exact sentence; the browser's raw network failure becomes it.
+  if (forwardingWritten.test(t) || t === i18n().t('errors.unreachable')) return t
+  if (OFFLINE.test(t)) return i18n().t('errors.unreachable')
   return i18n().t(forwardingReasons.find(([re]) => re.test(t))?.[1] ?? forwardingFallback[action]!)
 }

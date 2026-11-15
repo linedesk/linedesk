@@ -192,6 +192,20 @@ let lost: { account: string; name: string } | null = null
 /** The lost workspace's name, only for the person it was lost by: never another account's workspace name. */
 const lostBy = (account: string | null) => (account && lost?.account === account ? lost.name : null)
 
+/**
+ * The workspace this device was signed in to when the server ended its session before its time, and nobody is
+ * signed in now. The sign-in page says so (Login.tsx). The server does not say why (a removal, a password change,
+ * "Sign out other sessions", a disabled account all look the same here), so the words stay neutral: "signed out",
+ * never "your access ended". Kept only in this page's memory, and forgotten once anyone signs in.
+ */
+let signedOutOf: string | null = null
+
+/** "You were signed out of <workspace>." on the sign-in page: the workspace's name, or null. */
+export const signedOutOfWorkspace = () => signedOutOf
+
+/** A session that was still running when the server stopped knowing it, so it ended early, not by its own time. */
+const endedEarly = (me: Me, now: number) => !!me.sessionExpiresAt && Date.parse(me.sessionExpiresAt) > now
+
 type Ready = Extract<Session, { state: 'ready' }>
 
 /**
@@ -230,6 +244,7 @@ export async function loadSession(): Promise<Session> {
     if (current) sessionChanged()
     const me = res.ok ? ((await res.json()) as Me) : null
     if (me?.workspace) {
+      signedOutOf = null
       if (current) remember(me)
       primeQueries(me)
       forgetLeft()
@@ -242,9 +257,18 @@ export async function loadSession(): Promise<Session> {
     remember(null)
     setTabWorkspace(null)
     // Signed in through a link or SSO for the first time: no workspace yet.
-    if (me) return { state: 'needsWorkspace', impersonation: me.impersonation ?? null, me, lostWorkspace: lostBy(me.actorId) }
+    if (me) {
+      signedOutOf = null
+      return { state: 'needsWorkspace', impersonation: me.impersonation ?? null, me, lostWorkspace: lostBy(me.actorId) }
+    }
     const account = await signedInAccount()
-    return account ? { state: 'needsWorkspace', impersonation: null, me: null, lostWorkspace: lostBy(account) } : { state: 'signedOut' }
+    if (account) {
+      signedOutOf = null
+      return { state: 'needsWorkspace', impersonation: null, me: null, lostWorkspace: lostBy(account) }
+    }
+    // Signed out although the remembered session had not run out: the server ended it, for whatever reason (A7).
+    if (before?.workspace && endedEarly(before, Date.now())) signedOutOf = before.workspace.name
+    return { state: 'signedOut' }
   } catch (error) {
     if (!(error instanceof Unreachable)) throw error
     const me = remembered()

@@ -2,9 +2,11 @@ import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { assigneeTabs, callerName, type InboxTab, type splits, visibleSplits } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
-import { useAssistantName, useContact } from '../store.tsx'
+import { useAssistantName, useAssistantNameOrNull, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
 import { Button, Icon } from '../ui/kit.tsx'
+import { SkeletonText } from '../ui/LoadStates.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
 import { SearchButton, SearchField } from '../ui/listPage.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
@@ -41,7 +43,9 @@ const modeTitle: Partial<Record<InboxTab, MessageKey>> = {
 
 function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | 'counts'>) {
   const t = useT()
-  const assistant = useAssistantName()
+  // Null until the assistants arrive: the tab shows a bar of the label's width, never "Handled by Assistant" first.
+  const name = useAssistantNameOrNull()
+  const assistant = name ?? ''
   const info: Record<(typeof splits)[number], [label: string, description: string, short?: string]> = {
     you: [t('inbox.view.you'), t('inbox.tab.youDescription')],
     ai: [t('inbox.view.ai', { assistant }), t('inbox.tab.aiDescription', { assistant }), t('inbox.tab.aiShort')],
@@ -56,11 +60,14 @@ function Tabs({ tab, setTab, counts }: Pick<InboxHeadProps, 'tab' | 'setTab' | '
           role="tab"
           className="ib-tab"
           aria-selected={tab === id}
+          aria-busy={(id === 'ai' && name === null) || undefined}
           data-desc={info[id][1]}
           title={t('common.withKey', { label: info[id][0], key: String(i + 1) })}
           onClick={() => setTab(id)}
         >
-          {info[id][2] ? (
+          {id === 'ai' && name === null ? (
+            <SkeletonText width={110} />
+          ) : info[id][2] ? (
             <>
               <span className="ib-tab-long">{info[id][0]}</span>
               <span className="ib-tab-short">{info[id][2]}</span>
@@ -135,10 +142,11 @@ function LiveCallButton({ call, onOpen }: { call: Call; onOpen?: (call: Call) =>
 /** What the assistant is doing right now: green only when calls are really answered. */
 function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveCall' | 'onOpen' | 'canFixVoice'>) {
   const t = useT()
-  const assistant = useAssistantName()
+  const assistant = useAssistantNameOrNull()
   const presence = usePresence()
   if (liveCall) return <LiveCallButton call={liveCall} onOpen={onOpen} />
-  if (presence.kind === 'unknown') return null
+  // Not known yet, or the name has not arrived: nothing rather than a guess (the line is not always there).
+  if (presence.kind === 'unknown' || assistant === null) return null
   if (presence.kind === 'answering') {
     return (
       <span className="ib-maya" title={t('inbox.presence.answeringCalls', { assistant })}>
@@ -159,19 +167,18 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   if (presence.reason === 'number')
     return (
       <span className="ib-maya is-off" title={t('inbox.presence.noNumberTitle', { assistant })}>
-        <span className="ib-dot" />
+        <StatusMark state="missing" label={t('inbox.presence.noNumberTitle', { assistant })} />
         <span className="sr-only">{t('inbox.presence.noNumber', { assistant })}</span>
       </span>
     )
   // The voice service: the same sentence as the go-live checklist's first step.
   const fix = canFixVoice ? '#admin/providers/answering' : null
   const failing = presence.reason === 'failing'
+  const why = failing ? voiceFailing(assistant, Boolean(fix)) : `${voiceNotSetUp(assistant)} ${voiceFix(Boolean(fix))}`
   return (
-    <span
-      className="ib-maya is-off"
-      title={failing ? voiceFailing(assistant, Boolean(fix)) : `${voiceNotSetUp(assistant)} ${voiceFix(Boolean(fix))}`}
-    >
-      <span className="ib-dot" />
+    <span className="ib-maya is-off" title={why}>
+      {/* Whether calls are answered is a status: the mark, never a bare grey dot (design-principles.md, Messages). */}
+      <StatusMark state={failing ? 'failing' : 'missing'} label={why} />
       <span className="ib-maya-t">
         {failing
           ? t('inbox.presence.cannotAnswer', { assistant })

@@ -72,6 +72,12 @@ describe('⌘K places (LIN-165)', () => {
     expect(find(c, 'Appointment value').keywords).toContain('job')
   })
 
+  it('offers "Leave workspace…" to everyone but the owner, who cannot leave (A16)', () => {
+    const labels = (c: CommandContext) => commandGroups(c).flatMap(g => g.items.map(i => i.label))
+    expect(labels({ ...context(), isOwner: false })).toContain('Leave workspace…')
+    expect(labels({ ...context(), isOwner: true })).not.toContain('Leave workspace…')
+  })
+
   it('Account is a place like the others, and the old names are gone', () => {
     const c = context()
     find(c, 'Go to Account settings').run()

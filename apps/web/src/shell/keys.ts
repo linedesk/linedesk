@@ -97,6 +97,9 @@ function onEscape(el: HTMLElement, c: KeyContext) {
   }
   if (!c.onInbox) return void pageKeys?.('Escape')
   if (c.isCallOpen) return c.back()
+  // A control in the list has the focus (a view clicked with the mouse): Esc also hands the focus back to the list,
+  // so Tab switches views again (tabSwitchesViews).
+  if (!tabSwitchesViews(el)) el.blur()
   if (c.selectionCount) return c.clearSelection()
   if (c.searching) return c.closeSearch()
   if (!splits.includes(c.tab as never)) c.setTab('you')
@@ -126,13 +129,15 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
 }
 
 /**
- * Tab on the inbox list belongs to the views: it switches between them and never moves the
- * focus, so no row or button gets a focus ring. Everywhere else Tab is the browser's: in an
- * open call (next steps, caller fields, previous calls), in text fields, menus and other pages.
+ * Tab switches the inbox views only while nothing has the focus (the page body: the list moves with J and K and never
+ * takes it). Once the focus is on a control (a field, a button, a menu, a dialog, a tab clicked with the mouse), Tab is
+ * the browser's and walks the focus, so keyboard users reach every control (Janik, Q11 (c)). Also the browser's in an
+ * open call and on every other page. ⇧Tab mirrors it.
  */
+export const tabSwitchesViews = (el: Element | null) => !el || el.tagName === 'BODY' || el.tagName === 'HTML'
+
 function onInboxTab(el: HTMLElement, back: boolean, c: KeyContext): boolean {
-  if (c.isCallOpen) return false
-  if (el.tagName !== 'BODY') el.blur() // a tab or row clicked with the mouse must not show a ring now
+  if (c.isCallOpen || !tabSwitchesViews(el)) return false
   c.setTab(nextView(c.tab, back, c.views))
   return true
 }

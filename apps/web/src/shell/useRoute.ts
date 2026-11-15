@@ -1,6 +1,6 @@
 // Where the app is, kept in the URL hash so reload and the browser's Back work:
 // `#calls` (Needs you), `#calls/done` (another view), `#calls?q=leak` (search),
-// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#assistant`, `#assistant/<section>`, `#workspace/<section>`, `#account`, `#admin/<section>`.
+// `#calls/member/<user id>` (calls assigned to a member), `#call/<id>` (one call), `#contacts/<id>` (one contact), `#assistant`, `#assistant/<section>`, `#workspace/<section>`, `#account`, `#admin/<section>`.
 // Old links to moved sections are rewritten (movedHash). A link from an email names its workspace
 // (`#call/<id>?ws=<workspace id>`); the app switches to it before the page opens (linkWorkspaceTarget).
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -20,6 +20,14 @@ const tabs: readonly InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mi
 const HOME: InboxPlace = { tab: 'you', search: null, member: null }
 
 export const callHash = (id: string) => `#${CALL_PREFIX}${id}`
+/** One contact open in the Contacts page's side panel (contacts/useContactsPage.ts reads and writes it). */
+export const contactHash = (id: string) => `#contacts/${encodeURIComponent(id)}`
+/** The contact a `#contacts/<id>` hash opens, or null. */
+export function contactIdOf(hash: string): string | null {
+  const [path = ''] = hash.replace(/^#/, '').split('?')
+  const [page, id, ...rest] = path.split('/')
+  return page === 'contacts' && id && rest.length === 0 ? decode(id) : null
+}
 export function listHash({ tab, search, member }: InboxPlace): string {
   const view =
     tab === 'member' && member
@@ -55,6 +63,7 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
     parts.every(p => /^[A-Za-z0-9_-]+$/.test(p))
   )
     return { ...last, route: page, callId: null, known: true }
+  if (contactIdOf(path)) return { ...last, route: 'contacts', callId: null, known: true }
   // Admin mode has sections of its own (`#admin/users/<id>`); admin/route.ts reads them.
   if (path.startsWith('admin/')) return { ...last, route: 'admin', callId: null, known: true }
   const params = query?.split('&') ?? []

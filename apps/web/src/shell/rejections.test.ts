@@ -1,4 +1,5 @@
-import { expect, test } from 'vitest'
+import { afterAll, expect, test } from 'vitest'
+import { activate, i18n } from '../i18n/index.tsx'
 import { rejectionText } from './rejections.ts'
 
 test('refusals read as sentences and never show action ids or server settings', () => {
@@ -30,7 +31,25 @@ test('forwarding check refusals: the owner-facing sentences as written, internal
   expect(rejectionText('phoneNumber.checkForwarding', 'Expected string, received undefined')).toBe(
     'The check could not start. Try again in a moment.',
   )
+  // Offline (#753): the app's own line passes, not the generic "could not start".
+  const offline = "Can't reach the server. Check your connection and try again."
+  expect(rejectionText('phoneNumber.checkForwarding', offline)).toBe(offline)
+  expect(rejectionText('phoneNumber.lookupLine', offline)).toBe(offline)
+  expect(rejectionText('phoneNumber.checkForwarding', 'Failed to fetch')).toBe(offline)
+  // Only that exact sentence passes: a longer text that merely starts like it is not shown as it is.
+  expect(rejectionText('phoneNumber.checkForwarding', "Can't reach the server: db=10.0.0.4 timeout")).toBe(
+    'The check could not start. Try again in a moment.',
+  )
   expect(rejectionText('phoneNumber.lookupLine', 'internal error')).toBe(
     'Your carrier could not be looked up. Pick it from the list.',
   )
 })
+
+test("the offline line passes in the reader's language too", async () => {
+  await activate('de', { remember: false })
+  const offline = i18n().t('errors.unreachable')
+  expect(offline).not.toMatch(/Can't reach/)
+  expect(rejectionText('phoneNumber.lookupLine', offline)).toBe(offline)
+  expect(rejectionText('phoneNumber.checkForwarding', 'Failed to fetch')).toBe(offline)
+})
+afterAll(() => activate('en', { remember: false }))

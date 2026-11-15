@@ -13,7 +13,7 @@ import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 import { brandName } from './brand.ts'
-import { readDeleted } from './session.ts'
+import { readDeleted, signedOutOfWorkspace } from './session.ts'
 import { isUiLocale, PSEUDO_LOCALE } from '@linedesk/i18n'
 import { useLocale } from '@linedesk/i18n/react'
 import { activate } from './i18n/index.tsx'
@@ -52,6 +52,14 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   // An owner who deleted their workspace and, with it, their own account lands here: say so (until this tab opens
   // a workspace again, Workspace.tsx).
   const [deleted] = useState(() => (reauth ? null : readDeleted()))
+  // The server ended the session this device had (a removal, a password change, another device's "Sign out other
+  // sessions"…): which workspace it was in (A7).
+  const [ended] = useState(() => (reauth ? null : signedOutOfWorkspace()))
+  const lostNote = deleted?.accountDeleted
+    ? t('auth.deleted')
+    : ended
+      ? t('auth.signedOutOf', { workspace: ended })
+      : null
   // `busy` is what is running ('email', 'password', a provider id); it stays set after a success that leaves this page.
   const [busy, setBusy] = useState<string | null>(null)
   const [lastUsed] = useState(readLastUsedMethod)
@@ -61,7 +69,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const start = signInStart({
     passkeyOn: Boolean(methods?.passkey),
     supported: passkeySupported(),
-    signUp: Boolean(reauth),
+    reauth: Boolean(reauth),
     lastUsed,
   })
   const [emailChosen, setEmailChosen] = useState(false)
@@ -109,7 +117,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 
   function sendCode(e: FormEvent) {
     e.preventDefault()
-    const invalid = authFormError('email', { ...form, name: '' })
+    const invalid = authFormError('email', form)
     if (invalid) return setError(invalid)
     void attempt('email', async () => {
       fail(await requestSignInCode(form.email))
@@ -120,7 +128,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 
   function signInWithPassword(e: FormEvent) {
     e.preventDefault()
-    const invalid = authFormError('password', { ...form, name: '' })
+    const invalid = authFormError('password', form)
     if (invalid) return setError(invalid)
     void attempt('password', async () => {
       fail(await auth.signIn.email({ email: form.email, password: form.password }))
@@ -243,9 +251,9 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
       <AuthPage>
         <div className="auth-card">
           <h1>{title}</h1>
-          {deleted?.accountDeleted && (
+          {lostNote && (
             <p className="auth-lost" role="status">
-              {t('auth.deleted')}
+              {lostNote}
             </p>
           )}
           <button type="button" className={cx('k-btn k-btn-primary auth-provider', passkeyBusy && 'is-busy')} disabled={busy !== null}
@@ -290,9 +298,9 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
       <div className="auth-card">
         <h1>{title}</h1>
         {intro}
-        {deleted?.accountDeleted && (
+        {lostNote && (
           <p className="auth-lost" role="status">
-            {t('auth.deleted')}
+            {lostNote}
           </p>
         )}
         {/* Signing in again: the passkey first, the way that also counts longest (12 hours). */}

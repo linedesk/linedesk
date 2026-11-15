@@ -125,21 +125,22 @@ export function resetErrorMessage(error: unknown): string {
   return authErrorMessage(error)
 }
 
-/** A new password, by the sign-up rules (Better Auth's 8 characters at least). */
+/** A new password, by Better Auth's rules (8 characters at least). */
 export function newPasswordError(password: string): string | null {
   if (!password) return i18n().t('auth.form.newPasswordMissing')
   return password.length < 8 ? authErrorText('PASSWORD_TOO_SHORT') : null
 }
 
-/** The sign-in and sign-up form, checked in the app's words before it is sent (no browser bubbles). */
+/**
+ * The sign-in form, checked in the app's words before it is sent (no browser bubbles). There is no sign-up form: a
+ * `name` passed along (the invitation page) is not checked.
+ */
 export function authFormError(
-  step: 'email' | 'password' | 'signUp',
-  form: { name: string; email: string; password: string },
+  step: 'email' | 'password',
+  form: { email: string; password: string; name?: string },
 ): string | null {
-  if (step === 'signUp' && !form.name.trim()) return i18n().t('shell.askName.empty')
   const email = emailError(form.email)
   if (email || step === 'email') return email
   if (!form.password) return i18n().t('auth.form.passwordMissing')
-  if (step === 'signUp' && form.password.length < 8) return authErrorText('PASSWORD_TOO_SHORT')
   return null
 }

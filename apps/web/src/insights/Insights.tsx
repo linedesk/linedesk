@@ -6,12 +6,12 @@ import { insightPeriods } from '@linedesk/actions'
 import { useEffect, useRef, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { callAction, readAction } from '../settings/settings-api.ts'
-import { useAssistantName } from '../store.tsx'
+import { useAssistantNameOrNull } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { DateInput, FormMessage } from '../ui/form.tsx'
 import { AppointmentValue } from '../settings/AppointmentValue.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
-import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonText } from '../ui/LoadStates.tsx'
 import {
   busiestTime,
   type ChartMetric,
@@ -64,7 +64,8 @@ export function Insights({ canEdit, toast }: Props) {
   const [metric, setMetric] = useState<ChartMetric>('answered')
   const shownRange = range ?? { from: '', to: '' }
   const query = useQuery(queryKey(period, shownRange), load(period, shownRange), { persist: true })
-  const assistant = useAssistantName()
+  // Null until the assistants arrive: the lede and the summary wait for the name instead of saying "Assistant" first.
+  const assistant = useAssistantNameOrNull()
   // An answer cached by an older version of the page has no daily counts per outcome: wait for the new one.
   const data = query.data?.byWeekdayHour ? query.data : undefined
   const lastShown = useRef<Range | null>(null)
@@ -85,7 +86,9 @@ export function Insights({ canEdit, toast }: Props) {
             <p>
               {data
                 ? `${spanLabel(data.from, data.to)} · ${timeZoneLabel(data.timeZone)}`
-                : t('insights.lede', { assistant })}
+                : assistant === null
+                  ? <SkeletonText width={180} />
+                  : t('insights.lede', { assistant })}
             </p>
           </div>
           <div className="in-controls">
@@ -103,12 +106,12 @@ export function Insights({ canEdit, toast }: Props) {
         {period === 'custom' && range && <RangeFields range={range} onChange={setRange} />}
         <Loading
           what={t('insights.title')}
-          loading={!data}
+          loading={!data || assistant === null}
           error={query.error}
           onRetry={() => void query.reload()}
           skeleton={<InsightsSkeleton />}
         >
-          {data && (
+          {data && assistant !== null && (
             <>
               <Summary data={data} assistant={assistant} canEdit={canEdit} toast={toast} />
               <Numbers data={data} metric={metric} onMetric={setMetric} />

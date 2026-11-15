@@ -109,11 +109,11 @@ test('cancel stops waiting (the dialog closed)', async () => {
   expect(store.listeners.size).toBe(0)
 })
 
-test('the message in place of the button says why and links to Settings › Phone numbers', () => {
+test('the message in place of the button says why and links to Workspace settings › Phone numbers', () => {
   const none = renderToStaticMarkup(<ForwardingMissing missing="none" onRetry={() => {}} />)
   expect(none).toContain('No forwarded number in this workspace.')
   expect(none).toContain('href="#workspace/phone"')
-  expect(none).toContain('Settings › Phone numbers')
+  expect(none).toContain('Workspace settings › Phone numbers')
   expect(none).not.toContain('Try again')
   const late = renderToStaticMarkup(<ForwardingMissing missing="not_loaded" onRetry={() => {}} />)
   expect(late).toContain('Your phone numbers didn&#x27;t load.')

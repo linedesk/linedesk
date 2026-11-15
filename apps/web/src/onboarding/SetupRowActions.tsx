@@ -134,7 +134,7 @@ function TestCallHere({
 }
 
 /**
- * "Set up forwarding" on the Call forwarding row: the number's dialog from Settings › Phone numbers (codes for the
+ * "Set up forwarding" on the Call forwarding row: the number's dialog from Workspace settings › Phone numbers (codes for the
  * carrier, then "Check forwarding", which calls the business line and marks the step done once the call arrives).
  */
 export function SetupForwarding({
@@ -214,7 +214,7 @@ export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing
         </>
       )}
       <a className="k-link" href={sectionHash('workspace', 'phone')}>
-        Settings › Phone numbers
+        Workspace settings › Phone numbers
       </a>
     </span>
   )

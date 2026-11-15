@@ -35,10 +35,11 @@ export type SignInStart = { passkeyFirst: boolean; emailOpen: boolean }
 export function signInStart(input: {
   passkeyOn: boolean
   supported: boolean
-  signUp: boolean
+  /** Signing a signed-in member in again (the admin area): the passkey is offered inside the form instead. */
+  reauth: boolean
   lastUsed: SignInMethodId | null
 }): SignInStart {
-  const passkeyFirst = input.passkeyOn && input.supported && !input.signUp
+  const passkeyFirst = input.passkeyOn && input.supported && !input.reauth
   return { passkeyFirst, emailOpen: !passkeyFirst || input.lastUsed === 'email' || input.lastUsed === 'password' }
 }
 

@@ -28,16 +28,13 @@ test('password and sign-up errors use the app wording, never the library wording
   expect(authErrorMessage({ message: 'Something odd' })).not.toMatch(/odd/)
 })
 
-test('the auth form is checked in the app words before it is sent', () => {
-  const form = { name: 'Mike', email: 'mike@example.com', password: 'long-enough' }
-  expect(authFormError('signUp', form)).toBeNull()
-  expect(authFormError('signUp', { ...form, name: ' ' })).toBe('Enter your name.')
+test('the sign-in form is checked in the app words before it is sent', () => {
+  const form = { email: 'mike@example.com', password: 'long-enough' }
   expect(authFormError('email', { ...form, email: '' })).toBe('Enter an email address.')
   expect(authFormError('email', { ...form, email: 'mike@' })).toBe('Enter a valid email address.')
   expect(authFormError('email', { ...form, password: '' })).toBeNull()
   expect(authFormError('password', { ...form, password: '' })).toBe('Enter your password.')
   expect(authFormError('password', { ...form, password: 'short' })).toBeNull()
-  expect(authFormError('signUp', { ...form, password: 'short' })).toBe('Use at least 8 characters for the password.')
 })
 
 

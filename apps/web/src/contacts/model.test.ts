@@ -7,6 +7,7 @@ import {
   duplicatePairs,
   EMPTY_NEW_CONTACT,
   filterContactRows,
+  isTestCallContact,
   matchesContact,
   mergeDefaults,
   NEW_CONTACT_MAX_LENGTH,
@@ -211,5 +212,17 @@ describe('New contact', () => {
     expect(newContactInput(form({ phone: '+15035550100', email: 'a@b.example' }), new Set(['+15035550100']))).toEqual({
       problem: 'That number is already in Contacts.',
     })
+  })
+})
+
+describe('the shared test-call contact (B16)', () => {
+  it('is left out of the list, and so of search and merge', () => {
+    const test = contact({ id: 't', phone: 'test', name: 'Test call' })
+    const mike = contact({ id: 'm', name: 'Mike' })
+    const rows = contactRows([test, mike], [call({ id: 'c1', contact_id: 't' })])
+    expect(rows.map(r => r.contact.id)).toEqual(['m'])
+    expect(filterContactRows(rows, 'test')).toEqual([])
+    expect(isTestCallContact(test)).toBe(true)
+    expect(isTestCallContact(mike)).toBe(false)
   })
 })

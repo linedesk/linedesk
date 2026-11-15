@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { knownSectionHash } from '../ui/SettingsLayout.tsx'
 import {
   callHash,
+  contactHash,
+  contactIdOf,
   clearRoute,
   linkNotice,
   linkWorkspace,
@@ -46,6 +48,15 @@ describe('route parsing', () => {
     expect(parseHash('#assistant', last)).toMatchObject({ route: 'assistant', tab: 'done', search: 'leak' })
     expect(parseHash('#calls/spam', last)).toMatchObject({ tab: 'spam', search: null })
   })
+  it('opens one contact from #contacts/<id> (C9), and writes that link', () => {
+    expect(parseHash('#contacts/ct_123')).toEqual({ ...list, route: 'contacts' })
+    expect(contactIdOf('#contacts/ct_123')).toBe('ct_123')
+    expect(contactIdOf('#contacts')).toBeNull()
+    expect(contactIdOf('#contacts/a/b')).toBeNull()
+    expect(contactIdOf('#call/ct_123')).toBeNull()
+    expect(contactHash('ct_123')).toBe('#contacts/ct_123')
+    expect(contactIdOf(contactHash('ct 1/2'))).toBe('ct 1/2')
+  })
   it('marks unknown and inherited names as unknown and shows the inbox', () => {
     for (const hash of [
       '#nope',
@@ -60,6 +71,7 @@ describe('route parsing', () => {
       '#team',
       '#assistant/a/b/c',
       '#assistant/h%20x',
+      '#contacts/a/b',
     ]) {
       expect(parseHash(hash)).toEqual({ ...list, known: false })
     }

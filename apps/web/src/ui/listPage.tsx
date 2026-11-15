@@ -69,16 +69,18 @@ export function SearchField({ id, value, placeholder, label, onChange, onClose, 
   )
 }
 
-/** The shortcut line under a list: J K move first, then the page's own keys. */
-export function ShortcutHints({ hints }: { hints: [keys: string[], label: string][] }) {
+/** The shortcut line under a list: J K move first (`move`: only while there are rows to move to), then the page's own keys. */
+export function ShortcutHints({ hints, move = true }: { hints: [keys: string[], label: string][]; move?: boolean }) {
   const t = useT()
   return (
     <div className="ib-hint">
-      <span>
-        <Kbd keys={['J']} />
-        <Kbd keys={['K']} />
-        {t('common.shortcut.move')}
-      </span>
+      {move && (
+        <span>
+          <Kbd keys={['J']} />
+          <Kbd keys={['K']} />
+          {t('common.shortcut.move')}
+        </span>
+      )}
       {hints.map(([keys, label]) => (
         <span key={label}>
           <Kbd keys={keys} />

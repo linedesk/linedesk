@@ -220,20 +220,26 @@ export function currencyLabel(currency: JobValueCurrency): string {
   return symbol && symbol !== currency ? `${currency} · ${symbol}` : currency
 }
 
-/** The currencies most businesses pick, first in the menu in this order; the rest follow by code. */
-export const TOP_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const satisfies readonly JobValueCurrency[]
+/** The currencies most businesses pick, first in the menu in this order (like the phone countries, #736). */
+export const COMMON_CURRENCIES = ['USD', 'CAD', 'GBP', 'AUD'] as const satisfies readonly JobValueCurrency[]
+
+/** The top of the menu: the viewer's own currency (their country's, useViewerCurrency) first, then COMMON_CURRENCIES. */
+export function topCurrencies(viewer?: JobValueCurrency | null): JobValueCurrency[] {
+  return [...new Set<JobValueCurrency>([...(viewer ? [viewer] : []), ...COMMON_CURRENCIES])]
+}
 
 /**
- * The currencies offered next to the appointment value, in the order of the menu: TOP_CURRENCIES, then under an
+ * The currencies offered next to the appointment value, in the order of the menu: topCurrencies, then under an
  * "All currencies" heading every other one by code (the top ones are not repeated). Every currency picker uses it.
  * A function: the symbols and the heading are in the active language.
  */
-export function currencyOptions(): SelectOption<JobValueCurrency>[] {
+export function currencyOptions(viewer?: JobValueCurrency | null): SelectOption<JobValueCurrency>[] {
   const all = t('insights.currency.all')
+  const top = topCurrencies(viewer)
   return [
-    ...TOP_CURRENCIES.map(c => ({ value: c, label: currencyLabel(c) })),
+    ...top.map(c => ({ value: c, label: currencyLabel(c) })),
     ...jobValueCurrencies
-      .filter(c => !(TOP_CURRENCIES as readonly JobValueCurrency[]).includes(c))
+      .filter(c => !top.includes(c))
       .sort()
       .map(c => ({ value: c, label: currencyLabel(c), group: all })),
   ]

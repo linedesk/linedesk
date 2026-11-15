@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from './session.ts'
 
 vi.mock('./auth.ts', () => ({ signedInAccount: vi.fn(async () => null) }))
-const { expectSessionChange, forgetMe, loadSession, rememberedSession, sameSession } = await import('./session.ts')
+const { expectSessionChange, forgetMe, loadSession, rememberedSession, sameSession, signedOutOfWorkspace } = await import('./session.ts')
 const { signedInAccount } = await import('./auth.ts')
+const { i18n } = await import('./i18n/index.tsx')
 
 const me = { actorId: 'u1', role: 'owner', permissions: ['call:write'], workspace: { id: 'ws1', name: 'Tims Org' }, sessionExpiresAt: '2100-01-01T00:00:00.000Z' }
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
@@ -71,6 +72,43 @@ describe('session at load', () => {
     vi.mocked(signedInAccount).mockResolvedValue('someone_else')
     vi.stubGlobal('fetch', vi.fn(async () => json(401, { ok: false, code: 'no_workspace' })))
     expect(await loadSession()).toMatchObject({ state: 'needsWorkspace', lostWorkspace: null })
+  })
+})
+
+describe('a session the server ended while signed in (A7)', () => {
+  const signIn = async (who: object = me) => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, who)))
+    await loadSession()
+  }
+  it('names the workspace on the sign-in page when the session ended before its time, until someone signs in', async () => {
+    await signIn()
+    vi.stubGlobal('fetch', vi.fn(async () => json(401, {})))
+    expect(await loadSession()).toEqual({ state: 'signedOut' })
+    expect(signedOutOfWorkspace()).toBe('Tims Org')
+    expect(await loadSession()).toEqual({ state: 'signedOut' }) // a second load (React's dev double start) keeps it
+    expect(signedOutOfWorkspace()).toBe('Tims Org')
+    await signIn()
+    expect(signedOutOfWorkspace()).toBeNull()
+  })
+  it('says only "signed out": the server does not say why (a removal, a password change, another device signing it out)', async () => {
+    await signIn()
+    vi.stubGlobal('fetch', vi.fn(async () => json(401, {})))
+    await loadSession()
+    const note = i18n().t('auth.signedOutOf', { workspace: signedOutOfWorkspace()! })
+    expect(note).toBe('You were signed out of Tims Org.')
+    expect(note).not.toMatch(/access|removed|ended/i)
+  })
+  it('says nothing after a session that ran out, a sign-out here, or without a remembered workspace', async () => {
+    await signIn({ ...me, sessionExpiresAt: '2020-01-01T00:00:00.000Z' })
+    vi.stubGlobal('fetch', vi.fn(async () => json(401, {})))
+    await loadSession()
+    expect(signedOutOfWorkspace()).toBeNull()
+
+    await signIn()
+    forgetMe() // signed out on purpose
+    vi.stubGlobal('fetch', vi.fn(async () => json(401, {})))
+    await loadSession()
+    expect(signedOutOfWorkspace()).toBeNull()
   })
 })
 

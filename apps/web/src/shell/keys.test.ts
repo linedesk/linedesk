@@ -211,16 +211,28 @@ describe('shell keys', () => {
     expect(vi.mocked(c.setTab).mock.calls).toEqual([['you']])
   })
 
-  it('uses Tab in the list only for the views, whatever has the focus, and blurs a clicked control', () => {
+  it('switches views with Tab and ⇧Tab only while nothing has the focus (Q11)', () => {
     const c = context()
-    const blur = vi.fn()
     expect(press('Tab', c)).toBe(true)
     expect(press('Tab', c, { shiftKey: true })).toBe(true)
-    expect(
-      handleKey({ key: 'Tab', shiftKey: false, target: { tagName: 'BUTTON', blur } } as unknown as KeyboardEvent, c),
-    ).toBe(true)
+    expect(press('Tab', c, { tagName: 'HTML' })).toBe(true)
     expect(vi.mocked(c.setTab).mock.calls).toEqual([['ai'], ['spam'], ['ai']])
+  })
+  it('leaves Tab to the browser on a focused control in the list, so keyboard users reach every control (Q11)', () => {
+    const c = context()
+    for (const tagName of ['BUTTON', 'A', 'SPAN', 'DIV', 'DIALOG']) {
+      expect(press('Tab', c, { tagName })).toBe(false)
+      expect(press('Tab', c, { tagName, shiftKey: true })).toBe(false)
+    }
+    expect(press('Tab', c, { tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(c.setTab).not.toHaveBeenCalled()
+  })
+  it('hands the focus back to the list on Esc, so Tab switches views again', () => {
+    const blur = vi.fn()
+    const c = context({ tab: 'done' })
+    handleKey({ key: 'Escape', target: { tagName: 'BUTTON', id: '', blur } } as unknown as KeyboardEvent, c)
     expect(blur).toHaveBeenCalled()
+    expect(c.setTab).toHaveBeenCalledWith('you') // and Esc still does what it does in the list
   })
   it('leaves Tab to the browser in an open call, so next steps, caller fields and previous calls are reachable', () => {
     const c = context({ isCallOpen: true })

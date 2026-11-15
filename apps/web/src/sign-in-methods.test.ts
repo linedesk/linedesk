@@ -34,7 +34,7 @@ describe('last used sign-in method', () => {
 })
 
 describe('how the sign-in page starts', () => {
-  const on = { passkeyOn: true, supported: true, signUp: false, lastUsed: null }
+  const on = { passkeyOn: true, supported: true, reauth: false, lastUsed: null }
 
   it('puts the passkey first, the email code behind "Use an email code instead"', () => {
     expect(signInStart(on)).toEqual({ passkeyFirst: true, emailOpen: false })
@@ -47,10 +47,10 @@ describe('how the sign-in page starts', () => {
     expect(signInStart({ ...on, lastUsed: 'google' })).toEqual({ passkeyFirst: true, emailOpen: false })
   })
 
-  it('shows the email form directly where passkeys cannot be used, and for creating an account', () => {
+  it('shows the email form directly where passkeys cannot be used, and when signing in again', () => {
     expect(signInStart({ ...on, supported: false })).toEqual({ passkeyFirst: false, emailOpen: true })
     expect(signInStart({ ...on, passkeyOn: false })).toEqual({ passkeyFirst: false, emailOpen: true })
-    expect(signInStart({ ...on, signUp: true })).toEqual({ passkeyFirst: false, emailOpen: true })
+    expect(signInStart({ ...on, reauth: true })).toEqual({ passkeyFirst: false, emailOpen: true })
   })
 })
 

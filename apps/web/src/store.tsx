@@ -220,6 +220,15 @@ export function useAssistant() {
   return useAssistants()[0]
 }
 export const useAssistantName = () => useAssistant()?.name ?? 'Assistant'
+/**
+ * The default assistant's name, or null while the assistants have not arrived on this device yet: headers that name
+ * the assistant show a skeleton then (`SkeletonText`) rather than a generic word that flips to the name (rule 15).
+ */
+export function useAssistantNameOrNull(): string | null {
+  const name = useAssistant()?.name
+  const loaded = useSnapshotValue(s => s.synced.has('assistants') || s.tables.assistants.size > 0)
+  return name ?? (loaded ? 'Assistant' : null)
+}
 /** The assistant that handled a call (calls from before several assistants: the default one). */
 export function useCallAssistantName(assistantId: string | null): string {
   const assistants = useAssistants()

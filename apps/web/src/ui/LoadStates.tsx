@@ -140,6 +140,19 @@ export function Skeleton({ shape = 'block', width, height, className }: Skeleton
   return <span className={cx('sk', `sk-${shape}`, className)} style={{ width, height }} aria-hidden="true" />
 }
 
+/**
+ * Words in a header or tab that depend on data still loading (the assistant's name): one text bar of the words' width,
+ * inline, invisible for a quick load like every skeleton. The area around it announces nothing: it is part of a label.
+ */
+export function SkeletonText({ width, className }: { width: number | string; className?: string }) {
+  const view = useLoading(true)
+  return (
+    <span className={cx('ld-busy', view.phase === 'reserve' && 'is-reserved', className)} style={pulseInStep()}>
+      <Skeleton shape="text" width={width} />
+    </span>
+  )
+}
+
 /** Labelled controls (form.tsx FormField with an input): the label's line and a 32px field, `fields` times. */
 export function SkeletonFields({ fields = 2 }: { fields?: number }) {
   return Array.from({ length: fields }, (_, i) => (

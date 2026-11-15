@@ -14,7 +14,7 @@ import { changedByLabel } from '../../team/team-model.ts'
 import { dateTimeLabel } from '../../time.ts'
 import { onSaveKey, SaveBar } from '../../ui/form.tsx'
 import { Badge, Button, Note } from '../../ui/kit.tsx'
-import { Loading, Skeleton } from '../../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonText } from '../../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
 import { Notifications } from '../Notifications.tsx'
@@ -835,7 +835,15 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
   const props = account ? { account, reload } : null
   return (
     <div className="page">
-      <SettingsLayout page="account" title={t('account.title')} sections={shown} current={current}>
+      <SettingsLayout
+        page="account"
+        title={t('account.title')}
+        // The account's email as the context line, like the workspace's name on Workspace settings: both pages
+        // start at the same height (C22); a bar of its width while the account loads.
+        description={account ? account.user.email : query.error ? null : <SkeletonText width={180} />}
+        sections={shown}
+        current={current}
+      >
         {!props && (current === 'profile' || current === 'security') && (
           <AccountSkeleton
             current={current}

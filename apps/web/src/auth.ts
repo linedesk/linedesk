@@ -187,7 +187,7 @@ export function resetPasswordWithCode(email: string, otp: string, password: stri
   return auth.emailOtp.resetPassword({ email, otp, password })
 }
 
-/** Signs in (or, where sign-up is open, signs up) with the emailed code. */
+/** Signs in with the emailed code (there is no sign-up; an invited address gets its account on this first sign-in). */
 export function signInWithCode(email: string, otp: string) {
   return auth.signIn.emailOtp({ email, otp })
 }

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, 
 import type { SegmentsByCall } from '../call/segments.ts'
 import type { CallGroups, InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
+import { inboxHints } from './hints.ts'
 import { Checkbox } from '../ui/controls.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
 import { Loading, SkeletonRows, useLoading, useLoadState } from '../ui/LoadStates.tsx'
@@ -119,21 +120,9 @@ function ListHead({
   )
 }
 
-function Hints({ tab }: { tab: InboxTab }) {
+function Hints({ tab, hasRows }: { tab: InboxTab; hasRows: boolean }) {
   const t = useT()
-  const done: [string[], string] =
-    tab === 'done' ? [['⇧', 'E'], t('common.shortcut.notDone')] : [['E'], t('common.shortcut.done')]
-  return (
-    <ShortcutHints
-      hints={[
-        [['⏎'], t('common.shortcut.open')],
-        done,
-        [['tab'], t('common.shortcut.switch')],
-        [['⌘', 'K'], t('common.shortcut.commands')],
-        [['?'], t('common.shortcut.allShortcuts')],
-      ]}
-    />
-  )
+  return <ShortcutHints move={hasRows} hints={inboxHints(tab, hasRows).map(([keys, label]) => [keys, t(label)])} />
 }
 
 const NO_SEGMENTS: TranscriptSegment[] = []
@@ -360,7 +349,7 @@ export function Inbox({
           )}
         </div>
       </div>
-      <Hints tab={tab} />
+      <Hints tab={tab} hasRows={list.length > 0 && !waiting} />
     </div>
   )
 }

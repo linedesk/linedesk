@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest'
 import {
   busiestTime,
   currencyOptions,
+  topCurrencies,
   currencyLabel,
   formatMoney,
   moneyText,
@@ -176,10 +177,10 @@ test('the currency menu shows each code with its symbol, the code alone where th
   expect(currencyOptions()[0]).toEqual({ value: 'USD', label: 'USD · $' })
 })
 
-test('the currency menu shows the common currencies first, then every other one by code under a heading', () => {
+test('the currency menu shows the common currencies first (C12), then every other one by code under a heading', () => {
   const top = currencyOptions().filter(o => !o.group).map(o => o.value)
   const rest = currencyOptions().filter(o => o.group).map(o => o.value)
-  expect(top).toEqual(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
+  expect(top).toEqual(['USD', 'CAD', 'GBP', 'AUD'])
   expect(rest).toEqual([
     'AED',
     'ARS',
@@ -191,6 +192,7 @@ test('the currency menu shows the common currencies first, then every other one 
     'CZK',
     'DKK',
     'EGP',
+    'EUR',
     'HKD',
     'HUF',
     'IDR',
@@ -248,4 +250,13 @@ test('the totals table counts a JPY value in whole yen', () => {
   } as never)
   expect(t.header.at(-1)).toBe('Booked value (JPY)')
   expect(t.rows[0]!.at(-1)).toBe(10_000)
+})
+
+test("the viewer's own currency leads the menu, once (C12)", () => {
+  expect(topCurrencies('EUR')).toEqual(['EUR', 'USD', 'CAD', 'GBP', 'AUD'])
+  expect(topCurrencies('GBP')).toEqual(['GBP', 'USD', 'CAD', 'AUD'])
+  expect(topCurrencies(null)).toEqual(['USD', 'CAD', 'GBP', 'AUD'])
+  const options = currencyOptions('EUR')
+  expect(options[0]).toEqual({ value: 'EUR', label: 'EUR · €' })
+  expect(options.filter(o => o.value === 'EUR')).toHaveLength(1)
 })

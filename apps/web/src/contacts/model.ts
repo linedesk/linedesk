@@ -1,5 +1,5 @@
 // The Contacts list is derived from the synced contacts and calls: who called, how often, when last and about what.
-import { CONTACT_IMPORT_LIMITS, phoneNumberProblem } from '@linedesk/actions'
+import { CONTACT_IMPORT_LIMITS, phoneNumberProblem, testCallContact } from '@linedesk/actions'
 import type { Call, Contact } from '@linedesk/db/types'
 import { formatPhone } from '../inbox-model.ts'
 import { parseTs } from '../time.ts'
@@ -24,7 +24,13 @@ function nextStepOf(calls: Call[]): string | null {
   return open?.action_items.find(i => !i.done)?.text ?? null
 }
 
-/** Every contact with its calls, sorted by the most recent call that was about something (numbers that only hung up
+/**
+ * The one contact every browser test call is filed under (phone `test`, apps/api/src/handlers.ts): not a person, and
+ * no number to call, so the list, search, merge and the contact link leave it out (B16).
+ */
+export const isTestCallContact = (contact: Pick<Contact, 'phone'>) => contact.phone === testCallContact.phone
+
+/** Every contact with its calls (deleted ones and the test-call contact left out), sorted by the most recent call that was about something (numbers that only hung up
  * come after them), then by the most recent call; contacts without calls come last, newest first. */
 export function contactRows(contacts: Iterable<Contact>, calls: Iterable<Call>): ContactRow[] {
   const byContact = new Map<string, Call[]>()
@@ -35,7 +41,7 @@ export function contactRows(contacts: Iterable<Contact>, calls: Iterable<Call>):
     byContact.set(call.contact_id, list)
   }
   const rows = [...contacts]
-    .filter(contact => !contact.deleted_at)
+    .filter(contact => !contact.deleted_at && !isTestCallContact(contact))
     .map(contact => {
       const own = (byContact.get(contact.id) ?? []).sort((a, b) => startedMs(b) - startedMs(a))
       return { contact, calls: own, lastCall: own[0], nextStep: nextStepOf(own) }

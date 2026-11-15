@@ -40,6 +40,12 @@ describe('list page frame', () => {
     expect(html).toMatch(/^<div class="ib-hint"><span>.*J.*K.*move<\/span><span>.*⏎.*open<\/span><\/div>$/)
   })
 
+  test('an empty list leaves J K move out (C6)', () => {
+    const html = renderToStaticMarkup(<ShortcutHints move={false} hints={[[['tab'], 'switch']]} />)
+    expect(html).not.toContain('move')
+    expect(html).toContain('switch')
+  })
+
   test('the inbox and contacts share one empty state', () => {
     const inbox = renderToStaticMarkup(
       <InboxEmpty tab="you" search={null} assistant="Maya" handledCount={0} hasAnyCalls={false} />,

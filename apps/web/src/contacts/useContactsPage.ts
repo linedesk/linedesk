@@ -2,14 +2,22 @@
 // so Esc in that call comes back to the same contact, search and row.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { setPageKeys } from '../shell/keys.ts'
+import { contactHash, contactIdOf } from '../shell/useRoute.ts'
 import { useRows } from '../store.tsx'
+import { useLoadState } from '../ui/LoadStates.tsx'
 import { contactRows, filterContactRows } from './model.ts'
 
 export const CONTACT_SEARCH_ID = 'contact-search'
 
 /** `searching`: the search field is open in the header (like the inbox's). `creating`: the New contact form is open. */
-type Place = { query: string; searching: boolean; cursorId: string | null; openId: string | null; creating: boolean }
+export type Place = { query: string; searching: boolean; cursorId: string | null; openId: string | null; creating: boolean }
 let remembered: Place = { query: '', searching: false, cursorId: null, openId: null, creating: false }
+
+/** The place a `#contacts/<id>` link asks for: that contact open and under the cursor; any other hash keeps `place`. */
+export function placeFromHash(place: Place, hash: string): Place {
+  const id = contactIdOf(hash)
+  return id ? { ...place, cursorId: id, openId: id, creating: false } : place
+}
 
 /** Focus the search field once it is rendered (it replaces the header when the search opens). */
 function focusSearch() {
@@ -24,15 +32,34 @@ function focusSearch() {
 export function useContactsPage({ remove }: { remove: (contactId: string) => void }) {
   const contacts = useRows('contacts')
   const calls = useRows('calls')
-  const [place, setPlace] = useState(remembered)
+  // A link to one contact (`#contacts/<id>`) opens it; otherwise the page is where it was left.
+  const [place, setPlace] = useState(() => placeFromHash(remembered, window.location.hash))
   useEffect(() => {
     remembered = place
   }, [place])
+  // The address names the open contact, so the panel can be shared and stays open on reload (replaced: Back leaves
+  // the page, it does not step through contacts).
+  useEffect(() => {
+    const now = window.location.hash.split('?')[0]!
+    const want = place.openId ? contactHash(place.openId) : '#contacts'
+    if (now !== want && /^#contacts(\/|$)/.test(now)) window.history.replaceState(null, '', want)
+  }, [place.openId])
+  // A contact link opened while the page is shown (pasted, or Back/Forward).
+  useEffect(() => {
+    const onHash = () => setPlace(p => placeFromHash(p, window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const all = useMemo(() => contactRows(contacts, calls), [contacts, calls])
   const rows = useMemo(() => filterContactRows(all, place.query), [all, place.query])
   const cursor = rows.find(r => r.contact.id === place.cursorId) ?? rows[0]
   const opened = all.find(r => r.contact.id === place.openId)
+  // A link to a contact that is not there (deleted, merged, the test-call contact): the list, without the panel.
+  const loaded = useLoadState('contacts') === 'ready'
+  useEffect(() => {
+    if (loaded && place.openId && !opened) setPlace(p => ({ ...p, openId: null }))
+  }, [loaded, place.openId, opened])
   // A contact just added shows up once it is synced; then its record opens.
   const [awaiting, setAwaiting] = useState<string | null>(null)
   useEffect(() => {

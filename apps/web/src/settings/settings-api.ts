@@ -4,6 +4,7 @@ import type { ActionResult, WorkspaceSettingsData } from '@linedesk/actions'
 import { useCallback } from 'react'
 import { useStore } from '../store.tsx'
 import { fetchQuery, refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 
 /** Runs a read-only registry action and returns its `data`. */
@@ -29,7 +30,7 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
   }).catch(() => null)
   const body = (await res?.json().catch(() => null)) as ActionResult | { ok: false; error?: string } | null
   if (!res?.ok || !body?.ok)
-    throw new Error((body && !body.ok && body.error) || "Can't reach the server. Check your connection and try again.")
+    throw new Error((body && !body.ok && body.error) || i18n().t('errors.unreachable'))
   return body
 }
 

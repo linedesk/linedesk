@@ -1,10 +1,11 @@
 // What one booked appointment is worth on average, and in which currency (workspace.updateSettings,
 // jobValueCents and jobValueCurrency): set in Workspace settings › General and from the Insights summary,
 // which multiplies it by the booked appointments.
-import { currencyDigits, type JobValueCurrency } from '@linedesk/actions'
+import { currencyDigits, currencyOfCountry, type JobValueCurrency } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useMemo, useState } from 'react'
 import { currencyOptions, formatMoney, moneyText, parseMoney } from '../insights/insightsModel.ts'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { useRun } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { FormMessage, Input } from '../ui/form.tsx'
@@ -47,8 +48,10 @@ export function AppointmentValue({
 }: Props) {
   const t = useT()
   const run = useRun()
+  // The viewer's own currency first (the workspace's country, else the browser's), then USD, CAD, GBP, AUD (C12).
+  const viewer = currencyOfCountry(useDefaultPhoneCountry())
   // biome-ignore lint/correctness/useExhaustiveDependencies: the labels follow the active language (t)
-  const options = useMemo(() => currencyOptions(), [t])
+  const options = useMemo(() => currencyOptions(viewer), [t, viewer])
   const savedText = moneyText(value, savedCurrency)
   const [text, setText] = useState(savedText)
   const [currency, setCurrency] = useState(savedCurrency)

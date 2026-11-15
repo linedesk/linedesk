@@ -454,6 +454,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     assistantName,
     goPage,
     isInstanceAdmin: instanceAdmin,
+    isOwner: me.role === 'owner',
     openSearch,
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),

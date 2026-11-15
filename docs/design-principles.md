@@ -42,6 +42,10 @@ Linedesk should feel like a calm, native tool, not a dashboard. These rules come
     - Check it with the network throttled (DevTools › Network › Slow 4G). `apps/web/src/ui/loadingStandard.test.ts` fails on "Loading…" text, on a spinner outside a pressed button, and on a component that reads data (`useQuery`, `useLoadState`) without the loading states unless it is listed there with the reason it needs none.
 16. **Help on demand.** A screen shows only what most people need. Explanations that only some people need go behind a "?" next to the field or heading: short (1–3 sentences), with copyable commands where useful. Keep visible: things everyone must read to avoid a mistake (warnings, consequences of destructive actions, required formats that cause errors). Don't hide primary instructions behind "?". How: `HelpTip` (`ui/HelpTip.tsx`), or the `help` prop of `Card`/`FormField` (`tip` on the settings `Field`, `help` on `Section` and `SelectRow`): one look and place everywhere, after the heading or label, or at the right end inside a field (`inField`). It opens on hover, click, tap and keyboard focus, closes on Esc, a click outside or focus leaving, and floats in the top layer.
 
+## Control heights
+
+Text fields, selects and buttons take their height from three tokens (styles.css), never their own: sm (28px): compact rows where every control is small (card headers, list rows, toolbars); default (32px): everything else; lg (36px): onboarding and sign-in. Controls in one row share one size.
+
 ## Messages: one look per kind
 
 Every message in the app is one of these four. Don't add a new style; pick the kind, then the tone.

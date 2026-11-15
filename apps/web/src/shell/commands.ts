@@ -48,6 +48,8 @@ export type CommandContext = {
   /** Open a page, or one section of it (`goPage('workspace', 'team')`). */
   goPage: (route: PageRoute, section?: string) => void
   isInstanceAdmin: boolean
+  /** The workspace's owner, who cannot leave it (only hand it over or delete it): no "Leave workspace…" then. */
+  isOwner?: boolean
   undo: () => void
   openSearch: () => void
   openHelp: () => void
@@ -368,13 +370,17 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           searchOnly: true,
           run: () => c.goPage('account', 'notifications'),
         },
-        {
-          label: t('shell.command.leaveWorkspace'),
-          keywords: 'quit exit danger',
-          icon: 'users',
-          searchOnly: true,
-          run: () => c.goPage('workspace', 'danger'),
-        },
+        ...(c.isOwner
+          ? []
+          : [
+              {
+                label: t('shell.command.leaveWorkspace'),
+                keywords: 'quit exit danger',
+                icon: 'users',
+                searchOnly: true,
+                run: () => c.goPage('workspace', 'danger'),
+              } satisfies Command,
+            ]),
         ...(c.isInstanceAdmin
           ? [
               {
