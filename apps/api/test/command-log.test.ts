@@ -157,6 +157,29 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
       result: { ok: true, data: { subject: { email: 'ann@linedesk.test' } } },
     },
     {
+      // A change of transfer contacts (audit.ts, TRANSFER_CHANGE_ACTIONS): the input goes down to ids, what the audit
+      // log shows of it stays.
+      id: id('old-transfers'),
+      action: 'assistant.update',
+      created_at: old,
+      input: { assistantId: 'as_1', transfers: [{ id: 'oncall', name: 'Mike', number: '+15035550199' }] },
+      result: {
+        ok: true,
+        rowIds: { assistants: ['as_1'] },
+        data: {
+          transferChanges: { added: [{ id: 'oncall', name: 'Mike', number: '…0199' }], changed: [], removed: [], reordered: false },
+        },
+      },
+    },
+    {
+      // Any other assistant change is everyday work: pruned.
+      id: id('old-greeting'),
+      action: 'assistant.update',
+      created_at: old,
+      input: { assistantId: 'as_1', greeting: 'Hi, this is Maya.' },
+      result: { ok: true },
+    },
+    {
       id: id('new-note'),
       action: 'contact.update',
       created_at: new Date().toISOString(),
@@ -187,6 +210,15 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
   })
   expect(after.get(rows[0]!.id)!.pruned_at).not.toBeNull()
   expect(after.get(rows[1]!.id)).toMatchObject({ input: rows[1]!.input, result: rows[1]!.result, pruned_at: null })
-  expect(after.get(rows[2]!.id)).toMatchObject({ input: rows[2]!.input, pruned_at: null })
+  expect(after.get(rows[2]!.id)).toEqual(
+    expect.objectContaining({
+      input: { assistantId: 'as_1', transfers: OMITTED },
+      result: { ok: true, data: { transferChanges: rows[2]!.result.data!.transferChanges } },
+    }),
+  )
+  expect(after.get(rows[2]!.id)!.pruned_at).not.toBeNull()
+  expect(after.get(rows[3]!.id)).toMatchObject({ input: { assistantId: 'as_1', greeting: OMITTED } })
+  expect(after.get(rows[3]!.id)!.pruned_at).not.toBeNull()
+  expect(after.get(rows[4]!.id)).toMatchObject({ input: rows[4]!.input, pruned_at: null })
   expect(await pruneOldCommands(db)).toBe(0) // already pruned rows are not touched again
 })

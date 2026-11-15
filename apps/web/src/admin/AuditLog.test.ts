@@ -3,8 +3,34 @@ import { auditLabel } from './AuditLog.tsx'
 
 const label = (what: string, input: unknown = {}, subject: string | null = null) =>
   auditLabel({ what, method: null, input, subject: subject ? { email: subject } : null })
+const transfers = (what: string, changes: { added?: string[]; changed?: string[]; removed?: string[] }) =>
+  auditLabel({
+    what,
+    method: null,
+    input: {},
+    subject: null,
+    transferChanges: { added: [], changed: [], removed: [], ...changes },
+  })
 
 describe('audit labels', () => {
+  test('changes of transfer contacts say whom; the countries say which', () => {
+    expect(transfers('assistant.update', { added: ['Sarah', 'Ana'], removed: ['Mike'] })).toBe(
+      'Changed the transfer contacts (added Sarah and Ana, removed Mike)',
+    )
+    expect(transfers('assistant.update', {})).toBe('Changed the transfer contacts (new order)')
+    expect(transfers('assistant.restoreVersion', { changed: ['Mike'] })).toBe(
+      'Restored an earlier assistant version, which changed the transfer contacts (changed Mike)',
+    )
+    // A refused change has no result: its input had the contacts.
+    expect(label('assistant.update', { transfers: [{ id: 'oncall', name: 'Mike', number: '…0199' }] })).toBe(
+      'Changed the transfer contacts',
+    )
+    // An assistant change without one (done by an AI agent or while signed in as someone) keeps its name.
+    expect(label('assistant.update', { greeting: 'Hi' })).toBe('assistant.update')
+    expect(label('outboundCountries.set', { countries: ['CA', 'MX'] })).toBe('Allowed calls to other countries: CA, MX')
+    expect(label('outboundCountries.set', { countries: [] })).toBe('Allowed no calls to other countries')
+  })
+
   test('branding says when Powered by Linedesk was hidden', () => {
     expect(label('branding.set', { name: 'Front Desk', starPrompt: true, poweredBy: true })).toBe(
       'Changed the branding to “Front Desk”',

@@ -420,6 +420,8 @@ export type AuditEntry = {
   /** Whom a team or membership change was about. */
   subject: { email: string | null } | null
   input: unknown
+  /** An assistant change that changed its transfer contacts: the contacts added, changed and removed, by name. */
+  transferChanges?: { added: string[]; changed: string[]; removed: string[] }
   refused: boolean
   ipAddress: string | null
 }

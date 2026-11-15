@@ -5,12 +5,13 @@
 //   keep only the ids of their input and result data, never transcript lines, names or numbers;
 // - deleting a call or a contact purges the commands about it the same way (`purgeCommandsAbout`);
 // - after COMMAND_INPUT_RETENTION_DAYS every command's input and result are cut down to ids, except
-//   the audited actions (team, admin, keys), whose inputs the audit log shows (`pruneOldCommands`).
+//   the audited actions (team, admin, keys), whose inputs the audit log shows; a change of transfer contacts keeps
+//   only its `data.transferChanges` (`pruneOldCommands`).
 import { type ActionDef, type ActionResult, REDACTED, redactInput } from '@linedesk/actions'
 import { commands, syncedTables, type Tx } from '@linedesk/db'
 import type { TableName } from '@linedesk/db/types'
 import { and, eq, inArray, isNull, lt, notInArray, or, sql, type SQL } from 'drizzle-orm'
-import { AUDITED_ACTIONS } from './audit.ts'
+import { AUDITED_ACTIONS, TRANSFER_CHANGE_ACTIONS } from './audit.ts'
 
 export const OMITTED = '[omitted]'
 /** Decision 2026-11-11: inputs and results 90 days, then ids only; when, who and what action stay. */
@@ -84,9 +85,19 @@ const idsOnlySql = (value: SQL) => sql`(
 /** A stored result cut down to whether it succeeded and the ids in its data (rows were never kept in full since this file). */
 const prunedResultSql = sql`jsonb_strip_nulls(jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', case when ${commands.result} ? 'data' then ${idsOnlySql(sql`${commands.result} -> 'data'`)} end))`
 
-export const pruneSet = (now: Date) => ({
+/**
+ * A change of transfer contacts keeps its `data.transferChanges` (ids, names, last four digits: audit.ts), which the
+ * audit log shows; everything else of its result and input goes down to ids like any command's.
+ */
+const keptTransferChangesSql = sql`case when ${commands.action} in (${sql.join(
+  TRANSFER_CHANGE_ACTIONS.map(a => sql`${a}`),
+  sql`, `,
+)}) and jsonb_typeof(${commands.result} -> 'data' -> 'transferChanges') = 'object' then jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', jsonb_build_object('transferChanges', ${commands.result} -> 'data' -> 'transferChanges')) else ${prunedResultSql} end`
+
+/** `keepTransferChanges`: the 90-day prune keeps what the audit log shows of a change of transfer contacts. */
+export const pruneSet = (now: Date, { keepTransferChanges = false } = {}) => ({
   input: idsOnlySql(sql`${commands.input}`),
-  result: prunedResultSql,
+  result: keepTransferChanges ? keptTransferChangesSql : prunedResultSql,
   pruned_at: now.toISOString(),
 })
 
@@ -140,7 +151,7 @@ export async function pruneOldCommands(tx: Tx, now = new Date()): Promise<number
       .limit(PRUNE_BATCH)
     const pruned = await tx
       .update(commands)
-      .set(pruneSet(now))
+      .set(pruneSet(now, { keepTransferChanges: true }))
       .where(inArray(commands.id, batch))
       .returning({ id: commands.id })
     total += pruned.length

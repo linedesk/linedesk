@@ -7,7 +7,7 @@ import { afterEach, beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
 import { keptUrgent, LIVE_CALLS_PER_WORKSPACE, MESSAGES_PER_CALL } from '../src/handlers.ts'
 import { CALL_PUSH, setJobQueue } from '../src/jobs.ts'
-import { act, agent, createWorkspace, getCall, getContact, randomNumber, type Workspace } from './helpers.ts'
+import { act, agent, createWorkspace, getCall, getContact, randomNumber, saveTransferContacts, type Workspace } from './helpers.ts'
 
 let ws: Workspace
 let other: Workspace
@@ -193,6 +193,7 @@ test('call.transfer records the number and the result and leaves the urgency as 
   expect(res.status).toBe(200)
   expect(await getCall(callId)).toMatchObject({ transfer_to: '+15035550199', transfer_result: 'not_answered', urgency: 'normal', status: 'live' })
   // `urgent` from an older agent changes nothing either, and the call shows the contact's name.
+  await saveTransferContacts(ws.assistant.id, ['+15035550187'])
   const billing = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId
   await act(agent(ws.id), 'call.transfer', { callId: billing, to: '+15035550187', name: 'Office', urgent: true, result: 'dialing' })
   expect(await getCall(billing)).toMatchObject({ transfer_name: 'Office', transfer_result: 'dialing', urgency: 'normal' })
@@ -200,6 +201,8 @@ test('call.transfer records the number and the result and leaves the urgency as 
 
 test('call.transfer limits per workspace: one leg at a time, six started an hour', async () => {
   const limited = await createWorkspace('Limited Plumbing')
+  await saveTransferContacts(limited.assistant.id, ['+15035550199'])
+  await saveTransferContacts(other.assistant.id, ['+15035550199'])
   const startCall = async () => (await act(agent(), 'call.start', { from: randomNumber(), to: limited.number })).body.data.callId as string
   const transfer = (callId: string, result: string) => act(agent(limited.id), 'call.transfer', { callId, to: '+15035550199', result })
 
@@ -232,6 +235,7 @@ test('call.transfer limits per workspace: one leg at a time, six started an hour
 
 test('call.transfer: transfers of test calls do not count toward the limits', async () => {
   const tested = await createWorkspace('Tested Plumbing')
+  await saveTransferContacts(tested.assistant.id, ['+15035550199'])
   const transfer = (callId: string, result: string) => act(agent(tested.id), 'call.transfer', { callId, to: '+15035550199', result })
   for (let i = 0; i < 7; i++) {
     const testCall = (await act(agent(tested.id), 'call.startTest', { room: `transfer-count-${i}` })).body.data.callId as string

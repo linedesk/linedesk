@@ -255,6 +255,12 @@ export const calls = pgTable(
     /** When the transfer was started; counts toward the workspace's transfers per hour. */
     transfer_at: ts('transfer_at'),
     /**
+     * Seconds of this call's on-call legs that have ended (ringing included): each try that was not answered,
+     * declined or failed after dialling. The open leg (`dialing`, `connected`) is counted from `transfer_at` on top
+     * (outbound-policy.ts, transferMinutesUsed).
+     */
+    transfer_seconds: integer('transfer_seconds').notNull().default(0),
+    /**
      * Times on this call the caller described a booking to change (day and name) that the API could not match,
      * or picked a time that was not free. Summed over the caller's calls of the last 24 hours, it locks booking
      * changes by phone for that caller (bookings.ts, BOOKING_MISSES_PER_DAY).

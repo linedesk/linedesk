@@ -1,0 +1,1 @@
+ALTER TABLE "calls" ADD COLUMN "transfer_seconds" integer DEFAULT 0 NOT NULL;

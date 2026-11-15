@@ -14,6 +14,7 @@ import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
 import { purgeCommandsAbout } from './command-log.ts'
+import { transferChanges } from './audit.ts'
 import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
 import { apiKeyHandlers } from './api-keys.ts'
@@ -79,6 +80,12 @@ async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: u
     : await tx.select().from(table).where(scope)
   if (!rows[0]) throw new Reject(`${patch.table} row not found`)
   return { rows: { [patch.table]: rows } }
+}
+
+/** The assistant's transfer contacts as saved now (an assistant of another workspace has none). */
+async function assistantTransfers(tx: Tx, workspaceId: string, assistantId: string): Promise<TransferContact[]> {
+  const [row] = await tx.select({ transfers: assistants.transfers }).from(assistants).where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
+  return row?.transfers ?? []
 }
 
 /** Messages the assistant takes on one call: each one is a push, so a caller cannot flood the team. */
@@ -420,10 +427,13 @@ const handlers: Record<string, Handler> = {
     // (switchOffLoopingTransfers) keeps its number, and the rest of the list stays editable.
     for (const contact of (input.transfers ?? []) as TransferContact[])
       if (isActiveContact(contact)) await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
+    const before = input.transfers ? await assistantTransfers(ctx.tx, ctx.actor.workspaceId, input.assistantId) : null
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     if (setsTransferNumber(input)) await recordSetupEvent(ctx.tx, ctx.actor.workspaceId, 'mobile_added', ctx.now)
-    return result
+    // A change of the numbers calls are put through to is in the audit log (audit.ts, TRANSFER_CHANGE_ACTIONS).
+    const changes = before && transferChanges(before, input.transfers as TransferContact[])
+    return changes ? { ...result, data: { transferChanges: changes } } : result
   },
 
   // An earlier version back, as a new version: the same checks as assistant.update. Its calendars are matched to the
@@ -443,6 +453,7 @@ const handlers: Record<string, Handler> = {
         throw new Reject(`Version ${input.number}'s languages can't be used any more (${errorMessage(e)}): pick the languages and save instead`)
       })
     for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
+    const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
     const restored = await tx.update(assistants).set(fields).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
     await releaseUnusedClones(tx, workspaceId)
     const linked = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, input.assistantId))
@@ -464,7 +475,8 @@ const handlers: Record<string, Handler> = {
     const missingCalendars = kept.filter(c => !linkedKeys.has(keyOf(c))).map(c => c.name)
     const number = await recordVersion(tx, workspaceId, input.assistantId, { by: actor.actorId, restoredFrom: input.number })
     const data: AssistantRestoreData = { number: number!, missingCalendars }
-    return { rows: { assistants: restored, assistant_calendars: calendars }, data }
+    const changes = transferChanges(transfersBefore, restored[0]?.transfers ?? [])
+    return { rows: { assistants: restored, assistant_calendars: calendars }, data: changes ? { ...data, transferChanges: changes } : data }
   },
 
   ...adminHandlers,
@@ -481,7 +493,7 @@ const handlers: Record<string, Handler> = {
   ...userAvatarHandlers,
   ...publicHolidayHandlers,
   ...insightsHandlers,
-  ...transferHandlers,
+  ...transferHandlers(businessHoursFor),
   ...voiceHandlers,
   ...brandingHandlers,
   ...sampleHandlers,

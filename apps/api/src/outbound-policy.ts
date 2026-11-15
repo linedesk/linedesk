@@ -31,7 +31,7 @@ import {
   TRANSFER_OUTBOUND_NAME,
   twilioBlockedCountries,
 } from '@linedesk/telephony'
-import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, sql } from 'drizzle-orm'
 import { db } from './db.ts'
 import { CHECK_TRUNK_NAME } from './forwarding-check.ts'
 import { type Handler, Reject } from './handler-context.ts'
@@ -135,9 +135,11 @@ export async function outboundRefusal(
 const onInstallRoute = sql`not exists (select 1 from ${phone_numbers} where ${phone_numbers.e164} = ${calls.to_number} and ${phone_numbers.workspace_id} = ${calls.workspace_id} and ${phone_numbers.carrier_account} = 'workspace')`
 
 /**
- * Minutes of transferred calls in the 24 hours before `now`: from each dial (`transfer_at`) to the call's end, or to
- * `now` while it runs. Phone calls only (test calls never dial). Ring time counts too: an upper bound of the bill.
- * One workspace's, or all; `route: 'install'`: only those through the install's carrier account.
+ * Minutes of transferred calls in the 24 hours before `now`, leg by leg as the carrier bills them: every leg that ended
+ * (`transfer_seconds`: tries not answered, declined or failed after dialling), plus the open one from its dial
+ * (`transfer_at`) to the call's end, or to `now` while it runs. Phone calls only (test calls never dial). Ring time
+ * counts too: an upper bound of the bill. One workspace's, or all; `route: 'install'`: only those through the install's
+ * carrier account.
  */
 export async function transferMinutesUsed(
   tx: Tx,
@@ -145,9 +147,10 @@ export async function transferMinutesUsed(
   { workspaceId, route }: { workspaceId?: string; route?: OutboundRoute } = {},
 ): Promise<number> {
   const since = new Date(Date.parse(now) - DAY_MS).toISOString()
+  const open = sql`${calls.transfer_result} in ('dialing', 'connected')`
   const [row] = await tx
     .select({
-      seconds: sql<number>`coalesce(sum(greatest(0, extract(epoch from (coalesce(${calls.ended_at}, ${now}::timestamptz) - ${calls.transfer_at})))), 0)::float`,
+      seconds: sql<number>`coalesce(sum(${calls.transfer_seconds} + case when ${open} then greatest(0, extract(epoch from (coalesce(${calls.ended_at}, ${now}::timestamptz) - ${calls.transfer_at}))) else 0 end), 0)::float`,
     })
     .from(calls)
     .where(
@@ -156,7 +159,6 @@ export async function transferMinutesUsed(
         route === 'install' ? onInstallRoute : undefined,
         eq(calls.source, 'phone'),
         gte(calls.transfer_at, since),
-        inArray(calls.transfer_result, ['dialing', 'connected']),
       ),
     )
   return (row?.seconds ?? 0) / 60
@@ -354,7 +356,8 @@ export function outboundHandlers(deps: () => Deps = () => ({})): Record<string, 
 
     'outboundCountries.get': async ({ tx, now }) => ({ rows: {}, data: await adminView(tx, now, deps()) }),
 
-    // Logged by the action runner (the audit log shows who widened where the install may call).
+    // Logged by the action runner: the audit log (AUDITED_ACTIONS) shows who changed where the install may call, the
+    // new list (the input) and the one before (`data.previous`).
     'outboundCountries.set': async (
       { tx, actor, now, onCommit },
       input: { countries: string[]; confirmHighRisk?: string[] },
@@ -388,7 +391,7 @@ export function outboundHandlers(deps: () => Deps = () => ({})): Record<string, 
       const sync = () => syncInstallDestinations(deps())
       if (onCommit) onCommit(sync)
       else await sync()
-      return { rows: {}, data: await adminView(tx, now, deps()) }
+      return { rows: {}, data: { ...(await adminView(tx, now, deps())), previous: { countries: before } } }
     },
   }
 }

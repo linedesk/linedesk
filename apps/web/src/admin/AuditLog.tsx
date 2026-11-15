@@ -51,7 +51,7 @@ const known = (value: unknown) => (value === undefined || value === null || valu
 const roleOf = (role: unknown) => (role === 'owner' || role === 'admin' ? role : 'member')
 
 /** What happened, in a few words. */
-export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject'>): string {
+export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges'>): string {
   const input = (e.input ?? {}) as Record<string, unknown>
   const subject = e.subject?.email ?? ''
   const who = { who: subject, known: known(subject) }
@@ -216,12 +216,39 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       return input.purchase ? t('admin.audit.numberBought') : t('admin.audit.numberConnected')
     case 'phoneNumber.release':
       return t('admin.audit.numberReleased')
+    case 'outboundCountries.set': {
+      const countries = Array.isArray(input.countries) ? input.countries.map(String) : []
+      return t('admin.audit.outboundCountriesSet', {
+        countries: countries.length ? fmt().list(countries, { type: 'unit', style: 'short' }) : '',
+        known: countries.length ? 'yes' : 'no',
+      })
+    }
+    case 'assistant.update':
+      if (e.transferChanges)
+        return t('admin.audit.transferContactsChanged', { changes: transferChangeList(e.transferChanges) })
+      // A refused change (no result): its input had the contacts.
+      return Array.isArray(input.transfers) ? t('admin.audit.transferContactsEdited') : e.what
+    case 'assistant.restoreVersion':
+      return e.transferChanges
+        ? t('admin.audit.transferContactsRestored', { changes: transferChangeList(e.transferChanges) })
+        : e.what
     default:
       return e.what
   }
 }
 
 const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft' }
+
+/** Which transfer contacts a change added, changed and removed: "added Sarah, removed Mike"; a new order alone says so. */
+const transferChangeList = ({ added, changed, removed }: NonNullable<AuditEntry['transferChanges']>) => {
+  const names = (list: string[]) => fmt().list(list, { type: 'conjunction' })
+  const parts = [
+    ...(added.length ? [t('admin.audit.transferChange.added', { names: names(added) })] : []),
+    ...(changed.length ? [t('admin.audit.transferChange.changed', { names: names(changed) })] : []),
+    ...(removed.length ? [t('admin.audit.transferChange.removed', { names: names(removed) })] : []),
+  ]
+  return parts.length ? fmt().list(parts, { type: 'unit', style: 'short' }) : t('admin.audit.transferChange.reordered')
+}
 
 /** A spending cap in dollars, without cents when it is whole ("$50", "$12.50"). */
 const usd = (value: unknown) => {

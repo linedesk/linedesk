@@ -241,7 +241,8 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
           // No way to dial it on this call (no outbound trunk, a test call): like no answer, the plan decides what is next.
           console.warn(`transfer of call ${call.callId}: transfer contact ${contact.id} cannot be dialled on this call`)
           log.record('system', transferLabel('failed', contact.number, contact.name), callTransfer.name)
-          void report(api, call, target, 'failed').catch(() => {})
+          // Awaited: it is recorded before the next contact is dialled, never after (the API ignores a late one).
+          await report(api, call, target, 'failed').catch(() => {})
           previous = contact
           continue
         }
@@ -249,7 +250,7 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
         if (started.refused !== null) {
           console.warn(`transfer of call ${call.callId} not started: ${started.refused}`)
           log.record('system', transferLabel('failed', contact.number, contact.name), callTransfer.name)
-          void report(api, call, target, 'failed').catch(() => {})
+          await report(api, call, target, 'failed').catch(() => {})
           if (started.destination) {
             // A country the workspace may not call (any more): like no answer, the plan decides what is next.
             previous = contact

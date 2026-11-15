@@ -151,6 +151,24 @@ export async function createWorkspace(name: string, emailVerified = true) {
 }
 export type Workspace = Awaited<ReturnType<typeof createWorkspace>>
 
+/**
+ * Makes `numbers` the assistant's transfer contacts, straight in the database (as if saved before the workspace's
+ * countries changed): call.transfer dials only an assistant's saved contacts.
+ */
+export async function saveTransferContacts(assistantId: string, numbers: string[]) {
+  const transfers = numbers.map((number, i) => ({
+    id: `contact${i}`,
+    name: `Contact ${i + 1}`,
+    number,
+    condition: 'Urgent: a burst pipe',
+    hours_only: false,
+    ring_seconds: 25,
+    if_no_answer: 'next' as const,
+    enabled: true,
+  }))
+  await db.update(assistants).set({ transfers }).where(eq(assistants.id, assistantId))
+}
+
 export async function addMember(workspaceId: string, role: 'admin' | 'member'): Promise<User> {
   const user = await signUp()
   await db.update(users).set({ emailVerified: true }).where(eq(users.id, user.userId))

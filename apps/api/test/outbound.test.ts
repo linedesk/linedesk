@@ -4,18 +4,29 @@
 // saved, again when the agent dials (call.transfer `dialing`), and for the forwarding check. Plus the minute limits,
 // the high-risk confirmation and the caller ID.
 // Sets instance settings: in INSTANCE_WIDE_FILES (vitest.config.ts).
-import { calls, instance_settings, phone_numbers, user } from '@linedesk/db'
+import {
+  assistants,
+  availability_rules,
+  calls,
+  commands,
+  instance_settings,
+  phone_numbers,
+  user,
+  workspace_settings,
+} from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
+import { listAudit } from '../src/audit.ts'
 import {
   installDestinations,
   outboundLimits,
   transferMinutesAllowed,
+  transferMinutesUsed,
   workspaceDestinations,
 } from '../src/outbound-policy.ts'
 import { setWorkspaceCarrier } from '../src/workspace-carrier.ts'
-import { act, agent, createWorkspace, getCall, randomNumber, type Workspace } from './helpers.ts'
+import { act, agent, createWorkspace, getCall, randomNumber, saveTransferContacts, type Workspace } from './helpers.ts'
 
 const digits = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('')
 /** A Berlin landline and a German mobile, as real businesses have them. */
@@ -47,16 +58,19 @@ async function germanWorkspace(name: string) {
 
 const startCall = async (ws: Pick<Workspace, 'number'>) =>
   (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId as string
-const dial = (ws: Pick<Workspace, 'id'>, callId: string, to: string) =>
-  act(agent(ws.id), 'call.transfer', { callId, to, result: 'dialing' })
+/** Dials `to` as a saved transfer contact (saveTransferContacts), so only the destination policy decides. */
+const dial = async (ws: Pick<Workspace, 'id' | 'assistant'>, callId: string, to: string) => {
+  await saveTransferContacts(ws.assistant.id, [to])
+  return act(agent(ws.id), 'call.transfer', { callId, to, result: 'dialing' })
+}
 const setInstall = (countries: string[], confirmHighRisk?: string[]) =>
   act(operator.owner, 'outboundCountries.set', { countries, ...(confirmHighRisk ? { confirmHighRisk } : {}) })
 /** Adds a number in the workspace's own carrier account. */
-const ownNumber = async (ws: Pick<Workspace, 'id'>, e164: string) => {
+const ownNumber = async (ws: Pick<Workspace, 'id' | 'assistant'>, e164: string) => {
   await db
     .insert(phone_numbers)
     .values({ id: `pn_${digits(12)}`, workspace_id: ws.id, e164, provider: 'dev', carrier_account: 'workspace' })
-  return { id: ws.id, number: e164 }
+  return { id: ws.id, assistant: ws.assistant, number: e164 }
 }
 
 let operator: Workspace
@@ -370,4 +384,245 @@ describe("the carriers' destination lists", () => {
     expect(countries).toContain('MX')
     expect(countries).toContain('US')
   })
+})
+
+describe("only the assistant's saved transfer contacts are dialled", () => {
+  const report = (ws: Pick<Workspace, 'id'>, callId: string, to: string, result: string) =>
+    act(agent(ws.id), 'call.transfer', { callId, to, result })
+
+  test('another number is refused and logged; a saved one is matched as E.164; a contact switched off is refused', async () => {
+    const ws = await createWorkspace('Saved Contacts Plumbing')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(
+        (await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, transfers: [contact(US_MOBILE)] }))
+          .status,
+      ).toBe(200)
+      const callId = await startCall(ws)
+      const other = await report(ws, callId, '+15035550142', 'dialing')
+      expect(other).toMatchObject({
+        status: 409,
+        body: { error: "transfer refused: the number is not one of the assistant's transfer contacts" },
+      })
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/^transfer of call .* refused: the destination is not a saved transfer contact/),
+      )
+      expect((await getCall(callId))?.transfer_result).toBeNull()
+      // The refusal is in the command log.
+      const [logged] = await db
+        .select()
+        .from(commands)
+        .where(and(eq(commands.action, 'call.transfer'), eq(commands.workspace_id, ws.id)))
+      expect(logged).toMatchObject({ rejected: true })
+      // The saved contact in another notation is the same number.
+      await db
+        .update(assistants)
+        .set({ transfers: [contact('+1 (503) 555-0199')] as never })
+        .where(eq(assistants.id, ws.assistant.id))
+      expect((await report(ws, callId, US_MOBILE, 'dialing')).status).toBe(200)
+      await report(ws, callId, US_MOBILE, 'not_answered')
+      // Switched off, or without a number: not dialled.
+      await saveTransferContacts(ws.assistant.id, [US_MOBILE])
+      await db
+        .update(assistants)
+        .set({ transfers: [contact(US_MOBILE, { enabled: false })] as never })
+        .where(eq(assistants.id, ws.assistant.id))
+      expect((await report(ws, await startCall(ws), US_MOBILE, 'dialing')).status).toBe(409)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  test("a contact of another assistant of the workspace is not the call's", async () => {
+    const ws = await createWorkspace('Two Assistants Plumbing')
+    const second = (await act(ws.owner, 'assistant.create', {})).body.data.assistantId as string
+    await saveTransferContacts(second, [US_MOBILE])
+    await saveTransferContacts(ws.assistant.id, ['+15035550187'])
+    const callId = await startCall(ws) // answered by the first assistant (the number has none of its own)
+    expect((await report(ws, callId, US_MOBILE, 'dialing')).status).toBe(409)
+    expect((await report(ws, callId, '+15035550187', 'dialing')).status).toBe(200)
+  })
+
+  test("a test call dials no real phone: the call test's simulated contacts are not refused", async () => {
+    const ws = await createWorkspace('Test Call Plumbing')
+    const testCall = (await act(agent(ws.id), 'call.startTest', { room: `saved-contacts-${digits(6)}` })).body.data
+      .callId as string
+    expect((await report(ws, testCall, US_MOBILE, 'dialing')).status).toBe(200)
+  })
+})
+
+describe('results belong to the open leg', () => {
+  const report = (ws: Pick<Workspace, 'id'>, callId: string, to: string, result: string) =>
+    act(agent(ws.id), 'call.transfer', { callId, to, result })
+  const MIKE = US_MOBILE
+  const SARAH = '+15035550187'
+
+  test("a late 'failed' of the try before does not end the next contact's leg", async () => {
+    const ws = await createWorkspace('Late Report Plumbing')
+    await saveTransferContacts(ws.assistant.id, [MIKE, SARAH])
+    const callId = await startCall(ws)
+    expect((await report(ws, callId, SARAH, 'dialing')).status).toBe(200)
+    // Mike's 'failed' (sent before Sarah was dialled) arrives now.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect((await report(ws, callId, MIKE, 'failed')).status).toBe(200)
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/does not match the open leg; ignored$/))
+    } finally {
+      warn.mockRestore()
+    }
+    expect(await getCall(callId)).toMatchObject({ transfer_to: SARAH, transfer_result: 'dialing', transfer_seconds: 0 })
+    // The open leg still holds the one slot: another call of the workspace waits.
+    expect((await report(ws, await startCall(ws), MIKE, 'dialing')).body.error).toBe(
+      'another transfer of this workspace is in progress',
+    )
+    // Sarah's own result is hers.
+    expect((await report(ws, callId, SARAH, 'connected')).status).toBe(200)
+    expect((await getCall(callId))?.transfer_result).toBe('connected')
+  })
+
+  test('connected without a dial changes nothing and takes no slot', async () => {
+    const ws = await createWorkspace('No Dial Plumbing')
+    await saveTransferContacts(ws.assistant.id, [MIKE])
+    const callId = await startCall(ws)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect((await report(ws, callId, MIKE, 'connected')).status).toBe(200)
+    } finally {
+      warn.mockRestore()
+    }
+    expect(await getCall(callId)).toMatchObject({ transfer_to: null, transfer_result: null })
+    expect((await report(ws, await startCall(ws), MIKE, 'dialing')).status).toBe(200)
+  })
+})
+
+describe('business hours, as the agent keeps them', () => {
+  const dialMike = (ws: Workspace, callId: string) =>
+    act(agent(ws.id), 'call.transfer', { callId, to: US_MOBILE, result: 'dialing' })
+  /** The workspace's hours on, open only on another weekday than today (in its time zone): closed all day. */
+  const closedToday = async (ws: Workspace) => {
+    const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
+    const day = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: settings!.timezone }).format(new Date())
+    const today = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(day)
+    await db.delete(availability_rules).where(eq(availability_rules.workspace_id, ws.id))
+    await db.insert(availability_rules).values({
+      id: `ar_${digits(10)}`,
+      workspace_id: ws.id,
+      weekday: (today + 3) % 7,
+      start_time: '08:00',
+      end_time: '17:00',
+    })
+    await db
+      .update(workspace_settings)
+      .set({ business_hours_on: true })
+      .where(eq(workspace_settings.workspace_id, ws.id))
+  }
+  const saveMike = (ws: Workspace, hours_only: boolean) =>
+    db
+      .update(assistants)
+      .set({ transfers: [contact(US_MOBILE, { hours_only })] as never })
+      .where(eq(assistants.id, ws.assistant.id))
+
+  test('a contact "only during business hours" is not dialled while closed; one for any time is', async () => {
+    const ws = await createWorkspace('Closed Today Plumbing')
+    await closedToday(ws)
+    await saveMike(ws, true)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect((await dialMike(ws, await startCall(ws))).body.error).toBe(
+        'transfer refused: this transfer contact takes calls only while the business is open',
+      )
+    } finally {
+      warn.mockRestore()
+    }
+    await saveMike(ws, false)
+    expect((await dialMike(ws, await startCall(ws))).status).toBe(200)
+  })
+
+  test('nobody is dialled in closure mode', async () => {
+    const ws = await createWorkspace('On Vacation Plumbing')
+    await saveMike(ws, false)
+    const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+    await db
+      .update(workspace_settings)
+      .set({ closure: { from: shift(-2), until: shift(2), greeting: 'We are on vacation.' } })
+      .where(eq(workspace_settings.workspace_id, ws.id))
+    expect((await dialMike(ws, await startCall(ws))).status).toBe(409)
+  })
+})
+
+describe('transfer minutes count every leg (rejected tries included)', () => {
+  const report = (ws: Pick<Workspace, 'id'>, callId: string, to: string, result: string) =>
+    act(agent(ws.id), 'call.transfer', { callId, to, result })
+  /** Moves the open leg's dial back by `seconds`, as if it had rung that long. */
+  const rang = (callId: string, seconds: number) =>
+    db
+      .update(calls)
+      .set({ transfer_at: new Date(Date.now() - seconds * 1000).toISOString() })
+      .where(eq(calls.id, callId))
+  const used = (ws: Pick<Workspace, 'id'>) =>
+    db.transaction(tx => transferMinutesUsed(tx, new Date().toISOString(), { workspaceId: ws.id }))
+  const MIKE = US_MOBILE
+  const SARAH = '+15035550187'
+
+  test('a try that rang and was declined, then one put through: both legs count', async () => {
+    const ws = await createWorkspace('Two Legs Plumbing')
+    await saveTransferContacts(ws.assistant.id, [MIKE, SARAH])
+    const callId = await startCall(ws)
+    expect((await report(ws, callId, MIKE, 'dialing')).status).toBe(200)
+    await rang(callId, 60)
+    await report(ws, callId, MIKE, 'declined')
+    expect((await getCall(callId))?.transfer_seconds).toBeGreaterThanOrEqual(60)
+    expect(await used(ws)).toBeCloseTo(1, 1) // a declined try is not free: it rang and the person was briefed
+    expect((await report(ws, callId, SARAH, 'dialing')).status).toBe(200)
+    await rang(callId, 4 * 60)
+    await report(ws, callId, SARAH, 'connected')
+    // The second leg runs until the call ends.
+    await db.update(calls).set({ status: 'completed', ended_at: new Date().toISOString() }).where(eq(calls.id, callId))
+    expect(await used(ws)).toBeCloseTo(5, 1) // was 4: the declined try's minute was lost when the second dial came
+  })
+
+  test('tries nobody took count their ringing; a contact that could not be dialled adds nothing', async () => {
+    const ws = await createWorkspace('Nobody Home Plumbing')
+    await saveTransferContacts(ws.assistant.id, [MIKE, SARAH])
+    const callId = await startCall(ws)
+    await report(ws, callId, MIKE, 'failed') // no dial: no leg
+    expect((await getCall(callId))?.transfer_seconds).toBe(0)
+    await report(ws, callId, MIKE, 'dialing')
+    await rang(callId, 30)
+    await report(ws, callId, MIKE, 'not_answered')
+    await report(ws, callId, SARAH, 'dialing')
+    await rang(callId, 30)
+    await report(ws, callId, SARAH, 'not_answered')
+    await report(ws, callId, SARAH, 'not_answered') // the same result twice: the leg is counted once
+    expect(await used(ws)).toBeCloseTo(1, 1) // was 0: the call's last result was not_answered
+    // A leg whose result was never reported ends where the next dial starts.
+    await report(ws, callId, MIKE, 'dialing')
+    await rang(callId, 30)
+    await report(ws, callId, SARAH, 'dialing')
+    expect((await getCall(callId))?.transfer_seconds).toBeGreaterThanOrEqual(90)
+    // A result after the call ended counts the leg only to the call's end.
+    await rang(callId, 30)
+    await db
+      .update(calls)
+      .set({ status: 'completed', ended_at: new Date(Date.now() - 15_000).toISOString() })
+      .where(eq(calls.id, callId))
+    await report(ws, callId, SARAH, 'not_answered')
+    const seconds = (await getCall(callId))!.transfer_seconds
+    expect(seconds).toBeGreaterThanOrEqual(105)
+    expect(seconds).toBeLessThan(115)
+  })
+})
+
+test('the audit log lists who changed the countries, with the list before', async () => {
+  await setInstall(['CA'])
+  await setInstall(['MX', 'CA'])
+  const { entries } = await listAudit(db, { kind: 'admin', workspaceId: operator.id, limit: 50 })
+  const changes = entries.filter(e => e.what === 'outboundCountries.set')
+  expect(changes[0]).toMatchObject({
+    kind: 'admin',
+    actor: { id: operator.owner.userId },
+    input: { countries: ['MX', 'CA'] },
+  })
+  const [logged] = await db.select().from(commands).where(eq(commands.id, changes[0]!.id))
+  expect(logged?.result).toMatchObject({ data: { previous: { countries: ['CA'] }, countries: ['CA', 'MX'] } })
 })

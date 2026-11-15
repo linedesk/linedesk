@@ -4,6 +4,7 @@
 // sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
 import { REDACTED } from '@linedesk/actions'
 import { auth_events, type Db, type Tx, user } from '@linedesk/db'
+import type { TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, sql } from 'drizzle-orm'
 import { db } from './db.ts'
@@ -156,6 +157,12 @@ export function maskAuditInput(input: unknown): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return input
   const masked: Record<string, unknown> = { ...(input as Record<string, unknown>) }
   if (typeof masked.url === 'string') masked.url = urlHost(masked.url)
+  // Transfer contacts (assistant.update): their names and the numbers' last four digits only.
+  if (Array.isArray(masked.transfers))
+    masked.transfers = masked.transfers.map(c => {
+      const contact = (c ?? {}) as Partial<TransferContact>
+      return { id: contact.id, name: contact.name, number: maskedNumber(contact.number) }
+    })
   // Stored redacted since 2026-11-11 (the action lists it as sensitive); older entries hold it in clear.
   if (typeof masked.invitationId === 'string' && masked.invitationId !== REDACTED) masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
   return masked
@@ -184,6 +191,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'workspace.enable': 'admin',
   'workspace.delete': 'admin',
   'workspace.setSpendingCap': 'admin',
+  // Where every workspace's transfers may call through the install's carrier account (before: `data.previous`).
+  'outboundCountries.set': 'admin',
   'instanceAdmin.grant': 'admin',
   'instanceAdmin.revoke': 'admin',
   'user.resetPasskeys': 'admin',
@@ -238,6 +247,85 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
 }
 
 /**
+ * Actions that are audited only when they changed the assistant's transfer contacts, the numbers calls are put
+ * through to: their handlers put `data.transferChanges` in the result then (kind `integrations`). Refused ones are
+ * listed when their input had `transfers`. Like every command, the input is cut down to ids after 90 days; the
+ * 90-day prune keeps `data.transferChanges` (ids, names, last four digits), deleting the workspace does not
+ * (command-log.ts).
+ */
+export const TRANSFER_CHANGE_ACTIONS = ['assistant.update', 'assistant.restoreVersion'] as const
+export const TRANSFER_CHANGE_KIND: AuditKind = 'integrations'
+
+/** A number as the audit log keeps it: its last four digits ("…0199"); null: none. */
+export const maskedNumber = (number: string | null | undefined) =>
+  number ? `…${number.replace(/\D/g, '').slice(-4)}` : null
+
+/** A transfer contact as the audit log keeps it: never its whole number. */
+export type AuditedContact = { id: string; name: string; number: string | null }
+
+/**
+ * Which transfer contacts a change added, changed (with the fields that changed, and the number before when it was
+ * one of them) and removed, and whether the order changed. Only the contacts that changed, never the whole list.
+ */
+export type TransferChanges = {
+  added: AuditedContact[]
+  changed: (AuditedContact & { fields: string[]; numberBefore?: string | null })[]
+  removed: AuditedContact[]
+  reordered: boolean
+}
+
+const audited = (c: TransferContact): AuditedContact => ({ id: c.id, name: c.name, number: maskedNumber(c.number) })
+
+/** The fields of a contact that differ between two versions of it (jsonb keeps keys in its own order). */
+function changedFields(was: TransferContact, now: TransferContact): string[] {
+  const keys = [...new Set([...Object.keys(was), ...Object.keys(now)])].sort()
+  const get = (c: TransferContact, k: string) => JSON.stringify((c as Record<string, unknown>)[k] ?? null)
+  return keys.filter(k => get(was, k) !== get(now, k))
+}
+
+/** What changed between two lists of transfer contacts (matched by id; a new order alone is a change too), or null. */
+export function transferChanges(before: TransferContact[], after: TransferContact[]): TransferChanges | null {
+  const was = new Map(before.map(c => [c.id, c]))
+  const now = new Set(after.map(c => c.id))
+  const added = after.filter(c => !was.has(c.id)).map(audited)
+  const changed = after.flatMap(c => {
+    const old = was.get(c.id)
+    const fields = old ? changedFields(old, c) : []
+    if (!fields.length) return []
+    return [
+      { ...audited(c), fields, ...(fields.includes('number') ? { numberBefore: maskedNumber(old!.number) } : {}) },
+    ]
+  })
+  const removed = before.filter(c => !now.has(c.id)).map(audited)
+  const order = (list: TransferContact[], keep: (id: string) => boolean) =>
+    list
+      .filter(c => keep(c.id))
+      .map(c => c.id)
+      .join()
+  const reordered = order(before, id => now.has(id)) !== order(after, id => was.has(id))
+  if (!added.length && !changed.length && !removed.length && !reordered) return null
+  return { added, changed, removed, reordered }
+}
+
+/** What the admin page gets of a change: the names it shows. */
+export type TransferChangeNames = { added: string[]; changed: string[]; removed: string[] }
+const namesOf = (changes: TransferChanges): TransferChangeNames => ({
+  added: changes.added.map(c => c.name),
+  changed: changes.changed.map(c => c.name),
+  removed: changes.removed.map(c => c.name),
+})
+
+const transferChangeActions = sql.join(
+  TRANSFER_CHANGE_ACTIONS.map(a => sql`${a}`),
+  sql`, `,
+)
+/**
+ * SQL: a command of `c` that changed transfer contacts (`data.transferChanges` an object: a workspace's deletion cuts
+ * it down to "[omitted]"), or one refused whose input had transfers.
+ */
+const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'transferChanges') = 'object' or (c.rejected and c.input ? 'transfers')))`
+
+/**
  * Whom a team or membership change was about, put in the action's result (`data.subject`) by its
  * handler, since a removed member's row is gone afterwards. The audit log shows the address and
  * lists the entry under the workspace changed, which for an instance admin is not their own;
@@ -290,6 +378,8 @@ export type AuditEntry = {
   subject: { email: string | null } | null
   /** The action's input as the command log keeps it (secrets already redacted). */
   input: unknown
+  /** The transfer contacts a change added, changed and removed, by name (TRANSFER_CHANGE_ACTIONS only). */
+  transferChanges?: TransferChangeNames
   refused: boolean
   ipAddress: string | null
 }
@@ -336,6 +426,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
   const withImpersonated = !f.kind || f.kind === 'impersonation'
   // Everything an AI agent did with a setup link counts as an integration, whatever the action (docs/api.md, Setup MCP).
   const withSetupKey = !f.kind || f.kind === 'integrations'
+  const withTransferChanges = !f.kind || f.kind === TRANSFER_CHANGE_KIND
   const listed = kindActions.length
     ? sql`c.action in (${sql.join(
         kindActions.map(a => sql`${a}`),
@@ -343,20 +434,22 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       )})`
     : sql`false`
   const commandRows =
-    kindActions.length || withImpersonated || withSetupKey
+    kindActions.length || withImpersonated || withSetupKey || withTransferChanges
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
         c.impersonated_by, c.setup_key_id,
         case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
           else coalesce(c.input->>'workspaceId', c.workspace_id) end as workspace_id,
-        c.input, c.result->'data'->'subject'->>'email' as subject_email, c.rejected as refused, null::text as ip_address, 'command' as source
+        c.input, c.result->'data'->'subject'->>'email' as subject_email, c.result->'data'->'transferChanges' as transfer_changes, ${transferChangeSql} as transfer_change,
+        c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}${
           withSetupKey ? sql` or c.setup_key_id is not null` : sql``
-        }`
+        }${withTransferChanges ? sql` or ${transferChangeSql}` : sql``}`
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
         null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input,
-        (select s.email from "user" s where s.id = e.subject_id) as subject_email, false as refused, e.ip_address, 'auth' as source
+        (select s.email from "user" s where s.id = e.subject_id) as subject_email, null::jsonb as transfer_changes, false as transfer_change,
+        false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
           sql`, `,
@@ -399,7 +492,8 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       at: r.at_iso,
       kind:
         r.source === 'command'
-          ? (AUDITED_ACTIONS[r.what] ?? (r.setup_key_id ? 'integrations' : 'impersonation'))
+          ? (AUDITED_ACTIONS[r.what] ??
+            (r.transfer_change ? TRANSFER_CHANGE_KIND : r.setup_key_id ? 'integrations' : 'impersonation'))
           : AUTH_EVENT_KIND[r.what as AuthEventName],
       what: r.what,
       method: r.method,
@@ -413,6 +507,9 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       workspace: r.workspace_id ? { id: r.workspace_id, name: r.workspace_name ?? null } : null,
       subject: r.subject_email ? { email: r.subject_email } : null,
       input: maskAuditInput(r.input),
+      ...(r.transfer_changes && typeof r.transfer_changes === 'object'
+        ? { transferChanges: namesOf(r.transfer_changes as TransferChanges) }
+        : {}),
       refused: Boolean(r.refused),
       ipAddress: r.ip_address,
     }),
