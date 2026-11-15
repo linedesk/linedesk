@@ -74,3 +74,18 @@ test('a declined callback number on a test call: noted as test call, no caller I
   digits.heardCaller()
   expect(describeOutcome(digits.decline('has none').outcome!, { testCall: true })).toMatch(/Go on without it\.$/)
 })
+
+// On a realtime call LiveKit reports no caller turns (onUserTurnCompleted runs only with its own turn detection), so
+// hand_back, decline and wrong_* were refused for good there. The step's question having played stands in.
+test('on realtime (turns not counted) the step counts as heard once its question has played', () => {
+  const step = new Collection(phoneCollector())
+  step.uncountedTurns()
+  expect(step.handBack('Can the owner call me back?')).toEqual({ say: ASK_FIRST })
+  expect(step.decline('no')).toEqual({ say: ASK_FIRST })
+  step.askedQuestion()
+  expect(step.handBack('Are you open on Saturday?').outcome).toMatchObject({ status: 'question', question: 'Are you open on Saturday?' })
+  // With turns counted, a played question alone is not enough.
+  const counted = new Collection(phoneCollector())
+  counted.askedQuestion()
+  expect(counted.decline('no')).toEqual({ say: ASK_FIRST })
+})

@@ -117,8 +117,13 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
   }
 
   override async onEnter() {
-    this.session.generateReply({
+    // A realtime model reports no caller turns (onUserTurnCompleted): the step's question having played stands in.
+    if (this.session.llm instanceof llm.RealtimeModel) this.collection.uncountedTurns()
+    const ask = this.session.generateReply({
       instructions: `${this.collection.collector.ask} If the caller already gave it earlier in this call, record it with the record tool and read it back instead of asking again.`,
     })
+    const asked = () => this.collection.askedQuestion()
+    if (ask.done()) asked()
+    else ask.addDoneCallback(asked)
   }
 }

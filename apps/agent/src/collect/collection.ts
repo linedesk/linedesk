@@ -26,6 +26,13 @@ export class Collection<Args extends Record<string, unknown>, T> {
   private failures = 0
   /** The caller's turns since the step asked its question. */
   private callerTurns = 0
+  /**
+   * Whether caller turns are counted (heardCaller). A realtime model reports none: LiveKit calls onUserTurnCompleted
+   * only with its own turn detection, and a realtime transcript arrives after the model has answered. There the step
+   * counts as heard once its question has played (askedQuestion).
+   */
+  private turnsCounted = true
+  private questionPlayed = false
   outcome: CollectOutcome | null = null
   readonly collector: Collector<Args, T>
   readonly maxAttempts: number
@@ -42,6 +49,21 @@ export class Collection<Args extends Record<string, unknown>, T> {
   /** The caller finished a turn during the step (after its question). */
   heardCaller() {
     this.callerTurns++
+  }
+
+  /** Caller turns are not reported on this call (a realtime model): askedQuestion stands in for them. */
+  uncountedTurns() {
+    this.turnsCounted = false
+  }
+
+  /** The step's question has played: the caller has had the chance to answer. */
+  askedQuestion() {
+    this.questionPlayed = true
+  }
+
+  /** Whether the caller may have answered the step's question: a turn heard, or on realtime the question played. */
+  private get callerHadTurn() {
+    return this.turnsCounted ? this.callerTurns > 0 : this.questionPlayed
   }
 
   /** A new hypothesis about the value, from what the caller said. */
@@ -69,7 +91,7 @@ export class Collection<Args extends Record<string, unknown>, T> {
   /** The caller said the read-back is wrong. Not before the caller said anything in the step: that is no try. */
   reject(): StepReply {
     if (this.outcome) return { say: 'This step is over.' }
-    if (!this.callerTurns) return { say: ASK_FIRST }
+    if (!this.callerHadTurn) return { say: ASK_FIRST }
     this.pending = null
     return this.fail(`The caller says that is not right. Ask for the ${this.collector.label} again${this.attemptsLeft <= 2 ? ', one part at a time' : ''}.`)
   }
@@ -80,7 +102,7 @@ export class Collection<Args extends Record<string, unknown>, T> {
    */
   decline(reason: string): StepReply {
     if (this.outcome) return { say: 'This step is over.' }
-    if (!this.callerTurns) return { say: ASK_FIRST }
+    if (!this.callerHadTurn) return { say: ASK_FIRST }
     return this.finish({ status: 'declined', label: this.collector.label, reason })
   }
 
@@ -91,7 +113,7 @@ export class Collection<Args extends Record<string, unknown>, T> {
    */
   handBack(question: string): StepReply {
     if (this.outcome) return { say: 'This step is over.' }
-    if (!this.callerTurns) return { say: ASK_FIRST }
+    if (!this.callerHadTurn) return { say: ASK_FIRST }
     return this.finish({ status: 'question', label: this.collector.label, question, partial: this.pending ? this.collector.display(this.pending.value) : this.lastHeard })
   }
 
