@@ -11,7 +11,6 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, isInstanceAdmin, type Me } from './auth.ts'
-import { CreateWorkspace } from './CreateWorkspace.tsx'
 import { AdminStart } from './onboarding/AdminStart.tsx'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
@@ -36,9 +35,11 @@ async function loadInvitations(): Promise<PendingInvitation[]> {
 }
 
 /**
- * May this person name their own business here? Only a server admin (self-serve creation comes with billing, postponed). The server checks it too (POST /v1/workspaces).
+ * May this person name their own business here? Only a server admin (self-serve creation comes with billing, postponed)
+ * whose session passed the passkey check: before it, POST /v1/workspaces answers 403 `admin_second_factor`, so the form
+ * and "New workspace…" are not offered yet. The server checks it too.
  */
-export const mayCreateWorkspace = (me: Me | null) => Boolean(me && isInstanceAdmin(me))
+export const mayCreateWorkspace = (me: Me | null) => !!me && isInstanceAdmin(me) && !me.adminSecondFactor
 
 type Props = {
   /** null when /v1/me did not answer for this person (no workspace and no instance admin). */
@@ -144,6 +145,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
         onDone={onDone}
         lostWorkspace={lostWorkspace}
         byHandFirst={choseManualSetup(me, manualSetup)}
+        secondFactor={me.adminSecondFactor ?? null}
         onInstallByHand={() => {
           rememberManual(true)
           window.location.hash = INSTALL_SETUP_HASH
@@ -151,12 +153,6 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       >
         {extras}
       </AdminStart>
-    )
-  if (mayCreateWorkspace(me))
-    return (
-      <CreateWorkspace onDone={onDone} lostWorkspace={lostWorkspace}>
-        {extras}
-      </CreateWorkspace>
     )
   return (
     <NoWorkspaceYet onDone={onDone} lostWorkspace={lostWorkspace} hasInvitations={invitations.length > 0}>

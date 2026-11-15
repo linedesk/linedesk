@@ -97,8 +97,8 @@ export function mapOidcProfile(
  * other sign-in accounts (the password, providers), passkeys, sessions, push subscriptions, API keys
  * the account created (revoked), webhook endpoints and calendar connections it created, and invitations
  * it sent that are still pending, and where calls go in the workspaces it owns (resetCallRoutingOf).
- * Someone who signed up with another person's address must keep no way in and no way to
- * receive their data. Workspaces and their members stay (they are the account's now); `keepAccountId`
+ * Whoever held an account made with another person's address (a password sign-up from before
+ * sign-up closed, #734) must keep no way in and no way to receive their data. Workspaces and their members stay (they are the account's now); `keepAccountId`
  * is the provider account being linked, which proves the address.
  */
 export async function dropUnprovenAccessOf(userId: string, keepAccountId?: string) {
@@ -179,48 +179,16 @@ async function resetCallRoutingOf(tx: Parameters<Parameters<typeof db.transactio
 
 /**
  * Better Auth `account.create` hook. A provider account joins a user whose email was never verified
- * (an invitation, `user.invite`, or a password sign-up): the provider just proved the address, so
- * Better Auth marks it verified. Whatever got in before without proof goes (dropUnprovenAccessOf).
- * Otherwise someone who signed up with another person's address and a password would keep a way
- * into that person's account once they sign in with Google. The new session is made after this.
+ * (an invitation, `user.invite`, or a password sign-up from before #734): the provider just proved the
+ * address, so Better Auth marks it verified. Whatever got in before without proof goes
+ * (dropUnprovenAccessOf). Otherwise whoever made an account with another person's address and a
+ * password would keep a way into that person's account once they sign in with Google. The new session is made after this.
  */
 export async function dropUnprovenAccess(created: { id: string; userId: string; providerId: string }) {
   if (created.providerId === 'credential') return
   const [owner] = await db.select({ emailVerified: user.emailVerified }).from(user).where(eq(user.id, created.userId))
   if (!owner || owner.emailVerified) return
   await dropUnprovenAccessOf(created.userId, created.id)
-}
-
-/**
- * Better Auth `beforeEmailVerification`, for the email link (`/verify-email`): runs before the address
- * is marked verified, so a failure here stops the confirmation. The link proves the address but not
- * who made the account: anyone can sign up with someone else's address and a password, then have our
- * "Confirm your email" link sent to them (`/send-verification-email` needs no session). So unless the
- * link is opened in a session of that same account (the person who signed up, confirming on the same
- * browser), everything that got in before goes (dropUnprovenAccessOf). Better Auth then signs the
- * opener in with a new session.
- */
-export async function dropUnprovenAccessBeforeEmailLink(
-  target: { id: string; emailVerified?: boolean },
-  sessionUserId: string | null,
-) {
-  if (target.emailVerified || sessionUserId === target.id) return
-  await dropUnprovenAccessOf(target.id)
-}
-
-/**
- * Better Auth `afterEmailVerification`, when the address was confirmed without a session of that
- * account: a sign-in that was under way while `beforeEmailVerification` cleaned up could still have
- * made a session in between. Every session of the account goes; Better Auth makes the opener's own
- * new session after this.
- */
-export async function endSessionsAfterEmailLink(target: { id: string }, sessionUserId: string | null) {
-  if (sessionUserId === target.id) return
-  await db.delete(session).where(eq(session.userId, target.id))
-  await db
-    .update(agent_setup_keys)
-    .set({ revoked_at: new Date().toISOString(), ended_reason: 'account_recovery' })
-    .where(and(eq(agent_setup_keys.created_by, target.id), isNull(agent_setup_keys.revoked_at)))
 }
 
 /**
@@ -239,7 +207,7 @@ export async function dropUnprovenAccessAfterCodeSignIn(
 
 /**
  * Better Auth `session.create` before-hook for password and passkey sign-ins. Better Auth checks the
- * password or passkey, then makes the session; a confirmation (code, email link or provider) that
+ * password or passkey, then makes the session; a confirmation (code or provider) that
  * removed it in between would otherwise leave that sign-in with a new session after its cleanup. What
  * the sign-in used must still be there when the session is made (for a passkey: any passkey, since
  * the cleanup removes all of them and an unconfirmed address cannot add one).

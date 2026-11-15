@@ -5,8 +5,6 @@ import { invitation, member, organization, user } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db.ts'
-import { emailSender } from './email.ts'
-import { verifyEmailEmail } from './emails/templates.ts'
 
 /**
  * Public: the invitation page asks whom the link is for before anyone signs in. The id is the
@@ -26,7 +24,7 @@ export async function previewInvitation(id: string): Promise<InvitationPreview> 
 
 /**
  * Better Auth hook before an invitation is accepted. It has already checked that the signed-in email matches and is
- * verified. An owner invitation to a workspace that has an owner by now is turned into an admin invitation first:
+ * verified (by an email code or a provider that proved it; there is no email link). An owner invitation to a workspace that has an owner by now is turned into an admin invitation first:
  * Better Auth reads the invitation again when it marks it accepted and creates the member with that role, so a
  * workspace never gets a second owner (the unique owner index would refuse it anyway).
  */
@@ -38,17 +36,4 @@ export async function refuseExistingMember({ invitation: invite, user: account }
   const [owner] = await db.select({ id: member.id }).from(member)
     .where(and(eq(member.organizationId, invite.organizationId), eq(member.role, 'owner')))
   if (owner) await db.update(invitation).set({ role: 'admin' }).where(and(eq(invitation.id, invite.id), eq(invitation.status, 'pending')))
-}
-
-/**
- * Better Auth's email verification. Accepting an invitation needs a verified address; someone
- * who signed up with a password confirms theirs with this link (the invitation page asks for it).
- */
-export async function sendVerificationEmail({ user: account, url }: { user: { email: string }; url: string }) {
-  try {
-    await emailSender.send({ to: account.email, ...verifyEmailEmail(url) })
-  } catch (err) {
-    console.error('verification email failed', err)
-    throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Could not send the email. Try again in a moment.' })
-  }
 }

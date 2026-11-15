@@ -1,13 +1,18 @@
 // The start page (#start) of an instance admin without a workspace who chose the way by hand before (NoWorkspace.tsx):
 // still AI agent first (the agent setup page, behind Server admin's passkey check); setting up by hand stays the clear, secondary alternative below: naming the business here, or
 // the server's parts first when they are not set up (as AgentSetup's "Set up by hand instead").
+// Naming the business waits for the passkey check too (POST /v1/workspaces answers 403 `admin_second_factor` before
+// it): until then the way by hand offers that check, never a form the server would refuse.
 import type { AgentSetupState } from '@linedesk/actions'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { loadAgentSetup } from '../admin/api.ts'
+import { AdminSignInRequired, loadAgentSetup } from '../admin/api.ts'
+import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
+import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { CreateWorkspace, LostWorkspace } from '../CreateWorkspace.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { AuthPage, Button } from '../ui/kit.tsx'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { openAgentSetup } from './AgentSetup.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
 
@@ -18,24 +23,42 @@ type Props = {
   byHandFirst: boolean
   /** The server's parts are not set up: by hand starts with them (the install walkthrough). */
   onInstallByHand: () => void
+  /** The passkey check this session still has to pass (`me.adminSecondFactor`), null once it did. */
+  secondFactor?: AdminSecondFactor | null
   /** Invitations and Open Server admin. */
   children?: ReactNode
 }
 
-export function AdminStart({ onDone, lostWorkspace, byHandFirst, onInstallByHand, children }: Props) {
+export function AdminStart({
+  onDone,
+  lostWorkspace,
+  byHandFirst,
+  onInstallByHand,
+  secondFactor = null,
+  children,
+}: Props) {
   const [state, setState] = useState<AgentSetupState | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  // Known from /v1/me, from the setup state's refusal (SECOND_FACTOR_REQUIRED) or from a refused creation.
+  const [checkDue, setCheckDue] = useState<AdminSecondFactor | null>(secondFactor)
+  const [prompting, setPrompting] = useState(false)
   const load = useCallback(async () => {
+    setLoadFailed(false)
     try {
       setState(await loadAgentSetup())
-    } catch {
-      // Without it (no passkey check yet): by hand opens the business form (the walkthrough is in Admin too).
+      // Server admin answered, so this session passed the check.
+      setCheckDue(null)
+    } catch (err) {
+      if (err instanceof AdminSignInRequired) setCheckDue(err.state)
+      else setLoadFailed(true)
     }
   }, [])
   useEffect(() => {
     void load()
   }, [load])
   const [byHand, setByHand] = useState(byHandFirst)
-  const installFirst = state ? installPartsMissing(state.progress.steps) : false
+  // Back from the prompt: the start page again, with the check still offered by hand.
+  if (prompting && checkDue) return <SecondFactorPrompt state={checkDue} onExit={() => setPrompting(false)} />
 
   return (
     <AuthPage>
@@ -63,22 +86,22 @@ export function AdminStart({ onDone, lostWorkspace, byHandFirst, onInstallByHand
           </ol>
         </section>
         {byHand ? (
-          installFirst ? (
-            <div className="as-byhand">
-              <h2 className="as-byhand-title">Or set up by hand</h2>
-              <p>The server’s parts come first: email, answering calls, phone carrier and call audio.</p>
-              <div>
-                <Button onClick={onInstallByHand} title="Go through the server’s setup steps yourself">
-                  Set up the server by hand
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="as-byhand">
-              <h2 className="as-byhand-title">Or set up by hand</h2>
-              <CreateWorkspace onDone={onDone} embedded />
-            </div>
-          )
+          <div className="as-byhand">
+            <h2 className="as-byhand-title">Or set up by hand</h2>
+            <ByHand
+              state={state}
+              checkDue={checkDue}
+              loadFailed={loadFailed}
+              onConfirm={() => setPrompting(true)}
+              onRetry={() => void load()}
+              onInstallByHand={onInstallByHand}
+              onDone={onDone}
+              onSecondFactor={due => {
+                setCheckDue(due)
+                setPrompting(true)
+              }}
+            />
+          </div>
         ) : (
           <button
             type="button"
@@ -95,5 +118,63 @@ export function AdminStart({ onDone, lostWorkspace, byHandFirst, onInstallByHand
         </button>
       </div>
     </AuthPage>
+  )
+}
+
+/**
+ * The way by hand: the passkey check while it is due, then (once the setup state is known) the server's parts when
+ * they are missing, else naming the business. Never the form before the state is known.
+ */
+export function ByHand({
+  state,
+  checkDue,
+  loadFailed,
+  onConfirm,
+  onRetry,
+  onInstallByHand,
+  onDone,
+  onSecondFactor,
+}: {
+  state: AgentSetupState | null
+  checkDue: AdminSecondFactor | null
+  loadFailed: boolean
+  onConfirm: () => void
+  onRetry: () => void
+  onInstallByHand: () => void
+  onDone: () => void
+  onSecondFactor: (state: AdminSecondFactor) => void
+}) {
+  if (checkDue)
+    return (
+      <>
+        <p>Setting up this server and your business needs your passkey check first.</p>
+        <div>
+          <Button onClick={onConfirm} title="Confirm it is you with your passkey">
+            Confirm with your passkey
+          </Button>
+        </div>
+      </>
+    )
+  return (
+    <Loading
+      what="The setup state"
+      loading={!state}
+      error={loadFailed}
+      onRetry={onRetry}
+      skeleton={<SkeletonFields fields={1} />}
+    >
+      {state && installPartsMissing(state.progress.steps) ? (
+        <>
+          <p>The server’s parts come first: email, answering calls, phone carrier and call audio.</p>
+          <div>
+            <Button onClick={onInstallByHand} title="Go through the server’s setup steps yourself">
+              Set up the server by hand
+            </Button>
+          </div>
+        </>
+      ) : (
+        <CreateWorkspace onDone={onDone} embedded onSecondFactor={onSecondFactor} />
+      )}
+    </Loading>
   )
 }

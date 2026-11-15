@@ -1,5 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
-import { createWorkspace } from './auth.ts'
+import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
+import { type AdminSecondFactor, createWorkspace, fetchMe, type Me } from './auth.ts'
 import { type CreatingPhase, CreatingStatus } from './CreatingStatus.tsx'
 import { signOutAndForget } from './localData.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
@@ -9,21 +10,34 @@ import { AuthPage, Note, Spinner } from './ui/kit.tsx'
 const OPENING_MS = 15_000
 
 /**
+ * After POST /v1/workspaces refused: the passkey check this server admin's session still has to pass (the API's 403
+ * `admin_second_factor`, "Confirm it is you first"), or null when the refusal had another reason. Read from /v1/me,
+ * which says the same thing the server decided on.
+ */
+export async function secondFactorDue(loadMe: () => Promise<Me | null> = fetchMe): Promise<AdminSecondFactor | null> {
+  return (await loadMe().catch(() => null))?.adminSecondFactor ?? null
+}
+
+/**
  * First sign-in: name the business. Creates the workspace and its assistant. `lostWorkspace`: the
  * workspace this browser had open, which the member was removed from; said first, so the form is not
  * a surprise. `children`: shown under the form (invitations, Admin). `embedded`: only the form, as the secondary way
  * on an instance admin's start page (NoWorkspace.tsx, AdminStart): no page around it, its button not the primary one.
+ * `onSecondFactor`: creating was refused until the passkey check (the session's 12 hours ran out meanwhile); the page
+ * around opens the passkey prompt. Without it, this page shows the prompt itself instead of an error line.
  */
 export function CreateWorkspace({
   onDone,
   lostWorkspace = null,
   children,
   embedded = false,
+  onSecondFactor,
 }: {
   onDone: () => void | Promise<void>
   lostWorkspace?: string | null
   children?: ReactNode
   embedded?: boolean
+  onSecondFactor?: (state: AdminSecondFactor) => void
 }) {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +45,7 @@ export function CreateWorkspace({
   const busy = phase !== 'idle'
   // Made, but the app did not open it: from here the button reloads, so a second try never makes a second workspace.
   const [created, setCreated] = useState(false)
+  const [secondFactor, setSecondFactor] = useState<AdminSecondFactor | null>(null)
   const notOpened = 'Your workspace is ready, but it did not open. Reload the page to go on.'
   // The app replaces this page once the new workspace has loaded. If that does not happen, don't hang on
   // "Opening…": the workspace exists, so the way on is a reload, not another try (that would make a second one).
@@ -59,10 +74,18 @@ export function CreateWorkspace({
       setPhase('opening')
       await onDone()
     } catch (err) {
-      setError(made ? notOpened : err instanceof Error ? err.message : String(err))
+      const due = made ? null : await secondFactorDue()
       setPhase('idle')
+      if (due) {
+        if (onSecondFactor) onSecondFactor(due)
+        else setSecondFactor(due)
+        return
+      }
+      setError(made ? notOpened : err instanceof Error ? err.message : String(err))
     }
   }
+
+  if (secondFactor) return <SecondFactorPrompt state={secondFactor} onExit={() => setSecondFactor(null)} />
 
   const form = (
     <form className={embedded ? 'auth-form' : 'auth-card'} onSubmit={submit} noValidate>

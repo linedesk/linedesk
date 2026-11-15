@@ -1,6 +1,8 @@
 // Team management: who may invite, who may accept, last owner protection, removal and no open sign-up.
 import { account, api_keys, commands, invitation, member, passkey, session, user, webhook_endpoints } from '@linedesk/db'
 import { dropUnprovenAccess } from '../src/account-linking.ts'
+import type { BetterAuthOptions } from 'better-auth'
+import { createEmailVerificationToken } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
@@ -341,31 +343,58 @@ describe('no open sign-up', () => {
     expect(sent.some(e => e.to === email && /^\d{6} /.test(e.subject))).toBe(false)
   })
 
-  test('the verification email works for an invited password account', async () => {
+  test('an invited password account confirms its address with a code and joins (no email link)', async () => {
     const email = newEmail()
-    await invite(ws.owner, email)
+    const id = await invite(ws.owner, email)
     const invitee = await signUp(email)
+    // Unconfirmed: Better Auth refuses the invitation until the address is proven.
+    expect((await accept(invitee, id)).status).toBe(403)
     sent.length = 0
-    const res = await request(invitee, 'POST', '/api/auth/send-verification-email', { email, callbackURL: ORIGIN }, { [FROM]: randomIp() })
-    expect(res.status).toBe(200)
-    expect(sent.find(e => e.to === email)?.text).toMatch(/verify-email\?token=/)
+    const asked = await request(invitee, 'POST', '/api/auth/send-verification-email', { email, callbackURL: ORIGIN }, { [FROM]: randomIp() })
+    expect(asked.status).toBe(404)
+    expect(sent.filter(e => e.to === email)).toEqual([])
+    const confirmed = await signInWithCode(email)
+    expect(confirmed.userId).toBe(invitee.userId)
+    expect((await accept(confirmed, id)).status).toBe(200)
+    expect((await request(confirmed, 'GET', '/v1/me')).body).toMatchObject({ workspace: { id: ws.id } })
   })
 })
 
-describe('confirming an address by email link (security M1)', () => {
-  const linkFor = (email: string) => {
-    const url = sent.findLast(e => e.to === email)?.text.match(/(https?:\/\/\S*verify-email\?token=\S+)/)?.[1]
-    if (!url) throw new Error(`no link for ${email}`)
-    const { pathname, search } = new URL(url)
-    return `${pathname}${search}`
-  }
-  const open = (path: string, cookie?: string) =>
-    appRequest(path, { headers: { ...(cookie ? { cookie } : {}), [FROM]: randomIp() }, redirect: 'manual' })
+describe('confirming an address (security M1): by code only, the email link is closed', () => {
   const credentialsOf = (userId: string) =>
     db.select().from(account).where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
   const sessionsOf = (userId: string) => db.select().from(session).where(eq(session.userId, userId))
+  const verified = async (userId: string) => (await db.select().from(user).where(eq(user.id, userId)))[0]!.emailVerified
 
-  test("someone who signed up with another person's address loses every way in and out once that person confirms it", async () => {
+  test('nobody can have a "Confirm your email" link sent, and a genuinely signed one is refused', async () => {
+    const victim = newEmail()
+    const attacker = await signUp(victim)
+    sent.length = 0
+    // No session needed before: anyone could have the link mailed to an unconfirmed account.
+    const asked = await request(anonymous, 'POST', '/api/auth/send-verification-email', { email: victim, callbackURL: ORIGIN }, { origin: ORIGIN, [FROM]: randomIp() })
+    expect(asked.status).toBe(404)
+    expect(sent).toEqual([])
+    // A token Better Auth itself would accept: the endpoint is off before it is read.
+    const token = await createEmailVerificationToken((await auth.$context).secret, victim, undefined, 3600, { userId: attacker.userId })
+    const before = (await sessionsOf(attacker.userId)).length
+    for (const cookie of [undefined, attacker.headers.cookie]) {
+      const opened = await appRequest(`/api/auth/verify-email?token=${token}&callbackURL=${encodeURIComponent(ORIGIN)}`, {
+        headers: { ...(cookie ? { cookie } : {}), [FROM]: randomIp() },
+        redirect: 'manual',
+      })
+      expect(opened.status).toBe(404)
+      expect(opened.headers.getSetCookie()).toEqual([])
+    }
+    expect(await verified(attacker.userId)).toBe(false)
+    expect(await sessionsOf(attacker.userId)).toHaveLength(before)
+    expect(await credentialsOf(attacker.userId)).toHaveLength(1)
+  })
+
+  test('no confirmation hooks run outside the code and provider paths', () => {
+    expect((auth.options as BetterAuthOptions).emailVerification).toBeUndefined()
+  })
+
+  test("someone who made an account with another person's address loses every way in and out once that person signs in with a code", async () => {
     const victim = newEmail()
     const attacker = await signUp(victim)
     // What they set up before the owner confirmed: a workspace with an API key, a webhook, an invitation,
@@ -381,18 +410,15 @@ describe('confirming an address by email link (security M1)', () => {
     await db.insert(invitation).values({ id: crypto.randomUUID(), organizationId: made.body.workspace.id, email: newEmail(), role: 'admin', status: 'pending', inviterId: attacker.userId, expiresAt: new Date(Date.now() + 86400000) })
     await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
     await db.insert(account).values({ id: `acc_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, accountId: 'attacker-sub', providerId: 'github', createdAt: new Date(), updatedAt: new Date() })
-    // No session needed to have our genuine link sent to the address.
-    const asked = await request(anonymous, 'POST', '/api/auth/send-verification-email', { email: victim, callbackURL: ORIGIN }, { origin: ORIGIN, [FROM]: randomIp() })
-    expect(asked.status).toBe(200)
-    // The real owner opens it in their own browser, without a session of that account.
-    const opened = await open(linkFor(victim))
-    expect(opened.status).toBeLessThan(400)
-    expect((await db.select().from(user).where(eq(user.id, attacker.userId)))[0]!.emailVerified).toBe(true)
+    // The real owner signs in with a code sent to their own mailbox.
+    const owner = await signInWithCode(victim)
+    expect(owner.userId).toBe(attacker.userId)
+    expect(await verified(attacker.userId)).toBe(true)
     expect(await credentialsOf(attacker.userId)).toEqual([])
-    // Only the session the link just started is left, and it is the owner's browser's.
+    // Only the session the code just started is left, and it is the owner's.
     const sessions = await sessionsOf(attacker.userId)
     expect(sessions).toHaveLength(1)
-    expect(opened.headers.getSetCookie().join(';')).toContain(sessions[0]!.token)
+    expect(owner.headers.cookie).toContain(sessions[0]!.token)
     expect((await request(attacker, 'GET', '/v1/me')).status).toBe(401)
     const again = await request(anonymous, 'POST', '/api/auth/sign-in/email', { email: victim, password: 'test-password-1234' }, { origin: ORIGIN, [FROM]: randomIp() })
     expect(again.status).toBeGreaterThanOrEqual(400)
@@ -415,17 +441,6 @@ describe('confirming an address by email link (security M1)', () => {
     expect((await db.select().from(account).where(eq(account.userId, attacker.userId))).map(a => a.providerId)).toEqual(['google'])
     expect(await db.select().from(passkey).where(eq(passkey.userId, attacker.userId))).toEqual([])
     expect(await sessionsOf(attacker.userId)).toEqual([])
-  })
-
-  test('the person who signed up keeps their password when they open the link in their own session', async () => {
-    const email = newEmail()
-    const own = await signUp(email)
-    await request(own, 'POST', '/api/auth/send-verification-email', { email, callbackURL: ORIGIN }, { [FROM]: randomIp() })
-    const opened = await open(linkFor(email), own.headers.cookie)
-    expect(opened.status).toBeLessThan(400)
-    expect(await credentialsOf(own.userId)).toHaveLength(1)
-    const token = own.headers.cookie!.match(/session_token=([^.;]+)/)?.[1]
-    expect((await sessionsOf(own.userId)).some(s => s.token === token)).toBe(true)
   })
 })
 

@@ -147,7 +147,7 @@ test('creating a workspace needs a name', async () => {
   await db.update(users).set({ instanceAdmin: false }).where(eq(users.id, user.userId))
 })
 
-test('only server admins create workspaces, also with sign-up open: anyone else is told to ask one', async () => {
+test('only server admins create workspaces: anyone else is told to ask one', async () => {
   const user = await signUp()
   expect(await request(user, 'POST', '/v1/workspaces', { name: 'Not Mine To Make' })).toMatchObject({
     status: 403,

@@ -206,7 +206,7 @@ describe('what is not offered', () => {
   })
 })
 
-describe('codes and sign-up', () => {
+describe('codes for addresses with and without an account', () => {
   test('an unknown address gets the same answer and no code; a guessed code creates no account', async () => {
     const { send } = mailbox()
     const email = address('stranger')

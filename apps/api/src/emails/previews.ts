@@ -22,7 +22,6 @@ import {
   emailChangedEmail,
   passwordResetCodeEmail,
   signInCodeEmail,
-  verifyEmailEmail,
   welcomeEmail,
   workspaceDeletedEmail,
 } from './templates.ts'
@@ -133,7 +132,6 @@ export function previewEmails(origin: string): Preview[] {
         origin,
       ),
     },
-    { name: 'verify-email', email: verifyEmailEmail(`${origin}/api/auth/verify-email?token=preview`, origin) },
     {
       name: 'invitation',
       email: invitationEmail(

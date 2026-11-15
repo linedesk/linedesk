@@ -123,8 +123,8 @@ export function sameAnswerForRefusedCodes(ctx: Ctx) {
 
 /**
  * After a successful `/email-otp/reset-password`: every session of the account goes once more. A
- * provider sign-in that was under way while the reset cleaned up could still have made one (as
- * endSessionsAfterEmailLink does for the email link); the reset itself makes none.
+ * provider sign-in that was under way while the reset cleaned up could still have made one; the
+ * reset itself makes none.
  */
 export async function endSessionsAfterReset(ctx: Ctx) {
   if (ctx.path !== RESET_PATH || isAPIError(ctx.context.returned)) return

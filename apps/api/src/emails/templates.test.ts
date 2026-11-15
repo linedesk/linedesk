@@ -474,3 +474,14 @@ describe('workspace deleted', () => {
     expect(email.text).not.toContain('was deleted with it')
   })
 })
+
+describe('confirming an address', () => {
+  it('goes by code only: no email carries the "Confirm your email" link (/verify-email is off)', () => {
+    const emails = previewEmails(ORIGIN)
+    expect(emails.map(e => e.name)).not.toContain('verify-email')
+    for (const { name, email } of emails) {
+      expect(email.text, name).not.toMatch(/verify-email/)
+      expect(email.html, name).not.toMatch(/verify-email/)
+    }
+  })
+})

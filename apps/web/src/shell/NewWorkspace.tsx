@@ -1,17 +1,25 @@
 // "New workspace…" from the workspace menu: name another business, then open it (its onboarding starts).
 // Offered only where POST /v1/workspaces would allow it (`mayCreateWorkspace`, the rule from NoWorkspace);
-// the server checks again.
+// the server checks again. Refused because the session's passkey check ran out meanwhile (403 `admin_second_factor`):
+// the dialog offers the passkey prompt (Server admin opens on it) instead of an error line.
 import { useState } from 'react'
 import { createWorkspace } from '../auth.ts'
+import { secondFactorDue } from '../CreateWorkspace.tsx'
 import { type CreatingPhase, CreatingStatus } from '../CreatingStatus.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
+
+/** Server admin opens on the passkey check while it is due (Workspace.tsx, AdminMode). */
+const openPasskeyCheck = () => {
+  window.location.hash = '#admin'
+}
 
 /** `returnTo`: the page the app opens on in the new workspace (its onboarding when left out; the setup page passes its own). */
 export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => void; returnTo?: string }) {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<CreatingPhase>('idle')
+  const [passkeyFirst, setPasskeyFirst] = useState(false)
   const busy = phase !== 'idle'
 
   async function create() {
@@ -27,8 +35,10 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
       window.location.hash = returnTo
       window.location.reload()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const due = await secondFactorDue()
       setPhase('idle')
+      if (due) setPasskeyFirst(true)
+      else setError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -40,19 +50,31 @@ export function NewWorkspaceDialog({ onClose, returnTo = '' }: { onClose: () => 
       onClose={busy ? () => {} : onClose}
       onSubmit={e => {
         e.preventDefault()
-        void create()
+        if (passkeyFirst) openPasskeyCheck()
+        else void create()
       }}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" busy={busy} shortcut={['⏎']}>
-            {phase === 'opening' ? 'Opening…' : busy ? 'Creating…' : 'Create workspace'}
-          </Button>
+          {passkeyFirst ? (
+            <Button type="submit" variant="primary" shortcut={['⏎']} title="Open Server admin's passkey check">
+              Confirm with your passkey
+            </Button>
+          ) : (
+            <Button type="submit" variant="primary" busy={busy} shortcut={['⏎']}>
+              {phase === 'opening' ? 'Opening…' : busy ? 'Creating…' : 'Create workspace'}
+            </Button>
+          )}
         </>
       }
     >
+      {passkeyFirst && (
+        <Note tone="info">
+          Creating a workspace needs Server admin's passkey check. Confirm with your passkey, then create it again.
+        </Note>
+      )}
       <FormField id="new-ws-name" label="Business name" error={error}>
         <Input
           id="new-ws-name"

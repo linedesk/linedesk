@@ -1,11 +1,10 @@
-import { account, api_keys, assistants, auth_events, calendar_connections, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { account, api_keys, assistants, auth_events, calendar_connections, member, passkey, phone_numbers, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, expect, test, vi } from 'vitest'
 import {
   dropUnprovenAccessOf,
-  endSessionsAfterEmailLink,
   refuseSessionWithoutItsSignIn,
 } from '../src/account-linking.ts'
 import { mustConfirmEmail } from '../src/auth-methods.ts'
@@ -237,21 +236,11 @@ test('a password sign-in gets no session once a confirmation removed the passwor
   const created = { userId: ws.owner.userId }
   const passwordSignIn = { path: '/sign-in/email' }
   await expect(refuseSessionWithoutItsSignIn(created, passwordSignIn)).resolves.toBeUndefined()
-  // The code sign-in or the email link removed the password between Better Auth's password check and the session.
+  // The code sign-in removed the password between Better Auth's password check and the session.
   await db.delete(account).where(eq(account.userId, ws.owner.userId))
   await expect(refuseSessionWithoutItsSignIn(created, passwordSignIn)).rejects.toMatchObject({ statusCode: 401 })
   // Other sign-ins (the code itself, a provider) are not affected.
   await expect(refuseSessionWithoutItsSignIn(created, { path: '/sign-in/email-otp' })).resolves.toBeUndefined()
-})
-
-test('email link opened elsewhere: a session made during the cleanup goes too; the own session stays', async () => {
-  const ws = await createWorkspace('Link race', false)
-  const target = { id: ws.owner.userId }
-  await endSessionsAfterEmailLink(target, ws.owner.userId)
-  expect(await db.select().from(session).where(eq(session.userId, ws.owner.userId))).not.toHaveLength(0)
-  await endSessionsAfterEmailLink(target, null)
-  expect(await db.select().from(session).where(eq(session.userId, ws.owner.userId))).toHaveLength(0)
-  expect((await request(ws.owner, 'GET', '/v1/me')).status).toBe(401)
 })
 
 test('wrong confirmation codes count like wrong sign-in codes (per address and network), and block confirming', async () => {

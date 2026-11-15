@@ -124,22 +124,6 @@ export function passwordResetCodeEmail(code: string, origin = WEB_ORIGIN): Rende
   })
 }
 
-/** Better Auth's link that confirms an address, for someone who signed up with a password. */
-export function verifyEmailEmail(url: string, origin = WEB_ORIGIN): RenderedEmail {
-  return renderEmail({
-    subject: `Confirm your email for ${brandName()}`,
-    preheader: `One click confirms this address for your ${brandName()} account.`,
-    heading: 'Confirm your email address',
-    blocks: [
-      { kind: 'text', text: `Confirm this address to accept your invitation on ${siteHost(origin)}.` },
-      { kind: 'button', label: 'Confirm email address', url },
-      { kind: 'text', tone: 'muted', text: `Or paste this link into your browser:\n${url}` },
-    ],
-    reason: `You got this email because this address was used to sign up for ${brandName()}. If it wasn't you, you can ignore it.`,
-    origin,
-  })
-}
-
 export type InvitationEmail = { inviter: string; workspace: string; email: string; url: string; days: number }
 
 /** `inviter` and `workspace` are already email-safe (emailSafeName). */

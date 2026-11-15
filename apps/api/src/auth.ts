@@ -4,14 +4,7 @@ import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { authConfig, emailCodesOn } from './auth-methods.ts'
-import {
-  accountLinkingHooks,
-  dropUnprovenAccessBeforeEmailLink,
-  endSessionsAfterEmailLink,
-  mapGoogleProfile,
-  mapMicrosoftProfile,
-  mapOidcProfile,
-} from './account-linking.ts'
+import { accountLinkingHooks, mapGoogleProfile, mapMicrosoftProfile, mapOidcProfile } from './account-linking.ts'
 import { auditHooks, recordAuthEndpoint } from './audit.ts'
 import { CLIENT_IP_HEADER } from './client-ip.ts'
 import { mergeDatabaseHooks } from './db-hooks.ts'
@@ -20,7 +13,7 @@ import { db } from './db.ts'
 import { finishEmailChange, guardEmailChange, sameAnswerForEmailChange, sendEmailChangeCode } from './email-change.ts'
 import { emailSender } from './email.ts'
 import { confirmationCodeEmail as confirmationCodeTemplate, signInCodeEmail } from './emails/templates.ts'
-import { refuseExistingMember, sendVerificationEmail } from './invitations.ts'
+import { refuseExistingMember } from './invitations.ts'
 import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
@@ -195,6 +188,11 @@ const PROVIDER_TOKEN_PATHS = ['/get-access-token', '/account-info', '/refresh-to
  * sign-in is; the email change (email-change.ts) wherever email codes are.
  */
 const UNUSED_EMAIL_CODE_PATHS = ['/forget-password/email-otp', '/email-otp/check-verification-otp']
+/**
+ * Better Auth's "Confirm your email" link: off, the app confirms addresses with codes (sign-in, ConfirmEmail). With no
+ * `emailVerification` set it sends nothing, but `/verify-email` would still take a signed token, so both are closed.
+ */
+const EMAIL_LINK_PATHS = ['/send-verification-email', '/verify-email']
 const OFF_PASSWORD_RESET_PATHS = methods.password ? [] : PASSWORD_RESET_PATHS
 
 export { signInCodeEmail }
@@ -248,21 +246,6 @@ export const auth = betterAuth({
     starOnGrantHooks,
     adminAlertHooks,
   ),
-  emailVerification: {
-    sendVerificationEmail,
-    autoSignInAfterVerification: true,
-    // Opened without a session of that account: whatever got in before the address was proven goes
-    // (account-linking.ts). Before the address is marked verified, so a failure stops the confirmation.
-    beforeEmailVerification: async (target, request) => {
-      const current = request ? await auth.api.getSession({ headers: request.headers }).catch(() => null) : null
-      await dropUnprovenAccessBeforeEmailLink(target, current?.user.id ?? null)
-    },
-    // A session made while that cleanup ran goes too; the opener's new session is made after this.
-    afterEmailVerification: async (target, request) => {
-      const current = request ? await auth.api.getSession({ headers: request.headers }).catch(() => null) : null
-      await endSessionsAfterEmailLink(target, current?.user.id ?? null)
-    },
-  },
   socialProviders: {
     // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).
     ...(google && { google: { ...google, mapProfileToUser: mapGoogleProfile } }),
@@ -292,6 +275,7 @@ export const auth = betterAuth({
   // workspace's rules (last owner, who may change an owner). Accepting stays Better Auth's endpoint.
   disabledPaths: [
     ...UNUSED_EMAIL_CODE_PATHS,
+    ...EMAIL_LINK_PATHS,
     ...OFF_PASSWORD_RESET_PATHS,
     ...PROVIDER_TOKEN_PATHS,
     ...TEAM_WRITE_PATHS,
