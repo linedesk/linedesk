@@ -233,6 +233,7 @@
   "audit.workspaceDisabled": "Disabled the workspace",
   "audit.workspaceEnabled": "Enabled the workspace",
   "billing.failed": "Could not change billing.",
+  "billing.guardsMissing": "Billing is paused: the ledger's database guards are missing or changed. Run the migrations again; the server log names what is wrong.",
   "billing.help": "Bill workspaces through Stripe. Off by default: nothing is billed until it is on.",
   "billing.liveMode": "Live mode: real cards are charged once billing is on.",
   "billing.liveRefused": "This is a dev install: live Stripe keys are refused. Use a test key.",

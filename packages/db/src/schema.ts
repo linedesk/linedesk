@@ -4,10 +4,12 @@
 // (global sequence, bumped by trigger on every write) so clients can order row versions.
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
   customType,
+  foreignKey,
   date,
   index,
   integer,
@@ -24,6 +26,10 @@ import {
 import { organization, user } from './auth-schema.ts'
 import {
   DEFAULT_TRANSFERS,
+  RECHARGE_CAP_BASE_CENTS,
+  RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS,
+  RECHARGE_DEFAULTS,
+  RECHARGE_LIMITS,
   type ActionItem,
   type AssistantLanguages,
   type AssistantVoice,
@@ -1562,3 +1568,382 @@ export const profile_changes = pgTable('profile_changes', {
 
 /** profile_changes.previous. */
 export type ProfileBefore = { name?: string; avatar?: { version: string; png: string } | null }
+
+
+// --- Billing (Linedesk Cloud; docs/billing.md §4) ---
+// Not synced to browsers; read through read-only actions. Usage and extra numbers are paid from a prepaid
+// balance per bill, recharged automatically (decision 14). Amounts in US micro-dollars (`bigint`, 1 USD =
+// 1,000,000) unless the column says cents. A bill spans workspaces and the ledger is a financial record, so
+// nothing here is deleted with a workspace (KEPT_TABLES in apps/api/src/workspace-delete.ts).
+// Lock order, for every transaction that touches a bill: its `billing_balances` row first (`SELECT … FOR UPDATE`),
+// then `billing_recharges`, then `usage_counters`. The ledger and reservation triggers update the balance row, so a
+// transaction that inserts an entry or a reservation locks the balance row first, before any counter row.
+const micros = (name: string) => bigint(name, { mode: 'number' })
+/** The database's own check of a text enum (drizzle's `enum` is checked only in TypeScript). */
+const oneOf = (column: AnyPgColumn, values: readonly string[]) =>
+  sql`${column} in (${sql.raw(values.map(v => `'${v}'`).join(', '))})`
+const BILLING_INTERVALS = ['month', 'year'] as const
+const PERIOD_KINDS = ['trial', 'month'] as const
+const PRICE_BASES = ['fixed_5c', 'cost_plus_10', 'own_keys'] as const
+const INVOICE_KINDS = ['subscription', 'recharge', 'topup'] as const
+const INVOICE_STATUSES = ['draft', 'open', 'paid', 'uncollectible', 'void'] as const
+const ALERT_KINDS = ['recharge_failed', 'recharge_cap_reached', 'low_balance', 'renewal_reminder'] as const
+const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
+
+export const BILLING_KINDS = ['cloud', 'partner'] as const
+export const BILLING_STATUSES = [
+  'pending_payment',
+  'trialing',
+  'active',
+  'past_due',
+  'suspended',
+  'canceled',
+  'comped',
+] as const
+
+/**
+ * A bill: one Stripe customer and subscription (the plan fee, charged in advance), paying for one or more
+ * workspaces (`organization.billing_account_id`), with one prepaid balance (`billing_balances`). The monthly
+ * recharge cap in effect is computed, never stored: `rechargeCapCents(recharge_cap_base_cents, workspaces)`.
+ */
+export const billing_accounts = pgTable(
+  'billing_accounts',
+  {
+    id: id(),
+    kind: text('kind', { enum: BILLING_KINDS }).notNull(),
+    /** The user who pays; no foreign key, so the bill outlives the account. */
+    owner_user_id: text('owner_user_id').notNull(),
+    status: text('status', { enum: BILLING_STATUSES }).notNull().default('pending_payment'),
+    interval: text('interval', { enum: BILLING_INTERVALS })
+      .notNull()
+      .default('month'),
+    stripe_customer_id: text('stripe_customer_id').unique(),
+    stripe_subscription_id: text('stripe_subscription_id').unique(),
+    trial_ends_at: ts('trial_ends_at'),
+    current_period_start: ts('current_period_start'),
+    current_period_end: ts('current_period_end'),
+    /** Auto-recharge, on by default: below the threshold the saved card is charged the amount. Off: "Buy minutes" only. */
+    auto_recharge: boolean('auto_recharge').notNull().default(true),
+    recharge_threshold_cents: integer('recharge_threshold_cents').notNull().default(RECHARGE_DEFAULTS.thresholdCents),
+    recharge_amount_cents: integer('recharge_amount_cents').notNull().default(RECHARGE_DEFAULTS.amountCents),
+    /** The owner's monthly recharge cap base ($50 default); the cap in effect adds $25 per further workspace. */
+    recharge_cap_base_cents: integer('recharge_cap_base_cents').notNull().default(RECHARGE_CAP_BASE_CENTS),
+    /** The last auto-recharge failed (card declined, needs action); cleared by the next successful one. */
+    recharge_failed_at: ts('recharge_failed_at'),
+    held_for_review_at: ts('held_for_review_at'),
+    past_due_since: ts('past_due_since'),
+    suspended_at: ts('suspended_at'),
+    canceled_at: ts('canceled_at'),
+    created_at: createdAt(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    index('billing_accounts_owner').on(t.owner_user_id),
+    check('billing_accounts_kind', oneOf(t.kind, BILLING_KINDS)),
+    check('billing_accounts_status', oneOf(t.status, BILLING_STATUSES)),
+    check('billing_accounts_interval', oneOf(t.interval, BILLING_INTERVALS)),
+    check('billing_accounts_recharge_cap_base', sql`${t.recharge_cap_base_cents} >= 0`),
+    check(
+      'billing_accounts_recharge_threshold',
+      sql`${t.recharge_threshold_cents} between ${sql.raw(String(RECHARGE_LIMITS.thresholdCents.min))} and ${sql.raw(String(RECHARGE_LIMITS.thresholdCents.max))}`,
+    ),
+    check(
+      'billing_accounts_recharge_amount',
+      sql`${t.recharge_amount_cents} between ${sql.raw(String(RECHARGE_LIMITS.amountCents.min))} and ${sql.raw(String(RECHARGE_LIMITS.amountCents.max))}`,
+    ),
+    // One recharge lifts the balance clear of the threshold, so a drop never sets off charges back to back.
+    check(
+      'billing_accounts_recharge_over_threshold',
+      sql`${t.recharge_amount_cents} >= ${t.recharge_threshold_cents} + ${sql.raw(String(RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS))}`,
+    ),
+  ],
+)
+
+/** A bill's periods: the trial, then months (yearly bills get monthly sub-periods from the anchor day). */
+export const billing_periods = pgTable(
+  'billing_periods',
+  {
+    id: id(),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    starts_at: ts('starts_at').notNull(),
+    ends_at: ts('ends_at').notNull(),
+    kind: text('kind', { enum: PERIOD_KINDS }).notNull(),
+    closed_at: ts('closed_at'),
+    created_at: createdAt(),
+  },
+  t => [
+    unique('billing_periods_start').on(t.billing_account_id, t.starts_at),
+    check('billing_periods_kind', oneOf(t.kind, PERIOD_KINDS)),
+    check('billing_periods_range', sql`${t.ends_at} > ${t.starts_at}`),
+  ],
+)
+
+/**
+ * usage: a call; number: an extra number's month (`source_id` = `<phone number id>:<period id>`, so each month posts
+ * once); recharge: an automatic charge (`source_id` = the billing_recharges id); topup: "Buy minutes" (the Checkout
+ * session); refund: a Stripe refund (its id); writeoff: forgiving a negative balance, so it is ≥ 0.
+ */
+export const LEDGER_KINDS = [
+  'usage',
+  'number',
+  'recharge',
+  'topup',
+  'refund',
+  'credit',
+  'adjustment',
+  'writeoff',
+] as const
+export const LEDGER_SOURCES = [
+  'call',
+  'phone_number',
+  'billing_recharge',
+  'stripe_checkout',
+  'stripe_refund',
+  'admin',
+  'job',
+] as const
+
+/**
+ * The ledger of a bill's prepaid balance, append-only: a trigger (migration 0107) refuses UPDATE, DELETE and
+ * TRUNCATE. It guards against bugs, not against someone with the table owner's SQL (who can disable it). `amount_micros` is signed: + adds to the balance (recharge, top-up, credit), −
+ * takes from it (usage, numbers, refunds). Corrections are new `adjustment` entries pointing at the entry
+ * they correct. Posting the same (source_type, source_id, kind) twice is refused by the unique key.
+ */
+export const ledger_entries = pgTable(
+  'ledger_entries',
+  {
+    id: id(),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    /** The workspace the entry is for; null for bill-wide entries (recharges, top-ups). No foreign key: kept after a workspace is deleted. */
+    workspace_id: text('workspace_id'),
+    period_id: text('period_id')
+      .notNull()
+      .references(() => billing_periods.id),
+    created_at: createdAt(),
+    kind: text('kind', { enum: LEDGER_KINDS }).notNull(),
+    amount_micros: micros('amount_micros').notNull(),
+    /** Usage only: the call's seconds, the part inside the included minutes and the part billed. */
+    seconds: integer('seconds'),
+    included_seconds: integer('included_seconds'),
+    billable_seconds: integer('billable_seconds'),
+    /** What the call or number cost Linedesk (partner usage, margin reports). */
+    cost_micros: micros('cost_micros'),
+    price_basis: text('price_basis', { enum: PRICE_BASES }),
+    rate_card_version: text('rate_card_version'),
+    source_type: text('source_type', { enum: LEDGER_SOURCES }).notNull(),
+    source_id: text('source_id').notNull(),
+    /** The entry an adjustment corrects, of the same bill (composite foreign key). */
+    reverses_entry_id: text('reverses_entry_id'),
+    /** Who caused it (a user, or null for jobs and webhooks). */
+    actor_id: text('actor_id'),
+    note: text('note'),
+  },
+  t => [
+    unique('ledger_entries_source').on(t.source_type, t.source_id, t.kind),
+    unique('ledger_entries_bill_entry').on(t.id, t.billing_account_id),
+    foreignKey({
+      name: 'ledger_entries_reverses_same_bill',
+      columns: [t.reverses_entry_id, t.billing_account_id],
+      foreignColumns: [t.id, t.billing_account_id],
+    }),
+    check('ledger_entries_kind', oneOf(t.kind, LEDGER_KINDS)),
+    check('ledger_entries_source_type', oneOf(t.source_type, LEDGER_SOURCES)),
+    check('ledger_entries_price_basis', sql`${t.price_basis} is null or ${oneOf(t.price_basis, PRICE_BASES)}`),
+    check(
+      'ledger_entries_kind_source',
+      sql`(${t.kind} = 'usage' and ${t.source_type} = 'call') or (${t.kind} = 'number' and ${t.source_type} = 'phone_number') or (${t.kind} = 'recharge' and ${t.source_type} = 'billing_recharge') or (${t.kind} = 'topup' and ${t.source_type} = 'stripe_checkout') or (${t.kind} = 'refund' and ${t.source_type} = 'stripe_refund') or (${t.kind} in ('credit', 'adjustment', 'writeoff') and ${t.source_type} in ('admin', 'job'))`,
+    ),
+    check(
+      'ledger_entries_number_per_period',
+      sql`${t.kind} <> 'number' or right(${t.source_id}, length(${t.period_id}) + 1) = ':' || ${t.period_id}`,
+    ),
+    check('ledger_entries_reverses_adjustment', sql`${t.reverses_entry_id} is null or ${t.kind} = 'adjustment'`),
+    index('ledger_entries_bill_created').on(t.billing_account_id, t.created_at),
+    index('ledger_entries_workspace_period').on(t.workspace_id, t.period_id),
+    check(
+      'ledger_entries_usage_seconds',
+      sql`${t.kind} <> 'usage' or (${t.seconds} is not null and ${t.included_seconds} is not null and ${t.billable_seconds} is not null and ${t.included_seconds} >= 0 and ${t.billable_seconds} >= 0 and ${t.seconds} = ${t.included_seconds} + ${t.billable_seconds})`,
+    ),
+    check(
+      'ledger_entries_seconds_usage_only',
+      sql`${t.kind} = 'usage' or (${t.seconds} is null and ${t.included_seconds} is null and ${t.billable_seconds} is null)`,
+    ),
+    check(
+      'ledger_entries_sign',
+      sql`(${t.kind} in ('usage', 'number', 'refund') and ${t.amount_micros} <= 0) or (${t.kind} in ('recharge', 'topup', 'credit', 'writeoff') and ${t.amount_micros} >= 0) or ${t.kind} = 'adjustment'`,
+    ),
+  ],
+)
+
+/**
+ * A bill's prepaid balance: the sum of its ledger, kept by a trigger on every ledger insert (migration 0107), so it
+ * cannot drift from the ledger; a nightly job still compares. `reserved_micros` is what running calls hold (call_reservations).
+ * The call gate locks this row (`SELECT … FOR UPDATE`), so the parallel calls of one bill are serialised.
+ */
+export const billing_balances = pgTable(
+  'billing_balances',
+  {
+    billing_account_id: text('billing_account_id')
+      .primaryKey()
+      .references(() => billing_accounts.id),
+    balance_micros: micros('balance_micros').notNull().default(0),
+    reserved_micros: micros('reserved_micros').notNull().default(0),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [check('billing_balances_reserved', sql`${t.reserved_micros} >= 0`)],
+)
+
+/** Per workspace and period, from the ledger: the included seconds used and what its usage cost (rebuilt nightly). */
+export const usage_counters = pgTable(
+  'usage_counters',
+  {
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    period_id: text('period_id')
+      .notNull()
+      .references(() => billing_periods.id),
+    workspace_id: text('workspace_id').notNull(),
+    included_seconds_used: integer('included_seconds_used').notNull().default(0),
+    /** Charged for usage beyond the included minutes, as a positive amount. */
+    usage_micros: micros('usage_micros').notNull().default(0),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    primaryKey({ columns: [t.billing_account_id, t.period_id, t.workspace_id] }),
+    check('usage_counters_included', sql`${t.included_seconds_used} >= 0`),
+  ],
+)
+
+/**
+ * What a running call holds against its bill's balance, so parallel calls cannot pass the buffer; every call of a
+ * billed workspace has a row, so the rows also count the bill's running calls. Released when the usage posts.
+ * A trigger (migration 0107) keeps `billing_balances.reserved_micros` equal to their sum, a deleted call included.
+ */
+export const call_reservations = pgTable('call_reservations', {
+  call_id: text('call_id')
+    .primaryKey()
+    .references(() => calls.id, { onDelete: 'cascade' }),
+  billing_account_id: text('billing_account_id')
+    .notNull()
+    .references(() => billing_accounts.id),
+  reserved_micros: micros('reserved_micros').notNull(),
+  created_at: createdAt(),
+})
+
+/**
+ * A bill's automatic recharges, one row per attempt (failed ones are kept). At most one is pending per bill (a
+ * partial unique index), so two postings that both see the balance under the threshold cannot charge twice. Its id
+ * is the Stripe idempotency key and the ledger entry's `source_id`; the monthly cap counts pending and paid rows by
+ * `created_at` (UTC calendar month). A pending row older than 24 hours is checked against Stripe by the nightly job.
+ */
+export const billing_recharges = pgTable(
+  'billing_recharges',
+  {
+    id: id(),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    amount_cents: integer('amount_cents').notNull(),
+    status: text('status', { enum: RECHARGE_STATUSES }).notNull().default('pending'),
+    /** The invoice that charges it (a recharge invoice, or the subscription's first invoice at trial conversion). */
+    stripe_invoice_id: text('stripe_invoice_id').unique(),
+    /** Stripe's decline or error code of a failed attempt (`card_declined`, `authentication_required`). */
+    failure_code: text('failure_code'),
+    created_at: createdAt(),
+    resolved_at: ts('resolved_at'),
+  },
+  t => [
+    uniqueIndex('billing_recharges_one_pending')
+      .on(t.billing_account_id)
+      .where(sql`${t.status} = 'pending'`),
+    index('billing_recharges_bill_created').on(t.billing_account_id, t.created_at),
+    check('billing_recharges_status', oneOf(t.status, RECHARGE_STATUSES)),
+    check(
+      'billing_recharges_amount',
+      sql`${t.amount_cents} between ${sql.raw(String(RECHARGE_LIMITS.amountCents.min))} and ${sql.raw(String(RECHARGE_LIMITS.amountCents.max))}`,
+    ),
+    check('billing_recharges_resolved', sql`(${t.status} = 'pending') = (${t.resolved_at} is null)`),
+  ],
+)
+
+/** The Stripe webhook inbox: one row per event id, so a redelivery is processed once. Kept 90 days. */
+export const stripe_events = pgTable(
+  'stripe_events',
+  {
+    /** Stripe's `evt_…`. */
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    livemode: boolean('livemode').notNull(),
+    /** When Stripe created the event. */
+    created: ts('created').notNull(),
+    received_at: ts('received_at').notNull().defaultNow(),
+    processed_at: ts('processed_at'),
+    attempts: integer('attempts').notNull().default(0),
+    last_error: text('last_error'),
+    payload: jsonb('payload').notNull(),
+  },
+  t => [index('stripe_events_received').on(t.received_at)],
+)
+
+/** One free trial per card: the card's Stripe fingerprint and the bill that first used it. */
+export const card_fingerprints = pgTable('card_fingerprints', {
+  fingerprint: text('fingerprint').primaryKey(),
+  first_billing_account_id: text('first_billing_account_id')
+    .notNull()
+    .references(() => billing_accounts.id),
+  trial_used_at: ts('trial_used_at'),
+  created_at: createdAt(),
+})
+
+/** A mirror of the bill's Stripe invoices (plan fees, recharges, top-ups), for display. */
+export const billing_invoices = pgTable(
+  'billing_invoices',
+  {
+    stripe_invoice_id: text('stripe_invoice_id').primaryKey(),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    kind: text('kind', { enum: INVOICE_KINDS }).notNull(),
+    number: text('number'),
+    status: text('status', { enum: INVOICE_STATUSES }).notNull(),
+    total_cents: integer('total_cents').notNull(),
+    tax_cents: integer('tax_cents').notNull().default(0),
+    period_start: ts('period_start'),
+    period_end: ts('period_end'),
+    hosted_invoice_url: text('hosted_invoice_url'),
+    pdf_url: text('pdf_url'),
+    created_at: createdAt(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    index('billing_invoices_bill').on(t.billing_account_id, t.created_at),
+    check('billing_invoices_kind', oneOf(t.kind, INVOICE_KINDS)),
+    check('billing_invoices_status', oneOf(t.status, INVOICE_STATUSES)),
+  ],
+)
+
+/**
+ * The owner's billing emails already sent, once per bill, kind and occasion (`ref`: the calendar month for the
+ * cap, the failed invoice for a recharge failure, the recharge or top-up that ended a low-balance stretch, the
+ * yearly period that renews for the renewal reminder).
+ */
+export const billing_alerts = pgTable(
+  'billing_alerts',
+  {
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    kind: text('kind', { enum: ALERT_KINDS }).notNull(),
+    ref: text('ref').notNull(),
+    created_at: createdAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.billing_account_id, t.kind, t.ref] }),
+    check('billing_alerts_kind', oneOf(t.kind, ALERT_KINDS)),
+  ],
+)

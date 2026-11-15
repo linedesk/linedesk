@@ -7,7 +7,8 @@
 // confirmed with their passkey changes them (never a setup link, an API key or an impersonation); they never come
 // from `.env`; they cannot be swapped while billing is on; removing them turns billing off; and turning billing on
 // binds it to that Stripe account and mode, so keys of another account need an explicit rebind. Every instance admin
-// is emailed when the keys change and when billing is turned on or off.
+// is emailed when the keys change and when billing is turned on or off. Billing is not in effect while the ledger's
+// database guards are missing or changed (ledger-guards.ts, checked at start and again before billing work).
 import type { BillingEnabledData } from '@linedesk/actions'
 import {
   type BillingProvider,
@@ -21,6 +22,7 @@ import { eq } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import { db } from './db.ts'
+import { ledgerGuardsOk } from './ledger-guards.ts'
 import { billingSwitchAlert } from './emails/alerts.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -61,7 +63,8 @@ export async function billingState(tx: Tx, env: Env = serverEnv()): Promise<Bill
   const liveAllowed = liveKeysAllowed(env)
   const on = await billingSwitchOn(tx)
   const usable = !!keys && !!mode && (mode === 'test' || liveAllowed)
-  return { on, inEffect: on && usable ? 'stripe' : 'none', connected: !!keys, mode, liveAllowed }
+  const guardsOk = ledgerGuardsOk()
+  return { on, inEffect: on && usable && guardsOk ? 'stripe' : 'none', connected: !!keys, mode, liveAllowed, guardsOk }
 }
 
 /**

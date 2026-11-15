@@ -23,7 +23,8 @@ export const billingEnabledSet = defineAction({
  * `data` of `billingEnabled.get` and `.set`. `on`: the switch. `inEffect`: the provider billing runs with now (`stripe`
  * only when on, connected and allowed). `connected`: Stripe has both keys. `mode`: the secret key's mode, null without
  * one. `liveAllowed`: whether the server allows live keys (`BILLING_LIVE_KEYS=1`, production only; never with
- * `LINEDESK_MODE=dev`).
+ * `LINEDESK_MODE=dev`). `guardsOk`: the ledger's database guards were found intact (apps/api/src/ledger-guards.ts);
+ * while false, billing is not in effect.
  */
 export type BillingEnabledData = {
   on: boolean
@@ -31,4 +32,5 @@ export type BillingEnabledData = {
   connected: boolean
   mode: 'test' | 'live' | null
   liveAllowed: boolean
+  guardsOk: boolean
 }

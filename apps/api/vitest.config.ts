@@ -25,6 +25,7 @@ async function testDatabaseBase(): Promise<string | null> {
  */
 const INSTANCE_WIDE_FILES = [
   'test/admin.test.ts',
+  'test/billing-schema.test.ts',
   'test/after-call-transcript.test.ts',
   // Stripe keys and the billing switch (provider_settings, instance_settings).
   'test/billing-settings.test.ts',

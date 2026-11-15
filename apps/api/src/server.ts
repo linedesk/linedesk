@@ -21,6 +21,8 @@ const { passkeysOffWarning, secondFactorOffWarning } = await import('./admin-sec
 await (await import('./admin-passkey-codes.ts'))
   .printMissingAdminEnrolments()
   .catch(error => console.error('could not issue passkey enrolment codes:', error))
+// The billing ledger's triggers (ledger-guards.ts): billing refuses to run without them.
+await (await import('./ledger-guards.ts')).checkLedgerGuards(db).catch(error => console.error('could not check the ledger guards:', error))
 const { app } = await import('./app.ts')
 // Every email's result goes into the provider failure record (provider-failures.ts).
 const { watchEmailFailures } = await import('./provider-failures.ts')

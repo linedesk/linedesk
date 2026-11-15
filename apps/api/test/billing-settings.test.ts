@@ -4,13 +4,14 @@
 // one Stripe account; every change emails every instance admin. Instance-wide (provider keys, instance settings): its
 // own database (vitest.config.ts).
 import { commands, instance_settings, provider_settings, user } from '@linedesk/db'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { adminHandlers } from '../src/admin-handlers.ts'
 import { billingProvider, billingSettingsHandlers, billingState, setBillingFetch } from '../src/billing-settings.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
+import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { act, createWorkspace, type User } from './helpers.ts'
 
 /** A made-up Stripe key, put together at run time so the secret scan never sees a key-shaped string in the repo. */
@@ -48,6 +49,8 @@ beforeAll(async () => {
   await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
   owner = (await createWorkspace('Brightwater Plumbing & Heating')).owner
   setBillingFetch(fakeStripe)
+  // What the API does at start (server.ts): billing is in effect only once the ledger guards were found.
+  expect(await checkLedgerGuards(db)).toBe(true)
 })
 afterEach(async () => {
   process.env = { ...envBefore }
@@ -72,9 +75,23 @@ const mailbox = () => {
 
 describe('the switch', () => {
   test('off and none by default, also with keys stored', async () => {
-    expect(await state()).toEqual({ on: false, inEffect: 'none', connected: false, mode: null, liveAllowed: false })
+    expect(await state()).toEqual({
+      on: false,
+      inEffect: 'none',
+      connected: false,
+      mode: null,
+      liveAllowed: false,
+      guardsOk: true,
+    })
     expect((await setKeys({ secret_key: TEST_KEY, webhook_secret: WEBHOOK })).status).toBe(200)
-    expect(await state()).toEqual({ on: false, inEffect: 'none', connected: true, mode: 'test', liveAllowed: false })
+    expect(await state()).toEqual({
+      on: false,
+      inEffect: 'none',
+      connected: true,
+      mode: 'test',
+      liveAllowed: false,
+      guardsOk: true,
+    })
     expect((await billingProvider(db)).name).toBe('none')
   })
 
@@ -91,6 +108,24 @@ describe('the switch', () => {
     expect(on.body.data).toMatchObject({ on: true, inEffect: 'stripe', mode: 'test' })
     expect((await billingProvider(db)).name).toBe('stripe')
     expect((await switchTo(false)).body.data).toMatchObject({ on: false, inEffect: 'none' })
+  })
+
+  test('not in effect while the ledger guards are missing: Stripe never runs then', async () => {
+    await setKeys({ secret_key: TEST_KEY, webhook_secret: WEBHOOK })
+    expect((await switchTo(true)).status).toBe(200)
+    const error = console.error
+    console.error = () => {}
+    try {
+      await db.execute(sql`alter table ledger_entries disable trigger ledger_entries_balance`)
+      expect(await checkLedgerGuards(db)).toBe(false)
+      expect(await state()).toMatchObject({ on: true, inEffect: 'none', guardsOk: false })
+      expect((await billingProvider(db)).name).toBe('none')
+    } finally {
+      await db.execute(sql`alter table ledger_entries enable trigger ledger_entries_balance`)
+      console.error = error
+    }
+    expect(await checkLedgerGuards(db)).toBe(true)
+    expect((await billingProvider(db)).name).toBe('stripe')
   })
 
   test('only instance admins read or change it, and the change is in the audit log', async () => {

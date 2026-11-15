@@ -4,8 +4,9 @@
 // Every table with a `workspace_id` column loses the workspace's rows, found from the schema itself, so a new
 // table is covered without a change here; children before the tables they reference (foreign keys). Kept on
 // purpose (KEPT_TABLES): the audit log (`commands`, cut down to ids like the 90-day prune; `auth_events`), number
-// purchases (the install's purchase limits count them) and voice clone consent records (the voices themselves
-// are deleted at the provider). The organization row goes last; its members and invitations go with it
+// purchases (the install's purchase limits count them), voice clone consent records (the voices themselves
+// are deleted at the provider) and the billing ledger with its sums (a bill spans workspaces; the ledger is
+// append-only). The organization row goes last; its members and invitations go with it
 // (foreign keys). Members who belong to no other workspace lose their accounts too (sessions, passkeys and
 // sign-in methods go with them), unless the admin keeps them (`keepUsers`); members of other workspaces, instance
 // admins and the admin deleting it always keep theirs; an owner deleting their own keeps theirs only when they ask. A kept user's session on the workspace moves to none, so
@@ -52,6 +53,8 @@ export const KEPT_TABLES: Record<string, string> = {
   auth_events: 'the audit log',
   number_purchases: "the purchase limits of the install's carrier account count them",
   voice_clones: 'the consent records; the voices are deleted at the provider',
+  ledger_entries: 'the billing ledger: append-only, the record of what a bill was charged (docs/billing.md)',
+  usage_counters: 'sums of the billing ledger, which stays',
 }
 
 /** The tables a workspace's rows are deleted from, children first (a table before every table it references). */

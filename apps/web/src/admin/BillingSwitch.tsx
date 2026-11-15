@@ -1,7 +1,7 @@
 // Server admin › Providers › Billing (docs/billing.md §7): the install's billing switch below the Stripe provider.
 // Billing runs only when Stripe has both keys and this switch is on (off by default), so a self-hosted install with
 // keys stored still bills nobody. A dev install (LINEDESK_MODE=dev) refuses live keys; the line under the switch
-// says which mode the stored key is in.
+// says which mode the stored key is in, or that billing is paused because the ledger's database guards are not intact.
 import type { BillingEnabledData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -18,6 +18,7 @@ const load = async () => (await runAdmin('billingEnabled.get', {})) as BillingEn
 function stateLine(data: BillingEnabledData): MessageKey {
   if (!data.connected) return msg('admin.billing.notConnected')
   if (data.mode === 'live' && !data.liveAllowed) return msg('admin.billing.liveRefused')
+  if (!data.guardsOk) return msg('admin.billing.guardsMissing')
   if (data.mode === 'live') return msg('admin.billing.liveMode')
   return msg('admin.billing.testMode')
 }

@@ -17,6 +17,7 @@ import {
   setup_events,
   instance_settings,
   invitation,
+  ledger_entries,
   member as memberTable,
   number_purchases,
   organization,
@@ -25,6 +26,7 @@ import {
   provider_settings,
   push_subscriptions,
   session,
+  usage_counters,
   user,
   voice_clones,
 } from '@linedesk/db'
@@ -4643,7 +4645,15 @@ describe('workspace.delete', () => {
   /** Rows per table of a workspace, over every table that has workspace_id (kept ones included). */
   async function rowsOf(workspaceId: string) {
     const counts: Record<string, number> = {}
-    for (const table of [...workspaceTables(), commands, auth_events, number_purchases, voice_clones]) {
+    for (const table of [
+      ...workspaceTables(),
+      commands,
+      auth_events,
+      number_purchases,
+      voice_clones,
+      ledger_entries,
+      usage_counters,
+    ]) {
       const column = (table as unknown as { workspace_id: typeof calls.workspace_id }).workspace_id
       const [row] = (await db.execute(sql`select count(*)::int as n from ${table} where ${column} = ${workspaceId}`))
         .rows as { n: number }[]
