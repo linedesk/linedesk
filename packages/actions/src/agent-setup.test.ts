@@ -38,17 +38,39 @@ describe('startPlan', () => {
     expect(gemini.steps.some(s => s.code === URL && s.text.includes('Gemini in the browser'))).toBe(true)
   })
 
-  test('GitHub Copilot: add the setup server in VS Code (MCP: Add Server, HTTP), then the chat link', () => {
-    const { steps } = startPlan('copilot', URL)
+  test('GitHub Copilot: the chat link first; adding the setup server in VS Code (MCP: Add Server, HTTP) is the other way', () => {
+    const { open, otherWay, steps } = startPlan('copilot', URL)
+    expect(open!.href).toMatch(/^vscode:\/\/GitHub\.Copilot-Chat\/chat\?prompt=/)
+    expect(open!.text).toContain('Agent mode')
+    expect(otherWay).toBe('Or add the setup server first')
     expect(steps[0]!.text).toContain('MCP: Add Server')
     expect(steps[0]!.code).toBe(URL)
-    expect(steps[1]!.link!.href).toMatch(/^vscode:\/\/GitHub\.Copilot-Chat\/chat\?prompt=/)
+  })
+
+  test('the open link is the first way where one link starts the agent: Claude Code, Cursor and Copilot', () => {
+    const opens = agentClients.filter(client => startPlan(client, URL).open)
+    expect(opens).toEqual(['claude_code', 'copilot', 'cursor'])
+    expect(startPlan('claude_code', URL).open!.label).toBe('Open in Claude Code')
+    expect(startPlan('claude_code', URL).otherWay).toBe('Or copy the command for a terminal')
+    const cursor = startPlan('cursor', URL)
+    expect(cursor.open!.label).toBe('Open in Cursor')
+    expect(cursor.otherWay).toBe('Or copy the prompt')
+    expect(cursor.steps).toEqual([expect.objectContaining({ prompt: true })])
+    for (const client of opens) {
+      const plan = startPlan(client, URL)
+      expect(plan.otherWay).toMatch(/^Or /)
+      expect(plan.steps.some(s => s.link)).toBe(false)
+    }
+    // Claude on the web: its link works only once the connector is added, so it stays the last step.
+    const claude = startPlan('claude', URL)
+    expect(claude.open).toBeNull()
+    expect(claude.steps.at(-1)!.link!.label).toBe('Open Claude')
   })
 
   test('links open the local apps with the whole prompt, which carries the setup server', () => {
     for (const client of ['claude_code', 'cursor', 'copilot'] as const) {
-      const { steps, prompt } = startPlan(client, URL)
-      const href = steps.find(s => s.link)!.link!.href
+      const { open, prompt } = startPlan(client, URL)
+      const href = open!.href
       expect(href).toMatch(/^(claude|cursor|vscode):\/\//)
       expect(decodeURIComponent(href.split(/[?&](?:q|text|prompt)=/)[1]!)).toBe(prompt)
       expect(prompt).toContain(URL)

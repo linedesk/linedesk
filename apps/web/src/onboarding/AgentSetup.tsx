@@ -775,42 +775,62 @@ export function StepAction({
   return null
 }
 
-/** One command or link per agent where it can connect itself (it carries the prompt); the prompt to copy where pasting it is the way in. */
-function StartAgent({ client, url }: { client: AgentClient; url: string }) {
-  const { steps, prompt, promptFirst } = startPlan(client, url)
-  const promptBlock = (
-    <div className="as-step">
+/**
+ * How to start the chosen agent with the link. Where one link opens the agent with the prompt filled in (`open`), that
+ * button comes first and the command or prompt to copy waits behind a quiet "Or …" (opened on request). Elsewhere the
+ * steps are the way: one command or link where the agent connects itself, the prompt to copy where pasting it is.
+ */
+export function StartAgent({ client, url }: { client: AgentClient; url: string }) {
+  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url)
+  const promptToCopy = (primary: boolean) => (
+    <>
       <pre className="as-prompt">{prompt}</pre>
       <div>
-        <CopyButton text={prompt} label="Copy prompt" variant={promptFirst ? 'primary' : 'secondary'} />
+        <CopyButton text={prompt} label="Copy prompt" variant={primary ? 'primary' : 'secondary'} />
       </div>
-    </div>
-  )
-  return (
-    <>
-      {steps.map((step, i) => (
-        <div key={step.text} className="as-step">
-          <span>{step.text}</span>
-          {step.code && (
-            <div className="as-code">
-              <code>{step.code}</code>
-              <CopyButton text={step.code} variant={i === 0 ? 'primary' : undefined} />
-            </div>
-          )}
-          {step.link && (
-            <div>
-              <a
-                className={cx('k-btn', 'k-btn-sm', i === 0 ? 'k-btn-primary' : 'k-btn-secondary')}
-                href={step.link.href}
-              >
-                {step.link.label}
-              </a>
-            </div>
-          )}
-        </div>
-      ))}
-      {promptFirst && promptBlock}
     </>
+  )
+  // The first copy or link is the main action, unless the open link above already is.
+  const lead = (i: number) => !open && i === 0
+  const stepList = steps.map((step, i) => (
+    <div key={step.text} className="as-step">
+      <span>{step.text}</span>
+      {step.code && (
+        <div className="as-code">
+          <code>{step.code}</code>
+          <CopyButton text={step.code} variant={lead(i) ? 'primary' : 'secondary'} />
+        </div>
+      )}
+      {step.link && (
+        <div>
+          <a className={cx('k-btn', 'k-btn-sm', lead(i) ? 'k-btn-primary' : 'k-btn-secondary')} href={step.link.href}>
+            {step.link.label}
+          </a>
+        </div>
+      )}
+      {step.prompt && promptToCopy(false)}
+    </div>
+  ))
+  if (!open)
+    return (
+      <>
+        {stepList}
+        {promptFirst && <div className="as-step">{promptToCopy(true)}</div>}
+      </>
+    )
+  return (
+    <div className="as-start">
+      <div className="as-open">
+        <a className="k-btn k-btn-primary k-btn-md" href={open.href}>
+          {open.label}
+        </a>
+        <span className="as-small">{open.text}</span>
+      </div>
+      <details className="as-other-way">
+        <summary>{otherWay}</summary>
+        <div className="as-other-way-body">{stepList}</div>
+      </details>
+    </div>
   )
 }
 

@@ -254,31 +254,42 @@ export const agentClientLabels: Record<AgentClient, string> = {
 /** Clients that run in the cloud: they reach the install only on a public https address (reachableFromCloud). */
 export const cloudClients: readonly AgentClient[] = ['claude', 'chatgpt']
 
-/** One thing to do to start the agent: text, and a command to copy or a link that opens the agent. */
-export type StartStep = { text: string; code?: string; link?: { label: string; href: string } }
+/**
+ * One thing to do to start the agent: text, and a command to copy, a link that opens the agent, or (`prompt`) the
+ * prompt to copy.
+ */
+export type StartStep = { text: string; code?: string; link?: { label: string; href: string }; prompt?: true }
+/** The direct way in: a link that opens the agent with the prompt filled in, and one line on what happens. */
+export type OpenLink = { label: string; href: string; text: string }
 /**
  * How to start each agent with the setup, with the key in the URL (`url` from agentSetup.createKey): as few steps as
  * the agent allows. Agents that run commands connect themselves (one command, or a link that opens them with the
  * prompt filled in; without the MCP they call the tools over HTTP, as the prompt says). Cloud chat apps cannot add
  * an MCP server on their own, so connecting it stays a step there. `prompt` is what to paste instead (or after the
  * connector for the cloud apps); `promptFirst` when pasting it is the main way.
+ *
+ * `open`: the agent opens with the prompt filled in from one link, with nothing to set up first. That is the first
+ * and recommended way; `steps` are then the other way (`otherWay` names it), kept out of sight until asked for.
+ * Claude (the web app) has a link too, but only after its connector is added, so it stays a step there.
  */
 export function startPlan(
   client: AgentClient,
   url: string,
-): { steps: StartStep[]; prompt: string; promptFirst: boolean } {
+): { open: OpenLink | null; otherWay?: string; steps: StartStep[]; prompt: string; promptFirst: boolean } {
   const prompt = agentSetupPrompt(url)
   switch (client) {
     case 'claude_code':
       return {
+        open: {
+          label: 'Open in Claude Code',
+          href: `claude://code/new?q=${encodeURIComponent(prompt)}`,
+          text: 'Opens the Claude desktop app with the prompt filled in. Send it to start.',
+        },
+        otherWay: 'Or copy the command for a terminal',
         steps: [
           {
             text: 'Run this in a terminal. It connects the setup server and starts the setup:',
             code: `claude ${shellQuote(COMMAND_PROMPT)} --mcp-config ${shellQuote(JSON.stringify({ mcpServers: { [MCP_NAME]: { type: 'http', url } } }))}`,
-          },
-          {
-            text: 'Or open the Claude desktop app with the prompt filled in, and send it:',
-            link: { label: 'Open in Claude Code', href: `claude://code/new?q=${encodeURIComponent(prompt)}` },
           },
         ],
         prompt,
@@ -286,6 +297,7 @@ export function startPlan(
       }
     case 'codex':
       return {
+        open: null,
         steps: [
           {
             text: 'Run this in a terminal. It connects the setup server and starts the setup:',
@@ -296,20 +308,21 @@ export function startPlan(
         promptFirst: false,
       }
     case 'copilot':
-      // VS Code: MCP: Add Server (code.visualstudio.com/docs/agent-customization/mcp-servers); the chat link is the one
-      // VS Code's own docs use for "Ask in VS Code" (vscode://GitHub.Copilot-Chat/chat?prompt=).
+      // VS Code's chat link is the one its own docs use for "Ask in VS Code" (vscode://GitHub.Copilot-Chat/chat?prompt=).
+      // In Agent mode Copilot runs terminal commands, so it reaches the tools over HTTP as the prompt says, like Cursor.
+      // Adding the setup server first (MCP: Add Server, code.visualstudio.com/docs/agent-customization/mcp-servers)
+      // gives it the tools directly: the other way.
       return {
+        open: {
+          label: 'Open in VS Code',
+          href: `vscode://GitHub.Copilot-Chat/chat?prompt=${encodeURIComponent(prompt)}`,
+          text: 'Opens Copilot Chat with the prompt filled in. Switch it to Agent mode and send it.',
+        },
+        otherWay: 'Or add the setup server first',
         steps: [
           {
-            text: 'In VS Code, run MCP: Add Server from the Command Palette, choose HTTP, paste this URL and name it linedesk-setup:',
+            text: 'In VS Code, run MCP: Add Server from the Command Palette, choose HTTP, paste this URL and name it linedesk-setup. Then open the chat with the button above:',
             code: url,
-          },
-          {
-            text: 'Open Copilot Chat with the prompt filled in, make sure it is in Agent mode, and send it:',
-            link: {
-              label: 'Open in VS Code',
-              href: `vscode://GitHub.Copilot-Chat/chat?prompt=${encodeURIComponent(prompt)}`,
-            },
           },
         ],
         prompt,
@@ -320,6 +333,7 @@ export function startPlan(
       // folder and in untrusted folders; an existing linedesk-setup is replaced, so a new link just runs it again.
       // `-i` starts the session with the prompt and stays interactive (docs/cli/cli-reference.md).
       return {
+        open: null,
         steps: [
           {
             text: 'Run this in a terminal with Gemini CLI. It connects the setup server and starts the setup:',
@@ -335,21 +349,21 @@ export function startPlan(
       }
     case 'cursor':
       return {
-        steps: [
-          {
-            text: 'Open Cursor with the prompt filled in, and send it. The agent calls the setup tools from its terminal:',
-            link: {
-              label: 'Open in Cursor',
-              href: `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(prompt)}`,
-            },
-          },
-        ],
+        open: {
+          label: 'Open in Cursor',
+          href: `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(prompt)}`,
+          text: 'Opens Cursor with the prompt filled in. Send it, and the agent calls the setup tools from its terminal.',
+        },
+        otherWay: 'Or copy the prompt',
+        steps: [{ text: 'Paste it into a Cursor chat in Agent mode and send it:', prompt: true }],
         prompt,
         promptFirst: false,
       }
     case 'claude': {
       const viaConnector = agentSetupPrompt(url, { connector: true })
+      // The link works only once the connector is added, so it stays the last step (no `open`).
       return {
+        open: null,
         steps: [
           {
             text: 'Claude cannot add the setup server by itself. In Claude: Settings → Connectors → Add custom connector.',
@@ -366,6 +380,7 @@ export function startPlan(
     }
     case 'chatgpt':
       return {
+        open: null,
         steps: [
           {
             text: 'ChatGPT cannot add the setup server by itself. Settings → Apps & Connectors → Advanced settings → turn on Developer mode.',
@@ -378,6 +393,7 @@ export function startPlan(
       }
     case 'other':
       return {
+        open: null,
         steps: [
           {
             text: 'Paste the prompt below into your agent. It contains the setup server, so the agent connects by itself: as an MCP server (Streamable HTTP, no sign-in) or over HTTP from a terminal.',

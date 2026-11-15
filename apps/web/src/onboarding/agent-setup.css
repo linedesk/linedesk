@@ -195,7 +195,8 @@
   line-height: 18px;
   white-space: pre-wrap;
   word-break: break-all;
-  padding-top: 3px;
+  /* The first line centred on the Copy button (28 px) beside it. */
+  padding-top: 5px;
 }
 .as-prompt {
   margin: 0;
@@ -214,6 +215,41 @@
 .as-small {
   font-size: 12px;
   color: var(--ink-muted);
+}
+/* Step 2, starting the agent: the open link first (button, then what it does), the other way behind a quiet "Or …". */
+.as-start {
+  display: grid;
+  gap: 12px;
+}
+.as-open {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+.as-other-way > summary {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.as-other-way > summary::-webkit-details-marker {
+  display: none;
+}
+.as-other-way > summary:hover {
+  color: var(--ink);
+}
+.as-other-way > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.as-other-way-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
 }
 /* An active setup link: what it is and, next to it, the one thing to do with it (end it). */
 .as-link {
