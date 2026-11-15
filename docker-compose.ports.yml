@@ -6,6 +6,9 @@ services:
   postgres:
     ports: ["127.0.0.1:5433:5432"]
     networks: [backend, default]
+    # docker-compose.yml's command (keep the first four arguments in step with it), plus more lock slots: the API
+    # tests reset their schemas in parallel (DROP ... CASCADE), which at the default 64 fails with "out of shared memory".
+    command: ["postgres", "-c", "wal_level=logical", "-c", "shared_buffers=64MB", "-c", "max_locks_per_transaction=256"]
     # The API tests run many files against it at once; at the server default (128m) Postgres is OOM-killed mid-run.
     mem_limit: ${LINEDESK_POSTGRES_MEM:-768m}
     # The server's 0.1 CPU made admin pages take 3 to 14 s with two dev stacks and the tests running.

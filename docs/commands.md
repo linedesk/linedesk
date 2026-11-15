@@ -20,6 +20,7 @@ All commands for working on Linedesk. The short list every session needs is in [
 - `pnpm dev` (API on 3100, web on 5173), `pnpm typecheck`, `pnpm test`.
 - `pnpm lint` (Biome, config in `biome.json`; PR CI runs typecheck, lint and the image build). `pnpm format <files>` formats only the files you touched; don't run it on the whole repo, the code is not reformatted yet.
 - The API tests (`apps/api/test`) need Postgres (`pnpm db:up`). Each run creates and drops its own databases `linedesk_test_<run>`, never `linedesk`: one for each file that changes what is global to an install or counts across workspaces (`INSTANCE_WIDE_FILES` in `apps/api/vitest.config.ts`: admin, setup checklist, provider failures, setup MCP, install setup; a new file that sets provider keys, instance settings, instance admins or stored provider tests goes there), one for all others; `TEST_DATABASE_URL` overrides the base name. Without Postgres they are skipped with a message.
+- The dev Postgres of `pnpm db:up` runs with `max_locks_per_transaction=256` (`docker-compose.ports.yml`; the server default is 64): the parallel test schema resets otherwise fail with "out of shared memory". A running container picks it up after `pnpm db:up` recreates it.
 - Prototype: `cd prototypes/inbox-html && python3 -m http.server 4173`.
 
 ## Calls without a phone

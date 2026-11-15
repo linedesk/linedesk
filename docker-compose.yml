@@ -22,6 +22,7 @@ services:
   postgres:
     <<: *service
     image: postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07
+    # docker-compose.ports.yml and docker-compose.wal.yml repeat these arguments; change them there too.
     command: ["postgres", "-c", "wal_level=logical", "-c", "shared_buffers=64MB"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-linedesk}
