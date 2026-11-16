@@ -7,6 +7,7 @@ import type { Participant, Room } from 'livekit-client'
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { useVoiceReady } from '../shell/presence.ts'
 import { useAssistantName, useRows } from '../store.tsx'
+import { useSupportAccess } from '../supportAccess.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button } from '../ui/kit.tsx'
 import '../ui/settings-layout.css'
@@ -61,6 +62,7 @@ function useRoomCall(room: string | null) {
  */
 export function useTestCall(canStart: boolean, assistant?: { id: string; name: string }, operator = false) {
   const t = useT()
+  const supportAccess = useSupportAccess()
   const defaultName = useAssistantName()
   const name = assistant?.name ?? defaultName
   const [phase, setPhase] = useState<Phase>('idle')
@@ -244,7 +246,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
     audio,
     /** Why Start is off, for its tooltip; null when it can start. */
     blockedReason: !canStart
-      ? t('settings.testCall.onlyAdmins')
+      ? t(supportAccess ? 'settings.testCall.supportAccess' : 'settings.testCall.onlyAdmins')
       : voiceDown
         ? t(operator ? 'settings.testCall.voiceDownOperator' : 'settings.testCall.voiceDown', { name })
         : null,

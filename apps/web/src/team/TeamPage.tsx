@@ -12,7 +12,8 @@ import {
 } from '@linedesk/actions'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
-import { onlyAdmins } from '../settings/readOnly.ts'
+import { useReadOnlyNote } from '../settings/readOnly.ts'
+import { useSupportAccess } from '../supportAccess.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { signInAgain, signOutAndForget } from '../localData.ts'
@@ -45,6 +46,7 @@ import {
   needsSignInAgain,
   type TeamRun,
   teamRemoveConfirmation,
+  teamAsShown,
   teamRunner,
 } from './team-model.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -461,8 +463,10 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
 export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const t = useT()
   const team = useTeam()
+  const readOnly = useReadOnlyNote()
+  const supportAccess = useSupportAccess()
   const [editing, setEditing] = useState<TeamMember | null>(null)
-  const data = team.data ?? null
+  const data = teamAsShown(team.data ?? null, supportAccess)
   const error = data ? null : team.error
   const load = team.reload
 
@@ -473,7 +477,7 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
       <Section
         id="team-members"
         title={t('team.members.title')}
-        description={data && !data.canManage ? onlyAdmins() : undefined}
+        description={data && !data.canManage ? readOnly : undefined}
         help={t('team.members.help')}
       >
         <Loading

@@ -148,6 +148,8 @@ export function fetchQuery<T>(
   const entry = entryFor(key, options.persist)
   const registration = registrationFor(key)
   if (load) registration.load = load
+  // The session is changing under this page (holdQueries): a load now would be refused as the other account's.
+  if (held) return Promise.resolve()
   if (entry.inflight && !again) return entry.inflight
   const run = registration.load
   if (!run) return Promise.resolve()
@@ -172,6 +174,20 @@ export function fetchQuery<T>(
   })
   entry.inflight = inflight
   return inflight
+}
+
+let held = false
+
+/**
+ * While the browser's session changes under this page (an impersonation that starts or ends, then a reload), no query
+ * loads: the cookie is the other account's already, so the API would refuse each one (`account_switched`, context.ts)
+ * and only fill the console with 403s. `releaseQueries` when the change did not happen after all (refused).
+ */
+export function holdQueries() {
+  held = true
+}
+export function releaseQueries() {
+  held = false
 }
 
 /** Loads the query again in the background, if anything has loaded it before. */
@@ -222,6 +238,18 @@ export function forgetOtherMembersQueries(actorId: string) {
   } catch {
     /* nothing was stored */
   }
+}
+
+/**
+ * Checks the query again every `ms` while the tab is visible: for a list that someone else changes while this page
+ * stays open (API keys made in another session), where neither mounting nor focus would bring the change. Returns the
+ * stop.
+ */
+export function pollWhileVisible(key: string, ms: number): () => void {
+  const timer = setInterval(() => {
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') void fetchQuery(key)
+  }, ms)
+  return () => clearInterval(timer)
 }
 
 /** Queries someone is looking at are checked again when the window gets focus back (not right after a load). */

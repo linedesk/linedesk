@@ -4,7 +4,7 @@
 // Advanced (how calls are answered, talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { onlyAdmins } from './readOnly.ts'
+import { useReadOnlyNote } from './readOnly.ts'
 import {
   type PipelinesSetUp,
   pipelineFor,
@@ -742,6 +742,7 @@ function Form({
   agentChange = false,
 }: FormProps) {
   const t = useT()
+  const readOnly = useReadOnlyNote()
   const format = useFormat()
   const run = useRun()
   const page = `assistant/${assistant.id}`
@@ -957,7 +958,7 @@ function Form({
           toast={toast}
         />
       }
-      description={canEdit ? undefined : onlyAdmins()}
+      description={canEdit ? undefined : readOnly}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
       sections={shown}

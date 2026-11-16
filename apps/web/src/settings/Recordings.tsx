@@ -2,7 +2,7 @@
 // greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
 // and summary stay. With recording off on the server (no recording store) both stay as saved but greyed out: nothing
 // is recorded and the assistant does not say the notice, until recording is turned on.
-import { onlyAdmins } from './readOnly.ts'
+import { useReadOnlyNote } from './readOnly.ts'
 import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
@@ -60,6 +60,7 @@ export function RecordingOffNote() {
 
 export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
   const t = useT()
+  const readOnly = useReadOnlyNote()
   const run = useRun()
   const settings = useWorkspaceSettings()
   const days = settings.data?.recordingRetentionDays
@@ -108,7 +109,7 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           <Field
             id="st-retention"
             label={t('settings.recordings.keepFor')}
-            help={canEdit || !recordingOn ? undefined : onlyAdmins()}
+            help={canEdit || !recordingOn ? undefined : readOnly}
           >
             <div>
               <Select

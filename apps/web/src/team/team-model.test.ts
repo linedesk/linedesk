@@ -15,6 +15,7 @@ import {
   roleInSentence,
   rolesFor,
   sentInvitations,
+  teamAsShown,
   teamRemoveConfirmation,
   teamRunner,
 } from './team-model.ts'
@@ -154,5 +155,18 @@ describe('team changes (teamRunner)', () => {
     expect(needsSignInAgain(refusal)).toBe(true)
     expect(needsSignInAgain(new Error('No.'))).toBe(false)
     expect(needsSignInAgain(null)).toBe(false)
+  })
+})
+
+describe('the team during support access', () => {
+  it('reads as a member sees it: nothing to change, the same members and invitations', () => {
+    const team = data(true)
+    const shown = teamAsShown(team, true)!
+    expect(shown.canManage).toBe(false)
+    expect(shown.members).toBe(team.members)
+    expect(shown.invitations).toBe(team.invitations)
+    expect(canEditRole(shown, team.members[1]!)).toBe(false)
+    expect(teamAsShown(team, false)).toBe(team)
+    expect(teamAsShown(null, true)).toBeNull()
   })
 })

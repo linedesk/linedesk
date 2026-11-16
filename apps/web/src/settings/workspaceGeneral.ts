@@ -10,3 +10,26 @@ export function renameCheck(draft: string, saved: string): { next: string; chang
   const changed = next !== saved
   return { next, changed, problem: changed ? workspaceNameProblem(next) : null }
 }
+
+type RenameSteps = {
+  /** Sends workspace.rename and resolves once the server saved it (useWriteAction). */
+  write: (name: string) => Promise<unknown>
+  /** Saved: the menu, the page and the field take the new name. */
+  saved: (name: string) => void
+  /** Refused or not sent: the field shows the saved name again, `reason` says why. */
+  refused: (reason: string) => void
+}
+
+/**
+ * Renames the workspace: the new name shows outside the field only once the server has saved it, so a refusal (support
+ * access, a lost connection) never leaves a name on screen that is not the workspace's.
+ */
+export async function saveRename(next: string, steps: RenameSteps): Promise<void> {
+  try {
+    await steps.write(next)
+  } catch (e) {
+    steps.refused(e instanceof Error ? e.message : String(e))
+    return
+  }
+  steps.saved(next)
+}

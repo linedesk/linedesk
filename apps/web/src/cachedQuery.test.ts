@@ -171,3 +171,43 @@ describe('cached queries', () => {
     expect(storage.keys()).toEqual(['linedesk-q::auth-methods'])
   })
 })
+
+describe('while the session changes under the page', () => {
+  test('held queries do not load until released', async () => {
+    const { holdQueries, releaseQueries } = await import('./cachedQuery.ts')
+    const load = vi.fn(async () => ['Brightwater'])
+    holdQueries()
+    try {
+      await fetchQuery('team', load)
+      expect(load).not.toHaveBeenCalled()
+    } finally {
+      releaseQueries()
+    }
+    await fetchQuery('team', load)
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  test('a polled query loads again while the tab is visible, not while hidden', async () => {
+    const { pollWhileVisible } = await import('./cachedQuery.ts')
+    vi.useFakeTimers()
+    const document = { visibilityState: 'visible' }
+    vi.stubGlobal('document', document)
+    const load = vi.fn(async () => ({ keys: [] }))
+    await fetchQuery('apiKey.list', load)
+    const stop = pollWhileVisible('apiKey.list', 1000)
+    try {
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(load).toHaveBeenCalledTimes(2)
+      document.visibilityState = 'hidden'
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(load).toHaveBeenCalledTimes(2)
+      stop()
+      document.visibilityState = 'visible'
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(load).toHaveBeenCalledTimes(2)
+    } finally {
+      stop()
+      vi.useRealTimers()
+    }
+  })
+})

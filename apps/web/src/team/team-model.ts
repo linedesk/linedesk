@@ -37,6 +37,13 @@ export function canEditRole(data: TeamData, m: TeamMember) {
 }
 /** The roles the role menu offers for a teammate: Owner only to the owner (it hands the workspace over). */
 export const rolesFor = (data: TeamData) => (isOwner(data) ? teamRoles : assignableRoles)
+/**
+ * The team as this tab shows it. During support access (an instance admin signed in as the person) nothing on it can
+ * be changed (apps/api/src/impersonation-guard.ts): it reads as a member's view, the invitations still listed.
+ */
+export const teamAsShown = (data: TeamData | null, supportAccess: boolean): TeamData | null =>
+  data && supportAccess ? { ...data, canManage: false } : data
+
 export const canRemove = (data: TeamData, m: TeamMember) => data.canManage && m.role !== 'owner' && m.userId !== data.me
 
 export function isOnTeam(data: TeamData, email: string) {

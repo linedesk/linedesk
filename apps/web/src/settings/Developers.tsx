@@ -4,8 +4,8 @@
 import type { ApiKeyCreated, ApiKeyListData, ApiKeySummary } from '@linedesk/actions'
 import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
-import { type FormEvent, useState } from 'react'
-import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { type FormEvent, useEffect, useState } from 'react'
+import { pollWhileVisible, setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
@@ -17,6 +17,8 @@ import './developers.css'
 import { fmt } from '../i18n/format.ts'
 
 const API_KEYS = 'apiKey.list'
+/** How often the open list is checked again: a key made in another session (support access) shows without a reload. */
+export const KEYS_POLL_MS = 15_000
 const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
 
 type Role = ApiKeySummary['role']
@@ -40,6 +42,7 @@ type Props = { canEdit: boolean; toast: (text: string) => void }
 export function Developers({ canEdit, toast }: Props) {
   const t = useT()
   const keys = useQuery(canEdit ? API_KEYS : null, loadKeys, { persist: true })
+  useEffect(() => (canEdit ? pollWhileVisible(API_KEYS, KEYS_POLL_MS) : undefined), [canEdit])
   const [creating, setCreating] = useState(false)
   if (!canEdit)
     return (

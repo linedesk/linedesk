@@ -9,6 +9,7 @@ vi.mock('./settings-api.ts', () => ({
   patchWorkspaceSettings: vi.fn(),
   refreshWorkspaceSettings: vi.fn(),
   callAction: vi.fn(),
+  useWriteAction: () => vi.fn(),
 }))
 vi.mock('../store.tsx', () => ({ useRun: () => vi.fn(), useRows: () => [], useAssistants: () => [] }))
 vi.mock('../shell/WorkspaceSwitcher.tsx', () => ({ useWorkspaces: () => [] }))

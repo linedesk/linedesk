@@ -130,6 +130,7 @@
   "link.noAccess": "You don't have access to the workspace that link is for.",
   "lost.call": "Call not found.",
   "lost.page": "That page does not exist.",
+  "lost.supportAccess": "Not available while you are signed in as another user.",
   "nav.adminTip": "Server admin: providers, users and settings for every workspace on this server",
   "nav.closeMenu": "Close menu",
   "nav.done": "Done",

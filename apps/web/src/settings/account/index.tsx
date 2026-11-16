@@ -4,7 +4,8 @@
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchMe, passkeySupported } from '../../auth.ts'
+import { auth, fetchMe, passkeySupported } from '../../auth.ts'
+import { useSupportAccess } from '../../supportAccess.ts'
 import { removeAuthenticator } from '../../authenticator-api.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
@@ -986,6 +987,34 @@ type Props = {
 }
 
 export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
+  const supportAccess = useSupportAccess()
+  // The person's profile, sign-in, sessions and own notifications are theirs alone: the server refuses them during
+  // support access (impersonation-guard.ts), so nothing is loaded and the page says so calmly.
+  return supportAccess ? (
+    <SupportAccessAccount hasWorkspace={hasWorkspace} />
+  ) : (
+    <OwnAccount hasWorkspace={hasWorkspace} workspaceName={workspaceName} />
+  )
+}
+
+/** Account settings during support access: the sections, each saying it is the person's own. */
+function SupportAccessAccount({ hasWorkspace }: Pick<Props, 'hasWorkspace'>) {
+  const t = useT()
+  const shown = useSections(hasWorkspace)
+  const current = useSection('account', shown)
+  const email = auth.useSession().data?.user.email ?? null
+  return (
+    <div className="page">
+      <SettingsLayout page="account" title={t('account.title')} description={email} sections={shown} current={current}>
+        <Note tone="info" title={t('account.supportAccess.title')}>
+          {t('account.supportAccess.text')}
+        </Note>
+      </SettingsLayout>
+    </div>
+  )
+}
+
+function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
   const t = useT()
   const query = useQuery(ACCOUNT, loadAccount, { persist: true })
   const account = query.data

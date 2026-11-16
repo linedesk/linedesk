@@ -190,3 +190,17 @@ describe('transfer contacts', () => {
     })
   })
 })
+
+describe('API keys', () => {
+  test('a revoked key is listed with its name (the revoke itself has only the id)', async () => {
+    const ws = await createWorkspace('Brightwater Plumbing & Heating')
+    const created = await act(ws.owner, 'apiKey.create', { name: 'Zapier', role: 'member' })
+    expect(created.status).toBe(200)
+    const apiKeyId = (created.body as { data: { apiKeyId: string } }).data.apiKeyId
+    expect((await act(ws.owner, 'apiKey.revoke', { apiKeyId })).status).toBe(200)
+
+    const { entries } = await listAudit(db, { kind: 'integrations', workspaceId: ws.id, limit: 50 })
+    expect(entries.find(e => e.what === 'apiKey.revoke')).toMatchObject({ apiKeyName: 'Zapier', input: { apiKeyId } })
+    expect(entries.find(e => e.what === 'apiKey.create')?.apiKeyName).toBeUndefined()
+  })
+})

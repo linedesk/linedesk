@@ -8,15 +8,19 @@ vi.mock('./settings-api.ts', () => ({
   patchWorkspaceSettings: vi.fn(),
   refreshWorkspaceSettings: vi.fn(),
   callAction: vi.fn(),
+  useWriteAction: () => vi.fn(),
 }))
 vi.mock('../store.tsx', () => ({ useRun: () => vi.fn(), useRows: () => [] }))
 vi.mock('../shell/WorkspaceSwitcher.tsx', () => ({ useWorkspaces: () => [] }))
 
 const { WorkspaceGeneral } = await import('./WorkspaceGeneral.tsx')
+const { SupportAccessContext } = await import('../supportAccess.ts')
 
-const render = (canEdit: boolean) =>
+const render = (canEdit: boolean, supportAccess = false) =>
   renderToStaticMarkup(
-    <WorkspaceGeneral canEdit={canEdit} name="Brightwater Plumbing & Heating" onRenamed={() => {}} toast={() => {}} />,
+    <SupportAccessContext.Provider value={supportAccess}>
+      <WorkspaceGeneral canEdit={canEdit} name="Brightwater Plumbing & Heating" onRenamed={() => {}} toast={() => {}} />
+    </SupportAccessContext.Provider>,
   )
 
 const PREFERENCES_LINK = '<a class="k-link" href="#account/preferences">Account › Preferences</a>'
@@ -28,4 +32,12 @@ test('the call language help links to Account › Preferences', () => {
 test('a member who only reads the settings gets the same link', () => {
   const html = render(false)
   expect(html).toContain(`change that under ${PREFERENCES_LINK}. Only admins can change this.`)
+})
+
+test('during support access every field is read-only and says why, without sending to Account › Preferences', () => {
+  const html = render(false, true)
+  expect(html).toContain('Read-only while you are signed in as another user.')
+  expect(html).not.toContain('Only admins can change this.')
+  expect(html).not.toContain(PREFERENCES_LINK)
+  expect(html).toMatch(/id="ws-name"[^>]*readOnly|readOnly[^>]*id="ws-name"/i)
 })

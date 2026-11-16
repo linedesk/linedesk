@@ -10,6 +10,7 @@ import {
   stopImpersonation,
   UnsentChanges,
 } from '../impersonation.ts'
+import { SupportAccessContext } from '../supportAccess.ts'
 import { Button } from '../ui/kit.tsx'
 import { useNow } from './useNow.ts'
 import { useT } from '@linedesk/i18n/react'
@@ -21,12 +22,14 @@ export function ImpersonationFrame({
   impersonation: Impersonation | null
   children: ReactNode
 }) {
-  if (!impersonation) return <>{children}</>
+  if (!impersonation) return <SupportAccessContext.Provider value={false}>{children}</SupportAccessContext.Provider>
   return (
-    <div className="imp-frame">
-      <div className="imp-content">{children}</div>
-      <ImpersonationBar impersonation={impersonation} />
-    </div>
+    <SupportAccessContext.Provider value>
+      <div className="imp-frame">
+        <div className="imp-content">{children}</div>
+        <ImpersonationBar impersonation={impersonation} />
+      </div>
+    </SupportAccessContext.Provider>
   )
 }
 

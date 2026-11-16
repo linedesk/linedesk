@@ -440,6 +440,8 @@ export type AuditEntry = {
   input: unknown
   /** An assistant change that changed its transfer contacts: the contacts added, changed and removed, by name. */
   transferChanges?: { added: string[]; changed: string[]; removed: string[] }
+  /** apiKey.revoke: the revoked key's name. */
+  apiKeyName?: string
   refused: boolean
   ipAddress: string | null
 }

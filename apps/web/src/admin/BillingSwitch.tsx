@@ -8,6 +8,7 @@ import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Switch } from '../ui/controls.tsx'
+import { useSupportAccess } from '../supportAccess.ts'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { type AdminData, runAdmin } from './api.ts'
 
@@ -26,18 +27,21 @@ function stateLine(data: BillingEnabledData): MessageKey {
 /** `data`: the admin data, read again after a dialog saved or removed a key, so the state here is read again too. */
 export function BillingSwitch({ data: admin }: { data: AdminData }) {
   const t = useT()
-  const query = useQuery(BILLING, load)
+  // Server admin is not open during support access, and the server refuses billing to it: read-only, nothing loaded,
+  // like every setting then (settings/readOnly.ts).
+  const supportAccess = useSupportAccess()
+  const query = useQuery(supportAccess ? null : BILLING, load)
   const [problem, setProblem] = useState<string | null>(null)
   const { reload } = query
   useEffect(() => {
     void admin
-    void reload()
-  }, [admin, reload])
+    if (!supportAccess) void reload()
+  }, [admin, reload, supportAccess])
   const data = query.data
   const on = data?.on ?? false
 
   async function change(next: boolean) {
-    if (!data) return
+    if (!data || supportAccess) return
     setProblem(null)
     setQueryData<BillingEnabledData | undefined>(BILLING, { ...data, on: next })
     try {
@@ -54,7 +58,13 @@ export function BillingSwitch({ data: admin }: { data: AdminData }) {
     <div className="swrow">
       <div>
         <b>{t('admin.billing.switch')}</b>
-        <span className="help">{data ? t(stateLine(data)) : t('admin.billing.help')}</span>
+        <span className="help">
+          {supportAccess
+            ? t('settings.readOnly.supportAccess')
+            : data
+              ? t(stateLine(data))
+              : t('admin.billing.help')}
+        </span>
         {problem && (
           <span className="k-field-msg" role="alert">
             {problem}
@@ -63,7 +73,7 @@ export function BillingSwitch({ data: admin }: { data: AdminData }) {
       </div>
       <Loading
         what={t('admin.billing.switch')}
-        loading={!data}
+        loading={!data && !supportAccess}
         error={query.error}
         onRetry={() => void query.reload()}
         skeleton={<Skeleton width={34} height={20} className="sk-round" />}
@@ -73,7 +83,7 @@ export function BillingSwitch({ data: admin }: { data: AdminData }) {
           onChange={v => void change(v)}
           label={t('admin.billing.switch')}
           // Turning it off always works; on needs usable keys.
-          disabled={!data || (!on && blocked)}
+          disabled={supportAccess || !data || (!on && blocked)}
         />
       </Loading>
     </div>

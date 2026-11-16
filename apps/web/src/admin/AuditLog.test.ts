@@ -25,8 +25,9 @@ describe('audit labels', () => {
     expect(label('assistant.update', { transfers: [{ id: 'oncall', name: 'Mike', number: '…0199' }] })).toBe(
       'Changed the transfer contacts',
     )
-    // An assistant change without one (done by an AI agent or while signed in as someone) keeps its name.
-    expect(label('assistant.update', { greeting: 'Hi' })).toBe('assistant.update')
+    // An assistant change without one (done by an AI agent or while signed in as someone) says what it changed.
+    expect(label('assistant.update', { greeting: 'Hi' })).toBe("Changed the assistant's settings")
+    expect(label('assistant.restoreVersion', { versionId: 'v1' })).toBe('Restored an earlier assistant version')
     expect(label('outboundCountries.set', { countries: ['CA', 'MX'] })).toBe('Allowed calls to other countries: CA, MX')
     expect(label('outboundCountries.set', { countries: [] })).toBe('Allowed no calls to other countries')
   })
@@ -198,5 +199,49 @@ describe('signing in as a user', () => {
     expect(auditReason({ what: 'user.impersonate', input: { userId: 'u1' } })).toBeNull()
     expect(auditReason({ what: 'team.invite', input: { reason: 'x' } })).toBeNull()
     expect(label('impersonationEmails.set', { on: true })).toBe('Turned on emails to users when an admin signs in as them')
+  })
+})
+
+describe('what setup links, support access and its API keys did', () => {
+  // apps/api/src/setup-mcp.ts SETUP_ACTIONS (the writes, which the command log keeps) and what its handlers run; the
+  // writes of support access (impersonation-guard.ts IMPERSONATION_ALLOWED_WRITES, READS_LOGGED_WHEN_IMPERSONATED); the
+  // public actions an API key made during support access can run.
+  const canAppear = [
+    'provider.setKeys', 'provider.setActive', 'provider.connectOneKey', 'provider.clearKeys', 'install.setProgress',
+    'workspace.rename', 'workspace.setIcon', 'workspace.removeIcon', 'assistant.update', 'workspace.updateSettings',
+    'businessHours.set', 'notifications.update', 'phoneNumber.setup', 'phoneNumber.update', 'phoneNumber.checkForwarding',
+    'onboarding.setStep', 'workspace.create', 'agentSetup.endOwnAccess',
+    'impersonation.stop', 'apiKey.create', 'apiKey.revoke', 'call.export',
+    'call.markDone', 'call.markNotDone', 'call.markRead', 'call.markUnread', 'call.remind', 'call.assign',
+    'call.clearReminder', 'call.delete', 'call.restore', 'call.markSpam', 'call.markNotSpam', 'call.setActionItems',
+    'call.setUrgency', 'contact.update', 'contact.block', 'contact.unblock', 'contact.create', 'contact.delete',
+    'contact.restore', 'appointment.book', 'appointment.cancel', 'appointment.reschedule',
+  ]
+
+  test('each has a sentence of its own, never the action id', () => {
+    for (const what of canAppear) {
+      const text = label(what)
+      expect(text, what).not.toContain(what)
+      expect(text, what).not.toMatch(/^Ran /)
+    }
+  })
+
+  test('onboarding steps, notifications and renames say what changed', () => {
+    expect(label('onboarding.setStep', { step: 'skipped' })).toBe('Set the onboarding aside')
+    expect(label('onboarding.setStep', { step: 'phone' })).toBe('Moved on in the onboarding')
+    expect(label('notifications.update', { email: true })).toBe('Changed their notifications (email for every call)')
+    expect(label('workspace.rename', { name: 'Brightwater' })).toBe('Renamed the workspace to “Brightwater”')
+    expect(label('call.markRead', { callId: 'c1' })).toBe('Marked a call read')
+  })
+
+  test('a revoked API key is named, like a created one', () => {
+    expect(auditLabel({ what: 'apiKey.revoke', method: null, input: { apiKeyId: 'k1' }, subject: null, apiKeyName: 'Zapier' })).toBe(
+      'Revoked API key “Zapier”',
+    )
+    expect(label('apiKey.revoke', { apiKeyId: 'k1' })).toBe('Revoked an API key')
+  })
+
+  test('any other action still reads as a sentence that names it', () => {
+    expect(label('knowledge.update')).toBe('Ran knowledge.update')
   })
 })

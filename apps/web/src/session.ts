@@ -103,6 +103,15 @@ export function renamedWorkspace(me: Me, name: string): Me {
 }
 
 /**
+ * The session on screen with its workspace renamed, or null when no workspace is open. Call it from the event, never
+ * inside a state updater: renamedWorkspace updates the cached workspace list, and its subscribers (WorkspaceMenu)
+ * must not be updated while App renders ("Cannot update a component while rendering a different component").
+ */
+export function renameInSession(current: Session, name: string): Session | null {
+  return current.state === 'ready' ? { ...current, me: renamedWorkspace(current.me, name) } : null
+}
+
+/**
  * The workspace's icon changed here (Workspace settings › General): the cached workspace list, which the workspace
  * button, the switcher and the tab icon read, and the remembered `me` show the new one at once.
  */

@@ -55,6 +55,8 @@ import { useSignOut } from './shell/useSignOut.ts'
 import { useCallNotifications } from './shell/useCallNotifications.ts'
 import { useToast, type Source } from './shell/useToast.ts'
 import { mayChangeWithAgent } from './settings/agentChange.ts'
+import { settingsAccess } from './settings/readOnly.ts'
+import { unknownPageText } from './supportAccess.ts'
 import { preloadWorkspaceSettings } from './settings/settings-api.ts'
 import { memberLabel, useAssignableMembers } from './team/members.ts'
 import { preloadTeam } from './team/team-api.ts'
@@ -118,7 +120,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   useEffect(preloadLiveKit, [])
   const toaster = useToast()
   // Invitations to other workspaces: a dot on the menu, a toast once per invitation, Join in the workspace menu.
-  const invites = useMyInvitations()
+  const invites = useMyInvitations(!!me.impersonation)
   useEffect(() => {
     const fresh = unannounced(invites.invitations)
     if (fresh.length) toaster.show(invitationNotice(fresh), false, 8000)
@@ -130,7 +132,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   // A notification when a call ends while this tab is in the background (Account settings, Notifications).
   useCallNotifications(call => callerName(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined))
   const assistantName = useAssistantName()
-  const canEditSettings = me.permissions.includes('settings:write')
+  // During support access the settings are read-only, API keys aside (settingsAccess, settings/readOnly.ts).
+  const { canEdit: canEditSettings, canManageKeys } = settingsAccess(me)
   // Until the first real call, the inbox says what happens when one comes in (goLive.ts).
   const hadRealCall = useHadRealCall(useGoLiveChecklist(canEditSettings, me.workspace!.id))
   const showGoLive = useShowGoLive(canEditSettings, me.workspace!.id)
@@ -345,7 +348,12 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   )
 
   // A hash that leads nowhere shows the inbox, says so once and is cleaned up.
-  const lost = !nav.known ? t('shell.lost.page') : view.missingCall ? t('shell.lost.call') : null
+  // During support access the agent setup links say why they did not open (supportAccess.ts).
+  const lost = !nav.known
+    ? unknownPageText(window.location.hash, !!me.impersonation)
+    : view.missingCall
+      ? t('shell.lost.call')
+      : null
   useEffect(() => {
     if (!lost) return
     toaster.show(lost, false, NOT_FOUND_TOAST_MS)
@@ -531,10 +539,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       />
       <button type="button" className="scrim" aria-label={t('shell.nav.closeMenu')} tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
-        {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canEditSettings} />}
-        {!page && !openCall && (
-          <SampleCallsBar canEdit={me.permissions.includes('settings:write')} toast={toaster.show} />
-        )}
+        {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canManageKeys} />}
+        {!page && !openCall && <SampleCallsBar canEdit={canEditSettings} toast={toaster.show} />}
         {page ? (
           <>
             {!page.ownHeader && (
@@ -556,7 +562,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
             >
               {page.render({
                 toast: toaster.show,
-                canEditSettings: me.permissions.includes('settings:write'),
+                canEditSettings,
+                canManageKeys,
                 agentChange: mayChangeWithAgent(me),
                 isInstanceAdmin: instanceAdmin,
                 userId: me.actorId,

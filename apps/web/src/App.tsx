@@ -7,7 +7,7 @@ import {
   expectSessionChange,
   loadSession,
   rememberedSession,
-  renamedWorkspace,
+  renameInSession,
   sameSession,
   type Session,
 } from './session.ts'
@@ -155,6 +155,13 @@ export function App() {
     setSession(next)
   }, [])
   const refresh = useCallback(async () => showAnswer(await loadSession()), [showAnswer])
+  // Renamed here (Workspace settings, onboarding): the session and the workspace list take the new name. Worked out
+  // from the session on screen, outside a state updater: renamedWorkspace updates the cached workspace list, whose
+  // subscribers (WorkspaceMenu) must not be updated while App renders.
+  const renamed = useCallback((name: string) => {
+    const next = renameInSession(shown.current, name)
+    if (next) setSession(next)
+  }, [])
   const [notice, setNotice] = useState<string | null>(null)
   const target = useMemo(
     () =>
@@ -415,9 +422,7 @@ export function App() {
               me={session.me}
               state={session.me.onboarding}
               onDone={() => setOnboarded(true)}
-              onRenamed={name =>
-                setSession(s => (s.state === 'ready' ? { ...s, me: renamedWorkspace(s.me, name) } : s))
-              }
+              onRenamed={renamed}
             />
           ) : (
             <Workspace
@@ -425,9 +430,7 @@ export function App() {
               onSignedOut={refresh}
               onSessionStale={refresh}
               notice={notice}
-              onRenamed={name =>
-                setSession(s => (s.state === 'ready' ? { ...s, me: renamedWorkspace(s.me, name) } : s))
-              }
+              onRenamed={renamed}
             />
           )}
         </TabWorkspaceGuard>

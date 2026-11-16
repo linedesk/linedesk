@@ -211,6 +211,8 @@
   "signInAgain.toChangeEmail": "Sign in again to change your email address.",
   "signInAgain.toDoThis": "Sign in again to do this.",
   "signInAgain.toSetPassword": "Sign in again to set a password.",
+  "supportAccess.text": "The profile, sign-in methods, sessions, preferences and notifications belong to this person. Only they see and change them.",
+  "supportAccess.title": "Not available while you are signed in as another user",
   "title": "Account settings",
   "yourAccount": "Your account"
 }

@@ -15,7 +15,6 @@ import type { IconName } from '../ui/icons.ts'
 import { type ImageState, useImageReady } from '../ui/imageReady.ts'
 import { Avatar, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { Skeleton, useLoading } from '../ui/LoadStates.tsx'
-import { refreshInvitations } from './invitations.ts'
 import { useMenu } from './useMenu.ts'
 import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
 import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
@@ -90,6 +89,7 @@ type Props = {
   id: string
   navOpen: boolean
   invitations: MyInvitation[]
+  /** Loads the invitations again: when the menu opens, after a decline (nothing during support access). */
   onInvitationsChanged: () => void
   toast: (message: string) => void
   /** Set only where POST /v1/workspaces would allow this person to create a workspace. */
@@ -144,7 +144,7 @@ export function WorkspaceMenu({
   // In the background when it opens: the menu already shows the last known lists.
   const menu = useMenu(navOpen, () => {
     void refreshWorkspaces()
-    void refreshInvitations()
+    onInvitationsChanged()
   })
   const list = useRef<HTMLDivElement>(null)
   useAnchoredList(menu.open, menu.trigger, list, { minWidth: 240 })

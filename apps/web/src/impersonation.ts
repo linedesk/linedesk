@@ -3,6 +3,7 @@
 // in the outbox are sent first, and the local data of the session that ends is deleted.
 import { IMPERSONATION_REASON_MAX, IMPERSONATION_REASON_MIN } from '@linedesk/actions'
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './admin/PasskeyStepUp.tsx'
+import { holdQueries, releaseQueries } from './cachedQuery.ts'
 import { forgetLocalData } from './localData.ts'
 import { flushAllStores } from './storeCache.ts'
 import { brandName } from './brand.ts'
@@ -58,6 +59,36 @@ async function post(path: string, body: unknown = {}) {
   return json
 }
 
+/**
+ * Runs the request that switches this browser's session: from then on until the reload, no cached query loads as the
+ * old account (holdQueries). Refused, the page stays as it was and loads again.
+ */
+export async function whileSessionChanges<T>(change: () => Promise<T>): Promise<T> {
+  holdQueries()
+  try {
+    return await change()
+  } catch (e) {
+    releaseQueries()
+    throw e
+  }
+}
+
+/**
+ * Once the session has switched: forgets this browser's data for the old one, then reloads whatever happens. A failed
+ * clean-up resumes the held queries first, so the page never stays on held answers of the old account (security
+ * review #854, L2).
+ */
+export async function afterSessionChange(cleanUp: () => Promise<void>, reload: () => void): Promise<void> {
+  try {
+    await cleanUp()
+  } catch (e) {
+    releaseQueries()
+    console.warn(`could not forget the local data before the reload: ${e instanceof Error ? e.message : String(e)}`)
+  } finally {
+    reload()
+  }
+}
+
 /** Reloads the app at `hash` (a plain hash change would keep the old session's state in memory). */
 function reloadAt(hash: string) {
   window.history.replaceState(null, '', `${window.location.pathname}${hash}`)
@@ -71,12 +102,13 @@ function reloadAt(hash: string) {
 export async function startImpersonation(userId: string, reason: string, workspaceId?: string) {
   const unsent = await flushAllStores()
   if (unsent > 0) throw new UnsentChanges(unsentText(unsent))
-  await withPasskeyStepUp(
-    () => post('/v1/impersonation/start', { userId, reason, ...(workspaceId ? { workspaceId } : {}) }),
-    i18n().t('admin.stepUp.what.impersonate'),
+  await whileSessionChanges(() =>
+    withPasskeyStepUp(
+      () => post('/v1/impersonation/start', { userId, reason, ...(workspaceId ? { workspaceId } : {}) }),
+      i18n().t('admin.stepUp.what.impersonate'),
+    ),
   )
-  await forgetLocalData()
-  reloadAt('#calls')
+  await afterSessionChange(forgetLocalData, () => reloadAt('#calls'))
 }
 
 /**
@@ -88,7 +120,6 @@ export async function stopImpersonation(userId: string, discardUnsent = false) {
   const unsent = await flushAllStores()
   if (unsent > 0 && !discardUnsent)
     throw new UnsentChanges(unsentText(unsent).replace('then try again', 'or return again to discard them'))
-  await post('/v1/impersonation/stop')
-  await forgetLocalData()
-  reloadAt(`#admin/users/${encodeURIComponent(userId)}`)
+  await whileSessionChanges(() => post('/v1/impersonation/stop'))
+  await afterSessionChange(forgetLocalData, () => reloadAt(`#admin/users/${encodeURIComponent(userId)}`))
 }

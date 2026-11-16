@@ -18,6 +18,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, Fragment, useEffect, useState } from 'react'
 import { useRows, useRun } from '../store.tsx'
+import { useSupportAccess } from '../supportAccess.ts'
 import { Loading, SkeletonList, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
@@ -71,13 +72,14 @@ type Props = { assistantId: string; canEdit: boolean; toast: (text: string) => v
 
 export function Webhooks({ assistantId, canEdit, toast }: Props) {
   const t = useT()
+  const supportAccess = useSupportAccess()
   const endpoint = useRows('webhook_endpoints').find(e => e.assistant_id === assistantId) ?? null
   const load = useLoadState('webhook_endpoints')
   const [editing, setEditing] = useState(false)
   if (!canEdit)
     return (
       <Section id="as-webhooks" title={t('settings.webhooks.title')}>
-        <p className="help">{t('settings.webhooks.onlyAdmins')}</p>
+        <p className="help">{t(supportAccess ? 'settings.readOnly.supportAccess' : 'settings.webhooks.onlyAdmins')}</p>
       </Section>
     )
   return (

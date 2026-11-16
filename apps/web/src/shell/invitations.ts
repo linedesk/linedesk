@@ -49,10 +49,17 @@ const loadInvitations = async () =>
 /** Load the invitations again: when the menu opens, after a decline. */
 export const refreshInvitations = () => fetchQuery(INVITATIONS_QUERY, loadInvitations, { persist: true })
 
-/** The pending invitations: the last known list at once, checked again in the background (mount, focus). */
-export function useMyInvitations() {
-  const query = useQuery(INVITATIONS_QUERY, loadInvitations, { persist: true })
-  return { invitations: query.data ?? NONE, reload: refreshInvitations }
+const noReload = () => Promise.resolve()
+
+/**
+ * The pending invitations: the last known list at once, checked again in the background (mount, focus). None during
+ * support access: they are the person's own, and the server refuses them to an admin signed in as them.
+ */
+export function useMyInvitations(supportAccess: boolean) {
+  const query = useQuery(supportAccess ? null : INVITATIONS_QUERY, loadInvitations, { persist: true })
+  return supportAccess
+    ? { invitations: NONE, reload: noReload }
+    : { invitations: query.data ?? NONE, reload: refreshInvitations }
 }
 
 const SEEN_KEY = 'linedesk.seenInvitations'

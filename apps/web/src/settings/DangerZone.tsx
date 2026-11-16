@@ -16,6 +16,7 @@ import { switchToWorkspace } from '../shell/invitations.ts'
 import { tabWorkspace, workspaceHeaders } from '../tabWorkspace.ts'
 import { LeaveWorkspace } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
+import { useSupportAccess } from '../supportAccess.ts'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Button, Note } from '../ui/kit.tsx'
@@ -81,7 +82,15 @@ type Props = { workspaceName: string; isInstanceAdmin: boolean }
 export function DangerZone({ workspaceName, isInstanceAdmin }: Props) {
   const t = useT()
   const team = useTeam()
+  const supportAccess = useSupportAccess()
   const data = team.data ?? null
+  // Leaving and deleting are the person's own: never during support access (apps/api/src/impersonation-guard.ts).
+  if (supportAccess)
+    return (
+      <Section id="team-leave" title={t('settings.workspace.nav.danger.label')}>
+        <span className="help">{t('settings.readOnly.supportAccess')}</span>
+      </Section>
+    )
   if (!data)
     return (
       <Section id="team-leave" title={t('settings.danger.leave.title')}>

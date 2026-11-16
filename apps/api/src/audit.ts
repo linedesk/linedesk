@@ -394,6 +394,8 @@ export type AuditEntry = {
   input: unknown
   /** The transfer contacts a change added, changed and removed, by name (TRANSFER_CHANGE_ACTIONS only). */
   transferChanges?: TransferChangeNames
+  /** apiKey.revoke: the revoked key's name (its input has only the id). */
+  apiKeyName?: string
   refused: boolean
   ipAddress: string | null
 }
@@ -454,6 +456,8 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
           else coalesce(c.input->>'workspaceId', c.workspace_id) end as workspace_id,
         c.input, c.result->'data'->'subject'->>'email' as subject_email, c.result->'data'->'transferChanges' as transfer_changes, ${transferChangeSql} as transfer_change,
+        case when c.action = 'apiKey.revoke' then (select k.name from api_keys k
+          where k.id = c.input->>'apiKeyId' and k.workspace_id = c.workspace_id) end as api_key_name,
         c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}${
           withSetupKey ? sql` or c.setup_key_id is not null` : sql``
@@ -463,7 +467,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
         null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input,
         (select s.email from "user" s where s.id = e.subject_id) as subject_email, null::jsonb as transfer_changes, false as transfer_change,
-        false as refused, e.ip_address, 'auth' as source
+        null::text as api_key_name, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
           sql`, `,
@@ -524,6 +528,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       ...(r.transfer_changes && typeof r.transfer_changes === 'object'
         ? { transferChanges: namesOf(r.transfer_changes as TransferChanges) }
         : {}),
+      ...(r.api_key_name ? { apiKeyName: String(r.api_key_name) } : {}),
       refused: Boolean(r.refused),
       ipAddress: r.ip_address,
     }),

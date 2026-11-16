@@ -14,7 +14,10 @@ import { i18n } from '../i18n/index.tsx'
 
 export type PageProps = {
   toast: (text: string) => void
+  /** Owners and admins in their own session; never during support access (settingsAccess, settings/readOnly.ts). */
   canEditSettings: boolean
+  /** API keys (Workspace settings › Developers): owners and admins, also during support access. */
+  canManageKeys: boolean
   /** Owners and admins: "Change with an AI agent" on top of the workspace's and the assistant's settings. */
   agentChange: boolean
   isInstanceAdmin: boolean
@@ -69,6 +72,7 @@ export const pages = {
     render: p => (
       <WorkspaceSettings
         canEdit={p.canEditSettings}
+        canManageKeys={p.canManageKeys}
         agentChange={p.agentChange}
         phoneSetup={p.phoneSetup}
         isInstanceAdmin={p.isInstanceAdmin}

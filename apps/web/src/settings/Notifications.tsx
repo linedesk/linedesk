@@ -21,6 +21,7 @@ import { permissionText, useNotificationPermission } from './notificationPermiss
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
+import { useSupportAccess } from '../supportAccess.ts'
 
 /** Your own notifications, linked from the team defaults (Workspace settings › Team). */
 export const OWN_NOTIFICATIONS_HASH = '#account/notifications'
@@ -296,7 +297,9 @@ export function NotificationDefaults({ toast }: { toast: (text: string) => void 
   const t = useT()
   const run = useRun()
   const settings = useNotificationQuery().data ?? null
-  if (!settings?.canEditDefaults) return null
+  // The team's defaults are the workspace's settings: not changed during support access.
+  const supportAccess = useSupportAccess()
+  if (!settings?.canEditDefaults || supportAccess) return null
 
   function setDefaultEmail(current: NotificationSettingsData, on: boolean) {
     const defaults = { ...current.defaults, email: on }

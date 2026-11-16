@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from './session.ts'
 
 vi.mock('./auth.ts', () => ({ signedInAccount: vi.fn(async () => null) }))
-const { expectSessionChange, forgetMe, leftAndDeleted, loadSession, markLeft, rememberedSession, sameSession, signedOutOfWorkspace } = await import('./session.ts')
+const { expectSessionChange, forgetMe, leftAndDeleted, loadSession, markLeft, rememberedSession, renameInSession, sameSession, signedOutOfWorkspace } = await import('./session.ts')
+const { peekQuery } = await import('./cachedQuery.ts')
 const { signedInAccount } = await import('./auth.ts')
 const { i18n } = await import('./i18n/index.tsx')
 
@@ -201,5 +202,16 @@ describe('leaving the last workspace with the account (LIN-266)', () => {
     markLeft({ accountDeleted: true })
     await loadSession()
     expect(leftAndDeleted()).toBeNull()
+  })
+})
+
+describe('renaming the open workspace', () => {
+  it('works on the session on screen and updates the workspace list right away, not inside a state update', () => {
+    const ready: Session = { state: 'ready', me: { ...me, workspaces: [{ id: 'ws1', name: 'Tims Org' }, { id: 'ws2', name: 'Other' }] } as never, offline: false }
+    const next = renameInSession(ready, 'Brightwater')
+    expect(next).toMatchObject({ state: 'ready', me: { workspace: { id: 'ws1', name: 'Brightwater' } } })
+    // The cached list WorkspaceMenu shows changed during the call itself (App calls it from the event, then setSession).
+    expect(peekQuery('workspaces')).toEqual([{ id: 'ws1', name: 'Brightwater' }, { id: 'ws2', name: 'Other' }])
+    expect(renameInSession({ state: 'signedOut' }, 'Brightwater')).toBeNull()
   })
 })

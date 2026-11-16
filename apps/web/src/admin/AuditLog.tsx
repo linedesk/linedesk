@@ -59,7 +59,9 @@ export function auditReason(e: Pick<AuditEntry, 'what' | 'input'>): string | nul
 }
 
 /** What happened, in a few words. */
-export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges'>): string {
+export function auditLabel(
+  e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges' | 'apiKeyName'>,
+): string {
   const input = (e.input ?? {}) as Record<string, unknown>
   const subject = e.subject?.email ?? ''
   const who = { who: subject, known: known(subject) }
@@ -158,7 +160,15 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
     case 'apiKey.create':
       return t('admin.audit.apiKeyCreated', name)
     case 'apiKey.revoke':
-      return t('admin.audit.apiKeyRevoked')
+      return e.apiKeyName
+        ? t('admin.audit.apiKeyRevokedNamed', { name: e.apiKeyName })
+        : t('admin.audit.apiKeyRevoked')
+    case 'workspace.rename':
+      return t('admin.audit.workspaceRenamed', name)
+    case 'notifications.update':
+      return t('admin.audit.notificationsChanged', { fields: changedFields(input) })
+    case 'onboarding.setStep':
+      return input.step === 'skipped' ? t('admin.audit.onboardingSetAside') : t('admin.audit.onboardingStep')
     case 'webhook.create':
       return t('admin.audit.webhookCreated', hostOf(input.url))
     case 'webhook.update':
@@ -248,14 +258,56 @@ export function auditLabel(e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'su
       if (e.transferChanges)
         return t('admin.audit.transferContactsChanged', { changes: transferChangeList(e.transferChanges) })
       // A refused change (no result): its input had the contacts.
-      return Array.isArray(input.transfers) ? t('admin.audit.transferContactsEdited') : e.what
+      return Array.isArray(input.transfers) ? t('admin.audit.transferContactsEdited') : t('admin.audit.assistantChanged')
     case 'assistant.restoreVersion':
       return e.transferChanges
         ? t('admin.audit.transferContactsRestored', { changes: transferChangeList(e.transferChanges) })
-        : e.what
-    default:
-      return e.what
+        : t('admin.audit.assistantRestored')
+    default: {
+      const plain = plainLabels[e.what]
+      // Any other action (done while signed in as someone, with a setup link or a key made during support access):
+      // a sentence that still names it.
+      return plain ? t(plain) : t('admin.audit.otherAction', { action: e.what })
+    }
   }
+}
+
+/**
+ * Actions whose label needs nothing from the entry: what a setup link (apps/api/src/setup-mcp.ts, SETUP_ACTIONS), support
+ * access (impersonation-guard.ts, IMPERSONATION_ALLOWED_WRITES, READS_LOGGED_WHEN_IMPERSONATED) and an API key made
+ * during it (the public actions) can do.
+ */
+const plainLabels: Record<string, MessageKey> = {
+  'install.setProgress': msg('admin.audit.installProgress'),
+  'workspace.setIcon': msg('admin.audit.workspaceIconSet'),
+  'workspace.removeIcon': msg('admin.audit.workspaceIconRemoved'),
+  'workspace.updateSettings': msg('admin.audit.workspaceSettingsChanged'),
+  'businessHours.set': msg('admin.audit.businessHoursSet'),
+  'phoneNumber.update': msg('admin.audit.numberChanged'),
+  'phoneNumber.checkForwarding': msg('admin.audit.forwardingChecked'),
+  'call.export': msg('admin.audit.callsExported'),
+  'call.markRead': msg('admin.audit.call.markRead'),
+  'call.markUnread': msg('admin.audit.call.markUnread'),
+  'call.markDone': msg('admin.audit.call.markDone'),
+  'call.markNotDone': msg('admin.audit.call.markNotDone'),
+  'call.remind': msg('admin.audit.call.remind'),
+  'call.clearReminder': msg('admin.audit.call.clearReminder'),
+  'call.assign': msg('admin.audit.call.assign'),
+  'call.delete': msg('admin.audit.call.delete'),
+  'call.restore': msg('admin.audit.call.restore'),
+  'call.markSpam': msg('admin.audit.call.markSpam'),
+  'call.markNotSpam': msg('admin.audit.call.markNotSpam'),
+  'call.setActionItems': msg('admin.audit.call.setActionItems'),
+  'call.setUrgency': msg('admin.audit.call.setUrgency'),
+  'contact.create': msg('admin.audit.contact.create'),
+  'contact.update': msg('admin.audit.contact.update'),
+  'contact.block': msg('admin.audit.contact.block'),
+  'contact.unblock': msg('admin.audit.contact.unblock'),
+  'contact.delete': msg('admin.audit.contact.delete'),
+  'contact.restore': msg('admin.audit.contact.restore'),
+  'appointment.book': msg('admin.audit.appointment.book'),
+  'appointment.cancel': msg('admin.audit.appointment.cancel'),
+  'appointment.reschedule': msg('admin.audit.appointment.reschedule'),
 }
 
 const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft' }

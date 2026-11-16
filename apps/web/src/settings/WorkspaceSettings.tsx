@@ -21,20 +21,25 @@ type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'devel
 const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'developers', 'danger']
 
 /**
- * The page's sections in the active language. Members can't export calls or manage API keys (call:export,
- * settings:write): those sections are not shown.
+ * Which sections this person sees. Members can't export calls or manage API keys (call:export, settings:write): those
+ * sections are not shown. During support access the export is refused too, while API keys stay (`canManageKeys`).
  */
-function useSections(canEdit: boolean): readonly PageSection<SectionId>[] {
+export function shownSectionIds(canEdit: boolean, canManageKeys: boolean): SectionId[] {
+  return SECTION_IDS.filter(id => (id === 'export' ? canEdit : id === 'developers' ? canManageKeys : true))
+}
+
+/** The page's sections in the active language (shownSectionIds). */
+function useSections(canEdit: boolean, canManageKeys: boolean): readonly PageSection<SectionId>[] {
   const t = useT()
   return useMemo(
     () =>
-      SECTION_IDS.filter(id => canEdit || (id !== 'export' && id !== 'developers')).map(id => ({
+      shownSectionIds(canEdit, canManageKeys).map(id => ({
         id,
         // i18n-dynamic: settings.workspace.nav.*
         label: t(`settings.workspace.nav.${id}.label` as MessageKey),
         description: t(`settings.workspace.nav.${id}.description` as MessageKey),
       })),
-    [t, canEdit],
+    [t, canEdit, canManageKeys],
   )
 }
 
@@ -49,7 +54,10 @@ function dangerDescription(canEdit: boolean, role: string | undefined): MessageK
 }
 
 type Props = {
+  /** Owners and admins in their own session (settingsAccess, readOnly.ts). */
   canEdit: boolean
+  /** API keys (Developers): owners and admins, also during support access. */
+  canManageKeys: boolean
   /** "Change with an AI agent" on top of General (owners and admins, agentChange.ts). */
   agentChange?: boolean
   phoneSetup: PhoneSetupStatus | null
@@ -62,6 +70,7 @@ type Props = {
 
 export function WorkspaceSettings({
   canEdit,
+  canManageKeys,
   agentChange = false,
   phoneSetup,
   isInstanceAdmin,
@@ -72,8 +81,9 @@ export function WorkspaceSettings({
   const t = useT()
   const team = useTeam().data
   const role = team?.members.find(m => m.userId === team.me)?.role
-  const sections = useSections(canEdit)
-  const danger = t(dangerDescription(canEdit, role))
+  const sections = useSections(canEdit, canManageKeys)
+  // What the role offers, also during support access (the section itself then says it is read-only).
+  const danger = t(dangerDescription(canManageKeys, role))
   const shown = useMemo(
     () => sections.map(s => (s.id === 'danger' ? { ...s, description: danger } : s)),
     [sections, danger],
@@ -103,7 +113,7 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'developers' && <Developers canEdit={canEdit} toast={toast} />}
+        {current === 'developers' && <Developers canEdit={canManageKeys} toast={toast} />}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>
