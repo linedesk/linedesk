@@ -31,7 +31,7 @@ import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 import { matchingStep, newTotpSecret, otpauthUrl } from './totp.ts'
 
 /** The encryption slot of a user's secret: a secret copied to another user's row does not decrypt. */
-const slotOf = (userId: string) => `admin_authenticator:${userId}`
+export const authenticatorSlot = (userId: string) => `admin_authenticator:${userId}`
 
 /** The actions only their own route runs (they set the device cookie, authenticator-routes.ts). */
 export const AUTHENTICATOR_ROUTE_ACTIONS: readonly string[] = [
@@ -119,7 +119,7 @@ async function useCode(userId: string, typed: string, confirmed: boolean, now: n
     )
   }
   if (claimed.failed_attempts > AUTHENTICATOR_MAX_FAILURES) throw new Forbidden(lockedText)
-  const step = matchingStep(decryptSecret(claimed.secret, slotOf(userId)), typed, now, claimed.last_step)
+  const step = matchingStep(decryptSecret(claimed.secret, authenticatorSlot(userId)), typed, now, claimed.last_step)
   if (step === null) {
     if (claimed.failed_attempts >= AUTHENTICATOR_MAX_FAILURES) {
       // Locked for a while; the count starts again, so one wrong code later does not lock it at once again.
@@ -196,7 +196,7 @@ export const authenticatorHandlers: Record<string, Handler> = {
   'account.authenticatorStart': async ({ tx, prepared }) => {
     const { me } = prepared as Prepared
     const secret = newTotpSecret()
-    const stored = encryptSecret(secret, slotOf(me.id))
+    const stored = encryptSecret(secret, authenticatorSlot(me.id))
     await tx
       .insert(admin_authenticators)
       .values({ user_id: me.id, secret: stored })

@@ -1,6 +1,7 @@
 // Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide and a
 // workspace's own carrier), webhook signing secrets, calendar and connected-app tokens, the push key pair's private
-// half and the port-out PINs of numbers (billing_numbers; security review of #920, L2).
+// half, the port-out PINs of numbers (billing_numbers; security review of #920, L2) and the instance admins'
+// authenticator app secrets (admin_authenticators; LIN-402).
 // Run it in the api container, with the current SECRETS_KEY in its environment and the new key on stdin
 // (never as an argument, which `ps` shows):
 //   openssl rand -base64 32 > new-key.txt
@@ -12,6 +13,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import {
+  admin_authenticators,
   app_connections,
   app_credentials,
   billing_numbers,
@@ -24,6 +26,7 @@ import {
 } from '@linedesk/db'
 import { eq, isNotNull, isNull } from 'drizzle-orm'
 import { appSlot } from './app-connections.ts'
+import { authenticatorSlot } from './authenticator.ts'
 import { portOutSlot } from './billing-owner.ts'
 import { calendarSlot } from './calendar-connections.ts'
 import { db, pool } from './db.ts'
@@ -100,6 +103,15 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
       .update(billing_numbers)
       .set({ port_out_code: again(row.code!, portOutSlot(row.id)) })
       .where(eq(billing_numbers.phone_number_id, row.id))
+  // Authenticator app secrets: without them every instance admin's authenticator app stops working after a rotation.
+  const authenticators = await tx
+    .select({ userId: admin_authenticators.user_id, secret: admin_authenticators.secret })
+    .from(admin_authenticators)
+  for (const row of authenticators)
+    await tx
+      .update(admin_authenticators)
+      .set({ secret: again(row.secret, authenticatorSlot(row.userId)) })
+      .where(eq(admin_authenticators.user_id, row.userId))
   // Read back under the new key before the commit.
   const [check] = await tx.select().from(provider_settings).where(isNull(provider_settings.workspace_id)).limit(1)
   if (check) decryptSecret(check.value_encrypted, providerSlot(check.provider, check.field), to)
@@ -110,6 +122,7 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
     app_credentials: apps.length,
     push_key: push ? 1 : 0,
     port_out_pins: pins.length,
+    admin_authenticators: authenticators.length,
   }
 }
 
