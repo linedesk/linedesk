@@ -187,6 +187,10 @@ describe('the API, generated from the registry', () => {
     assert.ok(!generated.some(a => a.name.startsWith('integration.')))
   })
 
+  test('every search has an input field: Zapier refuses a push without one (D009)', () => {
+    for (const search of Object.values(App.searches)) assert.ok(search.operation.inputFields.length > 0, search.key)
+  })
+
   test('fields: dropdowns, dates cut to a day, booleans, line items, blank left out, null to unassign', async () => {
     nock(BASE, auth)
       .post('/v1/actions/call.assign', { callId: 'call_1', userId: null, notify: false })
@@ -225,6 +229,11 @@ describe('the API, generated from the registry', () => {
     assert.deepEqual(await appTester(App.searches.member_list.operation.perform, { authData, inputData: {} }), [
       { id: 'u_1', userId: 'u_1', name: 'Mike Brennan', role: 'owner' },
     ])
+    nock(BASE, auth)
+      .post('/v1/actions/member.list', {})
+      .reply(200, { ok: true, rows: {}, data: { members: [{ userId: 'u_1', name: 'Mike Brennan' }, { userId: 'u_2', name: 'Ana Ruiz' }] } })
+    const found = await appTester(App.searches.member_list.operation.perform, { authData, inputData: { contains: ' ana ' } })
+    assert.deepEqual(found.map(m => m.id), ['u_2'])
     nock(BASE, auth)
       .post('/v1/actions/calendar.findSlots', { appointmentTypeId: 'at_1', limit: 5 })
       .reply(200, { ok: true, rows: {}, data: { slots: [{ start: 's', end: 'e', label: 'l' }] } })

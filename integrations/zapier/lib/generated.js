@@ -24,15 +24,33 @@ function createResult(action, result) {
   return { action: action.name, ...row, ...data }
 }
 
-/** What a search hands Zapier: the list in `data`, each with an id. */
-function searchResult(action, result) {
+/** What a search hands Zapier: the list in `data`, each with an id; `contains` keeps the items with that text. */
+function searchResult(action, result, contains) {
   const list = action.list ? result.data?.[action.list] : result.data
   const items = Array.isArray(list) ? list : list ? [list] : []
-  return items.map(item => ({ id: item.id ?? item.userId ?? item.start, ...item }))
+  const text = typeof contains === 'string' ? contains.trim().toLowerCase() : ''
+  const kept = text
+    ? items.filter(item => Object.values(item).some(v => typeof v === 'string' && v.toLowerCase().includes(text)))
+    : items
+  return kept.map(item => ({ id: item.id ?? item.userId ?? item.start, ...item }))
+}
+
+/**
+ * Zapier refuses a search without an input field (check D009), so a search whose action takes none (Find Team
+ * Members) gets this optional filter. It is applied here and never sent to Linedesk.
+ */
+const CONTAINS_FIELD = {
+  key: 'contains',
+  label: 'Contains',
+  type: 'string',
+  required: false,
+  helpText: 'Only results with this text, e.g. a name. Leave it empty for all.',
 }
 
 function operationOf(action) {
   const search = action.kind === 'search'
+  const inputFields = action.fields.map(inputField)
+  if (search && inputFields.length === 0) inputFields.push(CONTAINS_FIELD)
   return {
     key: KEYS[action.name] ?? action.key,
     noun: action.noun,
@@ -41,10 +59,10 @@ function operationOf(action) {
       description: action.description.length > 1000 ? `${action.description.slice(0, 997)}…` : action.description,
     },
     operation: {
-      inputFields: action.fields.map(inputField),
+      inputFields,
       perform: async (z, bundle) => {
         const result = await runAction(z, bundle, action.name, valuesOf(action.fields, bundle.inputData))
-        return search ? searchResult(action, result) : createResult(action, result)
+        return search ? searchResult(action, result, bundle.inputData.contains) : createResult(action, result)
       },
       sample: SAMPLES[action.noun] ?? { action: action.name },
     },
