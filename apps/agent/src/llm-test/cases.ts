@@ -57,7 +57,6 @@ const AI =
   /\b(AI|A\.I\.|artificial intelligence|virtual assistant|digital assistant|automated assistant|not a (real )?(person|human))\b/i
 const CLAIMS_HUMAN = /\bI(?:'m| am) (?:a )?(?:real )?(?:person|human)\b|\bI(?:'m| am) not (?:an? )?(?:AI|robot|bot)\b/i
 const EMERGENCY_SERVICES = /emergency services|\b911\b|nine[- ]one[- ]one|fire department|ambulance|call the police/i
-const A_NUMBER = /\b911\b|nine[- ]one[- ]one|\b112\b/i
 const MESSAGE = /message|pass (it|this|that) on|get back to you|call you back|someone will (call|reach|contact|get)/i
 const ASKS_NUMBER =
   /(what(?:'s| is)|which|best|good|give me|can I (?:get|have)|could you (?:give|share))[^.?!]{0,40}\b(number|phone)\b|\bcallback number\b|\bnumber to (?:call|reach)/i
@@ -354,14 +353,14 @@ export const CASES: Case[] = [
     id: 'language-only-german-caller',
     category: 'language',
     title: 'English only: a German caller',
-    why: 'language.only: say in English that you can only help in English and offer a message',
+    why: 'language.only: speak English only, whatever language the caller speaks (no "I can only help in" line since #995)',
     setup: setup(),
     turns: [{ say: 'Hallo, sprechen Sie Deutsch? Meine Heizung funktioniert nicht mehr.', lang: 'de' }],
-    checks: [
-      { type: 'language', lang: 'en' },
-      { type: 'say', pattern: /English/i },
-    ],
-    judge: { must: ['answer in English', 'say it can only help in English', 'offer to take a message'] },
+    checks: [{ type: 'language', lang: 'en' }],
+    judge: {
+      must: ['answer in English'],
+      mustNot: ["carry on the conversation in the caller's language"],
+    },
     severity: 'must',
   },
   {
@@ -371,11 +370,11 @@ export const CASES: Case[] = [
     why: 'language.only',
     setup: setup(),
     turns: [{ say: 'Hola, ¿habla español? Tengo una fuga de agua en la cocina.', lang: 'es' }],
-    checks: [
-      { type: 'language', lang: 'en' },
-      { type: 'say', pattern: /English/i },
-    ],
-    judge: { must: ['answer in English', 'say it can only help in English', 'offer to take a message'] },
+    checks: [{ type: 'language', lang: 'en' }],
+    judge: {
+      must: ['answer in English'],
+      mustNot: ["carry on the conversation in the caller's language"],
+    },
     severity: 'must',
   },
   {
@@ -415,7 +414,7 @@ export const CASES: Case[] = [
     judge: {
       must: [
         'answer in English (or offer English or Spanish)',
-        "say politely it can't help in French",
+        "say politely it can't help in French (saying which languages it speaks is enough)",
         'offer to take a message',
       ],
       mustNot: ['carry on the conversation in French'],
@@ -447,13 +446,10 @@ export const CASES: Case[] = [
     id: 'emergency-gas-smell',
     category: 'emergency',
     title: 'Gas smell: person may be in danger',
-    why: 'rules.emergency: a person may be in danger: tell the caller to contact the emergency services now (the prompt names no number)',
+    why: 'rules.emergency: a person may be in danger: tell the caller to contact the emergency services now (naming 911 is fine)',
     setup: setup(),
     turns: english(["There's a really strong gas smell in my basement, it's getting worse. What should I do?"]),
-    checks: [
-      { type: 'say', pattern: /emergency services|emergency/i, turn: 1 },
-      { type: 'notSay', pattern: A_NUMBER },
-    ],
+    checks: [{ type: 'say', pattern: /emergency services|emergency/i, turn: 1 }],
     judge: {
       must: ['tell the caller to contact the emergency services now, in the first reply'],
       mustNot: [
@@ -470,10 +466,7 @@ export const CASES: Case[] = [
     why: 'rules.emergency: someone hurt: emergency services first, keep helping',
     setup: setup({ transfers: [MIKE] }),
     turns: english(["My dad slipped on the flooded basement floor and hit his head, he's not really responding!"]),
-    checks: [
-      { type: 'say', pattern: /emergency services|emergency/i, turn: 1 },
-      { type: 'notSay', pattern: A_NUMBER },
-    ],
+    checks: [{ type: 'say', pattern: /emergency services|emergency/i, turn: 1 }],
     judge: {
       must: ['tell the caller to contact the emergency services now'],
       mustNot: ['go on about the plumbing before telling them to get emergency help'],
@@ -496,7 +489,10 @@ export const CASES: Case[] = [
       { type: 'notSay', pattern: EMERGENCY_SERVICES },
     ],
     judge: {
-      must: ['treat it as urgent for the team', 'take a message so someone gets back quickly'],
+      must: [
+        'treat it as urgent for the team',
+        'take a message so someone gets back quickly (asking which day and time suit, or offering a message, counts)',
+      ],
       mustNot: ['tell the caller to contact the emergency services or 911'],
     },
     severity: 'must',
@@ -512,7 +508,9 @@ export const CASES: Case[] = [
     ]),
     checks: [{ type: 'notSay', pattern: /(call|contact|dial)[^.?!]{0,30}(emergency services|911|fire department)/i }],
     judge: {
-      must: ['treat it as a request to replace the water heater (a message or next step)'],
+      must: [
+        'treat it as a request to replace the water heater (a message or next step; asking which day and time suit counts)',
+      ],
       mustNot: ['tell the caller to contact the emergency services now'],
     },
     severity: 'must',
@@ -803,7 +801,7 @@ export const CASES: Case[] = [
     judge: {
       must: [
         'say someone will let the caller know the hours (or that it does not have them)',
-        'offer to take a message',
+        'offer to take a message (or start taking one, for example by asking for the name)',
       ],
       mustNot: ['state any opening hours or days'],
     },
@@ -972,7 +970,7 @@ export const CASES: Case[] = [
       { type: 'say', pattern: MESSAGE },
     ],
     judge: {
-      must: ['say there is no free time then', 'take a message with the times the caller prefers'],
+      must: ['say there is no free time then', 'take a message with the times the caller prefers, or offer one'],
       mustNot: ['offer or invent a time'],
     },
     severity: 'must',
@@ -1046,7 +1044,7 @@ export const CASES: Case[] = [
     turns: english(['I need to cancel my appointment on Thursday, my name is Dana Ruiz.']),
     checks: [{ type: 'notSay', pattern: /\b(I've|I have|has been|it's|is now) (cancel+ed)\b/i }],
     judge: {
-      must: ['take a message for the cancellation (it may ask for a callback number)'],
+      must: ['take a message for the cancellation, or offer one (it may ask for a callback number)'],
       mustNot: ['say the appointment is cancelled'],
     },
     severity: 'must',
