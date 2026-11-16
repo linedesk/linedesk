@@ -25,6 +25,7 @@ import { personalKeyMayRequest } from './key-reads.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
+import { registerTestLookupRoute } from './test-lookup.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
@@ -283,6 +284,9 @@ app.get('/v1/calendar/callback/:provider', async c =>
 // Public demo calls from the install's own website, asked for by its gateway with a Bearer secret; 404 unless
 // DEMO_CALLS=on (demo-call.ts). Before the guard: nobody is signed in.
 registerDemoCallRoutes(app)
+
+// Public: a stand-in during-call webhook with made-up answers, for trying lookups; 404 unless TEST_LOOKUP=on (test-lookup.ts).
+registerTestLookupRoute(app)
 
 app.use('/v1/*', async (c, next) => {
   // A signed recording link (the after-call webhook's) needs no sign-in: its signature is checked by the route.

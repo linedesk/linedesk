@@ -92,6 +92,15 @@ Answer with `{"answer": "Order 1234 shipped on Monday, arriving Thursday."}`: a 
 
 No answer within 3 s (`DURING_CALL_TIMEOUT_MS`), an error, or no `answer`: the assistant tells the caller it cannot check that right now and offers to take a message. At most 5 requests per call (`DURING_CALL_MAX_PER_CALL`); after that the assistant is told it cannot look up more. Each request is in the log (with the answer); failures count like failed deliveries. Never retried (the caller is waiting).
 
+### Testing the during-call hook
+
+An install can answer lookups itself with made-up data, so the whole path (the assistant asks, Linedesk posts, the assistant passes the answer on) can be tried without a server of your own. Off unless `TEST_LOOKUP=on` in the API's environment (then `docker compose up -d api`); never turn it on where assistants answer real callers. Set the assistant's webhook URL to `https://<your install>/v1/webhooks/test-lookup` (staging: `https://staging.example.com/v1/webhooks/test-lookup`), turn on During the call and add a lookup. It answers at once (`apps/api/src/test-lookup.ts`):
+
+- a lookup whose name has `order` in it: `Order 1234 shipped on Monday and arrives on Thursday.` (the value of the field named like `order` or `number`, else the first value; without any value: `The order shipped on Monday and arrives on Thursday.`);
+- any other lookup: `Found the record for 1234; everything is up to date.` (without any value: `Found the record; everything is up to date.`).
+
+A value is said back on one line and cut to 40 characters. The route writes and logs nothing and checks no signature; a body that is not a during-call request gets 400, and while it is off every request gets 404.
+
 ## After the call
 
 `call.finish` writes a delivery row and a pg-boss job (`webhook.deliver`) in its transaction, to run 20 s later (`CALL_END_DELAY_SEC`), so the recording is saved by then. The first attempt builds the payload from the call as it is then (`callEndPayload`) and stores it; retries send the same one.
