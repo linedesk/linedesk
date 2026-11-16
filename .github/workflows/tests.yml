@@ -34,19 +34,6 @@ jobs:
       matrix:
         # No "/" in the names: GitHub leaves jobs with one out of `gh run view --log`.
         part: [api 1 of 3, api 2 of 3, api 3 of 3, other packages]
-    services:
-      postgres:
-        image: postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07
-        env:
-          POSTGRES_USER: linedesk
-          POSTGRES_PASSWORD: linedesk
-          POSTGRES_DB: linedesk_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U linedesk"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 20
     env:
       # Each run of the API integration tests creates its own database next to this one (the name must end in _test).
       TEST_DATABASE_URL: postgres://linedesk:linedesk@localhost:5432/linedesk_test
@@ -60,6 +47,22 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Not a service container: those take no command, and the API tests need more lock slots than Postgres's
+      # default 64 per connection. global-setup.ts migrates one database per test project at the same time, each in one
+      # transaction that locks every table it touches; at 64 that fails with "out of shared memory" (53200). Same image
+      # and first arguments as docker-compose.yml, like the dev Postgres in docker-compose.ports.yml (docs/ci.md, "Tests").
+      - name: Start Postgres
+        run: |
+          docker run -d --name linedesk-test-postgres -p 5432:5432 \
+            -e POSTGRES_USER=linedesk -e POSTGRES_PASSWORD=linedesk -e POSTGRES_DB=linedesk_test \
+            postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07 \
+            postgres -c wal_level=logical -c shared_buffers=64MB -c max_locks_per_transaction=1024
+          for _ in $(seq 60); do
+            # -h: the image's init step answers on the socket only; wait for the real server on TCP.
+            docker exec linedesk-test-postgres pg_isready -h 127.0.0.1 -U linedesk -d linedesk_test >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker exec linedesk-test-postgres psql -h 127.0.0.1 -U linedesk -d linedesk_test -Atc 'show max_locks_per_transaction'
       - name: Run this part of the tests
         env:
           PART: ${{ matrix.part }}
