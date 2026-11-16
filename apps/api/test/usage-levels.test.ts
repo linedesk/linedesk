@@ -3,7 +3,7 @@
 // call.start decides. Billing is switched on by replacing billingState (no Stripe keys in tests); the three stages
 // are set up through the environment, so this file is instance-wide (vitest.config.ts).
 import { centsPerMinute } from '@linedesk/actions'
-import { assistant_versions, assistants, session, user, workspace_settings } from '@linedesk/db'
+import { assistant_versions, assistants, billing_accounts, organization, session, user, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
@@ -142,6 +142,41 @@ describe('Allow Premium', () => {
     expect(row!.allow_premium).toBe(false)
     const audit = await listAudit(db, { workspaceId: ws.id, limit: 50 })
     expect(audit.entries.filter(e => e.what === 'workspace.setAllowPremium')).toEqual([])
+  })
+})
+
+describe('Allow Premium and Allow Ultra on a bill another person owns (LIN-399)', () => {
+  test('only the owner of the bill switches them on, not the owner of a workspace the bill pays for', async () => {
+    // Bill owner B pays one bill for W1 (B owns it) and W2 (X owns it).
+    const w1 = await createWorkspace('Bill Owner Plumbing')
+    const w2 = await createWorkspace('Paid For Heating')
+    const billId = `bill_${crypto.randomUUID()}`
+    await db.insert(billing_accounts).values({ id: billId, kind: 'cloud', owner_user_id: w1.owner.userId, status: 'active' })
+    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, w1.id))
+    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, w2.id))
+
+    expect(await setAllow(w2.owner, true)).toMatchObject({ status: 403, body: { error: 'only the owner of the bill can do this' } })
+    expect((await setAllowUltra(w2.owner, true)).status).toBe(403)
+    // Off costs the bill less: the workspace owner may.
+    expect((await setAllow(w2.owner, false)).status).toBe(200)
+    expect((await setAllowUltra(w2.owner, false)).status).toBe(200)
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, w2.id))
+    expect(row?.allow_premium ?? false).toBe(false)
+    expect(row?.allow_ultra ?? false).toBe(false)
+    const audit = await listAudit(db, { workspaceId: w2.id, limit: 50 })
+    // The two refusals are in the audit log.
+    const tries = audit.entries.filter(e => e.what.startsWith('workspace.setAllow') && e.refused)
+    expect(tries).toHaveLength(2)
+    for (const e of tries) expect(e).toMatchObject({ actor: { id: w2.owner.userId } })
+
+    // The bill owner, in the workspace they own.
+    expect((await setAllow(w1.owner, true)).status).toBe(200)
+    expect((await setAllowUltra(w1.owner, true)).status).toBe(200)
+
+    // Once X owns the bill, X may.
+    await db.update(billing_accounts).set({ owner_user_id: w2.owner.userId }).where(eq(billing_accounts.id, billId))
+    expect((await setAllow(w2.owner, true)).status).toBe(200)
+    expect((await setAllowUltra(w2.owner, true)).status).toBe(200)
   })
 })
 

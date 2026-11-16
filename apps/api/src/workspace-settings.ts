@@ -20,6 +20,7 @@ import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
+import { refuseUnlessBillOwner } from './billing-owner.ts'
 import { assistantsBackToStandard, assistantsOffUltra, refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
@@ -72,15 +73,17 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
   },
 
   /**
-   * Allow Premium (Linedesk Cloud): the owner only, as themselves in the app (refuseBillingActor); audited. Off moves
-   * the workspace's assistants on a Premium voice or model back to the install's defaults, in the same transaction,
-   * each with a new version by the owner. Locks in the order every save takes them: the version locks of all the
-   * workspace's assistants (by id), then the settings row, then the assistant rows. A save running at the same time
-   * finishes before or starts after, and the move sees it or it sees the move; never a deadlock.
+   * Allow Premium (Linedesk Cloud): the owner only, as themselves in the app (refuseBillingActor), and when the workspace
+   * is on a bill, only its bill's owner switches it on (refuseUnlessBillOwner; off costs less, so the workspace owner may); audited. Off moves the workspace's assistants on a
+   * Premium voice or model back to the install's defaults, in the same transaction, each with a new version by the owner.
+   * Locks in the order every save takes them: the version locks of all the workspace's assistants (by id), then the
+   * settings row, then the assistant rows. A save running at the same time finishes before or starts after, and the
+   * move sees it or it sees the move; never a deadlock.
    */
   'workspace.setAllowPremium': async ({ tx, actor }, input: { on: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     refuseBillingActor(actor)
+    if (input.on) await refuseUnlessBillOwner(tx, actor)
     if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
     await tx
       .insert(workspace_settings)
@@ -92,13 +95,15 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
   },
 
   /**
-   * Allow Ultra (Linedesk Cloud): like Allow Premium, the owner only, as themselves in the app; audited. Off moves the
-   * workspace's assistants that answer with a realtime model back to the three stages, each with a version by the owner.
-   * Takes the locks in the same order as Allow Premium (version locks by id, settings row, assistant rows).
+   * Allow Ultra (Linedesk Cloud): like Allow Premium, the owner only, as themselves in the app, and the bill's owner when
+   * there is a bill switches it on; audited. Off moves the workspace's assistants that answer with a realtime model back to the three
+   * stages, each with a version by the owner. Takes the locks in the same order as Allow Premium (version locks by id,
+   * settings row, assistant rows).
    */
   'workspace.setAllowUltra': async ({ tx, actor }, input: { on: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     refuseBillingActor(actor)
+    if (input.on) await refuseUnlessBillOwner(tx, actor)
     if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
     await tx
       .insert(workspace_settings)

@@ -53,12 +53,24 @@ async function billOfWorkspace(tx: Reader, workspaceId: string | null) {
   return row?.bill ?? null
 }
 
+const NOT_BILL_OWNER = 'only the owner of the bill can do this'
+
 /** The actor's bill when they are its owner; refused otherwise (the workspace owner is not always the bill owner). */
 async function ownBill(tx: Reader, actor: Actor) {
   const bill = await billOfWorkspace(tx, actor.workspaceId)
   if (!bill) throw new Reject('this workspace has no bill')
-  if (bill.owner_user_id !== actor.actorId) throw new Forbidden('only the owner of the bill can do this')
+  if (bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_BILL_OWNER)
   return bill
+}
+
+/**
+ * A choice that makes the bill pay more (Allow Premium, Allow Ultra on; docs/billing.md §7, §8): when the actor's
+ * workspace is on a bill, only the bill's owner makes it, not a workspace owner whose workspace another person pays
+ * for (security review LIN-396, T1). A workspace without a bill (self-hosted, not billed yet) is not refused here.
+ */
+export async function refuseUnlessBillOwner(tx: Reader, actor: Actor) {
+  const bill = await billOfWorkspace(tx, actor.workspaceId)
+  if (bill && bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_BILL_OWNER)
 }
 
 /** `billing.state`: the banner's data, for the bill owner only. */
