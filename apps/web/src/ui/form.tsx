@@ -388,8 +388,9 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
     </>
   )
   // In document.body: a dialog opened from inside a page form (Settings › Assistant) must not be a form inside that
-  // form in the DOM, or the browser submits the page form itself (a reload) instead of the dialog's.
-  return createPortal(
+  // form in the DOM, or the browser submits the page form itself (a reload) instead of the dialog's. Without a page
+  // body (server rendering in tests) it renders in place.
+  const dialog = (
     <Backdrop onClose={onClose}>
       <div
         ref={box}
@@ -428,7 +429,8 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
           content
         )}
       </div>
-    </Backdrop>,
-    document.body,
+    </Backdrop>
   )
+  const host = typeof document === 'undefined' ? undefined : document.body
+  return host ? createPortal(dialog, host) : dialog
 }
