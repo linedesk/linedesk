@@ -112,11 +112,13 @@
 }
 /* The event-type picker: a checkbox per type, its length at the right. */
 .cal-pick .k-row {
+  grid-template-columns: minmax(0, 1fr);
   padding: 8px 0;
 }
 .cal-pick .k-check {
   display: flex;
   width: 100%;
+  min-width: 0;
 }
 .cal-pick .k-check-text {
   display: flex;
