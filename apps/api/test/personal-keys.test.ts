@@ -2,12 +2,13 @@
 // its maker does now (every workspace, the role there, server admin), over /v1, MCP and records.list, never managing
 // keys and never reaching the browser's routes. Instance-wide file (vitest.config.ts): it makes a server admin.
 import { IRREVERSIBLE_ACTIONS, actions } from '@linedesk/actions'
-import { commands, member, personal_keys, user } from '@linedesk/db'
+import { assistants, commands, member, personal_keys, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { dropUnprovenAccessOf } from '../src/account-linking.ts'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
+import { NOT_OVER_MCP_FOR_PERSONAL_KEYS, toolName } from '../src/mcp.ts'
 import { revokePersonalKeysOf, revokeSetupKeysOf } from '../src/passkey-enrolment.ts'
 import {
   act,
@@ -303,6 +304,31 @@ describe('MCP with a personal key', () => {
     const records = [...byName.keys()].find(n => String(n).toLowerCase().includes('records'))
     const read = await mcp(ownerKey, 'tools/call', { name: records, arguments: { table: 'calls', limit: 1 } })
     expect(read.body.result.content[0].text).toContain('untrusted_caller_content')
+  })
+
+  test('keeps what lets strangers in or sends calls elsewhere out of MCP', async () => {
+    const tools = await mcp(ownerKey, 'tools/list')
+    const names = new Set(tools.body.result.tools.map((t: { name: string }) => t.name))
+    for (const name of NOT_OVER_MCP_FOR_PERSONAL_KEYS) expect(names.has(toolName(name)), name).toBe(false)
+    for (const name of ['team.invite', 'phoneNumber.update', 'carrier.set', 'provider.connectOneKey'])
+      expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(true)
+    expect(names.has('assistant_update')).toBe(true)
+    const [assistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, ws.id))
+    const transfers = await mcp(ownerKey, 'tools/call', {
+      name: 'assistant_update',
+      arguments: { assistantId: assistant!.id, transfers: [] },
+    })
+    expect(transfers.body.result.isError).toBe(true)
+    expect(transfers.body.result.content[0].text).toContain('transfers')
+    const renamed = await mcp(ownerKey, 'tools/call', {
+      name: 'assistant_update',
+      arguments: { assistantId: assistant!.id, name: 'Maya' },
+    })
+    expect(renamed.body.result.isError ?? false).toBe(false)
+    // The same key still runs them over the API, as its maker does in the app.
+    expect((await act(asKey(ownerKey), 'assistant.update', { assistantId: assistant!.id, transfers: [] })).status).toBe(
+      200,
+    )
   })
 
   test('refuses a workspace its maker does not belong to', async () => {

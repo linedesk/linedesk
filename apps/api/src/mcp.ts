@@ -103,6 +103,8 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor, persona
         const { workspaceId, ...input } = (takesWorkspace ? raw : { ...(raw as object) }) as { workspaceId?: unknown }
         const as = takesWorkspace ? await actorFor(actor, personal, workspaceId) : actor
         if (!as) return refusal(NOT_A_MEMBER)
+        const refusedField = personal ? refusedFieldOverMcp(def.name, takesWorkspace ? input : raw) : null
+        if (refusedField) return refusal(refusedField)
         const { body } = await runAction(def.name, takesWorkspace ? input : raw, as)
         if (!body.ok) return refusal(body.error)
         const payload = { rows: body.rows, ...(body.data ? { data: body.data } : {}) }
@@ -318,14 +320,47 @@ const SERVER_INSTRUCTIONS =
 export const NOT_OVER_MCP: ReadonlySet<string> = new Set(['integration.subscribe', 'integration.unsubscribe'])
 
 /**
- * Not for a personal key's MCP client either, for the same reason: where every future call goes (webhooks) and the
- * install's provider keys (email, storage) stay with the person in the app, the CLI or a script.
+ * Not for a personal key's MCP client either, for the same reason: an assistant reading caller text could be talked
+ * into them, and each hands something to a stranger. Where every future call goes (webhooks), the install's provider
+ * keys (email, storage, the one OpenAI key), the workspace's carrier account, who gets in (invites, memberships, server
+ * admins, passkey enrolment codes), where a number's calls go, which countries the install calls, and a calendar
+ * signed in with a password stay with the person in the app, the CLI or a script (LIN-339 security review M4).
  */
 export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
   'webhook.create',
   'webhook.update',
   'provider.setKeys',
+  'team.invite',
+  'user.invite',
+  'membership.add',
+  'phoneNumber.update',
+  'outboundCountries.set',
+  'calendar.connectWithPassword',
+  'phoneNumber.setup',
+  'carrier.set',
+  'provider.connectOneKey',
+  'provider.clearKeys',
+  'provider.setActive',
+  'instanceAdmin.grant',
+  'user.resetPasskeys',
+  'user.issuePasskeyEnrolment',
 ])
+
+/**
+ * Fields a personal key's MCP client may not set on a tool it has: the assistant's transfer contacts are numbers
+ * callers get put through to, so a caller's text must not be able to add one (LIN-339 security review M4).
+ */
+export const FIELDS_NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['assistant.update', ['transfers']],
+])
+
+/** The refusal for a field in FIELDS_NOT_OVER_MCP_FOR_PERSONAL_KEYS, or null. */
+export function refusedFieldOverMcp(action: string, input: unknown): string | null {
+  const fields = FIELDS_NOT_OVER_MCP_FOR_PERSONAL_KEYS.get(action)
+  if (!fields || typeof input !== 'object' || input === null) return null
+  const field = fields.find(f => f in input)
+  return field ? `${field} is changed in the app, the command line or a script, not over MCP` : null
+}
 
 /**
  * Whether an MCP client gets this action as a tool. Destructive ones (delete, cancel, move, block, spam)
