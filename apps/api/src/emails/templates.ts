@@ -6,7 +6,7 @@
 // Every template takes the recipient's language last (`locale`, a UI language; anything else gives English): the
 // frame and the labels are in it, while what callers said and the call summary stay as they were written (in the
 // workspace's language). Who gets which language: docs/translations.md, "Levels".
-import { type SetupStep, setupStepPath } from '@linedesk/actions'
+import { isE164, type SetupStep, setupStepPath } from '@linedesk/actions'
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import { type Block, defuseLinks, type EmailContent, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
@@ -773,6 +773,8 @@ export type CallEmail = {
   durationSec: number | null
   timeZone: string
   nextSteps: string[]
+  /** What the summary pulled out of the call (the app's "Key facts"), as label and value. */
+  fields: { label: string; value: string }[]
   /** The appointment booked on the call, when there is one. */
   booking: { what: string; when: string } | null
   /** What was said, in order: the caller, the assistant and team members who took over (no tool or system lines). */
@@ -845,6 +847,13 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale): Emai
     .join(' · ')
   const blocks: Block[] = [callerFacts(callerName, number, locale)]
   if (call.summary) blocks.push({ kind: 'text', text: defuseLinks(call.summary) })
+  const fields = call.fields.filter(f => f.label.trim() && f.value.trim())
+  if (fields.length)
+    blocks.push({
+      kind: 'facts',
+      title: t('email.call.keyFacts'),
+      rows: fields.map(f => [defuseLinks(f.label.trim()), defuseLinks(f.value.trim())]),
+    })
   if (call.nextSteps.length)
     blocks.push({ kind: 'list', title: t('email.call.nextSteps'), items: call.nextSteps.map(defuseLinks) })
   if (call.booking) {
@@ -858,7 +867,13 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale): Emai
     })
   }
   // The button before the transcript: a long call would push it far down.
-  blocks.push({ kind: 'button', label: t('email.call.open'), url: callLink(origin, call.workspaceId, call.callId) })
+  blocks.push({
+    kind: 'button',
+    label: t('email.call.open'),
+    url: callLink(origin, call.workspaceId, call.callId),
+    // No caller ID ("anonymous"): nothing to dial.
+    call: isE164(call.fromNumber) ? { label: t('email.call.callBack'), number: call.fromNumber } : undefined,
+  })
   const transcript = transcriptLines(call, callerName, locale)
   if (transcript.lines.length) {
     blocks.push({ kind: 'transcript', title: t('email.call.transcript'), lines: transcript.lines })

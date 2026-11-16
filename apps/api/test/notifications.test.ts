@@ -110,7 +110,7 @@ describe('call emails', () => {
 
   test('a finished call sends one email per recipient with topic, summary, next steps and a link', async () => {
     const ws = await createWorkspace('Email Plumbing')
-    const call = await finishedCall(ws)
+    const call = await finishedCall(ws, { fields: [{ label: 'Address', value: '12 Oak St' }] })
     const { sent, sender } = fakeSender()
     expect(await notifyCallFinished(db, sender, call.id)).toEqual({ sent: 1, failed: 0 })
     expect(sent[0]!.to).toBe(await emailOf(ws.owner))
@@ -118,6 +118,8 @@ describe('call emails', () => {
     expect(sent[0]!.text).toContain('Water on the floor')
     expect(sent[0]!.text).toContain('- Call back before noon')
     expect(sent[0]!.text).toContain(`/#call/${call.id}`)
+    expect(sent[0]!.text).toContain('Key facts\nAddress: 12 Oak St')
+    expect(sent[0]!.text).toContain(`Call back: ${call.from_number}`)
   })
 
   test('the email has the transcript in order, without tool and system lines', async () => {
@@ -131,18 +133,16 @@ describe('call emails', () => {
       text,
       at_ms,
     })
-    await db
-      .insert(transcript_segments)
-      .values([
-        line('caller', 'The sink is leaking.', 3000),
-        line('agent', 'Brightwater, how can I help?', 1000),
-        line('system', 'Transferred to Mike', 4000),
-        {
-          ...line('agent', 'Checking the calendar', 5000),
-          tool_event: { tool: 'calendar.check', label: 'Checked the calendar' },
-        },
-        line('human', 'Mike here, I can come today.', 6000),
-      ])
+    await db.insert(transcript_segments).values([
+      line('caller', 'The sink is leaking.', 3000),
+      line('agent', 'Brightwater, how can I help?', 1000),
+      line('system', 'Transferred to Mike', 4000),
+      {
+        ...line('agent', 'Checking the calendar', 5000),
+        tool_event: { tool: 'calendar.check', label: 'Checked the calendar' },
+      },
+      line('human', 'Mike here, I can come today.', 6000),
+    ])
     const { sent, sender } = fakeSender()
     await notifyCallFinished(db, sender, call.id)
     expect(sent[0]!.text).toMatch(

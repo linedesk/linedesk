@@ -48,6 +48,7 @@ const call: CallEmail = {
   durationSec: 184,
   timeZone: 'America/Los_Angeles',
   nextSteps: ['Call back before noon'],
+  fields: [{ label: 'Address', value: '12 Oak St' }],
   booking: null,
   transcript: [
     { speaker: 'agent', text: 'Brightwater, this is Maya. How can I help?' },
@@ -247,6 +248,20 @@ describe('call summary', () => {
     const email = callEmail({ ...call, transcript: Array.from({ length: 40 }, () => line) }, ORIGIN)
     expect(email.text.match(/Priya Shah: x+/g)).toHaveLength(EMAIL_TRANSCRIPT_MAX_CHARS / 1000)
     expect(email.text).toContain('The rest of the call is in the transcript in the app.')
+  })
+
+  it('has the key facts under the summary and a Call back button for the caller ID', () => {
+    const email = callEmail(call, ORIGIN)
+    expect(email.text).toContain('No hot water since this morning.\n\nKey facts\nAddress: 12 Oak St')
+    expect(email.text).toContain('Call back: +15035550191')
+    expect(email.html).toContain('href="tel:+15035550191"')
+  })
+
+  it('without caller ID or facts: no Call back button, no Key facts', () => {
+    const email = callEmail({ ...call, fromNumber: 'anonymous', fields: [{ label: 'Note', value: ' ' }] }, ORIGIN)
+    expect(email.html).not.toContain('tel:')
+    expect(email.text).not.toContain('Call back:')
+    expect(email.text).not.toContain('Key facts')
   })
 
   it('without a transcript says it is in the app', () => {

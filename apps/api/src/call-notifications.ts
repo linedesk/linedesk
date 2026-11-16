@@ -113,6 +113,7 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     durationSec: call.duration_sec,
     timeZone,
     nextSteps: call.action_items.filter(item => !item.done).map(item => item.text),
+    fields: call.fields,
     booking: booked
       ? {
           what: booked.type ?? booked.title ?? getT(locale).t('email.fallback.appointment'),

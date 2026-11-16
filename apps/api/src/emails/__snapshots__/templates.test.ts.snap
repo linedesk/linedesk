@@ -14,6 +14,10 @@ Number: +1 503 555 0142
 
 Sarah noticed water pooling under the water heater this morning. It is a 12-year-old 50 gallon gas tank. She turned off the cold-water supply but the floor is still wet and she is worried about the drywall.
 
+Key facts
+Address: 2140 SE Division St, Portland
+Water heater: 50 gal gas, about 12 years old
+
 Next steps
 - Confirm the technician can bring a replacement tank
 - Text Sarah the arrival window
@@ -24,6 +28,8 @@ When: Tuesday, November 10 at 1:00 PM PST
 
 Open the call:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+Call back: +15035550142
 
 Transcript
 Maya: Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?
@@ -59,6 +65,8 @@ Next steps
 
 Open the call:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+Call back: +15035550177
 
 The recording and the transcript are in Linedesk.
 
@@ -188,11 +196,16 @@ Number: +1 503 555 0154
 
 Dana has a shower valve that keeps dripping after it is turned off. Wants a callback after 4 pm to set up a visit.
 
+Key facts
+Best time to call: After 4 pm
+
 Next steps
 - Call Dana back after 4 pm
 
 Open the call:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+Call back: +15035550154
 
 Transcript
 Maya: Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?
@@ -801,6 +814,10 @@ Número: +1 503 555 0142
 
 Sarah noticed water pooling under the water heater this morning. It is a 12-year-old 50 gallon gas tank. She turned off the cold-water supply but the floor is still wet and she is worried about the drywall.
 
+Key facts
+Address: 2140 SE Division St, Portland
+Water heater: 50 gal gas, about 12 years old
+
 Próximos pasos
 - Confirm the technician can bring a replacement tank
 - Text Sarah the arrival window
@@ -812,7 +829,9 @@ Cuándo: martes, 10 de noviembre, 13:00 GMT-8
 Abrir la llamada:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
 
-Transcript
+Call back: +15035550142
+
+Transcripción
 Maya: Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?
 Sarah Chen: Hi, my water heater is leaking. There is water all over the basement floor.
 Maya: I am sorry to hear that. Did you turn off the water supply to the tank?
@@ -820,7 +839,7 @@ Sarah Chen: Yes, the cold-water valve is off, but the floor is still wet.
 Maya: Good. I can book an emergency repair today at 1 PM. Does that work?
 Sarah Chen: Yes, please. This is Sarah Chen.
 
-The recording is in Linedesk.
+La grabación está en Linedesk.
 
 --
 
@@ -846,6 +865,8 @@ Próximos pasos
 
 Abrir la llamada:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+Call back: +15035550177
 
 La grabación y la transcripción están en Linedesk.
 
@@ -975,19 +996,24 @@ Número: +1 503 555 0154
 
 Dana has a shower valve that keeps dripping after it is turned off. Wants a callback after 4 pm to set up a visit.
 
+Key facts
+Best time to call: After 4 pm
+
 Próximos pasos
 - Call Dana back after 4 pm
 
 Abrir la llamada:
 https://desk.example.com/#call/call_demo_01?ws=ws_demo
 
-Transcript
+Call back: +15035550154
+
+Transcripción
 Maya: Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?
 Dana Whitaker: Hi, this is Dana Whitaker. My shower keeps dripping after I turn it off.
 Maya: I can have someone call you back to set up a visit. When is a good time?
 Dana Whitaker: After 4 pm, please.
 
-The recording is in Linedesk.
+La grabación está en Linedesk.
 
 --
 
@@ -1310,21 +1336,21 @@ Linedesk · desk.example.com
   ],
   [
     "personal-key-created",
-    "A personal API key was created for your Linedesk account",
+    "Se creó una clave de API personal para tu cuenta de Linedesk",
     "Aviso de seguridad
 
-A personal API key was created
+Se creó una clave de API personal
 
-A personal API key named "Laptop command line" (starting ldp_AbCd1234) was created for your Linedesk account at desk.example.com. It can do everything you can, in every workspace you belong to. Si fuiste tú, no tienes que hacer nada.
+Se creó una clave de API personal llamada "Laptop command line" (empieza con ldp_AbCd1234) para tu cuenta de Linedesk en desk.example.com. Puede hacer todo lo que tú puedes hacer, en cada espacio de trabajo al que perteneces. Si fuiste tú, no tienes que hacer nada.
 
-If it wasn't you, revoke the key in Account settings › Personal API keys and change your password: that signs out your other sessions and revokes every key.
+Si no fuiste tú, revoca la clave en Configuración de la cuenta › Claves de API personales y cambia tu contraseña: eso cierra tus otras sesiones y revoca todas las claves.
 
-Review your API keys:
+Revisar tus claves de API:
 https://desk.example.com/#account/apiKeys
 
 --
 
-You got this email because a personal API key was created for your account. We always send it.
+Recibes este correo porque se creó una clave de API personal para tu cuenta. Siempre lo enviamos.
 
 Linedesk · desk.example.com
 ",
@@ -1385,9 +1411,9 @@ Ann Lee creó una clave de API mientras tenía la sesión iniciada como tú en d
 
 La clave: Zapier support (ld_3fK9aQ2x…), con el rol Miembro.
 
-La clave sigue funcionando después de que termine el acceso de soporte, hasta que se revoque. Aparece en Configuración del espacio de trabajo › Desarrolladores con el nombre del administrador, y todo lo que se haga con ella queda en el registro de auditoría a su nombre.
+La clave sigue funcionando después de que termine el acceso de soporte, hasta que se revoque. Aparece en Integraciones › Claves de API con el nombre del administrador, y todo lo que se haga con ella queda en el registro de auditoría a su nombre.
 
-Si no la necesitas, revócala en Configuración del espacio de trabajo › Desarrolladores. Si no lo esperabas, avísale a tu administrador.
+Si no la necesitas, revócala en Integraciones › Claves de API. Si no lo esperabas, avísale a tu administrador.
 
 --
 

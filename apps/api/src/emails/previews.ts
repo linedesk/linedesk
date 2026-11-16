@@ -61,6 +61,10 @@ const call = {
   durationSec: 214,
   timeZone: 'America/Los_Angeles',
   nextSteps: ['Confirm the technician can bring a replacement tank', 'Text Sarah the arrival window'],
+  fields: [
+    { label: 'Address', value: '2140 SE Division St, Portland' },
+    { label: 'Water heater', value: '50 gal gas, about 12 years old' },
+  ],
   booking: { what: 'Emergency repair', at: '2026-11-10T21:00:00Z' },
   transcript: [
     { speaker: 'agent', text: 'Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?' },
@@ -101,6 +105,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           callerName: null,
           fromNumber: '+15035550177',
           nextSteps: ['Call back with a site-visit time'],
+          fields: [],
           booking: null,
           transcript: [],
         },
@@ -138,6 +143,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           callerName: 'Dana Whitaker',
           fromNumber: '+15035550154',
           nextSteps: ['Call Dana back after 4 pm'],
+          fields: [{ label: 'Best time to call', value: 'After 4 pm' }],
           booking: null,
           transcript: [
             {

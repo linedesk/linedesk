@@ -13,7 +13,8 @@ export type Block =
   | { kind: 'text'; text: string; tone?: 'muted' }
   /** A one-time code, large and monospaced. */
   | { kind: 'code'; code: string }
-  | { kind: 'button'; label: string; url: string }
+  /** A button; `call` adds a quiet second one that dials a number (a tel: link). */
+  | { kind: 'button'; label: string; url: string; call?: { label: string; number: string } }
   /** Label and value rows, in a quiet box when titled ("Booked"). */
   | { kind: 'facts'; title?: string; rows: [label: string, value: string][] }
   | { kind: 'list'; title: string; items: string[] }
@@ -72,6 +73,12 @@ export function defuseLinks(value: string): string {
   return value.replace(/:\/\//g, ':/​/').replace(/([\p{L}\p{N}-])\.(?=\p{L}{2,})/gu, '$1.​')
 }
 
+/** A link that dials an E.164 number; anything else is a bug in the template. */
+function telUrl(number: string): string {
+  if (!/^\+[1-9]\d{7,14}$/.test(number)) throw new Error(`email call link needs an E.164 number: ${number}`)
+  return `tel:${number}`
+}
+
 /** Only web links; anything else is a bug in the template. */
 function checkedUrl(url: string): string {
   if (!/^https?:\/\//i.test(url)) throw new Error(`email link must be http(s): ${url}`)
@@ -103,7 +110,11 @@ function blockHtml(block: Block): string {
       // The install's primary color (branding.ts) in light and dark mode; without one, ink that turns light in dark mode.
       const { color } = currentBranding()
       const [fill, text, cls] = color ? [color, readableOn(color), ''] : [INK, PAPER, 'ld-btn']
-      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr><td class="${cls}" align="center" bgcolor="${fill}" style="border-radius:8px;background:${fill};"><a class="${cls && 'ld-btn-text'}" href="${url}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;color:${text};text-decoration:none;border-radius:8px;">${escapeHtml(block.label)}</a></td></tr></table>`
+      const primary = `<td class="${cls}" align="center" bgcolor="${fill}" style="border-radius:8px;background:${fill};"><a class="${cls && 'ld-btn-text'}" href="${url}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;color:${text};text-decoration:none;border-radius:8px;">${escapeHtml(block.label)}</a></td>`
+      const call = block.call
+        ? `<td width="10" style="width:10px;font-size:0;line-height:0;">&nbsp;</td><td align="center" style="border-radius:8px;border:1px solid ${LINE};"><a class="ld-ink" href="${escapeHtml(telUrl(block.call.number))}" style="display:inline-block;padding:11px 20px;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;color:${INK};text-decoration:none;border-radius:8px;">${escapeHtml(block.call.label)}</a></td>`
+        : ''
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr>${primary}${call}</tr></table>`
     }
     case 'facts': {
       const rows = block.rows
@@ -247,7 +258,7 @@ function blockText(block: Block): string {
     case 'code':
       return `    ${block.code}`
     case 'button':
-      return `${block.label}:\n${checkedUrl(block.url)}`
+      return `${block.label}:\n${checkedUrl(block.url)}${block.call ? `\n\n${block.call.label}: ${telUrl(block.call.number).slice(4)}` : ''}`
     case 'facts': {
       const rows = block.rows.map(([label, value]) => `${label}: ${value}`).join('\n')
       return block.title ? `${block.title}\n${rows}` : rows
