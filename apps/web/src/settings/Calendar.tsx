@@ -65,11 +65,6 @@ export function useCalendarsReady(): boolean {
   return accounts === 'ready' && calendars === 'ready'
 }
 
-/** Enter in a field of this section must not submit the page's form (the Assistant Save). */
-const noSubmit = (e: KeyboardEvent) => {
-  if (e.key === 'Enter') e.preventDefault()
-}
-
 /**
  * Connecting an account: opens the provider's consent page, and the callback brings the browser back
  * to this app; a key provider (CalDAV, Cal.com, Calendly) opens `dialog` instead, and `onConnected` gets the new
@@ -312,8 +307,10 @@ function ConditionField({
         onChange={e => setText(e.target.value)}
         onBlur={save}
         onKeyDown={e => {
-          noSubmit(e)
-          if (e.key === 'Enter') e.currentTarget.blur()
+          // Enter saves this line (by leaving it), never the page's form around it (the Assistant Save).
+          if (e.key !== 'Enter') return
+          e.preventDefault()
+          e.currentTarget.blur()
         }}
       />
     </span>
@@ -862,6 +859,13 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
     })
     onDone()
   }
+  // Enter in a field saves this type (Add or Save below), never the page's form around it (the Assistant Save).
+  const onEnter = (e: KeyboardEvent) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    e.stopPropagation()
+    save()
+  }
   return (
     <div className="cal-type-form">
       <div className="k-fields-2">
@@ -871,7 +875,7 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
             value={name}
             placeholder={t('settings.calendar.type.nameExample')}
             autoFocus
-            onKeyDown={noSubmit}
+            onKeyDown={onEnter}
             onChange={e => setName(e.target.value)}
           />
         </Field>
@@ -895,7 +899,7 @@ function TypeForm({ type, onDone }: { type?: AppointmentType; onDone: () => void
           value={condition}
           placeholder={t('settings.calendar.condition.typeExample')}
           maxLength={CONDITION_MAX}
-          onKeyDown={noSubmit}
+          onKeyDown={onEnter}
           onChange={e => setCondition(e.target.value)}
         />
       </Field>

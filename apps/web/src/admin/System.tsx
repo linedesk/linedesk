@@ -222,6 +222,7 @@ function OutboundCalls() {
   // Frequent toll-fraud destinations being added: saved only after a second, explicit confirmation.
   const risky = data ? wanted.filter(c => data.highRisk.includes(c) && !data.countries.includes(c)) : []
   const [confirmed, setConfirmed] = useState(false)
+  const canSave = changed && unknown.length === 0 && (risky.length === 0 || confirmed)
   async function save() {
     setProblem(null)
     setBusy(true)
@@ -253,7 +254,14 @@ function OutboundCalls() {
             <label className="k-field-label" htmlFor="adm-outbound">
               {t('admin.system.outboundLabel')}
             </label>
-            <div className="ob2-row">
+            <form
+              className="ob2-row"
+              noValidate
+              onSubmit={e => {
+                e.preventDefault()
+                if (canSave) void save()
+              }}
+            >
               <Input
                 id="adm-outbound"
                 value={value}
@@ -266,15 +274,11 @@ function OutboundCalls() {
                 }}
               />
               {!data.fromEnv && (
-                <Button
-                  busy={busy}
-                  disabled={!changed || unknown.length > 0 || (risky.length > 0 && !confirmed)}
-                  onClick={() => void save()}
-                >
+                <Button busy={busy} type="submit" disabled={!canSave}>
                   {t('common.action.save')}
                 </Button>
               )}
-            </div>
+            </form>
             <p className="k-field-msg">
               {unknown.length
                 ? t('admin.system.notCountryCode', {
