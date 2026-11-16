@@ -32,7 +32,7 @@
   "booking.calendar": "Kalender",
   "booking.cancelled": "Abgesagt",
   "booking.confirmed": "Bestätigt",
-  "booking.label": "Buchung",
+  "booking.label": "Terminbuchung",
   "booking.rescheduled": "Verschoben",
   "booking.titleAndTime": "{title} · {time}",
   "contact.addAddress": "Adresse hinzufügen",

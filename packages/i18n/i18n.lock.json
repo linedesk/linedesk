@@ -6266,8 +6266,8 @@
       "src": "fe00b67b6dd1143f383553116b83dadce3502fb0282c3ec4ddaa99f756119626"
     },
     "call.booking.label": {
-      "by": "ai",
-      "out": "ca31c86794a33e9598a354b617852948a254299f85466d2c495d4de4fe3fecf5",
+      "by": "human",
+      "out": "4f07d1387a2f8bd5092f005150d86e348441df614b7363880f0dd195b662c465",
       "src": "948e03e7054b919e26cb431e942f90aeeaa3c9e3237745729574d28767e1f5b8"
     },
     "call.booking.rescheduled": {
@@ -8351,8 +8351,8 @@
       "src": "b0f868ea3091e838b173556477894f44b87f79cee02b4eafdc4903c1f35f95b1"
     },
     "email.booking.eyebrow": {
-      "by": "ai",
-      "out": "4be82f33ed391cc4fc8f45b677aa50311b61975cd2a8d25a75c1218d82d0f6dc",
+      "by": "human",
+      "out": "22db72f59290e5e1195ec6c5175e5673f8a53b6dbde3302de8840065b88169c2",
       "src": "32629c7e2653713f2a47123efd99462a12ad05170994d73deca5464786e8d9a7"
     },
     "email.booking.heading": {
@@ -8371,8 +8371,8 @@
       "src": "48f209430d9231077ec7c4f7652d2511f1e5782a50b221e168ceb2e0d2083af8"
     },
     "email.booking.reason": {
-      "by": "ai",
-      "out": "03a7874d8de0ef01f208dd7f65ab6aeff38e2155a4ad7a572ddfa8086bb0f155",
+      "by": "human",
+      "out": "ed5e41b7227e6a534d5655e5bfa538133dffd931975cc9f1488119ab7b5dcc64",
       "src": "42f55a68eb3878d664502b460490d1f4416df1d2dfdb3ed32e827b6b17f01174"
     },
     "email.booking.subject": {
@@ -8391,8 +8391,8 @@
       "src": "31840d2c5465ed7e54f2e5658d3551ab3393d6e95bf429e68dc26f36c761e1a3"
     },
     "email.call.booked": {
-      "by": "ai",
-      "out": "cf916a57b94ee8baf50e9982164e46a03f4c7de560eb95be7553bb48c50a8e2d",
+      "by": "human",
+      "out": "e0b416418e66908491b7814336bbc295657d58517d511c13707762f26286fd49",
       "src": "fd1331d7a6cd0309f8112bbab4d7f048055ac005f3abc9295de25f482ca1f9f7"
     },
     "email.call.caller": {
@@ -10901,13 +10901,13 @@
       "src": "665590354e719bcf6610c39fe617cf8cf8109e96a59e64c73a41a028b74369f9"
     },
     "insights.export.column.booked": {
-      "by": "ai",
-      "out": "cf916a57b94ee8baf50e9982164e46a03f4c7de560eb95be7553bb48c50a8e2d",
+      "by": "human",
+      "out": "ea33e5bf74749086f7a200ef47585e048feb427fafbd30a809931e11bde30461",
       "src": "fd1331d7a6cd0309f8112bbab4d7f048055ac005f3abc9295de25f482ca1f9f7"
     },
     "insights.export.column.bookedValue": {
-      "by": "ai",
-      "out": "2d75578d396d9b5dff99ba01032f6a4e880c8941898a6df89e8630dd660b6117",
+      "by": "human",
+      "out": "8ebb1673fc01549bf52cb9c7d604bcb9c431a78944c099935da74432d0281525",
       "src": "cfbc05285abc7a544ffbc743babd92f777b98fa11fa778d26d99adcd2b498894"
     },
     "insights.export.column.calls": {
@@ -11026,8 +11026,8 @@
       "src": "040b70ea99a192c27be70f99dc92a34a7d030a3fd28e211ce759805dbb004d61"
     },
     "insights.number.booked": {
-      "by": "ai",
-      "out": "cf916a57b94ee8baf50e9982164e46a03f4c7de560eb95be7553bb48c50a8e2d",
+      "by": "human",
+      "out": "0785d990fe1b548d52ec064c14602a018ddb678a8a6fd6cc5c84bf0d5e5dca59",
       "src": "fd1331d7a6cd0309f8112bbab4d7f048055ac005f3abc9295de25f482ca1f9f7"
     },
     "insights.number.bookedHelp": {
@@ -12856,8 +12856,8 @@
       "src": "33e8d1706211c3a3aaa480452ecc628225b517c7929be68852c8e9d915a53a32"
     },
     "onboarding.install.done.later": {
-      "by": "ai",
-      "out": "14cfa2a546c94f122d75d2a05d38b81a883b4c88103973bd2a111b8570270611",
+      "by": "human",
+      "out": "6f35c3840f705e81ae0ff861436a93bc457f234030f8aafb1c902a25bfea511a",
       "src": "52be9ce1bb103e3c05502a2f3097b72b59a412e8fe5d7f949cdc49bbd83ece0b"
     },
     "onboarding.install.done.next": {
@@ -13691,8 +13691,8 @@
       "src": "a7596f687be17cb70c5eee066d902baf6d0f98aa9ed2dd86464ca489855fec13"
     },
     "settings.assistant.behaviour.askBookingName": {
-      "by": "ai",
-      "out": "e638575859cf7499cc0e74cfeb54f6381cb125dccc3bab3ccf0fe7420bde3833",
+      "by": "human",
+      "out": "21479c4b1c1616f5e88975d8c39b3bb87d91a6a56f9651215def61703da634da",
       "src": "2f450c36a170a7e6c0e84a02ca2c27b1820cee42460dacdb2c52d67d1a62308b"
     },
     "settings.assistant.behaviour.askName": {
@@ -14141,8 +14141,8 @@
       "src": "a7dc419d8e2a117c81feb8d0a10eaadadd3b185a7961610d47ac79476c004b19"
     },
     "settings.assistant.section.booking.label": {
-      "by": "ai",
-      "out": "9fc58a7f4125dcf11f11622eac730c58c134cc12dbb3871f8ed35fe637bc5cb5",
+      "by": "human",
+      "out": "54bbc94b6c3be6e3b7630a4c77f37ee6d3080a023a521dcf71744814a3d038ec",
       "src": "c4715ed4e717e4a9f01a2e388c3f868ff90d8e634aee894e8b64e5c681864414"
     },
     "settings.assistant.section.business.description": {
@@ -14446,8 +14446,8 @@
       "src": "60f7694e9cd6a41408c6d9255859955729d475479856438548983b93d8d88cfd"
     },
     "settings.calendar.added": {
-      "by": "ai",
-      "out": "1f77c62de091afee4d3d1e2a1896392e6dc5de589aba14eb124c6d4ad5f7feeb",
+      "by": "human",
+      "out": "88a94932e94cbbd3afeb6c9e2d73cb5bc57ca253e9aa80a12949e3038e163630",
       "src": "d08930258023328a94af8b2f459c7993f901e0516352fdd8d8306e95a837d954"
     },
     "settings.calendar.addedBadge": {
@@ -14491,8 +14491,8 @@
       "src": "1d440ff95b6880d6e115167f3da5f9cd66dd25de80e6c45d0bccf0a012e23119"
     },
     "settings.calendar.bookInto": {
-      "by": "ai",
-      "out": "d347ea32f755a0b74712e884a313c1b9e9e07c238d7af67290996aa470d06a51",
+      "by": "human",
+      "out": "634ac97bc0c4a92bdaa361e2c3b1266e2b87b21895fa6d97238f4dd4ae47d5b7",
       "src": "3ed4b3fbd5b9c01774f315b0496555c7ded83cd32bb63ce1a7f8c28c63df71c8"
     },
     "settings.calendar.bookWhen.anyTime": {
@@ -14581,8 +14581,8 @@
       "src": "81165a3c5c5696d9401d23fd9a184a2030b5a7e778e5e908722a7c09aaca6b1f"
     },
     "settings.calendar.connected": {
-      "by": "ai",
-      "out": "c2b3765115aebf3b64ba04709928c6ae5ea9c72e68ec715f8c95117d3329728a",
+      "by": "human",
+      "out": "7556539fbf7d61f0d58e2ba8cc5d1daa9a0df4a72f906e4d5bf80ef64b44e634",
       "src": "a78c864506c819a9ace11f3115b9bb1a0b3fd302a73a44733a32654ba7b22a62"
     },
     "settings.calendar.connectedBadge": {
@@ -14651,13 +14651,13 @@
       "src": "f43b94251094a888067e9ddff7bb6e898390b92874dc527cd30ab648e2f699ab"
     },
     "settings.calendar.noAccount": {
-      "by": "ai",
-      "out": "8157f019708398cbc3361bb6ff43199380f750a1e23f7ed8fa82dc975418d91a",
+      "by": "human",
+      "out": "d957bb8cb1fc6a192e8ea272fcc80574b17cc7a04bee66172e1b1302738ee3cf",
       "src": "0314491957bd3258bdb2b96c011584be9fbefd34e75b56fa4ea0b30cdd2ea199"
     },
     "settings.calendar.noCalendar": {
-      "by": "ai",
-      "out": "08985ae49510af9cdeedfb42a211417e4111b1623ef751b7e980392968932c6d",
+      "by": "human",
+      "out": "ab9dc525b24da9abef8ea23d7ea4315c7521a2c2592c19cc6444a430994171fc",
       "src": "b87378ef291a7dd7a1b9777d141878e354f73e5a9e0fff2861cb34b8e9dcba77"
     },
     "settings.calendar.noType": {
@@ -14706,8 +14706,8 @@
       "src": "2b1a7d0f58c1acfafcb9832b5b314b00468d409509a46824e3850866ad5f53a3"
     },
     "settings.calendar.type.askForTip": {
-      "by": "ai",
-      "out": "5b390e9e96c69926c6d1f3337a800d50e892bf00815be31a3ff186f577dda18d",
+      "by": "human",
+      "out": "e7866c7db78503a600a35a4f27bca450e87e0032dd9d79ebb29f3426598e03d6",
       "src": "043d43c2214fba657d847ae4c47b0fa136379d9cbf6480c546f5a1d6357b7f8a"
     },
     "settings.calendar.type.bufferAfter": {
@@ -15051,8 +15051,8 @@
       "src": "f2b574215a225ffec01589877896824e02386589c5a4c07ebf254ec15e1308af"
     },
     "settings.danger.list.rest": {
-      "by": "ai",
-      "out": "fe848a5e68676fe5c5ab3520a13569f5eaa8e5d37a13ec0d65c6ffe8702da3d7",
+      "by": "human",
+      "out": "e310d51f556d529d45d124619f874f06d50094e59026cacc1d367ea3b8d313ab",
       "src": "12dd3f9da17dbc910bf23a33da26bdc966daa8e7f2805d2f6b4f66e3f6a8b5ba"
     },
     "settings.danger.numbers.admin": {
@@ -15246,8 +15246,8 @@
       "src": "7c968fb71f50e335442b35062a35620a508bbd0bd3ee7888deff2490636a5311"
     },
     "settings.developers.role.memberHelp": {
-      "by": "ai",
-      "out": "3967be2d9dab44f261a5330dde31dd42e1cc579298609ec4f0883e092f60e8b7",
+      "by": "human",
+      "out": "6a0464a173070caba92dfb2b134c1b751b4e5e9f2e8dffaf24751743393b7c97",
       "src": "03bd1ccbf487c6f45ef6607962d470b45de08345f4c6ed4b454de137717e3e79"
     },
     "settings.developers.supportAccess": {
@@ -15446,8 +15446,8 @@
       "src": "b9fe1464783e1c0d3a12dbde2686e883482a4fa03f33351af3e576d7a9d32fe0"
     },
     "settings.general.timeZone.tip": {
-      "by": "ai",
-      "out": "6efd3720ea945b5b4dc4238d0c54868ce239c8bf67a0d7f9c1e8434ef170aa44",
+      "by": "human",
+      "out": "bcb542071cae8a7967ae0c44b0471673440cc9a1f6faa7f8d50c621d2cbc8885",
       "src": "dc09e7bd6b9395b5d3cab2d88b823648c0c1ce120c6d189bf0106c94d4aa4c2d"
     },
     "settings.general.timeZone.what": {
@@ -15806,8 +15806,8 @@
       "src": "2f8c23a589ed54d43084f198a07917558f00683973747ab7fe8a4cc0f5f8b32a"
     },
     "settings.holidays.vacation.help": {
-      "by": "ai",
-      "out": "56912b599d2c47990c7b9d72b2096562f2840546ffe4c5102d636efbdcf0d252",
+      "by": "human",
+      "out": "76fdb3d81efab2a9d0acc671e8468547001f67cf735dee327978be33cc30f45f",
       "src": "9e109232ff1ee96882e5492a5c01e5a2c629cf7799fa9ed3d275ed2af745852c"
     },
     "settings.holidays.vacation.onNote": {
@@ -15906,8 +15906,8 @@
       "src": "719cdfa96f36c7b652baf1d59e061d71b95f435369ecdb285ed0037a0aedc227"
     },
     "settings.hours.dialogDescription": {
-      "by": "ai",
-      "out": "ace1ad1dc9c64d93ff5c7c5dcfe53043494760bba2084e92304c04569ef1b64d",
+      "by": "human",
+      "out": "562a3cfa4212f59249878a75e7d7670842bb21d988f48b0c7efff8e1764a33fa",
       "src": "b810b0cfd6fc3bd000721dadf14632ef653c85a8aae3a69731f04c3997d22e53"
     },
     "settings.hours.edit": {
@@ -15931,8 +15931,8 @@
       "src": "e227fdfa5daf8a279db1e378933f2c784c8ddd21993dd5220c0106a0247a5f09"
     },
     "settings.hours.notUsed": {
-      "by": "ai",
-      "out": "f48dd14cd1dfc0962612170e780206ba6e55d66e293b38f305d6355ab5897af1",
+      "by": "human",
+      "out": "6369d1717f94b8a51b56f3de107bb94131d38cb92f0709f0748bb585c4127d42",
       "src": "e701b66c9038016ee65947e59ee84e9d5755db99d9fbef091e5bbc218ee15c62"
     },
     "settings.hours.off": {
@@ -15941,8 +15941,8 @@
       "src": "ca7981b46ecf2c1787b6d76d81d9fd7fa0ca95842e2fcc2a452869891a9334d1"
     },
     "settings.hours.offNote": {
-      "by": "ai",
-      "out": "be5a8efcd69affaa0a13feb6ece9e47a08809f146221b92d5596cb1790902df4",
+      "by": "human",
+      "out": "10cbb0a1da86c355e4e83617e2afa15be8c51a97915df9576ad08d3e18c9cd9c",
       "src": "9ebc4defea47bfc8ae1c61640b265eacaae435bc084a38b1c045944d0e149ea7"
     },
     "settings.hours.openOn": {
@@ -16086,8 +16086,8 @@
       "src": "7ef9c751765888058c3a5915a8c0f585d68aadd0608fc4c143f4bb04ca9b6f16"
     },
     "settings.keyConnect.calcom.note": {
-      "by": "ai",
-      "out": "0a65950920b3eba0760bf793f95a9ac338bf2793e437fe3379e27c7c830d1e45",
+      "by": "human",
+      "out": "15c3331aaf29e541a57a1e4a5892786569ac14c2e86014d4dddbd5ba97abe1eb",
       "src": "940131091be5d1e9ac108d26a8dda4dd8596c8d46244bc116d29f2c7f5a9189f"
     },
     "settings.keyConnect.calcom.step1": {
@@ -16121,8 +16121,8 @@
       "src": "d5d0a30b517e3beab07609d7e54c378db5e15066f22280af453f587f7eec7474"
     },
     "settings.keyConnect.caldav.description": {
-      "by": "ai",
-      "out": "6253a8822379c214b8f90aa751b8b021b27afeff52e29eb3632d75485f5ebac5",
+      "by": "human",
+      "out": "3673a7e333c7a601082eeb2de5f1a34d9fa7cf1ae7c4787e8c6cd399a44a04b2",
       "src": "11d1ff5426274dc9ad071008710bfc2fba344d2ecc3c5f83995550a5e5f0ced5"
     },
     "settings.keyConnect.caldav.password": {
@@ -16166,8 +16166,8 @@
       "src": "82ffcd3f0c9b5eb3f7b33f2382f100634ee5fa65aa2c8969c8e5d5175a441708"
     },
     "settings.keyConnect.calendly.note": {
-      "by": "ai",
-      "out": "c1acc4a8e8400cdd7beacb0c42c3f12a5b12d5463d2ffcef6081c87e32ca3981",
+      "by": "human",
+      "out": "e4441f0236d68ddde0f69e4fb909d458bfcdf7238ec8739ec97e85d283aef05a",
       "src": "0f062e37703fe0d3074b3cafaec4e7c6ee34dd20858dac6ef3bcdc8ae1518eb0"
     },
     "settings.keyConnect.calendly.step1": {
@@ -18256,8 +18256,8 @@
       "src": "343d8326d96dd56418e01b087b2264cc94d0574bc5aad5fdc961ec3801aba21f"
     },
     "settings.webhooks.hookHelp.callEnd": {
-      "by": "ai",
-      "out": "03b7501e78eb1c7628097ca22eeedabb708607beb62e131b9ce04922f804e5cc",
+      "by": "human",
+      "out": "dd0d32df9483e97306b4fbcd09d6bf19b542606228e1da35a403f2cf2c2f9e3c",
       "src": "2d30a5d58b982e5c768e99db14493ad8fb079e61ddb53bd700729aeacf73e672"
     },
     "settings.webhooks.hookHelp.callStart": {

@@ -315,7 +315,7 @@
   "install.countStepOf": "Selbst einrichten · {step} · {number} von {total}",
   "install.done.almost": "Der Server ist fast eingerichtet",
   "install.done.almostLede": "Die restlichen Bausteine findest du unter Server-Admin › Anbieter. Als Nächstes: dein Unternehmen, sein Assistent und seine Nummer.",
-  "install.done.later": "Anmeldung mit Google oder GitHub, Kalender für Buchungen und der Speicherort für Anrufaufnahmen kommen später, unter Server-Admin › Anbieter. Für den ersten Anruf brauchst du nichts davon.",
+  "install.done.later": "Anmeldung mit Google oder GitHub, Kalender für Terminbuchungen und der Speicherort für Anrufaufnahmen kommen später, unter Server-Admin › Anbieter. Für den ersten Anruf brauchst du nichts davon.",
   "install.done.next": "Dein Unternehmen einrichten",
   "install.done.remaining": "<link>{part}</link>: {effect}",
   "install.done.remainingSkipped": "<link>{part}</link> (übersprungen): {effect}",
