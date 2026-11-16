@@ -506,9 +506,19 @@ test('an assistant that speaks only one language other than English also says En
   const german = languageInstructions({
     languages: { main: 'de', mode: 'english', allowed: [] },
   } as unknown as Assistant)
-  expect(german).toMatch(/^Speak German only\./)
+  expect(german).toMatch(/^Speak German only, whatever language the caller speaks\./)
   expect(german).toContain('write the notes and booking details you save with tools in English')
   expect(german).toContain('say them in the language you are speaking with the caller')
+})
+
+// LIN-374: "if the caller speaks another language, say that you can only help in German" became the model's line for
+// every request it declined: German callers asking for a callback heard "Ich kann Ihnen nur auf Deutsch helfen" (14 of 15
+// runs), English callers "I can only help in English". The rule names no line to say any more.
+test('an assistant with one language is given no "I can only help in …" line to say', () => {
+  for (const main of ['de', 'en']) {
+    const only = languageInstructions({ languages: { main, mode: 'english', allowed: [] } } as unknown as Assistant)
+    expect(only).not.toMatch(/only help in|offer to take a message/)
+  }
 })
 
 test('everything about this call comes last, after one heading: the part before it is the same on every call', () => {

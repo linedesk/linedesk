@@ -92,7 +92,7 @@ export const PROMPT_TEXTS = {
   'language.only': {
     section: 'language',
     when: 'oneLanguage',
-    text: 'Speak {main} only. If the caller speaks another language, say in {main} that you can only help in {main} and offer to take a message.',
+    text: 'Speak {main} only, whatever language the caller speaks.',
   },
   'language.several': {
     section: 'language',
