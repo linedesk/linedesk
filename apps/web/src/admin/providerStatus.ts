@@ -33,6 +33,31 @@ import { errorText } from './notify.ts'
 /** Changes whenever the keys in effect change: a test of other keys no longer counts. */
 export const keysSignature = (p: ProviderStatus) => JSON.stringify(p.fields.map(f => [f.source, f.last4, f.value]))
 
+/** Changes whenever keys are stored, also the same keys again: when they were saved is part of it. */
+export const storedSignature = (p: ProviderStatus) =>
+  JSON.stringify(p.fields.map(f => [f.source, f.last4, f.value, f.updated_at]))
+
+/** A test recorded right after its keys were stored, waiting for the admin data that has them. */
+export type Awaited = { before: string; test: StoredTest }
+
+/**
+ * The awaited tests whose keys have arrived (the provider's stored keys changed since the test), taken out of
+ * `awaiting`: from now on they count for those keys. The others keep waiting.
+ */
+export function settleAwaited(
+  awaiting: Map<ProviderName, Awaited>,
+  providers: readonly ProviderStatus[],
+): [ProviderStatus, StoredTest][] {
+  const settled: [ProviderStatus, StoredTest][] = []
+  for (const [name, { before, test }] of awaiting) {
+    const p = providers.find(s => s.provider === name)
+    if (!p || storedSignature(p) === before) continue
+    awaiting.delete(name)
+    settled.push([p, test])
+  }
+  return settled
+}
+
 /** A test run on this page, for the keys it ran with. */
 export type LocalTest = { keys: string; test: StoredTest | 'running' }
 export type LocalTests = Partial<Record<ProviderName, LocalTest>>
@@ -210,26 +235,43 @@ export function useProviderStatus(data: AdminData | null) {
     [put],
   )
 
+  /**
+   * Tests of keys the dialog has just stored, until the admin data with those keys arrives: the dialog records the test
+   * before it reloads. Counted for the keys of the render before, the test was stale once the reload landed, and the
+   * free check ran again ("Checking…") right after the dialog said "Connected" (LIN-364).
+   */
+  const awaiting = useRef(new Map<ProviderName, Awaited>())
+
   // Set up, but never tested with these keys: the free check, once per set of keys.
   useEffect(() => {
     if (!data) return
+    for (const [p, test] of settleAwaited(awaiting.current, data.providers)) {
+      asked.current.set(p.provider, keysSignature(p))
+      put(p, test)
+    }
     for (const p of data.providers) {
-      if (!isConfigured(p) || data.tests[p.provider]) continue
+      if (!isConfigured(p) || data.tests[p.provider] || awaiting.current.has(p.provider)) continue
       const keys = keysSignature(p)
       if (asked.current.get(p.provider) === keys) continue
       asked.current.set(p.provider, keys)
       void check(p)
     }
-  }, [data, check])
+  }, [data, put, check])
 
   const find = (name: ProviderName) => data?.providers.find(p => p.provider === name)
   return {
     status: data ? providerStatus(data, local, health) : null,
     health,
-    /** A test the dialog ran (Save, Test again, a round trip): shown at once. */
-    record: (name: ProviderName, result: ProviderTestData) => {
+    /**
+     * A test the dialog ran (Save, Test again, a round trip): shown at once. `stored`: the dialog has just saved the keys
+     * and reloads next, so the test counts for the keys that reload brings.
+     */
+    record: (name: ProviderName, result: ProviderTestData, { stored = false }: { stored?: boolean } = {}) => {
       const p = find(name)
-      if (p) put(p, { ok: result.ok, message: result.message, at: new Date().toISOString() })
+      if (!p) return
+      const test = { ok: result.ok, message: result.message, at: new Date().toISOString() }
+      if (stored) awaiting.current.set(name, { before: storedSignature(p), test })
+      else put(p, test)
     },
     /** The free check again (Test again). */
     retest: async (name: ProviderName) => {

@@ -19,6 +19,8 @@ import {
   providerFacts,
   providerStatus,
   rowStatus,
+  settleAwaited,
+  storedSignature,
   testedAgo,
 } from './providerStatus.ts'
 
@@ -264,4 +266,29 @@ test('a problem reads the same on every screen: a short sentence, the server tex
   // Works or not set up: no problem line.
   expect(groupProblem(groupOf(providerStatus(data([]), {}, health), 'call-audio'))).toBeNull()
   expect(groupProblem(groupOf(providerStatus(data([]), {}, health), 'email'))).toBeNull()
+})
+
+test('a test recorded right after Save waits for the reload with the new keys, then counts for them (LIN-364)', () => {
+  const before = data([]).providers
+  const after = data(['hubspot']).providers
+  const hubspot = before.find(p => p.provider === 'hubspot')!
+  const test = { ok: true, message: 'Connected', at: '2026-11-16T20:00:00.000Z' }
+  const awaiting = new Map([['hubspot' as const, { before: storedSignature(hubspot), test }]])
+  // The render before the reload: still the old keys, the test keeps waiting.
+  expect(settleAwaited(awaiting, before)).toEqual([])
+  expect(awaiting.size).toBe(1)
+  // The reload brought the stored keys: the test counts for them, so the provider shows Works and is not checked again.
+  const settled = settleAwaited(awaiting, after)
+  expect(settled.map(([p, t]) => [p.provider, t])).toEqual([['hubspot', test]])
+  expect(awaiting.size).toBe(0)
+  const [p] = settled[0]!
+  const facts = providerFacts({ ...data(['hubspot']), tests: {} }, { hubspot: { keys: keysSignature(p), test } })
+  expect(facts.find(f => f.provider === 'hubspot')?.test).toEqual(test)
+})
+
+test('the same keys saved again still settle: when they were saved is part of the signature', () => {
+  const first = data(['hubspot']).providers.find(p => p.provider === 'hubspot')!
+  const again = { ...first, fields: first.fields.map(f => ({ ...f, updated_at: '2026-11-16T20:00:00.000Z' })) }
+  expect(keysSignature(again)).toBe(keysSignature(first))
+  expect(storedSignature(again)).not.toBe(storedSignature(first))
 })

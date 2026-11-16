@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import type { ProviderField, ProviderStatus } from './api.ts'
 import {
+  afterTest,
   changedValues,
   fieldErrors,
   initialValues,
@@ -139,4 +140,20 @@ test('the forwarding check number is a phone field: a typed number must be whole
   // Saved before as it was typed: not checked again until it is changed.
   const saved = telnyx({ source: 'app', value: '(503) 555-0142' })
   expect(fieldErrors(saved, { check_number: '(503) 555-0142' })).toEqual({})
+})
+
+test('after the key test: a pass closes the dialog with a toast, a failure or a warning keeps it open (LIN-364)', () => {
+  const fresh = { stored: true, wasConfigured: false, restarts: false }
+  expect(afterTest({ ok: true }, fresh)).toEqual({ close: true, toast: 'connectedToast' })
+  expect(afterTest({ ok: true }, { ...fresh, restarts: true })).toEqual({ close: true, toast: 'connectedToastRestart' })
+  expect(afterTest({ ok: true }, { stored: false, wasConfigured: true, restarts: true })).toEqual({
+    close: true,
+    toast: 'worksToast',
+  })
+  expect(afterTest({ ok: true }, { stored: true, wasConfigured: true, restarts: false })).toEqual({
+    close: true,
+    toast: 'connectedToast',
+  })
+  expect(afterTest({ ok: false }, fresh)).toEqual({ close: false })
+  expect(afterTest({ ok: true, status: 'warning' }, fresh)).toEqual({ close: false })
 })

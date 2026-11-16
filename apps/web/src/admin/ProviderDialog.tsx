@@ -1,8 +1,9 @@
 // The one editor of a provider (LIN-158), wherever it opens (Server admin › Providers, the install walkthrough): its
 // status with when it was tested, how to get a key (open until it works), the keys as a form (ProviderForm), Test again
 // (the free key check) and Try it (a real round trip, TryOut.tsx). Save stores what changed (provider.setKeys) and then
-// tests the keys, so the dialog ends with the result. A stored secret never comes back from the API: secret inputs
-// start empty and show "•••• 1234".
+// tests the keys: one loading state on the primary button meanwhile; when the keys work the dialog closes and a toast
+// says so, when they do not it stays open with the error (LIN-364). A stored secret never comes back from the API:
+// secret inputs start empty and show "•••• 1234".
 import {
   type ProviderLine,
   type ProviderPreset,
@@ -23,6 +24,7 @@ import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type ProviderField, type ProviderStatus, runAdmin, testProvider } from './api.ts'
 import {
+  afterTest,
   changedValues,
   fieldErrors,
   initialValues,
@@ -67,7 +69,8 @@ type Props = {
   keyUsers?: readonly ProviderStatus[]
   /** Back from "Connect with OpenRouter": the code to exchange, or why there is none. */
   oauthReturn?: OpenRouterReturn | null
-  onTested: (result: ProviderTestData) => void
+  /** `stored`: the keys were saved just before the test; the admin data is reloaded next. */
+  onTested: (result: ProviderTestData, stored: boolean) => void
   onUse: () => Promise<void>
   /** Clears the pick of this category (recording: stop recording). */
   onStopUsing: () => Promise<void>
@@ -96,6 +99,8 @@ export function ProviderDialog(props: Props) {
   const [preset, setPreset] = useState<ProviderPreset | null>(null)
   /** Keys were stored in this dialog: sign-in applies after the API restarts. */
   const [savedNow, setSavedNow] = useState(false)
+  /** The running save connects a provider that had no keys: the button says "Connecting…" until the dialog closes. */
+  const [connecting, setConnecting] = useState(false)
   const configured = isConfigured(provider)
   const connected = configured && line.state === 'works'
   // OpenRouter connects through its own sign-in; typing a key is the fallback.
@@ -119,58 +124,84 @@ export function ProviderDialog(props: Props) {
     const first = Object.keys(problems)[0]
     if (first) return document.getElementById(fieldId(first))?.focus()
     setResult(null)
+    setConnecting(!configured)
     try {
       if (dirty) {
         setPhase('saving')
         await runAdmin('provider.setKeys', { provider: provider.provider, values: changes })
         setSavedNow(true)
-        // Stored: secrets show as "•••• 1234" again instead of staying typed.
-        setValues(v => ({ ...v, ...Object.fromEntries(provider.fields.filter(f => f.secret).map(f => [f.field, ''])) }))
       }
       setPhase('testing')
       const tested = await testProvider(provider.provider, { free: true }).catch(err => ({
         ok: false,
         message: errorText(err),
       }))
-      setResult(tested)
-      onTested(tested)
-      if (dirty) await reload()
-      // Recording storage or after-call transcription that works and none is selected yet: connecting it means "use it".
-      if (tested.ok && selectsOnConnect(provider.category) && !inUse && !chosen) await onUse()
+      await finish(tested, dirty)
     } catch (err) {
       setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
-    } finally {
       setPhase('idle')
     }
   }
 
+  /**
+   * After the test: the row shows the new state before anything else (CLAUDE.md rule 3), then a pass closes the dialog
+   * with a toast; a failure or a warning stays open, the button loading until then and never next to a result.
+   */
+  async function finish(tested: ProviderTestData, stored: boolean) {
+    onTested(tested, stored)
+    if (stored) await reload()
+    // Recording storage or after-call transcription that works and none is selected yet: connecting it means "use it".
+    if (tested.ok && selectsOnConnect(provider.category) && !inUse && !chosen) await onUse()
+    const next = afterTest(tested, {
+      stored,
+      wasConfigured: configured,
+      restarts: restartCategories.includes(provider.category),
+    })
+    if (next.close) {
+      const params = { provider: provider.label, brand: brandName() }
+      notify(
+        next.toast === 'connectedToastRestart'
+          ? t('admin.providerDialog.connectedToastRestart', params)
+          : next.toast === 'worksToast'
+            ? t('admin.providerDialog.worksToast', params)
+            : t('admin.providerDialog.connectedToast', params),
+      )
+      return onClose()
+    }
+    // Stored and still open: secrets show as "•••• 1234" again instead of staying typed.
+    if (stored)
+      setValues(v => ({ ...v, ...Object.fromEntries(provider.fields.filter(f => f.secret).map(f => [f.field, ''])) }))
+    setResult(tested)
+    setPhase('idle')
+  }
+
   /** Stores the key OpenRouter handed out, then tests it like a typed one. */
   const finishing = useRef(false)
+  const finishRef = useRef(finish)
+  finishRef.current = finish
   useEffect(() => {
     if (!oauthReturn || finishing.current) return
     finishing.current = true
     if ('error' in oauthReturn) return setResult({ ok: false, message: openRouterErrorText(oauthReturn.error) })
     void (async () => {
+      setConnecting(true)
       setPhase('saving')
       try {
         const key = await exchangeCode(oauthReturn.code, oauthReturn.verifier)
         await runAdmin('provider.setKeys', { provider: provider.provider, values: { api_key: key } })
-        void reload() // shows as connected now, not only after the test
+        setSavedNow(true)
         setPhase('testing')
         const tested = await testProvider(provider.provider, { free: true }).catch(err => ({
           ok: false,
           message: errorText(err),
         }))
-        setResult(tested)
-        onTested(tested)
-        await reload()
+        await finishRef.current(tested, true)
       } catch (err) {
         setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
-      } finally {
         setPhase('idle')
       }
     })()
-  }, [oauthReturn, provider.provider, onTested, reload])
+  }, [oauthReturn, provider.provider])
 
   async function disconnect() {
     setPhase('disconnecting')
@@ -202,16 +233,19 @@ export function ProviderDialog(props: Props) {
   const working = result?.ok && !dirty
   const appliesOnRestart = restartCategories.includes(provider.category)
   const redirects = redirectUris(provider.provider, window.location.origin)
+  // One loading state, on the button: what the dialog is doing, the same from saving to the closing toast.
   const primaryLabel =
-    phase === 'saving'
-      ? t('common.action.saving')
-      : phase === 'testing'
-        ? t('admin.providerDialog.testing')
-        : configured && !dirty
-          ? t('admin.providerDialog.testAgain')
-          : configured
-            ? t('common.action.save')
-            : t('admin.providers.connect')
+    phase === 'saving' || phase === 'testing'
+      ? connecting
+        ? t('admin.providerDialog.connecting')
+        : dirty || savedNow
+          ? t('common.action.saving')
+          : t('admin.providerDialog.testing')
+      : configured && !dirty
+        ? t('admin.providerDialog.testAgain')
+        : configured
+          ? t('common.action.save')
+          : t('admin.providers.connect')
 
   const footer =
     phase === 'confirm-disconnect' || phase === 'disconnecting' ? (
@@ -320,10 +354,9 @@ export function ProviderDialog(props: Props) {
       {!canStore && provider.fields.length > 0 && <Note tone="warning">{t('admin.providers.noSecretsKey')}</Note>}
       {configured && (
         <p className="adm-group-status" role="status">
-          <StatusMark state={phase === 'testing' ? 'checking' : line.state} />{' '}
-          {phase === 'testing' ? t('admin.providerDialog.testing') : <StatusWords status={line} />}
-          {phase !== 'testing' && testedAgo(line.testedAt) ? ` · ${testedAgo(line.testedAt)}` : ''}
-          {phase !== 'testing' && line.state === 'failing' && line.message && !result ? (
+          <StatusMark state={line.state} /> <StatusWords status={line} />
+          {testedAgo(line.testedAt) ? ` · ${testedAgo(line.testedAt)}` : ''}
+          {line.state === 'failing' && line.message && !result ? (
             <ProviderError message={line.message} at={line.failedAt} />
           ) : null}
         </p>
@@ -350,14 +383,21 @@ export function ProviderDialog(props: Props) {
         }}
         onChange={set}
       />
-      {result && (
+      {result && !busy && (
         <Note tone={!result.ok ? 'danger' : result.status === 'warning' ? 'warning' : 'success'} role="status">
           <span className="adm-result">
-            {result.ok
-              ? appliesOnRestart && savedNow
-                ? t('admin.providerDialog.connectedRestart', { brand: brandName() })
-                : resultLine(result.message)
-              : result.message}
+            {result.ok ? (
+              appliesOnRestart && savedNow ? (
+                t('admin.providerDialog.connectedRestart', { brand: brandName() })
+              ) : (
+                resultLine(result.message)
+              )
+            ) : (
+              <>
+                <strong>{t('admin.providerDialog.failed', { provider: provider.label })}</strong>{' '}
+                {resultLine(result.message)}
+              </>
+            )}
           </span>
         </Note>
       )}
@@ -473,7 +513,11 @@ export function ProviderForm(props: FormProps) {
             disabled={!canStore || busy}
             autoFocus={i === 0 && !configured}
             keysUrl={field.field === keyField ? keysUrl : undefined}
-            keysLabel={provider.category === 'sign_in' || provider.category === 'apps' ? t('admin.providerDialog.createApp') : undefined}
+            keysLabel={
+              provider.category === 'sign_in' || provider.category === 'apps'
+                ? t('admin.providerDialog.createApp')
+                : undefined
+            }
             onChange={value => onChange(field.field, value)}
           />
         ))}

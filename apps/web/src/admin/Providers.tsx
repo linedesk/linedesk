@@ -139,7 +139,7 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
             ? t('admin.providers.use.recordingOff')
             : category === 'transcript'
               ? t('admin.providers.use.transcriptOff')
-            : t('admin.providers.use.default', { category: providerCategories[category] }),
+              : t('admin.providers.use.default', { category: providerCategories[category] }),
         () => set(before),
       )
     } catch (err) {
@@ -161,7 +161,7 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
       canStore={data.canStoreKeys}
       keyUsers={keyUsersOf(data.providers, opened.provider)}
       oauthReturn={oauthReturn ?? null}
-      onTested={result => status.record(opened.provider, result)}
+      onTested={(result, stored) => status.record(opened.provider, result, { stored })}
       onUse={() => use(opened.provider)}
       onStopUsing={() => use(null)}
       reload={reload}

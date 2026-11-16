@@ -408,9 +408,9 @@ const guides = {
   hubspot: {
     url: 'https://developers.hubspot.com/',
     steps: [
-      'Sign in to a free HubSpot developer account and create an app (public app, OAuth).',
-      'Auth: add the redirect URL shown below, and the scopes crm.objects.contacts.read and crm.objects.contacts.write (HubSpot adds oauth).',
-      'Copy the client ID and the client secret and paste them here.',
+      'HubSpot makes apps only from a project uploaded with the HubSpot CLI (npm i -g @hubspot/cli; hs account auth with a free developer account).',
+      'Use the project in integrations/hubspot of the Linedesk repo: add the redirect URL shown below to redirectUrls in src/app/app-hsmeta.json, then hs project upload.',
+      'In HubSpot, Development › Projects › your project › the app › Auth: copy the client ID and the client secret and paste them here.',
     ],
     cost: 'Free. Each business connects its own HubSpot, on any HubSpot plan.',
   },
