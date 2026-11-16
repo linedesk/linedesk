@@ -1,15 +1,16 @@
 import { EventEmitter } from 'node:events'
-import { z } from 'zod'
-import { voice } from '@livekit/agents'
 import { TOOL_MAX_WAIT_MS } from '@linedesk/actions'
+import { voice } from '@livekit/agents'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { z } from 'zod'
 import type { Reply } from './hang-up.ts'
 import {
+  CallAgent,
   FILLER_AFTER_MS,
-  STILL_AFTER_MS,
-  TOO_SLOW_REPLY,
   type FillerSession,
   isSlowTool,
+  STILL_AFTER_MS,
+  TOO_SLOW_REPLY,
   toolFiller,
   withFillers,
 } from './tool-filler.ts'
@@ -105,7 +106,7 @@ test('withFillers: the slow tools get say_while_waiting, never pass it on, and r
   expect(tools.end_call).toBe(endCall)
   const ctx = runOf()
   const { speechHandle } = ctx
-  const args = { order: '1234', say_while_waiting: 'Let me look up order 1234.', say_if_slow: 'Still on it.' }
+  const args = { order: '1234', say_while_waiting: 'Let me look up order 1234.' }
   // biome-ignore lint/suspicious/noExplicitAny: a minimal ToolOptions
   await expect(tools.lookup_order_status!.execute(args, { ctx } as any)).resolves.toBe('answer')
   // LIN-341: a "hello?" while the lookup runs must not cancel it.
@@ -113,12 +114,10 @@ test('withFillers: the slow tools get say_while_waiting, never pass it on, and r
   expect(lookup.execute).toHaveBeenCalledWith({ order: '1234' }, expect.anything())
   expect(started).toHaveBeenCalledWith(speechHandle, expect.any(Function), {
     waiting: 'Let me look up order 1234.',
-    slow: 'Still on it.',
   })
   expect(Object.keys((tools.lookup_order_status!.parameters as z.ZodObject).shape)).toEqual([
     'order',
     'say_while_waiting',
-    'say_if_slow',
   ])
   expect(started.mock.calls[0]![1]()).toBe(false)
   expect(tools.lookup_order_status!.description).toBe('lookup')
@@ -128,7 +127,9 @@ test('a long wait: the caller hears once that it takes longer, never over speech
   const { session: s } = session()
   const say = vi.fn(async (_line: string) => {})
   let running = true
-  toolFiller(s, say)(replyOf('Let me check.'), () => running, { waiting: 'Let me check.', slow: 'Still on it.' })
+  toolFiller(s, say, { stillLine: () => 'Still on it.' })(replyOf('Let me check.'), () => running, {
+    waiting: 'Let me check.',
+  })
   await vi.advanceTimersByTimeAsync(STILL_AFTER_MS - 1)
   expect(say).not.toHaveBeenCalled() // the assistant spoke before the tool: no first filler
   await vi.advanceTimersByTimeAsync(1)
@@ -142,7 +143,7 @@ test('the long-wait line waits while someone speaks, and is dropped once the too
   const { session: s } = session()
   const say = vi.fn(async (_line: string) => {})
   let running = true
-  toolFiller(s, say)(replyOf('Let me check.'), () => running, { slow: 'Still on it.' })
+  toolFiller(s, say, { stillLine: () => 'Still on it.' })(replyOf('Let me check.'), () => running, {})
   s.agentState = 'speaking'
   await vi.advanceTimersByTimeAsync(STILL_AFTER_MS + 2000)
   expect(say).not.toHaveBeenCalled() // still speaking: it waits
@@ -175,4 +176,53 @@ test('a slow tool that runs too long is cut off: the model is told it did not fi
   await vi.advanceTimersByTimeAsync(1)
   await expect(result).resolves.toBe(TOO_SLOW_REPLY)
   expect(started.mock.calls[0]![1]()).toBe(false)
+})
+
+// LIN-359: the model sometimes wrote no long-wait line, and the caller heard nothing for seconds.
+test('the long-wait line is the fixed one of the call language', async () => {
+  const { session: s } = session()
+  const say = vi.fn(async (_line: string) => {})
+  let running = true
+  toolFiller(s, say, { stillLine: () => 'Das dauert etwas länger, ich bin noch dran.' })(
+    replyOf('Moment.'),
+    () => running,
+    {},
+  )
+  await vi.advanceTimersByTimeAsync(STILL_AFTER_MS)
+  expect(say).toHaveBeenCalledWith('Das dauert etwas länger, ich bin noch dran.')
+  running = false
+})
+
+test('busy while a slow tool runs, not after', () => {
+  const { session: s } = session()
+  const started = toolFiller(
+    s,
+    vi.fn(async () => {}),
+  )
+  expect(started.busy()).toBe(false)
+  let first = true
+  let second = true
+  started(replyOf(), () => first, {})
+  started(replyOf(), () => second, {})
+  expect(started.busy()).toBe(true)
+  first = false
+  expect(started.busy()).toBe(true)
+  second = false
+  expect(started.busy()).toBe(false)
+})
+
+// LIN-359: "I'll wait" during a lookup started a reply that made up the order status.
+test('while a slow tool runs, what the caller says is kept but starts no reply', async () => {
+  let busy = true
+  const agent = new CallAgent({ instructions: 'test' }, () => busy)
+  const added = vi.fn()
+  Object.defineProperty(agent, 'session', { get: () => ({ _conversationItemAdded: added }) })
+  const message = { type: 'message', role: 'user', textContent: "I'll wait." } as never
+  await expect(agent.onUserTurnCompleted({} as never, message)).rejects.toBeInstanceOf(voice.StopResponse)
+  expect(agent._chatCtx.items).toContain(message)
+  expect(added).toHaveBeenCalledWith(message)
+  busy = false
+  const later = { type: 'message', role: 'user', textContent: 'Thanks.' } as never
+  await expect(agent.onUserTurnCompleted({} as never, later)).resolves.toBeUndefined()
+  expect(agent._chatCtx.items).not.toContain(later)
 })

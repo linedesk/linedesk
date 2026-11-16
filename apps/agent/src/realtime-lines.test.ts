@@ -89,3 +89,17 @@ test('without a realtime session yet the model is asked', async () => {
   await say('Goodbye!')
   expect(deps.askModel).toHaveBeenCalledOnce()
 })
+
+// LIN-359: the realtime model never connected, so asking it threw "AgentSession is not running", and nobody caught it.
+test('a line the model can no longer be asked to say is logged, not thrown', async () => {
+  const log = vi.fn()
+  const { say } = speakerWith({
+    model: () => null,
+    askModel: () => {
+      throw new Error('AgentSession is not running')
+    },
+    log,
+  })
+  await expect(say('Are you still there?')).resolves.toBeUndefined()
+  expect(log).toHaveBeenCalledWith('fixed line not said: AgentSession is not running')
+})

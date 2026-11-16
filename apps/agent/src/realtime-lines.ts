@@ -64,7 +64,15 @@ export function realtimeLineSpeaker(deps: RealtimeLineDeps): SayFixedLine {
       return null
     })
     const model = deps.model()
-    if (!audio || !model) return deps.askModel(text)
+    if (!audio || !model) {
+      // The session can be gone by now (the realtime model never connected, the call ended): nothing to say then.
+      try {
+        await deps.askModel(text)
+      } catch (e) {
+        log(`fixed line not said: ${e instanceof Error ? e.message : String(e)}`)
+      }
+      return
+    }
     model.sendEvent(deps.repliesEvent(false))
     const turnsBefore = deps.callerTurns()
     try {

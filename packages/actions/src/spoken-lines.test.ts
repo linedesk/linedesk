@@ -17,6 +17,7 @@ const textLines = [
   'consentQuestion',
   'goodbye',
   'stillThere',
+  'stillChecking',
   'callLimit',
   'testCallLimit',
   'silenceClosing',

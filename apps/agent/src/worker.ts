@@ -34,7 +34,7 @@ import { realtimeHistoryCompactor } from './realtime-history.ts'
 import { callNotesKeeper } from './call-notes.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
-import { toolFiller, withFillers } from './tool-filler.ts'
+import { CallAgent, type ToolStarted, toolFiller, withFillers } from './tool-filler.ts'
 import { asksCaller, END_CALL_RESULT, endRoom, ROOM_DELETE_TIMEOUT_MS, greetingPlayed, hangUpAfterGoodbye, hangUpAtCallLimit, lastLineOfCall, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
@@ -135,7 +135,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 /** transfer_call, when the assistant has transfer contacts that take calls now; given from the start of the call. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext, filler: ReturnType<typeof toolFiller>) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext, filler: ToolStarted) {
   return {
     // A slow tool gets a filler when the assistant said nothing before it (tool-filler.ts).
     ...withFillers({ ...bookingToolset(api, call, log), ...lookupTools(api, call, log) }, filler),
@@ -468,7 +468,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const limit = callLimitOf(call, lines())
   // A realtime call's lines in its voice are made now, so the first one does not wait for it (then cached for every call).
   if (realtimeLines && !languages.others.length) {
-    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().goodbye, limit.line]
+    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().goodbye, limit.line, lines().stillChecking]
     void Promise.allSettled(texts.map(text => lineAudio(voiceOfLines, text)))
   }
   const cancelLimit = hangUpAtCallLimit(limit.ms, {
@@ -503,8 +503,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     country: call.country,
     facts: () => stepFacts({ today: collect.today(), hours: call.businessHours?.summary, address: call.assistant?.business_profile?.address }),
   }
-  const filler = toolFiller(session, line => speak(line))
-  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect, filler) })
+  const filler = toolFiller(session, line => speak(line), { stillLine: () => lines().stillChecking })
+  const agent = new CallAgent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect, filler) }, filler.busy)
   switched.to = () => {
     const failed = (e: unknown) => console.warn(`call ${call.callId}: reply language not updated: ${e instanceof Error ? e.message : String(e)}`)
     void agent.updateInstructions(instructionsNow()).catch(failed)

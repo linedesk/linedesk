@@ -2,7 +2,7 @@
 // GET /v1/agent/provider-config. The install-wide agent token opens a call (`call.start`,
 // `call.startTest`) and reads the providers; everything for a call then goes with the call token
 // the API returned for it, which is bound to that call and its workspace.
-import type { ActionDef, ActionRejection, ActionResult } from '@linedesk/actions'
+import { type ActionDef, type ActionRejection, type ActionResult, TOOL_MAX_WAIT_MS } from '@linedesk/actions'
 import type { z } from 'zod'
 
 /** No action takes long; a hung request must not hold up a call or its hang-up. */
@@ -13,9 +13,12 @@ const REQUEST_TIMEOUT_MS = 5000
  */
 const CALENDAR_ACTIONS = new Set(['calendar.findSlots', 'appointment.book', 'appointment.reschedule', 'appointment.cancel'])
 const CALENDAR_TIMEOUT_MS = 25_000
-/** A during-call lookup: the API waits DURING_CALL_TIMEOUT_MS (7 s) for the business's system, plus its own trip. */
+/**
+ * A during-call lookup: the API waits DURING_CALL_TIMEOUT_MS (7 s) for the business's system, plus its own work, which
+ * took 2–3 s on a busy server (LIN-359). So no cut-off here before the caller's own one (TOOL_MAX_WAIT_MS, withFillers).
+ */
 const LOOKUP_ACTION = 'call.askWebhook'
-const LOOKUP_TIMEOUT_MS = 9000
+const LOOKUP_TIMEOUT_MS = TOOL_MAX_WAIT_MS + 1000
 /** call.correctTranscript waits while a transcription model hears the whole recording again. */
 const TRANSCRIPT_TIMEOUT_MS = 30_000
 const SLOW_ACTIONS: Record<string, number> = { [LOOKUP_ACTION]: LOOKUP_TIMEOUT_MS, 'call.correctTranscript': TRANSCRIPT_TIMEOUT_MS }

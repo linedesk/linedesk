@@ -3,10 +3,13 @@
 // So each slow tool gets a parameter, say_while_waiting: one short sentence the model writes with the call, about what it
 // looks up, in the language of the call. When the tool is still running a moment after it started and the assistant
 // said nothing in that reply, the agent says that sentence (at most once per caller turn). When it takes seconds, the
-// agent says a second one the model wrote with the call, say_if_slow ("This is taking a little longer, I'm still on
-// it.") once, so the caller knows (a second one would come after the cut-off at TOOL_MAX_WAIT_MS). LiveKit frees the speech queue before it waits for a reply's tools, so the line plays while the tool runs,
-// in both pipelines (the three stages say it with the voice provider, a realtime call plays it in the model's voice).
+// agent says the fixed line of the call's language once (spokenLines stillChecking, "This is taking a little longer,
+// I'm still on it.", LIN-359), so the caller knows (a second one would come after the cut-off at TOOL_MAX_WAIT_MS).
+// LiveKit frees the speech queue before it waits for a reply's tools, so the line plays while the tool runs, in both
+// pipelines (the three stages say it with the voice provider, a realtime call plays it in the model's voice).
 // No tool of these makes the caller wait longer than TOOL_MAX_WAIT_MS: then the model hears it did not finish.
+// While one runs, what the caller says starts no reply of its own (CallAgent): such a reply had no answer yet and made
+// one up (LIN-359).
 import { TOOL_MAX_WAIT_MS } from '@linedesk/actions'
 import { type llm, voice } from '@livekit/agents'
 import { z } from 'zod'
@@ -20,21 +23,14 @@ export const STILL_AFTER_MS = 4000
 /** The agent or the caller still speaks when the long-wait sentence is due: try again this much later. */
 const STILL_RETRY_MS = 1000
 
-/** The parameters of each slow tool with the sentences said while it runs (rule 11: their wording was approved). */
+/** The parameter of each slow tool with the sentence said while it runs (rule 11: its wording was approved). */
 export const FILLER_PARAM = 'say_while_waiting'
-export const STILL_PARAM = 'say_if_slow'
 const fillerParams = {
   [FILLER_PARAM]: z
     .string()
     .nullish()
     .describe(
       'One short sentence the caller hears if this takes a moment: what you are checking, in the language of the call, like "Let me check the times for Tuesday." Not a question.',
-    ),
-  [STILL_PARAM]: z
-    .string()
-    .nullish()
-    .describe(
-      'One short sentence the caller hears if this takes several seconds, in the language of the call, like "This is taking a little longer, I\'m still on it." Not a question.',
     ),
 }
 
@@ -46,6 +42,10 @@ export const TOO_SLOW_REPLY =
   'This took too long, and it is not clear whether it worked. Do not say it worked. Tell the caller you could not finish that right now, and offer to take a message so the team follows up.'
 
 export type FillerTimes = { afterMs?: number; stillAfterMs?: number }
+/** Called when a slow tool starts (toolFiller). */
+export type ToolStarted = (reply: Reply, running: () => boolean, lines: { waiting?: string | null }) => void
+/** `stillLine`: the fixed long-wait line in the call's language now. */
+export type FillerOptions = FillerTimes & { stillLine?: () => string }
 
 /** The tools that wait on another system; the others answer at once or speak themselves (collection steps, transfer_call). */
 export const isSlowTool = (name: string) =>
@@ -65,9 +65,19 @@ export type FillerSession = {
 /**
  * Returns `started(reply, running, lines)`, called when a slow tool of `reply` starts with the sentences the model wrote
  * for the wait; `running()` is false once it is done. `say` says one (fixedLineSpeaker: in either pipeline).
+ * `started.busy()`: whether a slow tool still runs.
  */
-export function toolFiller(session: FillerSession, say: (line: string) => Promise<unknown>, times: FillerTimes = {}) {
-  const { afterMs = FILLER_AFTER_MS, stillAfterMs = STILL_AFTER_MS } = times
+export function toolFiller(
+  session: FillerSession,
+  say: (line: string) => Promise<unknown>,
+  options: FillerOptions = {},
+) {
+  const { afterMs = FILLER_AFTER_MS, stillAfterMs = STILL_AFTER_MS, stillLine } = options
+  const runningTools = new Set<() => boolean>()
+  const busy = () => {
+    for (const running of runningTools) if (!running()) runningTools.delete(running)
+    return runningTools.size > 0
+  }
   let saidSinceCaller = false
   const replies = new WeakSet<object>()
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
@@ -77,12 +87,13 @@ export function toolFiller(session: FillerSession, say: (line: string) => Promis
   const quiet = () => session.agentState !== 'speaking' && session.userState !== 'speaking'
   const sayLine = (text: string) =>
     say(text).catch(e => console.warn(`could not say the filler: ${e instanceof Error ? e.message : String(e)}`))
-  return (reply: Reply, running: () => boolean, lines: { waiting?: string | null; slow?: string | null }) => {
+  const started: ToolStarted = (reply, running, lines) => {
+    runningTools.add(running)
     // Several slow tools in one reply: one filler.
     if (replies.has(reply)) return
     replies.add(reply)
     const waiting = lines.waiting?.trim()
-    const slow = lines.slow?.trim()
+    const slow = stillLine?.()
     // No sentence from the model: nothing to say.
     if (waiting)
       setTimeout(() => {
@@ -100,17 +111,40 @@ export function toolFiller(session: FillerSession, say: (line: string) => Promis
       stillAt(stillAfterMs)
     }
   }
+  return Object.assign(started, { busy })
+}
+
+/**
+ * The assistant of a call. While a slow tool runs (`busy`), what the caller says ("I'll wait", "thanks") goes into the
+ * conversation and the transcript but starts no reply: that reply had no answer yet and made one up (LIN-359). The
+ * tool's reply comes next; the caller's words are in view from then on.
+ */
+export class CallAgent extends voice.Agent {
+  readonly #busy: () => boolean
+
+  // biome-ignore lint/suspicious/noExplicitAny: the agent's user data is not used
+  constructor(options: voice.AgentOptions<any>, busy: () => boolean) {
+    super(options)
+    this.#busy = busy
+  }
+
+  override async onUserTurnCompleted(_chatCtx: llm.ChatContext, message: llm.ChatMessage): Promise<void> {
+    if (!this.#busy()) return
+    this._chatCtx.items.push(message)
+    this.session._conversationItemAdded(message)
+    throw new voice.StopResponse()
+  }
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: tools of different parameter types in one map
 type Tools = Record<string, llm.AnonFunctionTool<any, any, any>>
 
 /**
- * The tools, each slow one with the say_while_waiting and say_if_slow parameters (the tool itself never gets them) and
+ * The tools, each slow one with the say_while_waiting parameter (the tool itself never gets it) and
  * cut off after `maxWaitMs`: the caller never waits longer than that for another system. While one runs the caller can't
  * interrupt the turn: else a "hello?" during the wait cancels the tool, and the assistant never hears the answer.
  */
-export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>, maxWaitMs = TOOL_MAX_WAIT_MS): Tools {
+export function withFillers(tools: Tools, started: ToolStarted, maxWaitMs = TOOL_MAX_WAIT_MS): Tools {
   return Object.fromEntries(
     Object.entries(tools).map(([name, tool]) => {
       if (!isSlowTool(name)) return [name, tool]
@@ -122,11 +156,11 @@ export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>
           ...tool,
           parameters: parameters.extend(fillerParams),
           execute: async (args: Record<string, unknown>, opts: llm.ToolOptions) => {
-            const { [FILLER_PARAM]: waiting, [STILL_PARAM]: slow, ...rest } = args ?? {}
+            const { [FILLER_PARAM]: waiting, ...rest } = args ?? {}
             const text = (v: unknown) => (typeof v === 'string' ? v : null)
             opts.ctx.disallowInterruptions()
             let running = true
-            started(opts.ctx.speechHandle, () => running, { waiting: text(waiting), slow: text(slow) })
+            started(opts.ctx.speechHandle, () => running, { waiting: text(waiting) })
             let timer: ReturnType<typeof setTimeout> | undefined
             const tooSlow = new Promise<string>(resolve => {
               timer = setTimeout(() => {
