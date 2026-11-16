@@ -90,9 +90,12 @@ test('every provider has a category, and the first of each category is the defau
     ['transcript', ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript']],
     ['business', ['google_places']],
     ['billing', ['stripe']],
+    ['apps', ['hubspot']],
   ])
   // Sign-in apps are all in use at once: nothing to pick.
   expect(providerSetActive.input.safeParse({ category: 'sign_in', provider: 'google' }).success).toBe(false)
+  // Connected apps too: each business connects the app it wants.
+  expect(providerSetActive.input.safeParse({ category: 'apps', provider: 'hubspot' }).success).toBe(false)
   expect(providerSetActive.input.safeParse({ category: 'llm', provider: 'openrouter' }).success).toBe(true)
   expect(providerSetActive.input.safeParse({ category: 'llm', provider: null }).success).toBe(true)
   expect(providerSetActive.input.safeParse({ category: 'llm', provider: 'twilio' }).success).toBe(false)

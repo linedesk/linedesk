@@ -29,6 +29,7 @@ describe('calendar.findSlots', () => {
     ).toEqual([
       'afterCallTranscript.get',
       'apiKey.list',
+      'app.pushes',
       'assistant.startTestCall',
       'assistant.version',
       'assistant.versions',
