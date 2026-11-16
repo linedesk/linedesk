@@ -188,6 +188,7 @@ function PasswordInput({
     <span className="k-input">
       <input
         id={id}
+        name={id}
         type="password"
         value={value}
         autoComplete={autoComplete}
@@ -369,6 +370,7 @@ function ChangeEmail({
             <span className="k-input">
               <input
                 id="ac-email-code"
+                name="code"
                 value={code}
                 onChange={e => setCode(normalizeCode(e.target.value))}
                 inputMode="numeric"
@@ -399,6 +401,7 @@ function ChangeEmail({
           <span className="k-input">
             <input
               id="ac-new-email"
+              name="email"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -460,6 +463,8 @@ function PasswordForm({ account, reload }: SectionProps) {
   }
   return (
     <form className="ac-form ac-divided" onSubmit={save}>
+      {/* The account the password belongs to, for password managers: they update that login instead of saving a new one. */}
+      <input type="email" name="username" autoComplete="username" value={account.user.email} readOnly hidden />
       <Field label={t('account.password.title')} help={exists ? undefined : t('account.password.none')}>
         <div className="row2">
           {exists && (

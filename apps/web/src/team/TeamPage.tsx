@@ -16,6 +16,7 @@ import { useReadOnlyNote } from '../settings/readOnly.ts'
 import { useSupportAccess } from '../supportAccess.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { signInAgain, signOutAndForget } from '../localData.ts'
 import { markLeft } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
@@ -323,7 +324,7 @@ function InviteForm({ data, run, toast }: { data: TeamData; run: TeamRun; toast:
           type="email"
           value={email}
           placeholder={t('team.invite.placeholder')}
-          autoComplete="off"
+          {...NO_PASSWORD_MANAGER}
           onChange={e => setEmail(e.target.value)}
         />
       </FormField>

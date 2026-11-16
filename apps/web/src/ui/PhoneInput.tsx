@@ -31,6 +31,7 @@ import {
   searchPhoneCountries,
 } from './phoneInputModel.ts'
 import './phone-input.css'
+import { NO_PASSWORD_MANAGER } from './passwordManager.ts'
 import { useT } from '@linedesk/i18n/react'
 
 type Props = {
@@ -163,7 +164,8 @@ export function PhoneInput({
         id={id}
         type="tel"
         inputMode="tel"
-        autoComplete={autoComplete}
+        // "off": someone else's number (a contact, a transfer target), so password managers stay out too.
+        {...(autoComplete === 'off' ? NO_PASSWORD_MANAGER : { autoComplete })}
         autoFocus={autoFocus}
         disabled={disabled}
         aria-invalid={invalid || undefined}

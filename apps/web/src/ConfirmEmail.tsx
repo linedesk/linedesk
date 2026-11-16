@@ -85,6 +85,7 @@ export function ConfirmEmail({
           <span className="k-input">
             <input
               aria-label={t('auth.confirm.code')}
+              name="code"
               value={code}
               onChange={e => setCode(normalizeCode(e.target.value))}
               disabled={busy}

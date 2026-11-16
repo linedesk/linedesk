@@ -9,6 +9,7 @@ import { useT } from '@linedesk/i18n/react'
 import { useRef, useState } from 'react'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Input, Textarea } from '../ui/form.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { Button, cx } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { formatNumber, outboundE164 } from '../onboarding/flow.ts'
@@ -236,6 +237,7 @@ function ContactRow(props: RowProps) {
             <Field id={id('name')} label={t('settings.transfer.name')} error={error('name')}>
               <Input
                 id={id('name')}
+                {...NO_PASSWORD_MANAGER}
                 value={c.name}
                 onChange={e => onChange({ name: e.target.value })}
                 onBlur={() => onLeave('name')}

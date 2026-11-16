@@ -29,6 +29,7 @@ import { AUTHENTICATOR_HOURS, authenticatorErrorText } from '../settings/account
 import { passkeyNotVerifiedText } from '../sign-in-code.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from '../ui/kit.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { runAdminOnce } from './api.ts'
 
 type Props = { state: AdminSecondFactor; onExit: () => void }
@@ -221,7 +222,8 @@ function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
               placeholder={t('admin.secondFactor.codeLabel')}
               value={code}
               onChange={e => setCode(e.target.value)}
-              autoComplete="one-time-code"
+              // From the server's enrolment command, not a code by SMS or email: no one-time-code suggestions.
+              {...NO_PASSWORD_MANAGER}
               autoFocus={!code}
               disabled={busy !== null}
             />
@@ -318,6 +320,7 @@ function AuthenticatorCode({
         placeholder={t('account.authenticator.codePlaceholder')}
         value={value}
         onChange={e => setValue(e.target.value)}
+        name="totp"
         inputMode="numeric"
         autoComplete="one-time-code"
         maxLength={7}

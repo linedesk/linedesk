@@ -165,7 +165,8 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{title}</h1>
         {lead}
-        <label>{t('auth.email')}<input value={email} readOnly /></label>
+        {/* The account's name for password managers: the password below fills and saves for this address. */}
+        <label>{t('auth.email')}<input type="email" name="username" autoComplete="username" value={email} readOnly /></label>
         {mode === 'choose' && (
           <>
             {methods.emailCode && (
@@ -196,7 +197,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
         )}
         {mode !== 'choose' && (
           <>
-            <label>{t('auth.method.password')}<input required type="password" minLength={8} value={form.password} autoFocus autoComplete="current-password"
+            <label>{t('auth.method.password')}<input required type="password" name="password" minLength={8} value={form.password} autoFocus autoComplete="current-password"
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></label>
             <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{t('auth.signIn')}</button>
             <button type="button" className="auth-switch" onClick={() => setMode('choose')}>{t('team.invite.otherWays')}</button>

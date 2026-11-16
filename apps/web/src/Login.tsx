@@ -12,6 +12,7 @@ import { LastUsed, ProviderButton, SignInMark } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Icon, Spinner } from './ui/kit.tsx'
+import { NO_PASSWORD_MANAGER } from './ui/passwordManager.ts'
 import { brandName } from './brand.ts'
 import { leftAndDeleted, readDeleted, signedOutOfWorkspace } from './session.ts'
 import { isUiLocale, PSEUDO_LOCALE } from '@linedesk/i18n'
@@ -235,9 +236,11 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const nothing = !methods.emailCode && !methods.password && methods.sso.length === 0
   const emailForm = methods.emailCode && (
     <form className="auth-form" onSubmit={sendCode} noValidate>
-      <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email} onChange={set('email')}
-        // With the passkey first, the browser may offer a passkey right in this field (autofill).
-        autoComplete={start.passkeyFirst ? 'email webauthn' : 'email'} autoFocus={!start.passkeyFirst || emailOpen}
+      <input type="email" id="signin-email" name="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email}
+        onChange={set('email')} autoCapitalize="none" spellCheck={false}
+        // The account's name for password managers ("username", not "email"); with the passkey first, the browser may
+        // offer a passkey right in this field (autofill).
+        autoComplete={start.passkeyFirst ? 'username webauthn' : 'username'} autoFocus={!start.passkeyFirst || emailOpen}
         aria-describedby={error ? 'auth-error' : undefined} />
       <button type="submit" className={cx('k-btn auth-provider', start.passkeyFirst ? 'k-btn-secondary' : 'k-btn-primary', busy === 'email' && 'is-busy')}
         disabled={busy !== null} aria-busy={busy === 'email' || undefined}>
@@ -346,9 +349,10 @@ function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }:
   const t = useT()
   return (
     <form className="auth-form" onSubmit={onSubmit} noValidate>
-      <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email} onChange={set('email')} autoComplete="email" autoFocus={autoFocus} />
-      <input type="password" aria-label={t('auth.method.password')} placeholder={t('auth.method.password')} value={form.password} onChange={set('password')}
-        autoComplete="current-password" />
+      <input type="email" id="signin-username" name="username" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email}
+        onChange={set('email')} autoComplete="username" autoCapitalize="none" spellCheck={false} autoFocus={autoFocus} />
+      <input type="password" id="signin-password" name="password" aria-label={t('auth.method.password')} placeholder={t('auth.method.password')}
+        value={form.password} onChange={set('password')} autoComplete="current-password" />
       <button type="submit" className="k-btn k-btn-primary" disabled={disabled}>
         {busy ? t('auth.signingIn') : t('auth.signIn')}
       </button>
@@ -494,7 +498,8 @@ export function CodeStep({ email, supportEmail, invited = false, onDone, onDiffe
             same for every address: whether this one has an account is not told (no account enumeration). From an
             invitation the address may sign in, so it says plainly that the code was sent. */}
         <p>{invited ? t('auth.code.sentInvited', { email }) : t('auth.code.sentIfAccount', { email })}</p>
-        <input ref={input} className="auth-code" aria-label={t('auth.code.label')} value={code} onChange={e => change(e.target.value)} disabled={busy}
+        <input ref={input} className="auth-code" id="signin-code" name="code" aria-label={t('auth.code.label')} value={code}
+          onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
         {error && <AuthError message={error} id="code-error" />}
@@ -600,8 +605,9 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
           <h1>{t('auth.reset.title')}</h1>
           <p>{t('auth.reset.text')}</p>
           <div className="auth-form">
-            <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={email} onChange={e => setEmail(e.target.value)}
-              autoComplete="email" autoFocus aria-describedby={error ? 'reset-error' : undefined} />
+            <input type="email" id="reset-username" name="username" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={email}
+              onChange={e => setEmail(e.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} autoFocus
+              aria-describedby={error ? 'reset-error' : undefined} />
             <button type="submit" className={cx('k-btn k-btn-primary', busy === 'send' && 'is-busy')} disabled={busy !== null}
               aria-busy={busy === 'send' || undefined}>
               {busy === 'send' && <Spinner />}
@@ -623,11 +629,15 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
         {/* The same words for every address: whether it has an account here is not told (no account enumeration). */}
         <p>{t('auth.reset.sent', { email: email.trim(), digits: CODE_LENGTH })}</p>
         <div className="auth-form">
-          <input className="auth-code" aria-label={t('auth.reset.code')} value={code} onChange={e => setCode(normalizeCode(e.target.value))}
+          {/* The account the new password belongs to, for password managers: they update that login. */}
+          <input type="email" name="username" autoComplete="username" value={email.trim()} readOnly hidden />
+          <input className="auth-code" id="reset-code" name="code" aria-label={t('auth.reset.code')} value={code}
+            onChange={e => setCode(normalizeCode(e.target.value))}
             disabled={working} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
             aria-describedby={error ? 'reset-error' : undefined} />
-          <input type="password" aria-label={t('auth.reset.newPassword')} placeholder={t('auth.reset.newPasswordPlaceholder', { min: 8 })} value={password}
-            onChange={e => setPassword(e.target.value)} disabled={working} autoComplete="new-password" />
+          <input type="password" id="reset-new-password" name="new-password" aria-label={t('auth.reset.newPassword')}
+            placeholder={t('auth.reset.newPasswordPlaceholder', { min: 8 })} value={password} onChange={e => setPassword(e.target.value)}
+            disabled={working} autoComplete="new-password" minLength={8} />
           <button type="submit" className={cx('k-btn k-btn-primary', working && 'is-busy')} disabled={busy !== null}
             aria-busy={working || undefined}>
             {working && <Spinner />}
@@ -689,14 +699,18 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
         <p>{t('auth.setup.text')}</p>
         <div className="auth-form">
           <span className="k-has-help">
-            <input aria-label={t('auth.setup.code')} placeholder={t('auth.setup.code')} value={form.code} onChange={set('code')} autoComplete="one-time-code"
-              autoCapitalize="characters" spellCheck={false} autoFocus />
+            {/* From the server log, not a code by SMS or email: no one-time-code suggestions. */}
+            <input id="setup-code" name="setup-code" aria-label={t('auth.setup.code')} placeholder={t('auth.setup.code')} value={form.code}
+              onChange={set('code')} {...NO_PASSWORD_MANAGER} autoCapitalize="characters" spellCheck={false} autoFocus />
             <HelpTip inField label={t('auth.setup.codeWhere')} {...setupCodeHelp()} />
           </span>
-          <input aria-label={t('auth.setup.name')} placeholder={t('auth.setup.name')} value={form.name} onChange={set('name')} autoComplete="name" />
-          <input type="email" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email} onChange={set('email')} autoComplete="email" />
-          <input type="password" aria-label={t('auth.method.password')} placeholder={t('auth.setup.passwordPlaceholder', { min: 12 })} value={form.password}
-            onChange={set('password')} autoComplete="new-password" />
+          <input id="setup-name" name="name" aria-label={t('auth.setup.name')} placeholder={t('auth.setup.name')} value={form.name} onChange={set('name')}
+            autoComplete="name" />
+          <input type="email" id="setup-username" name="username" aria-label={t('auth.email')} placeholder={t('auth.emailPlaceholder')} value={form.email}
+            onChange={set('email')} autoComplete="username" autoCapitalize="none" spellCheck={false} />
+          <input type="password" id="setup-new-password" name="new-password" aria-label={t('auth.method.password')}
+            placeholder={t('auth.setup.passwordPlaceholder', { min: 12 })} value={form.password} onChange={set('password')} autoComplete="new-password"
+            minLength={12} />
           <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? t('auth.setup.busy') : t('auth.setup.submit')}</button>
           {error && <AuthError message={error} />}
         </div>

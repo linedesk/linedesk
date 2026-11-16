@@ -6,7 +6,8 @@ import type { ConnectWithPasswordData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useState } from 'react'
 import { Select, type SelectOption } from '../ui/controls.tsx'
-import { Dialog, Input } from '../ui/form.tsx'
+import { Dialog, Input, SecretInput } from '../ui/form.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { Button } from '../ui/kit.tsx'
 import { CALDAV_SERVICES, type CalDavService, KEY_FORM, type KeyGuide, type KeyProviderId } from './calendarModel.ts'
 import { Field } from './fields.tsx'
@@ -129,15 +130,13 @@ function TokenConnectDialog({
       footer={<Footer onClose={onClose} saving={saving} disabled={!key.trim()} submit={submit} />}
     >
       <Field id="key-connect-key" label={t(form.keyLabel)} help={t(form.help)} error={error}>
-        <Input
+        {/* A key, not a password: never saved as this site's login (SecretInput). */}
+        <SecretInput
           id="key-connect-key"
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
           placeholder={form.placeholder}
           value={key}
           invalid={Boolean(error)}
-          onChange={e => setKey(e.target.value)}
+          onChange={setKey}
           onKeyDown={onEnter}
         />
       </Field>
@@ -189,7 +188,7 @@ function CalDavConnectDialog({ onClose, onConnected }: Props) {
           <Input
             id="caldav-server"
             inputMode="url"
-            autoComplete="url"
+            {...NO_PASSWORD_MANAGER}
             placeholder={t('settings.keyConnect.caldav.serverExample')}
             value={serverUrl}
             onChange={e => setServerUrl(e.target.value)}
@@ -197,10 +196,12 @@ function CalDavConnectDialog({ onClose, onConnected }: Props) {
           />
         </Field>
       )}
+      {/* The calendar service's sign-in, not this site's: password managers stay out, so it is not saved as the
+          Linedesk login and the password field gets no generated password. */}
       <Field id="caldav-user" label={t(preset.username)}>
         <Input
           id="caldav-user"
-          autoComplete="username"
+          {...NO_PASSWORD_MANAGER}
           autoCapitalize="none"
           spellCheck={false}
           value={username}
@@ -209,13 +210,11 @@ function CalDavConnectDialog({ onClose, onConnected }: Props) {
         />
       </Field>
       <Field id="caldav-password" label={t('settings.keyConnect.caldav.password')} help={t(preset.help)} error={error}>
-        <Input
+        <SecretInput
           id="caldav-password"
-          type="password"
-          autoComplete="new-password"
           value={password}
           invalid={Boolean(error)}
-          onChange={e => setPassword(e.target.value)}
+          onChange={setPassword}
           onKeyDown={onEnter}
         />
       </Field>

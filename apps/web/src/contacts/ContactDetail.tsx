@@ -8,6 +8,7 @@ import { formatPhone } from '../inbox-model.ts'
 import type { Step } from '../inbox/changes.ts'
 import { useAssistants, useRun } from '../store.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
 import { ContactCalls } from './ContactCalls.tsx'
 import { CONTACT_DETAIL_FIELDS, type ContactDetailField, contactLabel, type ContactRow, noteHint } from './model.ts'
@@ -54,7 +55,7 @@ export function ContactField({ id, label, multiline, hint, ...control }: FieldPr
       {multiline ? (
         <Textarea id={id} rows={3} aria-describedby={hintId} {...control} />
       ) : (
-        <Input id={id} autoComplete="off" aria-describedby={hintId} {...control} />
+        <Input id={id} {...NO_PASSWORD_MANAGER} aria-describedby={hintId} {...control} />
       )}
       {hint && (
         <p id={hintId} className="k-field-desc">

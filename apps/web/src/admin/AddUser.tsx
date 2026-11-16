@@ -9,6 +9,7 @@ import { emailError } from '../sign-in-code.ts'
 import { roleLabel } from '../team/team-model.ts'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { Button } from '../ui/kit.tsx'
 import { adminGrantText, EnrolmentCodeDialog, enrolmentOf, type PasskeyEnrolment } from './actions.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
@@ -106,7 +107,7 @@ function WorkspacePicker({ workspaces, value, allowNone, invalid, onPick }: Pick
         type="search"
         value={query}
         placeholder={t('admin.addUser.searchWorkspaces')}
-        autoComplete="off"
+        {...NO_PASSWORD_MANAGER}
         invalid={invalid}
         onChange={e => setQuery(e.target.value)}
       />
@@ -267,7 +268,7 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
               id="adm-add-email"
               type="email"
               placeholder={t('admin.example.ownerEmail')}
-              autoComplete="off"
+              {...NO_PASSWORD_MANAGER}
               invalid={!!errors.email}
               value={form.email}
               onChange={e => set({ email: e.target.value })}
@@ -277,7 +278,7 @@ export function AddUser({ workspaces, users, toast, reload }: Props) {
             <Input
               id="adm-add-name"
               maxLength={80}
-              autoComplete="off"
+              {...NO_PASSWORD_MANAGER}
               invalid={!!errors.name}
               value={form.name}
               onChange={e => set({ name: e.target.value })}

@@ -19,6 +19,7 @@ import { Backdrop } from './Backdrop.tsx'
 import { type HelpContent, HelpTip, helpContent } from './HelpTip.tsx'
 import { Button, cx, Icon } from './kit.tsx'
 import './form.css'
+import { NO_PASSWORD_MANAGER } from './passwordManager.ts'
 import { useT } from '@linedesk/i18n/react'
 
 export { type HelpContent, HelpTip } from './HelpTip.tsx'
@@ -222,13 +223,23 @@ type SecretProps = {
   placeholder?: string
   autoFocus?: boolean
   invalid?: boolean
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
 }
 
 /**
  * A secret (API key, token). Not type=password: browsers offer to save a password field as a login
  * and the key would end up in the password manager, so it is masked by CSS and can be shown.
  */
-export function SecretInput({ id, value, onChange, storedLast4, placeholder, autoFocus, invalid }: SecretProps) {
+export function SecretInput({
+  id,
+  value,
+  onChange,
+  storedLast4,
+  placeholder,
+  autoFocus,
+  invalid,
+  onKeyDown,
+}: SecretProps) {
   const t = useT()
   const [shown, setShown] = useState(false)
   const [replacing, setReplacing] = useState(!storedLast4)
@@ -255,15 +266,17 @@ export function SecretInput({ id, value, onChange, storedLast4, placeholder, aut
       id={id}
       type="text"
       className={cx(!shown && 'k-secret')}
-      autoComplete="off"
-      data-1p-ignore=""
-      data-lpignore="true"
+      {...NO_PASSWORD_MANAGER}
+      // Typed exactly as given: no capital first letter or correction on phones (an iCloud app password is lower case).
+      autoCapitalize="none"
+      autoCorrect="off"
       spellCheck={false}
       autoFocus={autoFocus}
       invalid={invalid}
       value={value}
       placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
       end={
         <button
           type="button"
@@ -384,7 +397,14 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descId}>{description}</p>}
           </div>
-          <Button size="sm" variant="ghost" icon="close" aria-label={t('common.action.close')} title={t('common.action.closeWithKey', { key: 'esc' })} onClick={onClose} />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="close"
+            aria-label={t('common.action.close')}
+            title={t('common.action.closeWithKey', { key: 'esc' })}
+            onClick={onClose}
+          />
         </header>
         {onSubmit ? (
           <form className="k-dialog-form" noValidate onSubmit={onSubmit} onKeyDown={e => onSaveKey(e, true)}>

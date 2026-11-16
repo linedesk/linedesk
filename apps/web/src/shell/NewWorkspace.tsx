@@ -20,6 +20,7 @@ import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { emailError } from '../sign-in-code.ts'
 import { Select } from '../ui/controls.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { Button, Note } from '../ui/kit.tsx'
 
 /** Server admin opens on the passkey check while it is due (Workspace.tsx, AdminMode). */
@@ -208,7 +209,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
           value={form.name}
           invalid={!!errors.name}
           maxLength={80}
-          autoComplete={forOther ? 'off' : 'organization'}
+          {...(forOther ? NO_PASSWORD_MANAGER : { autoComplete: 'organization' })}
           disabled={busy}
           // A business someone else owns: Server admin's example name (the same in English).
           placeholder={forOther ? t('admin.example.business') : t('shell.newWorkspace.namePlaceholder')}
@@ -266,7 +267,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
               id="new-ws-owner-email"
               type="email"
               placeholder={t('admin.example.ownerEmail')}
-              autoComplete="off"
+              {...NO_PASSWORD_MANAGER}
               disabled={busy}
               invalid={!!errors.ownerEmail}
               value={form.ownerEmail}
@@ -281,7 +282,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
             <Input
               id="new-ws-owner-name"
               maxLength={80}
-              autoComplete="off"
+              {...NO_PASSWORD_MANAGER}
               disabled={busy}
               value={form.ownerName}
               onChange={e => set({ ownerName: e.target.value })}
