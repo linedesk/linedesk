@@ -4,16 +4,13 @@
 import { ZAPIER_APP_URL, zapierCanReach } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import type { ReactNode } from 'react'
+import { ExternalLink } from '../ui/AppLink.tsx'
 import { Input } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
 import { Button } from '../ui/kit.tsx'
 
 /** A link to a page outside the app, opened in a new tab. */
-export const externalLink = (href: string) => (chunks: ReactNode[]) => (
-  <a className="k-link" href={href} target="_blank" rel="noopener noreferrer">
-    {chunks}
-  </a>
-)
+export const externalLink = (href: string) => (chunks: ReactNode[]) => <ExternalLink href={href}>{chunks}</ExternalLink>
 
 export function ZapierGuide({ toast }: { toast: (text: string) => void }) {
   const t = useT()

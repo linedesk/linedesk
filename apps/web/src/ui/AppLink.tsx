@@ -30,6 +30,15 @@ export function AppLink({ to, newTab, title, onClick, children }: AppLinkProps) 
   )
 }
 
+/** A page outside the app (Zapier, a provider's site) inside text: the same look, always in a new tab. */
+export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a className="k-link" href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  )
+}
+
 /** An action inside text ("Try again", "Confirm"): looks like the link, but does something here instead of going somewhere. */
 export function LinkButton({ onClick, title, children }: { onClick: () => void; title?: string; children: ReactNode }) {
   return (
