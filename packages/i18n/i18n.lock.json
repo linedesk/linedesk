@@ -22570,6 +22570,51 @@
       "out": "64509e1af49cd9877c460e68d2674bd1532f9aa17e0d4f63518911dc10cab331",
       "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
     },
+    "settings.summary.rules.does": {
+      "by": "ai",
+      "out": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32",
+      "src": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32"
+    },
+    "settings.summary.rules.item.askBookingName": {
+      "by": "ai",
+      "out": "47e8ee4e2020b176c73444b666a02746085a6d0af64be3e8375c11e0a4d9d9fa",
+      "src": "5177c6732b56cc67c3f7751a197f3f93ba457090428c43da123d4a7f46621d97"
+    },
+    "settings.summary.rules.item.askName": {
+      "by": "ai",
+      "out": "71e4b2b5fcef9209edb0a9cf186252a40c7730cbf6e238dfa85a1e47e48cee47",
+      "src": "b684390ffee76dd271a23318612e6e8ff2a363f636de738c14c6e71a5a59802f"
+    },
+    "settings.summary.rules.item.callerHistory": {
+      "by": "ai",
+      "out": "71d7e0f8b46d0a4e7d85b471e0a0d2c3fa5a29e95b5856438c4711c977c89cc9",
+      "src": "0a9713683069760f56efaed4e77152ab231f3251d41a3af130bd58ac3d2c8126"
+    },
+    "settings.summary.rules.item.confirmNumber": {
+      "by": "ai",
+      "out": "d4cd9f976c32cf1e6344a0194d0206051faeaf24fa3df2ffe6ccad4f56f01c73",
+      "src": "4641c2ed9969535a403178a338294353ada780b919b7ed0e64d9f4a99c533cba"
+    },
+    "settings.summary.rules.item.offerCallback": {
+      "by": "ai",
+      "out": "6c048b06fc41f2da987479133beeb29f31ee484e0607e36e7536576fe0412443",
+      "src": "f034b71a91b603656dcf03530fb01dccf562870e40ec7ed5a967290eb06bd9a0"
+    },
+    "settings.summary.rules.item.verifiedCallerOnly": {
+      "by": "ai",
+      "out": "8095c0799c3ff29083955eadc562c18d277621dbe511e0eee1e2824d41ac7cc3",
+      "src": "3257915a25f4c8356739b04d94623b500d9d2d3cb98e17e58b7700e4ba4d7008"
+    },
+    "settings.summary.rules.none": {
+      "by": "ai",
+      "out": "99116b8ff0d99247ffae5d08ff69d398eda58434d01e35f825dc25fcbfd6896c",
+      "src": "a5d95f093846ea488efdb59cd80e54e79713459efc2ab59f65b96205f4e35628"
+    },
+    "settings.summary.rules.tone": {
+      "by": "ai",
+      "out": "09f89849a656bcca1a1d4b4b16f8cd18eb75c66cc953f4c7339cc4ff96e76a1b",
+      "src": "94599289a2bd7c743fe92be14b6efe72ebcbf31c426db0fd4d61b1b4bc2db2ad"
+    },
     "settings.summary.transfers.allHoursOnly": {
       "by": "ai",
       "out": "356055f97294690183acbd0ebbb0d1341942aee2304cb5269a5da00a52802e0d",
@@ -48631,6 +48676,51 @@
       "by": "ai",
       "out": "bb6e430ce0a7eb8b64bdd8c8f17465eee24955679dedbaeec993ae217b48b341",
       "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.rules.does": {
+      "by": "ai",
+      "out": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32",
+      "src": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32"
+    },
+    "settings.summary.rules.item.askBookingName": {
+      "by": "ai",
+      "out": "64e630f7f6b337be555d6e1988be1d0f6610a7bc450c54964a8a14a65d727473",
+      "src": "5177c6732b56cc67c3f7751a197f3f93ba457090428c43da123d4a7f46621d97"
+    },
+    "settings.summary.rules.item.askName": {
+      "by": "ai",
+      "out": "93ccfa237082efc8061f2655c80a6ccf6a6ee31c24da35d25169c9b0b243b635",
+      "src": "b684390ffee76dd271a23318612e6e8ff2a363f636de738c14c6e71a5a59802f"
+    },
+    "settings.summary.rules.item.callerHistory": {
+      "by": "ai",
+      "out": "4b1089194c463caec8627cea6d86d2a0621af3aea6c40e518180c9f7f4bd2bdb",
+      "src": "0a9713683069760f56efaed4e77152ab231f3251d41a3af130bd58ac3d2c8126"
+    },
+    "settings.summary.rules.item.confirmNumber": {
+      "by": "ai",
+      "out": "870587c5d7264e715183754c8f19e99206ce2720141ebbc38979fbee67ffac58",
+      "src": "4641c2ed9969535a403178a338294353ada780b919b7ed0e64d9f4a99c533cba"
+    },
+    "settings.summary.rules.item.offerCallback": {
+      "by": "ai",
+      "out": "401ad7010785d6bc9fa76ad07d52c649ed73a78450c814266003677ce2ce6f26",
+      "src": "f034b71a91b603656dcf03530fb01dccf562870e40ec7ed5a967290eb06bd9a0"
+    },
+    "settings.summary.rules.item.verifiedCallerOnly": {
+      "by": "ai",
+      "out": "bba61d149d93bd20c76c2bce5b3457b56a6ff4eab9f0f4400c96c7e4f14452e6",
+      "src": "3257915a25f4c8356739b04d94623b500d9d2d3cb98e17e58b7700e4ba4d7008"
+    },
+    "settings.summary.rules.none": {
+      "by": "ai",
+      "out": "be8650a73e5f465bd2acec32a5f6f4375e79ecc71f5571816872b2ee25087a7d",
+      "src": "a5d95f093846ea488efdb59cd80e54e79713459efc2ab59f65b96205f4e35628"
+    },
+    "settings.summary.rules.tone": {
+      "by": "ai",
+      "out": "0c82c6846f48fd400723099a7a9efbb3f4215d0cf08a0650b6932fee076204dc",
+      "src": "94599289a2bd7c743fe92be14b6efe72ebcbf31c426db0fd4d61b1b4bc2db2ad"
     },
     "settings.summary.transfers.allHoursOnly": {
       "by": "ai",
@@ -74694,6 +74784,51 @@
       "out": "f8569bf0fb131f06a7be30b01d8094b073ad2d353b2c80c05db3348d79907bbb",
       "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
     },
+    "settings.summary.rules.does": {
+      "by": "ai",
+      "out": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32",
+      "src": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32"
+    },
+    "settings.summary.rules.item.askBookingName": {
+      "by": "ai",
+      "out": "b92adaa75b31817b5aa5f21e8a91ddb8fc13d05429859a040e2cb84565e55a40",
+      "src": "5177c6732b56cc67c3f7751a197f3f93ba457090428c43da123d4a7f46621d97"
+    },
+    "settings.summary.rules.item.askName": {
+      "by": "ai",
+      "out": "7a37aee73436bafc08548dfa0b9dd226ce30b17f6e22ed135f5eef961efc8cb7",
+      "src": "b684390ffee76dd271a23318612e6e8ff2a363f636de738c14c6e71a5a59802f"
+    },
+    "settings.summary.rules.item.callerHistory": {
+      "by": "ai",
+      "out": "486a97efe3a505e73b177c651eb476e84b6aa2f258f81940d450a545a42d2e80",
+      "src": "0a9713683069760f56efaed4e77152ab231f3251d41a3af130bd58ac3d2c8126"
+    },
+    "settings.summary.rules.item.confirmNumber": {
+      "by": "ai",
+      "out": "1752cf8e62722ded8bb203b29be9f7ce48b04d3d8ced84fe2b6fc2a1f74b906e",
+      "src": "4641c2ed9969535a403178a338294353ada780b919b7ed0e64d9f4a99c533cba"
+    },
+    "settings.summary.rules.item.offerCallback": {
+      "by": "ai",
+      "out": "4494926e05953975f39c42d1f79a81cb00cee7398e99d32d9f2638d207fb1141",
+      "src": "f034b71a91b603656dcf03530fb01dccf562870e40ec7ed5a967290eb06bd9a0"
+    },
+    "settings.summary.rules.item.verifiedCallerOnly": {
+      "by": "ai",
+      "out": "1c62b63a9c14dd297b11279f978b5b22b684019d9f8b41766afce15ccc92291a",
+      "src": "3257915a25f4c8356739b04d94623b500d9d2d3cb98e17e58b7700e4ba4d7008"
+    },
+    "settings.summary.rules.none": {
+      "by": "ai",
+      "out": "2f45836db7c42cd082d52bc777c7a3e978a9bcf636972dad36cc08768c863f7d",
+      "src": "a5d95f093846ea488efdb59cd80e54e79713459efc2ab59f65b96205f4e35628"
+    },
+    "settings.summary.rules.tone": {
+      "by": "ai",
+      "out": "56778e1aaa4e3523c2941b5a755057cc3329f167b078173cccb051cb7ceea4d0",
+      "src": "94599289a2bd7c743fe92be14b6efe72ebcbf31c426db0fd4d61b1b4bc2db2ad"
+    },
     "settings.summary.transfers.allHoursOnly": {
       "by": "ai",
       "out": "d5df0b366635879cc669405d2f7693c0668bbb52bb79413a1d999a5a7bd123a3",
@@ -100756,6 +100891,51 @@
       "out": "568bbd01e3de11e10172f32e5722825d7dc69b7f80f738e35a2ccf15d844761a",
       "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
     },
+    "settings.summary.rules.does": {
+      "by": "ai",
+      "out": "ada9087f60ddb4eebf771f2ecc0b2633e46620f59676ad8d832af9f2310d9e1f",
+      "src": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32"
+    },
+    "settings.summary.rules.item.askBookingName": {
+      "by": "ai",
+      "out": "8b6960fbbe86cc34a0939fa90bbc4e5b2903f495842cc26ecc186550532b72f8",
+      "src": "5177c6732b56cc67c3f7751a197f3f93ba457090428c43da123d4a7f46621d97"
+    },
+    "settings.summary.rules.item.askName": {
+      "by": "ai",
+      "out": "d697c9aa8b06ee7928215d89a922e4c5bfca75e52a65302cc83ae514584755c3",
+      "src": "b684390ffee76dd271a23318612e6e8ff2a363f636de738c14c6e71a5a59802f"
+    },
+    "settings.summary.rules.item.callerHistory": {
+      "by": "ai",
+      "out": "425724cd61d6d75ec629bcb5050281ad10c45906a276dcbce3bbbb78e2dbd724",
+      "src": "0a9713683069760f56efaed4e77152ab231f3251d41a3af130bd58ac3d2c8126"
+    },
+    "settings.summary.rules.item.confirmNumber": {
+      "by": "ai",
+      "out": "82327ae8bbcb660f2221ae1840b77882f9a0161877d334378aa45998528a31f1",
+      "src": "4641c2ed9969535a403178a338294353ada780b919b7ed0e64d9f4a99c533cba"
+    },
+    "settings.summary.rules.item.offerCallback": {
+      "by": "ai",
+      "out": "8e41704df0a025375ed2a8082994b0518397db20f56b0486b9a268165bcdfcc4",
+      "src": "f034b71a91b603656dcf03530fb01dccf562870e40ec7ed5a967290eb06bd9a0"
+    },
+    "settings.summary.rules.item.verifiedCallerOnly": {
+      "by": "ai",
+      "out": "b8a8cf906275bd72ad0bc3eed08b3714464f45f2f81a50ec557d38aad9809eb4",
+      "src": "3257915a25f4c8356739b04d94623b500d9d2d3cb98e17e58b7700e4ba4d7008"
+    },
+    "settings.summary.rules.none": {
+      "by": "ai",
+      "out": "bc3a60b3b05ce0dcb41981b4278fc639cecf8b67b1a3f37b7a4d2d60386f8c3f",
+      "src": "a5d95f093846ea488efdb59cd80e54e79713459efc2ab59f65b96205f4e35628"
+    },
+    "settings.summary.rules.tone": {
+      "by": "ai",
+      "out": "df6043a4dccdc8eb87f275b5f07d64941386c26657c03606a966f53f272d392f",
+      "src": "94599289a2bd7c743fe92be14b6efe72ebcbf31c426db0fd4d61b1b4bc2db2ad"
+    },
     "settings.summary.transfers.allHoursOnly": {
       "by": "ai",
       "out": "1c47e9ccf320e4dae5e924649fab8cac3846e7f243993e58a9c1c78d4dbd1608",
@@ -126817,6 +126997,51 @@
       "by": "ai",
       "out": "7c091a838d933cbdc59464c6d6ab43b42ade7608398757e978a1c5962bbb5455",
       "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.rules.does": {
+      "by": "ai",
+      "out": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32",
+      "src": "9e2621fe063465638f01a7b145f1aa1a3a53ce37db59e4bfe1c9d458d0a86b32"
+    },
+    "settings.summary.rules.item.askBookingName": {
+      "by": "ai",
+      "out": "d489bc4fb5682108da72c23f7eae30b9db99dab00b5cb608a4354f89158648d9",
+      "src": "5177c6732b56cc67c3f7751a197f3f93ba457090428c43da123d4a7f46621d97"
+    },
+    "settings.summary.rules.item.askName": {
+      "by": "ai",
+      "out": "0dd4ad9609d9eaa695a5ea47e481396918e810d176371f5a7280b490e0cce1e1",
+      "src": "b684390ffee76dd271a23318612e6e8ff2a363f636de738c14c6e71a5a59802f"
+    },
+    "settings.summary.rules.item.callerHistory": {
+      "by": "ai",
+      "out": "138f95210a048fb1e841c36be3998f562d6655d7b4b69af2e365f99c612fcafd",
+      "src": "0a9713683069760f56efaed4e77152ab231f3251d41a3af130bd58ac3d2c8126"
+    },
+    "settings.summary.rules.item.confirmNumber": {
+      "by": "ai",
+      "out": "d931f945ed8b8e1a7e68b6d2a83911750c75dcc77137c3d0f1399ce3c17b3c9b",
+      "src": "4641c2ed9969535a403178a338294353ada780b919b7ed0e64d9f4a99c533cba"
+    },
+    "settings.summary.rules.item.offerCallback": {
+      "by": "ai",
+      "out": "e1b34d8392a48aa1f901383e0c2b93b2d92bc06c7cc7cff6fa7809ac4178e0ee",
+      "src": "f034b71a91b603656dcf03530fb01dccf562870e40ec7ed5a967290eb06bd9a0"
+    },
+    "settings.summary.rules.item.verifiedCallerOnly": {
+      "by": "ai",
+      "out": "0578f2aa4aabe585e131af679bf07ec440d09480e3a6792a3daa4759c9e3be70",
+      "src": "3257915a25f4c8356739b04d94623b500d9d2d3cb98e17e58b7700e4ba4d7008"
+    },
+    "settings.summary.rules.none": {
+      "by": "ai",
+      "out": "58b94868f6d841abd35222678215231edd46888070ac46bbcdfa0307fe14887a",
+      "src": "a5d95f093846ea488efdb59cd80e54e79713459efc2ab59f65b96205f4e35628"
+    },
+    "settings.summary.rules.tone": {
+      "by": "ai",
+      "out": "d0b043eeb940bb4c385c63f71f84019619f2c4b043e5a9beea7a08ebe134f59a",
+      "src": "94599289a2bd7c743fe92be14b6efe72ebcbf31c426db0fd4d61b1b4bc2db2ad"
     },
     "settings.summary.transfers.allHoursOnly": {
       "by": "ai",
