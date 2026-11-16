@@ -73,6 +73,7 @@ import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { personalKeyHandlers } from './personal-keys.ts'
+import { oauthHandlers } from './oauth.ts'
 import { recordHandlers } from './records.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
 import {
@@ -1132,6 +1133,7 @@ const handlers: Record<string, Handler> = {
   ...liveCallHandlers(),
   ...apiKeyHandlers,
   ...personalKeyHandlers,
+  ...oauthHandlers,
   ...recordHandlers,
   ...agentSetupHandlers,
   ...installSetupHandlers,

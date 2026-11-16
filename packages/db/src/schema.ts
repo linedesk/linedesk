@@ -972,11 +972,54 @@ export const personal_keys = pgTable(
      * carries instance:admin, as only such a session does (context.ts).
      */
     passkey_confirmed: boolean('passkey_confirmed').notNull().default(false),
+    /**
+     * The MCP client this key was issued to by OAuth sign-in (LIN-126): its client_id (oauth_clients.client_id, or the
+     * https URL of its metadata document). Null: made in the app. Such a key never carries Server admin.
+     */
+    oauth_client_id: text('oauth_client_id'),
     created_at: createdAt(),
     last_used_at: ts('last_used_at'),
     revoked_at: ts('revoked_at'),
   },
   t => [index('personal_keys_user').on(t.user_id)],
+)
+
+// MCP clients that registered themselves (OAuth Dynamic Client Registration, RFC 7591; LIN-126, apps/api/src/oauth.ts).
+// Clients known by a metadata document URL (client_id is the URL) are not stored here. Not synced.
+export const oauth_clients = pgTable('oauth_clients', {
+  client_id: text('client_id').primaryKey(),
+  /** The name it registered with (client_name), shown on the consent page next to its redirect host. */
+  name: text('name').notNull(),
+  /** Exact redirect URIs: https, loopback http or a custom scheme (cursor://, vscode://). */
+  redirect_uris: jsonb('redirect_uris').$type<string[]>().notNull(),
+  /** none (public client with PKCE), client_secret_post or client_secret_basic. */
+  auth_method: text('auth_method').notNull(),
+  /** SHA-256 of the client secret, for confidential clients only. */
+  secret_hash: text('secret_hash'),
+  created_at: createdAt(),
+})
+
+// Authorization codes (LIN-126): single use, 10 minutes, bound to the client, redirect URI, PKCE challenge, user and
+// resource. Stored as a SHA-256 hash. The personal key issued with a code is noted, so a reused code revokes it.
+export const oauth_codes = pgTable(
+  'oauth_codes',
+  {
+    code_hash: text('code_hash').primaryKey(),
+    client_id: text('client_id').notNull(),
+    /** The client's name at consent: the issued key's name. */
+    client_name: text('client_name').notNull(),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    redirect_uri: text('redirect_uri').notNull(),
+    code_challenge: text('code_challenge').notNull(),
+    resource: text('resource'),
+    personal_key_id: text('personal_key_id'),
+    created_at: createdAt(),
+    expires_at: ts('expires_at').notNull(),
+    used_at: ts('used_at'),
+  },
+  t => [index('oauth_codes_expires').on(t.expires_at)],
 )
 
 // Every command the API accepted or rejected: idempotency per command id + audit log.

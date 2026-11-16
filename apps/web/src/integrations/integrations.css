@@ -205,3 +205,25 @@
   align-items: flex-start;
   gap: 12px;
 }
+
+/* Integrations › MCP: the one-click install links side by side; the API key way folded away below. */
+.ig-mcp-installs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ig-mcp-key-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.ig-mcp-key > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  width: fit-content;
+}
+.ig-mcp-steps,
+.ig-mcp-key-body > .help {
+  margin: 0;
+}

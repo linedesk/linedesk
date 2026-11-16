@@ -5,6 +5,7 @@ import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
 import * as apps from './apps.ts'
 import * as personalKeys from './personal-keys.ts'
+import * as oauth from './oauth.ts'
 import * as records from './records.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as billing from './billing.ts'
@@ -54,6 +55,7 @@ export * from './install-setup.ts'
 export * from './api-keys.ts'
 export * from './apps.ts'
 export * from './personal-keys.ts'
+export * from './oauth.ts'
 export * from './records.ts'
 export * from './assistant-prompt.ts'
 export * from './prompt-texts.ts'
@@ -233,6 +235,8 @@ const all = [
   personalKeys.personalKeyCreate,
   personalKeys.personalKeyList,
   personalKeys.personalKeyRevoke,
+  oauth.oauthDescribe,
+  oauth.oauthApprove,
   records.recordsList,
   installSetup.installSetProgress,
   installSetup.providerTryOut,

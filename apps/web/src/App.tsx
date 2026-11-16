@@ -28,6 +28,7 @@ import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
 import { AddPasskeyPage } from './AddPasskey.tsx'
+import { ConnectAgent, isConnectAgentHash } from './integrations/ConnectAgent.tsx'
 import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
 import { PendingPayment } from './PendingPayment.tsx'
@@ -136,6 +137,8 @@ export function App() {
   const adminHash = useAdminHash()
   const agentSetupHash = useHashIs(isAgentSetupHash)
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
+  // An MCP client's OAuth sign-in (#connect-agent?…, ConnectAgent.tsx): its consent page comes before the app.
+  const connectAgentHash = useHashIs(isConnectAgentHash)
   // Workspace or Assistant settings › "Change with an AI agent" (#change-with-agent/…, agentChange.ts).
   const changeTarget = useChangeWithAgent()
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
@@ -285,8 +288,15 @@ export function App() {
     }
     return <AcceptInvite invitationId={inviteId} onDone={leaveInvite} />
   }
-  const sessionMe = session.state === 'ready' ? (session.offline ? null : session.me) : session.state === 'needsWorkspace' ? session.me : null
-  if (!passkeyPageDone && passkeyPageDue(sessionMe)) {
+  const sessionMe =
+    session.state === 'ready'
+      ? session.offline
+        ? null
+        : session.me
+      : session.state === 'needsWorkspace'
+        ? session.me
+        : null
+  if (!passkeyPageDone && !connectAgentHash && passkeyPageDue(sessionMe)) {
     const done = () => {
       clearSignedIn()
       setPasskeyPageDone(true)
@@ -313,7 +323,16 @@ export function App() {
     }
     return <Login onDone={signedOutHere.current ? reload : refresh} />
   }
-  if (target) return <BootScreen line={t('shell.boot.opening', { name: target.kind === 'switch' ? target.workspace.name : brandName() })} />
+  if (connectAgentHash) {
+    if (!sessionMe) return <Unreachable />
+    return <ConnectAgent onLeave={() => (window.location.hash = '')} />
+  }
+  if (target)
+    return (
+      <BootScreen
+        line={t('shell.boot.opening', { name: target.kind === 'switch' ? target.workspace.name : brandName() })}
+      />
+    )
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>

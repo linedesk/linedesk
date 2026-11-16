@@ -586,7 +586,6 @@
   "integrations.lede": "Verbinde deinen Assistenten mit den Tools, die du schon nutzt: Automatisierungen, Kalender, dein CRM, Team-Chat und deine eigenen Programme.",
   "integrations.mcp.address": "MCP-Serveradresse",
   "integrations.mcp.claudeCode": "Claude Code",
-  "integrations.mcp.clients": "Der Agent muss einen Authorization-Header senden können. Connectors, die sich mit OAuth anmelden, werden noch nicht unterstützt.",
   "integrations.mcp.help": "Der MCP-Server gibt einem KI-Agenten dieselben Aktionen wie die App, mit dem Zugriff seines Schlüssels.",
   "integrations.mcp.json": "Cursor und andere Clients mit einer mcpServers-Datei",
   "integrations.mcp.title": "KI-Agenten verbinden",

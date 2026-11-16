@@ -5,6 +5,7 @@
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { brandName } from '../brand.ts'
 import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
 import { useCalendarProviders } from '../settings/calendar-providers.ts'
 import type { ProviderId } from '../settings/calendarModel.ts'
@@ -24,9 +25,13 @@ import {
   CATEGORY_LABEL,
   type CategoryId,
   claudeCodeCommand,
+  claudeCodeKeyCommand,
+  codexCommand,
+  cursorInstallLink,
   curlExample,
   type DetailId,
   type Facts,
+  geminiCommand,
   type Integration,
   type IntegrationsPlace,
   KEY_VARIABLE,
@@ -39,6 +44,7 @@ import {
   type Status,
   searchIntegrations,
   statusOf,
+  vscodeInstallLink,
 } from './catalog.ts'
 import { ConnectedApp } from './ConnectedApp.tsx'
 import {
@@ -358,24 +364,125 @@ function RestApi({ toast }: { toast: Props['toast'] }) {
 
 function Mcp({ toast }: { toast: Props['toast'] }) {
   const t = useT()
+  const brand = brandName()
   return (
     <Section id="ig-mcp" title={t('settings.integrations.mcp.title')} help={t('settings.integrations.mcp.help')}>
       <CopyField label={t('settings.integrations.mcp.address')} value={mcpAddress(origin())} toast={toast} />
+      <div className="ig-copy">
+        <span className="ig-copy-label">{t('settings.integrations.mcp.oneClick')}</span>
+        <div className="ig-mcp-installs">
+          <a
+            className="k-btn k-btn-secondary k-btn-sm"
+            href={cursorInstallLink(origin())}
+            title={t('settings.integrations.mcp.cursorTip', { brand })}
+          >
+            {t('settings.integrations.mcp.cursor')}
+          </a>
+          <a
+            className="k-btn k-btn-secondary k-btn-sm"
+            href={vscodeInstallLink(origin())}
+            title={t('settings.integrations.mcp.vscodeTip', { brand })}
+          >
+            {t('settings.integrations.mcp.vscode')}
+          </a>
+        </div>
+      </div>
+      <McpSteps
+        label={t('settings.integrations.mcp.claude')}
+        text={t('settings.integrations.mcp.claudeSteps')}
+        open={{
+          href: CLAUDE_CONNECTORS_URL,
+          label: t('settings.integrations.mcp.openClaude'),
+          tip: t('settings.integrations.mcp.openClaudeTip'),
+        }}
+        toast={toast}
+      />
+      <McpSteps
+        label={t('settings.integrations.mcp.chatgpt')}
+        text={t('settings.integrations.mcp.chatgptSteps')}
+        open={{
+          href: CHATGPT_CONNECTORS_URL,
+          label: t('settings.integrations.mcp.openChatgpt'),
+          tip: t('settings.integrations.mcp.openChatgptTip'),
+        }}
+        toast={toast}
+      />
       <CopyField
         label={t('settings.integrations.mcp.claudeCode')}
         value={claudeCodeCommand(origin())}
         toast={toast}
         block
       />
-      <CopyField label={t('settings.integrations.mcp.json')} value={mcpJson(origin())} toast={toast} block />
-      <p className="help">
-        <T
-          k="settings.integrations.keyNeeded"
-          values={{ variable: KEY_VARIABLE, link: appLink('#integrations/api-keys') }}
-        />
-      </p>
-      <p className="help">{t('settings.integrations.mcp.clients')}</p>
+      <CopyField label={t('settings.integrations.mcp.codex')} value={codexCommand(origin())} toast={toast} block />
+      <CopyField label={t('settings.integrations.mcp.gemini')} value={geminiCommand(origin())} toast={toast} block />
+      <p className="help">{t('settings.integrations.mcp.firstUse')}</p>
+      <details className="ig-mcp-key">
+        <summary>{t('settings.integrations.mcp.withKey')}</summary>
+        <div className="ig-mcp-key-body">
+          <p className="help">{t('settings.integrations.mcp.withKeyHelp')}</p>
+          <CopyField
+            label={t('settings.integrations.mcp.claudeCodeKey')}
+            value={claudeCodeKeyCommand(origin())}
+            toast={toast}
+            block
+          />
+          <CopyField label={t('settings.integrations.mcp.json')} value={mcpJson(origin())} toast={toast} block />
+          <p className="help">
+            <T
+              k="settings.integrations.keyNeeded"
+              values={{ variable: KEY_VARIABLE, link: appLink('#integrations/api-keys') }}
+            />
+          </p>
+        </div>
+      </details>
     </Section>
+  )
+}
+
+/** Where Claude and ChatGPT add a connector (each opens in a new tab). */
+const CLAUDE_CONNECTORS_URL = 'https://claude.ai/settings/connectors'
+const CHATGPT_CONNECTORS_URL = 'https://chatgpt.com/#settings/Connectors'
+
+/**
+ * A client that is set up in its own settings: where to go there, in one line, a button that opens that page in a new
+ * tab, and Copy for the server address to paste there.
+ */
+function McpSteps({
+  label,
+  text,
+  open,
+  toast,
+}: {
+  label: string
+  text: string
+  open: { href: string; label: string; tip: string }
+  toast: Props['toast']
+}) {
+  const t = useT()
+  const what = t('settings.integrations.mcp.address')
+  async function copy() {
+    const done = await copyText(mcpAddress(origin()))
+    toast(t(done === 'copied' ? 'settings.integrations.copied' : 'settings.integrations.copyFailed', { what }))
+  }
+  return (
+    <div className="ig-copy">
+      <span className="ig-copy-label">{label}</span>
+      <p className="help ig-mcp-steps">{text}</p>
+      <div className="ig-mcp-installs">
+        <a
+          className="k-btn k-btn-secondary k-btn-sm"
+          href={open.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={open.tip}
+        >
+          {open.label}
+        </a>
+        <Button size="sm" icon="copy" onClick={() => void copy()} title={t('settings.integrations.copyTip', { what })}>
+          {t('settings.integrations.mcp.copyAddress')}
+        </Button>
+      </div>
+    </div>
   )
 }
 

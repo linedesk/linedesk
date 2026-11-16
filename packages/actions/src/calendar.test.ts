@@ -68,6 +68,7 @@ describe('calendar.findSlots', () => {
       'knowledge.import',
       'member.list',
       'notifications.get',
+      'oauth.describe',
       'onboarding.goLiveChecklist',
       'outbound.countries',
       'outboundCountries.get',

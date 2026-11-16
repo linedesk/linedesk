@@ -1,4 +1,4 @@
-# Entry point (the `proxy` service): /api, /v1 and /mcp go to the API, /rtc to LiveKit, everything else
+# Entry point (the `proxy` service): /api, /v1, /mcp, /oauth and the OAuth /.well-known documents go to the API, /rtc to LiveKit, everything else
 # to the web app (the `web` service, docker/web.Caddyfile).
 # Default: plain HTTP on port 80 for any host name (directly, or behind another reverse proxy that
 # terminates TLS). With SITE_ADDRESS=https://your.domain Caddy gets the certificate itself.
@@ -104,7 +104,8 @@
 		respond 404
 	}
 
-	@api path /api/* /v1/* /mcp /mcp/setup /mcp/setup/*
+	# /oauth/* and the /.well-known OAuth documents: MCP clients sign in with OAuth (apps/api/src/oauth.ts).
+	@api path /api/* /v1/* /mcp /mcp/setup /mcp/setup/* /mcp/.well-known/* /oauth/* /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/* /.well-known/oauth-authorization-server /.well-known/oauth-authorization-server/* /.well-known/openid-configuration /.well-known/openid-configuration/* /.well-known/openai-apps-challenge
 	handle @api {
 		import api public
 	}

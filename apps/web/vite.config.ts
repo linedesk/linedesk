@@ -32,6 +32,9 @@ function sentrySourceMaps(env: NodeJS.ProcessEnv) {
   })
 }
 
+/** The framing rules Caddy sends in production (docker/Caddyfile), for the dev and preview servers too. */
+const NO_FRAMING = { 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Frame-Options': 'DENY' }
+
 // The API is proxied so the browser sees one origin (session cookie, no CORS).
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '../..', '')
@@ -50,13 +53,19 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
+      // No page of the app in another site's frame (the OAuth consent page above all), as Caddy sends in production.
+      headers: NO_FRAMING,
       // Marked public, as Caddy does: a request through the dev server (or a tunnel to it) never counts as the
       // agent's internal one, so the agent token is refused on it (apps/api/src/context.ts).
       proxy: Object.fromEntries(
-        ['/api', '/v1', '/mcp'].map(path => [path, { target: api, headers: { 'x-linedesk-entry': 'public' } }]),
+        ['/api', '/v1', '/mcp', '/oauth', '/.well-known'].map(path => [
+          path,
+          { target: api, headers: { 'x-linedesk-entry': 'public' } },
+        ]),
       ),
       ...behindProxy(env.LINEDESK_DEV_PUBLIC_URL),
     },
+    preview: { headers: NO_FRAMING },
   }
 })
 

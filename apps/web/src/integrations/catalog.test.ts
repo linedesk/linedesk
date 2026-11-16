@@ -13,6 +13,11 @@ import {
   CATALOG,
   CATEGORIES,
   claudeCodeCommand,
+  claudeCodeKeyCommand,
+  codexCommand,
+  cursorInstallLink,
+  geminiCommand,
+  vscodeInstallLink,
   DETAIL_IDS,
   IN_PROGRESS_IDS,
   type Facts,
@@ -197,8 +202,26 @@ describe('appConnectResult', () => {
 })
 
 describe('setup snippets', () => {
+  it('connect with the server address alone (OAuth sign-in)', () => {
+    const origin = 'https://desk.example'
+    expect(claudeCodeCommand(origin)).toBe('claude mcp add --transport http linedesk https://desk.example/mcp')
+    expect(codexCommand(origin)).toBe('codex mcp add linedesk --url https://desk.example/mcp')
+    expect(geminiCommand(origin)).toBe('gemini mcp add --transport http linedesk https://desk.example/mcp')
+    const cursor = new URL(cursorInstallLink(origin))
+    expect(cursor.protocol).toBe('cursor:')
+    expect(cursor.searchParams.get('name')).toBe('linedesk')
+    expect(JSON.parse(atob(cursor.searchParams.get('config') ?? ''))).toEqual({ url: 'https://desk.example/mcp' })
+    const vscode = vscodeInstallLink(origin)
+    expect(vscode.startsWith('vscode:mcp/install?')).toBe(true)
+    expect(JSON.parse(decodeURIComponent(vscode.slice('vscode:mcp/install?'.length)))).toEqual({
+      name: 'linedesk',
+      type: 'http',
+      url: 'https://desk.example/mcp',
+    })
+  })
+
   it('read the key from a variable and never contain one', () => {
-    expect(claudeCodeCommand('https://desk.example')).toBe(
+    expect(claudeCodeKeyCommand('https://desk.example')).toBe(
       'claude mcp add --transport http linedesk https://desk.example/mcp --header "Authorization: Bearer $LINEDESK_KEY"',
     )
     expect(JSON.parse(mcpJson('https://desk.example'))).toEqual({

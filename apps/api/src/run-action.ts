@@ -102,6 +102,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'apiKey.create',
   // A personal key reaches every workspace of its maker.
   'personalKey.create',
+  // So does the key an MCP client gets by OAuth sign-in (oauth.ts).
+  'oauth.approve',
   // A workspace owner's AI agent setup link: like an API key, a way in for an agent.
   'agentSetup.createWorkspaceKey',
   'webhook.create',
@@ -298,9 +300,11 @@ export async function runAction(
   // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
   if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))
     return { status: 403, body: setupLinkSignInRefusal }
-  // And a personal API key: a passkey or authenticator confirmation, or a sign-in (owner-step-up.ts; LIN-339 M2).
+  // And a personal API key, also one for an MCP client (oauth.approve): a passkey or authenticator confirmation, or a
+  // sign-in (owner-step-up.ts; LIN-339 M2).
   // The handler checks it once more.
-  const personalKeyStepUp = name === 'personalKey.create' ? await personalKeyStepUpNeeded(db, actor) : null
+  const personalKeyStepUp =
+    name === 'personalKey.create' || name === 'oauth.approve' ? await personalKeyStepUpNeeded(db, actor) : null
   if (personalKeyStepUp) return { status: 403, body: personalKeyStepUpRefusal(personalKeyStepUp) }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 

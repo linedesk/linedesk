@@ -43,6 +43,8 @@ const INSTANCE_WIDE_FILES = [
   'test/workspace-limit-retired.test.ts',
   // Makes server admins and switches the passkey check (personal keys carry Server admin).
   'test/personal-keys.test.ts',
+  // Makes a server admin (an OAuth key never has Server admin).
+  'test/mcp-oauth.test.ts',
   // Every action and key read route for each role, a server admin among them (LIN-339).
   'test/every-action.test.ts',
   'test/workspace-create-cli.test.ts',

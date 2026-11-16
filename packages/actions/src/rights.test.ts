@@ -268,11 +268,14 @@ const expectedRights: Record<Right, readonly string[]> = {
   impersonation: ['impersonation.stop'],
   // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
   system: ['billing.processStripeEvent', 'billing.settleInvoice'],
-  // A person's own invitations and personal API keys (personal-keys.ts, LIN-339).
+  // A person's own invitations and personal API keys (personal-keys.ts, LIN-339), and the keys MCP clients get by
+  // OAuth sign-in (oauth.ts, LIN-126).
   account: [
     'invitation.listMine',
     'invitation.accept',
     'invitation.decline',
+    'oauth.describe',
+    'oauth.approve',
     'personalKey.create',
     'personalKey.list',
     'personalKey.revoke',

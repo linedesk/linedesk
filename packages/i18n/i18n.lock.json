@@ -18410,11 +18410,6 @@
       "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
       "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
     },
-    "settings.integrations.mcp.clients": {
-      "by": "ai",
-      "out": "efabcf23a1a6afc60cf91e56bff84bc99ab31083877598e24542de6ae9b7fa0e",
-      "src": "1a18a412d55eeb4241fa57f9db0c90fdefe8b06bcb5b0d5a4486505b3406bc13"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "a1e0c65587104f192f73e80c1ae0f12fbb3cd73567cd1d930e811c9e827a5b1c",
@@ -41591,11 +41586,6 @@
       "by": "ai",
       "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
       "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
-    "settings.integrations.mcp.clients": {
-      "by": "ai",
-      "out": "cbb203369b20cd290db132fcf05fc1dc8fc58d1a4134c3b6f5f1676ee72bc65d",
-      "src": "1a18a412d55eeb4241fa57f9db0c90fdefe8b06bcb5b0d5a4486505b3406bc13"
     },
     "settings.integrations.mcp.help": {
       "by": "ai",
@@ -64774,11 +64764,6 @@
       "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
       "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
     },
-    "settings.integrations.mcp.clients": {
-      "by": "ai",
-      "out": "c3e6fe2e4b6e7c3d4f5596192726084a77eedc2ed3ed6c2f792ab3dc3edde8de",
-      "src": "1a18a412d55eeb4241fa57f9db0c90fdefe8b06bcb5b0d5a4486505b3406bc13"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "a862b0fc9d9cfd68e8d901d7146871a46107f93caf7b3507b17c03dd3648a8f6",
@@ -87956,11 +87941,6 @@
       "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
       "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
     },
-    "settings.integrations.mcp.clients": {
-      "by": "ai",
-      "out": "0407429e578213daf5146b9a3f44bb77f6923d5fdc57cb3baa36368d35294400",
-      "src": "1a18a412d55eeb4241fa57f9db0c90fdefe8b06bcb5b0d5a4486505b3406bc13"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "d74d69afee8180ac3689c2c953e175156e2ebe751a0482230e067e9f29f037fb",
@@ -111137,11 +111117,6 @@
       "by": "ai",
       "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
       "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
-    "settings.integrations.mcp.clients": {
-      "by": "ai",
-      "out": "a46b709eea140203a04e348c3d2930b0ea2810f2017659ee0d96dea1773d2fa7",
-      "src": "1a18a412d55eeb4241fa57f9db0c90fdefe8b06bcb5b0d5a4486505b3406bc13"
     },
     "settings.integrations.mcp.help": {
       "by": "ai",

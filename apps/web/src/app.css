@@ -52,6 +52,20 @@ body,
   color: var(--ink-muted);
   text-align: center;
 }
+/* The OAuth consent page (integrations/ConnectAgent.tsx): what the person allows, as short lines. */
+.connect-agent-facts {
+  margin: 0 0 8px;
+  padding: 12px 16px 12px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
 .auth-link-skeleton {
   align-items: center;
 }

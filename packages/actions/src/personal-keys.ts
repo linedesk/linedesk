@@ -54,6 +54,8 @@ export type PersonalKeySummary = {
   created_at: string
   last_used_at: string | null
   revoked_at: string | null
+  /** Issued to an MCP client by OAuth sign-in (LIN-126): the key is named after the client. Null: made in the app. */
+  oauth_client_id: string | null
 }
 export type PersonalKeyListData = { keys: PersonalKeySummary[] }
 

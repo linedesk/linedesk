@@ -17,6 +17,9 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['personalKey.create', KEYS],
   ['personalKey.list', KEYS],
   ['personalKey.revoke', KEYS],
+  // OAuth sign-in of an MCP client: the person approves it in the browser, signed in as themselves (oauth.ts).
+  ['oauth.describe', KEYS],
+  ['oauth.approve', KEYS],
   ['apiKey.create', KEYS],
   ['apiKey.list', KEYS],
   ['apiKey.revoke', KEYS],

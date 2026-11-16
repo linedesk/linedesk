@@ -31,6 +31,7 @@ import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from
 import { fromSignupPage } from './signup-gate.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
+import { mcpCors, registerOAuthRoutes } from './oauth.ts'
 import { setsUpByHand } from './install-setup.ts'
 import { authMethods, currentAuthMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
@@ -316,7 +317,17 @@ app.post('/v1/signup', async c => {
 const openApi = openApiDocument(actions.values(), process.env.PUBLIC_URL || WEB_ORIGIN)
 app.get('/v1/openapi.json', c => c.json(openApi))
 
-// MCP for a workspace's own AI tools: API keys only, its own gate (mcp.ts).
+// OAuth sign-in for MCP clients (oauth.ts, LIN-126): metadata, client registration, authorize and token.
+app.use(
+  '/oauth/register',
+  bodyLimit({ maxSize: 16 * 1024, onError: c => c.json({ error: 'invalid_client_metadata' }, 413) }),
+)
+app.use('/oauth/token', bodyLimit({ maxSize: 16 * 1024, onError: c => c.json({ error: 'invalid_request' }, 413) }))
+registerOAuthRoutes(app)
+
+// MCP for a workspace's own AI tools: API keys only, its own gate (mcp.ts). Any origin may call it (CORS without
+// cookies: the key is the only way in), so browser-based clients work.
+app.use('/mcp', mcpCors)
 // The size limit applies while the body is read, also to a chunked one without content-length.
 app.use(
   '/mcp',

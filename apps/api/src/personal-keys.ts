@@ -12,7 +12,7 @@ import {
   type PersonalKeyListData,
   type Permission,
 } from '@linedesk/actions'
-import { personal_keys, user } from '@linedesk/db'
+import { personal_keys, type Tx, user } from '@linedesk/db'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
@@ -66,7 +66,8 @@ export async function actorForPersonalKey(
   // Server admin as a session has it: where the install asks for the passkey check, only with it, which a key carries
   // from the passkey sign-in it was made after, for PERSONAL_KEY_ADMIN_DAYS (security review M3). Without it the key
   // is refused as such a session is ('confirm').
-  const admin = isInstanceAdmin(account)
+  // A key issued to an MCP client by OAuth sign-in (oauth.ts) never has Server admin, whatever the install's checks.
+  const admin = isInstanceAdmin(account) && !row.oauth_client_id
   const adminUntil = personalKeyAdminUntil(row)
   const adminConfirmed = admin && adminUntil !== null && Date.parse(adminUntil) > Date.now()
   const adminOpen = admin && (adminConfirmed || !adminSecondFactorRequired())
@@ -100,10 +101,58 @@ export async function actorForPersonalKey(
 }
 
 /**
+ * One key-making at a time per person, so two at once cannot both pass the count; throws when they have
+ * PERSONAL_KEYS_MAX keys already. Inside the transaction that makes the key.
+ */
+export async function lockAndCountKeys(tx: Tx, userId: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`personal_keys:${userId}`}))`)
+  const open = await tx
+    .select({ id: personal_keys.id })
+    .from(personal_keys)
+    .where(and(eq(personal_keys.user_id, userId), isNull(personal_keys.revoked_at)))
+  if (open.length >= PERSONAL_KEYS_MAX)
+    throw new Reject(`at most ${PERSONAL_KEYS_MAX} personal keys: revoke one first`, 'TOO_MANY_KEYS')
+}
+
+/** A new key for `userId`: stored as its hash, returned once. `oauthClientId`: issued by OAuth sign-in (oauth.ts). */
+export async function insertPersonalKey(
+  tx: Tx,
+  userId: string,
+  name: string,
+  opts: { passkeyConfirmed?: boolean; oauthClientId?: string },
+) {
+  const key = newKey()
+  const [row] = await tx
+    .insert(personal_keys)
+    .values({
+      id: newId(),
+      user_id: userId,
+      name,
+      prefix: key.slice(0, SHOWN_LENGTH),
+      key_hash: hashKey(key),
+      passkey_confirmed: opts.passkeyConfirmed === true,
+      oauth_client_id: opts.oauthClientId ?? null,
+    })
+    .returning()
+  return { row: row!, key }
+}
+
+/**
+ * The person hears of every new key, as of a new passkey (security review M2): one made from a stolen session is
+ * noticed. Run after the commit and not awaited by the request: a slow or broken mail server must not fail it.
+ */
+export async function noticeNewKey(userId: string, name: string, prefix: string) {
+  const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId))
+  if (!account?.email) return
+  const locale = await localeForEmail(db, account.email)
+  sendNotice({ to: account.email, ...personalKeyCreatedEmail(name, prefix, undefined, locale) }, 'personal key email')
+}
+
+/**
  * Only the person, signed in as themselves, manages their keys: never a key (it has no account:own either), never an
  * instance admin signed in as them, never a setup link.
  */
-function refuseNonPerson(actor: Actor): string {
+export function refuseNonPerson(actor: Actor): string {
   if (
     actor.personalKeyId ||
     actor.apiKeyId ||
@@ -123,41 +172,15 @@ export const personalKeyHandlers: Record<string, Handler> = {
     // A recent passkey or authenticator confirmation, or sign-in (security review M2): run-action answers it first.
     const stepUp = await personalKeyStepUpNeeded(tx, actor)
     if (stepUp) throw new Forbidden(personalKeyStepUpRefusal(stepUp).error)
-    // One create at a time per person, so two at once cannot both pass the count.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`personal_keys:${userId}`}))`)
-    const open = await tx
-      .select({ id: personal_keys.id })
-      .from(personal_keys)
-      .where(and(eq(personal_keys.user_id, userId), isNull(personal_keys.revoked_at)))
-    if (open.length >= PERSONAL_KEYS_MAX)
-      throw new Reject(`at most ${PERSONAL_KEYS_MAX} personal keys: revoke one first`)
-    const key = newKey()
-    const [row] = await tx
-      .insert(personal_keys)
-      .values({
-        id: newId(),
-        user_id: userId,
-        name: input.name,
-        prefix: key.slice(0, SHOWN_LENGTH),
-        key_hash: hashKey(key),
-        // Only an instance admin's key carries the check, and only a passkey sign-in: a code from the authenticator app
-        // can be phished, and the key outlives the session (security review M3). A passkey sign-in before becoming
-        // an instance admin gives a key nothing.
-        passkey_confirmed: actor.passkeySignedIn === true && actor.permissions.includes('instance:admin'),
-      })
-      .returning()
-    const data: PersonalKeyCreated = { personalKeyId: row!.id, key, prefix: row!.prefix }
-    // The person hears of every new key, as of a new passkey (security review M2): one made from a stolen session
-    // is noticed. Not awaited past the commit: a slow or broken mail server must not fail the action.
-    onCommit?.(async () => {
-      const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId))
-      if (!account?.email) return
-      const locale = await localeForEmail(db, account.email)
-      sendNotice(
-        { to: account.email, ...personalKeyCreatedEmail(input.name, row!.prefix, undefined, locale) },
-        'personal key email',
-      )
+    await lockAndCountKeys(tx, userId)
+    const { row, key } = await insertPersonalKey(tx, userId, input.name, {
+      // Only an instance admin's key carries the check, and only a passkey sign-in: a code from the authenticator app
+      // can be phished, and the key outlives the session (security review M3). A passkey sign-in before becoming
+      // an instance admin gives a key nothing.
+      passkeyConfirmed: actor.passkeySignedIn === true && actor.permissions.includes('instance:admin'),
     })
+    const data: PersonalKeyCreated = { personalKeyId: row.id, key, prefix: row.prefix }
+    onCommit?.(() => noticeNewKey(userId, input.name, row.prefix))
     return { rows: {}, data }
   },
 
@@ -169,6 +192,7 @@ export const personalKeyHandlers: Record<string, Handler> = {
         name: personal_keys.name,
         prefix: personal_keys.prefix,
         passkey_confirmed: personal_keys.passkey_confirmed,
+        oauth_client_id: personal_keys.oauth_client_id,
         created_at: personal_keys.created_at,
         last_used_at: personal_keys.last_used_at,
         revoked_at: personal_keys.revoked_at,

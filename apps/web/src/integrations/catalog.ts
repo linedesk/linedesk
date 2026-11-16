@@ -388,11 +388,30 @@ export const openApiAddress = (origin: string) => `${origin}/v1/openapi.json`
 /** The environment variable the setup snippets read the key from, so no key is ever written into them. */
 export const KEY_VARIABLE = 'LINEDESK_KEY'
 
-/** Adding the MCP server to Claude Code: one command. */
-export const claudeCodeCommand = (origin: string) =>
-  `claude mcp add --transport http linedesk ${mcpAddress(origin)} --header "Authorization: Bearer $${KEY_VARIABLE}"`
+/** Adding the MCP server to Claude Code: one command; the first use signs in with OAuth in the browser (LIN-126). */
+export const claudeCodeCommand = (origin: string) => `claude mcp add --transport http linedesk ${mcpAddress(origin)}`
 
-/** Cursor and other clients that read an `mcpServers` JSON file. */
+/** Adding it to Codex: Codex signs in with OAuth on its own (`codex mcp login linedesk` signs in again). */
+export const codexCommand = (origin: string) => `codex mcp add linedesk --url ${mcpAddress(origin)}`
+
+/** Adding it to Gemini CLI: it finds the OAuth sign-in from the server's 401. */
+export const geminiCommand = (origin: string) => `gemini mcp add --transport http linedesk ${mcpAddress(origin)}`
+
+/** Cursor's one-click install link: the config as base64 JSON (Cursor docs, MCP install links). */
+export const cursorInstallLink = (origin: string) =>
+  `cursor://anysphere.cursor-deeplink/mcp/install?name=linedesk&config=${encodeURIComponent(
+    btoa(JSON.stringify({ url: mcpAddress(origin) })),
+  )}`
+
+/** VS Code's one-click install link: the server as URL-encoded JSON. */
+export const vscodeInstallLink = (origin: string) =>
+  `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'linedesk', type: 'http', url: mcpAddress(origin) }))}`
+
+/** With an API key instead of the sign-in (a client that cannot do OAuth): Claude Code. */
+export const claudeCodeKeyCommand = (origin: string) =>
+  `${claudeCodeCommand(origin)} --header "Authorization: Bearer $${KEY_VARIABLE}"`
+
+/** With an API key instead of the sign-in: clients that read an `mcpServers` JSON file. */
 export function mcpJson(origin: string): string {
   // i18n-ignore: the client's header value, not UI text
   const authorization = `Bearer \${env:${KEY_VARIABLE}}`

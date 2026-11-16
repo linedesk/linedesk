@@ -586,7 +586,6 @@
   "integrations.lede": "Connectez votre assistant aux outils que vous utilisez déjà : automatisations, agendas, votre CRM, la messagerie d'équipe et vos propres programmes.",
   "integrations.mcp.address": "Adresse du serveur MCP",
   "integrations.mcp.claudeCode": "Claude Code",
-  "integrations.mcp.clients": "L'agent doit pouvoir envoyer un en-tête Authorization. Les connecteurs qui se connectent via OAuth ne sont pas encore pris en charge.",
   "integrations.mcp.help": "Le serveur MCP donne à un agent d'IA les mêmes actions que l'application, avec les accès de sa clé.",
   "integrations.mcp.json": "Cursor et autres clients avec un fichier mcpServers",
   "integrations.mcp.title": "Connecter un agent d'IA",

@@ -586,7 +586,6 @@
   "integrations.lede": "アシスタントを、すでに使っているツールとつなぎます：自動化、カレンダー、CRM、チームチャット、自社のプログラム。",
   "integrations.mcp.address": "MCPサーバーのアドレス",
   "integrations.mcp.claudeCode": "Claude Code",
-  "integrations.mcp.clients": "エージェントはAuthorizationヘッダーを送信できる必要があります。OAuthでサインインするコネクタにはまだ対応していません。",
   "integrations.mcp.help": "MCPサーバーは、AIエージェントにアプリと同じ操作を、そのキーのアクセス権で提供します。",
   "integrations.mcp.json": "CursorなどのmcpServersファイルを使うクライアント",
   "integrations.mcp.title": "AIエージェントを接続",

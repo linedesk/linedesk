@@ -3,23 +3,18 @@
 // page, not in a workspace's Developers settings. Made, listed and revoked only signed in as yourself (the server
 // refuses keys and support access); the key is shown once with Copy, revoking asks first.
 import type { PersonalKeyCreated, PersonalKeyListData, PersonalKeySummary } from '@linedesk/actions'
+import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
-import { passkeySupported } from '../../auth.ts'
-import { checkAuthenticator } from '../../authenticator-api.ts'
-import { brandName } from '../../brand.ts'
 import { setQueryData, useQuery } from '../../cachedQuery.ts'
 import { fmt } from '../../i18n/format.ts'
-import { signInAgain } from '../../localData.ts'
-import { AuthError } from '../../ui/AuthError.tsx'
 import { Dialog, Input } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../../ui/list.tsx'
 import { Loading, SkeletonList } from '../../ui/LoadStates.tsx'
 import { Field, Section } from '../fields.tsx'
 import { callAction, readAction } from '../settings-api.ts'
-import { confirmWithPasskey } from './account-api.ts'
-import { authenticatorErrorText } from './authenticator.tsx'
+import { StepUpFields, StepUpSubmit, useKeyStepUp } from './KeyStepUp.tsx'
 import '../../integrations/developers.css'
 
 const KEYS = 'personalKey.list'
@@ -93,9 +88,18 @@ function KeyRow({ personalKey, onDone }: { personalKey: PersonalKeySummary; onDo
   }
   return (
     <ListRow
-      title={personalKey.name}
+      title={
+        // A client's own name (OAuth sign-in): shown as its words, in quotes.
+        personalKey.oauth_client_id ? t('account.apiKeys.oauthKeyName', { name: personalKey.name }) : personalKey.name
+      }
       sub={
         <>
+          {/* A key an MCP client got by OAuth sign-in (LIN-126): named after the client, revoked here like the others. */}
+          {personalKey.oauth_client_id && (
+            <span title={t('account.apiKeys.connectedTip', { name: personalKey.name })}>
+              {t('account.apiKeys.connectedWith', { name: personalKey.name })} ·{' '}
+            </span>
+          )}
           <code className="dev-prefix">{personalKey.prefix}…</code> ·{' '}
           {personalKey.last_used_at
             ? t('settings.developers.usedOn', {
@@ -136,72 +140,24 @@ function KeyRow({ personalKey, onDone }: { personalKey: PersonalKeySummary; onDo
 function CreateKey({ onClose }: { onClose: () => void }) {
   const t = useT()
   const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
-  // Making a key needs a sign-in from the last 10 minutes (the server's SIGN_IN_AGAIN), or, with a passkey, a passkey
-  // or authenticator confirmation from the last 10 minutes, asked for here (PASSKEY_STEP_UP_REQUIRED).
-  const [signInFirst, setSignInFirst] = useState(false)
-  const [confirm, setConfirm] = useState<{ authenticator: boolean } | null>(null)
-  const [code, setCode] = useState('')
-
-  async function create() {
-    setError(null)
-    setSignInFirst(false)
-    try {
+  // Making a key needs a recent sign-in or confirmation (KeyStepUp.tsx), asked for here when the server says so.
+  const stepUp = useKeyStepUp(
+    async () => {
       const result = await callAction<PersonalKeyCreated>('personalKey.create', { name: name.trim() })
       setCreated(result.key)
       // The row as the server has it (passkey_confirmed is for the server to say), shown before the dialog closes.
       void loadKeys()
         .then(d => setQueryData<PersonalKeyListData | undefined>(KEYS, d, { persist: true }))
         .catch(() => {})
-    } catch (err) {
-      const { code: refusal, authenticator } = err as { code?: unknown; authenticator?: unknown }
-      if (refusal === 'SIGN_IN_AGAIN') setSignInFirst(true)
-      else if (refusal === 'PASSKEY_STEP_UP_REQUIRED') setConfirm({ authenticator: authenticator === true })
-      else setError((err as Error).message)
-    }
-  }
-
-  /** Runs one step (a confirmation, then the create) with the dialog busy. */
-  async function busyWith(work: () => Promise<void>) {
-    setSaving(true)
-    try {
-      await work()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // confirmWithPasskey: another account's passkey signs out instead of making a key for that account.
-  const withPasskey = () =>
-    busyWith(async () => {
-      setError(null)
-      try {
-        await confirmWithPasskey()
-      } catch (err) {
-        return setError((err as Error).message)
-      }
-      await create()
-    })
+    },
+    err => (err as Error).message,
+  )
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    if (saving) return
-    const typed = code.trim()
-    if (confirm && !typed) return void withPasskey()
-    if (!confirm) return void busyWith(create)
-    void busyWith(async () => {
-      setError(null)
-      try {
-        await checkAuthenticator(typed)
-      } catch (err) {
-        return setError(authenticatorErrorText(err, t))
-      }
-      setCode('')
-      await create()
-    })
+    stepUp.submit()
   }
 
   if (created)
@@ -252,66 +208,37 @@ function CreateKey({ onClose }: { onClose: () => void }) {
       footer={
         <>
           <Button onClick={onClose}>{t('common.action.cancel')}</Button>
-          {signInFirst ? (
-            <Button variant="primary" title={t('account.signInAgain.title')} onClick={() => void signInAgain()}>
-              {t('account.signInAgain.button')}
-            </Button>
-          ) : confirm && !code.trim() ? (
-            <Button
-              busy={saving}
-              variant="primary"
-              type="submit"
-              disabled={saving || !name.trim() || !passkeySupported()}
-              title={t('admin.stepUp.confirm.tip')}
-            >
-              {saving ? t('admin.stepUp.waiting') : t('admin.stepUp.confirm.button')}
-            </Button>
-          ) : confirm ? (
-            <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
-              {t('account.apiKeys.confirm.withCode')}
-            </Button>
-          ) : (
-            <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
-              {saving ? t('settings.developers.dialog.creating') : t('settings.developers.dialog.create')}
-            </Button>
-          )}
+          <StepUpSubmit
+            stepUp={stepUp}
+            label={t('settings.developers.dialog.create')}
+            busyLabel={t('settings.developers.dialog.creating')}
+            disabled={!name.trim()}
+          />
         </>
       }
     >
       <Field
         id="ac-key-name"
         label={t('settings.developers.dialog.name')}
-        error={signInFirst ? t('account.apiKeys.signInFirst') : error}
+        error={stepUp.signInFirst ? t('account.apiKeys.signInFirst') : stepUp.error}
       >
         <Input
           id="ac-key-name"
           maxLength={60}
           placeholder={t('account.apiKeys.dialog.namePlaceholder')}
           value={name}
-          invalid={Boolean(error)}
+          invalid={Boolean(stepUp.error)}
           onChange={e => setName(e.target.value)}
         />
       </Field>
-      {confirm && (
-        <p className="help" role="status">
-          {t(confirm.authenticator ? 'account.apiKeys.confirm.withEither' : 'account.apiKeys.confirm.withPasskey')}
-        </p>
-      )}
-      {confirm && !passkeySupported() && <AuthError message={t('admin.stepUp.httpsNeeded', { brand: brandName() })} />}
-      {confirm?.authenticator && (
-        <Field id="ac-key-code" label={t('account.authenticator.code')}>
-          <Input
-            id="ac-key-code"
-            placeholder={t('account.authenticator.codePlaceholder')}
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={7}
-            disabled={saving}
-          />
-        </Field>
-      )}
+      <StepUpFields
+        stepUp={stepUp}
+        id="ac-key-code"
+        texts={{
+          withEither: msg('account.apiKeys.confirm.withEither'),
+          withPasskey: msg('account.apiKeys.confirm.withPasskey'),
+        }}
+      />
     </Dialog>
   )
 }
