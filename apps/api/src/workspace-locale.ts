@@ -1,6 +1,6 @@
-// The workspace's country and language as they apply now (workspace-locale.ts in @linedesk/actions): the ones the owner
-// set in Workspace settings › General, else worked out from the workspace's numbers, holidays and the country hint
-// saved when it was made. Read by
+// The workspace's country and language as they apply now (workspace-locale.ts in @linedesk/actions): the country the
+// owner set in Workspace settings › General, else worked out from the workspace's numbers, holidays and the country hint
+// saved when it was made; the language is the country's main language (not a setting). Read by
 // workspace.getSettings, call.start (the voice agent's phone region and language) and the setup MCP.
 import { resolveWorkspaceLanguage, type WorkspaceCountrySource, workspaceCountryOf } from '@linedesk/actions'
 import { assistants, phone_numbers, type Tx, workspace_settings } from '@linedesk/db'
@@ -9,7 +9,6 @@ import { asc, eq } from 'drizzle-orm'
 export type WorkspaceLocale = {
   /** What the owner set; null: automatic. */
   country: string | null
-  language: string | null
   /** In use. */
   resolvedCountry: string
   countrySource: WorkspaceCountrySource
@@ -18,7 +17,7 @@ export type WorkspaceLocale = {
 
 type SettingsRow = Pick<
   typeof workspace_settings.$inferSelect,
-  'country' | 'language' | 'holidays' | 'country_hint' | 'country_hint_source'
+  'country' | 'holidays' | 'country_hint' | 'country_hint_source'
 >
 
 /** The workspace's country and language; `settings` when the caller has read its workspace_settings row already. */
@@ -33,7 +32,6 @@ export async function workspaceLocale(
           await tx
             .select({
               country: workspace_settings.country,
-              language: workspace_settings.language,
               holidays: workspace_settings.holidays,
               country_hint: workspace_settings.country_hint,
               country_hint_source: workspace_settings.country_hint_source,
@@ -69,9 +67,8 @@ export async function workspaceLocale(
   })
   return {
     country: explicit,
-    language: row?.language ?? null,
     resolvedCountry: country,
     countrySource: source,
-    resolvedLanguage: resolveWorkspaceLanguage({ language: row?.language, country }),
+    resolvedLanguage: resolveWorkspaceLanguage({ country }),
   }
 }

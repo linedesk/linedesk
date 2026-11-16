@@ -1,7 +1,7 @@
 // Which languages an assistant speaks with callers (`assistants.languages`): a main language (unless set, the
 // workspace language when calls can be answered in it, else English) and, besides it, none, a picked list, or every
 // supported language. The greeting and the fixed lines are in the main language (spoken-lines.ts); the call's summary
-// is written in the workspace language for the team (English unless set, workspace-locale.ts), its transcript stays
+// is written in the workspace language for the team (the main language of its country, workspace-locale.ts), its transcript stays
 // in the language spoken.
 import { z } from 'zod'
 

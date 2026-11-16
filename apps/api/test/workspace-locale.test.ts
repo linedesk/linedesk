@@ -1,5 +1,6 @@
-// The workspace's country and language (workspace_settings.country, .language): set in Workspace settings › General,
-// else worked out when read. A US workspace reads US and English as before; call.start brings both to the agent.
+// The workspace's country (workspace_settings.country): set in Workspace settings › General, else worked out when read;
+// its language follows the country (no setting of its own since 2026-11-16). A US workspace reads US and English as
+// before; call.start brings both to the agent.
 import { phone_numbers, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
@@ -24,7 +25,6 @@ describe('workspace country and language', () => {
     const data = (await act(ws.owner, 'workspace.getSettings', {})).body.data
     expect(data).toMatchObject({
       country: null,
-      language: null,
       resolvedCountry: 'US',
       countrySource: 'assistant_number',
       resolvedLanguage: 'en',
@@ -48,22 +48,22 @@ describe('workspace country and language', () => {
       country: null,
     })
 
-    const set = await act(ws.owner, 'workspace.updateSettings', { country: 'kr', language: 'ja' })
+    const set = await act(ws.owner, 'workspace.updateSettings', { country: 'kr' })
     expect(set.status).toBe(200)
     expect(set.body.data).toMatchObject({
       country: 'KR',
-      language: 'ja',
       resolvedCountry: 'KR',
       countrySource: 'explicit',
-      resolvedLanguage: 'ja',
+      resolvedLanguage: 'ko',
     })
+    expect(set.body.data).not.toHaveProperty('language')
     expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toMatchObject({ jobValueCurrency: 'KRW' })
 
-    await act(ws.owner, 'workspace.updateSettings', { country: null, language: null })
+    await act(ws.owner, 'workspace.updateSettings', { country: null })
     expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toMatchObject({
       country: null,
-      language: null,
       resolvedCountry: 'MX',
+      resolvedLanguage: 'es',
     })
   })
 
@@ -77,12 +77,15 @@ describe('workspace country and language', () => {
     })
   })
 
-  test('only owners and admins change it; unknown countries and unsupported languages are refused', async () => {
+  test('only owners and admins change it; unknown countries are refused; the language is no setting', async () => {
     const ws = await createWorkspace('Locale Rules Plumbing')
     const member = await addMember(ws.id, 'member')
     expect((await act(member, 'workspace.updateSettings', { country: 'GB' })).status).toBe(403)
     expect((await act(ws.owner, 'workspace.updateSettings', { country: 'XX' })).status).toBe(422)
-    expect((await act(ws.owner, 'workspace.updateSettings', { language: 'he' })).status).toBe(422)
+    // The removed workspace "Call language" (2026-11-16): the field is no longer read, the language follows the country.
+    expect((await act(ws.owner, 'workspace.updateSettings', { country: 'DE', language: 'fr' })).status).toBe(200)
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toMatchObject({ resolvedLanguage: 'de' })
+    await act(ws.owner, 'workspace.updateSettings', { country: null })
     expect((await act(member, 'workspace.getSettings', {})).body.data.country).toBeNull()
   })
 

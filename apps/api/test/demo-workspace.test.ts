@@ -93,7 +93,6 @@ test('sets up the workspace and its assistants for demo calls, and a second run 
     notify_email_default: false,
     notify_browser_default: false,
     country: 'US',
-    language: 'en',
     timezone: 'America/Los_Angeles',
   })
   const rows = await db.select().from(assistants).where(eq(assistants.workspace_id, ws!.id))

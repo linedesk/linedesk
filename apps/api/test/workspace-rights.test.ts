@@ -126,17 +126,17 @@ describe('exactly one owner', () => {
   })
 })
 
-describe('the workspace country and language (LIN-258)', () => {
-  test('admins and the owner set them in workspace.updateSettings; members read them, never change them', async () => {
+describe('the workspace country (LIN-258)', () => {
+  test('admins and the owner set it in workspace.updateSettings; members read it, never change it', async () => {
     const refused = await act(member, 'workspace.updateSettings', { country: 'GB' })
     expect(refused).toMatchObject({ status: 403, body: { ok: false, error: 'missing permission settings:write' } })
     for (const who of [admin, ws.owner]) {
-      const set = await act(who, 'workspace.updateSettings', { country: 'gb', language: 'en' })
+      const set = await act(who, 'workspace.updateSettings', { country: 'gb' })
       expect(set.status).toBe(200)
     }
     const read = await act(member, 'workspace.getSettings', {})
-    expect(read.body).toMatchObject({ ok: true, data: { country: 'GB', language: 'en', resolvedCountry: 'GB' } })
-    const reset = await act(admin, 'workspace.updateSettings', { country: null, language: null })
+    expect(read.body).toMatchObject({ ok: true, data: { country: 'GB', resolvedCountry: 'GB', resolvedLanguage: 'en' } })
+    const reset = await act(admin, 'workspace.updateSettings', { country: null })
     expect(reset.status).toBe(200)
   })
 })

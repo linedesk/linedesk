@@ -1,6 +1,6 @@
-// Where a workspace is and which language it works in (workspace_settings.country and .language, Workspace settings ›
-// General). A workspace made in the app starts with its country set (New workspace asks for it, prefilled from the
-// country hint). One made without it (the API, the setup MCP, the command line), or from before, gets it worked out
+// Where a workspace is and which language it works in (workspace_settings.country, Workspace settings › General; the
+// language is no setting, it follows the country). A workspace made in the app starts with its country set (New
+// workspace asks for it, prefilled from the country hint). One made without it (the API, the setup MCP, the command line), or from before, gets it worked out
 // when it is read: from the number its assistant answers, the business's own phone, its holiday calendar, the country
 // hint saved when it was made, its time zone, else the US; the language from the country. One function for the API and
 // the web app (workspaceCountryOf), so both always say the same. The country is the default region for phone numbers
@@ -145,9 +145,9 @@ export const resolveWorkspaceCountry = (input: WorkspaceCountryInput): string =>
 /**
  * The main language of a country (BCP 47 primary tag, as LANGUAGES writes it: Norwegian is `no`). Belgium is
  * Dutch-speaking by majority, Switzerland has French and Italian regions: both get the language most businesses there
- * use with customers across the country (fr, de), and the owner sets another one in Workspace settings › General.
- * Canada is English (French for a business in Quebec, set by the owner), Puerto Rico Spanish (English is its second
- * official language).
+ * use with customers across the country (fr, de); an assistant greets in another one when it is its main language
+ * (Settings › Assistant › Languages). Canada is English (a business in Quebec sets French as the assistant's main
+ * language), Puerto Rico Spanish (English is its second official language).
  */
 export const COUNTRY_LANGUAGES: Readonly<Record<string, string>> = {
   US: 'en',
@@ -193,10 +193,12 @@ export const COUNTRY_LANGUAGES: Readonly<Record<string, string>> = {
   RU: 'ru',
 }
 
-/** The workspace's language: the one set, else the main language of its country (COUNTRY_LANGUAGES), else 'en'. */
-export function resolveWorkspaceLanguage(input: { language?: string | null; country: string }): string {
-  const explicit = input.language?.trim().toLowerCase()
-  if (explicit) return explicit
+/**
+ * The workspace's language: the main language of its country (COUNTRY_LANGUAGES), else 'en'. Not a setting (the
+ * workspace "Call language" was removed, decisions.md 2026-11-16): what call summaries and messages for the team are
+ * written in, and what an assistant without a main language of its own greets in.
+ */
+export function resolveWorkspaceLanguage(input: { country: string }): string {
   return COUNTRY_LANGUAGES[input.country.trim().toUpperCase()] ?? 'en'
 }
 
@@ -219,9 +221,6 @@ export const workspaceCountrySchema = z
   .trim()
   .transform(code => code.toUpperCase())
   .refine(code => phoneCountryCodes().includes(code), 'a country code like US or CA')
-
-/** workspace.updateSettings `language`: one of the languages calls can be answered in; null: from the country. */
-export const workspaceLanguageSchema = z.enum(languageCodes as [Language, ...Language[]])
 
 /** The currency of a country, when Insights offers it (jobValueCurrencies); null otherwise. */
 const EURO = 'AT BE CY DE EE ES FI FR GR HR IE IT LT LU LV MT NL PT SI SK MC SM VA AD ME XK'.split(' ')
@@ -287,10 +286,6 @@ const SOURCE_WORDS: Record<WorkspaceCountrySource, string> = {
 /** "Automatic (Germany, from your assistant's number)". */
 export const automaticCountryLabel = (country: string, source: WorkspaceCountrySource): string =>
   `Automatic (${phoneCountryName(country)}, ${SOURCE_WORDS[source] || 'set'})`
-
-/** "Automatic (German, from your country)"; `name` names the language another way ("Deutsch · German"). */
-export const automaticLanguageLabel = (language: string, name = workspaceLanguageName(language)): string =>
-  `Automatic (${name}, from your country)`
 
 /** EU and EEA countries and Switzerland: 112 everywhere. */
 const EMERGENCY_112 =

@@ -75,8 +75,7 @@ describe('resolveWorkspaceCountry', () => {
 })
 
 describe('resolveWorkspaceLanguage', () => {
-  test('the language set, else the country main language, else English', () => {
-    expect(resolveWorkspaceLanguage({ language: 'fr', country: 'MX' })).toBe('fr')
+  test("the country's main language, else English", () => {
     const table: Record<string, string> = {
       US: 'en',
       GB: 'en',
@@ -168,17 +167,15 @@ test('the currency of a country, for every offered currency', () => {
   expect([...covered].sort()).toEqual([...jobValueCurrencies].sort())
 })
 
-test('workspace.updateSettings takes a country code and a supported language, or null', () => {
+test('workspace.updateSettings takes a country code, or null; the removed language is not taken', () => {
   const parse = (input: object) => workspaceUpdateSettings.input.safeParse(input)
   expect(parse({ country: 'de' }).data).toEqual({ country: 'DE' })
-  expect(parse({ country: null, language: null }).success).toBe(true)
-  expect(parse({ language: 'de' }).success).toBe(true)
+  expect(parse({ country: null }).data).toEqual({ country: null })
   expect(parse({ country: 'XX' }).success).toBe(false)
   expect(parse({ country: 'Germany' }).success).toBe(false)
-  expect(parse({ language: 'ko' }).success).toBe(true)
-  // Hebrew is not a language calls can be answered in yet.
-  expect(parse({ language: 'he' }).success).toBe(false)
-  expect(parse({ language: 'de-DE' }).success).toBe(false)
+  // The workspace "Call language" is gone (2026-11-16): a `language` sent anyway is dropped, never saved.
+  expect(parse({ country: 'de', language: 'fr' }).data).toEqual({ country: 'DE' })
+  expect(parse({ language: 'he' }).data).toEqual({})
 })
 
 test('the label of the automatic country says where it came from', () => {

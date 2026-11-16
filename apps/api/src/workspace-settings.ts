@@ -157,7 +157,6 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(input.jobValueCurrency !== undefined ? { job_value_currency: input.jobValueCurrency } : {}),
       ...(input.pickupMode !== undefined ? { pickup_mode: input.pickupMode } : {}),
       ...(input.country !== undefined ? { country: input.country } : {}),
-      ...(input.language !== undefined ? { language: input.language } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
     const [row] = await tx
@@ -179,9 +178,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         jobValueCents: row!.job_value_cents,
         jobValueCurrency: row!.job_value_currency,
         pickupMode: row!.pickup_mode,
-        ...(input.country !== undefined || input.language !== undefined
-          ? await workspaceLocale(tx, actor.workspaceId, row!)
-          : {}),
+        ...(input.country !== undefined ? await workspaceLocale(tx, actor.workspaceId, row!) : {}),
       } satisfies Pick<
         WorkspaceSettingsData,
         | 'recordingRetentionDays'

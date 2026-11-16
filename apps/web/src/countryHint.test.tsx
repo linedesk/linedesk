@@ -3,7 +3,6 @@ import { describe, expect, test, vi } from 'vitest'
 import { loadCountryHint, phoneCountryFrom } from './countryHint.ts'
 import { i18n } from './i18n/index.tsx'
 import { CountrySelect } from './settings/CountrySelect.tsx'
-import { AUTOMATIC } from './settings/workspaceLocaleModel.ts'
 import { createWorkspace } from './auth.ts'
 import { localeToSave } from './onboarding/BusinessStep.tsx'
 
@@ -79,11 +78,9 @@ describe('a prefilled country left as it is is not saved as set (it stays Automa
   })
 
   test("onboarding's Business step saves the country only after Change", () => {
-    expect(localeToSave(null, null, null)).toEqual({})
-    expect(localeToSave('ES', null, null)).toEqual({ country: 'ES' })
-    expect(localeToSave('ES', null, 'ES')).toEqual({})
-    expect(localeToSave(null, AUTOMATIC, null)).toEqual({ language: null })
-    expect(localeToSave(null, 'de', null)).toEqual({ language: 'de' })
+    expect(localeToSave(null, null)).toEqual({})
+    expect(localeToSave('ES', null)).toEqual({ country: 'ES' })
+    expect(localeToSave('ES', 'ES')).toEqual({})
   })
 
   test("before the settings load, the phone field uses this browser's own hint in the same order", () => {

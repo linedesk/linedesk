@@ -437,12 +437,6 @@ export const workspace_settings = pgTable('workspace_settings', {
   country_hint: text('country_hint'),
   /** Where country_hint came from. */
   country_hint_source: text('country_hint_source', { enum: ['sign_up_location', 'time_zone', 'browser_language'] }),
-  /**
-   * The language the workspace works in (BCP 47 primary tag: "de"). null: never set, the main language of the
-   * country (resolveWorkspaceLanguage). The assistant's greeting when it has no main language of its own, and the
-   * language of call summaries and messages for the team.
-   */
-  language: text('language'),
   /** The public holiday calendar the workspace follows; null: never set up. */
   holidays: jsonb('holidays').$type<HolidayCalendar>(),
   /** What a booked job is worth on average, in the minor units of job_value_currency (cents; whole units for JPY, KRW and CLP), for Insights ("≈ $X in booked work"). null: not set. */

@@ -204,7 +204,6 @@ export async function setUpDemoWorkspace(input: DemoWorkspaceInput): Promise<str
       businessHoursOn: false,
       timeZone: data.workspace.timeZone,
       country: data.workspace.country,
-      language: 'en',
     },
     owner,
   )

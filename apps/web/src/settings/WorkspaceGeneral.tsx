@@ -1,16 +1,12 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
-// the workspace icon (WorkspaceIconField), the country and language (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
+// the workspace icon (WorkspaceIconField), the country (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
 import { useReadOnlyNote } from './readOnly.ts'
-import { useSupportAccess } from '../supportAccess.ts'
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { T, useLocale, useT } from '@linedesk/i18n/react'
-import { appLink } from '../ui/AppLink.tsx'
+import { useT } from '@linedesk/i18n/react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
-import { SearchSelect } from '../ui/SearchSelect.tsx'
-import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
@@ -29,11 +25,8 @@ import {
 } from './settings-api.ts'
 import { renameCheck, saveRename } from './workspaceGeneral.ts'
 import { CountrySelect } from './CountrySelect.tsx'
-import { AUTOMATIC, languageOptions } from './workspaceLocaleModel.ts'
+import { AUTOMATIC } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
-
-/** Where an assistant's languages and voice are (the workspace's first assistant, AssistantSettings.tsx). */
-const ASSISTANT_GENERAL = sectionHash('assistant', 'general')
 
 type Props = {
   canEdit: boolean
@@ -44,7 +37,7 @@ type Props = {
 }
 
 /**
- * General: the business name, icon, country, language, time zone and appointment value. On top, for owners and admins
+ * General: the business name, icon, country, time zone and appointment value. On top, for owners and admins
  * (`agentChange`), the offer to change them with an AI agent (AgentChange.tsx): the section the page opens at, and the
  * one whose settings an agent can change (the team, numbers, recordings, API keys and the danger zone it cannot).
  */
@@ -64,7 +57,6 @@ export function WorkspaceGeneral({
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
       <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={readOnly} toast={toast} />
       <Country canEdit={canEdit} />
-      <Language canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
       <AllowPremium isOwner={isOwner} canEdit={canEdit} toast={toast} />
@@ -137,14 +129,14 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
 }
 
 /**
- * Saves the country or language, then reads the settings again: what Automatic stands for, the language that follows
- * the country and the currency of an unset appointment value are worked out by the API.
+ * Saves the country, then reads the settings again: what Automatic stands for, the language that follows the country
+ * and the currency of an unset appointment value are worked out by the API.
  */
-async function saveLocale(change: { country?: string | null; language?: string | null }) {
+async function saveCountry(change: { country: string | null }) {
   try {
     await callAction('workspace.updateSettings', change)
   } catch (e) {
-    console.warn(`could not save the workspace ${Object.keys(change).join(' and ')}: ${(e as Error).message}`)
+    console.warn(`could not save the workspace country: ${(e as Error).message}`)
   }
   // Also after a failure: the field goes back to what is saved.
   void refreshWorkspaceSettings()
@@ -167,7 +159,7 @@ function Country({ canEdit }: { canEdit: boolean }) {
   const change = (value: string) => {
     const country = value === AUTOMATIC ? null : value
     patchWorkspaceSettings({ country, ...(country ? { resolvedCountry: country, countrySource: 'explicit' } : {}) })
-    void saveLocale({ country })
+    void saveCountry({ country })
   }
   return (
     <Field
@@ -188,70 +180,6 @@ function Country({ canEdit }: { canEdit: boolean }) {
             id="ws-country"
             value={data.country ?? AUTOMATIC}
             automatic={automatic}
-            onChange={change}
-            disabled={!canEdit}
-          />
-        )}
-      </Loading>
-    </Field>
-  )
-}
-
-/**
- * The workspace language: what assistants without a main language of their own greet and speak in, and what call
- * summaries and messages for the team are written in. Only the languages calls can be answered in. Saves at once.
- */
-function Language({ canEdit }: { canEdit: boolean }) {
-  const settings = useWorkspaceSettings()
-  const data = settings.data
-  const country = data?.resolvedCountry ?? 'US'
-  const t = useT()
-  const supportAccess = useSupportAccess()
-  const ui = useLocale()
-  const options = useMemo(() => languageOptions(country, ui), [country, ui])
-  const change = (value: string) => {
-    const language = value === AUTOMATIC ? null : value
-    patchWorkspaceSettings({ language, ...(language ? { resolvedLanguage: language } : {}) })
-    void saveLocale({ language })
-  }
-  return (
-    <Field
-      id="ws-language"
-      label={t('settings.general.language.label')}
-      help={
-        // During support access the person's own Account › Preferences is not open to the admin either.
-        supportAccess ? (
-          t('settings.general.language.helpSupportAccess')
-        ) : (
-          <T
-            k={canEdit ? 'settings.general.language.help' : 'settings.general.language.helpReadOnly'}
-            values={{ link: appLink(sectionHash('account', 'preferences')) }}
-          />
-        )
-      }
-      tip={{
-        text: (
-          <T
-            k="settings.general.language.tip"
-            values={{ languages: appLink(ASSISTANT_GENERAL), voice: appLink(ASSISTANT_GENERAL) }}
-          />
-        ),
-      }}
-    >
-      <Loading
-        what={t('settings.general.language.what')}
-        loading={!data}
-        error={settings.error}
-        onRetry={() => void settings.reload()}
-        skeleton={<Skeleton shape="field" width="100%" />}
-      >
-        {data && (
-          <SearchSelect
-            id="ws-language"
-            label={t('settings.general.language.label')}
-            value={data.language ?? AUTOMATIC}
-            options={options}
-            placeholder={t('settings.general.language.search')}
             onChange={change}
             disabled={!canEdit}
           />

@@ -11,8 +11,8 @@ import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { buyableAreaCode } from './area-codes.ts'
 import { defineAction } from './define.ts'
 import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
-import { assistantLanguages, languageCodes } from './languages.ts'
-import { type WorkspaceCountrySource, workspaceCountrySchema, workspaceLanguageSchema } from './workspace-locale.ts'
+import { assistantLanguages } from './languages.ts'
+import { type WorkspaceCountrySource, workspaceCountrySchema } from './workspace-locale.ts'
 import { transferContacts } from './transfer.ts'
 import { realtimeVoiceChoice, voiceId } from './voices.ts'
 import type { ProviderName, WorkspaceDeleteData } from './admin.ts'
@@ -528,13 +528,11 @@ export type WorkspaceSettingsData = {
   pickupMode?: PickupMode | null
   /** The country the owner set (ISO 3166-1 alpha-2); null: automatic. Missing from an older API. */
   country?: string | null
-  /** The language the owner set (one of LANGUAGES); null: automatic, from the country. Missing from an older API. */
-  language?: string | null
   /** The country in use: the one set, else worked out (resolveWorkspaceCountry). Missing from an older API: US. */
   resolvedCountry?: string
   /** Where resolvedCountry came from. */
   countrySource?: WorkspaceCountrySource
-  /** The language in use: the one set, else the country's (resolveWorkspaceLanguage; may be one calls are not answered in). */
+  /** The workspace language: the main language of the country in use (resolveWorkspaceLanguage; may be one calls are not answered in). */
   resolvedLanguage?: string
   /** Linedesk Cloud: the owner allows Premium voices and models (workspace.setAllowPremium). */
   allowPremium: boolean
@@ -708,9 +706,7 @@ export const workspaceUpdateSettings = defineAction({
   description:
     'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting when the call is recorded; on by default), `recordingNotice` (that sentence, e.g. "This call may be recorded."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
     jobValueCurrencies.join(', ') +
-    '; until set, the currency of the workspace country; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in), `language` (the workspace language: ' +
-    languageCodes.join(', ') +
-    '; null: automatic, the main language of the country, English when calls cannot be answered in it; the greeting and fixed lines of an assistant without its own main language, and the language of call summaries and messages for the team); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
+    '; until set, the currency of the workspace country; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in; its main language is what call summaries and messages for the team are written in, and what an assistant without a main language of its own greets in); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
@@ -728,7 +724,6 @@ export const workspaceUpdateSettings = defineAction({
     jobValueCurrency: z.enum(jobValueCurrencies).optional(),
     pickupMode: z.enum(pickupModes).optional(),
     country: workspaceCountrySchema.nullable().optional(),
-    language: workspaceLanguageSchema.nullable().optional(),
   }),
   permission: 'settings:write',
 })

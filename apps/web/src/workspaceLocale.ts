@@ -1,5 +1,5 @@
 // The workspace's country and language in the web app (Workspace settings › General, workspace-locale.ts in
-// @linedesk/actions): as set, else worked out by the API (workspace.getSettings). An API of an older version sends
+// @linedesk/actions): the country as set, else worked out by the API (workspace.getSettings); the language follows it. An API of an older version sends
 // neither: the US and English, as before.
 import { countryNamed } from '@linedesk/actions'
 import { useWorkspaceSettings } from './settings/settings-api.ts'

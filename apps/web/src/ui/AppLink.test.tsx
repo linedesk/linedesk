@@ -32,9 +32,11 @@ test('an action in text looks like the link but is a button', () => {
 
 test('a message tag renders the link around its own words, the sentence stays one message', () => {
   const html = renderToStaticMarkup(
-    <T k="settings.general.language.help" values={{ link: appLink('#account/preferences') }} />,
+    <T k="account.notify.ownLink" values={{ link: appLink('#account/notifications') }} />,
   )
-  expect(html).toContain('change that under <a class="k-link" href="#account/preferences">Account › Preferences</a>.')
+  expect(html).toContain(
+    'Your own notifications: <a class="k-link" href="#account/notifications">Account settings › Notifications</a>',
+  )
 })
 
 test('a Server admin place is a link for instance admins and plain words for everyone else', () => {

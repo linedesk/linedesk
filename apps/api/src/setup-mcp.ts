@@ -784,15 +784,15 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const done = (yes: boolean): StepState => (yes ? 'done' : 'todo')
   return [
     {
-      // The business as the person sees it, one step: the workspace (name, time zone, country, language) and what
+      // The business as the person sees it, one step: the workspace (name, time zone, country) and what
       // the assistant knows about it. Done once the profile is (the workspace exists whenever this list does).
       id: 'business',
       label: BUSINESS_STEPS[0][1],
       state: done(businessDone),
       // The name is a member's text: quoted, as data.
-      detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, country ${locale.resolvedCountry}${locale.country ? '' : ` (automatic, ${locale.countrySource})`}, language ${locale.resolvedLanguage}${locale.language ? '' : ' (automatic, from the country)'}, assistant ${assistant?.id ?? 'none'}`,
+      detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, country ${locale.resolvedCountry}${locale.country ? '' : ` (automatic, ${locale.countrySource})`}, language ${locale.resolvedLanguage} (from the country), assistant ${assistant?.id ?? 'none'}`,
       how: [
-        `Check the name, time zone, country and language with the admin: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US", language: "en" } (ISO country code and one of the listed language codes; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; the language is what the assistant greets in (unless it has its own main language) and what call summaries are written in.`,
+        `Check the name, time zone and country with the admin: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US" } (ISO country code; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
         `Show the admin a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
         `Then onboarding_setStep { ${w}, step: "assistant" }.`,

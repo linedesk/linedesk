@@ -1,5 +1,5 @@
-// Workspace settings › General: the call language's help names where the app's own language is set, and that name
-// is the shared in-app link (ui/AppLink.tsx) to Account › Preferences, for admins and read-only members alike.
+// Workspace settings › General: no workspace call language (removed 2026-11-16; the assistant's main language picks the
+// call language), and during support access every field is read-only and says why.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 
@@ -23,21 +23,17 @@ const render = (canEdit: boolean, supportAccess = false) =>
     </SupportAccessContext.Provider>,
   )
 
-const PREFERENCES_LINK = '<a class="k-link" href="#account/preferences">Account › Preferences</a>'
-
-test('the call language help links to Account › Preferences', () => {
-  expect(render(true)).toContain(`change that under ${PREFERENCES_LINK}.`)
+test('there is no call language field, for admins and read-only members alike', () => {
+  for (const canEdit of [true, false]) {
+    const html = render(canEdit)
+    expect(html).not.toContain('ws-language')
+    expect(html).not.toContain('Call language')
+  }
 })
 
-test('a member who only reads the settings gets the same link', () => {
-  const html = render(false)
-  expect(html).toContain(`change that under ${PREFERENCES_LINK}. Only admins can change this.`)
-})
-
-test('during support access every field is read-only and says why, without sending to Account › Preferences', () => {
+test('during support access every field is read-only and says why', () => {
   const html = render(false, true)
   expect(html).toContain('Read-only while you are signed in as another user.')
   expect(html).not.toContain('Only admins can change this.')
-  expect(html).not.toContain(PREFERENCES_LINK)
   expect(html).toMatch(/id="ws-name"[^>]*readOnly|readOnly[^>]*id="ws-name"/i)
 })

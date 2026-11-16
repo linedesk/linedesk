@@ -13,20 +13,17 @@ import {
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
-import { type KeyboardEvent, type ReactNode, useMemo, useState } from 'react'
-import { T, useLocale, useT } from '@linedesk/i18n/react'
+import { type KeyboardEvent, type ReactNode, useState } from 'react'
+import { T, useT } from '@linedesk/i18n/react'
 import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
-import { AUTOMATIC, languageOptions } from '../settings/workspaceLocaleModel.ts'
-import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { useAssistant, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { flagOf } from '../ui/phoneInputModel.ts'
-import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
@@ -302,18 +299,11 @@ function FindBusiness({
 }
 
 /**
- * What the Business step saves of country and language: only what the owner picked (Change, or the language select).
- * A country left as shown is not saved as set (it stays Automatic, so a number connected later still decides it).
+ * What the Business step saves of the country: only what the owner picked (Change). A country left as shown is not
+ * saved as set (it stays Automatic, so a number connected later still decides it).
  */
-export function localeToSave(
-  pickedCountry: string | null,
-  pickedLanguage: string | null,
-  savedCountry: string | null,
-): { country?: string; language?: string | null } {
-  return {
-    ...(pickedCountry !== null && pickedCountry !== savedCountry ? { country: pickedCountry } : {}),
-    ...(pickedLanguage !== null ? { language: pickedLanguage === AUTOMATIC ? null : pickedLanguage } : {}),
-  }
+export function localeToSave(pickedCountry: string | null, savedCountry: string | null): { country?: string } {
+  return pickedCountry !== null && pickedCountry !== savedCountry ? { country: pickedCountry } : {}
 }
 
 /**
@@ -452,15 +442,11 @@ function ReviewProfile({
   const phoneCountry = useDefaultPhoneCountry()
   const settings = useWorkspaceSettings().data
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFrom(proposal))
-  // Where the business is and its language: what the workspace has, set when it was made (New workspace) or worked out
-  // by the API (workspace-locale.ts, the same order as Workspace settings › General), until the owner picks.
+  // Where the business is: what the workspace has, set when it was made (New workspace) or worked out by the API
+  // (workspace-locale.ts, the same order as Workspace settings › General), until the owner picks.
   const [pickedCountry, setPickedCountry] = useState<string | null>(null)
   const [changingCountry, setChangingCountry] = useState(false)
-  const [pickedLanguage, setPickedLanguage] = useState<string | null>(null)
   const country = pickedCountry ?? phoneCountry
-  const language = pickedLanguage ?? settings?.language ?? AUTOMATIC
-  const ui = useLocale()
-  const languageChoices = useMemo(() => languageOptions(country, ui), [country, ui])
   const problem = draftProblem(draft)
   const problems = draftProblems(draft)
   const set = (change: Partial<ProfileDraft>) => setDraft(d => ({ ...d, ...change }))
@@ -470,8 +456,8 @@ function ReviewProfile({
     const { assistant: changes, hours, timeZone, rename } = profileSave(draft, assistant.business_profile, businessName)
     void run('assistant.update', { assistantId: assistant.id, ...changes })
     // Saved as set only what the owner picked: a country left as shown stays Automatic, so a number connected later
-    // (or the business phone) still decides it. The language likewise (else it follows the country).
-    const locale = localeToSave(pickedCountry, pickedLanguage, settings?.country ?? null)
+    // (or the business phone) still decides it.
+    const locale = localeToSave(pickedCountry, settings?.country ?? null)
     if (Object.keys(locale).length) {
       void run('workspace.updateSettings', locale)
       patchWorkspaceSettings({
@@ -590,38 +576,6 @@ function ReviewProfile({
                 </Button>
               </span>
             )}
-          </Field>
-          <Field
-            id="ob-biz-language"
-            label={t('settings.general.language.label')}
-            // The same texts as Workspace settings › General; a walkthrough step opens other places in a new tab
-            // (design principles 14 and 18).
-            help={
-              <T
-                k="settings.general.language.help"
-                values={{ link: appLink(sectionHash('account', 'preferences'), { newTab: true }) }}
-              />
-            }
-            tip={{
-              text: (
-                <T
-                  k="settings.general.language.tip"
-                  values={{
-                    languages: appLink(sectionHash('assistant', 'general'), { newTab: true }),
-                    voice: appLink(sectionHash('assistant', 'general'), { newTab: true }),
-                  }}
-                />
-              ),
-            }}
-          >
-            <SearchSelect
-              id="ob-biz-language"
-              label={t('settings.general.language.label')}
-              value={language}
-              options={languageChoices}
-              placeholder={t('settings.general.language.search')}
-              onChange={setPickedLanguage}
-            />
           </Field>
         </div>
         {!!draft.hours?.length && (

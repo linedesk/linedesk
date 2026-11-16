@@ -108,9 +108,9 @@ export function foldProfile(p: BusinessProfile): string {
 }
 
 /**
- * `workspaceLanguage`: the workspace language (Workspace settings › General). An assistant without a main language of
- * its own speaks it when calls can be answered in it, as the voice agent does: shown as its main language, with the
- * default greeting and closing line in it.
+ * `workspaceLanguage`: the workspace language (the main language of the workspace's country, Workspace settings ›
+ * General). An assistant without a main language of its own speaks it when calls can be answered in it, as the voice
+ * agent does: shown as its main language, with the default greeting and closing line in it.
  */
 export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft {
   const p = a.business_profile
