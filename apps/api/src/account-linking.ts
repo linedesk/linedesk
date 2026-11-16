@@ -24,7 +24,7 @@ import { APIError } from 'better-auth/api'
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { recordAuthEvent } from './audit.ts'
 import { db } from './db.ts'
-import { lockSetupKeysOf } from './passkey-enrolment.ts'
+import { lockSetupKeysOf, revokePersonalKeysOf } from './passkey-enrolment.ts'
 
 /** Microsoft's tenant for personal accounts (Outlook.com, Hotmail, Live): Microsoft verifies their addresses. */
 export const MICROSOFT_CONSUMER_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad'
@@ -96,7 +96,7 @@ export function mapOidcProfile(
 
 /**
  * Everything that got into an account before its address was proven, removed in one transaction:
- * other sign-in accounts (the password, providers), passkeys, sessions, push subscriptions, API keys
+ * other sign-in accounts (the password, providers), passkeys, sessions, push subscriptions, personal API keys, API keys
  * the account created (revoked, with their integration subscriptions), webhook endpoints and calendar connections it created, and invitations
  * it sent that are still pending, and where calls go in the workspaces it owns (resetCallRoutingOf).
  * Whoever held an account made with another person's address (a password sign-up from before
@@ -135,6 +135,8 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
       .update(agent_setup_keys)
       .set({ revoked_at: new Date().toISOString(), ended_reason: 'account_recovery' })
       .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
+    // And its personal API keys: each acts as the account (LIN-339 security review).
+    await revokePersonalKeysOf(tx, userId)
     await tx.delete(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))
     // A calendar it connected would receive bookings with callers' details.
     await tx.delete(calendar_connections).where(eq(calendar_connections.connected_by, userId))

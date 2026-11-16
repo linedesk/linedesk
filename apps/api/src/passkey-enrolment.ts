@@ -134,8 +134,9 @@ export async function revokeSetupKeysOf(tx: Tx, userId: string, reason: SetupKey
 
 /**
  * Personal API keys (personal-keys.ts) on the same occasions: a lost admin role takes their server-admin rights for
- * good (a later grant does not bring them back); a password changed or reset, passkeys reset, or the account
- * disabled or recovered revokes them, so a key made from a stolen session does not outlast the recovery.
+ * good (a later grant does not bring them back); a password changed or reset, passkeys reset, "sign out everywhere
+ * else", or the account disabled or recovered revokes them, so a key made from a stolen session does not outlast the
+ * recovery (LIN-339 security review M1).
  */
 export async function endPersonalKeysOf(tx: Tx, userId: string, reason: SetupKeyEndReason): Promise<void> {
   const open = and(eq(personal_keys.user_id, userId), isNull(personal_keys.revoked_at))
@@ -160,6 +161,7 @@ const REVOKES_PERSONAL_KEYS: ReadonlySet<SetupKeyEndReason> = new Set([
   'password_changed',
   'password_reset',
   'passkeys_reset',
+  'sessions_ended',
   'account_disabled',
   'account_recovery',
 ])

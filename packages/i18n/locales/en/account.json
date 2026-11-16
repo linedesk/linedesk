@@ -5,7 +5,7 @@
   "apiKeys.dialog.namePlaceholder": "Laptop command line",
   "apiKeys.dialog.title": "Create personal API key",
   "apiKeys.empty": "No personal keys yet.",
-  "apiKeys.help": "A personal key can do everything you can, in every workspace you belong to. Use it with the command line ({cli} {origin}), an AI tool over MCP ({mcp}) or a script. Revoke a key you no longer use.",
+  "apiKeys.help": "A personal key can do everything you can, in every workspace you belong to. Use it with the command line ({cli} {origin}), an AI tool over MCP ({mcp}) or a script. Revoke a key you no longer use. Signing out your other sessions or changing your password revokes every key.",
   "apiKeys.revokeConfirmTip": "Click again to revoke. Tools using this key stop working right away.",
   "apiKeys.revoked": "{name} is revoked.",
   "apiKeys.serverAdmin": "Server admin",

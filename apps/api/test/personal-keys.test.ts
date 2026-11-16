@@ -5,6 +5,7 @@ import { IRREVERSIBLE_ACTIONS, actions } from '@linedesk/actions'
 import { commands, member, personal_keys, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
+import { dropUnprovenAccessOf } from '../src/account-linking.ts'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { revokePersonalKeysOf, revokeSetupKeysOf } from '../src/passkey-enrolment.ts'
@@ -117,9 +118,11 @@ describe('managing personal keys', () => {
     expect((await request(asKey(key), 'GET', '/v1/me')).status).toBe(200)
   })
 
-  test('a password change, a passkey reset or an email change revokes every key; a lost admin role ends its admin', async () => {
+  test('a password change, a passkey reset, signing out everywhere or an email change revokes every key; a lost admin role ends its admin', async () => {
     for (const end of [
       (id: string) => revokeSetupKeysOf(db, id, 'password_changed'),
+      (id: string) => revokeSetupKeysOf(db, id, 'sessions_ended'),
+      (id: string) => dropUnprovenAccessOf(id),
       (id: string) => revokeSetupKeysOf(db, id, 'passkeys_reset'),
       (id: string) => revokePersonalKeysOf(db, id),
     ]) {
@@ -140,6 +143,13 @@ describe('managing personal keys', () => {
       .from(personal_keys)
       .where(eq(personal_keys.prefix, key.slice(0, 12)))
     expect(row).toMatchObject({ passkey_confirmed: false, revoked_at: null })
+  })
+
+  test('"sign out all other sessions" in the app revokes every key', async () => {
+    const person = await addMember(ws.id, 'member')
+    const key = await makeKey(person)
+    expect((await request(person, 'POST', '/api/auth/revoke-other-sessions', {})).status).toBe(200)
+    expect((await request(asKey(key), 'GET', '/v1/me')).status).toBe(401)
   })
 
   test("a passkey sign-in is carried only by a server admin's key", async () => {
