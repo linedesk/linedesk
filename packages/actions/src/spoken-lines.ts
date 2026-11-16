@@ -628,6 +628,15 @@ export function swapDefault(text: string, from: Language, to: Language): string 
   return key ? spokenLines(to)[key] : text
 }
 
+/**
+ * `language`'s default greeting with the AI note, when `text` is that default greeting without it; null otherwise.
+ * Putting the AI sentence into it instead would name the assistant twice ("Soy Maya, asistente de IA. Soy Maya.").
+ */
+export function defaultGreetingWithAi(text: string, language: Language): string | null {
+  const greeting = parseDefaultGreeting(text.trim(), language)
+  return greeting && !greeting.ai ? spokenLines(language).greeting(greeting.business, greeting.name, true) : null
+}
+
 /** An owner-written text as a call in `language` says it: the language's default when it is still the English default. */
 export const localizedDefault = (text: string, language: Language): string => swapDefault(text, 'en', language)
 
@@ -637,13 +646,82 @@ export const businessOfGreeting = (text: string): string | null =>
 
 // --- Public demo calls ------------------------------------------------------------------------
 // A public demo call (apps/api/src/demo-call.ts) is a visitor of the install's website talking to a demo assistant in
-// the browser. The agent ends it after DEMO_CALL_MAX_SECONDS and says these lines, in English only: demo assistants
-// speak English (the demo-workspace script sets them so).
+// the browser. The visitor picks one of DEMO_LANGUAGES on the website; English is the default and the demo assistants'
+// own language. The agent says the opening right after the greeting and ends the call after DEMO_CALL_MAX_SECONDS
+// with the limit line, both in the call's language (demoLines).
 // DRAFT – needs Janik's and Tim's OK before prod.
 
 /** The longest a public demo call runs, in seconds: the agent ends it then, and the API tells the website. */
 export const DEMO_CALL_MAX_SECONDS = 120
-/** Said right after the greeting of a public demo call, as part of the same opening. */
-export const DEMO_OPENING_SUFFIX = 'This is a two-minute demo.'
-/** Said when a public demo call reaches DEMO_CALL_MAX_SECONDS, before the agent hangs up. */
-export const DEMO_CALL_LIMIT_LINE = "That's the two minutes for this demo. Thanks for trying it out. Goodbye!"
+
+/**
+ * The languages a visitor may pick for a demo call: Deepgram Flux's 10. A demo call in one of them speaks only that
+ * one (no switching): accented English on multilingual Flux was too often heard as another language.
+ */
+export const DEMO_LANGUAGES = [
+  'en',
+  'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'nl',
+  'ru',
+  'hi',
+  'ja',
+] as const satisfies readonly Language[]
+export type DemoLanguage = (typeof DEMO_LANGUAGES)[number]
+
+/** `opening`: said right after the greeting, as part of the same opening. `limit`: said at DEMO_CALL_MAX_SECONDS, before the agent hangs up. */
+export type DemoLines = { opening: string; limit: string }
+
+const DEMO_LINES: Record<DemoLanguage, DemoLines> = {
+  en: {
+    opening: 'This is a two-minute demo.',
+    limit: "That's the two minutes for this demo. Thanks for trying it out. Goodbye!",
+  },
+  es: {
+    opening: 'Esta es una demo de dos minutos.',
+    limit: 'Se han acabado los dos minutos de esta demo. Gracias por probarla. ¡Adiós!',
+  },
+  fr: {
+    opening: 'Ceci est une démo de deux minutes.',
+    limit: "Les deux minutes de cette démo sont écoulées. Merci de l'avoir essayée. Au revoir !",
+  },
+  de: {
+    opening: 'Das ist eine Zwei-Minuten-Demo.',
+    limit: 'Die zwei Minuten dieser Demo sind um. Danke fürs Ausprobieren. Auf Wiederhören!',
+  },
+  it: {
+    opening: 'Questa è una demo di due minuti.',
+    limit: 'I due minuti di questa demo sono finiti. Grazie per averla provata. Arrivederci!',
+  },
+  pt: {
+    opening: 'Esta é uma demonstração de dois minutos.',
+    limit: 'Os dois minutos desta demonstração terminaram. Obrigado por experimentar. Até logo!',
+  },
+  nl: {
+    opening: 'Dit is een demo van twee minuten.',
+    limit: 'De twee minuten van deze demo zijn voorbij. Bedankt voor het uitproberen. Tot ziens!',
+  },
+  ru: {
+    opening: 'Это двухминутная демонстрация.',
+    limit: 'Две минуты этой демонстрации истекли. Спасибо, что попробовали. До свидания!',
+  },
+  hi: {
+    opening: 'यह दो मिनट का डेमो है।',
+    limit: 'इस डेमो के दो मिनट पूरे हो गए। इसे आज़माने के लिए धन्यवाद। नमस्ते!',
+  },
+  ja: {
+    opening: 'これは2分間のデモです。',
+    limit: 'このデモの2分間が終了しました。お試しいただきありがとうございました。失礼いたします。',
+  },
+}
+
+/** Whether a value is one of DEMO_LANGUAGES. */
+export const isDemoLanguage = (value: unknown): value is DemoLanguage =>
+  (DEMO_LANGUAGES as readonly unknown[]).includes(value)
+
+/** A demo call's fixed lines in its language; English for any other. */
+export const demoLines = (language: string | null | undefined): DemoLines =>
+  isDemoLanguage(language) ? DEMO_LINES[language] : DEMO_LINES.en

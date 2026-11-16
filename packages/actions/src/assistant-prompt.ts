@@ -1,7 +1,7 @@
 // How every assistant handles a call: fixed rules in its instructions, not a setting.
 
 import type { Language } from './languages.ts'
-import { spokenLines } from './spoken-lines.ts'
+import { defaultGreetingWithAi, spokenLines } from './spoken-lines.ts'
 import { emergencyNumberOf } from './workspace-locale.ts'
 
 /**
@@ -208,6 +208,8 @@ const SENTENCE = /[^.!?。！？।]+[.!?。！？।]+|[^.!?。！？।]+$/g
 function withLocalDisclosure(greeting: string, name: string, language: Language): string {
   const lines = spokenLines(language)
   if (lines.aiNote.test(greeting)) return greeting
+  const defaultGreeting = defaultGreetingWithAi(greeting, language)
+  if (defaultGreeting) return defaultGreeting
   const sentence = lines.aiSentence(name.trim() || name)
   const firstEnd = greeting.search(/[.!?。！？।]/)
   if (firstEnd < 0 || firstEnd === greeting.length - 1) return `${greeting} ${sentence}`

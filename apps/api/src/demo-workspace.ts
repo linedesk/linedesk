@@ -1,7 +1,8 @@
 // Sets up the workspace that answers public demo calls (demo-call.ts): one workspace, one assistant per industry a
 // website offers, from a data file (demo-businesses.example.ts is the example; --data names an install's own). Every
-// assistant takes messages only: no recording (record_calls off, recordings not kept), at most 2 minutes, English only,
-// says at the start that it is an AI, and puts nobody through. The workspace gets a monthly spending cap as a backstop,
+// assistant takes messages only: no recording (record_calls off, recordings not kept), at most 2 minutes, English as
+// its language (a demo call in another of DEMO_LANGUAGES speaks that one instead, demo-call.ts), says at the start
+// that it is an AI, and puts nobody through. The workspace gets a monthly spending cap as a backstop,
 // the recording notice off (nothing is recorded, so it would be untrue), no notification emails by default.
 // The workspace is made like workspace:create (provision in workspace-create.ts: the same owner and --as rules), and
 // every change goes through the registry as that server admin. Safe to run again: an assistant is found by its

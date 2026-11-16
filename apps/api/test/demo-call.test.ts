@@ -2,7 +2,7 @@
 // and the cleanup of demo calls (demo-rooms.ts). Own database (vitest.config.ts): demo tokens and live demo calls are
 // counted across the install.
 import { createHmac } from 'node:crypto'
-import { DEMO_CALL_MAX_SECONDS } from '@linedesk/actions'
+import { DEMO_CALL_MAX_SECONDS, DEMO_LANGUAGES } from '@linedesk/actions'
 import {
   assistants,
   calendar_connections,
@@ -207,6 +207,121 @@ describe('the happy path', () => {
       body: JSON.stringify({ industry: 'auto', ipHash: hash() }),
     })
     expect(off.status).toBe(404)
+  })
+})
+
+describe('the language the visitor picked', () => {
+  const agentMetadata = (token: string) => JSON.parse(verifiedClaims(token).roomConfig.agents[0].metadata)
+  const loggedInputs = async () =>
+    (await db.select().from(commands).where(eq(commands.action, DEMO_CALL_TOKEN))).map(row => row.input)
+
+  test('missing or "en": the agent is dispatched exactly as before, with no language of its own', async () => {
+    const before = {
+      source: 'test',
+      workspaceId: ws.id,
+      assistantId: ws.assistant.id,
+      simulateTransfer: true,
+      demo: true,
+    }
+    for (const body of [
+      { industry: 'auto', ipHash: hash() },
+      { industry: 'auto', ipHash: hash(), language: 'en' },
+    ]) {
+      const answer = await ask(body)
+      expect(answer.status).toBe(200)
+      if (answer.status !== 200) return
+      // The same JSON, key for key, as a demo call without the field.
+      expect(verifiedClaims(answer.body.token).roomConfig.agents[0].metadata).toBe(JSON.stringify(before))
+    }
+    expect((await loggedInputs()).map(input => (input as { language?: string }).language)).toEqual(['en', 'en'])
+  })
+
+  test.each(DEMO_LANGUAGES.filter(code => code !== 'en'))(
+    '%s: the call speaks only that language (mainLanguage); logged with the token',
+    async code => {
+      const ipHash = hash()
+      const answer = await ask({ industry: 'auto', ipHash, country: 'DE', language: code })
+      expect(answer.status).toBe(200)
+      if (answer.status !== 200) return
+      expect(agentMetadata(answer.body.token)).toEqual({
+        source: 'test',
+        workspaceId: ws.id,
+        assistantId: ws.assistant.id,
+        simulateTransfer: true,
+        demo: true,
+        mainLanguage: code,
+      })
+      // The answer has the same shape as an English one.
+      expect(Object.keys(answer.body).sort()).toEqual(
+        ['assistant', 'business', 'maxSeconds', 'ok', 'room', 'token', 'url'].sort(),
+      )
+      expect(await loggedInputs()).toEqual([{ industry: 'auto', ipHash, country: 'DE', language: code }])
+    },
+  )
+
+  test('anything else is 400 language, before the industry, the limits or a token', async () => {
+    for (const language of ['xx', 'DE', 'de-DE', 'ko', '', null, 7, ['de'], { code: 'de' }])
+      expect(await ask({ industry: 'auto', ipHash: hash(), language })).toEqual({
+        status: 400,
+        body: { ok: false, error: 'language' },
+      })
+    // Before the rest of the body and the industry are looked at.
+    expect(await ask({ industry: 'vet', language: 'xx' })).toEqual({
+      status: 400,
+      body: { ok: false, error: 'language' },
+    })
+    // Still behind the secret: no answer about the body without it.
+    expect(
+      (await demoCall(db, request({ industry: 'auto', ipHash: hash(), language: 'xx' }, { authorization: '' }), env))
+        .status,
+    ).toBe(401)
+    expect(await loggedInputs()).toEqual([])
+  })
+
+  test("a demo assistant whose voice can't speak the language: 503 off with an ALERT line; English still works", async () => {
+    const stages = {
+      STT_PROVIDER: 'deepgram',
+      DEEPGRAM_API_KEY: 'placeholder',
+      LLM_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'placeholder',
+      TTS_PROVIDER: 'elevenlabs',
+      ELEVENLABS_API_KEY: 'placeholder',
+      // An English-only ElevenLabs model.
+      TTS_MODEL: 'eleven_flash_v2',
+    }
+    const kept = Object.fromEntries(Object.keys(stages).map(k => [k, process.env[k]]))
+    Object.assign(process.env, stages)
+    const [own] = await db
+      .select({ pipeline: assistants.voice_pipeline })
+      .from(assistants)
+      .where(eq(assistants.id, ws.assistant.id))
+    await db.update(assistants).set({ voice_pipeline: 'three_stage' }).where(eq(assistants.id, ws.assistant.id))
+    const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      expect(await ask({ industry: 'auto', ipHash: hash(), language: 'de' })).toEqual({
+        status: 503,
+        body: { ok: false, error: 'off', retryAfterSec: null },
+      })
+      expect(alert.mock.calls.map(c => String(c[0]))).toEqual([
+        expect.stringMatching(
+          /^ALERT demo calls: the voice of the demo assistant .* \(auto, eleven_flash_v2\) can't speak German/,
+        ),
+      ])
+      expect((await ask({ industry: 'auto', ipHash: hash() })).status).toBe(200)
+      // With a model that speaks it (the default, Flash v2.5), German works.
+      process.env.TTS_MODEL = 'eleven_flash_v2_5'
+      expect((await ask({ industry: 'auto', ipHash: hash(), language: 'de' })).status).toBe(200)
+    } finally {
+      alert.mockRestore()
+      await db
+        .update(assistants)
+        .set({ voice_pipeline: own?.pipeline ?? null })
+        .where(eq(assistants.id, ws.assistant.id))
+      for (const [k, v] of Object.entries(kept)) {
+        if (v === undefined) delete process.env[k]
+        else process.env[k] = v
+      }
+    }
   })
 })
 

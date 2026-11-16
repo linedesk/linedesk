@@ -1,6 +1,16 @@
 import { expect, test } from 'vitest'
-import { languageCodes } from './languages.ts'
-import { businessOfGreeting, type SpokenLines, spokenLines, swapDefault } from './spoken-lines.ts'
+import { withDisclosure } from './assistant-prompt.ts'
+import { fluxRecognizes, languageCodes } from './languages.ts'
+import {
+  businessOfGreeting,
+  DEMO_LANGUAGES,
+  defaultGreetingWithAi,
+  demoLines,
+  isDemoLanguage,
+  type SpokenLines,
+  spokenLines,
+  swapDefault,
+} from './spoken-lines.ts'
 
 const textLines = [
   'fallbackGreeting',
@@ -52,4 +62,39 @@ test('the business of an English default greeting, with or without the AI note; 
   )
   expect(businessOfGreeting(spokenLines('en').greeting('Hale & Ortiz Law', 'Maya', true))).toBe('Hale & Ortiz Law')
   expect(businessOfGreeting('Hello, you reached the front desk.')).toBeNull()
+})
+
+test("a public demo call's languages are Flux's 10, each with its own opening and limit line", () => {
+  expect(DEMO_LANGUAGES).toEqual(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+  for (const code of DEMO_LANGUAGES) {
+    expect(fluxRecognizes(code), code).toBe(true)
+    const { opening, limit } = demoLines(code)
+    expect(opening.trim().length, code).toBeGreaterThan(0)
+    expect(limit.trim().length, code).toBeGreaterThan(0)
+    if (code !== 'en') {
+      expect(opening, `${code} opening is still English`).not.toBe(demoLines('en').opening)
+      expect(limit, `${code} limit is still English`).not.toBe(demoLines('en').limit)
+    }
+  }
+  expect(demoLines('en')).toEqual({
+    opening: 'This is a two-minute demo.',
+    limit: "That's the two minutes for this demo. Thanks for trying it out. Goodbye!",
+  })
+  // Anything else is English; only the exact codes count.
+  expect(demoLines('ko')).toEqual(demoLines('en'))
+  expect(demoLines(null)).toEqual(demoLines('en'))
+  expect(isDemoLanguage('de')).toBe(true)
+  for (const value of ['DE', 'ko', '', null, undefined, 7]) expect(isDemoLanguage(value)).toBe(false)
+})
+
+test('the AI note in a default greeting of another language names the assistant once', () => {
+  for (const code of languageCodes.filter(c => c !== 'en')) {
+    const lines = spokenLines(code)
+    const plain = lines.greeting('Ridgeline Auto Care', 'Maya', false)
+    expect(defaultGreetingWithAi(plain, code)).toBe(lines.greeting('Ridgeline Auto Care', 'Maya', true))
+    expect(withDisclosure(plain, 'Maya', code), code).toBe(lines.greeting('Ridgeline Auto Care', 'Maya', true))
+    // Already with the note, or not the default greeting: not this.
+    expect(defaultGreetingWithAi(lines.greeting('Ridgeline Auto Care', 'Maya', true), code)).toBeNull()
+    expect(defaultGreetingWithAi('Hello there.', code)).toBeNull()
+  }
 })

@@ -5,9 +5,11 @@
 // The browser never calls this route. The website's own server (the "gateway": a serverless function next to the
 // site) checks the visitor (a bot check, the country, its own per-address limit), hashes the visitor's address with a
 // pepper only it knows, and asks here with `Authorization: Bearer <DEMO_GATEWAY_SECRET>` and
-// `{ industry, ipHash, country? }`. This route answers with a LiveKit token for one new room `demo-…` that may publish
-// the microphone only and dispatches the voice agent with `{ source: 'test', demo: true, workspaceId, assistantId }`;
-// the gateway passes the answer on to the browser. The LiveKit key never leaves the API: any key can sign any grant.
+// `{ industry, ipHash, country?, language? }`. This route answers with a LiveKit token for one new room `demo-…` that
+// may publish the microphone only and dispatches the voice agent with `{ source: 'test', demo: true, workspaceId,
+// assistantId }`, plus `mainLanguage` when the visitor picked a language other than English (DEMO_LANGUAGES): the
+// call then speaks only that language. The gateway passes the answer on to the browser. The LiveKit key never leaves
+// the API: any key can sign any grant.
 // docs/runbook.md ("Put a live demo on your website") has the whole contract and a minimal gateway.
 //
 // Every limit is counted in Postgres under one advisory lock, from the command-log rows of the tokens issued
@@ -17,7 +19,15 @@
 // agent would answer. Each request also checks the demo workspace (DEMO_WORKSPACE_ID) is still set up the safe way the
 // setup script left it: no phone number, calendar or webhook, the assistant not recording and putting nobody through.
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { businessOfGreeting, DEMO_CALL_MAX_SECONDS } from '@linedesk/actions'
+import {
+  businessOfGreeting,
+  DEMO_CALL_MAX_SECONDS,
+  DEMO_LANGUAGES,
+  type DemoLanguage,
+  isDemoLanguage,
+  LANGUAGES,
+  voiceSpeaks,
+} from '@linedesk/actions'
 import {
   assistants,
   calendar_connections,
@@ -38,6 +48,7 @@ import { db } from './db.ts'
 import { DEMO_CALL_TOKEN, DEMO_ROOM_MAX_MS, DEMO_ROOM_PREFIX } from './demo-rooms.ts'
 import { spendingCap } from './spending-cap.ts'
 import { browserRoomToken, TOKEN_TTL_SEC, type TestCallMetadata, voiceAgentProblem } from './test-call.ts'
+import { assistantVoiceOf } from './usage-levels.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -164,7 +175,10 @@ function tooManyWrongSecrets(bucket: string, nowMs: number): boolean {
   return true
 }
 
-/** What the gateway sends. `ipHash`: its peppered hash of the visitor's address (never the address). */
+/**
+ * What the gateway sends. `ipHash`: its peppered hash of the visitor's address (never the address). `language`: the
+ * one the visitor picked (DEMO_LANGUAGES); missing: English.
+ */
 export const demoCallInput = z.object({
   industry: z.string().trim().min(1).max(40),
   ipHash: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/, 'a hex or base64url hash'),
@@ -172,8 +186,13 @@ export const demoCallInput = z.object({
     .string()
     .regex(/^[A-Z]{2}$/)
     .optional(),
+  language: z.enum(DEMO_LANGUAGES).default('en'),
 })
 export type DemoCallInput = z.infer<typeof demoCallInput>
+
+/** Whether the body names a language that is not one of DEMO_LANGUAGES (a missing one is English). */
+const unknownLanguage = (body: unknown) =>
+  !!body && typeof body === 'object' && 'language' in body && !isDemoLanguage(body.language)
 
 /** `retryAfterSec`: when trying again may work; null when it will not today (or it cannot be said). */
 export type DemoCallAnswer =
@@ -189,7 +208,7 @@ export type DemoCallAnswer =
         assistant: string
       }
     }
-  | { status: 400; body: { ok: false; error: 'industry' | 'input' } }
+  | { status: 400; body: { ok: false; error: 'industry' | 'input' | 'language' } }
   | { status: 401; body: { ok: false; error: 'unauthorized' } }
   | { status: 404; body: { ok: false; error: 'not found' } }
   | { status: 415; body: { ok: false; error: 'json' } }
@@ -254,12 +273,16 @@ const retryAfter = (oldestMs: number | null, windowMs: number, nowMs: number) =>
 
 type DemoAssistant = { id: string; workspaceId: string; name: string; business: string }
 
-/** The assistant DEMO_ASSISTANTS names for the industry, in an enabled workspace; null (and an ALERT line) when it is not there. */
+/**
+ * The assistant DEMO_ASSISTANTS names for the industry, in an enabled workspace, able to speak `language`; null (and an
+ * ALERT line) when it is not there or its voice can't speak the language.
+ */
 async function demoAssistant(
   tx: Tx,
   industry: string,
   id: string,
   workspaceId: string,
+  language: DemoLanguage,
   nowMs: number,
 ): Promise<DemoAssistant | null> {
   const [row] = await tx
@@ -268,6 +291,9 @@ async function demoAssistant(
       workspaceId: assistants.workspace_id,
       name: assistants.name,
       greeting: assistants.greeting,
+      voice: assistants.voice,
+      llmModel: assistants.llm_model,
+      voicePipeline: assistants.voice_pipeline,
       recordCalls: assistants.record_calls,
       transfers: assistants.transfers,
       transferNumber: assistants.transfer_number,
@@ -304,6 +330,22 @@ async function demoAssistant(
       nowMs,
     )
     return null
+  }
+  if (language !== 'en') {
+    // The voice the call speaks with (none: a realtime model, which speaks every demo language) must speak it.
+    const voice = await assistantVoiceOf(tx, {
+      voice: row.voice,
+      llm_model: row.llmModel,
+      voice_pipeline: row.voicePipeline,
+    })
+    if (voice && !voiceSpeaks(voice, language)) {
+      warnOnce(
+        `language:${id}:${language}`,
+        `ALERT demo calls: the voice of the demo assistant ${id} (${industry}, ${voice.model || voice.provider}) can't speak ${LANGUAGES[language]}, so demo calls in it are refused`,
+        nowMs,
+      )
+      return null
+    }
   }
   // The business the demo assistant answers for, as its greeting names it (the demo-workspace script writes the
   // default greeting); else the workspace's name.
@@ -447,7 +489,9 @@ export async function demoCall(
   }
   if (req.contentType?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
     return { status: 415, body: { ok: false, error: 'json' } }
-  const parsed = demoCallInput.safeParse(await req.body().catch(() => undefined))
+  const body = await req.body().catch(() => undefined)
+  if (unknownLanguage(body)) return { status: 400, body: { ok: false, error: 'language' } }
+  const parsed = demoCallInput.safeParse(body)
   if (!parsed.success) return { status: 400, body: { ok: false, error: 'input' } }
   const input = parsed.data
 
@@ -478,7 +522,7 @@ export async function demoCall(
   const room = `${DEMO_ROOM_PREFIX}${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`
   const outcome = await tx.transaction(async t => {
     await t.execute(sql`select pg_advisory_xact_lock(hashtext('demo-call-tokens'))`)
-    const assistant = await demoAssistant(t, input.industry, assistantId, config.workspaceId!, nowMs)
+    const assistant = await demoAssistant(t, input.industry, assistantId, config.workspaceId!, input.language, nowMs)
     if (!assistant) return refused('off', null)
     const refusal = await demoRefusal(t, config, input, assistant, nowMs, estimate)
     if (refusal) return refusal
@@ -487,7 +531,12 @@ export async function demoCall(
       workspace_id: assistant.workspaceId,
       actor_id: DEMO_ACTOR,
       action: DEMO_CALL_TOKEN,
-      input: { industry: input.industry, ipHash: input.ipHash, ...(input.country ? { country: input.country } : {}) },
+      input: {
+        industry: input.industry,
+        ipHash: input.ipHash,
+        ...(input.country ? { country: input.country } : {}),
+        language: input.language,
+      },
       result: { ok: true, rows: {}, data: { room, assistantId: assistant.id } },
     })
     return assistant
@@ -500,6 +549,8 @@ export async function demoCall(
     assistantId: outcome.id,
     simulateTransfer: true,
     demo: true,
+    // English is the demo assistants' own language: the call is exactly as before. Another one is the call's only one.
+    ...(input.language !== 'en' ? { mainLanguage: input.language } : {}),
   }
   const token = browserRoomToken(
     { LIVEKIT_API_KEY, LIVEKIT_API_SECRET },
@@ -508,7 +559,9 @@ export async function demoCall(
     metadata,
     Math.floor(nowMs / 1000),
   )
-  console.log(`demo call token issued: ${room} (${input.industry}${input.country ? `, ${input.country}` : ''})`)
+  console.log(
+    `demo call token issued: ${room} (${[input.industry, input.country, input.language].filter(Boolean).join(', ')})`,
+  )
   return {
     status: 200,
     body: {

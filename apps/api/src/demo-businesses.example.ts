@@ -5,8 +5,8 @@
 // The example data of the demo-workspace script (demo-workspace.ts): one made-up business per industry a website
 // offers. An install points the script at its own file with --data (the same shape, as .ts, .js or .json).
 // Every name, address and number is made up; phone numbers use the 555-01xx range, which is never assigned.
-// The opening and closing lines every demo call says are not here: they are the agent's (DEMO_OPENING_SUFFIX and
-// DEMO_CALL_LIMIT_LINE in packages/actions/src/spoken-lines.ts).
+// The opening and closing lines every demo call says are not here: they are the agent's (demoLines in
+// packages/actions/src/spoken-lines.ts, in each of DEMO_LANGUAGES).
 import type { DemoWorkspaceData } from './demo-workspace.ts'
 
 const data: DemoWorkspaceData = {

@@ -2,7 +2,7 @@
 // The API only signs a LiveKit token. The token joins one new room, may publish the microphone
 // and nothing else, and carries the agent dispatch with the workspace in its metadata; the browser
 // cannot change any of it without breaking the signature.
-import type { TestCallData } from '@linedesk/actions'
+import type { DemoLanguage, TestCallData } from '@linedesk/actions'
 import { commands, type Tx } from '@linedesk/db'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { agentAway } from './admin-overview.ts'
@@ -120,6 +120,7 @@ async function recordToken(tx: Tx, actor: Actor, room: string, assistantId?: str
  * What the agent reads from the job metadata of a test room (apps/agent/src/call-session.ts, parseTestMetadata).
  * `simulateTransfer`: a transfer on a test call reaches a simulated person who accepts, never a real phone.
  * `demo`: a public demo call from a website (demo-call.ts): it ends after DEMO_CALL_MAX_SECONDS and says it is a demo.
+ * `mainLanguage`: the one language a demo call speaks when the visitor picked one other than English (no switching).
  */
 export type TestCallMetadata = {
   source: 'test'
@@ -127,6 +128,7 @@ export type TestCallMetadata = {
   assistantId?: string
   simulateTransfer: true
   demo?: true
+  mainLanguage?: Exclude<DemoLanguage, 'en'>
 }
 
 type LivekitKeys = { LIVEKIT_API_KEY: string; LIVEKIT_API_SECRET: string }

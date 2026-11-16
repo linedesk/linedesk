@@ -1,6 +1,9 @@
-import { expect, test, vi } from 'vitest'
-import { DEMO_CALL_LIMIT_LINE, spokenLines } from '@linedesk/actions'
+import { initializeLogger } from '@livekit/agents'
+import { beforeAll, describe, expect, test, vi } from 'vitest'
+import { DEMO_LANGUAGES, demoLines, LANGUAGES, spokenLines, voiceSpeaks } from '@linedesk/actions'
 import { announceRecording, callLimitOf, callOrigin, startCall, TEST_CALL_LIMIT_MS } from './call-session.ts'
+import { configFromEnv } from './config.ts'
+import { callLanguagesOf, callVoicesOf, createPipeline, deepgramChoice } from './pipeline.ts'
 import { BLOCKED_LINE, BUSY_LINE, OVER_CAP_LINE, unansweredLine } from './busy-line.ts'
 import { buildInstructions } from './prompt.ts'
 
@@ -303,7 +306,7 @@ test("the time limit: two minutes for a public demo call, five for a test call, 
   const assistant = { max_call_minutes: 10 } as never
   expect(callLimitOf({ demo: true, businessNumber: null, assistant }, lines)).toEqual({
     ms: 120_000,
-    line: DEMO_CALL_LIMIT_LINE,
+    line: "That's the two minutes for this demo. Thanks for trying it out. Goodbye!",
   })
   expect(callLimitOf({ businessNumber: null, assistant }, lines)).toEqual({
     ms: TEST_CALL_LIMIT_MS,
@@ -318,4 +321,47 @@ test("the time limit: two minutes for a public demo call, five for a test call, 
   )
   // Without an assistant of its own: the default of 20 minutes.
   expect(callLimitOf({ businessNumber: '+15035550142', assistant: null }, lines).ms).toBe(20 * 60_000)
+})
+
+describe('a public demo call in the language the visitor picked (mainLanguage in the room metadata)', () => {
+  beforeAll(() => initializeLogger({ pretty: false, level: 'fatal' }))
+  const row = { id: 'as_1', name: 'Maya', greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya. How can I help?', ai_disclosure: 'at_start', business_profile: {} }
+  const api = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }) } as never
+  const demoCall = (extra: object) => {
+    const metadata = JSON.stringify({ source: 'test', workspaceId: 'ws_1', assistantId: 'as_1', simulateTransfer: true, demo: true, ...extra })
+    return startCall(api, callOrigin(metadata, {}, 'demo-abc') as never)
+  }
+  const env = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
+  const sttModel = (pipeline: ReturnType<typeof createPipeline>) => (pipeline.stt as { model: string }).model
+
+  test('English (no mainLanguage): English Flux, the English greeting and lines, no other language', async () => {
+    const stages = await configFromEnv(env)
+    const call = await demoCall({})
+    expect(call.assistant?.greeting).toBe('Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help? This is a two-minute demo.')
+    expect(callLimitOf(call, spokenLines('en')).line).toBe(demoLines('en').limit)
+    const languages = callLanguagesOf(call.assistant?.languages, callVoicesOf(stages.tts, call.assistant?.voice), stages.stt)
+    expect(languages).toEqual({ main: 'en', others: [] })
+    expect(deepgramChoice('flux-general-en', languages)).toEqual({ protocol: 'flux', model: 'flux-general-en' })
+    expect(sttModel(createPipeline(stages, null, undefined, languages))).toBe(stages.stt.model)
+  })
+
+  test.each(DEMO_LANGUAGES.filter(code => code !== 'en'))('%s: only that language, on flux-general-multi hinted to it alone', async code => {
+    const stages = await configFromEnv(env)
+    const call = await demoCall({ mainLanguage: code })
+    const lines = spokenLines(code)
+    // The default greeting in that language with its AI note (the name once), then the demo line in it.
+    expect(call.assistant?.greeting).toBe(`${lines.greeting('Ridgeline Auto Care', 'Maya', true)} ${demoLines(code).opening}`)
+    expect(callLimitOf(call, lines)).toEqual({ ms: 120_000, line: demoLines(code).limit })
+    const voices = callVoicesOf(stages.tts, call.assistant?.voice)
+    const languages = callLanguagesOf(call.assistant?.languages, voices, stages.stt)
+    expect(languages).toEqual({ main: code, others: [] })
+    expect(deepgramChoice('flux-general-en', languages)).toEqual({ protocol: 'flux', model: 'flux-general-multi', languageHint: [code] })
+    const pipeline = createPipeline(stages, null, undefined, languages)
+    expect(sttModel(pipeline)).toBe('flux-general-multi')
+    expect(pipeline.turnHandling?.turnDetection).toBe('stt')
+    // The default voice model (ElevenLabs Flash v2.5) speaks it; the voice is told the language (createTts: languages.main).
+    expect(voices.every(voice => voiceSpeaks(voice, code))).toBe(true)
+    // The instructions say to speak only that language.
+    expect(buildInstructions(call.assistant, null)).toContain(`Speak ${LANGUAGES[code]} only.`)
+  })
 })

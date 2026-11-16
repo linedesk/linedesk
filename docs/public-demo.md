@@ -2,26 +2,27 @@
 
 Public demo calls let a visitor of your website talk to one of your assistants in the browser, without an account, for at most two minutes. Any install can turn them on: Linedesk's own website uses the same feature as a partner's would. Off by default: until `DEMO_CALLS=on`, `POST /v1/demo/call` answers 404.
 
-Code: `apps/api/src/demo-call.ts` (the endpoint and its limits), `apps/api/src/demo-rooms.ts` (the time-limit sweep and the transcript cleanup), `apps/api/src/demo-workspace.ts` (the setup script) with the example data `apps/api/src/demo-businesses.example.ts`. The agent side is the demo flag in the test-room metadata (`apps/agent/src/call-session.ts`).
+Code: `apps/api/src/demo-call.ts` (the endpoint and its limits), `DEMO_LANGUAGES` and the demo's fixed lines in `packages/actions/src/spoken-lines.ts`, `apps/api/src/demo-rooms.ts` (the time-limit sweep and the transcript cleanup), `apps/api/src/demo-workspace.ts` (the setup script) with the example data `apps/api/src/demo-businesses.example.ts`. The agent side is the demo flag and the main language in the test-room metadata (`apps/agent/src/call-session.ts`).
 
 ## How it fits together
 
 ```
 Browser on your website
   │ 1. click → microphone permission → your bot check (for example Cloudflare Turnstile)
-  │ 2. POST /api/demo/start {industry, botToken}          (your site, same origin)
+  │ 2. POST /api/demo/start {industry, language, botToken} (your site, same origin)
   ▼
 Your gateway (a serverless function next to the site)
   │ checks: its own kill switch, the bot check, the country, its own per-address limit
   │ ipHash = HMAC-SHA256(pepper, visitor address)          (the address never leaves the gateway)
   │ 3. POST https://<your install>/v1/demo/call
-  │    Authorization: Bearer <DEMO_GATEWAY_SECRET>   {industry, ipHash, country}
+  │    Authorization: Bearer <DEMO_GATEWAY_SECRET>   {industry, ipHash, country, language}
   ▼
 Linedesk API
   │ under one lock: limits per ipHash, calls per day, daily budget, the demo workspace's spending cap, calls at once,
   │ the demo workspace still safe (no number, calendar, webhook, recording or transfer), agent reachable
   │ logs a `demo.callToken` command; signs a LiveKit token: 60 s, one new room `demo-…`, microphone only,
   │ dispatching the agent with {source: 'test', demo: true, workspaceId, assistantId, simulateTransfer: true}
+  │ (+ mainLanguage when the visitor picked a language other than English)
   ▼
 The browser joins LiveKit (LIVEKIT_PUBLIC_URL) with the token, the agent picks up, the call ends after 120 s
 ```
@@ -37,7 +38,7 @@ Why a gateway: the LiveKit key must never leave the server (any LiveKit key can 
    # in the api container: node apps/api/src/demo-workspace.ts --owner … --as … [--data …]
    ```
 
-   Without `--data` it uses the example data (eight made-up businesses). Your own file has the same shape (`DemoWorkspaceData` in `demo-workspace.ts`; `.json`, `.ts` or `.js`). Every assistant is set to take messages only: not recorded, recordings not kept, at most 2 minutes, English only, saying at the start that it is an AI, nobody to put through. The workspace gets the monthly spending cap from the data file, no recording notice and no notification emails by default. Safe to run again: assistants are found again by their business's phone number. It prints the `DEMO_WORKSPACE_ID` and `DEMO_ASSISTANTS` lines last.
+   Without `--data` it uses the example data (eight made-up businesses). Your own file has the same shape (`DemoWorkspaceData` in `demo-workspace.ts`; `.json`, `.ts` or `.js`). Every assistant is set to take messages only: not recorded, recordings not kept, at most 2 minutes, English as their language (a visitor may still pick another one per call, below), saying at the start that it is an AI, nobody to put through. The workspace gets the monthly spending cap from the data file, no recording notice and no notification emails by default. Safe to run again: assistants are found again by their business's phone number. It prints the `DEMO_WORKSPACE_ID` and `DEMO_ASSISTANTS` lines last.
 2. Set the API's env (below) and restart the API.
 3. Deploy your gateway with the same secret and test it against a staging install first.
 
@@ -63,12 +64,13 @@ LiveKit must be configured (`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRE
 `POST /v1/demo/call`, `Authorization: Bearer <DEMO_GATEWAY_SECRET>`, `Content-Type: application/json`, a body of at most 4 KB:
 
 ```json
-{ "industry": "auto", "ipHash": "3f1c…", "country": "US" }
+{ "industry": "auto", "ipHash": "3f1c…", "country": "US", "language": "de" }
 ```
 
 - `industry`: a key of `DEMO_ASSISTANTS`.
 - `ipHash`: 16 to 128 characters of hex or base64url, the gateway's peppered hash of the visitor's address. Stored with the token in the command log for the per-visitor limits, and removed from it after 24 hours (the hourly cleanup job: at most 25 hours in all). The rest of the row (industry, country, room) is cut down to ids after 90 days like every command.
 - `country`: optional, ISO 3166-1 alpha-2 in upper case, stored with the token for statistics.
+- `language`: optional, the language the visitor picked: one of `en`, `es`, `fr`, `de`, `it`, `pt`, `nl`, `ru`, `hi`, `ja` (`DEMO_LANGUAGES`, Deepgram Flux's 10). Missing: `en`. Any other value (also `null` or another case): 400 `language`, checked first after the secret and the content type. Stored with the token for statistics. `en` is the call exactly as without the field. Any other: the call speaks only that language (see "On the call").
 
 Answers (the gateway may pass them on as they are; 503 and 429 also set `Retry-After` when there is a time):
 
@@ -76,6 +78,7 @@ Answers (the gateway may pass them on as they are; 503 and 429 also set `Retry-A
 |---|---|---|
 | 200 | `{ok: true, url, token, room, maxSeconds: 120, business, assistant}` | Join `url` with `token` within 60 s. `business` and `assistant` name who answers. |
 | 400 | `{ok: false, error: 'industry'}` | The industry is not in `DEMO_ASSISTANTS`. |
+| 400 | `{ok: false, error: 'language'}` | `language` is not one of `DEMO_LANGUAGES`. |
 | 400 | `{ok: false, error: 'input'}` | The body is not the contract. |
 | 401 | `{ok: false, error: 'unauthorized'}` | Wrong or missing secret. |
 | 429 | `{ok: false, error: 'unauthorized', retryAfterSec: 600}` | More than 20 wrong secrets from this address in 10 minutes (an `ALERT` line). The right secret is never held back, so whoever shares the gateway's address cannot lock it out. |
@@ -84,13 +87,15 @@ Answers (the gateway may pass them on as they are; 503 and 429 also set `Retry-A
 | 429 | `{ok: false, error: 'rate', retryAfterSec}` | This visitor reached the hourly or daily limit. |
 | 503 | `{ok: false, error: 'busy', retryAfterSec}` | All demo lines are busy (30 s), or the voice agent has not checked in lately (60 s). |
 | 503 | `{ok: false, error: 'budget', retryAfterSec}` | The calls of the day or the daily budget (until UTC midnight), or the demo workspace's monthly spending cap (until next month), are used up. |
-| 503 | `{ok: false, error: 'off', retryAfterSec: null}` | The install is not set up for demo calls (LiveKit, `DEMO_DAILY_USD`, `DEMO_WORKSPACE_ID`, `DEMO_ASSISTANTS`, an assistant that is gone or outside the demo workspace, nothing to answer with, a call estimated at $0), or the demo workspace is no longer safe for anonymous callers (below). |
+| 503 | `{ok: false, error: 'off', retryAfterSec: null}` | The install is not set up for demo calls (LiveKit, `DEMO_DAILY_USD`, `DEMO_WORKSPACE_ID`, `DEMO_ASSISTANTS`, an assistant that is gone or outside the demo workspace or whose voice model can't speak the picked language, nothing to answer with, a call estimated at $0), or the demo workspace is no longer safe for anonymous callers (below). |
 
 Each refusal of the install's own (budget, cap, busy, agent, setup, safety) logs one `ALERT demo calls: …` line at most every 10 minutes.
 
 Checked on every request, because anyone may change the demo workspace after the setup script: demo calls are refused while the demo workspace has a phone number (real callers, an outbound caller ID), a calendar connection (real bookings, confirmation emails to any address a visitor says) or a switched-on webhook (what visitors say sent out, lookups during the call), or while the chosen assistant records its calls or has anyone to put callers through to (a transfer contact or the old transfer number). Remove it, and demo calls work again at the next request.
 
-On the call: the assistant greets as usual and adds "This is a two-minute demo." At 120 s it says "That's the two minutes for this demo. Thanks for trying it out. Goodbye!" and hangs up (both English; demo assistants speak English). A demo room still open 150 s after the call started is deleted by the stale-call sweep (it runs every minute), and only then is the call filed as ended: while LiveKit cannot delete the room, the call stays live, and counted, until a later sweep can. A transfer reaches a simulated person, never a phone. Demo calls are test calls (`source: 'test'`, room `demo-…`): no push, no evaluation, no call-start webhook, a shared "Test call" contact.
+On the call: the assistant greets as usual and adds "This is a two-minute demo." At 120 s it says "That's the two minutes for this demo. Thanks for trying it out. Goodbye!" and hangs up. Both lines exist in every demo language (`demoLines`).
+
+The language: English calls use the install's speech recognition as it is (Deepgram `flux-general-en`) and the assistant's English setting, exactly as before the language choice. With another language the API puts `mainLanguage` into the room metadata and the agent uses the same per-call override as the call tests: the assistant's main language becomes that one, with no other language allowed. So the default greeting is said in it (with the AI note and the demo line in it too, cached per text and voice), the instructions tell the assistant to speak only that language, speech recognition is `flux-general-multi` with `languageHint` that one language only (no `en` hint: it cannot switch), and the voice is told the language (ElevenLabs Flash v2.5, the default model, speaks all ten; a demo assistant whose voice model can't speak it is refused, 503 `off` with an `ALERT` line). A demo assistant on a realtime model hears and speaks the language itself. Why no automatic detection: on `flux-general-multi` with all ten as hints, English with a foreign accent was often heard, and answered, as another language (test of 2026-11-16). A demo room still open 150 s after the call started is deleted by the stale-call sweep (it runs every minute), and only then is the call filed as ended: while LiveKit cannot delete the room, the call stays live, and counted, until a later sweep can. A transfer reaches a simulated person, never a phone. Demo calls are test calls (`source: 'test'`, room `demo-…`): no push, no evaluation, no call-start webhook, a shared "Test call" contact.
 
 ## A minimal gateway
 

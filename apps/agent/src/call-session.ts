@@ -17,9 +17,8 @@ import {
   ASSISTANT_CALL_DEFAULT_MINUTES,
   type UsageLevel,
   ASSISTANT_CALL_MAX_MINUTES,
-  DEMO_CALL_LIMIT_LINE,
   DEMO_CALL_MAX_SECONDS,
-  DEMO_OPENING_SUFFIX,
+  demoLines,
   type SpokenLines,
   greetingWithDisclosure,
   type Language,
@@ -109,8 +108,8 @@ export interface CallSession {
   /** A call test's realtime model instead of the install's (call-test --realtime-model); missing on every other call. */
   realtimeModel?: string
   /**
-   * A public demo call from a website (apps/api/src/demo-call.ts): it ends after DEMO_CALL_MAX_SECONDS with
-   * DEMO_CALL_LIMIT_LINE, and its opening says it is a demo. Missing on every other call.
+   * A public demo call from a website (apps/api/src/demo-call.ts): it ends after DEMO_CALL_MAX_SECONDS with the demo's
+   * limit line, and its opening says it is a demo (demoLines, in the call's main language). Missing on every other call.
    */
   demo?: boolean
   /**
@@ -242,7 +241,7 @@ export function callLimitOf(
   call: Pick<CallSession, 'demo' | 'businessNumber' | 'assistant'>,
   lines: Pick<SpokenLines, 'callLimit' | 'testCallLimit'>,
 ): { ms: number; line: string } {
-  if (call.demo) return { ms: DEMO_CALL_MAX_SECONDS * 1000, line: DEMO_CALL_LIMIT_LINE }
+  if (call.demo) return { ms: DEMO_CALL_MAX_SECONDS * 1000, line: demoLines(mainLanguageOf(call.assistant?.languages)).limit }
   if (call.businessNumber === null) return { ms: TEST_CALL_LIMIT_MS, line: lines.testCallLimit }
   const minutes = Math.min(
     call.assistant?.max_call_minutes ?? ASSISTANT_CALL_DEFAULT_MINUTES,
@@ -251,11 +250,15 @@ export function callLimitOf(
   return { ms: minutes * 60_000, line: lines.callLimit }
 }
 
-/** The greeting followed by the sentence that says this is a public demo call, said and cached as one opening. */
+/**
+ * The greeting followed by the sentence that says this is a public demo call, in the assistant's main language (the
+ * language the visitor picked, CallOrigin's mainLanguage), said and cached as one opening.
+ */
 export function withDemoOpening(assistant: Assistant | null): Assistant | null {
   if (!assistant) return assistant
   const greeting = assistant.greeting?.trim()
-  return { ...assistant, greeting: greeting ? `${greeting} ${DEMO_OPENING_SUFFIX}` : DEMO_OPENING_SUFFIX }
+  const { opening } = demoLines(mainLanguageOf(assistant.languages))
+  return { ...assistant, greeting: greeting ? `${greeting} ${opening}` : opening }
 }
 
 /**
