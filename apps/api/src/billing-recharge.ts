@@ -14,11 +14,12 @@ import {
   type Db,
   instance_settings,
   organization,
+  RECHARGE_LIMITS,
   rechargeCapCents,
   type Tx,
   user,
 } from '@linedesk/db'
-import { and, eq, gte, lt } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider } from './billing-settings.ts'
@@ -28,7 +29,7 @@ import { billingUnusableAlert, cappedCallAlert } from './emails/alerts.ts'
 import { billingOwnerEmail } from './emails/billing.ts'
 import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
-import { lockBalance } from './ledger.ts'
+import { extraNumbersOnBill, lockBalance } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
 /** Stripe idempotency keys last 24 hours: an attempt older than this looks for its invoice before making one. */
@@ -88,6 +89,8 @@ export async function chargeRecharge(
     rechargeId,
     description: RECHARGE_LINE,
     invoiceId,
+    // Checkout saved the card on the subscription: the adapter makes it the customer's default when there is none (B1).
+    subscriptionId: bill.stripe_subscription_id,
   })
   if (charge.status !== 'failed') {
     await settle(db, rechargeId, { stripe_invoice_id: charge.invoiceId }, now())
@@ -298,11 +301,18 @@ export async function sendBillingAlert(
     const invoiceUrl = job.needsOwner ? await invoicePage(db, job.ref, options.provider) : null
     content = { ...base, kind: 'recharge_failed', amountCents: attempt?.amount_cents ?? 0, invoiceUrl }
   } else if (job.kind === 'recharge_cap_reached') {
+    // The cap as the decision computed it (with the extra numbers), and what this month's recharges came to: the cap
+    // is "reached" when what is left under it is below the minimum recharge, not only when it is used up (billing
+    // review of 16.11., B7: "recharged up to its cap of $50" after $40).
     const workspaces = await workspacesOf(db, job.bill)
+    const extraNumbers = await db.transaction(tx => extraNumbersOnBill(tx, job.bill))
     content = {
       ...base,
       kind: 'recharge_cap_reached',
-      capCents: rechargeCapCents(bill.bill.recharge_cap_base_cents, workspaces, rules),
+      capCents:
+        rechargeCapCents(bill.bill.recharge_cap_base_cents, workspaces, rules) + rules.extraNumberCents * extraNumbers,
+      rechargedCents: await rechargedInMonth(db, job.bill, job.ref),
+      minimumCents: RECHARGE_LIMITS.amountCents.min,
     }
   } else {
     // What calls can still use (the balance less what running calls hold): the figure the alert fired on (N3).
@@ -325,6 +335,27 @@ async function invoicePage(db: Db, invoiceId: string, override?: BillingProvider
     console.error(`billing: the page of invoice ${invoiceId} could not be read:`, error)
     return null
   }
+}
+
+/**
+ * What the recharge cap counts for a UTC month (`YYYY-MM`, the alert's ref): pending, failed-but-payable and paid
+ * attempts made in it (docs/billing.md §4.3).
+ */
+async function rechargedInMonth(db: Db, billId: string, month: string) {
+  const start = new Date(`${month}-01T00:00:00.000Z`)
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
+  const rows = await db
+    .select({ amount: billing_recharges.amount_cents })
+    .from(billing_recharges)
+    .where(
+      and(
+        eq(billing_recharges.billing_account_id, billId),
+        inArray(billing_recharges.status, ['pending', 'failed', 'paid']),
+        gte(billing_recharges.created_at, start.toISOString()),
+        lt(billing_recharges.created_at, end.toISOString()),
+      ),
+    )
+  return rows.reduce((sum, r) => sum + r.amount, 0)
 }
 
 async function workspacesOf(db: Db, billId: string) {

@@ -44,6 +44,8 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
       calls.push({ method: 'stopRechargeInvoice', args: [id, options] })
     },
     rechargeInvoicePage: async id => `https://invoice.stripe.com/i/${id}`,
+    rechargeCard: async () => null,
+    checkoutPaymentMethodConfiguration: async () => null,
     // The webhook side (PR 5) is not used here.
     webhookEvent: () => {
       throw new Error('not used')
@@ -96,6 +98,7 @@ describe('the recharge job', () => {
           rechargeId: r.attempt.id,
           description: 'Linedesk balance recharge',
           invoiceId: null,
+          subscriptionId: null,
         },
       ],
     })
@@ -104,6 +107,15 @@ describe('the recharge job', () => {
     // A retry charges the invoice it already made, never a new one.
     await chargeRecharge(db, r.attempt.id, { provider })
     expect((calls[1]!.args[0] as RechargeInvoiceInput).invoiceId).toBe('in_paid')
+  })
+
+  test('the bill’s subscription goes with the charge, so the card Checkout saved on it is charged (billing review B1)', async () => {
+    const r = await pendingRecharge({ stripe_subscription_id: rid('sub') })
+    const { provider, calls } = fakeProvider(() => ({ status: 'paid', invoiceId: rid('in') }))
+    await chargeRecharge(db, r.attempt.id, { provider })
+    expect((calls[0]!.args[0] as RechargeInvoiceInput).subscriptionId).toBe(
+      (await billOf(r.billId)).stripe_subscription_id,
+    )
   })
 
   test('a decline: collection off and the invoice voided before the attempt is canceled; the bill waits; the owner emailed once', async () => {
@@ -317,5 +329,33 @@ describe('the owner’s billing emails', () => {
       'Your Linedesk balance is low',
     ])
     expect(sent[0]!.text).toContain('$50.00')
+  })
+
+  test('the cap email says what was recharged, not that the whole cap was (billing review B7)', async () => {
+    // $40 recharged in November (two $20 attempts, paid and pending), one canceled and one from October not counted:
+    // the $10 left is under the $20 minimum, so the cap counts as reached.
+    const r = await pendingRecharge({}, '2026-11-05T10:00:00.000Z')
+    await db
+      .update(billing_recharges)
+      .set({ status: 'paid', resolved_at: '2026-11-05T10:01:00.000Z' })
+      .where(eq(billing_recharges.id, r.attempt.id))
+    const add = (status: 'pending' | 'canceled' | 'paid', created_at: string) =>
+      db.insert(billing_recharges).values({
+        id: rid('rc'),
+        billing_account_id: r.billId,
+        amount_cents: 2000,
+        status,
+        created_at,
+        resolved_at: status === 'pending' ? null : created_at,
+      })
+    await add('pending', '2026-11-20T10:00:00.000Z')
+    await add('canceled', '2026-11-21T10:00:00.000Z')
+    await add('paid', '2026-10-30T10:00:00.000Z')
+    const { sent, sender } = capture()
+    await sendBillingAlert(db, sender, { kind: 'recharge_cap_reached', bill: r.billId, ref: '2026-11' })
+    expect(sent[0]!.text).toContain('Automatic recharges came to $40.00 this month')
+    expect(sent[0]!.text).toContain('your monthly recharge cap of $50.00 is less than the smallest recharge')
+    expect(sent[0]!.text).toContain('the smallest recharge is $20.00')
+    expect(sent[0]!.text).not.toContain('recharged up to')
   })
 })

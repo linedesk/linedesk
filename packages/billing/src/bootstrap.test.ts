@@ -181,6 +181,7 @@ function fakeStripe() {
       }
       const pmc = state.pmcs.get(sub)!
       setPreferences(pmc, form)
+      if (form.active !== undefined) pmc.active = form.active === 'true'
       return reply(200, pmc)
     }
 
@@ -334,6 +335,18 @@ describe('bootstrap', () => {
     pmc.link = { available: true, display_preference: { overridable: null, preference: 'on', value: 'on' } }
     expect((await run()).changes).toEqual(['payment method configuration: link'])
     expect((pmc.link as Obj).display_preference).toMatchObject({ preference: 'off' })
+  })
+
+  test('the configuration names Apple Pay, Google Pay and Link off; an archived one is made active again', async () => {
+    await run()
+    const pmc = [...stripe.state.pmcs.values()].find(c => c.name === CHECKOUT_PMC_NAME)!
+    for (const method of ['apple_pay', 'google_pay', 'link'])
+      expect((pmc[method] as Obj).display_preference).toMatchObject({ preference: 'off' })
+    // Archived in the Dashboard: Checkout would refuse it, so the next run turns it on again (same id).
+    pmc.active = false
+    expect((await run()).changes).toEqual(['payment method configuration: active'])
+    expect(pmc.active).toBe(true)
+    expect((await run()).changes).toEqual([])
   })
 
   test('live keys need both flags; a key of the other mode than asked is refused; no request either way', async () => {

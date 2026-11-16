@@ -7,7 +7,7 @@
 //   voided goes through PR 4's failed-recharge rules (rechargeFailed). The admins already hear of every attempt
 //   pending for more than 2 hours from PR 4's stuck-recharge alert (hourly, and nightly for all), so this run reports
 //   none itself: one alert, one settlement (review of #865, M1);
-// - every bill with a subscription is compared with Stripe: status, period, seats and a default payment method;
+// - every bill with a subscription is compared with Stripe: status, period, seats, and the card a recharge charges;
 // - events that failed five times are counted; stored events older than 90 days are removed, billing on or off (L4).
 //
 // Differences are reported to the instance admins, never "fixed" from Stripe's side here: a status or quantity change
@@ -97,7 +97,7 @@ async function settleOldRecharges(provider: BillingProvider, now: Date) {
   return settled
 }
 
-/** Every bill with a subscription against Stripe's: status, period, seats, a default payment method. */
+/** Every bill with a subscription against Stripe's: status, period, seats, the card a recharge charges. */
 async function billsAgainstStripe(provider: BillingProvider): Promise<ReconcileFinding[]> {
   const bills = await db.select().from(billing_accounts).where(isNotNull(billing_accounts.stripe_subscription_id))
   const findings: ReconcileFinding[] = []
@@ -128,8 +128,14 @@ async function billsAgainstStripe(provider: BillingProvider): Promise<ReconcileF
       .where(eq(organization.billingAccountId, bill.id))
     if ((workspaces?.n ?? 0) !== seats(sub))
       findings.push({ kind: 'quantity', bill: bill.id, ours: String(workspaces?.n ?? 0), stripe: String(seats(sub)) })
-    // Auto-recharge charges the subscription's default card: without one the next recharge fails.
-    if (bill.auto_recharge && (bill.status === 'active' || bill.status === 'past_due') && !sub.defaultPaymentMethod)
+    // Auto-recharge charges what the recharge itself charges: the customer's invoice default, else the subscription's
+    // card (which the recharge then makes the default). Not the subscription's card alone: Checkout leaves the
+    // customer's default empty, and this check said "fine" while every recharge failed (billing review of 16.11., B2).
+    if (
+      bill.auto_recharge &&
+      (bill.status === 'active' || bill.status === 'past_due') &&
+      !(await provider.rechargeCard(bill.stripe_customer_id ?? sub.customerId, bill.stripe_subscription_id))
+    )
       findings.push({ kind: 'payment_method', bill: bill.id, ours: 'auto_recharge', stripe: 'none' })
   }
   return findings

@@ -10,7 +10,8 @@ export type BillingOwnerEmail =
   /** `invoiceUrl`: the invoice's own page, where the owner confirms the payment (3DS); null when it was voided. */
   (
     | { kind: 'recharge_failed'; amountCents: number; invoiceUrl: string | null }
-    | { kind: 'recharge_cap_reached'; capCents: number }
+    /** `rechargedCents`: this UTC month's recharges the cap counts; `minimumCents`: the smallest recharge. */
+    | { kind: 'recharge_cap_reached'; capCents: number; rechargedCents: number; minimumCents: number }
     | { kind: 'low_balance'; balanceMicros: number }
   ) & {
     /** How far below zero calls go on (the install's rules). */
@@ -27,6 +28,8 @@ export function billingOwnerEmail(email: BillingOwnerEmail, origin = WEB_ORIGIN,
     brand: brandName(),
     amount: email.kind === 'recharge_failed' ? usd(email.amountCents) : '',
     cap: email.kind === 'recharge_cap_reached' ? usd(email.capCents) : '',
+    recharged: email.kind === 'recharge_cap_reached' ? usd(email.rechargedCents) : '',
+    minimum: email.kind === 'recharge_cap_reached' ? usd(email.minimumCents) : '',
     balance: email.kind === 'low_balance' ? usd(Math.floor(email.balanceMicros / 10_000)) : '',
     buffer: usd(Math.floor(email.bufferMicros / 10_000)),
   }
@@ -34,6 +37,10 @@ export function billingOwnerEmail(email: BillingOwnerEmail, origin = WEB_ORIGIN,
   const subject = t(`email.billing.${key}.subject`, values)
   const blocks: Block[] = [
     { kind: 'text', text: t(`email.billing.${key}.text`, values) },
+    // What the cap counted this month, so the email never claims the whole cap was recharged (billing review B7).
+    ...(email.kind === 'recharge_cap_reached'
+      ? [{ kind: 'text' as const, text: t('email.billing.capReached.recharged', values) }]
+      : []),
     { kind: 'text', text: t(`email.billing.${key}.effect`, values) },
   ]
   if (email.kind === 'recharge_failed' && email.invoiceUrl)

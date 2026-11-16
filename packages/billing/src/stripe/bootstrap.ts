@@ -9,8 +9,10 @@
 // or makes are returned (the script writes them to a file, not into the code).
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
-import { type KeyMode, WEBHOOK_EVENTS } from '../provider.ts'
-import { STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
+import { CHECKOUT_PMC_NAME, type KeyMode, WEBHOOK_EVENTS } from '../provider.ts'
+import { isCheckoutPaymentMethodConfiguration, STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
+
+export { CHECKOUT_PMC_NAME } from '../provider.ts'
 
 export type CatalogPrice = { lookupKey: string; product: string; cents: number; interval: 'month' | 'year' }
 export type Catalog = {
@@ -62,7 +64,6 @@ export type BootstrapResult = {
 
 export const PORTAL_METADATA = { linedesk: 'portal' } as const
 export const WEBHOOK_METADATA = { linedesk: 'billing' } as const
-export const CHECKOUT_PMC_NAME = 'Linedesk Checkout'
 const CANCEL_REASONS = ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other'] as const
 const CUSTOMER_UPDATES = ['email', 'address', 'name', 'tax_id'] as const
 
@@ -212,11 +213,14 @@ const idOf = (value: string | { id: string } | null | undefined) =>
 
 /**
  * "Linedesk Checkout": card only, no wallets and no Link (docs/billing.md §2.4, decision 7). Every other method the
- * configuration lists is set off, so methods Stripe adds later and turns on by default are caught on the next run.
+ * configuration lists is set off, so methods Stripe adds later and turns on by default are caught on the next run. Same
+ * in the sandbox and live (each account has its own; the app finds it by name, `checkoutPaymentMethodConfiguration`).
+ * Checkout must pass its id as `payment_method_configuration`: with only `payment_method_types: ['card']` Stripe still
+ * offers Apple Pay and a pre-ticked "save with Link" (billing review of 16.11., B6).
  */
 async function checkoutPaymentMethods(stripe: Stripe, write: Write) {
   const all = await stripe.paymentMethodConfigurations.list({ limit: 100 })
-  const found = all.data.find(c => c.name === CHECKOUT_PMC_NAME && !c.parent)
+  const found = all.data.find(isCheckoutPaymentMethodConfiguration)
   const methodsOf = (config: Stripe.PaymentMethodConfiguration) =>
     Object.entries(config).filter(
       (entry): entry is [string, { display_preference: { preference: string } }] =>
@@ -232,14 +236,20 @@ async function checkoutPaymentMethods(stripe: Stripe, write: Write) {
   }
   if (!found) {
     wanted.card = { display_preference: { preference: 'on' } }
+    // Named in decision 7: off even when the template does not list them.
+    for (const method of ['apple_pay', 'google_pay', 'link'])
+      wanted[method] ??= { display_preference: { preference: 'off' } }
     const made = await write(`create payment method configuration "${CHECKOUT_PMC_NAME}" (card only)`, () =>
       stripe.paymentMethodConfigurations.create({ name: CHECKOUT_PMC_NAME, ...wanted }),
     )
     return made?.id ?? null
   }
-  if (Object.keys(wanted).length)
-    await write(`payment method configuration: ${Object.keys(wanted).sort().join(', ')}`, () =>
-      stripe.paymentMethodConfigurations.update(found.id, wanted),
+  // Checkout refuses an inactive configuration, and the app finds only an active one.
+  const reactivate = found.active ? {} : { active: true }
+  if (Object.keys(wanted).length || !found.active)
+    await write(
+      `payment method configuration: ${[...Object.keys(wanted).sort(), ...(found.active ? [] : ['active'])].join(', ')}`,
+      () => stripe.paymentMethodConfigurations.update(found.id, { ...wanted, ...reactivate }),
     )
   return found.id
 }

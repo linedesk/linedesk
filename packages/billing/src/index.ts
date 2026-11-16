@@ -14,12 +14,19 @@ export type {
   BillingProviderName,
   BillingSubscription,
   KeyMode,
+  RechargeCard,
   RechargeCharge,
   RechargeInvoiceInput,
   StripeKeys,
   WebhookRefusal,
 } from './provider.ts'
-export { BillingSetupError, WEBHOOK_EVENTS, WEBHOOK_TOLERANCE_SECONDS, WebhookRefused } from './provider.ts'
+export {
+  BillingSetupError,
+  CHECKOUT_PMC_NAME,
+  WEBHOOK_EVENTS,
+  WEBHOOK_TOLERANCE_SECONDS,
+  WebhookRefused,
+} from './provider.ts'
 
 /** The provider for the keys in effect: `none` without keys, else the Stripe adapter, loaded on first use. */
 export async function loadBillingProvider(

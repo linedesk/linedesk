@@ -27,7 +27,20 @@ export type RechargeInvoiceInput = {
   description: string
   /** The invoice an earlier try made, when it is known: it is charged instead of a new one. */
   invoiceId?: string | null
+  /**
+   * The bill's subscription. Checkout in `subscription` mode saves the card on the subscription, not as the customer's
+   * invoice default; a recharge invoice stands alone, so without a customer default the subscription's card is made it
+   * before the charge (see `rechargeCard`).
+   */
+  subscriptionId?: string | null
 }
+
+/**
+ * The card an auto-recharge charges (docs/billing.md §2.2): the customer's invoice default (what the portal sets), else
+ * the subscription's default (what Checkout saves), which the recharge then makes the customer's default. `createdAt`
+ * (ISO; null for a legacy source) tells a card added after a failed recharge from the one that failed.
+ */
+export type RechargeCard = { id: string; createdAt: string | null; on: 'customer' | 'subscription' }
 
 /**
  * What charging a recharge invoice came to. `paid`: the card was charged (the balance is credited by the webhook, from
@@ -185,6 +198,9 @@ export const WEBHOOK_EVENTS = [
   'setup_intent.succeeded',
 ] as const
 
+/** The name of the card-only payment method configuration the bootstrap makes and Checkout uses (docs/billing.md §2.4). */
+export const CHECKOUT_PMC_NAME = 'Linedesk Checkout'
+
 /** Stripe's default: a signature older than five minutes is refused (replays). */
 export const WEBHOOK_TOLERANCE_SECONDS = 300
 
@@ -201,6 +217,17 @@ export type BillingProvider = {
    * answer it does not understand: the job tries again with the same keys.
    */
   chargeRecharge(input: RechargeInvoiceInput): Promise<RechargeCharge>
+  /**
+   * The card the next recharge charges (see `RechargeCard`); null when there is none and a recharge would fail. The
+   * nightly reconciliation checks this, and a new card after a failed recharge is told from it.
+   */
+  rechargeCard(customerId: string, subscriptionId: string | null): Promise<RechargeCard | null>
+  /**
+   * The id of the payment method configuration "Linedesk Checkout" (card only: no wallets, no Link; decision 7), made
+   * by the bootstrap script and found by its name, never written into the code. Every Checkout Session passes it as
+   * `payment_method_configuration` (and no `payment_method_types`); null when the bootstrap has not run.
+   */
+  checkoutPaymentMethodConfiguration(): Promise<string | null>
   /** The invoice a recharge made, found by its metadata (for a retry after the idempotency keys expired); null: none. */
   findRechargeInvoice(rechargeId: string): Promise<string | null>
   /**

@@ -9,6 +9,8 @@ export const noneBillingProvider: BillingProvider = {
   name: 'none',
   account: async () => null,
   chargeRecharge: off,
+  rechargeCard: async () => null,
+  checkoutPaymentMethodConfiguration: async () => null,
   findRechargeInvoice: off,
   stopRechargeInvoice: off,
   rechargeInvoicePage: off,

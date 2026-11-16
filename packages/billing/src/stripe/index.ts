@@ -9,6 +9,8 @@ import {
   type BillingProvider,
   BillingSetupError,
   type BillingSubscription,
+  CHECKOUT_PMC_NAME,
+  type RechargeCard,
   type RechargeCharge,
   type RechargeInvoiceInput,
   type StripeKeys,
@@ -32,6 +34,10 @@ const iso = (seconds: number | null | undefined) =>
   typeof seconds === 'number' ? new Date(seconds * 1000).toISOString() : null
 const idOf = (value: string | { id: string } | null | undefined) =>
   typeof value === 'string' ? value : (value?.id ?? null)
+
+/** The bootstrap's card-only payment method configuration (found by name; a connected account's copy has a parent). */
+export const isCheckoutPaymentMethodConfiguration = (config: Stripe.PaymentMethodConfiguration) =>
+  config.name === CHECKOUT_PMC_NAME && !config.parent
 
 /** A fetch of an object Stripe does not have (deleted, another account): null, not an error. */
 function missing(error: unknown) {
@@ -106,6 +112,11 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       chargeRecharge(stripe, input).catch(error => {
         throw setupError(error) ?? error
       }),
+    rechargeCard: (customerId, subscriptionId) => rechargeCard(stripe, customerId, subscriptionId),
+    async checkoutPaymentMethodConfiguration() {
+      const all = await stripe.paymentMethodConfigurations.list({ limit: 100 })
+      return all.data.find(c => isCheckoutPaymentMethodConfiguration(c) && c.active)?.id ?? null
+    },
     async findRechargeInvoice(rechargeId) {
       // The recharge id is ours (letters, digits and _), so it is safe inside the search query.
       if (!/^[a-z0-9_]+$/i.test(rechargeId)) throw new Error('not a recharge id')
@@ -280,7 +291,44 @@ function paymentFailure(intent: Stripe.PaymentIntent): string | null {
   if (intent.status === 'requires_action' || (error?.code && NEEDS_CUSTOMER.has(error.code)))
     return 'authentication_required'
   if (!error) return null
-  return error.decline_code ?? error.code ?? 'payment_failed'
+  // `||`, not `??`: Stripe sends an empty `decline_code` with some errors (a 402 `missing` card has `decline_code: ""`).
+  return error.decline_code || error.code || 'payment_failed'
+}
+
+/**
+ * The card a recharge invoice is charged to (provider.ts `RechargeCard`). Stripe charges a standalone invoice to the
+ * customer's `invoice_settings.default_payment_method` (or a legacy default source); Checkout in `subscription` mode
+ * leaves that empty and stores the card as the subscription's `default_payment_method`, so that one is the fallback.
+ * A customer or subscription Stripe no longer has counts as no card.
+ */
+async function rechargeCard(
+  stripe: Stripe,
+  customerId: string,
+  subscriptionId: string | null,
+): Promise<RechargeCard | null> {
+  let customer: Stripe.Customer | Stripe.DeletedCustomer
+  try {
+    customer = await stripe.customers.retrieve(customerId, { expand: ['invoice_settings.default_payment_method'] })
+  } catch (error) {
+    if (missing(error)) return null
+    throw error
+  }
+  if (customer.deleted) return null
+  const own = customer.invoice_settings?.default_payment_method
+  if (own) return { id: idOf(own)!, createdAt: typeof own === 'string' ? null : iso(own.created), on: 'customer' }
+  // A legacy source is charged too; it has no creation time we read.
+  if (customer.default_source) return { id: idOf(customer.default_source)!, createdAt: null, on: 'customer' }
+  if (!subscriptionId) return null
+  let sub: Stripe.Subscription
+  try {
+    sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['default_payment_method'] })
+  } catch (error) {
+    if (missing(error)) return null
+    throw error
+  }
+  const card = sub.default_payment_method
+  if (!card || idOf(sub.customer) !== customerId) return null
+  return { id: idOf(card)!, createdAt: typeof card === 'string' ? null : iso(card.created), on: 'subscription' }
 }
 
 /**
@@ -333,6 +381,11 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
   const id = invoice.id!
   if (invoice.status === 'paid') return { status: 'paid', invoiceId: id }
   if (invoice.status !== 'open') return { status: 'failed', invoiceId: id, failureCode: `invoice_${invoice.status}` }
+  // The invoice is charged to the customer's invoice default. Checkout saves the card only on the subscription, so the
+  // first recharge after it would find none (billing review of 16.11., B1): that card becomes the customer's default.
+  const card = await rechargeCard(stripe, input.customerId, input.subscriptionId ?? null)
+  if (card?.on === 'subscription')
+    await stripe.customers.update(input.customerId, { invoice_settings: { default_payment_method: card.id } })
   try {
     invoice = await stripe.invoices.pay(id, {}, key('pay'))
   } catch (error) {
@@ -346,7 +399,8 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
     if (setup) throw setup
     // 402: the card was refused; anything else is not an answer about the charge: retried.
     if (e.statusCode !== 402 || !e.code) throw error
-    return { status: 'failed', invoiceId: id, failureCode: e.decline_code ?? e.code }
+    // `||`, not `??`: a 402 `missing` (no card) comes with `decline_code: ""`, which must not become the code.
+    return { status: 'failed', invoiceId: id, failureCode: e.decline_code || e.code }
   }
   return { status: invoice.status === 'paid' ? 'paid' : 'open', invoiceId: id }
 }

@@ -58,6 +58,7 @@ const stripe = {
   invoices: new Map<string, Json>(),
   payments: new Map<string, Json[]>(),
   subscriptions: new Map<string, Json>(),
+  customers: new Map<string, Json>(),
   events: [] as Json[],
   requests: [] as string[],
   failWith: null as number | null,
@@ -79,6 +80,7 @@ const fakeStripe: typeof fetch = async input => {
     return reply(200, list(stripe.payments.get(url.searchParams.get('invoice') ?? '') ?? [], url.pathname))
   if (kind === 'subscriptions' && id)
     return stripe.subscriptions.has(id) ? reply(200, stripe.subscriptions.get(id)) : notFound()
+  if (kind === 'customers' && id) return stripe.customers.has(id) ? reply(200, stripe.customers.get(id)) : notFound()
   if (kind === 'events') return reply(200, list(stripe.events, url.pathname))
   return notFound()
 }
@@ -711,6 +713,156 @@ describe('invoice.paid for a plan', () => {
   })
 })
 
+/** A subscription as Stripe returns it: one item per lookup key, a month from now. */
+function planSubscription(id: string, customer: string, over: { status?: string; lookupKeys?: string[] } = {}): Json {
+  return {
+    id,
+    object: 'subscription',
+    customer,
+    status: over.status ?? 'active',
+    cancel_at_period_end: false,
+    trial_end: null,
+    default_payment_method: rid('pm'),
+    items: list(
+      (over.lookupKeys ?? ['ws_monthly']).map(lookupKey => ({
+        id: rid('si'),
+        object: 'subscription_item',
+        quantity: 1,
+        current_period_start: nowSec(),
+        current_period_end: nowSec() + 30 * 86_400,
+        price: { id: rid('price'), object: 'price', lookup_key: lookupKey, recurring: { interval: 'month' } },
+      })),
+      '/v1/subscription_items',
+    ),
+  }
+}
+
+describe('invoice.paid of Checkout’s first invoice, before the bill has its subscription (billing review B4)', () => {
+  /** A bill as Checkout leaves it: the customer stored, the subscription not yet; its first plan invoice paid. */
+  async function paidBeforeLinked(sub: { status?: string; lookupKeys?: string[]; customer?: string } = {}) {
+    const { bill, ws } = await billWith({ status: 'trialing' })
+    await db.update(organization).set({ billingState: 'pending_payment' }).where(eq(organization.id, ws.id))
+    const subscriptionId = rid('sub')
+    stripe.subscriptions.set(
+      subscriptionId,
+      planSubscription(subscriptionId, sub.customer ?? bill.stripe_customer_id!, sub),
+    )
+    const invoiceId = rid('in')
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        total: 1100,
+        amount_paid: 1100,
+        billing_reason: 'subscription_create',
+        parent: { type: 'subscription_details', subscription_details: { subscription: subscriptionId } },
+      }),
+    )
+    paidBy(invoiceId, 1100)
+    return { bill, ws, subscriptionId, evt: event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!)) }
+  }
+  const billRow = async (id: string) =>
+    (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!
+
+  test('the subscription is linked from the fetched objects and the bill becomes active, once', async () => {
+    const { bill, ws, subscriptionId, evt } = await paidBeforeLinked()
+    expect(await deliverAndProcess(evt)).toMatchObject({ outcome: 'applied', plan: 'active', linked: subscriptionId })
+    expect(await billRow(bill.id)).toMatchObject({ status: 'active', stripe_subscription_id: subscriptionId })
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe('active')
+    expect(
+      await db.select().from(billing_invoices).where(eq(billing_invoices.billing_account_id, bill.id)),
+    ).toMatchObject([{ kind: 'subscription', total_cents: 1100 }])
+    // Processed with its effect; an admin's reprocess applies it as the bill's own subscription, linking nothing again.
+    expect(await storedEvent(evt.id as string)).toMatchObject({ last_error: null })
+    expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
+    expect((await act(operator, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(200)
+    const again = await processStripeEventJob(evt.id as string)
+    expect(again).toMatchObject({ outcome: 'applied', plan: 'active' })
+    expect(again).not.toHaveProperty('linked')
+    expect(await billRow(bill.id)).toMatchObject({ status: 'active', stripe_subscription_id: subscriptionId })
+  })
+
+  test('a subscription that is not a Linedesk plan, or of another customer, is never linked', async () => {
+    const foreign = await paidBeforeLinked({ lookupKeys: ['ws_monthly', 'someone_elses_price'] })
+    expect(await deliverAndProcess(foreign.evt)).not.toHaveProperty('linked')
+    expect(await billRow(foreign.bill.id)).toMatchObject({ status: 'trialing', stripe_subscription_id: null })
+    const stranger = await paidBeforeLinked({ customer: rid('cus') })
+    expect(await deliverAndProcess(stranger.evt)).not.toHaveProperty('linked')
+    expect(await billRow(stranger.bill.id)).toMatchObject({ status: 'trialing', stripe_subscription_id: null })
+    const ended = await paidBeforeLinked({ status: 'canceled' })
+    expect(await deliverAndProcess(ended.evt)).not.toHaveProperty('linked')
+    expect(await billRow(ended.bill.id)).toMatchObject({ stripe_subscription_id: null })
+  })
+
+  test('a bill that has a subscription keeps it: another subscription’s invoice changes nothing', async () => {
+    const { bill, evt } = await paidBeforeLinked()
+    const own = rid('sub')
+    await db.update(billing_accounts).set({ stripe_subscription_id: own }).where(eq(billing_accounts.id, bill.id))
+    expect(await deliverAndProcess(evt)).not.toHaveProperty('linked')
+    expect(await billRow(bill.id)).toMatchObject({ status: 'trialing', stripe_subscription_id: own })
+  })
+})
+
+describe('a new card after a failed recharge (docs/billing.md §3.4)', () => {
+  const failedAt = new Date(Date.now() - 3_600_000).toISOString()
+  /** A bill waiting after a failed recharge; its Stripe customer's invoice default made at `cardMade` (Unix s). */
+  async function waitingWithCard(cardMade: number | null) {
+    const { bill } = await billWith({ recharge_failed_at: failedAt })
+    stripe.customers.set(bill.stripe_customer_id!, {
+      id: bill.stripe_customer_id,
+      object: 'customer',
+      default_source: null,
+      invoice_settings: {
+        default_payment_method:
+          cardMade === null ? null : { id: rid('pm'), object: 'payment_method', type: 'card', created: cardMade },
+      },
+    })
+    return bill
+  }
+  const waiting = async (id: string) =>
+    (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!.recharge_failed_at
+
+  test('a card made the default since the failure ends the wait (customer.updated, payment_method.attached)', async () => {
+    const bill = await waitingWithCard(nowSec())
+    const evt = event('customer.updated', { id: bill.stripe_customer_id, object: 'customer' })
+    expect(await deliverAndProcess(evt)).toEqual({ outcome: 'card_changed', bill: bill.id, cleared: true })
+    expect(await waiting(bill.id)).toBeNull()
+    expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
+    const other = await waitingWithCard(nowSec())
+    const attached = event('payment_method.attached', {
+      id: rid('pm'),
+      object: 'payment_method',
+      customer: other.stripe_customer_id,
+    })
+    expect(await deliverAndProcess(attached)).toMatchObject({ outcome: 'card_changed', cleared: true })
+    expect(await waiting(other.id)).toBeNull()
+  })
+
+  test('the card that failed, or no card, keeps the wait; a bill that is not waiting asks Stripe nothing', async () => {
+    const old = await waitingWithCard(nowSec() - 2 * 86_400)
+    expect(
+      await deliverAndProcess(event('customer.updated', { id: old.stripe_customer_id, object: 'customer' })),
+    ).toEqual({ outcome: 'card_changed', bill: old.id, cleared: false })
+    expect(await waiting(old.id)).not.toBeNull()
+    const none = await waitingWithCard(null)
+    expect(
+      await deliverAndProcess(event('customer.updated', { id: none.stripe_customer_id, object: 'customer' })),
+    ).toMatchObject({ cleared: false })
+    expect(await waiting(none.id)).not.toBeNull()
+    const { bill: fine } = await billWith()
+    stripe.requests.length = 0
+    expect(
+      await deliverAndProcess(event('customer.updated', { id: fine.stripe_customer_id, object: 'customer' })),
+    ).toEqual({ outcome: 'applied', bill: fine.id })
+    expect(stripe.requests.filter(r => r.startsWith('/v1/customers'))).toEqual([])
+  })
+
+  test('a customer no bill has is retried for an hour, like every event, then processed', async () => {
+    expect(await deliverAndProcess(event('customer.updated', { id: rid('cus'), object: 'customer' }))).toEqual({
+      outcome: 'unknown_retry',
+    })
+  })
+})
+
 describe('invoice.payment_failed and invoice.voided for a recharge (PR 4’s failed-recharge rules; review of #865, M1)', () => {
   const attempt = async (id: string) =>
     (await db.select().from(billing_recharges).where(eq(billing_recharges.id, id)))[0]!
@@ -1067,6 +1219,32 @@ describe('the nightly reconciliation', () => {
       (await db.select().from(billing_accounts).where(eq(billing_accounts.id, b.id)))[0]!.recharge_failed_at,
     ).not.toBeNull()
     expect(result.findings.some(f => 'bill' in f && [a.id, b.id, c.id].includes(f.bill))).toBe(false)
+  })
+
+  test('the card check follows what a recharge charges: the customer’s default, else the subscription’s (billing review B2)', async () => {
+    const findingsOf = async (billId: string) =>
+      (await reconcileBilling()).findings.filter(f => 'bill' in f && f.bill === billId).map(f => f.kind)
+    const subscribed = async (subscriptionCard: string | null, customerCard: string | null) => {
+      const subscriptionId = rid('sub')
+      const { bill } = await billWith({ stripe_subscription_id: subscriptionId })
+      stripe.subscriptions.set(subscriptionId, {
+        ...planSubscription(subscriptionId, bill.stripe_customer_id!),
+        default_payment_method: subscriptionCard,
+      })
+      stripe.customers.set(bill.stripe_customer_id!, {
+        id: bill.stripe_customer_id,
+        object: 'customer',
+        default_source: null,
+        invoice_settings: { default_payment_method: customerCard },
+      })
+      return bill
+    }
+    // The portal's card on the customer, none on the subscription: recharges work, nothing to report.
+    expect(await findingsOf((await subscribed(null, rid('pm'))).id)).not.toContain('payment_method')
+    // Checkout's card on the subscription only: the recharge makes it the default, nothing to report.
+    expect(await findingsOf((await subscribed(rid('pm'), null)).id)).not.toContain('payment_method')
+    // Neither: every recharge would fail.
+    expect(await findingsOf((await subscribed(null, null)).id)).toContain('payment_method')
   })
 
   test('more events than the run reads: reported, never dropped silently (review of #865, L5)', async () => {

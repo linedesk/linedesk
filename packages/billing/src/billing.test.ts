@@ -160,6 +160,24 @@ const recharge = {
 }
 const stripeWith = (doFetch: typeof fetch) =>
   loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
+/** A card as Stripe expands it (`created` in Unix seconds). */
+const card = (id: string, created = 1_800_000_000) => ({ id, object: 'payment_method', type: 'card', created })
+/** A customer as GET /v1/customers/:id answers it, with its invoice default (expanded) or none. */
+const customer = (defaultCard: unknown = null, extra: Record<string, unknown> = {}) => ({
+  id: 'cus_1',
+  object: 'customer',
+  invoice_settings: { default_payment_method: defaultCard },
+  default_source: null,
+  ...extra,
+})
+/** A subscription of cus_1 whose card Checkout saved (expanded). */
+const subscription = (defaultCard: unknown, customerId = 'cus_1') => ({
+  id: 'sub_1',
+  object: 'subscription',
+  customer: customerId,
+  default_payment_method: defaultCard,
+  items: { object: 'list', data: [], has_more: false },
+})
 
 describe('stripe recharges', () => {
   test('one invoice with one item, automatic tax, finalized and paid, each request with its own idempotency key', async () => {
@@ -167,6 +185,7 @@ describe('stripe recharges', () => {
       'POST /v1/invoices': () => [200, invoice('draft', 0)],
       'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
       'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
       'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
     })
     expect(await (await stripeWith(doFetch)).chargeRecharge(recharge)).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
@@ -174,6 +193,8 @@ describe('stripe recharges', () => {
       ['POST /v1/invoices', 'rc_abc:invoice'],
       ['POST /v1/invoiceitems', 'rc_abc:item'],
       ['POST /v1/invoices/in_1Rc/finalize', 'rc_abc:finalize'],
+      // The customer already has an invoice default: charged to it, nothing changed on the customer.
+      ['GET /v1/customers/cus_1', null],
       ['POST /v1/invoices/in_1Rc/pay', 'rc_abc:pay'],
     ])
     expect(Object.fromEntries(calls[0]!.body)).toMatchObject({
@@ -196,6 +217,7 @@ describe('stripe recharges', () => {
   test('a known invoice is charged again, never made a second time; one of another recharge is refused', async () => {
     const { doFetch, calls } = stripeRoutes({
       'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
       'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('open')],
     })
     const stripe = await stripeWith(doFetch)
@@ -203,7 +225,11 @@ describe('stripe recharges', () => {
       status: 'open',
       invoiceId: 'in_1Rc',
     })
-    expect(calls.map(c => c.route)).toEqual(['GET /v1/invoices/in_1Rc', 'POST /v1/invoices/in_1Rc/pay'])
+    expect(calls.map(c => c.route)).toEqual([
+      'GET /v1/invoices/in_1Rc',
+      'GET /v1/customers/cus_1',
+      'POST /v1/invoices/in_1Rc/pay',
+    ])
     await expect(stripe.chargeRecharge({ ...recharge, rechargeId: 'rc_other', invoiceId: 'in_1Rc' })).rejects.toThrow(
       'is not the one of recharge rc_other',
     )
@@ -381,6 +407,128 @@ describe('stripe recharges', () => {
       'GET /v1/invoices/in_1Rc',
       'POST /v1/invoices/in_1Rc',
     ])
+  })
+
+  test('first recharge after Checkout: the subscription’s card becomes the customer’s invoice default, then the invoice is paid (billing review B1)', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(null)],
+      'GET /v1/subscriptions/sub_1': () => [200, subscription(card('pm_checkout'))],
+      'POST /v1/customers/cus_1': () => [200, customer('pm_checkout')],
+      'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
+    })
+    expect(
+      await (await stripeWith(doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc', subscriptionId: 'sub_1' }),
+    ).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
+    expect(calls.map(c => c.route)).toEqual([
+      'GET /v1/invoices/in_1Rc',
+      'GET /v1/customers/cus_1',
+      'GET /v1/subscriptions/sub_1',
+      'POST /v1/customers/cus_1',
+      'POST /v1/invoices/in_1Rc/pay',
+    ])
+    expect(Object.fromEntries(calls[3]!.body)).toEqual({ 'invoice_settings[default_payment_method]': 'pm_checkout' })
+    // The pay request names no card: Stripe charges the customer's default, so the portal's later changes count.
+    expect(Object.fromEntries(calls[4]!.body)).toEqual({})
+  })
+
+  test('no card anywhere: the 402 `missing` is a failed recharge with the code `missing`, never an empty one (B3)', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(null)],
+      'GET /v1/subscriptions/sub_1': () => [200, subscription(null)],
+      'POST /v1/invoices/in_1Rc/pay': () => [
+        402,
+        {
+          error: {
+            type: 'card_error',
+            code: 'missing',
+            decline_code: '',
+            message: 'There is no default_payment_method set on this Customer or Invoice.',
+          },
+        },
+      ],
+    })
+    expect(
+      await (await stripeWith(doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc', subscriptionId: 'sub_1' }),
+    ).toEqual({ status: 'failed', invoiceId: 'in_1Rc', failureCode: 'missing' })
+    expect(calls.map(c => c.route)).not.toContain('POST /v1/customers/cus_1')
+  })
+
+  test('the recharge card: the customer’s default first, a legacy source, else the subscription’s; none when gone', async () => {
+    const answer = async (routes: Record<string, (body: URLSearchParams) => [number, unknown]>, sub: string | null) =>
+      (await stripeWith(stripeRoutes(routes).doFetch)).rechargeCard('cus_1', sub)
+    expect(
+      await answer(
+        {
+          'GET /v1/customers/cus_1': () => [200, customer(card('pm_portal', 1_800_000_100))],
+          'GET /v1/subscriptions/sub_1': () => [200, subscription(card('pm_checkout'))],
+        },
+        'sub_1',
+      ),
+    ).toEqual({ id: 'pm_portal', createdAt: new Date(1_800_000_100_000).toISOString(), on: 'customer' })
+    expect(
+      await answer({ 'GET /v1/customers/cus_1': () => [200, customer(null, { default_source: 'card_legacy' })] }, null),
+    ).toEqual({ id: 'card_legacy', createdAt: null, on: 'customer' })
+    expect(
+      await answer(
+        {
+          'GET /v1/customers/cus_1': () => [200, customer(null)],
+          'GET /v1/subscriptions/sub_1': () => [200, subscription(card('pm_checkout'))],
+        },
+        'sub_1',
+      ),
+    ).toEqual({ id: 'pm_checkout', createdAt: new Date(1_800_000_000_000).toISOString(), on: 'subscription' })
+    // No subscription, a subscription of another customer, one without a card, or a deleted customer: none.
+    expect(await answer({ 'GET /v1/customers/cus_1': () => [200, customer(null)] }, null)).toBeNull()
+    expect(
+      await answer(
+        {
+          'GET /v1/customers/cus_1': () => [200, customer(null)],
+          'GET /v1/subscriptions/sub_1': () => [200, subscription(card('pm_x'), 'cus_other')],
+        },
+        'sub_1',
+      ),
+    ).toBeNull()
+    expect(await answer({ 'GET /v1/customers/cus_1': () => [200, customer(null)] }, 'sub_1')).toBeNull()
+    expect(
+      await answer(
+        { 'GET /v1/customers/cus_1': () => [200, { id: 'cus_1', object: 'customer', deleted: true }] },
+        null,
+      ),
+    ).toBeNull()
+  })
+
+  test('Checkout’s payment method configuration is found by name, active and not a connected account’s copy (B6)', async () => {
+    const pmc = (id: string, over: Record<string, unknown> = {}) => ({
+      id,
+      object: 'payment_method_configuration',
+      name: 'Linedesk Checkout',
+      active: true,
+      parent: null,
+      is_default: false,
+      ...over,
+    })
+    const listing = (...data: unknown[]) =>
+      stripeRoutes({
+        'GET /v1/payment_method_configurations': () => [200, { object: 'list', data, has_more: false }],
+      }).doFetch
+    expect(
+      await (
+        await stripeWith(
+          listing(
+            pmc('pmc_default', { name: 'Default', is_default: true }),
+            pmc('pmc_child', { parent: 'pmc_x' }),
+            pmc('pmc_own'),
+          ),
+        )
+      ).checkoutPaymentMethodConfiguration(),
+    ).toBe('pmc_own')
+    expect(
+      await (await stripeWith(listing(pmc('pmc_off', { active: false })))).checkoutPaymentMethodConfiguration(),
+    ).toBeNull()
+    expect(await noneBillingProvider.checkoutPaymentMethodConfiguration()).toBeNull()
+    expect(await noneBillingProvider.rechargeCard('cus_1', null)).toBeNull()
   })
 
   test('none refuses every charge without a network call', async () => {
@@ -686,5 +834,18 @@ describe('fetching', () => {
     })
     const provider3ds = await loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, threeDs.doFetch)
     expect((await provider3ds.invoice('in_1'))?.paymentFailureCode).toBe('authentication_required')
+    // Stripe sends an empty decline code with some errors: the code is used then, never "" (billing review B3).
+    const emptyDecline = routes({
+      '/v1/invoices/in_1': invoice('in_1'),
+      '/v1/invoice_payments': failed({
+        status: 'requires_payment_method',
+        last_payment_error: { code: 'missing', decline_code: '' },
+      }),
+    })
+    const providerEmpty = await loadBillingProvider(
+      { secretKey: TEST_KEY, webhookSecret: 'whsec_abc' },
+      emptyDecline.doFetch,
+    )
+    expect((await providerEmpty.invoice('in_1'))?.paymentFailureCode).toBe('missing')
   })
 })

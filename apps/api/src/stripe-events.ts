@@ -25,6 +25,7 @@ import {
   billing_periods,
   billing_recharges,
   organization,
+  PLAN_PRICES,
   stripe_events,
   type Tx,
 } from '@linedesk/db'
@@ -69,8 +70,10 @@ export const UNHANDLED_PLAN = 'unhandled: plan invoice'
 /** `invoice.paid` is applied in a transaction (billing.processStripeEvent); the failures by the job (they ask Stripe). */
 const INVOICE_PAID = 'invoice.paid'
 const INVOICE_FAILURES = ['invoice.payment_failed', 'invoice.voided'] as const
+/** A new card (docs/billing.md §3.4): ends the wait after a failed recharge. By the job too (it asks Stripe). */
+const CARD_CHANGES = ['payment_method.attached', 'customer.updated'] as const
 /** The event types this release acts on. */
-export const HANDLED_EVENTS: readonly string[] = [INVOICE_PAID, ...INVOICE_FAILURES]
+export const HANDLED_EVENTS: readonly string[] = [INVOICE_PAID, ...INVOICE_FAILURES, ...CARD_CHANGES]
 
 /** The API's billing jobs: `billing:system` only, which no role, API key, setup link or session has. */
 export const billingSystemActor: Actor = {
@@ -195,7 +198,16 @@ async function fetchInvoice(invoiceId: string, customerId: string | null): Promi
   // Billing turned off between the job's check and here: fail, the sweeper queues it again once it is on.
   if (provider.name === 'none') throw new Error('billing is off')
   const invoice = await provider.invoice(invoiceId)
-  const subscriptionFetched = !!invoice?.subscriptionId && invoice.subscriptionId === bill.stripe_subscription_id
+  // A subscription invoice of the bill's own customer while the bill has no subscription yet: Checkout's first
+  // `invoice.paid` comes within a second of the payment, before the owner is back in the app to store it (billing
+  // review of 16.11., B4). Its subscription is fetched too, so the handler can link it (linkSubscription).
+  const unlinked =
+    !!invoice?.subscriptionId &&
+    !bill.stripe_subscription_id &&
+    !!bill.stripe_customer_id &&
+    invoice.customerId === bill.stripe_customer_id
+  const subscriptionFetched =
+    !!invoice?.subscriptionId && (invoice.subscriptionId === bill.stripe_subscription_id || unlinked)
   const subscription = subscriptionFetched ? await provider.subscription(invoice!.subscriptionId!) : null
   return { kind: 'invoice', invoice, subscription, subscriptionFetched }
 }
@@ -226,7 +238,11 @@ export type EventOutcome =
       credited?: { recharge: string; micros: number; posted: boolean }
       notCredited?: { recharge: string; reason: NotCreditedReason }
       plan?: 'active' | 'unchanged'
+      /** The bill had no subscription yet, and this paid invoice's became it (linkSubscription). */
+      linked?: string
     }
+  /** A new card after a failed recharge: the wait ended (`cleared`), or the card is the one that failed. */
+  | { outcome: 'card_changed'; bill: string; cleared: boolean }
 
 /** Why a paid recharge invoice must not credit the balance, or its line when it is a real payment of the attempt's amount. */
 export function notCreditedReason(
@@ -303,6 +319,44 @@ async function creditRecharge(tx: Tx, bill: Bill, recharge: Recharge, line: Bill
       .set({ recharge_failed_at: null, updated_at: now })
       .where(eq(billing_accounts.id, bill.id))
   return { recharge: recharge.id, micros: line.amountCents * 10_000, posted }
+}
+
+/** The lookup keys of our plan prices: a subscription of only these is a Linedesk plan. */
+const PLAN_LOOKUP_KEYS: ReadonlySet<string> = new Set(PLAN_PRICES.map(p => p.lookupKey))
+
+/** Stripe statuses of a subscription that is running (paid, in its trial, or being retried). */
+const LIVE_SUBSCRIPTION: readonly string[] = ['active', 'trialing', 'past_due']
+/** Bill statuses that take a subscription they do not have yet (never a canceled or comped one). */
+const LINKABLE: readonly Bill['status'][] = ['pending_payment', 'trialing', 'active', 'past_due', 'suspended']
+
+/**
+ * A paid subscription invoice of the bill's customer, before the bill stored its subscription (B4): Stripe sends
+ * `invoice.paid` for Checkout's first invoice before the owner is back in the app. Marking that event processed with no
+ * effect left the bill inactive for good. The subscription is linked here instead, from the objects fetched just now,
+ * only when it is the bill's own customer's (the customer id we stored, on both the invoice and the subscription) and
+ * a Linedesk plan (every item one of our plan prices), and only onto a bill that has none: a bill never changes its
+ * subscription here. Idempotent: a second delivery finds it linked and is applied as the bill's own.
+ */
+async function linkSubscription(
+  tx: Tx,
+  bill: Bill,
+  invoice: BillingInvoice,
+  subscription: BillingSubscription | null,
+  now: string,
+) {
+  if (bill.stripe_subscription_id || !LINKABLE.includes(bill.status)) return null
+  if (!invoice.subscriptionId || subscription?.id !== invoice.subscriptionId) return null
+  if (!bill.stripe_customer_id || invoice.customerId !== bill.stripe_customer_id) return null
+  if (subscription.customerId !== bill.stripe_customer_id || !LIVE_SUBSCRIPTION.includes(subscription.status))
+    return null
+  if (!subscription.items.length || !subscription.items.every(i => i.lookupKey && PLAN_LOOKUP_KEYS.has(i.lookupKey)))
+    return null
+  const [linked] = await tx
+    .update(billing_accounts)
+    .set({ stripe_subscription_id: subscription.id, updated_at: now })
+    .where(and(eq(billing_accounts.id, bill.id), isNull(billing_accounts.stripe_subscription_id)))
+    .returning()
+  return linked ?? null
 }
 
 /** Bill statuses a paid plan invoice makes active again (a trial converted, a late payment); never canceled or comped. */
@@ -398,13 +452,16 @@ async function invoicePaid(
   if (invoice.status !== 'paid') return { outcome: 'applied', bill: found.bill.id, plan: 'unchanged' }
   // Lock order (ledger.ts): the bill's balance row first, then its recharge and bill rows, read again under it.
   await lockBalance(tx, found.bill.id)
-  const { recharge: stored, bill } = await billOfInvoice(tx, objectId, customerId)
-  if (!bill) return { outcome: 'unknown' }
+  const { recharge: stored, bill: current } = await billOfInvoice(tx, objectId, customerId)
+  if (!current) return { outcome: 'unknown' }
+  const linked = await linkSubscription(tx, current, invoice, subscription, now)
+  const bill = linked ?? current
   // The bill's subscription is stored since prepare looked (Checkout, PR 8): retried with a fresh fetch (L2).
   if (!fetched.subscriptionFetched && invoice.subscriptionId && invoice.subscriptionId === bill.stripe_subscription_id)
     throw new Error('the bill got this subscription after the invoice was fetched; tried again')
   const recharge = stored ?? (await claimRecharge(tx, invoice, bill))
   const result: Extract<EventOutcome, { outcome: 'applied' }> = { outcome: 'applied', bill: bill.id }
+  if (linked) result.linked = linked.stripe_subscription_id!
   if (recharge) {
     const checked = notCreditedReason(invoice, recharge, bill)
     if ('reason' in checked) {
@@ -436,8 +493,8 @@ export const stripeEventHandlers: Record<string, Handler> = {
     if (!event) throw new Reject('no stored Stripe event with this id')
     if (event.processed_at) return { rows: {}, data: { outcome: 'already_processed' } }
     if (event.type !== INVOICE_PAID) {
-      // The failures are the job's (they ask Stripe); every other type waits, unprocessed, for the release that
-      // handles it (M1).
+      // The failures and card changes are the job's (they ask Stripe); every other type waits, unprocessed, for the
+      // release that handles it (M1).
       if (HANDLED_EVENTS.includes(event.type)) throw new Reject('this event type is processed by its job')
       await markUnhandled(tx, event.id, UNHANDLED_TYPE)
       return { rows: {}, data: { outcome: 'unhandled', marker: UNHANDLED_TYPE } satisfies EventOutcome }
@@ -556,10 +613,9 @@ export async function failRechargeInvoice(
   return code
 }
 
-/** `invoice.payment_failed` and `invoice.voided`: outside a transaction, since the failed-recharge rules ask Stripe. */
-async function invoiceFailedJob(event: StoredEvent): Promise<EventOutcome> {
-  const now = new Date().toISOString()
-  const done = (outcome: EventOutcome) =>
+/** Records what a job did with its event: processed, left with its marker, or retried while its bill may yet come. */
+function finishEvent(event: StoredEvent, now: string) {
+  return (outcome: EventOutcome) =>
     db
       .update(stripe_events)
       .set(
@@ -571,6 +627,45 @@ async function invoiceFailedJob(event: StoredEvent): Promise<EventOutcome> {
       )
       .where(and(eq(stripe_events.id, event.id), isNull(stripe_events.processed_at)))
       .then(() => outcome)
+}
+
+/**
+ * `payment_method.attached` and `customer.updated` (docs/billing.md §3.4): after a failed recharge no new one starts
+ * until the card changes or the owner retries. The wait ends when the card the next recharge would charge
+ * (`rechargeCard`, fetched now, never the event's copy) was made after the failure: a card the owner added since, made
+ * the customer's default (the portal does both). The same card, or one added but not made the default, keeps the wait,
+ * so a declining card is not charged again on every change of the customer's address.
+ */
+async function cardChangedJob(event: StoredEvent): Promise<EventOutcome> {
+  const now = new Date().toISOString()
+  const done = finishEvent(event, now)
+  const { customerId } = eventSubject(event.payload)
+  const bill = await billBy(db, 'customer', customerId)
+  if (!bill) return done({ outcome: retryUnknown(event.received_at, now) ? 'unknown_retry' : 'unknown' })
+  const failedAt = bill.recharge_failed_at
+  if (!failedAt) return done({ outcome: 'applied', bill: bill.id })
+  const provider = await billingProvider(db)
+  if (provider.name === 'none') throw new Error('billing is off')
+  const card = await provider.rechargeCard(bill.stripe_customer_id!, bill.stripe_subscription_id)
+  if (!card?.createdAt || Date.parse(card.createdAt) <= Date.parse(failedAt))
+    return done({ outcome: 'card_changed', bill: bill.id, cleared: false })
+  // Under the bill's lock order, and only the failure that was read: a newer one (a decline since) stays.
+  const cleared = await db.transaction(async tx => {
+    await lockBalance(tx, bill.id)
+    const rows = await tx
+      .update(billing_accounts)
+      .set({ recharge_failed_at: null, updated_at: now })
+      .where(and(eq(billing_accounts.id, bill.id), eq(billing_accounts.recharge_failed_at, failedAt)))
+      .returning({ id: billing_accounts.id })
+    return rows.length > 0
+  })
+  return done({ outcome: 'card_changed', bill: bill.id, cleared })
+}
+
+/** `invoice.payment_failed` and `invoice.voided`: outside a transaction, since the failed-recharge rules ask Stripe. */
+async function invoiceFailedJob(event: StoredEvent): Promise<EventOutcome> {
+  const now = new Date().toISOString()
+  const done = finishEvent(event, now)
   const { objectId, customerId } = eventSubject(event.payload)
   if (!objectId) return done({ outcome: 'unknown' })
   const { recharge: stored, bill } = await billOfInvoice(db, objectId, customerId)
@@ -614,6 +709,7 @@ export async function processStripeEventJob(eventId: string) {
   if (!event) return { skipped: 'processed' as const }
   try {
     if ((INVOICE_FAILURES as readonly string[]).includes(event.type)) return await invoiceFailedJob(event)
+    if ((CARD_CHANGES as readonly string[]).includes(event.type)) return await cardChangedJob(event)
     const result = await runAsBillingSystem('billing.processStripeEvent', { eventId })
     if (!result.body.ok) throw new Error(result.body.error)
     return result.body.data as EventOutcome
