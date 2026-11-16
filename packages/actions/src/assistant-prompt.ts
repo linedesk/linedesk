@@ -195,6 +195,19 @@ export function greetingWithDisclosure(
   return `${kept.join(' ')} ${spokenLines(language).consentQuestion}`
 }
 
+/**
+ * The greeting with a sentence (the recording notice) said right after it: before its closing question when it ends
+ * with one ("How can I help?"), so the caller hears the notice without a pause and answers the question last.
+ */
+export function withSentenceBeforeQuestion(greeting: string, sentence: string): string {
+  const sentences = greeting
+    .trim()
+    .match(SENTENCE)
+    ?.map(s => s.trim()) ?? [greeting.trim()]
+  const question = sentences.length > 1 && /[?？]$/.test(sentences.at(-1) ?? '') ? sentences.pop() : undefined
+  return [...sentences, sentence, ...(question ? [question] : [])].join(' ')
+}
+
 /** Sentences, also with the full stops and question marks of Hindi and Japanese. */
 const SENTENCE = /[^.!?。！？।]+[.!?。！？।]+|[^.!?。！？।]+$/g
 

@@ -1,7 +1,7 @@
 import { initializeLogger } from '@livekit/agents'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { DEMO_LANGUAGES, demoLines, LANGUAGES, spokenLines, voiceSpeaks } from '@linedesk/actions'
-import { announceRecording, callLimitOf, callOrigin, startCall, TEST_CALL_LIMIT_MS } from './call-session.ts'
+import { announceRecording, callLimitOf, callOrigin, startCall, TEST_CALL_LIMIT_MS, withRecordingNotice } from './call-session.ts'
 import { configFromEnv } from './config.ts'
 import { callLanguagesOf, callVoicesOf, createPipeline, deepgramChoice } from './pipeline.ts'
 import { BLOCKED_LINE, BUSY_LINE, OVER_CAP_LINE, unansweredLine } from './busy-line.ts'
@@ -136,6 +136,15 @@ test('the recording notice from call.start is said right after the greeting, als
   for (const off of [null, undefined, '  ']) expect(await opening(off)).toBe(row.greeting)
 })
 
+test('the notice comes right after the greeting, before its closing question, so the caller answers the question last', () => {
+  const maya = { id: 'as_1', greeting: 'Thanks for calling Brightwater Plumbing & Heating. This is Maya. How can I help?', business_profile: {} } as never
+  expect(withRecordingNotice(maya, 'This call may be recorded.')?.greeting).toBe(
+    'Thanks for calling Brightwater Plumbing & Heating. This is Maya. This call may be recorded. How can I help?',
+  )
+  const question = { id: 'as_1', greeting: 'How can I help?', business_profile: {} } as never
+  expect(withRecordingNotice(question, 'This call may be recorded.')?.greeting).toBe('How can I help? This call may be recorded.')
+})
+
 test('no recording store on this server: the notice is not said, though the workspace turned it on', async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
   const api = (hours: unknown = null) =>
@@ -170,10 +179,10 @@ test('an assistant without a greeting opens with the fallback greeting before th
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const opening = async (assistant: unknown) => announceRecording(await startCall(api(assistant), phone), true).assistant?.greeting
   expect(await opening({ id: 'as_1', greeting: '', business_profile: {} })).toBe(
-    'Thanks for calling. How can I help? This call may be recorded.',
+    'Thanks for calling. This call may be recorded. How can I help?',
   )
   const es = await opening({ id: 'as_1', greeting: '', business_profile: {}, languages: { main: 'es', mode: 'english', allowed: [] } })
-  expect(es).toMatch(/ Esta llamada puede ser grabada\.$/)
+  expect(es).toMatch(/ Esta llamada puede ser grabada\. \S[^.]*\?$/)
   expect(es!.startsWith('Esta llamada')).toBe(false)
 })
 

@@ -21,6 +21,7 @@ import {
   demoLines,
   type SpokenLines,
   greetingWithDisclosure,
+  withSentenceBeforeQuestion,
   type Language,
   languageCodes,
   localizedDefault,
@@ -218,15 +219,15 @@ export function inMainLanguage(assistant: Assistant | null): Assistant | null {
 }
 
 /**
- * The greeting followed by the recording notice (the English default in the main language), said and cached as one
- * opening. An assistant without a greeting opens with the fallback greeting, as it would without the notice.
+ * The greeting with the recording notice (the English default in the main language) right after it, before its
+ * closing question, said and cached as one opening. An assistant without a greeting opens with the fallback greeting, as it would without the notice.
  */
 export function withRecordingNotice(assistant: Assistant | null, notice: string | null | undefined): Assistant | null {
   const language = mainLanguageOf(assistant?.languages)
   const sentence = notice?.trim() ? localizedDefault(notice.trim(), language) : null
   if (!assistant || !sentence) return assistant
   const greeting = assistant.greeting?.trim() || spokenLines(language).fallbackGreeting
-  return { ...assistant, greeting: `${greeting} ${sentence}` }
+  return { ...assistant, greeting: withSentenceBeforeQuestion(greeting, sentence) }
 }
 
 /** A test call from the web app ends by itself after this long, so a forgotten browser tab does not run up provider minutes. */
