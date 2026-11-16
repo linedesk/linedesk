@@ -130,6 +130,7 @@
   "link.noAccess": "Vous n'avez pas accès à l'espace de travail de ce lien.",
   "lost.call": "Appel introuvable.",
   "lost.page": "Cette page n'existe pas.",
+  "lost.supportAccess": "Indisponible tant que vous êtes connecté en tant qu'un autre utilisateur.",
   "nav.adminTip": "Administration du serveur : fournisseurs, utilisateurs et réglages de tous les espaces de travail de ce serveur",
   "nav.closeMenu": "Fermer le menu",
   "nav.done": "Terminés",

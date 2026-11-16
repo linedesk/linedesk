@@ -211,6 +211,8 @@
   "signInAgain.toChangeEmail": "Vuelve a iniciar sesión para cambiar tu dirección de correo.",
   "signInAgain.toDoThis": "Vuelve a iniciar sesión para hacer esto.",
   "signInAgain.toSetPassword": "Vuelve a iniciar sesión para establecer una contraseña.",
+  "supportAccess.text": "El perfil, los métodos de inicio de sesión, las sesiones, las preferencias y las notificaciones son de esta persona. Solo ella los ve y los cambia.",
+  "supportAccess.title": "No disponible mientras usas la cuenta de otra persona",
   "title": "Configuración de la cuenta",
   "yourAccount": "Tu cuenta"
 }

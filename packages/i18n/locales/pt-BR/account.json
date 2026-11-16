@@ -211,6 +211,8 @@
   "signInAgain.toChangeEmail": "Entre de novo para alterar seu endereço de e-mail.",
   "signInAgain.toDoThis": "Entre de novo para fazer isso.",
   "signInAgain.toSetPassword": "Entre de novo para definir uma senha.",
+  "supportAccess.text": "O perfil, os métodos de login, as sessões, as preferências e as notificações pertencem a essa pessoa. Só ela os vê e altera.",
+  "supportAccess.title": "Indisponível enquanto você está conectado como outro usuário",
   "title": "Configurações da conta",
   "yourAccount": "Sua conta"
 }

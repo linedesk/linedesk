@@ -211,6 +211,8 @@
   "signInAgain.toChangeEmail": "メールアドレスを変更するには、もう一度サインインしてください。",
   "signInAgain.toDoThis": "この操作を行うには、もう一度サインインしてください。",
   "signInAgain.toSetPassword": "パスワードを設定するには、もう一度サインインしてください。",
+  "supportAccess.text": "プロフィール、サインイン方法、セッション、環境設定、通知はこのユーザー本人のものです。表示や変更ができるのは本人だけです。",
+  "supportAccess.title": "他のユーザーとしてサインインしている間は使えません",
   "title": "アカウント設定",
   "yourAccount": "アカウント"
 }

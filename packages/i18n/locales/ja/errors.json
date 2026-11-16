@@ -31,6 +31,8 @@
   "couldNot.sample.remove": "サンプル通話を削除できませんでした。",
   "couldNot.workspace.removeIcon": "ワークスペースのアイコンを削除できませんでした。",
   "couldNot.workspace.rename": "ビジネス名を変更できませんでした。",
+  "couldNot.workspace.setAllowPremium": "「Premiumを許可」を変更できませんでした。",
+  "couldNot.workspace.setAllowUltra": "「Ultraを許可」を変更できませんでした。",
   "couldNot.workspace.setIcon": "ワークスペースのアイコンを保存できませんでした。",
   "couldNot.workspace.updateSettings": "ワークスペースの設定を保存できませんでした。",
   "forwarding.checkFailed": "確認を開始できませんでした。しばらくしてからもう一度お試しください。",

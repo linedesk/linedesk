@@ -211,6 +211,8 @@
   "signInAgain.toChangeEmail": "Reconnectez-vous pour changer votre adresse e-mail.",
   "signInAgain.toDoThis": "Reconnectez-vous pour effectuer cette action.",
   "signInAgain.toSetPassword": "Reconnectez-vous pour définir un mot de passe.",
+  "supportAccess.text": "Le profil, les méthodes de connexion, les sessions, les préférences et les notifications appartiennent à cette personne. Elle seule peut les voir et les modifier.",
+  "supportAccess.title": "Indisponible tant que vous êtes connecté en tant qu'un autre utilisateur",
   "title": "Réglages du compte",
   "yourAccount": "Votre compte"
 }

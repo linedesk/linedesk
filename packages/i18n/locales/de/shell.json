@@ -130,6 +130,7 @@
   "link.noAccess": "Du hast keinen Zugriff auf den Workspace, zu dem dieser Link gehört.",
   "lost.call": "Anruf nicht gefunden.",
   "lost.page": "Diese Seite gibt es nicht.",
+  "lost.supportAccess": "Nicht verfügbar, solange du als anderer Nutzer angemeldet bist.",
   "nav.adminTip": "Server-Admin: Anbieter, Nutzer und Einstellungen für alle Workspaces auf diesem Server",
   "nav.closeMenu": "Menü schließen",
   "nav.done": "Archiviert",

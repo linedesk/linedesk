@@ -211,6 +211,8 @@
   "signInAgain.toChangeEmail": "Melde dich erneut an, um deine E-Mail-Adresse zu ändern.",
   "signInAgain.toDoThis": "Melde dich erneut an, um das zu tun.",
   "signInAgain.toSetPassword": "Melde dich erneut an, um ein Passwort festzulegen.",
+  "supportAccess.text": "Profil, Anmeldemethoden, Sitzungen, Einstellungen und Benachrichtigungen gehören dieser Person. Nur sie selbst sieht und ändert sie.",
+  "supportAccess.title": "Nicht verfügbar, solange du als anderer Nutzer angemeldet bist",
   "title": "Kontoeinstellungen",
   "yourAccount": "Dein Konto"
 }
