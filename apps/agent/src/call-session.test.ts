@@ -581,6 +581,6 @@ describe('a public demo call in the language the visitor picked (mainLanguage in
     // The default voice model (ElevenLabs Flash v2.5) speaks it; the voice is told the language (createTts: languages.main).
     expect(voices.every(voice => voiceSpeaks(voice, code))).toBe(true)
     // The instructions say to speak only that language.
-    expect(buildInstructions(call.assistant, null)).toContain(`Speak ${LANGUAGES[code]} only.`)
+    expect(buildInstructions(call.assistant, null)).toContain(`Speak ${LANGUAGES[code]} only, whatever language the caller speaks.`)
   })
 })

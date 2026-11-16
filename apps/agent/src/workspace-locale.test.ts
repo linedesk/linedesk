@@ -108,10 +108,10 @@ describe('the workspace language on a call', () => {
     expect(languageInstructions(english)).not.toMatch(/write the messages/)
     expect(collectLanguageRule(english)).toBeNull()
     const german = withWorkspaceLanguage(english, 'de')
-    expect(languageInstructions(german, 'de')).toMatch(/^Speak German only\..*in German, so the owner/)
+    expect(languageInstructions(german, 'de')).toMatch(/^Speak German only, whatever language the caller speaks\..*in German, so the owner/)
     expect(collectLanguageRule(german)).toMatch(/^Speak German\./)
     // A Hebrew workspace: calls in English, messages in Hebrew.
-    expect(languageInstructions(english, 'he')).toMatch(/Speak English only\..*in Hebrew, so the owner/)
+    expect(languageInstructions(english, 'he')).toMatch(/Speak English only, whatever language the caller speaks\..*in Hebrew, so the owner/)
   })
 
   test('the summary is in the workspace language; English as before', () => {
