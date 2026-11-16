@@ -21,6 +21,11 @@ export interface Collector<Args extends Record<string, unknown>, T> {
   display(value: T): string
   /** How the assistant reads it back to the caller. */
   readBack(value: T): string
+  /**
+   * How to read it back when the step may speak another language than English (collectLanguageRule): `readBack` has
+   * English words in it ("last name spelled"), which the model then said as they were. Missing: `readBack` exactly.
+   */
+  readBackInLanguage?(value: T): string
   /** Task-specific rules for the collecting model. */
   instructions: string
   /** The first question. */
@@ -143,10 +148,57 @@ export const nameCollector: Collector<{ first_name: string; last_name: string; l
   },
   display: n => `${n.first} ${n.last}`,
   readBack: n => `${n.first} ${n.last}, last name spelled ${readLetters(n.last)}`,
+  readBackInLanguage: n =>
+    `Read it back to the caller in the language you are speaking, in that language's words: the name "${n.first} ${n.last}", then the last name letter by letter, "${readLetters(n.last)}", and ask if it is right.`,
   instructions:
     'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the owner\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
   ask: 'Ask for their first and last name (if they already said it, ask them to spell the last name).',
 }
+
+// ---------- name, not spelled (Japanese, Chinese, Korean, Hindi) ----------
+
+/**
+ * Languages whose names are not spelled letter by letter on the phone: Japanese, Chinese and Korean names are written in
+ * characters or syllable blocks, Hindi ones in Devanagari, where callers don't spell. The step takes the name as heard
+ * and reads it back. Other non-Latin alphabets (Russian, Ukrainian, Greek, Arabic) are spelled in their own letters.
+ */
+const NAME_NOT_SPELLED = new Set(['ja', 'zh', 'ko', 'hi'])
+/** Languages that say the family name first. */
+const FAMILY_NAME_FIRST = new Set(['ja', 'zh', 'ko'])
+/** Japanese: the name is taken in katakana, so a wrong kanji (佐藤 heard as 砂糖) is never read back or saved. */
+const IN_KATAKANA = new Set(['ja'])
+
+export function unspelledNameCollector(language: string): Collector<{ first_name: string; last_name: string }, FullName> {
+  const familyFirst = FAMILY_NAME_FIRST.has(language)
+  const full = (n: FullName) => (familyFirst ? `${n.last} ${n.first}` : `${n.first} ${n.last}`)
+  const katakana = IN_KATAKANA.has(language)
+  const written = katakana ? ', written in katakana (never guess the kanji)' : ''
+  const inRecord = katakana ? ' In the record tool write it in katakana, never guessing the kanji; the caller just says their name, so never ask them for katakana.' : ''
+  return {
+    kind: 'name',
+    label: 'name',
+    parameters: z.object({
+      first_name: z.string().describe(`Given name as the caller said it${written}.`),
+      last_name: z.string().describe(`Family name as the caller said it${written}.`),
+    }),
+    parse(args) {
+      const first = clean(args.first_name)
+      const last = clean(args.last_name)
+      if (!first) return problem('The given name is missing. Ask for it.')
+      if (!last) return problem('The family name is missing. Ask for it.')
+      if (!hasLetters(first) || !hasLetters(last)) return problem('That does not sound like a name. Ask again.')
+      return ok({ first: capitalizeName(first), last: capitalizeName(last) })
+    },
+    display: full,
+    readBack: full,
+    instructions: `You collect the caller's family name and given name. Names in this language are not spelled letter by letter: never ask the caller to spell their name. Pass the name as you heard it; the tool reads it back.${inRecord} If you are not sure you heard it right, ask the caller to say it again slowly. Only a name the caller said about themselves counts: the assistant's own name from the greeting, the owner's or a staff member's name is never the caller's; if you only have their family name, ask for the given name.`,
+    ask: 'Ask for their full name.',
+  }
+}
+
+/** The name step for the language spoken: spelled (nameCollector), or as heard where names are not spelled. */
+export const nameCollectorFor = (language: string | null | undefined): Collector<Record<string, unknown>, FullName> =>
+  (language && NAME_NOT_SPELLED.has(language) ? unspelledNameCollector(language) : nameCollector) as Collector<Record<string, unknown>, FullName>
 
 // ---------- email ----------
 

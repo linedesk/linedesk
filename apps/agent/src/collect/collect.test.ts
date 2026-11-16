@@ -35,6 +35,9 @@ describe('spoken input', () => {
     expect(spokenLetters('B for Bravo R E double N A N')).toBe('brennan')
     expect(spokenLetters('O apostrophe B R I E N')).toBe("o'brien")
     expect(spokenLetters('Ruiz')).toBeNull()
+    // Callers of other alphabets spell in their own letters.
+    expect(spokenLetters('С М И Р Н О В А')).toBe('смирнова')
+    expect(spokenLetters('J Ü R G E N')).toBe('jürgen')
   })
 
   it('turns a spoken email address into an address', () => {

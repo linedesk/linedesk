@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest'
-import { URGENT_FLAGGED_REPLY, quietToolReplies } from './tool-replies.ts'
+import { spokenLines } from '@linedesk/actions'
+import { URGENT_FLAGGED_NO_CALLER_ID_REPLY, URGENT_FLAGGED_REPLY, quietToolReplies } from './tool-replies.ts'
 
 const executed = (...names: string[]) => ({ functionCalls: names.map(name => ({ name })), cancelToolReply: vi.fn() })
 const quiet = new Set(['flag_urgent'])
@@ -23,6 +24,20 @@ test('an urgent flag alone without words gets its own ready line', () => {
   replies.toolsExecuted(flagOnly)
   expect(flagOnly.cancelToolReply).toHaveBeenCalledOnce()
   expect(say).toHaveBeenCalledWith(URGENT_FLAGGED_REPLY)
+})
+
+test('without caller ID (a browser demo or test call) the urgent line asks for a callback number, in the language spoken', () => {
+  const say = vi.fn()
+  const replies = quietToolReplies(quiet, say, () => spokenLines('fr'), { callerId: false })
+  replies.itemAdded('user')
+  replies.toolsExecuted(executed('flag_urgent'))
+  expect(say).toHaveBeenCalledWith(
+    "J'ai signalé cet appel comme urgent à l'équipe. À quel numéro pouvons-nous vous rappeler ?",
+  )
+  expect(say.mock.calls[0]![0]).not.toMatch(/depuis lequel vous appelez/)
+  expect(URGENT_FLAGGED_NO_CALLER_ID_REPLY).toBe(
+    "I've marked this as urgent for the team. What number can we call you back on?",
+  )
 })
 
 test('the model still answers after end_call alone without words, or when another tool ran', () => {

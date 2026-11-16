@@ -112,7 +112,7 @@ export const PROMPT_TEXTS = {
   'language.spoken': {
     section: 'language',
     when: 'notEnglish',
-    text: 'What tools tell you to say and the example lines in these instructions are in English: say them in the language you are speaking with the caller, up to your goodbye.',
+    text: 'What tools tell you to say and the example lines in these instructions are in English: say them in the language you are speaking with the caller, up to your goodbye. Say them as a native speaker would, with the right article and word forms; never say two options joined by a slash.',
   },
 
   // Being an AI

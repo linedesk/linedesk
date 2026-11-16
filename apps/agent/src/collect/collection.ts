@@ -34,6 +34,11 @@ export class Collection<Args extends Record<string, unknown>, T> {
   private turnsCounted = true
   private questionPlayed = false
   outcome: CollectOutcome | null = null
+  /**
+   * The step speaks English only (COLLECT_ENGLISH_ONLY): values are read back exactly as `readBack` words them. Else
+   * `readBackInLanguage` where the collector has one, so no English words end up in a call in another language.
+   */
+  englishOnly = true
   readonly collector: Collector<Args, T>
   readonly maxAttempts: number
 
@@ -75,8 +80,10 @@ export class Collection<Args extends Record<string, unknown>, T> {
     if (!parsed.ok) return parsed.ask ? { say: parsed.problem } : this.fail(parsed.problem)
     this.pending = { value: parsed.value }
     this.lastHeard = this.collector.display(parsed.value)
+    const inLanguage = this.englishOnly ? undefined : this.collector.readBackInLanguage?.(parsed.value)
+    const readBack = inLanguage ?? `Read it back to the caller exactly like this: "${this.collector.readBack(parsed.value)}", and ask if it is right.`
     return {
-      say: `Heard ${this.collector.label}: ${this.collector.display(parsed.value)}. Read it back to the caller exactly like this: "${this.collector.readBack(parsed.value)}", and ask if it is right. Do not call confirm_${this.collector.kind} until the caller said yes.`,
+      say: `Heard ${this.collector.label}: ${this.collector.display(parsed.value)}. ${readBack} Do not call confirm_${this.collector.kind} until the caller said yes.`,
     }
   }
 

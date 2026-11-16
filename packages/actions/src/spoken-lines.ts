@@ -28,7 +28,14 @@ export type SpokenLines = {
   busy: string
   overCap: string
   blocked: string
+  /** After flag_urgent on a call with caller ID: asks whether that number is the best one. */
   urgentFlagged: string
+  /**
+   * After flag_urgent on a call without caller ID (a withheld number, a test or demo call from the browser): asks for a
+   * number to call back on. Added 2026-11-16; every language but English is an AI translation, not yet checked by a
+   * native speaker.
+   */
+  urgentFlaggedNoCallerId: string
   recordingNotice: string
 }
 
@@ -51,6 +58,7 @@ const en: SpokenLines = {
   blocked: "Sorry, we can't take your call. Goodbye.",
   urgentFlagged:
     "I've marked this as urgent for the team. Is the number you're calling from the best way to reach you?",
+  urgentFlaggedNoCallerId: "I've marked this as urgent for the team. What number can we call you back on?",
   recordingNotice: 'This call may be recorded.',
 }
 
@@ -74,6 +82,7 @@ const es: SpokenLines = {
   blocked: 'Lo siento, no podemos atender su llamada. Adiós.',
   urgentFlagged:
     'He marcado esto como urgente para el equipo. ¿El número desde el que llama es el mejor para localizarle?',
+  urgentFlaggedNoCallerId: 'He marcado esto como urgente para el equipo. ¿A qué número le podemos devolver la llamada?',
   recordingNotice: 'Esta llamada puede ser grabada.',
 }
 
@@ -97,6 +106,7 @@ const fr: SpokenLines = {
   blocked: 'Désolé, nous ne pouvons pas prendre votre appel. Au revoir.',
   urgentFlagged:
     "J'ai signalé cet appel comme urgent à l'équipe. Le numéro depuis lequel vous appelez est-il le meilleur pour vous joindre ?",
+  urgentFlaggedNoCallerId: "J'ai signalé cet appel comme urgent à l'équipe. À quel numéro pouvons-nous vous rappeler ?",
   recordingNotice: 'Cet appel peut être enregistré.',
 }
 
@@ -121,6 +131,8 @@ const de: SpokenLines = {
   blocked: 'Leider können wir Ihren Anruf nicht annehmen. Auf Wiederhören.',
   urgentFlagged:
     'Ich habe das für das Team als dringend markiert. Sind Sie unter der Nummer, von der Sie anrufen, am besten erreichbar?',
+  urgentFlaggedNoCallerId:
+    'Ich habe das für das Team als dringend markiert. Unter welcher Nummer können wir Sie zurückrufen?',
   recordingNotice: 'Dieser Anruf wird möglicherweise aufgezeichnet.',
 }
 
@@ -144,6 +156,7 @@ const it: SpokenLines = {
   blocked: 'Mi dispiace, non possiamo rispondere alla sua chiamata. Arrivederci.',
   urgentFlagged:
     'Ho segnalato la cosa come urgente al team. Il numero da cui sta chiamando è il migliore per raggiungerla?',
+  urgentFlaggedNoCallerId: 'Ho segnalato la cosa come urgente al team. A quale numero possiamo richiamarla?',
   recordingNotice: 'Questa chiamata potrebbe essere registrata.',
 }
 
@@ -167,6 +180,7 @@ const pt: SpokenLines = {
   blocked: 'Desculpe, não podemos atender sua ligação. Até logo.',
   urgentFlagged:
     'Marquei isso como urgente para a equipe. O número de onde você está ligando é o melhor para falar com você?',
+  urgentFlaggedNoCallerId: 'Marquei isso como urgente para a equipe. Em qual número podemos retornar a ligação?',
   recordingNotice: 'Esta ligação pode ser gravada.',
 }
 
@@ -190,6 +204,7 @@ const nl: SpokenLines = {
   blocked: 'Sorry, we kunnen uw oproep niet aannemen. Tot ziens.',
   urgentFlagged:
     'Ik heb dit als dringend gemarkeerd voor het team. Bent u het best bereikbaar op het nummer waarmee u belt?',
+  urgentFlaggedNoCallerId: 'Ik heb dit als dringend gemarkeerd voor het team. Op welk nummer kunnen we u terugbellen?',
   recordingNotice: 'Dit gesprek kan worden opgenomen.',
 }
 
@@ -211,6 +226,7 @@ const ru: SpokenLines = {
   blocked: 'Извините, мы не можем принять ваш звонок. До свидания.',
   urgentFlagged:
     'Это отмечено для команды как срочное. По номеру, с которого вы звоните, с вами лучше всего связаться?',
+  urgentFlaggedNoCallerId: 'Это отмечено для команды как срочное. По какому номеру вам можно перезвонить?',
   recordingNotice: 'Этот звонок может записываться.',
 }
 
@@ -233,6 +249,7 @@ const hi: SpokenLines = {
   blocked: 'माफ़ कीजिए, हम आपकी कॉल नहीं ले सकते। नमस्ते।',
   urgentFlagged:
     'इसे टीम के लिए ज़रूरी के रूप में चिह्नित कर दिया गया है। क्या जिस नंबर से आप कॉल कर रहे हैं, उसी पर आपसे संपर्क करना सबसे अच्छा रहेगा?',
+  urgentFlaggedNoCallerId: 'इसे टीम के लिए ज़रूरी के रूप में चिह्नित कर दिया गया है। हम आपको किस नंबर पर वापस कॉल करें?',
   recordingNotice: 'यह कॉल रिकॉर्ड की जा सकती है।',
 }
 
@@ -255,6 +272,7 @@ const ja: SpokenLines = {
   overCap: '申し訳ございません、ただいまお電話をお受けできません。できるだけ早く折り返しご連絡いたします。',
   blocked: '申し訳ございません、お電話をお受けできません。失礼いたします。',
   urgentFlagged: '緊急としてチームに伝えました。今おかけの番号にご連絡すればよろしいでしょうか？',
+  urgentFlaggedNoCallerId: '緊急としてチームに伝えました。折り返しのお電話番号を教えていただけますか？',
   recordingNotice: 'この通話は録音される場合があります。',
 }
 
@@ -275,6 +293,7 @@ const zh: SpokenLines = {
   overCap: '非常抱歉，我们现在无法接听您的电话。我们会尽快给您回电。',
   blocked: '非常抱歉，我们无法接听您的电话。再见。',
   urgentFlagged: '我已为团队将此事标记为紧急。请问用您现在拨打的这个号码联系您最方便吗？',
+  urgentFlaggedNoCallerId: '我已为团队将此事标记为紧急。请问我们打哪个号码给您回电？',
   recordingNotice: '本次通话可能会被录音。',
 }
 
@@ -297,6 +316,7 @@ const ko: SpokenLines = {
   overCap: '죄송합니다, 지금은 전화를 받을 수 없습니다. 최대한 빨리 다시 연락드리겠습니다.',
   blocked: '죄송합니다, 전화를 받을 수 없습니다. 안녕히 계세요.',
   urgentFlagged: '팀에 긴급 건으로 표시해 두었습니다. 지금 거신 번호로 연락드리면 될까요?',
+  urgentFlaggedNoCallerId: '팀에 긴급 건으로 표시해 두었습니다. 어느 번호로 다시 연락드리면 될까요?',
   recordingNotice: '이 통화는 녹음될 수 있습니다.',
 }
 
@@ -321,6 +341,7 @@ const pl: SpokenLines = {
   blocked: 'Przepraszamy, nie możemy przyjąć tego połączenia. Do widzenia.',
   urgentFlagged:
     'Sprawa została oznaczona dla zespołu jako pilna. Czy najlepiej kontaktować się pod numerem, z którego przychodzi to połączenie?',
+  urgentFlaggedNoCallerId: 'Sprawa została oznaczona dla zespołu jako pilna. Pod jaki numer możemy oddzwonić?',
   recordingNotice: 'Ta rozmowa może być nagrywana.',
 }
 
@@ -344,6 +365,7 @@ const tr: SpokenLines = {
   overCap: 'Üzgünüz, şu anda aramanızı yanıtlayamıyoruz. Sizi en kısa sürede geri arayacağız.',
   blocked: 'Üzgünüz, aramanızı kabul edemiyoruz. İyi günler.',
   urgentFlagged: 'Bunu ekip için acil olarak işaretledim. Size en iyi şu an aradığınız numaradan mı ulaşabiliriz?',
+  urgentFlaggedNoCallerId: 'Bunu ekip için acil olarak işaretledim. Sizi hangi numaradan geri arayabiliriz?',
   recordingNotice: 'Bu görüşme kaydedilebilir.',
 }
 
@@ -368,6 +390,8 @@ const vi: SpokenLines = {
   blocked: 'Xin lỗi, chúng tôi không thể nhận cuộc gọi của quý khách. Chào quý khách.',
   urgentFlagged:
     'Tôi đã đánh dấu việc này là khẩn cấp cho đội ngũ. Số điện thoại quý khách đang gọi có phải là số tốt nhất để liên lạc không ạ?',
+  urgentFlaggedNoCallerId:
+    'Tôi đã đánh dấu việc này là khẩn cấp cho đội ngũ. Chúng tôi có thể gọi lại cho quý khách theo số nào ạ?',
   recordingNotice: 'Cuộc gọi này có thể được ghi âm.',
 }
 
@@ -393,6 +417,8 @@ const id: SpokenLines = {
   blocked: 'Mohon maaf, kami tidak dapat menerima panggilan Anda. Sampai jumpa.',
   urgentFlagged:
     'Saya sudah menandai ini sebagai mendesak untuk tim. Apakah nomor yang Anda gunakan sekarang adalah nomor terbaik untuk menghubungi Anda?',
+  urgentFlaggedNoCallerId:
+    'Saya sudah menandai ini sebagai mendesak untuk tim. Ke nomor berapa kami bisa menelepon Anda kembali?',
   recordingNotice: 'Panggilan ini mungkin direkam.',
 }
 
@@ -416,6 +442,8 @@ const sv: SpokenLines = {
   blocked: 'Tyvärr kan vi inte ta ditt samtal. Hej då.',
   urgentFlagged:
     'Jag har markerat det här som brådskande för teamet. Är numret du ringer från det bästa att nå dig på?',
+  urgentFlaggedNoCallerId:
+    'Jag har markerat det här som brådskande för teamet. Vilket nummer kan vi ringa tillbaka till dig på?',
   recordingNotice: 'Samtalet kan komma att spelas in.',
 }
 
@@ -436,6 +464,7 @@ const ar: SpokenLines = {
   overCap: 'عذرًا، لا يمكننا الرد على مكالمتك الآن. سنعاود الاتصال بك في أقرب وقت ممكن.',
   blocked: 'عذرًا، لا يمكننا استقبال مكالمتك. مع السلامة.',
   urgentFlagged: 'لقد حددت هذا الطلب كعاجل للفريق. هل الرقم الذي تتصل منه هو أفضل رقم للتواصل معك؟',
+  urgentFlaggedNoCallerId: 'لقد حددت هذا الطلب كعاجل للفريق. على أي رقم يمكننا معاودة الاتصال بك؟',
   recordingNotice: 'قد يتم تسجيل هذه المكالمة.',
 }
 
@@ -458,6 +487,7 @@ const uk: SpokenLines = {
   blocked: 'Перепрошуємо, ми не можемо прийняти ваш дзвінок. До побачення.',
   urgentFlagged:
     'Це позначено для команди як термінове. Чи найкраще зв’язатися з вами за номером, з якого ви телефонуєте?',
+  urgentFlaggedNoCallerId: 'Це позначено для команди як термінове. За яким номером вам можна передзвонити?',
   recordingNotice: 'Цей дзвінок може записуватися.',
 }
 
@@ -481,6 +511,7 @@ const ro: SpokenLines = {
   blocked: 'Ne pare rău, nu vă putem prelua apelul. La revedere.',
   urgentFlagged:
     'Am marcat acest lucru ca urgent pentru echipă. Numărul de pe care sunați este cel mai bun pentru a vă contacta?',
+  urgentFlaggedNoCallerId: 'Am marcat acest lucru ca urgent pentru echipă. La ce număr vă putem suna înapoi?',
   recordingNotice: 'Acest apel poate fi înregistrat.',
 }
 
@@ -503,6 +534,7 @@ const cs: SpokenLines = {
   overCap: 'Omlouváme se, váš hovor teď nemůžeme přijmout. Zavoláme vám zpět, jakmile to bude možné.',
   blocked: 'Omlouváme se, váš hovor nemůžeme přijmout. Na shledanou.',
   urgentFlagged: 'Pro tým je to teď označeno jako naléhavé. Jste nejlépe k zastižení na čísle, ze kterého voláte?',
+  urgentFlaggedNoCallerId: 'Pro tým je to teď označeno jako naléhavé. Na jaké číslo vám můžeme zavolat zpět?',
   recordingNotice: 'Tento hovor může být nahráván.',
 }
 
@@ -527,6 +559,7 @@ const el: SpokenLines = {
   blocked: 'Λυπούμαστε, δεν μπορούμε να δεχτούμε την κλήση σας. Αντίο σας.',
   urgentFlagged:
     'Το σημείωσα ως επείγον για την ομάδα. Ο αριθμός από τον οποίο καλείτε είναι ο καλύτερος για να επικοινωνήσουμε μαζί σας;',
+  urgentFlaggedNoCallerId: 'Το σημείωσα ως επείγον για την ομάδα. Σε ποιον αριθμό μπορούμε να σας καλέσουμε πίσω;',
   recordingNotice: 'Αυτή η κλήση ενδέχεται να καταγράφεται.',
 }
 
@@ -551,6 +584,7 @@ const da: SpokenLines = {
   blocked: 'Beklager, vi kan ikke tage dit opkald. Farvel.',
   urgentFlagged:
     'Jeg har markeret det som hastende for teamet. Er det nummer, du ringer fra, det bedste at fange dig på?',
+  urgentFlaggedNoCallerId: 'Jeg har markeret det som hastende for teamet. Hvilket nummer kan vi ringe dig tilbage på?',
   recordingNotice: 'Opkaldet kan blive optaget.',
 }
 
@@ -572,6 +606,7 @@ const fi: SpokenLines = {
   overCap: 'Valitettavasti emme voi vastata puheluusi juuri nyt. Soitamme sinulle takaisin mahdollisimman pian.',
   blocked: 'Valitettavasti emme voi vastaanottaa puheluasi. Näkemiin.',
   urgentFlagged: 'Merkitsin tämän tiimille kiireelliseksi. Tavoittaako sinut parhaiten numerosta, josta soitat?',
+  urgentFlaggedNoCallerId: 'Merkitsin tämän tiimille kiireelliseksi. Mihin numeroon voimme soittaa sinulle takaisin?',
   recordingNotice: 'Tämä puhelu saatetaan tallentaa.',
 }
 
@@ -594,6 +629,7 @@ const no: SpokenLines = {
   overCap: 'Beklager, vi kan ikke ta samtalen din akkurat nå. Vi ringer deg tilbake så snart vi kan.',
   blocked: 'Beklager, vi kan ikke ta samtalen din. Ha det bra.',
   urgentFlagged: 'Jeg har markert dette som haster for teamet. Er nummeret du ringer fra, det beste å nå deg på?',
+  urgentFlaggedNoCallerId: 'Jeg har markert dette som haster for teamet. Hvilket nummer kan vi ringe deg tilbake på?',
   recordingNotice: 'Denne samtalen kan bli tatt opp.',
 }
 
@@ -616,6 +652,7 @@ const hu: SpokenLines = {
   overCap: 'Elnézést, most nem tudjuk fogadni a hívását. A lehető leghamarabb visszahívjuk.',
   blocked: 'Elnézést, nem tudjuk fogadni a hívását. Viszonthallásra.',
   urgentFlagged: 'Ezt sürgősként jelöltem meg a csapatnak. Azon a számon érhetjük el a legjobban, amelyről most hív?',
+  urgentFlaggedNoCallerId: 'Ezt sürgősként jelöltem meg a csapatnak. Melyik számon hívhatjuk vissza?',
   recordingNotice: 'Ez a hívás rögzítésre kerülhet.',
 }
 

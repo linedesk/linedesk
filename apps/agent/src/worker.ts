@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, spokenLines, swapDefault, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -306,7 +306,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   logTurnMetrics(session, call.callId)
   const realtimeUsage = realtime ? logRealtimeUsage(session, call.callId, realtime.model) : null
   // A realtime model has no voice for the ready lines: it only skips the reply after a turn it already spoke in.
-  skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null })
+  skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null, callerId: callerIdOf(call) !== null })
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const deleteRoom = roomEnder(ctx, call.callId)
   // The assistant always says something before the call ends: the goodbye line, the closing line after silence, or the
@@ -383,7 +383,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     remind: () => void speak(silence.reminder ?? lines().stillThere),
     close: () => {
       log.record('system', 'Hung up after silence on the line')
-      lastLine(silence.closing)
+      // The default closing line in the language spoken now (the reminder before it is too), not only in the main language.
+      lastLine(swapDefault(silence.closing, languages.main, spokenNow()))
     },
     transferred,
     onHold: () => log.onHold,
@@ -426,6 +427,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     log,
     today: () => call.booking?.todayDate ?? new Date().toISOString().slice(0, 10),
     languageRule: () => collectLanguageRule(callAssistant, spokenNow()) ?? undefined,
+    language: spokenNow,
     callerId: callerIdOf(call),
     testCall: call.caller?.testCall === true,
     country: call.country,

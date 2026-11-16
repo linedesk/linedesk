@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
 import { describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
-import { addressCollector, emailCollector, nameCollector, phoneCollector, todayFact } from './collectors.ts'
+import { addressCollector, emailCollector, nameCollectorFor, phoneCollector, todayFact } from './collectors.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
 
@@ -18,6 +18,8 @@ export type CollectContext = {
    * language by then. Missing or undefined: English only.
    */
   languageRule?: () => string | undefined
+  /** The language spoken on the call now (followCallerLanguage): which name step runs (nameCollectorFor). Missing: English. */
+  language?: () => string | undefined
   /** The step running now (set by runStep): told when the caller switches language during it (languageChanged). */
   step?: CollectTask | null
   /** The caller's number from caller ID (callerIdOf); null or missing: unknown. Then it is the callback number. */
@@ -151,7 +153,7 @@ export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
       description: "Get the caller's first and last name.",
-      execute: async (_args, opts) => runStep(ctx, opts, nameCollector),
+      execute: async (_args, opts) => runStep(ctx, opts, nameCollectorFor(ctx.language?.())),
     }),
     // With caller ID that number is the callback number: no phone step at all (call.callerId).
     ...(ctx.callerId

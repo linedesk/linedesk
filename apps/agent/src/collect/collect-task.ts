@@ -54,6 +54,7 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
 
   constructor({ collector, chatCtx, facts, languageRule = COLLECT_ENGLISH_ONLY }: CollectTaskOptions) {
     const collection = new Collection(collector)
+    collection.englishOnly = languageRule === COLLECT_ENGLISH_ONLY
     const kind = collector.kind
     // The tools finish the task; it exists once super() returned.
     const self: { task?: CollectTask } = {}
@@ -98,7 +99,9 @@ export class CollectTask extends voice.AgentTask<CollectOutcome> {
   /** The caller switched language during the step: it speaks the new one from its next line (collectLanguageRule). */
   async languageChanged(languageRule: string | undefined) {
     if (this.done) return
-    await this.updateInstructions(stepInstructions(languageRule ?? COLLECT_ENGLISH_ONLY, this.collection.collector, this.facts))
+    const rule = languageRule ?? COLLECT_ENGLISH_ONLY
+    this.collection.englishOnly = rule === COLLECT_ENGLISH_ONLY
+    await this.updateInstructions(stepInstructions(rule, this.collection.collector, this.facts))
   }
 
   /**

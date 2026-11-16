@@ -27,6 +27,7 @@ const textLines = [
   'overCap',
   'blocked',
   'urgentFlagged',
+  'urgentFlaggedNoCallerId',
   'recordingNotice',
 ] as const satisfies readonly (keyof SpokenLines)[]
 
@@ -58,6 +59,18 @@ test('a default greeting or line switches to the new main language and back', ()
     expect(swapDefault(spokenLines('en').silenceClosing, 'en', code)).toBe(spokenLines(code).silenceClosing)
     expect(swapDefault(spokenLines('en').goodbye, 'en', code)).toBe(spokenLines(code).goodbye)
   }
+})
+
+test('the default closing line after silence follows the language spoken, also from a main language other than English', () => {
+  for (const main of languageCodes) {
+    for (const spoken of ['zh', 'ko', 'pl', 'en', 'de'] as const) {
+      expect(swapDefault(spokenLines(main).silenceClosing, main, spoken), `${main} → ${spoken}`).toBe(
+        spokenLines(spoken).silenceClosing,
+      )
+    }
+  }
+  // An owner's own closing line stays as written.
+  expect(swapDefault('Bye for now.', 'en', 'ko')).toBe('Bye for now.')
 })
 
 test('the business of an English default greeting, with or without the AI note; null for any other text', () => {

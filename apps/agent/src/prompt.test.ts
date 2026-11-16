@@ -521,6 +521,13 @@ test('an assistant with one language is given no "I can only help in …" line t
   }
 })
 
+// Demo language retest 2026-11-16 (nl-1): "De/het team zal u bellen …", an article choice said as it was.
+test('a call in another language is told to pick the right article and never say two options with a slash', () => {
+  const dutch = languageInstructions({ languages: { main: 'nl', mode: 'english', allowed: [] } } as unknown as Assistant)
+  expect(dutch).toContain('Say them as a native speaker would, with the right article and word forms; never say two options joined by a slash.')
+  expect(languageInstructions({ languages: { main: 'en', mode: 'english', allowed: [] } } as unknown as Assistant)).not.toContain('slash')
+})
+
 test('everything about this call comes last, after one heading: the part before it is the same on every call', () => {
   const first = buildInstructions(
     assistant(),

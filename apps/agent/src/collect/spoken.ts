@@ -48,7 +48,8 @@ const words = (text: string) =>
     .filter(Boolean)
 
 const letterOf = (word: string): string | null => {
-  if (/^[a-z]$/.test(word)) return word
+  // A single letter of any alphabet: Russian, Ukrainian, Greek and Arabic callers spell in their own letters.
+  if (/^\p{L}$/u.test(word)) return word
   return PHONETIC[word] ?? LETTER_NAMES[word] ?? null
 }
 
