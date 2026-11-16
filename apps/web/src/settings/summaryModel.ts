@@ -1,6 +1,7 @@
-// The summary cards of Hours & holidays, Transfers and Notifications without React (LIN-392): what the page's
+// The summary cards of Hours & holidays, Rules, Transfers and Notifications without React (LIN-392, LIN-443): what the page's
 // settings do, as sentences (a message key and its values) for SummaryCard, and what needs the owner. Each reads
 // the same state as its page, so the card changes with every edit.
+import { type AiDisclosure, BEHAVIOURS, type BehaviourId, type CommunicationStyle } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
 import { msg } from '@linedesk/i18n'
 import { i18n } from '../i18n/index.tsx'
@@ -87,6 +88,42 @@ export function hoursSummary({ name, on, days, upcoming, closure, today, outside
   return {
     sentences,
     needsYou: groups.length ? null : { k: msg('settings.summary.hours.needsHours'), values: { name } },
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Rules
+
+type RulesInput = {
+  name: string
+  style: CommunicationStyle
+  disclosure: AiDisclosure
+  /** The checklist as the draft holds it: every switch, on or off. */
+  behaviours: Readonly<Record<BehaviourId, boolean>>
+}
+
+/** What each switch of the checklist does, as a part of "Maya asks for the caller's name, …". */
+const RULE_ITEMS = {
+  ask_name: msg('settings.summary.rules.item.askName'),
+  offer_callback: msg('settings.summary.rules.item.offerCallback'),
+  confirm_number: msg('settings.summary.rules.item.confirmNumber'),
+  caller_history: msg('settings.summary.rules.item.callerHistory'),
+  ask_booking_name: msg('settings.summary.rules.item.askBookingName'),
+  verified_caller_only: msg('settings.summary.rules.item.verifiedCallerOnly'),
+} as const satisfies Record<BehaviourId, unknown>
+
+/** "Maya speaks in its standard tone and says it is an AI only when asked. Maya asks for the caller's name, …" */
+export function rulesSummary({ name, style, disclosure, behaviours }: RulesInput): Summary {
+  const { t } = i18n()
+  const items = BEHAVIOURS.filter(b => behaviours[b.id]).map(b => t(RULE_ITEMS[b.id]))
+  return {
+    sentences: [
+      { k: msg('settings.summary.rules.tone'), values: { name, style, disclosure } },
+      items.length
+        ? { k: msg('settings.summary.rules.does'), values: { name, items } }
+        : { k: msg('settings.summary.rules.none') },
+    ],
+    needsYou: null,
   }
 }
 

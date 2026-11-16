@@ -5,7 +5,14 @@ import type { SummarySentence } from '../ui/SummaryCard.tsx'
 import type { TransferDraft } from './assistantDraft.ts'
 import { dayRows } from './businessHoursModel.ts'
 import type { UpcomingDay } from './closedDaysModel.ts'
-import { hoursSummary, nextClosedDay, notificationsSummary, type Summary, transfersSummary } from './summaryModel.ts'
+import {
+  hoursSummary,
+  nextClosedDay,
+  notificationsSummary,
+  rulesSummary,
+  type Summary,
+  transfersSummary,
+} from './summaryModel.ts'
 
 /** A sentence as plain text: lists joined as the card joins them, tags (bold, a link) as their words. */
 function text(sentence: SummarySentence | null): string {
@@ -145,4 +152,34 @@ test('notifications: what you get and how', () => {
     'You get an email for every call and push notifications on 2 other devices.',
   )
   expect(all(notificationsSummary({ ...notify, email: false }))).toBe('You get no notifications.')
+})
+
+test('rules: the demo defaults', () => {
+  const behaviours = {
+    ask_name: true,
+    offer_callback: true,
+    confirm_number: false,
+    caller_history: true,
+    ask_booking_name: false,
+    verified_caller_only: true,
+  }
+  expect(all(rulesSummary({ name: 'Maya', style: 'standard', disclosure: 'when_asked', behaviours }))).toBe(
+    "Maya speaks in its standard tone and says it is an AI only when asked. Maya asks for the caller's name, offers a callback when it can't answer, knows the caller's previous calls, and recognizes callers only when their carrier verified the number.",
+  )
+})
+
+test('rules: another tone, AI at the start, every switch off', () => {
+  const off = {
+    ask_name: false,
+    offer_callback: false,
+    confirm_number: false,
+    caller_history: false,
+    ask_booking_name: false,
+    verified_caller_only: false,
+  }
+  const s = rulesSummary({ name: 'Maya', style: 'formal', disclosure: 'at_start_consent', behaviours: off })
+  expect(all(s)).toBe(
+    'Maya sounds formal and factual and says at the start that it is an AI and asks the caller to agree. All switches of the checklist are off.',
+  )
+  expect(s.needsYou).toBeNull()
 })

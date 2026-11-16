@@ -1,15 +1,15 @@
-// The summary cards on top of Assistant › Hours & holidays and Assistant › Transfers (LIN-392). The sentences come
+// The summary cards on top of Assistant › Hours & holidays, Rules and Transfers (LIN-392, LIN-443). The sentences come
 // from summaryModel.ts; these read the page's state (workspace settings, the assistant's draft) and show them.
 import { useT } from '@linedesk/i18n/react'
 import type { ReactNode } from 'react'
 import { appLink } from '../ui/AppLink.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Sentence, SummaryCard } from '../ui/SummaryCard.tsx'
-import type { TransferDraft } from './assistantDraft.ts'
+import type { Draft, TransferDraft } from './assistantDraft.ts'
 import { useBusinessHours } from './BusinessHours.tsx'
 import { closureState, upcomingDays } from './closedDaysModel.ts'
 import { useClosedDays } from './Holidays.tsx'
-import { hoursSummary, type Summary, transfersSummary } from './summaryModel.ts'
+import { hoursSummary, rulesSummary, type Summary, transfersSummary } from './summaryModel.ts'
 
 type Tags = Record<string, (chunks: ReactNode[]) => ReactNode>
 
@@ -73,4 +73,21 @@ export function TransfersSummary({
   const { today, closure } = useClosedDays()
   const vacationOn = !!closure && closureState(closure, today) === 'on'
   return <SummaryView summary={transfersSummary({ name, transfers, hoursOn, vacationOn })} icon="phone-out" />
+}
+
+/** Rules: the tone, when the assistant says it is an AI, and the switches that are on. From the draft. */
+export function RulesSummary({
+  name,
+  draft,
+}: {
+  name: string
+  draft: Pick<Draft, 'communication_style' | 'ai_disclosure' | 'behaviours'>
+}) {
+  const summary = rulesSummary({
+    name,
+    style: draft.communication_style,
+    disclosure: draft.ai_disclosure,
+    behaviours: draft.behaviours,
+  })
+  return <SummaryView summary={summary} icon="checks" />
 }
