@@ -400,7 +400,7 @@ export const teamHandlers: Record<string, Handler> = {
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
-  'team.leave': async ({ tx, actor }, input: { deleteAccount?: boolean }) => {
+  'team.leave': async ({ tx, actor, now }, input: { deleteAccount?: boolean }) => {
     if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
     // Locked: a hand-over to this member at the same moment waits, and the owner check then sees the new role.
@@ -414,7 +414,7 @@ export const teamHandlers: Record<string, Handler> = {
       throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
     await tx.delete(member).where(eq(member.id, me.id))
     // The unassigned calls are not returned: the one leaving no longer sees the workspace's calls.
-    await forgetMember(tx, workspaceId, actor.actorId)
+    await forgetMember(tx, workspaceId, actor.actorId, now)
     const [next] = await tx
       .select({ id: member.organizationId })
       .from(member)
@@ -423,7 +423,8 @@ export const teamHandlers: Record<string, Handler> = {
       .limit(1)
     // Their last workspace: the account goes only when the request says so (deleteAccount: true; never a server admin's,
     // workspace-delete.ts). A request that does not say, e.g. a tab still on an older version, is refused: never a
-    // silent delete. Its sessions and passkeys go with the account, its API keys stop working (no membership left).
+    // silent delete. Its sessions and passkeys go with the account; its workspace API keys here are revoked
+    // (forgetMember).
     if (!next && input.deleteAccount === undefined) throw new Reject(LEAVE_SAY_ACCOUNT)
     // Deleting the account needs a sign-in in the last 10 minutes; checked by run-action before the transaction too.
     if (await leaveNeedsFreshSignIn(tx, actor, input)) throw new Forbidden(LEAVE_SIGN_IN_AGAIN)
@@ -447,7 +448,7 @@ export const teamHandlers: Record<string, Handler> = {
     guardOwner(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
-    const forgotten = await forgetMember(tx, target.organizationId, target.userId)
+    const forgotten = await forgetMember(tx, target.organizationId, target.userId, now)
     const invitationsCanceled = await cancelSentInvitations(tx, workspaceId, target.userId)
     // Their last workspace: the account goes too when the owner asks (workspace-delete.ts), and they are told.
     const accountDeleted = deleteAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))

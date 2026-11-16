@@ -21,6 +21,7 @@ import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { revokeKeysOfMember } from './api-keys.ts'
 import { revokeMemberSetupKeys } from './passkey-enrolment.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
@@ -90,14 +91,17 @@ export async function ownerJoined(
 
 /**
  * What a workspace keeps of a member who is no longer in it (removed or left), cleared in the removal's transaction:
- * their pushes for it, their calls there are unassigned (in nobody's "Assigned to me" otherwise, and pointing at no
- * one once the account goes), their notification settings (a re-invited member starts from the defaults), their
+ * their setup links and the workspace API keys they created there (revoked), their pushes for it, their calls there
+ * are unassigned (in nobody's "Assigned to me" otherwise, and pointing at no one once the account goes), their
+ * notification settings (a re-invited member starts from the defaults), their
  * go-live checklist rows (the workspace-wide ones stay) and their unfinished calendar connects. The unassigned calls,
  * for the remover's own store (CLAUDE.md rule 3).
  */
-export async function forgetMember(tx: Tx, workspaceId: string, userId: string) {
+export async function forgetMember(tx: Tx, workspaceId: string, userId: string, now: string) {
   // Their workspace setup links there end for good (they no longer have a role to act with).
   await revokeMemberSetupKeys(tx, workspaceId, userId, 'left_workspace')
+  // So do the workspace API keys they created there: revoked, not only refused, so a re-add does not revive them.
+  await revokeKeysOfMember(tx, workspaceId, userId, now)
   await dropWorkspacePush(tx, workspaceId, userId)
   const unassigned = await tx
     .update(calls)
@@ -529,7 +533,7 @@ export const membershipHandlers: Record<string, Handler> = {
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     // The unassigned calls are not returned: the server admin is not in the workspace and does not see its calls.
-    await forgetMember(tx, target.organizationId, target.userId)
+    await forgetMember(tx, target.organizationId, target.userId, now)
     // The invitations they sent to this workspace end with the removal (team.ts, LIN-264 review F1).
     const invitationsCanceled = await cancelSentInvitations(tx, target.organizationId, target.userId)
     // Their last workspace: the account goes too, unless kept (workspace-delete.ts).

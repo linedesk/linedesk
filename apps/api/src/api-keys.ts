@@ -2,7 +2,7 @@
 // has 256 random bits, so a fast hash is enough), resolved to an actor for Bearer requests.
 import { createHash, randomBytes } from 'node:crypto'
 import { API_KEY_PREFIX, type ApiKeyCreated, type ApiKeyListData, rolePermissions, teamRoles } from '@linedesk/actions'
-import { api_keys, member, organization, user } from '@linedesk/db'
+import { api_keys, member, organization, type Tx, user } from '@linedesk/db'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { mustConfirmEmail } from './auth-methods.ts'
@@ -137,9 +137,48 @@ export async function actorForApiKey(key: string, ip: string | null): Promise<Ac
   }
 }
 
+/**
+ * A member leaves a workspace (removed or left): the workspace API keys they created there are revoked in the same
+ * transaction, with what they subscribed (Zapier). Not only refused while they are away (creatorStillAllows): a key
+ * that was refused once must not work again when the same person is added back (LIN-405). Keys in other workspaces
+ * and personal keys stay. Returns the revoked keys' ids.
+ */
+export async function revokeKeysOfMember(tx: Tx, workspaceId: string, userId: string, now: string) {
+  const revoked = await tx
+    .update(api_keys)
+    .set({ revoked_at: now })
+    .where(and(eq(api_keys.workspace_id, workspaceId), eq(api_keys.created_by, userId), isNull(api_keys.revoked_at)))
+    .returning({ id: api_keys.id })
+  for (const key of revoked) await dropKeySubscriptions(tx, key.id)
+  return revoked.map(k => k.id)
+}
+
+/** apiKey.create from someone who is no longer in the workspace, or no longer may make a key of that role there. */
+export const KEY_CREATOR_GONE = 'You can no longer create API keys in this workspace.'
+
+/**
+ * Locks the creator's membership row (FOR SHARE) until apiKey.create's transaction ends, and refuses when it is gone or
+ * its role no longer allows the key (LIN-405 review M1). A removal deletes that row before it revokes the member's
+ * keys (forgetMember): when it ran first, this waits for its commit and then finds no row; when this ran first, the
+ * removal's delete waits for the key to commit, and its revoke then sees the key. A role change (team.setRole) waits
+ * the same way. Without the lock a key inserted at the moment of the removal would survive unrevoked and work again
+ * once the person is added back.
+ */
+async function lockCreatorMembership(tx: Tx, workspaceId: string, userId: string, keyRole: string) {
+  const [me] = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.userId, userId)))
+    .for('share')
+  const permissions: readonly string[] = me ? (rolePermissions[me.role as keyof typeof rolePermissions] ?? []) : []
+  if (!me || !permissions.includes('settings:write') || !creatorStillAllows(keyRole, me.role, null))
+    throw new Forbidden(KEY_CREATOR_GONE)
+}
+
 export const apiKeyHandlers: Record<string, Handler> = {
   'apiKey.create': async ({ tx, actor, now, onCommit }, input: { name: string; role: 'member' | 'admin' }) => {
     const workspace_id = refuseKeyActor(actor)
+    await lockCreatorMembership(tx, workspace_id, actor.actorId, input.role)
     const impersonator = actor.impersonation?.by ?? null
     const key = newKey()
     const [row] = await tx

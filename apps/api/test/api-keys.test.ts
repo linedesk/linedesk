@@ -1,13 +1,14 @@
 // Workspace API keys: created once and stored hashed, usable as Bearer only in their workspace,
 // with their role's permissions, revocable, rate limited, never managing keys themselves.
-import { api_keys, calls, commands, member as memberTable, organization, user } from '@linedesk/db'
-import { and, eq } from 'drizzle-orm'
+import { api_keys, calls, commands, integration_subscriptions, member as memberTable, organization, personal_keys, user } from '@linedesk/db'
+import { and, eq, isNull } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
-import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, hashApiKey, INVALID_API_KEYS_PER_IP } from '../src/api-keys.ts'
+import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, hashApiKey, INVALID_API_KEYS_PER_IP, KEY_CREATOR_GONE } from '../src/api-keys.ts'
 import { db } from '../src/db.ts'
+import { forgetMember } from '../src/memberships.ts'
 import { SHAPE_NOT_FOR_API_KEYS } from '../src/app.ts'
 import { API_KEY_PUBLIC_ONLY } from '../src/run-action.ts'
-import { act, addMember, type Caller, createWorkspace, FROM, randomIp, request, type User, type Workspace } from './helpers.ts'
+import { act, addMember, asServerAdmin, type Caller, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
 
 let ws: Workspace
 let other: Workspace
@@ -155,6 +156,160 @@ describe('a key is only as strong as the member who created it', () => {
     expect(await works(key)).toBe(401)
     await db.update(user).set({ disabledAt: null }).where(eq(user.id, admin.userId))
     expect(await works(key)).toBe(200)
+  })
+})
+
+// LIN-405: a removal revokes the keys, so adding the same person back does not bring them back.
+describe('a member who leaves the workspace: the keys they created there are revoked', () => {
+  const memberIdOf = async (workspaceId: string, userId: string) =>
+    (
+      await db
+        .select()
+        .from(memberTable)
+        .where(and(eq(memberTable.organizationId, workspaceId), eq(memberTable.userId, userId)))
+    )[0]!.id
+  const works = async (key: string) => (await request(bearer(key), 'GET', '/v1/me')).status
+  const revokedAt = async (apiKeyId: string) =>
+    (await db.select().from(api_keys).where(eq(api_keys.id, apiKeyId)))[0]!.revoked_at
+  const addBack = (workspaceId: string, who: User, role: 'admin' | 'member' = 'admin') =>
+    db
+      .insert(memberTable)
+      .values({
+        id: crypto.randomUUID().replaceAll('-', ''),
+        organizationId: workspaceId,
+        userId: who.userId,
+        role,
+        createdAt: new Date(),
+      })
+  async function subscribe(workspaceId: string, apiKeyId: string) {
+    const id = `isub_${crypto.randomUUID().slice(0, 12)}`
+    await db.insert(integration_subscriptions).values({
+      id,
+      workspace_id: workspaceId,
+      api_key_id: apiKeyId,
+      source: 'zapier',
+      event: 'call_finished',
+      target_url: 'https://hooks.zapier.com/hooks/standard/1/abc',
+    })
+    return id
+  }
+  const subscriptionCount = async (id: string) =>
+    (await db.select().from(integration_subscriptions).where(eq(integration_subscriptions.id, id))).length
+
+  test('team.removeMember: revoked with their subscriptions, and still refused after the same person is added back', async () => {
+    const admin = await addMember(ws.id, 'admin')
+    const { apiKeyId, key } = await createKey(admin)
+    const sub = await subscribe(ws.id, apiKeyId)
+    const ownersKey = await createKey(ws.owner)
+    expect((await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, admin.userId) })).status).toBe(
+      200,
+    )
+    expect(await revokedAt(apiKeyId)).not.toBeNull()
+    expect(await subscriptionCount(sub)).toBe(0)
+    await addBack(ws.id, admin)
+    expect(await works(key)).toBe(401)
+    // The keys other members created stay.
+    expect(await revokedAt(ownersKey.apiKeyId)).toBeNull()
+    expect(await works(ownersKey.key)).toBe(200)
+  })
+
+  test('team.leave: revoked, and still refused after the same person is added back', async () => {
+    const admin = await addMember(ws.id, 'admin')
+    const { apiKeyId, key } = await createKey(admin)
+    // In another workspace too, so leaving this one keeps the account.
+    await addBack(other.id, admin)
+    expect((await act(admin, 'team.leave', {})).status).toBe(200)
+    expect(await revokedAt(apiKeyId)).not.toBeNull()
+    await addBack(ws.id, admin)
+    expect(await works(key)).toBe(401)
+  })
+
+  test('membership.remove (server admin): revoked, and still refused after the same person is added back', async () => {
+    const admin = await addMember(ws.id, 'admin')
+    const { apiKeyId, key } = await createKey(admin)
+    const operator = await signUp()
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, operator.userId))
+    const memberId = await memberIdOf(ws.id, admin.userId)
+    const res = await asServerAdmin(operator, () => act(operator, 'membership.remove', { memberId, keepAccount: true }))
+    expect(res.status).toBe(200)
+    expect(await revokedAt(apiKeyId)).not.toBeNull()
+    await addBack(ws.id, admin)
+    expect(await works(key)).toBe(401)
+  })
+
+  test('only this workspace: their keys in another workspace and their personal keys stay', async () => {
+    const admin = await addMember(ws.id, 'admin')
+    await addBack(other.id, admin)
+    // A key they made in the other workspace, straight in the database.
+    const [otherKey] = await db
+      .insert(api_keys)
+      .values({
+        id: `key_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+        workspace_id: other.id,
+        name: 'Other workspace',
+        prefix: 'ld_other000',
+        key_hash: hashApiKey(crypto.randomUUID()),
+        role: 'member',
+        created_by: admin.userId,
+      })
+      .returning()
+    const [personal] = await db
+      .insert(personal_keys)
+      .values({
+        id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+        user_id: admin.userId,
+        name: 'Laptop',
+        prefix: 'ldp_0000000',
+        key_hash: hashApiKey(crypto.randomUUID()),
+      })
+      .returning()
+    expect((await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, admin.userId) })).status).toBe(
+      200,
+    )
+    expect(await revokedAt(otherKey!.id)).toBeNull()
+    expect((await db.select().from(personal_keys).where(eq(personal_keys.id, personal!.id)))[0]!.revoked_at).toBeNull()
+  })
+
+  // Review M1: a key made while its creator is being removed never survives the removal unrevoked.
+  test('apiKey.create and team.removeMember at the same moment: no working key is left, also after a re-add', async () => {
+    for (let round = 0; round < 4; round++) {
+      const admin = await addMember(ws.id, 'admin')
+      const memberId = await memberIdOf(ws.id, admin.userId)
+      const [created, removed] = await Promise.all([
+        act(admin, 'apiKey.create', { name: `Race ${round}`, role: 'member' }),
+        act(ws.owner, 'team.removeMember', { memberId }),
+      ])
+      expect(removed.status).toBe(200)
+      expect([200, 401, 403]).toContain(created.status)
+      await addBack(ws.id, admin)
+      if (created.status === 200) expect(await works(created.body.data.key)).toBe(401)
+      const left = await db
+        .select()
+        .from(api_keys)
+        .where(
+          and(eq(api_keys.workspace_id, ws.id), eq(api_keys.created_by, admin.userId), isNull(api_keys.revoked_at)),
+        )
+      expect(left).toEqual([])
+    }
+  })
+
+  test('a key being made waits for a removal in progress, then is refused', async () => {
+    const admin = await addMember(ws.id, 'admin')
+    const memberId = await memberIdOf(ws.id, admin.userId)
+    // The removal's transaction holds the deleted member row while the create asks: the create waits, then finds none.
+    const result = await db.transaction(async tx => {
+      await tx.delete(memberTable).where(eq(memberTable.id, memberId))
+      await forgetMember(tx, ws.id, admin.userId, new Date().toISOString())
+      const create = act(admin, 'apiKey.create', { name: 'Late', role: 'member' })
+      const early = await Promise.race([
+        create.then(() => 'done'),
+        new Promise(r => setTimeout(() => r('waiting'), 300)),
+      ])
+      return { early, create }
+    })
+    expect(result.early).toBe('waiting')
+    expect(await result.create).toMatchObject({ status: 403, body: { error: KEY_CREATOR_GONE } })
+    expect(await db.select().from(api_keys).where(eq(api_keys.created_by, admin.userId))).toEqual([])
   })
 })
 
