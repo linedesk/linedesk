@@ -79,7 +79,7 @@ import { AUTHENTICATOR_ROUTE_ACTIONS, hasAuthenticator } from './authenticator.t
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
-import { onboardingFor, phoneSetupFor } from './onboarding.ts'
+import { businessSetupFor, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { firstUse } from './sample-calls.ts'
 import { starPromptFor } from './star-prompt.ts'
 import { voiceFailing } from './provider-failures.ts'
@@ -467,7 +467,7 @@ app.get('/v1/me', async c => {
     avatarVersion,
     changedBy,
     workspaces,
-    onboarding,
+    [onboarding, businessSetup],
     phoneSetup,
     impersonation,
     passkeyEnrolment,
@@ -480,7 +480,9 @@ app.get('/v1/me', async c => {
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
     workspacesOf(actor.actorId),
-    workspace ? onboardingFor(actor) : null,
+    workspace
+      ? onboardingFor(actor).then(async o => [o, await businessSetupFor(actor, o)] as const)
+      : ([null, null] as const),
     workspace ? phoneSetupFor(actor) : null,
     impersonationOf(actor),
     needsPasskeyEnrolment(actor),
@@ -511,6 +513,9 @@ app.get('/v1/me', async c => {
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.
     workspaces,
     onboarding,
+    // After onboarding, for owners and admins: what "Find your business" offers when they go through the setup steps
+    // again from the settings (onboarding.ts, businessSetupFor).
+    businessSetup,
     phoneSetup,
     impersonation,
     // When the session ends: a browser opens from its local data at load only until then (apps/web/src/session.ts).

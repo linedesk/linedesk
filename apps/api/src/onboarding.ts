@@ -110,6 +110,22 @@ export async function ensureWorkspaceRows(
       .where(eq(workspace_settings.workspace_id, workspaceId))
 }
 
+/** What "Find your business" may offer this member: looking the business up, and reading its website. */
+export type BusinessSetup = Pick<OnboardingState, 'businessLookup' | 'websiteImport'>
+
+/**
+ * What "Find your business" may offer when the setup steps are gone through again from the settings ("Step by step",
+ * apps/web/src/onboarding/StepByStep.tsx); null for members who cannot change settings, and while onboarding is open
+ * (its state says the same).
+ */
+export async function businessSetupFor(
+  actor: Actor,
+  onboarding: OnboardingState | null,
+): Promise<BusinessSetup | null> {
+  if (onboarding || !actor.workspaceId || !actor.permissions.includes('settings:write')) return null
+  return { businessLookup: await businessLookupOn(), websiteImport: await websiteImportFor(actor.workspaceId) }
+}
+
 /** null when onboarding is over, or when this member cannot change settings (only owners and admins set up). */
 export async function onboardingFor(actor: Actor): Promise<OnboardingState | null> {
   if (!actor.workspaceId || !actor.permissions.includes('settings:write')) return null

@@ -1,6 +1,7 @@
-// The onboarding page around each step: top bar, progress, footer, and the keys (Enter continues, Esc goes back).
+// The onboarding page around each step: top bar, progress, footer, and the keys (Enter continues, Esc goes back). The
+// same frame holds the steps when they are gone through again from the settings ("Step by step", StepByStep.tsx).
 import { useT } from '@linedesk/i18n/react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { BrandMark, Button } from '../ui/kit.tsx'
 import { onboardingSteps, progress, stepLabels, type OnboardingStep } from './flow.ts'
 import { brandName } from '../brand.ts'
@@ -34,20 +35,39 @@ export function useStepKeys(keys: Keys) {
   }, [])
 }
 
+/**
+ * How the steps are gone through: the first setup (onboarding), or again from the settings (`edit`, StepByStep.tsx),
+ * where the last step's Continue says Done and nothing is put off for "Later" (the settings stay where they are).
+ */
+type StepMode = { edit: boolean; last: boolean }
+const StepModeContext = createContext<StepMode>({ edit: false, last: false })
+
+/** Whether the step shows in the first setup or again from the settings, and whether it is the last one. */
+export const useStepMode = (): StepMode => useContext(StepModeContext)
+
 export function Frame({
   step,
   complete,
   onSkip,
+  steps = onboardingSteps,
+  edit = false,
   children,
 }: {
   step: OnboardingStep
   complete: boolean
-  /** Leave setup now and finish it later (what is left stays in the go-live checklist). */
+  /**
+   * Leave setup now and finish it later (what is left stays in the go-live checklist); in `edit`, close the steps and
+   * go back to the settings.
+   */
   onSkip?: () => void
+  /** The steps gone through, in order: the onboarding's, or the ones step by step goes through again. */
+  steps?: readonly OnboardingStep[]
+  /** Gone through again from the settings ("Step by step"): "Close" in place of "Finish later". */
+  edit?: boolean
   children: ReactNode
 }) {
   const t = useT()
-  const index = onboardingSteps.indexOf(step)
+  const index = steps.indexOf(step)
   const skipRef = useRef(onSkip)
   skipRef.current = onSkip
   useEffect(() => {
@@ -67,20 +87,27 @@ export function Frame({
         <span className="ob-count">
           {t('onboarding.frame.stepCount', {
             step: index + 1,
-            total: onboardingSteps.length,
+            total: steps.length,
             label: stepLabels[step],
           })}
         </span>
         {onSkip && (
-          <Button size="sm" variant="ghost" onClick={onSkip} title={t('onboarding.frame.finishLaterTitle')}>
-            {t('onboarding.frame.finishLater')}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onSkip}
+            title={t(edit ? 'onboarding.frame.closeTitle' : 'onboarding.frame.finishLaterTitle')}
+          >
+            {t(edit ? 'onboarding.frame.close' : 'onboarding.frame.finishLater')}
           </Button>
         )}
       </div>
       <div className="ob-bar">
-        <span style={{ width: `${progress(step, complete)}%` }} />
+        <span style={{ width: `${progress(step, complete, steps)}%` }} />
       </div>
-      <div className="ob-main">{children}</div>
+      <StepModeContext.Provider value={{ edit, last: index === steps.length - 1 }}>
+        <div className="ob-main">{children}</div>
+      </StepModeContext.Provider>
     </div>
   )
 }
@@ -114,6 +141,10 @@ export function Foot({
   laterTitle,
 }: FootProps) {
   const t = useT()
+  const mode = useStepMode()
+  // Again from the settings: the last step's Continue ends there ("Done"), and nothing is put off for later.
+  const continueLabel = mode.edit && mode.last ? t('onboarding.frame.done') : (label ?? t('onboarding.action.continue'))
+  const skipStep = mode.edit ? undefined : onSkipStep
   return (
     <div className="ob-foot">
       {onBack ? (
@@ -125,10 +156,10 @@ export function Foot({
       )}
       <div className="ob2-foot-r">
         {hint && <span className="ob2-hint">{hint}</span>}
-        {onSkipStep && (
+        {skipStep && (
           <Button
             variant="ghost"
-            onClick={onSkipStep}
+            onClick={skipStep}
             disabled={busy}
             title={laterTitle ?? t('onboarding.frame.laterTitle')}
           >
@@ -143,7 +174,7 @@ export function Foot({
             busy={busy}
             onClick={onContinue}
           >
-            {label ?? t('onboarding.action.continue')}
+            {continueLabel}
           </Button>
         )}
       </div>

@@ -99,7 +99,7 @@ describe('the box on top of the settings', () => {
 
   test('Assistant settings: the box names the assistant', () => {
     const html = renderToStaticMarkup(
-      <AgentChangeNote target={{ kind: 'assistant', assistantId: 'a1' }} assistantName="Ava" firstField="as-name" />,
+      <AgentChangeNote target={{ kind: 'assistant', assistantId: 'a1' }} assistantName="Ava" />,
     )
     expect(html).toContain('An AI agent can change Ava’s settings with you.')
     expect(html).toContain('Change with an AI agent')
@@ -122,7 +122,9 @@ describe('the owner’s agent setup page: finish later', () => {
   test('while the onboarding is open: "Finish later" in the top bar, as in the business onboarding', () => {
     const html = page(() => {})
     const top = html.match(/<div class="ob-top">[\s\S]*?<\/div>/)?.[0] ?? ''
-    expect(top).toMatch(/title="Finish setup later[^"]*\(Shift\+Esc\)" class="[^"]*k-btn-ghost[^"]*"><span>Finish later</)
+    expect(top).toMatch(
+      /title="Finish setup later[^"]*\(Shift\+Esc\)" class="[^"]*k-btn-ghost[^"]*"><span>Finish later</,
+    )
   })
 
   test('opened again after the onboarding (or to change settings): no "Finish later"', () => {

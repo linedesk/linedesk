@@ -60,10 +60,27 @@ export const stepLabels: Record<OnboardingStep, string> = {
   },
 }
 
-export const nextStep = (step: OnboardingStep): OnboardingStep =>
-  onboardingSteps[Math.min(onboardingSteps.indexOf(step) + 1, onboardingSteps.length - 1)]!
-export const previousStep = (step: OnboardingStep): OnboardingStep | null =>
-  onboardingSteps[onboardingSteps.indexOf(step) - 1] ?? null
+/** The step after `step` in `steps` (the onboarding's, or the ones step by step goes through again); the last stays. */
+export const nextStep = (step: OnboardingStep, steps: readonly OnboardingStep[] = onboardingSteps): OnboardingStep =>
+  steps[Math.min(steps.indexOf(step) + 1, steps.length - 1)]!
+/** The step before `step` in `steps`, or null on the first. */
+export const previousStep = (
+  step: OnboardingStep,
+  steps: readonly OnboardingStep[] = onboardingSteps,
+): OnboardingStep | null => steps[steps.indexOf(step) - 1] ?? null
+
+/**
+ * The steps "Step by step" (Workspace or Assistant settings › General) goes through again, with what is saved. The
+ * workspace: everything the onboarding asks but the number; one assistant: what is about it (the business it answers
+ * for, its name, greeting and voice, who hears about its calls), not the workspace's pick-up choice. Never the number
+ * (connecting or buying one is done once, in Workspace settings › Phone numbers) and never the end screen, except the
+ * number's forwarding codes when the pick-up choice just changed how a connected number forwards (`forwardingChanged`):
+ * the new code must be dialled.
+ */
+export function stepByStepSteps(target: 'workspace' | 'assistant', forwardingChanged: boolean): OnboardingStep[] {
+  if (target === 'assistant') return ['business', 'assistant', 'notify']
+  return ['business', 'assistant', 'pickup', 'notify', ...(forwardingChanged ? (['phone'] as const) : [])]
+}
 
 /** The pick-up choices in the order shown; the first is recommended and preselected. */
 export const pickupOrder: readonly PickupMode[] = ['no_answer', 'after_hours', 'always']
@@ -152,10 +169,27 @@ export function firstHoursDraft(
   return { on: saved.businessHoursOn, days: dayRows(saved.businessHours), timeZone: saved.timeZone }
 }
 
+/**
+ * Where Continue (`next`) or Back leads when the steps are gone through again from the settings: the next or previous
+ * step, or `close` (back to the settings page) after the last step and before the first.
+ */
+export function stepByStepMove(
+  steps: readonly OnboardingStep[],
+  step: OnboardingStep,
+  way: 'next' | 'back',
+): OnboardingStep | 'close' {
+  const at = steps.indexOf(step) + (way === 'next' ? 1 : -1)
+  return steps[at] ?? 'close'
+}
+
 /** Share of the bar to fill: finished steps, plus the current one once it is complete. */
-export function progress(step: OnboardingStep, complete: boolean): number {
-  const at = onboardingSteps.indexOf(step) + (complete ? 1 : 0)
-  return Math.round((at / onboardingSteps.length) * 100)
+export function progress(
+  step: OnboardingStep,
+  complete: boolean,
+  steps: readonly OnboardingStep[] = onboardingSteps,
+): number {
+  const at = steps.indexOf(step) + (complete ? 1 : 0)
+  return Math.round((at / steps.length) * 100)
 }
 
 /** A US number as people type it ("(503) 555-0142", "503.555.0142", "+1 503 …") in E.164, or null. */

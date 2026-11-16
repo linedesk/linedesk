@@ -20,7 +20,7 @@ import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
-import { useAssistant, useRun } from '../store.tsx'
+import { useAssistantOf, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
@@ -54,11 +54,13 @@ type Props = {
   admin: boolean
   onRenamed: (name: string) => void
   onNext: () => void
+  /** The assistant whose business profile this is (step by step from its settings); else the default one. */
+  assistantId?: string
 }
 
 export function BusinessStep(p: Props) {
   const t = useT()
-  const assistant = useAssistant()
+  const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <FindBusiness assistant={assistant} {...p} />
   return (
     <>

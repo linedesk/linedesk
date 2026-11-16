@@ -5,7 +5,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from '../admin/AdminMode.tsx'
-import type { Me, OnboardingState } from '../auth.ts'
+import type { Me, OnboardingState, PhoneSetupStatus, WebsiteImport } from '../auth.ts'
 import { brandName, useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { i18n } from '../i18n/index.tsx'
@@ -24,6 +24,7 @@ import {
   NO_PICKUP_MEMORY,
   nextStep,
   type OnboardingStep,
+  onboardingSteps,
   type PickupMemory,
   phoneSetupErrorText,
   previousStep,
@@ -82,30 +83,10 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
   }, [])
   // The address was confirmed here: `me` is from the page load and still says otherwise.
   const [confirmed, setConfirmed] = useState(false)
-  const [setupError, setSetupError] = useState<string | null>(null)
-  // Saves the steps queued and moved on from, refused later: each names its step and stays until dismissed or that
-  // step is saved again (Continue there). One per step: a newer refusal replaces an older one of the same step.
-  const [saveErrors, setSaveErrors] = useState<SaveError[]>([])
-  // The step the owner last moved on from: where a refusal that doesn't say otherwise was queued.
-  const left = useRef<OnboardingStep | null>(null)
+  const saves = useStepSaves()
   // What the pick-up step changed this session (hours it turned on, the forwarding a number had before).
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const hasNumber = useRows('phone_numbers').length > 0
-
-  const { rejection, clearRejection } = useRejection()
-  useEffect(() => {
-    if (!rejection) return
-    if (rejection.action === 'phoneNumber.setup') setSetupError(phoneSetupErrorText(rejection.error))
-    else {
-      const from = rejectionStep(rejection.action, rejection.input, left.current)
-      const error: SaveError = {
-        step: from,
-        text: saveErrorText(from, rejection.action, rejection.input, rejection.error),
-      }
-      setSaveErrors(all => [...all.filter(e => e.step !== from), error])
-    }
-    clearRejection()
-  }, [rejection, clearRejection])
 
   function go(to: OnboardingStep) {
     setStep(to)
@@ -117,8 +98,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
   }
   // Continue saves the step again: its old refusal goes.
   const forward = () => {
-    left.current = step
-    setSaveErrors(all => all.filter(e => e.step !== step))
+    saves.leaving(step)
     go(nextStep(step))
   }
   function skip() {
@@ -132,52 +112,23 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
       complete={step === 'done' || (step === 'phone' && hasNumber)}
       onSkip={step === 'done' ? undefined : skip}
     >
-      <SaveErrors
-        errors={saveErrors}
-        step={step}
-        onOpen={go}
-        onDismiss={e => setSaveErrors(all => all.filter(x => x !== e))}
-      />
+      <SaveErrors saves={saves} step={step} onOpen={go} />
       {me.emailUnconfirmed && !confirmed && (
         <ConfirmEmail onDone={() => setConfirmed(true)} why={t('onboarding.main.confirmWhy')} />
       )}
       {isInstanceAdmin(me) && <InstanceSetupNotice />}
-      {step === 'business' && (
-        <BusinessStep
-          businessName={me.workspace!.name}
-          lookup={!!state.businessLookup}
-          websiteImport={state.websiteImport}
-          admin={me.permissions.includes('instance:admin')}
-          onRenamed={onRenamed}
-          onNext={forward}
-        />
-      )}
-      {step === 'assistant' && (
-        <AssistantStep
-          onBack={back}
-          onNext={forward}
-          operator={me.permissions.includes('instance:admin') || Boolean(me.adminSecondFactor)}
-        />
-      )}
-      {step === 'pickup' && (
-        <PickupStep onBack={back} onNext={forward} memory={pickupMemory} onMemory={setPickupMemory} />
-      )}
-      {step === 'notify' && (
-        <NotifyStep
-          actorId={me.actorId}
+      {step !== 'done' && (
+        <StepScreen
+          step={step}
+          me={me}
           emailConfirmed={!me.emailUnconfirmed || confirmed}
-          admin={me.permissions.includes('instance:admin')}
-          onBack={back}
-          onNext={forward}
-        />
-      )}
-      {step === 'phone' && (
-        <PhoneStep
-          status={state.phone}
-          setupError={setupError}
-          clearError={() => setSetupError(null)}
-          admin={me.permissions.includes('instance:admin')}
-          oldForwarding={pickupMemory.oldForwarding}
+          phone={state.phone}
+          businessLookup={!!state.businessLookup}
+          websiteImport={state.websiteImport}
+          saves={saves}
+          pickupMemory={pickupMemory}
+          onPickupMemory={setPickupMemory}
+          onRenamed={onRenamed}
           onBack={back}
           onNext={forward}
         />
@@ -196,6 +147,118 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
 
 /** A save the server refused after its step was left; `step` null: not about one step (setup progress). */
 type SaveError = { step: OnboardingStep | null; text: string }
+
+/**
+ * The refusals of saves queued on steps already left, one per step (a newer refusal replaces an older one of the same
+ * step), and of the phone setup: shown above the step (SaveErrors) until dismissed or that step is saved again. The
+ * same for the first setup and for the steps gone through again from the settings (StepByStep.tsx).
+ */
+export function useStepSaves() {
+  const [setupError, setSetupError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<SaveError[]>([])
+  // The step last moved on from: where a refusal that doesn't say otherwise was queued.
+  const left = useRef<OnboardingStep | null>(null)
+  const { rejection, clearRejection } = useRejection()
+  useEffect(() => {
+    if (!rejection) return
+    if (rejection.action === 'phoneNumber.setup') setSetupError(phoneSetupErrorText(rejection.error))
+    else {
+      const from = rejectionStep(rejection.action, rejection.input, left.current)
+      const error: SaveError = {
+        step: from,
+        text: saveErrorText(from, rejection.action, rejection.input, rejection.error),
+      }
+      setErrors(all => [...all.filter(e => e.step !== from), error])
+    }
+    clearRejection()
+  }, [rejection, clearRejection])
+  return {
+    errors,
+    setupError,
+    clearSetupError: () => setSetupError(null),
+    dismiss: (error: SaveError) => setErrors(all => all.filter(e => e !== error)),
+    /** Continue on `step`: its saves are queued now, so its old refusal goes. */
+    leaving: (step: OnboardingStep) => {
+      left.current = step
+      setErrors(all => all.filter(e => e.step !== step))
+    },
+  }
+}
+type StepSaves = ReturnType<typeof useStepSaves>
+
+type StepScreenProps = {
+  step: Exclude<OnboardingStep, 'done'>
+  me: Me
+  emailConfirmed: boolean
+  phone: PhoneSetupStatus
+  businessLookup: boolean
+  websiteImport?: WebsiteImport
+  /** The assistant the steps are about (step by step from its settings); else the workspace's default one. */
+  assistantId?: string
+  saves: StepSaves
+  pickupMemory: PickupMemory
+  onPickupMemory: (memory: PickupMemory) => void
+  onRenamed: (name: string) => void
+  onBack: () => void
+  onNext: () => void
+}
+
+/**
+ * One step of the setup, the same components with the same saves whether the workspace is set up for the first time
+ * (OnboardingFlow) or the steps are gone through again from the settings (StepByStep.tsx): each step starts from what
+ * is saved.
+ */
+export function StepScreen(p: StepScreenProps) {
+  const admin = p.me.permissions.includes('instance:admin')
+  switch (p.step) {
+    case 'business':
+      return (
+        <BusinessStep
+          businessName={p.me.workspace!.name}
+          lookup={p.businessLookup}
+          websiteImport={p.websiteImport}
+          admin={admin}
+          assistantId={p.assistantId}
+          onRenamed={p.onRenamed}
+          onNext={p.onNext}
+        />
+      )
+    case 'assistant':
+      return (
+        <AssistantStep
+          assistantId={p.assistantId}
+          onBack={p.onBack}
+          onNext={p.onNext}
+          operator={admin || Boolean(p.me.adminSecondFactor)}
+        />
+      )
+    case 'pickup':
+      return <PickupStep onBack={p.onBack} onNext={p.onNext} memory={p.pickupMemory} onMemory={p.onPickupMemory} />
+    case 'notify':
+      return (
+        <NotifyStep
+          actorId={p.me.actorId}
+          emailConfirmed={p.emailConfirmed}
+          admin={admin}
+          assistantId={p.assistantId}
+          onBack={p.onBack}
+          onNext={p.onNext}
+        />
+      )
+    case 'phone':
+      return (
+        <PhoneStep
+          status={p.phone}
+          setupError={p.saves.setupError}
+          clearError={p.saves.clearSetupError}
+          admin={admin}
+          oldForwarding={p.pickupMemory.oldForwarding}
+          onBack={p.onBack}
+          onNext={p.onNext}
+        />
+      )
+  }
+}
 
 /** "Couldn't save …: reason", one whole sentence per step. */
 const SAVE_ERRORS: Record<OnboardingStep, MessageKey> = {
@@ -221,34 +284,37 @@ function saveErrorText(step: OnboardingStep | null, action: string, input: unkno
   return t(what, { reason: rejectionReason(error) })
 }
 
-/** The one place save errors show, above the step: what failed, a way back to that step, and Dismiss. */
-function SaveErrors({
-  errors,
+/**
+ * The one place save errors show, above the step: what failed, a way back to that step (when it is one of the `steps`
+ * gone through), and Dismiss.
+ */
+export function SaveErrors({
+  saves,
   step,
+  steps = onboardingSteps,
   onOpen,
-  onDismiss,
 }: {
-  errors: SaveError[]
+  saves: StepSaves
   step: OnboardingStep
+  steps?: readonly OnboardingStep[]
   onOpen: (step: OnboardingStep) => void
-  onDismiss: (error: SaveError) => void
 }) {
   const t = useT()
-  if (!errors.length) return null
+  if (!saves.errors.length) return null
   return (
     <div className="ob-save-errors">
-      {errors.map(e => (
+      {saves.errors.map(e => (
         <Note
           key={e.step ?? 'progress'}
           tone="danger"
           action={
             <>
-              {e.step && e.step !== step && (
+              {e.step && e.step !== step && steps.includes(e.step) && (
                 <Button size="sm" onClick={() => onOpen(e.step!)} title={t('onboarding.main.openStepTip')}>
                   {t('onboarding.main.backTo', { step: stepLabels[e.step] })}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => onDismiss(e)}>
+              <Button size="sm" variant="ghost" onClick={() => saves.dismiss(e)}>
                 {t('onboarding.main.dismiss')}
               </Button>
             </>

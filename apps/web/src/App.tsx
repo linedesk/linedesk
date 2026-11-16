@@ -14,11 +14,12 @@ import {
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { ownerAgentSetupDue, ownerChoseByHand, rememberOwnerByHand } from './onboarding/setup-choice.ts'
-import { mayChangeWithAgent, useChangeWithAgent } from './settings/agentChange.ts'
+import { mayChangeWithAgent, mayStepThrough, useChangeWithAgent, useStepByStep } from './settings/agentChange.ts'
 import { ChangeWithAgent } from './settings/ChangeWithAgent.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { Onboarding } from './onboarding/Onboarding.tsx'
+import { StepByStep } from './onboarding/StepByStep.tsx'
 import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { switchToWorkspace } from './shell/invitations.ts'
 import { linkNotice, linkWorkspace, linkWorkspaceTarget, withoutLinkWorkspace } from './shell/useRoute.ts'
@@ -142,6 +143,8 @@ export function App() {
   const connectAgentHash = useHashIs(isConnectAgentHash)
   // Workspace or Assistant settings › "Change with an AI agent" (#change-with-agent/…, agentChange.ts).
   const changeTarget = useChangeWithAgent()
+  // Workspace or Assistant settings › "Step by step": the setup steps again (#step-by-step/…, onboarding/StepByStep.tsx).
+  const stepTarget = useStepByStep()
   // An instance admin sets up with an AI agent first (AgentSetup.tsx), unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
   // A workspace owner sets up their workspace with an AI agent first too (setup-choice.ts), unless they chose by hand.
@@ -307,7 +310,11 @@ export function App() {
   if (session.state === 'loading') return <BootScreen line={t('shell.boot.opening', { name: brandName() })} />
   if (session.state === 'unreachable') return <Unreachable />
   const pendingPayment = session.state === 'ready' && session.me.workspace?.billingState === 'pending_payment'
-  if (signupPage && !pendingPayment && (session.state === 'signedOut' || session.state === 'needsWorkspace' || session.state === 'ready')) {
+  if (
+    signupPage &&
+    !pendingPayment &&
+    (session.state === 'signedOut' || session.state === 'needsWorkspace' || session.state === 'ready')
+  ) {
     const leaveSignup = async () => {
       window.history.replaceState(null, '', '/')
       setSignupPage(false)
@@ -467,6 +474,8 @@ export function App() {
               workspace={{ id: session.me.workspace!.id, name: session.me.workspace!.name }}
               account={session.me.actorId}
             />
+          ) : stepTarget && mayStepThrough(session.me) && !settingUp ? (
+            <StepByStep target={stepTarget} me={session.me} onRenamed={renamed} />
           ) : /* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */
           session.me.onboarding && !onboarded && !(adminHash && isInstanceAdmin(session.me)) ? (
             <Onboarding

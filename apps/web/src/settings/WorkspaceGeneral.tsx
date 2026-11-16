@@ -53,7 +53,7 @@ export function WorkspaceGeneral({
   const readOnly = useReadOnlyNote()
   return (
     <Section id="ws-general" title={t('settings.workspace.nav.general.label')}>
-      {agentChange && <AgentChangeNote target={{ kind: 'workspace' }} firstField="ws-name" />}
+      {agentChange && <AgentChangeNote target={{ kind: 'workspace' }} />}
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
       <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={readOnly} toast={toast} />
       <Country canEdit={canEdit} />
@@ -351,7 +351,9 @@ function AllowUltra({
       patchWorkspaceSettings({ allowUltra: data.on })
       void refreshQuery('voice.options')
       toast(
-        data.on ? t('settings.general.ultra.on') : t('settings.general.ultra.off', { count: data.movedOffUltra.length }),
+        data.on
+          ? t('settings.general.ultra.on')
+          : t('settings.general.ultra.off', { count: data.movedOffUltra.length }),
       )
     } catch (e) {
       toast(rejectionText('workspace.setAllowUltra', (e as Error).message))

@@ -109,6 +109,13 @@ describe('the review draft', () => {
     expect(renamed.greeting).toBe('Thanks for calling Brightwater Plumbing. This is Maya. How can I help?')
   })
 
+  test('clearing the name and typing a new one letter by letter puts exactly the new name in the greeting', () => {
+    let draft = renameBusiness(draftFrom(proposal()), '')
+    expect(draft.greeting).toBe(draftFrom(proposal()).greeting)
+    for (const typed of ['B', 'Br', 'Bri', 'Bright', 'Brightwater Co']) draft = renameBusiness(draft, typed)
+    expect(draft.greeting).toBe('Thanks for calling Brightwater Co. This is Maya. How can I help?')
+  })
+
   test('a name is needed; phone and website, when given, must be one, each said under its field', () => {
     expect(draftProblem(draftFrom(proposal()))).toBeNull()
     expect(draftProblem({ ...draftFrom(proposal()), name: ' ' })).toMatch(/name/)

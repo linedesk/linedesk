@@ -11,19 +11,22 @@ import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from '../settings/VoiceSettings.tsx'
-import { useAssistant, useRun } from '../store.tsx'
+import { useAssistantOf, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { Foot, useStepKeys } from './Frame.tsx'
+import { Foot, useStepKeys, useStepMode } from './Frame.tsx'
 import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
 
-/** `operator`: the member runs the server (a test call nobody answers says what to fix there). */
-type Props = { onBack: () => void; onNext: () => void; operator?: boolean }
+/**
+ * `operator`: the member runs the server (a test call nobody answers says what to fix there). `assistantId`: the
+ * assistant this step is about (step by step from its settings); else the workspace's default one.
+ */
+type Props = { onBack: () => void; onNext: () => void; operator?: boolean; assistantId?: string }
 
 export function AssistantStep(p: Props) {
   const t = useT()
-  const assistant = useAssistant()
+  const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <AssistantForm assistant={assistant} {...p} />
   return (
     <>
@@ -94,6 +97,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
     }
   }
   useStepKeys({ onEnter: next, onEscape: back })
+  // Again from the settings, Continue (Done) is the one primary action here; the test call stands beside it.
+  const { edit } = useStepMode()
 
   return (
     <>
@@ -161,7 +166,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         )}
         <div className="ob-talk">
           {/* The same button and panel as Assistant settings; the click saves first. */}
-          <TestCallButton session={session} variant="primary" onStart={() => void talk()} />
+          <TestCallButton session={session} variant={edit ? 'secondary' : 'primary'} onStart={() => void talk()} />
           <span className="ob2-note">{session.blockedReason ?? t('onboarding.assistant.talkHint')}</span>
         </div>
         {/* No Open in inbox here: the inbox would end onboarding before the number is connected. */}

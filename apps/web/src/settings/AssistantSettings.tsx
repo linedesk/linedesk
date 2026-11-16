@@ -935,7 +935,6 @@ function Form({
               <AgentChangeNote
                 target={{ kind: 'assistant', assistantId: assistant.id }}
                 assistantName={assistant.name}
-                firstField="as-name"
               />
             )}
             <AssistantNameSection draft={draft} set={set} />

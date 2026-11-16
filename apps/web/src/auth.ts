@@ -74,6 +74,11 @@ export type Me = {
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
   workspaces?: { id: string; name: string; disabled?: boolean; iconUrl?: string | null }[]
   onboarding: OnboardingState | null
+  /**
+   * After onboarding, for owners and admins: what "Find your business" offers when they go through the setup steps
+   * again from the settings (onboarding/StepByStep.tsx). Null otherwise; absent from an older server.
+   */
+  businessSetup?: Pick<OnboardingState, 'businessLookup' | 'websiteImport'> | null
   /** null for members who cannot change settings. */
   phoneSetup: PhoneSetupStatus | null
   /** Set while an instance admin is signed in as this user. */

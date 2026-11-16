@@ -219,6 +219,11 @@ export function useAssistants() {
 export function useAssistant() {
   return useAssistants()[0]
 }
+/** The assistant with this id (undefined while it has not arrived, or when it is not in this workspace); no id: the default one. */
+export function useAssistantOf(id: string | undefined) {
+  const assistants = useAssistants()
+  return id === undefined ? assistants[0] : assistants.find(a => a.id === id)
+}
 export function useAssistantName() {
   const t = useT()
   return useAssistant()?.name ?? t('common.assistant.unnamed')

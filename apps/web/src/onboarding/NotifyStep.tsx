@@ -14,7 +14,7 @@ import { brandName } from '../brand.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
 import { useDeviceNotifications } from '../settings/Notifications.tsx'
 import { setNotificationSettings, useNotificationQuery } from '../shell/useCallNotifications.ts'
-import { useAssistant, useRows, useRun } from '../store.tsx'
+import { useAssistantOf, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
 import { Checkbox, RadioCard } from '../ui/controls.tsx'
 import { Note } from '../ui/kit.tsx'
@@ -44,11 +44,13 @@ type Props = {
   admin: boolean
   onBack: () => void
   onNext: () => void
+  /** The assistant whose calls these are (step by step from its settings); else the workspace's default one. */
+  assistantId?: string
 }
 
 export function NotifyStep(p: Props) {
   const t = useT()
-  const assistant = useAssistant()
+  const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <NotifyForm assistant={assistant} {...p} />
   return (
     <>
@@ -177,9 +179,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
         </div>
         {nobodyAlerted && (
           <Note tone="warning">
-            {emailOn
-              ? t('onboarding.notify.nobodyAlertedNoEmail')
-              : t('onboarding.notify.nobodyAlerted')}
+            {emailOn ? t('onboarding.notify.nobodyAlertedNoEmail') : t('onboarding.notify.nobodyAlerted')}
           </Note>
         )}
         {draft.urgent === 'transfer' && (
@@ -199,7 +199,12 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
                 onBlur={() => draft.mobile.trim() && setShown(true)}
               />
             </Field>
-            <Field id="ob-urgent-means" label={t('onboarding.notify.urgentMeans')} help={EMERGENCY_NOTE(name, workspaceCountry?.country)} error={conditionError}>
+            <Field
+              id="ob-urgent-means"
+              label={t('onboarding.notify.urgentMeans')}
+              help={EMERGENCY_NOTE(name, workspaceCountry?.country)}
+              error={conditionError}
+            >
               <TextArea
                 id="ob-urgent-means"
                 value={draft.condition}

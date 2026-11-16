@@ -52,6 +52,11 @@ export type ProfileDraft = {
   about: string
   useCases: string
   greeting: string
+  /**
+   * The greeting as proposed and the business name it was made with: a rename is worked out from these each time, so
+   * clearing the name and typing it again never rewrites the greeting letter by letter.
+   */
+  greetingFrom: { text: string; name: string }
   /** Google's hours, saved as the business hours only when the owner keeps this on. */
   useHours: boolean
   hours: BusinessHoursSpan[] | null
@@ -83,6 +88,7 @@ export function draftFrom(proposal: BusinessImportData): ProfileDraft {
     about: proposal.about,
     useCases: templateUseCases(proposal.template, proposal.useCases).join('\n'),
     greeting: proposal.greeting,
+    greetingFrom: { text: proposal.greeting, name: proposal.name.trim() },
     useHours: !!proposal.hours?.length,
     hours: proposal.hours,
     hoursText: proposal.hoursText,
@@ -158,12 +164,14 @@ export function switchTemplate(draft: ProfileDraft, template: BusinessTemplateId
   return { ...draft, template, useCases: templateUseCases(template, kept).join('\n') }
 }
 
-/** A renamed business: the greeting follows when it still names the old name. */
+/**
+ * A renamed business: the greeting follows when it named the business. Worked out from the greeting as proposed, not
+ * from the last keystroke, so an emptied field keeps the proposed name and typing a name again puts in exactly it.
+ */
 export function renameBusiness(draft: ProfileDraft, name: string): ProfileDraft {
-  const old = draft.name.trim()
-  const greeting =
-    old && draft.greeting.includes(old) ? draft.greeting.split(old).join(name.trim() || old) : draft.greeting
-  return { ...draft, name, greeting }
+  const from = draft.greetingFrom
+  if (!from.name || !from.text.includes(from.name)) return { ...draft, name }
+  return { ...draft, name, greeting: from.text.split(from.name).join(name.trim() || from.name) }
 }
 
 /** The About text the assistant answers from: the brief, then services, area, address and the common calls. */

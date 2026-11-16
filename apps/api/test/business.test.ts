@@ -13,7 +13,16 @@ import {
   workspaceDailyCap,
 } from '../src/business-import.ts'
 import { db } from '../src/db.ts'
-import { act, addMember, asServerAdmin, createWorkspace, getAssistant, request, signUp, type Workspace } from './helpers.ts'
+import {
+  act,
+  addMember,
+  asServerAdmin,
+  createWorkspace,
+  getAssistant,
+  request,
+  signUp,
+  type Workspace,
+} from './helpers.ts'
 
 let ws: Workspace
 beforeAll(async () => {
@@ -236,6 +245,26 @@ test('the note says why the model gave nothing: too slow, not JSON, or not reach
   expect(modelProblem(new DOMException('timed out', 'TimeoutError'))).toMatch(/did not answer in time/)
   expect(modelProblem(new SyntaxError('Unexpected token'))).toMatch(/no usable answer/)
   expect(modelProblem(new Error('HTTP 502'))).toMatch(/could not be reached/)
+})
+
+describe('/v1/me: what Find your business offers after onboarding ("Step by step" from the settings)', () => {
+  test('owners and admins once onboarding is over; members never; while it is open, its own state says it', async () => {
+    const fresh = await createWorkspace('Step Plumbing')
+    const open = (await request(fresh.owner, 'GET', '/v1/me')).body
+    expect(open.onboarding).toMatchObject({ businessLookup: false })
+    expect(open.businessSetup).toBeNull()
+    expect((await act(fresh.owner, 'onboarding.setStep', { step: 'skipped' })).status).toBe(200)
+    const after = (await request(fresh.owner, 'GET', '/v1/me')).body
+    expect(after.onboarding).toBeNull()
+    expect(after.businessSetup).toEqual({
+      businessLookup: false,
+      websiteImport: expect.stringMatching(/^(on|no_model|paused)$/),
+    })
+    const admin = await addMember(fresh.id, 'admin')
+    expect((await request(admin, 'GET', '/v1/me')).body.businessSetup).toMatchObject({ businessLookup: false })
+    const member = await addMember(fresh.id, 'member')
+    expect((await request(member, 'GET', '/v1/me')).body.businessSetup).toBeNull()
+  })
 })
 
 describe('workspace.rename', () => {
