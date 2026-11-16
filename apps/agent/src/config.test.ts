@@ -391,3 +391,19 @@ describe('withLevelFallbacks: only fallback models of the call level (usage leve
     expect(withLevelFallbacks(clean, 'standard')).toBe(clean)
   })
 })
+
+test('after one good read, a failing API keeps the last settings instead of the environment', async () => {
+  let clock = 0
+  let fail = false
+  const fetchSettings = vi.fn(async () => {
+    if (fail) throw new Error('The operation was aborted due to timeout')
+    return stored
+  })
+  const log = vi.fn()
+  const load = createConfigLoader({ fetchSettings, env: {}, ttlMs: 1000, now: () => clock, log })
+  const first = await load()
+  fail = true
+  clock = 2000
+  expect(await load()).toEqual(first)
+  expect(log).toHaveBeenLastCalledWith('could not read provider settings from the API, using the last settings read: The operation was aborted due to timeout')
+})

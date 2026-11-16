@@ -484,19 +484,22 @@ export function createConfigLoader({
 }: ConfigLoaderOptions): () => Promise<CallConfig> {
   let cached: { at: number; settings: Promise<ProviderSettings | null> } | undefined
   let lastProblem: string | null = null
+  // A slow or failing API keeps the last settings read: the environment may no longer hold the keys.
+  let lastGood: ProviderSettings | null = null
   const fetchOnce = () =>
     fetchSettings().then(
       ok => {
         if (lastProblem) log('provider settings from the API are available again')
         lastProblem = null
+        lastGood = ok
         return ok
       },
       (e: unknown) => {
         const problem = e instanceof Error ? e.message : String(e)
-        if (problem !== lastProblem)
-          log(`could not read provider settings from the API, using the environment: ${problem}`)
+        const using = lastGood ? 'the last settings read' : 'the environment'
+        if (problem !== lastProblem) log(`could not read provider settings from the API, using ${using}: ${problem}`)
         lastProblem = problem
-        return null
+        return lastGood
       },
     )
   // Calls that arrive together share one request: the pending promise is what gets cached.
