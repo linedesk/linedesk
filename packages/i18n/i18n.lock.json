@@ -2476,8 +2476,8 @@
       "src": "54f81a9b27497bd2a4e5bcc514a5a91cf00b94f0c92be124ba782067e812e0a8"
     },
     "admin.billing.guardsMissing": {
-      "by": "ai",
-      "out": "a156e63b75e9ccedf9b73de97d2c9cc738f23c4e4edca8016457927d318cffa1",
+      "by": "human",
+      "out": "3a2a259b225f4f570e4f2ead0fa4e803e18904722fd5faae7404471368a08fc8",
       "src": "91faf30fba7af9adb08396553850b450fec63e00cfab6b7b426cff745dce34b9"
     },
     "admin.billing.help": {
@@ -7876,8 +7876,8 @@
       "src": "5a4ab5093c93728d314af06fea3a3058770e53eae081fc15f424a637ce4963a1"
     },
     "email.adminAlert.billingUnusable.text": {
-      "by": "ai",
-      "out": "13cd416d12251c76eda026c3fb2e021b68d6dfeaa2ce77f1d0c9dccb476c8bc6",
+      "by": "human",
+      "out": "60257a485a30b77a6df56e2c45250e0911ad4387548fdc96429414260bdb602b",
       "src": "89e7dfe90a973c7e909a4866ab6f91ead7483fbadedb3f1ba80c89ebfffa5367"
     },
     "email.adminAlert.browserOnOs": {
@@ -7946,18 +7946,18 @@
       "src": "2a38e960bcf709a9808daaa82dcd40f10f13fec9994ed71411e461f6b6a0f7dd"
     },
     "email.adminAlert.ledgerCheck.bill": {
-      "by": "ai",
-      "out": "2f2ce6b936a168b29172d0a74382e0ba689b755899bdded8deb0dd09e0995866",
+      "by": "human",
+      "out": "0bda56ebe8d2f0723284d3d7b1c6d9813b4b8593781b2045cacac22f0fd69508",
       "src": "59f8ae201c0d0287dc41bc6e8241f541094efaf5329de0ad0b0ac996f8277de2"
     },
     "email.adminAlert.ledgerCheck.counter": {
-      "by": "ai",
-      "out": "808bfd71c2ada3668ee20e9502ead239fd2251232a2b5ee98aedb8b1708ca4f0",
+      "by": "human",
+      "out": "b249452994fbbe687b8f46c84f30857c3f05d3b3bb98fd582f88be56b8dc58a2",
       "src": "4510da7c5e7450dc3fedf658997c0082c7488650bbf2f6bcd2cb28f482780aff"
     },
     "email.adminAlert.ledgerCheck.failed": {
-      "by": "ai",
-      "out": "3854c6b299c55f32f1dbc1a6acaa451a8033360d804c7d9744c0153a28adadeb",
+      "by": "human",
+      "out": "cc520857e325cb3547e28fed8c9683558e8b76ae15325f608124b7cab35af5c6",
       "src": "4ec6ce3671ba9321baa12c21752e886879d816b06b121cbb8700064cdf43abfd"
     },
     "email.adminAlert.ledgerCheck.failedSubject": {
@@ -7971,8 +7971,8 @@
       "src": "733f05bcf00233ec50b8edd75f8bd0f1d76aa338b1490824e1707ce60b182a5a"
     },
     "email.adminAlert.ledgerCheck.guards": {
-      "by": "ai",
-      "out": "d404da8208cd15955060b14b07c3f2115c1cde655ab83ecb95eaac7c9e895d58",
+      "by": "human",
+      "out": "a015f5533af369610c6213a6a13ad45fb7d1fffc625f319428094a8c4af27859",
       "src": "f6db08bedc04fc5e5d6db380757cc7818d0be454624898cf8616ada48f32b4a8"
     },
     "email.adminAlert.ledgerCheck.kind": {
@@ -7991,8 +7991,8 @@
       "src": "01b21df79a0ca72e6852dae5b5c78b26c5a9ad732b9b95cd8bc4df0e76c8fed1"
     },
     "email.adminAlert.ledgerCheck.sums": {
-      "by": "ai",
-      "out": "2722a8c051ca8c3daa4e5b27bdf9e0f973914c63932279dbb3b04addf6f66452",
+      "by": "human",
+      "out": "f8d54fe71cad293b42a8c5e17df24009d1456f798e66942a1434cf70c7cc9066",
       "src": "d1c22d800eabc6b0907e94fbfeca92c7b1ed6aeadc7e33fead1e613b3d614c95"
     },
     "email.adminAlert.ledgerCheck.uncredited": {
@@ -8176,8 +8176,8 @@
       "src": "4e1f49a9c8ae8a158434e647c0c410352d718984a4fcd144d26cca3c394caa02"
     },
     "email.adminAlert.stripeEventFailed.next": {
-      "by": "ai",
-      "out": "cd8a9a944760746dc8ac29d80a6bd0f8c956cd7c33bafaf424cd6b0cf282e4d6",
+      "by": "human",
+      "out": "5b144f012426f75d85c0afbdc198689e36f79f861ffec0c872d8279474cbe8f0",
       "src": "386169a1e6dd1e6e638fbaba5bc7aab01e5d236addc9fcf1043232401d1a7e23"
     },
     "email.adminAlert.stripeEventFailed.subject": {

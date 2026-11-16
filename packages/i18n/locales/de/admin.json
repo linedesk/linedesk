@@ -278,7 +278,7 @@
   "audit.workspaceRenamed": "{named, select, yes {Workspace in „{name}“ umbenannt} other {Workspace umbenannt}}",
   "audit.workspaceSettingsChanged": "Workspace-Einstellungen geändert",
   "billing.failed": "Die Abrechnung konnte nicht geändert werden.",
-  "billing.guardsMissing": "Die Abrechnung ist pausiert: Die Datenbank-Schutzregeln des Kontobuchs fehlen oder wurden geändert. Führ die Migrationen erneut aus; das Server-Log nennt, was nicht stimmt.",
+  "billing.guardsMissing": "Die Abrechnung ist pausiert: Die Datenbank-Schutzregeln der Transaktionshistorie fehlen oder wurden geändert. Führ die Migrationen erneut aus; das Server-Log nennt, was nicht stimmt.",
   "billing.help": "Workspaces über Stripe abrechnen. Standardmäßig aus: Bis es eingeschaltet ist, wird nichts abgerechnet.",
   "billing.liveMode": "Live-Modus: Sobald die Abrechnung eingeschaltet ist, werden echte Karten belastet.",
   "billing.liveRefused": "Das ist eine Entwicklungsinstallation: Live-Schlüssel von Stripe werden abgelehnt. Nutze einen Testschlüssel.",
