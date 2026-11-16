@@ -2,7 +2,8 @@
 # External uptime checks for another Linedesk install, run from a different server (another provider or region) every
 # 2 minutes (linedesk-monitor.timer). LINEDESK_MONITOR_HOST (web, API, voice agent, LiveKit) and LINEDESK_MONITOR_SIP_HOST (SIP)
 # in /etc/linedesk/ops.env. A check counts as down after 2 failures in a row; one email when it goes down, one when it
-# is back (linedesk-alert-text, SMTP of this server's stack).
+# is back (linedesk-alert-text, SMTP of this server's stack), and with LINEDESK_PUSH_URL (an ntfy topic URL) also a
+# push to the phones subscribed to it: urgent when it goes down.
 set -u
 [ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
 host=${LINEDESK_MONITOR_HOST:?set LINEDESK_MONITOR_HOST in /etc/linedesk/ops.env}
@@ -35,6 +36,11 @@ describe() { # <name>
   esac
 }
 mail() { LINEDESK_ALERT_LABEL="$host" /usr/local/sbin/linedesk-alert-text "$1" "$2"; }
+push() { # <title> <text> <priority>: the email above goes out also when the push fails.
+  [ -n "${LINEDESK_PUSH_URL:-}" ] || return 0
+  curl -sS -m 10 -o /dev/null -H "Title: [Linedesk $host] $1" -H "Priority: $3" -d "$2" "$LINEDESK_PUSH_URL" ||
+    echo "linedesk-monitor: push failed" >&2
+}
 
 for name in api agent web livekit sip; do
   fails=$(cat "$dir/$name.fails" 2>/dev/null || echo 0)
@@ -43,13 +49,17 @@ for name in api agent web livekit sip; do
     echo 0 > "$dir/$name.fails"
     if [ "$state" = down ]; then
       echo up > "$dir/$name.state"
-      mail "$name is back up" "$name on $host answers again ($(date -u '+%F %T UTC')). Checked from $(hostname)."
+      text="$name on $host answers again ($(date -u '+%F %T UTC')). Checked from $(hostname)."
+      mail "$name is back up" "$text"
+      push "$name is back up" "$text" default
     fi
   else
     fails=$((fails + 1)); echo "$fails" > "$dir/$name.fails"
     if [ "$fails" -ge 2 ] && [ "$state" = up ]; then
       echo down > "$dir/$name.state"
-      mail "$name is DOWN" "$name on $host failed $fails checks in a row (since about $(date -u -d '-2 min' '+%T UTC')). Check: $(describe "$name"). Checked from $(hostname)."
+      text="$name on $host failed $fails checks in a row (since about $(date -u -d '-2 min' '+%T UTC')). Check: $(describe "$name"). Checked from $(hostname)."
+      mail "$name is DOWN" "$text"
+      push "$name is DOWN" "$text" urgent
     fi
   fi
   echo "$name: $(cat "$dir/$name.state" 2>/dev/null || echo up) (fails $(cat "$dir/$name.fails"))"

@@ -4,16 +4,17 @@
 # request the web ports only from Cloudflare, SSH hardening, ufw and uptime checks of another install. Everything it
 # installs is in ops/server/ (README there). Run it again after an update: it is idempotent and keeps /etc/linedesk/ops.env.
 #
-#   sudo ops/server/setup.sh --alert-to ops@example.com --label prod
+#   sudo ops/server/setup.sh --alert-to ops@example.com --label prod   # several: --alert-to a@example.com,b@example.com
 #   sudo ops/server/setup.sh --dry-run                       # what would change, nothing is touched
 #   options: --cloudflare        web ports 80/443 only from Cloudflare (an install behind its proxy)
 #            --harden-ssh        keys only, no root login, 3 tries (needs a sudo user with an SSH key)
 #            --ufw               ufw on: only SSH reaches host services (Docker's published ports are not affected)
 #            --monitor <host> [--monitor-sip <host>]   check another install every 2 minutes from this server
+#            --push-url <https URL>   with --monitor: also a phone push (ntfy topic URL) when a check goes down or up
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 app_dir=${LINEDESK_APP_DIR:-$(cd "$here/../.." && pwd)}
-dry=0 cloudflare=0 harden_ssh=0 ufw=0 alert_to='' label='' monitor='' monitor_sip=''
+dry=0 cloudflare=0 harden_ssh=0 ufw=0 alert_to='' label='' monitor='' monitor_sip='' push_url=''
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) dry=1 ;;
@@ -24,6 +25,7 @@ while [ $# -gt 0 ]; do
     --label) label=${2:?--label needs a name}; shift ;;
     --monitor) monitor=${2:?--monitor needs a host}; shift ;;
     --monitor-sip) monitor_sip=${2:?--monitor-sip needs a host}; shift ;;
+    --push-url) push_url=${2:?--push-url needs a URL}; shift ;;
     *) sed -n '2,13p' "$0" >&2; exit 2 ;;
   esac
   shift
@@ -59,14 +61,16 @@ alert_to=${alert_to:-$(current LINEDESK_ALERT_TO)}
 label=${label:-$(current LINEDESK_ALERT_LABEL)}
 monitor=${monitor:-$(current LINEDESK_MONITOR_HOST)}
 monitor_sip=${monitor_sip:-$(current LINEDESK_MONITOR_SIP_HOST)}
+push_url=${push_url:-$(current LINEDESK_PUSH_URL)}
 label=${label:-$(hostname)}
 # ops.env is sourced by scripts that run as root: only plain values go in.
 valid() { printf '%s\n' "$2" | grep -Eq "$3" || { echo "not a valid $1: $2" >&2; exit 1; }; }
-valid "email address" "$alert_to" '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+valid "email address (or several, separated by commas)" "$alert_to" '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(,[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})*$'
 valid label "$label" '^[A-Za-z0-9._-]+$'
 valid "app folder" "$app_dir" '^/[A-Za-z0-9._/-]+$'
 [ -z "$monitor" ] || valid "host name" "$monitor" '^[A-Za-z0-9.-]+$'
 [ -z "$monitor_sip" ] || valid "host name" "$monitor_sip" '^[A-Za-z0-9.-]+$'
+[ -z "$push_url" ] || valid "push URL" "$push_url" '^https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$'
 {
   echo "# Settings for the scripts from ops/server (setup.sh writes this file; edit it and run setup.sh again)."
   echo "LINEDESK_APP_DIR=$app_dir"
@@ -74,6 +78,7 @@ valid "app folder" "$app_dir" '^/[A-Za-z0-9._/-]+$'
   echo "LINEDESK_ALERT_LABEL=$label"
   [ -z "$monitor" ] || echo "LINEDESK_MONITOR_HOST=$monitor"
   [ -z "$monitor_sip" ] || echo "LINEDESK_MONITOR_SIP_HOST=$monitor_sip"
+  [ -z "$push_url" ] || echo "LINEDESK_PUSH_URL=$push_url"
 } > "$tmp/ops.env"
 put "$tmp/ops.env" "$ops_env" 644
 
