@@ -1,6 +1,6 @@
 import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
-import { nudgeIfQuiet, saidMeanwhile, stepFacts } from './collect-tools.ts'
+import { nudgeIfQuiet, saidMeanwhile, stepFacts, syncCallerSilence } from './collect-tools.ts'
 import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
 import { ASK_FIRST, Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import { addressCollector, dateCollector, digitsCollector, emailCollector, isWholePhoneNumber, nameCollector, partialPhoneNumberIn, parseDate, phoneCollector, stateCode, toE164, todayFact } from './collectors.ts'
@@ -242,5 +242,27 @@ describe('a question during a step (LIN-103)', () => {
     expect(facts).toContain('Business hours: Open now, until 6 PM.')
     expect(facts).toContain('Business address: 1200 SE Morrison St, Portland')
     expect(stepFacts({ today: '2026-11-12' })).not.toContain('Business')
+  })
+})
+
+describe('syncCallerSilence', () => {
+  const flag = (isSet: boolean) => ({ isSet, set: vi.fn() })
+
+  it('marks the caller silent on the resumed assistant when the session says they are not talking', () => {
+    for (const userState of ['listening', 'away']) {
+      const silence = flag(false)
+      syncCallerSilence({ userState, _activity: { userSilenceEvent: silence } })
+      expect(silence.set).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('leaves it while the caller talks, when it is set already, or when there is no assistant', () => {
+    const talking = flag(false)
+    syncCallerSilence({ userState: 'speaking', _activity: { userSilenceEvent: talking } })
+    expect(talking.set).not.toHaveBeenCalled()
+    const silent = flag(true)
+    syncCallerSilence({ userState: 'listening', _activity: { userSilenceEvent: silent } })
+    expect(silent.set).not.toHaveBeenCalled()
+    expect(() => syncCallerSilence({ userState: 'listening' })).not.toThrow()
   })
 })

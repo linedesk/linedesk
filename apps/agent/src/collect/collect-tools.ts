@@ -65,6 +65,9 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     const outcome = await task.run().finally(() => {
       ctx.log.collecting = null
       if (ctx.step === task) ctx.step = null
+      // The assistant is back (LiveKit resumed it before run() returns): its reply to the step must not wait for a
+      // caller who stopped talking while the step had the call.
+      syncCallerSilence(run.session as unknown as ResumedSession)
     })
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
@@ -78,6 +81,27 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`
   }
+}
+
+/** The session after a step, as far as syncCallerSilence needs it: LiveKit's internal state of the resumed assistant. */
+export type ResumedSession = {
+  userState: string
+  _activity?: { userSilenceEvent?: { isSet: boolean; set(): void } }
+}
+
+/**
+ * LiveKit (agents 1.10.0) holds a reply until the caller is silent, with a flag per agent (AgentActivity's
+ * userSilenceEvent): cleared when the caller starts talking, set when they stop. While a step runs, the assistant is
+ * paused and only the step hears the caller. When the caller started a sentence just before the step took over (they
+ * went on talking while the assistant called the step), the assistant's flag stays "talking" for good: after the step
+ * its reply is made but held forever, the agent stays "thinking" (no silence reminder, the call limit's line queued
+ * behind it), until the caller happens to talk again. LiveKit does not reset the flag when it resumes an agent, so it
+ * is set here from the session's own caller state, which the step kept current.
+ */
+export function syncCallerSilence(session: ResumedSession) {
+  const silence = session._activity?.userSilenceEvent
+  if (!silence || silence.isSet || session.userState === 'speaking') return
+  silence.set()
 }
 
 /** How long after a step the assistant may stay quiet before it is asked to go on. */
