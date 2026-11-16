@@ -37,7 +37,7 @@ test('workspace.delete takes keepAccounts; the old name keepUsers is refused as 
   expect(def.input.parse({ ...base, keepAccounts: true })).toEqual({ ...base, keepAccounts: true })
   const old = def.input.safeParse({ ...base, keepUsers: true })
   expect(old.success).toBe(false)
-  expect(old.error?.issues.map((i) => i.code)).toEqual(['unrecognized_keys'])
+  expect(old.error?.issues.map(i => i.code)).toEqual(['unrecognized_keys'])
   expect(def.input.parse(base)).toEqual(base)
   expect(def.input.safeParse({ ...base, keepAccounts: 'yes' }).success).toBe(false)
 })

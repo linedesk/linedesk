@@ -111,6 +111,7 @@ describe('states', () => {
       ['call-audio', 'missing'],
       ['sign-in', 'off'],
       ['calendar', 'off'],
+      ['apps', 'off'],
       ['recording', 'off'],
       ['transcript', 'off'],
       ['business', 'off'],
