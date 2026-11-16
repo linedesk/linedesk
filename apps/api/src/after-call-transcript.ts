@@ -11,7 +11,11 @@
 // a copy, never a key only in .env, never the key of a provider that is not active. Removing the provider or its
 // key, or selecting none, stops the job. A failure leaves the live transcript as it is.
 
-import { openAsBlob } from 'node:fs'
+import { createWriteStream, openAsBlob } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import {
   type AfterCallTranscriptData,
   type AfterCallTranscriptOption,
@@ -126,33 +130,57 @@ export const afterCallTranscriptHandlers: Record<string, Handler> = {
   },
 }
 
+/** A recording ready to send, and what to do once it is sent (delete the temp copy of a bucket recording). */
+export type Recording = { audio: Blob; release: () => Promise<void> }
+
 /**
  * Reads a recording from its store: a file on this server (a Blob backed by the file, not read into memory), or a
- * signed link to the bucket. 'too large' when it is bigger than `maxBytes`, found before it is read (the file's size,
- * the bucket's content-length).
+ * signed link to the bucket, streamed to a temp file and sent from there, so a long call never sits in the API's
+ * memory (LIN-328). 'too large' when it is bigger than `maxBytes`, found before it is read (the file's size, the
+ * bucket's content-length); a bucket that sends more than it said is cut off.
  */
 export async function readRecording(
   store: RecordingStore,
   key: string,
   maxBytes: number,
   doFetch: typeof fetch = fetch,
-): Promise<Blob | null | 'too large'> {
+): Promise<Recording | null | 'too large'> {
   const location = await store.locate(key, 300)
   if (!location) return null
   const type = recordingContentType(key)
   if ('path' in location) {
     if (location.size > maxBytes) return 'too large'
-    return openAsBlob(location.path, { type })
+    return { audio: await openAsBlob(location.path, { type }), release: async () => {} }
   }
   const response = await doFetch(location.url, { signal: AbortSignal.timeout(60_000) })
   if (!response.ok) throw new Error(`the recording could not be read from the bucket (${response.status})`)
   const length = Number(response.headers.get('content-length'))
-  if (!response.headers.has('content-length') || !Number.isFinite(length) || length > maxBytes) {
+  if (!response.body || !response.headers.has('content-length') || !Number.isFinite(length) || length > maxBytes) {
     await response.body?.cancel()
     if (length > maxBytes) return 'too large'
     throw new Error('the bucket did not say how large the recording is')
   }
-  return new Blob([await response.arrayBuffer()], { type })
+  const dir = await mkdtemp(join(tmpdir(), 'linedesk-recording-'))
+  const release = () => rm(dir, { recursive: true, force: true })
+  try {
+    const path = join(dir, 'audio')
+    let bytes = 0
+    await pipeline(
+      response.body,
+      async function* (chunks: AsyncIterable<Uint8Array>) {
+        for await (const chunk of chunks) {
+          bytes += chunk.length
+          if (bytes > length) throw new Error('the bucket sent more than it said')
+          yield chunk
+        }
+      },
+      createWriteStream(path),
+    )
+    return { audio: await openAsBlob(path, { type }), release }
+  } catch (e) {
+    await release()
+    throw e
+  }
 }
 
 /**
@@ -205,9 +233,9 @@ export async function transcribeCallAgain(
     .orderBy(asc(transcript_segments.at_ms), asc(transcript_segments.id))
   if (!lines.some(l => l.speaker === 'caller')) return { status: 'skipped', reason: 'nothing to change' }
 
-  const audio = await readRecording(await storeFor(call.recording_store), key, transcriber.maxBytes, doFetch)
-  if (!audio) return { status: 'skipped', reason: 'no recording' }
-  if (audio === 'too large') {
+  const recording = await readRecording(await storeFor(call.recording_store), key, transcriber.maxBytes, doFetch)
+  if (!recording) return { status: 'skipped', reason: 'no recording' }
+  if (recording === 'too large') {
     console.warn(
       `after-call transcription of call ${callId} skipped: the recording is larger than ${transcriber.model} takes`,
     )
@@ -215,11 +243,16 @@ export async function transcribeCallAgain(
   }
   let heard: Heard
   try {
-    heard = await transcriber.transcribe(audio, { name: key.split('/').pop()!, contentType: recordingContentType(key) })
+    heard = await transcriber.transcribe(recording.audio, {
+      name: key.split('/').pop()!,
+      contentType: recordingContentType(key),
+    })
   } catch (e) {
     if (!(e instanceof TranscriberError) || !REFUSED_FOR_GOOD.has(e.status)) throw e
     console.warn(`after-call transcription of call ${callId} skipped: ${e.message}`)
     return { status: 'skipped', reason: 'refused' }
+  } finally {
+    await recording.release()
   }
   const updates = alignCallerLines(lines, heard)
   if (!updates.length) return { status: 'skipped', reason: heard.text.trim() ? 'not trusted' : 'nothing to change' }
