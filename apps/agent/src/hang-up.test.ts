@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { DEFAULT_SILENCE_CLOSING, DEMO_CALL_MAX_SECONDS } from '@linedesk/actions'
+import { DEFAULT_SILENCE_CLOSING, DEMO_CALL_MAX_SECONDS, spokenLines } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 import { EventEmitter } from 'node:events'
-import { asksCaller, endRoom, greetingPlayed, ROOM_DELETE_ATTEMPTS, ROOM_DELETE_RETRY_MS, ROOM_DELETE_TIMEOUT_MS, hangUpAfterGoodbye, lastLineOfCall, LINE_PLAYOUT_MAX_MS, nextReplyOf, skipSecondGoodbye, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { asksAnythingElse, asksCaller, closingFlow, endRoom, greetingPlayed, ROOM_DELETE_ATTEMPTS, ROOM_DELETE_RETRY_MS, ROOM_DELETE_TIMEOUT_MS, hangUpWithGoodbye, lastLineOfCall, LINE_PLAYOUT_MAX_MS, skipEndCallReplies, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -11,7 +11,7 @@ afterEach(() => vi.useRealTimers())
 function reply(words = '') {
   let finished = false
   const callbacks: (() => void)[] = []
-  const item = { type: 'message', role: 'assistant', textContent: words }
+  const item = { id: `m-${words}`, type: 'message', role: 'assistant', textContent: words }
   const play = () => {
     finished = true
     for (const callback of callbacks) callback()
@@ -19,90 +19,57 @@ function reply(words = '') {
   return { play, reply: { done: () => finished, addDoneCallback: c => void callbacks.push(c), chatItems: words ? [item] : [] } as Reply }
 }
 
-test('end_call: the call ends shortly after the goodbye reply has played, not during it', async () => {
-  const toolReply = reply()
-  const goodbye = reply("Alright, I'll hang up now. Thanks for calling, goodbye!")
-  const hangUp = vi.fn()
-  const sayGoodbye = vi.fn(async () => {})
-  const stopListening = vi.fn()
-  void hangUpAfterGoodbye({ toolReply: toolReply.reply, nextReply: async () => goodbye.reply, sayGoodbye, stopListening, hangUp })
-  expect(stopListening).not.toHaveBeenCalled() // a "bye" the caller is still saying must end first
-  toolReply.play()
-  await vi.advanceTimersByTimeAsync(3000)
-  expect(stopListening).toHaveBeenCalledOnce()
-  expect(hangUp).not.toHaveBeenCalled()
-  goodbye.play()
-  await vi.advanceTimersByTimeAsync(399)
-  expect(hangUp).not.toHaveBeenCalled()
-  await vi.advanceTimersByTimeAsync(1)
-  expect(hangUp).toHaveBeenCalledOnce()
-  expect(sayGoodbye).not.toHaveBeenCalled()
-})
-
-test('end_call said with the goodbye in the same reply: no second goodbye, the call ends after it', async () => {
-  const toolReply = reply('Thanks for calling, goodbye!')
-  const hangUp = vi.fn()
-  const nextReply = vi.fn(async () => null)
-  const sayGoodbye = vi.fn(async () => {})
-  void hangUpAfterGoodbye({ toolReply: toolReply.reply, nextReply, sayGoodbye, hangUp })
-  toolReply.play()
-  await vi.advanceTimersByTimeAsync(400)
-  expect(hangUp).toHaveBeenCalledOnce()
-  expect(nextReply).not.toHaveBeenCalled()
-  expect(sayGoodbye).not.toHaveBeenCalled()
-})
-
-// Seen over the phone (realtime model): end_call came without words, no goodbye followed, and the line dropped in silence.
-test('end_call without any goodbye from the model: the goodbye line is said first, the call never ends in silence', async () => {
+test('end_call: the goodbye line is said, and the call ends shortly after it has played, not during it', async () => {
   const toolReply = reply()
   const hangUp = vi.fn()
   let played: () => void = () => {}
   const sayGoodbye = vi.fn(() => new Promise<void>(resolve => (played = resolve)))
-  void hangUpAfterGoodbye({ toolReply: toolReply.reply, nextReply: async () => null, sayGoodbye, hangUp })
+  const stopListening = vi.fn()
+  void hangUpWithGoodbye({ toolReply: toolReply.reply, sayGoodbye, stopListening, hangUp })
+  expect(stopListening).not.toHaveBeenCalled() // a "bye" the caller is still saying must end first
   toolReply.play()
   await vi.advanceTimersByTimeAsync(0)
+  expect(stopListening).toHaveBeenCalledOnce()
   expect(sayGoodbye).toHaveBeenCalledOnce()
   await vi.advanceTimersByTimeAsync(5000)
   expect(hangUp).not.toHaveBeenCalled()
   played()
-  await vi.advanceTimersByTimeAsync(400)
+  await vi.advanceTimersByTimeAsync(399)
+  expect(hangUp).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
   expect(hangUp).toHaveBeenCalledOnce()
 })
 
-test('a reply after end_call without words also gets the goodbye line', async () => {
-  const toolReply = reply()
-  const empty = reply()
+test('end_call said with a goodbye in the same reply: no second goodbye, the call ends after it', async () => {
+  const toolReply = reply('Thanks for calling, goodbye!')
   const hangUp = vi.fn()
   const sayGoodbye = vi.fn(async () => {})
-  void hangUpAfterGoodbye({ toolReply: toolReply.reply, nextReply: async () => empty.reply, sayGoodbye, hangUp })
+  void hangUpWithGoodbye({ toolReply: toolReply.reply, sayGoodbye, hangUp })
   toolReply.play()
-  empty.play()
-  await vi.advanceTimersByTimeAsync(400)
-  expect(sayGoodbye).toHaveBeenCalledOnce()
-  expect(hangUp).toHaveBeenCalledOnce()
-})
-
-test('the hang-up line has played already: the call ends after the pause, nothing more is said', async () => {
-  const hangUp = vi.fn()
-  const nextReply = vi.fn(async () => null)
-  const sayGoodbye = vi.fn(async () => {})
-  void hangUpAfterGoodbye({ toolReply: null, goodbyeSaid: true, nextReply, sayGoodbye, hangUp })
   await vi.advanceTimersByTimeAsync(400)
   expect(hangUp).toHaveBeenCalledOnce()
-  expect(nextReply).not.toHaveBeenCalled()
   expect(sayGoodbye).not.toHaveBeenCalled()
 })
 
 test('a goodbye that never finishes playing is cut at the cap, once', async () => {
-  const stuck = reply()
+  const toolReply = reply()
   const hangUp = vi.fn()
-  void hangUpAfterGoodbye({ toolReply: stuck.reply, nextReply: async () => null, sayGoodbye: async () => {}, hangUp, maxMs: 20_000 })
+  void hangUpWithGoodbye({ toolReply: toolReply.reply, sayGoodbye: () => new Promise(() => {}), hangUp, maxMs: 20_000 })
+  toolReply.play()
   await vi.advanceTimersByTimeAsync(19_999)
   expect(hangUp).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1)
   expect(hangUp).toHaveBeenCalledOnce()
-  stuck.play()
-  await vi.advanceTimersByTimeAsync(1000)
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(hangUp).toHaveBeenCalledOnce()
+})
+
+test('end_call written into the words (no reply): the words decide, as for a reply', async () => {
+  const hangUp = vi.fn()
+  const sayGoodbye = vi.fn(async () => {})
+  void hangUpWithGoodbye({ toolReply: null, said: 'Okay, sounds good.', sayGoodbye, hangUp })
+  await vi.advanceTimersByTimeAsync(400)
+  expect(sayGoodbye).toHaveBeenCalledOnce()
   expect(hangUp).toHaveBeenCalledOnce()
 })
 
@@ -124,58 +91,63 @@ test('asksCaller: a question or a request to the caller, never a goodbye', () =>
 test('end_call in a reply that asks the caller something: no hang-up, the call goes on', async () => {
   const asked = reply('Please briefly tell me what you want the team to know about your order.')
   const hangUp = vi.fn()
-  const nextReply = vi.fn(async () => null)
   const sayGoodbye = vi.fn(async () => {})
-  const result = hangUpAfterGoodbye({ toolReply: asked.reply, nextReply, sayGoodbye, hangUp })
+  const result = hangUpWithGoodbye({ toolReply: asked.reply, sayGoodbye, hangUp })
   asked.play()
   await expect(result).resolves.toBe(false)
   await vi.advanceTimersByTimeAsync(30_000)
   expect(hangUp).not.toHaveBeenCalled()
-  expect(nextReply).not.toHaveBeenCalled()
   expect(sayGoodbye).not.toHaveBeenCalled()
 })
 
-test('a realtime goodbye reply that asks the caller something: no hang-up either', async () => {
-  const silent = reply()
-  const question = reply('Before you go, is the number you are calling from the best one?')
-  const hangUp = vi.fn()
-  const result = hangUpAfterGoodbye({ toolReply: silent.reply, nextReply: async () => question.reply, sayGoodbye: async () => {}, hangUp })
-  silent.play()
-  question.play()
-  await expect(result).resolves.toBe(false)
-  await vi.advanceTimersByTimeAsync(30_000)
-  expect(hangUp).not.toHaveBeenCalled()
-})
-
-test('nextReplyOf: the first reply after end_call, also when it starts before it is asked for; null when none starts', async () => {
+test('skipEndCallReplies: the model says nothing after end_call; other tools keep their reply', () => {
   const session = new EventEmitter()
-  const toolReply = reply().reply
-  const goodbye = reply('Goodbye!').reply
-  const next = nextReplyOf(session as unknown as voice.AgentSession, toolReply)
-  session.emit(voice.AgentSessionEventTypes.SpeechCreated, { speechHandle: toolReply })
-  session.emit(voice.AgentSessionEventTypes.SpeechCreated, { speechHandle: goodbye })
-  await expect(next(5000)).resolves.toBe(goodbye)
-
-  const none = nextReplyOf(new EventEmitter() as unknown as voice.AgentSession, toolReply)(5000)
-  await vi.advanceTimersByTimeAsync(5000)
-  await expect(none).resolves.toBeNull()
-})
-
-// Seen on realtime call tests: the caller's "No thanks" reached the transcript only after end_call ran, so "the assistant
-// spoke since the caller" was still true from its question, and the goodbye after end_call was skipped.
-test('skipSecondGoodbye: the reply to end_call is skipped only when a goodbye was said already', () => {
-  const session = new EventEmitter()
-  let said = false
-  skipSecondGoodbye(session as unknown as voice.AgentSession, () => said)
+  skipEndCallReplies(session as unknown as voice.AgentSession)
   const executed = (...names: string[]) => {
     const event = { functionCalls: names.map(name => ({ name })), cancelToolReply: vi.fn() }
     session.emit(voice.AgentSessionEventTypes.FunctionToolsExecuted, event)
     return event.cancelToolReply
   }
-  expect(executed('end_call')).not.toHaveBeenCalled()
-  said = true
   expect(executed('end_call')).toHaveBeenCalledOnce()
   expect(executed('take_message')).not.toHaveBeenCalled()
+})
+
+test('asksAnythingElse: the fixed line in every language, or the model asking it in its own words', () => {
+  expect(asksAnythingElse(spokenLines('en').anythingElse)).toBe(true)
+  expect(asksAnythingElse(spokenLines('de').anythingElse)).toBe(true)
+  expect(asksAnythingElse(spokenLines('zh').anythingElse)).toBe(true)
+  expect(asksAnythingElse("Got it, someone will call you back today. Is there anything else I can help with?")).toBe(true)
+  expect(asksAnythingElse('Kann ich sonst noch etwas für Sie tun?')).toBe(true)
+  expect(asksAnythingElse('What is the address?')).toBe(false)
+  expect(asksAnythingElse('Anything else? No? Then goodbye!')).toBe(false)
+  expect(asksAnythingElse("I've noted that for the team.")).toBe(false)
+})
+
+test('closingFlow: end_call asks first; it hangs up only when the last thing said was the question', () => {
+  const flow = closingFlow()
+  expect(flow.step()).toBe('ask') // nothing said yet
+  flow.assistantSaid('a1', 'Got it, the plumber comes tomorrow at 9.')
+  expect(flow.step()).toBe('ask')
+  flow.assistantSaid('a2', 'Is there anything else I can help you with?')
+  expect(flow.step()).toBe('hang_up')
+  // the reply that calls end_call does not count, even when it says something
+  flow.assistantSaid('a3', 'Okay.')
+  expect(flow.step(new Set(['a3']))).toBe('hang_up')
+  expect(flow.step()).toBe('ask')
+  // the caller had one more thing: the assistant answered, so end_call asks again
+  flow.assistantSaid('a4', 'Sure, we also fix water heaters.')
+  expect(flow.step()).toBe('ask')
+})
+
+test('closingFlow: the fixed question counts once it is said, also when its words are not known (realtime, translated)', () => {
+  const flow = closingFlow()
+  flow.assistantSaid('a1', 'Okay, noted.')
+  flow.questionComing(new Set(['a1']))
+  flow.assistantSaid('a1', 'Okay, noted.') // the tool reply's own words, not the question
+  flow.assistantSaid('q', 'Puis-je vous aider pour autre chose ?')
+  expect(flow.step()).toBe('hang_up')
+  flow.assistantSaid('a2', 'Bien sûr.')
+  expect(flow.step()).toBe('ask')
 })
 
 function userStates() {

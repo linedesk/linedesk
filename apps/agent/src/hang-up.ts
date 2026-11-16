@@ -5,22 +5,23 @@ import {
   SILENCE_HANG_UP_DEFAULT_S,
   SILENCE_REMINDERS_DEFAULT,
   silenceClosingOf,
+  languageCodes,
+  spokenLines,
 } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 
 /** A short pause after the last word, so the line does not cut the end of it. */
 const AFTER_SPEECH_MS = 400
-/** How long end_call waits for the goodbye it asked for to start (as LiveKit's own end-call tool does). */
-export const GOODBYE_REPLY_WAIT_MS = 5000
 /** Longest the whole goodbye may take before the line is cut anyway. */
 export const GOODBYE_MAX_MS = 20_000
 
 /**
- * What end_call returns: the assistant's goodbye is its reply to the tool, said in the caller's language. The call ends
- * once it has played.
+ * What end_call returns. The first call asks the caller whether there is anything else (the fixed line, closingFlow);
+ * the next one, right after the caller answered it, says the goodbye line and hangs up. The model says nothing after
+ * either: its reply to the tool is skipped (skipEndCallReplies).
  */
-export const END_CALL_RESULT =
-  'In the language you are speaking with the caller, tell them you will hang up now and say goodbye (for example "Alright, I\'ll hang up now. Thanks for calling, goodbye!"). Say nothing else.'
+export const END_CALL_ASKED = 'The caller was asked whether there is anything else. Wait for their answer.'
+export const END_CALL_ENDS = 'The goodbye is said and the call ends. Say nothing.'
 
 /**
  * end_call written into the reply ("goodbye! {end_call}", "<end_call>", "[end_call()]"), as a realtime model sometimes does
@@ -54,14 +55,14 @@ export const withoutEndCall = (text: string) => text.replace(END_CALL_IN_WORDS, 
 export type Reply = {
   done(): boolean
   addDoneCallback(callback: () => void): void
-  readonly chatItems: readonly { type: string; role?: string; textContent?: string }[]
+  readonly chatItems: readonly { id?: string; type: string; role?: string; textContent?: string }[]
 }
 
 /**
  * Once `reply` has played (or was cut off). Not `waitForPlayout()`: LiveKit refuses that from inside the tool that owns
  * the reply, which end_call is.
  */
-const playedOut = (reply: Reply) => new Promise<void>(resolve => (reply.done() ? resolve() : reply.addDoneCallback(() => resolve())))
+export const playedOut = (reply: Reply) => new Promise<void>(resolve => (reply.done() ? resolve() : reply.addDoneCallback(() => resolve())))
 
 /** The assistant's words in `reply`. */
 export const wordsOf = (reply: Reply) =>
@@ -96,105 +97,100 @@ export function asksCaller(text: string): boolean {
 }
 
 /**
- * Hangs up after the goodbye, the way LiveKit's own end-call tool does it: end_call asks for the goodbye (END_CALL_RESULT),
- * and the call ends once it has played, after a short pause. `toolReply`: the reply that called end_call, null when the
- * assistant's hang-up line ends the call; `goodbyeSaid`: that line has played already. `nextReply`: the goodbye a realtime
- * model says in a reply of its own, null when none starts within `waitMs`. With no words from the assistant at all,
- * `sayGoodbye` says the goodbye line: a call never ends in silence. `stopListening` once the goodbye starts: the caller
- can no longer cut it off or start another reply (not before: a "bye" they are still saying must end, or a realtime model
- waits for it and never says its goodbye). At most `maxMs` in all. Never after words that ask the caller something
- (asksCaller): then nothing is hung up and it resolves false (the caller's audio must be turned on again); true once
- the call ends.
+ * Hangs up after the goodbye line (end_call's second call, or the assistant's words that say it hangs up now).
+ * `toolReply`: the reply that called end_call, played out first; `said`: the words that end the call when no tool was
+ * called. `sayGoodbye` says the goodbye line, unless those words said goodbye already (nothing is said twice).
+ * `stopListening` once the goodbye starts: the caller can no longer cut it off or start another reply. At most `maxMs`
+ * in all. Never after words that ask the caller something (asksCaller, LIN-341): then nothing is hung up and it
+ * resolves false (the call goes on); true once the call ends.
  */
-export async function hangUpAfterGoodbye({
+export async function hangUpWithGoodbye({
   toolReply,
-  goodbyeSaid = false,
-  nextReply,
+  said = '',
   sayGoodbye,
   stopListening = () => {},
   hangUp,
   maxMs = GOODBYE_MAX_MS,
 }: {
   toolReply: Reply | null
-  goodbyeSaid?: boolean
-  nextReply: (waitMs: number) => Promise<Reply | null>
+  said?: string
   sayGoodbye: () => Promise<unknown>
   stopListening?: () => void
   hangUp: () => void
   maxMs?: number
 }) {
+  let words = said
+  if (toolReply) {
+    await playedOut(toolReply)
+    words = wordsOf(toolReply)
+  }
+  if (words && asksCaller(words)) return false
   let done = false
   const once = () => {
     if (done) return
     done = true
     hangUp()
   }
-  const cap = setTimeout(once, maxMs)
-  cap.unref?.()
-  // The assistant asked the caller something: the call goes on, and they can answer.
-  const goesOn = () => {
-    done = true
-    clearTimeout(cap)
-    return false
-  }
-  let said = goodbyeSaid
-  if (!said && toolReply) {
-    await playedOut(toolReply)
-    said = saidWords(toolReply)
-    if (said && asksCaller(wordsOf(toolReply))) return goesOn()
-  }
-  if (!said) {
-    const reply = await nextReply(GOODBYE_REPLY_WAIT_MS)
-    if (reply) {
-      stopListening()
-      await playedOut(reply)
-      said = saidWords(reply)
-      if (said && asksCaller(wordsOf(reply))) return goesOn()
-    }
-  }
-  if (!said) {
-    stopListening()
+  setTimeout(once, maxMs).unref?.()
+  stopListening()
+  if (!GOODBYE.test(words))
     await sayGoodbye().catch(e => console.warn(`could not say the goodbye line: ${e instanceof Error ? e.message : String(e)}`))
-  }
   setTimeout(once, AFTER_SPEECH_MS).unref?.()
   return true
 }
 
 /**
- * end_call's goodbye is the model's reply to it, unless a goodbye was said already (`goodbyeSaid`: in the reply that
- * called end_call, or as the hang-up line): then that reply is skipped and nothing is said twice. Decided by that reply's
- * own words, not by whether the assistant spoke since the caller's last line: with a realtime model the caller's words
- * often reach the transcript only after end_call ran.
+ * The model's reply to end_call is skipped: end_call's own lines (the "anything else?" question, the goodbye) are what
+ * the caller hears, so nothing is said twice.
  */
-export function skipSecondGoodbye(session: voice.AgentSession, goodbyeSaid: () => boolean) {
+export function skipEndCallReplies(session: voice.AgentSession) {
   session.on(voice.AgentSessionEventTypes.FunctionToolsExecuted, event => {
-    if (event.functionCalls.some(call => call.name === 'end_call') && goodbyeSaid()) event.cancelToolReply()
+    if (event.functionCalls.some(call => call.name === 'end_call')) event.cancelToolReply()
   })
 }
 
+/** "Anything else?" in the languages calls mostly use, for when the model asks it in its own words. */
+const ANYTHING_ELSE =
+  /\b(?:anything else|something else|anything more|etwas anderes|sonst noch|noch etwas|noch was|algo m[aá]s|otra cosa|autre chose|quelque chose d['’]autre|qualcos['’]altro|altro|mais alguma|outra coisa|iets anders|nog iets)\b/i
+
+/** The fixed "anything else?" line in every language, as the assistant says it. */
+const ANYTHING_ELSE_LINES = new Set(languageCodes.map(code => spokenLines(code).anythingElse))
+
+/** Whether the assistant's words ask the caller whether there is anything else: the fixed line, or the model's own words. */
+export const asksAnythingElse = (text: string) =>
+  ANYTHING_ELSE_LINES.has(text.trim()) || (ANYTHING_ELSE.test(text) && asksCaller(text))
+
 /**
- * The next reply the assistant starts (other than `toolReply`), listened for from now on, so a reply that starts before
- * anyone asks for it is not missed.
+ * The closing flow (LIN-358): the assistant hangs up only right after it asked whether there is anything else and the
+ * caller answered. Decided by the assistant's last words before the reply that ends the call: when they were that
+ * question, end_call says goodbye and hangs up; otherwise it asks it first. Any other words of the assistant after the
+ * question (the caller had something more) mean it asks again. Decided by the assistant's words, not the caller's:
+ * with a realtime model the caller's words often reach the transcript only after end_call ran.
  */
-export function nextReplyOf(session: voice.AgentSession, toolReply: Reply | null): (waitMs: number) => Promise<Reply | null> {
-  let started: Reply | null = null
-  let notify: ((reply: Reply) => void) | null = null
-  const onCreated = ({ speechHandle }: { speechHandle: Reply }) => {
-    if (speechHandle === toolReply || started) return
-    started = speechHandle
-    session.off(voice.AgentSessionEventTypes.SpeechCreated, onCreated)
-    notify?.(speechHandle)
+export function closingFlow() {
+  const said: { id: string; question: boolean }[] = []
+  // While the fixed question is being said: the messages that are not it (the reply that called end_call).
+  let questionComing: ReadonlySet<string> | null = null
+  return {
+    /** Each of the assistant's messages, as it reaches the transcript. */
+    assistantSaid(id: string, text: string) {
+      const fixed = questionComing !== null && !questionComing.has(id)
+      if (fixed) questionComing = null
+      said.push({ id, question: fixed || asksAnythingElse(text) })
+    },
+    /**
+     * The fixed question is being said: its message counts as the question in any wording (a realtime model may
+     * translate it). `notIt`: the messages of the reply that called end_call.
+     */
+    questionComing(notIt: ReadonlySet<string> = new Set()) {
+      questionComing = notIt
+    },
+    /** What end_call does now: `skip` are the messages of the reply that called it. */
+    step(skip: ReadonlySet<string> = new Set()): 'ask' | 'hang_up' {
+      const last = [...said].reverse().find(message => !skip.has(message.id))
+      return last?.question ? 'hang_up' : 'ask'
+    },
   }
-  session.on(voice.AgentSessionEventTypes.SpeechCreated, onCreated)
-  return waitMs =>
-    new Promise(resolve => {
-      if (started) return resolve(started)
-      notify = resolve
-      setTimeout(() => {
-        session.off(voice.AgentSessionEventTypes.SpeechCreated, onCreated)
-        resolve(started)
-      }, waitMs).unref?.()
-    })
 }
 
 export const STILL_THERE_LINE = 'Are you still there?'

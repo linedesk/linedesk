@@ -8,6 +8,7 @@ import { defineAction } from './define.ts'
 import { LANGUAGES, type Language, languageNames, mainLanguageOf, otherLanguagesOf } from './languages.ts'
 import {
   silenceClosingOf,
+  DEFAULT_GOODBYE_LINE,
   silenceReminderOf,
   talkingSpeedLabel,
   talkingSpeedPctOf,
@@ -33,6 +34,7 @@ export const VERSIONED_FIELDS = [
   'max_call_minutes',
   'silence_reminder',
   'silence_closing',
+  'goodbye_line',
   'record_calls',
   'talking_speed',
   'talking_speed_pct',
@@ -206,6 +208,7 @@ export const VERSION_PARTS: readonly VersionPart[] = [
         `After ${s.silence_hang_up_s ?? 'the default'} s of silence`,
         `Longest call: ${s.max_call_minutes ?? 'the default'} min`,
         `Says: ${silenceClosingOf(s.silence_closing)}`,
+        `Goodbye: ${s.goodbye_line?.trim() || DEFAULT_GOODBYE_LINE}`,
       ),
   },
   { id: 'talking_speed', label: 'Talking speed', text: s => talkingSpeedLabel(talkingSpeedPctOf(s)) },

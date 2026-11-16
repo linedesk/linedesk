@@ -358,6 +358,10 @@ export function pipelineFor(choice: VoicePipeline | null | undefined, setUp: Pip
 
 /** The closing line an assistant says: its own, or the default. */
 export const silenceClosingOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_CLOSING
+/** Said when the caller has nothing else and the assistant hangs up (end_call), unless the owner wrote another line (`goodbye_line`). */
+export const DEFAULT_GOODBYE_LINE = 'Thanks for calling. Goodbye!'
+/** The owner's goodbye line, or null: the default in the language spoken at that moment. */
+export const goodbyeLineOf = (stored: string | null | undefined) => stored?.trim() || null
 /** Asked when the line is quiet, unless the owner wrote another line (`silence_reminder`). */
 export const DEFAULT_SILENCE_REMINDER = 'Are you still there?'
 /** The reminder an assistant asks: its own, or the default. */
@@ -395,6 +399,8 @@ export const assistantUpdate = defineAction({
     silence_closing: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
     /** Asked when the line is quiet; null: "Are you still there?" in the language spoken. */
     silence_reminder: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
+    /** Said when the caller has nothing else and the assistant hangs up; null: "Thanks for calling. Goodbye!" in the language spoken. */
+    goodbye_line: z.string().trim().max(SILENCE_CLOSING_MAX).nullable().optional(),
     /** How fast it talks, in percent of the voice's own pace (TALKING_SPEED_PCT_MIN to MAX, 100: its own pace). */
     talking_speed_pct: z.number().int().min(TALKING_SPEED_PCT_MIN).max(TALKING_SPEED_PCT_MAX).optional(),
     /** Replaced by talking_speed_pct; still taken from a web app of the release before. */

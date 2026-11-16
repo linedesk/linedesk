@@ -10,6 +10,7 @@ import {
   type OutboundCountries,
   outboundNumberProblem,
   phoneNumberProblem,
+  DEFAULT_GOODBYE_LINE,
   DEFAULT_SILENCE_CLOSING,
   DEFAULT_SILENCE_REMINDER,
   localizedDefault,
@@ -71,6 +72,8 @@ export type Draft = {
   silence_closing: string
   /** Asked when the line is quiet; the default (in the main language) is saved as null. */
   silence_reminder: string
+  /** Said when the caller has nothing else and the call ends; the default (in the main language) is saved as null. */
+  goodbye_line: string
   /** How fast the assistant talks, in percent of the voice's own pace. */
   talking_speed_pct: number
   /** The behaviour checklist, every switch with its value (the default where the owner set none). */
@@ -137,6 +140,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     // None stored: the default line, shown so it can be edited.
     silence_closing: local(a.silence_closing ?? DEFAULT_SILENCE_CLOSING),
     silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, main),
+    goodbye_line: a.goodbye_line ?? localizedDefault(DEFAULT_GOODBYE_LINE, main),
     talking_speed_pct: talkingSpeedPctOf(a),
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages, workspaceLanguage),
@@ -217,6 +221,7 @@ export function withMainLanguage(d: Draft, main: Language): Draft {
     greeting_outside: swap(d.greeting_outside),
     silence_closing: swap(d.silence_closing),
     silence_reminder: swap(d.silence_reminder),
+    goodbye_line: swap(d.goodbye_line),
   }
 }
 
@@ -272,6 +277,7 @@ export const normalized = (d: Draft): Draft => ({
   max_call_minutes: d.max_call_minutes.trim(),
   silence_closing: d.silence_closing.trim(),
   silence_reminder: d.silence_reminder.trim(),
+  goodbye_line: d.goodbye_line.trim(),
   // As saved: no picked languages unless "These languages", so switching back to None is clean after Save.
   languages: languagesToSave(d).languages,
 })
@@ -292,7 +298,7 @@ const wholeIn = (typed: string, min: number, max: number) =>
   /^\d+$/.test(typed.trim()) && Number(typed) >= min && Number(typed) <= max
 
 /** Which silence field a problem is about, so the form shows it under that field. */
-export type SilenceField = 'gap' | 'times' | 'hangUp' | 'longest' | 'reminder' | 'closing'
+export type SilenceField = 'gap' | 'times' | 'hangUp' | 'longest' | 'reminder' | 'closing' | 'goodbye'
 
 /** Why the silence settings cannot be saved, or null. */
 export function silenceProblem(d: Parameters<typeof silenceIssue>[0]): string | null {
@@ -309,6 +315,7 @@ export function silenceIssue(
     | 'max_call_minutes'
     | 'silence_closing'
     | 'silence_reminder'
+    | 'goodbye_line'
   >,
 ): { field: SilenceField; message: string } | null {
   const { t } = i18n()
@@ -334,6 +341,8 @@ export function silenceIssue(
     return issue('reminder', t('settings.assistant.draft.reminderTooLong', { max: SILENCE_CLOSING_MAX }))
   if (d.silence_closing.trim().length > SILENCE_CLOSING_MAX)
     return issue('closing', t('settings.assistant.draft.closingTooLong', { max: SILENCE_CLOSING_MAX }))
+  if (d.goodbye_line.trim().length > SILENCE_CLOSING_MAX)
+    return issue('goodbye', t('settings.assistant.draft.goodbyeTooLong', { max: SILENCE_CLOSING_MAX }))
   return null
 }
 
@@ -346,6 +355,9 @@ export const silenceToSave = (d: Draft) => {
   const reminder = d.silence_reminder.trim()
   const defaultReminder =
     reminder === DEFAULT_SILENCE_REMINDER || reminder === localizedDefault(DEFAULT_SILENCE_REMINDER, mainOf(d))
+  const goodbye = d.goodbye_line.trim()
+  const defaultGoodbye =
+    goodbye === DEFAULT_GOODBYE_LINE || goodbye === localizedDefault(DEFAULT_GOODBYE_LINE, mainOf(d))
   return {
     silence_first_gap_s: Number(d.silence_first_gap_s),
     silence_reminders: Number(d.silence_reminders),
@@ -353,6 +365,7 @@ export const silenceToSave = (d: Draft) => {
     max_call_minutes: Number(d.max_call_minutes),
     silence_reminder: reminder && !defaultReminder ? reminder : null,
     silence_closing: closing && closing !== DEFAULT_SILENCE_CLOSING ? closing : null,
+    goodbye_line: goodbye && !defaultGoodbye ? goodbye : null,
   }
 }
 

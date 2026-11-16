@@ -238,6 +238,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'max_call_minutes',
     'silence_reminder',
     'silence_closing',
+    'goodbye_line',
     'voice_pipeline',
   ],
 }
@@ -719,6 +720,9 @@ function Advanced({ draft, set }: SectionProps) {
         title={t('settings.assistant.hangUp.title')}
         help={t('settings.assistant.hangUp.help', { name })}
       >
+        <Field id="as-goodbye-line" label={t('settings.assistant.hangUp.goodbye')} error={errorFor('goodbye')}>
+          <TextInput id="as-goodbye-line" value={draft.goodbye_line} onChange={v => set('goodbye_line', v)} />
+        </Field>
         <div className="as-silence-row">
           <Field id="as-silence-hang-up" label={t('settings.assistant.hangUp.afterSilence')} error={errorFor('hangUp')}>
             <TextInput

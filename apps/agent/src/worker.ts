@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, spokenLines, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -35,7 +35,7 @@ import { callNotesKeeper } from './call-notes.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { CallAgent, type ToolStarted, toolFiller, withFillers } from './tool-filler.ts'
-import { asksCaller, END_CALL_RESULT, endRoom, ROOM_DELETE_TIMEOUT_MS, greetingPlayed, hangUpAfterGoodbye, hangUpAtCallLimit, lastLineOfCall, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { asksAnythingElse, asksCaller, closingFlow, END_CALL_ASKED, END_CALL_ENDS, endRoom, ROOM_DELETE_TIMEOUT_MS, greetingPlayed, hangUpAtCallLimit, hangUpWithGoodbye, lastLineOfCall, playedOut, type Reply, remindOnSilence, skipEndCallReplies, silencePolicyOf, announcesHangUp, withoutEndCall, wordsOf, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
@@ -135,20 +135,16 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 /** transfer_call, when the assistant has transfer contacts that take calls now; given from the start of the call. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext, filler: ToolStarted) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => string, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext, filler: ToolStarted) {
   return {
     // A slow tool gets a filler when the assistant said nothing before it (tool-filler.ts).
     ...withFillers({ ...bookingToolset(api, call, log), ...lookupTools(api, call, log) }, filler),
     ...collectTools(collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     end_call: llm.tool({
-      // How (no words first, the goodbye after it) is in the prompt's closing rule.
-      description: 'Hang up: only when the caller said they need nothing else, or said goodbye. Never in the same response as another tool.',
-      // The goodbye is the reply to this result; the call ends once it has played (hangUpAfterGoodbye).
-      execute: async (_, { ctx }) => {
-        endCall(ctx.speechHandle)
-        return END_CALL_RESULT
-      },
+      description: 'End the call. The first call asks the caller whether there is anything else; call it again after they said no, and it says goodbye and hangs up. Never in the same response as another tool.',
+      // The first call asks "anything else?", the next one right after the answer says the goodbye line and hangs up (closingFlow).
+      execute: async (_, { ctx }) => endCall(ctx.speechHandle),
     }),
     flag_urgent: llm.tool({
       description: 'Flag this call as urgent: when it is urgent by what the business wants you to know, or the caller says it is. Call it in the same response in which you tell the caller.',
@@ -182,11 +178,11 @@ function keepUrgentPromises(session: voice.AgentSession, flagUrgent: () => Promi
  * When the assistant said it hangs up now, or wrote end_call into its goodbye, but left out the tool, the call ends
  * after those words as if it had called it. Not when those words ask the caller something (asksCaller): they answer.
  */
-function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: () => void) {
+function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: (id: string, said: string) => void) {
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || item.role !== 'assistant' || !item.textContent || log.transferred) return
     if (asksCaller(withoutEndCall(item.textContent))) return
-    if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall()
+    if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall(item.id, withoutEndCall(item.textContent))
   })
 }
 
@@ -203,8 +199,8 @@ function recordConversation(session: voice.AgentSession, log: CallLog) {
 }
 
 /**
- * Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. Not end_call: its reply
- * is the goodbye (skipSecondGoodbye).
+ * Tools whose result the caller need not hear: no extra LLM round when the assistant already spoke. end_call's reply is
+ * always skipped (skipEndCallReplies).
  */
 const QUIET_TOOLS = new Set(['flag_urgent'])
 
@@ -409,25 +405,40 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null })
   session.on(voice.AgentSessionEventTypes.Close, onClose)
   const deleteRoom = roomEnder(ctx, call.callId)
-  // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line
-  // after silence, or the goodbye at its time limit.
+  // The assistant always says something before the call ends: the goodbye line, the closing line after silence, or the
+  // goodbye at its time limit.
   const sayLine = (text: string) => speak(text, { allowInterruptions: false, last: true })
-  // Once per call: end_call (with the reply that called it) and the hang-up line (keepHangUpPromises: it has played) can
-  // both ask for it.
+  // The owner's goodbye line (Settings › Assistant › Extended), else "Thanks for calling. Goodbye!" in the language spoken.
+  const goodbyeLine = () => goodbyeLineOf(call.assistant?.goodbye_line) ?? lines().goodbye
+  // The closing flow (LIN-358): end_call first asks "anything else?"; only right after the caller answered it does it say
+  // the goodbye line and hang up. Once per call: end_call and the assistant's words that say it hangs up can both ask.
+  const closing = closingFlow()
+  const idsOf = (reply: Reply | null) => new Set((reply?.chatItems ?? []).flatMap(item => (item.id ? [item.id] : [])))
+  session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
+    if (item.type === 'message' && item.role === 'assistant' && item.textContent) closing.assistantSaid(item.id, withoutEndCall(item.textContent))
+  })
+  skipEndCallReplies(session)
   let ending = false
-  let hangUpLineSaid = false
-  let endCallReply: Reply | null = null
-  skipSecondGoodbye(session, () => hangUpLineSaid || (endCallReply !== null && saidWords(endCallReply)))
-  const endCall = (toolReply: Reply | null = null) => {
-    if (toolReply) endCallReply = toolReply
-    else hangUpLineSaid = true
-    if (ending) return
+  let asking = false
+  const askAnythingElse = async (toolReply: Reply | null) => {
+    asking = true
+    try {
+      if (toolReply) await playedOut(toolReply)
+      const words = toolReply ? wordsOf(toolReply) : ''
+      // The model asked it itself, or asked something else the caller answers first (LIN-341): no second question.
+      if (words && (asksAnythingElse(words) || asksCaller(words))) return
+      closing.questionComing(idsOf(toolReply))
+      await speak(lines().anythingElse)
+    } finally {
+      asking = false
+    }
+  }
+  const hangUp = (toolReply: Reply | null, said = '') => {
     ending = true
-    void hangUpAfterGoodbye({
+    void hangUpWithGoodbye({
       toolReply,
-      goodbyeSaid: !toolReply,
-      nextReply: nextReplyOf(session, toolReply),
-      sayGoodbye: () => sayLine(lines().goodbye),
+      said,
+      sayGoodbye: () => sayLine(goodbyeLine()),
       stopListening: () => session.input.setAudioEnabled(false),
       hangUp: deleteRoom,
     }).then(ended => {
@@ -435,11 +446,24 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
       // The assistant asked the caller something in its last words: the call goes on (LIN-341).
       console.log(`call ${call.callId}: end_call after a question, the call goes on`)
       ending = false
-      endCallReply = null
       session.input.setAudioEnabled(true)
     })
   }
-  keepHangUpPromises(session, log, () => endCall())
+  const endCall = (toolReply: Reply): string => {
+    if (ending || asking) return END_CALL_ASKED
+    if (closing.step(idsOf(toolReply)) === 'ask') {
+      void askAnythingElse(toolReply)
+      return END_CALL_ASKED
+    }
+    hangUp(toolReply)
+    return END_CALL_ENDS
+  }
+  // The assistant said it hangs up now (or wrote end_call) without the tool: the same flow.
+  keepHangUpPromises(session, log, (id, said) => {
+    if (ending || asking) return
+    if (closing.step(new Set([id])) === 'ask') void askAnythingElse(null)
+    else hangUp(null, said)
+  })
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
@@ -468,7 +492,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const limit = callLimitOf(call, lines())
   // A realtime call's lines in its voice are made now, so the first one does not wait for it (then cached for every call).
   if (realtimeLines && !languages.others.length) {
-    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().goodbye, limit.line, lines().stillChecking]
+    const texts = [silence.reminder ?? lines().stillThere, silence.closing, lines().anythingElse, goodbyeLine(), limit.line, lines().stillChecking]
     void Promise.allSettled(texts.map(text => lineAudio(voiceOfLines, text)))
   }
   const cancelLimit = hangUpAtCallLimit(limit.ms, {

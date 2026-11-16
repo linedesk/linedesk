@@ -18,6 +18,7 @@ const textLines = [
   'goodbye',
   'stillThere',
   'stillChecking',
+  'anythingElse',
   'callLimit',
   'testCallLimit',
   'silenceClosing',
@@ -54,6 +55,7 @@ test('a default greeting or line switches to the new main language and back', ()
     expect(there).toBe(spokenLines(code).greeting('Brightwater Plumbing', 'Maya', true))
     expect(swapDefault(there, code, 'en')).toBe(english)
     expect(swapDefault(spokenLines('en').silenceClosing, 'en', code)).toBe(spokenLines(code).silenceClosing)
+    expect(swapDefault(spokenLines('en').goodbye, 'en', code)).toBe(spokenLines(code).goodbye)
   }
 })
 

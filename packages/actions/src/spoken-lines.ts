@@ -20,6 +20,8 @@ export type SpokenLines = {
   stillThere: string
   /** Said once when a slow tool (a lookup, the calendar) still runs after seconds and the model wrote no line for it. */
   stillChecking: string
+  /** Asked before the call ends (end_call's first call): the assistant hangs up only after the caller answered it. */
+  anythingElse: string
   callLimit: string
   testCallLimit: string
   silenceClosing: string
@@ -39,6 +41,7 @@ const en: SpokenLines = {
   goodbye: 'Thanks for calling. Goodbye!',
   stillThere: 'Are you still there?',
   stillChecking: "This is taking a little longer, I'm still on it.",
+  anythingElse: 'Is there anything else I can help you with?',
   callLimit:
     "I'm sorry, we've reached the time limit for this call. I've noted everything for the team, and someone will get back to you. Goodbye!",
   testCallLimit: "This test call has reached its time limit, so I'll end it now. Goodbye!",
@@ -61,6 +64,7 @@ const es: SpokenLines = {
   goodbye: 'Gracias por llamar. ¡Adiós!',
   stillThere: '¿Sigue ahí?',
   stillChecking: 'Esto está tardando un poco más, sigo en ello.',
+  anythingElse: '¿Hay algo más en lo que pueda ayudarle?',
   callLimit:
     'Lo siento, hemos llegado al tiempo máximo de esta llamada. He anotado todo para el equipo y alguien se pondrá en contacto con usted. ¡Adiós!',
   testCallLimit: 'Esta llamada de prueba ha llegado a su tiempo máximo, así que la termino ahora. ¡Adiós!',
@@ -83,6 +87,7 @@ const fr: SpokenLines = {
   goodbye: "Merci d'avoir appelé. Au revoir !",
   stillThere: 'Vous êtes toujours là ?',
   stillChecking: 'Cela prend un peu plus de temps, je m’en occupe toujours.',
+  anythingElse: 'Puis-je vous aider pour autre chose ?',
   callLimit:
     "Désolé, nous avons atteint la durée maximale de cet appel. J'ai tout noté pour l'équipe, et quelqu'un vous recontactera. Au revoir !",
   testCallLimit: 'Cet appel de test a atteint sa durée maximale, je vais donc y mettre fin. Au revoir !',
@@ -105,6 +110,7 @@ const de: SpokenLines = {
   goodbye: 'Danke für Ihren Anruf. Auf Wiederhören!',
   stillThere: 'Sind Sie noch da?',
   stillChecking: 'Das dauert etwas länger, ich bin noch dran.',
+  anythingElse: 'Kann ich Ihnen sonst noch mit etwas helfen?',
   callLimit:
     'Es tut mir leid, die maximale Gesprächsdauer ist erreicht. Ich habe alles für das Team notiert, und jemand meldet sich bei Ihnen. Auf Wiederhören!',
   testCallLimit: 'Dieser Testanruf hat seine maximale Dauer erreicht, deshalb beende ich ihn jetzt. Auf Wiederhören!',
@@ -128,6 +134,7 @@ const it: SpokenLines = {
   goodbye: 'Grazie per aver chiamato. Arrivederci!',
   stillThere: 'È ancora in linea?',
   stillChecking: 'Ci vuole un po’ più del previsto, ci sto ancora lavorando.',
+  anythingElse: "Posso aiutarla con qualcos'altro?",
   callLimit:
     'Mi dispiace, abbiamo raggiunto la durata massima di questa chiamata. Ho annotato tutto per il team e qualcuno la ricontatterà. Arrivederci!',
   testCallLimit: 'Questa chiamata di prova ha raggiunto la durata massima, quindi la chiudo ora. Arrivederci!',
@@ -150,6 +157,7 @@ const pt: SpokenLines = {
   goodbye: 'Obrigado por ligar. Até logo!',
   stillThere: 'Você ainda está aí?',
   stillChecking: 'Está demorando um pouco mais, ainda estou verificando.',
+  anythingElse: 'Posso ajudar com mais alguma coisa?',
   callLimit:
     'Desculpe, atingimos o tempo máximo desta ligação. Anotei tudo para a equipe, e alguém vai entrar em contato com você. Até logo!',
   testCallLimit: 'Esta ligação de teste atingiu o tempo máximo, então vou encerrá-la agora. Até logo!',
@@ -172,6 +180,7 @@ const nl: SpokenLines = {
   goodbye: 'Bedankt voor het bellen. Tot ziens!',
   stillThere: 'Bent u er nog?',
   stillChecking: 'Dit duurt iets langer, ik ben er nog mee bezig.',
+  anythingElse: 'Kan ik u ergens anders nog mee helpen?',
   callLimit:
     'Het spijt me, we hebben de maximale duur van dit gesprek bereikt. Ik heb alles voor het team genoteerd en er neemt iemand contact met u op. Tot ziens!',
   testCallLimit: 'Deze testoproep heeft de maximale duur bereikt, dus ik beëindig hem nu. Tot ziens!',
@@ -193,6 +202,7 @@ const ru: SpokenLines = {
   goodbye: 'Спасибо за звонок. До свидания!',
   stillThere: 'Вы ещё на линии?',
   stillChecking: 'Это занимает чуть больше времени, я ещё проверяю.',
+  anythingElse: 'Могу ли я помочь вам чем-нибудь ещё?',
   callLimit: 'Извините, время этого звонка истекло. Всё записано для команды, и с вами свяжутся. До свидания!',
   testCallLimit: 'Время этого тестового звонка истекло, поэтому звонок завершается. До свидания!',
   silenceClosing: 'На линии никого не слышно, поэтому звонок завершается. Перезвоните нам в любое время.',
@@ -213,6 +223,7 @@ const hi: SpokenLines = {
   goodbye: 'कॉल करने के लिए धन्यवाद। नमस्ते!',
   stillThere: 'क्या आप अभी भी लाइन पर हैं?',
   stillChecking: 'इसमें थोड़ा ज़्यादा समय लग रहा है, मैं अभी देख रही हूँ।',
+  anythingElse: 'क्या आपकी किसी और चीज़ में मदद की जा सकती है?',
   callLimit:
     'माफ़ कीजिए, इस कॉल की समय सीमा पूरी हो गई है। टीम के लिए सब कुछ नोट कर लिया गया है, और कोई आपसे संपर्क करेगा। नमस्ते!',
   testCallLimit: 'यह टेस्ट कॉल अपनी समय सीमा तक पहुँच गई है, इसलिए इसे अभी समाप्त किया जा रहा है। नमस्ते!',
@@ -235,6 +246,7 @@ const ja: SpokenLines = {
   goodbye: 'お電話ありがとうございました。失礼いたします。',
   stillThere: 'もしもし、聞こえていますか？',
   stillChecking: '少しお時間がかかっております。引き続き確認しております。',
+  anythingElse: '他に何かお手伝いできることはありますか？',
   callLimit:
     '申し訳ございません、通話時間の上限に達しました。内容はすべてチームに伝えましたので、担当者からご連絡いたします。失礼いたします。',
   testCallLimit: 'テスト通話の時間上限に達したため、終了いたします。失礼いたします。',
@@ -255,6 +267,7 @@ const zh: SpokenLines = {
   goodbye: '感谢您的来电，再见！',
   stillThere: '请问您还在线吗？',
   stillChecking: '这需要多一点时间，我还在查。',
+  anythingElse: '还有什么我可以帮您的吗？',
   callLimit: '非常抱歉，本次通话已达到时长上限。我已为团队记录了所有内容，稍后会有人与您联系。再见！',
   testCallLimit: '本次测试通话已达到时长上限，现在结束通话。再见！',
   silenceClosing: '线路上听不到声音，我先挂断了。欢迎您随时再打来。',
@@ -275,6 +288,7 @@ const ko: SpokenLines = {
   goodbye: '전화해 주셔서 감사합니다. 좋은 하루 보내세요!',
   stillThere: '여보세요, 아직 통화 중이신가요?',
   stillChecking: '조금 더 걸리고 있어요. 계속 확인하고 있습니다.',
+  anythingElse: '더 도와드릴 일이 있을까요?',
   callLimit:
     '죄송합니다, 이번 통화가 최대 통화 시간에 도달했습니다. 모든 내용을 팀에 전달해 두었으니 곧 연락드리겠습니다. 좋은 하루 보내세요!',
   testCallLimit: '테스트 통화가 최대 시간에 도달해서 지금 종료하겠습니다. 감사합니다!',
@@ -296,6 +310,7 @@ const pl: SpokenLines = {
   goodbye: 'Dziękujemy za telefon. Do widzenia!',
   stillThere: 'Halo, czy jest ktoś na linii?',
   stillChecking: 'To trwa trochę dłużej, nadal sprawdzam.',
+  anythingElse: 'Czy mogę pomóc w czymś jeszcze?',
   callLimit:
     'Przepraszam, osiągnęliśmy maksymalny czas tej rozmowy. Wszystko zostało zanotowane dla zespołu i ktoś się odezwie. Do widzenia!',
   testCallLimit: 'Ta rozmowa testowa osiągnęła maksymalny czas, więc teraz ją kończę. Do widzenia!',
@@ -319,6 +334,7 @@ const tr: SpokenLines = {
   goodbye: 'Aradığınız için teşekkür ederiz. İyi günler!',
   stillThere: 'Hâlâ hatta mısınız?',
   stillChecking: 'Bu biraz daha uzun sürüyor, hâlâ kontrol ediyorum.',
+  anythingElse: 'Size yardımcı olabileceğim başka bir şey var mı?',
   callLimit:
     'Üzgünüm, bu görüşmenin süre sınırına ulaştık. Her şeyi ekip için not ettim, size en kısa sürede dönüş yapılacak. İyi günler!',
   testCallLimit: 'Bu test araması süre sınırına ulaştı, bu yüzden şimdi sonlandırıyorum. İyi günler!',
@@ -341,6 +357,7 @@ const vi: SpokenLines = {
   goodbye: 'Cảm ơn quý khách đã gọi. Chào quý khách!',
   stillThere: 'Quý khách còn nghe máy không ạ?',
   stillChecking: 'Việc này mất thêm một chút thời gian, tôi vẫn đang kiểm tra ạ.',
+  anythingElse: 'Tôi có thể giúp gì thêm cho quý khách không?',
   callLimit:
     'Xin lỗi quý khách, cuộc gọi đã đạt thời lượng tối đa. Tôi đã ghi lại mọi thông tin cho đội ngũ, và sẽ có người liên hệ lại với quý khách. Chào quý khách!',
   testCallLimit: 'Cuộc gọi thử nghiệm này đã đạt thời lượng tối đa, nên tôi sẽ kết thúc ngay bây giờ. Chào quý khách!',
@@ -364,6 +381,7 @@ const id: SpokenLines = {
   goodbye: 'Terima kasih telah menelepon. Sampai jumpa!',
   stillThere: 'Apakah Anda masih di sana?',
   stillChecking: 'Ini memakan waktu sedikit lebih lama, saya masih memeriksanya.',
+  anythingElse: 'Ada lagi yang bisa saya bantu?',
   callLimit:
     'Mohon maaf, panggilan ini sudah mencapai batas waktu. Saya sudah mencatat semuanya untuk tim, dan seseorang akan menghubungi Anda kembali. Sampai jumpa!',
   testCallLimit: 'Panggilan uji coba ini sudah mencapai batas waktu, jadi saya akhiri sekarang. Sampai jumpa!',
@@ -388,6 +406,7 @@ const sv: SpokenLines = {
   goodbye: 'Tack för att du ringde. Hej då!',
   stillThere: 'Är du kvar?',
   stillChecking: 'Det här tar lite längre tid, jag håller fortfarande på.',
+  anythingElse: 'Finns det något mer jag kan hjälpa till med?',
   callLimit:
     'Tyvärr har vi nått maxtiden för det här samtalet. Jag har antecknat allt åt teamet, och någon hör av sig till dig. Hej då!',
   testCallLimit: 'Det här testsamtalet har nått sin maxtid, så jag avslutar det nu. Hej då!',
@@ -409,6 +428,7 @@ const ar: SpokenLines = {
   goodbye: 'شكرًا لاتصالك. مع السلامة!',
   stillThere: 'هل ما زلت على الخط؟',
   stillChecking: 'هذا يستغرق وقتًا أطول قليلًا، ما زلت أتحقق من ذلك.',
+  anythingElse: 'هل هناك أي شيء آخر يمكنني مساعدتك به؟',
   callLimit: 'عذرًا، لقد وصلنا إلى الحد الأقصى لمدة هذه المكالمة. سجّلت كل شيء للفريق، وسيتواصل معك أحدهم. مع السلامة!',
   testCallLimit: 'وصلت هذه المكالمة التجريبية إلى حدها الأقصى، لذا سأنهيها الآن. مع السلامة!',
   silenceClosing: 'لا أسمع أحدًا على الخط، لذا سأنهي المكالمة الآن. يسعدنا اتصالك بنا في أي وقت.',
@@ -429,6 +449,7 @@ const uk: SpokenLines = {
   goodbye: 'Дякуємо за дзвінок. До побачення!',
   stillThere: 'Ви ще на лінії?',
   stillChecking: 'Це займає трохи більше часу, я ще перевіряю.',
+  anythingElse: 'Чи можу я допомогти вам ще чимось?',
   callLimit: 'Перепрошуємо, час цього дзвінка вичерпано. Усе записано для команди, і з вами зв’яжуться. До побачення!',
   testCallLimit: 'Час цього тестового дзвінка вичерпано, тому дзвінок завершується. До побачення!',
   silenceClosing: 'На лінії нікого не чути, тому дзвінок завершується. Телефонуйте нам будь-коли.',
@@ -450,6 +471,7 @@ const ro: SpokenLines = {
   goodbye: 'Vă mulțumim că ați sunat. La revedere!',
   stillThere: 'Mai sunteți la telefon?',
   stillChecking: 'Durează puțin mai mult, încă verific.',
+  anythingElse: 'Vă mai pot ajuta cu altceva?',
   callLimit:
     'Îmi pare rău, am ajuns la durata maximă a acestui apel. Am notat totul pentru echipă și cineva vă va contacta. La revedere!',
   testCallLimit: 'Acest apel de test a ajuns la durata maximă, așa că îl închei acum. La revedere!',
@@ -472,6 +494,7 @@ const cs: SpokenLines = {
   goodbye: 'Děkujeme za zavolání. Na shledanou!',
   stillThere: 'Jste stále na lince?',
   stillChecking: 'Trvá to trochu déle, ještě to zjišťuji.',
+  anythingElse: 'Mohu vám pomoci ještě s něčím?',
   callLimit:
     'Omlouvám se, dosáhli jsme maximální délky tohoto hovoru. Vše je zapsáno pro tým a někdo se vám ozve. Na shledanou!',
   testCallLimit: 'Tento testovací hovor dosáhl maximální délky, proto ho teď ukončím. Na shledanou!',
@@ -493,6 +516,7 @@ const el: SpokenLines = {
   goodbye: 'Σας ευχαριστούμε για την κλήση. Αντίο σας!',
   stillThere: 'Είστε ακόμα στη γραμμή;',
   stillChecking: 'Αυτό παίρνει λίγο περισσότερο χρόνο, το ελέγχω ακόμα.',
+  anythingElse: 'Μπορώ να σας βοηθήσω με κάτι άλλο;',
   callLimit:
     'Λυπάμαι, φτάσαμε στη μέγιστη διάρκεια αυτής της κλήσης. Τα έχω σημειώσει όλα για την ομάδα και κάποιος θα επικοινωνήσει μαζί σας. Αντίο σας!',
   testCallLimit: 'Αυτή η δοκιμαστική κλήση έφτασε στη μέγιστη διάρκειά της, οπότε την τερματίζω τώρα. Αντίο σας!',
@@ -516,6 +540,7 @@ const da: SpokenLines = {
   goodbye: 'Tak fordi du ringede. Farvel!',
   stillThere: 'Er du der stadig?',
   stillChecking: 'Det tager lidt længere tid, jeg er stadig i gang.',
+  anythingElse: 'Er der andet, jeg kan hjælpe med?',
   callLimit:
     'Beklager, vi har nået den maksimale længde for dette opkald. Jeg har noteret det hele til teamet, og nogen vender tilbage til dig. Farvel!',
   testCallLimit: 'Dette testopkald har nået sin maksimale længde, så jeg afslutter det nu. Farvel!',
@@ -538,6 +563,7 @@ const fi: SpokenLines = {
   goodbye: 'Kiitos soitostasi. Näkemiin!',
   stillThere: 'Oletko vielä linjalla?',
   stillChecking: 'Tämä vie hieman kauemmin, tarkistan vielä.',
+  anythingElse: 'Voinko auttaa vielä jossakin muussa?',
   callLimit:
     'Valitettavasti tämän puhelun enimmäiskesto on täynnä. Kirjasin kaiken tiimille, ja joku on sinuun yhteydessä. Näkemiin!',
   testCallLimit: 'Tämä testipuhelu on saavuttanut enimmäiskestonsa, joten lopetan sen nyt. Näkemiin!',
@@ -559,6 +585,7 @@ const no: SpokenLines = {
   goodbye: 'Takk for at du ringte. Ha det bra!',
   stillThere: 'Er du der fortsatt?',
   stillChecking: 'Dette tar litt lengre tid, jeg holder fortsatt på.',
+  anythingElse: 'Er det noe mer jeg kan hjelpe med?',
   callLimit:
     'Beklager, vi har nådd maksimal lengde for denne samtalen. Jeg har notert alt for teamet, og noen tar kontakt med deg. Ha det bra!',
   testCallLimit: 'Denne testsamtalen har nådd maksimal lengde, så jeg avslutter den nå. Ha det bra!',
@@ -580,6 +607,7 @@ const hu: SpokenLines = {
   goodbye: 'Köszönjük a hívását. Viszonthallásra!',
   stillThere: 'Halló, ott van még?',
   stillChecking: 'Ez egy kicsit tovább tart, még dolgozom rajta.',
+  anythingElse: 'Segíthetek még valamiben?',
   callLimit:
     'Elnézést, elértük a hívás maximális időtartamát. Mindent feljegyeztem a csapatnak, és hamarosan felveszik Önnel a kapcsolatot. Viszonthallásra!',
   testCallLimit: 'Ez a teszthívás elérte a maximális időtartamát, ezért most befejezem. Viszonthallásra!',
@@ -640,7 +668,7 @@ function parseDefaultGreeting(
   return null
 }
 
-const DEFAULT_TEXTS = ['fallbackGreeting', 'silenceClosing', 'stillThere', 'recordingNotice'] as const
+const DEFAULT_TEXTS = ['fallbackGreeting', 'silenceClosing', 'stillThere', 'goodbye', 'recordingNotice'] as const
 
 /**
  * An owner-written text after the main language changed from `from` to `to`: `to`'s default when the text is still

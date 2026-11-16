@@ -145,6 +145,8 @@ export const assistants = pgTable(
     silence_closing: text('silence_closing'),
     /** Asked when the line is quiet; null: "Are you still there?" in the language spoken (DEFAULT_SILENCE_REMINDER). */
     silence_reminder: text('silence_reminder'),
+    /** Said when the caller has nothing else and the assistant hangs up (end_call); null: "Thanks for calling. Goodbye!" in the language spoken (DEFAULT_GOODBYE_LINE). */
+    goodbye_line: text('goodbye_line'),
     /** Replaced by `talking_speed_pct`; the nearest of slow, normal, fast, kept for the release before. */
     talking_speed: text('talking_speed', { enum: ['slow', 'normal', 'fast'] })
       .notNull()

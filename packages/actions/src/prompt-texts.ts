@@ -290,7 +290,7 @@ export const PROMPT_TEXTS = {
   },
   'tools.endCall': {
     section: 'tools',
-    text: 'When everything the caller called about is handled, ask whether there is anything else you can help with. When they say no, or say goodbye, call end_call right away without saying anything first: you say your goodbye right after it. Do not wait for the caller to say goodbye.',
+    text: 'When everything the caller called about is handled, call end_call. It asks the caller whether there is anything else. If they have something, help them. When they say no, call end_call again: it says goodbye and hangs up. Do not say goodbye yourself.',
   },
 
   // About this call
