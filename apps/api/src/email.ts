@@ -124,7 +124,8 @@ const logSender: EmailSender = {
     ),
   check: async () => ({
     ok: true,
-    message: 'Printed to the API log (EMAIL_TO_LOG), not sent. Connect email in Server admin › Providers › Email on a real server.',
+    message:
+      'Printed to the API log (EMAIL_TO_LOG), not sent. Connect email in Server admin › Providers › Email on a real server.',
   }),
 }
 
@@ -138,8 +139,34 @@ const noSender: EmailSender = {
   },
   check: async () => ({
     ok: false,
-    message: 'Not set up: connect email in Server admin › Providers › Email. Sign-in codes, invitations and call emails cannot go out.',
+    message:
+      'Not set up: connect email in Server admin › Providers › Email. Sign-in codes, invitations and call emails cannot go out.',
   }),
+}
+
+/** EMAIL_MUTED_TO: addresses that get no email from this install (comma-separated, any case). */
+export const mutedAddresses = (value: string | undefined) =>
+  new Set(
+    (value ?? '')
+      .split(',')
+      .map(a => a.trim().toLowerCase())
+      .filter(Boolean),
+  )
+
+/**
+ * Leaves out email to the muted addresses: one log line (to, subject) instead, never the text, as it can hold a
+ * sign-in code. For test installs that share a mail account with production (local, staging).
+ */
+function withMuted(sender: EmailSender, muted: Set<string>): EmailSender {
+  if (muted.size === 0) return sender
+  return {
+    kind: sender.kind,
+    send: async email => {
+      if (!muted.has(email.to.trim().toLowerCase())) return sender.send(email)
+      console.log(`[email, not sent: EMAIL_MUTED_TO] To: ${email.to} Subject: ${email.subject}`)
+    },
+    check: () => sender.check(),
+  }
 }
 
 export function createEmailSender(
@@ -147,13 +174,18 @@ export function createEmailSender(
   timeouts: SmtpTimeouts = SMTP_TIMEOUTS,
 ): EmailSender {
   const delivery = emailDelivery(env)
-  if (delivery === 'smtp') return smtpSender(env.SMTP_URL!, env.EMAIL_FROM, timeouts)
-  return delivery === 'log' ? logSender : noSender
+  const sender =
+    delivery === 'smtp'
+      ? smtpSender(env.SMTP_URL!, env.EMAIL_FROM, timeouts)
+      : delivery === 'log'
+        ? logSender
+        : noSender
+  return withMuted(sender, mutedAddresses(env.EMAIL_MUTED_TO))
 }
 
 /** What decides how email goes out: two environments with the same value send the same way. */
 export const emailSettingsOf = (env: Record<string, string | undefined>) =>
-  JSON.stringify([env.SMTP_URL ?? '', env.EMAIL_FROM ?? '', env.EMAIL_TO_LOG ?? ''])
+  JSON.stringify([env.SMTP_URL ?? '', env.EMAIL_FROM ?? '', env.EMAIL_TO_LOG ?? '', env.EMAIL_MUTED_TO ?? ''])
 
 let current: { settings: string; sender: EmailSender } | null = null
 /** The sender for the settings in process.env now; made again only when they changed. */

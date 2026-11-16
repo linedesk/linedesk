@@ -26,6 +26,21 @@ describe('createEmailSender', () => {
     )
   })
 
+  it('leaves out email to EMAIL_MUTED_TO, without its text', async () => {
+    const sender = createEmailSender({
+      EMAIL_TO_LOG: 'true',
+      EMAIL_MUTED_TO: ' Mike@Brightwater.example , x@y.example',
+    })
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    await sender.send({ to: 'mike@brightwater.example', subject: 'Your code', text: 'code 123456' })
+    expect(log.mock.calls).toHaveLength(1)
+    expect(log.mock.calls[0]?.[0]).toContain('EMAIL_MUTED_TO')
+    expect(log.mock.calls[0]?.[0]).not.toContain('123456')
+    await sender.send({ to: 'sara@brightwater.example', subject: 'Hello', text: 'sent' })
+    expect(log.mock.calls[1]?.[0]).toContain('To: sara@brightwater.example')
+    log.mockRestore()
+  })
+
   it('prefers SMTP over the log', () => {
     expect(createEmailSender({ SMTP_URL: 'smtp://mail.example.com', EMAIL_TO_LOG: 'true' }).kind).toBe('smtp')
   })
