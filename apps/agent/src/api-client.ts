@@ -7,6 +7,12 @@ import type { z } from 'zod'
 
 /** No action takes long; a hung request must not hold up a call or its hang-up. */
 const REQUEST_TIMEOUT_MS = 5000
+/**
+ * Actions that wait on a calendar provider: the API gives each provider request 8 s and makes up to three. Cut off
+ * sooner, a booking the API still made reached the caller as failed (Cal.com, LIN-204).
+ */
+const CALENDAR_ACTIONS = new Set(['calendar.findSlots', 'appointment.book', 'appointment.reschedule', 'appointment.cancel'])
+const CALENDAR_TIMEOUT_MS = 25_000
 
 export class ActionError extends Error {
   readonly action: string
@@ -50,7 +56,7 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
           ...(scope ? { 'x-workspace-id': scope.workspaceId } : {}),
         },
         body: JSON.stringify(input),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(CALENDAR_ACTIONS.has(def.name) ? CALENDAR_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
       })
       const body = (await res.json().catch(() => null)) as ActionResult | ActionRejection | null
       if (!res.ok || !body?.ok) throw new ActionError(def.name, res.status, body && !body.ok ? body.error : res.statusText)

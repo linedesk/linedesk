@@ -158,6 +158,28 @@ export function createCalComCalendar(options: CalComOptions): CalendarProvider {
     }
   }
 
+  /** The uid of a live booking of this event type at `start` under `name`, made by a request that seemed to fail. */
+  async function madeAnyway(eventTypeId: number, start: string, name: string): Promise<string | null> {
+    const at = Date.parse(start)
+    const body = await request('look for the booking', {
+      url: api('bookings', {
+        eventTypeId: String(eventTypeId),
+        afterStart: new Date(at - 60_000).toISOString(),
+        beforeEnd: new Date(at + 86_400_000).toISOString(),
+      }),
+      headers: { 'cal-api-version': V_BOOKINGS },
+    })
+    const found = (Array.isArray(body?.data) ? body.data : []) as Json[]
+    const b = found.find(
+      b =>
+        Date.parse(b.start) === at &&
+        b.status !== 'cancelled' &&
+        b.status !== 'rejected' &&
+        (b.attendees as Json[] | undefined)?.some(a => a?.name === name),
+    )
+    return typeof b?.uid === 'string' && b.uid ? b.uid : null
+  }
+
   return {
     name: 'calcom',
 
@@ -224,11 +246,19 @@ export function createCalComCalendar(options: CalComOptions): CalendarProvider {
           },
         })
       const callerEmail = event.attendee?.email
+      const attendeeName = event.attendee?.name || event.title
       let body: Json | null
       try {
         // Without the caller's address the business's own gets Cal.com's confirmation.
         body = await book(callerEmail || email, event.description)
       } catch (e) {
+        // Cal.com sometimes answers a booking after the timeout and books it all the same: that booking is the
+        // caller's, not one left behind that nobody knows of.
+        if (e instanceof CalendarError && e.kind === 'unavailable') {
+          const made = await madeAnyway(eventTypeId, event.start, attendeeName).catch(() => null)
+          if (made) return { id: made }
+          throw e
+        }
         // Cal.com refuses an address whose domain takes no mail (one misheard on the phone): the slot is still
         // booked, under the business's address, with the caller's in the notes for the team to check.
         if (!(callerEmail && e instanceof CalendarError && e.kind === 'invalid' && /e-?mail/i.test(e.message))) throw e

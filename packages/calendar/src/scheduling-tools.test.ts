@@ -7,7 +7,8 @@ import { createCalendlyCalendar, createCalendlyOAuth } from './calendly.ts'
 import { CalendarError, type CalendarProvider, type Json } from './provider.ts'
 
 type Seen = { method: string; url: URL; auth: string | null; version: string | null; body: Json }
-type Fault = (seen: Seen) => number | 'network' | 'timeout' | undefined
+/** `slow`: the server does the request, but the answer comes after the timeout. */
+type Fault = (seen: Seen) => number | 'network' | 'timeout' | 'slow' | undefined
 const KEY = 'cal_live_0123456789abcdef'
 const TOKEN = 'calendly-pat-0123456789'
 const json = (body: unknown, status = 200) => Response.json(body, { status })
@@ -27,7 +28,7 @@ function recorder(route: (s: Seen) => Response, secret: string, fault?: Fault) {
     const f = fault?.(s)
     if (f === 'network') throw new TypeError('fetch failed')
     if (f === 'timeout') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
-    if (f) return json({ message: `fault <b>${f}</b>`, error: { message: `fault <b>${f}</b>` } }, f)
+    if (f && f !== 'slow') return json({ message: `fault <b>${f}</b>`, error: { message: `fault <b>${f}</b>` } }, f)
     if (s.auth !== `Bearer ${secret}`)
       return json(
         {
@@ -38,7 +39,9 @@ function recorder(route: (s: Seen) => Response, secret: string, fault?: Fault) {
         },
         401,
       )
-    return route(s)
+    const res = route(s)
+    if (f === 'slow') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    return res
   }
   return { fetch, seen }
 }
@@ -118,6 +121,14 @@ function fakeCalCom(fault?: Fault) {
         }
         bookings.set(uid, booking)
         return json({ status: 'success', data: { id: next, ...booking } }, 201)
+      }
+      if (s.method === 'GET' && path === '/v2/bookings') {
+        expect(s.version).toBe('2026-02-25')
+        const [type, lo, hi] = ['eventTypeId', 'afterStart', 'beforeEnd'].map(k => s.url.searchParams.get(k))
+        const data = [...bookings.values()]
+          .filter(b => String(b.eventTypeId) === type && Date.parse(b.start) >= Date.parse(lo!) && Date.parse(b.end) <= Date.parse(hi!))
+          .map(({ attendee, ...b }) => ({ ...b, attendees: [attendee] }))
+        return json({ status: 'success', data })
       }
       const m = path.match(/^\/v2\/bookings\/([^/]+)(?:\/(reschedule|cancel))?$/)
       const b = m && bookings.get(decodeURIComponent(m[1]!))
@@ -464,6 +475,26 @@ describe('cal.com specifics', () => {
       phoneNumber: '+15035550177',
     })
     expect(b!.notes).toBe('Leak under the sink')
+  })
+
+  test('a booking Cal.com answers after the timeout but makes anyway is the one returned, not left behind', async () => {
+    const server = fakeCalCom(s => (s.method === 'POST' && s.url.pathname === '/v2/bookings' ? 'slow' : undefined))
+    const provider = createCalComCalendar({
+      login: { serverUrl: 'https://api.cal.com/', username: '', password: KEY },
+      timeZone: 'America/Los_Angeles',
+      fetch: server.fetch,
+    })
+    const event = { title: 'Repair visit · Sam Patel', description: 'Leak', start: '2030-01-07T17:00:00.000Z', end: '2030-01-07T18:00:00.000Z', attendee: { name: 'Sam Patel' } }
+    expect(await provider.createEvent('101', event)).toEqual({ id: 'bk-1' })
+    expect(server.bookings.size).toBe(1)
+    // Timed out with nothing made: the failure stands.
+    const down = fakeCalCom(s => (s.method === 'POST' && s.url.pathname === '/v2/bookings' ? 'timeout' : undefined))
+    const failing = createCalComCalendar({
+      login: { serverUrl: 'https://api.cal.com/', username: '', password: KEY },
+      timeZone: 'America/Los_Angeles',
+      fetch: down.fetch,
+    })
+    await expect(failing.createEvent('101', event)).rejects.toThrow(/longer than/)
   })
 
   test("an address Cal.com refuses (no mail server) books under the account's, with the caller's in the notes", async () => {
