@@ -442,7 +442,7 @@ test('the area code comes from a number the owner gave, never an example', () =>
   // Another country's number is never read as a US one: +49 30 123456 has ten digits, but no area code 493.
   expect(areaCodeOf('US', '+4930123456')).toBe('')
   expect(areaCodeOf('US', '+4930123456', '+15035550142')).toBe('503')
-  expect(areaCodeOf('US', '+442071838750')).toBe('')
+  expect(areaCodeOf('US', '+442079460750')).toBe('')
   // Only the workspace country's codes: a Canadian number gives none in the US, its code in Canada.
   expect(areaCodeOf('US', '+14165550100')).toBe('')
   expect(areaCodeOf('CA', '+14165550100')).toBe('416')

@@ -52,8 +52,58 @@ English is the source; the other languages are translated before each release (w
 ## Pull requests
 
 - Branch from `master-dev`; one logical change per pull request. We squash on merge.
-- `pnpm typecheck` and `pnpm lint` must pass (CI runs both and builds the images). Run `pnpm test` (or the files you touched) locally; CI does not run the suite. The API tests need Postgres (`pnpm db:up`).
+- `pnpm typecheck` and `pnpm lint` must pass (CI runs both and builds the images). Run `pnpm test` (or the files you touched) locally; CI runs the full suite only after the merge ([docs/ci.md](docs/ci.md)). The API tests need Postgres (`pnpm db:up`).
+- Sign off every commit (`git commit -s`, see below); the `dco` check fails otherwise.
 - `pnpm format <files>` formats only the files you touched; please don't reformat unrelated code.
 - New actions need tests (handler, `apply` and permission); new adapters need contract tests.
 - UI changes: add a screenshot to the pull request and check the change in the running app, not only in tests.
 - Describe what changed and why, and how you checked it. Product or architecture decisions go in the description under "Decisions".
+
+## Developer Certificate of Origin
+
+Linedesk is MIT-licensed, and we do not ask for a contributor licence agreement. Instead, every commit carries a sign-off: by adding it you certify the [Developer Certificate of Origin 1.1](https://developercertificate.org/) below, that you wrote the change or otherwise have the right to submit it under the project's licence.
+
+Sign off with `git commit -s` (or `--signoff`). Git adds a line with the name and email of your git config, which must be your real name and an address you can be reached at (GitHub's `noreply` address is fine):
+
+```
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+Forgot it? `git commit --amend -s --no-edit` fixes the last commit; `git rebase --signoff master-dev` signs off every commit of the branch. Then `git push --force-with-lease`. The `dco` check on the pull request lists each commit without a sign-off.
+
+```
+Developer Certificate of Origin
+Version 1.1
+
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+
+Developer's Certificate of Origin 1.1
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
+```

@@ -13,6 +13,7 @@
 - [ ] Schema changes come with a Drizzle migration; new env variables are in `.env.example`
 - [ ] `docker compose up` still works
 - [ ] No secrets, real phone numbers, customer data or internal notes
+- [ ] Every commit is signed off (`git commit -s`, Developer Certificate of Origin, see CONTRIBUTING.md)
 
 ## Decisions
 

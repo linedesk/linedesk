@@ -247,7 +247,7 @@ Then in `backup.env` next to `.env` (not in `.env`: the API container reads all 
 can delete every backup), readable by its owner only (`chmod 600 backup.env`): `BACKUP_S3_ENDPOINT`,
 `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (a key for that bucket only),
 `BACKUP_S3_PREFIX` (default `linedesk/`), optionally `BACKUP_AGE_RECIPIENT` (the `age1…` public key that
-`age-keygen` printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/receive-deploy.sh`, in production `scripts/receive-release.sh`) keeps the file like
+`age-keygen` printed) and `BACKUP_KEEP_DAYS` (default 30). A deploy (`scripts/deploy.sh`, `scripts/receive-deploy.sh`) keeps the file like
 `.env`. Run `scripts/backup.sh` once, then every night with a systemd timer:
 
 ```ini
@@ -284,9 +284,9 @@ A real restore: download a backup (decrypt an encrypted one on your computer:
 - [docs/architecture.md](docs/architecture.md): how Linedesk works (single source of truth)
 - [docs/stack.md](docs/stack.md): why this stack: research, spikes, costs per minute
 - [docs/plan.md](docs/plan.md): principles, open-source readiness, workstreams
-- [docs/decisions.md](docs/decisions.md): decisions log
 - [docs/research.md](docs/research.md): what an AI front desk must do well
 - [docs/design-principles.md](docs/design-principles.md): UI rules
 - [docs/translations.md](docs/translations.md): languages, the translation pipeline, fixing a translation
+- [docs/ci.md](docs/ci.md): what CI checks on a pull request
 
 Working on the code: read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) first. Security reports: [SECURITY.md](SECURITY.md).

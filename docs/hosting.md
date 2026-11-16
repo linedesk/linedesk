@@ -78,7 +78,7 @@ For a server that runs real calls, [`ops/server/setup.sh`](../ops/server/README.
 sudo /opt/linedesk/app/ops/server/setup.sh --alert-to you@example.com
 ```
 
-When something breaks (server gone, database restore, calls not arriving, a leaked key): [docs/runbook.md](runbook.md).
+Restoring a backup: README, "Backups". (The maintainers' runbook for the hosted service, `docs/runbook.md`, is internal and not in the public repository.)
 
 ## From your computer to the server
 

@@ -139,7 +139,7 @@ describe('starting a check', () => {
     expect((await check({ businessNumber: linedeskNumber })).body.error).toMatch(/Linedesk number/)
     expect((await check({ businessNumber: '+18005550100' })).status).toBe(422)
     // Another country than the workspace's numbers' (and none allowed by the admin): the destination policy refuses it.
-    expect((await check({ businessNumber: '+442071838750' })).body.error).toMatch(
+    expect((await check({ businessNumber: '+442079460750' })).body.error).toMatch(
       /^Only numbers in the United States can be checked/,
     )
     expect((await check({ businessNumber: businessNumber() }, other.owner)).body.error).toBe('phone number not found')

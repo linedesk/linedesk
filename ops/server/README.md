@@ -25,4 +25,4 @@ Both firewalls fail closed: every entry is checked before anything changes, and 
 
 Settings live in `/etc/linedesk/ops.env` (no secrets). Test the email: `/usr/local/sbin/linedesk-alert-text Test "Alerts work."`.
 
-Linedesk's own servers: production runs it with `--label prod --cloudflare --harden-ssh --ufw`; staging with `--label staging --ufw`; the intranet server (`internal-server`, Hetzner) with `--label intranet --monitor app.linedesk.ai --monitor-sip sip.linedesk.ai`, so production is checked from another provider. The intranet server's address is in production's `/etc/linedesk/sip-allow.local.txt` for the SIP check, and in staging's for Uptime Kuma's staging SIP check.
+Example: a production server with `--label prod --cloudflare --harden-ssh --ufw`, a staging server with `--label staging --ufw`, and a small server at another provider with `--label monitor --monitor app.example.com --monitor-sip sip.example.com`, so production is checked from outside; that server's address then goes into production's `/etc/linedesk/sip-allow.local.txt` for the SIP check.

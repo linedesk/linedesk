@@ -10,3 +10,5 @@
 /docker-bake.hcl             @janik-sauerbier @timgutberlet
 /Dockerfile                  @janik-sauerbier @timgutberlet
 /ops/                        @janik-sauerbier @timgutberlet
+/scripts/public-export.sh    @janik-sauerbier @timgutberlet
+/scripts/public-export-exclude.txt  @janik-sauerbier @timgutberlet

@@ -12,13 +12,15 @@ concurrency:
 permissions:
   contents: read
 
+# Runners: GitHub-hosted `ubuntu-24.04` in the public repository (linedesk/linedesk), so pull requests from forks never
+# run on (or bill) the maintainers' Depot organization; Depot runners in the maintainers' private copy (docs/ci.md).
 jobs:
   # master-prod only takes merges of master-dev (docs/ci.md, "Branches"): a pull request into it from any other branch
   # (or from a fork) turns red. GitHub Free cannot make this check required; the production server refuses such a
   # commit anyway (scripts/receive-release.sh), this only says so before the merge.
   release-source:
     if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
-    runs-on: depot-ubuntu-24.04
+    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 2
     steps:
       - name: The pull request must come from master-dev
@@ -37,7 +39,7 @@ jobs:
   # The label is read when the job runs, so labelling after the run means re-running this job.
   release-translations:
     if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
-    runs-on: depot-ubuntu-24.04
+    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -96,7 +98,7 @@ jobs:
   # Fast checks only: typecheck, lint, the language check, the scrub tests and the release receiver's tests (~20 s). The
   # full test suite runs beside the deploys in tests.yml, never in front of them (docs/ci.md, "Tests").
   check:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -115,8 +117,10 @@ jobs:
       - run: pnpm i18n:check
       # What error reports and log lines may send to Sentry (packages/scrub; about 2 s, no database needed).
       - run: pnpm --filter @linedesk/scrub test
-      # The production deploy receiver's checks (about 1 s, docs/ci.md).
-      - run: bash scripts/receive-release.test.sh
+      # The production deploy receiver's checks (about 1 s, docs/ci.md). The receiver is not in the public export
+      # (scripts/public-export-exclude.txt), so the step only runs where the script exists.
+      - if: hashFiles('scripts/receive-release.test.sh') != ''
+        run: bash scripts/receive-release.test.sh
       # The migrations journal in order: a `when` not after the one before is skipped by the migrator on installs past it
       # (packages/db/scripts/check-journal.ts; about 1 s, no database needed).
       - run: pnpm db:check-journal
@@ -129,7 +133,7 @@ jobs:
 
   # Self-hosting must work at every commit: the images build. (The agent image is not built here; it is large.)
   images:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -149,7 +153,7 @@ jobs:
   # finding turns every other pull request and master-dev red until it is deleted.
   # The binary is pinned by version and checksum instead of gitleaks-action, which needs a paid licence for organisations.
   secrets:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 5
     env:
       GITLEAKS_VERSION: 8.30.1

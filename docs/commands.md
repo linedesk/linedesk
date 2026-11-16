@@ -85,4 +85,4 @@ Your machine or a test server, never production ([dev-mode.md](dev-mode.md)). `L
 
 ## Errors and logs
 
-Sentry, on staging and production via `SENTRY_DSN` (off without it; `apps/api/src/error-reporting.ts`, `apps/agent/src/error-reporting.ts`, `apps/web/src/errorReporting.ts`). It gets errors, `console.warn`/`console.error` lines and the member they hit (id, email, name); never transcripts, request bodies, local variables or AI inputs and outputs, and phone numbers are masked. Our Sentry project and how the team works with it: [internal/working.md](internal/working.md#sentry).
+Sentry, on staging and production via `SENTRY_DSN` (off without it; `apps/api/src/error-reporting.ts`, `apps/agent/src/error-reporting.ts`, `apps/web/src/errorReporting.ts`). It gets errors, `console.warn`/`console.error` lines and the member they hit (id, email, name); never transcripts, request bodies, local variables or AI inputs and outputs, and phone numbers are masked. Our Sentry project and how the team works with it: `docs/internal/working.md`, "Sentry" (maintainers, not in the public repository).

@@ -346,7 +346,7 @@ describe('telnyx outbound for the call test', () => {
   })
 
   test('refuses to manage objects not named linedesk-*', () => {
-    expect(() => createTelnyxOutbound({ apiKey: 'KEY', name: 'OtherCo' })).toThrow(/only objects named linedesk-/)
+    expect(() => createTelnyxOutbound({ apiKey: 'KEY', name: 'Northwind' })).toThrow(/only objects named linedesk-/)
   })
 
   test('SIP user names fit Telnyx rules', () => {

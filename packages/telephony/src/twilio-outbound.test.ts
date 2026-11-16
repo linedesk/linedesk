@@ -121,7 +121,7 @@ describe('twilio outbound SIP', () => {
   })
 
   test('refuses names that are not Linedesk objects, and errors never carry a credential', async () => {
-    expect(() => createTwilioOutbound({ accountSid: SID, authToken: 'token', name: 'OtherCo' })).toThrow(
+    expect(() => createTwilioOutbound({ accountSid: SID, authToken: 'token', name: 'Northwind' })).toThrow(
       TelephonyError,
     )
     const failing: typeof fetch = async () => Response.json({ message: 'Authenticate' }, { status: 401 })

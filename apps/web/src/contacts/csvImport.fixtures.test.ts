@@ -141,7 +141,7 @@ describe('content', () => {
       ['Germany +49', '+493012345678'],
       ['Germany 0049', '+493012345679'],
       ['UK with (0)', '+442079460958'],
-      ['France', '+33142685300'],
+      ['France', '+33199005300'],
       ['Two numbers', '+15035550296'],
     ])
     expect(plan.unreadable.map(u => u.row)).toEqual([9, 10, 11, 12, 13, 14, 15])

@@ -149,32 +149,32 @@ test('the LLM is given the details the caller gave, marked when not confirmed, a
   const complete = vi.fn<CompleteJson>(async () => JSON.stringify(llmAnswer))
   const details = [
     { label: 'name', value: 'Dana Reyes', confirmed: true },
-    { label: 'callback number', value: '+15035550183', confirmed: true },
+    { label: 'callback number', value: '+15035550174', confirmed: true },
     { label: 'address', value: '22 Oak St', confirmed: false },
   ]
   await summarizeCall(transcript, complete, [], 'en', { details })
   const [system, user] = complete.mock.calls[0]!
   expect(system).toContain('Never write a phone number that is not listed there')
   expect(system).toContain('each request the caller left is one item')
-  expect(user).toContain('Details the caller gave:\n- name: Dana Reyes\n- callback number: +15035550183\n- address (not confirmed): 22 Oak St')
+  expect(user).toContain('Details the caller gave:\n- name: Dana Reyes\n- callback number: +15035550174\n- address (not confirmed): 22 Oak St')
 })
 
 test('a confirmed callback number makes a call the summary calls answered a call back', () => {
   const answered = { outcome: 'answered' as const, urgency: 'normal' as const, summary: 'Asked about the water heater.', actionItems: [] }
-  expect(mergeToolResults(answered, { messages: [], urgent: false, confirmedNumbers: ['+15035550183'] }).outcome).toBe('callback')
+  expect(mergeToolResults(answered, { messages: [], urgent: false, confirmedNumbers: ['+15035550174'] }).outcome).toBe('callback')
   expect(mergeToolResults(answered, { messages: [], urgent: false }).outcome).toBe('answered')
   // A booking still wins.
-  expect(mergeToolResults(answered, { messages: [], urgent: false, confirmedNumbers: ['+15035550183'], bookings: ['Repair'] }).outcome).toBe('booked')
+  expect(mergeToolResults(answered, { messages: [], urgent: false, confirmedNumbers: ['+15035550174'], bookings: ['Repair'] }).outcome).toBe('booked')
 })
 
 test('without a summary, confirmed details still leave a call back for the team', () => {
   const lines: TranscriptLine[] = [{ speaker: 'caller', text: 'My water heater is leaking.' }]
   const result = unsummarizedResult(lines, [], 'en', [
     { label: 'name', value: 'Dana Reyes', confirmed: true },
-    { label: 'callback number', value: '+15035550183', confirmed: true },
+    { label: 'callback number', value: '+15035550174', confirmed: true },
   ])
   expect(result.outcome).toBe('callback')
-  expect(result.actionItems?.[0]?.text).toContain('Dana Reyes, +15035550183')
+  expect(result.actionItems?.[0]?.text).toContain('Dana Reyes, +15035550174')
   expect(unsummarizedResult(lines).outcome).toBe('answered')
 })
 

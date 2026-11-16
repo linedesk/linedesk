@@ -86,11 +86,11 @@ test('paths lose query, fragment and secret segments, not ids', () => {
 
 test('a log line keeps the scrubbed message, the template and the member, not the console arguments', () => {
   const log = scrubLog({
-    message: 'transfer to +15035550182 refused',
+    message: 'transfer to +15035550167 refused',
     attributes: {
       'sentry.origin': 'auto.log.console',
       'sentry.message.template': 'transfer to {} refused',
-      'sentry.message.parameter.0': '+15035550182',
+      'sentry.message.parameter.0': '+15035550167',
       'user.id': '9f86d081884c7d659a2feaa0c55ad015',
       'user.email': 'owner@example.com',
       'user.name': 'Tim',

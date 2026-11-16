@@ -212,10 +212,10 @@ test('the on-call person answers by voice or key; unclear answers are no decisio
 })
 
 test('a phone call test never transfers; transfer scenarios refuse --phone', () => {
-  const env = { CALL_TEST_FROM: '+15035550192' }
-  expect(isPhoneCallTest({ contact: { phone: '+15035550192' } as never }, env)).toBe(true)
+  const env = { CALL_TEST_FROM: '+15035550186' }
+  expect(isPhoneCallTest({ contact: { phone: '+15035550186' } as never }, env)).toBe(true)
   expect(isPhoneCallTest({ contact: { phone: '+15035550142' } as never }, env)).toBe(false)
-  expect(isPhoneCallTest({ contact: { phone: '+15035550192' } as never }, {})).toBe(false)
+  expect(isPhoneCallTest({ contact: { phone: '+15035550186' } as never }, {})).toBe(false)
   expect(phoneRefused(scenarios['transfer-accepted'], {})).toBe(true)
   expect(phoneRefused(scenarios['burst-pipe'], {})).toBe(false)
 })
@@ -231,19 +231,19 @@ test('live transfer test: with CALL_TEST_ONCALL a phone call test goes through t
   // The dialer: a phone call test to any other number still gets none (nothing is dialled), with or without the opt-in.
   const phoneTest = {
     callId: 'c1',
-    businessNumber: '+15035550194',
+    businessNumber: '+15035550164',
     simulatedOnCall: null,
     timeZone: null,
-    contact: { phone: '+15035550192' },
+    contact: { phone: '+15035550186' },
   } as never
-  vi.stubEnv('CALL_TEST_FROM', '+15035550192')
+  vi.stubEnv('CALL_TEST_FROM', '+15035550186')
   try {
     expect(await onCallDialerFor(phoneTest, '+15035550199', {} as never, {} as never)).toBeNull()
     vi.stubEnv('CALL_TEST_ONCALL', oncall)
     expect(await onCallDialerFor(phoneTest, '+15035550199', {} as never, {} as never)).toBeNull()
     // The business's own number is never dialled: it would ring back into the assistant.
-    vi.stubEnv('CALL_TEST_ONCALL', '+15035550194')
-    expect(await onCallDialerFor(phoneTest, '+15035550194', {} as never, {} as never)).toBeNull()
+    vi.stubEnv('CALL_TEST_ONCALL', '+15035550164')
+    expect(await onCallDialerFor(phoneTest, '+15035550164', {} as never, {} as never)).toBeNull()
   } finally {
     vi.unstubAllEnvs()
   }
@@ -260,17 +260,17 @@ test('the on-call responder is chosen only by its own metadata', () => {
 })
 
 test('setup-sip refuses unknown options and a missing number instead of using a default', () => {
-  expect(parseSetupSipArgs(['--outbound', '+15035550194', '+19715550123'])).toEqual({
+  expect(parseSetupSipArgs(['--outbound', '+15035550164', '+19715550123'])).toEqual({
     printAllowedAddresses: false,
     outbound: true,
-    numbers: ['+15035550194', '+19715550123'],
+    numbers: ['+15035550164', '+19715550123'],
   })
   expect(parseSetupSipArgs(['--print-allowed-addresses'])).toEqual({ printAllowedAddresses: true })
   expect(() => parseSetupSipArgs([])).toThrow(/No number given[\s\S]*usage: setup-sip/)
   expect(() => parseSetupSipArgs(['--outbound'])).toThrow(/No number given/)
   expect(() => parseSetupSipArgs(['--help'])).toThrow(/Unknown option: --help/)
-  expect(() => parseSetupSipArgs(['--outbond', '+15035550194'])).toThrow(/Unknown option: --outbond/)
-  expect(() => parseSetupSipArgs(['5035550194'])).toThrow(/E\.164/)
+  expect(() => parseSetupSipArgs(['--outbond', '+15035550164'])).toThrow(/Unknown option: --outbond/)
+  expect(() => parseSetupSipArgs(['5035550164'])).toThrow(/E\.164/)
 })
 
 test('setup-oncall-test takes one number and what the responder answers', () => {
@@ -286,14 +286,14 @@ test('setup-oncall-test takes one number and what the responder answers', () => 
   })
   expect(() => parseSetupOnCallTestArgs([])).toThrow(/No number given/)
   expect(() => parseSetupOnCallTestArgs(['+19715550123', '--answer', 'maybe'])).toThrow(/--answer takes/)
-  expect(() => parseSetupOnCallTestArgs(['+19715550123', '+15035550194'])).toThrow(/one test on-call number/)
+  expect(() => parseSetupOnCallTestArgs(['+19715550123', '+15035550164'])).toThrow(/one test on-call number/)
   expect(() => parseSetupOnCallTestArgs(['+19715550123', '--force'])).toThrow(/Unknown option/)
   expect(parseSetupOnCallTestArgs(['--remove'])).toEqual({ remove: true })
   expect(() => parseSetupOnCallTestArgs(['--remove', '+19715550123'])).toThrow(/--remove takes nothing else/)
 })
 
 test('the responder logs only the last four digits of who called', () => {
-  expect(maskedNumber('+15035550194')).toBe('…4064')
+  expect(maskedNumber('+15035550164')).toBe('…0164')
   expect(maskedNumber(undefined)).toBe('an unknown number')
 })
 

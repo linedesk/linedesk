@@ -1,6 +1,6 @@
 # Linedesk architecture
 
-Status: decided, 2026-11-10. This is the single source of truth for how Linedesk works. Why each piece was chosen (research, spikes, costs) lives in [stack.md](stack.md); product decisions in [decisions.md](decisions.md); the plan and workstreams in [plan.md](plan.md).
+Status: decided, 2026-11-10. This is the single source of truth for how Linedesk works. Why each piece was chosen (research, spikes, costs) lives in [stack.md](stack.md); product decisions in the maintainers' decision log (`docs/decisions.md`, not in the public repository); the plan and workstreams in [plan.md](plan.md).
 
 ## 1. What v1 does
 
@@ -290,7 +290,7 @@ prototypes/   clickable prototypes (no backend)
 docs/
 ```
 
-Janik's earlier Next.js mock-up is archived in `prototypes/linedesk-next/`.
+An earlier Next.js mock-up is archived in the maintainers' private repository (`prototypes/linedesk-next/`, not in the public repository).
 
 **Default `docker compose`:** caddy, app (web + API + MCP), worker, voice agent, postgres, electric, livekit-server, livekit-sip, redis/valkey (needed by LiveKit SIP; it holds the SIP trunks and dispatch rules, so it keeps them on a volume, `redis_data`, across updates); optional `recording` profile (livekit-egress writing to a shared directory; no storage server). LiveKit is on two networks, `default` (agent, outside world) and the internal `voice` (Valkey); its media must use only `default`, or it announces both addresses and calls stay silent. Docker does not keep the order of a container's interfaces (`eth0` may be either network after a recreate), so LiveKit's entrypoint picks the interface that holds the default route (only `default` has one, `voice` is internal) and writes its name into `rtc.interfaces.includes`; the startup log says `livekit: media interface <name> (<address>)`. App, worker and agent are stateless replicas; LiveKit scales via Redis; Postgres can be managed.
 

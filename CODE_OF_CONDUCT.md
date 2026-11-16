@@ -6,4 +6,4 @@ In short: be welcoming and respectful, accept constructive criticism, focus on w
 
 ## Reporting
 
-Report unacceptable behaviour to **CONDUCT_CONTACT_PLACEHOLDER** (address to be added before the repository is public). All reports are reviewed promptly and handled confidentially. Maintainers enforce the code following the Contributor Covenant's enforcement guidelines (correction, warning, temporary ban, permanent ban).
+Report unacceptable behaviour to [conduct@linedesk.ai](mailto:conduct@linedesk.ai). All reports are reviewed promptly and handled confidentially. Maintainers enforce the code following the Contributor Covenant's enforcement guidelines (correction, warning, temporary ban, permanent ban).

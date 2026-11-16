@@ -39,6 +39,6 @@ test('a new name shows only once it is saved; a refusal puts the saved one back 
   expect(shown).toEqual([]) // nothing on screen before the server answered
   await pending
   expect(sent).toBe('Brightwater Plumbing')
-  await saveRename('OtherCo X', steps(async () => Promise.reject(new Error('Not possible while signed in as another user.'))))
+  await saveRename('Brightwater X', steps(async () => Promise.reject(new Error('Not possible while signed in as another user.'))))
   expect(shown).toEqual(['saved Brightwater Plumbing', 'refused Not possible while signed in as another user.'])
 })

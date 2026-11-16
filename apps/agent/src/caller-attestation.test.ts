@@ -3,9 +3,9 @@ import { callerAttestation, spamLikely, warnIfNoSipHeaders } from './caller-atte
 
 // As LiveKit SIP put a Telnyx call on staging into the caller's attributes (2026-11-15).
 const telnyx = (verstat: string) => ({
-  'sip.phoneNumber': '+15035550192',
-  'sip.h.from': '"+15035550192" <sip:+15035550192@sip.telnyx.com>;tag=BK8gr4pQj3cFK',
-  'sip.h.p-asserted-identity': `"+15035550192"<sip:+15035550192@sip.telnyx.com;verstat=${verstat}>`,
+  'sip.phoneNumber': '+15035550186',
+  'sip.h.from': '"+15035550186" <sip:+15035550186@sip.telnyx.com>;tag=BK8gr4pQj3cFK',
+  'sip.h.p-asserted-identity': `"+15035550186"<sip:+15035550186@sip.telnyx.com;verstat=${verstat}>`,
 })
 
 describe('callerAttestation', () => {
