@@ -575,6 +575,41 @@ function EventTypeRow({ type, canEdit }: { type: AssistantCalendar; canEdit: boo
 }
 
 /**
+ * A picked event type of a scheduling tool under Appointment types: its tool's mark, length, on or off. Its name,
+ * length and rules are edited in the tool, so nothing else here.
+ */
+function ToolTypeRow({
+  type,
+  connection,
+  canEdit,
+}: {
+  type: AssistantCalendar
+  connection: CalendarConnection | undefined
+  canEdit: boolean
+}) {
+  const t = useT()
+  const run = useRun()
+  const provider = connection ? PROVIDER_LABEL[connection.provider] : ''
+  return (
+    <ListRow
+      off={!type.enabled}
+      lead={connection && <SignInMark method={accountMark(connection)} />}
+      title={type.name}
+      sub={provider && t('settings.calendar.toolTypes.from', { provider })}
+      aside={type.duration_min !== null ? durationLabel(type.duration_min) : undefined}
+      actions={
+        <Switch
+          label={t('settings.calendar.bookInto', { name: type.name })}
+          on={type.enabled}
+          disabled={!canEdit}
+          onChange={on => void run('assistantCalendar.update', { assistantCalendarId: type.id, enabled: on })}
+        />
+      }
+    />
+  )
+}
+
+/**
  * A Cal.com or Calendly account as one entry of the Calendars card: its mark and address, "Event types" to pick which
  * ones the assistant books, and the picked ones under it.
  */
@@ -972,8 +1007,10 @@ function AppointmentTypes({ assistant, canEdit }: Omit<Props, 'toast'>) {
   const t = useT()
   const run = useRun()
   // A scheduling tool's calendar (Calendly, Cal.com) is an event type with its own length and rules: these types are
-  // for the plain calendars only.
-  const someTools = calendarsOf(useRows('assistant_calendars'), assistant.id).some(c => c.duration_min !== null)
+  // for the plain calendars only. Its picked event types show here too, read-only (only on or off), with its mark.
+  const connections = useRows('calendar_connections')
+  const toolTypes = calendarsOf(useRows('assistant_calendars'), assistant.id).filter(c => c.duration_min !== null)
+  const someTools = toolTypes.length > 0
   const types = useRows('appointment_types')
     .filter(type => type.enabled)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -1040,6 +1077,18 @@ function AppointmentTypes({ assistant, canEdit }: Omit<Props, 'toast'>) {
       )}
       {editing === 'new' && <TypeForm onDone={() => setEditing(null)} />}
       {!types.length && editing !== 'new' && <ListEmpty>{t('settings.calendar.noType')}</ListEmpty>}
+      {toolTypes.length > 0 && (
+        <List className="cal-tool-types" label={t('settings.calendar.toolTypes.listLabel')}>
+          {toolTypes.map(type => (
+            <ToolTypeRow
+              key={type.id}
+              type={type}
+              connection={connections.find(c => c.id === type.connection_id)}
+              canEdit={canEdit}
+            />
+          ))}
+        </List>
+      )}
     </Section>
   )
 }

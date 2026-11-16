@@ -218,6 +218,8 @@
   "calendar.rules.before": "{minutes, number} min before",
   "calendar.rules.beforeAndAfter": "{before, number} min before, {after, number} min after",
   "calendar.rules.buffer": "{minutes, number} min buffer",
+  "calendar.toolTypes.from": "From {provider}: edit its length and rules there",
+  "calendar.toolTypes.listLabel": "Event types from scheduling tools",
   "calendar.type.askFor": "Ask for",
   "calendar.type.askForTip": "Your assistant always asks what the appointment is for. Tick anything else it should ask before booking this type.",
   "calendar.type.bufferAfter": "Buffer after",
