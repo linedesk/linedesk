@@ -609,7 +609,7 @@ function optionalSteps(groups: GroupStatus[]) {
     transcript: [
       "Off until the admin selects a provider: then each call's recording file is uploaded to it after the call and the caller's lines of the transcript are corrected. It needs recording. Ask the admin whether they want it; it is optional.",
       ...guideLines(recommendedProviders.transcript),
-      `Turning it on is the admin's choice in ${webAddress()}/#admin/providers/transcript (app_links.providers_transcript), because recordings leave the server: there they only select the provider, with a key you stored or the OpenAI key already saved for the realtime model or language model. Say so.`,
+      `Turning it on is the admin's choice in ${webAddress()}/#admin/providers/transcript (app_links.providers_transcript), because recordings leave the server: there they only select the provider, with a key you stored or the key already saved for the same service (ElevenLabs: voice or speech to text; OpenAI: realtime model, speech to text or language model). Say so.`,
     ],
     business: guideLines(recommendedProviders.business),
     apps: [

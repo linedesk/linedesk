@@ -1433,7 +1433,7 @@ describe('every key through the agent (LIN-182)', () => {
     }
     expect(JSON.stringify(status.optional)).not.toMatch(/provider_setActive \{ category: "transcript"/)
     const transcript = status.optional.find(o => o.id === 'transcript')!.how!.join(' ')
-    expect(transcript).toMatch(/provider_setKeys \{ provider: "openai_transcript"/)
+    expect(transcript).toMatch(/provider_setKeys \{ provider: "elevenlabs_transcript"/)
     expect(transcript).toContain('#admin/providers/transcript')
     expect(status.app_links.providers_transcript).toMatch(/#admin\/providers\/transcript$/)
     const all = JSON.stringify(status)

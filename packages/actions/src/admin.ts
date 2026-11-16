@@ -440,7 +440,7 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   email: 'resend',
   sign_in: 'google',
   recording: 'file',
-  transcript: 'openai_transcript',
+  transcript: 'elevenlabs_transcript',
   business: 'google_places',
   billing: 'stripe',
   apps: 'hubspot',
