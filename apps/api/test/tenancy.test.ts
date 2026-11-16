@@ -1,6 +1,6 @@
 // A caller only ever reaches rows of their own workspace, whatever ids or parameters they send.
 import { actions, CLIENT_PROTOCOL, type ActionDef } from '@linedesk/actions'
-import { appointment_types, contacts, member, organization, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
+import { app_connections, appointment_types, contacts, member, organization, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { app } from '../src/app.ts'
@@ -28,11 +28,31 @@ import {
 let a: Workspace
 let b: Workspace
 let memberOfA: User
+/** A HubSpot connection of each workspace (no tokens: nothing reaches HubSpot), for app.updateSettings. */
+const appConnectionOf = new Map<string, string>()
+
+/** Connects HubSpot for the workspace as app.connect stores it, without the grant. */
+async function connectApp(ws: Workspace) {
+  const id = `appc_${crypto.randomUUID()}`
+  await db.insert(app_connections).values({
+    id,
+    workspace_id: ws.id,
+    provider: 'hubspot',
+    account_id: id,
+    account_name: 'brightwater.example',
+    connected_by: ws.owner.userId,
+  })
+  appConnectionOf.set(ws.id, id)
+}
+
+const getAppConnection = async (ws: Workspace) =>
+  (await db.select().from(app_connections).where(eq(app_connections.id, appConnectionOf.get(ws.id)!)))[0]
 
 beforeAll(async () => {
   a = await createWorkspace('Brightwater Plumbing & Heating')
   b = await createWorkspace('Other Business')
   memberOfA = await addMember(a.id, 'member')
+  await Promise.all([connectApp(a), connectApp(b)])
 })
 
 const patchActions = [...actions.values()].filter(def => def.patch)
@@ -51,6 +71,7 @@ function inputFor(def: ActionDef, ws: Workspace): Record<string, unknown> {
     assistants: { assistantId: ws.assistant.id, greeting: 'changed' },
     assistant_calendars: { assistantCalendarId: ws.assistantCalendar.id, instruction: 'changed' },
     webhook_endpoints: { endpointId: ws.webhookEndpoint.id, enabled: false },
+    app_connections: { id: appConnectionOf.get(ws.id), settings: { log_calls: false } },
   }
   const input = { ...byTable[def.patch!.table], ...extra[def.name] }
   if (!def.input.safeParse(input).success) {
@@ -68,10 +89,15 @@ const snapshot = async (ws: Workspace) => [
   await getAssistant(ws.assistant.id),
   await getAssistantCalendar(ws.assistantCalendar.id),
   await getWebhookEndpoint(ws.webhookEndpoint.id),
+  await getAppConnection(ws),
 ]
 
 /** Patch actions with a server handler of their own say so in their words. */
-const notFound: Record<string, string> = { assistant_calendars: 'calendar not found', webhook_endpoints: 'webhook not found' }
+const notFound: Record<string, string> = {
+  assistant_calendars: 'calendar not found',
+  webhook_endpoints: 'webhook not found',
+  app_connections: 'the app is not connected',
+}
 
 describe('patch actions', () => {
   test.each(patchActions.map(def => [def.name, def] as const))(
