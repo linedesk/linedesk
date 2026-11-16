@@ -813,6 +813,42 @@ describe('tools', () => {
       .body as { error?: unknown; result?: { isError?: boolean } }
     expect(bad.error ?? bad.result?.isError).toBeTruthy()
   })
+
+  test('forwarding_guide without a carrier lists the ones to ask about; before a number it shows where it goes', async () => {
+    const { key } = await makeKey(ws.owner)
+    await db.update(phone_numbers).set({ mode: 'forward_conditional' }).where(eq(phone_numbers.workspace_id, ws.id))
+    type Listed = { forward_to: string | null; carriers: { id: string; name: string }[]; next: string }
+    // No carrier named: the country's carriers and phone systems, to ask which one the line uses.
+    const listed = data(await call(key, 'forwarding_guide', { workspaceId: ws.id, country: 'US' })) as Listed
+    expect(listed.forward_to).toBe(ws.number)
+    expect(listed.carriers.map(c => c.id)).toEqual(expect.arrayContaining(['verizon', 'ringcentral']))
+    expect(listed.next).toMatch(/call forwarding_guide again with carrier/)
+    // A country without carrier guides: the standard codes right away.
+    const kr = data(await call(key, 'forwarding_guide', { workspaceId: ws.id, country: 'KR' })) as {
+      guides: { id: string }[]
+    }
+    expect(kr.guides.map(g => g.id)).toEqual(['zz-other-mobile', 'zz-phone-settings'])
+    // No number in the mode asked for yet: the codes with {number} where the assistant's number goes, no warning.
+    type Before = {
+      forward_to: string | null
+      no_number_yet?: string
+      warning?: string
+      guides: { id: string; instructions: { how: string; on: { code: string }[] } }[]
+    }
+    const before = data(
+      await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'Verizon', mode: 'forward_all' }),
+    ) as Before
+    expect(before.forward_to).toBeNull()
+    expect(before.no_number_yet).toMatch(/no number in mode forward_all yet.*phoneNumber_setup/)
+    expect(before.warning).toBeUndefined()
+    expect(before.guides[0]!.id).toBe('verizon')
+    expect(before.guides[0]!.instructions.how).toBe('dial')
+    expect(before.guides[0]!.instructions.on[0]!.code).toContain('{number}')
+    // A number in that mode: the same guide with the number filled in.
+    const after = data(await call(key, 'forwarding_guide', { workspaceId: ws.id, carrier: 'Verizon' })) as Before
+    expect(after.no_number_yet).toBeUndefined()
+    expect(after.guides[0]!.instructions.on[0]!.code).not.toContain('{number}')
+  })
 })
 
 describe('every key through the agent (LIN-182)', () => {
@@ -928,6 +964,27 @@ describe('every key through the agent (LIN-182)', () => {
     expect(forAgent('Not set up: connect email in Server admin › Providers › Email. Sign-in codes cannot go out.')).toBe(
       'Not set up: set up email with provider_setKeys. Sign-in codes cannot go out.',
     )
+  })
+
+  test("forAgent on a workspace link: the server's part is for whoever runs it, never Server admin or provider_setKeys", () => {
+    const deepgram = forAgent(
+      'Deepgram rejected the key (HTTP 401). Enter a valid key under Server admin › Providers › Deepgram.',
+      true,
+    )
+    expect(deepgram).toBe(
+      'Deepgram rejected the key (HTTP 401). Enter a valid key (that is for whoever runs this Linedesk server, not part of this workspace).',
+    )
+    for (const text of [
+      'Telnyx refused the request. Check the settings under Server admin › Providers › Telnyx.',
+      'Email is not set up: connect it in Server admin › Providers › Email',
+      'Not set up: connect email in Admin, Providers, Email. Sign-in codes cannot go out.',
+      'no number to call from: every number in the carrier account belongs to a workspace; add a forwarding check number in Server admin › Providers',
+      'phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set',
+    ]) {
+      const owner = forAgent(text, true)
+      expect(owner).toMatch(/whoever runs this Linedesk server/)
+      expect(owner).not.toMatch(/Server admin|Admin, Providers|provider_setKeys|LIVEKIT|ask the admin/i)
+    }
   })
 
   test('forAgent still rewrites the old wording (Admin › Providers, Admin, Providers) of failures stored before', () => {
@@ -1519,6 +1576,13 @@ describe('the test call on the setup page', () => {
     expect(wrapUp(true, [{ id: 'test_call' }])).toMatch(/setup_endAccess as your last call/)
     expect(wrapUp(true, [{ id: 'passkey' }])).toMatch(/ask whether to end your access now/)
     expect(wrapUp(true, [])).toMatch(/^Everything is set up\. .*setup_endAccess as your last call/)
+    // A workspace link names its person (the owner or a workspace admin), never "the admin".
+    for (const done of [false, true])
+      for (const waiting of [[], [{ id: 'test_call' }], [{ id: 'forwarding' }]]) {
+        const text = wrapUp(done, waiting, { oneWorkspace: true, person: 'owner' })
+        expect(text).toMatch(/the owner/)
+        expect(text).not.toMatch(/\bthe admin\b/)
+      }
   })
 })
 
@@ -1647,6 +1711,8 @@ describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
       expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
       expect(how).toContain(`in the workspace's country (${country}; numbers can be bought in US, CA, PR)`)
       expect(how).toContain(`{ ${w}, e164, purchase: false, mode }`)
+      // The numbers the carrier account already has, to attach one.
+      expect(how).toContain(`phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account`)
     }
   })
 
@@ -1655,6 +1721,7 @@ describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
     expect(how).not.toContain('purchase: true')
     expect(how).toContain('Numbers can be bought only for workspaces in US, CA, PR; this one is in DE')
     expect(how).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
+    expect(how).toContain(`phoneNumber_listCarrierNumbers { ${w} }`)
   })
 
   test('nothing names the country yet: an area code where the business is, and the number sets the country', () => {

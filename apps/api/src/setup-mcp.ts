@@ -24,6 +24,8 @@ import {
   actions,
   callAudioGuide,
   canBuyNumbersIn,
+  type DialCode,
+  type ForwardingGuide,
   type ForwardingMode,
   forwardingCountries,
   forwardingInstructions,
@@ -122,6 +124,7 @@ export const SETUP_ACTIONS = [
   'businessHours.set',
   'notifications.update',
   'phoneNumber.setup',
+  'phoneNumber.listCarrierNumbers',
   'phoneNumber.update',
   'phoneNumber.lookupLine',
   'phoneNumber.checkForwarding',
@@ -129,16 +132,25 @@ export const SETUP_ACTIONS = [
   'onboarding.setStep',
 ] as const
 
-/** Tools a client should confirm with the person first: they cost money or undo work. */
-const ASK_FIRST: Record<string, string> = {
-  'phoneNumber.setup':
-    'With purchase: true this buys a phone number on the carrier account (only for a workspace in the US, Canada or Puerto Rico; about $1 a month on Telnyx in the US and Canada, $3 in Puerto Rico): ask the admin first and say the cost. With purchase: false it attaches a number the account already has.',
+/**
+ * Who the agent talks to, as its texts name them: the instance admin (an install link), or the workspace's owner or
+ * admin (a workspace link). A workspace link's person is never sent to Server admin: the server is not theirs to set up.
+ */
+export const personOf = (actor: Pick<Actor, 'setupWorkspaceId' | 'setupWorkspaceRole'>) =>
+  !actor.setupWorkspaceId ? 'admin' : actor.setupWorkspaceRole === 'admin' ? 'workspace admin' : 'owner'
+
+/**
+ * Tools a client should confirm with the person first: they cost money or undo work. The provider tools are only on an
+ * install link, so their person is always the instance admin.
+ */
+const askFirst = (actor: Actor): Record<string, string> => ({
+  'phoneNumber.setup': `With purchase: true this buys a phone number (only for a workspace in the US, Canada or Puerto Rico; about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US and Canada, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the carrier account already has (phoneNumber_listCarrierNumbers lists them).`,
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
   'provider.tryOut':
     'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
-}
+})
 
-/** What the agent is told about a tool on top of the registry's description. */
+/** What the agent is told about a tool on top of the registry's description (install links only). */
 const EXTRA: Record<string, string> = {
   'provider.setKeys':
     'Ask the admin for the key in the chat and pass it here; never ask them to paste it into the app. The answer shows each field as set (secrets only by their last 4) and `test`: the free provider test run right after saving.',
@@ -151,12 +163,24 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>
   isError?: boolean
 }
+/** Who fixes the server's part, as a workspace link's texts say it (they never name Server admin). */
+const SERVER_PART = '(that is for whoever runs this Linedesk server, not part of this workspace)'
+
 /**
  * Messages from provider tests and errors are written for the app ("Enter a valid key under Server admin › Providers ›
- * Deepgram."). The agent stores keys itself, so they say what the agent does instead of sending the admin there.
- * Failures stored before the rename (provider_failures) still say "Admin › Providers" or "Admin, Providers": both match.
+ * Deepgram."). On an install link the agent stores keys itself, so they say what the agent does instead of sending the
+ * admin there. On a workspace link (`workspaceLink`) the server is not the person's to set up and no provider tool is
+ * there: the place in Server admin becomes who fixes it. Failures stored before the rename (provider_failures) still
+ * say "Admin › Providers" or "Admin, Providers": both match.
  */
-export function forAgent(text: string): string {
+export function forAgent(text: string, workspaceLink = false): string {
+  if (workspaceLink)
+    return text
+      .replace(/(?:under|in) (?:Server admin|Admin)(?:, | › )Providers(?:(?:, | › )[^.,"]+)?/g, SERVER_PART)
+      .replace(
+        /phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set/g,
+        `numbers cannot be connected on this server yet: its voice server is not finished ${SERVER_PART}`,
+      )
   return text
     .replace(
       /Enter a (valid key|new client secret) under (?:Server admin|Admin) › Providers(?: › [^."]+)?\./g,
@@ -171,8 +195,8 @@ export function forAgent(text: string): string {
       'set up email with provider_setKeys',
     )
 }
-const answer = (data: Record<string, unknown>): ToolResult => {
-  const text = forAgent(JSON.stringify(data))
+const answer = (data: Record<string, unknown>, actor?: Actor): ToolResult => {
+  const text = forAgent(JSON.stringify(data), Boolean(actor?.setupWorkspaceId))
   return { content: [{ type: 'text', text }], structuredContent: JSON.parse(text) }
 }
 // The setup link cap (SETUP_LINK_WORKSPACE_CAP) and its count: workspace-creation.ts. workspace.create enforces it in the
@@ -195,7 +219,10 @@ function oneCreateAtATime<T>(keyId: string, run: () => Promise<T>): Promise<T> {
   return next
 }
 
-const refusal = (error: string): ToolResult => ({ content: [{ type: 'text', text: forAgent(error) }], isError: true })
+const refusal = (error: string, actor?: Actor): ToolResult => ({
+  content: [{ type: 'text', text: forAgent(error, Boolean(actor?.setupWorkspaceId)) }],
+  isError: true,
+})
 
 /** How often the agent reads setup_status while it waits for the admin (the test call). */
 const POLL_SECONDS = 10
@@ -203,9 +230,21 @@ const POLL_SECONDS = 10
 /** The server's own actions (providers, the install's progress): instance admin rights, in no workspace. */
 const isServerAction = (name: string) => name.startsWith('provider.') || name.startsWith('install.')
 
-/** What a business tool says when its workspace is not one the admin may set up (or does not exist). */
-const NOT_YOUR_WORKSPACE =
-  'That workspaceId is not one you can set up: use the id of one of setup_status.workspaces (workspaces where the admin is owner or admin). Nothing was changed.'
+/** What a business tool says when its workspace is not one the person may set up (or does not exist). */
+const notYourWorkspace = (actor: Actor) =>
+  actor.setupWorkspaceId
+    ? 'That workspaceId is not one you can set up: this setup link is for one workspace only, use the id in setup_status.workspaces. Nothing was changed.'
+    : 'That workspaceId is not one you can set up: use the id of one of setup_status.workspaces (workspaces where the admin is owner or admin). Nothing was changed.'
+
+/**
+ * notifications.update answers with the member's settings, push included: the server's push (VAPID) key and the
+ * member's devices are the browser's business, never the agent's. Only whether push is on and how many devices.
+ */
+function forSetupAgent(name: string, data: unknown): unknown {
+  if (name !== 'notifications.update' || !data || typeof data !== 'object') return data
+  const { push, ...rest } = data as { push?: { summary?: unknown; devices?: unknown[] } }
+  return push ? { ...rest, push: { summary: push.summary, devices: push.devices?.length ?? 0 } } : rest
+}
 
 /** The workspace every business tool names: one of setup_status.workspaces. */
 const workspaceIdField = z
@@ -227,13 +266,13 @@ async function saveAndTest(provider: ProviderName, actor: Actor, saved: Record<s
 
 function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
   const serverAction = isServerAction(def.name)
+  const caution = askFirst(actor)[def.name]
   const notes = [
     def.description,
     serverAction ? null : 'Pass workspaceId: the workspace (from setup_status.workspaces) this acts in.',
     EXTRA[def.name],
-    ASK_FIRST[def.name],
+    caution,
   ].filter(Boolean)
-  const caution = ASK_FIRST[def.name]
   // A business action names its workspace on top of its own fields (none of SETUP_ACTIONS has a workspaceId).
   const inputSchema = serverAction ? def.input : (def.input as z.ZodObject).extend({ workspaceId: workspaceIdField })
   server.registerTool(
@@ -252,15 +291,15 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
           // passkey confirmation, and only in a workspace the admin is owner or admin of.
           const { workspaceId, ...rest } = input as { workspaceId: string }
           as = await setupActorIn(actor, workspaceId)
-          if (!as) return refusal(NOT_YOUR_WORKSPACE)
+          if (!as) return refusal(notYourWorkspace(actor), actor)
           input = rest
         }
         const { body } = await runAction(def.name, input, as)
-        if (!body.ok) return refusal(body.error)
-        const result = { rows: body.rows, ...(body.data ? { data: body.data } : {}) }
+        if (!body.ok) return refusal(body.error, actor)
+        const result = { rows: body.rows, ...(body.data ? { data: forSetupAgent(def.name, body.data) } : {}) }
         if (def.name === 'provider.setKeys')
           return saveAndTest((input as { provider: ProviderName }).provider, as, result)
-        return answer({ ok: true, ...result })
+        return answer({ ok: true, ...result }, actor)
       })) as never,
   )
 }
@@ -484,7 +523,7 @@ async function workspaceSetupStatus(actor: Actor, groups: readonly GroupStatus[]
     next_step: next ? next.id : null,
     next_workspace_id: nextWorkspace?.id ?? null,
     all_done: !next,
-    wrap_up: wrapUp(!next, waiting, { oneWorkspace: true }),
+    wrap_up: wrapUp(!next, waiting, { oneWorkspace: true, person: personOf(actor) }),
     app_links: appLinks(actor),
   }
 }
@@ -513,20 +552,21 @@ async function workspaceStatus(actor: Actor, ws: ManagedWorkspace, advance: bool
 export function wrapUp(
   agentDone: boolean,
   waiting: readonly Pick<Step, 'id'>[],
-  { oneWorkspace = false }: { oneWorkspace?: boolean } = {},
+  { oneWorkspace = false, person = 'admin' }: { oneWorkspace?: boolean; person?: string } = {},
 ): string {
-  const end =
-    'then call setup_endAccess as your last call: this setup link stops working at once, and the setup page tells the admin you ended it.'
+  const end = `then call setup_endAccess as your last call: this setup link stops working at once, and the setup page tells the ${person} you ended it.`
   if (!agentDone)
-    return `Not finished yet. If you stop before every step is done, ask the admin first whether to end your access; if they agree, give a short summary of what is set up and what is left, ${end}`
+    return `Not finished yet. If you stop before every step is done, ask the ${person} first whether to end your access; if they agree, give a short summary of what is set up and what is left, ${end}`
   const open = [...new Set(waiting.map(s => s.id))]
   if (open.includes('test_call') && oneWorkspace)
-    return `Your part is done. Ask the owner to make the test call now, right on the setup page (${webAddress()}/#setup-agent): the button on its Test call row calls the assistant with their microphone. Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
+    return `Your part is done. Ask the ${person} to make the test call now, right on the setup page (${webAddress()}/#setup-agent): the button on its Test call row calls the assistant with their microphone. Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
   if (open.includes('test_call'))
     return `Your part is done. Ask the admin to make the test call now, right on the setup page (${webAddress()}/#setup-agent): they pick the workspace in the dropdown above its steps, and the button on its Test call row calls that workspace's assistant with their microphone (once per workspace whose test_call is open). Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
   if (open.length)
-    return `Your part is done; only the admin can do what is still open (${open.join(', ')}). Give a short summary of what is set up and what is left for them, ask whether to end your access now, and if they agree, ${end}`
-  return `Everything is set up. Give the admin a short summary of what is set up in each workspace and what is left for them (the optional steps), ${end}`
+    return `Your part is done; only the ${person} can do what is still open (${open.join(', ')}). Give a short summary of what is set up and what is left for them, ask whether to end your access now, and if they agree, ${end}`
+  return oneWorkspace
+    ? `Everything is set up. Give the ${person} a short summary of what is set up and what is left for them, ${end}`
+    : `Everything is set up. Give the admin a short summary of what is set up in each workspace and what is left for them (the optional steps), ${end}`
 }
 
 /** Where an OAuth app sends people back to: the same list as the provider's dialog (web ProviderLogo.tsx). */
@@ -716,18 +756,22 @@ const noWorkspaceSteps = (): StepBase[] => [
  */
 export function numberSetupHow(w: string, country: string | null): string {
   const countries = NUMBER_BUY_COUNTRIES.join(', ')
+  const listed = `phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account that are free to attach`
+  const attach = `A number the carrier account already has (${listed}): { ${w}, e164, purchase: false, mode }.`
   // Nothing names the workspace's country yet: the area code picks it, and the bought number sets it.
   if (country === null)
-    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code where the business is (numbers can be bought in ${countries}; the workspace's country is not set yet, so the number sets it). If the business is elsewhere, set its country first (workspace_updateSettings { ${w}, country }); say the cost and ask first. A number the carrier account already has: { ${w}, e164, purchase: false, mode }.`
+    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code where the business is (numbers can be bought in ${countries}; the workspace's country is not set yet, so the number sets it). If the business is elsewhere, set its country first (workspace_updateSettings { ${w}, country }); say the cost and ask first. ${attach}`
   if (canBuyNumbersIn(country))
-    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code in the workspace's country (${country}; numbers can be bought in ${countries}); say the cost and ask first. A number the carrier account already has: { ${w}, e164, purchase: false, mode }.`
-  return `Numbers can be bought only for workspaces in ${countries}; this one is in ${country}, so buying is refused. Ask for a number the business already has in its carrier account and attach it: phoneNumber_setup { ${w}, e164, purchase: false, mode }. If the country is wrong, fix it first (workspace_updateSettings { ${w}, country }).`
+    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code in the workspace's country (${country}; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
+  return `Numbers can be bought only for workspaces in ${countries}; this one is in ${country}, so buying is refused. Attach a number the business already has in its carrier account (${listed}): phoneNumber_setup { ${w}, e164, purchase: false, mode }. If the country is wrong, fix it first (workspace_updateSettings { ${w}, country }).`
 }
 
 async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[]> {
   const workspaceId = actor.workspaceId!
   // Every business tool names this workspace.
   const w = `workspaceId: "${workspaceId}"`
+  // Who the agent talks to: the instance admin, or on a workspace link its owner or admin.
+  const who = personOf(actor)
   const [ws] = await db.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
   const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   const assistant = await firstAssistant(workspaceId)
@@ -792,9 +836,9 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       // The name is a member's text: quoted, as data.
       detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, country ${locale.resolvedCountry}${locale.country ? '' : ` (automatic, ${locale.countrySource})`}, language ${locale.resolvedLanguage} (from the country), assistant ${assistant?.id ?? 'none'}`,
       how: [
-        `Check the name, time zone and country with the admin: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US" } (ISO country code; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
+        `Check the name, time zone and country with the ${who}: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US" } (ISO country code; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
-        `Show the admin a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
+        `Show the ${who} a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
         `Then onboarding_setStep { ${w}, step: "assistant" }.`,
       ],
     },
@@ -827,7 +871,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       label: 'Who hears about calls',
       state: done(notifyDone),
       how: [
-        `Each call is summarized by email to the admin (notifications_update { ${w}, email: true }).`,
+        `Each call is summarized by email to the ${who} (notifications_update { ${w}, email: true }).`,
         `Urgent calls can be put through to a person: ask for a mobile number and save it in the assistant's transfers (assistant_update { ${w}, assistantId, transfers }).`,
         `Then onboarding_setStep { ${w}, step: "phone" }.`,
       ],
@@ -839,7 +883,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       // The id too: the forwarding tools need it, also while another step is next and this one has no `how`.
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: [
-        'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new").',
+        'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
         numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
         `Then onboarding_setStep { ${w}, step: "done" }.`,
       ],
@@ -852,9 +896,9 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
             state: done(golive.forwardingVerified),
             how: [
               `Ask for the business line's carrier, then forwarding_guide { ${w}, carrier, country, mode: "${forwarding.mode}" } (country: where the business line is, e.g. "US") for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
-              `After the admin dialed them: phoneNumber_checkForwarding { ${w}, phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck { ${w}, … } every few seconds while it says dialing.`,
+              `After the ${who} dialed them: phoneNumber_checkForwarding { ${w}, phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck { ${w}, … } every few seconds while it says dialing.`,
               actor.setupWorkspaceId
-                ? `The owner can also do all of it on the setup page (${webAddress()}/#setup-agent): "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`
+                ? `The ${who} can also do all of it on the setup page (${webAddress()}/#setup-agent): "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`
                 : `The admin can also do all of it on the setup page (${webAddress()}/#setup-agent): with this workspace picked in the dropdown, "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`,
             ],
           } satisfies StepBase,
@@ -867,32 +911,54 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       // caller got through. Only the admin can do it: they talk.
       state: golive.firstRealCall || (await testCallMade(workspaceId)) ? 'done' : 'admin_only',
       how: [
-        `Only the ${actor.setupWorkspaceId ? 'owner' : 'admin'} can do this: they talk to the assistant. Ask them to stay on the setup page (${webAddress()}/#setup-agent)${actor.setupWorkspaceId ? '' : `, pick ${JSON.stringify(ws?.name ?? '')} in the workspace dropdown`} and click ${JSON.stringify(`Call ${assistant?.name ?? 'Maya'} now`)} on the Test call row: it calls the assistant with their microphone, right there, and the step is done once the assistant answered.${numbers[0] ? ` Or they call ${numbers[0].e164} from another phone.` : ''}`,
+        `Only the ${who} can do this: they talk to the assistant. Ask them to stay on the setup page (${webAddress()}/#setup-agent)${actor.setupWorkspaceId ? '' : `, pick ${JSON.stringify(ws?.name ?? '')} in the workspace dropdown`} and click ${JSON.stringify(`Call ${assistant?.name ?? 'Maya'} now`)} on the Test call row: it calls the assistant with their microphone, right there, and the step is done once the assistant answered.${numbers[0] ? ` Or they call ${numbers[0].e164} from another phone.` : ''}`,
         `Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they talked to it, until test_call is done.`,
       ],
     },
   ]
 }
 
+/**
+ * A guide's steps for `mode` before the workspace has a number to forward to: the codes or settings as the guide
+ * writes them, with {number} (and {digits}) where the assistant's number goes; null when the guide has no way for it.
+ */
+export function instructionsBeforeNumber(guide: ForwardingGuide, mode: ForwardingMode) {
+  if (guide.how === 'dial') {
+    const steps = guide.modes[mode]
+    if (!steps) return null
+    const codes = (list: readonly DialCode[]) => list.map(c => ({ code: c.code, ...(c.when ? { when: c.when } : {}) }))
+    return { how: 'dial' as const, on: codes(steps.on), off: codes(steps.off), check: codes(guide.check ?? []) }
+  }
+  const steps = guide.modes[mode]
+  if (!steps) return null
+  return {
+    how: 'settings' as const,
+    where: guide.where,
+    on: [...steps.on],
+    off: [...steps.off],
+    check: guide.check ?? null,
+  }
+}
+
 function registerTools(server: McpServer, actor: Actor) {
   const read = { readOnlyHint: true }
+  const who = personOf(actor)
   // A workspace owner's link: no server tools at all, only the workspace's (agent-setup.ts).
   const serverTools = !actor.setupWorkspaceId
   server.registerTool(
     'setup_status',
     {
-      description:
-        'Start here, and call again after every step: what is set up, what is missing or failing, and for the next step exactly what to do (pages, clicks, tool calls). Also links into the app for what only the admin can do there. It never changes a setting; it only notes how far the setup got (the step the app opens on). With read_only: true it notes nothing either: use that to wait.',
+      description: `Start here, and call again after every step: what is set up, what is missing or failing, and for the next step exactly what to do (pages, clicks, tool calls). Also links into the app for what only the ${who} can do there. It never changes a setting; it only notes how far the setup got (the step the app opens on). With read_only: true it notes nothing either: use that to wait.`,
       inputSchema: z.object({
         read_only: z
           .boolean()
           .optional()
-          .describe("true: only read, note nothing (for waiting, e.g. for the admin's test call)"),
+          .describe(`true: only read, note nothing (for waiting, e.g. for the ${who}'s test call)`),
       }),
       annotations: read,
     },
     async (input: { read_only?: boolean }) =>
-      guard('setup_status', async () => answer(await setupStatus(actor, { advance: !input?.read_only }))),
+      guard('setup_status', async () => answer(await setupStatus(actor, { advance: !input?.read_only }), actor)),
   )
   if (serverTools) server.registerTool(
     'providers_list',
@@ -972,14 +1038,17 @@ function registerTools(server: McpServer, actor: Actor) {
     'forwarding_guide',
     {
       description:
-        "How to forward a workspace's business line to its assistant's number: codes to dial (or settings to change) for the line's carrier or phone system, to turn forwarding on and off. Pass the business line's country (ISO 3166-1 alpha-2, e.g. \"US\", \"GB\"; default the workspace's country): the guides are that country's carriers and regional phone systems plus the international phone systems (RingCentral, Dialpad, 8x8, Teams Phone, 3CX …, listed in every country), and the number is written the way that country dials it. A country without carrier guides of its own gets the standard GSM codes and the phone's own settings (the answer's `countries` lists the countries with carrier guides). Needs a number in a forwarding mode in that workspace.",
+        "How to forward a workspace's business line to its assistant's number: codes to dial (or settings to change) for the line's carrier or phone system, to turn forwarding on and off. Pass the business line's country (ISO 3166-1 alpha-2, e.g. \"US\", \"GB\"; default the workspace's country): the guides are that country's carriers and regional phone systems plus the international phone systems (RingCentral, Dialpad, 8x8, Teams Phone, 3CX …, listed in every country), and the number is written the way that country dials it. A country without carrier guides of its own gets the standard GSM codes and the phone's own settings (the answer's `countries` lists the countries with carrier guides). Without a carrier it lists the country's carriers and phone systems to ask which one the line uses. It works before the assistant has a number too: the codes then show {number} where the assistant's number goes; call it again once phoneNumber_setup made one in a forwarding mode.",
       inputSchema: z.object({
         carrier: z
           .string()
           .trim()
           .min(2)
           .max(60)
-          .describe('The business line\'s carrier or phone system, e.g. "Verizon", "RingCentral"'),
+          .optional()
+          .describe(
+            'The business line\'s carrier or phone system, e.g. "Verizon", "RingCentral"; leave it out to list the ones there are guides for',
+          ),
         country: z
           .string()
           .trim()
@@ -995,69 +1064,93 @@ function registerTools(server: McpServer, actor: Actor) {
     async ({ carrier, country: asked, mode, workspaceId }) =>
       guard('forwarding_guide', async () => {
         const inWs = await setupActorIn(actor, workspaceId)
-        if (!inWs?.workspaceId) return refusal(NOT_YOUR_WORKSPACE)
+        if (!inWs?.workspaceId) return refusal(notYourWorkspace(actor), actor)
         const [number] = await db
           .select({ e164: phone_numbers.e164 })
           .from(phone_numbers)
           .where(and(eq(phone_numbers.workspace_id, inWs.workspaceId), eq(phone_numbers.mode, mode)))
           .limit(1)
-        if (!number) return refusal(`no number in mode ${mode} yet: phoneNumber_setup first`)
         // A country without guides of its own gets the "Other country" guides (standard GSM codes, phone settings).
         const requested = asked ?? (await workspaceLocale(db, inWs.workspaceId)).resolvedCountry
         const country = hasForwardingCountry(requested) ? requested : OTHER_COUNTRY
         const countries = forwardingCountries.map(c => c.code)
         // The country's carriers, or the "Other country" ones, and the phone systems sold in the country asked for.
-        const guides = searchForwardingGuides(carrier, requested).slice(0, 3)
+        const guides = carrier ? searchForwardingGuides(carrier, requested).slice(0, 3) : []
         const shown = guides.length ? guides : guidesForCountry(country).slice(0, country === OTHER_COUNTRY ? 2 : 0)
+        // No carrier named yet: the ones to pick from, so the agent can ask which one the business line uses.
+        if (!carrier && !shown.length)
+          return answer(
+            {
+              forward_to: number?.e164 ?? null,
+              country: requested,
+              countries,
+              carriers: guidesForCountry(country).map(g => ({ id: g.id, name: g.name, kind: g.kind })),
+              next: 'Ask which of these carriers or phone systems the business line uses (or its name), then call forwarding_guide again with carrier.',
+            },
+            actor,
+          )
         if (!shown.length)
           return refusal(
             `no guide for "${carrier}" in ${requested}: ask for the carrier's name, or a mobile/landline/phone system. Countries with guides: ${countries.join(', ')}; any other country gets the standard codes.`,
+            actor,
           )
         // The best match decides: a carrier that forwards only within its country can't reach a number abroad.
-        const warning = abroadWarning(number.e164, requested, shown[0])
-        return answer({
-          forward_to: number.e164,
-          country: requested,
-          ...(country === OTHER_COUNTRY
-            ? {
-                note: `No carrier guides for ${requested} yet: these are the standard GSM codes (the number written internationally), the phone's own settings and the international phone systems. Codes can differ by carrier.`,
-              }
-            : {}),
-          ...(warning
-            ? {
-                warning:
-                  warning.kind === 'blocked'
-                    ? `${warning.text} Suggest a number in the business's country.`
-                    : `The assistant's number is not in ${requested}: forwarding goes abroad and can cost extra or be blocked. Suggest a number in the business's country.`,
-              }
-            : {}),
-          countries,
-          guides: shown.map(guide => ({
-            id: guide.id,
-            name: guide.name,
-            instructions: forwardingInstructions(guide, mode as ForwardingMode, number.e164, requested),
-          })),
-        })
+        const warning = number ? abroadWarning(number.e164, requested, shown[0]) : null
+        return answer(
+          {
+            forward_to: number?.e164 ?? null,
+            country: requested,
+            ...(number
+              ? {}
+              : {
+                  no_number_yet: `The workspace has no number in mode ${mode} yet: {number} in the codes is where the assistant's number goes. Set one up first (phoneNumber_setup), then call forwarding_guide again for the codes with it filled in.`,
+                }),
+            ...(country === OTHER_COUNTRY
+              ? {
+                  note: `No carrier guides for ${requested} yet: these are the standard GSM codes (the number written internationally), the phone's own settings and the international phone systems. Codes can differ by carrier.`,
+                }
+              : {}),
+            ...(warning
+              ? {
+                  warning:
+                    warning.kind === 'blocked'
+                      ? `${warning.text} Suggest a number in the business's country.`
+                      : `The assistant's number is not in ${requested}: forwarding goes abroad and can cost extra or be blocked. Suggest a number in the business's country.`,
+                }
+              : {}),
+            countries,
+            guides: shown.map(guide => ({
+              id: guide.id,
+              name: guide.name,
+              instructions: number
+                ? forwardingInstructions(guide, mode as ForwardingMode, number.e164, requested)
+                : instructionsBeforeNumber(guide, mode as ForwardingMode),
+            })),
+          },
+          actor,
+        )
       }),
   )
   server.registerTool(
     'setup_endAccess',
     {
       description:
-        'End your access at the end of the setup: the setup link you are using stops working at once (only this one). Call it last, after your summary to the admin. setup_status.wrap_up says when; with steps still open, ask the admin first. Every later call with this link is refused. The admin can make a new link at any time.',
+        `End your access at the end of the setup: the setup link you are using stops working at once (only this one). Call it last, after your summary to the ${who}. setup_status.wrap_up says when; with steps still open, ask the ${who} first. Every later call with this link is refused. The ${who} can make a new link at any time.`,
       inputSchema: z.object({}),
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async () =>
       guard('setup_endAccess', async () => {
         const { body } = await runAction('agentSetup.endOwnAccess', {}, actor)
-        if (!body.ok) return refusal(body.error)
-        return answer({
-          ok: true,
-          ended: true,
-          message:
-            'Your access has ended: this setup link no longer works. The setup page tells the admin; they can make a new link at any time. Tell them in one line that you ended it.',
-        })
+        if (!body.ok) return refusal(body.error, actor)
+        return answer(
+          {
+            ok: true,
+            ended: true,
+            message: `Your access has ended: this setup link no longer works. The setup page tells the ${who}; they can make a new link at any time. Tell them in one line that you ended it.`,
+          },
+          actor,
+        )
       }),
   )
   // A workspace key is offered only what its role may do (an admin's never an owner-only tool); setupActorIn and

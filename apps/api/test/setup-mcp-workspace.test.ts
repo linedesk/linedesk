@@ -3,7 +3,16 @@
 // that it ends (expiry, End access, the agent's own end, a newer link, losing the owner role, a disabled workspace)
 // and that everything it does is logged with the key. In INSTANCE_WIDE_FILES: it makes an instance admin.
 import { SETUP_MCP_INSTRUCTIONS, SETUP_MCP_WORKSPACE_INSTRUCTIONS } from '@linedesk/actions'
-import { agent_setup_keys, assistants as assistantsTable, commands, member, organization, session, user } from '@linedesk/db'
+import {
+  agent_setup_keys,
+  assistants as assistantsTable,
+  commands,
+  member,
+  organization,
+  phone_numbers,
+  session,
+  user,
+} from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { agentSetupState, setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
@@ -746,5 +755,83 @@ describe('security review of #832', () => {
     expect(still!.revoked_at).toBeNull() // not used yet, so not ended yet
     const stateNow = await agentSetupState(admin.userId, own.id)
     expect(stateNow.key).toBeNull()
+  })
+})
+
+describe("a workspace link's texts and tools (owner test of #822)", () => {
+  type Tool = { name: string; description: string }
+  const tools = async (key: string) => (await mcp(key, 'tools/list')).body.result.tools as Tool[]
+  const description = (list: Tool[], name: string) => list.find(t => t.name === name)?.description ?? ''
+
+  test('the texts name the owner, never "the admin", Server admin or the carrier the server uses', async () => {
+    const own = await createWorkspace('Owner Texts Business')
+    const { key } = await makeWorkspaceKey(own.owner)
+    const list = await tools(key)
+    for (const name of ['setup_status', 'setup_endAccess', 'phoneNumber_setup']) {
+      expect(description(list, name)).toMatch(/\bthe owner\b/)
+      expect(description(list, name)).not.toMatch(/\bthe admin\b|Server admin|Telnyx/)
+    }
+    const status = JSON.stringify(data(await call(key, 'setup_status', { read_only: true })))
+    expect(status).toMatch(/with the owner/)
+    expect(status).not.toMatch(/\bthe admin\b|Server admin|#admin|provider_setKeys/)
+    const ended = (await call(key, 'setup_endAccess')).body.result.content[0].text as string
+    expect(ended).toMatch(/tells the owner/)
+    expect(ended).not.toMatch(/\bthe admin\b/)
+  })
+
+  test("a workspace admin's link names them as the workspace admin", async () => {
+    const own = await createWorkspace('Admin Texts Business')
+    const admin = await addMember(own.id, 'admin')
+    const { key } = await makeWorkspaceKey(admin)
+    expect(description(await tools(key), 'setup_endAccess')).toMatch(/\bthe workspace admin\b/)
+    expect(JSON.stringify(data(await call(key, 'setup_status', { read_only: true })))).toMatch(
+      /with the workspace admin/,
+    )
+  })
+
+  test('notifications_update answers without the push key or the devices', async () => {
+    const own = await createWorkspace('Push Key Business')
+    const { key } = await makeWorkspaceKey(own.owner)
+    const res = await call(key, 'notifications_update', { workspaceId: own.id, email: true })
+    expect(res.body.result.isError).toBeFalsy()
+    const answer = data(res) as { data: { effective: { email: boolean }; push: Record<string, unknown> } }
+    expect(answer.data.effective.email).toBe(true)
+    expect(answer.data.push).toEqual({ summary: expect.anything(), devices: 0 })
+    expect(JSON.stringify(answer)).not.toMatch(/publicKey|vapid/i)
+  })
+
+  test('phoneNumber_listCarrierNumbers lists the numbers the carrier account has, buying nothing', async () => {
+    const own = await createWorkspace('Carrier Numbers Business')
+    const { key } = await makeWorkspaceKey(own.owner)
+    expect((await tools(key)).map(t => t.name)).toContain('phoneNumber_listCarrierNumbers')
+    const res = await call(key, 'phoneNumber_listCarrierNumbers', { workspaceId: own.id })
+    expect(res.body.result.isError).toBeFalsy()
+    expect(data(res)).toMatchObject({ ok: true, data: { numbers: expect.any(Array), more: expect.any(Boolean) } })
+    // Only its own workspace.
+    const other = await createWorkspace('Not Theirs Business')
+    const refused = await call(key, 'phoneNumber_listCarrierNumbers', { workspaceId: other.id })
+    expect(refused.body.result.isError).toBe(true)
+    expect(refused.body.result.content[0].text).toMatch(/not one you can set up: this setup link is for one workspace/)
+  })
+
+  test('forwarding_guide without a carrier and before the workspace has a number', async () => {
+    const own = await createWorkspace('Forwarding Early Business')
+    await db.delete(phone_numbers).where(eq(phone_numbers.workspace_id, own.id))
+    const { key } = await makeWorkspaceKey(own.owner)
+    const listed = data(await call(key, 'forwarding_guide', { workspaceId: own.id, country: 'US' })) as {
+      forward_to: string | null
+      carriers: { id: string }[]
+    }
+    expect(listed.forward_to).toBeNull()
+    expect(listed.carriers.map(c => c.id)).toContain('att')
+    const guide = data(
+      await call(key, 'forwarding_guide', { workspaceId: own.id, carrier: 'AT&T', country: 'US' }),
+    ) as {
+      no_number_yet: string
+      guides: { id: string; instructions: { on: { code: string }[] } }[]
+    }
+    expect(guide.no_number_yet).toMatch(/phoneNumber_setup/)
+    expect(guide.guides[0]!.id).toBe('att')
+    expect(guide.guides[0]!.instructions.on.some(c => c.code.includes('{number}'))).toBe(true)
   })
 })
