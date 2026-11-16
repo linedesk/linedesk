@@ -48,6 +48,7 @@ import {
   MESSAGE_ROOTS,
   messageTextIn,
   RATCHET_ROOT,
+  SERVER_TEXT_EXCLUDED,
   SERVER_TEXT_ROOTS,
   scanKeys,
   sourceFiles,
@@ -281,7 +282,9 @@ function main() {
     report,
   )
   const ignores = webFiles.reduce((sum, file) => sum + ignoreComments(readFileSync(`${REPO_DIR}${file}`, 'utf8')), 0)
-  const serverHits = hardcodedIn(SERVER_TEXT_ROOTS, ignore)
+  const serverHits = Object.fromEntries(
+    Object.entries(hardcodedIn(SERVER_TEXT_ROOTS, ignore)).filter(([file]) => !SERVER_TEXT_EXCLUDED.has(file)),
+  )
   const serverCounts = Object.fromEntries(Object.entries(serverHits).map(([file, h]) => [file, h.length]))
   if (args.has('--update-baseline')) {
     writeJson(BASELINE_FILE, counts)

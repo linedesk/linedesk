@@ -604,6 +604,12 @@ export function messageTextIn(ignore: ReadonlySet<string>): Record<string, Hardc
  */
 export const SERVER_TEXT_ROOTS = ['packages/actions/src', 'apps/api/src'] as const
 
+/**
+ * Files of SERVER_TEXT_ROOTS that are not server English: what the assistant says on a call, written out in every
+ * language it speaks and picked by the call's language, never by the reader's (docs/translations.md, "Server-side text").
+ */
+export const SERVER_TEXT_EXCLUDED: ReadonlySet<string> = new Set(['packages/actions/src/spoken-lines.ts'])
+
 export interface FormattingUse {
   file: string
   line: number

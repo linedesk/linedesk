@@ -174,7 +174,6 @@
   "packages/actions/src/sample.ts": 2,
   "packages/actions/src/settings.ts": 52,
   "packages/actions/src/signup.ts": 1,
-  "packages/actions/src/spoken-lines.ts": 360,
   "packages/actions/src/star.ts": 1,
   "packages/actions/src/system-prompt.ts": 4,
   "packages/actions/src/team.ts": 15,

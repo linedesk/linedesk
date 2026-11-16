@@ -172,7 +172,8 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   the rest.
 - Data shipped as content (carrier guides, area codes, sample calls) moves to its own catalog namespace per area,
   translated in the release pass like the rest. What the assistant says stays in the workspace's language
-  (`spoken-lines.ts`), not the reader's.
+  (`spoken-lines.ts`), not the reader's: that file has every language written out, so the check skips it
+  (`SERVER_TEXT_EXCLUDED`).
 - Order: what the web app shows most (provider status, carrier steps, field labels, refusals), then emails, then the
   rest. Once an area is done, the check fails on new English there, as it does for the web app.
 - How a shared builder does it (`packages/actions/src/words.ts`): it takes `words: Words = english` and writes every
