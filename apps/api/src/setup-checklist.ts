@@ -27,7 +27,13 @@ import { emailDelivery } from './auth-methods.ts'
 import { restartState, serverEnv } from './instance-env.ts'
 import { type LivekitStatus, livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
-import { type ProviderConfig, providerStatus, resolveProvider, voicePipelinePolicy } from './provider-settings.ts'
+import {
+  configOf,
+  type ProviderConfig,
+  providerStatus,
+  storedProviderValues,
+  voicePipelinePolicy,
+} from './provider-settings.ts'
 import { hasSecretsKey, SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
@@ -60,6 +66,11 @@ export async function rememberTest(
 /** The last test of exactly these keys, or null. */
 export async function lastTest(tx: Tx, provider: ProviderName, config: ProviderConfig): Promise<StoredTest | null> {
   const [row] = await tx.select().from(provider_tests).where(eq(provider_tests.provider, provider))
+  return testOf(row, config)
+}
+
+/** A stored test row as a result, when it tested exactly these keys. */
+function testOf(row: typeof provider_tests.$inferSelect | undefined, config: ProviderConfig): StoredTest | null {
   if (!row || row.keys !== keysHash(config)) return null
   return { ok: row.ok, message: row.message, at: new Date(row.tested_at).toISOString() }
 }
@@ -97,13 +108,22 @@ type Options = {
  * and the last test of exactly these keys. Stored keys that cannot be read (SECRETS_KEY missing or changed) count as
  * set up and failing, with the reason. Never calls a provider.
  */
-export async function providerFacts(tx: Tx, env: Env = serverEnv()): Promise<ProviderFact[]> {
-  const { active } = await providerStatus(tx, env)
-  const saved = await tx
-    .select({ provider: provider_settings.provider, at: max(provider_settings.updated_at) })
-    .from(provider_settings)
-    .where(isNull(provider_settings.workspace_id))
-    .groupBy(provider_settings.provider)
+export async function providerFacts(
+  tx: Tx,
+  env: Env = serverEnv(),
+  active?: Awaited<ReturnType<typeof providerStatus>>['active'],
+): Promise<ProviderFact[]> {
+  // A few queries for all providers together, not a few per provider: Server admin waits for this.
+  const [inUse, saved, stored, tests] = await Promise.all([
+    active ?? providerStatus(tx, env).then(s => s.active),
+    tx
+      .select({ provider: provider_settings.provider, at: max(provider_settings.updated_at) })
+      .from(provider_settings)
+      .where(isNull(provider_settings.workspace_id))
+      .groupBy(provider_settings.provider),
+    storedProviderValues(tx),
+    tx.select().from(provider_tests),
+  ])
   const keysAt = (p: ProviderName) => {
     const at = saved.find(r => r.provider === p)?.at
     return at ? new Date(at).toISOString() : null
@@ -113,13 +133,13 @@ export async function providerFacts(tx: Tx, env: Env = serverEnv()): Promise<Pro
     const { category } = providerSpec(provider)
     let config: ProviderConfig
     try {
-      config = await resolveProvider(tx, provider, env)
+      config = configOf(provider, stored.rows, stored.links.get(provider) ?? null, env)
     } catch (e) {
       if (!(e instanceof SecretsKeyError)) throw e
       facts.push({
         provider,
         configured: true,
-        active: active[category].provider === provider,
+        active: inUse[category].provider === provider,
         test: { ok: false, message: e.message, at: new Date().toISOString() },
       })
       continue
@@ -128,8 +148,13 @@ export async function providerFacts(tx: Tx, env: Env = serverEnv()): Promise<Pro
     facts.push({
       provider,
       configured,
-      active: isMultiCategory(category) ? configured : active[category].provider === provider,
-      test: configured ? await lastTest(tx, provider, config) : null,
+      active: isMultiCategory(category) ? configured : inUse[category].provider === provider,
+      test: configured
+        ? testOf(
+            tests.find(row => row.provider === provider),
+            config,
+          )
+        : null,
       keysAt: keysAt(provider),
     })
   }
@@ -137,10 +162,9 @@ export async function providerFacts(tx: Tx, env: Env = serverEnv()): Promise<Pro
 }
 
 /** The last test of every provider that is set up (GET /v1/admin/providers `tests`), so every screen starts from it. */
-export async function storedTests(tx: Tx, env: Env = serverEnv()) {
+export function storedTests(facts: readonly ProviderFact[]) {
   const tests: Partial<Record<ProviderName, StoredTest>> = {}
-  for (const fact of await providerFacts(tx, env))
-    if (fact.test && fact.test !== 'running') tests[fact.provider] = fact.test
+  for (const fact of facts) if (fact.test && fact.test !== 'running') tests[fact.provider] = fact.test
   return tests
 }
 
@@ -174,11 +198,12 @@ export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: read
   const telephonyInUse = providers.some(
     f => f.active && f.configured && providerSpec(f.provider).category === 'telephony',
   )
+  const [pipelines, restart] = await Promise.all([assistantPipelines(tx), restartState(tx)])
   return {
-    assistantPipelines: await assistantPipelines(tx),
+    assistantPipelines: pipelines,
     emailToLog: emailDelivery(env) === 'log',
     devCarrier: !telephonyInUse && env.TELEPHONY_PROVIDER === 'dev' ? devCarrierMessage(providers) : null,
-    signInPending: (await restartState(tx)).pending,
+    signInPending: restart.pending,
   }
 }
 

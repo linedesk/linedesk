@@ -363,14 +363,42 @@ app.get('/v1/me', async c => {
         .leftJoin(workspace_icons, eq(workspace_icons.workspace_id, organization.id))
         .where(eq(organization.id, actor.workspaceId))
     : []
+  // Independent reads, side by side: the app's first screen waits for this answer.
+  const [
+    avatarVersion,
+    changedBy,
+    workspaces,
+    onboarding,
+    phoneSetup,
+    impersonation,
+    passkeyEnrolment,
+    hasPasskey,
+    hasAuthenticator,
+    starPrompt,
+    setupByHand,
+    locale,
+  ] = await Promise.all([
+    avatarVersionOf(db, actor.actorId),
+    profileChangedBy(db, actor.actorId, actor.workspaceId),
+    workspacesOf(actor.actorId),
+    workspace ? onboardingFor(actor) : null,
+    workspace ? phoneSetupFor(actor) : null,
+    impersonationOf(actor),
+    needsPasskeyEnrolment(actor),
+    hasPasskeyFor(actor),
+    hasAuthenticatorFor(actor),
+    starPromptFor(actor),
+    setupByHandFor(actor),
+    localeOf(actor),
+  ])
   return c.json({
     actorId: actor.actorId,
     role: actor.role,
     permissions: actor.permissions,
     // The member's own profile picture (Account settings › Profile), null without one.
-    avatarUrl: avatarUrlOf(actor.actorId, await avatarVersionOf(db, actor.actorId)),
+    avatarUrl: avatarUrlOf(actor.actorId, avatarVersion),
     // An owner or admin changed the member's name or picture last (team-member-edit.ts): Profile says who and when.
-    profileChangedBy: await profileChangedBy(db, actor.actorId, actor.workspaceId),
+    profileChangedBy: changedBy,
     workspace: workspace
       ? {
           id: workspace.id,
@@ -380,21 +408,21 @@ app.get('/v1/me', async c => {
         }
       : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.
-    workspaces: await workspacesOf(actor.actorId),
-    onboarding: workspace ? await onboardingFor(actor) : null,
-    phoneSetup: workspace ? await phoneSetupFor(actor) : null,
-    impersonation: await impersonationOf(actor),
+    workspaces,
+    onboarding,
+    phoneSetup,
+    impersonation,
     // When the session ends: a browser opens from its local data at load only until then (apps/web/src/session.ts).
     sessionExpiresAt: actor.sessionExpiresAt?.toISOString() ?? null,
     // An instance admin whose session lacks the second factor: 'setup' (no passkey yet) or 'confirm'.
     adminSecondFactor: actor.adminSecondFactor ?? null,
     // An instance admin without a passkey: adding the first one asks for their enrolment code (passkey-enrolment.ts).
-    passkeyEnrolment: await needsPasskeyEnrolment(actor),
+    passkeyEnrolment,
     // Whether the member has a passkey, for the app's "Add a passkey" page and card (null: passkeys are off here).
     // Their own account only: the sign-in page never learns this for an address (no account enumeration).
-    hasPasskey: await hasPasskeyFor(actor),
+    hasPasskey,
     // An instance admin's authenticator app (authenticator.ts): true or false for instance admins, else null.
-    hasAuthenticator: await hasAuthenticatorFor(actor),
+    hasAuthenticator,
     // This session's check was a passkey sign-in (not the app's code): adding or removing the app needs it.
     passkeySignedIn: Boolean(actor.passkeySignedIn),
     // The member's address is not confirmed yet: the app asks for a code (sensitive actions wait for it).
@@ -402,12 +430,12 @@ app.get('/v1/me', async c => {
     // How this install introduces a new workspace after onboarding (FIRST_USE).
     firstUse: firstUse(),
     // The GitHub star prompt while it is due for this member (star-prompt.ts), else null.
-    starPrompt: await starPromptFor(actor),
+    starPrompt,
     // An instance admin who chose to set up this install by hand: no agent setup page first (install-setup.ts).
-    setupByHand: await setupByHandFor(actor),
+    setupByHand,
     // The member's UI language (user-locale.ts): `locale` null is Automatic. Signed in as someone else, the admin's
     // own browser decides (null), so they can read what they see.
-    ...(await localeOf(actor)),
+    ...locale,
   })
 })
 

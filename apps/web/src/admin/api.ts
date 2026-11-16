@@ -3,6 +3,7 @@
 // and a provider key must never be stored in the browser.
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from './PasskeyStepUp.tsx'
 import { type MessageKey, msg } from '@linedesk/i18n'
+import { fetchQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import {
   type AgentSetupState,
@@ -214,7 +215,8 @@ const HIGH = { priority: 'high' } as RequestInit
 const get = async <T>(path: string) => body<T>(await fetch(path, { ...HIGH, credentials: 'include' }))
 
 /** Cache keys (cachedQuery.ts), kept in memory only: admin rows cross workspaces and are not stored in the browser. */
-export const ADMIN_DATA = 'admin.data'
+export const ADMIN_LISTS = 'admin.lists'
+export const ADMIN_PROVIDERS = 'admin.providers'
 export const ADMIN_HEALTH = 'admin.health'
 
 /**
@@ -224,25 +226,30 @@ export const ADMIN_HEALTH = 'admin.health'
  */
 const isKnownProvider = (p: ProviderStatus) => p.provider in providerRegistry && p.category in providerCategories
 
-export async function loadAdminData(): Promise<AdminData> {
-  const [w, u, usage, p] = await Promise.all([
+/** What the lists need (Workspaces, Users, Usage, Audit log): fast, so these pages never wait for the providers. */
+export type AdminLists = Pick<AdminData, 'workspaces' | 'users' | 'usage' | 'usageMonths'>
+/** What Providers and the status need: slower (the API checks every provider), so it loads on its own. */
+export type AdminProviders = Omit<AdminData, keyof AdminLists>
+
+export async function loadAdminLists(): Promise<AdminLists> {
+  const [w, u, usage] = await Promise.all([
     get<{ workspaces: AdminWorkspace[] }>('/v1/admin/workspaces'),
     get<{ users: AdminUser[] }>('/v1/admin/users'),
     get<{ months: number; usage: UsageRow[] }>('/v1/admin/usage'),
-    get<{
-      can_store: boolean
-      active: ActiveProviders
-      providers: ProviderStatus[]
-      failures?: ProviderFailure[]
-      tests?: Partial<Record<ProviderName, StoredTest>>
-      status?: StatusContext
-    }>('/v1/admin/providers'),
   ])
+  return { workspaces: w.workspaces, users: u.users, usage: usage.usage, usageMonths: usage.months }
+}
+
+export async function loadAdminProviders(): Promise<AdminProviders> {
+  const p = await get<{
+    can_store: boolean
+    active: ActiveProviders
+    providers: ProviderStatus[]
+    failures?: ProviderFailure[]
+    tests?: Partial<Record<ProviderName, StoredTest>>
+    status?: StatusContext
+  }>('/v1/admin/providers')
   return {
-    workspaces: w.workspaces,
-    users: u.users,
-    usage: usage.usage,
-    usageMonths: usage.months,
     providers: p.providers.filter(isKnownProvider),
     activeProviders: p.active,
     canStoreKeys: p.can_store,
@@ -250,6 +257,14 @@ export async function loadAdminData(): Promise<AdminData> {
     tests: p.tests ?? {},
     statusContext: p.status ?? {},
   }
+}
+
+/** Loads both again (after a change on Providers or in the install walkthrough), each a new request. */
+export async function reloadAdminData(): Promise<void> {
+  await Promise.all([
+    fetchQuery(ADMIN_LISTS, loadAdminLists, {}, true),
+    fetchQuery(ADMIN_PROVIDERS, loadAdminProviders, {}, true),
+  ])
 }
 
 type AdminInputs = {

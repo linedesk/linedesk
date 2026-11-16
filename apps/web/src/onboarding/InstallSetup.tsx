@@ -18,25 +18,18 @@ import {
 import { T, useT } from '@linedesk/i18n/react'
 import { LinkButton } from '../ui/AppLink.tsx'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ADMIN_DATA,
-  type AdminData,
-  loadAdminData,
-  loadInstallSetup,
-  runAdmin,
-  watchAdminSignIn,
-} from '../admin/api.ts'
+import { type AdminData, reloadAdminData, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { errorText } from '../admin/notify.ts'
 import { PasskeyStepUpHost } from '../admin/PasskeyStepUp.tsx'
 import { ProviderGroup } from '../admin/ProviderGroup.tsx'
 import { ProviderDialogFor } from '../admin/Providers.tsx'
 import { type ProviderStatusState, useProviderStatus } from '../admin/providerStatus.ts'
+import { useAdminData } from '../admin/useAdminData.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import { StatusList } from '../admin/StatusCard.tsx'
 import { TryOut } from '../admin/TryOut.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
-import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { BrandMark, Button, Note } from '../ui/kit.tsx'
 import { leaveInstallSetup } from './leave-install-setup.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
@@ -87,10 +80,11 @@ export function InstallSetup({ onExit }: Props) {
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
   // Shared with Server admin: what one loads, the other shows at once.
-  const adminData = useQuery(ADMIN_DATA, loadAdminData)
-  const data = adminData.data ?? null
-  const loadError = data ? setupError : (setupError ?? (adminData.error && problemText(errorText(adminData.error))))
-  const status = useProviderStatus(data)
+  const adminData = useAdminData()
+  const data = adminData.data
+  const adminError = adminData.listsError ?? adminData.providersError
+  const loadError = data ? setupError : (setupError ?? (adminError && problemText(errorText(adminError))))
+  const status = useProviderStatus(adminData.providers)
 
   const loadSetup = useCallback(async () => {
     const next = await loadInstallSetup()
@@ -110,7 +104,7 @@ export function InstallSetup({ onExit }: Props) {
   }, [loadSetup])
 
   const reloadAll = useCallback(async () => {
-    await Promise.all([fetchQuery(ADMIN_DATA, loadAdminData, {}, true), loadSetup().catch(() => null)])
+    await Promise.all([reloadAdminData(), loadSetup().catch(() => null)])
   }, [loadSetup])
 
   // A saved sign-in change waits for a restart: read again until the API runs with it. Email applies at once.

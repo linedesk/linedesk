@@ -11,6 +11,7 @@ import { adminHealth, adminOverview, costEstimate, noteAgentSeen } from './admin
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { isEnvAdmin } from './instance-admin.ts'
+import { serverEnv } from './instance-env.ts'
 import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
@@ -18,7 +19,7 @@ import { SecretsKeyError } from './secrets.ts'
 import { agentSetupState, setupActor, workspaceSetupActor } from './agent-setup.ts'
 import { installSetupState } from './install-setup.ts'
 import { setupProgress } from './setup-mcp.ts'
-import { setupChecklist, storedTests, statusContext } from './setup-checklist.ts'
+import { providerFacts, setupChecklist, storedTests, statusContext } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
 import { AT_RISK_MAX_DAYS, atRiskWorkspaces, workspacesOldEnough } from './setup-emails.ts'
 
@@ -219,14 +220,18 @@ export function registerAdminRoutes(app: Hono<Env>) {
 
   // The providers, which are in use, which are failing now (provider-failures.ts) and the last test of each one's keys
   // in effect (setup-checklist.ts): every screen starts from the stored result instead of testing again.
-  app.get('/v1/admin/providers', async c =>
-    c.json({
-      ...(await providerStatus(db)),
-      failures: await listProviderFailures(db),
-      tests: await storedTests(db),
-      status: await statusContext(db),
-    }),
-  )
+  // Each part is read once, side by side: the page waits for this.
+  app.get('/v1/admin/providers', async c => {
+    const env = serverEnv()
+    const [providers, failures] = await Promise.all([providerStatus(db, env), listProviderFailures(db)])
+    const facts = await providerFacts(db, env, providers.active)
+    return c.json({
+      ...providers,
+      failures,
+      tests: storedTests(facts),
+      status: await statusContext(db, env, facts),
+    })
+  })
 
   // Agent setup (agent-setup.ts): the admin's working setup key (never the key) and where agents connect.
   app.get('/v1/admin/agent-setup', async c => {
@@ -252,7 +257,8 @@ export function registerAdminRoutes(app: Hono<Env>) {
       person && workspaceId && (actor.role === 'owner' || actor.role === 'admin')
         ? await workspaceSetupActor(actor.actorId, 'page', workspaceId, actor.role)
         : null
-    if (!workspaceId || !asAgent) return c.json({ ok: false, error: 'only the workspace owner or an admin sets it up' }, 403)
+    if (!workspaceId || !asAgent)
+      return c.json({ ok: false, error: 'only the workspace owner or an admin sets it up' }, 403)
     const progress = await setupProgress(asAgent, workspaceId)
     return c.json({ ...(await agentSetupState(actor.actorId, workspaceId)), progress })
   })

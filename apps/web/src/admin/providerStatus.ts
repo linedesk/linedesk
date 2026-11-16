@@ -214,7 +214,7 @@ export function testedAgo(at: string | null, now = Date.now()): string | null {
  * The status of every group from the admin data (null until it is there), with the free check of every provider that
  * is set up and has no stored result yet. `record` takes a test the dialog ran; `retest` runs the free check again.
  */
-export function useProviderStatus(data: AdminData | null) {
+export function useProviderStatus(data: StatusData | null) {
   const health = useQuery(ADMIN_HEALTH, loadHealth).data ?? null
   const [local, setLocal] = useState<LocalTests>({})
   const asked = useRef(new Map<ProviderName, string>())

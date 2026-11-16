@@ -19,7 +19,7 @@ import {
 } from '@linedesk/actions'
 import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
 import { telephonyProviderFromEnv, type TelephonyProvider } from '@linedesk/telephony'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, like } from 'drizzle-orm'
 import { serverEnv } from './instance-env.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 
@@ -49,14 +49,28 @@ const instanceRows = (tx: Tx, provider?: ProviderName) =>
 const KEY_FIELD = 'api_key'
 const keyFromSetting = (provider: ProviderName) => `key_from.${provider}`
 
+/** `from` when `provider` may use its stored API key, else null. */
+const validSource = (provider: ProviderName, from: string | undefined): ProviderName | null =>
+  isProvider(from) && from !== provider && KEY_FIELD in providerSpec(from).fields ? from : null
+
 /** The provider whose stored API key this one uses, or null. */
 export async function keySource(tx: Tx, provider: ProviderName): Promise<ProviderName | null> {
   const [row] = await tx
     .select()
     .from(instance_settings)
     .where(eq(instance_settings.key, keyFromSetting(provider)))
-  const from = row?.value
-  return isProvider(from) && from !== provider && KEY_FIELD in providerSpec(from).fields ? from : null
+  return validSource(provider, row?.value)
+}
+
+/** keySource of every provider, in one query: the providers that use another one's stored API key. */
+export async function keySources(tx: Tx): Promise<Map<ProviderName, ProviderName>> {
+  const rows = await tx.select().from(instance_settings).where(like(instance_settings.key, 'key_from.%'))
+  const links = new Map<ProviderName, ProviderName>()
+  for (const name of providerNames) {
+    const from = validSource(name, rows.find(row => row.key === keyFromSetting(name))?.value)
+    if (from) links.set(name, from)
+  }
+  return links
 }
 
 /** `provider` uses `from`'s stored API key from now on (its own stored key is removed). */
@@ -93,9 +107,31 @@ export async function keyUsers(tx: Tx, provider: ProviderName): Promise<Provider
 
 /** The config in effect for a provider. Throws SecretsKeyError when a stored value cannot be decrypted. */
 export async function resolveProvider(tx: Tx, provider: ProviderName, env: Env = serverEnv()): Promise<ProviderConfig> {
-  const stored = new Map((await instanceRows(tx, provider)).map(row => [row.field, row]))
+  const own = await instanceRows(tx, provider)
   const from = await keySource(tx, provider)
-  const shared = from && (await instanceRows(tx, from)).find(row => row.field === KEY_FIELD)
+  return configOf(provider, from ? [...own, ...(await instanceRows(tx, from))] : own, from, env)
+}
+
+/** Every stored install-wide value and every key link, in two queries: for resolving many providers (configOf). */
+export async function storedProviderValues(tx: Tx) {
+  const [rows, links] = await Promise.all([instanceRows(tx), keySources(tx)])
+  return { rows, links }
+}
+
+type StoredRow = Awaited<ReturnType<typeof instanceRows>>[number]
+
+/**
+ * The config in effect for a provider from its stored rows (and those of the provider whose API key it uses, `from`).
+ * Throws SecretsKeyError when a stored value cannot be decrypted.
+ */
+export function configOf(
+  provider: ProviderName,
+  rows: readonly StoredRow[],
+  from: ProviderName | null,
+  env: Env = serverEnv(),
+): ProviderConfig {
+  const stored = new Map(rows.filter(row => row.provider === provider).map(row => [row.field, row]))
+  const shared = from && rows.find(row => row.provider === from && row.field === KEY_FIELD)
   return Object.fromEntries(
     Object.entries(providerSpec(provider).fields).map(([field, spec]) => {
       const row = stored.get(field)
@@ -116,13 +152,16 @@ const isProvider = (name: string | undefined): name is ProviderName =>
   !!name && (providerNames as string[]).includes(name)
 const isOptional = (provider: ProviderName, field: string) => !!providerSpec(provider).fields[field]?.optional
 
+const chosenFor = (category: ProviderCategory, value: string | undefined): ProviderName | null =>
+  isProvider(value) && providerSpec(value).category === category ? value : null
+
 /** The provider an instance admin chose for a category, or null. */
 async function chosenProvider(tx: Tx, category: ProviderCategory): Promise<ProviderName | null> {
   const [row] = await tx
     .select()
     .from(instance_settings)
     .where(eq(instance_settings.key, activeKey(category)))
-  return isProvider(row?.value) && providerSpec(row.value).category === category ? row.value : null
+  return chosenFor(category, row?.value)
 }
 
 export async function setActiveProvider(
@@ -346,12 +385,11 @@ function decryptForDisplay(stored: string, slotName: string): string | null {
 
 /** What the admin area shows: which source is in effect, never a secret. */
 export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
-  const rows = await instanceRows(tx)
-  const links = new Map<ProviderName, ProviderName>()
-  for (const name of providerNames) {
-    const from = await keySource(tx, name)
-    if (from) links.set(name, from)
-  }
+  const [rows, links, choices] = await Promise.all([
+    instanceRows(tx),
+    keySources(tx),
+    tx.select().from(instance_settings).where(like(instance_settings.key, 'active_provider.%')),
+  ])
   const editorIds = [...new Set(rows.map(row => row.updated_by).filter(id => id !== null))]
   const editors = editorIds.length
     ? await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, editorIds))
@@ -399,7 +437,7 @@ export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
   const isSetUp = (p: ProviderStatus) => p.fields.every(f => f.source || isOptional(p.provider, f.field))
   const active = {} as ActiveStatus
   for (const category of categoryNames) {
-    const chosen = await chosenProvider(tx, category)
+    const chosen = chosenFor(category, choices.find(row => row.key === activeKey(category))?.value)
     // TELEPHONY_PROVIDER=dev means no carrier, even when a carrier is set up.
     const noCarrier = category === 'telephony' && env.TELEPHONY_PROVIDER === 'dev'
     const firstSetUp = autoPicks(category)

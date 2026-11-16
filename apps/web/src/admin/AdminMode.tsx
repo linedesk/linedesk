@@ -13,7 +13,7 @@ import { i18n } from '../i18n/index.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import type { ListKeys } from './AdminList.tsx'
-import { ADMIN_DATA, ADMIN_HEALTH, type HealthPart, loadAdminData, loadHealth, watchAdminSignIn } from './api.ts'
+import { ADMIN_HEALTH, type HealthPart, loadHealth, watchAdminSignIn } from './api.ts'
 import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { SecondPasskeyNote } from './SecondPasskeyNote.tsx'
@@ -25,8 +25,16 @@ import { Onboarding } from './Onboarding.tsx'
 import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
 import { useProviderStatus } from './providerStatus.ts'
+import { useAdminData } from './useAdminData.ts'
 import { StatusCard } from './StatusCard.tsx'
-import { adminSections, nextSection, sectionIndexOfKey, sectionKey, tabSwitchesSection, useAdminPlace } from './route.ts'
+import {
+  adminSections,
+  nextSection,
+  sectionIndexOfKey,
+  sectionKey,
+  tabSwitchesSection,
+  useAdminPlace,
+} from './route.ts'
 import { System } from './System.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
@@ -119,16 +127,12 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const format = useFormat()
   const { place, go } = useAdminPlace()
   const { name: productName } = useBrand()
-  // Shown at once when admin is opened again in this page; loaded again in the background.
-  const adminData = useQuery(ADMIN_DATA, loadAdminData)
-  const data = adminData.data ?? null
-  const error = data ? null : adminData.error
-  const reload = adminData.reload
+  const { lists, providers, data, listsError, providersError, reload } = useAdminData()
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
   const problems = useHealthProblems()
   // One status for the overview's card and Server admin › Providers: tested once, shown the same on both.
-  const status = useProviderStatus(data)
+  const status = useProviderStatus(providers)
   // The session stopped opening Admin while it was open (1 hour without a passkey): sign in again here.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   // Where a page puts its own buttons, at the right of its heading (Providers: Show all providers).
@@ -176,11 +180,11 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const open = (id: string) => go({ section: place.section, id })
   const shared = { notify, reload }
   const workspace =
-    place.section === 'workspaces' && place.id ? data?.workspaces.find(w => w.id === place.id) : undefined
-  const user = place.section === 'users' && place.id ? data?.users.find(u => u.id === place.id) : undefined
+    place.section === 'workspaces' && place.id ? lists?.workspaces.find(w => w.id === place.id) : undefined
+  const user = place.section === 'users' && place.id ? lists?.users.find(u => u.id === place.id) : undefined
   const billTitle = useBillTitle(place.section === 'billing' ? place.id : null)
   const detailTitle = workspace?.name ?? (user ? user.name || user.email : billTitle)
-  const viewerWorkspaces = new Set(data?.users.find(u => u.id === currentUserId)?.workspaces.map(w => w.id))
+  const viewerWorkspaces = new Set(lists?.users.find(u => u.id === currentUserId)?.workspaces.map(w => w.id))
 
   function page(): ReactNode {
     // The overview and Onboarding load their own numbers, so they show while the lists are still on their way.
@@ -195,13 +199,19 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'onboarding') return <Onboarding />
     // Billing loads its own rows (the bills, the Stripe events), and says itself when a bill is not found.
     if (place.section === 'billing') return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} />
-    if (!data)
+    // Pages that load their own data never wait for the lists or the providers.
+    if (place.section === 'branding') return <BrandingSettings />
+    if (place.section === 'system') return <System />
+    if (place.section === 'prompt') return <SystemPrompt />
+    // Providers needs both parts; every other page only the lists, which come back first.
+    const ready = place.section === 'providers' ? data : lists
+    if (!ready)
       return (
         <div className="adm-card adm-listcard">
           <Loading
             what={t('shell.page.admin')}
             loading
-            error={error}
+            error={place.section === 'providers' ? (listsError ?? providersError) : listsError}
             onRetry={() => void reload()}
             skeleton={<SkeletonRows rows={6} columns={4} className="adm-sk-rows" />}
           />
@@ -215,7 +225,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         return workspace ? (
           <WorkspaceDetail
             workspace={workspace}
-            users={data.users}
+            users={ready.users}
             onDeleted={() => go({ section: 'workspaces', id: null })}
             viewerWorkspaces={viewerWorkspaces}
             currentUserId={currentUserId}
@@ -223,7 +233,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           />
         ) : (
           <WorkspacesList
-            workspaces={data.workspaces}
+            workspaces={ready.workspaces}
             onOpen={open}
             keysRef={listKeys}
             viewerWorkspaces={viewerWorkspaces}
@@ -232,11 +242,11 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         )
       case 'users':
         return user ? (
-          <UserDetail user={user} workspaces={data.workspaces} currentUserId={currentUserId} {...shared} />
+          <UserDetail user={user} workspaces={ready.workspaces} currentUserId={currentUserId} {...shared} />
         ) : (
           <UsersList
-            users={data.users}
-            workspaces={data.workspaces}
+            users={ready.users}
+            workspaces={ready.workspaces}
             currentUserId={currentUserId}
             onOpen={open}
             keysRef={listKeys}
@@ -244,9 +254,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           />
         )
       case 'usage':
-        return <Usage workspaces={data.workspaces} usage={data.usage} months={data.usageMonths} />
+        return <Usage workspaces={ready.workspaces} usage={ready.usage} months={ready.usageMonths} />
       case 'providers':
-        return (
+        return data ? (
           <Providers
             data={data}
             status={status}
@@ -255,15 +265,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             headActions={headActions}
             {...shared}
           />
-        )
-      case 'branding':
-        return <BrandingSettings />
-      case 'system':
-        return <System />
-      case 'prompt':
-        return <SystemPrompt />
+        ) : null
       case 'audit':
-        return <AuditLog workspaces={data.workspaces} />
+        return <AuditLog workspaces={ready.workspaces} />
     }
   }
 
