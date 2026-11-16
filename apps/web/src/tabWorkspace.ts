@@ -20,15 +20,20 @@ export function workspaceHeaders(): Record<string, string> {
   return workspaceRequestHeaders({ workspaceId: current, account })
 }
 
-type SessionMessage = { type: 'switched'; workspaceId: string }
+type SessionMessage = { type: 'switched'; workspaceId: string; from: string }
 const CHANNEL = 'linedesk-session'
+/**
+ * This page's id: a BroadcastChannel also delivers to the other channels of the same page, so the page that switches
+ * would otherwise see its own switch and say "you switched in another tab" until its reload.
+ */
+const PAGE = Math.random().toString(36).slice(2)
 
 const channel = () => (typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL))
 
 /** Tells the other tabs that the session now works in `workspaceId` (they show which one they are on). */
 export function announceSwitch(workspaceId: string) {
   const c = channel()
-  c?.postMessage({ type: 'switched', workspaceId } satisfies SessionMessage)
+  c?.postMessage({ type: 'switched', workspaceId, from: PAGE } satisfies SessionMessage)
   c?.close()
 }
 
@@ -38,7 +43,7 @@ export function onSwitchElsewhere(onSwitch: (workspaceId: string) => void): () =
   if (!c) return () => {}
   c.onmessage = e => {
     const m = e.data as SessionMessage
-    if (m?.type === 'switched' && typeof m.workspaceId === 'string') onSwitch(m.workspaceId)
+    if (m?.type === 'switched' && typeof m.workspaceId === 'string' && m.from !== PAGE) onSwitch(m.workspaceId)
   }
   return () => c.close()
 }
