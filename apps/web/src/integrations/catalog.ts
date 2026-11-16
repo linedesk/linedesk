@@ -1,11 +1,13 @@
 // Integrations (#integrations): the catalog of everything Linedesk connects to, by category, without React. Only what
 // works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
 // calendar providers this install offers, API keys, the REST API and the MCP server. Each opens its detail view here
-// (`#integrations/<id>`) or the place where it is set up. The ones being built (HubSpot, Slack, Jobber, ServiceTitan)
-// show as "In progress" and open nothing. Phone carriers are not here: they are Server admin's (provider keys).
+// (`#integrations/<id>`) or the place where it is set up. HubSpot is a connected app (OAuth, docs/crm-sync.md): its
+// detail view connects it. The ones being built (Slack, Jobber, ServiceTitan) show as "In progress" and open nothing. Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
 import { type MessageKey, msg } from '@linedesk/i18n'
+import { type AppConnectError, type ConnectableApp, isAppConnectError } from '@linedesk/actions'
+import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
 import type { ProviderId } from '../settings/calendarModel.ts'
 
 export type CategoryId = 'automation' | 'calendars' | 'crm' | 'chat' | 'developers'
@@ -20,11 +22,11 @@ export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
 }
 
 /** Integrations with a detail view on this page; every other card opens the place where it is set up. */
-export const DETAIL_IDS = ['zapier', 'api-keys', 'rest-api', 'mcp'] as const
+export const DETAIL_IDS = ['zapier', 'hubspot', 'api-keys', 'rest-api', 'mcp'] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
 
 /** Being built: shown as "In progress", they open nothing yet. */
-export const IN_PROGRESS_IDS = ['hubspot', 'jobber', 'servicetitan', 'slack'] as const
+export const IN_PROGRESS_IDS = ['jobber', 'servicetitan', 'slack'] as const
 export type InProgressId = (typeof IN_PROGRESS_IDS)[number]
 
 export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId | InProgressId
@@ -121,7 +123,7 @@ export const CATALOG: readonly Integration[] = [
     id: 'hubspot',
     category: 'crm',
     mark: { kind: 'logo', logo: 'hubspot', color: '#FF7A59' },
-    opens: null,
+    opens: detail('hubspot'),
     keywords: 'crm contacts call log sync',
   },
   {
@@ -223,12 +225,16 @@ export type Facts = {
   webhookUrls: readonly string[] | null | undefined
   /** Calendar accounts by provider (synced). */
   calendars: Partial<Record<ProviderId, number>> | undefined
+  /** The state of each connected app (synced); an app missing here is not connected. */
+  apps: Partial<Record<ConnectableApp, AppConnection['status']>> | undefined
 }
 
 export type Status =
   /** Set up: `count` things (Zaps, keys, accounts, webhooks) when it says how many. */
   | { kind: 'connected'; count?: number }
   | { kind: 'notConnected' }
+  /** Connected, but the app refused the grant or calls failed several times in a row (a connected app). */
+  | { kind: 'needsAttention' }
   /** Nothing to connect: works with an API key (REST API, MCP). */
   | { kind: 'ready' }
   | { kind: 'loading' }
@@ -266,6 +272,15 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
     case 'rest-api':
     case 'mcp':
       return { kind: 'ready' }
+    case 'hubspot': {
+      if (facts.apps === undefined) return { kind: 'loading' }
+      const state = facts.apps[id]
+      return state === 'connected'
+        ? { kind: 'connected' }
+        : state === 'needs_attention'
+          ? { kind: 'needsAttention' }
+          : { kind: 'notConnected' }
+    }
     case 'webhooks':
       return counted(facts.webhookUrls === null ? null : facts.webhookUrls?.length)
     case 'make':
@@ -289,6 +304,58 @@ export function placeOf(hash: string): IntegrationsPlace {
   if (page !== 'integrations' || !id || rest.length) return { view: 'catalog' }
   return (DETAIL_IDS as readonly string[]).includes(id) ? { view: 'detail', id: id as DetailId } : { view: 'catalog' }
 }
+
+/**
+ * What the OAuth callback of a connected app put into the hash (`#integrations/hubspot?app=connected` or
+ * `…?app=error&reason=<code>`): whether it worked and why not, or null when the hash carries no result. Only the
+ * known codes count: any other reason (a link someone made up) is the generic `failed`, never shown as text.
+ */
+export function appConnectResult(hash: string): { ok: true } | { ok: false; reason: AppConnectError } | null {
+  const query = hash.split('?')[1]
+  if (!query) return null
+  const params = new URLSearchParams(query)
+  const result = params.get('app')
+  if (result === 'connected') return { ok: true }
+  if (result === 'error') {
+    const reason = params.get('reason')
+    return { ok: false, reason: isAppConnectError(reason) ? reason : 'failed' }
+  }
+  return null
+}
+
+const CONNECT_ERROR: Record<AppConnectError, MessageKey> = {
+  denied: msg('settings.integrations.app.error.denied'),
+  signed_out: msg('settings.integrations.app.error.signedOut'),
+  expired: msg('settings.integrations.app.error.expired'),
+  not_yours: msg('settings.integrations.app.error.notYours'),
+  scope: msg('settings.integrations.app.error.scope'),
+  no_grant: msg('settings.integrations.app.error.noGrant'),
+  not_set_up: msg('settings.integrations.app.error.notSetUp'),
+  no_secrets_key: msg('settings.integrations.app.error.noSecretsKey'),
+  not_connected: msg('settings.integrations.app.error.notConnected'),
+  failed: msg('settings.integrations.app.connectFailed'),
+}
+
+/**
+ * The text (with `{name}`) for why connecting or disconnecting an app did not work: the callback's reason or the
+ * `code` of an action's rejection. Anything else gets `fallback`.
+ */
+export const appConnectErrorKey = (code: unknown, fallback: MessageKey = CONNECT_ERROR.failed): MessageKey =>
+  isAppConnectError(code) ? CONNECT_ERROR[code] : fallback
+
+const PUSH_ERROR: Record<AppErrorCode, MessageKey> = {
+  auth: msg('settings.integrations.app.pushError.auth'),
+  rate_limited: msg('settings.integrations.app.pushError.rateLimited'),
+  unavailable: msg('settings.integrations.app.pushError.unavailable'),
+  invalid: msg('settings.integrations.app.pushError.invalid'),
+  not_found: msg('settings.integrations.app.pushError.notFound'),
+  call_deleted: msg('settings.integrations.app.pushError.callDeleted'),
+  no_caller_id: msg('settings.integrations.app.pushError.noCallerId'),
+  internal: msg('settings.integrations.app.pushError.internal'),
+}
+
+/** The text (with `{name}`) for why a call did not go to a connected app; an unknown code is `internal`'s. */
+export const appPushErrorKey = (code: string): MessageKey => PUSH_ERROR[code as AppErrorCode] ?? PUSH_ERROR.internal
 
 /** The MCP server and REST API addresses of this install. */
 export const mcpAddress = (origin: string) => `${origin}/mcp`

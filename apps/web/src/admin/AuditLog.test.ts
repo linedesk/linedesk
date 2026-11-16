@@ -139,7 +139,8 @@ const AUDITED_ACTION_NAMES = [
   'team.removeMemberAvatar', 'team.updateMemberNotifications', 'workspace.deleteOwn', 'invitation.accept',
   'invitation.decline', 'membership.add', 'workspace.create', 'membership.setRole', 'membership.remove',
   'invitation.revoke', 'invitation.resend', 'apiKey.create', 'apiKey.revoke', 'webhook.create', 'webhook.update',
-  'webhook.delete', 'webhook.test', 'calendar.connectFinish', 'calendar.disconnect', 'phoneNumber.setup',
+  'webhook.delete', 'webhook.test', 'calendar.connectFinish', 'calendar.disconnect', 'app.connectFinish', 'app.disconnect',
+  'phoneNumber.setup',
   'phoneNumber.release', 'agentSetup.createKey', 'agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey',
   'agentSetup.revoke', 'agentSetup.endOwnAccess', 'agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace',
 ]
@@ -189,6 +190,10 @@ describe('every audited action reads as words', () => {
     expect(label('calendar.connectFinish', { provider: 'google', state: '[redacted]' })).toBe(
       'Connected a Google calendar',
     )
+    expect(label('app.connectFinish', { app: 'hubspot', state: '[redacted]', code: '[redacted]' })).toBe(
+      'Connected HubSpot',
+    )
+    expect(label('app.disconnect', { app: 'hubspot' })).toBe('Disconnected HubSpot')
     expect(label('phoneNumber.setup', { areaCode: '503', purchase: true })).toBe('Bought a phone number')
     expect(label('phoneNumber.setup', { e164: '+15035550142', purchase: false })).toBe('Connected a phone number')
   })

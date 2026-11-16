@@ -394,8 +394,9 @@ const moneyGroups = new Set<string>(
 const guideLines = (provider: ProviderName) => {
   const { label, category, guide } = providerSpec(provider)
   // After-call transcription is selected only by its own action (provider.setActive refuses it): optionalSteps says how.
+  // Connected apps are all in use once set up: nothing to pick.
   const pick =
-    category === 'transcript'
+    category === 'transcript' || category === 'apps'
       ? ''
       : ` Then provider_setActive { category: "${category}", provider: "${provider}" } if another one is picked.`
   return [
@@ -576,11 +577,14 @@ function redirectUris(provider: ProviderName): string[] {
     return [`${app}/api/auth/callback/${provider}`, `${app}/v1/calendar/callback/${provider}`]
   if (provider === 'github') return [`${app}/api/auth/callback/github`]
   if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
+  if (provider === 'calendly' || provider === 'calcom') return [`${app}/v1/calendar/callback/${provider}`]
+  if (provider === 'hubspot') return [`${app}/v1/apps/callback/hubspot`]
   return []
 }
 
 /**
- * The groups a first call does not need (sign-in, calendar, recording, after-call transcription, business lookup; not billing):
+ * The groups a first call does not need (sign-in, calendar, connected apps, recording, after-call transcription, business
+ * lookup; not billing):
  * their state and how to set them up through these tools, offered once the needed steps are done. Calendars themselves
  * are connected per business by signing in to Google or Microsoft in the browser (Assistant settings › Booking &
  * calendar), the one part an agent cannot do. After-call transcription is turned on by the admin in the app (Server
@@ -607,6 +611,11 @@ function optionalSteps(groups: GroupStatus[]) {
       `Turning it on is the admin's choice in ${webAddress()}/#admin/providers/transcript (app_links.providers_transcript), because recordings leave the server: there they only select the provider, with a key you stored or the OpenAI key already saved for the realtime model or language model. Say so.`,
     ],
     business: guideLines(recommendedProviders.business),
+    apps: [
+      ...guideLines(recommendedProviders.apps),
+      'The OAuth app needs the redirect URI that providers_list gives (redirect_uris).',
+      `Each business then connects its own account in the browser under ${webAddress()}/#integrations (a consent page, the one part an agent cannot do). Say so; it is optional.`,
+    ],
   }
   return providerGroups
     // Billing keys decide where money goes: only an instance admin in the app sets them (billing-settings.ts).
@@ -964,7 +973,7 @@ function registerTools(server: McpServer, actor: Actor) {
     'providers_list',
     {
       description:
-        'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
+        'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business, apps; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
       inputSchema: z.object({
         category: z
           .enum(Object.keys(providerCategories).filter(c => !moneyCategories.includes(c as ProviderCategory)) as [ProviderCategory])
@@ -995,7 +1004,7 @@ function registerTools(server: McpServer, actor: Actor) {
                 hint: fieldSpec(f.field)?.hint ?? null,
               })),
               help: spec.help ?? null,
-              ...(spec.category === 'sign_in' ? { redirect_uris: redirectUris(p.provider) } : {}),
+              ...(spec.category === 'sign_in' || spec.category === 'apps' ? { redirect_uris: redirectUris(p.provider) } : {}),
             }
           })
         return answer({ categories: providerCategories, providers: rows })

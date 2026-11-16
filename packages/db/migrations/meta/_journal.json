@@ -848,6 +848,13 @@
       "when": 1794859750414,
       "tag": "0121_goodbye_line",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1794860250015,
+      "tag": "0122_app_connections",
+      "breakpoints": true
     }
   ]
 }

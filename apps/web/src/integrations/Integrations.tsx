@@ -1,6 +1,6 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
-// key per category. A card opens its detail view here (#integrations/zapier, /api-keys, /rest-api, /mcp) or the
-// place where it is set up (the assistant's webhooks and booking); one being built shows "In progress". The catalog itself
+// key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /api-keys, /rest-api, /mcp) or
+// the place where it is set up (the assistant's webhooks and booking); one being built shows "In progress". The catalog itself
 // is catalog.ts; API keys and Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
@@ -40,6 +40,7 @@ import {
   searchIntegrations,
   statusOf,
 } from './catalog.ts'
+import { ConnectedApp } from './ConnectedApp.tsx'
 import {
   API_KEYS,
   ApiKeys,
@@ -108,6 +109,8 @@ function useFacts(canManageKeys: boolean): Facts {
   const hooksLoad = useLoadState('webhook_endpoints')
   const calendars = useRows('calendar_connections')
   const calendarsLoad = useLoadState('calendar_connections')
+  const apps = useRows('app_connections')
+  const appsLoad = useLoadState('app_connections')
   return useMemo(() => {
     const perProvider: Partial<Record<ProviderId, number>> = {}
     for (const c of calendars) perProvider[c.provider] = (perProvider[c.provider] ?? 0) + 1
@@ -121,8 +124,9 @@ function useFacts(canManageKeys: boolean): Facts {
           ? hooks.filter(h => h.status === 'active' && h.assistant_id && h.hooks.length > 0).map(h => h.url)
           : undefined,
       calendars: calendarsLoad === 'ready' ? perProvider : undefined,
+      apps: appsLoad === 'ready' ? Object.fromEntries(apps.map(a => [a.provider, a.status])) : undefined,
     }
-  }, [canManageKeys, zaps.data, keys.data, hooks, hooksLoad, calendars, calendarsLoad])
+  }, [canManageKeys, zaps.data, keys.data, hooks, hooksLoad, calendars, calendarsLoad, apps, appsLoad])
 }
 
 /** The keys that pick a category: 0 shows all, 1 to 4 one category each (as in the chips' tooltips). */
@@ -243,9 +247,7 @@ function Card({ integration, status }: { integration: Integration; status: Statu
     <article className="k-card ig-card">
       <IntegrationMark mark={integration.mark} />
       <div className="ig-card-text">
-        <h3>
-          {integration.opens ? <AppLink to={integration.opens}>{name}</AppLink> : name}
-        </h3>
+        <h3>{integration.opens ? <AppLink to={integration.opens}>{name}</AppLink> : name}</h3>
         <p>{t(lineKey(integration.id))}</p>
       </div>
       <div className="ig-card-status">
@@ -284,6 +286,12 @@ function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) 
     }
     case 'notConnected':
       return <Badge tone="outline">{t('settings.integrations.status.notConnected')}</Badge>
+    case 'needsAttention':
+      return (
+        <Badge tone="danger" dot title={t('settings.integrations.status.needsAttentionTip')}>
+          {t('settings.integrations.status.needsAttention')}
+        </Badge>
+      )
     case 'ready':
       return <Badge tone="outline">{t('settings.integrations.status.ready')}</Badge>
     case 'inProgress':
@@ -320,6 +328,7 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
         </div>
       </div>
       {id === 'zapier' && <ZapierSubscriptions canEdit={canManageKeys} toast={toast} />}
+      {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}
       {id === 'mcp' && <Mcp toast={toast} />}

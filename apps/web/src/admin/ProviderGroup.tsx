@@ -8,6 +8,7 @@
 import {
   callAudioGuide,
   type GroupStatus,
+  isMultiCategory,
   type ProviderCategory,
   type ProviderLine,
   type ProviderName,
@@ -263,7 +264,7 @@ function ProviderList({
           const configured = isConfigured(status)
           // Which one is used, said only where it is a choice: several set up, or recording (off until picked).
           const use =
-            configured && category !== 'sign_in' && (setUp.length > 1 || category === 'recording')
+            configured && !isMultiCategory(category) && (setUp.length > 1 || category === 'recording')
               ? active === name
                 ? 'in_use'
                 : 'not_in_use'

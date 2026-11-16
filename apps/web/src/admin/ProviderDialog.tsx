@@ -473,7 +473,7 @@ export function ProviderForm(props: FormProps) {
             disabled={!canStore || busy}
             autoFocus={i === 0 && !configured}
             keysUrl={field.field === keyField ? keysUrl : undefined}
-            keysLabel={provider.category === 'sign_in' ? t('admin.providerDialog.createApp') : undefined}
+            keysLabel={provider.category === 'sign_in' || provider.category === 'apps' ? t('admin.providerDialog.createApp') : undefined}
             onChange={value => onChange(field.field, value)}
           />
         ))}

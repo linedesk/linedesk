@@ -34,6 +34,7 @@ import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptAnyDelivery } from './integrations.ts'
+import { APP_PUSH_ATTEMPTS, attemptAppPush, sweepAppPushes } from './app-pushes.ts'
 import { clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 import { localeForEmail } from './email-locale.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
@@ -86,6 +87,15 @@ export const WEBHOOK_DELIVER = 'webhook.deliver'
 export const WEBHOOK_WORKERS = 5
 /** Every day: webhook payloads older than 30 days are cleared (webhooks.ts). */
 export const WEBHOOK_CLEANUP = 'webhooks.cleanup'
+/** One finished call into a connected app such as HubSpot (app-pushes.ts, docs/crm-sync.md). */
+export const APP_PUSH = 'app.push'
+/** Pushes at once: each waits on the app's API (up to 10 s a request). */
+const APP_PUSH_WORKERS = 3
+/** A push whose connection is busy with another one waits this long, without counting a try. */
+const APP_PUSH_BUSY_DELAY_SEC = 15
+/** Pushes whose claim died or whose job gave up are queued again; after a day they are given up (app-pushes.ts). */
+const APP_PUSH_SWEEP = 'app.push-sweep'
+const APP_PUSH_SWEEP_CRON = '*/15 * * * *'
 /** Deletes a cloned voice at its provider once no assistant uses it (voices.ts). Retried for a day. */
 export const VOICE_DELETE = 'voice.delete'
 const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
@@ -301,6 +311,18 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (outcome === 'retry') throw new Error(`webhook delivery ${job!.data.deliveryId} failed; retrying`)
     return { outcome }
   })
+  // No transaction around it: the push claims itself and saves each step in short ones (app-pushes.ts).
+  await instance.work<{ pushId: string }>(APP_PUSH, { localConcurrency: APP_PUSH_WORKERS }, async ([job]) => {
+    const { pushId } = job!.data
+    const outcome = await attemptAppPush(pushId)
+    if (outcome === 'retry') throw new Error(`app push ${pushId} failed; retrying`)
+    if (outcome === 'busy') await instance.send(APP_PUSH, { pushId }, { startAfter: APP_PUSH_BUSY_DELAY_SEC })
+    return { outcome }
+  })
+  await instance.schedule(APP_PUSH_SWEEP, APP_PUSH_SWEEP_CRON)
+  await instance.work(APP_PUSH_SWEEP, async () =>
+    sweepAppPushes(async pushId => void (await instance.send(APP_PUSH, { pushId }))),
+  )
 }
 
 /**
@@ -401,6 +423,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(APP_PUSH, { retryLimit: APP_PUSH_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(APP_PUSH_SWEEP)
   if (workHere) await runJobs(instance, env)
   boss = instance
   return instance
@@ -499,6 +523,11 @@ export async function queueWebhookDelivery(tx: Tx, deliveryId: string, afterSec 
     { deliveryId },
     { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) },
   )
+}
+
+/** Queues one push of a finished call to a connected app, in the transaction that finished the call. */
+export async function queueAppPush(tx: Tx, pushId: string, afterSec = 0) {
+  await boss?.send(APP_PUSH, { pushId }, { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) })
 }
 
 /** Queues the deletion of a cloned voice at its provider, in the transaction that stopped using it. */

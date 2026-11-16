@@ -25,6 +25,7 @@
     "@linedesk/actions": "workspace:*",
     "@linedesk/billing": "workspace:*",
     "@linedesk/calendar": "workspace:*",
+    "@linedesk/connectors": "workspace:*",
     "@linedesk/db": "workspace:*",
     "@linedesk/i18n": "workspace:*",
     "@linedesk/scrub": "workspace:*",

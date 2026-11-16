@@ -265,6 +265,9 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   // Where bookings with callers' details go, and phone numbers (buying one spends money).
   'calendar.connectFinish': 'integrations',
   'calendar.disconnect': 'integrations',
+  // Where every finished call goes with the caller's details: a connected app such as HubSpot.
+  'app.connectFinish': 'integrations',
+  'app.disconnect': 'integrations',
   'phoneNumber.setup': 'integrations',
   'phoneNumber.release': 'integrations',
   // An AI agent acting as an instance admin: its setup link. confirmPasskey and withdrawPasskey (the Allow step, gone

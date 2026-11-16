@@ -1,7 +1,12 @@
-import type { MessageKey } from '@linedesk/i18n'
+import { appConnectErrors } from '@linedesk/actions'
+import { appErrorCodes } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import en from '@linedesk/i18n/locales/en/settings.json'
 import { describe, expect, it } from 'vitest'
 import {
+  appConnectErrorKey,
+  appConnectResult,
+  appPushErrorKey,
   availableIntegrations,
   byCategory,
   CATALOG,
@@ -21,14 +26,15 @@ import {
 const text = (key: MessageKey) => (en as Record<string, string>)[key.replace(/^settings\./, '')] ?? key
 const ids = (list: readonly { id: string }[]) => list.map(i => i.id)
 
-const NOTHING: Facts = { zaps: 0, apiKeys: 0, webhookUrls: [], calendars: {} }
+const NOTHING: Facts = { zaps: 0, apiKeys: 0, webhookUrls: [], calendars: {}, apps: {} }
 const LOADING: Facts = {
   zaps: undefined,
   apiKeys: undefined,
   webhookUrls: undefined,
   calendars: undefined,
+  apps: undefined,
 }
-const MEMBER: Facts = { zaps: null, apiKeys: null, webhookUrls: null, calendars: {} }
+const MEMBER: Facts = { zaps: null, apiKeys: null, webhookUrls: null, calendars: {}, apps: {} }
 
 describe('the catalog', () => {
   it('has a name and a line for every card, and a category that exists', () => {
@@ -116,6 +122,15 @@ describe('statusOf', () => {
     expect(statusOf('make', lookalike)).toEqual({ kind: 'notConnected' })
   })
 
+  it('knows a connected app from its synced row, and when it needs attention', () => {
+    expect(statusOf('hubspot', NOTHING)).toEqual({ kind: 'notConnected' })
+    expect(statusOf('hubspot', MEMBER)).toEqual({ kind: 'notConnected' })
+    expect(statusOf('hubspot', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'connected' })
+    expect(statusOf('hubspot', { ...NOTHING, apps: { hubspot: 'needs_attention' } })).toEqual({
+      kind: 'needsAttention',
+    })
+  })
+
   it('says in progress for what is being built, whatever the facts', () => {
     for (const id of IN_PROGRESS_IDS)
       for (const facts of [NOTHING, LOADING, MEMBER]) expect(statusOf(id, facts), id).toEqual({ kind: 'inProgress' })
@@ -143,11 +158,37 @@ describe('placeOf', () => {
     expect(placeOf('#integrations/zapier')).toEqual({ view: 'detail', id: 'zapier' })
     expect(placeOf('#integrations/api-keys?ws=w1')).toEqual({ view: 'detail', id: 'api-keys' })
     expect(placeOf('#integrations/mcp')).toEqual({ view: 'detail', id: 'mcp' })
+    expect(placeOf('#integrations/hubspot?app=connected')).toEqual({ view: 'detail', id: 'hubspot' })
   })
   it('shows the catalog for anything else', () => {
     expect(placeOf('#integrations/google')).toEqual({ view: 'catalog' })
     expect(placeOf('#integrations/zapier/x')).toEqual({ view: 'catalog' })
     expect(placeOf('#workspace/developers')).toEqual({ view: 'catalog' })
+  })
+})
+
+describe('appConnectResult', () => {
+  it("reads the OAuth callback's result from the hash", () => {
+    expect(appConnectResult('#integrations/hubspot')).toBeNull()
+    expect(appConnectResult('#integrations/hubspot?ws=w1')).toBeNull()
+    expect(appConnectResult('#integrations/hubspot?app=connected')).toEqual({ ok: true })
+    expect(appConnectResult('#integrations/hubspot?app=error&reason=denied')).toEqual({ ok: false, reason: 'denied' })
+    // Text someone put into a link is never shown: only the known codes count.
+    expect(appConnectResult('#integrations/hubspot?app=error&reason=Call%20555-0100%20to%20fix%20this')).toEqual({
+      ok: false,
+      reason: 'failed',
+    })
+    expect(appConnectResult('#integrations/hubspot?app=error')).toEqual({ ok: false, reason: 'failed' })
+  })
+
+  it('words every reason and error code, and an unknown one with the generic text', () => {
+    for (const code of appConnectErrors) expect(text(appConnectErrorKey(code)), code).not.toBe(appConnectErrorKey(code))
+    expect(appConnectErrorKey('forbidden')).toBe('settings.integrations.app.connectFailed')
+    expect(appConnectErrorKey(undefined, msg('settings.integrations.app.disconnectFailed'))).toBe(
+      'settings.integrations.app.disconnectFailed',
+    )
+    for (const code of appErrorCodes) expect(text(appPushErrorKey(code)), code).not.toBe(appPushErrorKey(code))
+    expect(appPushErrorKey('something_new')).toBe('settings.integrations.app.pushError.internal')
   })
 })
 

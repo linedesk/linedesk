@@ -8,6 +8,7 @@ import {
   agent_setup_keys,
   api_keys,
   assistants,
+  app_connections,
   calendar_connections,
   integration_subscriptions,
   invitation,
@@ -140,6 +141,8 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
     await tx.delete(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))
     // A calendar it connected would receive bookings with callers' details.
     await tx.delete(calendar_connections).where(eq(calendar_connections.connected_by, userId))
+    // So would an app it connected (HubSpot): every finished call goes there.
+    await tx.delete(app_connections).where(eq(app_connections.connected_by, userId))
     await tx
       .update(invitation)
       .set({ status: 'canceled' })

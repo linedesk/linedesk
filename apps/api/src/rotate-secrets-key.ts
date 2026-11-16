@@ -1,5 +1,5 @@
 // Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide and a
-// workspace's own carrier), webhook signing secrets, calendar tokens and the push key pair's private half.
+// workspace's own carrier), webhook signing secrets, calendar and connected-app tokens and the push key pair's private half.
 // Run it in the api container, with the current SECRETS_KEY in its environment and the new key on stdin
 // (never as an argument, which `ps` shows):
 //   openssl rand -base64 32 > new-key.txt
@@ -9,8 +9,9 @@
 // the old key and cannot read what was rotated. Links the API signed with the old key (recording links) stop
 // working. Back up the database first. It prints counts only, never a value.
 import { readFileSync } from 'node:fs'
-import { calendar_connections, calendar_credentials, instance_settings, provider_settings, webhook_secrets } from '@linedesk/db'
+import { app_connections, app_credentials, calendar_connections, calendar_credentials, instance_settings, provider_settings, webhook_secrets } from '@linedesk/db'
 import { eq, isNull } from 'drizzle-orm'
+import { appSlot } from './app-connections.ts'
 import { calendarSlot } from './calendar-connections.ts'
 import { db, pool } from './db.ts'
 import { VAPID_PRIVATE } from './instance-env.ts'
@@ -59,6 +60,20 @@ async function rotate(apply: boolean) {
           })
           .where(eq(calendar_credentials.connection_id, row.connection_id))
       }
+      const apps = await tx
+        .select({ credentials: app_credentials, provider: app_connections.provider })
+        .from(app_credentials)
+        .innerJoin(app_connections, eq(app_connections.id, app_credentials.connection_id))
+      for (const { credentials: row, provider } of apps) {
+        const connection = { id: row.connection_id, provider }
+        await tx
+          .update(app_credentials)
+          .set({
+            access_token_encrypted: again(row.access_token_encrypted, appSlot(connection, 'access')),
+            refresh_token_encrypted: again(row.refresh_token_encrypted, appSlot(connection, 'refresh')),
+          })
+          .where(eq(app_credentials.connection_id, row.connection_id))
+      }
       const [push] = await tx.select().from(instance_settings).where(eq(instance_settings.key, VAPID_PRIVATE))
       if (push)
         await tx
@@ -72,6 +87,7 @@ async function rotate(apply: boolean) {
         provider_settings: providers.length,
         webhook_secrets: webhooks.length,
         calendar_credentials: calendars.length,
+        app_credentials: apps.length,
         push_key: push ? 1 : 0,
       }
       if (!apply) tx.rollback()

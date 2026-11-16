@@ -1,8 +1,24 @@
 // Row types shared with the browser. Type-only: importing this never pulls in pg or drizzle.
 import type {
-  api_keys, appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts,
-  knowledge_questions, phone_numbers, transcript_segments, webhook_endpoints, workspace_settings, workspace_members, call_events,
+  api_keys,
+  appointment_types,
+  assistant_calendars,
+  assistants,
+  availability_exceptions,
+  availability_rules,
+  bookings,
+  calendar_connections,
+  calls,
+  contacts,
+  knowledge_questions,
+  phone_numbers,
+  transcript_segments,
+  webhook_endpoints,
+  workspace_settings,
+  workspace_members,
+  call_events,
   integration_subscriptions,
+  app_connections,
 } from './schema.ts'
 
 /** `kind: 'message'`: a message saved during the call (call.takeMessage: a transfer nobody took), counted for MESSAGES_PER_CALL. */
@@ -135,6 +151,7 @@ export type AvailabilityException = typeof availability_exceptions.$inferSelect
 export type AppointmentType = typeof appointment_types.$inferSelect
 export type Booking = typeof bookings.$inferSelect
 export type CalendarConnection = typeof calendar_connections.$inferSelect
+export type AppConnection = typeof app_connections.$inferSelect
 export type AssistantCalendar = typeof assistant_calendars.$inferSelect
 export type ApiKey = typeof api_keys.$inferSelect
 export type WebhookEndpoint = typeof webhook_endpoints.$inferSelect
@@ -152,6 +169,7 @@ export type Tables = {
   appointment_types: AppointmentType
   bookings: Booking
   calendar_connections: CalendarConnection
+  app_connections: AppConnection
   assistant_calendars: AssistantCalendar
   webhook_endpoints: WebhookEndpoint
   workspace_members: WorkspaceMember
@@ -159,9 +177,37 @@ export type Tables = {
   knowledge_questions: KnowledgeQuestion
 }
 export type TableName = keyof Tables
+/**
+ * Why a push to a connected app failed (app_pushes, app_connections): the app's AppErrorKind (@linedesk/connectors),
+ * `call_deleted`, `no_caller_id` (no number or email to file the call under) or `internal` (anything else).
+ */
+export const appErrorCodes = [
+  'auth',
+  'rate_limited',
+  'unavailable',
+  'invalid',
+  'not_found',
+  'call_deleted',
+  'no_caller_id',
+  'internal',
+] as const
+export type AppErrorCode = (typeof appErrorCodes)[number]
+
 export const tableNames = [
-  'calls', 'contacts', 'assistants', 'phone_numbers', 'transcript_segments', 'appointment_types', 'bookings', 'calendar_connections', 'assistant_calendars',
-  'webhook_endpoints', 'workspace_members', 'call_events', 'knowledge_questions',
+  'calls',
+  'contacts',
+  'assistants',
+  'phone_numbers',
+  'transcript_segments',
+  'appointment_types',
+  'bookings',
+  'calendar_connections',
+  'app_connections',
+  'assistant_calendars',
+  'webhook_endpoints',
+  'workspace_members',
+  'call_events',
+  'knowledge_questions',
 ] as const satisfies readonly TableName[]
 
 // Billing prices and rules: one module (docs/billing.md §7a).

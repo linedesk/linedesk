@@ -4,12 +4,22 @@ import type { ActionResult } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { TelephonyProvider } from '@linedesk/telephony'
+import type { AppServices } from './app-connections.ts'
 import type { CalendarServices } from './calendar-connections.ts'
 import type { Actor } from './context.ts'
 import type { RecordingStore } from './recording-store.ts'
 
-/** A business-rule rejection: the command is final, clients must not retry it. Answered 409 (a conflict with the data's state). */
-export class Reject extends Error {}
+/**
+ * A business-rule rejection: the command is final, clients must not retry it. Answered 409 (a conflict with the data's state).
+ * `code`: a fixed code the page words itself (i18n) instead of showing the message, sent with the rejection.
+ */
+export class Reject extends Error {
+  readonly code: string | undefined
+  constructor(message?: string, code?: string) {
+    super(message)
+    this.code = code
+  }
+}
 
 /** What a synced table's row is called in an error: `call not found`, not `calls row not found`. */
 const ROW_NOUN: Record<string, string> = { assistant_calendars: 'calendar', webhook_endpoints: 'webhook' }
@@ -22,13 +32,14 @@ export const notFound = (table: string) => new Reject(`${ROW_NOUN[table] ?? tabl
 export class Forbidden extends Reject {}
 
 /** Serialises the writes that count things on one call (messages, bookings), until the transaction ends. */
-export const lockCall = (tx: Tx, callId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`call:${callId}`}))`)
+export const lockCall = (tx: Tx, callId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`call:${callId}`}))`)
 
 /** Reverses something a handler did outside the database; resolves to a short note on what it did. */
 export type Undo = () => Promise<string>
 
 /**
- * `telephony`, `recordings` and `calendars` override what is in effect (tests). `onRollback` registers an undo
+ * `telephony`, `recordings`, `calendars` and `apps` override what is in effect (tests). `onRollback` registers an undo
  * that runs if the action's transaction does not commit, for whatever reason. `onCommit` registers work that runs
  * once it has committed, before the answer goes out (a failure there is logged, the action stays done).
  */
@@ -39,6 +50,7 @@ export type HandlerCtx = {
   telephony?: TelephonyProvider
   recordings?: RecordingStore
   calendars?: CalendarServices
+  apps?: AppServices
   onRollback?: (undo: Undo) => void
   onCommit?: (work: () => Promise<void>) => void
   /** What the action's preparer returned (see Preparer). */

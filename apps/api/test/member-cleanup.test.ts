@@ -3,6 +3,7 @@
 // - a server admin's workspace.delete emails every member, saying whether their account went with it (admin-handlers.ts);
 // - a removed or leaving member's calls are unassigned and their per-member rows go (memberships.ts, forgetMember).
 import {
+  app_oauth_states,
   calendar_oauth_states,
   calls,
   golive_checklist_dismissals,
@@ -296,6 +297,13 @@ describe('removal clears what the workspace kept of the member', () => {
       code_verifier: 'verifier',
       expires_at: new Date(Date.now() + HOUR).toISOString(),
     })
+    await db.insert(app_oauth_states).values({
+      id: crypto.randomUUID(),
+      workspace_id: ws.id,
+      user_id: who.userId,
+      provider: 'hubspot',
+      expires_at: new Date(Date.now() + HOUR).toISOString(),
+    })
     return who
   }
 
@@ -308,6 +316,7 @@ describe('removal clears what the workspace kept of the member', () => {
     expect(await db.select().from(golive_checklist_dismissals).where(mine(golive_checklist_dismissals))).toEqual([])
     expect(await db.select().from(golive_checklist_steps).where(mine(golive_checklist_steps))).toEqual([])
     expect(await db.select().from(calendar_oauth_states).where(mine(calendar_oauth_states))).toEqual([])
+    expect(await db.select().from(app_oauth_states).where(mine(app_oauth_states))).toEqual([])
     // The workspace-wide row they set stays: it is the workspace's.
     const wide = await db.select().from(golive_checklist_steps).where(eq(golive_checklist_steps.workspace_id, ws.id))
     expect(wide).toEqual([expect.objectContaining({ step: 'calendar', user_id: null })])

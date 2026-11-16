@@ -50,6 +50,7 @@ export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/impersonation/stop', SESSION],
   ['/v1/workspace/agent-setup', 'setup links are made and read signed in as yourself'],
   ['/v1/calendar/callback/:provider', 'the calendar provider sends the browser here'],
+  ['/v1/apps/callback/:app', 'the connected app sends the browser here'],
   ['/v1/setup', 'install setup before the first account'],
   ['/v1/sign-in-link/:step', "public, the sign-in email's button"],
   ['/v1/openapi.json', 'public: the API description'],

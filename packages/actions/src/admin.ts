@@ -18,6 +18,7 @@ export type ProviderCategory =
   | 'transcript'
   | 'business'
   | 'billing'
+  | 'apps'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
@@ -30,10 +31,11 @@ export const providerCategories: Record<ProviderCategory, string> = {
   transcript: 'After-call transcription',
   business: 'Business lookup',
   billing: 'Billing',
+  apps: 'Connected apps',
 }
 
 /** Categories where every provider that is set up is in use at once (no pick): sign-in with Google and GitHub, say. */
-export const multiCategories: readonly ProviderCategory[] = ['sign_in']
+export const multiCategories: readonly ProviderCategory[] = ['sign_in', 'apps']
 export const isMultiCategory = (category: ProviderCategory) => multiCategories.includes(category)
 
 /**
@@ -403,6 +405,15 @@ const guides = {
     ],
     cost: 'Stripe’s fees per charge, plus Stripe Billing and Stripe Tax.',
   },
+  hubspot: {
+    url: 'https://developers.hubspot.com/',
+    steps: [
+      'Sign in to a free HubSpot developer account and create an app (public app, OAuth).',
+      'Auth: add the redirect URL shown below, and the scopes crm.objects.contacts.read and crm.objects.contacts.write (HubSpot adds oauth).',
+      'Copy the client ID and the client secret and paste them here.',
+    ],
+    cost: 'Free. Each business connects its own HubSpot, on any HubSpot plan.',
+  },
 } as const satisfies Record<string, ProviderGuide>
 
 /**
@@ -421,6 +432,7 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   transcript: 'openai_transcript',
   business: 'google_places',
   billing: 'stripe',
+  apps: 'hubspot',
 }
 
 /**
@@ -953,6 +965,17 @@ export const providers = {
       },
     },
     help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below.',
+  },
+  // Connected apps (docs/crm-sync.md): a business connects its own account by consent page, and finished calls go there.
+  hubspot: {
+    label: 'HubSpot',
+    category: 'apps',
+    guide: guides.hubspot,
+    fields: {
+      client_id: { label: 'Client ID', env: 'HUBSPOT_CLIENT_ID', secret: false },
+      client_secret: { label: 'Client secret', env: 'HUBSPOT_CLIENT_SECRET', secret: true },
+    },
+    help: 'A HubSpot app with the redirect URL below and the contact scopes. Businesses then connect their HubSpot under Integrations, and every finished phone call goes to the caller’s contact.',
   },
 } as const satisfies Record<string, ProviderSpec>
 

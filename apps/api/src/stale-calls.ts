@@ -21,6 +21,7 @@ import { billingRules } from './billing-rules.ts'
 import { callsPastTheirLimit, postEndedCalls } from './call-billing.ts'
 import { DEMO_ROOM_MAX_MS, isDemoRoom } from './demo-rooms.ts'
 import { queueIntegrationDeliveries } from './integrations.ts'
+import { queueAppPushes } from './app-pushes.ts'
 import { deleteLivekitRoom, listLivekitRooms } from './livekit-status.ts'
 import { queueCallEnd } from './webhooks.ts'
 
@@ -231,6 +232,7 @@ async function endStaleCalls(tx: Tx, nowMs: number, staleAfterMin: number, endRo
       // call.finish: a deploy or a crashed agent must not hide a caller who wants a callback from them.
       await queueCallEnd(tx, row)
       await queueIntegrationDeliveries(tx, row)
+      await queueAppPushes(tx, row)
       // A room LiveKit no longer has needs no delete. An empty one is closed, so a restarted agent does not take its
       // job up again; without an answer from LiveKit it may still be open.
       if (room && over !== 'room-gone' && over !== 'demo-over' && over !== 'over-limit')

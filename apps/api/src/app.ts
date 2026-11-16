@@ -39,6 +39,7 @@ import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, WEB_ORIGIN } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
+import { appCallback } from './app-callback.ts'
 import { calendarToolModes, connectWays } from './calendar-tools.ts'
 import {
   ACCOUNT_HEADER,
@@ -279,6 +280,10 @@ app.get('/v1/calendar/callback/:provider', async c =>
   c.redirect(
     await calendarCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN),
   ),
+)
+// The same for a connected app such as HubSpot (app-callback.ts).
+app.get('/v1/apps/callback/:app', async c =>
+  c.redirect(await appCallback(c.req.param('app'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN)),
 )
 
 // Public demo calls from the install's own website, asked for by its gateway with a Bearer secret; 404 unless

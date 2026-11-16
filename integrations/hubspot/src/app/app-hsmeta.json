@@ -1,0 +1,26 @@
+{
+  "uid": "linedesk_crm",
+  "type": "app",
+  "config": {
+    "name": "Linedesk",
+    "description": "Linedesk answers your business phone. After each call it finds or creates the caller's contact and logs the call with its summary.",
+    "logo": "/app/app-logo.png",
+    "distribution": "marketplace",
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "https://staging.example.com/v1/apps/callback/hubspot",
+        "https://app.linedesk.ai/v1/apps/callback/hubspot"
+      ],
+      "requiredScopes": ["oauth", "crm.objects.contacts.read", "crm.objects.contacts.write"],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": { "fetch": [], "iframe": [], "img": [] },
+    "support": {
+      "supportEmail": "support@linedesk.ai",
+      "documentationUrl": "https://linedesk.ai",
+      "supportUrl": "https://linedesk.ai"
+    }
+  }
+}

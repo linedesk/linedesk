@@ -561,8 +561,8 @@ async function resendDomain(values: Values, doFetch: typeof fetch): Promise<Prov
 
 // --- Sign-in and calendar apps ------------------------------------------------------------------
 
-type OAuthApp = 'google' | 'microsoft' | 'github' | 'oidc' | 'calendly' | 'calcom'
-const oauthApps: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oidc', 'calendly', 'calcom']
+type OAuthApp = 'google' | 'microsoft' | 'github' | 'oidc' | 'calendly' | 'calcom' | 'hubspot'
+const oauthApps: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oidc', 'calendly', 'calcom', 'hubspot']
 const isOAuthApp = (provider: ProviderName): provider is OAuthApp => oauthApps.includes(provider)
 
 /** Where an OAuth app exchanges a code for tokens. OIDC: from its discovery document. */
@@ -571,6 +571,7 @@ async function tokenEndpoint(provider: OAuthApp, values: Values, doFetch: typeof
   if (provider === 'github') return 'https://github.com/login/oauth/access_token'
   if (provider === 'calendly') return 'https://auth.calendly.com/oauth/token'
   if (provider === 'calcom') return 'https://api.cal.com/v2/auth/oauth2/token'
+  if (provider === 'hubspot') return 'https://api.hubapi.com/oauth/v3/token'
   if (provider === 'microsoft')
     return `https://login.microsoftonline.com/${encodeURIComponent(values.tenant_id || 'common')}/oauth2/v2.0/token`
   const res = await doFetch(values.discovery_url!, { redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) })
@@ -612,8 +613,9 @@ async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof 
       redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
-    const answer = (await res.json().catch(() => ({}))) as { error?: unknown; error_description?: unknown }
-    const code = answer.error
+    const answer = (await res.json().catch(() => ({}))) as { error?: unknown; error_description?: unknown; status?: unknown }
+    // HubSpot names the refused part in `status` (BAD_CLIENT_ID, BAD_AUTH_CODE …).
+    const code = answer.status === 'BAD_CLIENT_ID' || answer.status === 'BAD_CLIENT_SECRET' ? 'invalid_client' : answer.status === 'BAD_AUTH_CODE' || answer.status === 'BAD_REDIRECT_URI' ? 'invalid_grant' : answer.error
     // Microsoft names an expired secret in the description (AADSTS7000222).
     if (typeof answer.error_description === 'string' && answer.error_description.includes('AADSTS7000222'))
       return error(

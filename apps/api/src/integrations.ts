@@ -88,7 +88,7 @@ function workingSubscriptions(tx: Tx, where: SQL | undefined) {
 }
 
 /** Only phone calls go out: test calls and spam send nothing, as with the after-call webhook. */
-const sendsCall = (call: Pick<Call, 'source' | 'outcome' | 'spam_likely'>) =>
+export const sendsCall = (call: Pick<Call, 'source' | 'outcome' | 'spam_likely'>) =>
   call.source === 'phone' && call.outcome !== 'spam' && !call.spam_likely
 
 /** Seconds after a call is answered that `call_started` goes out: the call-start webhook (1 s) has answered by then. */

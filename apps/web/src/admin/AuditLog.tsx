@@ -285,6 +285,14 @@ export function auditLabel(
     }
     case 'calendar.disconnect':
       return t('admin.audit.calendarDisconnected')
+    case 'app.connectFinish': {
+      const app = appNames[String(input.app)]
+      return t('admin.audit.appConnected', { app: app ?? '', known: known(app) })
+    }
+    case 'app.disconnect': {
+      const app = appNames[String(input.app)]
+      return t('admin.audit.appDisconnected', { app: app ?? '', known: known(app) })
+    }
     case 'phoneNumber.setup':
       return input.purchase ? t('admin.audit.numberBought') : t('admin.audit.numberConnected')
     case 'phoneNumber.release':
@@ -359,6 +367,8 @@ const plainLabels: Record<string, MessageKey> = {
 }
 
 const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft' }
+/** Connected apps (connectableApps in @linedesk/actions): brand names, the same in every language. */
+const appNames: Record<string, string> = { hubspot: 'HubSpot' }
 
 /** Which transfer contacts a change added, changed and removed: "added Sarah, removed Mike"; a new order alone says so. */
 const transferChangeList = ({ added, changed, removed }: NonNullable<AuditEntry['transferChanges']>) => {

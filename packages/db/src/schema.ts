@@ -24,6 +24,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth-schema.ts'
 import {
+  appErrorCodes,
   DEFAULT_TRANSFERS,
   RECHARGE_CAP_BASE_CENTS,
   RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS,
@@ -713,6 +714,114 @@ export const calendar_oauth_states = pgTable('calendar_oauth_states', {
   created_at: createdAt(),
 })
 
+// An app connected to a workspace by OAuth (docs/crm-sync.md), one per app. Synced: holds no secret;
+// its tokens are in app_credentials, which is never synced.
+export const app_connections = pgTable(
+  'app_connections',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    /** The app (connectableApps in @linedesk/actions, APP_IDS in @linedesk/connectors). */
+    provider: text('provider', { enum: ['hubspot'] }).notNull(),
+    /** The account at the app (a HubSpot portal id) and its name for the page (the portal's domain). */
+    account_id: text('account_id').notNull(),
+    account_name: text('account_name').notNull(),
+    /** `needs_attention`: the grant was refused, or calls failed several times in a row; see error_code. */
+    status: text('status', { enum: ['connected', 'needs_attention'] })
+      .notNull()
+      .default('connected'),
+    /** Why the last push failed, as a code the page words (the app's own message goes to the server log only). */
+    error_code: text('error_code', { enum: appErrorCodes }),
+    /** Calls that failed in a row; a call that goes through sets it back to 0. */
+    failures: integer('failures').notNull().default(0),
+    last_push_at: ts('last_push_at'),
+    /** The member who connected the app; text the app gets is in their language. */
+    connected_by: text('connected_by').notNull(),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [index('app_connections_ws').on(t.workspace_id), unique('app_connections_app').on(t.workspace_id, t.provider)],
+)
+
+// OAuth tokens of an app connection, AES-256-GCM with SECRETS_KEY (apps/api/src/secrets.ts). Never synced.
+export const app_credentials = pgTable('app_credentials', {
+  connection_id: text('connection_id')
+    .primaryKey()
+    .references(() => app_connections.id, { onDelete: 'cascade' }),
+  workspace_id: workspaceId(),
+  access_token_encrypted: text('access_token_encrypted').notNull(),
+  refresh_token_encrypted: text('refresh_token_encrypted').notNull(),
+  expires_at: ts('expires_at').notNull(),
+  scope: text('scope'),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+})
+
+// A started app connect: the OAuth `state` (this row's id), for one member in one workspace, used once
+// and for ten minutes. Never synced.
+export const app_oauth_states = pgTable('app_oauth_states', {
+  id: id(),
+  workspace_id: workspaceId(),
+  user_id: text('user_id').notNull(),
+  provider: text('provider', { enum: ['hubspot'] }).notNull(),
+  expires_at: ts('expires_at').notNull(),
+  created_at: createdAt(),
+})
+
+// A Linedesk contact's record in a connected CRM (the HubSpot contact id), set by the first push. Never synced.
+export const crm_links = pgTable(
+  'crm_links',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    connection_id: text('connection_id')
+      .notNull()
+      .references(() => app_connections.id, { onDelete: 'cascade' }),
+    contact_id: text('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+    external_id: text('external_id').notNull(),
+    created_at: createdAt(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [index('crm_links_ws').on(t.workspace_id), unique('crm_links_contact').on(t.connection_id, t.contact_id)],
+)
+
+// One finished call sent to a connected app (job app.push in apps/api/src/app-pushes.ts), for retries and the
+// app's page. Never synced: the page reads the last ones with app.pushes.
+export const app_pushes = pgTable(
+  'app_pushes',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    connection_id: text('connection_id')
+      .notNull()
+      .references(() => app_connections.id, { onDelete: 'cascade' }),
+    call_id: text('call_id')
+      .notNull()
+      .references(() => calls.id, { onDelete: 'cascade' }),
+    /** `sending`: a job has claimed it (claimed_at) and is talking to the app; one per connection at a time. */
+    status: text('status', { enum: ['pending', 'sending', 'done', 'failed'] })
+      .notNull()
+      .default('pending'),
+    /** Tries started (counted when claimed, so a try that crashed counts too). */
+    attempts: integer('attempts').notNull().default(0),
+    claimed_at: ts('claimed_at'),
+    error_code: text('error_code', { enum: appErrorCodes }),
+    /** The caller's record at the app (a HubSpot contact id), saved as soon as it is found or created, so a retry reuses it. */
+    record_id: text('record_id'),
+    /** The logged call at the app (a HubSpot call engagement id), saved as soon as it exists: a retry never logs it twice. */
+    external_id: text('external_id'),
+    created_at: createdAt(),
+    finished_at: ts('finished_at'),
+  },
+  t => [
+    index('app_pushes_connection').on(t.connection_id, t.created_at),
+    unique('app_pushes_call').on(t.connection_id, t.call_id),
+    // The sweep (sweepAppPushes) reads only the open ones.
+    index('app_pushes_open').on(t.created_at).where(sql`${t.status} in ('pending', 'sending')`),
+  ],
+)
+
 // A calendar the assistant may book into, with the owner's note on when to use it
 // ("Emergencies", "Estimates"). The assistant picks one per booking; the API checks it is the assistant's.
 export const assistant_calendars = pgTable(
@@ -1382,6 +1491,7 @@ export const syncedTables = {
   appointment_types,
   bookings,
   calendar_connections,
+  app_connections,
   assistant_calendars,
   webhook_endpoints,
   workspace_members,

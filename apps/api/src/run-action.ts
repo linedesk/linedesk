@@ -52,7 +52,7 @@ const statusOf = (body: ActionRejection): RunResult['status'] => (body.code === 
 const rejectionBody = (e: Reject, notes: string[] = []): ActionRejection => ({
   ok: false,
   error: [e.message, ...notes].join('; '),
-  ...(e instanceof Forbidden ? { code: 'forbidden' as const } : {}),
+  ...(e instanceof Forbidden ? { code: 'forbidden' as const } : e.code ? { code: e.code } : {}),
 })
 
 /**
@@ -112,6 +112,9 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'phoneNumber.lookupLine',
   'calendar.connectStart',
   'calendar.connectFinish',
+  // Where every finished call goes, with the caller's details: a connected app such as HubSpot.
+  'app.connectStart',
+  'app.connectFinish',
   // Every call of a range in one answer.
   'call.export',
   'calendar.connectWithPassword',
@@ -276,7 +279,10 @@ export async function runAction(
   if (name === 'team.leave' && (await leaveNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown })))
     return { status: 403, body: leaveSignInRefusal }
   // So does the owner deleting a removed member's account (owner-step-up.ts; LIN-264 review F3).
-  if (name === 'team.removeMember' && (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown })))
+  if (
+    name === 'team.removeMember' &&
+    (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown }))
+  )
     return { status: 403, body: removeSignInRefusal }
   // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
   if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))

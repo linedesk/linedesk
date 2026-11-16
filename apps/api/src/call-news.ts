@@ -8,6 +8,7 @@ import type { Call } from '@linedesk/db/types'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import { evaluatedAutomatically } from './evaluations.ts'
 import { queueIntegrationDeliveries } from './integrations.ts'
+import { queueAppPushes } from './app-pushes.ts'
 import { queueCallEvaluation, queueCallNotification, queueCallPush } from './jobs.ts'
 import { queueCallEnd } from './webhooks.ts'
 
@@ -22,6 +23,7 @@ export async function queueFinishedNews(tx: Tx, call: Call, webhookDelaySec = CA
   if (evaluatedAutomatically(call)) await queueCallEvaluation(tx, call.id)
   await queueCallEnd(tx, call, webhookDelaySec)
   await queueIntegrationDeliveries(tx, call, webhookDelaySec)
+  await queueAppPushes(tx, call, webhookDelaySec)
 }
 
 /**

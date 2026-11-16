@@ -14,6 +14,7 @@ export const providerGroupIds = [
   'call-audio',
   'sign-in',
   'calendar',
+  'apps',
   'recording',
   'transcript',
   'business',
@@ -86,6 +87,13 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     categories: ['sign_in'],
     only: CALENDAR_APPS,
     why: 'Bookings in Google or Microsoft calendars (the same apps as for sign-in), and one-click connecting for Calendly and Cal.com. iCloud and other CalDAV calendars need no app; without an app, Calendly and Cal.com connect with a key.',
+  },
+  {
+    id: 'apps',
+    label: 'Connected apps',
+    needed: false,
+    categories: ['apps'],
+    why: 'Apps a business connects under Integrations, such as HubSpot: every finished phone call goes to the caller’s record there. Each app needs its own OAuth app here.',
   },
   {
     id: 'recording',
@@ -456,6 +464,8 @@ export function statusGroups(input: StatusInput): StatusGroups {
       }
       case 'calendar':
         return several(configured(CALENDAR_APPS))
+      case 'apps':
+        return several(configured(providersIn('apps')))
       case 'recording': {
         const used = inUse('recording')
         return used ? fromLine(used) : empty('off')

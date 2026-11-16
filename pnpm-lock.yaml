@@ -103,6 +103,9 @@ importers:
       '@linedesk/calendar':
         specifier: workspace:*
         version: link:../../packages/calendar
+      '@linedesk/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@linedesk/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -293,6 +296,16 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))
+
+  packages/connectors:
+    dependencies:
+      libphonenumber-js:
+        specifier: ^1.13.16
+        version: 1.13.16
+    devDependencies:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15))

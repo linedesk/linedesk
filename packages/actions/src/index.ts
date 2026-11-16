@@ -3,6 +3,7 @@ import * as agentSetup from './agent-setup.ts'
 import * as authenticator from './authenticator.ts'
 import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
+import * as apps from './apps.ts'
 import * as personalKeys from './personal-keys.ts'
 import * as records from './records.ts'
 import * as assistantVersions from './assistant-versions.ts'
@@ -49,6 +50,7 @@ export * from './agent-setup.ts'
 export * from './authenticator.ts'
 export * from './install-setup.ts'
 export * from './api-keys.ts'
+export * from './apps.ts'
 export * from './personal-keys.ts'
 export * from './records.ts'
 export * from './assistant-prompt.ts'
@@ -212,6 +214,10 @@ const all = [
   calendar.calendarToolsSet,
   calendar.calendarListCalendars,
   calendar.calendarDisconnect,
+  apps.appConnectStart,
+  apps.appConnectFinish,
+  apps.appDisconnect,
+  apps.appPushes,
   calendar.assistantCalendarAdd,
   calendar.assistantCalendarUpdate,
   calendar.assistantCalendarSetDefault,

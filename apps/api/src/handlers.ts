@@ -86,6 +86,8 @@ import {
 } from './assistant-versions.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
+import { appConnectionHandlers } from './app-connections.ts'
+import { appPushHandlers } from './app-pushes.ts'
 import { calendarToolHandlers } from './calendar-tools.ts'
 import { callerHistory } from './caller-history.ts'
 import {
@@ -1113,6 +1115,8 @@ const handlers: Record<string, Handler> = {
   ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
+  ...appConnectionHandlers,
+  ...appPushHandlers,
   ...calendarToolHandlers,
   ...carrierHandlers(),
   ...forwardingCheckHandlers(queueForwardingCheck),

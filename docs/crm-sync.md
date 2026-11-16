@@ -1,6 +1,6 @@
-# CRM sync (design note, not built)
+# CRM sync
 
-How Linedesk should connect to a business's CRM. HubSpot first; nothing here is built yet.
+How Linedesk connects to a business's CRM. HubSpot first. Phase 1 (push) is built (LIN-303, see "Built in phase 1" below); phase 2 (pull) is not.
 
 ## What a business wants from it
 
@@ -34,12 +34,18 @@ Two-way contact sync (both sides edit the same fields) is left out: it needs con
 - At `call.start` the CRM is not asked synchronously (the greeting budget is under 1.5 s; the call-start webhook may delay a greeting that uses caller details by up to 1.3 s, which the owner chooses by writing `{{name}}` into it, docs/webhooks.md). Instead the facts are cached per contact: refreshed in the background after each call and when the connection is made (a nightly refresh for contacts called in the last 90 days), and the assistant gets the cached facts with `call.start`'s booking context. A cache miss means no context, never a delay.
 - Only a short, owner-chosen set of fields (e.g. lifecycle stage, last deal, a notes field), not the whole record.
 
-## Shape (when built)
+## Built in phase 1 (LIN-303)
 
-- `packages/crm`: a `CrmProvider` interface (find contact by phone or email, create contact, fill empty fields, log call, read fields) with a HubSpot adapter; vendor SDKs only there (core rule 4), contract tests like the calendar adapters.
-- OAuth per workspace (a HubSpot public app; self-hosters set `HUBSPOT_CLIENT_ID` and `HUBSPOT_CLIENT_SECRET`, like the Google calendar app). Tables like the calendar ones: `crm_connections` (synced, no secret), `crm_credentials` (encrypted with `SECRETS_KEY`, never synced), `crm_links` (contact ↔ CRM id), the push log in the job table plus a short per-call status.
-- Actions through the registry: `crm.connectStart` / `crm.connectFinish` / `crm.disconnect` (owners and admins), `crm.setFields` (what the assistant may read). UI: Settings › Integrations › HubSpot: connect, what gets pushed, last pushes and failures.
-- Scopes asked: contacts read/write and the engagement (calls) scope; nothing else.
+A generic base for **connected apps** (business tools a workspace connects by OAuth), so Slack (LIN-351) and Jobber (LIN-304) reuse it; HubSpot is the first app.
+
+- `packages/connectors`: the app interface (`AppConnector`: OAuth, token refresh, revoke, `pushCall`), `CrmProvider` with the phase-1 push (`pushCallToCrm`: stored link, then phone in E.164, then email, else create; fill only empty fields; log the call) and the HubSpot adapter. Vendor HTTP only there (core rule 4). Contract test with HubSpot's HTTP mocked: `src/hubspot.test.ts`.
+- The HubSpot app's client id and secret are an instance provider (Server admin › Providers › Connected apps, `provider_settings`, the secret encrypted and marked sensitive), not `.env`. Redirect URL: `<origin>/v1/apps/callback/hubspot`. Scopes: `oauth crm.objects.contacts.read crm.objects.contacts.write`. No PKCE: HubSpot's OAuth documentation (2026-11) names no `code_challenge`; the code exchange is server-side with the client secret, and the `state` is single use and bound to the member.
+- Tables: `app_connections` (synced, no secret; `needs_attention` with an `error_code`), `app_credentials` (access and refresh token, AES-256-GCM with `SECRETS_KEY`, bound to their slot, never synced), `app_oauth_states` (one use, 10 minutes, bound to member and workspace), `crm_links` (Linedesk contact ↔ CRM record), `app_pushes` (one row per call and connection: state, tries, the caller's record and the logged call as soon as each exists, the failure as an `error_code`). Failures are codes the page words (i18n); the app's own message goes to the server log only.
+- Actions through the registry (owners and admins, `settings:write`): `app.connectStart`, `app.connectFinish` (run by `GET /v1/apps/callback/:app`; `code` and `state` are sensitive; the callback sends back only a reason code, `appConnectErrors`, never text), `app.disconnect` (removes tokens and links, withdraws the grant at the app once that has committed), `app.pushes` (read-only: the last calls sent). Not during support access (impersonation), except reading `app.pushes`.
+- After a finished phone call (`call.finish` and the stale-call sweep; no test calls, no spam) a pg-boss job `app.push` per connection. No transaction stays open while HubSpot is asked: a try claims the push (`sending`, the try counted) in a short transaction under the connection's advisory lock (`app:<id>`), one push per connection at a time (so one new caller never becomes two records), then saves each step in its own short transaction: the caller's record when found or created, the logged call when it exists, so a retry neither creates nor logs twice. A failure is saved in its own transaction too. A token refresh asks HubSpot first, then saves under the same lock only if the stored grant did not change; connecting again and disconnecting take that lock as well. Token refresh once on 401; retries with backoff (8 tries); a refused grant, or 3 failures in a row, sets `needs_attention`. A claim whose worker died is taken over after 10 minutes; a sweep every 15 minutes queues stuck pushes again and gives up those open for a day.
+- UI: Integrations › HubSpot (`#integrations/hubspot`): connect, the account and its state, connect again, disconnect, recent calls with their failures. The card shows Connected, Needs attention or Not connected.
+
+Not built yet: `crm.setFields` and phase 2 (pull), a privacy note in the connect step.
 
 ## Open questions
 

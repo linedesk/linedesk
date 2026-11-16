@@ -48,6 +48,7 @@ export const pricePerMinute: Record<ProviderName, number> = {
   // Email, sign-in and calendar apps are not billed per call minute either.
   calendly: 0,
   calcom: 0,
+  hubspot: 0,
   smtp: 0,
   resend: 0,
   postmark: 0,
@@ -137,6 +138,7 @@ async function activeRates(tx: Tx): Promise<ActiveRate[]> {
     'sign_in',
     'business',
     'billing',
+    'apps',
     ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
     // After-call transcription only while an admin has selected a provider (off by default).
     ...((await activeProvider(tx, 'transcript').catch(() => null)) ? [] : ['transcript']),
