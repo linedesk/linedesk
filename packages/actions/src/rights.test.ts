@@ -57,6 +57,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'team.list',
     'team.leave',
     'insights.get',
+    // Reading rows through a key or MCP instead of the sync shapes (records.ts, LIN-339).
+    'records.list',
   ],
   admin: [
     'agentSetup.createWorkspaceKey',
@@ -230,7 +232,15 @@ const expectedRights: Record<Right, readonly string[]> = {
   impersonation: ['impersonation.stop'],
   // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
   system: ['billing.processStripeEvent', 'billing.settleInvoice'],
-  account: ['invitation.listMine', 'invitation.accept', 'invitation.decline'],
+  // A person's own invitations and personal API keys (personal-keys.ts, LIN-339).
+  account: [
+    'invitation.listMine',
+    'invitation.accept',
+    'invitation.decline',
+    'personalKey.create',
+    'personalKey.list',
+    'personalKey.revoke',
+  ],
 }
 
 describe('workspace rights', () => {
