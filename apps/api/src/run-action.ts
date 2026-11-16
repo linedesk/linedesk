@@ -22,6 +22,7 @@ import {
   setsTransferNumber,
   inputErrorText,
   redactInput,
+  UNKNOWN_FIELDS,
   unknownFieldsText,
   type ActionDef,
   type ActionRejection,
@@ -29,6 +30,7 @@ import {
 } from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import type { z } from 'zod'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -66,7 +68,21 @@ function unknownFieldsRefusal(name: string, rawInput: unknown, parsed: unknown, 
     console.warn(`${name}: ignored input fields it does not take: ${dropped.join(', ')}`)
     return null
   }
-  return rejection(422, unknownFieldsText(dropped))
+  return unknownFieldsRejection(dropped)
+}
+
+/** 422 for fields an action does not take, with its code, from the strict schemas and the check above alike. */
+const unknownFieldsRejection = (fields: readonly string[]): RunResult => ({
+  status: 422,
+  body: { ok: false, error: unknownFieldsText(fields), code: UNKNOWN_FIELDS },
+})
+
+/** The unknown fields when they are all that is wrong with the input (a strict schema, DESTRUCTIVE_ACTIONS), else null. */
+function onlyUnknownFields(error: z.ZodError): string[] | null {
+  const keys = error.issues.flatMap(issue =>
+    issue.code === 'unrecognized_keys' ? issue.keys.map(key => [...issue.path, key].join('.')) : [],
+  )
+  return keys.length && error.issues.every(issue => issue.code === 'unrecognized_keys') ? keys : null
 }
 
 /**
@@ -245,7 +261,10 @@ export async function runAction(
   if (personalRefused) return forbidden(personalRefused)
   if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
   const parsed = def.input.safeParse(rawInput)
-  if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
+  if (!parsed.success) {
+    const unknown = onlyUnknownFields(parsed.error)
+    return unknown ? unknownFieldsRejection(unknown) : rejection(422, inputErrorText(parsed.error, rawInput))
+  }
   const agentRefused = agentRefusal(def, parsed.data, actor)
   if (agentRefused) return forbidden(agentRefused)
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)

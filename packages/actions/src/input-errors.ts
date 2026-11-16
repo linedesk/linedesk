@@ -74,6 +74,35 @@ export function fieldLabel(path: readonly PropertyKey[]): string {
   return words.join(' ')
 }
 
+/** The `code` of a 422 for input fields an action does not take (ActionRejection). */
+export const UNKNOWN_FIELDS = 'UNKNOWN_FIELDS'
+
+/**
+ * Actions that delete or end something for good (data, accounts, numbers, keys, access). Their input is strict: a field
+ * they do not take is refused with 422 `UNKNOWN_FIELDS` for every caller, browser sessions and the voice agent too,
+ * where other actions only drop it. A field renamed or dropped from such an action must never be read as its default
+ * (security review F2 of #756). Each of these schemas ends in `.strict()` (input-errors.test.ts checks it).
+ */
+export const DESTRUCTIVE_ACTIONS = [
+  'workspace.delete',
+  'workspace.deleteOwn',
+  'membership.remove',
+  'team.removeMember',
+  'team.leave',
+  'phoneNumber.release',
+  'apiKey.revoke',
+  'personalKey.revoke',
+  'agentSetup.revoke',
+  'agentSetup.revokeWorkspace',
+  'agentSetup.endOwnAccess',
+  'webhook.delete',
+  'integration.remove',
+  'calendar.disconnect',
+  'user.resetPasskeys',
+  'account.authenticatorRemove',
+  'provider.clearKeys',
+] as const
+
 /** Fields an action does not take, by their exact names (a caller has to fix the spelling). */
 export function unknownFieldsText(keys: readonly string[]): string {
   return keys.length === 1

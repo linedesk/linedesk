@@ -41,6 +41,6 @@ export type ApiKeyListData = { keys: ApiKeySummary[] }
 export const apiKeyRevoke = defineAction({
   name: 'apiKey.revoke',
   description: 'Revoke an API key: it stops working at once.',
-  input: z.object({ apiKeyId: z.string().min(1) }),
+  input: z.object({ apiKeyId: z.string().min(1) }).strict(),
   permission: 'settings:write',
 })

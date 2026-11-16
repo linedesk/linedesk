@@ -838,7 +838,7 @@ export const workspaceDeleteOwn = defineAction({
     name: z.string().trim().min(1).max(200),
     keepOwnAccount: z.boolean().optional(),
     keepAccounts: z.boolean().optional(),
-  }),
+  }).strict(),
   permission: 'workspace:own',
 })
 /**
@@ -947,7 +947,7 @@ export const phoneNumberRelease = defineAction({
     phoneNumberId: z.string().min(1),
     /** The number as the person typed it to confirm; compared by digits with the stored number. */
     confirm: z.string().min(1).max(40),
-  }),
+  }).strict(),
   permission: 'settings:write',
 })
 

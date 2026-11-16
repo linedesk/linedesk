@@ -1014,7 +1014,7 @@ export const providerSetKeys = defineAction({
 export const providerClearKeys = defineAction({
   name: 'provider.clearKeys',
   description: 'Remove the stored keys of a provider. The environment variables apply again.',
-  input: z.object({ provider }),
+  input: z.object({ provider }).strict(),
   permission: 'instance:admin',
 })
 
@@ -1137,7 +1137,7 @@ export const workspaceDelete = adminAction(
     workspaceId: z.string().min(1),
     name: z.string().trim().min(1).max(200),
     keepAccounts: z.boolean().optional(),
-  }),
+  }).strict(),
 )
 /** What `workspace.delete` did. Phone numbers: what happened at the carrier to each. */
 export type WorkspaceDeleteData = {
@@ -1178,7 +1178,7 @@ export const userResetPasskeys = defineAction({
   name: 'user.resetPasskeys',
   description:
     'Remove every passkey of a user and email them. For an instance admin, returns a one-time code for their new first passkey.',
-  input: userId,
+  input: userId.strict(),
   permission: 'instance:admin',
   secretResult: true,
 })

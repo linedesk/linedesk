@@ -98,7 +98,7 @@ export const teamLeave = defineAction({
   name: 'team.leave',
   description:
     'Leave the current workspace; you lose access at once. The owner cannot leave: they hand the workspace over first. When it is your only workspace, deleteAccount must say whether your account goes too (true deletes it, never a server admin\'s, and needs a sign-in within the last 10 minutes; false keeps it); without it the leave is refused.',
-  input: z.object({ deleteAccount: z.boolean().optional() }),
+  input: z.object({ deleteAccount: z.boolean().optional() }).strict(),
   permission: 'team:read',
 })
 /** What `team.leave` returns: the workspace to continue in, or null when none is left; whether the account went too. */
@@ -108,7 +108,7 @@ export const teamRemoveMember = defineAction({
   name: 'team.removeMember',
   description:
     'Remove a member from the workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner. Their account stays (without a workspace they wait for an invitation). Only the workspace\'s owner may set deleteAccount, with a sign-in within the last 10 minutes: when it was their only workspace their account is deleted too (never a server admin\'s) and they are emailed.',
-  input: z.object({ memberId: z.string().min(1), deleteAccount: z.boolean().optional() }),
+  input: z.object({ memberId: z.string().min(1), deleteAccount: z.boolean().optional() }).strict(),
   permission: 'team:write',
 })
 

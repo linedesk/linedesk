@@ -110,7 +110,7 @@ export type IntegrationListData = { subscriptions: IntegrationSubscriptionSummar
 export const integrationRemove = defineAction({
   name: 'integration.remove',
   description: 'Remove an integration subscription (Zapier): nothing more is sent to it. The Zap stops getting calls.',
-  input: z.object({ subscriptionId: z.string().min(1) }),
+  input: z.object({ subscriptionId: z.string().min(1) }).strict(),
   permission: 'settings:write',
 })
 

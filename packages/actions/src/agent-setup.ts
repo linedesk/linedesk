@@ -44,7 +44,7 @@ export const agentSetupCreateWorkspaceKey = defineAction({
 export const agentSetupRevokeWorkspace = defineAction({
   name: 'agentSetup.revokeWorkspace',
   description: 'End agent setup for this workspace: your setup keys for it stop working at once.',
-  input: z.object({}),
+  input: z.object({}).strict(),
   permission: 'settings:write',
 })
 
@@ -67,7 +67,7 @@ export const isAgentSetupHash = (hash: string) => hash === AGENT_SETUP_HASH || h
 export const agentSetupRevoke = defineAction({
   name: 'agentSetup.revoke',
   description: 'End agent setup: every setup key of yours stops working at once.',
-  input: z.object({}),
+  input: z.object({}).strict(),
   permission: 'setupLink:end',
 })
 
@@ -80,7 +80,7 @@ export const agentSetupEndOwnAccess = defineAction({
   name: 'agentSetup.endOwnAccess',
   description:
     'For the AI agent at the end of the setup: ends the setup link it is using right now, and only that one, at once. Calls with it are refused afterwards. The admin can make a new link at any time.',
-  input: z.object({}),
+  input: z.object({}).strict(),
   // Install keys and workspace keys both end themselves (agent-setup.ts gives setup keys this permission); ending is
   // never harder than making, so it needs no passkey check. The handler refuses everyone but a setup key's holder.
   permission: 'setupLink:end',

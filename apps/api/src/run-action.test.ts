@@ -1,4 +1,4 @@
-import { rolePermissions } from '@linedesk/actions'
+import { actions, DESTRUCTIVE_ACTIONS, providerNames, rolePermissions } from '@linedesk/actions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Actor } from './context.ts'
 
@@ -76,13 +76,74 @@ describe('runAction: read-only actions', () => {
     const input = { appointmentTypeId: 'at_1', voice_provider: 'x' }
     expect(await runAction('calendar.findSlots', input, { ...member, apiKeyId: 'key_1' })).toEqual({
       status: 422,
-      body: { ok: false, error: 'This action does not take the field voice_provider.' },
+      body: { ok: false, error: 'This action does not take the field voice_provider.', code: 'UNKNOWN_FIELDS' },
     })
     expect(fake.runHandler).not.toHaveBeenCalled()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect((await runAction('calendar.findSlots', input, { ...member, sessionId: 'sess_1' })).status).toBe(200)
     expect(fake.runHandler.mock.calls[0]![2]).not.toHaveProperty('voice_provider')
     expect(warn).toHaveBeenCalledWith('calendar.findSlots: ignored input fields it does not take: voice_provider')
+    warn.mockRestore()
+  })
+})
+
+describe('runAction: destructive actions refuse unknown fields from everyone (security review F2 of #756)', () => {
+  const valid: Record<(typeof DESTRUCTIVE_ACTIONS)[number], Record<string, unknown>> = {
+    'workspace.delete': { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating' },
+    'workspace.deleteOwn': { name: 'Brightwater Plumbing & Heating' },
+    'membership.remove': { memberId: 'mem_1' },
+    'team.removeMember': { memberId: 'mem_1' },
+    'team.leave': {},
+    'phoneNumber.release': { phoneNumberId: 'pn_1', confirm: '+1 503 555 0100' },
+    'apiKey.revoke': { apiKeyId: 'key_1' },
+    'personalKey.revoke': { personalKeyId: 'pk_1' },
+    'agentSetup.revoke': {},
+    'agentSetup.revokeWorkspace': {},
+    'agentSetup.endOwnAccess': {},
+    'webhook.delete': { endpointId: 'wh_1' },
+    'integration.remove': { subscriptionId: 'sub_1' },
+    'calendar.disconnect': { connectionId: 'cal_1' },
+    'user.resetPasskeys': { userId: 'user_2' },
+    'account.authenticatorRemove': {},
+    'provider.clearKeys': { provider: providerNames[0] },
+  }
+  // A browser session that may run every action (instance admin passkey-confirmed, owner): only the input is wrong.
+  const everything: Actor = {
+    actorId: 'user_1',
+    role: 'owner',
+    workspaceId: 'ws_1',
+    sessionId: 'sess_1',
+    passkeyConfirmed: true,
+    permissions: [...new Set([...actions.values()].map(def => def.permission))],
+  }
+
+  it.each(DESTRUCTIVE_ACTIONS)('%s: 422 UNKNOWN_FIELDS for a browser session, nothing runs', async name => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await runAction(name, { ...valid[name], keepUsers: true }, everything, 'cmd_1')).toEqual({
+      status: 422,
+      body: { ok: false, error: 'This action does not take the field keepUsers.', code: 'UNKNOWN_FIELDS' },
+    })
+    expect(fake.runHandler).not.toHaveBeenCalled()
+    expect(fake.state.log).toEqual([])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('names every unknown field; an unknown field with another problem says both', async () => {
+    expect(await runAction('team.removeMember', { memberId: 'mem_1', keepAccount: true, reason: 'x' }, everything)).toEqual({
+      status: 422,
+      body: { ok: false, error: 'This action does not take the fields keepAccount, reason.', code: 'UNKNOWN_FIELDS' },
+    })
+    const both = await runAction('team.removeMember', { keepAccount: true }, everything)
+    expect(both.status).toBe(422)
+    expect(both.body).not.toHaveProperty('code')
+    expect(both.body).toMatchObject({ error: expect.stringContaining('This action does not take the field keepAccount.') })
+  })
+
+  it('other actions still drop an unknown field from a browser session', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect((await runAction('call.markDone', { callId: 'call_1', extra: 1 }, everything, 'cmd_2')).status).toBe(200)
+    expect(warn).toHaveBeenCalledWith('call.markDone: ignored input fields it does not take: extra')
     warn.mockRestore()
   })
 })

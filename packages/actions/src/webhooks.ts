@@ -140,7 +140,7 @@ export const webhookUpdate = defineAction({
 export const webhookDelete = defineAction({
   name: 'webhook.delete',
   description: 'Remove a webhook and its delivery log.',
-  input: z.object({ endpointId: z.string().min(1) }),
+  input: z.object({ endpointId: z.string().min(1) }).strict(),
   permission: 'settings:write',
 })
 

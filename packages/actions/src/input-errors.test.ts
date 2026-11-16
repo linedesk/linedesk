@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { actions } from './index.ts'
-import { droppedFields, fieldLabel, inputErrorText, unknownFieldsText } from './input-errors.ts'
+import { DESTRUCTIVE_ACTIONS, droppedFields, fieldLabel, inputErrorText, unknownFieldsText } from './input-errors.ts'
+import { providerNames } from './admin.ts'
 
 const textFor = (name: string, input: unknown) => {
   const parsed = actions.get(name)!.input.safeParse(input)
@@ -48,5 +49,39 @@ describe('invalid input as plain sentences', () => {
     expect(text).not.toMatch(/[[{]/)
     const custom = z.string().refine(() => false, { message: 'that provider belongs to another category' }).safeParse('x')
     expect(inputErrorText(custom.error!)).toBe('That provider belongs to another category.')
+  })
+})
+
+/** A valid input for each destructive action, so only the extra field is wrong. */
+const DESTRUCTIVE_INPUTS: Record<(typeof DESTRUCTIVE_ACTIONS)[number], Record<string, unknown>> = {
+  'workspace.delete': { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', keepAccounts: true },
+  'workspace.deleteOwn': { name: 'Brightwater Plumbing & Heating', keepOwnAccount: true },
+  'membership.remove': { memberId: 'mem_1', keepAccount: true },
+  'team.removeMember': { memberId: 'mem_1', deleteAccount: false },
+  'team.leave': { deleteAccount: false },
+  'phoneNumber.release': { phoneNumberId: 'pn_1', confirm: '+1 503 555 0100' },
+  'apiKey.revoke': { apiKeyId: 'key_1' },
+  'personalKey.revoke': { personalKeyId: 'pk_1' },
+  'agentSetup.revoke': {},
+  'agentSetup.revokeWorkspace': {},
+  'agentSetup.endOwnAccess': {},
+  'webhook.delete': { endpointId: 'wh_1' },
+  'integration.remove': { subscriptionId: 'sub_1' },
+  'calendar.disconnect': { connectionId: 'cal_1' },
+  'user.resetPasskeys': { userId: 'user_1' },
+  'account.authenticatorRemove': {},
+  'provider.clearKeys': { provider: providerNames[0] },
+}
+
+describe('destructive actions take no field they do not know (security review F2 of #756)', () => {
+  it.each(DESTRUCTIVE_ACTIONS)('%s: its input is strict', name => {
+    const def = actions.get(name)
+    expect(def, name).toBeDefined()
+    const valid = DESTRUCTIVE_INPUTS[name]
+    expect(def!.input.safeParse(valid).success).toBe(true)
+    const parsed = def!.input.safeParse({ ...valid, keepUsers: true })
+    expect(parsed.success).toBe(false)
+    expect(parsed.error!.issues).toEqual([expect.objectContaining({ code: 'unrecognized_keys', keys: ['keepUsers'] })])
+    expect(inputErrorText(parsed.error!, { ...valid, keepUsers: true })).toBe('This action does not take the field keepUsers.')
   })
 })

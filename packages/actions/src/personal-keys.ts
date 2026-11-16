@@ -60,7 +60,7 @@ export type PersonalKeyListData = { keys: PersonalKeySummary[] }
 export const personalKeyRevoke = defineAction({
   name: 'personalKey.revoke',
   description: 'Revoke one of your personal API keys: it stops working at once.',
-  input: z.object({ personalKeyId: z.string().min(1) }),
+  input: z.object({ personalKeyId: z.string().min(1) }).strict(),
   permission: 'account:own',
 })
 

@@ -31,11 +31,13 @@ test('every admin area action needs instance:admin, which no role has', () => {
   for (const name of names) expect(actions.get(name)?.permission, name).toBe('instance:admin')
 })
 
-test('workspace.delete takes keepAccounts; the old name keepUsers is not a field any more (E14)', () => {
+test('workspace.delete takes keepAccounts; the old name keepUsers is refused as an unknown field (E14, F2 of #756)', () => {
   const def = actions.get('workspace.delete')!
   const base = { workspaceId: 'ws1', name: 'Brightwater Plumbing & Heating' }
   expect(def.input.parse({ ...base, keepAccounts: true })).toEqual({ ...base, keepAccounts: true })
-  expect(def.input.parse({ ...base, keepUsers: true })).toEqual(base)
+  const old = def.input.safeParse({ ...base, keepUsers: true })
+  expect(old.success).toBe(false)
+  expect(old.error?.issues.map((i) => i.code)).toEqual(['unrecognized_keys'])
   expect(def.input.parse(base)).toEqual(base)
   expect(def.input.safeParse({ ...base, keepAccounts: 'yes' }).success).toBe(false)
 })

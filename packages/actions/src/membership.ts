@@ -60,7 +60,7 @@ export const membershipRemove = defineAction({
   name: 'membership.remove',
   description:
     "Remove a member from any workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner: make someone else owner first. When it was their only workspace their account is deleted too (never a server admin's), unless keepAccount is true.",
-  input: z.object({ memberId: z.string().min(1), keepAccount: z.boolean().optional() }),
+  input: z.object({ memberId: z.string().min(1), keepAccount: z.boolean().optional() }).strict(),
   permission: 'instance:admin',
 })
 

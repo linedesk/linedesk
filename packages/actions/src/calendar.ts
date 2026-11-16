@@ -272,7 +272,7 @@ export const calendarDisconnect = defineAction({
   name: 'calendar.disconnect',
   description:
     'Disconnect a calendar account: its access is revoked at the provider where possible, its tokens deleted and its calendars removed from every assistant. Booked events stay in the calendar.',
-  input: connectionId,
+  input: connectionId.strict(),
   permission: 'settings:write',
 })
 
