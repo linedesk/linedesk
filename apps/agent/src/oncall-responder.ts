@@ -47,5 +47,5 @@ export async function runOnCallResponder(ctx: JobContext, { answer }: OnCallResp
     if (participant.identity === phone.identity) void hangUp()
   })
   const source = await publishVoice(ctx.room, lines)
-  await actOnCall(ctx.room, source, answer, lines, { hangUp, pressOne: true })
+  await actOnCall(ctx.room, source, answer, lines, { hangUp, pressOne: true, log: message => console.log(`on-call responder (${answer}): ${message}`) })
 }

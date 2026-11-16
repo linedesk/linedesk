@@ -102,16 +102,23 @@ async function decide(
     settle = resolve
   })
   let asked = false
+  // Timings only, never what was said: why a transfer ended without a decision (LIN-263).
+  const start = Date.now()
+  const at = () => `${((Date.now() - start) / 1000).toFixed(1)} s`
   agent.heard = text => {
     const answer = asked ? answerOf(text) : null
+    console.log(`transfer ${room.name}: heard ${text.trim().split(/\s+/).length} words, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`)
     if (answer) settle(answer)
   }
   const onDigit = (_code: number, digit: string, participant: RemoteParticipant) => {
     const answer = asked && participant.identity === ON_CALL_IDENTITY ? answerOfDigit(digit) : null
+    console.log(`transfer ${room.name}: key ${digit}, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`)
     if (answer) settle(answer)
   }
   const onLeft = (participant: RemoteParticipant) => {
-    if (participant.identity === ON_CALL_IDENTITY) settle(null)
+    if (participant.identity !== ON_CALL_IDENTITY) return
+    console.log(`transfer ${room.name}: the on-call person hung up (${at()})`)
+    settle(null)
   }
   room.on(RoomEvent.DtmfReceived, onDigit)
   room.on(RoomEvent.ParticipantDisconnected, onLeft)
@@ -121,6 +128,7 @@ async function decide(
       asked = false
       const speech = sayLine(session, briefing, briefingAudio, { allowInterruptions: false })
       const timeout = speech.waitForPlayout().then(() => {
+        console.log(`transfer ${room.name}: briefing ${attempt + 1} played${briefingAudio ? '' : ' live'} (${at()})`)
         asked = true
         return new Promise<null>(resolve => setTimeout(() => resolve(null), DECISION_MS))
       })

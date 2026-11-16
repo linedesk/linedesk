@@ -237,13 +237,16 @@ export async function actOnCall(
   source: AudioSource,
   answer: SimulatedAnswer,
   [accept, greeting]: GreetingAudio[],
-  { hangUp, pressOne = false }: { hangUp: () => Promise<void>; pressOne?: boolean },
+  { hangUp, pressOne = false, log = () => {} }: { hangUp: () => Promise<void>; pressOne?: boolean; log?: (message: string) => void },
 ) {
   if (answer === 'no-answer') return
+  const start = Date.now()
+  const at = () => `${((Date.now() - start) / 1000).toFixed(1)} s`
   const heard = (new AudioStream(await firstAudioTrack(room), 16_000, 1) as unknown as AsyncIterable<AudioFrame>)[
     Symbol.asyncIterator
   ]()
-  await untilTheyStopTalking(heard) // the briefing
+  const briefingMs = await untilTheyStopTalking(heard) // the briefing
+  log(`heard ${briefingMs} ms of speech, then quiet (${at()})`)
   if (answer === 'decline') {
     await room.localParticipant!.publishDtmf(2, '2')
     return
@@ -251,7 +254,9 @@ export async function actOnCall(
   for (let answers = 0; answers < 2; answers++) {
     await speak(source, accept!)
     if (pressOne) await room.localParticipant!.publishDtmf(1, '1')
+    log(`said yes${pressOne ? ' and pressed 1' : ''} (${at()})`)
     const spokeMs = await within(untilTheyStopTalking(heard), NEXT_LINE_MS)
+    log(`next line: ${spokeMs === null ? 'none' : `${spokeMs} ms`} (${at()})`)
     if (spokeMs === null || spokeMs < BRIEFING_MIN_MS) break // "Connecting you now.", or it played while they spoke
   }
   await sleep(BRIDGE_SETTLE_MS)
