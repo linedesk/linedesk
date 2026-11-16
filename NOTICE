@@ -1,0 +1,4 @@
+Linedesk is licensed under the MIT License (see LICENSE).
+
+Exception: the audio files in apps/api/assets/voice-previews/ are not covered
+by the MIT license; see the README in that folder.

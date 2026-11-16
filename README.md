@@ -290,3 +290,10 @@ A real restore: download a backup (decrypt an encrypted one on your computer:
 - [docs/ci.md](docs/ci.md): what CI checks on a pull request
 
 Working on the code: read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md) first. Security reports: [SECURITY.md](SECURITY.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
+
+Exception: the audio files in `apps/api/assets/voice-previews/` are not covered by the MIT license; see the
+[README in that folder](apps/api/assets/voice-previews/README.md).
