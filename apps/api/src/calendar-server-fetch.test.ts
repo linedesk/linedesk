@@ -160,4 +160,16 @@ describe('calendarServerFetch', () => {
     own.abort()
     expect(signal!.aborted).toBe(true)
   })
+
+  it('names itself in the User-Agent (Cloudflare refuses undici without one), unless the caller set one', async () => {
+    const agents: (string | null)[] = []
+    const send = async (_url: URL, i: RequestInit) => {
+      agents.push(new Headers(i.headers).get('user-agent'))
+      return new Response('ok')
+    }
+    const go = calendarServerFetch(server, { env: {}, send })
+    await go('https://caldav.icloud.com/', init)
+    await go('https://caldav.icloud.com/', { ...init, headers: { ...init.headers, 'user-agent': 'Own/1' } })
+    expect(agents).toEqual(['Linedesk-Calendar/1', 'Own/1'])
+  })
 })

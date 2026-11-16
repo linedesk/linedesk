@@ -20,6 +20,11 @@ const TIMEOUT_MS = 8_000
 /** A calendar's events for a few weeks fit easily; a server that sends more is refused. */
 export const MAX_BODY_BYTES = 5_000_000
 const MAX_REDIRECTS = 3
+/**
+ * undici's own fetch sends no browser-like User-Agent, and Cloudflare (in front of api.cal.com) answers such a request
+ * with a 403 challenge page; a named client goes through. The caller's own User-Agent wins.
+ */
+const USER_AGENT = 'Linedesk-Calendar/1'
 
 const publicAgent = new Agent({
   connect: { lookup: checkedLookup(isPrivateAddress, PRIVATE) as never, timeout: TIMEOUT_MS },
@@ -122,8 +127,11 @@ export function calendarServerFetch(
         throw new Error(`refused to send the request to ${url.host}, which is not the server you entered`)
       const problem = calendarServerProblem(url, env)
       if (problem) throw new Error(problem)
+      const headers = new Headers(init?.headers)
+      if (!headers.has('user-agent')) headers.set('user-agent', USER_AGENT)
       const res = await send(url, {
         ...init,
+        headers,
         signal,
         redirect: 'manual',
         dispatcher: allowPrivate(env) ? lanAgent : publicAgent,
