@@ -63,9 +63,37 @@ export type Reply = {
  */
 const playedOut = (reply: Reply) => new Promise<void>(resolve => (reply.done() ? resolve() : reply.addDoneCallback(() => resolve())))
 
+/** The assistant's words in `reply`. */
+export const wordsOf = (reply: Reply) =>
+  reply.chatItems
+    .filter(item => item.type === 'message' && item.role === 'assistant' && !!item.textContent?.trim())
+    .map(item => item.textContent!.trim())
+    .join(' ')
+
 /** Whether the assistant said any words in `reply`. */
-export const saidWords = (reply: Reply) =>
-  reply.chatItems.some(item => item.type === 'message' && item.role === 'assistant' && !!item.textContent?.trim())
+export const saidWords = (reply: Reply) => wordsOf(reply).length > 0
+
+/** A goodbye in the languages calls mostly use: words with one of these end the call even when they ask something. */
+const GOODBYE =
+  /\b(?:good ?bye|bye|take care|have a (?:good|great|nice|lovely) (?:day|evening|night|weekend|one)|adi[oó]s|hasta luego|au revoir|bonne journ[ée]e|auf wiedersehen|auf wiederh[oö]ren|tsch[uü]ss|arrivederci|ciao|tchau|at[ée] logo|tot ziens|doei)\b/i
+/** A request for something from the caller ("Please tell me…", "Go ahead."), in English and the languages calls mostly use. */
+const REQUEST =
+  /^(?:(?:so|okay|ok|alright|great|sure|perfect),?\s+)?(?:please\s+)?(?:(?:briefly|quickly|just)\s+)?(?:tell me|let me know|go ahead|describe|share|spell|give me|say)\b|\b(?:please|kindly)\s+(?:(?:briefly|quickly|just)\s+)?(?:tell|let me know|go ahead|describe|share|spell|give|say|leave)\b|\b(?:sagen sie|erz[aä]hlen sie|nennen sie|dites[- ]moi|d[ií]game|cu[eé]nteme|mi dica|me diga)\b/i
+
+/** The last sentence of `text`. */
+const lastSentence = (text: string) => text.trim().split(/(?<=[.?!。？！؟])\s*/).filter(s => s.trim()).at(-1)?.trim() ?? ''
+
+/**
+ * Whether the assistant's words ask the caller something, so the call must go on: the last sentence is a question (in
+ * any script) or a request ("Please briefly tell me what you want the team to know."), and the words hold no goodbye.
+ * A model sometimes calls end_call in the same reply as such a question (LIN-341): the caller would get no chance to
+ * answer.
+ */
+export function asksCaller(text: string): boolean {
+  const last = lastSentence(text)
+  if (!last || GOODBYE.test(text)) return false
+  return /[?？؟]$/.test(last) || REQUEST.test(last)
+}
 
 /**
  * Hangs up after the goodbye, the way LiveKit's own end-call tool does it: end_call asks for the goodbye (END_CALL_RESULT),
@@ -74,7 +102,9 @@ export const saidWords = (reply: Reply) =>
  * model says in a reply of its own, null when none starts within `waitMs`. With no words from the assistant at all,
  * `sayGoodbye` says the goodbye line: a call never ends in silence. `stopListening` once the goodbye starts: the caller
  can no longer cut it off or start another reply (not before: a "bye" they are still saying must end, or a realtime model
- waits for it and never says its goodbye). At most `maxMs` in all.
+ waits for it and never says its goodbye). At most `maxMs` in all. Never after words that ask the caller something
+ (asksCaller): then nothing is hung up and it resolves false (the caller's audio must be turned on again); true once
+ the call ends.
  */
 export async function hangUpAfterGoodbye({
   toolReply,
@@ -99,11 +129,19 @@ export async function hangUpAfterGoodbye({
     done = true
     hangUp()
   }
-  setTimeout(once, maxMs).unref?.()
+  const cap = setTimeout(once, maxMs)
+  cap.unref?.()
+  // The assistant asked the caller something: the call goes on, and they can answer.
+  const goesOn = () => {
+    done = true
+    clearTimeout(cap)
+    return false
+  }
   let said = goodbyeSaid
   if (!said && toolReply) {
     await playedOut(toolReply)
     said = saidWords(toolReply)
+    if (said && asksCaller(wordsOf(toolReply))) return goesOn()
   }
   if (!said) {
     const reply = await nextReply(GOODBYE_REPLY_WAIT_MS)
@@ -111,6 +149,7 @@ export async function hangUpAfterGoodbye({
       stopListening()
       await playedOut(reply)
       said = saidWords(reply)
+      if (said && asksCaller(wordsOf(reply))) return goesOn()
     }
   }
   if (!said) {
@@ -118,6 +157,7 @@ export async function hangUpAfterGoodbye({
     await sayGoodbye().catch(e => console.warn(`could not say the goodbye line: ${e instanceof Error ? e.message : String(e)}`))
   }
   setTimeout(once, AFTER_SPEECH_MS).unref?.()
+  return true
 }
 
 /**

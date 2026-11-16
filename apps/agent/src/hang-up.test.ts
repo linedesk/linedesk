@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 import { EventEmitter } from 'node:events'
-import { greetingPlayed, hangUpAfterGoodbye, nextReplyOf, skipSecondGoodbye, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { asksCaller, greetingPlayed, hangUpAfterGoodbye, nextReplyOf, skipSecondGoodbye, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -104,6 +104,47 @@ test('a goodbye that never finishes playing is cut at the cap, once', async () =
   stuck.play()
   await vi.advanceTimersByTimeAsync(1000)
   expect(hangUp).toHaveBeenCalledOnce()
+})
+
+// LIN-341: the caller agreed to leave a message, and the model called end_call while it asked for the message.
+test('asksCaller: a question or a request to the caller, never a goodbye', () => {
+  expect(asksCaller('Please briefly tell me what you want the team to know about your order.')).toBe(true)
+  expect(asksCaller("Sure. What's the best number to reach you?")).toBe(true)
+  expect(asksCaller('Go ahead.')).toBe(true)
+  expect(asksCaller('Bitte sagen Sie mir, was ich dem Team ausrichten soll.')).toBe(true)
+  expect(asksCaller('¿Algo más en lo que pueda ayudarle?')).toBe(true)
+  expect(asksCaller('还有什么可以帮您的吗？')).toBe(true)
+  expect(asksCaller("Alright, I'll hang up now. Thanks for calling, goodbye!")).toBe(false)
+  expect(asksCaller('Thanks for calling. Have a great day!')).toBe(false)
+  expect(asksCaller('Anything else? No? Then goodbye!')).toBe(false)
+  expect(asksCaller("I've noted that for the team.")).toBe(false)
+  expect(asksCaller('')).toBe(false)
+})
+
+test('end_call in a reply that asks the caller something: no hang-up, the call goes on', async () => {
+  const asked = reply('Please briefly tell me what you want the team to know about your order.')
+  const hangUp = vi.fn()
+  const nextReply = vi.fn(async () => null)
+  const sayGoodbye = vi.fn(async () => {})
+  const result = hangUpAfterGoodbye({ toolReply: asked.reply, nextReply, sayGoodbye, hangUp })
+  asked.play()
+  await expect(result).resolves.toBe(false)
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(hangUp).not.toHaveBeenCalled()
+  expect(nextReply).not.toHaveBeenCalled()
+  expect(sayGoodbye).not.toHaveBeenCalled()
+})
+
+test('a realtime goodbye reply that asks the caller something: no hang-up either', async () => {
+  const silent = reply()
+  const question = reply('Before you go, is the number you are calling from the best one?')
+  const hangUp = vi.fn()
+  const result = hangUpAfterGoodbye({ toolReply: silent.reply, nextReply: async () => question.reply, sayGoodbye: async () => {}, hangUp })
+  silent.play()
+  question.play()
+  await expect(result).resolves.toBe(false)
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(hangUp).not.toHaveBeenCalled()
 })
 
 test('nextReplyOf: the first reply after end_call, also when it starts before it is asked for; null when none starts', async () => {

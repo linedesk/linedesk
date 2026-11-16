@@ -33,7 +33,8 @@ import { realtimeHistoryCompactor } from './realtime-history.ts'
 import { callNotesKeeper } from './call-notes.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
-import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { toolFiller, withFillers } from './tool-filler.ts'
+import { asksCaller, END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
@@ -133,12 +134,12 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
 /** transfer_call, when the assistant has transfer contacts that take calls now; given from the start of the call. */
 type Transfer = Omit<Parameters<typeof transferTool>[0], 'api' | 'call' | 'log'> | null
 
-function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext) {
+function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall: (toolReply: Reply) => void, flagUrgent: () => Promise<void>, transfer: Transfer, collect: CollectContext, filler: ReturnType<typeof toolFiller>) {
   return {
-    ...bookingToolset(api, call, log),
+    // A slow tool gets a filler when the assistant said nothing before it (tool-filler.ts).
+    ...withFillers({ ...bookingToolset(api, call, log), ...lookupTools(api, call, log) }, filler),
     ...collectTools(collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
-    ...lookupTools(api, call, log),
     end_call: llm.tool({
       // How (no words first, the goodbye after it) is in the prompt's closing rule.
       description: 'Hang up: when the caller said they need nothing else, or said goodbye.',
@@ -178,11 +179,12 @@ function keepUrgentPromises(session: voice.AgentSession, flagUrgent: () => Promi
 
 /**
  * When the assistant said it hangs up now, or wrote end_call into its goodbye, but left out the tool, the call ends
- * after those words as if it had called it.
+ * after those words as if it had called it. Not when those words ask the caller something (asksCaller): they answer.
  */
 function keepHangUpPromises(session: voice.AgentSession, log: CallLog, endCall: () => void) {
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
     if (item.type !== 'message' || item.role !== 'assistant' || !item.textContent || log.transferred) return
+    if (asksCaller(withoutEndCall(item.textContent))) return
     if (writesEndCall(item.textContent) || announcesHangUp(item.textContent)) endCall()
   })
 }
@@ -407,6 +409,13 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
       sayGoodbye: () => sayLine(lines().goodbye),
       stopListening: () => session.input.setAudioEnabled(false),
       hangUp: deleteRoom,
+    }).then(ended => {
+      if (ended) return
+      // The assistant asked the caller something in its last words: the call goes on (LIN-341).
+      console.log(`call ${call.callId}: end_call after a question, the call goes on`)
+      ending = false
+      endCallReply = null
+      session.input.setAudioEnabled(true)
     })
   }
   keepHangUpPromises(session, log, () => endCall())
@@ -465,7 +474,8 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     country: call.country,
     facts: () => stepFacts({ today: collect.today(), hours: call.businessHours?.summary, address: call.assistant?.business_profile?.address }),
   }
-  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect) })
+  const filler = toolFiller(session, line => speak(line))
+  const agent = new voice.Agent({ instructions, tools: assistantTools(api, call, log, endCall, flagUrgent, transfer, collect, filler) })
   switched.to = () => {
     const failed = (e: unknown) => console.warn(`call ${call.callId}: reply language not updated: ${e instanceof Error ? e.message : String(e)}`)
     void agent.updateInstructions(instructionsNow()).catch(failed)
