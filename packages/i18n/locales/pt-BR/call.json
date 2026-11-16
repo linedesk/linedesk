@@ -16,8 +16,6 @@
   "autoSummary.missed.notReady": "Ninguém atendeu esta chamada: o assistente ainda não estava atendendo chamadas. Retorne a ligação.",
   "autoSummary.missed.overCap": "Ninguém atendeu esta chamada: o espaço de trabalho atingiu o limite de gastos mensal. Retorne a ligação.",
   "autoSummary.missed.title": "Chamada perdida",
-  "autoSummary.noCallback": "Sem número para retorno: quem ligou não informou um",
-  "autoSummary.noCallbackWith": "Sem número para retorno: quem ligou não informou um. {detail}",
   "autoSummary.unavailable.title": "Chamada (resumo indisponível)",
   "autoSummary.voiceFailed.item": "Retornar a ligação: {stage, select, stt {a conversão de voz em texto} llm {o modelo de linguagem} tts {a voz} other {o modelo em tempo real}} do assistente falhou nesta chamada.",
   "autoSummary.voiceFailed.summary": "{stage, select, stt {A conversão de voz em texto} llm {O modelo de linguagem} tts {A voz} other {O modelo em tempo real}} do assistente falhou nesta chamada, então quem ligou não recebeu ajuda e desligou.",

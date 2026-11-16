@@ -19,7 +19,7 @@ function talkedCall(call: CallSession) {
 }
 
 test('finishes with the summary; messages taken and the urgent flag are kept', async () => {
-  const call = fakeCall()
+  const call = fakeCall(undefined, '+15035550142')
   const complete = vi.fn<CompleteJson>(async () => answer)
   await finishCall(call, talkedCall(call), complete, noWait)
   expect(complete.mock.calls[0]![1]).toContain('Action items already saved:\n- Call back about the sink')
@@ -39,7 +39,7 @@ test('a timed-out summary is not repeated; the message taken becomes title and s
 })
 
 test('a failed summary request is tried once more', async () => {
-  const call = fakeCall()
+  const call = fakeCall(undefined, '+15035550142')
   const complete = vi.fn<CompleteJson>().mockRejectedValueOnce(new Error('summary request failed (429): Provider returned error')).mockResolvedValue(answer)
   await finishCall(call, talkedCall(call), complete, noWait)
   expect(complete).toHaveBeenCalledTimes(2)
@@ -66,14 +66,14 @@ test('a silent call after the voice failed is a call back, not a hang-up', async
     title: "Missed: the assistant's voice failed", outcome: 'callback',
     actionItems: [{ text: "Call the caller back: the assistant's voice failed on this call." }],
   }))
-  // Without caller ID there is no number to call back on: the item says so, and keeps what failed.
+  // Without caller ID there is no number to call back on: a message for the team that says what failed.
   const withheld = fakeCall()
   const silent = new CallLog(withheld)
   silent.voiceFailed = 'tts'
   await finishCall(withheld, silent, complete, noWait)
   expect(withheld.finish).toHaveBeenCalledWith(expect.objectContaining({
-    outcome: 'callback',
-    actionItems: [{ text: "No callback number: caller didn't give one. The assistant's voice failed on this call." }],
+    outcome: 'message',
+    actionItems: [{ text: "The assistant's voice failed on this call." }],
   }))
 })
 

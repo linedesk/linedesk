@@ -1,6 +1,6 @@
 import { CALLER_NAME_MAX, callFinish } from '@linedesk/actions'
 import { expect, test, vi } from 'vitest'
-import { mergeToolResults, NO_CALLBACK_ITEM, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
+import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
 const transcript: TranscriptLine[] = [
   { speaker: 'agent', text: 'Thanks for calling Brightwater. How can I help?' },
@@ -113,29 +113,34 @@ test('a call back the summary left without an action item gets one from the summ
   expect(mergeToolResults({ ...callback, outcome: 'answered' }, { messages: [], urgent: false }).actionItems).toEqual([])
 })
 
-test('without a callback number (no caller ID, none given) no action item says "Call back"', async () => {
-  // call_21bd: a test call, no number given, and the summary asked the owner to call back.
-  const answer = { ...llmAnswer, action_items: ['Call back Elena Novak to get her message and phone number', 'Check the basement valve'] }
+test('without a callback number (no caller ID, none given) no action item says "Call back" or that the number is missing', async () => {
+  // call_21bd: a test call, no number given, and the summary asked the owner to call back. A missing number is not a
+  // next step either (Tim, 2026-11-16): the items say what the caller wants, and the call is filed as a message.
+  const answer = { ...llmAnswer, action_items: ['Call back Elena Novak to get her message and phone number', 'Call the caller back: she wants a plumber on Tuesday', 'Check the basement valve'] }
   const complete = vi.fn<CompleteJson>(async () => JSON.stringify(answer))
   const summary = await summarizeCall(transcript, complete, [], 'en', { callbackKnown: false })
-  expect(complete.mock.calls[0]![1]).toContain(`never write an action item to call them back; write "${NO_CALLBACK_ITEM}" instead`)
+  expect(complete.mock.calls[0]![1]).toContain('never write an action item to call them back. Write the action items about what the caller wants, and say in the summary that the caller left no number.')
   const result = mergeToolResults(summary, { messages: [], urgent: false }, false)
-  expect(NO_CALLBACK_ITEM).toBe("No callback number: caller didn't give one")
-  expect(result.actionItems).toEqual([{ text: NO_CALLBACK_ITEM }, { text: 'Check the basement valve' }])
-  expect(result.actionItems!.some(item => /call\b.*\bback/i.test(item.text))).toBe(false)
+  expect(result.actionItems).toEqual([{ text: 'She wants a plumber on Tuesday' }, { text: 'Check the basement valve' }])
+  expect(result.actionItems!.some(item => /call\b.*\bback|callback number/i.test(item.text))).toBe(false)
+  expect(result.outcome).toBe('message')
 
-  // The fallback item of a call back without one.
+  // The fallback item of a call back without one: what the call was about.
   const bare = { outcome: 'callback' as const, urgency: 'normal' as const, title: 'Leak', summary: 'Elena Novak has a burst pipe.', actionItems: [] }
-  expect(mergeToolResults(bare, { messages: [], urgent: false }, false).actionItems).toEqual([{ text: NO_CALLBACK_ITEM }])
+  const fallback = mergeToolResults(bare, { messages: [], urgent: false }, false)
+  expect(fallback.actionItems).toEqual([{ text: 'Elena Novak has a burst pipe.' }])
+  expect(fallback.outcome).toBe('message')
   // Hung up during the number step.
   const midStep = mergeToolResults({ ...bare, outcome: 'hangup' }, { messages: [], urgent: false, collecting: 'callback number' }, false)
   expect(midStep.actionItems).toEqual([
-    { text: `${NO_CALLBACK_ITEM}. The call ended while the assistant was asking for the callback number. Elena Novak has a burst pipe.` },
+    { text: 'The call ended while the assistant was asking for the callback number. Elena Novak has a burst pipe.' },
   ])
+  expect(midStep.outcome).toBe('message')
 
   // With a number the summary is unchanged.
   const known = await summarizeCall(transcript, async () => JSON.stringify(answer))
-  expect(mergeToolResults(known, { messages: [], urgent: false }).actionItems![0]).toEqual({ text: 'Call back Elena Novak to get her message and phone number' })
+  const withNumber = mergeToolResults(known, { messages: [], urgent: false })
+  expect(withNumber.actionItems![0]).toEqual({ text: 'Call back Elena Novak to get her message and phone number' })
   expect(complete.mock.calls.length).toBe(1)
 })
 

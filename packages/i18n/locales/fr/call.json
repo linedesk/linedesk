@@ -16,8 +16,6 @@
   "autoSummary.missed.notReady": "Personne n'a pris cet appel : l'assistant ne prenait pas encore d'appels. Rappelez l'appelant.",
   "autoSummary.missed.overCap": "Personne n'a pris cet appel : l'espace de travail a atteint son plafond de dépenses mensuel. Rappelez l'appelant.",
   "autoSummary.missed.title": "Appel manqué",
-  "autoSummary.noCallback": "Aucun numéro pour rappeler : l'appelant n'en a pas donné",
-  "autoSummary.noCallbackWith": "Aucun numéro pour rappeler : l'appelant n'en a pas donné. {detail}",
   "autoSummary.unavailable.title": "Appel (résumé indisponible)",
   "autoSummary.voiceFailed.item": "Rappeler l'appelant : {stage, select, stt {la transcription vocale} llm {le modèle de langage} tts {la voix} other {le modèle temps réel}} de l'assistant a échoué pendant cet appel.",
   "autoSummary.voiceFailed.summary": "{stage, select, stt {La transcription vocale} llm {Le modèle de langage} tts {La voix} other {Le modèle temps réel}} de l'assistant a échoué pendant cet appel : l'appelant n'a reçu aucune aide et a raccroché.",

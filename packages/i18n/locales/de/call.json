@@ -16,8 +16,6 @@
   "autoSummary.missed.notReady": "Niemand hat diesen Anruf angenommen: Der Assistent nahm noch keine Anrufe an. Ruf den Anrufer zurück.",
   "autoSummary.missed.overCap": "Niemand hat diesen Anruf angenommen: Der Workspace hat sein monatliches Ausgabenlimit erreicht. Ruf den Anrufer zurück.",
   "autoSummary.missed.title": "Verpasster Anruf",
-  "autoSummary.noCallback": "Keine Rückrufnummer: Der Anrufer hat keine angegeben",
-  "autoSummary.noCallbackWith": "Keine Rückrufnummer: Der Anrufer hat keine angegeben. {detail}",
   "autoSummary.unavailable.title": "Anruf (Zusammenfassung nicht verfügbar)",
   "autoSummary.voiceFailed.item": "Ruf den Anrufer zurück: {stage, select, stt {Die Spracherkennung} llm {Das Sprachmodell} tts {Die Stimme} other {Das Echtzeitmodell}} des Assistenten ist bei diesem Anruf ausgefallen.",
   "autoSummary.voiceFailed.summary": "{stage, select, stt {Die Spracherkennung} llm {Das Sprachmodell} tts {Die Stimme} other {Das Echtzeitmodell}} des Assistenten ist bei diesem Anruf ausgefallen, daher bekam der Anrufer keine Hilfe und hat aufgelegt.",

@@ -16,8 +16,6 @@
   "autoSummary.missed.notReady": "Nobody answered this call: the assistant was not taking calls yet. Call the caller back.",
   "autoSummary.missed.overCap": "Nobody answered this call: the workspace reached its monthly spending cap. Call the caller back.",
   "autoSummary.missed.title": "Missed call",
-  "autoSummary.noCallback": "No callback number: caller didn't give one",
-  "autoSummary.noCallbackWith": "No callback number: caller didn't give one. {detail}",
   "autoSummary.unavailable.title": "Call (summary unavailable)",
   "autoSummary.voiceFailed.item": "Call the caller back: the assistant's {stage, select, stt {speech to text} llm {language model} tts {voice} other {realtime model}} failed on this call.",
   "autoSummary.voiceFailed.summary": "The assistant's {stage, select, stt {speech to text} llm {language model} tts {voice} other {realtime model}} failed on this call, so the caller got no help and hung up.",

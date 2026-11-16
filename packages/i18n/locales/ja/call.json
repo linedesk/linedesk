@@ -16,8 +16,6 @@
   "autoSummary.missed.notReady": "この通話には誰も応答しませんでした。アシスタントはまだ通話を受け付けていませんでした。発信者に折り返し電話してください。",
   "autoSummary.missed.overCap": "この通話には誰も応答しませんでした。ワークスペースが月の利用上限に達しました。発信者に折り返し電話してください。",
   "autoSummary.missed.title": "不在着信",
-  "autoSummary.noCallback": "折り返し先の番号なし：発信者が伝えませんでした",
-  "autoSummary.noCallbackWith": "折り返し先の番号なし：発信者が伝えませんでした。{detail}",
   "autoSummary.unavailable.title": "通話（要約なし）",
   "autoSummary.voiceFailed.item": "発信者に折り返し電話してください：この通話でアシスタントの{stage, select, stt {音声認識} llm {言語モデル} tts {音声} other {リアルタイムモデル}}に障害が発生しました。",
   "autoSummary.voiceFailed.summary": "この通話でアシスタントの{stage, select, stt {音声認識} llm {言語モデル} tts {音声} other {リアルタイムモデル}}に障害が発生したため、発信者は対応を受けられずに電話を切りました。",

@@ -1,6 +1,5 @@
 // Every fixed text the agent files (no language model involved) is written in the team's language, like the generated
-// summaries: production, 2026-11-15, a Spanish workspace got "The caller hung up without saying anything." and the
-// next step "No callback number: caller didn't give one" in English.
+// summaries: production, 2026-11-15, a Spanish workspace got "The caller hung up without saying anything." in English.
 import { expect, test, vi } from 'vitest'
 
 // Each text says which language it was asked in, so the test sees the language that reached it.
@@ -10,7 +9,7 @@ vi.mock('./team-text.ts', () => ({
 }))
 
 const { CallLog, finishCall } = await import('./call-log.ts')
-const { hangupResult, mergeToolResults, NO_CALLBACK_ITEM, summarizeCall, voiceFailedResult } = await import(
+const { hangupResult, mergeToolResults, summarizeCall, voiceFailedResult } = await import(
   './summary.ts'
 )
 const { missedResult } = await import('./not-ready.ts')
@@ -52,28 +51,6 @@ test('a caller who said nothing: title and summary in the team language, without
   )
 })
 
-test('the missing-number item the model was told to write word for word is filed in the team language, with what followed it', async () => {
-  const answer = {
-    title: 'Reserva',
-    summary: 'La llamada fue en español. Quería reservar.',
-    outcome: 'callback',
-    urgency: 'normal',
-    action_items: [NO_CALLBACK_ITEM, `${NO_CALLBACK_ITEM}. Quería una cita el martes.`, 'Revisar la válvula'],
-  }
-  const summary = await summarizeCall(
-    [{ speaker: 'caller', text: 'Quiero reservar.' }],
-    async () => JSON.stringify(answer),
-    [],
-    'es',
-    { callbackKnown: false },
-  )
-  expect(summary.actionItems).toEqual([
-    { text: 'es:call.autoSummary.noCallback' },
-    { text: 'es:call.autoSummary.noCallbackWith {"detail":"Quería una cita el martes."}' },
-    { text: 'Revisar la válvula' },
-  ])
-})
-
 test('the items the agent adds itself are in the team language', () => {
   const bare = {
     outcome: 'callback' as const,
@@ -82,16 +59,17 @@ test('the items the agent adds itself are in the team language', () => {
     summary: 'Elena tiene una fuga.',
     actionItems: [],
   }
+  // Without a number: what the call was about, in the language of the summary.
   expect(mergeToolResults(bare, { messages: [], urgent: false }, false, 'es').actionItems).toEqual([
-    { text: 'es:call.autoSummary.noCallback' },
+    { text: 'Elena tiene una fuga.' },
   ])
   expect(mergeToolResults(bare, { messages: [], urgent: false }, true, 'es').actionItems).toEqual([
     { text: 'es:call.autoSummary.callBack {"detail":"Elena tiene una fuga."}' },
   ])
-  // An English "call back" item from the model, without a number: the missing-number item, in the team language.
+  // A "call back" item from the model, without a number: only what it is about.
   const asked = { ...bare, actionItems: [{ text: 'Call the caller back: she has a leak' }] }
   expect(mergeToolResults(asked, { messages: [], urgent: false }, false, 'es').actionItems).toEqual([
-    { text: 'es:call.autoSummary.noCallbackWith {"detail":"She has a leak"}' },
+    { text: 'She has a leak' },
   ])
   // Hung up during a collection step.
   const midStep = mergeToolResults(
