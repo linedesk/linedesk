@@ -142,7 +142,7 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     end_call: llm.tool({
       // How (no words first, the goodbye after it) is in the prompt's closing rule.
-      description: 'Hang up: when the caller said they need nothing else, or said goodbye.',
+      description: 'Hang up: only when the caller said they need nothing else, or said goodbye. Never in the same response as another tool.',
       // The goodbye is the reply to this result; the call ends once it has played (hangUpAfterGoodbye).
       execute: async (_, { ctx }) => {
         endCall(ctx.speechHandle)

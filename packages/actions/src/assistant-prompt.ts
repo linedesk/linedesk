@@ -24,10 +24,11 @@ export type CallSetup = { booking?: boolean; transfer?: boolean }
  * caller's name, callback number, prices and promises have their own parts of the prompt and are not repeated here.
  */
 /**
- * The one fixed safety rule, the same for every business and country: only when a person may be in danger right now,
- * the caller hears to contact the emergency services, and the assistant keeps helping if they stay on the call. It names
- * no number and sends nothing else away: something already over (a break-in yesterday) or damage to property that can't
- * wait (a burst pipe) is an urgent matter, handled by the owner's urgent rules (transfer contacts, flag_urgent).
+ * The one fixed safety rule, the same for every business and country. It starts with the urgent case: a problem that
+ * can't wait (a burst pipe) is for the team, handled by the owner's urgent rules (transfer contacts, flag_urgent); before
+ * it said so, gpt-4.1-mini sent such callers to the emergency services when no one could be put through (LIN-353). Only
+ * when a person may be in danger right now, the caller hears to contact the emergency services, and the assistant keeps
+ * helping if they stay on the call. It names no number.
  */
 export const EMERGENCY_RULE = PROMPT_TEXTS['rules.emergency'].text
 

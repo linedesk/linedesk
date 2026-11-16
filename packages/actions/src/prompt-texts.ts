@@ -216,7 +216,7 @@ export const PROMPT_TEXTS = {
   'rules.heading': { section: 'rules', when: 'noKnowledge', text: 'How to handle calls:\n{rules}' },
   'rules.emergency': {
     section: 'rules',
-    text: "Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them. Something that is already over, or damage to property that can't wait, is not a danger: treat it as urgent.",
+    text: "A problem that can't wait, even serious damage to property, is urgent: it is for the team, not for the emergency services. Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now, and keep helping them if they stay on the call.",
   },
   'rules.message': {
     section: 'rules',

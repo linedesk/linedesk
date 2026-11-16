@@ -23,7 +23,7 @@ test('the call rules: no number or known name asked, booking per setup, emergenc
 
 test('the emergency rule names no number and keeps helping a caller who stays', () => {
   const prompt = buildInstructions(assistant())
-  expect(prompt).toContain('tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them.')
+  expect(prompt).toContain('tell the caller to contact the emergency services now, and keep helping them if they stay on the call.')
   expect(prompt).not.toMatch(/\b(911|999|112)\b/)
 })
 

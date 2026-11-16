@@ -276,7 +276,7 @@ describe('the emergency number of the workspace country', () => {
 
   test('the emergency rule is the same in every country and names no number', () => {
     expect(EMERGENCY_RULE).toBe(
-      "Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them. Something that is already over, or damage to property that can't wait, is not a danger: treat it as urgent.",
+      "A problem that can't wait, even serious damage to property, is urgent: it is for the team, not for the emergency services. Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now, and keep helping them if they stay on the call.",
     )
     expect(callRules()).toContain(EMERGENCY_RULE)
     expect(callRules()).not.toMatch(/911|hang up/)
