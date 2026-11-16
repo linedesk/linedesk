@@ -112,7 +112,7 @@ Postgres (with `wal_level=logical`, which Electric needs), Electric, LiveKit wit
 
 | Variable | What it does |
 | --- | --- |
-| `BETTER_AUTH_SECRET` | Signs sessions. Required (`scripts/setup.sh` makes it); the API refuses to start with the placeholder. |
+| `BETTER_AUTH_SECRET` | Signs sessions. Required, at least 32 characters (`scripts/setup.sh` makes it); the API refuses to start with the placeholder or a shorter value. |
 | `POSTGRES_PASSWORD` | Database password. Required; set before the first start (`scripts/setup.sh` does, letters and digits only). Changing it later does not change the password of an existing database. |
 | `SECRETS_KEY` | Encrypts the keys connected in Server admin › Providers (`scripts/setup.sh` makes it). Keep it: without the same key they cannot be read. |
 | `PUBLIC_URL`, `LINEDESK_HTTP_BIND`, `COMPOSE_FILE` | See the table above. |

@@ -8,6 +8,10 @@ case "$BETTER_AUTH_SECRET" in
     exit 1
     ;;
 esac
+if [ "${#BETTER_AUTH_SECRET}" -lt 32 ]; then
+  echo "BETTER_AUTH_SECRET is shorter than 32 characters. Put a long random string in .env, e.g. the output of: openssl rand -base64 32" >&2
+  exit 1
+fi
 case "$DATABASE_URL" in
   *://*:linedesk@*)
     echo "POSTGRES_PASSWORD is not set. Put a random value in .env before the first start, e.g. the output of: openssl rand -hex 24" >&2
