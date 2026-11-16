@@ -205,24 +205,35 @@ export function createCalComCalendar(options: CalComOptions): CalendarProvider {
         throw new CalendarError('calcom', 'not_found', 'book failed: that is no Cal.com event type')
       const { email } = await profile()
       const phone = event.attendee?.phone && E164.test(event.attendee.phone) ? event.attendee.phone : undefined
-      const body = await request('book', {
-        method: 'POST',
-        url: api('bookings'),
-        headers: { 'cal-api-version': V_BOOKINGS },
-        body: {
-          start: new Date(event.start).toISOString(),
-          eventTypeId,
-          attendee: {
-            name: event.attendee?.name || event.title,
-            // Without the caller's address the business's own gets Cal.com's confirmation.
-            email: event.attendee?.email || email,
-            timeZone,
-            ...(phone && { phoneNumber: phone }),
+      const book = (attendeeEmail: string, notes: string) =>
+        request('book', {
+          method: 'POST',
+          url: api('bookings'),
+          headers: { 'cal-api-version': V_BOOKINGS },
+          body: {
+            start: new Date(event.start).toISOString(),
+            eventTypeId,
+            attendee: {
+              name: event.attendee?.name || event.title,
+              email: attendeeEmail,
+              timeZone,
+              ...(phone && { phoneNumber: phone }),
+            },
+            bookingFieldsResponses: { notes: notes.slice(0, 1000) },
+            metadata: { source: 'linedesk' },
           },
-          bookingFieldsResponses: { notes: event.description.slice(0, 1000) },
-          metadata: { source: 'linedesk' },
-        },
-      })
+        })
+      const callerEmail = event.attendee?.email
+      let body: Json | null
+      try {
+        // Without the caller's address the business's own gets Cal.com's confirmation.
+        body = await book(callerEmail || email, event.description)
+      } catch (e) {
+        // Cal.com refuses an address whose domain takes no mail (one misheard on the phone): the slot is still
+        // booked, under the business's address, with the caller's in the notes for the team to check.
+        if (!(callerEmail && e instanceof CalendarError && e.kind === 'invalid' && /e-?mail/i.test(e.message))) throw e
+        body = await book(email, `${event.description}\nEmail given by the caller: ${callerEmail}`.trim())
+      }
       const uid = booking(body).uid
       if (typeof uid !== 'string' || !uid)
         throw new CalendarError('calcom', 'invalid', 'book failed: Cal.com returned no booking')

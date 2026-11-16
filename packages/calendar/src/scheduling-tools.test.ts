@@ -98,6 +98,8 @@ function fakeCalCom(fault?: Fault) {
         expect(s.version).toBe('2026-02-25')
         const type = types.find(t => t.id === s.body.eventTypeId)
         if (!type) return json({ status: 'error', error: { message: 'Event type not found' } }, 404)
+        if (String(s.body.attendee?.email).endsWith('@nomail.example'))
+          return json({ status: 'error', error: { message: 'This email address cannot receive mail. Please use a valid email.' } }, 400)
         if (!offered.includes(s.body.start))
           return json(
             { status: 'error', error: { message: 'User either already has booking at this time or is not available' } },
@@ -462,6 +464,20 @@ describe('cal.com specifics', () => {
       phoneNumber: '+15035550177',
     })
     expect(b!.notes).toBe('Leak under the sink')
+  })
+
+  test("an address Cal.com refuses (no mail server) books under the account's, with the caller's in the notes", async () => {
+    const { provider, bookings } = make()
+    await provider.createEvent('101', {
+      title: 'Repair visit · Sam Patel',
+      description: 'Leak under the sink',
+      start: '2030-01-07T17:00:00.000Z',
+      end: '2030-01-07T18:00:00.000Z',
+      attendee: { name: 'Sam Patel', email: 'sam@nomail.example' },
+    })
+    const [b] = [...bookings.values()]
+    expect(b!.attendee.email).toBe('Mike@Brightwater.example')
+    expect(b!.notes).toBe('Leak under the sink\nEmail given by the caller: sam@nomail.example')
   })
 
   test('a number that is not E.164 is left out; the event type list is asked for the account by its user name', async () => {
