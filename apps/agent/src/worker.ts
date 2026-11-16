@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageName, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, spokenLines, swapDefault, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageName, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, type SpokenLines, spokenLines, swapDefault, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -409,7 +409,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)
   // Either pipeline puts calls through; a realtime call's transfer speaks and hears with OpenAI's models (transferSpeechOf).
-  const transfer = transferFrom(ctx, api, call, config, callerJoined, stopRecordingForTransfer)
+  const transfer = transferFrom(ctx, api, call, config, callerJoined, stopRecordingForTransfer, lines)
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
@@ -450,7 +450,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   })
   setup.mark('session')
   // A member can take the call over from the web app at any point now (call.takeOver).
-  const stopWatching = watchTakeOver({ room: ctx.room, session, log, stopRecording: stopRecordingForTransfer, sayLine, endCall: deleteRoom })
+  const stopWatching = watchTakeOver({ room: ctx.room, session, log, stopRecording: stopRecordingForTransfer, sayLine, line: name => lines().takeOver(name), endCall: deleteRoom })
   session.on(voice.AgentSessionEventTypes.Close, stopWatching)
   void callerDetails.then(async details => {
     if (!details) return
@@ -507,7 +507,7 @@ function keepRealtimeHistory(session: voice.AgentSession, agent: voice.Agent, no
  * is looked up right away, so a transfer does not wait for it, but nothing is dialled until the assistant uses the tool.
  * null: no contact takes calls now (none set up, closed, vacation mode).
  */
-function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config: CallConfig, callerJoined: Promise<RemoteParticipant>, stopRecording: () => Promise<void>): Transfer {
+function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config: CallConfig, callerJoined: Promise<RemoteParticipant>, stopRecording: () => Promise<void>, lines: () => SpokenLines): Transfer {
   const contacts = transferContactsFor(call.assistant, call.businessHours)
   if (!contacts.length) return null
   const speech = transferSpeechOf(config, call.assistant)
@@ -522,7 +522,7 @@ function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config
   )
   const callerIdentity = callerJoined.then(caller => caller.identity)
   void callerIdentity.catch(() => {}) // the call ends without a caller; nobody waits for it then
-  return { ctx, speech, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id)?.() ?? Promise.resolve(null), stopRecording }
+  return { ctx, speech, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id)?.() ?? Promise.resolve(null), stopRecording, lines }
 }
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */

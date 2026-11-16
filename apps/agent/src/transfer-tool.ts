@@ -1,7 +1,7 @@
 // The assistant's transfer_call tool: puts the caller through to the transfer contact whose condition
 // fits (warm transfer, transfer-call.ts), tries the next one when the contact says so, and records how
 // each try went with call.transfer.
-import { type CallTransferData, callTakeMessage, callTransfer, type TransferResult } from '@linedesk/actions'
+import { type CallTransferData, callTakeMessage, callTransfer, type SpokenLines, type TransferResult } from '@linedesk/actions'
 import { llm, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -24,7 +24,6 @@ import {
   transferLabel,
   transferCallerName,
   transferPlan,
-  tryingNextLine,
 } from './transfer.ts'
 import { type Livekit, warmTransfer } from './transfer-call.ts'
 
@@ -154,6 +153,8 @@ type TransferToolDeps = {
   contacts: Dialable[]
   /** How to dial a contact, looked up when the call starts; null: it cannot be dialled on this call. */
   dialerOf: (contact: Dialable) => Promise<OnCallDialer | null>
+  /** The call's fixed lines in the language spoken now (the main one until the caller switches). */
+  lines: () => SpokenLines
 }
 
 /** Aborts when the caller leaves the room. */
@@ -217,7 +218,7 @@ export function transferToolDescription(contacts: readonly Pick<Dialable, 'name'
  * condition fits. A contact that cannot be dialled counts as not answered: the next one is tried only when its
  * "if nobody accepts" says so (transferPlan), else the assistant takes a message.
  */
-export function transferTool({ ctx, api, call, log, speech, callerIdentity, contacts, dialerOf, stopRecording }: TransferToolDeps) {
+export function transferTool({ ctx, api, call, log, speech, callerIdentity, contacts, dialerOf, stopRecording, lines }: TransferToolDeps) {
   let tried = false
   const names = contacts.map(c => c.name) as [string, ...string[]]
   return llm.tool({
@@ -281,7 +282,7 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
           break // the workspace's limits: the next contact would be refused too
         }
         // A fixed line, so the caller always hears whom they are put through to before the ringback.
-        const text = previous ? tryingNextLine(previous.name, contact.name) : connectingText(contact.name)
+        const text = connectingText(lines(), contact.name, previous?.name ?? null)
         const announcement = await connectingLine(speech, text).catch(e => {
           console.warn(`could not make the connecting line: ${e instanceof Error ? e.message : String(e)}`)
           return undefined

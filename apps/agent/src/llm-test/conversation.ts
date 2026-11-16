@@ -218,7 +218,7 @@ export async function runCall(
       if (transferTried) return { result: record(TRANSFER_TRIED, args), next: true }
       transferTried = true
       const picked = (args.contacts as string[] | undefined)?.[0] ?? setup.transfers[0]?.name ?? 'someone'
-      line(turn, connectingLine(picked), 'transfer_call', { duringTools: true })
+      line(turn, connectingLine(lines, picked, null), 'transfer_call', { duringTools: true })
       if ((sim.transfer ?? 'not_connected') === 'connected') {
         record('(connected: the caller talks with the person now)', args)
         t.ended = true

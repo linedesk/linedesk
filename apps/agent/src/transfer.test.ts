@@ -1,3 +1,4 @@
+import { spokenLines } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test, vi } from 'vitest'
 import { ringbackFrame } from './audio-bridge.ts'
@@ -412,8 +413,11 @@ test('a test call from the web app asks for a simulated transfer; only `true` co
   expect(parseTestMetadata(JSON.stringify({ source: 'test', workspaceId: 'w' }))?.simulateTransfer).toBeUndefined()
 })
 
-test('the caller hears that the assistant is trying to reach the contact', () => {
-  expect(connectingLine('Mike')).toBe("I'm trying to reach Mike now. Please stay on the line.")
+test('the caller hears that the assistant is trying to reach the contact, in the language spoken now', () => {
+  expect(connectingLine(spokenLines('en'), 'Mike', null)).toBe("I'm trying to reach Mike now. Please stay on the line.")
+  expect(connectingLine(spokenLines('en'), 'Sarah', 'Mike')).toBe("Mike can't take the call right now. Let me try Sarah. Please stay on the line.")
+  expect(connectingLine(spokenLines('de'), 'Mike', null)).toBe('Ich versuche jetzt, Mike zu erreichen. Bitte bleiben Sie dran.')
+  expect(connectingLine(spokenLines('de'), 'Sarah', 'Mike')).toBe('Mike kann den Anruf gerade nicht annehmen. Ich versuche es bei Sarah. Bitte bleiben Sie dran.')
   expect(transferToolDescription([contact()])).toContain('It tells the caller itself that you are trying to reach them')
 })
 
@@ -442,6 +446,7 @@ function runTransfer(contacts: Dialable[], dialable: (c: Dialable) => boolean) {
     speech: {} as never,
     callerIdentity: Promise.resolve('caller'),
     contacts,
+    lines: () => spokenLines('en'),
     dialerOf: async c => {
       dialed.push(c.name)
       return dialable(c) ? ({ dial: async () => {} } as never) : null

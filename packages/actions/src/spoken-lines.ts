@@ -1,6 +1,6 @@
 // The fixed lines an assistant says on a call, in each language it can speak (languages.ts; spoken-lines.test.ts
 // checks every language has every line): the default
-// greeting, the AI note, goodbye, silence and limit lines, busy lines and quick tool replies.
+// greeting, the AI note, goodbye, silence and limit lines, busy lines, quick tool replies and the hand-over lines.
 // Owner-written texts (greeting, closing line, recording notice) are kept as written; only when one is still
 // the English default and the main language is another is it swapped for that language's default (localizedDefault).
 import type { Language } from './languages.ts'
@@ -37,6 +37,12 @@ export type SpokenLines = {
    */
   urgentFlaggedNoCallerId: string
   recordingNotice: string
+  /** Said right before the ringback of a transfer: whom the assistant is trying to reach. */
+  transferConnecting: (name: string) => string
+  /** Said before the next contact's ringback, when the one before did not take the call. */
+  transferNext: (previous: string, next: string) => string
+  /** Said when a team member takes the call over from the app, before they speak. */
+  takeOver: (name: string) => string
 }
 
 const en: SpokenLines = {
@@ -60,6 +66,9 @@ const en: SpokenLines = {
     "I've marked this as urgent for the team. Is the number you're calling from the best way to reach you?",
   urgentFlaggedNoCallerId: "I've marked this as urgent for the team. What number can we call you back on?",
   recordingNotice: 'This call may be recorded.',
+  transferConnecting: n => `I'm trying to reach ${n} now. Please stay on the line.`,
+  transferNext: (p, n) => `${p} can't take the call right now. Let me try ${n}. Please stay on the line.`,
+  takeOver: n => `I'm putting you through to ${n} now.`,
 }
 
 const es: SpokenLines = {
@@ -84,6 +93,9 @@ const es: SpokenLines = {
     'He marcado esto como urgente para el equipo. ¿El número desde el que llama es el mejor para localizarle?',
   urgentFlaggedNoCallerId: 'He marcado esto como urgente para el equipo. ¿A qué número le podemos devolver la llamada?',
   recordingNotice: 'Esta llamada puede ser grabada.',
+  transferConnecting: n => `Estoy intentando comunicarme con ${n}. Por favor, no cuelgue.`,
+  transferNext: (p, n) => `${p} no puede atender la llamada en este momento. Voy a intentarlo con ${n}. Por favor, no cuelgue.`,
+  takeOver: n => `Le paso con ${n} ahora.`,
 }
 
 const fr: SpokenLines = {
@@ -108,6 +120,9 @@ const fr: SpokenLines = {
     "J'ai signalé cet appel comme urgent à l'équipe. Le numéro depuis lequel vous appelez est-il le meilleur pour vous joindre ?",
   urgentFlaggedNoCallerId: "J'ai signalé cet appel comme urgent à l'équipe. À quel numéro pouvons-nous vous rappeler ?",
   recordingNotice: 'Cet appel peut être enregistré.',
+  transferConnecting: n => `J'essaie de joindre ${n}. Merci de rester en ligne.`,
+  transferNext: (p, n) => `${p} ne peut pas prendre l'appel pour le moment. Je vais essayer ${n}. Merci de rester en ligne.`,
+  takeOver: n => `Je vous passe ${n}.`,
 }
 
 const de: SpokenLines = {
@@ -134,6 +149,9 @@ const de: SpokenLines = {
   urgentFlaggedNoCallerId:
     'Ich habe das für das Team als dringend markiert. Unter welcher Nummer können wir Sie zurückrufen?',
   recordingNotice: 'Dieser Anruf wird möglicherweise aufgezeichnet.',
+  transferConnecting: n => `Ich versuche jetzt, ${n} zu erreichen. Bitte bleiben Sie dran.`,
+  transferNext: (p, n) => `${p} kann den Anruf gerade nicht annehmen. Ich versuche es bei ${n}. Bitte bleiben Sie dran.`,
+  takeOver: n => `Ich verbinde Sie jetzt mit ${n}.`,
 }
 
 const it: SpokenLines = {
@@ -158,6 +176,9 @@ const it: SpokenLines = {
     'Ho segnalato la cosa come urgente al team. Il numero da cui sta chiamando è il migliore per raggiungerla?',
   urgentFlaggedNoCallerId: 'Ho segnalato la cosa come urgente al team. A quale numero possiamo richiamarla?',
   recordingNotice: 'Questa chiamata potrebbe essere registrata.',
+  transferConnecting: n => `Sto cercando di contattare ${n}. Resti in linea, per favore.`,
+  transferNext: (p, n) => `${p} non può rispondere in questo momento. Provo con ${n}. Resti in linea, per favore.`,
+  takeOver: n => `Le passo ${n} ora.`,
 }
 
 const pt: SpokenLines = {
@@ -182,6 +203,9 @@ const pt: SpokenLines = {
     'Marquei isso como urgente para a equipe. O número de onde você está ligando é o melhor para falar com você?',
   urgentFlaggedNoCallerId: 'Marquei isso como urgente para a equipe. Em qual número podemos retornar a ligação?',
   recordingNotice: 'Esta ligação pode ser gravada.',
+  transferConnecting: n => `Estou tentando falar com ${n} agora. Por favor, aguarde na linha.`,
+  transferNext: (p, n) => `${p} não pode atender agora. Vou tentar ${n}. Por favor, aguarde na linha.`,
+  takeOver: n => `Vou transferir você para ${n} agora.`,
 }
 
 const nl: SpokenLines = {
@@ -206,6 +230,9 @@ const nl: SpokenLines = {
     'Ik heb dit als dringend gemarkeerd voor het team. Bent u het best bereikbaar op het nummer waarmee u belt?',
   urgentFlaggedNoCallerId: 'Ik heb dit als dringend gemarkeerd voor het team. Op welk nummer kunnen we u terugbellen?',
   recordingNotice: 'Dit gesprek kan worden opgenomen.',
+  transferConnecting: n => `Ik probeer ${n} nu te bereiken. Blijft u even aan de lijn.`,
+  transferNext: (p, n) => `${p} kan het gesprek nu niet aannemen. Ik probeer ${n}. Blijft u even aan de lijn.`,
+  takeOver: n => `Ik verbind u nu door met ${n}.`,
 }
 
 const ru: SpokenLines = {
@@ -228,6 +255,9 @@ const ru: SpokenLines = {
     'Это отмечено для команды как срочное. По номеру, с которого вы звоните, с вами лучше всего связаться?',
   urgentFlaggedNoCallerId: 'Это отмечено для команды как срочное. По какому номеру вам можно перезвонить?',
   recordingNotice: 'Этот звонок может записываться.',
+  transferConnecting: n => `Сейчас я попробую связаться с ${n}. Пожалуйста, оставайтесь на линии.`,
+  transferNext: (p, n) => `${p} сейчас не может ответить. Попробую связаться с ${n}. Пожалуйста, оставайтесь на линии.`,
+  takeOver: n => `Соединяю вас с ${n}.`,
 }
 
 const hi: SpokenLines = {
@@ -251,6 +281,9 @@ const hi: SpokenLines = {
     'इसे टीम के लिए ज़रूरी के रूप में चिह्नित कर दिया गया है। क्या जिस नंबर से आप कॉल कर रहे हैं, उसी पर आपसे संपर्क करना सबसे अच्छा रहेगा?',
   urgentFlaggedNoCallerId: 'इसे टीम के लिए ज़रूरी के रूप में चिह्नित कर दिया गया है। हम आपको किस नंबर पर वापस कॉल करें?',
   recordingNotice: 'यह कॉल रिकॉर्ड की जा सकती है।',
+  transferConnecting: n => `मैं अभी ${n} से संपर्क करने की कोशिश कर रही हूँ। कृपया लाइन पर बने रहें।`,
+  transferNext: (p, n) => `${p} अभी कॉल नहीं ले सकते। मैं ${n} से संपर्क करने की कोशिश करती हूँ। कृपया लाइन पर बने रहें।`,
+  takeOver: n => `मैं आपको अभी ${n} से जोड़ रही हूँ।`,
 }
 
 const ja: SpokenLines = {
@@ -274,6 +307,9 @@ const ja: SpokenLines = {
   urgentFlagged: '緊急としてチームに伝えました。今おかけの番号にご連絡すればよろしいでしょうか？',
   urgentFlaggedNoCallerId: '緊急としてチームに伝えました。折り返しのお電話番号を教えていただけますか？',
   recordingNotice: 'この通話は録音される場合があります。',
+  transferConnecting: n => `ただいま${n}におつなぎしています。このままお待ちください。`,
+  transferNext: (p, n) => `${p}は現在電話に出られません。${n}におつなぎします。このままお待ちください。`,
+  takeOver: n => `${n}におつなぎします。`,
 }
 
 const zh: SpokenLines = {
@@ -295,6 +331,9 @@ const zh: SpokenLines = {
   urgentFlagged: '我已为团队将此事标记为紧急。请问用您现在拨打的这个号码联系您最方便吗？',
   urgentFlaggedNoCallerId: '我已为团队将此事标记为紧急。请问我们打哪个号码给您回电？',
   recordingNotice: '本次通话可能会被录音。',
+  transferConnecting: n => `我正在为您联系${n}，请不要挂断。`,
+  transferNext: (p, n) => `${p}现在无法接听。我来试试联系${n}，请不要挂断。`,
+  takeOver: n => `我现在为您转接${n}。`,
 }
 
 const ko: SpokenLines = {
@@ -318,6 +357,9 @@ const ko: SpokenLines = {
   urgentFlagged: '팀에 긴급 건으로 표시해 두었습니다. 지금 거신 번호로 연락드리면 될까요?',
   urgentFlaggedNoCallerId: '팀에 긴급 건으로 표시해 두었습니다. 어느 번호로 다시 연락드리면 될까요?',
   recordingNotice: '이 통화는 녹음될 수 있습니다.',
+  transferConnecting: n => `지금 ${n} 님께 연결하고 있습니다. 끊지 말고 잠시만 기다려 주세요.`,
+  transferNext: (p, n) => `지금 ${p} 님은 전화를 받을 수 없습니다. ${n} 님께 연결해 보겠습니다. 끊지 말고 잠시만 기다려 주세요.`,
+  takeOver: n => `지금 ${n} 님께 연결해 드리겠습니다.`,
 }
 
 const pl: SpokenLines = {
@@ -343,6 +385,9 @@ const pl: SpokenLines = {
     'Sprawa została oznaczona dla zespołu jako pilna. Czy najlepiej kontaktować się pod numerem, z którego przychodzi to połączenie?',
   urgentFlaggedNoCallerId: 'Sprawa została oznaczona dla zespołu jako pilna. Pod jaki numer możemy oddzwonić?',
   recordingNotice: 'Ta rozmowa może być nagrywana.',
+  transferConnecting: n => `Próbuję teraz skontaktować się z ${n}. Proszę pozostać na linii.`,
+  transferNext: (p, n) => `${p} nie może teraz odebrać. Spróbuję połączyć z ${n}. Proszę pozostać na linii.`,
+  takeOver: n => `Teraz łączę z ${n}.`,
 }
 
 const tr: SpokenLines = {
@@ -367,6 +412,9 @@ const tr: SpokenLines = {
   urgentFlagged: 'Bunu ekip için acil olarak işaretledim. Size en iyi şu an aradığınız numaradan mı ulaşabiliriz?',
   urgentFlaggedNoCallerId: 'Bunu ekip için acil olarak işaretledim. Sizi hangi numaradan geri arayabiliriz?',
   recordingNotice: 'Bu görüşme kaydedilebilir.',
+  transferConnecting: n => `Şimdi ${n} ile bağlantı kurmaya çalışıyorum. Lütfen hatta kalın.`,
+  transferNext: (p, n) => `${p} şu anda çağrıyı alamıyor. ${n} ile deneyeceğim. Lütfen hatta kalın.`,
+  takeOver: n => `Sizi şimdi ${n} ile bağlıyorum.`,
 }
 
 const vi: SpokenLines = {
@@ -393,6 +441,9 @@ const vi: SpokenLines = {
   urgentFlaggedNoCallerId:
     'Tôi đã đánh dấu việc này là khẩn cấp cho đội ngũ. Chúng tôi có thể gọi lại cho quý khách theo số nào ạ?',
   recordingNotice: 'Cuộc gọi này có thể được ghi âm.',
+  transferConnecting: n => `Tôi đang liên hệ với ${n}. Xin quý khách vui lòng giữ máy.`,
+  transferNext: (p, n) => `${p} hiện không thể nghe máy. Tôi sẽ thử liên hệ với ${n}. Xin quý khách vui lòng giữ máy.`,
+  takeOver: n => `Tôi đang nối máy cho quý khách với ${n}.`,
 }
 
 const id: SpokenLines = {
@@ -420,6 +471,9 @@ const id: SpokenLines = {
   urgentFlaggedNoCallerId:
     'Saya sudah menandai ini sebagai mendesak untuk tim. Ke nomor berapa kami bisa menelepon Anda kembali?',
   recordingNotice: 'Panggilan ini mungkin direkam.',
+  transferConnecting: n => `Saya sedang mencoba menghubungi ${n}. Mohon tetap di saluran.`,
+  transferNext: (p, n) => `${p} tidak dapat menerima panggilan saat ini. Saya akan mencoba ${n}. Mohon tetap di saluran.`,
+  takeOver: n => `Saya sambungkan Anda ke ${n} sekarang.`,
 }
 
 const sv: SpokenLines = {
@@ -445,6 +499,9 @@ const sv: SpokenLines = {
   urgentFlaggedNoCallerId:
     'Jag har markerat det här som brådskande för teamet. Vilket nummer kan vi ringa tillbaka till dig på?',
   recordingNotice: 'Samtalet kan komma att spelas in.',
+  transferConnecting: n => `Jag försöker nå ${n} nu. Var vänlig och stanna kvar i luren.`,
+  transferNext: (p, n) => `${p} kan inte ta samtalet just nu. Jag försöker med ${n}. Var vänlig och stanna kvar i luren.`,
+  takeOver: n => `Jag kopplar dig till ${n} nu.`,
 }
 
 const ar: SpokenLines = {
@@ -466,6 +523,9 @@ const ar: SpokenLines = {
   urgentFlagged: 'لقد حددت هذا الطلب كعاجل للفريق. هل الرقم الذي تتصل منه هو أفضل رقم للتواصل معك؟',
   urgentFlaggedNoCallerId: 'لقد حددت هذا الطلب كعاجل للفريق. على أي رقم يمكننا معاودة الاتصال بك؟',
   recordingNotice: 'قد يتم تسجيل هذه المكالمة.',
+  transferConnecting: n => `أحاول الآن الوصول إلى ${n}. يرجى البقاء على الخط.`,
+  transferNext: (p, n) => `لا يستطيع ${p} الرد على المكالمة الآن. سأحاول مع ${n}. يرجى البقاء على الخط.`,
+  takeOver: n => `سأحولك الآن إلى ${n}.`,
 }
 
 const uk: SpokenLines = {
@@ -489,6 +549,9 @@ const uk: SpokenLines = {
     'Це позначено для команди як термінове. Чи найкраще зв’язатися з вами за номером, з якого ви телефонуєте?',
   urgentFlaggedNoCallerId: 'Це позначено для команди як термінове. За яким номером вам можна передзвонити?',
   recordingNotice: 'Цей дзвінок може записуватися.',
+  transferConnecting: n => `Зараз я спробую зв'язатися з ${n}. Будь ласка, залишайтеся на лінії.`,
+  transferNext: (p, n) => `${p} зараз не може відповісти. Спробую зв'язатися з ${n}. Будь ласка, залишайтеся на лінії.`,
+  takeOver: n => `З'єдную вас із ${n}.`,
 }
 
 const ro: SpokenLines = {
@@ -513,6 +576,9 @@ const ro: SpokenLines = {
     'Am marcat acest lucru ca urgent pentru echipă. Numărul de pe care sunați este cel mai bun pentru a vă contacta?',
   urgentFlaggedNoCallerId: 'Am marcat acest lucru ca urgent pentru echipă. La ce număr vă putem suna înapoi?',
   recordingNotice: 'Acest apel poate fi înregistrat.',
+  transferConnecting: n => `Încerc acum să iau legătura cu ${n}. Vă rog să rămâneți la telefon.`,
+  transferNext: (p, n) => `${p} nu poate prelua apelul acum. Încerc la ${n}. Vă rog să rămâneți la telefon.`,
+  takeOver: n => `Vă fac legătura acum cu ${n}.`,
 }
 
 const cs: SpokenLines = {
@@ -536,6 +602,9 @@ const cs: SpokenLines = {
   urgentFlagged: 'Pro tým je to teď označeno jako naléhavé. Jste nejlépe k zastižení na čísle, ze kterého voláte?',
   urgentFlaggedNoCallerId: 'Pro tým je to teď označeno jako naléhavé. Na jaké číslo vám můžeme zavolat zpět?',
   recordingNotice: 'Tento hovor může být nahráván.',
+  transferConnecting: n => `Zkouším se teď spojit s ${n}. Zůstaňte prosím na lince.`,
+  transferNext: (p, n) => `${p} teď nemůže hovor přijmout. Zkusím ${n}. Zůstaňte prosím na lince.`,
+  takeOver: n => `Přepojuji vás teď na ${n}.`,
 }
 
 const el: SpokenLines = {
@@ -561,6 +630,9 @@ const el: SpokenLines = {
     'Το σημείωσα ως επείγον για την ομάδα. Ο αριθμός από τον οποίο καλείτε είναι ο καλύτερος για να επικοινωνήσουμε μαζί σας;',
   urgentFlaggedNoCallerId: 'Το σημείωσα ως επείγον για την ομάδα. Σε ποιον αριθμό μπορούμε να σας καλέσουμε πίσω;',
   recordingNotice: 'Αυτή η κλήση ενδέχεται να καταγράφεται.',
+  transferConnecting: n => `Προσπαθώ να επικοινωνήσω με ${n}. Παρακαλώ μείνετε στη γραμμή.`,
+  transferNext: (p, n) => `${p} δεν μπορεί να απαντήσει αυτή τη στιγμή. Θα δοκιμάσω με ${n}. Παρακαλώ μείνετε στη γραμμή.`,
+  takeOver: n => `Σας συνδέω τώρα με ${n}.`,
 }
 
 const da: SpokenLines = {
@@ -586,6 +658,9 @@ const da: SpokenLines = {
     'Jeg har markeret det som hastende for teamet. Er det nummer, du ringer fra, det bedste at fange dig på?',
   urgentFlaggedNoCallerId: 'Jeg har markeret det som hastende for teamet. Hvilket nummer kan vi ringe dig tilbage på?',
   recordingNotice: 'Opkaldet kan blive optaget.',
+  transferConnecting: n => `Jeg prøver at få fat i ${n} nu. Bliv venligst på linjen.`,
+  transferNext: (p, n) => `${p} kan ikke tage opkaldet lige nu. Jeg prøver ${n}. Bliv venligst på linjen.`,
+  takeOver: n => `Jeg stiller dig om til ${n} nu.`,
 }
 
 const fi: SpokenLines = {
@@ -608,6 +683,9 @@ const fi: SpokenLines = {
   urgentFlagged: 'Merkitsin tämän tiimille kiireelliseksi. Tavoittaako sinut parhaiten numerosta, josta soitat?',
   urgentFlaggedNoCallerId: 'Merkitsin tämän tiimille kiireelliseksi. Mihin numeroon voimme soittaa sinulle takaisin?',
   recordingNotice: 'Tämä puhelu saatetaan tallentaa.',
+  transferConnecting: n => `Yritän nyt tavoittaa henkilön ${n}. Pysy linjalla.`,
+  transferNext: (p, n) => `${p} ei pysty vastaamaan juuri nyt. Yritän tavoittaa henkilön ${n}. Pysy linjalla.`,
+  takeOver: n => `Yhdistän sinut nyt henkilölle ${n}.`,
 }
 
 const no: SpokenLines = {
@@ -631,6 +709,9 @@ const no: SpokenLines = {
   urgentFlagged: 'Jeg har markert dette som haster for teamet. Er nummeret du ringer fra, det beste å nå deg på?',
   urgentFlaggedNoCallerId: 'Jeg har markert dette som haster for teamet. Hvilket nummer kan vi ringe deg tilbake på?',
   recordingNotice: 'Denne samtalen kan bli tatt opp.',
+  transferConnecting: n => `Jeg prøver å nå ${n} nå. Vennligst bli på linjen.`,
+  transferNext: (p, n) => `${p} kan ikke ta samtalen akkurat nå. Jeg prøver ${n}. Vennligst bli på linjen.`,
+  takeOver: n => `Jeg setter deg over til ${n} nå.`,
 }
 
 const hu: SpokenLines = {
@@ -654,6 +735,9 @@ const hu: SpokenLines = {
   urgentFlagged: 'Ezt sürgősként jelöltem meg a csapatnak. Azon a számon érhetjük el a legjobban, amelyről most hív?',
   urgentFlaggedNoCallerId: 'Ezt sürgősként jelöltem meg a csapatnak. Melyik számon hívhatjuk vissza?',
   recordingNotice: 'Ez a hívás rögzítésre kerülhet.',
+  transferConnecting: n => `Most próbálom elérni ${n} kollégánkat. Kérem, maradjon a vonalban.`,
+  transferNext: (p, n) => `${p} most nem tudja fogadni a hívást. Megpróbálom ${n} kollégánkat. Kérem, maradjon a vonalban.`,
+  takeOver: n => `Most kapcsolom ${n} kollégánkat.`,
 }
 
 const LINES: Record<Language, SpokenLines> = {

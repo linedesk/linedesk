@@ -17,9 +17,6 @@ const TAKE_OVER_PREFIX = 'takeover-'
 /** How long the call waits for a member whose connection dropped (not hung up) before it ends. */
 export const REJOIN_GRACE_MS = 15_000
 
-/** What the caller hears before the member speaks. */
-export const takeOverLine = (name: string) => `I'm putting you through to ${name} now.`
-
 /** The member's name when this participant took the call over; null for anyone else. */
 export function takeOverName(participant: Pick<RemoteParticipant, 'identity' | 'attributes'>): string | null {
   if (!participant.identity.startsWith(TAKE_OVER_PREFIX)) return null
@@ -69,6 +66,8 @@ type Deps = {
   stopRecording: () => Promise<void>
   /** Says a line the caller cannot interrupt; resolves once it has played. */
   sayLine: (text: string) => Promise<void>
+  /** What the caller hears before the member speaks, in the language spoken now (spokenLines takeOver). */
+  line: (name: string) => string
   /** Ends the call for everyone. */
   endCall: () => void
   members?: Members
@@ -81,6 +80,7 @@ export function watchTakeOver({
   log,
   stopRecording,
   sayLine,
+  line,
   endCall,
   members = livekitMembers(room.name ?? ''),
 }: Deps): () => void {
@@ -126,7 +126,7 @@ export function watchTakeOver({
       return refuse(participant)
     }
     // Said through the session, so it reaches the transcript like the assistant's other lines.
-    await sayLine(takeOverLine(name)).catch(() => {})
+    await sayLine(line(name)).catch(() => {})
     session.output.setAudioEnabled(false)
     // Like a connected transfer: neither silence nor the assistant's time limit ends the call now.
     log.transferred = true

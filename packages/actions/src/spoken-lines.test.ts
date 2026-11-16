@@ -47,6 +47,15 @@ test('every language an assistant can speak has every fixed line, in its own wor
     expect(lines.greeting('Brightwater Plumbing', 'Maya', false), code).not.toMatch(lines.aiNote)
     expect(lines.aiSentence('Maya'), code).toMatch(lines.aiNote)
     expect(lines.aiSentence('Maya')).toContain('Maya')
+    // The hand-over lines name the people, in the language's own words.
+    expect(lines.transferConnecting('Mike'), code).toContain('Mike')
+    expect(lines.transferNext('Mike', 'Sarah'), code).toMatch(/Mike.*Sarah/)
+    expect(lines.takeOver('Mike'), code).toContain('Mike')
+    if (code !== 'en') {
+      expect(lines.transferConnecting('Mike'), `${code}.transferConnecting`).not.toBe(english.transferConnecting('Mike'))
+      expect(lines.transferNext('Mike', 'Sarah'), `${code}.transferNext`).not.toBe(english.transferNext('Mike', 'Sarah'))
+      expect(lines.takeOver('Mike'), `${code}.takeOver`).not.toBe(english.takeOver('Mike'))
+    }
   }
 })
 

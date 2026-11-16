@@ -1,7 +1,7 @@
 // Warm transfer, the decisions without any audio: which transfer contacts the assistant may put
 // callers through to on this call, in which order it tries them and what happens when nobody accepts,
 // what the person hears, and how their answer is read. The call itself is in transfer-call.ts.
-import { isActiveContact, RING_SECONDS_DEFAULT, type TransferResult } from '@linedesk/actions'
+import { isActiveContact, RING_SECONDS_DEFAULT, type SpokenLines, type TransferResult } from '@linedesk/actions'
 import type { Assistant, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -130,12 +130,12 @@ export function transferLabel(result: TransferResult, to: string, name?: string)
   return 'Transfer not answered'
 }
 
-/** What the caller hears right before the ringback: whom the assistant is trying to reach. */
-export const connectingLine = (name: string) => `I'm trying to reach ${name} now. Please stay on the line.`
-
-/** What the caller hears before the next contact's ringback, when the one before did not take the call. */
-export const tryingNextLine = (previous: string, next: string) =>
-  `${previous} can't take the call right now. Let me try ${next}. Please stay on the line.`
+/**
+ * What the caller hears right before a contact's ringback, in the language spoken now (spokenLines): whom the
+ * assistant is trying to reach, and after a contact who did not take the call, that it tries the next one.
+ */
+export const connectingLine = (lines: Pick<SpokenLines, 'transferConnecting' | 'transferNext'>, next: string, previous: string | null) =>
+  previous ? lines.transferNext(previous, next) : lines.transferConnecting(next)
 
 /**
  * The message the team gets when nobody took the call, saved by the transfer itself: the assistant does not always
