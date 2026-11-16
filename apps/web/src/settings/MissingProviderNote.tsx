@@ -8,6 +8,8 @@ const KINDS = {
   voice: { group: 'answering' },
   calendar: { group: 'calendar' },
   answering: { group: 'answering' },
+  // Call emails (Settings › Assistant): without a language model every call email goes to everyone with them on.
+  emailRouting: { group: 'answering' },
 } as const
 
 export type MissingProviderKind = keyof typeof KINDS

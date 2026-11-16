@@ -32,6 +32,17 @@ describe('audit labels', () => {
     expect(label('outboundCountries.set', { countries: [] })).toBe('Allowed no calls to other countries')
   })
 
+  test('a change of the call email instruction names who it added and removed, never the text', () => {
+    const routing = (changes: { added: string[]; removed: string[] }) =>
+      auditLabel({ what: 'assistant.update', method: null, input: {}, subject: null, emailRoutingChanges: changes })
+    expect(routing({ added: ['Dave', 'rosa@lakeside-books.example'], removed: ['Mike'] })).toBe(
+      'Changed who gets call emails (added Dave and rosa@lakeside-books.example, removed Mike)',
+    )
+    expect(routing({ added: [], removed: [] })).toBe('Changed who gets call emails')
+    // A refused change has no result: its input had the instruction (redacted).
+    expect(label('assistant.update', { email_routing: '[redacted]' })).toBe('Changed who gets call emails')
+  })
+
   test('a change of what the calls cost names the models before and after', () => {
     const level = (what: string) =>
       auditLabel({

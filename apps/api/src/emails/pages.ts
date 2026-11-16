@@ -27,3 +27,50 @@ export function setupUnsubscribePage(kind: 'invalid' | 'confirm' | 'done', local
     `${paragraph(t('email.unsubscribe.confirmText', { brand: brandName() }))}<form method="post" action="${htmlEscape(action)}"><button type="submit">${htmlEscape(t('email.unsubscribe.confirmButton'))}</button></form>`,
   )
 }
+
+/**
+ * The confirmation link of an address outside the team (email-recipients.ts): `invalid` (unknown or expired),
+ * `confirm` (the page with the button; `action` is where it posts) and `done`. `workspace` is email-safe.
+ */
+export function outsideConfirmPage(
+  kind: 'invalid' | 'confirm' | 'done',
+  locale: EmailLocale,
+  workspace = '',
+  action = '',
+): string {
+  const { t, locale: lang } = getT(locale)
+  if (kind === 'invalid')
+    return page(lang, t('email.outsidePage.confirmInvalidTitle'), paragraph(t('email.outsidePage.confirmInvalidText')))
+  if (kind === 'done')
+    return page(lang, t('email.outsidePage.confirmDoneTitle'), paragraph(t('email.outsidePage.confirmDoneText', { workspace })))
+  return page(
+    lang,
+    t('email.outsidePage.confirmTitle', { workspace }),
+    `${paragraph(t('email.outsidePage.confirmText', { workspace }))}<form method="post" action="${htmlEscape(action)}"><button type="submit">${htmlEscape(t('email.outsidePage.confirmButton'))}</button></form>`,
+  )
+}
+
+/** The stop link in call emails to an address outside the team: `invalid`, `confirm` (with the button) and `done`. */
+export function outsideStopPage(
+  kind: 'invalid' | 'confirm' | 'done',
+  locale: EmailLocale,
+  workspace = '',
+  action = '',
+): string {
+  const { t, locale: lang } = getT(locale)
+  if (kind === 'invalid')
+    return page(lang, t('email.unsubscribe.invalidTitle'), paragraph(t('email.outsidePage.stopInvalidText')))
+  if (kind === 'done')
+    return page(lang, t('email.outsidePage.stopDoneTitle'), paragraph(t('email.outsidePage.stopDoneText', { workspace })))
+  return page(
+    lang,
+    t('email.outsidePage.stopTitle', { workspace }),
+    `${paragraph(t('email.outsidePage.stopText', { workspace }))}<form method="post" action="${htmlEscape(action)}"><button type="submit">${htmlEscape(t('email.outsidePage.stopButton'))}</button></form>`,
+  )
+}
+
+/** The confirm and stop pages when one client address asked too often (email-recipients.ts, per minute). */
+export function outsideBusyPage(locale: EmailLocale): string {
+  const { t, locale: lang } = getT(locale)
+  return page(lang, t('email.outsidePage.busyTitle'), paragraph(t('email.outsidePage.busyText')))
+}

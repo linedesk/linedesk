@@ -172,6 +172,17 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
       },
     },
     {
+      // A change of the call email instruction: who it added and removed stays, the text goes.
+      id: id('old-routing'),
+      action: 'assistant.update',
+      created_at: old,
+      input: { assistantId: 'as_1', email_routing: 'Water heater calls to <@user:u_1>.' },
+      result: {
+        ok: true,
+        data: { emailRoutingChanges: { added: [{ kind: 'member', id: 'u_1', name: 'Dave' }], removed: [] } },
+      },
+    },
+    {
       // Any other assistant change is everyday work: pruned.
       id: id('old-greeting'),
       action: 'assistant.update',
@@ -217,8 +228,14 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
     }),
   )
   expect(after.get(rows[2]!.id)!.pruned_at).not.toBeNull()
-  expect(after.get(rows[3]!.id)).toMatchObject({ input: { assistantId: 'as_1', greeting: OMITTED } })
-  expect(after.get(rows[3]!.id)!.pruned_at).not.toBeNull()
-  expect(after.get(rows[4]!.id)).toMatchObject({ input: rows[4]!.input, pruned_at: null })
+  expect(after.get(rows[3]!.id)).toEqual(
+    expect.objectContaining({
+      input: { assistantId: 'as_1', email_routing: OMITTED },
+      result: { ok: true, data: { emailRoutingChanges: rows[3]!.result.data!.emailRoutingChanges } },
+    }),
+  )
+  expect(after.get(rows[4]!.id)).toMatchObject({ input: { assistantId: 'as_1', greeting: OMITTED } })
+  expect(after.get(rows[4]!.id)!.pruned_at).not.toBeNull()
+  expect(after.get(rows[5]!.id)).toMatchObject({ input: rows[5]!.input, pruned_at: null })
   expect(await pruneOldCommands(db)).toBe(0) // already pruned rows are not touched again
 })

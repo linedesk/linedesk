@@ -55,6 +55,22 @@ export type LookupField = { name: string; type: LookupFieldType; description: st
 export type WebhookLookup = { name: string; when: string; fields: LookupField[] }
 /** What the call-start webhook answered: flat names and short values (CALLER_DETAILS_* in @linedesk/actions). */
 export type CallerDetails = Record<string, string | number | boolean>
+/** One recipient of a call email (EmailRoute.to): a workspace member, or a confirmed outside address. */
+export type EmailRouteRecipient = { kind: 'member'; user_id: string; name: string } | { kind: 'outside'; email: string }
+/**
+ * Who got the email about a finished call and why (call-notifications.ts, email routing). `routed`: the assistant's
+ * call email instruction picked `to`; `fallback`: it could not (`problem`), so the members with call emails on got it.
+ */
+export type EmailRoute = {
+  mode: 'routed' | 'fallback'
+  to: EmailRouteRecipient[]
+  /** One short sentence in the workspace's language from the language model; null in fallback mode. */
+  reason: string | null
+  /** The member the routing assigned the call to; null: it assigned nobody. */
+  assigned_user_id: string | null
+  at: string
+  problem?: 'llm_failed' | 'no_llm' | 'nothing_fit'
+}
 /**
  * The assistant's voice: provider and voice id ('' the default voice), and `model`, the text-to-speech model
  * (VOICE_MODEL_LEVELS in @linedesk/actions); missing or '': the install's model.

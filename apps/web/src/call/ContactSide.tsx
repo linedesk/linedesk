@@ -4,6 +4,7 @@ import { useContact, useRows, useRun } from '../store.tsx'
 import { parseTs, shortDuration, timeLabel } from '../time.ts'
 import { Avatar, Badge, Button, Icon } from '../ui/kit.tsx'
 import { EditableFact } from './EditableFact.tsx'
+import { EmailedAfterCall } from './EmailedAfterCall.tsx'
 import { T, useT } from '@linedesk/i18n/react'
 import { LinkButton } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
@@ -201,6 +202,7 @@ export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
       ) : (
         <span className="help">{t('call.contact.notLinked')}</span>
       )}
+      <EmailedAfterCall call={call} />
       <PastCalls call={call} onOpen={onOpen} />
     </aside>
   )

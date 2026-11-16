@@ -80,11 +80,12 @@ export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
 
 /**
  * Read-only actions refused too: those that still do something outside Linedesk (send a request, start
- * a call), the bulk export of the workspace's calls (an impersonation is for support, not for taking
+ * a call; assistant.previewEmailRouting sends the last calls to the language model and uses the workspace's
+ * preview budget), the bulk export of the workspace's calls (an impersonation is for support, not for taking
  * customer data out), and the MCP consent page (oauth.describe): it is the first step of giving an agent a
  * lasting key to the person's account, which only the person does (oauth.approve is refused as a write).
  */
-const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'call.lookUpCaller', 'call.askWebhook', 'call.correctTranscript', 'carrier.test', 'assistant.startTestCall', 'knowledge.import', 'business.search', 'business.import', 'call.listen', 'call.takeOver', 'call.export', 'phoneNumber.lookupLine', 'workspace.deletePreview', 'oauth.describe'])
+const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'call.lookUpCaller', 'call.askWebhook', 'call.correctTranscript', 'carrier.test', 'assistant.startTestCall', 'knowledge.import', 'business.search', 'business.import', 'call.listen', 'call.takeOver', 'call.export', 'phoneNumber.lookupLine', 'workspace.deletePreview', 'oauth.describe', 'assistant.previewEmailRouting'])
 
 /** Whether an impersonated session may run this action. */
 export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean }): boolean {

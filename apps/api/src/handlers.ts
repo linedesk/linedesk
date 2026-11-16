@@ -69,7 +69,7 @@ import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
 import { purgeCommandsAbout } from './command-log.ts'
-import { transferChanges } from './audit.ts'
+import { emailRoutingChangesIn, transferChanges } from './audit.ts'
 import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
 import { apiKeyHandlers } from './api-keys.ts'
@@ -135,6 +135,7 @@ import {
   purchaseCountry,
 } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
+import { emailRecipientHandlers } from './email-recipients.ts'
 import { workspaceCreationHandlers } from './workspace-creation-handlers.ts'
 import { teamMemberEditHandlers } from './team-member-edit.ts'
 import { transferHandlers } from './transfers.ts'
@@ -983,6 +984,10 @@ const handlers: Record<string, Handler> = {
       if (isActiveContact(contact))
         await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
     const before = input.transfers ? await assistantTransfers(ctx.tx, ctx.actor.workspaceId, input.assistantId) : null
+    const routingBefore =
+      input.email_routing !== undefined
+        ? ((await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.email_routing ?? null)
+        : undefined
     // The voice and model it will answer with: models of the lists only, and on Linedesk Cloud of a level it may use.
     const levelChange = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor.workspaceId, input) : null
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
@@ -991,12 +996,16 @@ const handlers: Record<string, Handler> = {
     // A change of the numbers calls are put through to is in the audit log (audit.ts, TRANSFER_CHANGE_ACTIONS).
     const changes = before && transferChanges(before, input.transfers as TransferContact[])
     // So is a change of the voice model, language model or pipeline (audit.ts, usageLevelChange): what the calls cost.
-    if (!changes && !levelChange) return result
+    // And a change of the call email instruction (audit.ts, emailRoutingChanges): who it added and removed, no text.
+    const routingChanges =
+      routingBefore !== undefined ? await emailRoutingChangesIn(ctx.tx, routingBefore, input.email_routing) : null
+    if (!changes && !levelChange && !routingChanges) return result
     return {
       ...result,
       data: {
         ...(changes ? { transferChanges: changes } : {}),
         ...(levelChange ? { usageLevelChange: levelChange } : {}),
+        ...(routingChanges ? { emailRoutingChanges: routingChanges } : {}),
       },
     }
   },
@@ -1112,6 +1121,7 @@ const handlers: Record<string, Handler> = {
   ...assistantVersionHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
+  ...emailRecipientHandlers,
   ...workspaceCreationHandlers,
   ...teamMemberEditHandlers,
   ...membershipHandlers,

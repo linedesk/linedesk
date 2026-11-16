@@ -174,6 +174,8 @@
   "audit.contact.unblock": "Unblocked a contact",
   "audit.contact.update": "Changed a contact",
   "audit.emailChanged": "{known, select, yes {Changed the email address to {email}} other {Changed the email address}}",
+  "audit.emailRoutingChanged": "Changed who gets call emails ({changes})",
+  "audit.emailRoutingEdited": "Changed who gets call emails",
   "audit.empty": "No entries.",
   "audit.forwardingChecked": "Checked call forwarding",
   "audit.from": "From",

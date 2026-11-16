@@ -76,7 +76,17 @@ const REASONED = new Set([
 
 /** What happened, in a few words. */
 export function auditLabel(
-  e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges' | 'usageLevelChange' | 'apiKeyName'>,
+  e: Pick<
+    AuditEntry,
+    | 'what'
+    | 'method'
+    | 'input'
+    | 'subject'
+    | 'transferChanges'
+    | 'usageLevelChange'
+    | 'emailRoutingChanges'
+    | 'apiKeyName'
+  >,
 ): string {
   const input = (e.input ?? {}) as Record<string, unknown>
   const subject = e.subject?.email ?? ''
@@ -311,10 +321,10 @@ export function auditLabel(
         return t('admin.audit.transferContactsChanged', { changes: transferChangeList(e.transferChanges) })
       if (e.usageLevelChange)
         return t('admin.audit.usageLevelChanged', { changes: levelChangeList(e.usageLevelChange) })
-      // A refused change (no result): its input had the contacts.
-      return Array.isArray(input.transfers)
-        ? t('admin.audit.transferContactsEdited')
-        : t('admin.audit.assistantChanged')
+      if (e.emailRoutingChanges) return emailRoutingLabel(e.emailRoutingChanges)
+      // A refused change (no result): its input had the contacts, or the call email instruction.
+      if (Array.isArray(input.transfers)) return t('admin.audit.transferContactsEdited')
+      return 'email_routing' in input ? t('admin.audit.emailRoutingEdited') : t('admin.audit.assistantChanged')
     case 'assistant.restoreVersion':
       if (e.transferChanges)
         return t('admin.audit.transferContactsRestored', { changes: transferChangeList(e.transferChanges) })
@@ -388,6 +398,18 @@ const transferChangeList = ({ added, changed, removed }: NonNullable<AuditEntry[
     ...(removed.length ? [t('admin.audit.transferChange.removed', { names: names(removed) })] : []),
   ]
   return parts.length ? fmt().list(parts, { type: 'unit', style: 'short' }) : t('admin.audit.transferChange.reordered')
+}
+
+/** A change of the call email instruction: who it added and removed ("added Dave, removed rosa@…"), never its text. */
+const emailRoutingLabel = ({ added, removed }: NonNullable<AuditEntry['emailRoutingChanges']>) => {
+  const names = (list: string[]) => fmt().list(list, { type: 'conjunction' })
+  const parts = [
+    ...(added.length ? [t('admin.audit.transferChange.added', { names: names(added) })] : []),
+    ...(removed.length ? [t('admin.audit.transferChange.removed', { names: names(removed) })] : []),
+  ]
+  return parts.length
+    ? t('admin.audit.emailRoutingChanged', { changes: fmt().list(parts, { type: 'unit', style: 'short' }) })
+    : t('admin.audit.emailRoutingEdited')
 }
 
 /** What a change of the usage level changed: "voice model elevenlabs/eleven_flash_v2_5 to elevenlabs/eleven_v3". */

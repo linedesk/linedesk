@@ -1,7 +1,7 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (name, greeting,
 // languages), How <name> did (owners and admins: calls to look at and questions to answer), business info, hours
-// and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer contacts), booking, voice, and
-// Advanced (how calls are answered, talking speed, silence on the line).
+// and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer contacts), call emails (who gets
+// the email about which call, CallEmails.tsx), booking, voice, and Advanced (how calls are answered, talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
 import { useReadOnlyNote } from './readOnly.ts'
@@ -30,6 +30,7 @@ import {
   type Language,
   answeredQuestionLine,
   otherLanguagesOf,
+  EMAIL_ROUTING_MAX,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
@@ -101,6 +102,7 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 import { HoursSummary, TransfersSummary } from './Summaries.tsx'
 import { Webhooks } from './Webhooks.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
+import { CallEmails, type Undoable } from './CallEmails.tsx'
 
 type SectionId =
   | 'general'
@@ -109,6 +111,7 @@ type SectionId =
   | 'hours'
   | 'rules'
   | 'transfers'
+  | 'emails'
   | 'booking'
   | 'webhooks'
   | 'advanced'
@@ -120,6 +123,7 @@ const SECTION_IDS: readonly SectionId[] = [
   'hours',
   'rules',
   'transfers',
+  'emails',
   'booking',
   'webhooks',
   'advanced',
@@ -232,6 +236,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   ],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
+  emails: ['email_routing'],
   advanced: [
     'talking_speed_pct',
     'silence_first_gap_s',
@@ -750,7 +755,14 @@ function Advanced({ draft, set }: SectionProps) {
 
 /** `isInstanceAdmin`: the member runs the server (a test call nobody answers says what to fix there). */
 /** `agentChange`: "Change with an AI agent" on top of General (owners and admins, AgentChange.tsx). */
-type Props = { canEdit: boolean; toast: (text: string) => void; isInstanceAdmin?: boolean; agentChange?: boolean }
+/** `undoable`: a toast with Undo for a change the page undoes itself (removing an outside address in Call emails). */
+type Props = {
+  canEdit: boolean
+  toast: (text: string) => void
+  isInstanceAdmin?: boolean
+  agentChange?: boolean
+  undoable?: Undoable
+}
 
 type FormProps = Props & {
   assistant: Assistant
@@ -768,6 +780,7 @@ function Form({
   toast,
   isInstanceAdmin = false,
   agentChange = false,
+  undoable,
 }: FormProps) {
   const t = useT()
   const readOnly = useReadOnlyNote()
@@ -848,6 +861,7 @@ function Form({
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (languagesProblem(draft)) return goTo('general', 'as-languages-mode')
+    if (draft.email_routing.length > EMAIL_ROUTING_MAX) return goTo('emails', 'as-emails-text')
     const problem = draftProblem(draft, outboundCountries)
     if (problem) return toast(problem)
     if (dirty) {
@@ -876,6 +890,10 @@ function Form({
         ...(clean.realtime_voice !== normalized(saved).realtime_voice ? { realtime_voice: clean.realtime_voice } : {}),
         talking_speed_pct: clean.talking_speed_pct,
         voice_pipeline: clean.voice_pipeline,
+        // Only when changed: an API of the release before does not know it.
+        ...(clean.email_routing !== normalized(saved).email_routing
+          ? { email_routing: clean.email_routing || null }
+          : {}),
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
@@ -983,6 +1001,17 @@ function Form({
               showErrors={transferSaveTried}
             />
           </>
+        )}
+        {current === 'emails' && (
+          <CallEmails
+            assistantId={assistant.id}
+            name={assistantName(draft, t)}
+            value={draft.email_routing}
+            onChange={text => set('email_routing', text)}
+            canEdit={canEdit}
+            toast={toast}
+            undoable={undoable}
+          />
         )}
         {current === 'advanced' && (
           <>
@@ -1107,6 +1136,7 @@ const SECTION_CARDS: Record<SectionId, number> = {
   hours: 3,
   rules: 1,
   transfers: 1,
+  emails: 3,
   booking: 3,
   webhooks: 1,
   advanced: 3,

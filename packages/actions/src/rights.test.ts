@@ -65,6 +65,13 @@ const expectedRights: Record<Right, readonly string[]> = {
     'agentSetup.revokeWorkspace',
     'call.export',
     'assistant.update',
+    // Call email routing (LIN-369): who gets which call, and the outside addresses it may name.
+    'emailRouting.get',
+    'emailRecipient.add',
+    'emailRecipient.resend',
+    'emailRecipient.remove',
+    'emailRecipient.restore',
+    'assistant.previewEmailRouting',
     'assistant.create',
     'assistant.delete',
     'assistant.versions',

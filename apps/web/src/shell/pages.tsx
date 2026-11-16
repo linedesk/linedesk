@@ -31,6 +31,8 @@ export type PageProps = {
   onRenamed: (name: string) => void
   /** Send a change and offer Undo (Z) in the toast. */
   runUndoable: (steps: Step[], inverse: Step[], label: string, key: string) => void
+  /** A change the page made and undoes itself (`revert`): a toast with Undo, also Z. */
+  undoable: (label: string, key: string, revert: () => void) => void
 }
 /**
  * `ownHeader`: the page draws its own header (with `menu`) instead of the title bar. `sections`: the
@@ -59,6 +61,7 @@ export const pages = {
         canEdit={p.canEditSettings}
         agentChange={p.agentChange}
         toast={p.toast}
+        undoable={p.undoable}
         isInstanceAdmin={p.isInstanceAdmin}
       />
     ),

@@ -1,7 +1,10 @@
 // Emails about finished calls: one per call to every member who wants it (their own setting, else
 // the workspace default). Sent by a pg-boss job after `call.finish` committed (jobs.ts), so a slow
 // mail server never holds up the agent. Test calls and spam send nothing.
-import { DEFAULT_NOTIFICATIONS } from '@linedesk/actions'
+// An assistant with a call email instruction (assistants.email_routing) routes them instead (email-routing.ts): a
+// language model picks recipients among the people it mentions; the decision is stored in calls.email_route before
+// anything is sent, so a retry sends to the same people and never asks the model again.
+import { DEFAULT_NOTIFICATIONS, routesEmails } from '@linedesk/actions'
 import {
   appointment_types,
   assistants,
@@ -16,11 +19,18 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
+import type { EmailRoute, EmailRouteRecipient } from '@linedesk/db/types'
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
+import { uiLocaleOf } from './email-locale.ts'
+import { assignByRouting, decideForCall, membersById, routeOf, sendableOutside } from './email-routing.ts'
 import { type CallEmail, callEmail, emailSafeName, firstCallEmail, slotInZone } from './emails/templates.ts'
+import { type EvaluationModel, evaluationModel } from './evaluations.ts'
+import { outsideStopUrl } from './email-recipients.ts'
+import { unsubscribeHeaders } from './setup-unsubscribe.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
-import type { UiLocale } from '@linedesk/i18n'
+import { SOURCE, type UiLocale } from '@linedesk/i18n'
 import { getT, localeForUser } from '@linedesk/i18n/server'
 
 export { formatNumber } from './emails/templates.ts'
@@ -29,11 +39,12 @@ export { formatNumber } from './emails/templates.ts'
 export async function emailRecipients(
   tx: Tx,
   workspaceId: string,
-): Promise<{ email: string; name: string; locale: UiLocale }[]> {
+): Promise<{ userId: string; email: string; name: string; locale: UiLocale }[]> {
   const [settings] = await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
   const fallback = settings?.notify_email_default ?? DEFAULT_NOTIFICATIONS.email
   const rows = await tx
     .select({
+      userId: user.id,
       email: user.email,
       name: user.name,
       own: member_notification_settings.email,
@@ -50,13 +61,46 @@ export async function emailRecipients(
       ),
     )
     .where(and(eq(member.organizationId, workspaceId), isNull(user.disabledAt)))
-  return rows.filter(r => r.own ?? fallback).map(r => ({ email: r.email, name: r.name, locale: localeForUser(r) }))
+  return rows
+    .filter(r => r.own ?? fallback)
+    .map(r => ({ userId: r.userId, email: r.email, name: r.name, locale: localeForUser(r) }))
+}
+
+type MemberRecipient = Awaited<ReturnType<typeof emailRecipients>>[number]
+
+/** Lets tests hand in a language model; the default is the one set up (Server admin › Providers). */
+export type NotifyDeps = { model?: (tx: Tx) => Promise<EvaluationModel | null> }
+
+export const asMemberRoute = (r: MemberRecipient): EmailRouteRecipient => ({
+  kind: 'member',
+  user_id: r.userId,
+  name: r.name,
+})
+
+/**
+ * Who a stored decision sends to now: the fallback's members as today; a routed decision's members who are still in
+ * the workspace and not disabled, and its outside addresses only while they are confirmed and not stopped.
+ */
+async function recipientsOf(tx: Tx, workspaceId: string, route: EmailRoute, fallback: MemberRecipient[]) {
+  if (route.mode === 'fallback') return { members: fallback, outside: [] }
+  const memberIds = route.to.flatMap(r => (r.kind === 'member' ? [r.user_id] : []))
+  const emails = route.to.flatMap(r => (r.kind === 'outside' ? [r.email] : []))
+  const [members, outside] = await Promise.all([
+    membersById(tx, workspaceId, memberIds),
+    sendableOutside(tx, workspaceId, emails),
+  ])
+  return { members: members.map(m => ({ userId: m.userId, email: m.email, name: m.name, locale: m.locale })), outside }
 }
 
 export type NotifyResult = { sent: number; failed: number; skipped?: 'missing' | 'test' | 'spam' | 'unfinished' }
 
 /** Sends the emails for one finished call. A failed address does not stop the others. */
-export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: string): Promise<NotifyResult> {
+export async function notifyCallFinished(
+  tx: Tx,
+  sender: EmailSender,
+  callId: string,
+  deps: NotifyDeps = {},
+): Promise<NotifyResult> {
   const [call] = await tx.select().from(calls).where(eq(calls.id, callId))
   if (!call || call.deleted_at) return { sent: 0, failed: 0, skipped: 'missing' }
   if (call.status !== 'completed') return { sent: 0, failed: 0, skipped: 'unfinished' }
@@ -65,7 +109,7 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
   const [contact] = call.contact_id ? await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)) : []
   // The assistant that answered; an older call (or a deleted assistant): the workspace's first.
   const [assistant] = await tx
-    .select({ name: assistants.name })
+    .select({ name: assistants.name, email_routing: assistants.email_routing })
     .from(assistants)
     .where(eq(assistants.workspace_id, call.workspace_id))
     .orderBy(sql`${assistants.id} = ${call.assistant_id ?? ''} desc`, asc(assistants.created_at))
@@ -123,7 +167,46 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     transcript,
     workspace: emailSafeName(workspace?.name, getT(locale).t('email.fallback.workspace')),
   })
-  const recipients = await emailRecipients(tx, call.workspace_id)
+  const everyone = await emailRecipients(tx, call.workspace_id)
+  // Routed by the assistant's instruction: decided once per call, stored before anything is sent.
+  let route = call.email_route
+  if (!route && routesEmails(assistant?.email_routing)) {
+    const model = await (deps.model ?? ((t: Tx) => evaluationModel(t)))(tx).catch(() => null)
+    const { decision } = await decideForCall(
+      tx,
+      call.workspace_id,
+      assistant!.email_routing!,
+      {
+        title: call.title,
+        urgent: call.urgency === 'urgent',
+        caller: contact?.name ?? call.from_number,
+        summary: call.summary,
+        fields: call.fields,
+        // i18n-ignore: a name in the call as the language model reads it, not shown in the app
+        assistantName: assistant?.name ?? 'Assistant',
+        transcript,
+      },
+      model,
+    )
+    const now = new Date().toISOString()
+    const decided = routeOf(decision, everyone.map(asMemberRoute), now)
+    const [stored] = await tx
+      .update(calls)
+      .set({ email_route: decided })
+      .where(and(eq(calls.id, call.id), isNull(calls.email_route)))
+      .returning({ email_route: calls.email_route })
+    if (stored) {
+      route = decided
+      if (decided.assigned_user_id) await assignByRouting(tx, call, decided.assigned_user_id, now)
+    } else {
+      // Another run stored its decision first: send what it decided.
+      const [again] = await tx.select({ email_route: calls.email_route }).from(calls).where(eq(calls.id, call.id))
+      route = again?.email_route ?? decided
+    }
+  }
+  const { members: recipients, outside } = route
+    ? await recipientsOf(tx, call.workspace_id, route, everyone)
+    : { members: everyone, outside: [] }
   // The workspace's first real call is a moment of its own (setup-emails.ts), for those of them who get setup
   // emails (owners who did not turn them off: the same rule as the other setup emails); marked sent only when one
   // of them gets an email at all, and only when email really goes out (not only to the log).
@@ -146,6 +229,25 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     } catch (e) {
       result.failed++
       console.warn(`call email to a member of ${call.workspace_id} failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+  // Outside the team (confirmed, not stopped): the workspace's language, no link into the app, a link to stop them.
+  if (outside.length) {
+    const locale = uiLocaleOf((await workspaceLocale(tx, call.workspace_id)).resolvedLanguage) ?? SOURCE
+    for (const recipient of outside) {
+      const stopUrl = outsideStopUrl(recipient.id)
+      // Without SECRETS_KEY there is no stop link, and an outside address never gets an email it cannot stop.
+      if (!stopUrl) continue
+      try {
+        const email = callEmail(contentIn(locale), undefined, locale, { stopUrl })
+        await sender.send({ to: recipient.email, ...email, headers: unsubscribeHeaders(stopUrl) })
+        result.sent++
+      } catch (e) {
+        result.failed++
+        console.warn(
+          `call email to an outside address of ${call.workspace_id} failed: ${e instanceof Error ? e.message : e}`,
+        )
+      }
     }
   }
   // Nothing went out (the job tries again): the first-call email is still to come.

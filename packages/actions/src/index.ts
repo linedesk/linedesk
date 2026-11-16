@@ -18,6 +18,7 @@ import * as calendar from './calendar.ts'
 import * as callExport from './call-export.ts'
 import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
+import * as emailRouting from './email-routing.ts'
 import * as evaluations from './evaluations.ts'
 import * as forwarding from './forwarding.ts'
 import * as insights from './insights.ts'
@@ -72,6 +73,7 @@ export * from './calendar.ts'
 export * from './call-export.ts'
 export * from './carrier.ts'
 export * from './calls.ts'
+export * from './email-routing.ts'
 export * from './evaluations.ts'
 export * from './forwarding.ts'
 export * from './forwarding-guides.ts'
@@ -150,6 +152,12 @@ const all = [
   settings.contactImport,
   settings.contactMerge,
   settings.assistantUpdate,
+  emailRouting.emailRoutingGet,
+  emailRouting.emailRecipientAdd,
+  emailRouting.emailRecipientResend,
+  emailRouting.emailRecipientRemove,
+  emailRouting.emailRecipientRestore,
+  emailRouting.assistantPreviewEmailRouting,
   settings.assistantCreate,
   settings.assistantDelete,
   assistantVersions.assistantVersions,

@@ -1,0 +1,211 @@
+/* Settings › Assistant › Call emails (CallEmails.tsx) and the call view's "Emailed after the call" (EmailedAfterCall.tsx). */
+
+/* The instruction and its preview side by side where the window is wide; the page grows for this section only. */
+.ce-grid {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+@media (min-width: 1320px) {
+  .page-in.sl-page:has(.ce-grid:not(.is-single)) {
+    max-width: 1240px;
+  }
+  .sl-content:has(.ce-grid:not(.is-single)) {
+    max-width: 1028px;
+  }
+  .ce-grid:not(.is-single) {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+}
+
+/* The editor: the text area lies see-through over a layer with the same font, padding and wrapping that marks the
+   mentions, so the text keeps its native caret, selection and spell check. */
+.ce-editor {
+  position: relative;
+  display: grid;
+}
+.ce-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  margin: 0;
+  border-color: transparent;
+  color: transparent;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  resize: none;
+}
+/* Two classes: the plain `.ta` rule loads later and would paint the text area over the marks. */
+.ce-editor .ce-input,
+.ce-editor .ce-input:disabled,
+.ce-editor .ce-input:read-only {
+  position: relative;
+  min-height: 112px;
+  overflow: hidden;
+  background: transparent;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+/* `.ta` loads later and `.ta:read-only` matches every div, so the layer sets its colours with two classes. */
+.ce-editor .ce-backdrop {
+  background: var(--surface);
+  color: transparent;
+}
+.ce-editor.is-disabled .ce-backdrop {
+  background: var(--surface-hover);
+}
+/* A mention: a quiet grey chip around the name (no padding of its own, so the text does not move). */
+.ce-m {
+  color: transparent;
+  border-radius: 4px;
+  background: var(--surface-strong, #ebe9e3);
+  box-shadow: 0 0 0 2px var(--surface-strong, #ebe9e3);
+}
+.ce-m-email {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed var(--line-control);
+  outline-offset: 1px;
+}
+.ce-m-unknown {
+  background: var(--surface-hover);
+  box-shadow: 0 0 0 2px var(--surface-hover);
+}
+
+/* The people to pick, under the text area. */
+.ce-menu {
+  left: 0;
+  max-width: min(420px, 100%);
+  max-height: 280px;
+  overflow: auto;
+}
+.ce-menu .k-select-opt {
+  min-width: 0;
+}
+.ce-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "Maya may email:" and recipient chips. */
+.ce-may,
+.ce-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ce-may-label {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ce-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 8px 0 2px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  font-size: 12.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ce-chip-outside {
+  padding: 0 8px;
+  background: transparent;
+  outline: 1px dashed var(--line-control);
+  outline-offset: -1px;
+}
+.ce-chip-note {
+  color: var(--ink-muted);
+  font-size: 11.5px;
+}
+
+/* The preview: one block per call. */
+.ce-calls {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ce-calls.is-stale {
+  opacity: 0.55;
+  transition: opacity 140ms;
+}
+.ce-call {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.ce-call:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ce-call-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  font-size: 13px;
+}
+.ce-call-head .mono {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.ce-call-reason {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* Call view, side panel. */
+.ce-sent {
+  gap: 6px;
+}
+.ce-sent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ce-sent-head .mono {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.ce-quote {
+  margin: 2px 0 0;
+  padding: 0 0 0 8px;
+  border-left: 2px solid var(--line);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}
+.ce-sent .help {
+  line-height: 17px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ce-calls.is-stale {
+    transition: none;
+  }
+}
+
+/* The preview row's lines sit on the row's own gap, without paragraph margins. */
+.ce-call > p {
+  margin: 0;
+}

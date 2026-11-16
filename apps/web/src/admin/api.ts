@@ -493,6 +493,8 @@ export type AuditEntry = {
   transferChanges?: { added: string[]; changed: string[]; removed: string[] }
   /** An assistant change of what its calls cost on Linedesk Cloud: voice model, language model, pipeline, before and after. */
   usageLevelChange?: { before: LevelFields; after: LevelFields }
+  /** An assistant change of its call email instruction: the members and outside addresses it added and removed. */
+  emailRoutingChanges?: { added: string[]; removed: string[] }
   /** apiKey.revoke: the revoked key's name. */
   apiKeyName?: string
   refused: boolean

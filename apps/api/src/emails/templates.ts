@@ -167,6 +167,44 @@ export function invitationEmail(
   })
 }
 
+export type OutsideConfirmEmail = {
+  /** Email-safe (emailSafeName). */
+  inviter: string
+  workspace: string
+  email: string
+  url: string
+  days: number
+  /** The address's stop link ("Don't email me again"); null without SECRETS_KEY. */
+  stopUrl: string | null
+}
+
+/**
+ * An owner or admin named an address outside the team for call emails (emailRecipient.add): it gets call emails
+ * only after it confirms with this link. Says what it would get (the summary and the full transcript), and has the
+ * stop link, so the person can say no for good.
+ */
+export function outsideConfirmEmail(
+  { inviter, workspace, email, url, days, stopUrl }: OutsideConfirmEmail,
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  return renderEmail({
+    locale: lang,
+    subject: t('email.outsideConfirm.subject', { workspace }),
+    preheader: t('email.outsideConfirm.preheader', { inviter, workspace }),
+    heading: t('email.outsideConfirm.subject', { workspace }),
+    blocks: [
+      { kind: 'text', text: t('email.outsideConfirm.text', { inviter, workspace }) },
+      { kind: 'button', label: t('email.outsideConfirm.button'), url },
+      { kind: 'text', tone: 'muted', text: t('email.outsideConfirm.note', { days }) },
+    ],
+    reason: t('email.outsideConfirm.reason', { workspace, email }),
+    ...(stopUrl ? { settings: { label: t('email.outsideConfirm.stop'), url: stopUrl } } : {}),
+    origin,
+  })
+}
+
 /** "the owner", "an admin", "a member", in a sentence. */
 const roleInSentence = (role: string, locale: EmailLocale) =>
   getT(locale).t('email.role.inSentence', { role: role === 'owner' || role === 'admin' ? role : 'member' })
@@ -812,9 +850,19 @@ function transcriptLines(call: CallEmail, callerName: string | null, locale: Ema
   return { lines, cut: false }
 }
 
+/**
+ * A call email to an address outside the team (email routing, email_recipients): no link into the app, which it
+ * cannot open, and a footer that says why it gets the email, with its one-click link to stop them.
+ */
+export type OutsideCallEmail = { stopUrl: string }
+
 /** One finished call: what it was about, who called, the summary, next steps, the booking and a link. */
-export const callEmail = (call: CallEmail, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail =>
-  renderEmail(callContent(call, origin, locale))
+export const callEmail = (
+  call: CallEmail,
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+  outside?: OutsideCallEmail,
+): RenderedEmail => renderEmail(callContent(call, origin, locale, outside))
 
 /** The caller and number rows every call email starts with. */
 const callerFacts = (callerName: string | null, number: string, locale: EmailLocale): Block => {
@@ -828,7 +876,7 @@ const callerFacts = (callerName: string | null, number: string, locale: EmailLoc
   }
 }
 
-function callContent(call: CallEmail, origin: string, locale: EmailLocale): EmailContent {
+function callContent(call: CallEmail, origin: string, locale: EmailLocale, outside?: OutsideCallEmail): EmailContent {
   const { t, format, locale: lang } = getT(locale)
   const number = formatNumber(call.fromNumber)
   const callerName = call.callerName ? defuseLinks(call.callerName) : null
@@ -869,8 +917,9 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale): Emai
       ],
     })
   }
-  // The button before the transcript: a long call would push it far down.
-  blocks.push({
+  // The button before the transcript: a long call would push it far down. Outside the team: no app to open.
+  if (!outside)
+    blocks.push({
     kind: 'button',
     label: t('email.call.open'),
     url: callLink(origin, call.workspaceId, call.callId),
@@ -882,13 +931,14 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale): Emai
     blocks.push({ kind: 'transcript', title: t('email.call.transcript'), lines: transcript.lines })
     if (transcript.cut) blocks.push({ kind: 'text', tone: 'muted', text: t('email.call.transcriptCut') })
   }
-  blocks.push({
-    kind: 'text',
-    tone: 'muted',
-    text: transcript.lines.length
-      ? t('email.call.recordingOnly', { brand: brandName() })
-      : t('email.call.recording', { brand: brandName() }),
-  })
+  if (!outside)
+    blocks.push({
+      kind: 'text',
+      tone: 'muted',
+      text: transcript.lines.length
+        ? t('email.call.recordingOnly', { brand: brandName() })
+        : t('email.call.recording', { brand: brandName() }),
+    })
   const from = callerName ?? number
   return {
     locale: lang,
@@ -900,8 +950,12 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale): Emai
     urgent: call.urgent ? t('email.call.urgent') : undefined,
     heading: topic,
     blocks,
-    reason: t('email.call.reason', { workspace: call.workspace }),
-    settings: { label: t('email.notificationSettings'), url: notificationsLink(origin, call.workspaceId) },
+    reason: outside
+      ? t('email.call.outsideReason', { workspace: call.workspace })
+      : t('email.call.reason', { workspace: call.workspace }),
+    settings: outside
+      ? { label: t('email.call.outsideStop'), url: outside.stopUrl }
+      : { label: t('email.notificationSettings'), url: notificationsLink(origin, call.workspaceId) },
     origin,
   }
 }

@@ -57,6 +57,8 @@ export type Draft = {
   greeting_outside: string
   /** Warm transfer: who callers are put through to, and when, in order. */
   transfers: TransferDraft[]
+  /** Who gets the email after a call, in the owner's words with mentions (`<@user:ID>`, `<@email:ADDRESS>`); empty: everyone with call emails on. */
+  email_routing: string
   /** The voice: provider and voice id (empty: the provider's default), and its voice model ('': the server's). */
   voice: { provider: string; voice_id: string; model: string }
   /** The language model of live turns ('': the server's default). */
@@ -129,6 +131,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     greeting_outside: local(a.greeting_outside ?? ''),
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
+    email_routing: a.email_routing ?? '',
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id, model: a.voice.model ?? '' },
     llm_model: a.llm_model ?? '',
     website: p.website ?? '',
@@ -267,6 +270,7 @@ export const normalized = (d: Draft): Draft => ({
   greeting: d.greeting.trim(),
   instructions: d.instructions.trim(),
   greeting_outside: d.greeting_outside.trim(),
+  email_routing: d.email_routing.trim(),
   transfers: d.transfers.map(c =>
     transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) }),
   ),

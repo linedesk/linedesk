@@ -574,6 +574,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
                 workspaceName: me.workspace!.name,
                 onRenamed,
                 runUndoable: actions.runUndoable,
+                undoable: actions.undoable,
               })}
             </ErrorBoundary>
           </>
