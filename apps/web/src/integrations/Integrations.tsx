@@ -1,12 +1,11 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
 // key per category. A card opens its detail view here (#integrations/zapier, /api-keys, /rest-api, /mcp) or the
-// place where it is set up (the assistant's webhooks and booking, the workspace's phone numbers). The catalog itself
+// place where it is set up (the assistant's webhooks and booking); one being built shows "In progress". The catalog itself
 // is catalog.ts; API keys and Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
-import { CARRIER, loadCarrier } from '../settings/Carrier.tsx'
 import { useCalendarProviders } from '../settings/calendar-providers.ts'
 import type { ProviderId } from '../settings/calendarModel.ts'
 import { Section } from '../settings/fields.tsx'
@@ -57,7 +56,7 @@ const SEARCH_ID = 'integrations-search'
 const HOME = '#integrations'
 
 type Props = {
-  /** Owners and admins, also during support access: API keys, Zapier and the carrier (settings:write). */
+  /** Owners and admins, also during support access: API keys and Zapier (settings:write). */
   canManageKeys: boolean
   toast: (text: string) => void
 }
@@ -104,7 +103,6 @@ function usePlace(): IntegrationsPlace {
 function useFacts(canManageKeys: boolean): Facts {
   const keys = useQuery(canManageKeys ? API_KEYS : null, loadKeys, { persist: true })
   const zaps = useQuery(canManageKeys ? INTEGRATIONS : null, loadIntegrations, { persist: true })
-  const carrier = useQuery(canManageKeys ? CARRIER : null, loadCarrier)
   useEffect(() => (canManageKeys ? pollWhileVisible(API_KEYS, KEYS_POLL_MS) : undefined), [canManageKeys])
   const hooks = useRows('webhook_endpoints')
   const hooksLoad = useLoadState('webhook_endpoints')
@@ -123,9 +121,8 @@ function useFacts(canManageKeys: boolean): Facts {
           ? hooks.filter(h => h.status === 'active' && h.assistant_id && h.hooks.length > 0).map(h => h.url)
           : undefined,
       calendars: calendarsLoad === 'ready' ? perProvider : undefined,
-      carrier: canManageKeys ? carrier.data?.carrier : null,
     }
-  }, [canManageKeys, zaps.data, keys.data, carrier.data, hooks, hooksLoad, calendars, calendarsLoad])
+  }, [canManageKeys, zaps.data, keys.data, hooks, hooksLoad, calendars, calendarsLoad])
 }
 
 /** The keys that pick a category: 0 shows all, 1 to 4 one category each (as in the chips' tooltips). */
@@ -247,7 +244,7 @@ function Card({ integration, status }: { integration: Integration; status: Statu
       <IntegrationMark mark={integration.mark} />
       <div className="ig-card-text">
         <h3>
-          <AppLink to={integration.opens}>{name}</AppLink>
+          {integration.opens ? <AppLink to={integration.opens}>{name}</AppLink> : name}
         </h3>
         <p>{t(lineKey(integration.id))}</p>
       </div>
@@ -289,6 +286,12 @@ function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) 
       return <Badge tone="outline">{t('settings.integrations.status.notConnected')}</Badge>
     case 'ready':
       return <Badge tone="outline">{t('settings.integrations.status.ready')}</Badge>
+    case 'inProgress':
+      return (
+        <Badge tone="neutral" title={t('settings.integrations.status.inProgressTip')}>
+          {t('settings.integrations.status.inProgress')}
+        </Badge>
+      )
     case 'adminsOnly':
       return (
         <Badge tone="outline" title={t('settings.integrations.status.adminsOnlyTip')}>

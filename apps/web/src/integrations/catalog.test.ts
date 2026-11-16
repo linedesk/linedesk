@@ -8,6 +8,7 @@ import {
   CATEGORIES,
   claudeCodeCommand,
   DETAIL_IDS,
+  IN_PROGRESS_IDS,
   type Facts,
   lineKey,
   mcpJson,
@@ -20,15 +21,14 @@ import {
 const text = (key: MessageKey) => (en as Record<string, string>)[key.replace(/^settings\./, '')] ?? key
 const ids = (list: readonly { id: string }[]) => list.map(i => i.id)
 
-const NOTHING: Facts = { zaps: 0, apiKeys: 0, webhookUrls: [], calendars: {}, carrier: 'default' }
+const NOTHING: Facts = { zaps: 0, apiKeys: 0, webhookUrls: [], calendars: {} }
 const LOADING: Facts = {
   zaps: undefined,
   apiKeys: undefined,
   webhookUrls: undefined,
   calendars: undefined,
-  carrier: undefined,
 }
-const MEMBER: Facts = { zaps: null, apiKeys: null, webhookUrls: null, calendars: {}, carrier: null }
+const MEMBER: Facts = { zaps: null, apiKeys: null, webhookUrls: null, calendars: {} }
 
 describe('the catalog', () => {
   it('has a name and a line for every card, and a category that exists', () => {
@@ -39,19 +39,21 @@ describe('the catalog', () => {
     }
   })
 
-  it('opens a detail view here for every detail id, and a place in the app for the rest', () => {
+  it('opens a detail view here for every detail id, nothing while in progress, and a place in the app for the rest', () => {
     for (const i of CATALOG) {
       if ((DETAIL_IDS as readonly string[]).includes(i.id)) expect(i.opens).toBe(`#integrations/${i.id}`)
-      else expect(i.opens).toMatch(/^#(assistant|workspace)\//)
+      else if ((IN_PROGRESS_IDS as readonly string[]).includes(i.id)) expect(i.opens).toBeNull()
+      else expect(i.opens).toMatch(/^#assistant\//)
     }
   })
 
   it('groups the cards in catalog order and leaves empty categories out', () => {
     const groups = byCategory(CATALOG)
-    expect(groups.map(g => g.category)).toEqual(['automation', 'calendars', 'phone', 'developers'])
+    expect(groups.map(g => g.category)).toEqual(['automation', 'calendars', 'crm', 'chat', 'developers'])
     expect(ids(groups[0]!.items)).toEqual(['zapier', 'make', 'n8n', 'webhooks'])
-    expect(ids(groups[3]!.items)).toEqual(['api-keys', 'rest-api', 'mcp'])
-    expect(byCategory(CATALOG, 'phone').map(g => g.category)).toEqual(['phone'])
+    expect(ids(groups[2]!.items)).toEqual(['hubspot', 'jobber', 'servicetitan'])
+    expect(ids(groups[4]!.items)).toEqual(['api-keys', 'rest-api', 'mcp'])
+    expect(byCategory(CATALOG, 'chat').map(g => g.category)).toEqual(['chat'])
     expect(byCategory(searchIntegrations(CATALOG, 'outlook', text)).map(g => g.category)).toEqual(['calendars'])
   })
 
@@ -72,12 +74,12 @@ describe('searchIntegrations', () => {
     expect(ids(searchIntegrations(CATALOG, 'ZAPIER', text))).toEqual(['zapier', 'api-keys'])
     expect(ids(searchIntegrations(CATALOG, 'outlook', text))).toEqual(['microsoft'])
     expect(ids(searchIntegrations(CATALOG, 'claude', text))).toEqual(['mcp'])
-    expect(ids(searchIntegrations(CATALOG, 'phone carriers', text))).toEqual(['telnyx', 'twilio'])
+    expect(ids(searchIntegrations(CATALOG, 'hvac', text))).toEqual(['servicetitan'])
     expect(ids(searchIntegrations(CATALOG, 'webhook n8n', text))).toEqual(['n8n'])
   })
   it('keeps everything for an empty query and nothing for an unknown word', () => {
     expect(searchIntegrations(CATALOG, '  ', text)).toHaveLength(CATALOG.length)
-    expect(searchIntegrations(CATALOG, 'hubspot', text)).toEqual([])
+    expect(searchIntegrations(CATALOG, 'salesforce', text)).toEqual([])
   })
 })
 
@@ -98,7 +100,7 @@ describe('statusOf', () => {
   })
 
   it('says not connected when nothing is set up, and ready for the REST API and MCP', () => {
-    for (const id of ['zapier', 'api-keys', 'webhooks', 'make', 'n8n', 'telnyx', 'twilio', 'calendly'] as const)
+    for (const id of ['zapier', 'api-keys', 'webhooks', 'make', 'n8n', 'calendly'] as const)
       expect(statusOf(id, NOTHING), id).toEqual({ kind: 'notConnected' })
     expect(statusOf('rest-api', NOTHING)).toEqual({ kind: 'ready' })
     expect(statusOf('mcp', MEMBER)).toEqual({ kind: 'ready' })
@@ -114,17 +116,22 @@ describe('statusOf', () => {
     expect(statusOf('make', lookalike)).toEqual({ kind: 'notConnected' })
   })
 
-  it('names the carrier the workspace uses', () => {
-    expect(statusOf('twilio', { ...NOTHING, carrier: 'twilio' })).toEqual({ kind: 'connected' })
-    expect(statusOf('telnyx', { ...NOTHING, carrier: 'twilio' })).toEqual({ kind: 'notConnected' })
+  it('says in progress for what is being built, whatever the facts', () => {
+    for (const id of IN_PROGRESS_IDS)
+      for (const facts of [NOTHING, LOADING, MEMBER]) expect(statusOf(id, facts), id).toEqual({ kind: 'inProgress' })
   })
 
   it('is loading while the facts load, and admins only for what a member cannot read', () => {
     for (const i of CATALOG) {
-      const expected = i.id === 'rest-api' || i.id === 'mcp' ? 'ready' : 'loading'
+      const expected =
+        i.id === 'rest-api' || i.id === 'mcp'
+          ? 'ready'
+          : (IN_PROGRESS_IDS as readonly string[]).includes(i.id)
+            ? 'inProgress'
+            : 'loading'
       expect(statusOf(i.id, LOADING).kind, i.id).toBe(expected)
     }
-    for (const id of ['zapier', 'api-keys', 'webhooks', 'make', 'n8n', 'telnyx', 'twilio'] as const)
+    for (const id of ['zapier', 'api-keys', 'webhooks', 'make', 'n8n'] as const)
       expect(statusOf(id, MEMBER), id).toEqual({ kind: 'adminsOnly' })
     expect(statusOf('google', MEMBER)).toEqual({ kind: 'notConnected' })
   })

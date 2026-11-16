@@ -1,20 +1,21 @@
 // Integrations (#integrations): the catalog of everything Linedesk connects to, by category, without React. Only what
-// works today is listed: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
-// calendar providers this install offers, the workspace's own phone carrier, API keys, the REST API and the MCP
-// server. Each card opens its detail view here (`#integrations/<id>`) or the place where it is set up.
+// works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
+// calendar providers this install offers, API keys, the REST API and the MCP server. Each opens its detail view here
+// (`#integrations/<id>`) or the place where it is set up. The ones being built (HubSpot, Slack, Jobber, ServiceTitan)
+// show as "In progress" and open nothing. Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
-import type { WorkspaceCarrier } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import type { ProviderId } from '../settings/calendarModel.ts'
 
-export type CategoryId = 'automation' | 'calendars' | 'phone' | 'developers'
-export const CATEGORIES: readonly CategoryId[] = ['automation', 'calendars', 'phone', 'developers']
+export type CategoryId = 'automation' | 'calendars' | 'crm' | 'chat' | 'developers'
+export const CATEGORIES: readonly CategoryId[] = ['automation', 'calendars', 'crm', 'chat', 'developers']
 
 export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
   automation: msg('settings.integrations.category.automation'),
   calendars: msg('settings.integrations.category.calendars'),
-  phone: msg('settings.integrations.category.phone'),
+  crm: msg('settings.integrations.category.crm'),
+  chat: msg('settings.integrations.category.chat'),
   developers: msg('settings.integrations.category.developers'),
 }
 
@@ -22,20 +23,28 @@ export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
 export const DETAIL_IDS = ['zapier', 'api-keys', 'rest-api', 'mcp'] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
 
-export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId | 'telnyx' | 'twilio'
+/** Being built: shown as "In progress", they open nothing yet. */
+export const IN_PROGRESS_IDS = ['hubspot', 'jobber', 'servicetitan', 'slack'] as const
+export type InProgressId = (typeof IN_PROGRESS_IDS)[number]
 
-/** A card's logo: a brand mark the app already ships, an icon of ours, or a monogram (no hotlinked images). */
+export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId | InProgressId
+
+/**
+ * A card's logo (no hotlinked images): a sign-in mark the app already ships (calendars), a Simple Icons path from
+ * admin/logos.ts in the brand's colour, an icon of ours, or a monogram where no free mark exists.
+ */
 export type Mark =
-  | { kind: 'brand'; brand: 'google' | 'microsoft' | 'calcom' | 'calendly' | 'icloud' | 'twilio' }
-  | { kind: 'icon'; icon: 'plug' | 'globe' | 'server' | 'shield' }
-  | { kind: 'monogram'; text: string }
+  | { kind: 'brand'; brand: 'google' | 'microsoft' | 'calcom' | 'calendly' | 'icloud' }
+  | { kind: 'logo'; logo: 'zapier' | 'make' | 'n8n' | 'hubspot' | 'slack' | 'modelcontextprotocol'; color: string }
+  | { kind: 'icon'; icon: 'globe' | 'server' | 'shield' }
+  | { kind: 'monogram'; text: string; color: string }
 
 export type Integration = {
   id: IntegrationId
   category: CategoryId
   mark: Mark
-  /** Where the card goes: its detail view here, or a place in the app (a hash route). */
-  opens: string
+  /** Where the card goes: its detail view here, or a place in the app (a hash route); null while it is being built. */
+  opens: string | null
   /** Extra words search finds it by (not shown). */
   keywords: string
 }
@@ -43,27 +52,26 @@ export type Integration = {
 const detail = (id: DetailId) => `#integrations/${id}`
 const WEBHOOKS = '#assistant/webhooks'
 const BOOKING = '#assistant/booking'
-const PHONE = '#workspace/phone'
 
 export const CATALOG: readonly Integration[] = [
   {
     id: 'zapier',
     category: 'automation',
-    mark: { kind: 'monogram', text: 'Z' },
+    mark: { kind: 'logo', logo: 'zapier', color: '#FF4F00' },
     opens: detail('zapier'),
     keywords: 'zap automation triggers actions',
   },
   {
     id: 'make',
     category: 'automation',
-    mark: { kind: 'monogram', text: 'M' },
+    mark: { kind: 'logo', logo: 'make', color: '#6D00CC' },
     opens: WEBHOOKS,
     keywords: 'integromat scenario webhook automation',
   },
   {
     id: 'n8n',
     category: 'automation',
-    mark: { kind: 'monogram', text: 'n8n' },
+    mark: { kind: 'logo', logo: 'n8n', color: '#EA4B71' },
     opens: WEBHOOKS,
     keywords: 'workflow webhook automation self-hosted',
   },
@@ -110,18 +118,32 @@ export const CATALOG: readonly Integration[] = [
     keywords: 'scheduling event types booking',
   },
   {
-    id: 'telnyx',
-    category: 'phone',
-    mark: { kind: 'monogram', text: 'T' },
-    opens: PHONE,
-    keywords: 'carrier sip numbers own account',
+    id: 'hubspot',
+    category: 'crm',
+    mark: { kind: 'logo', logo: 'hubspot', color: '#FF7A59' },
+    opens: null,
+    keywords: 'crm contacts call log sync',
   },
   {
-    id: 'twilio',
-    category: 'phone',
-    mark: { kind: 'brand', brand: 'twilio' },
-    opens: PHONE,
-    keywords: 'carrier sip numbers own account',
+    id: 'jobber',
+    category: 'crm',
+    mark: { kind: 'monogram', text: 'J', color: '#7DB00E' },
+    opens: null,
+    keywords: 'field service jobs clients requests home service',
+  },
+  {
+    id: 'servicetitan',
+    category: 'crm',
+    mark: { kind: 'monogram', text: 'ST', color: '#0B57D0' },
+    opens: null,
+    keywords: 'field service jobs bookings customers hvac plumbing',
+  },
+  {
+    id: 'slack',
+    category: 'chat',
+    mark: { kind: 'logo', logo: 'slack', color: '#4A154B' },
+    opens: null,
+    keywords: 'team chat channel notify message',
   },
   {
     id: 'api-keys',
@@ -140,7 +162,7 @@ export const CATALOG: readonly Integration[] = [
   {
     id: 'mcp',
     category: 'developers',
-    mark: { kind: 'icon', icon: 'plug' },
+    mark: { kind: 'logo', logo: 'modelcontextprotocol', color: 'currentColor' },
     opens: detail('mcp'),
     keywords: 'model context protocol ai agent claude code cursor codex llm',
   },
@@ -148,6 +170,7 @@ export const CATALOG: readonly Integration[] = [
 
 const CALENDAR_IDS: readonly IntegrationId[] = ['google', 'microsoft', 'caldav', 'calcom', 'calendly']
 const isCalendar = (id: IntegrationId): id is ProviderId => CALENDAR_IDS.includes(id)
+const isInProgress = (id: IntegrationId): id is InProgressId => (IN_PROGRESS_IDS as readonly string[]).includes(id)
 
 // i18n-dynamic: settings.integrations.card.*
 export const nameKey = (id: IntegrationId) => `settings.integrations.card.${id}.name` as MessageKey
@@ -189,7 +212,7 @@ export function byCategory(
 
 /**
  * What the workspace has set up, as far as this person can read it: `undefined` while it loads, `null` where they
- * can't read it (a member: Zaps, keys and the carrier are for owners and admins).
+ * can't read it (a member: Zaps and keys are for owners and admins).
  */
 export type Facts = {
   /** Zapier subscriptions (owners and admins). */
@@ -200,8 +223,6 @@ export type Facts = {
   webhookUrls: readonly string[] | null | undefined
   /** Calendar accounts by provider (synced). */
   calendars: Partial<Record<ProviderId, number>> | undefined
-  /** The workspace's carrier (owners and admins). */
-  carrier: WorkspaceCarrier | null | undefined
 }
 
 export type Status =
@@ -213,6 +234,8 @@ export type Status =
   | { kind: 'loading' }
   /** Only owners and admins can see it (this person is a member). */
   | { kind: 'adminsOnly' }
+  /** Being built: nothing to connect yet. */
+  | { kind: 'inProgress' }
 
 const counted = (n: number | null | undefined): Status =>
   n === undefined
@@ -234,6 +257,7 @@ function hostOf(url: string): string {
 }
 
 export function statusOf(id: IntegrationId, facts: Facts): Status {
+  if (isInProgress(id)) return { kind: 'inProgress' }
   switch (id) {
     case 'zapier':
       return counted(facts.zaps)
@@ -252,11 +276,6 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
       return facts.webhookUrls.some(u => HOOK_HOSTS[id].test(hostOf(u)))
         ? { kind: 'connected' }
         : { kind: 'notConnected' }
-    case 'telnyx':
-    case 'twilio':
-      if (facts.carrier === undefined) return { kind: 'loading' }
-      if (facts.carrier === null) return { kind: 'adminsOnly' }
-      return facts.carrier === id ? { kind: 'connected' } : { kind: 'notConnected' }
     default:
       return facts.calendars === undefined ? { kind: 'loading' } : counted(facts.calendars[id] ?? 0)
   }
