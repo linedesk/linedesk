@@ -173,4 +173,4 @@ The Zapier app's triggers (Call Started, During-Call Lookup, Call Finished; docs
 - The samples Zapier loads (`GET /v1/integrations/samples/<event>`, `GET /v1/integrations/calls`) carry no recording link (`recording_url` and `recording_expires_at` are null); only real deliveries have one.
 - Unsubscribe ends only the calling key's own subscriptions; the command log keeps the hook URL redacted.
 - A 410 answer means the Zap was turned off or deleted: the subscription is deleted with its deliveries, nothing is retried. 5 failed deliveries in a row switch it off (`disabled_reason`).
-- Workspace settings › Developers lists the subscriptions (key, event, last delivery, state) with Remove; revoking the key removes its subscriptions.
+- Integrations › Zapier lists the subscriptions (key, event, last delivery, state) with Remove; revoking the key removes its subscriptions.

@@ -1,7 +1,8 @@
 // Workspace settings: everything about the workspace that is not the assistant, one section at a time
-// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, API keys and leaving it.
+// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export and leaving it.
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
-// webhooks in the assistant's settings (old #settings and #team links are rewritten, shell/useRoute.ts).
+// webhooks in the assistant's settings; API keys and Zapier in Integrations (old #settings, #team and
+// #workspace/developers links are rewritten, shell/useRoute.ts).
 
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -11,35 +12,34 @@ import { TeamSection } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
 import { DangerZone } from './DangerZone.tsx'
-import { Developers, Integrations } from './Developers.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
 import { Recordings } from './Recordings.tsx'
 import { WorkspaceGeneral } from './WorkspaceGeneral.tsx'
 
-type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'developers' | 'danger'
-const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'developers', 'danger']
+type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'danger'
+const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'danger']
 
 /**
- * Which sections this person sees. Members can't export calls or manage API keys (call:export, settings:write): those
- * sections are not shown. During support access the export is refused too, while API keys stay (`canManageKeys`).
+ * Which sections this person sees. Members can't export calls (call:export): that section is not shown, and during
+ * support access the export is refused too.
  */
-export function shownSectionIds(canEdit: boolean, canManageKeys: boolean): SectionId[] {
-  return SECTION_IDS.filter(id => (id === 'export' ? canEdit : id === 'developers' ? canManageKeys : true))
+export function shownSectionIds(canEdit: boolean): SectionId[] {
+  return SECTION_IDS.filter(id => id !== 'export' || canEdit)
 }
 
 /** The page's sections in the active language (shownSectionIds). */
-function useSections(canEdit: boolean, canManageKeys: boolean): readonly PageSection<SectionId>[] {
+function useSections(canEdit: boolean): readonly PageSection<SectionId>[] {
   const t = useT()
   return useMemo(
     () =>
-      shownSectionIds(canEdit, canManageKeys).map(id => ({
+      shownSectionIds(canEdit).map(id => ({
         id,
         // i18n-dynamic: settings.workspace.nav.*
         label: t(`settings.workspace.nav.${id}.label` as MessageKey),
         description: t(`settings.workspace.nav.${id}.description` as MessageKey),
       })),
-    [t, canEdit, canManageKeys],
+    [t, canEdit],
   )
 }
 
@@ -56,7 +56,7 @@ function dangerDescription(canEdit: boolean, role: string | undefined): MessageK
 type Props = {
   /** Owners and admins in their own session (settingsAccess, readOnly.ts). */
   canEdit: boolean
-  /** API keys (Developers): owners and admins, also during support access. */
+  /** Owners and admins, also during support access: what the Danger zone offers (dangerDescription). */
   canManageKeys: boolean
   /** "Change with an AI agent" on top of General (owners and admins, agentChange.ts). */
   agentChange?: boolean
@@ -81,7 +81,7 @@ export function WorkspaceSettings({
   const t = useT()
   const team = useTeam().data
   const role = team?.members.find(m => m.userId === team.me)?.role
-  const sections = useSections(canEdit, canManageKeys)
+  const sections = useSections(canEdit)
   // What the role offers, also during support access (the section itself then says it is read-only).
   const danger = t(dangerDescription(canManageKeys, role))
   const shown = useMemo(
@@ -114,12 +114,6 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'developers' && (
-          <>
-            <Developers canEdit={canManageKeys} toast={toast} />
-            <Integrations canEdit={canManageKeys} toast={toast} />
-          </>
-        )}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>

@@ -7,7 +7,7 @@ import { useSupportAccess } from '../supportAccess.ts'
 
 /**
  * Who changes what in the workspace's settings. `canEdit`: an owner's or admin's own session; `canManageKeys`: their
- * API keys (Developers), also during support access, where they are marked as the admin's.
+ * API keys and Zapier (Integrations), also during support access, where they are marked as the admin's.
  */
 export function settingsAccess(me: Pick<Me, 'permissions' | 'impersonation'>) {
   const canManageKeys = me.permissions.includes('settings:write')

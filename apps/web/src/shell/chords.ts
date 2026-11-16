@@ -15,6 +15,7 @@ const chordPages: Record<string, { route: PageRoute; section?: string }> = {
   c: { route: 'contacts' },
   r: { route: 'assistant', section: 'review' },
   n: { route: 'insights' },
+  o: { route: 'integrations' },
   s: { route: 'workspace' },
   t: { route: 'workspace', section: 'team' },
 }

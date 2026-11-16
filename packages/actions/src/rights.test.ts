@@ -108,7 +108,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'apiKey.create',
     'apiKey.list',
     'apiKey.revoke',
-    // Integration subscriptions in Workspace settings › Developers, like the keys.
+    // Integration subscriptions in Integrations › Zapier, like the keys.
     'integration.list',
     'integration.remove',
     'team.invite',

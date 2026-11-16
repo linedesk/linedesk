@@ -92,6 +92,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         badge={reviewCount ? <span className="nav-n" title={t('shell.nav.reviewTip')}>{reviewCount}</span> : null} />
       <NavItem label={pages.contacts.title} icon="contact" keys={['G', 'C']} current={route === 'contacts'} onClick={go(() => on.onPage('contacts'))} />
       <NavItem label={pages.insights.title} icon="chart" keys={['G', 'N']} current={route === 'insights'} onClick={go(() => on.onPage('insights'))} />
+      <NavItem label={pages.integrations.title} icon="plug" keys={['G', 'O']} current={route === 'integrations'} onClick={go(() => on.onPage('integrations'))} />
       <hr className="nav-sep" />
       <NavItem label={pages.workspace.title} icon="gear" keys={['G', 'S']} current={route === 'workspace'} onClick={go(() => on.onPage('workspace'))} />
       {isInstanceAdmin && <NavItem muted label={pages.admin.title} icon="shield" keys={['G', 'D']}

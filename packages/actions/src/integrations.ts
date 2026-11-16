@@ -2,7 +2,7 @@
 // Zapier's REST hooks. An integration subscribes a URL on its own host to an event: a phone call starting
 // (`call_started`), a during-call lookup the assistant asked (`during_call_lookup`) or a finished call
 // (`call_finished`), each POSTed there in the matching webhook's shape, flattened a little for Zapier's field picker.
-// Owners and admins see the subscriptions in Workspace settings › Developers and can remove them; revoking the key
+// Owners and admins see the subscriptions in Integrations › Zapier and can remove them; revoking the key
 // removes them too.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
@@ -92,7 +92,7 @@ export const integrationList = defineAction({
   permission: 'settings:write',
   readOnly: true,
 })
-/** One subscription as Workspace settings › Developers lists it: never the target URL (it is a capability for the Zap). */
+/** One subscription as Integrations › Zapier lists it: never the target URL (it is a capability for the Zap). */
 export type IntegrationSubscriptionSummary = {
   id: string
   source: IntegrationSource

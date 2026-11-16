@@ -347,7 +347,7 @@ export async function sampleEvents(tx: Tx, workspaceId: string, event: Integrati
   return sampleCalls(tx, workspaceId, n, env)
 }
 
-/** Subscriptions are an API key's: a person signed in uses Workspace settings › Developers to remove them. */
+/** Subscriptions are an API key's: a person signed in uses Integrations › Zapier to remove them. */
 function keyOf(actor: Actor) {
   if (!actor.apiKeyId || !actor.workspaceId)
     throw new Reject('Only a workspace API key subscribes (Authorization: Bearer ld_…).')

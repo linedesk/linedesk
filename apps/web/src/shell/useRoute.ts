@@ -148,6 +148,9 @@ const MOVED: Record<string, string> = {
   'settings/notifications': 'account/notifications',
   'assistant/notifications': 'account/notifications',
   team: 'workspace/team',
+  // API keys and Zapier left Workspace settings for their own page (LIN-340).
+  'settings/developers': 'integrations/api-keys',
+  'workspace/developers': 'integrations/api-keys',
   // Needs review left the inbox: How <assistant> did, in the Assistant area.
   'calls/review': 'assistant/review',
 }
@@ -159,7 +162,7 @@ function movedPath(path: string): string | null {
   if (head === 'team') return 'workspace/team'
   // The assistant's notifications (`#assistant/<id>/notifications`) were always your own.
   if (head === 'assistant' && rest.length === 2 && rest[1] === 'notifications') return 'account/notifications'
-  // Phone numbers (also one number), recordings, export, developers and unknown sections: the same place in
+  // Phone numbers (also one number), recordings, export and unknown sections: the same place in
   // Workspace settings; an unknown one then shows General (knownSectionHash).
   if (head === 'settings' && rest.length > 0) return `workspace/${rest.join('/')}`
   return null

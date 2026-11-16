@@ -44,7 +44,7 @@ describe('⌘K places (LIN-165)', () => {
     const c = context()
     const settings = find(c, 'Go to Workspace settings')
     expect(settings.shortcut).toEqual(['G', 'S'])
-    for (const word of ['settings', 'phone numbers', 'recordings', 'export', 'api keys', 'rename', 'team', 'leave'])
+    for (const word of ['settings', 'phone numbers', 'recordings', 'export', 'rename', 'team', 'leave'])
       expect(settings.keywords).toContain(word)
     settings.run()
     expect(c.goPage).toHaveBeenLastCalledWith('workspace')
@@ -52,6 +52,19 @@ describe('⌘K places (LIN-165)', () => {
     expect(team.shortcut).toEqual(['G', 'T'])
     team.run()
     expect(c.goPage).toHaveBeenLastCalledWith('workspace', 'team')
+  })
+
+  it('Integrations (G O), with API keys and Zapier found by typing (LIN-340)', () => {
+    const c = context()
+    const integrations = find(c, 'Go to Integrations')
+    expect(integrations.shortcut).toEqual(['G', 'O'])
+    for (const word of ['zapier', 'api keys', 'mcp', 'webhooks']) expect(integrations.keywords).toContain(word)
+    integrations.run()
+    expect(c.goPage).toHaveBeenLastCalledWith('integrations')
+    find(c, 'API keys').run()
+    expect(c.goPage).toHaveBeenLastCalledWith('integrations', 'api-keys')
+    find(c, 'Connect Zapier').run()
+    expect(c.goPage).toHaveBeenLastCalledWith('integrations', 'zapier')
   })
 
   it('rename, time zone, appointment value, notifications and leave are found by typing, and open their section', () => {

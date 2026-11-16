@@ -2,12 +2,12 @@
 
 A Zapier app (Zapier Platform CLI, `zapier-platform-core` 19) that connects a Linedesk workspace to any app on Zapier: Jobber, Housecall Pro, Clio, HubSpot, Salesforce, Google Sheets and the rest.
 
-One app serves every Linedesk install, Cloud and self-hosted: the Linedesk address is a field of each connection. Workspace settings › Developers › Zapier shows a workspace the steps; Server admin › System › Zapier tells a self-hoster whether Zapier can reach the server (an https address on the internet, and outbound to `hooks.zapier.com`). Nothing else is set up on a server.
+One app serves every Linedesk install, Cloud and self-hosted: the Linedesk address is a field of each connection. Integrations › Zapier shows a workspace the steps; Server admin › System › Zapier tells a self-hoster whether Zapier can reach the server (an https address on the internet, and outbound to `hooks.zapier.com`). Nothing else is set up on a server.
 
 - **Instant triggers (REST hooks):** Call Started (an answered phone call, 3 s in), During-Call Lookup (each lookup the assistant asked its during-call webhook, with the answer), Call Finished (about 20 s after the call: caller, summary, next steps, bookings, transcript, a link and a 7-day recording link). Turning a Zap on subscribes Zapier's hook URL (`integration.subscribe`), turning it off ends it (`integration.unsubscribe`). Test calls and spam send nothing. Zapier cannot answer in time, so Call Started and During-Call Lookup only notify: the greeting and lookup answers come from the assistant's webhooks (docs/webhooks.md). Samples come from `GET /v1/integrations/samples/<event>`.
 - **Every public action of the API:** one Zapier action or search per public action, generated from the registry into `generated/actions.json` (`pnpm zapier:generate` at the repo root; `lib/generated.js` builds them). Ids are dropdowns (`triggers/options.js`, `GET /v1/integrations/options/<kind>`). Run Any Action runs any public action by name with fields from `GET /v1/openapi.json`.
 - **Searches:** Find Contact (by phone number, with Find or Create Contact), Find Call (by id), Find Team Members, Find Free Slots.
-- **Connection:** the Linedesk address (default `https://app.linedesk.ai`) and a workspace API key (Workspace settings › Developers; Member is enough). The test is `GET /v1/api-key`; the connection is labelled with the workspace name.
+- **Connection:** the Linedesk address (default `https://app.linedesk.ai`) and a workspace API key (Integrations › API keys; Member is enough). The test is `GET /v1/api-key`; the connection is labelled with the workspace name.
 
 How the server side works (subscriptions, delivery, why only Zapier's host): `docs/api.md`, Integrations.
 
@@ -45,7 +45,7 @@ npx zapier-platform-cli@19.3.0 push
 
 A pushed version is private until it is promoted (`promote <version>`); users of an older version move with `migrate <old> <new>`.
 
-Try it on staging before production: in the Zap editor, connect with the staging address and a staging API key, turn a Zap with a Linedesk trigger on, make a phone call to the staging number, and check the Zap's history. Workspace settings › Developers lists the Zap's subscription; removing it there stops it.
+Try it on staging before production: in the Zap editor, connect with the staging address and a staging API key, turn a Zap with a Linedesk trigger on, make a phone call to the staging number, and check the Zap's history. Integrations › API keys lists the Zap's subscription; removing it there stops it.
 
 ## Invite users (private app)
 
@@ -58,7 +58,7 @@ Until the app is public, people use it by invitation:
 
 To list Linedesk in Zapier's app directory (https://docs.zapier.com/platform/publish/integration-publishing-requirements):
 
-1. Polish: app logo (256×256 PNG), description, homepage, category, help links for every field (the API key help points to Workspace settings › Developers). Every trigger and action has a sample and clear labels (done in this app).
+1. Polish: app logo (256×256 PNG), description, homepage, category, help links for every field (the API key help points to Integrations › API keys). Every trigger and action has a sample and clear labels (done in this app).
 2. Self-checks: `zapier validate` without warnings; every trigger, search and action used in a live Zap.
 3. Users: Zapier asks for active users on the private version (usually a few live Zaps from people outside the team) before review.
 4. Submit for review in the developer platform (Integration › Publishing). Zapier tests it with a test account: give them a Linedesk Cloud workspace with an API key and a phone number they can call, or a test call that reaches the trigger.

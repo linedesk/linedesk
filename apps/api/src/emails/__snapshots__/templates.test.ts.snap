@@ -584,9 +584,9 @@ Ann Lee created an API key while signed in as you at desk.example.com on Nov 14,
 
 The key: Zapier support (ld_3fK9aQ2x…), with the Member role.
 
-The key keeps working after the support access ends, until it is revoked. It is listed in Workspace settings › Developers with the admin's name, and everything done with it is in the audit log under their name.
+The key keeps working after the support access ends, until it is revoked. It is listed in Integrations › API keys with the admin's name, and everything done with it is in the audit log under their name.
 
-If you do not need it, revoke it in Workspace settings › Developers. If you did not expect this, tell your administrator.
+If you do not need it, revoke it in Integrations › API keys. If you did not expect this, tell your administrator.
 
 --
 

@@ -32,8 +32,8 @@ import { carrierName } from '../onboarding/flow.ts'
 import { providerAudience } from '../providerAudience.ts'
 import { useRows } from '../store.tsx'
 
-const CARRIER = 'workspace.carrier'
-const loadCarrier = () => callAction<CarrierStatusData>('carrier.get')
+export const CARRIER = 'workspace.carrier'
+export const loadCarrier = () => callAction<CarrierStatusData>('carrier.get')
 
 const choices: readonly WorkspaceCarrier[] = ['default', 'telnyx', 'twilio']
 

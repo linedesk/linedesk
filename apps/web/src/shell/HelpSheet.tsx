@@ -73,6 +73,7 @@ const SHORTCUTS: Group[] = [
       ['help.row.unassigned', ['G', 'U']],
       ['help.row.contacts', ['G', 'C']],
       ['help.row.insights', ['G', 'N']],
+      ['help.row.integrations', ['G', 'O']],
       ['help.row.assistant', ['G', 'A']],
       ['help.row.review', ['G', 'R']],
       ['help.row.workspaceSettings', ['G', 'S']],

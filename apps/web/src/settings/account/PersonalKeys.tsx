@@ -14,7 +14,7 @@ import { List, ListEmpty, ListRow } from '../../ui/list.tsx'
 import { Loading, SkeletonList } from '../../ui/LoadStates.tsx'
 import { Field, Section } from '../fields.tsx'
 import { callAction, readAction } from '../settings-api.ts'
-import '../developers.css'
+import '../../integrations/developers.css'
 
 const KEYS = 'personalKey.list'
 const loadKeys = () => readAction<PersonalKeyListData>(KEYS)

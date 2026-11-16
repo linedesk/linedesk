@@ -386,7 +386,7 @@ function Zapier() {
           k="admin.system.zapierSteps"
           values={{
             app: externalLink(ZAPIER_APP_URL),
-            link: appLink('#workspace/developers'),
+            link: appLink('#integrations/zapier'),
             host: ZAPIER_HOOKS_HOST,
           }}
         />

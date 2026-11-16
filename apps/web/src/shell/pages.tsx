@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { AdminNotice } from '../admin/AdminMode.tsx'
 import { Contacts } from '../contacts/Contacts.tsx'
 import { Insights } from '../insights/Insights.tsx'
+import { Integrations } from '../integrations/Integrations.tsx'
 import { AccountSettings } from '../settings/account/index.tsx'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { AssistantSettings } from '../settings/AssistantSettings.tsx'
@@ -16,7 +17,7 @@ export type PageProps = {
   toast: (text: string) => void
   /** Owners and admins in their own session; never during support access (settingsAccess, settings/readOnly.ts). */
   canEditSettings: boolean
-  /** API keys (Workspace settings › Developers): owners and admins, also during support access. */
+  /** API keys and Zapier (Integrations): owners and admins, also during support access. */
   canManageKeys: boolean
   /** Owners and admins: "Change with an AI agent" on top of the workspace's and the assistant's settings. */
   agentChange: boolean
@@ -62,8 +63,17 @@ export const pages = {
       />
     ),
   },
-  // Everything about the workspace that is not the assistant: its name, the team, numbers, recordings, export,
-  // API keys and leaving it (#workspace/<section>). Old #settings and #team links are rewritten (useRoute.ts).
+  // Everything Linedesk connects to, by category, with a detail view per integration that is set up here
+  // (#integrations/zapier, #integrations/api-keys, #integrations/rest-api, #integrations/mcp).
+  integrations: {
+    get title() {
+      return i18n().t('shell.page.integrations')
+    },
+    sections: true,
+    render: p => <Integrations canManageKeys={p.canManageKeys} toast={p.toast} />,
+  },
+  // Everything about the workspace that is not the assistant: its name, the team, numbers, recordings, export
+  // and leaving it (#workspace/<section>). Old #settings and #team links are rewritten (useRoute.ts).
   workspace: {
     get title() {
       return i18n().t('shell.page.workspace')

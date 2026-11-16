@@ -1,11 +1,12 @@
-// Workspace settings, Developers: the workspace's API keys and what integrations (Zapier) subscribed with them. The list is a cached read (cachedQuery.ts), so it
-// shows at once from the last answer; creating shows the key once with Copy, revoking asks first.
+// Integrations › API keys and Integrations › Zapier: the workspace's API keys and the Zaps that subscribed with them
+// (owners and admins). Both lists are cached reads (cachedQuery.ts), so they show at once from the last answer, and the
+// catalog's cards count them from the same answers; creating shows the key once with Copy, revoking asks first.
 // Keys reach /v1 (docs/api.md, GET /v1/openapi.json) with the role they were created with.
 import type {
   ApiKeyCreated,
-  IntegrationEvent,
   ApiKeyListData,
   ApiKeySummary,
+  IntegrationEvent,
   IntegrationListData,
   IntegrationSubscriptionSummary,
 } from '@linedesk/actions'
@@ -13,23 +14,23 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { pollWhileVisible, setQueryData, useQuery } from '../cachedQuery.ts'
+import { Field, Section } from '../settings/fields.tsx'
+import { callAction, readAction } from '../settings/settings-api.ts'
+import { ZapierGuide } from '../settings/ZapierGuide.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
-import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
-import { Field, Section } from './fields.tsx'
-import { callAction, readAction } from './settings-api.ts'
-import { ZapierGuide } from './ZapierGuide.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import './developers.css'
 import { fmt } from '../i18n/format.ts'
 
-const API_KEYS = 'apiKey.list'
+export const API_KEYS = 'apiKey.list'
 /** How often the open list is checked again: a key made in another session (support access) shows without a reload. */
 export const KEYS_POLL_MS = 15_000
-const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
-const INTEGRATIONS = 'integration.list'
-const loadIntegrations = () => readAction<IntegrationListData>('integration.list')
+export const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
+export const INTEGRATIONS = 'integration.list'
+export const loadIntegrations = () => readAction<IntegrationListData>('integration.list')
 
 /** A Zap's row title: the trigger it starts on. */
 const ZAP_TITLE: Record<IntegrationEvent, MessageKey> = {
@@ -56,7 +57,7 @@ const day = (iso: string) => fmt().dateTime(new Date(iso), { month: 'short', day
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
 
-export function Developers({ canEdit, toast }: Props) {
+export function ApiKeys({ canEdit, toast }: Props) {
   const t = useT()
   const keys = useQuery(canEdit ? API_KEYS : null, loadKeys, { persist: true })
   useEffect(() => (canEdit ? pollWhileVisible(API_KEYS, KEYS_POLL_MS) : undefined), [canEdit])
@@ -105,19 +106,34 @@ export function Developers({ canEdit, toast }: Props) {
   )
 }
 
-/** How to connect Zapier, then its subscriptions (integration.subscribe): one per Zap with a Linedesk trigger. Removing one stops it. */
-export function Integrations({ canEdit, toast }: Props) {
+/**
+ * How to connect Zapier, then its subscriptions (integration.subscribe): one per Zap with a Linedesk trigger. Removing
+ * one stops it. The guide's first step creates a key here (Create key), so nobody has to go and find one.
+ */
+export function ZapierSubscriptions({ canEdit, toast }: Props) {
   const t = useT()
   const list = useQuery(canEdit ? INTEGRATIONS : null, loadIntegrations, { persist: true })
-  if (!canEdit) return null
+  const [creating, setCreating] = useState(false)
+  if (!canEdit)
+    return (
+      <Section id="st-integrations" title={t('settings.developers.integrations.title')}>
+        <p className="help">{t('settings.integrations.zapier.onlyAdmins')}</p>
+      </Section>
+    )
   const subscriptions = list.data?.subscriptions ?? []
   return (
     <Section
       id="st-integrations"
       title={t('settings.developers.integrations.title')}
       help={t('settings.developers.integrations.help')}
+      actions={
+        <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
+          {t('settings.developers.create')}
+        </Button>
+      }
     >
       <ZapierGuide toast={toast} />
+      {creating && <CreateKey onClose={() => setCreating(false)} toast={toast} />}
       <Loading
         what={t('settings.developers.integrations.title')}
         loading={list.data === undefined}

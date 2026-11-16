@@ -14,6 +14,7 @@ describe('G chords', () => {
     expect(chordTarget('a', member)).toEqual({ kind: 'page', route: 'assistant' })
     expect(chordTarget('c', member)).toEqual({ kind: 'page', route: 'contacts' })
     expect(chordTarget('n', member)).toEqual({ kind: 'page', route: 'insights' })
+    expect(chordTarget('o', member)).toEqual({ kind: 'page', route: 'integrations' })
     expect(chordTarget('i', member)).toEqual({ kind: 'tab', tab: 'you' })
     expect(chordTarget('e', member)).toEqual({ kind: 'tab', tab: 'done' })
     expect(chordTarget('h', member)).toEqual({ kind: 'tab', tab: 'reminders' })

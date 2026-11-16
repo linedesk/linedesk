@@ -1,4 +1,4 @@
-// A workspace API key (Linedesk: Workspace settings › Developers), sent as a Bearer token. The test reads the key's
+// A workspace API key (Linedesk: Integrations › API keys), sent as a Bearer token. The test reads the key's
 // workspace, whose name labels the connection in Zapier.
 const { CLOUD_URL, get } = require('./lib/request.js')
 
@@ -19,7 +19,7 @@ module.exports = {
       type: 'password',
       required: true,
       helpText:
-        'In Linedesk: Workspace settings › Developers › Create key. **Member** is enough for every trigger and action here.',
+        'In Linedesk: Integrations › API keys › Create key. **Member** is enough for every trigger and action here.',
     },
   ],
   test: async (z, bundle) => get(z, bundle, '/v1/api-key'),

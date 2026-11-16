@@ -699,7 +699,7 @@ export type ImpersonationApiKeyEmail = {
   admin: { name: string; email: string }
   /** The key's name, as the admin typed it: shown as plain text, links defused. */
   keyName: string
-  /** The start of the key, as Workspace settings › Developers shows it. */
+  /** The start of the key, as Integrations › API keys shows it. */
   prefix: string
   /** The key's role: what it may do. */
   role: 'member' | 'admin'

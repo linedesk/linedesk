@@ -1,4 +1,4 @@
-// Workspace settings › Developers › Zapier: how to connect this workspace to Zapier, in four steps. One Linedesk app on
+// Integrations › Zapier: how to connect this workspace to Zapier, in four steps. One Linedesk app on
 // Zapier serves every install (ZAPIER_APP_URL); a Zapier user names this install's address when they connect, so the
 // guide shows the address with Copy, and says so when Zapier can't reach it (http, localhost, a private address).
 import { ZAPIER_APP_URL, zapierCanReach } from '@linedesk/actions'
