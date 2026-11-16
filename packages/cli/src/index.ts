@@ -46,7 +46,8 @@ async function connection(parsed: Parsed): Promise<Config> {
     throw new Failure('not signed in: run `linedesk login --url <server>` or set LINEDESK_URL and LINEDESK_API_KEY')
   const workspace = parsed.options.get('workspace')
   return {
-    url: config.url,
+    // Also for LINEDESK_URL and a hand-edited config: the key never goes out over plain http to another machine.
+    url: normalizeUrl(config.url),
     key: config.key,
     ...(typeof workspace === 'string' ? { workspace } : config.workspace ? { workspace: config.workspace } : {}),
   }

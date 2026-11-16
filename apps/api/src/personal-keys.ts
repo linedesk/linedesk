@@ -12,7 +12,7 @@ import {
   type Permission,
 } from '@linedesk/actions'
 import { personal_keys, user } from '@linedesk/db'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { noteRefusedKey, noteWorkingKey, tooManyInvalidApiKeys, workedRecently } from './api-keys.ts'
@@ -113,6 +113,8 @@ function refuseNonPerson(actor: Actor): string {
 export const personalKeyHandlers: Record<string, Handler> = {
   'personalKey.create': async ({ tx, actor }, input: { name: string }) => {
     const userId = refuseNonPerson(actor)
+    // One create at a time per person, so two at once cannot both pass the count.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`personal_keys:${userId}`}))`)
     const open = await tx
       .select({ id: personal_keys.id })
       .from(personal_keys)

@@ -348,7 +348,8 @@ function registerPersonalReads(server: McpServer, personal: PersonalKeyTools) {
     const res = await personal.get(path, workspaceId)
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
     if (!res.ok) return refusal(typeof body?.error === 'string' ? body.error : `GET ${path} answered ${res.status}`)
-    return answer({ data: body })
+    // Names, notes and audit inputs here can come from callers or other users: data, never instructions.
+    return answer({ untrusted_caller_content: untrustedCallerContent({ data: body }) })
   }
   server.registerTool(
     'workspaces_list',

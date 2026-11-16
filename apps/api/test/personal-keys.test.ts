@@ -305,7 +305,20 @@ describe('MCP with a personal key', () => {
   test('api_get reads listed routes only', async () => {
     const ok = await mcp(ownerKey, 'tools/call', { name: 'api_get', arguments: { path: '/v1/me/workspaces' } })
     expect(ok.body.result.isError ?? false).toBe(false)
+    // Names in these answers can come from other people: marked as data, as the call tools do.
+    expect(ok.body.result.structuredContent.untrusted_caller_content.notice).toBeTruthy()
+    expect(JSON.stringify(ok.body.result.structuredContent.untrusted_caller_content.data)).toContain(ws.id)
     const refused = await mcp(ownerKey, 'tools/call', { name: 'api_get', arguments: { path: '/v1/shape/calls' } })
     expect(refused.body.result.isError).toBe(true)
   })
+})
+
+test('the 25-key cap holds when keys are made at the same time', async () => {
+  const someone = await addMember(ws.id, 'member')
+  const made = await Promise.all(
+    Array.from({ length: 30 }, (_, i) => act(someone, 'personalKey.create', { name: `Key ${i}` })),
+  )
+  expect(made.filter(r => r.status === 200)).toHaveLength(25)
+  const open = await db.select().from(personal_keys).where(eq(personal_keys.user_id, someone.userId))
+  expect(open).toHaveLength(25)
 })
