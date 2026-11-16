@@ -10,6 +10,7 @@ import {
   bookingConfirmationEmail,
   type CallEmail,
   callEmail,
+  EMAIL_TRANSCRIPT_MAX_CHARS,
   emailChangeCodeEmail,
   emailChangeConfirmCurrentEmail,
   emailChangedEmail,
@@ -48,6 +49,11 @@ const call: CallEmail = {
   timeZone: 'America/Los_Angeles',
   nextSteps: ['Call back before noon'],
   booking: null,
+  transcript: [
+    { speaker: 'agent', text: 'Brightwater, this is Maya. How can I help?' },
+    { speaker: 'caller', text: 'No hot water since this morning.' },
+    { speaker: 'human', text: 'Hi Priya, Mike here.' },
+  ],
   workspace: 'Brightwater Plumbing & Heating',
 }
 
@@ -214,6 +220,39 @@ describe('call summary', () => {
     expect(email.subject).toBe('New call · +1 503 555 0191')
     expect(email.text).toContain('Caller: Unknown caller')
     expect(email.text).not.toContain('Next steps')
+    expect(email.text).toContain('Transcript\nMaya: Brightwater, this is Maya. How can I help?\nCaller: No hot water')
+  })
+
+  it('has the transcript with speaker names, in both parts', () => {
+    const email = callEmail(call, ORIGIN)
+    expect(email.text).toContain(
+      'Transcript\nMaya: Brightwater, this is Maya. How can I help?\nPriya Shah: No hot water since this morning.\nTeam: Hi Priya, Mike here.',
+    )
+    expect(email.text).toContain('The recording is in Linedesk.')
+    expect(email.html).toContain('<strong>Priya Shah:</strong> No hot water since this morning.')
+  })
+
+  it('escapes and defuses what was said in the transcript', () => {
+    const email = callEmail(
+      { ...call, transcript: [{ speaker: 'caller', text: 'Go to pay.evil.example <script>x</script>' }] },
+      ORIGIN,
+    )
+    expect(email.html).not.toContain('<script>')
+    expect(email.html).not.toContain('pay.evil.example')
+    expect(email.text).not.toContain('pay.evil.example')
+  })
+
+  it('cuts a very long transcript and says the rest is in the app', () => {
+    const line = { speaker: 'caller' as const, text: 'x'.repeat(1000) }
+    const email = callEmail({ ...call, transcript: Array.from({ length: 40 }, () => line) }, ORIGIN)
+    expect(email.text.match(/Priya Shah: x+/g)).toHaveLength(EMAIL_TRANSCRIPT_MAX_CHARS / 1000)
+    expect(email.text).toContain('The rest of the call is in the transcript in the app.')
+  })
+
+  it('without a transcript says it is in the app', () => {
+    const email = callEmail({ ...call, transcript: [] }, ORIGIN)
+    expect(email.text).not.toContain('Transcript\n')
+    expect(email.text).toContain('The recording and the transcript are in Linedesk.')
   })
 })
 

@@ -1,6 +1,6 @@
 // New-call notifications: each member's own settings (else the workspace default), the defaults
 // only owners and admins change, and the email a finished call sends to whoever wants it.
-import { calls, user } from '@linedesk/db'
+import { calls, transcript_segments, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -118,6 +118,37 @@ describe('call emails', () => {
     expect(sent[0]!.text).toContain('Water on the floor')
     expect(sent[0]!.text).toContain('- Call back before noon')
     expect(sent[0]!.text).toContain(`/#call/${call.id}`)
+  })
+
+  test('the email has the transcript in order, without tool and system lines', async () => {
+    const ws = await createWorkspace('Transcript Email Plumbing')
+    const call = await finishedCall(ws)
+    const line = (speaker: 'agent' | 'caller' | 'human' | 'system', text: string, at_ms: number) => ({
+      id: `${call.id}_${at_ms}`,
+      workspace_id: ws.id,
+      call_id: call.id,
+      speaker,
+      text,
+      at_ms,
+    })
+    await db
+      .insert(transcript_segments)
+      .values([
+        line('caller', 'The sink is leaking.', 3000),
+        line('agent', 'Brightwater, how can I help?', 1000),
+        line('system', 'Transferred to Mike', 4000),
+        {
+          ...line('agent', 'Checking the calendar', 5000),
+          tool_event: { tool: 'calendar.check', label: 'Checked the calendar' },
+        },
+        line('human', 'Mike here, I can come today.', 6000),
+      ])
+    const { sent, sender } = fakeSender()
+    await notifyCallFinished(db, sender, call.id)
+    expect(sent[0]!.text).toMatch(
+      /Transcript\n[^\n:]+: Brightwater, how can I help\?\nCaller: The sink is leaking\.\nTeam: Mike here, I can come today\.\n/,
+    )
+    expect(sent[0]!.text).not.toMatch(/Transferred to Mike|Checking the calendar/)
   })
 
   test('test calls, spam and unfinished calls send nothing; one failed address does not stop the rest', async () => {

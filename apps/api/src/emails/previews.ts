@@ -12,6 +12,7 @@ import type { RenderedEmail } from './layout.ts'
 import {
   addedToWorkspaceEmail,
   bookingConfirmationEmail,
+  type CallEmail,
   callEmail,
   confirmationCodeEmail,
   emailChangeCodeEmail,
@@ -61,6 +62,14 @@ const call = {
   timeZone: 'America/Los_Angeles',
   nextSteps: ['Confirm the technician can bring a replacement tank', 'Text Sarah the arrival window'],
   booking: { what: 'Emergency repair', at: '2026-11-10T21:00:00Z' },
+  transcript: [
+    { speaker: 'agent', text: 'Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?' },
+    { speaker: 'caller', text: 'Hi, my water heater is leaking. There is water all over the basement floor.' },
+    { speaker: 'agent', text: 'I am sorry to hear that. Did you turn off the water supply to the tank?' },
+    { speaker: 'caller', text: 'Yes, the cold-water valve is off, but the floor is still wet.' },
+    { speaker: 'agent', text: 'Good. I can book an emergency repair today at 1 PM. Does that work?' },
+    { speaker: 'caller', text: 'Yes, please. This is Sarah Chen.' },
+  ] as CallEmail['transcript'],
   workspace: 'Brightwater Plumbing & Heating',
 }
 
@@ -93,6 +102,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           fromNumber: '+15035550177',
           nextSteps: ['Call back with a site-visit time'],
           booking: null,
+          transcript: [],
         },
         origin,
         locale,
@@ -129,6 +139,15 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           fromNumber: '+15035550154',
           nextSteps: ['Call Dana back after 4 pm'],
           booking: null,
+          transcript: [
+            {
+              speaker: 'agent',
+              text: 'Thanks for calling Brightwater Plumbing & Heating, this is Maya. How can I help?',
+            },
+            { speaker: 'caller', text: 'Hi, this is Dana Whitaker. My shower keeps dripping after I turn it off.' },
+            { speaker: 'agent', text: 'I can have someone call you back to set up a visit. When is a good time?' },
+            { speaker: 'caller', text: 'After 4 pm, please.' },
+          ],
         },
         origin,
         locale,

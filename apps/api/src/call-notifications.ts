@@ -11,11 +11,12 @@ import {
   member,
   member_notification_settings,
   organization,
+  transcript_segments,
   type Tx,
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
 import { type CallEmail, callEmail, emailSafeName, firstCallEmail, slotInZone } from './emails/templates.ts'
 import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
@@ -85,6 +86,19 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
     .where(and(eq(bookings.call_id, call.id), ne(bookings.status, 'cancelled')))
     .orderBy(desc(bookings.created_at))
     .limit(1)
+  // What was said, in order: tool and system lines (transfers, bookings as events) stay in the app.
+  const said = await tx
+    .select({ speaker: transcript_segments.speaker, text: transcript_segments.text })
+    .from(transcript_segments)
+    .where(
+      and(
+        eq(transcript_segments.call_id, call.id),
+        inArray(transcript_segments.speaker, ['caller', 'agent', 'human']),
+        isNull(transcript_segments.tool_event),
+      ),
+    )
+    .orderBy(asc(transcript_segments.at_ms), asc(transcript_segments.id))
+  const transcript = said.flatMap(({ speaker, text }) => (speaker === 'system' ? [] : [{ speaker, text }]))
   // Per recipient language (email-locale.ts): the frame, the labels and the booked slot; the summary stays as written.
   const contentIn = (locale: UiLocale): CallEmail => ({
     workspaceId: call.workspace_id,
@@ -105,6 +119,7 @@ export async function notifyCallFinished(tx: Tx, sender: EmailSender, callId: st
           when: slotInZone(booked.start_at, timeZone, locale),
         }
       : null,
+    transcript,
     workspace: emailSafeName(workspace?.name, getT(locale).t('email.fallback.workspace')),
   })
   const recipients = await emailRecipients(tx, call.workspace_id)

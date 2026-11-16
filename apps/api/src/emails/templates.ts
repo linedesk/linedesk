@@ -775,8 +775,36 @@ export type CallEmail = {
   nextSteps: string[]
   /** The appointment booked on the call, when there is one. */
   booking: { what: string; when: string } | null
+  /** What was said, in order: the caller, the assistant and team members who took over (no tool or system lines). */
+  transcript: { speaker: 'caller' | 'agent' | 'human'; text: string }[]
   /** Email-safe (emailSafeName). */
   workspace: string
+}
+
+/**
+ * The transcript's length in an email, in characters: about a 20-minute call. Gmail clips an email's HTML
+ * above 102 KB behind "View entire message"; the rest of a longer call is in the app.
+ */
+export const EMAIL_TRANSCRIPT_MAX_CHARS = 15_000
+
+/** The transcript's lines, speaker first, cut at EMAIL_TRANSCRIPT_MAX_CHARS; `cut` when lines were left out. */
+function transcriptLines(call: CallEmail, callerName: string | null, locale: EmailLocale) {
+  const { t } = getT(locale)
+  const names = {
+    caller: callerName ?? t('email.call.caller'),
+    agent: call.assistantName,
+    human: t('email.call.team'),
+  }
+  const lines: [string, string][] = []
+  let chars = 0
+  for (const { speaker, text } of call.transcript) {
+    const said = text.trim()
+    if (!said) continue
+    if (chars + said.length > EMAIL_TRANSCRIPT_MAX_CHARS && lines.length) return { lines, cut: true }
+    chars += said.length
+    lines.push([names[speaker], defuseLinks(said)])
+  }
+  return { lines, cut: false }
 }
 
 /** One finished call: what it was about, who called, the summary, next steps, the booking and a link. */
@@ -829,10 +857,20 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale): Emai
       ],
     })
   }
-  blocks.push(
-    { kind: 'button', label: t('email.call.open'), url: callLink(origin, call.workspaceId, call.callId) },
-    { kind: 'text', tone: 'muted', text: t('email.call.recording', { brand: brandName() }) },
-  )
+  // The button before the transcript: a long call would push it far down.
+  blocks.push({ kind: 'button', label: t('email.call.open'), url: callLink(origin, call.workspaceId, call.callId) })
+  const transcript = transcriptLines(call, callerName, locale)
+  if (transcript.lines.length) {
+    blocks.push({ kind: 'transcript', title: t('email.call.transcript'), lines: transcript.lines })
+    if (transcript.cut) blocks.push({ kind: 'text', tone: 'muted', text: t('email.call.transcriptCut') })
+  }
+  blocks.push({
+    kind: 'text',
+    tone: 'muted',
+    text: transcript.lines.length
+      ? t('email.call.recordingOnly', { brand: brandName() })
+      : t('email.call.recording', { brand: brandName() }),
+  })
   const from = callerName ?? number
   return {
     locale: lang,

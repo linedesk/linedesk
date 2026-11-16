@@ -17,6 +17,8 @@ export type Block =
   /** Label and value rows, in a quiet box when titled ("Booked"). */
   | { kind: 'facts'; title?: string; rows: [label: string, value: string][] }
   | { kind: 'list'; title: string; items: string[] }
+  /** A conversation: one line per turn, the speaker's name first ("Maya: How can I help?"). */
+  | { kind: 'transcript'; title: string; lines: [speaker: string, text: string][] }
 
 export type EmailContent = {
   /** The recipient's language (a UI language): the footer's words and <html lang>. */
@@ -122,6 +124,15 @@ function blockHtml(block: Block): string {
         )
         .join('')
       return `<div style="margin:0 0 20px;">${sectionTitle(block.title)}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${items}</table></div>`
+    }
+    case 'transcript': {
+      const lines = block.lines
+        .map(
+          ([speaker, text]) =>
+            `<p class="ld-ink" style="margin:0 0 10px;font-size:14px;line-height:1.5;color:${INK};"><strong>${escapeHtml(speaker)}:</strong> ${paragraphs(text)}</p>`,
+        )
+        .join('')
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;"><tr><td class="ld-soft" style="background:${SOFT};border-radius:10px;padding:14px 16px 4px;">${sectionTitle(block.title)}${lines}</td></tr></table>`
     }
   }
 }
@@ -243,6 +254,8 @@ function blockText(block: Block): string {
     }
     case 'list':
       return `${block.title}\n${block.items.map(item => `- ${item}`).join('\n')}`
+    case 'transcript':
+      return `${block.title}\n${block.lines.map(([speaker, text]) => `${speaker}: ${text}`).join('\n')}`
   }
 }
 
