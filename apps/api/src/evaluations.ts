@@ -25,7 +25,6 @@ import { type ProviderProblem, problemOfError, problemOfStatus } from './provide
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { activeProvider } from './provider-settings.ts'
 import { createFailureLimiter } from './rate-limit.ts'
-import { workspaceLocale } from './workspace-locale.ts'
 
 /** Sends a system and a user message, returns the model's JSON text. */
 export type CompleteJson = (system: string, user: string) => Promise<string>
@@ -233,13 +232,11 @@ export async function evaluateCall(
     return null
   }
   evaluationBudget.fail(call.workspace_id)
-  // The emergency number the assistant was told to give is the workspace country's.
-  const { resolvedCountry } = await workspaceLocale(tx, call.workspace_id)
   const prompt = evaluationPrompt({
     summary: call.summary,
     instructions: assistant?.business_profile?.instructions ?? '',
     // The rules of every setup (booking and transfer either way): the call's own setup is not kept.
-    callRules: `${callRules({ country: resolvedCountry })}\n${PRICE_RULE}`,
+    callRules: `${callRules()}\n${PRICE_RULE}`,
     transcript,
   })
   const { score, issues, unanswered } = parseEvaluation(await model.complete(SYSTEM, prompt))

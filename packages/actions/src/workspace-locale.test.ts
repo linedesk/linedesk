@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { mainLanguageOf, otherLanguagesOf } from './languages.ts'
 import { phoneFromDigits, phoneGroups } from './phone-input.ts'
-import { callRules, EMERGENCY_RULE, emergencyRule } from './assistant-prompt.ts'
+import { callRules, EMERGENCY_RULE } from './assistant-prompt.ts'
 import { workspaceUpdateSettings } from './settings.ts'
 import {
   automaticCountryLabel,
@@ -274,16 +274,12 @@ describe('the emergency number of the workspace country', () => {
     expect(emergencyNumberOf(null)).toBe('the local emergency number')
   })
 
-  test("a US workspace's rule is unchanged; others name their own number", () => {
+  test('the emergency rule is the same in every country and names no number', () => {
     expect(EMERGENCY_RULE).toBe(
-      'Only when someone is in danger (a person hurt or at risk, a fire, a break-in, a gas smell): tell the caller to hang up and call 911 right away, before anything else. Never send anything else to 911, even when the caller says it is an emergency: damage to a home, a car or equipment is urgent, not a call for 911, so flag the call as urgent and take a message.',
+      'If someone may be in danger (a person hurt or at risk, a fire, a break-in, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them.',
     )
-    expect(emergencyRule()).toBe(EMERGENCY_RULE)
     expect(callRules()).toContain(EMERGENCY_RULE)
-    expect(callRules({ country: 'GB' })).toContain('hang up and call 999 right away')
-    expect(callRules({ country: 'GB' })).not.toContain('911')
-    expect(callRules({ country: 'AU' })).toContain('call 000 right away')
-    expect(callRules({ country: 'BR' })).toContain('call the local emergency number right away')
+    expect(callRules()).not.toMatch(/911|hang up/)
   })
 })
 

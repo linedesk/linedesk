@@ -8,7 +8,7 @@ import { NO_HOURS, bookingInstructions, buildInstructions, CALL_HEADING, cannotI
 const assistant = (over: Partial<Assistant> = {}) =>
   ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
 
-test('the call rules: no number or known name asked, booking per setup, emergencies to 911 and nothing trade-specific', () => {
+test('the call rules: no number or known name asked, booking per setup, emergencies to the emergency services and nothing trade-specific', () => {
   const prompt = buildInstructions(assistant())
   expect(prompt).toContain(`How to handle calls (where what the business wants you to know says otherwise, follow the business):\n${callRules({ booking: false, transfer: false })}`)
   expect(prompt).toContain('What the business wants you to know:\nWe fix pipes in Portland.')
@@ -16,15 +16,15 @@ test('the call rules: no number or known name asked, booking per setup, emergenc
   expect(callRules()).not.toMatch(/you cannot book|best number to reach/)
   // One fixed safety rule for every business; what is urgent beyond that is the owner's to say.
   expect(callRules()).toContain(EMERGENCY_RULE)
-  expect(callRules()).toMatch(/hang up and call 911/)
+  expect(callRules()).toMatch(/contact the emergency services now/)
+  expect(callRules()).not.toMatch(/911|hang up/)
   expect(callRules()).not.toMatch(/burst pipe|no heat|leak/)
 })
 
-test("the emergency number is the workspace country's: 911 in the US, 999 in the UK", () => {
-  expect(buildInstructions(assistant())).toContain('hang up and call 911 right away')
-  const uk = buildInstructions(assistant(), null, null, [], null, null, Date.now(), null, false, 'en', 'GB')
-  expect(uk).toContain('hang up and call 999 right away')
-  expect(uk).not.toContain('911')
+test('the emergency rule names no number and keeps helping a caller who stays', () => {
+  const prompt = buildInstructions(assistant())
+  expect(prompt).toContain('tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them.')
+  expect(prompt).not.toMatch(/\b(911|999|112)\b/)
 })
 
 test('the call rules hold only the cases of this call, and leave name, number, prices and promises to their own parts', () => {

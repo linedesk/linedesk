@@ -2,7 +2,6 @@
 
 import type { Language } from './languages.ts'
 import { defaultGreetingWithAi, spokenLines } from './spoken-lines.ts'
-import { emergencyNumberOf } from './workspace-locale.ts'
 
 /**
  * Facts and prices: only the ones the business gave, never a guess or an estimate; always part of the prompt, after
@@ -11,11 +10,8 @@ import { emergencyNumberOf } from './workspace-locale.ts'
 export const PRICE_RULE =
   "Only state facts and prices the business gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say the team will get back to them with one, and take a message."
 
-/**
- * What the call has: booking and transfer on or off; left out (the evaluation judges calls of any setup): both cases.
- * `country`: the workspace country (resolveWorkspaceCountry), for the emergency number; US when left out.
- */
-export type CallSetup = { booking?: boolean; transfer?: boolean; country?: string }
+/** What the call has: booking and transfer on or off; left out (the evaluation judges calls of any setup): both cases. */
+export type CallSetup = { booking?: boolean; transfer?: boolean }
 
 const ASK_TIMES = 'ask which day and time suit the caller, put that in the message and say the team will confirm.'
 
@@ -24,17 +20,15 @@ const ASK_TIMES = 'ask which day and time suit the caller, put that in the messa
  * caller's name, callback number, prices and promises have their own parts of the prompt and are not repeated here.
  */
 /**
- * The one fixed safety rule, the same for every business: an emergency goes to the emergency number of the workspace
- * country (emergencyNumberOf: 911 in the US), not to the business. Everything else that can't wait is an urgent matter,
- * handled by the owner's urgent rules (transfer contacts, flag_urgent).
+ * The one fixed safety rule, the same for every business and country: when someone may be in danger, the caller hears
+ * to contact the emergency services, and the assistant keeps helping if they stay on the call. It names no number
+ * and sends nothing else away: what can't wait is an urgent matter, handled by the owner's urgent rules (transfer
+ * contacts, flag_urgent).
  */
-export const emergencyRule = (country = 'US'): string =>
-  `Only when someone is in danger (a person hurt or at risk, a fire, a break-in, a gas smell): tell the caller to hang up and call ${emergencyNumberOf(country)} right away, before anything else. Never send anything else to ${emergencyNumberOf(country)}, even when the caller says it is an emergency: damage to a home, a car or equipment is urgent, not a call for ${emergencyNumberOf(country)}, so flag the call as urgent and take a message.`
+export const EMERGENCY_RULE =
+  'If someone may be in danger (a person hurt or at risk, a fire, a break-in, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them.'
 
-/** The emergency rule of a US workspace (emergencyRule). */
-export const EMERGENCY_RULE = emergencyRule('US')
-
-export function callRules({ booking, transfer, country }: CallSetup = {}): string {
+export function callRules({ booking, transfer }: CallSetup = {}): string {
   // With booking the booking section says how; without it, the times go into the message.
   const appointments =
     booking === undefined
@@ -44,7 +38,7 @@ export function callRules({ booking, transfer, country }: CallSetup = {}): strin
         : `Appointments: ${ASK_TIMES}`
   const canTransfer = transfer !== false
   return [
-    emergencyRule(country),
+    EMERGENCY_RULE,
     // No tool saves the message: the summary after the call writes it from the whole call.
     'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. To take a message, get what the team needs to act on it (what the caller wants, and a callback number if there is no caller ID), then tell the caller the team will get back to them.',
     appointments,

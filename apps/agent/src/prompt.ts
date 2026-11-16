@@ -406,7 +406,6 @@ export function buildInstructions(
   callerDetails?: CallerDetails | null,
   lookup = false,
   teamLanguage = 'en',
-  country = 'US',
 ): string {
   const transfer = transfers.length > 0
   const nameChecked = behaviourOn(assistant?.behaviours, 'ask_booking_name')
@@ -428,7 +427,7 @@ export function buildInstructions(
     knowledge ? `What the business wants you to know:\n${knowledge}` : null,
     PRICE_RULE,
     // The owner's own words win over the general rules (what is urgent for them, their way of handling a call).
-    `How to handle calls${knowledge ? ' (where what the business wants you to know says otherwise, follow the business)' : ''}:\n${callRules({ booking: !!booking, transfer, country })}`,
+    `How to handle calls${knowledge ? ' (where what the business wants you to know says otherwise, follow the business)' : ''}:\n${callRules({ booking: !!booking, transfer })}`,
     behavioursInstructions(assistant),
     COLLECT_INSTRUCTIONS,
     `When you use a tool other than the collection tools${transfer ? ' and transfer_call' : ''} (which speak for themselves), say your reply in the same response as the tool call instead of waiting for its result: the caller should never wait in silence.`,

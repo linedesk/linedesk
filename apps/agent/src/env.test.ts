@@ -55,7 +55,7 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).toContain('You cannot book appointments, send anyone out, transfer calls or look up records such as jobs, invoices or accounts; for those, take a message.')
   expect(prompt).toContain('take a message for that person and say they will call back')
   expect(prompt).toContain('Appointments: ask which day and time suit the caller')
-  // The one fixed safety rule (#530): an emergency goes to 911, said once.
+  // The one fixed safety rule (#530): someone in danger hears to contact the emergency services, said once.
   expect(prompt.split(EMERGENCY_RULE)).toHaveLength(2)
   // Everything else that is urgent comes from the business's own text, not from a fixed (plumbing) list.
   expect(prompt).not.toMatch(/burst pipe|Emergencies or danger/)

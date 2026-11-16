@@ -452,7 +452,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // turns are cut or turned into text later (REALTIME_TRUNCATION, realtime-history.ts).
   const notes = realtime ? callNotesKeeper(log, (): Promise<void> => agent.updateInstructions(instructionsNow())) : null
   const instructionsNow = (): string =>
-    [buildInstructions(callAssistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country), spokenLanguageRule(callAssistant, spokenNow()), notes?.current()]
+    [buildInstructions(callAssistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage), spokenLanguageRule(callAssistant, spokenNow()), notes?.current()]
       .filter(Boolean)
       .join('\n\n')
   const instructions = instructionsNow()

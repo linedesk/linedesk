@@ -545,7 +545,7 @@ export function urgentCasesFrom(instructions: string | undefined): string | null
 }
 
 /**
- * The fixed line under "Urgent means": emergencies are not the business's to handle (emergencyRule in the prompt), with
+ * The fixed line under "Urgent means": emergencies are not the business's to handle (EMERGENCY_RULE in the prompt), with
  * the emergency number of the workspace country (911 in the US).
  */
 export const EMERGENCY_NOTE = (name: string, country = 'US') =>
