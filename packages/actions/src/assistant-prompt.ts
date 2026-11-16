@@ -20,13 +20,13 @@ const ASK_TIMES = 'ask which day and time suit the caller, put that in the messa
  * caller's name, callback number, prices and promises have their own parts of the prompt and are not repeated here.
  */
 /**
- * The one fixed safety rule, the same for every business and country: when someone may be in danger, the caller hears
- * to contact the emergency services, and the assistant keeps helping if they stay on the call. It names no number
- * and sends nothing else away: what can't wait is an urgent matter, handled by the owner's urgent rules (transfer
- * contacts, flag_urgent).
+ * The one fixed safety rule, the same for every business and country: only when a person may be in danger right now,
+ * the caller hears to contact the emergency services, and the assistant keeps helping if they stay on the call. It names
+ * no number and sends nothing else away: something already over (a break-in yesterday) or damage to property that can't
+ * wait (a burst pipe) is an urgent matter, handled by the owner's urgent rules (transfer contacts, flag_urgent).
  */
 export const EMERGENCY_RULE =
-  'If someone may be in danger (a person hurt or at risk, a fire, a break-in, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them.'
+  "Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them. Something that is already over, or damage to property that can't wait, is not a danger: treat it as urgent."
 
 export function callRules({ booking, transfer }: CallSetup = {}): string {
   // With booking the booking section says how; without it, the times go into the message.
