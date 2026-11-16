@@ -914,6 +914,7 @@
   "providerDialog.worksToast": "{provider} works.",
   "providerError.details": "Details",
   "providerError.fullTip": "The provider's full error",
+  "providerError.oauthClientRejected": "{provider} rejected the client ID or secret. Copy both again from the app's settings at {provider}.",
   "providerStatus.callAudio.noTrunk": "Calls can't come in yet: no SIP trunk.",
   "providerStatus.callAudio.unreachable": "LiveKit can't be reached, so calls have no audio.",
   "providerStatus.tested.date": "tested {date}",

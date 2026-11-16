@@ -6,6 +6,7 @@
 import {
   type LlmProvider,
   llmEndpoints,
+  OAUTH_CLIENT_REJECTED,
   type ProviderFailureReason,
   type ProviderName,
   type ProviderTestData,
@@ -15,7 +16,6 @@ import {
 } from '@linedesk/actions'
 import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
 import { smtpCheck } from './email.ts'
-import { s3EndpointProblem, s3Fetch } from './s3-endpoint.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
 import { type ProviderProblem, problemOfError, problemOfResponse } from './provider-errors.ts'
 import type { ProviderConfig } from './provider-settings.ts'
@@ -26,6 +26,7 @@ import {
   S3RequestError,
   s3StoreFromValues,
 } from './recording-store.ts'
+import { s3EndpointProblem, s3Fetch } from './s3-endpoint.ts'
 
 export const TIMEOUT_MS = 8000
 const MAX_MESSAGE = 300
@@ -444,7 +445,10 @@ const turnstile: Check = async (values, http) => {
   if (!answer.ok) return failed(answer.problem)
   const codes = Array.isArray(answer.body['error-codes']) ? (answer.body['error-codes'] as unknown[]).map(String) : []
   if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret'))
-    return error('auth', 'Cloudflare does not know this secret key. Copy it again from Turnstile, your widget, Settings.')
+    return error(
+      'auth',
+      'Cloudflare does not know this secret key. Copy it again from Turnstile, your widget, Settings.',
+    )
   if (!/^0x[\w-]{10,}$/.test(values.site_key ?? ''))
     return error('config', 'The site key does not look like a Turnstile site key (0x…).')
   return ok()
@@ -485,7 +489,11 @@ function stripeProblem(e: unknown): ProviderProblem {
   const status = typeof e === 'object' && e && 'statusCode' in e ? Number(e.statusCode) : undefined
   const type = typeof e === 'object' && e && 'type' in e ? String(e.type) : ''
   if (type === 'StripeAuthenticationError' || status === 401)
-    return { reason: 'auth', message: 'Stripe rejected the secret key (HTTP 401). Copy it again from the Stripe Dashboard, Developers, API keys.' }
+    return {
+      reason: 'auth',
+      message:
+        'Stripe rejected the secret key (HTTP 401). Copy it again from the Stripe Dashboard, Developers, API keys.',
+    }
   if (type === 'StripePermissionError' || status === 403)
     return {
       reason: 'permission',
@@ -494,8 +502,14 @@ function stripeProblem(e: unknown): ProviderProblem {
   if (type === 'StripeRateLimitError' || status === 429)
     return { reason: 'network', message: 'Stripe is rate limiting this key (HTTP 429). Test again in a minute.' }
   if (type === 'StripeConnectionError')
-    return { reason: 'network', message: "Could not reach Stripe. Check the server's connection and status.stripe.com." }
-  return { reason: status && status >= 500 ? 'network' : 'unknown', message: `Stripe answered ${status ? `HTTP ${status}` : 'with an error'}.` }
+    return {
+      reason: 'network',
+      message: "Could not reach Stripe. Check the server's connection and status.stripe.com.",
+    }
+  return {
+    reason: status && status >= 500 ? 'network' : 'unknown',
+    message: `Stripe answered ${status ? `HTTP ${status}` : 'with an error'}.`,
+  }
 }
 
 export async function testStripe(
@@ -506,8 +520,7 @@ export async function testStripe(
   const secretKey = values.secret_key!
   const mode = stripeKeyMode(secretKey)
   if (!mode) return error('config', 'The secret key is not a Stripe secret key (sk_…) or restricted key (rk_…).')
-  if (mode === 'live' && !liveKeysAllowed(env))
-    return error('config', LIVE_KEYS_REFUSED)
+  if (mode === 'live' && !liveKeysAllowed(env)) return error('config', LIVE_KEYS_REFUSED)
   try {
     const provider = await loadBillingProvider({ secretKey, webhookSecret: values.webhook_secret! }, doFetch)
     const account = await provider.account()
@@ -605,48 +618,114 @@ async function tokenEndpoint(provider: OAuthApp, values: Values, doFetch: typeof
 }
 
 /**
- * An OAuth app is checked by exchanging a made-up code: the provider first checks the client ID and
- * secret ("invalid_client", GitHub's "incorrect_client_credentials") and only then the code
- * ("invalid_grant", "bad_verification_code"). So a rejected code means the app is right. Missing scopes or a
- * disabled calendar API show only when a member connects: then the calendar records the failure.
+ * The request that checks an OAuth app. Most providers check the client ID and secret before the code, so a made-up
+ * code they reject ("invalid_grant", "bad_verification_code") means the app is right. HubSpot and Microsoft check the
+ * code first and pass any client with "BAD_AUTH_CODE" or "AADSTS9002313" (LIN-370): they are asked for an app token
+ * instead (client_credentials), which they refuse for an unknown client or a wrong secret. A token they do issue is
+ * not kept. Calendly asks for PKCE before it looks at the client, so its request has a code_verifier.
+ */
+function oauthProbe(provider: OAuthApp, values: Values): URLSearchParams {
+  const client = { client_id: values.client_id!, client_secret: values.client_secret! }
+  if (provider === 'hubspot') return new URLSearchParams({ grant_type: 'client_credentials', ...client })
+  if (provider === 'microsoft')
+    return new URLSearchParams({
+      grant_type: 'client_credentials',
+      scope: 'https://graph.microsoft.com/.default',
+      ...client,
+    })
+  return new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: 'linedesk-connection-test',
+    ...client,
+    redirect_uri: 'https://localhost/linedesk-connection-test',
+    ...(provider === 'calendly' && { code_verifier: 'linedesk-connection-test-code-verifier-0123456789' }),
+  })
+}
+
+/** Providers asked for an app token (oauthProbe): any answer but a refused client means the client is right. */
+const asksForAppToken = (provider: OAuthApp) => provider === 'hubspot' || provider === 'microsoft'
+
+type OAuthAnswer = { error?: unknown; error_description?: unknown; error_codes?: unknown; status?: unknown }
+
+/** Microsoft's AADSTS codes in an answer. */
+const aadstsCodes = (answer: OAuthAnswer): number[] =>
+  Array.isArray(answer.error_codes) ? answer.error_codes.map(Number) : []
+
+/**
+ * Whether the provider refused the client ID or secret. HubSpot names the refused part in `status`; Microsoft
+ * answers an unknown client with AADSTS700016 and a wrong secret with AADSTS7000215; GitHub answers an unknown client
+ * ID with 404.
+ */
+function refusedClient(provider: OAuthApp, res: Response, answer: OAuthAnswer): boolean {
+  if (answer.status === 'BAD_CLIENT_ID' || answer.status === 'BAD_CLIENT_SECRET') return true
+  if (['invalid_client', 'incorrect_client_credentials', 'unauthorized_client'].includes(String(answer.error)))
+    return true
+  if (aadstsCodes(answer).some(code => code === 700016 || code === 7000215)) return true
+  return provider === 'github' && res.status === 404
+}
+
+/**
+ * Whether an app-token answer comes from past the client check: a token, or the provider's own refusal of the grant
+ * or scope (not every app may get an app token). Only an answer in the provider's shape counts (HubSpot's `status`,
+ * Microsoft's AADSTS codes), never a bare 400 from something in between.
+ */
+const pastClientCheck = (provider: OAuthApp, res: Response, answer: OAuthAnswer) =>
+  res.ok ||
+  (res.status === 400 && (provider === 'hubspot' ? typeof answer.status === 'string' : aadstsCodes(answer).length > 0))
+
+/**
+ * An OAuth app is checked with one token request that the provider refuses for a wrong client (oauthProbe). Missing
+ * scopes or a disabled calendar API show only when a member connects: then the calendar records the failure.
  */
 async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof fetch): Promise<ProviderTestData> {
   const { label } = providerSpec(provider)
   try {
-    const body = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: 'linedesk-connection-test',
-      client_id: values.client_id!,
-      client_secret: values.client_secret!,
-      redirect_uri: 'https://localhost/linedesk-connection-test',
-    })
     const res = await doFetch(await tokenEndpoint(provider, values, doFetch), {
       method: 'POST',
-      body,
+      body: oauthProbe(provider, values),
       headers: {
         accept: 'application/json',
         'content-type': 'application/x-www-form-urlencoded',
         // Calendly takes the client ID and secret as HTTP Basic only.
-        ...(provider === 'calendly' && { authorization: `Basic ${btoa(`${values.client_id}:${values.client_secret}`)}` }),
+        ...(provider === 'calendly' && {
+          authorization: `Basic ${btoa(`${values.client_id}:${values.client_secret}`)}`,
+        }),
       },
       redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
-    const answer = (await res.json().catch(() => ({}))) as { error?: unknown; error_description?: unknown; status?: unknown }
-    // HubSpot names the refused part in `status` (BAD_CLIENT_ID, BAD_AUTH_CODE …).
-    const code = answer.status === 'BAD_CLIENT_ID' || answer.status === 'BAD_CLIENT_SECRET' ? 'invalid_client' : answer.status === 'BAD_AUTH_CODE' || answer.status === 'BAD_REDIRECT_URI' ? 'invalid_grant' : answer.error
+    const answer = (await res.json().catch(() => ({}))) as OAuthAnswer
     // Microsoft names an expired secret in the description (AADSTS7000222).
     if (typeof answer.error_description === 'string' && answer.error_description.includes('AADSTS7000222'))
       return error(
         'auth',
         `The ${label} client secret has expired: make a new one in Microsoft Entra and enter it here.`,
       )
-    if (code === 'invalid_client' || code === 'incorrect_client_credentials' || code === 'unauthorized_client')
-      return error('auth', `${label} rejected the client ID or secret`)
-    if (code === 'invalid_grant' || code === 'bad_verification_code' || code === 'redirect_uri_mismatch') return ok()
+    if (refusedClient(provider, res, answer)) return error('auth', `${label} ${OAUTH_CLIENT_REJECTED}`)
+    const aadsts = aadstsCodes(answer)
+    // A tenant Microsoft does not know (AADSTS90002), or not a tenant ID or domain (AADSTS900023).
+    if (aadsts.includes(90002) || aadsts.includes(900023))
+      return error(
+        'config',
+        `${label} does not know the tenant ${(values.tenant_id || 'common').slice(0, 80)}: check the tenant ID.`,
+      )
+    // Microsoft answers an unknown client ID with AADSTS53003 too, so this cannot tell the two apart.
+    if (aadsts.includes(53003))
+      return error(
+        'permission',
+        `${label} refused the app (AADSTS53003): check the client ID, or a Conditional Access policy that blocks the app.`,
+      )
+    if (asksForAppToken(provider)) {
+      if (pastClientCheck(provider, res, answer)) return ok()
+    } else if (['invalid_grant', 'bad_verification_code', 'redirect_uri_mismatch'].includes(String(answer.error)))
+      return ok()
+    const code = typeof answer.status === 'string' ? answer.status : answer.error
     return error(
       res.status >= 500 ? 'network' : 'unknown',
-      `${label} answered HTTP ${res.status}${typeof code === 'string' ? ` (${code.slice(0, 40)})` : ''}`,
+      `${label} answered HTTP ${res.status}${typeof code === 'string' ? ` (${code.slice(0, 40)})` : ''}`.replaceAll(
+        values.client_secret!,
+        '[redacted]',
+      ),
     )
   } catch (e) {
     if (e instanceof Error && e.name === 'TimeoutError')

@@ -166,6 +166,19 @@ const PER_CALL_ERROR =
   /conversation_already_has_active_response|already has an active response|response_cancel_not_active|Cancellation failed: no active response/i
 export const isPerCallProviderError = (text: string) => PER_CALL_ERROR.test(text)
 
+/** The end of a provider test's message when an OAuth app's client ID or secret is wrong: "HubSpot rejected …". */
+export const OAUTH_CLIENT_REJECTED = 'rejected the client ID or secret'
+
+/**
+ * The provider that rejected an OAuth app's client in a test message ("HubSpot"), or null: the web app says it in the
+ * reader's language (LIN-370). The message itself stays English for logs and API clients.
+ */
+export function oauthClientRejectedBy(text: string): string | null {
+  const line = text.trim().replace(/\.$/, '')
+  if (!line.endsWith(` ${OAUTH_CLIENT_REJECTED}`)) return null
+  return line.slice(0, -OAUTH_CLIENT_REJECTED.length - 1).trim() || null
+}
+
 /** The longest short error line (providerErrorSummary). */
 export const PROVIDER_ERROR_SUMMARY_MAX = 120
 

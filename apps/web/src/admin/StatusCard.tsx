@@ -6,14 +6,7 @@
 // muted; words only for a problem. The details fold away once everything works; a failing group a call needs makes the
 // headline "Calls are not answered" with the reason. The install walkthrough shows the same rows (StatusList) without
 // links: it never navigates away (design rule 14).
-import {
-  type GroupStatus,
-  overviewGroups,
-  providerErrorSummary,
-  readiness,
-  type StatusState,
-  statusText,
-} from '@linedesk/actions'
+import { type GroupStatus, overviewGroups, readiness, type StatusState, statusText } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
@@ -26,7 +19,7 @@ import { List, ListRow } from '../ui/list.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { ADMIN_HEALTH, type AdminHealth, type HealthPart } from './api.ts'
 import { AgentFirst } from './Providers.tsx'
-import { groupProblem, groupValue, type ProviderStatusState } from './providerStatus.ts'
+import { groupProblem, groupValue, type ProviderStatusState, providerErrorLine } from './providerStatus.ts'
 
 /**
  * One part: its mark (with `mark` as tooltip), its name, a short muted value at the right (what is in use, or "Not set
@@ -85,8 +78,8 @@ export const serverRows = (health: AdminHealth | null): Row[] =>
           ? t('admin.status.responding')
           : t('admin.status.failing'),
       value: failing || (status?.ok && quietWhenOk.includes(key)) ? null : (status?.message ?? null),
-      problem: failing ? providerErrorSummary(status.message) : null,
-      help: failing && providerErrorSummary(status.message) !== status.message.trim() ? status.message : null,
+      problem: failing ? providerErrorLine(status.message) : null,
+      help: failing && providerErrorLine(status.message) !== status.message.trim() ? status.message : null,
       href: '#admin/system',
     }
   })

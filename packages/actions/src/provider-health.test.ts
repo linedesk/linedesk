@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'vitest'
 import {
+  isPerCallProviderError,
+  oauthClientRejectedBy,
+  PROVIDER_ERROR_SUMMARY_MAX,
+  providerErrorSummary,
   providerFailureAdvice,
   providerFailureReason,
   providerFailureReasonOfText,
   providerFailureReasons,
   providerFailureText,
-  isPerCallProviderError,
-  PROVIDER_ERROR_SUMMARY_MAX,
-  providerErrorSummary,
 } from './provider-health.ts'
 
 describe('providerFailureReason: one vocabulary for the API and the voice agent', () => {
@@ -70,11 +71,20 @@ const ACTIVE_RESPONSE =
 describe('providerErrorSummary: one short line for people, never raw JSON', () => {
   test.each([
     [ACTIVE_RESPONSE, 'A call sent two replies at once. Calls still work.'],
-    ['Incorrect API key provided: sk-abc. You can find your API key at https://platform.openai.com.', 'The API key is not accepted.'],
+    [
+      'Incorrect API key provided: sk-abc. You can find your API key at https://platform.openai.com.',
+      'The API key is not accepted.',
+    ],
     ['HTTP 401 {"error":"unauthorized"}', 'The API key is not accepted.'],
-    ['You exceeded your current quota, please check your plan and billing details.', "The provider's limit or credit is used up."],
+    [
+      'You exceeded your current quota, please check your plan and billing details.',
+      "The provider's limit or credit is used up.",
+    ],
     ['HTTP 429 Too Many Requests', "The provider's limit or credit is used up."],
-    ['The model gpt-x does not exist. Pick another one. {"error":{"code":"model_not_found"}}', 'The model gpt-x does not exist.'],
+    [
+      'The model gpt-x does not exist. Pick another one. {"error":{"code":"model_not_found"}}',
+      'The model gpt-x does not exist.',
+    ],
     ['Socket closed {"code":1006}', 'Socket closed'],
     ['{"error":"x"}', '{"error":"x"}'],
   ])('%s', (text, expected) => expect(providerErrorSummary(text)).toBe(expected))
@@ -91,4 +101,11 @@ test('isPerCallProviderError: our own conversation races, not a provider outage'
   expect(isPerCallProviderError('Cancellation failed: no active response found')).toBe(true)
   expect(isPerCallProviderError('Incorrect API key provided')).toBe(false)
   expect(isPerCallProviderError('You exceeded your current quota')).toBe(false)
+})
+
+test('oauthClientRejectedBy: the provider of a rejected OAuth client, for the translated line (LIN-370)', () => {
+  expect(oauthClientRejectedBy('HubSpot rejected the client ID or secret')).toBe('HubSpot')
+  expect(oauthClientRejectedBy('Cal.com rejected the client ID or secret.')).toBe('Cal.com')
+  expect(oauthClientRejectedBy('HubSpot answered HTTP 400 (BAD_GRANT_TYPE)')).toBeNull()
+  expect(oauthClientRejectedBy(' rejected the client ID or secret')).toBeNull()
 })

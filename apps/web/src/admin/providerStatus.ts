@@ -9,6 +9,7 @@ import {
   type GroupStatus,
   groupSpec,
   isMultiCategory,
+  oauthClientRejectedBy,
   type ProviderFact,
   type ProviderLine,
   type ProviderName,
@@ -185,10 +186,17 @@ export function groupProblem(group: GroupStatus): { line: string; detail: string
   if (group.id === 'call-audio') {
     return { line: i18n().t('admin.providerStatus.callAudio.unreachable'), detail: server && `${server}.` }
   }
-  // One short line (a provider's raw error never: providerErrorSummary); the full text behind the (?).
+  // One short line (a provider's raw error never: providerErrorLine); the full text behind the (?).
   if (!group.message) return { line: statusText(group), detail: null }
-  const line = group.state === 'failing' ? providerErrorSummary(group.message) : group.message
+  const line = group.state === 'failing' ? providerErrorLine(group.message) : group.message
   return { line, detail: line === group.message.trim() ? null : group.message }
+}
+
+/** The short line of a provider's error: a known reason in the reader's language, else providerErrorSummary. */
+export function providerErrorLine(message: string): string {
+  const rejectedBy = oauthClientRejectedBy(message)
+  if (rejectedBy) return i18n().t('admin.providerError.oauthClientRejected', { provider: rejectedBy })
+  return providerErrorSummary(message)
 }
 
 export function groupValue(group: GroupStatus): string | null {

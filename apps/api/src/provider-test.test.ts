@@ -53,7 +53,10 @@ describe('voice: ElevenLabs', () => {
         },
       ],
     })
-    expect(await testProvider('elevenlabs', config({ api_key: KEY }), fake.doFetch)).toMatchObject({ ok: true, status: 'ok' })
+    expect(await testProvider('elevenlabs', config({ api_key: KEY }), fake.doFetch)).toMatchObject({
+      ok: true,
+      status: 'ok',
+    })
   })
 
   test('little quota left: works, with a warning', async () => {
@@ -69,7 +72,10 @@ describe('voice: ElevenLabs', () => {
   test('a key that may not read the quota: one character of speech decides', async () => {
     const fake = provider({
       'GET /v1/user/subscription': [401, { detail: { status: 'missing_permissions', message: 'user_read' } }],
-      'POST /v1/text-to-speech/': [401, { detail: { status: 'quota_exceeded', message: 'This request exceeds your quota' } }],
+      'POST /v1/text-to-speech/': [
+        401,
+        { detail: { status: 'quota_exceeded', message: 'This request exceeds your quota' } },
+      ],
     })
     const result = await testProvider('elevenlabs', config({ api_key: KEY }), fake.doFetch)
     expect(result).toMatchObject({ ok: false, reason: 'quota' })
@@ -169,7 +175,10 @@ describe('language models', () => {
 
   test('OpenAI: insufficient_quota (HTTP 429) is a used-up quota, not a rate limit', async () => {
     const fake = provider({
-      'POST /chat/completions': [429, { error: { code: 'insufficient_quota', message: 'You exceeded your current quota' } }],
+      'POST /chat/completions': [
+        429,
+        { error: { code: 'insufficient_quota', message: 'You exceeded your current quota' } },
+      ],
     })
     expect(await testProvider('openai', config({ api_key: KEY }), fake.doFetch)).toMatchObject({
       ok: false,
@@ -191,7 +200,11 @@ describe('language models', () => {
       'POST /chat/completions': [401, { error: { message: `Incorrect API key provided: ${KEY}` } }],
     })
     const result = await testProvider('openai', config({ api_key: KEY }), fake.doFetch)
-    expect(result).toMatchObject({ ok: false, reason: 'auth', message: expect.stringMatching(/^OpenAI rejected the key \(HTTP 401\)/) })
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'auth',
+      message: expect.stringMatching(/^OpenAI rejected the key \(HTTP 401\)/),
+    })
     expect(result.message).not.toContain(KEY)
   })
 
@@ -236,7 +249,10 @@ describe('speech to text', () => {
       'GET /v1/projects/p1/balances': [403, {}],
       'GET /v1/projects': [200, { projects: [{ project_id: 'p1' }] }],
     })
-    expect(await testProvider('deepgram', config({ api_key: KEY }), fake.doFetch)).toMatchObject({ ok: true, status: 'ok' })
+    expect(await testProvider('deepgram', config({ api_key: KEY }), fake.doFetch)).toMatchObject({
+      ok: true,
+      status: 'ok',
+    })
   })
 })
 
@@ -280,7 +296,9 @@ test('a missing field is reported without a request; optional fields are not nee
 
 test('a server that cannot be reached is named by its cause, without the key', async () => {
   const thrown = vi.fn(async () => {
-    throw new TypeError('fetch failed', { cause: Object.assign(new Error(`refused for ${KEY}`), { code: 'ECONNREFUSED' }) })
+    throw new TypeError('fetch failed', {
+      cause: Object.assign(new Error(`refused for ${KEY}`), { code: 'ECONNREFUSED' }),
+    })
   })
   const result = await testProvider('telnyx', config({ api_key: KEY }), thrown)
   expect(result).toMatchObject({ ok: false, reason: 'network' })
@@ -317,8 +335,7 @@ const app = { client_id: 'client-id-123', client_secret: 'client-secret-made-up-
 test.each([
   ['google', 'https://oauth2.googleapis.com/token', {}],
   ['github', 'https://github.com/login/oauth/access_token', {}],
-  ['microsoft', 'https://login.microsoftonline.com/common/oauth2/v2.0/token', {}],
-  ['microsoft', 'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token', { tenant_id: 'contoso.onmicrosoft.com' }],
+  ['calcom', 'https://api.cal.com/v2/auth/oauth2/token', {}],
 ] as const)('%s: a made-up code the provider rejects means the app is right', async (name, url, extra) => {
   const fake = provider({ 'POST /': [400, { error: name === 'github' ? 'bad_verification_code' : 'invalid_grant' }] })
   expect(await testProvider(name, config({ ...app, ...extra }), fake.doFetch)).toEqual({
@@ -331,19 +348,146 @@ test.each([
 })
 
 test.each([
-  ['google', { error: 'invalid_client' }, 401],
+  ['google', { error: 'invalid_client', error_description: 'The OAuth client was not found.' }, 401],
   ['github', { error: 'incorrect_client_credentials' }, 200],
+  ['github', { error: 'Not Found' }, 404],
+  ['calcom', { error: 'invalid_client', error_description: 'client_not_found' }, 401],
+  ['calendly', { error: 'invalid_client' }, 401],
 ] as const)('%s: a wrong client is reported, without the secret', async (name, body, status) => {
   const result = await testProvider(name, config(app), answer(status, body))
-  expect(result).toMatchObject({ ok: false, reason: 'auth', message: expect.stringMatching(/rejected the client ID or secret/) })
+  expect(result).toMatchObject({
+    ok: false,
+    reason: 'auth',
+    message: expect.stringMatching(/rejected the client ID or secret$/),
+  })
   expect(result.message).not.toContain(app.client_secret)
+})
+
+// Answers recorded from HubSpot (2026-11-16, LIN-370): its token endpoint checks the code before the client, so a
+// made-up code passed any keys. The check asks for an app token, which HubSpot refuses for a wrong client.
+const hubspotAnswer = (status: string, error: string) => ({
+  status,
+  message: 'missing or invalid',
+  correlationId: '01a1e664-1cd8-7939-9bb2-6f3f4551cb02',
+  error,
+  error_description: 'missing or invalid',
+})
+
+test('hubspot: asks for an app token with the client ID and secret, never a made-up code', async () => {
+  const fake = provider({ 'POST /': [400, hubspotAnswer('BAD_GRANT_TYPE', 'invalid_request')] })
+  await testProvider('hubspot', config(app), fake.doFetch)
+  expect(fake.requests[0]!.url).toBe('https://api.hubapi.com/oauth/v3/token')
+  const body = new URLSearchParams(String(fake.requests[0]!.init.body))
+  expect(Object.fromEntries(body)).toEqual({ grant_type: 'client_credentials', ...app })
+})
+
+test.each([
+  ['an unknown client ID', 'BAD_CLIENT_ID'],
+  ['a wrong client secret', 'BAD_CLIENT_SECRET'],
+])('hubspot: %s fails the check', async (_, status) => {
+  const result = await testProvider(
+    'hubspot',
+    config(app),
+    answer(400, hubspotAnswer(status, status === 'BAD_CLIENT_ID' ? 'invalid_request' : 'invalid_client')),
+  )
+  expect(result).toEqual({
+    ok: false,
+    status: 'error',
+    reason: 'auth',
+    message: 'HubSpot rejected the client ID or secret',
+  })
+})
+
+test.each([
+  ['a token', 200, { access_token: 'app-token', expires_in: 1800 }],
+  ['a refused grant', 400, hubspotAnswer('BAD_GRANT_TYPE', 'invalid_request')],
+] as const)('hubspot: a right client passes (%s)', async (_, status, body) => {
+  expect(await testProvider('hubspot', config(app), answer(status, body))).toMatchObject({ ok: true, status: 'ok' })
+})
+
+test('hubspot: a rate limit or outage is not a pass', async () => {
+  expect(await testProvider('hubspot', config(app), answer(429, { status: 'RATE_LIMIT' }))).toMatchObject({ ok: false })
+  expect(await testProvider('hubspot', config(app), answer(502, {}))).toMatchObject({ ok: false, reason: 'network' })
+})
+
+// Answers recorded from Microsoft (2026-11-16): a made-up code is refused as malformed (AADSTS9002313) before the
+// client is checked, so the check asks for an app token for Microsoft Graph.
+const aadsts = (error: string, code: number) => ({ error, error_description: `AADSTS${code}: …`, error_codes: [code] })
+
+test.each([
+  ['microsoft', 'https://login.microsoftonline.com/common/oauth2/v2.0/token', {}],
+  [
+    'microsoft',
+    'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token',
+    { tenant_id: 'contoso.onmicrosoft.com' },
+  ],
+] as const)('microsoft: asks for an app token at the tenant', async (name, url, extra) => {
+  const fake = provider({ 'POST /': [200, { access_token: 'app-token' }] })
+  expect(await testProvider(name, config({ ...app, ...extra }), fake.doFetch)).toMatchObject({ ok: true })
+  expect(fake.requests[0]!.url).toBe(url)
+  const body = new URLSearchParams(String(fake.requests[0]!.init.body))
+  expect(body.get('grant_type')).toBe('client_credentials')
+  expect(body.get('scope')).toBe('https://graph.microsoft.com/.default')
+  expect(body.get('code')).toBeNull()
+})
+
+test.each([
+  ['a wrong secret', 401, aadsts('invalid_client', 7000215)],
+  ['an unknown client', 400, aadsts('unauthorized_client', 700016)],
+] as const)('microsoft: %s fails the check', async (_, status, body) => {
+  expect(await testProvider('microsoft', config(app), answer(status, body))).toMatchObject({
+    ok: false,
+    reason: 'auth',
+    message: 'Microsoft rejected the client ID or secret',
+  })
+})
+
+test('microsoft: an unknown client through common (AADSTS53003) fails, without blaming the secret', async () => {
+  const result = await testProvider('microsoft', config(app), answer(400, aadsts('invalid_grant', 53003)))
+  expect(result).toMatchObject({
+    ok: false,
+    reason: 'permission',
+    message: expect.stringMatching(/client ID.*Conditional Access/),
+  })
+})
+
+test('microsoft: a tenant Microsoft does not know fails the check', async () => {
+  const values = { ...app, tenant_id: 'no-such-tenant.onmicrosoft.com' }
+  expect(await testProvider('microsoft', config(values), answer(400, aadsts('invalid_request', 90002)))).toMatchObject({
+    ok: false,
+    reason: 'config',
+    message: expect.stringMatching(/no-such-tenant\.onmicrosoft\.com/),
+  })
+})
+
+test.each([
+  ['hubspot', { error: 'invalid_request' }],
+  ['microsoft', { error: 'invalid_request' }],
+] as const)("%s: a 400 not in the provider's shape is not a pass", async (name, body) => {
+  expect(await testProvider(name, config(app), answer(400, body))).toMatchObject({ ok: false, reason: 'unknown' })
+})
+
+test('microsoft: a right client that may not get an app token passes', async () => {
+  expect(await testProvider('microsoft', config(app), answer(400, aadsts('invalid_scope', 1002012)))).toMatchObject({
+    ok: true,
+  })
+})
+
+test('calendly: the made-up code comes with a PKCE verifier, so Calendly checks the client', async () => {
+  const fake = provider({ 'POST /': [400, { error: 'invalid_grant' }] })
+  expect(await testProvider('calendly', config(app), fake.doFetch)).toMatchObject({ ok: true })
+  expect(fake.requests[0]!.url).toBe('https://auth.calendly.com/oauth/token')
+  expect(new URLSearchParams(String(fake.requests[0]!.init.body)).get('code_verifier')).toMatch(/^.{43,128}$/)
 })
 
 test('microsoft: an expired client secret is named', async () => {
   const result = await testProvider(
     'microsoft',
     config(app),
-    answer(401, { error: 'invalid_client', error_description: 'AADSTS7000222: The provided client secret keys are expired.' }),
+    answer(401, {
+      error: 'invalid_client',
+      error_description: 'AADSTS7000222: The provided client secret keys are expired.',
+    }),
   )
   expect(result).toMatchObject({ ok: false, reason: 'auth', message: expect.stringMatching(/expired/) })
 })
