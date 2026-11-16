@@ -119,3 +119,14 @@ describe('⌘K teammates show their picture (LIN-198)', () => {
     expect(find(c, "Go to Ana Ruiz's calls")).toMatchObject({ avatarSrc: null })
   })
 })
+
+describe('New workspace', () => {
+  it('is offered only where the account may create a workspace, and opens the dialog', () => {
+    const has = (c: CommandContext) => commandGroups(c).some(g => g.items.some(i => i.label === 'New workspace…'))
+    expect(has(context())).toBe(false)
+    const open = vi.fn()
+    const c = { ...context(), newWorkspace: open }
+    find(c, 'New workspace…').run()
+    expect(open).toHaveBeenCalled()
+  })
+})

@@ -469,6 +469,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),
     showTour: tourOffered ? () => setTourOpen(true) : undefined,
+    newWorkspace: canCreateWorkspace ? () => setNewWorkspace(true) : undefined,
     openNav: () => setNavOpen(true),
     showGoLive: showGoLive
       ? () => {

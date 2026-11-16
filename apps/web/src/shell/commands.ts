@@ -55,6 +55,8 @@ export type CommandContext = {
   openHelp: () => void
   /** Set where the install offers the first-use tour (FIRST_USE). */
   showTour?: () => void
+  /** Set where this account may create a workspace (as in the workspace menu): opens New workspace. */
+  newWorkspace?: () => void
   openNav: () => void
   signOut: () => void
   /** Owners and admins after onboarding: opens the go-live checklist again (also after it was closed). */
@@ -402,6 +404,16 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
                 run: () => c.goPage('workspace', 'danger'),
               } satisfies Command,
             ]),
+        ...(c.newWorkspace
+          ? [
+              {
+                label: t('shell.workspaceMenu.newWorkspace'),
+                keywords: 'create add business workspace',
+                icon: 'plus',
+                run: c.newWorkspace,
+              } satisfies Command,
+            ]
+          : []),
         ...(c.isInstanceAdmin
           ? [
               {
