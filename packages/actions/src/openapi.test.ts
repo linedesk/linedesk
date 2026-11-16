@@ -6,7 +6,7 @@ describe('OpenAPI document', () => {
   const doc = openApiDocument(actions.values(), 'https://app.example.com')
 
   test('lists exactly the public actions', () => {
-    const listed = Object.keys(doc.paths).map(p => p.replace('/v1/actions/', ''))
+    const listed = Object.keys(doc.paths).filter(p => p.startsWith('/v1/actions/')).map(p => p.replace('/v1/actions/', ''))
     const published = [...actions.values()].filter(a => a.public).map(a => a.name)
     expect(listed.sort()).toEqual(published.sort())
     expect(listed).toContain('call.markDone')
@@ -24,13 +24,13 @@ describe('OpenAPI document', () => {
   })
 
   test("each operation carries the action's input schema and Bearer auth", () => {
-    const remind = doc.paths['/v1/actions/call.remind']!.post
+    const remind = doc.paths['/v1/actions/call.remind']!.post!
     expect(remind.requestBody.content['application/json'].schema).toMatchObject({
       type: 'object',
       required: expect.arrayContaining(['callId', 'at']),
       properties: { callId: { type: 'string' }, at: { type: 'string', format: 'date-time' } },
     })
-    expect(doc.paths['/v1/actions/calendar.findSlots']!.post.parameters).toEqual([])
+    expect(doc.paths['/v1/actions/calendar.findSlots']!.post!.parameters).toEqual([])
     expect(doc.security).toEqual([{ apiKey: [] }])
     expect(doc.servers).toEqual([{ url: 'https://app.example.com' }])
   })
@@ -38,11 +38,18 @@ describe('OpenAPI document', () => {
   test("an assistant's three hooks are documented as webhooks: the caller asked about, a lookup, and the whole call", () => {
     type Props = { properties: Record<string, unknown> }
     const body = (hook: 'call_start' | 'during_call' | 'call_end') => doc.webhooks[hook].post.requestBody.content['application/json'].schema as Props
-    expect(Object.keys(doc.webhooks).sort()).toEqual(['call_end', 'call_start', 'during_call'])
+    expect(Object.keys(doc.webhooks).sort()).toEqual(['call_end', 'call_finished', 'call_start', 'during_call'])
     expect(Object.keys(body('during_call').properties)).toEqual(expect.arrayContaining(['hook', 'lookup', 'values', 'call_id', 'test']))
     expect(Object.keys(body('call_start').properties)).toEqual(expect.arrayContaining(['call_id', 'from_number', 'caller']))
     expect(Object.keys(body('call_end').properties)).toEqual(
       expect.arrayContaining(['call_id', 'summary', 'transcript', 'transcript_text', 'from_number', 'call_url', 'recording_url', 'caller_details']),
     )
+  })
+
+  test('the reads for integrations and the call a subscription gets are documented', () => {
+    expect(Object.keys(doc.paths).filter(p => !p.startsWith('/v1/actions/')).sort()).toEqual(['/v1/api-key', '/v1/integrations/calls', '/v1/integrations/contacts'])
+    const call = doc.webhooks.call_finished.post.requestBody.content['application/json'].schema as { properties: Record<string, unknown> }
+    expect(Object.keys(call.properties)).toEqual(expect.arrayContaining(['id', 'event', 'call_id', 'summary', 'caller_name', 'next_steps_text', 'booking_start_at']))
+    expect(Object.keys(call.properties)).not.toContain('hook')
   })
 })

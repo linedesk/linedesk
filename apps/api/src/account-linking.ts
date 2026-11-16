@@ -9,6 +9,7 @@ import {
   api_keys,
   assistants,
   calendar_connections,
+  integration_subscriptions,
   invitation,
   member,
   passkey,
@@ -96,7 +97,7 @@ export function mapOidcProfile(
 /**
  * Everything that got into an account before its address was proven, removed in one transaction:
  * other sign-in accounts (the password, providers), passkeys, sessions, push subscriptions, API keys
- * the account created (revoked), webhook endpoints and calendar connections it created, and invitations
+ * the account created (revoked, with their integration subscriptions), webhook endpoints and calendar connections it created, and invitations
  * it sent that are still pending, and where calls go in the workspaces it owns (resetCallRoutingOf).
  * Whoever held an account made with another person's address (a password sign-up from before
  * sign-up closed, #734) must keep no way in and no way to receive their data. Workspaces and their members stay (they are the account's now); `keepAccountId`
@@ -115,10 +116,20 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
     await tx.delete(session).where(eq(session.userId, userId))
     // As push.ts dropUserPush; not imported, push.ts reaches back to auth.ts.
     await tx.delete(push_subscriptions).where(eq(push_subscriptions.user_id, userId))
-    await tx
+    const revokedKeys = await tx
       .update(api_keys)
       .set({ revoked_at: new Date().toISOString() })
       .where(and(eq(api_keys.created_by, userId), isNull(api_keys.revoked_at)))
+      .returning({ id: api_keys.id })
+    // And their Zapier subscriptions, as integrations.ts dropKeySubscriptions; not imported, integrations.ts reaches
+    // back to auth.ts (through webhooks.ts).
+    if (revokedKeys.length > 0)
+      await tx.delete(integration_subscriptions).where(
+        inArray(
+          integration_subscriptions.api_key_id,
+          revokedKeys.map(k => k.id),
+        ),
+      )
     // So are AI agent setup links (agent-setup.ts); an unproven account is no instance admin, but never keep one.
     await tx
       .update(agent_setup_keys)

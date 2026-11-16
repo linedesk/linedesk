@@ -71,6 +71,7 @@ import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
+import { integrationHandlers, queueIntegrationDeliveries } from './integrations.ts'
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
@@ -808,6 +809,7 @@ const handlers: Record<string, Handler> = {
   ...evaluationHandlers(queueCallEvaluation),
   ...afterCallTranscriptHandlers,
   ...webhookHandlers,
+  ...integrationHandlers,
   ...knowledgeHandlers,
   ...businessHandlers,
   ...knowledgeQuestionHandlers,
@@ -1028,6 +1030,7 @@ const handlers: Record<string, Handler> = {
       // Test calls are evaluated only when the call view asks (call.evaluate).
       if (evaluatedAutomatically(updated!)) await queueCallEvaluation(tx, call.id)
       await queueCallEnd(tx, updated!)
+      await queueIntegrationDeliveries(tx, updated!)
       // This call's minutes may take the workspace to 80 % or 100 % of its spending cap.
       await queueSpendingAlerts(tx, call.workspace_id, now)
       await recordCallFinished(tx, updated!, now)

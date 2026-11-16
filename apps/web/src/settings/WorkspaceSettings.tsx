@@ -11,7 +11,7 @@ import { TeamSection } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
 import { DangerZone } from './DangerZone.tsx'
-import { Developers } from './Developers.tsx'
+import { Developers, Integrations } from './Developers.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
 import { Recordings } from './Recordings.tsx'
@@ -114,7 +114,12 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'developers' && <Developers canEdit={canManageKeys} toast={toast} />}
+        {current === 'developers' && (
+          <>
+            <Developers canEdit={canManageKeys} toast={toast} />
+            <Integrations canEdit={canManageKeys} toast={toast} />
+          </>
+        )}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>

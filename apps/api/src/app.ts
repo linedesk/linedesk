@@ -52,6 +52,7 @@ import { COOKIE_ACTIONS } from './impersonation.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { registerImpersonationRoutes } from './impersonation-routes.ts'
 import { registerAuthenticatorRoutes } from './authenticator-routes.ts'
+import { registerIntegrationRoutes } from './integration-routes.ts'
 import { registerSignInLinkRoutes } from './sign-in-link-routes.ts'
 import { AUTHENTICATOR_ROUTE_ACTIONS, hasAuthenticator } from './authenticator.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
@@ -505,6 +506,7 @@ app.get('/v1/calendar/providers', async c => {
 registerAdminRoutes(app)
 registerImpersonationRoutes(app)
 registerAuthenticatorRoutes(app)
+registerIntegrationRoutes(app)
 
 app.get('/v1/actions', c =>
   c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))),

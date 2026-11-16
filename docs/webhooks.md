@@ -2,11 +2,11 @@
 
 Each assistant has one webhook: one address, set by owners and admins in the assistant's settings under Webhook, with a switch per hook it gets (`hooks`; `apps/web/src/settings/Webhooks.tsx`; actions in `packages/actions/src/webhooks.ts`, server in `apps/api/src/webhooks.ts`). Each request says its hook in the `hook` field of the body and the `Linedesk-Hook` header:
 
-| Hook | When | Linedesk sends | It answers |
-| --- | --- | --- | --- |
-| `call_start` | as a call comes in | the caller: number, the number called, the saved contact if any | caller details, within 1 s |
-| `during_call` | when the assistant needs one of its lookups (an order status) | the lookup's name and the fields the caller gave | `{"answer": "…"}`, within 3 s |
-| `call_end` | about 20 s after the call ends | the whole call | any 2xx |
+| Hook          | When                                                          | Linedesk sends                                                  | It answers                    |
+| ------------- | ------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------- |
+| `call_start`  | as a call comes in                                            | the caller: number, the number called, the saved contact if any | caller details, within 1 s    |
+| `during_call` | when the assistant needs one of its lookups (an order status) | the lookup's name and the fields the caller gave                | `{"answer": "…"}`, within 3 s |
+| `call_end`    | about 20 s after the call ends                                | the whole call                                                  | any 2xx                       |
 
 There are no other event types: each hook sends one thing. A webhook with no hook on gets nothing; switching it off stops all of them. Test calls (`calls.source = 'test'`) send nothing at call start and after the call; during the call they ask like phone calls (`"test": true`), so the lookups can be tried in a test call. All three requests are in the OpenAPI document (`GET /v1/openapi.json`, `webhooks`).
 
@@ -29,9 +29,17 @@ const ok = crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected)) && Dat
 The voice agent asks as soon as the call is registered (`call.lookUpCaller`, agent only, refused while impersonating); the API posts:
 
 ```json
-{ "hook": "call_start", "call_id": "call_…", "workspace_id": "…", "assistant_id": "…", "assistant_name": "Maya",
-  "from_number": "+15035550123", "to_number": "+15035550100", "started_at": "…",
-  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null } }
+{
+  "hook": "call_start",
+  "call_id": "call_…",
+  "workspace_id": "…",
+  "assistant_id": "…",
+  "assistant_name": "Maya",
+  "from_number": "+15035550123",
+  "to_number": "+15035550100",
+  "started_at": "…",
+  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null }
+}
 ```
 
 Only a caller the assistant recognizes is looked up: with the assistant's switch "Recognize callers only when their carrier verified the number" on (the default), a phone call whose caller ID the carrier did not vouch for (STIR/SHAKEN attestation other than A; it may be faked) sends no call-start request.
@@ -57,10 +65,21 @@ The owner describes what the assistant can look up (Webhook, During the call; `w
 `call.start` tells the agent the lookups while the webhook is on and gets the hook (`duringCallLookups`); the agent makes one tool per lookup (`apps/agent/src/lookup-tools.ts`). The tool tells the model to get the required fields first and to say a short filler ("One moment, let me check that") in the same response, so the caller hears something while it waits. The agent asks through the API (`call.askWebhook`, agent only, refused while impersonating), which posts:
 
 ```json
-{ "hook": "during_call", "lookup": "order_status", "values": { "order_number": "1234" },
-  "call_id": "call_…", "workspace_id": "…", "assistant_id": "…", "assistant_name": "Maya",
-  "from_number": "+15035550123", "to_number": "+15035550100", "started_at": "…", "test": false, "caller_verified": true,
-  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null } }
+{
+  "hook": "during_call",
+  "lookup": "order_status",
+  "values": { "order_number": "1234" },
+  "call_id": "call_…",
+  "workspace_id": "…",
+  "assistant_id": "…",
+  "assistant_name": "Maya",
+  "from_number": "+15035550123",
+  "to_number": "+15035550100",
+  "started_at": "…",
+  "test": false,
+  "caller_verified": true,
+  "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null }
+}
 ```
 
 `caller_verified` is false when the caller's carrier did not vouch for `from_number` and the assistant's owner left "Recognize callers only when their carrier verified the number" on; `caller` is null then. Never answer with anything about the number's owner on such a request.
@@ -78,18 +97,44 @@ No answer within 3 s (`DURING_CALL_TIMEOUT_MS`), an error, or no `answer`: the a
 `call.finish` writes a delivery row and a pg-boss job (`webhook.deliver`) in its transaction, to run 20 s later (`CALL_END_DELAY_SEC`), so the recording is saved by then. The first attempt builds the payload from the call as it is then (`callEndPayload`) and stores it; retries send the same one.
 
 ```json
-{ "hook": "call_end", "call_id": "call_…", "workspace_id": "…", "assistant_id": "…", "assistant_name": "Maya",
-  "direction": "in", "from_number": "+15035550123", "to_number": "+15035550100",
-  "started_at": "…", "ended_at": "…", "duration_sec": 95, "outcome": "message", "urgency": "normal",
-  "title": "Water heater leaking", "summary": "…",
+{
+  "hook": "call_end",
+  "call_id": "call_…",
+  "workspace_id": "…",
+  "assistant_id": "…",
+  "assistant_name": "Maya",
+  "direction": "in",
+  "from_number": "+15035550123",
+  "to_number": "+15035550100",
+  "started_at": "…",
+  "ended_at": "…",
+  "duration_sec": 95,
+  "outcome": "message",
+  "urgency": "normal",
+  "title": "Water heater leaking",
+  "summary": "…",
   "next_steps": [{ "text": "Call Sam back", "kind": "message" }],
   "fields": [{ "label": "Issue", "value": "Leaking water heater" }],
   "caller": { "contact_id": "ct_…", "name": "Sam Taylor", "name_confirmed": true, "company": null, "email": null },
   "caller_details": { "name": "Sam", "plan": "Premium" },
-  "transcript": [{ "speaker": "agent", "text": "…", "at_ms": 0 }], "transcript_text": "Maya: …\nCaller: …",
-  "bookings": [{ "id": "bk_…", "start_at": "…", "end_at": "…", "status": "confirmed", "title": "…", "calendar_name": "Office", "appointment_type_id": "…" }],
-  "transfer": null, "call_url": "https://app.example.com/#call/call_…",
-  "recording_url": "https://app.example.com/v1/calls/call_…/recording?expires=…&signature=…", "recording_expires_at": "…" }
+  "transcript": [{ "speaker": "agent", "text": "…", "at_ms": 0 }],
+  "transcript_text": "Maya: …\nCaller: …",
+  "bookings": [
+    {
+      "id": "bk_…",
+      "start_at": "…",
+      "end_at": "…",
+      "status": "confirmed",
+      "title": "…",
+      "calendar_name": "Office",
+      "appointment_type_id": "…"
+    }
+  ],
+  "transfer": null,
+  "call_url": "https://app.example.com/#call/call_…",
+  "recording_url": "https://app.example.com/v1/calls/call_…/recording?expires=…&signature=…",
+  "recording_expires_at": "…"
+}
 ```
 
 **The recording link** opens the audio without signing in for 7 days (`RECORDING_LINK_DAYS`): the signature is an HMAC with a key derived from `SECRETS_KEY` over the call id and the expiry (`recordingLink`, `apps/api/src/recording-route.ts`), checked before the sign-in check and again by the route. After that, or for any call, `GET /v1/calls/<id>/recording` with a workspace API key (`Authorization: Bearer ld_…`) or a member's session. Null when the call has no recording. The link points at `PUBLIC_URL` (else `WEB_ORIGIN`); `call_url` at `WEB_ORIGIN`.
@@ -106,3 +151,14 @@ No answer within 3 s (`DURING_CALL_TIMEOUT_MS`), an error, or no `answer`: the a
 - Payloads hold callers' details (and during the call, what they said and what the system answered): they are cleared after 30 days (daily job `webhooks.cleanup`) and when their call is deleted; status, attempts and times stay. A pending delivery of a deleted call is not sent.
 - The secret is generated in the browser, sent once (`sensitive`: the command log stores it redacted) and stored encrypted with `SECRETS_KEY`. Webhooks sync to owners and admins only (their URLs can carry a token).
 - Webhooks from before they were per assistant (no `assistant_id`): migration 0067 made the oldest one of each workspace that got finished calls the webhook of the workspace's first assistant, with only the after-call hook on; any others get nothing and are not shown (dropped with the `events` column in a later release).
+
+## Zapier
+
+The Zapier app's "Call Finished" trigger (docs/api.md, Integrations) is not an assistant webhook: an integration subscribes a hook URL with a workspace API key (`integration_subscriptions`), and nobody sets it in the assistant's settings. Its deliveries share this page's machinery: the same `webhook_deliveries` table (with `subscription_id` instead of `endpoint_id`), queue, timeout, retries, public-address rules and 30-day payload clearing.
+
+- What is sent: the `call_end` payload without `hook`, plus `id`, `event` (`call_finished`) and flat fields (caller, next steps, noted details, first booking, transcript), for every finished phone call of the workspace, whichever assistant answered. Test calls and spam send nothing.
+- Only to `https://hooks.zapier.com/…` (`INTEGRATION_HOSTS`). Not signed: Zapier cannot check a signature, and the hook URL itself is the secret, so the subscription list never shows it. `WEBHOOK_ALLOW_PRIVATE_URLS=true` lifts this host rule too (any URL, development only).
+- The samples Zapier loads (`GET /v1/integrations/calls`) carry no recording link (`recording_url` and `recording_expires_at` are null); only real deliveries have one.
+- Unsubscribe ends only the calling key's own subscriptions; the command log keeps the hook URL redacted.
+- A 410 answer means the Zap was turned off or deleted: the subscription is deleted with its deliveries, nothing is retried. 5 failed deliveries in a row switch it off (`disabled_reason`).
+- Workspace settings › Developers lists the subscriptions (key, event, last delivery, state) with Remove; revoking the key removes its subscriptions.

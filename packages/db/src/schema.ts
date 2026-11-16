@@ -1278,15 +1278,44 @@ export const webhook_secrets = pgTable('webhook_secrets', {
   secret_encrypted: text('secret_encrypted').notNull(),
 })
 
-// One event sent (or being sent) to one endpoint: the delivery log. Never synced; read with webhook.deliveries.
+// A subscription an integration (Zapier) made with a workspace API key: it gets `event` POSTed to `target_url`
+// (docs/api.md, Integrations; apps/api/src/integrations.ts). Separate from the assistants' webhooks, which only
+// owners and admins set in the app: a key may only subscribe a URL on the integration's own host. Goes when its
+// key is revoked or the integration unsubscribes; a key that stops working sends nothing. Never synced; read with
+// integration.list.
+export const integration_subscriptions = pgTable(
+  'integration_subscriptions',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    api_key_id: text('api_key_id')
+      .notNull()
+      .references(() => api_keys.id, { onDelete: 'cascade' }),
+    source: text('source', { enum: ['zapier'] }).notNull(),
+    event: text('event', { enum: ['call_finished'] }).notNull(),
+    target_url: text('target_url').notNull(),
+    /** `disabled`: by the API after too many failed deliveries (`disabled_reason`). */
+    status: text('status', { enum: ['active', 'disabled'] })
+      .notNull()
+      .default('active'),
+    disabled_reason: text('disabled_reason'),
+    failure_count: integer('failure_count').notNull().default(0),
+    last_delivery_at: ts('last_delivery_at'),
+    created_at: createdAt(),
+  },
+  t => [index('integration_subscriptions_ws').on(t.workspace_id)],
+)
+
+// One event sent (or being sent) to one endpoint or integration subscription: the delivery log. Never synced; read
+// with webhook.deliveries. Exactly one of `endpoint_id` and `subscription_id` is set.
 export const webhook_deliveries = pgTable(
   'webhook_deliveries',
   {
     id: id(),
     workspace_id: workspaceId(),
-    endpoint_id: text('endpoint_id')
-      .notNull()
-      .references(() => webhook_endpoints.id, { onDelete: 'cascade' }),
+    /** Null for an integration subscription's delivery (`subscription_id`). */
+    endpoint_id: text('endpoint_id').references(() => webhook_endpoints.id, { onDelete: 'cascade' }),
+    subscription_id: text('subscription_id').references(() => integration_subscriptions.id, { onDelete: 'cascade' }),
     event: text('event').notNull(),
     /** The event as sent. Cleared (null) after 30 days and when its call is deleted: it holds callers' details. */
     payload: jsonb('payload').$type<Record<string, unknown>>(),

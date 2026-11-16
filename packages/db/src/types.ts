@@ -2,6 +2,7 @@
 import type {
   api_keys, appointment_types, assistant_calendars, assistants, availability_exceptions, availability_rules, bookings, calendar_connections, calls, contacts,
   knowledge_documents, knowledge_questions, phone_numbers, transcript_segments, webhook_endpoints, workspace_settings, workspace_members, call_events,
+  integration_subscriptions,
 } from './schema.ts'
 
 /** `kind: 'message'`: a message saved during the call (call.takeMessage: a transfer nobody took), counted for MESSAGES_PER_CALL. */
@@ -137,6 +138,7 @@ export type CalendarConnection = typeof calendar_connections.$inferSelect
 export type AssistantCalendar = typeof assistant_calendars.$inferSelect
 export type ApiKey = typeof api_keys.$inferSelect
 export type WebhookEndpoint = typeof webhook_endpoints.$inferSelect
+export type IntegrationSubscription = typeof integration_subscriptions.$inferSelect
 export type WorkspaceMember = typeof workspace_members.$inferSelect
 export type CallEvent = typeof call_events.$inferSelect
 export type KnowledgeDocument = typeof knowledge_documents.$inferSelect

@@ -150,9 +150,9 @@ type SendOptions = { env?: Env; timeoutMs?: number; readReply?: boolean }
 /**
  * POSTs one request. Failures before an answer are reported only as "could not connect" (or "no answer in
  * time", or the private-address refusal), so the log and the test send cannot be used to probe ports; the
- * detail goes to the server log. With `readReply` the answer's JSON comes back as `reply`.
+ * detail goes to the server log. With `readReply` the answer's JSON comes back as `reply`. Signed unless `secret` is null.
  */
-export async function sendWebhook(url: string, secret: string, deliveryId: string, hook: string, body: string, options: SendOptions = {}): Promise<Attempt> {
+export async function sendWebhook(url: string, secret: string | null, deliveryId: string, hook: string, body: string, options: SendOptions = {}): Promise<Attempt> {
   const { env = process.env, timeoutMs = TIMEOUT_MS } = options
   const problem = (() => {
     try {
@@ -173,7 +173,8 @@ export async function sendWebhook(url: string, secret: string, deliveryId: strin
         'user-agent': 'Linedesk-Webhooks/2',
         'linedesk-hook': hook,
         'linedesk-delivery': deliveryId,
-        [SIGNATURE_HEADER]: signature(secret, body, Math.floor(Date.now() / 1000)),
+        // Integration subscriptions (integrations.ts) have no secret: their URL is the secret.
+        ...(secret === null ? {} : { [SIGNATURE_HEADER]: signature(secret, body, Math.floor(Date.now() / 1000)) }),
       },
       body,
     })

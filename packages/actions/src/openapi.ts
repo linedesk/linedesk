@@ -12,6 +12,7 @@ import {
   duringCallReplySchema,
   duringCallRequestSchema,
 } from './webhooks.ts'
+import { INTEGRATION_SAMPLE_CALLS_MAX, integrationCallSchema } from './integrations.ts'
 
 type JsonSchema = Record<string, unknown>
 
@@ -87,11 +88,83 @@ function webhooks() {
         },
       },
     },
+    call_finished: {
+      post: {
+        summary: `An integration's subscription (integration.subscribe): a finished phone call, about ${CALL_END_DELAY_SEC} s after it. Not signed; the subscribed URL is the secret.`,
+        requestBody: body(integrationCallSchema),
+        responses: {
+          200: { description: 'Any 2xx answer within 10 seconds counts as delivered; 410 ends the subscription; anything else is tried again for about an hour.' },
+        },
+      },
+    },
     call_end: {
       post: {
         summary: `A call ended: the whole call, about ${CALL_END_DELAY_SEC} s after it.`,
         requestBody: body(callEndPayloadSchema),
         responses: { 200: { description: 'Any 2xx answer within 10 seconds counts as delivered; anything else is tried again for about an hour.' } },
+      },
+    },
+  }
+}
+
+const keyOnly = { 403: errorResponse('Not a workspace API key, or its role lacks call:read.'), 401: errorResponse('Missing, unknown or revoked API key.') }
+
+/** The reads for integrations (apps/api/src/integration-routes.ts): API keys only. */
+function integrationPaths() {
+  const json = (schema: JsonSchema) => ({ content: { 'application/json': { schema } } })
+  const list = (key: string, items: JsonSchema) =>
+    json({ type: 'object', required: ['ok', key], properties: { ok: { const: true }, [key]: { type: 'array', items } } })
+  return {
+    '/v1/api-key': {
+      get: {
+        operationId: 'apiKey.me',
+        summary: 'The API key in use and its workspace: a cheap test that a key works.',
+        tags: ['integration'],
+        responses: {
+          200: {
+            description: 'The key works.',
+            ...json({
+              type: 'object',
+              properties: {
+                ok: { const: true },
+                workspace: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' } } },
+                key: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, prefix: { type: 'string' }, role: { enum: ['member', 'admin'] } } },
+              },
+            }),
+          },
+          ...keyOnly,
+        },
+      },
+    },
+    '/v1/integrations/calls': {
+      get: {
+        operationId: 'integration.calls',
+        summary: 'The newest finished phone calls (no test calls, no spam), newest first, in the shape a call_finished subscription gets.',
+        tags: ['integration'],
+        parameters: [{ name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: INTEGRATION_SAMPLE_CALLS_MAX, default: 3 } }],
+        responses: { 200: { description: 'The calls.', ...list('calls', jsonSchema(integrationCallSchema)) }, ...keyOnly },
+      },
+    },
+    '/v1/integrations/contacts': {
+      get: {
+        operationId: 'integration.contacts',
+        summary: 'The contacts with this phone number.',
+        tags: ['integration'],
+        parameters: [
+          { name: 'phone', in: 'query', required: true, description: 'E.164 (+15035550100), or a national number of `country`.', schema: { type: 'string' } },
+          { name: 'country', in: 'query', required: false, description: 'ISO 3166-1 alpha-2 for a national number.', schema: { type: 'string', default: 'US' } },
+        ],
+        responses: {
+          200: {
+            description: 'The contacts, newest first (at most 10).',
+            ...list('contacts', {
+              type: 'object',
+              properties: Object.fromEntries(['id', 'name', 'company', 'phone', 'email', 'address', 'note', 'blocked_at', 'created_at'].map(k => [k, { type: ['string', 'null'] }])),
+            }),
+          },
+          422: errorResponse('Not a phone number.'),
+          ...keyOnly,
+        },
       },
     },
   }
@@ -108,7 +181,10 @@ export function openApiDocument(actions: Iterable<ActionDef>, serverUrl: string)
     },
     servers: [{ url: serverUrl }],
     security: [{ apiKey: [] }],
-    paths: Object.fromEntries(published.map(def => [`/v1/actions/${def.name}`, { post: operation(def) }])),
+    paths: {
+      ...Object.fromEntries(published.map(def => [`/v1/actions/${def.name}`, { post: operation(def) }])),
+      ...integrationPaths(),
+    } as Record<string, { post?: ReturnType<typeof operation>; get?: JsonSchema }>,
     webhooks: webhooks(),
     components: {
       securitySchemes: { apiKey: { type: 'http', scheme: 'bearer', description: 'A workspace API key: ld_…' } },

@@ -1,4 +1,4 @@
-import { account, api_keys, assistants, auth_events, calendar_connections, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { account, api_keys, assistants, auth_events, calendar_connections, integration_subscriptions, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
@@ -259,6 +259,31 @@ test("an unconfirmed owner added to someone else's workspace: their first confir
   // The creator's own unproven workspace is still reset.
   await dropUnprovenAccessOf(own.owner.userId)
   expect(await callRoutingOf(own)).toEqual({ transfers: DEFAULT_TRANSFERS, mode: 'forward_conditional' })
+})
+
+test("an unconfirmed account's API keys lose their Zapier subscriptions with them; another account's keep theirs", async () => {
+  const ws = await createWorkspace('Zap of unconfirmed')
+  const other = await createWorkspace('Zap of someone else')
+  const subscribe = async (owner: typeof ws.owner, workspaceId: string) => {
+    const made = await act(owner, 'apiKey.create', { name: 'Zapier', role: 'member' })
+    expect(made.status).toBe(200)
+    const id = `isub_${crypto.randomUUID().slice(0, 12)}`
+    await db.insert(integration_subscriptions).values({
+      id,
+      workspace_id: workspaceId,
+      api_key_id: made.body.data.apiKeyId,
+      source: 'zapier',
+      event: 'call_finished',
+      target_url: 'https://hooks.zapier.com/hooks/standard/1/abc',
+    })
+    return id
+  }
+  const theirs = await subscribe(ws.owner, ws.id)
+  const kept = await subscribe(other.owner, other.id)
+  const row = (id: string) => db.select().from(integration_subscriptions).where(eq(integration_subscriptions.id, id))
+  await dropUnprovenAccessOf(ws.owner.userId)
+  expect(await row(theirs)).toHaveLength(0)
+  expect(await row(kept)).toHaveLength(1)
 })
 
 test('an API key whose creator is unconfirmed cannot run sensitive actions; public actions still work', async () => {

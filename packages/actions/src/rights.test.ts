@@ -34,6 +34,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'contact.restore',
     'contact.import',
     'contact.merge',
+    // An API key's Zapier subscriptions (integrations.ts): a member key reads every call already (MCP, API).
+    'integration.subscribe',
+    'integration.unsubscribe',
     'voice.options',
     'voice.catalog',
     // Which countries transfer contacts may be in (outbound.ts): read like the other settings.
@@ -103,6 +106,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'apiKey.create',
     'apiKey.list',
     'apiKey.revoke',
+    // Integration subscriptions in Workspace settings › Developers, like the keys.
+    'integration.list',
+    'integration.remove',
     'team.invite',
     'team.resendInvite',
     'team.revokeInvite',

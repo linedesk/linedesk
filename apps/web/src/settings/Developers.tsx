@@ -1,7 +1,13 @@
-// Workspace settings, Developers: the workspace's API keys. The list is a cached read (cachedQuery.ts), so it
+// Workspace settings, Developers: the workspace's API keys and what integrations (Zapier) subscribed with them. The list is a cached read (cachedQuery.ts), so it
 // shows at once from the last answer; creating shows the key once with Copy, revoking asks first.
 // Keys reach /v1 (docs/api.md, GET /v1/openapi.json) with the role they were created with.
-import type { ApiKeyCreated, ApiKeyListData, ApiKeySummary } from '@linedesk/actions'
+import type {
+  ApiKeyCreated,
+  ApiKeyListData,
+  ApiKeySummary,
+  IntegrationListData,
+  IntegrationSubscriptionSummary,
+} from '@linedesk/actions'
 import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useState } from 'react'
@@ -20,6 +26,8 @@ const API_KEYS = 'apiKey.list'
 /** How often the open list is checked again: a key made in another session (support access) shows without a reload. */
 export const KEYS_POLL_MS = 15_000
 const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
+const INTEGRATIONS = 'integration.list'
+const loadIntegrations = () => readAction<IntegrationListData>('integration.list')
 
 type Role = ApiKeySummary['role']
 const ROLES = [
@@ -88,6 +96,109 @@ export function Developers({ canEdit, toast }: Props) {
   )
 }
 
+/** Zapier's subscriptions (integration.subscribe): one per Zap with a Linedesk trigger. Removing one stops its calls. */
+export function Integrations({ canEdit, toast }: Props) {
+  const t = useT()
+  const list = useQuery(canEdit ? INTEGRATIONS : null, loadIntegrations, { persist: true })
+  if (!canEdit) return null
+  const subscriptions = list.data?.subscriptions ?? []
+  return (
+    <Section
+      id="st-integrations"
+      title={t('settings.developers.integrations.title')}
+      help={t('settings.developers.integrations.help')}
+    >
+      <Loading
+        what={t('settings.developers.integrations.title')}
+        loading={list.data === undefined}
+        error={list.error}
+        onRetry={() => void list.reload()}
+        skeleton={<SkeletonList rows={1} aside action />}
+      >
+        {subscriptions.length === 0 ? (
+          <ListEmpty>{t('settings.developers.integrations.empty')}</ListEmpty>
+        ) : (
+          <List label={t('settings.developers.integrations.title')}>
+            {subscriptions.map(s => (
+              <SubscriptionRow key={s.id} subscription={s} toast={toast} />
+            ))}
+          </List>
+        )}
+      </Loading>
+    </Section>
+  )
+}
+
+function SubscriptionRow({
+  subscription,
+  toast,
+}: {
+  subscription: IntegrationSubscriptionSummary
+  toast: Props['toast']
+}) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  async function remove() {
+    if (!confirming) return setConfirming(true)
+    setBusy(true)
+    try {
+      await callAction('integration.remove', { subscriptionId: subscription.id })
+      setQueryData<IntegrationListData | undefined>(
+        INTEGRATIONS,
+        d => d && { subscriptions: d.subscriptions.filter(s => s.id !== subscription.id) },
+        { persist: true },
+      )
+      toast(t('settings.developers.integrations.removed'))
+    } catch (e) {
+      toast((e as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <ListRow
+      title={t('settings.developers.integrations.zapierCallFinished')}
+      sub={
+        <>
+          {t('settings.developers.integrations.viaKey', { name: subscription.api_key_name })}{' '}
+          <code className="dev-prefix">{subscription.api_key_prefix}…</code> ·{' '}
+          {subscription.last_delivery_at
+            ? t('settings.developers.usedOn', {
+                created: day(subscription.created_at),
+                used: day(subscription.last_delivery_at),
+              })
+            : t('settings.developers.neverUsed', { created: day(subscription.created_at) })}
+        </>
+      }
+      aside={
+        subscription.status === 'disabled' && (
+          <Badge tone="outline" title={subscription.disabled_reason ?? undefined}>
+            {t('settings.developers.integrations.switchedOff')}
+          </Badge>
+        )
+      }
+      actions={
+        <Button
+          size="sm"
+          variant={confirming ? 'danger' : 'ghost'}
+          disabled={busy}
+          onClick={remove}
+          onBlur={() => setConfirming(false)}
+          title={
+            confirming
+              ? t('settings.developers.integrations.removeConfirmTip')
+              : t('settings.developers.integrations.removeTip')
+          }
+        >
+          {confirming
+            ? t('settings.developers.integrations.removeConfirm')
+            : t('settings.developers.integrations.remove')}
+        </Button>
+      }
+    />
+  )
+}
+
 function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'] }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
@@ -101,6 +212,12 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
       setQueryData<ApiKeyListData | undefined>(API_KEYS, d => d && { keys: d.keys.filter(k => k.id !== apiKey.id) }, {
         persist: true,
       })
+      // Revoking ends what the key subscribed (Zapier): the list below shows it at once.
+      setQueryData<IntegrationListData | undefined>(
+        INTEGRATIONS,
+        d => d && { subscriptions: d.subscriptions.filter(s => s.api_key_id !== apiKey.id) },
+        { persist: true },
+      )
       toast(t('settings.developers.revoked', { name: apiKey.name }))
     } catch (e) {
       toast((e as Error).message)

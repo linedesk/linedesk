@@ -27,7 +27,8 @@ import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
-import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
+import { attemptAnyDelivery } from './integrations.ts'
+import { clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 import { localeForEmail } from './email-locale.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { ledgerCheckAlert, stuckRechargesAlert } from './emails/alerts.ts'
@@ -68,7 +69,7 @@ export const BOOKING_CONFIRM = 'booking.confirm'
 export const CALL_EVALUATE = 'call.evaluate'
 /** After-call transcription of a call whose recording was saved (after-call-transcript.ts). */
 export const CALL_TRANSCRIBE = 'call.transcribe'
-/** One webhook delivery (webhooks.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
+/** One webhook or integration delivery (webhooks.ts, integrations.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
 export const WEBHOOK_DELIVER = 'webhook.deliver'
 /** Webhook deliveries one API process sends at the same time. */
 export const WEBHOOK_WORKERS = 5
@@ -243,7 +244,7 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work(WEBHOOK_CLEANUP, async () => ({ cleared: await clearOldPayloads(db) }))
   // Several at once, so a few slow endpoints (each up to the 10 s timeout) do not hold up everyone's deliveries.
   await instance.work<{ deliveryId: string }>(WEBHOOK_DELIVER, { localConcurrency: WEBHOOK_WORKERS }, async ([job]) => {
-    const outcome = await attemptDelivery(db, job!.data.deliveryId, env)
+    const outcome = await attemptAnyDelivery(db, job!.data.deliveryId, env)
     if (outcome === 'retry') throw new Error(`webhook delivery ${job!.data.deliveryId} failed; retrying`)
     return { outcome }
   })

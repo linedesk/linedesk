@@ -14,6 +14,7 @@ import * as calls from './calls.ts'
 import * as evaluations from './evaluations.ts'
 import * as forwarding from './forwarding.ts'
 import * as insights from './insights.ts'
+import * as integrations from './integrations.ts'
 import type { ActionDef } from './define.ts'
 import * as knowledge from './knowledge.ts'
 import * as liveCall from './live-call.ts'
@@ -57,6 +58,7 @@ export * from './evaluations.ts'
 export * from './forwarding.ts'
 export * from './forwarding-guides.ts'
 export * from './insights.ts'
+export * from './integrations.ts'
 export * from './knowledge.ts'
 export * from './languages.ts'
 export * from './live-call.ts'
@@ -281,6 +283,10 @@ const all = [
   webhooks.webhookDelete,
   webhooks.webhookTest,
   webhooks.webhookDeliveries,
+  integrations.integrationSubscribe,
+  integrations.integrationUnsubscribe,
+  integrations.integrationList,
+  integrations.integrationRemove,
   webhooks.callLookUpCaller,
   webhooks.callAskWebhook,
   knowledge.knowledgeImport,

@@ -11,6 +11,7 @@ import { db } from './db.ts'
 import { addressBucket } from './client-ip.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { queueApiKeyNotice } from './impersonation-emails.ts'
+import { dropKeySubscriptions } from './integrations.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 
 /** Shown in lists to tell keys apart: the prefix and 8 characters of the key. */
@@ -152,6 +153,8 @@ export const apiKeyHandlers: Record<string, Handler> = {
     const [row] = await tx.update(api_keys).set({ revoked_at: now })
       .where(and(eq(api_keys.id, input.apiKeyId), eq(api_keys.workspace_id, workspace_id), isNull(api_keys.revoked_at))).returning({ id: api_keys.id })
     if (!row) throw new Reject('API key not found')
+    // What it subscribed (Zapier) stops with it.
+    await dropKeySubscriptions(tx, row.id)
     return { rows: {}, data: { apiKeyId: row.id } }
   },
 }

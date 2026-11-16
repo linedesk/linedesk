@@ -65,6 +65,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'agentSetup.createWorkspaceKey',
   'webhook.create',
   'webhook.update',
+  // Sends every finished call to an integration (Zapier).
+  'integration.subscribe',
   'team.invite',
   'team.resendInvite',
   'carrier.set',
