@@ -765,6 +765,11 @@ body,
   text-align: center;
 }
 
+/* The sign-up page's bot check (Cloudflare Turnstile): its widget's height, kept so the button does not jump. */
+.auth-turnstile {
+  min-height: 65px;
+}
+
 /* Assistant instructions: room for a few paragraphs. */
 .ta.ta-tall {
   min-height: 260px;

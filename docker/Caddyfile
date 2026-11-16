@@ -84,10 +84,12 @@
 	#   with OpenRouter"); media-src: call recordings and voice previews; font-src data: for fonts Vite inlines.
 	#   LINEDESK_CSP_DEV adds sources to script-src and style-src; docker-compose.dev.yml sets 'unsafe-inline' for
 	#   the Vite dev server's inline preamble and injected styles. Empty in production.
+	#   challenges.cloudflare.com: Cloudflare Turnstile on the self-serve sign-up page (its script and its frame,
+	#   docs/billing.md §3.1); the page loads it only when sign-up is open with the bot check set up.
 	# - No framing (clickjacking), no MIME sniffing, the origin only as referrer to other sites,
 	#   the microphone for this origin only (test calls), no camera or location.
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' {$LINEDESK_CSP_DEV}; style-src 'self' {$LINEDESK_CSP_DEV}; connect-src 'self' {$LIVEKIT_PUBLIC_URL} https://openrouter.ai {$LINEDESK_CSP_CONNECT}; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://challenges.cloudflare.com {$LINEDESK_CSP_DEV}; style-src 'self' {$LINEDESK_CSP_DEV}; connect-src 'self' {$LIVEKIT_PUBLIC_URL} https://openrouter.ai {$LINEDESK_CSP_CONNECT}; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
 		X-Frame-Options DENY
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin

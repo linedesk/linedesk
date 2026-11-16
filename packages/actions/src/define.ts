@@ -29,6 +29,11 @@ import type { z } from 'zod'
  * no setup link and no session has it; only the API's own billing jobs act with it (apps/api/src/stripe-events.ts).
  */
 /**
+ * `account`: what a signed-in person does for their own account, with or without a workspace: self-serve sign-up
+ * (`account.signUp`, docs/billing.md §3.1). No role has it; the API gives it only on the sign-up route, to a person
+ * signed in as themselves (never an API key, a setup link, the agent or an impersonation).
+ */
+/**
  * `workspace:own`: what only the workspace's one owner does: delete the workspace and hand it over to someone else
  * (workspace rights, docs/architecture.md). Never part of an API key's permissions (api-keys.ts).
  */
@@ -52,6 +57,7 @@ export type Permission =
   | 'secondFactor:own'
   | 'invitation:respond'
   | 'account:own'
+  | 'account:signUp'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {

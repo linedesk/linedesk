@@ -14,6 +14,7 @@ import {
   type Db,
   instance_settings,
   organization,
+  PLAN_PRICES,
   RECHARGE_LIMITS,
   rechargeCapCents,
   type Tx,
@@ -25,7 +26,7 @@ import { billingRules } from './billing-rules.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
-import { billingUnusableAlert, cappedCallAlert } from './emails/alerts.ts'
+import { billingUnusableAlert, cappedCallAlert, signupCapAlert, signupKeptAlert } from './emails/alerts.ts'
 import { billingOwnerEmail } from './emails/billing.ts'
 import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
@@ -259,6 +260,10 @@ export type BillingAlertJob =
   | { kind: 'recharge_cap_reached' | 'low_balance'; bill: string; ref: string }
   | { kind: 'recharge_failed'; bill: string; ref: string; rechargeId: string; needsOwner: boolean }
   | { kind: 'recharge_setup'; bill: string; rechargeId: string; code: string }
+  | { kind: 'signup_cap'; hour: string; cap: number }
+  | { kind: 'signup_kept'; bill: string; subscription: string | null }
+  /** The trial ends in three days (`ref`: the trial's end, docs/billing.md §3.2 step 8). */
+  | { kind: 'trial_will_end'; bill: string; ref: string }
 
 /**
  * Sends one billing email. The facts are read when it is sent (the cap, the balance, the amount); an owner without an
@@ -271,13 +276,23 @@ export async function sendBillingAlert(
   options: { provider?: BillingProvider } = {},
 ) {
   // Awaited, so the job's retries help when an email does not go out (review of #864, N2).
-  if (job.kind === 'capped_call' || job.kind === 'billing_unusable' || job.kind === 'recharge_setup') {
+  if (
+    job.kind === 'capped_call' ||
+    job.kind === 'billing_unusable' ||
+    job.kind === 'recharge_setup' ||
+    job.kind === 'signup_cap' ||
+    job.kind === 'signup_kept'
+  ) {
     const alert =
       job.kind === 'capped_call'
         ? cappedCallAlert(job)
         : job.kind === 'recharge_setup'
           ? rechargeSetupAlert({ bill: job.bill, recharge: job.rechargeId, code: job.code })
-          : billingUnusableAlert(job.reason)
+          : job.kind === 'signup_cap'
+            ? signupCapAlert(job.cap)
+            : job.kind === 'signup_kept'
+              ? signupKeptAlert(job.bill, job.subscription)
+              : billingUnusableAlert(job.reason)
     await alertInstanceAdmins(alert, sender, { wait: true })
     return { sent: 'admins' as const }
   }
@@ -313,6 +328,17 @@ export async function sendBillingAlert(
         rechargeCapCents(bill.bill.recharge_cap_base_cents, workspaces, rules) + rules.extraNumberCents * extraNumbers,
       rechargedCents: await rechargedInMonth(db, job.bill, job.ref),
       minimumCents: RECHARGE_LIMITS.amountCents.min,
+    }
+  } else if (job.kind === 'trial_will_end') {
+    // The plan's charge at the end of the trial: a seat per workspace at the bill's interval (before tax).
+    const workspaces = await workspacesOf(db, job.bill)
+    const price = PLAN_PRICES.find(p => p.lookupKey === (bill.bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly'))!
+    content = {
+      ...base,
+      kind: 'trial_will_end',
+      planCents: price.cents * Math.max(1, workspaces),
+      trialEnd: job.ref,
+      rechargeCents: bill.bill.auto_recharge ? bill.bill.recharge_amount_cents : null,
     }
   } else {
     // What calls can still use (the balance less what running calls hold): the figure the alert fired on (N3).

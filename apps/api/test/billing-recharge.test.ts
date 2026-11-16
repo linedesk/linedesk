@@ -61,6 +61,25 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     findRefund: async () => null,
     checkoutInvoice: async () => null,
     setSeatQuantity: async () => 'unchanged',
+    // Trial Checkout (PR 8) is not used here.
+    createCustomer: async () => {
+      throw new Error('not used')
+    },
+    startCheckout: async () => {
+      throw new Error('not used')
+    },
+    expireOpenCheckouts: async () => {
+      throw new Error('not used')
+    },
+    deleteCustomer: async () => {
+      throw new Error('not used')
+    },
+    checkoutSession: async () => null,
+    cancelSubscription: async () => null,
+    resumeSubscription: async () => null,
+    addInvoiceItem: async () => {
+      throw new Error('not used')
+    },
   }
   return { provider, calls }
 }

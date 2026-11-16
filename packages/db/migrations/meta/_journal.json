@@ -855,6 +855,13 @@
       "when": 1794860250015,
       "tag": "0122_app_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1794860806944,
+      "tag": "0123_signup",
+      "breakpoints": true
     }
   ]
 }

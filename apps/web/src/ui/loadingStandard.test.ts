@@ -37,8 +37,13 @@ const SPINNERS: Record<string, number> = {
   'AddPasskey.tsx': 1,
   'SignInLink.tsx': 1,
   'CreateWorkspace.tsx': 1,
+  // Send code, Continue, Continue to payment: each the button pressed.
+  'Signup.tsx': 3,
   'admin/SecondFactorPrompt.tsx': 4,
   'onboarding/AgentSetup.tsx': 1,
+  // Add a card (Checkout), and on the page Checkout returns to: Continue and Start my plan now.
+  'PendingPayment.tsx': 1,
+  'CheckoutReturn.tsx': 2,
 }
 
 test('spinners only in buttons the user pressed, never for page data', () => {

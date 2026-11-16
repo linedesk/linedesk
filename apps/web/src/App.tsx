@@ -29,6 +29,11 @@ import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.t
 import { BootScreen } from './ui/BootScreen.tsx'
 import { AddPasskeyPage } from './AddPasskey.tsx'
 import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
+import { Signup } from './Signup.tsx'
+import { PendingPayment } from './PendingPayment.tsx'
+import { CheckoutReturn } from './CheckoutReturn.tsx'
+import { isCheckoutReturnPath } from './checkout.ts'
+import { isSignupPath } from './signup.ts'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
 import { brandName } from './brand.ts'
@@ -111,6 +116,10 @@ export function App() {
   const [fromDevice] = useState(() => rememberedSession(link))
   const [session, setSession] = useState<Session>(() => fromDevice ?? { state: 'loading' })
   const [inviteId, setInviteId] = useState(readInviteId)
+  // The sign-up page (`/signup?plan=…`, Signup.tsx): read once; leaving it goes to the app's own address.
+  const [signupPage, setSignupPage] = useState(isSignupPath)
+  // Back from Stripe Checkout (`/billing/return?session_id=…`, CheckoutReturn.tsx): read once, like the sign-up page.
+  const [checkoutReturn, setCheckoutReturn] = useState(isCheckoutReturnPath)
   // The sign-in email's button (`#sign-in=<token>`): its page comes first, until Continue or leaving it.
   const [signInLink, setSignInLink] = useState(takeSignInLinkToken)
   useEffect(() => {
@@ -286,6 +295,15 @@ export function App() {
   }
   if (session.state === 'loading') return <BootScreen line={t('shell.boot.opening', { name: brandName() })} />
   if (session.state === 'unreachable') return <Unreachable />
+  const pendingPayment = session.state === 'ready' && session.me.workspace?.billingState === 'pending_payment'
+  if (signupPage && !pendingPayment && (session.state === 'signedOut' || session.state === 'needsWorkspace' || session.state === 'ready')) {
+    const leaveSignup = async () => {
+      window.history.replaceState(null, '', '/')
+      setSignupPage(false)
+      await refresh()
+    }
+    return <Signup signedIn={session.state !== 'signedOut'} onDone={leaveSignup} />
+  }
   if (session.state === 'signedOut') {
     // Signed out while the app was open: its sync had stopped for good, so the page loads fresh after signing in
     // (at the same address). The form stays busy until then.
@@ -308,6 +326,17 @@ export function App() {
       </ImpersonationFrame>
     )
   }
+  // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is.
+  if (checkoutReturn && session.state === 'ready') {
+    const leaveReturn = async () => {
+      window.history.replaceState(null, '', '/')
+      setCheckoutReturn(false)
+      await refresh()
+    }
+    return <CheckoutReturn onDone={leaveReturn} />
+  }
+  // A sign-up waiting for Checkout (docs/billing.md §3.2): nothing else opens until the trial is set up.
+  if (pendingPayment) return <PendingPayment me={session.me} onDone={refresh} />
   // An instance admin by account, also before this session passed the passkey check: the setup pages are part of
   // Server admin, so they open on the passkey check (SecondFactorPrompt) until it is done.
   const instanceAdmin = isInstanceAdmin(session.me) && !session.me.impersonation

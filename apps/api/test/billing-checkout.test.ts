@@ -1,0 +1,905 @@
+// Trial Checkout on Linedesk Cloud (src/billing-checkout.ts, docs/billing.md §3.2, §2.2, §2.4; billing PR 8): the
+// owner starts Checkout with the card-only configuration and never `payment_method_types`, or nothing starts (I2);
+// only a confirmed Checkout takes a bill out of pending_payment, with the card checks on every confirmation (M1); a
+// session that is not the caller's is a 404; a card that had a trial, or a prepaid one, gets no trial and its
+// subscription is canceled at once; the plan without a trial, Radar's review hold, numbers on a billed workspace,
+// cancel and resume, Buy minutes, and the webhook paths (the same confirmation, the trial's end email, the first
+// recharge on the conversion invoice). Stripe is a fake behind the real provider. Instance-wide (Stripe keys, the
+// billing switch): its own database.
+import {
+  billing_accounts,
+  billing_alerts,
+  CARD_FINGERPRINT_RETENTION_MONTHS,
+  billing_balances,
+  billing_periods,
+  billing_recharges,
+  card_fingerprints,
+  ledger_entries,
+  organization,
+  phone_numbers,
+  stripe_events,
+  usage_counters,
+  user,
+} from '@linedesk/db'
+import { and, eq } from 'drizzle-orm'
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import {
+  billingNumberRefusal,
+  CHECKOUT_UNAVAILABLE,
+  NUMBER_HELD_FOR_REVIEW,
+  NUMBER_NEEDS_CHECKOUT,
+  TRIAL_NUMBER_LIMIT,
+} from '../src/billing-checkout.ts'
+import { sendBillingAlert } from '../src/billing-recharge.ts'
+import { setBillingFetch } from '../src/billing-settings.ts'
+import { db } from '../src/db.ts'
+import { emailSender } from '../src/email.ts'
+import { checkLedgerGuards } from '../src/ledger-guards.ts'
+import { processStripeEventJob, UNHANDLED_PLAN } from '../src/stripe-events.ts'
+import { act, addMember, type Caller, createWorkspace, type User } from './helpers.ts'
+// After the app (helpers.ts loads it): the sweep's module reaches the handler registry.
+const { sweepSignUps } = await import('../src/signup-handlers.ts')
+
+const madeUp = (...parts: string[]) => parts.join('_')
+const TEST_KEY = madeUp('sk', 'test', '51MadeUpCheckoutKey0123456789')
+const SECRET = madeUp('whsec', 'MadeUpCheckoutSecret0123456789')
+
+const rid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+const nowSec = () => Math.floor(Date.now() / 1000)
+const DAY_S = 86_400
+
+// ---- A fake Stripe API ----
+
+type Json = Record<string, unknown>
+const stripe = {
+  sessions: new Map<string, Json>(),
+  subscriptions: new Map<string, Json>(),
+  invoices: new Map<string, Json>(),
+  payments: new Map<string, Json[]>(),
+  /** The card-only configuration; null: none in the account; a number: the list answers that status. */
+  configuration: 'pmc_own' as string | number | null,
+  /** The customers deleted (the sign-up sweep, G2). */
+  deletedCustomers: [] as string[],
+  /** Every request: method, path and the form body. */
+  requests: [] as { method: string; path: string; body: URLSearchParams; idempotencyKey: string | null }[],
+}
+const list = (data: unknown[], url: string, hasMore = false) => ({ object: 'list', data, has_more: hasMore, url })
+const reply = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'request-id': 'req_t' } })
+const notFound = () =>
+  reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing', message: 'No such object' } })
+
+const fakeStripe: typeof fetch = async (input, init) => {
+  const url = new URL(String(input))
+  const method = init?.method ?? 'GET'
+  const body = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
+  const headers = new Headers(init?.headers)
+  stripe.requests.push({ method, path: url.pathname, body, idempotencyKey: headers.get('idempotency-key') })
+  const [, , kind, id, sub] = url.pathname.split('/')
+  if (kind === 'account') return reply(200, { id: 'acct_1Brightwater', object: 'account', country: 'US' })
+  if (kind === 'payment_method_configurations') {
+    if (typeof stripe.configuration === 'number')
+      return reply(stripe.configuration, { error: { type: 'invalid_request_error', message: 'not allowed' } })
+    const configs = stripe.configuration
+      ? [
+          {
+            id: stripe.configuration,
+            object: 'payment_method_configuration',
+            name: 'Linedesk Checkout',
+            parent: null,
+            active: true,
+          },
+        ]
+      : []
+    return reply(200, list(configs, url.pathname))
+  }
+  if (kind === 'customers' && method === 'POST') return reply(200, { id: rid('cus'), object: 'customer' })
+  if (kind === 'customers' && id && method === 'DELETE') {
+    // Deleting a customer cancels its subscriptions at once (Stripe's documented behaviour).
+    for (const s of stripe.subscriptions.values()) if (s.customer === id) s.status = 'canceled'
+    stripe.deletedCustomers.push(id)
+    return reply(200, { id, object: 'customer', deleted: true })
+  }
+  if (kind === 'prices') {
+    const keys = [...url.searchParams.entries()].filter(([k]) => k.startsWith('lookup_keys')).map(([, v]) => v)
+    return reply(
+      200,
+      list(
+        keys.map(k => ({ id: `price_${k}`, object: 'price', lookup_key: k, active: true })),
+        url.pathname,
+      ),
+    )
+  }
+  if (kind === 'checkout' && id === 'sessions' && !sub && method === 'POST') {
+    const session = {
+      id: rid('cs_test'),
+      object: 'checkout.session',
+      url: 'https://checkout.stripe.test/c/pay',
+      livemode: false,
+      mode: body.get('mode'),
+      status: 'open',
+      payment_status: 'unpaid',
+      customer: body.get('customer'),
+      client_reference_id: body.get('client_reference_id'),
+      metadata: { linedesk_checkout: body.get('metadata[linedesk_checkout]') },
+      subscription: null,
+      payment_intent: null,
+      amount_subtotal: Number(body.get('line_items[0][price_data][unit_amount]') ?? 0) || null,
+      currency: 'usd',
+      expires_at: Number(body.get('expires_at')) || nowSec() + DAY_S,
+    }
+    stripe.sessions.set(session.id, session)
+    return reply(200, session)
+  }
+  if (kind === 'checkout' && id === 'sessions' && !sub && method === 'GET') {
+    const customer = url.searchParams.get('customer')
+    const status = url.searchParams.get('status')
+    const found = [...stripe.sessions.values()].filter(
+      s => (!customer || s.customer === customer) && (!status || s.status === status),
+    )
+    return reply(200, list(found, url.pathname))
+  }
+  if (kind === 'checkout' && id === 'sessions' && sub && url.pathname.endsWith('/expire') && method === 'POST') {
+    const session = stripe.sessions.get(sub)
+    if (!session) return notFound()
+    if (session.status !== 'open')
+      return reply(400, { error: { type: 'invalid_request_error', message: 'Only open sessions can be expired.' } })
+    session.status = 'expired'
+    return reply(200, session)
+  }
+  if (kind === 'checkout' && id === 'sessions' && sub)
+    return stripe.sessions.has(sub) ? reply(200, stripe.sessions.get(sub)) : notFound()
+  if (kind === 'subscriptions' && id) {
+    const found = stripe.subscriptions.get(id)
+    if (!found) return notFound()
+    if (method === 'DELETE') found.status = 'canceled'
+    if (method === 'POST' && body.has('cancel_at_period_end'))
+      found.cancel_at_period_end = body.get('cancel_at_period_end') === 'true'
+    return reply(200, found)
+  }
+  if (kind === 'invoices' && id) return stripe.invoices.has(id) ? reply(200, stripe.invoices.get(id)) : notFound()
+  if (kind === 'invoiceitems' && method === 'POST') return reply(200, { id: rid('ii'), object: 'invoiceitem' })
+  if (kind === 'invoice_payments')
+    return reply(200, list(stripe.payments.get(url.searchParams.get('invoice') ?? '') ?? [], url.pathname))
+  return notFound()
+}
+
+const card = (fingerprint: string, funding = 'credit') => ({
+  id: rid('pm'),
+  object: 'payment_method',
+  card: { fingerprint, funding, country: 'US' },
+})
+
+/** A Linedesk plan subscription as Stripe has it after Checkout. */
+function subscription(customer: string, over: { status?: string; card?: Json; interval?: 'month' | 'year' } = {}) {
+  const id = rid('sub')
+  const trialing = (over.status ?? 'trialing') === 'trialing'
+  const sub: Json = {
+    id,
+    object: 'subscription',
+    customer,
+    status: over.status ?? 'trialing',
+    cancel_at_period_end: false,
+    trial_end: trialing ? nowSec() + 14 * DAY_S : null,
+    default_payment_method: over.card ?? card(rid('fp')),
+    latest_invoice: rid('in'),
+    items: list(
+      [
+        {
+          id: rid('si'),
+          object: 'subscription_item',
+          quantity: 1,
+          current_period_start: nowSec(),
+          current_period_end: nowSec() + (trialing ? 14 : 30) * DAY_S,
+          price: {
+            id: 'price_ws',
+            object: 'price',
+            lookup_key: over.interval === 'year' ? 'ws_yearly' : 'ws_monthly',
+            recurring: { interval: over.interval ?? 'month' },
+          },
+        },
+      ],
+      '/v1/subscription_items',
+    ),
+  }
+  stripe.subscriptions.set(id, sub)
+  return sub
+}
+
+/** The owner finishes Checkout in Stripe: the session complete with its subscription (and the card on it). */
+function complete(sessionId: string, sub: Json) {
+  const session = stripe.sessions.get(sessionId)!
+  Object.assign(session, { status: 'complete', payment_status: 'no_payment_required', subscription: sub })
+  return session
+}
+
+// ---- The install and its bills ----
+
+let operator: User
+const mails: { to: string; subject: string; html?: string; text?: string }[] = []
+
+/** A sign-up waiting for Checkout: its bill (no Stripe customer yet), its workspace pending_payment, the owner. */
+async function pendingSignUp(over: Partial<typeof billing_accounts.$inferInsert> = {}) {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const [bill] = await db
+    .insert(billing_accounts)
+    .values({ id: rid('bill'), kind: 'cloud', owner_user_id: ws.owner.userId, status: 'pending_payment', ...over })
+    .returning()
+  await db
+    .update(organization)
+    .set({ billingAccountId: bill!.id, billingState: 'pending_payment' })
+    .where(eq(organization.id, ws.id))
+  const owner: Caller = { headers: { ...ws.owner.headers, 'x-workspace-id': ws.id } }
+  return { ws, bill: bill!, owner }
+}
+const billRow = async (id: string) => (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!
+const workspaceState = async (id: string) =>
+  (await db.select().from(organization).where(eq(organization.id, id)))[0]!.billingState
+const checkoutsMade = () => stripe.requests.filter(r => r.method === 'POST' && r.path === '/v1/checkout/sessions')
+
+/** Starts Checkout as the owner; answers the session made at the fake Stripe. */
+async function startCheckout(owner: Caller) {
+  const res = await act(owner, 'billing.startCheckout', {})
+  expect(res.status).toBe(200)
+  expect(res.body.data.url).toBe('https://checkout.stripe.test/c/pay')
+  return checkoutsMade().at(-1)!
+}
+/** Starts Checkout, completes it in the fake with a trial subscription on `fingerprint`, and confirms it. */
+async function trialWith(fingerprint: string, funding = 'credit') {
+  const signedUp = await pendingSignUp()
+  await startCheckout(signedUp.owner)
+  const sessionId = [...stripe.sessions.keys()].at(-1)!
+  const customer = (await billRow(signedUp.bill.id)).stripe_customer_id!
+  const sub = subscription(customer, { card: card(fingerprint, funding) })
+  complete(sessionId, sub)
+  const confirmed = await act(signedUp.owner, 'billing.confirmCheckout', { sessionId })
+  return { ...signedUp, sessionId, sub, confirmed }
+}
+
+/** A stored Stripe event (as the webhook route keeps it), processed like the job does. */
+async function processEvent(type: string, object: Json) {
+  const id = rid('evt')
+  await db.insert(stripe_events).values({
+    id,
+    type,
+    livemode: false,
+    created: new Date().toISOString(),
+    payload: { id, type, created: nowSec(), livemode: false, data: { object } },
+  })
+  return processStripeEventJob(id)
+}
+
+beforeAll(async () => {
+  const home = await createWorkspace('Linedesk Operations')
+  operator = home.owner
+  await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
+  setBillingFetch(fakeStripe)
+  expect(await checkLedgerGuards(db)).toBe(true)
+  const keys = await act(operator, 'provider.setKeys', {
+    provider: 'stripe',
+    values: { secret_key: TEST_KEY, webhook_secret: SECRET },
+  })
+  expect(keys.status).toBe(200)
+  expect((await act(operator, 'billingEnabled.set', { on: true })).status).toBe(200)
+})
+beforeEach(() => {
+  vi.restoreAllMocks()
+  vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as (typeof mails)[number]))
+  mails.length = 0
+  stripe.requests.length = 0
+  stripe.configuration = 'pmc_own'
+})
+afterAll(() => setBillingFetch(null))
+
+describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
+  test('the owner gets a Checkout with the trial, the card-only configuration and never payment_method_types', async () => {
+    const { bill, owner } = await pendingSignUp()
+    const made = await startCheckout(owner)
+    const customer = (await billRow(bill.id)).stripe_customer_id
+    expect(customer).toMatch(/^cus_/)
+    const params = Object.fromEntries(made.body)
+    expect(params).toMatchObject({
+      mode: 'subscription',
+      customer,
+      client_reference_id: bill.id,
+      payment_method_configuration: 'pmc_own',
+      payment_method_collection: 'always',
+      'subscription_data[trial_period_days]': '14',
+      'subscription_data[trial_settings][end_behavior][missing_payment_method]': 'cancel',
+      'line_items[0][price]': 'price_ws_monthly',
+      'line_items[0][quantity]': '1',
+      'automatic_tax[enabled]': 'true',
+      'consent_collection[terms_of_service]': 'required',
+      success_url: 'http://localhost:5173/billing/return?session_id={CHECKOUT_SESSION_ID}',
+    })
+    expect([...made.body.keys()].filter(k => k.startsWith('payment_method_types'))).toEqual([])
+    expect([...made.body.keys()].filter(k => k.includes('setup_future_usage'))).toEqual([])
+    // The customer is made once per bill: the bill id is its idempotency key, and a second start reuses it.
+    expect(stripe.requests.find(r => r.path === '/v1/customers')?.idempotencyKey).toBe(`${bill.id}:customer`)
+    await startCheckout(owner)
+    expect(stripe.requests.filter(r => r.path === '/v1/customers')).toHaveLength(1)
+  })
+
+  test('only the bill owner, signed in, and only while the bill waits for Checkout', async () => {
+    const { ws, bill, owner } = await pendingSignUp()
+    const admin = await addMember(ws.id, 'admin')
+    const res = await act({ headers: { ...admin.headers, 'x-workspace-id': ws.id } }, 'billing.startCheckout', {})
+    expect(res.status).toBe(403)
+    await db.update(billing_accounts).set({ status: 'comped' }).where(eq(billing_accounts.id, bill.id))
+    expect((await act(owner, 'billing.startCheckout', {})).status).toBe(409)
+    expect(checkoutsMade()).toEqual([])
+  })
+
+  test('no card-only configuration, or a key that may not read it: no Checkout, the admins are told (I2)', async () => {
+    const { owner } = await pendingSignUp()
+    for (const missing of [null, 403] as const) {
+      stripe.configuration = missing
+      mails.length = 0
+      const res = await act(owner, 'billing.startCheckout', {})
+      expect(res).toMatchObject({ status: 409, body: { ok: false, error: CHECKOUT_UNAVAILABLE } })
+      await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
+    }
+    expect(checkoutsMade()).toEqual([])
+  })
+})
+
+describe('billing.confirmCheckout (docs/billing.md §3.2 step 4; security review M1)', () => {
+  test('a new card starts the trial: the bill trialing, Checkout confirmed, the workspace open, its first period', async () => {
+    const { ws, bill, sub, sessionId, owner, confirmed } = await trialWith(rid('fp'))
+    expect(confirmed).toMatchObject({ status: 200, body: { data: { status: 'trialing', heldForReview: false } } })
+    const row = await billRow(bill.id)
+    expect(row).toMatchObject({ status: 'trialing', stripe_subscription_id: sub.id, trial_refused: null })
+    expect(row.checkout_confirmed_at).not.toBeNull()
+    expect(Date.parse(row.trial_ends_at!)).toBe((sub.trial_end as number) * 1000)
+    expect(await workspaceState(ws.id)).toBe('active')
+    const periods = await db.select().from(billing_periods).where(eq(billing_periods.billing_account_id, bill.id))
+    expect(periods).toMatchObject([{ kind: 'trial', ends_at: row.trial_ends_at }])
+    expect(await db.select().from(usage_counters).where(eq(usage_counters.billing_account_id, bill.id))).toMatchObject([
+      { workspace_id: ws.id, period_id: periods[0]!.id },
+    ])
+    // The return page loaded again: the same answer, nothing runs twice.
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toEqual({
+      status: 'trialing',
+      heldForReview: false,
+    })
+    expect(await db.select().from(billing_periods).where(eq(billing_periods.billing_account_id, bill.id))).toHaveLength(
+      1,
+    )
+  })
+
+  test("another bill's session, or one Stripe does not know, is a 404 that names nothing", async () => {
+    const mine = await trialWith(rid('fp'))
+    const other = await pendingSignUp()
+    await startCheckout(other.owner)
+    const res = await act(other.owner, 'billing.confirmCheckout', { sessionId: mine.sessionId })
+    expect(res).toMatchObject({ status: 404, body: { ok: false, code: 'not_found' } })
+    const unknown = await act(other.owner, 'billing.confirmCheckout', { sessionId: 'cs_test_unknown' })
+    expect(unknown).toMatchObject({ status: 404, body: { code: 'not_found' } })
+    expect((await billRow(other.bill.id)).status).toBe('pending_payment')
+  })
+
+  test('a card that had a trial gets none: its subscription canceled at once, the bill keeps waiting', async () => {
+    const fingerprint = rid('fp')
+    await trialWith(fingerprint)
+    stripe.requests.length = 0
+    const again = await trialWith(fingerprint)
+    expect(again.confirmed.body.data).toEqual({ status: 'trial_refused', reason: 'card_used' })
+    const cancel = stripe.requests.find(r => r.method === 'DELETE' && r.path === `/v1/subscriptions/${again.sub.id}`)
+    expect(cancel).toBeDefined()
+    expect(stripe.subscriptions.get(again.sub.id as string)!.status).toBe('canceled')
+    // Not active, the subscription let go of, nothing confirmed (M1): a later invoice.paid cannot activate it.
+    const row = await billRow(again.bill.id)
+    expect(row).toMatchObject({
+      status: 'pending_payment',
+      trial_refused: 'card_used',
+      stripe_subscription_id: null,
+      checkout_confirmed_at: null,
+    })
+    expect(await workspaceState(again.ws.id)).toBe('pending_payment')
+    // The next Checkout is the plan without a trial.
+    const plan = await startCheckout(again.owner)
+    expect(plan.body.get('subscription_data[trial_period_days]')).toBeNull()
+    expect(plan.body.get('payment_method_configuration')).toBe('pmc_own')
+  })
+
+  test('a prepaid card gets no trial either', async () => {
+    const prepaid = await trialWith(rid('fp'), 'prepaid')
+    expect(prepaid.confirmed.body.data).toEqual({ status: 'trial_refused', reason: 'prepaid' })
+    expect(await billRow(prepaid.bill.id)).toMatchObject({ status: 'pending_payment', trial_refused: 'prepaid' })
+    expect(stripe.subscriptions.get(prepaid.sub.id as string)!.status).toBe('canceled')
+    // A prepaid card is never stored as having had a trial.
+    const fp = ((prepaid.sub.default_payment_method as Json).card as Json).fingerprint as string
+    expect(await db.select().from(card_fingerprints).where(eq(card_fingerprints.fingerprint, fp))).toEqual([])
+  })
+
+  test('the plan paid without a trial: active at once; an elevated Radar risk holds numbers for review', async () => {
+    const fingerprint = rid('fp')
+    await trialWith(fingerprint)
+    const refused = await trialWith(fingerprint)
+    await startCheckout(refused.owner)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const sub = subscription(refused.bill.id && (await billRow(refused.bill.id)).stripe_customer_id!, {
+      status: 'active',
+      card: card(fingerprint),
+    })
+    stripe.payments.set(sub.latest_invoice as string, [
+      {
+        id: rid('inpay'),
+        object: 'invoice_payment',
+        status: 'paid',
+        amount_paid: 1100,
+        payment: {
+          type: 'payment_intent',
+          payment_intent: {
+            id: rid('pi'),
+            object: 'payment_intent',
+            status: 'succeeded',
+            payment_method: card(fingerprint),
+            latest_charge: { id: rid('ch'), object: 'charge', paid: true, outcome: { risk_level: 'elevated' } },
+          },
+        },
+      },
+    ])
+    complete(sessionId, sub)
+    const res = await act(refused.owner, 'billing.confirmCheckout', { sessionId })
+    expect(res.body.data).toEqual({ status: 'active', heldForReview: true })
+    const row = await billRow(refused.bill.id)
+    expect(row).toMatchObject({ status: 'active', stripe_subscription_id: sub.id, card_risk_level: 'elevated' })
+    expect(row.held_for_review_at).not.toBeNull()
+    expect(await workspaceState(refused.ws.id)).toBe('active')
+    expect(
+      await db.transaction(tx =>
+        billingNumberRefusal(tx, { actorId: refused.ws.owner.userId, permissions: [] } as never, refused.ws.id),
+      ),
+    ).toBe(NUMBER_HELD_FOR_REVIEW)
+  })
+})
+
+describe('the webhook confirms like the return page (checkout.session.completed)', () => {
+  test('an owner who closed the tab: the trial starts from the event, with the same card checks', async () => {
+    const fingerprint = rid('fp')
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    complete(sessionId, subscription(customer, { card: card(fingerprint) }))
+    const done = await processEvent('checkout.session.completed', {
+      id: sessionId,
+      object: 'checkout.session',
+      customer,
+    })
+    expect(done).toMatchObject({ outcome: 'applied', bill: bill.id, detail: 'trialing' })
+    expect((await billRow(bill.id)).status).toBe('trialing')
+
+    // The same card on another sign-up, confirmed only by the webhook: refused there too.
+    const other = await pendingSignUp()
+    await startCheckout(other.owner)
+    const otherSession = [...stripe.sessions.keys()].at(-1)!
+    const otherCustomer = (await billRow(other.bill.id)).stripe_customer_id!
+    const otherSub = complete(otherSession, subscription(otherCustomer, { card: card(fingerprint) }))
+      .subscription as Json
+    const refused = await processEvent('checkout.session.completed', {
+      id: otherSession,
+      object: 'checkout.session',
+      customer: otherCustomer,
+    })
+    expect(refused).toMatchObject({ outcome: 'applied', detail: 'trial_refused' })
+    expect(await billRow(other.bill.id)).toMatchObject({ status: 'pending_payment', trial_refused: 'card_used' })
+    expect(stripe.subscriptions.get(otherSub.id as string)!.status).toBe('canceled')
+  })
+
+  test("a session naming another bill than its customer's changes nothing", async () => {
+    const a = await pendingSignUp()
+    const b = await pendingSignUp()
+    await startCheckout(a.owner)
+    await startCheckout(b.owner)
+    const [sessionA] = [...stripe.sessions.entries()].filter(([, s]) => s.client_reference_id === a.bill.id).at(-1)!
+    const customerB = (await billRow(b.bill.id)).stripe_customer_id!
+    complete(sessionA, subscription((await billRow(a.bill.id)).stripe_customer_id!))
+    const done = await processEvent('checkout.session.completed', {
+      id: sessionA,
+      object: 'checkout.session',
+      customer: customerB,
+    })
+    expect(done).toMatchObject({ outcome: 'applied', bill: b.bill.id, detail: 'not_complete_or_other' })
+    expect((await billRow(a.bill.id)).status).toBe('pending_payment')
+    expect((await billRow(b.bill.id)).status).toBe('pending_payment')
+  })
+})
+
+describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
+  const ownerOf = (userId: string) => ({ actorId: userId, permissions: [] }) as never
+
+  test('none before Checkout, one in the trial, none while held', async () => {
+    const pending = await pendingSignUp()
+    const refusal = (userId: string, ws: string) => db.transaction(tx => billingNumberRefusal(tx, ownerOf(userId), ws))
+    expect(await refusal(pending.ws.owner.userId, pending.ws.id)).toBe(NUMBER_NEEDS_CHECKOUT)
+    // A bill set to trialing by anything but the confirmation (no checkout_confirmed_at) still gets no number.
+    await db.update(billing_accounts).set({ status: 'trialing' }).where(eq(billing_accounts.id, pending.bill.id))
+    expect(await refusal(pending.ws.owner.userId, pending.ws.id)).toBe(NUMBER_NEEDS_CHECKOUT)
+
+    const { ws } = await trialWith(rid('fp'))
+    expect(await refusal(ws.owner.userId, ws.id)).toBeNull()
+    await db
+      .update(phone_numbers)
+      .set({ purchased: true, carrier_account: 'install' })
+      .where(eq(phone_numbers.workspace_id, ws.id))
+    expect(await refusal(ws.owner.userId, ws.id)).toBe(TRIAL_NUMBER_LIMIT)
+    // An instance admin provisions by hand.
+    expect(
+      await db.transaction(tx =>
+        billingNumberRefusal(tx, { actorId: operator.userId, permissions: ['instance:admin'] } as never, ws.id),
+      ),
+    ).toBeNull()
+  })
+
+  test('phoneNumber.setup refuses a purchase before Checkout is confirmed', async () => {
+    const { ws, bill, owner } = await pendingSignUp()
+    await db.update(billing_accounts).set({ status: 'trialing' }).where(eq(billing_accounts.id, bill.id))
+    await db.update(organization).set({ billingState: 'active' }).where(eq(organization.id, ws.id))
+    const res = await act(owner, 'phoneNumber.setup', { areaCode: '503', purchase: true })
+    expect(res).toMatchObject({ status: 409, body: { ok: false, error: NUMBER_NEEDS_CHECKOUT } })
+  })
+})
+
+describe('billing.cancel and billing.resume (docs/billing.md §3.2 step 10)', () => {
+  test('cancel at the end of the trial, then resume; the bill mirrors Stripe', async () => {
+    const { bill, sub, owner } = await trialWith(rid('fp'))
+    const cancel = await act(owner, 'billing.cancel', {})
+    expect(cancel.body.data).toMatchObject({ cancelAtPeriodEnd: true })
+    const update = stripe.requests.find(r => r.method === 'POST' && r.path === `/v1/subscriptions/${sub.id}`)
+    expect(update?.body.get('cancel_at_period_end')).toBe('true')
+    expect((await billRow(bill.id)).cancel_at_period_end).toBe(true)
+    expect((await act(owner, 'billing.resume', {})).body.data).toMatchObject({ cancelAtPeriodEnd: false })
+    expect((await billRow(bill.id)).cancel_at_period_end).toBe(false)
+    // Still trialing: cancelling ends nothing before the trial's end.
+    expect((await billRow(bill.id)).status).toBe('trialing')
+  })
+
+  test('a bill without a running plan cannot cancel', async () => {
+    const { owner } = await pendingSignUp()
+    expect((await act(owner, 'billing.cancel', {})).status).toBe(409)
+  })
+})
+
+describe('billing.startTopUp (docs/billing.md §2.2)', () => {
+  test('Buy minutes: a payment Checkout of our product and amount, credited once with the pre-tax amount', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    expect((await act(owner, 'billing.startTopUp', { amountCents: 499 })).status).toBe(422)
+    const res = await act(owner, 'billing.startTopUp', { amountCents: 2500 })
+    expect(res.status).toBe(200)
+    const made = checkoutsMade().at(-1)!
+    expect(Object.fromEntries(made.body)).toMatchObject({
+      mode: 'payment',
+      payment_method_configuration: 'pmc_own',
+      'line_items[0][price_data][product]': 'linedesk_balance_topup',
+      'line_items[0][price_data][unit_amount]': '2500',
+      'line_items[0][price_data][tax_behavior]': 'exclusive',
+    })
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    Object.assign(stripe.sessions.get(sessionId)!, {
+      status: 'complete',
+      payment_status: 'paid',
+      amount_subtotal: 2500,
+      payment_intent: {
+        id: rid('pi'),
+        object: 'payment_intent',
+        status: 'succeeded',
+        payment_method: card(rid('fp')),
+        latest_charge: { id: rid('ch'), object: 'charge', paid: true, outcome: { risk_level: 'normal' } },
+      },
+    })
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toEqual({
+      status: 'topup',
+      credited: true,
+      amountCents: 2500,
+    })
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toMatchObject({ credited: false })
+    const entries = await db
+      .select()
+      .from(ledger_entries)
+      .where(and(eq(ledger_entries.billing_account_id, bill.id), eq(ledger_entries.kind, 'topup')))
+    expect(entries).toMatchObject([{ amount_micros: 25_000_000, source_type: 'stripe_checkout', source_id: sessionId }])
+    const [balance] = await db.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
+    expect(balance!.balance_micros).toBe(25_000_000)
+  })
+
+  test('not before the plan has started', async () => {
+    const { owner } = await pendingSignUp()
+    expect((await act(owner, 'billing.startTopUp', { amountCents: 2500 })).status).toBe(409)
+  })
+})
+
+describe('security review of #961', () => {
+  /** A paid top-up session of the bill as Stripe has it after the payment. */
+  async function paidTopUp(owner: Caller, cents: number) {
+    expect((await act(owner, 'billing.startTopUp', { amountCents: cents })).status).toBe(200)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    Object.assign(stripe.sessions.get(sessionId)!, {
+      status: 'complete',
+      payment_status: 'paid',
+      amount_subtotal: cents,
+      payment_intent: {
+        id: rid('pi'),
+        object: 'payment_intent',
+        status: 'succeeded',
+        payment_method: card(rid('fp')),
+        latest_charge: { id: rid('ch'), object: 'charge', paid: true, outcome: { risk_level: 'normal' } },
+      },
+    })
+    return sessionId
+  }
+
+  test('G1: a new Checkout expires the open one; every session expires within the hour', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const first = [...stripe.sessions.keys()].at(-1)!
+    const made = await startCheckout(owner)
+    const second = [...stripe.sessions.keys()].at(-1)!
+    expect(second).not.toBe(first)
+    expect(stripe.sessions.get(first)!.status).toBe('expired')
+    expect(stripe.sessions.get(second)!.status).toBe('open')
+    expect(stripe.requests.some(r => r.method === 'POST' && r.path === `/v1/checkout/sessions/${first}/expire`)).toBe(
+      true,
+    )
+    const expiresAt = Number(made.body.get('expires_at'))
+    expect(expiresAt).toBeGreaterThan(nowSec() + 30 * 60)
+    expect(expiresAt).toBeLessThanOrEqual(nowSec() + 61 * 60)
+    expect((await billRow(bill.id)).status).toBe('pending_payment')
+  })
+
+  test('G1: a second completed session, confirmed after the first, has its subscription canceled (return page)', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const first = [...stripe.sessions.keys()].at(-1)!
+    await startCheckout(owner)
+    const second = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    // Both finished in Stripe (the first one before its expiry landed).
+    const sub1 = subscription(customer)
+    const sub2 = subscription(customer)
+    complete(first, sub1)
+    complete(second, sub2)
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId: first })).body.data).toMatchObject({
+      status: 'trialing',
+    })
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId: second })).body.data).toMatchObject({
+      status: 'trialing',
+    })
+    expect(stripe.subscriptions.get(sub2.id as string)!.status).toBe('canceled')
+    expect(stripe.subscriptions.get(sub1.id as string)!.status).toBe('trialing')
+    expect((await billRow(bill.id)).stripe_subscription_id).toBe(sub1.id)
+  })
+
+  test('G1: the same through the webhook; a paid extra plan is canceled and the admins are told to refund', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const first = [...stripe.sessions.keys()].at(-1)!
+    await startCheckout(owner)
+    const second = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    const sub1 = subscription(customer)
+    const paid = subscription(customer, { status: 'active' })
+    complete(first, sub1)
+    complete(second, paid)
+    const object = (id: string) => ({ id, object: 'checkout.session', customer })
+    expect(await processEvent('checkout.session.completed', object(first))).toMatchObject({ detail: 'trialing' })
+    expect(await processEvent('checkout.session.completed', object(second))).toMatchObject({ detail: 'trialing' })
+    expect(stripe.subscriptions.get(paid.id as string)!.status).toBe('canceled')
+    expect(stripe.subscriptions.get(sub1.id as string)!.status).toBe('trialing')
+    await vi.waitFor(() =>
+      expect(
+        mails.some(m => /extra Checkout/i.test(m.subject) && (m.text ?? m.html ?? '').includes(paid.id as string)),
+      ).toBe(true),
+    )
+  })
+
+  test('G5: a refusal after Stripe made a subscription cancels it and tells the admins', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    // Linked since by someone else's path: this session's subscription is another one.
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, bill.id))
+    const sub = subscription(customer)
+    complete(sessionId, sub)
+    const done = await processEvent('checkout.session.completed', {
+      id: sessionId,
+      object: 'checkout.session',
+      customer,
+    })
+    expect(done).toMatchObject({ outcome: 'applied', detail: expect.stringMatching(/^refused: /) })
+    expect(stripe.subscriptions.get(sub.id as string)!.status).toBe('canceled')
+    await vi.waitFor(() => expect(mails.some(m => /Checkout .* refused/i.test(m.subject))).toBe(true))
+  })
+
+  test('G3: a top-up after the trial period ended (no current period) is credited in the latest period', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    // The trial ended and converted; the next period is PR 10's: none contains now.
+    const past = new Date(Date.now() - 2 * DAY_S * 1000).toISOString()
+    await db
+      .update(billing_periods)
+      .set({ starts_at: new Date(Date.now() - 16 * DAY_S * 1000).toISOString(), ends_at: past })
+      .where(eq(billing_periods.billing_account_id, bill.id))
+    await db.update(billing_accounts).set({ status: 'active' }).where(eq(billing_accounts.id, bill.id))
+    const sessionId = await paidTopUp(owner, 2000)
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data).toEqual({
+      status: 'topup',
+      credited: true,
+      amountCents: 2000,
+    })
+    const [period] = await db.select().from(billing_periods).where(eq(billing_periods.billing_account_id, bill.id))
+    const entries = await db
+      .select()
+      .from(ledger_entries)
+      .where(and(eq(ledger_entries.billing_account_id, bill.id), eq(ledger_entries.kind, 'topup')))
+    expect(entries).toMatchObject([{ amount_micros: 20_000_000, period_id: period!.id, source_id: sessionId }])
+  })
+
+  test('G2: the sweep expires the open Checkout and deletes the Stripe customer before it deletes the bill', async () => {
+    const { bill, owner, ws } = await pendingSignUp()
+    await startCheckout(owner)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    await db
+      .update(billing_accounts)
+      .set({ created_at: new Date(Date.now() - 8 * DAY_S * 1000).toISOString() })
+      .where(eq(billing_accounts.id, bill.id))
+    await sweepSignUps(db)
+    expect(stripe.sessions.get(sessionId)!.status).toBe('expired')
+    expect(stripe.deletedCustomers).toContain(customer)
+    expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toEqual([])
+    expect(await db.select().from(organization).where(eq(organization.id, ws.id))).toEqual([])
+  })
+
+  test('G2: when Stripe cannot be asked, the bill is kept for the next run', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    await db
+      .update(billing_accounts)
+      .set({ created_at: new Date(Date.now() - 8 * DAY_S * 1000).toISOString() })
+      .where(eq(billing_accounts.id, bill.id))
+    setBillingFetch((async () => reply(500, { error: { type: 'api_error', message: 'down' } })) as typeof fetch)
+    try {
+      await sweepSignUps(db)
+    } finally {
+      setBillingFetch(fakeStripe)
+    }
+    expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toHaveLength(1)
+  })
+
+  test(`card fingerprints go ${CARD_FINGERPRINT_RETENTION_MONTHS} months after their bill was canceled; others stay`, async () => {
+    const old = await trialWith(rid('fp'))
+    const recent = await trialWith(rid('fp'))
+    const running = await trialWith(rid('fp'))
+    const months = (n: number) => {
+      const d = new Date()
+      d.setUTCMonth(d.getUTCMonth() - n)
+      return d.toISOString()
+    }
+    await db
+      .update(billing_accounts)
+      .set({ status: 'canceled', canceled_at: months(CARD_FINGERPRINT_RETENTION_MONTHS + 1) })
+      .where(eq(billing_accounts.id, old.bill.id))
+    await db
+      .update(billing_accounts)
+      .set({ status: 'canceled', canceled_at: months(CARD_FINGERPRINT_RETENTION_MONTHS - 1) })
+      .where(eq(billing_accounts.id, recent.bill.id))
+    const result = await sweepSignUps(db)
+    expect(result.fingerprints).toBeGreaterThanOrEqual(1)
+    const left = async (b: { bill: { id: string } }) =>
+      db.select().from(card_fingerprints).where(eq(card_fingerprints.first_billing_account_id, b.bill.id))
+    expect(await left(old)).toEqual([])
+    expect(await left(recent)).toHaveLength(1)
+    expect(await left(running)).toHaveLength(1)
+  })
+})
+
+describe('the trial ends (customer.subscription.trial_will_end, invoice.created)', () => {
+  test('three days before: one alert per trial, an email with the charge, the date and how to cancel', async () => {
+    const { bill, sub } = await trialWith(rid('fp'))
+    const customer = sub.customer as string
+    const object = { id: sub.id, object: 'subscription', customer }
+    expect(await processEvent('customer.subscription.trial_will_end', object)).toMatchObject({ detail: 'emailed' })
+    expect(await processEvent('customer.subscription.trial_will_end', object)).toMatchObject({
+      detail: 'already_emailed',
+    })
+    const alerts = await db
+      .select()
+      .from(billing_alerts)
+      .where(and(eq(billing_alerts.billing_account_id, bill.id), eq(billing_alerts.kind, 'trial_will_end')))
+    expect(alerts).toHaveLength(1)
+    const trialEnd = (await billRow(bill.id)).trial_ends_at!
+    await sendBillingAlert(db, emailSender, { kind: 'trial_will_end', bill: bill.id, ref: trialEnd })
+    const mail = mails.at(-1)!
+    expect(mail.subject).toMatch(/trial ends on/)
+    expect(mail.text).toContain('$11.00')
+    expect(mail.text).toContain('adds $20.00')
+    expect(mail.text).toContain('Cancel in Settings › Billing')
+  })
+
+  test('the conversion invoice gets the first recharge as an invoice item, once', async () => {
+    const { bill, sub } = await trialWith(rid('fp'))
+    const invoiceId = rid('in')
+    stripe.invoices.set(invoiceId, {
+      id: invoiceId,
+      object: 'invoice',
+      livemode: false,
+      customer: sub.customer,
+      parent: { type: 'subscription_details', subscription_details: { subscription: sub.id } },
+      status: 'draft',
+      billing_reason: 'subscription_cycle',
+      currency: 'usd',
+      total: 10_800,
+      total_taxes: [],
+      amount_paid: 0,
+      amount_paid_off_stripe: 0,
+      metadata: {},
+      lines: list([], `/v1/invoices/${invoiceId}/lines`),
+      number: null,
+      period_start: nowSec(),
+      period_end: nowSec(),
+    })
+    const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
+    expect(await processEvent('invoice.created', object)).toMatchObject({ detail: 'recharge_added' })
+    const [recharge] = await db
+      .select()
+      .from(billing_recharges)
+      .where(eq(billing_recharges.billing_account_id, bill.id))
+    expect(recharge).toMatchObject({ status: 'pending', stripe_invoice_id: invoiceId, amount_cents: 2000 })
+    const item = stripe.requests.find(r => r.method === 'POST' && r.path === '/v1/invoiceitems')!
+    expect(Object.fromEntries(item.body)).toMatchObject({
+      invoice: invoiceId,
+      amount: '2000',
+      currency: 'usd',
+      'metadata[billing_recharge_id]': recharge!.id,
+    })
+    expect(item.idempotencyKey).toBe(`${recharge!.id}:item`)
+
+    // A failed conversion invoice is dunning's (PR 11): never voided here, the recharge stays pending.
+    Object.assign(stripe.invoices.get(invoiceId)!, { status: 'open' })
+    stripe.requests.length = 0
+    expect(await processEvent('invoice.payment_failed', object)).toMatchObject({
+      outcome: 'unhandled',
+      marker: UNHANDLED_PLAN,
+    })
+    expect(stripe.requests.filter(r => r.method === 'POST' && r.path.startsWith('/v1/invoices/'))).toEqual([])
+    expect((await db.select().from(billing_recharges).where(eq(billing_recharges.id, recharge!.id)))[0]!.status).toBe(
+      'pending',
+    )
+    // Voided: the recharge is canceled with it.
+    Object.assign(stripe.invoices.get(invoiceId)!, { status: 'void' })
+    await processEvent('invoice.voided', object)
+    expect((await db.select().from(billing_recharges).where(eq(billing_recharges.id, recharge!.id)))[0]!.status).toBe(
+      'canceled',
+    )
+  })
+
+  test('auto-recharge off, or not the conversion invoice: no recharge added', async () => {
+    const { bill, sub } = await trialWith(rid('fp'))
+    await db.update(billing_accounts).set({ auto_recharge: false }).where(eq(billing_accounts.id, bill.id))
+    const invoiceId = rid('in')
+    stripe.invoices.set(invoiceId, {
+      id: invoiceId,
+      object: 'invoice',
+      livemode: false,
+      customer: sub.customer,
+      parent: { type: 'subscription_details', subscription_details: { subscription: sub.id } },
+      status: 'draft',
+      billing_reason: 'subscription_cycle',
+      currency: 'usd',
+      total: 10_800,
+      total_taxes: [],
+      amount_paid: 0,
+      amount_paid_off_stripe: 0,
+      metadata: {},
+      lines: list([], `/v1/invoices/${invoiceId}/lines`),
+    })
+    const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
+    expect(await processEvent('invoice.created', object)).toMatchObject({ detail: 'no_recharge' })
+    expect(stripe.requests.filter(r => r.path === '/v1/invoiceitems')).toEqual([])
+  })
+})

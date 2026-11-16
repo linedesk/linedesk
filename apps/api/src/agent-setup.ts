@@ -47,6 +47,7 @@ import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { lockSetupKeysOf } from './passkey-enrolment.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
+import { refusePendingPayment } from './self-serve.ts'
 
 /** Shown to tell keys apart: the prefix and 8 characters of the key. */
 const SHOWN_LENGTH = SETUP_KEY_PREFIX.length + 8
@@ -427,6 +428,8 @@ export const agentSetupHandlers: Record<string, Handler> = {
     refuseNonPerson(actor)
     // The owner or an admin (settings:write, checked by run-action.ts); the key acts with that role, never more.
     if (!actor.workspaceId || !isWorkspaceKeyRole(actor.role)) throw new Forbidden(ONLY_OWNER_OR_ADMIN)
+    // No agent setup link before Checkout (docs/billing.md §3.1).
+    await refusePendingPayment(tx, actor.workspaceId)
     if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject('Too many setup links. Try again in a few minutes.')
     return { rows: {}, data: await insertKey(tx, actor, now, actor.workspaceId) }
   },

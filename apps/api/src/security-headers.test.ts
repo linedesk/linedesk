@@ -29,8 +29,11 @@ describe('security headers (docker/Caddyfile)', () => {
       'https://openrouter.ai',
       '{$LINEDESK_CSP_CONNECT}',
     ])
-    // Scripts and styles from this origin only; LINEDESK_CSP_DEV (empty in production) is for dev mode's dev server.
-    expect(csp.get('script-src')).toEqual(["'self'", '{$LINEDESK_CSP_DEV}'])
+    // Scripts and styles from this origin only, plus Cloudflare Turnstile's script for the sign-up page's bot check;
+    // LINEDESK_CSP_DEV (empty in production) is for dev mode's dev server.
+    expect(csp.get('script-src')).toEqual(["'self'", 'https://challenges.cloudflare.com', '{$LINEDESK_CSP_DEV}'])
+    // Frames: this origin and Turnstile's widget only.
+    expect(csp.get('frame-src')).toEqual(["'self'", 'https://challenges.cloudflare.com'])
     expect(csp.get('style-src')).toEqual(["'self'", '{$LINEDESK_CSP_DEV}'])
     expect(csp.get('img-src')).toEqual(["'self'", 'data:'])
     expect(csp.get('media-src')).toEqual(["'self'", 'blob:', 'https:'])

@@ -100,8 +100,9 @@ export async function refuseUnverifiedAdminAddress(_tx: Tx, created: { email: st
 export const instanceAdminHooks = {
   user: {
     create: {
-      before: async (created: { email: string; emailVerified?: boolean }) => {
-        await refuseClosedSignUp(db, created)
+      // The endpoint's path says how the account is being made (signup-gate.ts: self-serve only by the email code).
+      before: async (created: { email: string; emailVerified?: boolean }, ctx?: { path?: string } | null) => {
+        await refuseClosedSignUp(db, created, ctx?.path ?? null)
         await refuseUnverifiedAdminAddress(db, created)
       },
       after: async (created: { id: string; email: string; emailVerified?: boolean }) => {
@@ -167,8 +168,12 @@ export const instanceAdminHooks = {
 export async function joinOrUndo(created: { id: string; email: string }) {
   const { joinInvitedWorkspaces } = await import('./memberships.ts')
   const { deleteAccountWithoutWorkspace } = await import('./workspace-delete.ts')
+  const { maySignUpWithCode } = await import('./self-serve.ts')
   // Each step is in the audit log, in the same transaction as the step: the joins, or the account removed again.
   const undo = async (tx: Tx) => {
+    // Made by the sign-up page (self-serve.ts): it stays without a workspace until account.signUp makes one; the
+    // daily sign-up sweep removes it when that never happens.
+    if (await maySignUpWithCode(tx, created.email)) return false
     const gone = await deleteAccountWithoutWorkspace(tx, created.id)
     if (gone) await insertAuthEvent(tx, { event: 'sign_up_undone', userId: created.id, email: created.email })
     return gone

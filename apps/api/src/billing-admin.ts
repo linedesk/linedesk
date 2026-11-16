@@ -62,10 +62,11 @@ import { type AlertActor, billingRulesAlert, selfServeAlert } from './emails/ale
 import { type Handler, Reject } from './handler-context.ts'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { SELF_SERVE_KEY } from './self-serve.ts'
 import { STRIPE_EVENT_ATTEMPTS } from './stripe-events.ts'
 
-/** The instance setting that opens sign-up to anyone (docs/billing.md §3.1): 'on'; anything else or no row: off. */
-export const SELF_SERVE_KEY = 'signup.selfServe'
+// The instance setting that opens sign-up to anyone (docs/billing.md §3.1): self-serve.ts, which reads it.
+export { SELF_SERVE_KEY } from './self-serve.ts'
 
 /** How many ledger entries, recharges, invoices and events one page shows. */
 const PAGE = 200

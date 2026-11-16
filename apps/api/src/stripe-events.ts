@@ -71,8 +71,24 @@ const INVOICE_PAID = 'invoice.paid'
 const INVOICE_FAILURES = ['invoice.payment_failed', 'invoice.voided'] as const
 /** A new card (docs/billing.md §3.4): ends the wait after a failed recharge. By the job too (it asks Stripe). */
 const CARD_CHANGES = ['payment_method.attached', 'customer.updated'] as const
+/**
+ * Trial Checkout (docs/billing.md §3.2, billing-checkout.ts): a finished Checkout confirmed like the return page does
+ * (the only way out of `pending_payment` besides the owner's own confirmation, security review M1), the trial's end
+ * email, and the first recharge added to the conversion invoice. By the job (they ask Stripe).
+ */
+const CHECKOUT_EVENTS = [
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+  'customer.subscription.trial_will_end',
+  'invoice.created',
+] as const
 /** The event types this release acts on. */
-export const HANDLED_EVENTS: readonly string[] = [INVOICE_PAID, ...INVOICE_FAILURES, ...CARD_CHANGES]
+export const HANDLED_EVENTS: readonly string[] = [
+  INVOICE_PAID,
+  ...INVOICE_FAILURES,
+  ...CARD_CHANGES,
+  ...CHECKOUT_EVENTS,
+]
 
 /** The API's billing jobs: `billing:system` only, which no role, API key, setup link or session has. */
 export const billingSystemActor: Actor = {
@@ -234,6 +250,8 @@ export type EventOutcome =
   | {
       outcome: 'applied'
       bill: string
+      /** What a Checkout event did (billing-checkout.ts): `trialing`, `trial_refused`, `emailed`, `recharge_added`. */
+      detail?: string
       credited?: { recharge: string; micros: number; posted: boolean }
       notCredited?: { recharge: string; reason: NotCreditedReason }
       plan?: 'active' | 'unchanged'
@@ -343,6 +361,9 @@ async function linkSubscription(
     return null
   if (!subscription.items.length || !subscription.items.every(i => i.lookupKey && PLAN_LOOKUP_KEYS.has(i.lookupKey)))
     return null
+  // A bill whose trial was refused (card used before, prepaid) never links a trial subscription: only the owner's next
+  // Checkout, the plan without a trial, may be linked (security review of #961, G4).
+  if (bill.trial_refused && subscription.status === 'trialing') return null
   const [linked] = await tx
     .update(billing_accounts)
     .set({ stripe_subscription_id: subscription.id, updated_at: now })
@@ -587,6 +608,20 @@ export async function failRechargeInvoice(
   /** Stripe said the payment failed (the event); the reconciliation passes false and relies on the invoice. */
   reportedFailed: boolean,
 ): Promise<string | null> {
+  // The first recharge on the trial's conversion invoice (docs/billing.md §3.2 step 9) rides on a plan invoice: it is
+  // never stopped or voided here (that would void the plan's fee). Stripe retries the invoice (dunning, PR 11); its
+  // payment credits the recharge (invoice.paid), its void cancels it.
+  if (invoice.subscriptionId) {
+    if (invoice.status !== 'void' || (recharge.status !== 'pending' && recharge.status !== 'failed')) return null
+    await db.transaction(async tx => {
+      await lockBalance(tx, recharge.billing_account_id)
+      await tx
+        .update(billing_recharges)
+        .set({ status: 'canceled', resolved_at: now })
+        .where(and(eq(billing_recharges.id, recharge.id), inArray(billing_recharges.status, ['pending', 'failed'])))
+    })
+    return null
+  }
   if (invoice.status === 'void') {
     if (recharge.status === 'failed') {
       await db.transaction(async tx => {
@@ -671,14 +706,37 @@ async function invoiceFailedJob(event: StoredEvent): Promise<EventOutcome> {
   if (!invoice) return done({ outcome: 'not_found' })
   if (!bill.stripe_customer_id || invoice.customerId !== bill.stripe_customer_id) return done({ outcome: 'unknown' })
   const recharge = await rechargeOfFailedInvoice(invoice, bill, stored)
-  // A plan invoice: dunning (a later PR) handles it, from the stored events.
-  if (!recharge) return done({ outcome: 'unhandled', marker: UNHANDLED_PLAN })
+  // A plan invoice: dunning (a later PR) handles it, from the stored events. One carrying the first recharge too: the
+  // recharge is canceled only when the invoice is voided, and dunning still gets the event.
+  if (recharge && invoice.subscriptionId) await failRechargeInvoice(provider, invoice, recharge, now, false)
+  if (!recharge || invoice.subscriptionId) return done({ outcome: 'unhandled', marker: UNHANDLED_PLAN })
   const code = await failRechargeInvoice(provider, invoice, recharge, now, event.type === 'invoice.payment_failed')
   return done(
     code
       ? { outcome: 'recharge_failed', bill: bill.id, recharge: recharge.id, code }
       : { outcome: 'applied', bill: bill.id },
   )
+}
+
+/**
+ * The Checkout events (CHECKOUT_EVENTS). billing-checkout.ts is imported when one runs: it is a handler module, which
+ * only handlers.ts imports at load.
+ */
+async function checkoutEventJob(event: StoredEvent): Promise<EventOutcome> {
+  const now = new Date().toISOString()
+  const done = finishEvent(event, now)
+  const { objectId, customerId } = eventSubject(event.payload)
+  if (!objectId) return done({ outcome: 'unknown' })
+  const checkout = await import('./billing-checkout.ts')
+  const result =
+    event.type === 'customer.subscription.trial_will_end'
+      ? await checkout.trialWillEnd(objectId, customerId)
+      : event.type === 'invoice.created'
+        ? await checkout.firstRecharge(objectId, customerId, now)
+        : await checkout.checkoutCompleted(objectId, customerId, now)
+  if (result.outcome === 'unknown')
+    return done({ outcome: retryUnknown(event.received_at, now) ? 'unknown_retry' : 'unknown' })
+  return done(result)
 }
 
 /**
@@ -705,6 +763,7 @@ export async function processStripeEventJob(eventId: string) {
   try {
     if ((INVOICE_FAILURES as readonly string[]).includes(event.type)) return await invoiceFailedJob(event)
     if ((CARD_CHANGES as readonly string[]).includes(event.type)) return await cardChangedJob(event)
+    if ((CHECKOUT_EVENTS as readonly string[]).includes(event.type)) return await checkoutEventJob(event)
     const result = await runAsBillingSystem('billing.processStripeEvent', { eventId })
     if (!result.body.ok) throw new Error(result.body.error)
     return result.body.data as EventOutcome

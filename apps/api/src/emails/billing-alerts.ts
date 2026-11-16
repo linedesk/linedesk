@@ -139,3 +139,51 @@ export const rechargeSetupAlert =
       ],
     }
   }
+
+/**
+ * Checkout could not start because of our own Stripe setup (docs/billing.md §3.2 step 3, security review I2): no
+ * card-only payment method configuration, a key without a permission, a missing price. The owner was told to try later.
+ */
+export const checkoutSetupAlert =
+  (code: string): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.checkoutSetup.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.checkoutSetup.text', { code }) },
+        { kind: 'text', text: t('email.adminAlert.checkoutSetup.check') },
+      ],
+    }
+  }
+
+/** A second Checkout completed after the bill's own (security review of #961, G1): its subscription was canceled. */
+export const checkoutExtraAlert =
+  (o: { bill: string; session: string; subscription: string; paid: boolean }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.checkoutExtra.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.checkoutExtra.text', o) },
+        {
+          kind: 'text',
+          text: t(o.paid ? 'email.adminAlert.checkoutExtra.refund' : 'email.adminAlert.checkoutExtra.trial'),
+        },
+      ],
+    }
+  }
+
+/** A completed Checkout the server refused (security review of #961, G5): a person checks what Stripe charged. */
+export const checkoutRefusedAlert =
+  (o: { bill: string; session: string; reason: string }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.checkoutRefused.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.checkoutRefused.text', o) },
+        { kind: 'text', text: t('email.adminAlert.checkoutRefused.check') },
+      ],
+    }
+  }

@@ -60,7 +60,17 @@ export type Me = {
   /** An owner or admin changed the member's name or picture last; null when they did (absent from an older server). */
   profileChangedBy?: { name: string; at: string } | null
   /** `iconUrl`: the workspace icon (Workspace settings › General); null or absent: the initial shows. */
-  workspace: { id: string; name: string; disabled?: boolean; iconUrl?: string | null } | null
+  /**
+   * `billingState`: on a bill (Linedesk Cloud), `pending_payment` until Checkout, then `active` or `suspended`; null or
+   * absent off billing.
+   */
+  workspace: {
+    id: string
+    name: string
+    disabled?: boolean
+    iconUrl?: string | null
+    billingState?: 'pending_payment' | 'active' | 'suspended' | null
+  } | null
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
   workspaces?: { id: string; name: string; disabled?: boolean; iconUrl?: string | null }[]
   onboarding: OnboardingState | null

@@ -432,6 +432,24 @@ const googlePlaces: Check = async (values, http) => {
   return answer.ok ? ok() : failed(answer.problem)
 }
 
+// --- Bot check ----------------------------------------------------------------------------------
+// Cloudflare Turnstile (self-serve sign-up, docs/billing.md §3.1): siteverify with a token that cannot be valid. A
+// good secret key answers `invalid-input-response`; a wrong one `invalid-input-secret`. Free, nothing is recorded.
+
+const turnstile: Check = async (values, http) => {
+  const answer = await http.json('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    body: new URLSearchParams({ secret: values.secret_key!, response: 'linedesk-provider-test' }),
+  })
+  if (!answer.ok) return failed(answer.problem)
+  const codes = Array.isArray(answer.body['error-codes']) ? (answer.body['error-codes'] as unknown[]).map(String) : []
+  if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret'))
+    return error('auth', 'Cloudflare does not know this secret key. Copy it again from Turnstile, your widget, Settings.')
+  if (!/^0x[\w-]{10,}$/.test(values.site_key ?? ''))
+    return error('config', 'The site key does not look like a Turnstile site key (0x…).')
+  return ok()
+}
+
 type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService | 'stripe'>
 /** How to test each provider of the registry (packages/actions/src/admin.ts) that answers over HTTP. */
 const checks: Record<HttpProvider, Check> = {
@@ -454,6 +472,7 @@ const checks: Record<HttpProvider, Check> = {
   deepgram_transcript: deepgram,
   assemblyai,
   elevenlabs_transcript: elevenLabsStt,
+  turnstile,
 }
 
 // --- Billing ------------------------------------------------------------------------------------

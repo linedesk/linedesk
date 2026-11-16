@@ -12,6 +12,7 @@ import { Reject } from './handlers.ts'
 import { livekitToken } from './livekit-status.ts'
 import { pipelinesSetUp } from './provider-settings.ts'
 import { spendingCap } from './spending-cap.ts'
+import { refusePendingPayment } from './self-serve.ts'
 
 /** The voice agent's name (apps/agent/src/env.ts); it only joins rooms it is dispatched to by name. */
 const AGENT_NAME = 'linedesk'
@@ -182,6 +183,8 @@ export async function startTestCall(
   nowMs = Date.now(),
 ): Promise<TestCallData> {
   if (!actor.workspaceId) throw new Reject('no workspace')
+  // No browser test call before Checkout (docs/billing.md §3.1).
+  await refusePendingPayment(tx, actor.workspaceId)
   const { LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET } = env
   if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET)
     throw new Reject('test calls are not set up: LiveKit is not configured on the server')

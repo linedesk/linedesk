@@ -34,8 +34,9 @@ import type { z } from 'zod'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { Forbidden, preparers, Reject, runHandler, type Undo } from './handlers.ts'
+import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
+import { isPendingPayment, PENDING_PAYMENT, REFUSED_WHILE_PENDING_PAYMENT } from './self-serve.ts'
 import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
@@ -47,12 +48,19 @@ export const API_KEY_PUBLIC_ONLY =
 const rejection = (status: RunResult['status'], error: string): RunResult => ({ status, body: { ok: false, error } })
 const forbidden = (error: string): RunResult => ({ status: 403, body: { ok: false, error, code: 'forbidden' } })
 
-/** A handler's rejection: 403 when the caller may not do it, 409 when the data's state does not allow it. */
-const statusOf = (body: ActionRejection): RunResult['status'] => (body.code === 'forbidden' ? 403 : 409)
+/** A handler's rejection: 403 when the caller may not do it, 404 for what is not theirs, 409 for the data's state. */
+const statusOf = (body: ActionRejection): RunResult['status'] =>
+  body.code === 'forbidden' ? 403 : body.code === 'not_found' ? 404 : 409
 const rejectionBody = (e: Reject, notes: string[] = []): ActionRejection => ({
   ok: false,
   error: [e.message, ...notes].join('; '),
-  ...(e instanceof Forbidden ? { code: 'forbidden' as const } : e.code ? { code: e.code } : {}),
+  ...(e instanceof Forbidden
+    ? { code: 'forbidden' as const }
+    : e instanceof NotFound
+      ? { code: 'not_found' as const }
+      : e.code
+        ? { code: e.code }
+        : {}),
 })
 
 /**
@@ -263,6 +271,9 @@ export async function runAction(
   const personalRefused = actor.personalKeyId ? personalKeyRefusal(name) : null
   if (personalRefused) return forbidden(personalRefused)
   if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
+  // A sign-up waiting for Checkout reaches nothing outside and spends nothing (self-serve.ts; security review F1).
+  if (REFUSED_WHILE_PENDING_PAYMENT.has(name) && (await isPendingPayment(db, actor.workspaceId)))
+    return rejection(409, PENDING_PAYMENT)
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) {
     const unknown = onlyUnknownFields(parsed.error)

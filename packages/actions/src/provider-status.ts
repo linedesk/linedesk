@@ -120,8 +120,8 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     id: 'billing',
     label: 'Billing',
     needed: false,
-    categories: ['billing'],
-    why: 'Linedesk Cloud only: bills, trials and call minutes through Stripe. Off until Stripe is connected and billing is turned on; a self-hosted install bills nobody.',
+    categories: ['billing', 'bot_check'],
+    why: 'Linedesk Cloud only: bills, trials and call minutes through Stripe, and the bot check on the sign-up page. Off until Stripe is connected and billing is turned on; a self-hosted install bills nobody.',
   },
 ]
 export const groupSpec = (id: ProviderGroupId) => providerGroups.find(g => g.id === id)!

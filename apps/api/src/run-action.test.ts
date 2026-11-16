@@ -27,11 +27,17 @@ vi.mock('./handlers.ts', () => {
       if (code) this.code = code
     }
   }
-  return { Reject, Forbidden: class Forbidden extends Reject {}, runHandler: fake.runHandler, preparers: {} }
+  return {
+    Reject,
+    Forbidden: class Forbidden extends Reject {},
+    NotFound: class NotFound extends Reject {},
+    runHandler: fake.runHandler,
+    preparers: {},
+  }
 })
 
 const { runAction } = await import('./run-action.ts')
-const { Forbidden, Reject } = await import('./handlers.ts')
+const { Forbidden, NotFound, Reject } = await import('./handlers.ts')
 
 const member: Actor = { actorId: 'user_1', role: 'member', workspaceId: 'ws_1', permissions: rolePermissions.member }
 const findSlots = () => runAction('calendar.findSlots', { appointmentTypeId: 'at_1' }, member, 'cmd_1')
@@ -75,6 +81,11 @@ describe('runAction: read-only actions', () => {
       status: 403,
       body: { ok: false, error: 'only an owner can do that', code: 'forbidden' },
     })
+  })
+
+  it('turns a missing row into 404 with its code', async () => {
+    fake.runHandler.mockRejectedValue(new NotFound('no such checkout'))
+    expect(await findSlots()).toEqual({ status: 404, body: { ok: false, error: 'no such checkout', code: 'not_found' } })
   })
 
   it('lets unexpected errors through', async () => {

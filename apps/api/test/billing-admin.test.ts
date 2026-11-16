@@ -191,6 +191,25 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
         : null
     },
     checkoutInvoice: async () => null,
+    // Trial Checkout (PR 8) is not used here.
+    createCustomer: async () => {
+      throw new Error('not used')
+    },
+    startCheckout: async () => {
+      throw new Error('not used')
+    },
+    expireOpenCheckouts: async () => {
+      throw new Error('not used')
+    },
+    deleteCustomer: async () => {
+      throw new Error('not used')
+    },
+    checkoutSession: async () => null,
+    cancelSubscription: async () => null,
+    resumeSubscription: async () => null,
+    addInvoiceItem: async () => {
+      throw new Error('not used')
+    },
     setSeatQuantity: async input => {
       seats.push(input)
       if (seatFails.includes(input.subscriptionId)) throw new Error('Stripe: this subscription is canceled')

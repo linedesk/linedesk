@@ -53,7 +53,82 @@ export type RechargeCharge =
   | { status: 'failed'; invoiceId: string; failureCode: string }
 
 /**
- * A webhook event whose signature was checked (or one listed from the API by the nightly reconciliation), cut to what
+ * A Checkout Session to start (docs/billing.md §3.2 step 3, §2.2 top-ups). `trial`: the plan with the free trial (a
+ * SetupIntent checks the card, nothing is charged); `plan`: the plan paid now, no trial (a card that already had a
+ * trial, or a prepaid one); `topup`: "Buy minutes", a one-off payment of `amountCents` (pre-tax), built on the server.
+ * Always the card-only payment method configuration (`paymentMethodConfiguration`), never `payment_method_types`.
+ */
+export type CheckoutInput = {
+  kind: 'trial' | 'plan' | 'topup'
+  billId: string
+  customerId: string
+  paymentMethodConfiguration: string
+  /** The plan's prices by lookup key and their quantity (`trial`, `plan`). */
+  items?: { lookupKey: string; quantity: number }[]
+  trialDays?: number
+  /** `topup`: the amount before tax, in cents. */
+  amountCents?: number
+  /** The text Checkout shows above its button (the trial's terms, or what the top-up is). */
+  submitText: string
+  successUrl: string
+  cancelUrl: string
+  /** One per attempt: a retried request never makes a second session. */
+  idempotencyKey: string
+  /** When the session expires (unix seconds; Stripe allows 30 minutes to 24 hours from now). */
+  expiresAt: number
+}
+
+/** A started Checkout Session: where the owner pays. The URL is a bearer link, never stored. */
+export type CheckoutStarted = { id: string; url: string }
+
+/** The card a Checkout saved or charged, as Stripe has it: what the trial checks read (§3.2 step 4). */
+export type CheckoutCard = {
+  /** The same card number gives the same fingerprint in one Stripe account. */
+  fingerprint: string | null
+  /** `credit`, `debit`, `prepaid` or `unknown`. */
+  funding: string | null
+  country: string | null
+}
+
+/** A Checkout Session fetched from the service (fetch-before-act): only what billing decides on. */
+export type CheckoutSession = {
+  id: string
+  livemode: boolean
+  mode: 'subscription' | 'payment' | 'setup'
+  status: 'open' | 'complete' | 'expired' | null
+  /** `paid`, `unpaid` or `no_payment_required` (a trial). */
+  paymentStatus: string
+  customerId: string | null
+  /** Our bill id (set when the session was made). */
+  clientReferenceId: string | null
+  /** `metadata.linedesk_checkout`: `trial`, `plan` or `topup`. */
+  kind: string | null
+  subscription: BillingSubscription | null
+  /** The card the subscription will charge, or the one the payment was made with. */
+  card: CheckoutCard | null
+  /**
+   * Radar's risk level of the charge (`normal`, `elevated`, `highest`), when there was one: a paid plan or a top-up.
+   * A trial's card check is a SetupIntent, for which Stripe reports no risk level: null then.
+   */
+  riskLevel: string | null
+  /** The pre-tax amount (`amount_subtotal`): what a top-up credits once it is paid. */
+  amountSubtotalCents: number | null
+  currency: string | null
+  /** The session's payment intent was charged (a real payment, not a credit balance): `topup` only. */
+  charged: boolean
+}
+
+/** A first recharge added to the trial's first invoice while it is a draft (docs/billing.md §3.2 step 9). */
+export type InvoiceItemInput = {
+  customerId: string
+  invoiceId: string
+  amountCents: number
+  description: string
+  /** The `billing_recharges.id`: the idempotency key and the item's `metadata.billing_recharge_id`. */
+  rechargeId: string
+}
+
+/** A webhook event whose signature was checked (or one listed from the API by the nightly reconciliation), cut to what
  * billing reads: which object and which customer, only to find the object to fetch and to skip customers this install
  * does not know, never to act on. The rest of Stripe's payload (names, emails, addresses, also of other integrations'
  * customers on the same account) is never kept (security review of #865, L4).
@@ -259,9 +334,34 @@ export type BillingProvider = {
   /**
    * The id of the payment method configuration "Linedesk Checkout" (card only: no wallets, no Link; decision 7), made
    * by the bootstrap script and found by its name, never written into the code. Every Checkout Session passes it as
-   * `payment_method_configuration` (and no `payment_method_types`); null when the bootstrap has not run.
+   * `payment_method_configuration` (and no `payment_method_types`); null when the bootstrap has not run. Reads every
+   * page of configurations. A key that may not read them (a restricted key without the permission) throws
+   * `BillingSetupError`: the admins' problem, not the owner's (security review of #876, I2).
    */
   checkoutPaymentMethodConfiguration(): Promise<string | null>
+  /** The customer of a bill, made once (the bill id is the idempotency key and `metadata.billing_account_id`). */
+  createCustomer(input: { billId: string; email: string; name: string }): Promise<string>
+  /** Starts a Checkout Session (see `CheckoutInput`). A refusal for our setup throws `BillingSetupError`. */
+  startCheckout(input: CheckoutInput): Promise<CheckoutStarted>
+  /** The session as it is now, with its subscription, card and charge; null when the service does not know it. */
+  checkoutSession(id: string): Promise<CheckoutSession | null>
+  /**
+   * Expires every open Checkout Session of the customer, so none of them can be completed any more (a new Checkout
+   * replaces it; the sign-up sweep before it deletes a bill). A session completed meanwhile is left as it is. Answers
+   * how many were expired.
+   */
+  expireOpenCheckouts(customerId: string): Promise<number>
+  /** Deletes the customer (which cancels its subscriptions at once); a customer the service does not know is fine. */
+  deleteCustomer(customerId: string): Promise<void>
+  /**
+   * Ends a subscription. `now`: at once, nothing charged or prorated (a trial refused at Checkout); else at the trial
+   * or period end (`billing.cancel`). Idempotent.
+   */
+  cancelSubscription(id: string, options: { now: boolean }): Promise<BillingSubscription | null>
+  /** Undoes a cancel at the period end, while the subscription still runs (`billing.resume`). */
+  resumeSubscription(id: string): Promise<BillingSubscription | null>
+  /** Adds the first recharge to a draft invoice (the trial's conversion invoice), once per recharge id. */
+  addInvoiceItem(input: InvoiceItemInput): Promise<void>
   /** The invoice a recharge made, found by its metadata (for a retry after the idempotency keys expired); null: none. */
   findRechargeInvoice(rechargeId: string): Promise<string | null>
   /**

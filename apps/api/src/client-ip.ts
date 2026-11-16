@@ -68,11 +68,16 @@ export function addressBucket(ip: string | null): string {
 export const clientIpOf = (c: Context) =>
   resolveClientIp(socketAddress(c), c.req.header('x-forwarded-for'), trustedProxies())
 
-/** The request Better Auth sees: our client IP header, never the client's own. */
-export function withClientIp(c: Context): Request {
+/** The headers Better Auth sees: our client IP header, never the client's own. */
+export function clientIpHeaders(c: Context): Headers {
   const headers = new Headers(c.req.raw.headers)
   headers.delete(CLIENT_IP_HEADER)
   const ip = clientIpOf(c)
   if (ip) headers.set(CLIENT_IP_HEADER, ip)
-  return new Request(c.req.raw, { headers })
+  return headers
+}
+
+/** The request Better Auth sees: our client IP header, never the client's own. */
+export function withClientIp(c: Context): Request {
+  return new Request(c.req.raw, { headers: clientIpHeaders(c) })
 }

@@ -31,6 +31,12 @@ export const notFound = (table: string) => new Reject(`${ROW_NOUN[table] ?? tabl
  */
 export class Forbidden extends Reject {}
 
+/**
+ * A rejection that names nothing: the thing asked for is not the caller's or does not exist, and the answer must not
+ * say which (a Checkout session of another bill). Answered 404 with `code: 'not_found'`.
+ */
+export class NotFound extends Reject {}
+
 /** Serialises the writes that count things on one call (messages, bookings), until the transaction ends. */
 export const lockCall = (tx: Tx, callId: string) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`call:${callId}`}))`)

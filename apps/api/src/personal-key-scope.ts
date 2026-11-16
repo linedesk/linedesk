@@ -11,6 +11,7 @@ const FRESH_SIGN_IN = 'this needs a fresh sign-in in the app'
 const OWNER_IN_APP = 'what the workspace pays is decided by the owner, signed in to the app'
 const INTEGRATIONS = 'integrations (Zapier) subscribe with a workspace API key'
 const MONEY = 'money and billing rules are changed in the app, signed in as yourself with your passkey'
+const SIGN_UP_PAGE = 'a business signs up on the sign-up page, signed in with an email code'
 
 export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['personalKey.create', KEYS],
@@ -55,6 +56,14 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['billing.reprocessEvent', MONEY],
   ['billingRules.set', MONEY],
   ['signup.setSelfServe', MONEY],
+  // Self-serve sign-up (docs/billing.md §3.1): only POST /v1/signup grants account.signUp, and only to a session.
+  ['account.signUp', SIGN_UP_PAGE],
+  // Trial Checkout (docs/billing.md §3.2): payments and the plan are the owner's, in the app.
+  ['billing.startCheckout', OWNER_IN_APP],
+  ['billing.confirmCheckout', OWNER_IN_APP],
+  ['billing.startTopUp', OWNER_IN_APP],
+  ['billing.cancel', OWNER_IN_APP],
+  ['billing.resume', OWNER_IN_APP],
 ])
 
 /** Why a personal key may not run `name`, or null when it may (if its maker may). */

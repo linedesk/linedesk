@@ -112,6 +112,7 @@ import {
   notFound,
   type Preparer,
   Forbidden,
+  NotFound,
   Reject,
   type Undo,
 } from './handler-context.ts'
@@ -186,10 +187,13 @@ import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
 import { integrationHandlers, queueCallStarted, queueLookup } from './integrations.ts'
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, webhookHandlers } from './webhooks.ts'
+import { refusePendingPayment } from './self-serve.ts'
+import { selfServeHandlers } from './signup-handlers.ts'
+import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './billing-checkout.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 
-export { Forbidden, Reject, type HandlerCtx, type Undo }
+export { Forbidden, NotFound, Reject, type HandlerCtx, type Undo }
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
@@ -916,6 +920,7 @@ export const preparers: Record<string, Preparer> = {
   ...voicePreparers,
   ...authenticatorPreparers,
   ...stripeEventPreparers,
+  ...checkoutPreparers,
 }
 
 /**
@@ -1112,6 +1117,8 @@ const handlers: Record<string, Handler> = {
   ...billingSettingsHandlers,
   ...billingAdminHandlers,
   ...stripeEventHandlers,
+  ...selfServeHandlers,
+  ...checkoutHandlers,
   ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
@@ -1696,8 +1703,16 @@ const handlers: Record<string, Handler> = {
 
     // Everything that can refuse is checked before the carrier is asked anything, and before anything is bought.
     if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
+    // No number before Checkout (docs/billing.md §3.1).
+    await refusePendingPayment(tx, workspace_id)
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     const onInstallAccount = carrier_account === 'install' && provider.name !== 'dev'
+    // A number on our carrier account is paid from the bill: Checkout confirmed, not held, the trial's limit, the
+    // balance for an extra one (docs/billing.md §3.2 step 6).
+    if (carrier_account === 'install' && input.purchase) {
+      const billRefusal = await billingNumberRefusal(tx, actor, workspace_id)
+      if (billRefusal) throw new Reject(billRefusal)
+    }
     // Only workspaces in a country numbers can be bought in may buy (NUMBER_BUY_COUNTRIES), and by area code only in
     // their own country (LIN-300). Asked once, when a purchase is allowed by the input; refused before the carrier is
     // searched for an area code.

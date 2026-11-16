@@ -385,9 +385,10 @@ function groupStep(group: GroupStatus, how: readonly string[], alias?: string): 
   }
 }
 
-/** Provider groups of billing keys only: not offered here (billing-settings.ts, refuseMoneyKeysChange). */
+/** Provider groups with billing keys: not offered here (billing-settings.ts, refuseMoneyKeysChange). The billing group also
+ *  holds the sign-up bot check, which belongs with billing (Linedesk Cloud only), so the whole group stays in the app. */
 const moneyGroups = new Set<string>(
-  providerGroups.filter(g => g.categories.every(c => moneyCategories.includes(c))).map(g => g.id),
+  providerGroups.filter(g => g.categories.some(c => moneyCategories.includes(c))).map(g => g.id),
 )
 
 /** How to set up one provider: its guide from the registry, written for an agent. */

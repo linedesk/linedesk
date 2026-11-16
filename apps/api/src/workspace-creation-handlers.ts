@@ -49,7 +49,7 @@ export function creationHint(input: Pick<CreateInput, 'timeZone' | 'countryHint'
  * The workspace with its assistant and settings. The country only as picked (left as prefilled it stays Automatic,
  * so a number connected later still decides it), and the country hint (creationHint): only a code and its source.
  */
-async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInput, forOther = false) {
+export async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInput, forOther = false) {
   const { name } = input
   const id = crypto.randomUUID().replaceAll('-', '')
   const [org] = await tx

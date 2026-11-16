@@ -1744,7 +1744,7 @@ const PERIOD_KINDS = ['trial', 'month'] as const
 const PRICE_BASES = [...USAGE_LEVELS, 'fixed_5c', 'cost_plus_10'] as const
 const INVOICE_KINDS = ['subscription', 'recharge', 'topup'] as const
 const INVOICE_STATUSES = ['draft', 'open', 'paid', 'uncollectible', 'void'] as const
-const ALERT_KINDS = ['recharge_failed', 'recharge_cap_reached', 'low_balance', 'renewal_reminder'] as const
+const ALERT_KINDS = ['recharge_failed', 'recharge_cap_reached', 'low_balance', 'renewal_reminder', 'trial_will_end'] as const
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 
 export const BILLING_KINDS = ['cloud', 'partner'] as const
@@ -1752,6 +1752,8 @@ export const BILLING_KINDS = ['cloud', 'partner'] as const
 export const SUSPEND_REASONS = ['admin', 'payment', 'dispute', 'early_fraud_warning'] as const
 /** The most calls at once an instance admin may allow one bill (`billing_accounts.concurrent_calls_cap`). */
 export const CONCURRENT_CALLS_CAP_MAX = 1000
+/** Why a bill got no trial at Checkout (docs/billing.md §3.2 step 4). */
+export const TRIAL_REFUSALS = ['card_used', 'prepaid'] as const
 export const BILLING_STATUSES = [
   'pending_payment',
   'trialing',
@@ -1792,6 +1794,21 @@ export const billing_accounts = pgTable(
     /** The last auto-recharge failed (card declined, needs action); cleared by the next successful one. */
     recharge_failed_at: ts('recharge_failed_at'),
     held_for_review_at: ts('held_for_review_at'),
+    /**
+     * When `billing.confirmCheckout` checked the trial's card (docs/billing.md §3.2 step 4: fingerprint, funding, Radar)
+     * and moved the bill out of `pending_payment`. Its own fact (security review of #876, M1): a stored subscription is
+     * not a confirmed Checkout, since the webhook links one before the checks ran.
+     */
+    checkout_confirmed_at: ts('checkout_confirmed_at'),
+    /**
+     * Why the bill gets no trial (§3.2 step 4): `card_used`, the card already had a trial on another bill; `prepaid`, a
+     * prepaid card. Its trial subscription was canceled at once; the owner starts the plan with a new Checkout.
+     */
+    trial_refused: text('trial_refused', { enum: TRIAL_REFUSALS }),
+    /** Radar's risk level of the trial's card check; anything but `normal` holds number purchase for review. */
+    card_risk_level: text('card_risk_level'),
+    /** The subscription ends at the trial or period end (`billing.cancel`; `billing.resume` undoes it until then). */
+    cancel_at_period_end: boolean('cancel_at_period_end').notNull().default(false),
     past_due_since: ts('past_due_since'),
     suspended_at: ts('suspended_at'),
     /**
@@ -1815,6 +1832,7 @@ export const billing_accounts = pgTable(
     check('billing_accounts_kind', oneOf(t.kind, BILLING_KINDS)),
     check('billing_accounts_status', oneOf(t.status, BILLING_STATUSES)),
     check('billing_accounts_interval', oneOf(t.interval, BILLING_INTERVALS)),
+    check('billing_accounts_trial_refused', sql`${t.trial_refused} is null or ${t.trial_refused} in ('card_used', 'prepaid')`),
     check('billing_accounts_recharge_cap_base', sql`${t.recharge_cap_base_cents} >= 0`),
     check(
       'billing_accounts_suspend_reason',
@@ -2147,6 +2165,29 @@ export const card_fingerprints = pgTable('card_fingerprints', {
   trial_used_at: ts('trial_used_at'),
   created_at: createdAt(),
 })
+
+/**
+ * Self-serve sign-up (docs/billing.md §3.1): one row per sign-up code sent from the sign-up page (`code`) and per
+ * sign-up started (`signup`), counted for the limits per address, per IP bucket and per install. The address is kept
+ * only as a SHA-256 of its lower-case form; the IP only as its limit bucket (an IPv4 address or an IPv6 /64). Rows
+ * older than `pendingDays` + 2 days (9 by default) are deleted by the daily sign-up sweep.
+ */
+export const signup_attempts = pgTable(
+  'signup_attempts',
+  {
+    id: id(),
+    kind: text('kind', { enum: ['code', 'signup'] }).notNull(),
+    email_hash: text('email_hash'),
+    ip_bucket: text('ip_bucket'),
+    created_at: createdAt(),
+  },
+  t => [
+    index('signup_attempts_email').on(t.kind, t.email_hash, t.created_at),
+    index('signup_attempts_ip').on(t.kind, t.ip_bucket, t.created_at),
+    index('signup_attempts_created').on(t.created_at),
+    check('signup_attempts_kind', sql`${t.kind} in ('code', 'signup')`),
+  ],
+)
 
 /** A mirror of the bill's Stripe invoices (plan fees, recharges, top-ups), for display. */
 export const billing_invoices = pgTable(

@@ -10,9 +10,9 @@
 // Stripe price and account ids are never in the code: they live in the Stripe account and the provider settings.
 
 /**
- * The plan fees as Stripe prices (docs/billing.md §2.1 and §2.1b), created and kept up to date by the bootstrap script
- * (`pnpm --filter @linedesk/billing bootstrap`), found by `lookupKey`. USD, per unit, tax-exclusive. The founding prices
- * have the same amounts today and their own prices, so a later change of the public ones does not touch a lock.
+ * The plan fees as Stripe prices (docs/billing.md §2.1), created and kept up to date by the bootstrap script
+ * (`pnpm --filter @linedesk/billing bootstrap`), found by `lookupKey`. USD, per unit, tax-exclusive. There are no
+ * founding prices (dropped 2026-11-16, docs/billing.md §2.1b).
  * Usage and extra numbers are never Stripe prices: they are paid from the balance (`BILLING_DEFAULTS`).
  */
 export const PLAN_PRICES = [
@@ -20,10 +20,6 @@ export const PLAN_PRICES = [
   { lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' },
   { lookupKey: 'partner_monthly', product: 'partner', cents: 1900, interval: 'month' },
   { lookupKey: 'partner_yearly', product: 'partner', cents: 16_800, interval: 'year' },
-  { lookupKey: 'ws_monthly_founding', product: 'workspace', cents: 1100, interval: 'month' },
-  { lookupKey: 'ws_yearly_founding', product: 'workspace', cents: 10_800, interval: 'year' },
-  { lookupKey: 'partner_monthly_founding', product: 'partner', cents: 1900, interval: 'month' },
-  { lookupKey: 'partner_yearly_founding', product: 'partner', cents: 16_800, interval: 'year' },
 ] as const satisfies readonly PlanPrice[]
 export type PlanProduct = 'workspace' | 'partner' | 'balance_recharge' | 'balance_topup'
 export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number; interval: 'month' | 'year' }
@@ -113,6 +109,61 @@ export const BILLING_DEFAULTS: BillingRules = {
   extraNumberCents: 300,
   rechargeCapPerWorkspaceCents: RECHARGE_CAP_PER_WORKSPACE_CENTS,
 }
+
+/**
+ * Self-serve sign-up and the trial (docs/billing.md §3.1, §3.2): the abuse limits, set per install with the instance
+ * setting `signup.rules` (apps/api/src/self-serve.ts) over these defaults, which are Linedesk Cloud's.
+ */
+export type SignupRules = {
+  /** Sign-up codes one address gets in an hour and in a day (counted before the code is sent). */
+  codesPerAddressHour: number
+  codesPerAddressDay: number
+  /** Sign-up codes one IP (an IPv4 address or an IPv6 /64) asks for in an hour and in a day. */
+  signupsPerIpHour: number
+  signupsPerIpDay: number
+  /** Sign-up codes on the whole install in an hour; reaching it refuses more and alerts the instance admins. */
+  codesPerInstallHour: number
+  /** A sign-up whose Checkout never completed is deleted after this many days (the daily sign-up sweep). */
+  pendingDays: number
+  /** Whether the sign-up page needs a Cloudflare Turnstile check; while on and Turnstile is not set up, sign-up is closed. */
+  turnstile: boolean
+  /** Address domains refused on top of the built-in list of disposable-mail domains. */
+  blockedDomains: string[]
+  /** Workspaces a bill may have during its trial: Cloud, partner. */
+  trialWorkspacesCloud: number
+  trialWorkspacesPartner: number
+  /** Numbers a workspace may have during the trial (the included one). */
+  trialNumbersPerWorkspace: number
+  /** Radar risk levels of the trial's card check that hold number purchase for review. */
+  reviewRiskLevels: string[]
+}
+
+/**
+ * How long a card's fingerprint (`card_fingerprints`, one free trial per card) is kept after its bill was canceled,
+ * in months (docs/billing.md §3.2 step 4; Janik, 2026-11-16). Fingerprints of bills that are not canceled stay. The
+ * daily sign-up sweep deletes the older ones.
+ */
+export const CARD_FINGERPRINT_RETENTION_MONTHS = 24
+
+/** Linedesk Cloud's sign-up and trial limits, and the defaults of every install. */
+export const SIGNUP_DEFAULTS: SignupRules = {
+  codesPerAddressHour: 3,
+  codesPerAddressDay: 5,
+  signupsPerIpHour: 3,
+  signupsPerIpDay: 10,
+  codesPerInstallHour: 200,
+  pendingDays: 7,
+  turnstile: true,
+  blockedDomains: [],
+  trialWorkspacesCloud: 1,
+  trialWorkspacesPartner: 2,
+  trialNumbersPerWorkspace: 1,
+  reviewRiskLevels: ['elevated', 'highest'],
+}
+
+/** The countries a business can sign up from (decision 12): US, Canada, Puerto Rico. */
+export const SIGNUP_COUNTRIES = ['US', 'CA', 'PR'] as const
+export type SignupCountry = (typeof SIGNUP_COUNTRIES)[number]
 
 /** The default included allowance: 50 Standard minutes, in Standard seconds. */
 export const INCLUDED_STANDARD_SECONDS = BILLING_DEFAULTS.includedStandardSeconds

@@ -143,6 +143,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.stripe'),
     keysUrl: 'https://dashboard.stripe.com/apikeys',
   },
+  turnstile: {
+    mark: { icon: 'shield' },
+    blurb: msg('admin.provider.blurb.turnstile'),
+    keysUrl: 'https://dash.cloudflare.com/?to=/:account/turnstile',
+  },
   google: {
     mark: { brand: 'google' },
     blurb: msg('admin.provider.blurb.google'),

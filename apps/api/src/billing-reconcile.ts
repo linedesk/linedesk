@@ -59,7 +59,7 @@ const EXPECTED_STATUS: Partial<Record<(typeof billing_accounts.$inferSelect)['st
   canceled: ['canceled', 'incomplete_expired'],
 }
 
-/** The seat items of a subscription: the workspace prices (`ws_…`, the founding ones too). */
+/** The seat items of a subscription: the workspace prices (`ws_…`). */
 const seats = (sub: BillingSubscription) =>
   sub.items.filter(i => i.lookupKey?.startsWith('ws_')).reduce((sum, i) => sum + i.quantity, 0)
 

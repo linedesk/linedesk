@@ -19,6 +19,7 @@ export type ProviderCategory =
   | 'business'
   | 'billing'
   | 'apps'
+  | 'bot_check'
 export const providerCategories: Record<ProviderCategory, string> = {
   telephony: 'Telephony',
   stt: 'Speech to text',
@@ -32,6 +33,7 @@ export const providerCategories: Record<ProviderCategory, string> = {
   business: 'Business lookup',
   billing: 'Billing',
   apps: 'Connected apps',
+  bot_check: 'Bot check',
 }
 
 /** Categories where every provider that is set up is in use at once (no pick): sign-in with Google and GitHub, say. */
@@ -47,7 +49,7 @@ export const restartCategories: readonly ProviderCategory[] = ['sign_in']
  * Categories whose settings decide how people sign in or get sign-in codes: whoever controls them can sign in as
  * anyone, so a change needs the passkey step-up (admin-step-up.ts) and every instance admin is told (admin-alerts.ts).
  */
-export const signInCategories: readonly ProviderCategory[] = ['email', 'sign_in']
+export const signInCategories: readonly ProviderCategory[] = ['email', 'sign_in', 'bot_check']
 /**
  * Categories whose keys control money: whoever holds the Stripe key controls charges, refunds and customers
  * (docs/billing.md §8). A change needs the passkey session like every Server admin action, and every instance admin
@@ -414,6 +416,15 @@ const guides = {
     ],
     cost: 'Free. Each business connects its own HubSpot, on any HubSpot plan.',
   },
+  turnstile: {
+    url: 'https://dash.cloudflare.com/?to=/:account/turnstile',
+    steps: [
+      'In the Cloudflare dashboard, Turnstile → Add widget, for the address people open the app at (Managed mode).',
+      'Copy its site key and its secret key.',
+      'Paste both here. The sign-up page shows the check; the server verifies it before a sign-up code is sent.',
+    ],
+    cost: 'Free.',
+  },
 } as const satisfies Record<string, ProviderGuide>
 
 /**
@@ -433,6 +444,7 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   business: 'google_places',
   billing: 'stripe',
   apps: 'hubspot',
+  bot_check: 'turnstile',
 }
 
 /**
@@ -976,6 +988,18 @@ export const providers = {
       client_secret: { label: 'Client secret', env: 'HUBSPOT_CLIENT_SECRET', secret: true },
     },
     help: 'A HubSpot app with the redirect URL below and the contact scopes. Businesses then connect their HubSpot under Integrations, and every finished phone call goes to the caller’s contact.',
+  },
+  // Self-serve sign-up's bot check (Linedesk Cloud, docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
+  // and the server checks its answer with the secret before a sign-up code goes out.
+  turnstile: {
+    label: 'Cloudflare Turnstile',
+    category: 'bot_check',
+    guide: guides.turnstile,
+    fields: {
+      site_key: { label: 'Site key', env: 'TURNSTILE_SITE_KEY', secret: false, hint: '0x4AAAA…' },
+      secret_key: { label: 'Secret key', env: 'TURNSTILE_SECRET_KEY', secret: true, hint: '0x4AAAA…' },
+    },
+    help: 'The bot check on the self-serve sign-up page (Linedesk Cloud). While self-serve sign-up needs it and it is not set up, sign-up stays closed.',
   },
 } as const satisfies Record<string, ProviderSpec>
 

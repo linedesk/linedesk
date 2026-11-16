@@ -710,6 +710,292 @@ describe('stripe refunds and seats (Server admin › Billing, PR 13)', () => {
   })
 })
 
+describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
+  const pmcList = (data: unknown[], has_more = false) => [200, { object: 'list', data, has_more }] as [number, unknown]
+  const pmc = (id: string, name = 'Linedesk Checkout') => ({
+    id,
+    object: 'payment_method_configuration',
+    name,
+    active: true,
+    parent: null,
+    is_default: false,
+  })
+
+  test('the card-only configuration is found on a later page (review of #876, I2)', async () => {
+    let page = 0
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/payment_method_configurations': () =>
+        ++page === 1
+          ? pmcList(
+              Array.from({ length: 100 }, (_, i) => pmc(`pmc_other${i}`, `Other ${i}`)),
+              true,
+            )
+          : pmcList([pmc('pmc_own')]),
+    })
+    expect(await (await stripeWith(doFetch)).checkoutPaymentMethodConfiguration()).toBe('pmc_own')
+    expect(calls.filter(c => c.route === 'GET /v1/payment_method_configurations')).toHaveLength(2)
+  })
+
+  test('a key that may not read the configurations is our setup, not the owner’s problem (I2)', async () => {
+    const { doFetch } = stripeRoutes({
+      'GET /v1/payment_method_configurations': () => [
+        403,
+        { error: { type: 'invalid_request_error', code: 'secret_key_required', message: 'restricted key' } },
+      ],
+    })
+    const error = await (await stripeWith(doFetch)).checkoutPaymentMethodConfiguration().catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+  })
+
+  const session = { id: 'cs_test_1', object: 'checkout.session', url: 'https://checkout.stripe.com/c/pay/cs_test_1' }
+  const base = {
+    billId: 'bill_1',
+    customerId: 'cus_1',
+    paymentMethodConfiguration: 'pmc_own',
+    submitText: 'Cancel before day 14 and you pay nothing.',
+    successUrl: 'https://app.example.com/billing/return?session_id={CHECKOUT_SESSION_ID}',
+    cancelUrl: 'https://app.example.com/',
+    idempotencyKey: 'bill_1:checkout:1',
+    expiresAt: 1_900_000_000,
+  }
+
+  test('a trial: the card-only configuration, never payment_method_types or setup_future_usage; tax, address, terms', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/prices': () => [
+        200,
+        { object: 'list', has_more: false, data: [{ id: 'price_ws_y', object: 'price', lookup_key: 'ws_yearly' }] },
+      ],
+      'POST /v1/checkout/sessions': () => [200, session],
+    })
+    const started = await (await stripeWith(doFetch)).startCheckout({
+      ...base,
+      kind: 'trial',
+      items: [{ lookupKey: 'ws_yearly', quantity: 1 }],
+      trialDays: 14,
+    })
+    expect(started).toEqual({ id: 'cs_test_1', url: session.url })
+    const create = calls.find(c => c.route === 'POST /v1/checkout/sessions')!
+    expect(create.key).toBe('bill_1:checkout:1')
+    const body = Object.fromEntries(create.body)
+    expect(body).toMatchObject({
+      mode: 'subscription',
+      customer: 'cus_1',
+      client_reference_id: 'bill_1',
+      payment_method_configuration: 'pmc_own',
+      payment_method_collection: 'always',
+      'line_items[0][price]': 'price_ws_y',
+      'line_items[0][quantity]': '1',
+      'subscription_data[trial_period_days]': '14',
+      'subscription_data[trial_settings][end_behavior][missing_payment_method]': 'cancel',
+      'automatic_tax[enabled]': 'true',
+      billing_address_collection: 'required',
+      'customer_update[address]': 'auto',
+      'customer_update[name]': 'auto',
+      'tax_id_collection[enabled]': 'true',
+      'consent_collection[terms_of_service]': 'required',
+      'metadata[linedesk_checkout]': 'trial',
+      expires_at: '1900000000',
+    })
+    expect(Object.keys(body).some(k => k.startsWith('payment_method_types'))).toBe(false)
+    expect(Object.keys(body).some(k => k.includes('setup_future_usage'))).toBe(false)
+  })
+
+  test("expireOpenCheckouts expires the customer's open sessions; one completed meanwhile (400) is skipped", async () => {
+    const open = (id: string) => ({ id, object: 'checkout.session', status: 'open' })
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/checkout/sessions': () => [200, { object: 'list', has_more: false, data: [open('cs_a'), open('cs_b')] }],
+      'POST /v1/checkout/sessions/cs_a/expire': () => [200, { ...open('cs_a'), status: 'expired' }],
+      'POST /v1/checkout/sessions/cs_b/expire': () => [
+        400,
+        { error: { type: 'invalid_request_error', message: 'This session is complete.' } },
+      ],
+    })
+    expect(await (await stripeWith(doFetch)).expireOpenCheckouts('cus_1')).toBe(1)
+    expect(calls.map(c => c.route)).toEqual([
+      'GET /v1/checkout/sessions',
+      'POST /v1/checkout/sessions/cs_a/expire',
+      'POST /v1/checkout/sessions/cs_b/expire',
+    ])
+  })
+
+  test('deleteCustomer deletes the customer; one already gone (404) is fine, any other error throws', async () => {
+    const gone = stripeRoutes({
+      'DELETE /v1/customers/cus_1': () => [200, { id: 'cus_1', object: 'customer', deleted: true }],
+    })
+    await (await stripeWith(gone.doFetch)).deleteCustomer('cus_1')
+    expect(gone.calls.map(c => c.route)).toEqual(['DELETE /v1/customers/cus_1'])
+    const missing = stripeRoutes({})
+    await expect((await stripeWith(missing.doFetch)).deleteCustomer('cus_1')).resolves.toBeUndefined()
+    const down = stripeRoutes({ 'DELETE /v1/customers/cus_1': () => [500, { error: { type: 'api_error' } }] })
+    await expect((await stripeWith(down.doFetch)).deleteCustomer('cus_1')).rejects.toThrow()
+  })
+
+  test('a top-up: a payment built on the server with our product and the pre-tax amount', async () => {
+    const { doFetch, calls } = stripeRoutes({ 'POST /v1/checkout/sessions': () => [200, session] })
+    await (await stripeWith(doFetch)).startCheckout({ ...base, kind: 'topup', amountCents: 2000 })
+    const body = Object.fromEntries(calls[0]!.body)
+    expect(body).toMatchObject({
+      mode: 'payment',
+      payment_method_configuration: 'pmc_own',
+      'line_items[0][price_data][product]': 'linedesk_balance_topup',
+      'line_items[0][price_data][unit_amount]': '2000',
+      'line_items[0][price_data][tax_behavior]': 'exclusive',
+      'metadata[linedesk_checkout]': 'topup',
+    })
+    expect(Object.keys(body).some(k => k.startsWith('payment_method_types'))).toBe(false)
+  })
+
+  test('a plan price the bootstrap did not make, or a 400, is our setup', async () => {
+    const noPrice = stripeRoutes({ 'GET /v1/prices': () => [200, { object: 'list', has_more: false, data: [] }] })
+    const error = await (await stripeWith(noPrice.doFetch))
+      .startCheckout({ ...base, kind: 'plan', items: [{ lookupKey: 'ws_monthly', quantity: 1 }] })
+      .catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+    const refused = stripeRoutes({
+      'POST /v1/checkout/sessions': () => [
+        400,
+        { error: { type: 'invalid_request_error', code: 'parameter_invalid' } },
+      ],
+    })
+    const second = await (await stripeWith(refused.doFetch))
+      .startCheckout({ ...base, kind: 'topup', amountCents: 500 })
+      .catch(e => e)
+    expect(second).toBeInstanceOf(BillingSetupError)
+  })
+
+  test('a session reads the trial card’s fingerprint and funding; a plan’s charge gives Radar’s risk level', async () => {
+    const trialing = {
+      id: 'cs_test_1',
+      object: 'checkout.session',
+      livemode: false,
+      mode: 'subscription',
+      status: 'complete',
+      payment_status: 'no_payment_required',
+      customer: 'cus_1',
+      client_reference_id: 'bill_1',
+      metadata: { linedesk_checkout: 'trial' },
+      amount_subtotal: 0,
+      currency: 'usd',
+      payment_intent: null,
+      subscription: {
+        ...subscription({
+          id: 'pm_1',
+          object: 'payment_method',
+          type: 'card',
+          card: { fingerprint: 'fp_1', funding: 'prepaid', country: 'US' },
+        }),
+        status: 'trialing',
+        cancel_at_period_end: false,
+        trial_end: 1_800_000_000,
+        latest_invoice: 'in_0',
+      },
+    }
+    const { doFetch } = stripeRoutes({ 'GET /v1/checkout/sessions/cs_test_1': () => [200, trialing] })
+    const read = await (await stripeWith(doFetch)).checkoutSession('cs_test_1')
+    expect(read).toMatchObject({
+      mode: 'subscription',
+      status: 'complete',
+      customerId: 'cus_1',
+      clientReferenceId: 'bill_1',
+      kind: 'trial',
+      card: { fingerprint: 'fp_1', funding: 'prepaid', country: 'US' },
+      riskLevel: null,
+      subscription: { id: 'sub_1', status: 'trialing' },
+    })
+    const paid = stripeRoutes({
+      'GET /v1/checkout/sessions/cs_test_1': () => [
+        200,
+        {
+          ...trialing,
+          metadata: { linedesk_checkout: 'plan' },
+          subscription: { ...trialing.subscription, status: 'active' },
+        },
+      ],
+      'GET /v1/invoice_payments': () => [
+        200,
+        {
+          object: 'list',
+          has_more: false,
+          data: [
+            {
+              id: 'inpay_1',
+              object: 'invoice_payment',
+              status: 'paid',
+              payment: {
+                type: 'payment_intent',
+                payment_intent: {
+                  id: 'pi_1',
+                  object: 'payment_intent',
+                  latest_charge: { id: 'ch_1', object: 'charge', paid: true, outcome: { risk_level: 'elevated' } },
+                  payment_method: null,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    expect(await (await stripeWith(paid.doFetch)).checkoutSession('cs_test_1')).toMatchObject({ riskLevel: 'elevated' })
+    // A session Stripe does not know.
+    expect(await (await stripeWith(stripeRoutes({}).doFetch)).checkoutSession('cs_test_x')).toBeNull()
+  })
+
+  test('cancel now refuses nothing twice; at the period end and resume flip cancel_at_period_end', async () => {
+    const sub = (over: Record<string, unknown>) => ({
+      ...subscription(null),
+      status: 'trialing',
+      cancel_at_period_end: false,
+      trial_end: null,
+      ...over,
+    })
+    const now = stripeRoutes({
+      'GET /v1/subscriptions/sub_1': () => [200, sub({})],
+      'DELETE /v1/subscriptions/sub_1': () => [200, sub({ status: 'canceled' })],
+    })
+    // DELETE sends its parameters in the query string.
+    const urls: string[] = []
+    const recording = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      urls.push(String(input))
+      return now.doFetch(input, init)
+    }) as typeof fetch
+    expect(await (await stripeWith(recording)).cancelSubscription('sub_1', { now: true })).toMatchObject({
+      status: 'canceled',
+    })
+    const cancel = new URL(urls.find(u => u.includes('/v1/subscriptions/sub_1?'))!)
+    expect(Object.fromEntries(cancel.searchParams)).toMatchObject({ invoice_now: 'false', prorate: 'false' })
+    const already = stripeRoutes({ 'GET /v1/subscriptions/sub_1': () => [200, sub({ status: 'canceled' })] })
+    await (await stripeWith(already.doFetch)).cancelSubscription('sub_1', { now: true })
+    expect(already.calls.map(c => c.route)).toEqual(['GET /v1/subscriptions/sub_1'])
+    const later = stripeRoutes({
+      'GET /v1/subscriptions/sub_1': () => [200, sub({})],
+      'POST /v1/subscriptions/sub_1': body => [
+        200,
+        sub({ cancel_at_period_end: body.get('cancel_at_period_end') === 'true' }),
+      ],
+    })
+    expect(await (await stripeWith(later.doFetch)).cancelSubscription('sub_1', { now: false })).toMatchObject({
+      cancelAtPeriodEnd: true,
+    })
+    const resumed = stripeRoutes({
+      'GET /v1/subscriptions/sub_1': () => [200, sub({ cancel_at_period_end: true })],
+      'POST /v1/subscriptions/sub_1': body => [
+        200,
+        sub({ cancel_at_period_end: body.get('cancel_at_period_end') === 'true' }),
+      ],
+    })
+    expect(await (await stripeWith(resumed.doFetch)).resumeSubscription('sub_1')).toMatchObject({
+      cancelAtPeriodEnd: false,
+    })
+  })
+
+  test('none starts nothing', async () => {
+    await expect(noneBillingProvider.startCheckout({ ...base, kind: 'topup', amountCents: 500 })).rejects.toThrow(
+      'billing is off',
+    )
+    expect(await noneBillingProvider.checkoutSession('cs_test_1')).toBeNull()
+  })
+})
+
 describe('webhooks', () => {
   const SECRET = ['whsec', 'MadeUpSigningSecret0123'].join('_')
   const OLD = ['whsec', 'MadeUpOldSecret0123'].join('_')

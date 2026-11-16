@@ -444,3 +444,38 @@ export function installTestEmail(code: string, origin = WEB_ORIGIN, locale?: Ema
     origin,
   })
 }
+
+/**
+ * The daily sign-up sweep kept a bill that still waits for Checkout but has a linked Stripe subscription or a confirmed
+ * Checkout (signup-handlers.ts, review of #919 N2): a customer whose bill did not leave pending_payment.
+ */
+export const signupKeptAlert =
+  (bill: string, subscription: string | null): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.signupKept.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.signupKept.text') },
+        { kind: 'text', text: t('email.adminAlert.signupKept.bill', { bill }) },
+        ...(subscription
+          ? [{ kind: 'text' as const, text: t('email.adminAlert.signupKept.subscription', { subscription }) }]
+          : []),
+        { kind: 'text', text: t('email.adminAlert.signupKept.check') },
+      ],
+    }
+  }
+
+/** The install's hourly cap on sign-up codes was reached (self-serve.ts): more are refused this hour. Once an hour. */
+export const signupCapAlert =
+  (cap: number): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.signupCap.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.signupCap.text', { cap }) },
+        { kind: 'text', text: t('email.adminAlert.signupCap.check') },
+      ],
+    }
+  }

@@ -10,6 +10,9 @@ import {
   BillingSetupError,
   type BillingSubscription,
   CHECKOUT_PMC_NAME,
+  type CheckoutCard,
+  type CheckoutInput,
+  type CheckoutSession,
   type RechargeCard,
   type RechargeCharge,
   type RefundBlocker,
@@ -115,8 +118,89 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       }),
     rechargeCard: (customerId, subscriptionId) => rechargeCard(stripe, customerId, subscriptionId),
     async checkoutPaymentMethodConfiguration() {
-      const all = await stripe.paymentMethodConfigurations.list({ limit: 100 })
-      return all.data.find(c => isCheckoutPaymentMethodConfiguration(c) && c.active)?.id ?? null
+      try {
+        return (await findCheckoutConfiguration(stripe, c => c.active))?.id ?? null
+      } catch (error) {
+        // A restricted key without the permission (403), a revoked key: our setup, for the admins (review of #876, I2).
+        throw setupError(error) ?? error
+      }
+    },
+    async createCustomer({ billId, email, name }) {
+      try {
+        const customer = await stripe.customers.create(
+          { email, name, metadata: { [BILL_METADATA]: billId } },
+          { idempotencyKey: `${billId}:customer` },
+        )
+        return customer.id
+      } catch (error) {
+        throw setupError(error) ?? error
+      }
+    },
+    startCheckout: input =>
+      startCheckout(stripe, input).catch(error => {
+        // A 400 here is our setup too (a price, the tax settings, the terms URL): never the owner's card.
+        throw setupError(error) ?? refusedSetup(error) ?? error
+      }),
+    checkoutSession: id => checkoutSession(stripe, id),
+    async expireOpenCheckouts(customerId) {
+      let expired = 0
+      for await (const session of stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 })) {
+        try {
+          await stripe.checkout.sessions.expire(session.id)
+          expired++
+        } catch (error) {
+          // Completed (or expired) between the list and now: nothing to expire; the confirmation handles a completed one.
+          const e = error as { statusCode?: number }
+          if (e.statusCode !== 400 && !missing(error)) throw setupError(error) ?? error
+        }
+      }
+      return expired
+    },
+    async deleteCustomer(customerId) {
+      try {
+        await stripe.customers.del(customerId)
+      } catch (error) {
+        if (missing(error)) return
+        throw setupError(error) ?? error
+      }
+    },
+    async cancelSubscription(id, { now }) {
+      let sub: Stripe.Subscription
+      try {
+        sub = await stripe.subscriptions.retrieve(id)
+      } catch (error) {
+        if (missing(error)) return null
+        throw error
+      }
+      if (sub.status === 'canceled' || sub.status === 'incomplete_expired') return subscriptionOf(sub)
+      if (now) return subscriptionOf(await stripe.subscriptions.cancel(id, { invoice_now: false, prorate: false }))
+      if (sub.cancel_at_period_end) return subscriptionOf(sub)
+      return subscriptionOf(await stripe.subscriptions.update(id, { cancel_at_period_end: true }))
+    },
+    async resumeSubscription(id) {
+      let sub: Stripe.Subscription
+      try {
+        sub = await stripe.subscriptions.retrieve(id)
+      } catch (error) {
+        if (missing(error)) return null
+        throw error
+      }
+      if (!sub.cancel_at_period_end || sub.status === 'canceled') return subscriptionOf(sub)
+      return subscriptionOf(await stripe.subscriptions.update(id, { cancel_at_period_end: false }))
+    },
+    async addInvoiceItem(input) {
+      await stripe.invoiceItems.create(
+        {
+          customer: input.customerId,
+          invoice: input.invoiceId,
+          amount: input.amountCents,
+          currency: 'usd',
+          description: input.description,
+          tax_behavior: 'exclusive',
+          metadata: { [RECHARGE_METADATA]: input.rechargeId },
+        },
+        { idempotencyKey: `${input.rechargeId}:item` },
+      )
     },
     async findRechargeInvoice(rechargeId) {
       // The recharge id is ours (letters, digits and _), so it is safe inside the search query.
@@ -215,31 +299,12 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
     },
 
     async subscription(id) {
-      let sub: Stripe.Subscription
       try {
-        sub = await stripe.subscriptions.retrieve(id)
+        return subscriptionOf(await stripe.subscriptions.retrieve(id))
       } catch (error) {
         if (missing(error)) return null
         throw error
       }
-      const first = sub.items.data[0]
-      const answer: BillingSubscription = {
-        id: sub.id,
-        customerId: idOf(sub.customer)!,
-        status: sub.status,
-        currentPeriodStart: iso(first?.current_period_start),
-        currentPeriodEnd: iso(first?.current_period_end),
-        interval: first?.price.recurring?.interval === 'year' ? 'year' : first ? 'month' : null,
-        cancelAtPeriodEnd: sub.cancel_at_period_end,
-        trialEnd: iso(sub.trial_end),
-        defaultPaymentMethod: idOf(sub.default_payment_method),
-        // A price the bootstrap replaced (a new amount) lost its lookup key; its `metadata.linedesk` keeps it.
-        items: sub.items.data.map(item => ({
-          lookupKey: item.price.lookup_key ?? item.price.metadata?.linedesk ?? null,
-          quantity: item.quantity ?? 0,
-        })),
-      }
-      return answer
     },
 
     // Listed events come in the version they were created in (the account's default), not the endpoint's. The
@@ -333,7 +398,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
   }
 }
 
-/** The seat prices' lookup keys (`ws_monthly`, `ws_yearly`, the founding ones): docs/billing.md §2.1. */
+/** The seat prices' lookup keys (`ws_monthly`, `ws_yearly`): docs/billing.md §2.1. */
 const SEAT_LOOKUP_PREFIX = 'ws_'
 
 /** Dispute statuses after which a refund pays nothing out twice: the business won, or a warning closed. */
@@ -364,6 +429,204 @@ async function refundBlockers(stripe: Stripe, invoiceId: string): Promise<Refund
     if (warnings.data.length) found.add('early_fraud_warning')
   }
   return [...found]
+}
+
+/** A subscription, cut to what billing reads. */
+function subscriptionOf(sub: Stripe.Subscription): BillingSubscription {
+  const first = sub.items.data[0]
+  return {
+    id: sub.id,
+    customerId: idOf(sub.customer)!,
+    status: sub.status,
+    currentPeriodStart: iso(first?.current_period_start),
+    currentPeriodEnd: iso(first?.current_period_end),
+    interval: first?.price.recurring?.interval === 'year' ? 'year' : first ? 'month' : null,
+    cancelAtPeriodEnd: sub.cancel_at_period_end,
+    trialEnd: iso(sub.trial_end),
+    defaultPaymentMethod: idOf(sub.default_payment_method),
+    // A price the bootstrap replaced (a new amount) lost its lookup key; its `metadata.linedesk` keeps it.
+    items: sub.items.data.map(item => ({
+      lookupKey: item.price.lookup_key ?? item.price.metadata?.linedesk ?? null,
+      quantity: item.quantity ?? 0,
+    })),
+  }
+}
+
+/** The metadata that names the bill on a customer and a Checkout Session. */
+export const BILL_METADATA = 'billing_account_id'
+/** The metadata that says which Checkout a session is (`trial`, `plan`, `topup`). */
+export const CHECKOUT_METADATA = 'linedesk_checkout'
+/** The product of "Buy minutes" (our own id, made by the bootstrap script). */
+export const TOPUP_PRODUCT = 'linedesk_balance_topup'
+
+/**
+ * The payment method configuration "Linedesk Checkout", read over every page (an account with more than 100
+ * configurations, from Connect or old experiments, still finds it; review of #876, I2). The bootstrap uses it too.
+ */
+export async function findCheckoutConfiguration(
+  stripe: Stripe,
+  also: (config: Stripe.PaymentMethodConfiguration) => boolean = () => true,
+) {
+  for await (const config of stripe.paymentMethodConfigurations.list({ limit: 100 }))
+    if (isCheckoutPaymentMethodConfiguration(config) && also(config)) return config
+  return null
+}
+
+/** A 400 when a Checkout is made: the account is not set up for it (a price, tax, the terms URL). For the admins. */
+function refusedSetup(error: unknown): BillingSetupError | null {
+  const e = error as { statusCode?: number; code?: string }
+  return e.statusCode === 400 ? new BillingSetupError(`stripe_${e.code ?? 400}`) : null
+}
+
+/** The active prices of these lookup keys; a key without one is our setup (the bootstrap did not run). */
+async function pricesByLookupKey(stripe: Stripe, lookupKeys: string[]) {
+  const found = await stripe.prices.list({ lookup_keys: lookupKeys, active: true, limit: 100 })
+  const byKey = new Map(found.data.map(p => [p.lookup_key, p.id]))
+  for (const key of lookupKeys) if (!byKey.has(key)) throw new BillingSetupError(`stripe_price_missing:${key}`)
+  return byKey
+}
+
+/**
+ * A Checkout Session (docs/billing.md §3.2 step 3, §2.2): the card-only configuration and never
+ * `payment_method_types` (§2.4), automatic tax on our exclusive prices, a required billing address, tax ids, the
+ * terms for a plan. A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
+ */
+async function startCheckout(stripe: Stripe, input: CheckoutInput) {
+  const metadata = { [BILL_METADATA]: input.billId, [CHECKOUT_METADATA]: input.kind }
+  const common = {
+    customer: input.customerId,
+    client_reference_id: input.billId,
+    payment_method_configuration: input.paymentMethodConfiguration,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    automatic_tax: { enabled: true },
+    billing_address_collection: 'required' as const,
+    customer_update: { address: 'auto' as const, name: 'auto' as const },
+    tax_id_collection: { enabled: true },
+    custom_text: { submit: { message: input.submitText } },
+    expires_at: input.expiresAt,
+    metadata,
+  }
+  let session: Stripe.Checkout.Session
+  if (input.kind === 'topup') {
+    if (!input.amountCents) throw new Error('a top-up needs its amount')
+    session = await stripe.checkout.sessions.create(
+      {
+        ...common,
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product: TOPUP_PRODUCT,
+              unit_amount: input.amountCents,
+              tax_behavior: 'exclusive',
+            },
+            quantity: 1,
+          },
+        ],
+        payment_intent_data: { metadata },
+        invoice_creation: { enabled: true, invoice_data: { metadata } },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    )
+  } else {
+    const items = input.items ?? []
+    if (!items.length) throw new Error('a plan needs its items')
+    const prices = await pricesByLookupKey(
+      stripe,
+      items.map(i => i.lookupKey),
+    )
+    session = await stripe.checkout.sessions.create(
+      {
+        ...common,
+        mode: 'subscription',
+        line_items: items.map(i => ({ price: prices.get(i.lookupKey)!, quantity: i.quantity })),
+        payment_method_collection: 'always',
+        consent_collection: { terms_of_service: 'required' },
+        subscription_data: {
+          metadata,
+          ...(input.kind === 'trial' && input.trialDays
+            ? {
+                trial_period_days: input.trialDays,
+                trial_settings: { end_behavior: { missing_payment_method: 'cancel' as const } },
+              }
+            : {}),
+        },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    )
+  }
+  if (!session.url) throw new Error(`Checkout Session ${session.id} has no URL`)
+  return { id: session.id, url: session.url }
+}
+
+const cardOf = (pm: string | Stripe.PaymentMethod | null | undefined): CheckoutCard | null =>
+  pm && typeof pm === 'object' && pm.card
+    ? { fingerprint: pm.card.fingerprint ?? null, funding: pm.card.funding ?? null, country: pm.card.country ?? null }
+    : null
+
+const riskOf = (charge: string | Stripe.Charge | null | undefined) =>
+  charge && typeof charge === 'object' ? (charge.outcome?.risk_level ?? null) : null
+
+/**
+ * A Checkout Session with what the trial checks read (docs/billing.md §3.2 step 4): the subscription and the card it
+ * charges, or the payment and its card; Radar's risk level where a charge was made.
+ */
+async function checkoutSession(stripe: Stripe, id: string): Promise<CheckoutSession | null> {
+  let session: Stripe.Checkout.Session
+  try {
+    session = await stripe.checkout.sessions.retrieve(id, {
+      expand: [
+        'subscription',
+        'subscription.default_payment_method',
+        'payment_intent',
+        'payment_intent.payment_method',
+        'payment_intent.latest_charge',
+      ],
+    })
+  } catch (error) {
+    if (missing(error)) return null
+    throw error
+  }
+  const sub = typeof session.subscription === 'object' ? session.subscription : null
+  const intent = typeof session.payment_intent === 'object' ? session.payment_intent : null
+  let card = cardOf(sub?.default_payment_method) ?? cardOf(intent?.payment_method)
+  let riskLevel = riskOf(intent?.latest_charge)
+  // A plan paid now: its first invoice's payment holds the charge (and the card, when the subscription has none).
+  const latestInvoice = sub ? idOf(sub.latest_invoice) : null
+  if (sub && latestInvoice && sub.status !== 'trialing') {
+    const payments = await stripe.invoicePayments
+      .list({
+        invoice: latestInvoice,
+        limit: 10,
+        expand: ['data.payment.payment_intent.latest_charge', 'data.payment.payment_intent.payment_method'],
+      })
+      .autoPagingToArray({ limit: 100 })
+    for (const p of payments) {
+      const pi = p.payment.payment_intent
+      if (p.status !== 'paid' || !pi || typeof pi !== 'object') continue
+      riskLevel ??= riskOf(pi.latest_charge)
+      card ??= cardOf(pi.payment_method)
+    }
+  }
+  const charge = intent?.latest_charge
+  return {
+    id: session.id,
+    livemode: session.livemode,
+    mode: session.mode,
+    status: session.status,
+    paymentStatus: session.payment_status,
+    customerId: idOf(session.customer as string | { id: string } | null),
+    clientReferenceId: session.client_reference_id,
+    kind: session.metadata?.[CHECKOUT_METADATA] ?? null,
+    subscription: sub ? subscriptionOf(sub) : null,
+    card,
+    riskLevel,
+    amountSubtotalCents: session.amount_subtotal,
+    currency: session.currency,
+    charged: intent?.status === 'succeeded' && !!charge && typeof charge === 'object' && charge.paid,
+  }
 }
 
 /** Events read per type group: one more must fit Stripe's 10,000-item cap on `autoPagingToArray`. */

@@ -9,6 +9,8 @@ import * as records from './records.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as billing from './billing.ts'
 import * as billingAdmin from './billing-admin.ts'
+import * as signup from './signup.ts'
+import * as billingCheckout from './billing-checkout.ts'
 import * as branding from './branding.ts'
 import * as business from './business.ts'
 import * as calendar from './calendar.ts'
@@ -59,6 +61,8 @@ export * from './system-prompt.ts'
 export * from './assistant-versions.ts'
 export * from './billing.ts'
 export * from './billing-admin.ts'
+export * from './signup.ts'
+export * from './billing-checkout.ts'
 export * from './branding.ts'
 export * from './business.ts'
 export * from './calendar.ts'
@@ -279,6 +283,12 @@ const all = [
   billingAdmin.billingReviewHold,
   billingAdmin.billingRulesSet,
   billingAdmin.signupSetSelfServe,
+  signup.accountSignUp,
+  billingCheckout.billingStartCheckout,
+  billingCheckout.billingConfirmCheckout,
+  billingCheckout.billingStartTopUp,
+  billingCheckout.billingCancel,
+  billingCheckout.billingResume,
   admin.impersonationEmailsGet,
   admin.impersonationEmailsSet,
   workspaceCreation.workspaceCreate,

@@ -64,6 +64,8 @@ export const pricePerMinute: Record<ProviderName, number> = {
   google_places: 0,
   // Billing charges the businesses; Stripe's fees are per charge, not per call minute.
   stripe: 0,
+  // The sign-up page's bot check is free.
+  turnstile: 0,
 }
 
 export type ProviderCost = {
@@ -139,6 +141,7 @@ async function activeRates(tx: Tx): Promise<ActiveRate[]> {
     'business',
     'billing',
     'apps',
+    'bot_check',
     ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
     // After-call transcription only while an admin has selected a provider (off by default).
     ...((await activeProvider(tx, 'transcript').catch(() => null)) ? [] : ['transcript']),

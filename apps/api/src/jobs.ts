@@ -117,6 +117,9 @@ export const STUCK_RECHARGE_CHECK = 'billing.stuckRecharges'
 const STUCK_RECHARGE_CHECK_CRON = '27 * * * *'
 /** One billing email: to the bill owner (a failed recharge, the cap, a low balance), or a capped call to the admins. */
 export const BILLING_ALERT = 'billing.alert'
+/** Daily: sign-ups that never finished Checkout, after `pendingDays` (self-serve.ts, docs/billing.md §3.1). */
+export const SIGNUP_SWEEP = 'signup.sweep'
+const SIGNUP_SWEEP_CRON = '7 4 * * *'
 /** Daily: the public holidays and yearly days of the next twelve months move one day on (public-holidays.ts). */
 export const HOLIDAY_SYNC = 'holidays.sync'
 const HOLIDAY_SYNC_CRON = '17 2 * * *'
@@ -284,6 +287,9 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.schedule(STUCK_RECHARGE_CHECK, STUCK_RECHARGE_CHECK_CRON)
   await instance.work(STUCK_RECHARGE_CHECK, async () => runStuckRechargeCheck())
   await instance.work<BillingAlertJob>(BILLING_ALERT, async ([job]) => sendBillingAlert(db, emailSender, job!.data))
+  await instance.schedule(SIGNUP_SWEEP, SIGNUP_SWEEP_CRON)
+  // Loaded when it runs: signup-handlers.ts pulls in the handler registry, which must not load while jobs.ts does.
+  await instance.work(SIGNUP_SWEEP, async () => (await import('./signup-handlers.ts')).sweepSignUps(db))
   // Stripe's webhook events and the nightly reconciliation with Stripe (stripe-events.ts, billing-reconcile.ts).
   await runStripeEventJobs(instance)
   await runReconcileJob(instance)
@@ -415,6 +421,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
     expireInSeconds: 120,
   })
   await instance.createQueue(BILLING_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  // One run at a time, never retried: the next day's run is the retry.
+  await instance.createQueue(SIGNUP_SWEEP, { retryLimit: 0, expireInSeconds: 1800 })
   await createStripeEventQueues(instance)
   await createReconcileQueue(instance)
   await instance.createQueue(SETUP_EMAILS)

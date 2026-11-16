@@ -870,6 +870,7 @@
   "provider.blurb.s3": "AWS S3, R2, Hetzner, Backblaze, MinIO.",
   "provider.blurb.smtp": "Sign-in codes, invitations and call emails.",
   "provider.blurb.stripe": "Bills, trials and call minutes for Linedesk Cloud.",
+  "provider.blurb.turnstile": "The bot check on the sign-up page, so sign-up codes go to people, not scripts.",
   "provider.blurb.withApiKey": "Email with an API key.",
   "providerDialog.confirmDisconnect": "Delete the stored {provider} keys?",
   "providerDialog.confirmSharedKey": "{providers} {count, plural, one {uses} other {use}} the same key and stop too.",

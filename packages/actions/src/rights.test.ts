@@ -256,6 +256,12 @@ const expectedRights: Record<Right, readonly string[]> = {
     // What the workspace pays (billing:manage): Allow Premium voices and models, Allow Ultra on Linedesk Cloud.
     'workspace.setAllowPremium',
     'workspace.setAllowUltra',
+    // The bill's Checkout, Buy minutes, cancel and resume (docs/billing.md §3.2; the handler also wants the bill's owner).
+    'billing.startCheckout',
+    'billing.confirmCheckout',
+    'billing.startTopUp',
+    'billing.cancel',
+    'billing.resume',
   ],
   impersonation: ['impersonation.stop'],
   // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
@@ -268,6 +274,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'personalKey.create',
     'personalKey.list',
     'personalKey.revoke',
+    'account.signUp',
   ],
 }
 
@@ -310,6 +317,11 @@ describe('workspace rights', () => {
 
   it('only the owner deletes the workspace, hands it over or decides what it pays (Allow Premium, Allow Ultra)', () => {
     expect([...expectedRights.owner].sort()).toEqual([
+      'billing.cancel',
+      'billing.confirmCheckout',
+      'billing.resume',
+      'billing.startCheckout',
+      'billing.startTopUp',
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',
@@ -318,5 +330,13 @@ describe('workspace rights', () => {
     ])
     expect(actions.get('workspace.setAllowPremium')!.permission).toBe('billing:manage')
     expect(actions.get('workspace.setAllowUltra')!.permission).toBe('billing:manage')
+    for (const name of [
+      'billing.startCheckout',
+      'billing.confirmCheckout',
+      'billing.startTopUp',
+      'billing.cancel',
+      'billing.resume',
+    ])
+      expect(actions.get(name)!.permission, name).toBe('billing:manage')
   })
 })

@@ -31,6 +31,8 @@ const INSTANCE_WIDE_FILES = [
   'test/billing-settings.test.ts',
   // The once-a-day setup alert of the recharge job (instance_settings).
   'test/billing-recharge.test.ts',
+  // Stripe keys and the billing switch, the Checkout setup alert to the instance admins.
+  'test/billing-checkout.test.ts',
   'test/authenticator.test.ts',
   'test/admin-subjects.test.ts',
   'test/workspace-delete-own.test.ts',
@@ -65,6 +67,8 @@ const INSTANCE_WIDE_FILES = [
   'test/call-billing.test.ts',
   // Server admin › Billing: instance admins, the billing rules and self-serve settings, Stripe keys (PR 13).
   'test/billing-admin.test.ts',
+  // Opens self-serve sign-up and sets its rules and the Turnstile keys (instance_settings, provider_settings).
+  'test/self-serve.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

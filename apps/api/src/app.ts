@@ -9,7 +9,7 @@ import {
   workspaceNameProblem,
 } from '@linedesk/actions'
 import { requestCountryHint } from './country-hint.ts'
-import { member, organization, passkey, user, workspace_icons, tableNames, type TableName } from '@linedesk/db'
+import { member, organization, passkey, SIGNUP_COUNTRIES, user, workspace_icons, tableNames, type TableName } from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -26,7 +26,9 @@ import { registerAdminRoutes } from './admin-routes.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
 import { registerTestLookupRoute } from './test-lookup.ts'
-import { clientIpOf, withClientIp } from './client-ip.ts'
+import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
+import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
+import { fromSignupPage } from './signup-gate.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
 import { setsUpByHand } from './install-setup.ts'
@@ -249,6 +251,67 @@ app.post('/v1/workspaces', async c => {
   return c.json({ ok: true, workspace })
 })
 
+/** The hostnames the sign-up page's Turnstile token may have been solved on: the app's own origins. */
+const SIGNUP_HOSTNAMES = TRUSTED_ORIGINS.map(origin => new URL(origin).hostname.toLowerCase())
+
+// Self-serve sign-up on Linedesk Cloud (self-serve.ts, docs/billing.md §3.1). Public: whether it is open and the
+// Turnstile site key for the page. Nothing else (no counts, no reason it is closed).
+app.get('/v1/signup/config', async c => {
+  const state = await db.transaction(tx => selfServeState(tx))
+  const siteKey = state.open && state.rules.turnstile ? ((await db.transaction(tx => turnstileKeys(tx)))?.siteKey ?? null) : null
+  c.header('cache-control', 'no-store')
+  return c.json({ ok: true, open: state.open, turnstileSiteKey: siteKey, countries: SIGNUP_COUNTRIES })
+})
+
+// Public: an email code for the sign-up page. Every check (open, the address, its domain, Turnstile, the limits) runs
+// before the code is sent, and the answer never says whether the address has an account. The code itself is Better
+// Auth's sign-in code; entering it signs in, and creates the account (signup-gate.ts) only after this attempt.
+app.post('/v1/signup/code', async c => {
+  const body = await c.req.json<{ email?: unknown; token?: unknown }>().catch(() => ({ email: undefined, token: undefined }))
+  if (typeof body.email !== 'string') return c.json({ ok: false, code: 'invalid_email' }, 422)
+  const email = body.email.trim().toLowerCase()
+  const ip = clientIpOf(c)
+  const answer = await admitSignupCode(db, {
+    email,
+    ip,
+    ipBucket: addressBucket(ip),
+    token: typeof body.token === 'string' ? body.token : '',
+    turnstile: { action: TURNSTILE_ACTION, hostnames: SIGNUP_HOSTNAMES },
+  })
+  c.header('cache-control', 'no-store')
+  if (!answer.ok) {
+    const status = answer.reason === 'too_many' || answer.reason === 'busy' ? 429 : answer.reason === 'closed' ? 404 : 422
+    return c.json({ ok: false, code: answer.reason }, status)
+  }
+  // Committed above, so the sign-in code's own check (signup-gate.ts maySendSignInCode) sees the attempt; only this
+  // route sends a code to an address that has no account yet (fromSignupPage, security review F4 of #960).
+  await fromSignupPage(() =>
+    auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' }, headers: clientIpHeaders(c) }),
+  )
+  return c.json({ ok: true })
+})
+
+// account.signUp for the signed-in person (no workspace needed yet): the account's own permission `account`, given
+// only here, only to a session of the person themselves (never an API key, the agent or an impersonation).
+app.post('/v1/signup', async c => {
+  const headers = c.req.raw.headers
+  const session = await auth.api.getSession({ headers })
+  if (!session) return c.json({ ok: false, error: 'not signed in', code: 'signed_out' }, 401)
+  if (session.session.impersonatedBy) return c.json({ ok: false, error: NOT_WHILE_IMPERSONATING }, 403)
+  const [account] = await db.select().from(user).where(eq(user.id, session.user.id))
+  if (!account || account.disabledAt) return c.json({ ok: false, error: 'not signed in', code: 'signed_out' }, 401)
+  const actor: Actor = {
+    actorId: account.id,
+    role: 'member',
+    workspaceId: null,
+    permissions: ['account:signUp'],
+    sessionId: session.session.id,
+    sessionExpiresAt: new Date(session.session.expiresAt),
+  }
+  const made = await runAction('account.signUp', await c.req.json().catch(() => null), actor)
+  return c.json(made.body, made.status)
+})
+
 // Public, before the guard: the API description lists no data, only the public actions' schemas.
 const openApi = openApiDocument(actions.values(), process.env.PUBLIC_URL || WEB_ORIGIN)
 app.get('/v1/openapi.json', c => c.json(openApi))
@@ -357,6 +420,7 @@ app.get('/v1/me', async c => {
           id: organization.id,
           name: organization.name,
           disabledAt: organization.disabledAt,
+          billingState: organization.billingState,
           iconVersion: workspace_icons.version,
         })
         .from(organization)
@@ -405,6 +469,8 @@ app.get('/v1/me', async c => {
           name: workspace.name,
           disabled: Boolean(workspace.disabledAt),
           iconUrl: iconUrlOf(workspace.id, workspace.iconVersion),
+          // On a bill (Linedesk Cloud): `pending_payment` until Checkout, then `active` or `suspended`; null off billing.
+          billingState: workspace.billingState ?? null,
         }
       : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.

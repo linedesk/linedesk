@@ -10,7 +10,7 @@
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
 import { CHECKOUT_PMC_NAME, type KeyMode, WEBHOOK_EVENTS } from '../provider.ts'
-import { isCheckoutPaymentMethodConfiguration, STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
+import { findCheckoutConfiguration, STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
 
 export { CHECKOUT_PMC_NAME } from '../provider.ts'
 
@@ -219,14 +219,16 @@ const idOf = (value: string | { id: string } | null | undefined) =>
  * offers Apple Pay and a pre-ticked "save with Link" (billing review of 16.11., B6).
  */
 async function checkoutPaymentMethods(stripe: Stripe, write: Write) {
-  const all = await stripe.paymentMethodConfigurations.list({ limit: 100 })
-  const found = all.data.find(isCheckoutPaymentMethodConfiguration)
+  // Every page: an account with more than 100 configurations still finds it (review of #876, I2).
+  const found = await findCheckoutConfiguration(stripe)
   const methodsOf = (config: Stripe.PaymentMethodConfiguration) =>
     Object.entries(config).filter(
       (entry): entry is [string, { display_preference: { preference: string } }] =>
         typeof entry[1] === 'object' && entry[1] !== null && 'display_preference' in entry[1],
     )
-  const template = found ?? all.data.find(c => c.is_default) ?? all.data[0]
+  // A new one starts from the account's default configuration (its list of methods), all but the card set off.
+  const first = found ? null : (await stripe.paymentMethodConfigurations.list({ limit: 100 })).data
+  const template = found ?? first?.find(c => c.is_default) ?? first?.[0]
   const wanted: Record<string, { display_preference: { preference: 'on' | 'off' } }> = {}
   for (const [method, setting] of template ? methodsOf(template) : []) {
     const on = method === 'card'

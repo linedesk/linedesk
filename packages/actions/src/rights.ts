@@ -29,6 +29,8 @@ export function rightOf(permission: Permission): Right {
   if (permission === 'invitation:respond') return 'account'
   // Personal API keys: every person signed in as themselves (context.ts), never a key.
   if (permission === 'account:own') return 'account'
+  // Self-serve sign-up (account.signUp): only POST /v1/signup grants it, to a session without a workspace (billing.md §3.1).
+  if (permission === 'account:signUp') return 'account'
   // The Stripe webhook's processor and the billing jobs: nobody signed in holds it (docs/billing.md §8).
   if (permission === 'billing:system') return 'system'
   const role = workspaceRoles.find(r => rolePermissions[r].includes(permission))

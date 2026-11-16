@@ -822,6 +822,36 @@ describe('invoice.paid of Checkout’s first invoice, before the bill has its su
     expect(await billRow(bill.id)).toMatchObject({ status: 'active', stripe_subscription_id: subscriptionId })
   })
 
+  test('a bill waiting for Checkout is only linked, never activated: plan unchanged, still pending_payment (M1)', async () => {
+    const { bill, ws, subscriptionId, evt } = await paidBeforeLinked()
+    await db.update(billing_accounts).set({ status: 'pending_payment' }).where(eq(billing_accounts.id, bill.id))
+    expect(await deliverAndProcess(evt)).toMatchObject({
+      outcome: 'applied',
+      plan: 'unchanged',
+      linked: subscriptionId,
+    })
+    // Only the Checkout confirmation (billing-checkout.ts, with the card checks) takes it out of pending_payment.
+    expect(await billRow(bill.id)).toMatchObject({
+      status: 'pending_payment',
+      stripe_subscription_id: subscriptionId,
+      checkout_confirmed_at: null,
+    })
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe(
+      'pending_payment',
+    )
+  })
+
+  test("a refused trial's subscription is never linked afterwards (security review of #961, G4)", async () => {
+    // The trial's $0 invoice.paid fetched the subscription while it still trialed; the refusal committed first.
+    const { bill, evt } = await paidBeforeLinked({ status: 'trialing' })
+    await db
+      .update(billing_accounts)
+      .set({ status: 'pending_payment', trial_refused: 'card_used' })
+      .where(eq(billing_accounts.id, bill.id))
+    expect(await deliverAndProcess(evt)).not.toHaveProperty('linked')
+    expect(await billRow(bill.id)).toMatchObject({ status: 'pending_payment', stripe_subscription_id: null })
+  })
+
   test('a subscription that is not a Linedesk plan, or of another customer, is never linked', async () => {
     const foreign = await paidBeforeLinked({ lookupKeys: ['ws_monthly', 'someone_elses_price'] })
     expect(await deliverAndProcess(foreign.evt)).not.toHaveProperty('linked')

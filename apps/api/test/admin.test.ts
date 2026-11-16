@@ -434,6 +434,7 @@ describe('provider keys', () => {
       business: { provider: null, chosen: false },
       billing: { provider: null, chosen: false },
       apps: { provider: null, chosen: false },
+      bot_check: { provider: null, chosen: false },
     })
 
     // Only OpenRouter is set up: it is used although OpenAI, the default, comes first in the registry.
@@ -761,6 +762,7 @@ describe('provider keys', () => {
       'google_places',
       'stripe',
       'hubspot',
+      'turnstile',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'

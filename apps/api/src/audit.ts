@@ -164,7 +164,8 @@ export function maskAuditInput(input: unknown): unknown {
       return { id: contact.id, name: contact.name, number: maskedNumber(contact.number) }
     })
   // Stored redacted since 2026-11-11 (the action lists it as sensitive); older entries hold it in clear.
-  if (typeof masked.invitationId === 'string' && masked.invitationId !== REDACTED) masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
+  if (typeof masked.invitationId === 'string' && masked.invitationId !== REDACTED)
+    masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
   return masked
 }
 
@@ -204,6 +205,14 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billing.reviewHold': 'admin',
   'billingRules.set': 'admin',
   'signup.setSelfServe': 'admin',
+  // Self-serve sign-up (docs/billing.md §3.1): every sign-up.
+  'account.signUp': 'account',
+  // The bill's Checkout, top-ups and its plan cancelled or resumed (docs/billing.md §3.2, §8): the owner's decisions.
+  'billing.startCheckout': 'account',
+  'billing.confirmCheckout': 'account',
+  'billing.startTopUp': 'account',
+  'billing.cancel': 'account',
+  'billing.resume': 'account',
   'user.invite': 'admin',
   'user.disable': 'admin',
   'user.enable': 'admin',
