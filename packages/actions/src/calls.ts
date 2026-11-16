@@ -129,9 +129,12 @@ export const urgency = z.enum(['urgent', 'normal', 'low'])
 
 /**
  * The longest the assistant stays on a call: it says goodbye and hangs up then (the agent's timer). The limit is
- * about what the assistant costs, so a call it put through to a person goes on.
+ * about what the assistant costs, so a call it put through to a person goes on. The same on every usage level:
+ * the owner may set up to 30 minutes (decisions.md 2026-11-16), the default is 20.
  */
-export const ASSISTANT_CALL_MAX_MINUTES = 25
+export const ASSISTANT_CALL_MAX_MINUTES = 30
+/** An assistant's own limit until the owner picks another (assistants.max_call_minutes; at most ASSISTANT_CALL_MAX_MINUTES). */
+export const ASSISTANT_CALL_DEFAULT_MINUTES = 20
 /** The longest any call lasts, one put through to a person included: the inbound trunk hangs up then. */
 export const CALL_MAX_MINUTES = 120
 

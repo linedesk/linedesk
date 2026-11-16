@@ -14,6 +14,8 @@ import {
   callStart,
   callStartTest,
   DEFAULT_AI_DISCLOSURE,
+  ASSISTANT_CALL_DEFAULT_MINUTES,
+  type UsageLevel,
   ASSISTANT_CALL_MAX_MINUTES,
   DEMO_CALL_LIMIT_LINE,
   DEMO_CALL_MAX_SECONDS,
@@ -59,6 +61,8 @@ export interface CallSession {
   /** The call token from `call.start` for every later request about this call; missing from an older API. */
   token?: string
   assistant: Assistant | null
+  /** Linedesk Cloud: the call's usage level from call.start (`not_allowed`: not answered); null or missing: not billed. */
+  usageLevel?: UsageLevel | null
   /** null: the caller ID is withheld or not a number ("anonymous"), so the caller has no contact. */
   contact: Contact | null
   /**
@@ -145,6 +149,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   /** The workspace's country and language as they apply (workspace-locale.ts); missing from an older API: US, English. */
   workspaceCountry?: string
   workspaceLanguage?: string
+  /** Linedesk Cloud: the call's usage level, decided at call start (usageLevel); null on an install without billing. */
+  usageLevel?: UsageLevel | null
 }
 
 /**
@@ -223,8 +229,8 @@ export const TEST_CALL_LIMIT_MS = 5 * 60_000
 
 /**
  * How long the assistant stays on the call and what it says then: a public demo call DEMO_CALL_MAX_SECONDS, a test
- * call from the web app TEST_CALL_LIMIT_MS, a phone call the assistant's own limit, never above
- * ASSISTANT_CALL_MAX_MINUTES (an older API sends none).
+ * call from the web app TEST_CALL_LIMIT_MS, a phone call the assistant's own limit (ASSISTANT_CALL_DEFAULT_MINUTES
+ * without an assistant), never above ASSISTANT_CALL_MAX_MINUTES.
  */
 export function callLimitOf(
   call: Pick<CallSession, 'demo' | 'businessNumber' | 'assistant'>,
@@ -232,7 +238,10 @@ export function callLimitOf(
 ): { ms: number; line: string } {
   if (call.demo) return { ms: DEMO_CALL_MAX_SECONDS * 1000, line: DEMO_CALL_LIMIT_LINE }
   if (call.businessNumber === null) return { ms: TEST_CALL_LIMIT_MS, line: lines.testCallLimit }
-  const minutes = Math.min(call.assistant?.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES, ASSISTANT_CALL_MAX_MINUTES)
+  const minutes = Math.min(
+    call.assistant?.max_call_minutes ?? ASSISTANT_CALL_DEFAULT_MINUTES,
+    ASSISTANT_CALL_MAX_MINUTES,
+  )
   return { ms: minutes * 60_000, line: lines.callLimit }
 }
 
@@ -373,6 +382,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const started = data as StartData
   const { callId, workspaceId, contact, blocked = false, forwardingCheck = false, busy = false, overCap = false } = started
   const scope = { workspaceId, ...(started.callToken ? { token: started.callToken } : {}) }
+  if (started.usageLevel) console.log(`call ${callId}: usage level ${started.usageLevel}`)
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
   // The call test may set an outside greeting to check without touching the real assistant.
   const outsideGreeting = origin.kind === 'test' ? origin.outsideGreeting : undefined
@@ -412,6 +422,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     callId,
     ...scope,
     assistant,
+    usageLevel: started.usageLevel ?? null,
     contact,
     blocked,
     forwardingCheck,

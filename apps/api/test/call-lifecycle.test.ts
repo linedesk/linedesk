@@ -381,7 +381,7 @@ test(`at most ${LIVE_CALLS_PER_WORKSPACE} calls at once per workspace: the next 
   expect(next.body.data).toMatchObject({ busy: false, blocked: false })
 
   // A live call older than the longest call has no agent any more and does not count.
-  await db.update(calls).set({ started_at: new Date(Date.now() - 31 * 60_000).toISOString() }).where(and(eq(calls.workspace_id, busy.id), eq(calls.status, 'live')))
+  await db.update(calls).set({ started_at: new Date(Date.now() - 36 * 60_000).toISOString() }).where(and(eq(calls.workspace_id, busy.id), eq(calls.status, 'live')))
   expect((await act(agent(), 'call.start', { from: randomNumber(), to: busy.number })).body.data.busy).toBe(false)
   // Another workspace is not affected.
   expect((await act(agent(), 'call.start', { from: randomNumber(), to: other.number })).body.data.busy).toBe(false)

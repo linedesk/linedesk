@@ -23,6 +23,7 @@ const verbs: Record<string, string> = {
   'notifications.setDefaults': 'errors.couldNot.notifications.setDefaults',
   'workspace.updateSettings': 'errors.couldNot.workspace.updateSettings',
   'workspace.rename': 'errors.couldNot.workspace.rename',
+  'workspace.setAllowPremium': 'errors.couldNot.workspace.setAllowPremium',
   'workspace.setIcon': 'errors.couldNot.workspace.setIcon',
   'workspace.removeIcon': 'errors.couldNot.workspace.removeIcon',
   'businessHours.set': 'errors.couldNot.businessHours.set',

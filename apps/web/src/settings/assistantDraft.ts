@@ -22,6 +22,7 @@ import {
   SILENCE_REMINDERS_DEFAULT,
   SILENCE_HANG_UP_DEFAULT_S,
   SILENCE_HANG_UP_MAX_S,
+  ASSISTANT_CALL_DEFAULT_MINUTES,
   ASSISTANT_CALL_MAX_MINUTES,
   BEHAVIOURS,
   type BehaviourId,
@@ -55,8 +56,10 @@ export type Draft = {
   greeting_outside: string
   /** Warm transfer: who callers are put through to, and when, in order. */
   transfers: TransferDraft[]
-  /** The voice: provider and voice id (empty: the provider's default). */
-  voice: { provider: string; voice_id: string }
+  /** The voice: provider and voice id (empty: the provider's default), and its voice model ('': the server's). */
+  voice: { provider: string; voice_id: string; model: string }
+  /** The language model of live turns ('': the server's default). */
+  llm_model: string
   /** The website the About text was last drafted from. */
   website: string
   /** Silence on the line, as typed: seconds before the first "Are you still there?", how many, the closing line. */
@@ -121,13 +124,14 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     greeting_outside: local(a.greeting_outside ?? ''),
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
-    voice: { provider: a.voice.provider, voice_id: a.voice.voice_id },
+    voice: { provider: a.voice.provider, voice_id: a.voice.voice_id, model: a.voice.model ?? '' },
+    llm_model: a.llm_model ?? '',
     website: p.website ?? '',
     // A row synced before these columns existed has none: the defaults.
     silence_first_gap_s: String(a.silence_first_gap_s ?? SILENCE_FIRST_GAP_DEFAULT_S),
     silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
     silence_hang_up_s: String(a.silence_hang_up_s ?? SILENCE_HANG_UP_DEFAULT_S),
-    max_call_minutes: String(a.max_call_minutes ?? ASSISTANT_CALL_MAX_MINUTES),
+    max_call_minutes: String(a.max_call_minutes ?? ASSISTANT_CALL_DEFAULT_MINUTES),
     // None stored: the default line, shown so it can be edited.
     silence_closing: local(a.silence_closing ?? DEFAULT_SILENCE_CLOSING),
     silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, main),
@@ -221,6 +225,28 @@ export function mergeDraft(draft: Draft, previousSaved: Draft, nextSaved: Draft)
   }
   return merged as Draft
 }
+
+/**
+ * A voice picked in the voice list: its voice model stays while the provider does (a model is a provider's own), else
+ * the server's.
+ */
+export const withPickedVoice = (
+  picked: { provider: string; voice_id: string },
+  current: Draft['voice'],
+): Draft['voice'] => ({
+  ...picked,
+  model: picked.provider === current.provider ? current.model : '',
+})
+
+/** The voice and language model as assistant.update takes them: no `model` for the server's, null for its model. */
+export const levelChoicesToSave = (d: Pick<Draft, 'voice' | 'llm_model'>) => ({
+  voice: {
+    provider: d.voice.provider,
+    voice_id: d.voice.voice_id,
+    ...(d.voice.model ? { model: d.voice.model } : {}),
+  },
+  llm_model: d.llm_model || null,
+})
 
 /** What would be saved: trimmed. */
 export const normalized = (d: Draft): Draft => ({

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantRealtimeVoice, withRealtimeModel } from './config.ts'
+import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
 
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -24,8 +24,8 @@ test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger s
     stt: { provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' },
     llm: {
       provider: 'openrouter', apiKey: 'or', baseUrl: 'https://openrouter.ai/api/v1',
-      model: 'google/gemini-2.5-flash-lite', fallbacks: ['openai/gpt-4.1-mini'],
-      summaryModel: 'google/gemini-2.5-flash', summaryFallbacks: ['openai/gpt-5.4-mini'],
+      model: 'google/gemini-3.5-flash-lite', fallbacks: ['openai/gpt-4.1-mini'],
+      summaryModel: 'google/gemini-3.5-flash-lite', summaryFallbacks: ['openai/gpt-5.4-mini'],
     },
     tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined, others: [] },
     recording: { store: 'off' },
@@ -326,4 +326,48 @@ test('a call test may use another realtime model; the three stages and other cal
   expect(withRealtimeModel(both, undefined)).toBe(both)
   const stagesOnly = resolveCallConfig(stored, {})
   expect(withRealtimeModel(stagesOnly, 'gpt-realtime')).toBe(stagesOnly)
+})
+
+describe("withAssistantModel: the assistant's own language model (usage levels)", () => {
+  test("a listed model of the install's provider goes first, the install's model after it as a fallback", () => {
+    const config = resolveCallConfig(stored, {})
+    const own = stagesOf(withAssistantModel(config, 'gpt-4.1-mini'))!
+    expect(own.llm).toMatchObject({ provider: 'openai', model: 'gpt-4.1-mini', fallbacks: ['gpt-5.4'] })
+    // The summary model stays the install's.
+    expect(own.llm.summaryModel).toBe(stagesOf(config)!.llm.summaryModel)
+  })
+
+  test("no pick, the install's own model, or a model the provider does not serve with a level: the config as it is", () => {
+    const config = resolveCallConfig(stored, {})
+    expect(withAssistantModel(config, null)).toBe(config)
+    expect(withAssistantModel(config, 'gpt-5.4')).toBe(config)
+    expect(withAssistantModel(config, 'google/gemini-3.8-flash')).toBe(config)
+    expect(withAssistantModel(config, 'gpt-5.6-terra')).toBe(config)
+  })
+
+  test('with OpenRouter the install list stays behind it, without the picked one twice', async () => {
+    const config = await configFromEnv(keys)
+    expect(stagesOf(withAssistantModel(config, 'openai/gpt-4.1-mini'))!.llm).toMatchObject({
+      model: 'openai/gpt-4.1-mini',
+      fallbacks: ['google/gemini-3.5-flash-lite'],
+    })
+  })
+})
+
+describe('withLevelFallbacks: only fallback models of the call level (usage levels, N2)', () => {
+  test('a Standard call drops a Premium or unlisted fallback; a Premium call keeps Premium ones; no level keeps all', () => {
+    const config = resolveCallConfig(stored, {})
+    const withList = (fallbacks: string[]) => {
+      const s = stagesOf(config)!
+      return { ...s, llm: { ...s.llm, model: 'gpt-4.1-mini', fallbacks } }
+    }
+    const list = withList(['gpt-5.4', 'gpt-5.4-nano', 'gpt-5.6-terra'])
+    const log: string[] = []
+    expect(stagesOf(withLevelFallbacks(list, 'standard', l => log.push(l)))!.llm.fallbacks).toEqual(['gpt-5.4-nano'])
+    expect(log).toEqual(['fallback language models dropped on a standard call: gpt-5.4, gpt-5.6-terra'])
+    expect(stagesOf(withLevelFallbacks(list, 'premium'))!.llm.fallbacks).toEqual(['gpt-5.4', 'gpt-5.4-nano'])
+    for (const level of [null, undefined, 'own_keys'] as const) expect(withLevelFallbacks(list, level)).toBe(list)
+    const clean = withList(['gpt-5.4-nano'])
+    expect(withLevelFallbacks(clean, 'standard')).toBe(clean)
+  })
 })

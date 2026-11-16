@@ -5,6 +5,9 @@
 // holds the stages when both are set up): `CallConfig` is either; configForAssistant picks the assistant's one.
 // `createConfigLoader()` builds the cached loader the worker uses (`loadAgentConfig` in worker.ts).
 import {
+  languageModelFor,
+  languageModelLevel,
+  type UsageLevel,
   type LlmProvider,
   llmEndpoints,
   type PipelinesSetUp,
@@ -380,6 +383,42 @@ export const withAssistantRealtimeVoice = (
   isRealtime(config)
     ? { ...config, realtime: { ...config.realtime, voice: realtimeVoiceFor(assistantVoice, config.realtime.voice) } }
     : config
+
+/**
+ * The config with the assistant's own language model (`assistants.llm_model`, Settings › Assistant › Voice) for live
+ * turns, when the install's provider serves it (languageModelFor); else the install's model. OpenRouter keeps the
+ * install's fallbacks after it. The summary model stays the install's.
+ */
+export function withAssistantModel(config: CallConfig, llmModel: string | null | undefined): CallConfig {
+  const stages = stagesOf(config)
+  if (!stages) return config
+  const model = languageModelFor(stages.llm.provider, llmModel, stages.llm.model)
+  if (model === stages.llm.model) return config
+  const own: AgentConfig = {
+    ...stages,
+    llm: { ...stages.llm, model, fallbacks: [stages.llm.model, ...stages.llm.fallbacks].filter(m => m !== model) },
+  }
+  return isRealtime(config) ? { ...config, stages: own } : own
+}
+
+/**
+ * Linedesk Cloud: the install's fallback language models a call may use at its level. A Standard call keeps only
+ * Standard ones, a Premium call Standard and Premium ones; a model in neither list never answers a priced call (the
+ * API names it in an ALERT). No level (self-hosted) or the workspace's own keys: every fallback stays.
+ */
+export function withLevelFallbacks(config: CallConfig, level: UsageLevel | null | undefined, log: (line: string) => void = () => {}): CallConfig {
+  const stages = stagesOf(config)
+  if (!stages || (level !== 'standard' && level !== 'premium')) return config
+  const fits = (m: string) => {
+    const of = languageModelLevel(stages.llm.provider, m)
+    return of === 'standard' || (of === 'premium' && level === 'premium')
+  }
+  const kept = stages.llm.fallbacks.filter(fits)
+  if (kept.length === stages.llm.fallbacks.length) return config
+  log(`fallback language models dropped on a ${level} call: ${stages.llm.fallbacks.filter(m => !fits(m)).join(', ')}`)
+  const own: AgentConfig = { ...stages, llm: { ...stages.llm, fallbacks: kept } }
+  return isRealtime(config) ? { ...config, stages: own } : own
+}
 
 /** Which pipelines a call config can answer with. */
 export const pipelinesOf = (config: CallConfig): PipelinesSetUp => ({

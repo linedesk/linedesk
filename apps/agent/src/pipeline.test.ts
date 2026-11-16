@@ -233,10 +233,14 @@ test("a call's languages keep only those a voice provider of the install speaks"
   expect(callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' }).others).toContain('ko')
   // No voice provider (a realtime call): Flux's languages, as before more were added.
   expect(callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }).others).toEqual(['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
-  expect(callVoicesOf({ provider: 'elevenlabs', apiKey: 'k', others: [{ provider: 'cartesia', apiKey: 'c' }] })).toEqual([
-    { provider: 'elevenlabs', model: 'eleven_flash_v2_5' },
-    { provider: 'cartesia', model: undefined },
-  ])
+  // The voice the call speaks with: the assistant's own, with its own voice model.
+  const voices = { provider: 'elevenlabs' as const, apiKey: 'k', others: [{ provider: 'cartesia' as const, apiKey: 'c' }] }
+  expect(callVoicesOf(voices)).toEqual([{ provider: 'elevenlabs', model: 'eleven_flash_v2_5' }])
+  expect(callVoicesOf(voices, { provider: 'cartesia', voice_id: 'v1' })).toEqual([{ provider: 'cartesia', model: 'sonic-3.6' }])
+  const multilingual = callVoicesOf(voices, { provider: 'elevenlabs', voice_id: 'v2', model: 'eleven_multilingual_v2' })
+  expect(multilingual).toEqual([{ provider: 'elevenlabs', model: 'eleven_multilingual_v2' }])
+  // Hungarian is Flash v2.5's, not Multilingual v2's: a call on it does not switch to it.
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['hu', 'pl'] }, multilingual, flux).others).toEqual(['pl'])
 })
 
 test('the instructions name the languages the call speaks, not the stored "any"', () => {
@@ -247,4 +251,15 @@ test('the instructions name the languages the call speaks, not the stored "any"'
   })
   expect(withCallLanguages(assistant, { main: 'ko', others: [] })?.languages).toEqual({ main: 'ko', mode: 'english', allowed: [] })
   expect(withCallLanguages(null, { main: 'en', others: [] })).toBeNull()
+})
+
+test("the assistant's voice model is used when its voice provider has it with a level", () => {
+  const tts = { provider: 'elevenlabs' as const, apiKey: 'k', voiceId: 'default_voice', others: [{ provider: 'cartesia' as const, apiKey: 'ck' }] }
+  expect(ttsFor(tts, { provider: 'elevenlabs', voice_id: 'v1', model: 'eleven_v3' })).toMatchObject({ model: 'eleven_v3', voiceId: 'v1' })
+  // No pick: the provider's default (ElevenLabs Flash v2.5, Cartesia Sonic 3.6).
+  expect(ttsFor(tts, { provider: 'elevenlabs', voice_id: 'v1' })).toMatchObject({ model: 'eleven_flash_v2_5' })
+  expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'c1' })).toMatchObject({ provider: 'cartesia', model: 'sonic-3.6' })
+  // A model of another provider (the voice changed since) or one without a level is not used.
+  expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'c1', model: 'eleven_v3' })).toMatchObject({ model: 'sonic-3.6' })
+  expect(ttsFor({ ...tts, model: 'eleven_turbo_v2_5' }, { provider: 'elevenlabs', voice_id: 'v1', model: 'made_up' })).toMatchObject({ model: 'eleven_turbo_v2_5' })
 })

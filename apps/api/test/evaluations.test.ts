@@ -200,11 +200,11 @@ describe('evaluating', () => {
       return new Response(JSON.stringify({ choices: [{ message: { content: '{"score": 4, "issues": []}' } }] }))
     }) as unknown as typeof fetch
     const model = await evaluationModel(db, fakeFetch)
-    expect(model?.model).toBe('google/gemini-2.5-flash-lite')
+    expect(model?.model).toBe('google/gemini-3.5-flash-lite')
     expect(await model!.complete('system', 'user')).toBe('{"score": 4, "issues": []}')
     expect(requests[0]).toMatchObject({
       url: 'https://openrouter.ai/api/v1/chat/completions',
-      body: { model: 'google/gemini-2.5-flash-lite', max_tokens: 400 },
+      body: { model: 'google/gemini-3.5-flash-lite', max_tokens: 400 },
     })
   })
 

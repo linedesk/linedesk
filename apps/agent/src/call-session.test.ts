@@ -199,6 +199,15 @@ test('a call over the spending cap or the calls at once is not answered, and the
   expect((await startCall(api({}), phone)).overCap).toBe(false)
 })
 
+test('the usage level call.start decided reaches the call; an install without billing (or an older API) sends none', async () => {
+  const api = (data: Record<string, unknown>) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }) }) as never
+  const phone = { kind: 'phone', from: '+15035550142', to: '+15035550100', room: 'r' } as const
+  expect((await startCall(api({ usageLevel: 'premium' }), phone)).usageLevel).toBe('premium')
+  // Nothing the workspace may use is set up: the worker declines the call (notAllowedReason), it never runs unpriced.
+  expect((await startCall(api({ usageLevel: 'not_allowed' }), phone)).usageLevel).toBe('not_allowed')
+  expect((await startCall(api({}), phone)).usageLevel).toBeNull()
+})
+
 test('the contact call.start matched reaches the instructions with its note; a withheld number brings none', async () => {
   const api = (contact: unknown) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact } }) }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
@@ -279,6 +288,8 @@ test("the time limit: two minutes for a public demo call, five for a test call, 
     line: lines.callLimit,
   })
   expect(callLimitOf({ businessNumber: '+15035550142', assistant: { max_call_minutes: 999 } as never }, lines).ms).toBe(
-    25 * 60_000,
+    30 * 60_000,
   )
+  // Without an assistant of its own: the default of 20 minutes.
+  expect(callLimitOf({ businessNumber: '+15035550142', assistant: null }, lines).ms).toBe(20 * 60_000)
 })

@@ -25,6 +25,7 @@ export const VERSIONED_FIELDS = [
   'business_profile',
   'transfers',
   'voice',
+  'llm_model',
   'languages',
   'silence_first_gap_s',
   'silence_reminders',
@@ -156,7 +157,14 @@ export const VERSION_PARTS: readonly VersionPart[] = [
   {
     id: 'voice',
     label: 'Voice',
-    text: s => `${s.voice.provider}${s.voice.voice_id ? ` · ${s.voice.voice_id}` : ' · default voice'}`,
+    text: s =>
+      `${s.voice.provider}${s.voice.voice_id ? ` · ${s.voice.voice_id}` : ' · default voice'}${s.voice.model ? ` · ${s.voice.model}` : ''}`,
+  },
+  {
+    id: 'llm_model',
+    label: 'Language model',
+    // A version from before the column: the server's default model, as then.
+    text: s => s.llm_model || 'Default model',
   },
   {
     id: 'realtime_voice',

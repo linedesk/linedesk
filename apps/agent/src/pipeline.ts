@@ -4,7 +4,7 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import { DEFAULT_VOICE_MODELS, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import { tts as ttsTypes, type voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -30,8 +30,8 @@ export const SUMMARY_MAX_TOKENS = 2000
 export const REPLY_MAX_TOKENS = 1024
 const WARM_UP_TIMEOUT_MS = 5000
 
-/** ElevenLabs' lowest-latency model, unless another is configured. */
-export const ELEVENLABS_DEFAULT_MODEL = 'eleven_flash_v2_5'
+/** ElevenLabs' lowest-latency model, unless another is configured (DEFAULT_VOICE_MODELS). */
+export const ELEVENLABS_DEFAULT_MODEL = DEFAULT_VOICE_MODELS.elevenlabs!
 /** Flux decides when a turn ends; this only waits briefly for a last word on top. */
 const ENDPOINTING = { minDelay: 100, maxDelay: 1000 }
 /** Flux reports a likely end of turn this early, so the reply can be prepared while it confirms. */
@@ -40,13 +40,15 @@ const EAGER_END_OF_TURN = 0.5
 /**
  * The voice provider and voice a call uses: the assistant's own voice with its provider when that one
  * is set up (the one in use or another with a key), else the configured default voice (or the provider's).
+ * The model: the assistant's own voice model when it is one of that provider's (voiceModelFor), else the configured one.
  */
 export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): TtsConfig & { voiceId?: string } {
   const own = assistantVoice?.voice_id
-  if (own && assistantVoice.provider === tts.provider) return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: own }
+  const modelOf = (c: TtsConfig) => voiceModelFor(c.provider, assistantVoice?.provider === c.provider ? assistantVoice.model : undefined, c.model) || undefined
+  if (own && assistantVoice.provider === tts.provider) return { provider: tts.provider, apiKey: tts.apiKey, model: modelOf(tts), voiceId: own }
   const other = own ? tts.others?.find(o => o.provider === assistantVoice.provider) : undefined
-  if (other) return { ...other, voiceId: own }
-  return { provider: tts.provider, apiKey: tts.apiKey, model: tts.model, voiceId: tts.voiceId ?? providerDefaultVoices[tts.provider] }
+  if (other) return { ...other, model: modelOf(other), voiceId: own }
+  return { provider: tts.provider, apiKey: tts.apiKey, model: modelOf(tts), voiceId: tts.voiceId ?? providerDefaultVoices[tts.provider] }
 }
 
 /** The voice id a call uses (see ttsFor). */
@@ -101,8 +103,14 @@ export function withCallLanguages<A extends { languages?: unknown }>(assistant: 
   return { ...assistant, languages: { main, mode: others.length ? 'allowed' : 'english', allowed: [...others] } }
 }
 
-/** The voice providers a call can speak with: the one in use and every other one with a key. */
-export const callVoicesOf = (tts: AgentConfig['tts']): SpeakingVoice[] => [tts, ...(tts.others ?? [])].map(v => ({ provider: v.provider, model: ttsModelOf(v) }))
+/**
+ * The voice a call speaks with, for the languages it may switch to: the assistant's own (ttsFor), with the voice model
+ * the call uses (an assistant on Eleven Multilingual v2 does not get the languages only Flash v2.5 speaks).
+ */
+export const callVoicesOf = (tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): SpeakingVoice[] => {
+  const voice = ttsFor(tts, assistantVoice)
+  return [{ provider: voice.provider, model: ttsModelOf(voice) }]
+}
 
 /** Deepgram's recommended endpointing for code-switching (Nova-3 `multi`), in ms. */
 export const NOVA_MULTI_ENDPOINTING_MS = 100
@@ -158,8 +166,8 @@ export function createStt({ provider, apiKey, model }: AgentConfig['stt'], langu
   return new deepgram.STT({ apiKey, model: choice.model, language: choice.language, languageHint, endpointing: choice.endpointing })
 }
 
-/** The model the voice provider is asked for (ElevenLabs gets its fast default). */
-export const ttsModelOf = (tts: TtsConfig) => tts.model ?? (tts.provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_MODEL : undefined)
+/** The model the voice provider is asked for (each gets its default, DEFAULT_VOICE_MODELS, when none is configured). */
+export const ttsModelOf = (tts: TtsConfig) => tts.model || DEFAULT_VOICE_MODELS[tts.provider]
 
 /** `language`: what the voice speaks at first (Cartesia reads every text as English unless told); English is the providers' default. */
 /**
@@ -188,9 +196,9 @@ function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, lang
   const spoken = language === 'en' ? {} : { language: providerLanguageCode(language, tts.provider) }
   const speed = speedPct !== TALKING_SPEED_PCT_DEFAULT ? speedPct / 100 : undefined
   if (tts.provider === 'cartesia')
-    return new cartesia.TTS({ apiKey: tts.apiKey, ...(tts.model ? { model: tts.model } : {}), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
+    return new cartesia.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
   const paced = speed ? { voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed } } : {}
-  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: tts.model ?? ELEVENLABS_DEFAULT_MODEL, ...(voiceId ? { voiceId } : {}), ...spoken, ...paced })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, ...paced })
 }
 
 /** A voice whose language can be changed mid-call (followCallerLanguage): either provider, or one with a backup. */

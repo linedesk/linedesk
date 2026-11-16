@@ -20,7 +20,7 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { announceRecording, callLimitOf, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantRealtimeVoice, withRealtimeModel } from './config.ts'
+import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
 import { requireLivekitEnv, workerAgentName } from './env.ts'
 import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
@@ -293,7 +293,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   let callerIdentity: string | undefined
   void callerJoined.then(caller => (callerIdentity = caller.identity), () => {})
   const silence = silencePolicyOf(call.assistant)
-  const languages = callLanguagesOf(call.assistant?.languages, stages ? callVoicesOf(stages.tts) : [], stages?.stt)
+  const languages = callLanguagesOf(call.assistant?.languages, stages ? callVoicesOf(stages.tts, call.assistant?.voice) : [], stages?.stt)
   const speed = talkingSpeedOf(call.assistant)
   const pipeline = stages && createPipeline(stages, call.assistant?.voice, silence.firstGapS, languages, speed)
   // The realtime session (again after a reconnect), and the caller's finished turns in it, for the fixed lines.
@@ -607,13 +607,26 @@ async function entry(ctx: JobContext) {
     await declineCall(registered, readiness, () => ctx.deleteRoom())
     return ctx.shutdown('assistant not set up')
   }
+  // Linedesk Cloud: nothing the workspace may use is set up (not even the Standard defaults, apps/api usage-levels.ts),
+  // so the call has no price: not answered, filed as missed like a call before the providers are set up.
+  if (registered.usageLevel === 'not_allowed') {
+    await declineCall(registered, { reason: notAllowedReason, stages: [] }, () => ctx.deleteRoom())
+    return ctx.shutdown('no voice and model the workspace may use')
+  }
   setup.mark('providers')
   // The assistant's pipeline (Settings › Assistant); the other one when that is not set up.
   // A call test may compare realtime models without changing the install's (call-test --realtime-model).
   // A realtime call speaks with the assistant's own realtime voice (the server's default when it picked none).
+  // The three stages think with the assistant's own language model when it picked one (Settings › Assistant › Voice).
+  // Linedesk Cloud: only fallback models of the call's level (withLevelFallbacks).
+  const warn = (line: string) => console.warn(`call ${registered.callId}: ${line}`)
   const config = withRealtimeModel(
     withAssistantRealtimeVoice(
-      configForAssistant(readiness.config, registered.assistant?.voice_pipeline, line => console.warn(`call ${registered.callId}: ${line}`)),
+      withLevelFallbacks(
+        withAssistantModel(configForAssistant(readiness.config, registered.assistant?.voice_pipeline, warn), registered.assistant?.llm_model),
+        registered.usageLevel,
+        warn,
+      ),
       registered.assistant?.realtime_voice,
     ),
     registered.realtimeModel,
@@ -647,6 +660,9 @@ async function entry(ctx: JobContext) {
     throw e
   }
 }
+
+/** Why a call on Linedesk Cloud is not answered when its usage level is still `not_allowed` at call start. */
+export const notAllowedReason = 'usage level not_allowed: no Standard voice and language model is set up on this install'
 
 /** How long an unanswered call waits for the caller to be in the room before it hangs up without the line. */
 const BUSY_CALLER_WAIT_MS = 5000

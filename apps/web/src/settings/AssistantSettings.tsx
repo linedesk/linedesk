@@ -59,7 +59,9 @@ import {
   withMainLanguage,
   keptDraft,
   mergeDraft,
+  levelChoicesToSave,
   normalized,
+  withPickedVoice,
   profileOf,
   silenceIssue,
   silenceProblem,
@@ -85,6 +87,7 @@ import { AssistantReview } from '../review/AssistantReview.tsx'
 import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
 import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
 import { useQuery } from '../cachedQuery.ts'
+import { LevelSettings } from './LevelSettings.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -207,7 +210,7 @@ type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice', 'realtime_voice'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice', 'llm_model', 'realtime_voice'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   advanced: [
@@ -835,7 +838,7 @@ function Form({
         ...(JSON.stringify(languagesToSave(clean)) !== JSON.stringify(languagesToSave(normalized(saved)))
           ? languagesToSave(clean)
           : {}),
-        voice: clean.voice,
+        ...levelChoicesToSave(clean),
         // Only when changed: an API of the release before does not know it.
         ...(clean.realtime_voice !== normalized(saved).realtime_voice ? { realtime_voice: clean.realtime_voice } : {}),
         talking_speed_pct: clean.talking_speed_pct,
@@ -906,16 +909,24 @@ function Form({
                 threeStageName={t(PIPELINE_TEXT.three_stage.label)}
               />
             ) : (
-              <VoiceSettings
-                assistantId={assistant.id}
-                voice={draft.voice}
-                onPick={v => set('voice', v)}
-                canEdit={canEdit}
-                toast={toast}
-                language={mainOf(draft)}
-                otherLanguages={otherLanguagesOf(draft.languages)}
-                assistantName={assistantName(draft, t)}
-              />
+              <>
+                <VoiceSettings
+                  assistantId={assistant.id}
+                  voice={draft.voice}
+                  onPick={v => set('voice', withPickedVoice(v, draft.voice))}
+                  canEdit={canEdit}
+                  toast={toast}
+                  language={mainOf(draft)}
+                  otherLanguages={otherLanguagesOf(draft.languages)}
+                  assistantName={assistantName(draft, t)}
+                />
+                <LevelSettings
+                  voice={draft.voice}
+                  llmModel={draft.llm_model}
+                  onVoiceModel={model => set('voice', { ...draft.voice, model })}
+                  onModel={model => set('llm_model', model)}
+                />
+              </>
             )}
           </>
         )}

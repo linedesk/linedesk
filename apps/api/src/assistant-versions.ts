@@ -2,7 +2,7 @@
 // changes them ends with recordVersion in the same transaction; calls look up the version they run with.
 import { type AssistantSnapshot, type AssistantVersionData, type AssistantVersionItem, type AssistantVersionsData, snapshotOf, stableJson, storedSnapshot, versionSummary } from '@linedesk/actions'
 import { assistant_calendars, assistant_versions, assistants, user, type Tx } from '@linedesk/db'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 
 const newId = () => `asv_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
@@ -34,7 +34,7 @@ type Recorded = { by: string | null; restoredFrom?: number; created?: boolean }
  * number calls use now. Serialised per assistant, so two saves never take the same number.
  */
 export async function recordVersion(tx: Tx, workspaceId: string, assistantId: string, { by, restoredFrom, created }: Recorded): Promise<number | null> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`assistant-version:${assistantId}`}))`)
+  await lockAssistantVersion(tx, assistantId)
   const now = await currentSnapshot(tx, workspaceId, assistantId)
   if (!now) return null
   const latest = await latestVersion(tx, assistantId)
@@ -52,6 +52,23 @@ export async function recordVersion(tx: Tx, workspaceId: string, assistantId: st
     restored_from: restoredFrom ?? null,
   })
   return number
+}
+
+/**
+ * The lock every change of an assistant's settings takes first (withVersion, restoreVersion, recordVersion), before
+ * the workspace settings and the assistant row: one order everywhere, so two changes wait for each other instead of
+ * deadlocking. Held until the transaction ends; taking it again in the same transaction does not wait.
+ */
+export const lockAssistantVersion = (tx: Tx, assistantId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`assistant-version:${assistantId}`}))`)
+
+/**
+ * The version lock of every assistant of the workspace, in the order of their ids: for a change of the workspace that
+ * then changes its assistants (Allow Premium off), taken before anything else, as a single save takes its own.
+ */
+export async function lockAssistantVersionsOf(tx: Tx, workspaceId: string) {
+  const ids = await tx.select({ id: assistants.id }).from(assistants).where(eq(assistants.workspace_id, workspaceId)).orderBy(asc(assistants.id))
+  for (const { id } of ids) await lockAssistantVersion(tx, id)
 }
 
 /** Before a change: the settings as they are now are a version, so the change can be undone. */

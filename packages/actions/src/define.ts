@@ -15,14 +15,19 @@ import type { z } from 'zod'
  */
 /** `call:export`: every call of a date range at once (call.export), owners and admins only. */
 /**
+ * `billing:manage`: what the bill owner decides because it changes what the workspace pays (Allow Premium; later the
+ * plan, recharges and the cap, docs/billing.md). The workspace owner only; never an API key, a setup link or an
+ * impersonation (the handlers refuse those too: refuseBillingActor in apps/api).
+ */
+/**
  * `workspace:own`: what only the workspace's one owner does: delete the workspace and hand it over to someone else
  * (workspace rights, docs/architecture.md). Never part of an API key's permissions (api-keys.ts).
  */
-export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'secondFactor:own' | 'invitation:respond'
+export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'billing:manage' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'secondFactor:own' | 'invitation:respond'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {
-  owner: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'workspace:own', 'invitation:respond'],
+  owner: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'workspace:own', 'billing:manage', 'invitation:respond'],
   admin: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
   member: ['call:read', 'call:write', 'contact:write', 'calendar:read', 'calendar:write', 'team:read', 'invitation:respond'],
   // The voice agent: only the `agent` actions, plus the member actions marked with `agent` below.

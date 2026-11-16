@@ -148,7 +148,7 @@ describe('language models', () => {
     expect(result).toMatchObject({ ok: false, reason: 'not_found', message: expect.stringMatching(/made\/up/) })
   })
 
-  test('OpenRouter: works, with the credit left; the live and the summary model are each asked', async () => {
+  test('OpenRouter: works, with the credit left; the live and the summary model are each asked, once when they are the same', async () => {
     const fake = provider({ 'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }] })
     expect(await testProvider('openrouter', config({ api_key: KEY }), fake.doFetch)).toEqual({
       ok: true,
@@ -158,7 +158,13 @@ describe('language models', () => {
     const models = fake.requests
       .filter(r => r.url.endsWith('/chat/completions'))
       .map(r => JSON.parse(String(r.init.body)).model)
-    expect(models).toEqual(['google/gemini-2.5-flash-lite', 'google/gemini-2.5-flash'])
+    // The defaults use Gemini 3.5 Flash-Lite for both.
+    expect(models).toEqual(['google/gemini-3.5-flash-lite'])
+    const other = provider({ 'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }] })
+    await testProvider('openrouter', config({ api_key: KEY, summary_model: 'openai/gpt-5.4-mini' }), other.doFetch)
+    expect(
+      other.requests.filter(r => r.url.endsWith('/chat/completions')).map(r => JSON.parse(String(r.init.body)).model),
+    ).toEqual(['google/gemini-3.5-flash-lite', 'openai/gpt-5.4-mini'])
   })
 
   test('OpenAI: insufficient_quota (HTTP 429) is a used-up quota, not a rate limit', async () => {

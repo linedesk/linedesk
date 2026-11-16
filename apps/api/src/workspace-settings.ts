@@ -1,6 +1,7 @@
 // Workspace settings that live in workspace_settings (not synced to browsers): read and change them
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
 import {
+  type AllowPremiumData,
   type ClosedDay,
   DEFAULT_RECORDING_NOTICE,
   DEFAULT_RECORDING_RETENTION_DAYS,
@@ -17,6 +18,8 @@ import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
+import { lockAssistantVersionsOf } from './assistant-versions.ts'
+import { assistantsBackToStandard, refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 
@@ -60,8 +63,30 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       jobValueCurrency: jobValueCurrencyOf(row, locale.resolvedCountry),
       pickupMode: row?.pickup_mode ?? null,
       ...locale,
+      allowPremium: row?.allow_premium ?? false,
+      usageLevels: await usageLevelsBilled(tx),
     }
     return { rows: {}, data }
+  },
+
+  /**
+   * Allow Premium (Linedesk Cloud): the owner only, as themselves in the app (refuseBillingActor); audited. Off moves
+   * the workspace's assistants on a Premium voice or model back to the install's defaults, in the same transaction,
+   * each with a new version by the owner. Locks in the order every save takes them: the version locks of all the
+   * workspace's assistants (by id), then the settings row, then the assistant rows. A save running at the same time
+   * finishes before or starts after, and the move sees it or it sees the move; never a deadlock.
+   */
+  'workspace.setAllowPremium': async ({ tx, actor }, input: { on: boolean }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    refuseBillingActor(actor)
+    if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
+    await tx
+      .insert(workspace_settings)
+      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, allow_premium: input.on })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_premium: input.on } })
+    const moved = input.on ? [] : await assistantsBackToStandard(tx, actor.workspaceId, actor.actorId)
+    const data: AllowPremiumData = { on: input.on, movedToStandard: moved.map(a => a.id) }
+    return { rows: moved.length ? { assistants: moved } : {}, data }
   },
 
   /** The business name is the workspace's (organization) name. */

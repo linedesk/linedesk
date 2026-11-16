@@ -2,7 +2,7 @@
 // room and the Linedesk agent is dispatched into it. The trunk only takes calls from the carriers' published
 // signaling addresses (LIVEKIT_SIP_ALLOWED_ADDRESSES, default "telnyx twilio"; see inbound-allowlist.ts).
 // Safe to run again: the trunk is updated in place, the dispatch rule replaced. Calls through the trunk end after
-// MAX_CALL_MINUTES, 2 hours (LiveKit hangs up; the assistant itself leaves after 25 minutes), set by writing the trunk back whole with the same numbers and addresses.
+// MAX_CALL_MINUTES, 2 hours (LiveKit hangs up; the assistant itself leaves after its own limit, at most 30 minutes), set by writing the trunk back whole with the same numbers and addresses.
 // With --outbound also the outbound trunk warm transfers dial through ("linedesk-outbound"): the
 // carrier side is set up at TELEPHONY_PROVIDER (Telnyx for now) with a new password, and the numbers
 // are the caller IDs a transfer may show (each business's own Linedesk number). The Telnyx voice profile may call the

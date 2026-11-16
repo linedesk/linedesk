@@ -78,6 +78,7 @@ export * from './transfer.ts'
 export * from './outbound.ts'
 export * from './voice-failure.ts'
 export * from './voices.ts'
+export * from './usage-level.ts'
 export * from './webhooks.ts'
 export * from './workspace-icon.ts'
 export * from './user-avatar.ts'
@@ -157,6 +158,7 @@ const all = [
   settings.assistantStartTestCall,
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
+  settings.workspaceSetAllowPremium,
   settings.workspaceRename,
   settings.workspaceDeleteOwn,
   settings.workspaceDeletePreview,

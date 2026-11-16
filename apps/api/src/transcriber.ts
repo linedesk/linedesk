@@ -32,7 +32,7 @@ type Options = { doFetch?: typeof fetch; wait?: (ms: number) => Promise<void> }
 const MB = 1024 * 1024
 /**
  * The largest recording any adapter takes. The job runs in the API process (128 MB by default), and a bucket's
- * recording is held in memory while it is sent; a 25-minute call (the assistant's limit) is about 20 MB.
+ * recording is held in memory while it is sent; a 30-minute call (the assistant's longest limit) is about 24 MB.
  */
 const MAX_FILE = 25 * MB
 const TIMEOUT_MS = 300_000

@@ -102,6 +102,7 @@ export function WorkspaceSettings({
           <WorkspaceGeneral
             canEdit={canEdit}
             agentChange={agentChange}
+            isOwner={role === 'owner'}
             name={workspaceName}
             onRenamed={onRenamed}
             toast={toast}

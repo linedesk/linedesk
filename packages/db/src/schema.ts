@@ -111,6 +111,11 @@ export const assistants = pgTable(
     /** No longer used, like `greet_by_name` (0061 emptied it); dropped in a later release. */
     greeting_known_caller: text('greeting_known_caller').notNull().default(''),
     voice: jsonb('voice').$type<AssistantVoice>().notNull().default({ provider: 'elevenlabs', voice_id: '' }),
+    /**
+     * The language model of live turns, as the install's language-model provider names it (LANGUAGE_MODEL_LEVELS in
+     * @linedesk/actions). null: the install's default model. On Linedesk Cloud its level (Standard or Premium) counts.
+     */
+    llm_model: text('llm_model'),
     business_profile: jsonb('business_profile').$type<BusinessProfile>().notNull().default({}),
     /** No longer used: the call rules are fixed (callRules in @linedesk/actions); dropped in a later release. */
     call_rules: text('call_rules'),
@@ -137,7 +142,7 @@ export const assistants = pgTable(
     silence_reminders: integer('silence_reminders').notNull().default(2),
     silence_hang_up_s: integer('silence_hang_up_s').notNull().default(15),
     /** The longest the assistant stays on a call, in minutes (at most ASSISTANT_CALL_MAX_MINUTES); then it says goodbye and hangs up. */
-    max_call_minutes: integer('max_call_minutes').notNull().default(25),
+    max_call_minutes: integer('max_call_minutes').notNull().default(20),
     silence_closing: text('silence_closing'),
     /** Asked when the line is quiet; null: "Are you still there?" in the language spoken (DEFAULT_SILENCE_REMINDER). */
     silence_reminder: text('silence_reminder'),
@@ -168,7 +173,11 @@ export const assistants = pgTable(
     created_at: createdAt(),
     version: version(),
   },
-  t => [index('assistants_ws').on(t.workspace_id)],
+  t => [
+    index('assistants_ws').on(t.workspace_id),
+    // ASSISTANT_CALL_MAX_MINUTES (packages/actions/src/calls.ts): seeds and scripts too, not only the API's check.
+    check('assistants_max_call_minutes', sql`${t.max_call_minutes} between 1 and 30`),
+  ],
 )
 
 export const contacts = pgTable(
@@ -375,6 +384,11 @@ export const workspace_settings = pgTable('workspace_settings', {
    * number's mode and the hours. null: never chosen.
    */
   pickup_mode: text('pickup_mode', { enum: ['no_answer', 'always', 'after_hours'] }),
+  /**
+   * Linedesk Cloud: the owner allows Premium voices and models (10¢ a minute instead of 5¢; usageLevel in
+   * @linedesk/actions). Off: assistants can pick Standard ones only. Not read on an install without billing.
+   */
+  allow_premium: boolean('allow_premium').notNull().default(false),
   /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
   recording_retention_days: integer('recording_retention_days').default(90),
   /** New-call notifications for members who have not set their own (member_notification_settings). */

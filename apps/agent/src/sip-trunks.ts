@@ -43,7 +43,7 @@ type InboundSip = Pick<SipClient, 'listSipInboundTrunk' | 'createSipInboundTrunk
 
 /**
  * The longest a call through the inbound trunk lasts: LiveKit hangs up then, whatever the agent does. A call put
- * through to a person may run this long; the assistant itself hangs up after ASSISTANT_CALL_MAX_MINUTES.
+ * through to a person may run this long; the assistant itself hangs up after its own limit (at most ASSISTANT_CALL_MAX_MINUTES).
  */
 export const MAX_CALL_MINUTES = CALL_MAX_MINUTES
 

@@ -86,13 +86,16 @@ const idsOnlySql = (value: SQL) => sql`(
 const prunedResultSql = sql`jsonb_strip_nulls(jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', case when ${commands.result} ? 'data' then ${idsOnlySql(sql`${commands.result} -> 'data'`)} end))`
 
 /**
- * A change of transfer contacts keeps its `data.transferChanges` (ids, names, last four digits: audit.ts), which the
- * audit log shows; everything else of its result and input goes down to ids like any command's.
+ * A change of transfer contacts keeps its `data.transferChanges` (ids, names, last four digits: audit.ts), and a change
+ * of the usage level its `data.usageLevelChange` (model ids), which the audit log shows; everything else of its result
+ * and input goes down to ids like any command's.
  */
+const auditedObject = (key: 'transferChanges' | 'usageLevelChange') =>
+  sql`jsonb_typeof(${commands.result} -> 'data' -> ${sql.raw(`'${key}'`)}) = 'object'`
 const keptTransferChangesSql = sql`case when ${commands.action} in (${sql.join(
   TRANSFER_CHANGE_ACTIONS.map(a => sql`${a}`),
   sql`, `,
-)}) and jsonb_typeof(${commands.result} -> 'data' -> 'transferChanges') = 'object' then jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', jsonb_build_object('transferChanges', ${commands.result} -> 'data' -> 'transferChanges')) else ${prunedResultSql} end`
+)}) and (${auditedObject('transferChanges')} or ${auditedObject('usageLevelChange')}) then jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', jsonb_strip_nulls(jsonb_build_object('transferChanges', case when ${auditedObject('transferChanges')} then ${commands.result} -> 'data' -> 'transferChanges' end, 'usageLevelChange', case when ${auditedObject('usageLevelChange')} then ${commands.result} -> 'data' -> 'usageLevelChange' end))) else ${prunedResultSql} end`
 
 /** `keepTransferChanges`: the 90-day prune keeps what the audit log shows of a change of transfer contacts. */
 export const pruneSet = (now: Date, { keepTransferChanges = false } = {}) => ({

@@ -38,7 +38,11 @@ export type LookupField = { name: string; type: LookupFieldType; description: st
 export type WebhookLookup = { name: string; when: string; fields: LookupField[] }
 /** What the call-start webhook answered: flat names and short values (CALLER_DETAILS_* in @linedesk/actions). */
 export type CallerDetails = Record<string, string | number | boolean>
-export type AssistantVoice = { provider: string; voice_id: string }
+/**
+ * The assistant's voice: provider and voice id ('' the default voice), and `model`, the text-to-speech model
+ * (VOICE_MODEL_LEVELS in @linedesk/actions); missing or '': the install's model.
+ */
+export type AssistantVoice = { provider: string; voice_id: string; model?: string }
 /** What happens when the transfer contact does not take the call. */
 /** When nobody accepts: take a message, or try the next contact that fits. ("message_urgent" was removed: now a plain message.) */
 export const transferFallbacks = ['message', 'next'] as const

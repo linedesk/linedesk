@@ -144,13 +144,13 @@ describe('transfer contacts', () => {
 })
 
 describe('silence on the line', () => {
-  it('defaults on: asks at 5 and 10 s, hangs up at 15 s, the default lines (saved as null)', () => {
+  it('defaults on: asks at 5 and 10 s, hangs up at 15 s and after 20 minutes, the default lines (saved as null)', () => {
     const d = draftOf(assistant())
-    expect(d).toMatchObject({ silence_first_gap_s: '5', silence_reminders: '2', silence_hang_up_s: '15', max_call_minutes: '25', silence_closing: DEFAULT_SILENCE_CLOSING })
+    expect(d).toMatchObject({ silence_first_gap_s: '5', silence_reminders: '2', silence_hang_up_s: '15', max_call_minutes: '20', silence_closing: DEFAULT_SILENCE_CLOSING })
     expect(silenceProblem(d)).toBeNull()
-    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 5, silence_reminders: 2, silence_hang_up_s: 15, max_call_minutes: 25, silence_reminder: null, silence_closing: null })
+    expect(silenceToSave(d)).toEqual({ silence_first_gap_s: 5, silence_reminders: 2, silence_hang_up_s: 15, max_call_minutes: 20, silence_reminder: null, silence_closing: null })
     expect(silenceSummary(d)).toBe('Asks "Are you still there?" after 5 and 10 seconds of silence. Never while a call is transferred.')
-    expect(hangUpSummary(d)).toBe('Says this and hangs up at 15 seconds of silence. At 25 minutes it says goodbye and hangs up. A call put through to a person goes on.')
+    expect(hangUpSummary(d)).toBe('Says this and hangs up at 15 seconds of silence. At 20 minutes it says goodbye and hangs up. A call put through to a person goes on.')
   })
   it('own values are kept and checked', () => {
     const d = draftOf(assistant({ silence_first_gap_s: 8, silence_reminders: 0, silence_hang_up_s: 20, max_call_minutes: 10, silence_closing: 'Bye for now.' } as Partial<Assistant>))
@@ -158,7 +158,7 @@ describe('silence on the line', () => {
     expect(silenceToSave({ ...d, silence_reminder: ' Hello? ' }).silence_reminder).toBe('Hello?')
     expect(silenceSummary(d)).toBe('Never asks: it only hangs up after the silence below.')
     expect(silenceSummary({ ...d, silence_reminders: '1', silence_reminder: 'Hello?' })).toMatch(/^Asks "Hello\?" after 8 seconds/)
-    const bad = [{ silence_first_gap_s: '2' }, { silence_first_gap_s: 'ten' }, { silence_reminders: '9' }, { silence_hang_up_s: '500' }, { max_call_minutes: '0' }, { max_call_minutes: '26' }, { silence_reminders: '3', silence_hang_up_s: '24' }, { silence_closing: 'x'.repeat(201) }, { silence_reminder: 'x'.repeat(201) }]
+    const bad = [{ silence_first_gap_s: '2' }, { silence_first_gap_s: 'ten' }, { silence_reminders: '9' }, { silence_hang_up_s: '500' }, { max_call_minutes: '0' }, { max_call_minutes: '31' }, { silence_reminders: '3', silence_hang_up_s: '24' }, { silence_closing: 'x'.repeat(201) }, { silence_reminder: 'x'.repeat(201) }]
     for (const change of bad) {
       expect(silenceProblem({ ...d, ...change }), JSON.stringify(change).slice(0, 40)).not.toBeNull()
       expect(draftProblem({ ...d, ...change })).not.toBeNull()

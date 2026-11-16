@@ -60,7 +60,7 @@ export function auditReason(e: Pick<AuditEntry, 'what' | 'input'>): string | nul
 
 /** What happened, in a few words. */
 export function auditLabel(
-  e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges' | 'apiKeyName'>,
+  e: Pick<AuditEntry, 'what' | 'method' | 'input' | 'subject' | 'transferChanges' | 'usageLevelChange' | 'apiKeyName'>,
 ): string {
   const input = (e.input ?? {}) as Record<string, unknown>
   const subject = e.subject?.email ?? ''
@@ -257,11 +257,14 @@ export function auditLabel(
     case 'assistant.update':
       if (e.transferChanges)
         return t('admin.audit.transferContactsChanged', { changes: transferChangeList(e.transferChanges) })
+      if (e.usageLevelChange) return t('admin.audit.usageLevelChanged', { changes: levelChangeList(e.usageLevelChange) })
       // A refused change (no result): its input had the contacts.
       return Array.isArray(input.transfers) ? t('admin.audit.transferContactsEdited') : t('admin.audit.assistantChanged')
     case 'assistant.restoreVersion':
-      return e.transferChanges
-        ? t('admin.audit.transferContactsRestored', { changes: transferChangeList(e.transferChanges) })
+      if (e.transferChanges)
+        return t('admin.audit.transferContactsRestored', { changes: transferChangeList(e.transferChanges) })
+      return e.usageLevelChange
+        ? t('admin.audit.usageLevelRestored', { changes: levelChangeList(e.usageLevelChange) })
         : t('admin.audit.assistantRestored')
     default: {
       const plain = plainLabels[e.what]
@@ -321,6 +324,21 @@ const transferChangeList = ({ added, changed, removed }: NonNullable<AuditEntry[
     ...(removed.length ? [t('admin.audit.transferChange.removed', { names: names(removed) })] : []),
   ]
   return parts.length ? fmt().list(parts, { type: 'unit', style: 'short' }) : t('admin.audit.transferChange.reordered')
+}
+
+/** What a change of the usage level changed: "voice model elevenlabs/eleven_flash_v2_5 to elevenlabs/eleven_v3". */
+const levelChangeList = ({ before, after }: NonNullable<AuditEntry['usageLevelChange']>) => {
+  const shown = (value: string | null) => value ?? t('admin.audit.levelChange.default')
+  const parts = (
+    [
+      ['voice_model', msg('admin.audit.levelChange.voiceModel')],
+      ['llm_model', msg('admin.audit.levelChange.languageModel')],
+      ['voice_pipeline', msg('admin.audit.levelChange.pipeline')],
+    ] as const
+  )
+    .filter(([field]) => before[field] !== after[field])
+    .map(([field, key]) => t(key, { before: shown(before[field]), after: shown(after[field]) }))
+  return fmt().list(parts, { type: 'unit', style: 'short' })
 }
 
 /** A spending cap in dollars, without cents when it is whole ("$50", "$12.50"). */

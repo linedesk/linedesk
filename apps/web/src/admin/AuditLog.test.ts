@@ -32,6 +32,24 @@ describe('audit labels', () => {
     expect(label('outboundCountries.set', { countries: [] })).toBe('Allowed no calls to other countries')
   })
 
+  test('a change of what the calls cost names the models before and after', () => {
+    const level = (what: string) =>
+      auditLabel({
+        what,
+        method: null,
+        input: {},
+        subject: null,
+        usageLevelChange: {
+          before: { voice_model: null, llm_model: 'gpt-5.4-mini', voice_pipeline: null },
+          after: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4', voice_pipeline: null },
+        },
+      })
+    expect(level('assistant.update')).toBe(
+      "Changed what the assistant's calls cost (voice model default to elevenlabs/eleven_v3, language model gpt-5.4-mini to gpt-5.4)",
+    )
+    expect(level('assistant.restoreVersion')).toMatch(/^Restored an earlier assistant version, which changed what its calls cost/)
+  })
+
   test('branding says when Powered by Linedesk was hidden', () => {
     expect(label('branding.set', { name: 'Front Desk', starPrompt: true, poweredBy: true })).toBe(
       'Changed the branding to “Front Desk”',

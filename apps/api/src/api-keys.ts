@@ -107,7 +107,9 @@ export async function actorForApiKey(key: string, ip: string | null): Promise<Ac
     actorId: `apikey:${row.id}`,
     role: row.role,
     workspaceId: row.workspace_id,
-    permissions: rolePermissions[row.role].filter(p => p !== 'team:write' && p !== 'workspace:own'),
+    permissions: rolePermissions[row.role].filter(
+      p => p !== 'team:write' && p !== 'workspace:own' && p !== 'billing:manage',
+    ),
     apiKeyId: row.id,
     // Made during support access: what the key does is the admin's too (impersonatorOf, run-action.ts).
     ...(row.created_by_impersonator ? { apiKeyImpersonator: row.created_by_impersonator } : {}),

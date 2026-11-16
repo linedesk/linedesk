@@ -22,8 +22,25 @@ const voice = (
   ...extra,
 })
 
+/** Levels on an install without billing: every choice, no labels. */
+export const NO_LEVELS: VoiceOptionsData['levels'] = {
+  billed: false,
+  allowPremium: false,
+  allowUltra: false,
+  realtimeAllowed: true,
+  ownKeys: false,
+  standardCentsPerMinute: 5,
+  premiumCentsPerMinute: 10,
+  voiceModels: {},
+  defaultVoiceModels: {},
+  llmProvider: null,
+  models: [],
+  defaultModel: null,
+}
+
 export const SWITCH_OPTIONS: VoiceOptionsData = {
   provider: 'elevenlabs',
+  levels: NO_LEVELS,
   voices: [
     {
       id: 'cgSgspJ2msm6clMCkdW9',

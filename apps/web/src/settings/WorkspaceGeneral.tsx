@@ -15,8 +15,11 @@ import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
-import { Field, Section } from './fields.tsx'
+import { Field, Section, SwitchRow } from './fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
+import { pricePerMinute } from './levelModel.ts'
+import { refreshQuery } from '../cachedQuery.ts'
+import { type AllowPremiumData, USAGE_CENTS_PER_MINUTE } from '@linedesk/actions'
 import {
   callAction,
   patchWorkspaceSettings,
@@ -48,10 +51,11 @@ type Props = {
 export function WorkspaceGeneral({
   canEdit,
   agentChange = false,
+  isOwner = false,
   name,
   onRenamed,
   toast,
-}: Props & { agentChange?: boolean }) {
+}: Props & { agentChange?: boolean; isOwner?: boolean }) {
   const t = useT()
   const readOnly = useReadOnlyNote()
   return (
@@ -63,6 +67,7 @@ export function WorkspaceGeneral({
       <Language canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
+      <AllowPremium isOwner={isOwner} canEdit={canEdit} toast={toast} />
     </Section>
   )
 }
@@ -323,5 +328,64 @@ function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => 
         )}
       </Loading>
     </Field>
+  )
+}
+
+/**
+ * Linedesk Cloud: the owner allows Premium voices and models for the workspace's assistants (workspace.setAllowPremium).
+ * Only on an install that bills usage; only the owner changes it. Off moves assistants on Premium back to Standard.
+ */
+function AllowPremium({
+  isOwner,
+  canEdit,
+  toast,
+}: {
+  isOwner: boolean
+  canEdit: boolean
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const readOnly = useReadOnlyNote()
+  const write = useWriteAction()
+  const settings = useWorkspaceSettings().data
+  const [busy, setBusy] = useState(false)
+  if (!settings?.usageLevels) return null
+  const prices = {
+    standard: pricePerMinute(USAGE_CENTS_PER_MINUTE.standard),
+    premium: pricePerMinute(USAGE_CENTS_PER_MINUTE.premium),
+  }
+
+  async function change(on: boolean) {
+    setBusy(true)
+    try {
+      const data = await write<AllowPremiumData>('workspace.setAllowPremium', { on })
+      patchWorkspaceSettings({ allowPremium: data.on })
+      void refreshQuery('voice.options')
+      toast(
+        data.on
+          ? t('settings.general.premium.on')
+          : t('settings.general.premium.off', { count: data.movedToStandard.length }),
+      )
+    } catch (e) {
+      toast(rejectionText('workspace.setAllowPremium', (e as Error).message))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <SwitchRow
+      title={t('settings.general.premium.label')}
+      description={
+        !isOwner
+          ? t('settings.general.premium.ownerOnly', prices)
+          : canEdit
+            ? t('settings.general.premium.help', prices)
+            : readOnly
+      }
+      on={settings.allowPremium}
+      onChange={on => void change(on)}
+      disabled={!isOwner || !canEdit || busy}
+    />
   )
 }

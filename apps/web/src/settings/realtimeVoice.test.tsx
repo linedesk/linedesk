@@ -4,9 +4,11 @@
 import type { VoiceOptionsData } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+import { NO_LEVELS } from './voiceSwitch.fixture.ts'
 
 const OPTIONS: VoiceOptionsData = {
   provider: 'elevenlabs',
+  levels: NO_LEVELS,
   realtime: true,
   voices: [],
   clones: [],

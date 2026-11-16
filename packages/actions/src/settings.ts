@@ -17,6 +17,9 @@ import { transferContacts } from './transfer.ts'
 import { realtimeVoiceChoice, voiceId } from './voices.ts'
 import type { ProviderName, WorkspaceDeleteData } from './admin.ts'
 
+/** The longest voice or language model id an assistant can name. */
+export const VOICE_MODEL_ID_MAX = 100
+
 const defined = <T extends object>(o: T) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>
 
@@ -366,7 +369,7 @@ const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own.",
+    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own. `voice.model` picks the voice model (eleven_flash_v2_5, eleven_multilingual_v2, eleven_v3, sonic-3.6; missing: the server's) and `llm_model` the language model (as the server's language-model provider names it, e.g. gpt-5.4-mini; null: the server's default). On Linedesk Cloud each is Standard (5¢ a minute) or Premium (10¢; a call is Premium when its voice or model is): Premium needs the owner's Allow Premium (workspace.setAllowPremium), and an option in neither list needs the workspace's own provider keys; voice.options lists them with their level.",
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().trim().min(1).max(60).optional(),
@@ -412,8 +415,19 @@ export const assistantUpdate = defineAction({
     languages: assistantLanguages.optional(),
     /** How calls are answered (VOICE_PIPELINES); null: the install default. */
     voice_pipeline: z.enum(VOICE_PIPELINES).nullable().optional(),
-    /** An empty voice_id: the provider's default voice. */
-    voice: z.object({ provider: z.string(), voice_id: z.union([z.literal(''), voiceId]) }).optional(),
+    /**
+     * An empty voice_id: the provider's default voice. `model`: the text-to-speech model (VOICE_MODEL_LEVELS); missing
+     * or '': the install's model.
+     */
+    voice: z
+      .object({
+        provider: z.string(),
+        voice_id: z.union([z.literal(''), voiceId]),
+        model: z.string().trim().max(VOICE_MODEL_ID_MAX).optional(),
+      })
+      .optional(),
+    /** The language model of live turns at the install's provider (LANGUAGE_MODEL_LEVELS); null: the install's default. */
+    llm_model: z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable().optional(),
     /** The voice while the realtime model answers its calls (REALTIME_VOICE_IDS); '': the server's default voice. */
     realtime_voice: realtimeVoiceChoice.optional(),
     business_profile: z
@@ -520,6 +534,10 @@ export type WorkspaceSettingsData = {
   countrySource?: WorkspaceCountrySource
   /** The language in use: the one set, else the country's (resolveWorkspaceLanguage; may be one calls are not answered in). */
   resolvedLanguage?: string
+  /** Linedesk Cloud: the owner allows Premium voices and models (workspace.setAllowPremium). */
+  allowPremium: boolean
+  /** This install bills usage (Linedesk Cloud): voices and models have a level, and Allow Premium applies. */
+  usageLevels: boolean
 }
 
 /**
@@ -710,6 +728,21 @@ export const workspaceUpdateSettings = defineAction({
   }),
   permission: 'settings:write',
 })
+
+/**
+ * Linedesk Cloud: the owner allows Premium voices and models for the workspace's assistants (10¢ a minute instead of
+ * 5¢). Turning it off moves every assistant on a Premium voice or model back to the server's defaults. Owner only, in
+ * the app (never an API key, a setup link or an impersonation); audited.
+ */
+export const workspaceSetAllowPremium = defineAction({
+  name: 'workspace.setAllowPremium',
+  description:
+    "Allow Premium voices and models (Linedesk Cloud: 10¢ a minute instead of 5¢) for this workspace's assistants, or not. Off (the default): assistants pick Standard ones only, and turning it off moves assistants on Premium back to the server's default voice model and language model. Only the owner.",
+  input: z.object({ on: z.boolean() }),
+  permission: 'billing:manage',
+})
+/** `data` of `workspace.setAllowPremium`: the switch, and the assistants moved back to Standard (turning it off). */
+export type AllowPremiumData = { on: boolean; movedToStandard: string[] }
 
 export const WORKSPACE_NAME_MAX = 80
 

@@ -23,6 +23,11 @@ await (await import('./admin-passkey-codes.ts'))
   .catch(error => console.error('could not issue passkey enrolment codes:', error))
 // The billing ledger's triggers (ledger-guards.ts): billing refuses to run without them.
 await (await import('./ledger-guards.ts')).checkLedgerGuards(db).catch(error => console.error('could not check the ledger guards:', error))
+// Linedesk Cloud: an ALERT for a default voice or language model of the install (the environment's too) that is not
+// Standard; calls use the provider's Standard one instead (usage-levels.ts).
+await (await import('./usage-levels.ts'))
+  .alertNonStandardDefaults(db)
+  .catch(error => console.error('could not check the default models against the usage levels:', error))
 const { app } = await import('./app.ts')
 // Every email's result goes into the provider failure record (provider-failures.ts).
 const { watchEmailFailures } = await import('./provider-failures.ts')

@@ -440,11 +440,15 @@ export type AuditEntry = {
   input: unknown
   /** An assistant change that changed its transfer contacts: the contacts added, changed and removed, by name. */
   transferChanges?: { added: string[]; changed: string[]; removed: string[] }
+  /** An assistant change of what its calls cost on Linedesk Cloud: voice model, language model, pipeline, before and after. */
+  usageLevelChange?: { before: LevelFields; after: LevelFields }
   /** apiKey.revoke: the revoked key's name. */
   apiKeyName?: string
   refused: boolean
   ipAddress: string | null
 }
+/** What decides an assistant's usage level, as the audit log keeps it (null: the server's default). */
+export type LevelFields = { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null }
 /** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */
 export type AuditFilter = {
   kind?: AuditKind

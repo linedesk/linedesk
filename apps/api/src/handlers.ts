@@ -1,10 +1,10 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, spokenLanguages, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, languageModelLevel, voiceModelLevel, type VoicePipeline, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
-import type { ActionItem, Assistant, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
+import type { ActionItem, Assistant, AssistantVoice, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, inArray, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -20,7 +20,7 @@ import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
-import { assistantVersionHandlers, recordVersion, versionForCall, versionOf, VERSIONED_ACTIONS, withVersion } from './assistant-versions.ts'
+import { assistantVersionHandlers, lockAssistantVersion, recordVersion, versionForCall, versionOf, VERSIONED_ACTIONS, withVersion } from './assistant-versions.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { calendarToolHandlers } from './calendar-tools.ts'
@@ -33,7 +33,8 @@ import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { impersonatorOf } from './impersonation-guard.ts'
 import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
-import { installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
+import { activeProvider, installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
+import { assistantForCall, assistantVoiceOf, checkAssistantLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
@@ -320,11 +321,16 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
   const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
-  // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace.
-  const answeredBy = assistant && { ...assistant, voice_pipeline: pipelineChoiceUnder(await voicePipelinePolicy(tx), assistant.voice_pipeline) }
+  // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace. On
+  // Linedesk Cloud the call's level is decided here, once: a voice or model the workspace may no longer use (Allow
+  // Premium off) falls back to the install's defaults for this call.
+  // On Cloud it is also what the agent answers with (`pipeline`): never a realtime model without Allow Ultra, never the
+  // install's own models when they are not Standard. A call still `not_allowed` after the fallback is not answered.
+  const forCall = assistant && (await assistantForCall(tx, workspace_id, assistant))
+  const answeredBy = forCall && { ...forCall.assistant, voice_pipeline: forCall.pipeline ?? pipelineChoiceUnder(await voicePipelinePolicy(tx), forCall.assistant.voice_pipeline) }
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact ? contactForAssistant(contact.row, recognized) : null, callerRecognized: recognized, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups, workspaceCountry: locale.resolvedCountry, workspaceLanguage: locale.resolvedLanguage },
+    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact ? contactForAssistant(contact.row, recognized) : null, callerRecognized: recognized, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups, workspaceCountry: locale.resolvedCountry, workspaceLanguage: locale.resolvedLanguage, usageLevel: forCall?.level ?? null },
   }
 }
 
@@ -438,18 +444,94 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], workspaceId: string,
 }
 
 /**
- * An assistant may speak only languages a voice provider of the install speaks (installLanguages): the main one and the
- * picked ones. Those the assistant already has stay saveable (the voice providers may have changed since; a call then
- * leaves out what its voice can't speak), and `any` stays allowed: a call then speaks every language the voice does.
+ * An assistant may speak only languages its calls' voice speaks: on the three stages its own voice with the voice model
+ * the call uses (assistantVoiceOf), else (a realtime model answers) any voice provider of the install (installLanguages);
+ * the main one and the picked ones. Those the assistant already has stay saveable while its voice stays (the voice
+ * providers may have changed since; a call then leaves out what its voice can't speak), and `any` stays allowed: a call
+ * then speaks every language the voice does. A save that changes the voice checks them all again.
  */
-async function checkAssistantLanguages(tx: Tx, workspaceId: string, assistantId: string, languages: StoredLanguages) {
-  const stored = (await assistantIn(tx, workspaceId, assistantId))?.languages
-  const kept = unspokenLanguages(stored, [])
-  const missing = unspokenLanguages(languages, await installLanguages(tx)).filter(code => !kept.includes(code))
-  if (missing.length)
-    throw new Reject(`The voice providers set up can't speak ${languageNames(missing)}: pick another language`)
+async function checkAssistantLanguages(
+  tx: Tx,
+  workspaceId: string,
+  assistantId: string,
+  languages: StoredLanguages,
+  change: { voice?: AssistantVoice; voice_pipeline?: VoicePipeline | null } = {},
+) {
+  const stored = await assistantIn(tx, workspaceId, assistantId)
+  if (!stored) throw new Reject('no such assistant')
+  const voice = change.voice ?? stored.voice
+  const voiceChanged =
+    voice.provider !== stored.voice.provider || voice.voice_id !== stored.voice.voice_id || (voice.model ?? '') !== (stored.voice.model ?? '')
+  const kept = voiceChanged ? [] : unspokenLanguages(stored.languages, [])
+  const callVoice = await assistantVoiceOf(tx, {
+    voice,
+    llm_model: stored.llm_model,
+    voice_pipeline: change.voice_pipeline !== undefined ? change.voice_pipeline : stored.voice_pipeline,
+  })
+  const spoken = callVoice ? spokenLanguages([callVoice]) : await installLanguages(tx)
+  const missing = unspokenLanguages(languages, spoken).filter(code => !kept.includes(code))
+  if (!missing.length) return
+  throw new Reject(
+    callVoice
+      ? `The assistant's voice (${callVoice.model || callVoice.provider}) can't speak ${languageNames(missing)}: pick another language or voice`
+      : `The voice providers set up can't speak ${languageNames(missing)}: pick another language`,
+  )
 }
 type StoredLanguages = Parameters<typeof unspokenLanguages>[0]
+
+type LevelInput = { assistantId: string; voice?: AssistantVoice; llm_model?: string | null; voice_pipeline?: VoicePipeline | null }
+/** Whether an assistant.update names what decides its calls' level: the voice, the language model or the pipeline. */
+const choosesLevel = (input: LevelInput) => input.voice !== undefined || input.llm_model !== undefined || input.voice_pipeline !== undefined
+
+/**
+ * The voice model and language model an assistant picks must be ones with a level (usage-level.ts) for the voice
+ * provider and the install's language-model provider; on Linedesk Cloud, of a level the workspace may use.
+ */
+async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelInput): Promise<UsageLevelChange | null> {
+  const stored = await assistantIn(tx, workspaceId, input.assistantId)
+  if (!stored) throw new Reject('no such assistant')
+  const after = {
+    voice: input.voice ?? stored.voice,
+    llm_model: input.llm_model !== undefined ? input.llm_model : stored.llm_model,
+    voice_pipeline: input.voice_pipeline !== undefined ? input.voice_pipeline : stored.voice_pipeline,
+  }
+  // A save that leaves them as they are (the web app sends the voice with every save) is never refused over them.
+  const same =
+    after.voice.provider === stored.voice.provider &&
+    after.voice.voice_id === stored.voice.voice_id &&
+    (after.voice.model ?? '') === (stored.voice.model ?? '') &&
+    after.llm_model === stored.llm_model &&
+    after.voice_pipeline === stored.voice_pipeline
+  if (same) return null
+  if (input.voice?.model && !voiceModelLevel(input.voice.provider, input.voice.model))
+    throw new Reject(`${input.voice.model} is not a voice model of ${input.voice.provider} here: pick one of voice.options`)
+  if (input.llm_model) {
+    const llm = await activeProvider(tx, 'llm').catch(() => null)
+    if (!llm || !languageModelLevel(llm.provider, input.llm_model))
+      throw new Reject(`${input.llm_model} is not a language model of this server's provider: pick one of voice.options`)
+  }
+  await checkAssistantLevel(tx, workspaceId, after, { picksRealtime: picksRealtime(stored, after) })
+  return usageLevelChange(stored, after)
+}
+
+/** Whether a save turns on answering with a realtime model (Ultra on Linedesk Cloud). */
+const picksRealtime = (stored: Pick<Assistant, 'voice_pipeline'>, after: Pick<Assistant, 'voice_pipeline'>) =>
+  after.voice_pipeline === 'realtime' && stored.voice_pipeline !== 'realtime'
+
+type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'>
+/** What decides a call's level, as the audit log keeps it: the voice model, the language model, the pipeline. */
+const levelFieldsOf = (a: LevelFields) => ({
+  voice_model: a.voice.model ? `${a.voice.provider}/${a.voice.model}` : null,
+  llm_model: a.llm_model ?? null,
+  voice_pipeline: a.voice_pipeline ?? null,
+})
+/** A change of what decides the level (who doubled the bill), for the audit log: before and after; null: none. */
+export type UsageLevelChange = { before: ReturnType<typeof levelFieldsOf>; after: ReturnType<typeof levelFieldsOf> }
+function usageLevelChange(stored: LevelFields, after: LevelFields): UsageLevelChange | null {
+  const before = levelFieldsOf(stored)
+  const now = levelFieldsOf(after)
+  return JSON.stringify(before) === JSON.stringify(now) ? null : { before, after: now }
+}
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
 export const preparers: Record<string, Preparer> = { ...voicePreparers, ...authenticatorPreparers }
@@ -466,18 +548,27 @@ const handlers: Record<string, Handler> = {
   'assistant.update': async (ctx, input) => {
     if (!ctx.actor.workspaceId) throw new Reject('no workspace')
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
-    if (input.languages) await checkAssistantLanguages(ctx.tx, ctx.actor.workspaceId, input.assistantId, input.languages)
+    // The languages against the voice the calls speak with: again when the voice changes.
+    if (input.languages || input.voice || input.voice_pipeline !== undefined) {
+      const languages = input.languages ?? (await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.languages
+      if (input.languages || languages)
+        await checkAssistantLanguages(ctx.tx, ctx.actor.workspaceId, input.assistantId, languages, { voice: input.voice, voice_pipeline: input.voice_pipeline })
+    }
     // Only contacts that can be dialled: one switched off because its line forwards to Linedesk
     // (switchOffLoopingTransfers) keeps its number, and the rest of the list stays editable.
     for (const contact of (input.transfers ?? []) as TransferContact[])
       if (isActiveContact(contact)) await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
     const before = input.transfers ? await assistantTransfers(ctx.tx, ctx.actor.workspaceId, input.assistantId) : null
+    // The voice and model it will answer with: models of the lists only, and on Linedesk Cloud of a level it may use.
+    const levelChange = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor.workspaceId, input) : null
     const result = await runPatch(ctx, actions.get('assistant.update')!, input)
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     if (setsTransferNumber(input)) await recordSetupEvent(ctx.tx, ctx.actor.workspaceId, 'mobile_added', ctx.now)
     // A change of the numbers calls are put through to is in the audit log (audit.ts, TRANSFER_CHANGE_ACTIONS).
     const changes = before && transferChanges(before, input.transfers as TransferContact[])
-    return changes ? { ...result, data: { transferChanges: changes } } : result
+    // So is a change of the voice model, language model or pipeline (audit.ts, usageLevelChange): what the calls cost.
+    if (!changes && !levelChange) return result
+    return { ...result, data: { ...(changes ? { transferChanges: changes } : {}), ...(levelChange ? { usageLevelChange: levelChange } : {}) } }
   },
 
   // An earlier version back, as a new version: the same checks as assistant.update. Its calendars are matched to the
@@ -485,7 +576,10 @@ const handlers: Record<string, Handler> = {
   'assistant.restoreVersion': async ({ tx, actor }, input: { assistantId: string; number: number }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     const workspaceId = actor.workspaceId
-    await assistantIn(tx, workspaceId, input.assistantId)
+    // The version lock first, as every save and Allow Premium off take it: what is read below cannot change before the
+    // restore writes (a switch-off waits, or has moved the assistant already and the level check sees it).
+    await lockAssistantVersion(tx, input.assistantId)
+    const current = (await assistantIn(tx, workspaceId, input.assistantId))!
     const { settings } = await versionOf(tx, workspaceId, input.assistantId, input.number)
     const { calendars: kept, ...fields } = settings
     if (actor.emailUnverified && setsTransferNumber(fields)) throw new Forbidden('Confirm your email first: this version puts calls through to a number')
@@ -493,10 +587,17 @@ const handlers: Record<string, Handler> = {
       throw new Reject(`Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`)
     })
     if (fields.languages)
-      await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages).catch(e => {
+      await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages, { voice: fields.voice, voice_pipeline: fields.voice_pipeline ?? null }).catch(e => {
         throw new Reject(`Version ${input.number}'s languages can't be used any more (${errorMessage(e)}): pick the languages and save instead`)
       })
     for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
+    // Like assistant.update: checked only when the version changes the voice, the model or the pipeline.
+    const levelAfter = { voice: fields.voice, llm_model: fields.llm_model ?? null, voice_pipeline: fields.voice_pipeline ?? null }
+    const levelChange = usageLevelChange(current, levelAfter)
+    if (levelChange)
+      await checkAssistantLevel(tx, workspaceId, levelAfter, { picksRealtime: picksRealtime(current, levelAfter) }).catch(e => {
+        throw new Reject(`Version ${input.number}'s voice or model can't be used here (${errorMessage(e)}): pick them and save instead`)
+      })
     const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
     const restored = await tx.update(assistants).set(fields).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
     await releaseUnusedClones(tx, workspaceId)
@@ -520,7 +621,10 @@ const handlers: Record<string, Handler> = {
     const number = await recordVersion(tx, workspaceId, input.assistantId, { by: actor.actorId, restoredFrom: input.number })
     const data: AssistantRestoreData = { number: number!, missingCalendars }
     const changes = transferChanges(transfersBefore, restored[0]?.transfers ?? [])
-    return { rows: { assistants: restored, assistant_calendars: calendars }, data: changes ? { ...data, transferChanges: changes } : data }
+    return {
+      rows: { assistants: restored, assistant_calendars: calendars },
+      data: { ...data, ...(changes ? { transferChanges: changes } : {}), ...(levelChange ? { usageLevelChange: levelChange } : {}) },
+    }
   },
 
   ...adminHandlers,

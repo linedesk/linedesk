@@ -225,6 +225,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'team.removeMemberAvatar': 'team',
   'team.updateMemberNotifications': 'team',
   'workspace.deleteOwn': 'team',
+  // What the workspace pays: the owner allowing Premium voices and models (Linedesk Cloud), on or off.
+  'workspace.setAllowPremium': 'team',
   'invitation.accept': 'team',
   'invitation.decline': 'team',
   // An instance admin changing who is in which workspace, also their own membership.
@@ -269,6 +271,18 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
  */
 export const TRANSFER_CHANGE_ACTIONS = ['assistant.update', 'assistant.restoreVersion'] as const
 export const TRANSFER_CHANGE_KIND: AuditKind = 'integrations'
+
+/**
+ * The same actions are audited when they changed what decides the assistant's usage level on Linedesk Cloud (the voice
+ * model, the language model, the pipeline: what its calls cost): their handlers put `data.usageLevelChange` (before and
+ * after, model ids only) in the result then. Kind `team`, like Allow Premium.
+ */
+export const USAGE_LEVEL_CHANGE_KIND: AuditKind = 'team'
+/** What decides the level, before and after a change (handlers.ts, UsageLevelChange). */
+export type AuditedLevelChange = {
+  before: { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null }
+  after: { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null }
+}
 
 /** A number as the audit log keeps it: its last four digits ("…0199"); null: none. */
 export const maskedNumber = (number: string | null | undefined) =>
@@ -338,6 +352,8 @@ const transferChangeActions = sql.join(
  * it down to "[omitted]"), or one refused whose input had transfers.
  */
 const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'transferChanges') = 'object' or (c.rejected and c.input ? 'transfers')))`
+/** SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object). */
+const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object')`
 
 /**
  * Whom a team or membership change was about, put in the action's result (`data.subject`) by its
@@ -394,6 +410,8 @@ export type AuditEntry = {
   input: unknown
   /** The transfer contacts a change added, changed and removed, by name (TRANSFER_CHANGE_ACTIONS only). */
   transferChanges?: TransferChangeNames
+  /** The voice model, language model or pipeline a change set, before and after (assistant.update, restoreVersion). */
+  usageLevelChange?: AuditedLevelChange
   /** apiKey.revoke: the revoked key's name (its input has only the id). */
   apiKeyName?: string
   refused: boolean
@@ -443,6 +461,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
   // Everything an AI agent did with a setup link counts as an integration, whatever the action (docs/api.md, Setup MCP).
   const withSetupKey = !f.kind || f.kind === 'integrations'
   const withTransferChanges = !f.kind || f.kind === TRANSFER_CHANGE_KIND
+  const withLevelChanges = !f.kind || f.kind === USAGE_LEVEL_CHANGE_KIND
   const listed = kindActions.length
     ? sql`c.action in (${sql.join(
         kindActions.map(a => sql`${a}`),
@@ -450,23 +469,25 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       )})`
     : sql`false`
   const commandRows =
-    kindActions.length || withImpersonated || withSetupKey || withTransferChanges
+    kindActions.length || withImpersonated || withSetupKey || withTransferChanges || withLevelChanges
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
         c.impersonated_by, c.setup_key_id,
         case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
           else coalesce(c.input->>'workspaceId', c.workspace_id) end as workspace_id,
         c.input, c.result->'data'->'subject'->>'email' as subject_email, c.result->'data'->'transferChanges' as transfer_changes, ${transferChangeSql} as transfer_change,
+        c.result->'data'->'usageLevelChange' as usage_level_change, ${usageLevelChangeSql} as level_change,
         case when c.action = 'apiKey.revoke' then (select k.name from api_keys k
           where k.id = c.input->>'apiKeyId' and k.workspace_id = c.workspace_id) end as api_key_name,
         c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}${
           withSetupKey ? sql` or c.setup_key_id is not null` : sql``
-        }${withTransferChanges ? sql` or ${transferChangeSql}` : sql``}`
+        }${withTransferChanges ? sql` or ${transferChangeSql}` : sql``}${withLevelChanges ? sql` or ${usageLevelChangeSql}` : sql``}`
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
         null::text as impersonated_by, null::text as setup_key_id, e.workspace_id, null::jsonb as input,
         (select s.email from "user" s where s.id = e.subject_id) as subject_email, null::jsonb as transfer_changes, false as transfer_change,
+        null::jsonb as usage_level_change, false as level_change,
         null::text as api_key_name, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
@@ -511,7 +532,13 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       kind:
         r.source === 'command'
           ? (AUDITED_ACTIONS[r.what] ??
-            (r.transfer_change ? TRANSFER_CHANGE_KIND : r.setup_key_id ? 'integrations' : 'impersonation'))
+            (r.transfer_change
+              ? TRANSFER_CHANGE_KIND
+              : r.level_change
+                ? USAGE_LEVEL_CHANGE_KIND
+                : r.setup_key_id
+                  ? 'integrations'
+                  : 'impersonation'))
           : AUTH_EVENT_KIND[r.what as AuthEventName],
       what: r.what,
       method: r.method,
@@ -527,6 +554,9 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       input: maskAuditInput(r.input),
       ...(r.transfer_changes && typeof r.transfer_changes === 'object'
         ? { transferChanges: namesOf(r.transfer_changes as TransferChanges) }
+        : {}),
+      ...(r.usage_level_change && typeof r.usage_level_change === 'object'
+        ? { usageLevelChange: r.usage_level_change as AuditedLevelChange }
         : {}),
       ...(r.api_key_name ? { apiKeyName: String(r.api_key_name) } : {}),
       refused: Boolean(r.refused),

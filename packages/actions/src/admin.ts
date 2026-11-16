@@ -465,14 +465,16 @@ const model = (env: string): ProviderField => ({ label: 'Model', env, secret: fa
 /**
  * Where each language-model provider answers (OpenAI-compatible chat completions) and its default models: `models`
  * for live turns (first one first, then fallbacks), `summaryModels` for the summary and other background work.
- * Live turns need the fastest first token (gemini-2.5-flash-lite about 0.6 s from the server, gpt-5.4-mini about
- * 1.05 s); the summary is not latency-critical and gets a stronger model. Used by the agent and the API alike.
+ * Live turns need the fastest first token (Gemini Flash-Lite about 0.6 s from the server on 2.5, gpt-5.4-mini about
+ * 1.05 s); the summary is not latency-critical. Every default is a Standard model (usage-level.ts). Gemini 2.5 Flash
+ * and Flash-Lite are deprecated (2.5 Flash routes to 3.5 Flash-Lite from 2026-12-01), so Gemini defaults to 3.5
+ * Flash-Lite, Google's successor, for both. Used by the agent and the API alike.
  */
 export const llmEndpoints = {
   openrouter: {
     baseUrl: 'https://openrouter.ai/api/v1',
-    models: ['google/gemini-2.5-flash-lite', 'openai/gpt-4.1-mini'],
-    summaryModels: ['google/gemini-2.5-flash', 'openai/gpt-5.4-mini'],
+    models: ['google/gemini-3.5-flash-lite', 'openai/gpt-4.1-mini'],
+    summaryModels: ['google/gemini-3.5-flash-lite', 'openai/gpt-5.4-mini'],
   },
   openai: { baseUrl: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'], summaryModels: ['gpt-4.1-mini'] },
   anthropic: {
@@ -482,8 +484,8 @@ export const llmEndpoints = {
   },
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    models: ['gemini-2.5-flash-lite'],
-    summaryModels: ['gemini-2.5-flash'],
+    models: ['gemini-3.5-flash-lite'],
+    summaryModels: ['gemini-3.5-flash-lite'],
   },
   groq: {
     baseUrl: 'https://api.groq.com/openai/v1',
@@ -612,14 +614,14 @@ export const providers = {
       api_key: apiKey('OPENROUTER_API_KEY'),
       model: {
         ...model('LLM_MODEL'),
-        hint: 'google/gemini-2.5-flash-lite, openai/gpt-4.1-mini (fallbacks after a comma)',
+        hint: 'google/gemini-3.5-flash-lite, openai/gpt-4.1-mini (fallbacks after a comma)',
       },
       summary_model: {
         label: 'Summary model',
         env: 'SUMMARY_MODEL',
         secret: false,
         optional: true,
-        hint: 'google/gemini-2.5-flash, openai/gpt-5.4-mini',
+        hint: 'google/gemini-3.5-flash-lite, openai/gpt-5.4-mini',
       },
     },
   },
