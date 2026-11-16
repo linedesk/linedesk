@@ -84,11 +84,10 @@ export async function onCallDialerFor(
   const sip = sipClient()
   const from = call.businessNumber
   // A number in the workspace's own carrier account dials out through that account, never the install's.
+  // A failed lookup throws: the dialer is looked up again when the assistant uses transfer_call (dialerLookup).
   const route = await transferRoute(api, call, from).catch(e => {
-    console.warn(`could not tell how call ${call.callId} transfers: ${e instanceof Error ? e.message : String(e)}`)
-    return null
+    throw new Error(`could not tell how call ${call.callId} transfers: ${e instanceof Error ? e.message : String(e)}`)
   })
-  if (route === null) return null
   const { trunkName } = route
   if (route.carrier !== 'default' && trunkName) {
     return workspaceTrunkDialer(
@@ -105,6 +104,29 @@ export async function onCallDialerFor(
     return null
   }
   return sipDialer({ sip, trunkId, to: number, from: call.businessNumber })
+}
+
+/**
+ * A contact's dialer, looked up when the call starts so a transfer does not wait for it. A lookup that failed (the API
+ * did not answer in time on a busy server) is tried once more when the dialer is needed: one slow request at the start
+ * must not leave the caller without a transfer for the whole call. null: it cannot be dialled on this call.
+ */
+export function dialerLookup(
+  lookUp: () => Promise<OnCallDialer | null>,
+  warn: (message: string) => void,
+): () => Promise<OnCallDialer | null> {
+  const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+  const first = lookUp()
+  first.catch(() => {}) // handled when the dialer is needed
+  let dialer: Promise<OnCallDialer | null> | null = null
+  return () =>
+    (dialer ??= first.catch(e => {
+      warn(`${message(e)}; looking it up again`)
+      return lookUp().catch(e2 => {
+        warn(message(e2))
+        return null
+      })
+    }))
 }
 
 /** A fixed line in the call's line voice (the realtime voice on a realtime call), mono; made once per voice and text and kept like the greeting. */

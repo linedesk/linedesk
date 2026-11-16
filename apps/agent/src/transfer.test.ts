@@ -5,7 +5,7 @@ import { parseTestMetadata } from './call-session.ts'
 import { buildInstructions } from './prompt.ts'
 import { mergeToolResults } from './summary.ts'
 import { phoneRefused, type Scenario, scenarios } from './test-caller/scenarios.ts'
-import { isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
+import { dialerLookup, isPhoneCallTest, liveTransferTestAllows, onCallDialerFor } from './transfer-tool.ts'
 import { simulatedContact, simulatedContacts } from './call-session.ts'
 import { maskedNumber, parseOnCallResponderMetadata } from './oncall-responder.ts'
 import { parseSetupOnCallTestArgs, parseSetupSipArgs } from './setup-args.ts'
@@ -486,4 +486,27 @@ test('--external refuses every transfer scenario, even with CALL_TEST_ONCALL set
     expect(phoneRefused(scenario, { CALL_TEST_ONCALL: '+19715550123' }, true), name).toBe(true)
   }
   expect(phoneRefused(scenarios['burst-pipe'], {}, true)).toBe(false)
+})
+
+test('a dialer lookup that failed at the start of the call is tried again when the transfer needs it', async () => {
+  const dialer = { dial: vi.fn() } as never
+  const warnings: string[] = []
+  const lookUp = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(dialer)
+  const get = dialerLookup(lookUp, m => warnings.push(m))
+  expect(lookUp).toHaveBeenCalledTimes(1) // looked up right away
+  expect(await get()).toBe(dialer)
+  expect(await get()).toBe(dialer) // once more at most, then kept
+  expect(lookUp).toHaveBeenCalledTimes(2)
+  expect(warnings).toEqual(['timeout; looking it up again'])
+
+  // Fails twice: no dialer (the assistant takes a message); a lookup that worked is never repeated.
+  const failing = dialerLookup(
+    () => Promise.reject(new Error('down')),
+    m => warnings.push(m),
+  )
+  expect(await failing()).toBeNull()
+  const once = vi.fn().mockResolvedValue(null)
+  const none = dialerLookup(once, m => warnings.push(m))
+  expect(await none()).toBeNull()
+  expect(once).toHaveBeenCalledTimes(1)
 })

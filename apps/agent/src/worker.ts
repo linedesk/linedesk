@@ -43,7 +43,7 @@ import { ALL_PARTICIPANT_KINDS, waitForCounterpart } from './counterpart.ts'
 import { runTestCaller } from './test-caller/caller.ts'
 import { type Dialable, transferContactsFor } from './transfer.ts'
 import { watchTakeOver } from './take-over.ts'
-import { onCallDialerFor } from './transfer-tool.ts'
+import { dialerLookup, onCallDialerFor } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
 import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
@@ -512,15 +512,15 @@ function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config
   const dialers = new Map(
     contacts.map(contact => [
       contact.id,
-      onCallDialerFor(call, contact.number, speech, api).catch(e => {
-        console.warn(`call ${call.callId}: cannot dial transfer contact ${contact.id}: ${e instanceof Error ? e.message : String(e)}`)
-        return null
-      }),
+      dialerLookup(
+        () => onCallDialerFor(call, contact.number, speech, api),
+        message => console.warn(`call ${call.callId}: cannot dial transfer contact ${contact.id}: ${message}`),
+      ),
     ]),
   )
   const callerIdentity = callerJoined.then(caller => caller.identity)
   void callerIdentity.catch(() => {}) // the call ends without a caller; nobody waits for it then
-  return { ctx, speech, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id) ?? Promise.resolve(null), stopRecording }
+  return { ctx, speech, callerIdentity, contacts, dialerOf: (contact: Dialable) => dialers.get(contact.id)?.() ?? Promise.resolve(null), stopRecording }
 }
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */
