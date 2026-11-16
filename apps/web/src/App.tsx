@@ -36,6 +36,7 @@ import { CheckoutReturn } from './CheckoutReturn.tsx'
 import { isCheckoutReturnPath } from './checkout.ts'
 import { isSignupPath } from './signup.ts'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
+import { setProviderAudience } from './providerAudience.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
 import { brandName } from './brand.ts'
 import { useMemberLocale } from './i18n/user.ts'
@@ -359,6 +360,8 @@ export function App() {
   // An instance admin by account, also before this session passed the passkey check: the setup pages are part of
   // Server admin, so they open on the passkey check (SecondFactorPrompt) until it is done.
   const instanceAdmin = isInstanceAdmin(session.me) && !session.me.impersonation
+  // Onboarding opens before Workspace (which sets it too): its admin-only links need the audience as well.
+  setProviderAudience(isInstanceAdmin(session.me) ? 'admin' : 'member')
   const settingUp = session.me.onboarding && !onboarded
   // The install by hand, step by step (InstallSetup.tsx); leaving it goes on to the business setup.
   if (instanceAdmin && installSetupHash) {

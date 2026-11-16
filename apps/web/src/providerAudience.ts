@@ -2,8 +2,9 @@ import type { ProviderAudience } from '@linedesk/actions'
 import { i18n } from './i18n/index.tsx'
 
 // Who reads a problem with this install's providers in this tab (LIN-111): instance admins fix it under
-// Server admin › Providers, everyone else asks whoever runs the server. Set from /me in Workspace, so error texts that
-// are built without `me` (refusals, toasts, test call, listening in) still name the right next step.
+// Server admin › Providers, everyone else asks whoever runs the server. Set from /me in App (before Onboarding) and
+// Workspace, so error texts that are built without `me` (refusals, toasts, test call, listening in) still name the
+// right next step.
 let current: ProviderAudience = 'member'
 
 export const providerAudience = (): ProviderAudience => current
