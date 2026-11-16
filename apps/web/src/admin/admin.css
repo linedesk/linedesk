@@ -1411,15 +1411,74 @@
 /* ---- System prompt (LIN-346): the whole prompt as text; fixed text editable in place, variables as grey chips. ---- */
 .adm-prompt {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+}
+.adm-prompt-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 .adm-prompt-section {
   gap: 2px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+/* LIN-393: each section collapses to its header and one line, so the whole prompt fits on one screen. */
+.adm-prompt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.adm-prompt-head:hover h3 {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.adm-prompt-head:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.adm-prompt-chevron {
+  flex: none;
+  color: var(--ink-muted);
+  transform: rotate(-90deg);
+  transition: transform 0.12s ease;
+}
+.adm-prompt-section.is-open .adm-prompt-chevron {
+  transform: none;
 }
 .adm-prompt-section h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
+}
+.adm-prompt-count {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.adm-prompt-head .k-badge {
+  margin-left: auto;
+}
+.adm-prompt-text.adm-prompt-preview {
+  margin: -4px 0 6px 26px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.adm-prompt-parts {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 6px;
 }
 .adm-prompt-part {
   display: grid;

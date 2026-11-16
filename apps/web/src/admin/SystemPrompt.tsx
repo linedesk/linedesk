@@ -143,10 +143,10 @@ function Variable({ name }: { name: string }) {
 }
 
 /** A text with its variables as chips, not editable (the default next to an edit). */
-function ReadOnlyText({ text }: { text: string }) {
+function ReadOnlyText({ text, className }: { text: string; className?: string }) {
   const { texts, variables } = splitText(text)
   return (
-    <p className="adm-prompt-text">
+    <p className={cx('adm-prompt-text', className)}>
       {texts.map((part, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one fixed text, in order
         <span key={i}>
@@ -303,6 +303,15 @@ export function SystemPrompt() {
   const query = useQuery(QUERY, load)
   const [problem, setProblem] = useState<string | null>(null)
   const edits = new Map((query.data?.overrides ?? []).map(edit => [edit.key, edit]))
+  // Every section starts collapsed: the page is an overview first, and only what the admin opens is shown in full.
+  const [open, setOpen] = useState<ReadonlySet<PromptSection>>(() => new Set())
+  const allOpen = open.size === PROMPT_SECTIONS.length
+  const toggle = (section: PromptSection) =>
+    setOpen(current => {
+      const next = new Set(current)
+      if (!next.delete(section)) next.add(section)
+      return next
+    })
 
   /** Shown at once (rule 3), then as the server stored it; on a failure the page goes back. */
   async function change(run: () => Promise<unknown>, optimistic: SystemPromptData) {
@@ -352,21 +361,61 @@ export function SystemPrompt() {
         onRetry={() => void query.reload()}
         skeleton={<SkeletonRows rows={8} columns={1} className="adm-sk-rows" />}
       >
-        {PROMPT_SECTIONS.map(section => (
-          <section key={section} className="adm-card adm-prompt-section" aria-label={t(SECTIONS[section])}>
-            <h3>{t(SECTIONS[section])}</h3>
-            {PROMPT_TEXT_KEYS.filter(key => PROMPT_TEXTS[key].section === section).map(key => (
-              <Part
-                key={key}
-                partKey={key}
-                edit={edits.get(key)}
-                onSave={save}
-                onReset={reset}
-                onEmpty={() => setProblem(t('admin.prompt.empty'))}
-              />
-            ))}
-          </section>
-        ))}
+        <div className="adm-prompt-toolbar">
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={allOpen ? 'up' : 'down'}
+            onClick={() => setOpen(allOpen ? new Set() : new Set(PROMPT_SECTIONS))}
+            aria-label={allOpen ? t('admin.prompt.collapseAll') : t('admin.prompt.expandAll')}
+          >
+            {allOpen ? t('admin.prompt.collapseAll') : t('admin.prompt.expandAll')}
+          </Button>
+        </div>
+        {PROMPT_SECTIONS.map(section => {
+          const keys = PROMPT_TEXT_KEYS.filter(key => PROMPT_TEXTS[key].section === section)
+          const edited = keys.filter(key => edits.has(key)).length
+          const isOpen = open.has(section)
+          const first = keys[0]
+          return (
+            <section
+              key={section}
+              className={cx('adm-card adm-prompt-section', isOpen && 'is-open')}
+              aria-label={t(SECTIONS[section])}
+            >
+              <button
+                type="button"
+                className="adm-prompt-head"
+                aria-expanded={isOpen}
+                aria-controls={`adm-prompt-${section}`}
+                title={isOpen ? t('admin.prompt.collapse') : t('admin.prompt.expand')}
+                onClick={() => toggle(section)}
+              >
+                <Icon name="down" size={14} className="adm-prompt-chevron" />
+                <h3>{t(SECTIONS[section])}</h3>
+                <span className="adm-prompt-count">{t('admin.prompt.parts', { count: keys.length })}</span>
+                {edited > 0 && <Badge tone="outline">{t('admin.prompt.editedCount', { count: edited })}</Badge>}
+              </button>
+              {!isOpen && first && (
+                <ReadOnlyText text={textInUse(first, edits.get(first))} className="adm-prompt-preview" />
+              )}
+              {isOpen && (
+                <div id={`adm-prompt-${section}`} className="adm-prompt-parts">
+                  {keys.map(key => (
+                    <Part
+                      key={key}
+                      partKey={key}
+                      edit={edits.get(key)}
+                      onSave={save}
+                      onReset={reset}
+                      onEmpty={() => setProblem(t('admin.prompt.empty'))}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )
+        })}
       </Loading>
     </div>
   )
