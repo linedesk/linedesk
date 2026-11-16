@@ -2294,6 +2294,8 @@ describe('impersonation', () => {
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'impersonationEmails.get',
       'insights.get',
+      // The Zapier subscriptions in Settings › Developers, a read like apiKey.list; no hook URLs in it. Remove stays refused.
+      'integration.list',
       'invitation.listMine',
       'member.list',
       'notifications.get',
