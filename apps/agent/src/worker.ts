@@ -7,6 +7,7 @@ import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type Provide
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, llm, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
+import { RoomServiceClient } from 'livekit-server-sdk'
 import { z } from 'zod'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { initErrorReporting } from './error-reporting.ts'
@@ -21,7 +22,7 @@ import { lookupTools } from './lookup-tools.ts'
 import { announceRecording, callLimitOf, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
-import { requireLivekitEnv, workerAgentName } from './env.ts'
+import { livekitHttpUrl, requireLivekitEnv, workerAgentName } from './env.ts'
 import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { type CallLanguages, callLanguagesOf, callVoicesOf, createPipeline, withCallLanguages, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
@@ -34,7 +35,7 @@ import { callNotesKeeper } from './call-notes.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { toolFiller, withFillers } from './tool-filler.ts'
-import { asksCaller, END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { asksCaller, END_CALL_RESULT, endRoom, ROOM_DELETE_TIMEOUT_MS, greetingPlayed, hangUpAfterGoodbye, hangUpAtCallLimit, lastLineOfCall, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
@@ -257,6 +258,26 @@ function reportVoiceFailure(room: Room, call: CallSession, log: CallLog, failure
     .catch(e => console.warn(`could not report the failure for call ${call.callId}: ${e instanceof Error ? e.message : String(e)}`))
 }
 
+/**
+ * Ends the call for everyone (endRoom): the room is deleted through LiveKit's server API, which says when that failed
+ * (JobContext.deleteRoom only logs it), and tried again; when it keeps failing, the agent leaves the call. Once per call:
+ * later calls change nothing.
+ */
+function roomEnder(ctx: JobContext, callId: string) {
+  let ending = false
+  return () => {
+    if (ending) return
+    ending = true
+    void (async () => {
+      const env = requireLivekitEnv()
+      const rooms = new RoomServiceClient(livekitHttpUrl(env.LIVEKIT_URL), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, { requestTimeout: ROOM_DELETE_TIMEOUT_MS / 1000 })
+      const room = ctx.room.name ?? ''
+      const how = await endRoom({ deleteRoom: () => rooms.deleteRoom(room), leave: () => ctx.shutdown('the room could not be deleted') })
+      if (how === 'left') console.warn(`call ${callId}: the room could not be deleted, the agent left the call`)
+    })().catch(e => console.warn(`call ${callId}: could not end the call: ${e instanceof Error ? e.message : String(e)}`))
+  }
+}
+
 /** The realtime model of a call, for its fixed lines: its session (once open) and how many turns the caller finished. */
 type RealtimeLines = { model: () => RealtimeEvents | null; callerTurns: () => number; languages: CallLanguages }
 
@@ -387,7 +408,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // A realtime model has no voice for the ready lines: it only skips the reply after a turn it already spoke in.
   skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null })
   session.on(voice.AgentSessionEventTypes.Close, onClose)
-  const deleteRoom = () => void ctx.deleteRoom().catch(() => {})
+  const deleteRoom = roomEnder(ctx, call.callId)
   // The assistant always says something before the call ends: its goodbye (else the goodbye line in the language spoken), the closing line
   // after silence, or the goodbye at its time limit.
   const sayLine = (text: string) => speak(text, { allowInterruptions: false, last: true })
@@ -422,11 +443,19 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // After a warm transfer or a take-over the caller talks with a person and the assistant is out of it: neither silence on its
   // side nor its time limit ends that call (the trunk's CALL_MAX_MINUTES does).
   const transferred = () => log.transferred
+  // The closing line after silence or the goodbye at the time limit, whichever comes first: it cuts off what is still
+  // playing, so the hang-up never cuts the line itself.
+  const lastLine = lastLineOfCall({
+    stopSpeaking: () => void session.interrupt({ force: true }).await.catch(() => {}),
+    stopListening: () => session.input.setAudioEnabled(false),
+    say: sayLine,
+    hangUp: deleteRoom,
+  })
   const stopSilence = remindOnSilence(session, silence, {
     remind: () => void speak(silence.reminder ?? lines().stillThere),
     close: () => {
       log.record('system', 'Hung up after silence on the line')
-      hangUpAfterLine(sayLine(silence.closing), deleteRoom)
+      lastLine(silence.closing)
     },
     transferred,
     onHold: () => log.onHold,
@@ -446,7 +475,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     transferred,
     goodbye: () => {
       log.record('system', `Call ended after ${limit.ms / 60_000} minutes`)
-      hangUpAfterLine(sayLine(limit.line), deleteRoom)
+      lastLine(limit.line)
     },
   })
   session.on(voice.AgentSessionEventTypes.Close, cancelLimit)

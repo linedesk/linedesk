@@ -1,6 +1,6 @@
 import { CALLER_NAME_MAX, callFinish } from '@linedesk/actions'
 import { expect, test, vi } from 'vitest'
-import { mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
+import { MAX_UNSUMMARIZED_LENGTH, mergeToolResults, summarizeCall, unsummarizedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
 
 const transcript: TranscriptLine[] = [
   { speaker: 'agent', text: 'Thanks for calling Brightwater. How can I help?' },
@@ -176,4 +176,18 @@ test('without a summary, confirmed details still leave a call back for the team'
   expect(result.outcome).toBe('callback')
   expect(result.actionItems?.[0]?.text).toContain('Dana Reyes, +15035550183')
   expect(unsummarizedResult(lines).outcome).toBe('answered')
+})
+
+test('without a summary, the summary is everything the caller said, not only their first "hello" (demo retest fr-1)', () => {
+  const lines: TranscriptLine[] = [
+    { speaker: 'agent', text: 'Thanks for calling. How can I help?' },
+    { speaker: 'caller', text: 'Bonjour.' },
+    { speaker: 'caller', text: 'Le chauffage de mon appartement ne marche plus.' },
+    { speaker: 'system', text: 'Flagged as urgent' },
+    { speaker: 'caller', text: 'Je m\'appelle Elodie Marchand.' },
+  ]
+  expect(unsummarizedResult(lines).summary).toBe("Bonjour. Le chauffage de mon appartement ne marche plus. Je m'appelle Elodie Marchand.")
+  const long = unsummarizedResult([{ speaker: 'caller', text: 'word '.repeat(400) }]).summary!
+  expect(long.length).toBeLessThanOrEqual(MAX_UNSUMMARIZED_LENGTH)
+  expect(long.endsWith('word…')).toBe(true)
 })

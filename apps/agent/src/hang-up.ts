@@ -358,6 +358,94 @@ export function hangUpAfterLine(playout: Promise<unknown>, hangUp: () => void, m
 }
 
 /**
+ * The call's last line: the closing line after silence, or the goodbye at the time limit. Whatever the assistant is still
+ * saying, or about to say, is stopped first (`stopSpeaking`), and the caller is no longer listened to (`stopListening`):
+ * a reply still playing at the limit would otherwise hold the line back, and the line's cap (LINE_PLAYOUT_MAX_MS, counted
+ * from now) would cut it off (demo retest 2026-11-16: es-1, fr-1, ru-1). Once per call: the closing line and the time
+ * limit coming together say only the first. Returns whether this line is said.
+ */
+export function lastLineOfCall({
+  stopSpeaking,
+  stopListening,
+  say,
+  hangUp,
+  maxMs = LINE_PLAYOUT_MAX_MS,
+}: {
+  stopSpeaking: () => void
+  stopListening: () => void
+  say: (text: string) => Promise<unknown>
+  hangUp: () => void
+  maxMs?: number
+}) {
+  let said = false
+  return (text: string) => {
+    if (said) return false
+    said = true
+    for (const stop of [stopSpeaking, stopListening]) {
+      try {
+        stop()
+      } catch (e) {
+        console.warn(`before the last line: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    let playout: Promise<unknown>
+    try {
+      playout = say(text)
+    } catch (e) {
+      playout = Promise.reject(e)
+    }
+    hangUpAfterLine(playout, hangUp, maxMs)
+    return true
+  }
+}
+
+/**
+ * How often ending the room is tried, how long each try may take (LiveKit's default is 10 s), and the pause before the
+ * next try (doubled each time): 15 s at most in all, so a demo call whose last line ran to its cap still ends by the
+ * stale-call sweep's backstop (apps/api demo-rooms.ts DEMO_ROOM_MAX_MS: DEMO_CALL_MAX_SECONDS + 30 s).
+ */
+export const ROOM_DELETE_ATTEMPTS = 3
+export const ROOM_DELETE_TIMEOUT_MS = 4000
+export const ROOM_DELETE_RETRY_MS = 1000
+
+/** LiveKit's answer for a room that is gone already (the caller hung up first): nothing left to end. */
+const roomGone = (e: unknown) =>
+  !!e && typeof e === 'object' && ((e as { status?: unknown }).status === 404 || (e as { code?: unknown }).code === 'not_found')
+
+/**
+ * Ends the call for everyone by deleting its room. A failed delete (LiveKit's server API timing out on a busy network)
+ * is tried again: before, it was only logged, and the call went on after its closing line (demo retest 2026-11-16, pt-1).
+ * When every try fails, the agent leaves the call itself (`leave`): the assistant goes quiet and the call is finished;
+ * the API's stale-call sweep removes the room. Resolves with how it ended.
+ */
+export async function endRoom({
+  deleteRoom,
+  leave,
+  attempts = ROOM_DELETE_ATTEMPTS,
+  retryMs = ROOM_DELETE_RETRY_MS,
+  wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)),
+}: {
+  deleteRoom: () => Promise<unknown>
+  leave: () => void
+  attempts?: number
+  retryMs?: number
+  wait?: (ms: number) => Promise<unknown>
+}): Promise<'deleted' | 'left'> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await deleteRoom()
+      return 'deleted'
+    } catch (e) {
+      if (roomGone(e)) return 'deleted'
+      console.warn(`could not end the call's room (try ${attempt} of ${attempts}): ${e instanceof Error ? e.message : String(e)}`)
+      if (attempt < attempts) await wait(retryMs * 2 ** (attempt - 1))
+    }
+  }
+  leave()
+  return 'left'
+}
+
+/**
  * Says goodbye and ends the call after `maxMs` (`goodbye` does both), unless it was put through to a person by then:
  * the limit is about what the assistant costs, and the trunk's CALL_MAX_MINUTES still ends that call. Returns the cancel.
  */

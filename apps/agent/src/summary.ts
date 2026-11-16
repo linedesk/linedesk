@@ -122,12 +122,26 @@ export function unsummarizedResult(lines: TranscriptLine[], savedMessages: strin
     return { outcome: 'message', title: headline(savedMessages[0]!), summary: savedMessages.join(' ') }
   }
   const t = teamT(language)
-  const said = lines.find(l => l.speaker === 'caller')?.text ?? ''
+  const said = callerWords(lines)
   const who = details.filter(d => d.confirmed).map(d => d.value).join(', ')
   if (who) {
     return { outcome: 'callback', title: t('call.autoSummary.unavailable.title'), summary: said, actionItems: [{ text: t('call.autoSummary.callBackWho', { who, detail: said }).trim() }] }
   }
   return { outcome: 'answered', title: t('call.autoSummary.unavailable.title'), summary: said }
+}
+
+/** Longest summary made from the caller's own words when the language model could not write one. */
+export const MAX_UNSUMMARIZED_LENGTH = 600
+
+/**
+ * Everything the caller said, in order, cut at a word boundary: not only their first line, which is often just a
+ * "Hello." (demo retest 2026-11-16, fr-1 and ru-3).
+ */
+function callerWords(lines: TranscriptLine[]) {
+  const text = lines.filter(l => l.speaker === 'caller').map(l => l.text.trim()).filter(Boolean).join(' ')
+  if (text.length <= MAX_UNSUMMARIZED_LENGTH) return text
+  const cut = text.slice(0, MAX_UNSUMMARIZED_LENGTH - 1)
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : cut.length)}…`
 }
 
 /** The first sentence of a text, cut at a word boundary to fit a title. */

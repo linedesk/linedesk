@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { DEFAULT_SILENCE_CLOSING } from '@linedesk/actions'
+import { DEFAULT_SILENCE_CLOSING, DEMO_CALL_MAX_SECONDS } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 import { EventEmitter } from 'node:events'
-import { asksCaller, greetingPlayed, hangUpAfterGoodbye, nextReplyOf, skipSecondGoodbye, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import { asksCaller, endRoom, greetingPlayed, ROOM_DELETE_ATTEMPTS, ROOM_DELETE_RETRY_MS, ROOM_DELETE_TIMEOUT_MS, hangUpAfterGoodbye, lastLineOfCall, LINE_PLAYOUT_MAX_MS, nextReplyOf, skipSecondGoodbye, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -455,4 +455,128 @@ test('the hang-up line counts as the hang-up; a question or a negation does not'
     'I won\'t hang up until we have your address.',
     'Is there anything else I can help with?',
   ]) expect(announcesHangUp(said), said).toBe(false)
+})
+
+/**
+ * The assistant's audio as one queue, like LiveKit's: a line waits for whatever plays before it. `reply(ms)` starts a
+ * reply that plays for `ms`; `say` queues a line of `lineMs`; `stopSpeaking` cuts what plays now.
+ */
+function speechQueue(lineMs: number) {
+  let busyUntil = 0
+  let cut: (() => void) | null = null
+  const lines: { text: string; start: number; end: number }[] = []
+  const now = () => Date.now()
+  return {
+    lines,
+    reply(ms: number) {
+      busyUntil = now() + ms
+      cut = () => (busyUntil = now())
+    },
+    stopSpeaking: () => cut?.(),
+    say: (text: string) =>
+      new Promise<void>(resolve => {
+        const startAt = () => Math.max(now(), busyUntil)
+        // Starts once the queue ahead of it is done (checked again in case that was cut meanwhile).
+        const tick = () => {
+          if (startAt() > now()) return void setTimeout(tick, 100)
+          const line = { text, start: now(), end: now() + lineMs }
+          lines.push(line)
+          busyUntil = line.end
+          setTimeout(resolve, lineMs)
+        }
+        tick()
+      }),
+  }
+}
+
+test('the limit line plays in full when a reply is still playing at the limit: the reply is cut, the line starts at once (es-1, ru-1)', async () => {
+  vi.setSystemTime(0)
+  const audio = speechQueue(6000)
+  const hangUp = vi.fn()
+  const stopListening = vi.fn()
+  audio.reply(13_000) // the answer to the caller's last question, still playing at the limit
+  const lastLine = lastLineOfCall({ stopSpeaking: audio.stopSpeaking, stopListening, say: audio.say, hangUp })
+  expect(lastLine('The two minutes of this demo are over. Goodbye!')).toBe(true)
+  expect(stopListening).toHaveBeenCalledOnce()
+  await vi.advanceTimersByTimeAsync(LINE_PLAYOUT_MAX_MS + 1000)
+  const [line] = audio.lines
+  expect(line!.start).toBe(0)
+  expect(hangUp).toHaveBeenCalledOnce()
+})
+
+test('the last line hangs up when it has played, not at the cap', async () => {
+  vi.setSystemTime(0)
+  const audio = speechQueue(6000)
+  let hungUpAt = -1
+  const lastLine = lastLineOfCall({ stopSpeaking: audio.stopSpeaking, stopListening: () => {}, say: audio.say, hangUp: () => (hungUpAt = Date.now()) })
+  audio.reply(13_000)
+  lastLine('Goodbye!')
+  await vi.advanceTimersByTimeAsync(LINE_PLAYOUT_MAX_MS + 1000)
+  expect(hungUpAt).toBe(audio.lines[0]!.end)
+})
+
+test('the closing line and the time limit together: only the first is said, the call is hung up once (fr-1)', async () => {
+  const say = vi.fn(async () => {})
+  const hangUp = vi.fn()
+  const lastLine = lastLineOfCall({ stopSpeaking: () => {}, stopListening: () => {}, say, hangUp })
+  expect(lastLine('closing')).toBe(true)
+  expect(lastLine('limit')).toBe(false)
+  await vi.advanceTimersByTimeAsync(LINE_PLAYOUT_MAX_MS)
+  expect(say.mock.calls).toEqual([['closing']])
+  expect(hangUp).toHaveBeenCalledOnce()
+})
+
+test('a last line that cannot be said, or a session that cannot be interrupted, still ends the call', async () => {
+  const hangUp = vi.fn()
+  const lastLine = lastLineOfCall({
+    stopSpeaking: () => { throw new Error('AgentSession is not running') },
+    stopListening: () => {},
+    say: () => { throw new Error('AgentSession is closing') },
+    hangUp,
+  })
+  lastLine('Goodbye!')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(hangUp).toHaveBeenCalledOnce()
+
+  const stuck = vi.fn()
+  lastLineOfCall({ stopSpeaking: () => {}, stopListening: () => {}, say: () => new Promise(() => {}), hangUp: stuck })('Goodbye!')
+  await vi.advanceTimersByTimeAsync(LINE_PLAYOUT_MAX_MS - 1)
+  expect(stuck).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(stuck).toHaveBeenCalledOnce()
+})
+
+test('ending the room: a failed delete is tried again, so the call does not go on after the closing line (pt-1)', async () => {
+  const deleteRoom = vi.fn().mockRejectedValueOnce(new Error('The operation was aborted due to timeout')).mockResolvedValueOnce(undefined)
+  const leave = vi.fn()
+  const ended = endRoom({ deleteRoom, leave })
+  await vi.advanceTimersByTimeAsync(ROOM_DELETE_RETRY_MS)
+  await expect(ended).resolves.toBe('deleted')
+  expect(deleteRoom).toHaveBeenCalledTimes(2)
+  expect(leave).not.toHaveBeenCalled()
+})
+
+test('ending the room: when every delete fails the agent leaves the call itself', async () => {
+  const deleteRoom = vi.fn().mockRejectedValue(new Error('timeout'))
+  const leave = vi.fn()
+  const ended = endRoom({ deleteRoom, leave })
+  await vi.advanceTimersByTimeAsync(10_000)
+  await expect(ended).resolves.toBe('left')
+  expect(deleteRoom).toHaveBeenCalledTimes(ROOM_DELETE_ATTEMPTS)
+  expect(leave).toHaveBeenCalledOnce()
+})
+
+test('ending the room: a room that is gone already (the caller hung up) is not tried again', async () => {
+  const deleteRoom = vi.fn().mockRejectedValue(Object.assign(new Error('requested room does not exist'), { status: 404, code: 'not_found' }))
+  const leave = vi.fn()
+  await expect(endRoom({ deleteRoom, leave })).resolves.toBe('deleted')
+  expect(deleteRoom).toHaveBeenCalledOnce()
+  expect(leave).not.toHaveBeenCalled()
+})
+
+test('a demo call still ends by the stale-call sweep backstop: limit, last line at its cap, every room delete timing out', () => {
+  // apps/api demo-rooms.ts: DEMO_ROOM_MAX_MS = (DEMO_CALL_MAX_SECONDS + 30) * 1000; DEMO_BUDGET_SECONDS counts it plus one sweep.
+  const demoRoomMaxMs = (DEMO_CALL_MAX_SECONDS + 30) * 1000
+  const deleting = ROOM_DELETE_ATTEMPTS * ROOM_DELETE_TIMEOUT_MS + ROOM_DELETE_RETRY_MS * (2 ** (ROOM_DELETE_ATTEMPTS - 1) - 1)
+  expect(DEMO_CALL_MAX_SECONDS * 1000 + LINE_PLAYOUT_MAX_MS + deleting).toBeLessThanOrEqual(demoRoomMaxMs)
 })
