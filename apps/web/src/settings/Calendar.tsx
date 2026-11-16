@@ -11,7 +11,7 @@ import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@lined
 import { BOOKING_MODE_REFUSED, bookingMode, CONDITION_MAX, fitsBookingMode, TOOL_MAX_WAIT_MS } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 import { T, useFormat, useT } from '@linedesk/i18n/react'
-import { type FormEvent, Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { intlLocale } from '../i18n/format.ts'
@@ -24,6 +24,7 @@ import { Card, Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button, Icon } from '../ui/kit.tsx'
 import { EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
+import { bold, boldList, SummaryCard } from '../ui/SummaryCard.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { AppointmentTypeDialog } from './AppointmentTypeDialog.tsx'
 import { useCalendarConnectWays } from './calendar-providers.ts'
@@ -143,19 +144,6 @@ function toolTypeSource(connection: CalendarConnection, team?: string) {
     : i18n().t('settings.calendar.toolTypes.from', { provider })
 }
 
-/** "A, B and C" in the active language, each name in bold. */
-function boldList(names: string[]): ReactNode {
-  // Keyed by where each part starts in the sentence: unique, and the same on every render.
-  let at = 0
-  return new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).formatToParts(names).map(part => {
-    const key = `${at}`
-    at += part.value.length
-    return part.type === 'element' ? <b key={key}>{part.value}</b> : <Fragment key={key}>{part.value}</Fragment>
-  })
-}
-
-const bold = (chunks: ReactNode[]) => <b>{chunks}</b>
-
 /** A refused add in the app's words when the server says why by its code, else as the server said it. */
 function addRefusal(e: unknown): string {
   return (e as { code?: string }).code === BOOKING_MODE_REFUSED
@@ -194,47 +182,45 @@ function Summary({
   const fallback = live.find(c => c.is_default) ?? eventTypes.find(e => e.enabled && e.is_default)
   const others = live.some(c => c !== fallback)
   return (
-    <section className="cal-summary" aria-label={t('settings.calendar.summary.label')}>
-      <span className="cal-summary-mark" aria-hidden="true">
-        <Icon name="calendar" size={18} />
-      </span>
-      <div className="cal-summary-text">
-        <p>
-          {bookable.length ? (
-            <T k="settings.calendar.summary.books" values={{ name, types: boldList(bookable) }} />
-          ) : (
-            t('settings.calendar.summary.nothing', { name })
-          )}{' '}
-          {fallback ? (
-            fallback.duration_min === null ? (
-              <T
-                k="settings.calendar.summary.defaultCalendar"
-                values={{ calendar: fallback.name, others: others ? 'some' : 'none', b: bold }}
-              />
-            ) : (
-              <T k="settings.calendar.summary.defaultType" values={{ name, type: fallback.name, b: bold }} />
-            )
-          ) : live.length || tool ? null : (
-            t('settings.calendar.summary.noCalendar')
-          )}
-          {tool && <> {t('settings.calendar.summary.tool', { tool: PROVIDER_LABEL[tool.provider] })}</>}
-        </p>
-        {attention.length > 0 && (
-          <p className="cal-summary-warn">
-            <Badge tone="danger">{t('settings.calendar.summary.needsYou')}</Badge>
-            <span>
-              <T
-                k="settings.calendar.summary.lostAccess"
-                values={{
-                  accounts: format.list([...new Set(attention.map(a => PROVIDER_LABEL[a.provider]))]),
-                  link: chunks => <LinkButton onClick={onShowAccounts}>{chunks}</LinkButton>,
-                }}
-              />
-            </span>
-          </p>
-        )}
-      </div>
-    </section>
+    <SummaryCard
+      icon="calendar"
+      label={t('settings.calendar.summary.label')}
+      needsYou={
+        attention.length > 0
+          ? {
+              badge: t('settings.calendar.summary.needsYou'),
+              text: (
+                <T
+                  k="settings.calendar.summary.lostAccess"
+                  values={{
+                    accounts: format.list([...new Set(attention.map(a => PROVIDER_LABEL[a.provider]))]),
+                    link: chunks => <LinkButton onClick={onShowAccounts}>{chunks}</LinkButton>,
+                  }}
+                />
+              ),
+            }
+          : null
+      }
+    >
+      {bookable.length ? (
+        <T k="settings.calendar.summary.books" values={{ name, types: boldList(bookable) }} />
+      ) : (
+        t('settings.calendar.summary.nothing', { name })
+      )}{' '}
+      {fallback ? (
+        fallback.duration_min === null ? (
+          <T
+            k="settings.calendar.summary.defaultCalendar"
+            values={{ calendar: fallback.name, others: others ? 'some' : 'none', b: bold }}
+          />
+        ) : (
+          <T k="settings.calendar.summary.defaultType" values={{ name, type: fallback.name, b: bold }} />
+        )
+      ) : live.length || tool ? null : (
+        t('settings.calendar.summary.noCalendar')
+      )}
+      {tool && <> {t('settings.calendar.summary.tool', { tool: PROVIDER_LABEL[tool.provider] })}</>}
+    </SummaryCard>
   )
 }
 

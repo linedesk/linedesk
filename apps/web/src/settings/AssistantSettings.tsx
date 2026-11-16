@@ -98,6 +98,7 @@ import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { BusinessHours } from './BusinessHours.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
+import { HoursSummary, TransfersSummary } from './Summaries.tsx'
 import { Webhooks } from './Webhooks.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
 
@@ -973,6 +974,7 @@ function Form({
         {current === 'rules' && <Behaviours draft={draft} set={set} />}
         {current === 'transfers' && (
           <>
+            <TransfersSummary name={assistantName(draft, t)} transfers={draft.transfers} hoursOn={hoursOn} />
             <TransferContacts
               transfers={draft.transfers}
               onChange={list => set('transfers', list)}
@@ -1032,6 +1034,11 @@ function Form({
         />
       ) : current === 'hours' ? (
         <>
+          <HoursSummary
+            assistantId={assistant.id}
+            name={assistantName(draft, t)}
+            outsideGreeting={!!draft.greeting_outside.trim()}
+          />
           <BusinessHours canEdit={canEdit} />
           <Holidays canEdit={canEdit} toast={toast} />
           <VacationMode canEdit={canEdit} toast={toast} />

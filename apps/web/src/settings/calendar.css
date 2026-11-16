@@ -94,16 +94,7 @@
   gap: 16px;
 }
 
-/* The summary: a calm card in plain words. */
-.cal-summary {
-  display: flex;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-1);
-}
-.cal-summary-mark,
+/* The round icon of the start card (as the summary card's, ui/summary-card.css). */
 .cal-start-mark {
   flex: none;
   display: grid;
@@ -113,29 +104,6 @@
   border-radius: var(--radius-full);
   background: var(--surface-hover);
   color: var(--ink);
-}
-.cal-summary-text {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-.cal-summary-text p {
-  margin: 0;
-  font-size: 15px;
-  line-height: 24px;
-  color: var(--ink-muted);
-  text-wrap: pretty;
-}
-.cal-summary-text b {
-  font-weight: 600;
-  color: var(--ink);
-}
-.cal-summary-text .cal-summary-warn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 20px;
 }
 
 /* A numbered step: the number in a small black circle before the title. */

@@ -50,7 +50,7 @@ const FIRST_DAYS = 5
  * The workspace's closed days and closure: what is saved, and how to change it. A change shows at once (as far
  * as the browser can tell), then the server's answer, which knows the holidays, replaces it.
  */
-function useClosedDays(toast?: (text: string) => void) {
+export function useClosedDays(toast?: (text: string) => void) {
   const run = useRun()
   const settings = useWorkspaceSettings()
   const today = todayIn(settings.data?.timeZone ?? 'America/New_York')

@@ -59,8 +59,8 @@ export function hoursChanged(saved: readonly BusinessHoursSpan[], days: readonly
 export const hoursProblem = (days: readonly DayHours[]): string | null =>
   spansOf(days).some(h => h.end <= h.start) ? i18n().t('settings.hours.closingBeforeOpening') : null
 
-/** The week in one line, days with the same hours grouped: "Mon–Fri 7:00 AM–6:00 PM · Sat 8:00 AM–Noon". */
-export function weekSummary(days: readonly DayHours[]): string {
+/** The open days, days with the same hours grouped: ["Mon–Fri 7:00 AM–6:00 PM", "Sat 8:00 AM–Noon"]; none when closed every day. */
+export function weekGroups(days: readonly DayHours[]): string[] {
   const groups: { first: number; last: number; text: string }[] = []
   for (const weekday of WEEK_ORDER) {
     const day = days.find(d => d.weekday === weekday)
@@ -72,16 +72,19 @@ export function weekSummary(days: readonly DayHours[]): string {
     else groups.push({ first: weekday, last: weekday, text })
   }
   const { t } = i18n()
-  if (!groups.length) return t('settings.hours.closedEveryDay')
-  return groups
-    .map(g =>
-      g.first === g.last
-        ? t('settings.hours.summaryDay', { day: weekdayName(g.first, 'short'), hours: g.text })
-        : t('settings.hours.summaryDays', {
-            first: weekdayName(g.first, 'short'),
-            last: weekdayName(g.last, 'short'),
-            hours: g.text,
-          }),
-    )
-    .join(' · ')
+  return groups.map(g =>
+    g.first === g.last
+      ? t('settings.hours.summaryDay', { day: weekdayName(g.first, 'short'), hours: g.text })
+      : t('settings.hours.summaryDays', {
+          first: weekdayName(g.first, 'short'),
+          last: weekdayName(g.last, 'short'),
+          hours: g.text,
+        }),
+  )
+}
+
+/** The week in one line: "Mon–Fri 7:00 AM–6:00 PM · Sat 8:00 AM–Noon". */
+export function weekSummary(days: readonly DayHours[]): string {
+  const groups = weekGroups(days)
+  return groups.length ? groups.join(' · ') : i18n().t('settings.hours.closedEveryDay')
 }
