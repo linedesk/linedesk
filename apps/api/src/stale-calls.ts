@@ -12,14 +12,17 @@
 // once, whoever is in its room: filed with its full length while someone is in its room or LiveKit cannot be asked,
 // else with its last activity (a bridged call: at most the billed transfer cap after the transfer), so a call that
 // ended unreported is not billed its whole limit (security review of #864, L1). Then every ended call whose usage has
-// not posted yet (this sweep's, or a finish whose post failed) is posted.
+// not posted yet (this sweep's, or a finish whose post failed) is posted. An ended call queues the after-call webhook
+// and Zapier's call_finished, like call.finish.
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { calls, transcript_segments, type Tx } from '@linedesk/db'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
 import { callsPastTheirLimit, postEndedCalls } from './call-billing.ts'
 import { DEMO_ROOM_MAX_MS, isDemoRoom } from './demo-rooms.ts'
+import { queueIntegrationDeliveries } from './integrations.ts'
 import { deleteLivekitRoom, listLivekitRooms } from './livekit-status.ts'
+import { queueCallEnd } from './webhooks.ts'
 
 /** Minutes without a new transcript line after which a live call counts as over, when LiveKit cannot be asked. */
 export const STALE_AFTER_MIN = Number(process.env.STALE_LIVE_CALL_MINUTES) || 10
@@ -220,9 +223,14 @@ async function endStaleCalls(tx: Tx, nowMs: number, staleAfterMin: number, endRo
         action_items: sql`case when jsonb_array_length(${calls.action_items}) > 0 then ${calls.action_items} else ${JSON.stringify(action_items)}::jsonb end`,
       })
       .where(and(inArray(calls.id, [call.id]), eq(calls.status, 'live'))) // not if call.finish arrived meanwhile
-      .returning({ id: calls.id, room: calls.room })
-    for (const { id, room } of updated) {
+      .returning()
+    for (const row of updated) {
+      const { id, room } = row
       ended.push(id)
+      // A cut-off call is still a finished call for the after-call webhook and Zapier's call_finished, as with
+      // call.finish: a deploy or a crashed agent must not hide a caller who wants a callback from them.
+      await queueCallEnd(tx, row)
+      await queueIntegrationDeliveries(tx, row)
       // A room LiveKit no longer has needs no delete. An empty one is closed, so a restarted agent does not take its
       // job up again; without an answer from LiveKit it may still be open.
       if (room && over !== 'room-gone' && over !== 'demo-over' && over !== 'over-limit')

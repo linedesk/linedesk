@@ -11,6 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { attemptAnyDelivery } from '../src/integrations.ts'
+import { finishStaleCalls } from '../src/stale-calls.ts'
 import { offeredOverMcp } from '../src/mcp.ts'
 import { SIGNATURE_HEADER } from '../src/webhooks.ts'
 import { act, addMember, agent, type Caller, createWorkspace, request, type User, type Workspace } from './helpers.ts'
@@ -243,6 +244,23 @@ describe('delivery', () => {
     const id = await subscribe(key)
     await finishedCall(true)
     expect(await deliveriesOf(id)).toHaveLength(0)
+  })
+
+  test('a phone call cut off (its agent went away) and ended by the stale sweep goes out too, with the after-call webhook', async () => {
+    const { key } = await createKey(ws.owner)
+    const id = await subscribe(key)
+    const hook = `whe_${crypto.randomUUID().slice(0, 12)}`
+    const created = await act(ws.owner, 'webhook.create', { endpointId: hook, assistantId: ws.assistant.id, url: `${base}/end`, hooks: ['call_end'], secret: newWebhookSecret() })
+    expect(created.status, JSON.stringify(created.body)).toBe(200)
+    const callId = await liveCall()
+    // In the past, like the stale-call tests, so the sweep never touches live calls of other test files.
+    const now = new Date('2020-01-01T12:00:00.000Z')
+    await db.update(calls).set({ started_at: '2020-01-01T11:30:00.000Z' }).where(eq(calls.id, callId))
+    const ended = await finishStaleCalls(db, { now, staleAfterMin: 10, listRooms: async () => null, endRoom: async () => true })
+    expect(ended).toContain(callId)
+    expect(await deliveriesOf(id)).toMatchObject([{ event: 'call_finished', payload: { call_id: callId } }])
+    const afterCall = await db.select().from(webhook_deliveries).where(eq(webhook_deliveries.endpoint_id, hook))
+    expect(afterCall).toMatchObject([{ event: 'call_end', payload: { call_id: callId } }])
   })
 
   test('a failed attempt is retried; a 410 answer ends the subscription', async () => {
