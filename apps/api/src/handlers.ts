@@ -1,12 +1,60 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, spokenLanguages, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, languageModelLevel, realtimeModelLevel, voiceModelLevel, type VoicePipeline, } from '@linedesk/actions'
+import {
+  actions,
+  type AssistantRestoreData,
+  buyableAreaCode,
+  behaviourOn,
+  callerRecognized,
+  type CallerAttestation,
+  languageNames,
+  spokenLanguages,
+  unspokenLanguages,
+  pipelineChoiceUnder,
+  isActiveContact,
+  setsTransferNumber,
+  ASSISTANT_CALL_MAX_MINUTES,
+  confirmsNumber,
+  isE164,
+  normalizeCallerId,
+  recordingKey,
+  testCallContact,
+  type ActionDef,
+  type ActionResult,
+  type CallTestFinding,
+  type CarrierNumbersData,
+  type ReplyTiming,
+  type VoiceFailure,
+  VOICE_FAILURES_PER_CALL,
+  VOICE_FAILURE_MESSAGE_MAX,
+  isPerCallProviderError,
+  languageModelLevel,
+  realtimeModelLevel,
+  voiceModelLevel,
+  type VoicePipeline,
+} from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
-import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, call_reservations, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
-  transcript_segments, workspace_members, workspace_settings, type Tx,
+import {
+  assistant_calendars,
+  assistants,
+  availability_exceptions,
+  availability_rules,
+  call_evaluations,
+  call_events,
+  call_reservations,
+  calls,
+  contacts,
+  organization,
+  phone_numbers,
+  reply_timings,
+  syncedTables,
+  transcript_segments,
+  workspace_members,
+  workspace_settings,
+  type Tx,
 } from '@linedesk/db'
 import type { ActionItem, Assistant, AssistantVoice, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gt, gte, inArray, or, sql, } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, or, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
@@ -20,26 +68,63 @@ import { transferChanges } from './audit.ts'
 import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
 import { apiKeyHandlers } from './api-keys.ts'
+import { personalKeyHandlers } from './personal-keys.ts'
+import { recordHandlers } from './records.ts'
 import { assistantForNumber, assistantHandlers, assistantIn } from './assistants.ts'
-import { assistantVersionHandlers, lockAssistantVersion, recordVersion, versionForCall, versionOf, VERSIONED_ACTIONS, withVersion } from './assistant-versions.ts'
+import {
+  assistantVersionHandlers,
+  lockAssistantVersion,
+  recordVersion,
+  versionForCall,
+  versionOf,
+  VERSIONED_ACTIONS,
+  withVersion,
+} from './assistant-versions.ts'
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { calendarToolHandlers } from './calendar-tools.ts'
 import { callerHistory } from './caller-history.ts'
-import { type CarrierAccount, carrierHandlers, INSTALL_NUMBER_ADMIN_ONLY, lockWorkspaceCarrier, ownCarrierProvider, telephonyForWorkspace, tryLockWorkspaceCarrier } from './workspace-carrier.ts'
+import {
+  type CarrierAccount,
+  carrierHandlers,
+  INSTALL_NUMBER_ADMIN_ONLY,
+  lockWorkspaceCarrier,
+  ownCarrierProvider,
+  telephonyForWorkspace,
+  tryLockWorkspaceCarrier,
+} from './workspace-carrier.ts'
 import { refreshTransferTrunk, transferTrunkHandlers } from './transfer-trunk.ts'
 import { outboundHandlers, outboundRefusal, syncInstallDestinations } from './outbound-policy.ts'
 import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { impersonatorOf } from './impersonation-guard.ts'
-import { type Handler, type HandlerCtx, lockCall, notFound, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
+import {
+  type Handler,
+  type HandlerCtx,
+  lockCall,
+  notFound,
+  type Preparer,
+  Forbidden,
+  Reject,
+  type Undo,
+} from './handler-context.ts'
 import { activeProvider, installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { assistantForCall, assistantVoiceOf, checkAssistantLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
-import { areaCodeCountryRefusal, buyCountryRefusal, installPurchaseRefusal, logPurchase, NUMBER_NOT_ACTIVATED, NUMBER_SETUP_BUSY, NUMBERS_NEED_DOCUMENTS, numberCountryRefusal, purchaseCountry } from './number-purchases.ts'
+import {
+  areaCodeCountryRefusal,
+  buyCountryRefusal,
+  installPurchaseRefusal,
+  logPurchase,
+  NUMBER_NOT_ACTIVATED,
+  NUMBER_SETUP_BUSY,
+  NUMBERS_NEED_DOCUMENTS,
+  numberCountryRefusal,
+  purchaseCountry,
+} from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
 import { workspaceCreationHandlers } from './workspace-creation-handlers.ts'
 import { teamMemberEditHandlers } from './team-member-edit.ts'
@@ -54,8 +139,22 @@ import { publicHolidayHandlers } from './public-holidays.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { sampleHandlers } from './sample-calls.ts'
 import { goLiveChecklistHandlers } from './go-live-checklist.ts'
-import { isOwnNumber, recordCallFinished, recordCallStarted, recordOnboardingStep, recordSetupEvent } from './setup-events.ts'
-import { queueAssignNotification, queueCallEvaluation, queueCallTranscript, queueForwardingCheck, queueRecordingDeletion, queueCallNotification, queueCallPush } from './jobs.ts'
+import {
+  isOwnNumber,
+  recordCallFinished,
+  recordCallStarted,
+  recordOnboardingStep,
+  recordSetupEvent,
+} from './setup-events.ts'
+import {
+  queueAssignNotification,
+  queueCallEvaluation,
+  queueCallTranscript,
+  queueForwardingCheck,
+  queueRecordingDeletion,
+  queueCallNotification,
+  queueCallPush,
+} from './jobs.ts'
 import { afterCallTranscriptHandlers, transcribesAfterCalls } from './after-call-transcript.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
@@ -72,7 +171,14 @@ import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
 import { integrationHandlers, queueCallStarted, queueIntegrationDeliveries, queueLookup } from './integrations.ts'
-import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
+import {
+  askWebhook,
+  clearCallPayloads,
+  duringCallLookups,
+  lookUpCaller,
+  queueCallEnd,
+  webhookHandlers,
+} from './webhooks.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 
@@ -80,7 +186,11 @@ export { Forbidden, Reject, type HandlerCtx, type Undo }
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
-async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: unknown): Promise<Omit<ActionResult, 'ok'>> {
+async function runPatch(
+  { tx, actor, now }: HandlerCtx,
+  def: ActionDef,
+  input: unknown,
+): Promise<Omit<ActionResult, 'ok'>> {
   const patch = def.patch!
   if (!actor.workspaceId) throw new Reject('no workspace')
   const table = syncedTables[patch.table]
@@ -95,7 +205,10 @@ async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: u
 
 /** The assistant's transfer contacts as saved now (an assistant of another workspace has none). */
 async function assistantTransfers(tx: Tx, workspaceId: string, assistantId: string): Promise<TransferContact[]> {
-  const [row] = await tx.select({ transfers: assistants.transfers }).from(assistants).where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
+  const [row] = await tx
+    .select({ transfers: assistants.transfers })
+    .from(assistants)
+    .where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
   return row?.transfers ?? []
 }
 
@@ -105,11 +218,13 @@ export const MESSAGES_PER_CALL = 3
 /** Only `call.start` may run without a workspace: it is the action that resolves it. */
 async function loadCall(tx: Tx, actor: Actor, callId: string) {
   if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
-  const [call] = await tx.select().from(calls).where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
+  const [call] = await tx
+    .select()
+    .from(calls)
+    .where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
   if (!call) throw new Reject('call not found')
   return call
 }
-
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -117,10 +232,14 @@ const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)
 /** Whether `phoneNumber.setup` can work on this server: the carrier it would use, or why it cannot. */
 export type PhoneSetupStatus = { provider: string | null; problem: string | null }
 
-export async function phoneSetupStatus(loadProvider: () => Promise<{ name: string }>, env: Record<string, string | undefined> = process.env): Promise<PhoneSetupStatus> {
+export async function phoneSetupStatus(
+  loadProvider: () => Promise<{ name: string }>,
+  env: Record<string, string | undefined> = process.env,
+): Promise<PhoneSetupStatus> {
   try {
     const { name } = await loadProvider()
-    if (name !== 'dev' && !env.LIVEKIT_SIP_ENDPOINT) return { provider: name, problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
+    if (name !== 'dev' && !env.LIVEKIT_SIP_ENDPOINT)
+      return { provider: name, problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
     return { provider: name, problem: null }
   } catch (e) {
     return { provider: null, problem: errorMessage(e) }
@@ -139,7 +258,11 @@ async function configuredProvider(tx: Tx): Promise<TelephonyProvider> {
 /** One page of the carrier's numbers (Telnyx and Twilio both allow 250 per request). */
 const CARRIER_NUMBERS_PAGE = 250
 
-async function setupCarrier(tx: Tx, workspaceId: string, telephony?: TelephonyProvider): Promise<{ provider: TelephonyProvider; account: CarrierAccount }> {
+async function setupCarrier(
+  tx: Tx,
+  workspaceId: string,
+  telephony?: TelephonyProvider,
+): Promise<{ provider: TelephonyProvider; account: CarrierAccount }> {
   try {
     const resolved = await telephonyForWorkspace(tx, workspaceId)
     return telephony ? { provider: telephony, account: resolved.account } : resolved
@@ -156,7 +279,10 @@ async function setupCarrier(tx: Tx, workspaceId: string, telephony?: TelephonyPr
 async function releaseCarrier(tx: Tx, number: PhoneNumber): Promise<TelephonyProvider> {
   if (number.carrier_account === 'install') return configuredProvider(tx)
   const own = await ownCarrierProvider(tx, number.workspace_id)
-  if (!own) throw new Reject(`${number.e164} is in the workspace's own carrier account, which is not set up any more: release it there`)
+  if (!own)
+    throw new Reject(
+      `${number.e164} is in the workspace's own carrier account, which is not set up any more: release it there`,
+    )
   return own
 }
 
@@ -184,14 +310,16 @@ async function atCarrier<T>(request: () => Promise<T>): Promise<T> {
 }
 
 /** Gives a number that this command bought back to the carrier, so nothing is paid for without a row. */
-const releaseBought = (provider: TelephonyProvider, number: { e164: string; providerRef: string }): Undo => async () => {
-  try {
-    await provider.releaseNumber(number)
-    return `${number.e164} was released`
-  } catch (e) {
-    return `releasing ${number.e164} failed (${errorMessage(e)}): release it at the carrier, or set it up again`
+const releaseBought =
+  (provider: TelephonyProvider, number: { e164: string; providerRef: string }): Undo =>
+  async () => {
+    try {
+      await provider.releaseNumber(number)
+      return `${number.e164} was released`
+    } catch (e) {
+      return `releasing ${number.e164} failed (${errorMessage(e)}): release it at the carrier, or set it up again`
+    }
   }
-}
 
 /** The business hours `call.start` gives the agent; `closure` while vacation or closure mode is on. */
 export type CallHours = Pick<BusinessHoursContext, 'openNow' | 'summary'> &
@@ -216,7 +344,14 @@ export function closureNow(closure: Closure | null | undefined, timeZone: string
  * closure mode wins over the hours, also when the workspace does not use hours. null: nothing to say.
  */
 async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<CallHours | null> {
-  const [settings] = await tx.select({ timezone: workspace_settings.timezone, on: workspace_settings.business_hours_on, closure: workspace_settings.closure }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  const [settings] = await tx
+    .select({
+      timezone: workspace_settings.timezone,
+      on: workspace_settings.business_hours_on,
+      closure: workspace_settings.closure,
+    })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspace_id))
   const timeZone = settings?.timezone ?? DEFAULT_TIME_ZONE
   const closed = closureNow(settings?.closure, timeZone, Date.parse(now))
   if (closed) return closed
@@ -224,7 +359,15 @@ async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Prom
   if (!settings?.on) return null
   const rules = await tx.select().from(availability_rules).where(eq(availability_rules.workspace_id, workspace_id))
   if (!rules.length) return null
-  const exceptions = await tx.select().from(availability_exceptions).where(and(eq(availability_exceptions.workspace_id, workspace_id), gte(availability_exceptions.date, localDate(Date.parse(now), timeZone))))
+  const exceptions = await tx
+    .select()
+    .from(availability_exceptions)
+    .where(
+      and(
+        eq(availability_exceptions.workspace_id, workspace_id),
+        gte(availability_exceptions.date, localDate(Date.parse(now), timeZone)),
+      ),
+    )
   try {
     const hours = businessHoursContext(rules, timeZone, Date.parse(now), exceptions)
     return hours && withUpcomingClosure(hours, settings.closure, timeZone, Date.parse(now))
@@ -235,23 +378,40 @@ async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Prom
 }
 
 /** A closure that starts in the next two weeks is mentioned, so the assistant can tell callers ahead. */
-function withUpcomingClosure(hours: CallHours, closure: Closure | null | undefined, timeZone: string, nowMs: number): CallHours {
+function withUpcomingClosure(
+  hours: CallHours,
+  closure: Closure | null | undefined,
+  timeZone: string,
+  nowMs: number,
+): CallHours {
   const today = localDate(nowMs, timeZone)
   if (!closure || closure.from <= today || closure.from > addDays(today, 14)) return hours
-  return { ...hours, summary: `${hours.summary} The business will be closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.` }
+  return {
+    ...hours,
+    summary: `${hours.summary} The business will be closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.`,
+  }
 }
 
 type OpenCall = {
-  from: string; to: string; room?: string; source?: 'phone' | 'test' | 'simulated'; label: string; assistant: Assistant | null
+  from: string
+  to: string
+  room?: string
+  source?: 'phone' | 'test' | 'simulated'
+  label: string
+  assistant: Assistant | null
   /** What the caller's carrier said about the caller ID (phone calls; missing from an older agent). */
-  attestation?: CallerAttestation; spamLikely?: boolean
+  attestation?: CallerAttestation
+  spamLikely?: boolean
 }
 
 /**
  * The contact as the assistant may see it: on a call whose caller ID is not trusted (callerRecognized), nothing the
  * team wrote about the number's owner, only the number itself (the callback number).
  */
-export function contactForAssistant<C extends { name: string | null; note: string | null; name_source: string | null }>(contact: C, recognized: boolean): C {
+export function contactForAssistant<C extends { name: string | null; note: string | null; name_source: string | null }>(
+  contact: C,
+  recognized: boolean,
+): C {
   return recognized ? contact : { ...contact, name: null, note: null, name_source: null }
 }
 
@@ -265,8 +425,15 @@ function withCallToken<R extends { data: { callId: string; workspaceId: string }
  * the greeting, so it does nothing else: stale calls and unreported recordings are the API's minute
  * sweeps (stale-calls.ts, orphan-recordings.ts).
  */
-async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_id: string, { from, to, room, source = 'phone', label, assistant, attestation, spamLikely }: OpenCall) {
-  const [workspace] = await tx.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspace_id))
+async function openCall(
+  { tx, now }: Pick<HandlerCtx, 'tx' | 'now'>,
+  workspace_id: string,
+  { from, to, room, source = 'phone', label, assistant, attestation, spamLikely }: OpenCall,
+) {
+  const [workspace] = await tx
+    .select({ disabledAt: organization.disabledAt })
+    .from(organization)
+    .where(eq(organization.id, workspace_id))
   // A phone number always has its workspace; a test call names it, so it has to exist.
   if (!workspace && source === 'test') throw new Reject('no such workspace')
   if (workspace?.disabledAt) throw new Reject(`the workspace of ${label} is disabled`)
@@ -290,7 +457,16 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // The owner calling from their own phone to try it out: kept on the call, so it never counts as a real caller.
   const fromOwnNumber = source === 'phone' && isE164(from) && (await isOwnNumber(tx, workspace_id, from))
   // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
-  const [zone] = await tx.select({ timezone: workspace_settings.timezone, country: workspace_settings.country, holidays: workspace_settings.holidays, country_hint: workspace_settings.country_hint, country_hint_source: workspace_settings.country_hint_source }).from(workspace_settings).where(eq(workspace_settings.workspace_id, workspace_id))
+  const [zone] = await tx
+    .select({
+      timezone: workspace_settings.timezone,
+      country: workspace_settings.country,
+      holidays: workspace_settings.holidays,
+      country_hint: workspace_settings.country_hint,
+      country_hint_source: workspace_settings.country_hint_source,
+    })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspace_id))
   const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
   // Where the business is (Workspace settings › General, else worked out) and its country's language: the region numbers callers
   // say are read in, the greeting's language when the assistant has none of its own, the summary's for the team (and
@@ -365,16 +541,26 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // caller is handled like one from an unknown number (no booking changes, no history, no name or note). The contact
   // stays linked to the call for the team.
   const recognized = callerRecognized(source, attestation, assistant?.behaviours)
-  const booking = blocked ? null : await bookingContext(tx, workspace_id, now, { contactId: recognized ? (contact?.row.id ?? null) : null, assistantId: assistant?.id ?? null })
+  const booking = blocked
+    ? null
+    : await bookingContext(tx, workspace_id, now, {
+        contactId: recognized ? (contact?.row.id ?? null) : null,
+        assistantId: assistant?.id ?? null,
+      })
   // Said right after the greeting; the agent appends it (null: off).
   const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
   // "Don't keep" recordings: the agent does not record at all (the transcript comes from live speech recognition).
   const keepRecording = await keepsRecordings(tx, workspace_id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact, and only when the
   // assistant's owner leaves "Know the caller's previous calls" on.
-  const history = source !== 'test' && contact && recognized && !blocked && behaviourOn(assistant?.behaviours, 'caller_history')
-    ? await callerHistory(tx, workspace_id, contact.row, { callId: id, now, canChangeBookings: booking?.canChangeBookings === true })
-    : null
+  const history =
+    source !== 'test' && contact && recognized && !blocked && behaviourOn(assistant?.behaviours, 'caller_history')
+      ? await callerHistory(tx, workspace_id, contact.row, {
+          callId: id,
+          now,
+          canChangeBookings: booking?.canChangeBookings === true,
+        })
+      : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
   const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
   const answeredBy = forCall && {
@@ -432,25 +618,40 @@ async function liveBilledCallInRoom(tx: Tx, workspace_id: string, room: string) 
 
 /** The contact with this number: found (a merged one's survivor, a deleted one restored) or created. */
 async function callerContact(tx: Tx, workspace_id: string, phone: string, source: 'phone' | 'test' | 'simulated') {
-  let [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, phone)))
+  let [contact] = await tx
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.phone, phone)))
   // A number of a contact that was merged into another one belongs to that one now.
-  if (contact?.merged_into) [contact] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.id, contact.merged_into)))
+  if (contact?.merged_into)
+    [contact] = await tx
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.workspace_id, workspace_id), eq(contacts.id, contact.merged_into)))
   // A deleted contact who calls again is back in Contacts.
-  if (contact?.deleted_at) [contact] = await tx.update(contacts).set({ deleted_at: null }).where(eq(contacts.id, contact.id)).returning()
+  if (contact?.deleted_at)
+    [contact] = await tx.update(contacts).set({ deleted_at: null }).where(eq(contacts.id, contact.id)).returning()
   if (contact) return { row: contact, isNew: false }
   const name = source === 'test' ? testCallContact.name : null
-  const [created] = await tx.insert(contacts).values({ id: newId('ct'), workspace_id, phone, name }).returning()
+  const [created] = await tx
+    .insert(contacts)
+    .values({ id: newId('ct'), workspace_id, phone, name })
+    .returning()
   return { row: created!, isNew: true }
 }
 
-type Outcome = NonNullable<typeof calls.$inferSelect['outcome']>
-type Urgency = typeof calls.$inferSelect['urgency']
+type Outcome = NonNullable<(typeof calls.$inferSelect)['outcome']>
+type Urgency = (typeof calls.$inferSelect)['urgency']
 
 /**
  * A call flagged urgent while it ran (the assistant, a transfer) stays urgent and out of Spam: the summary reads
  * what the caller said, and a caller could talk it into "spam" or "low". Spam becomes a callback then.
  */
-export function keptUrgent(current: Urgency, outcome: Outcome, urgency: Urgency): { outcome: Outcome; urgency: Urgency } {
+export function keptUrgent(
+  current: Urgency,
+  outcome: Outcome,
+  urgency: Urgency,
+): { outcome: Outcome; urgency: Urgency } {
   if (current !== 'urgent') return { outcome, urgency }
   return { outcome: outcome === 'spam' ? 'callback' : outcome, urgency: 'urgent' }
 }
@@ -471,10 +672,17 @@ const LIVE_CALL_MAX_MS = (ASSISTANT_CALL_MAX_MINUTES + 5) * 60_000
 async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
   // Two calls arriving at once cannot both see room for one more.
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`live-calls:${workspace_id}`}))`)
-  const [row] = await tx.select({ live: sql<number>`count(*)::int` }).from(calls).where(and(
-    eq(calls.workspace_id, workspace_id), eq(calls.status, 'live'), eq(calls.source, 'phone'),
-    gt(calls.started_at, new Date(Date.parse(now) - LIVE_CALL_MAX_MS).toISOString()),
-  ))
+  const [row] = await tx
+    .select({ live: sql<number>`count(*)::int` })
+    .from(calls)
+    .where(
+      and(
+        eq(calls.workspace_id, workspace_id),
+        eq(calls.status, 'live'),
+        eq(calls.source, 'phone'),
+        gt(calls.started_at, new Date(Date.parse(now) - LIVE_CALL_MAX_MS).toISOString()),
+      ),
+    )
   return (row?.live ?? 0) >= LIVE_CALLS_PER_WORKSPACE
 }
 
@@ -483,8 +691,12 @@ async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
  * caller the lines are busy and hangs up (BUSY_LINE in apps/agent).
  */
 const busyCall = (now: string, t: TeamT) => ({
-  status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
-  title: t('call.autoSummary.missed.title'), summary: t('call.autoSummary.missed.busy', { count: LIVE_CALLS_PER_WORKSPACE }),
+  status: 'completed' as const,
+  ended_at: now,
+  duration_sec: 0,
+  outcome: 'hangup' as const,
+  title: t('call.autoSummary.missed.title'),
+  summary: t('call.autoSummary.missed.busy', { count: LIVE_CALLS_PER_WORKSPACE }),
   action_items: [{ text: t('call.autoSummary.missed.callBack') }],
 })
 
@@ -493,8 +705,12 @@ const busyCall = (now: string, t: TeamT) => ({
  * tells the caller the business will call back and hangs up (OVER_CAP_LINE in apps/agent).
  */
 const overCapCall = (now: string, t: TeamT) => ({
-  status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
-  title: t('call.autoSummary.missed.title'), summary: t('call.autoSummary.missed.overCap'),
+  status: 'completed' as const,
+  ended_at: now,
+  duration_sec: 0,
+  outcome: 'hangup' as const,
+  title: t('call.autoSummary.missed.title'),
+  summary: t('call.autoSummary.missed.overCap'),
   action_items: [{ text: t('call.autoSummary.missed.callBack') }],
 })
 
@@ -515,8 +731,13 @@ const refusedCall = (now: string, t: TeamT, reason: CallRefusal) => ({
 
 /** A call from a blocked number: over before it began, read, in Spam. */
 const blockedCall = (now: string, t: TeamT) => ({
-  status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'spam' as const, unread: false,
-  title: t('call.autoSummary.blocked.title'), summary: t('call.autoSummary.blocked.summary'),
+  status: 'completed' as const,
+  ended_at: now,
+  duration_sec: 0,
+  outcome: 'spam' as const,
+  unread: false,
+  title: t('call.autoSummary.blocked.title'),
+  summary: t('call.autoSummary.blocked.summary'),
 })
 
 /**
@@ -572,7 +793,9 @@ async function checkAssistantLanguages(
   if (!stored) throw new Reject('no such assistant')
   const voice = change.voice ?? stored.voice
   const voiceChanged =
-    voice.provider !== stored.voice.provider || voice.voice_id !== stored.voice.voice_id || (voice.model ?? '') !== (stored.voice.model ?? '')
+    voice.provider !== stored.voice.provider ||
+    voice.voice_id !== stored.voice.voice_id ||
+    (voice.model ?? '') !== (stored.voice.model ?? '')
   const kept = voiceChanged ? [] : unspokenLanguages(stored.languages, [])
   const callVoice = await assistantVoiceOf(tx, {
     voice,
@@ -590,9 +813,19 @@ async function checkAssistantLanguages(
 }
 type StoredLanguages = Parameters<typeof unspokenLanguages>[0]
 
-type LevelInput = { assistantId: string; voice?: AssistantVoice; llm_model?: string | null; voice_pipeline?: VoicePipeline | null; realtime_model?: string | null }
+type LevelInput = {
+  assistantId: string
+  voice?: AssistantVoice
+  llm_model?: string | null
+  voice_pipeline?: VoicePipeline | null
+  realtime_model?: string | null
+}
 /** Whether an assistant.update names what decides its calls' level: the voice, the models or the pipeline. */
-const choosesLevel = (input: LevelInput) => input.voice !== undefined || input.llm_model !== undefined || input.voice_pipeline !== undefined || input.realtime_model !== undefined
+const choosesLevel = (input: LevelInput) =>
+  input.voice !== undefined ||
+  input.llm_model !== undefined ||
+  input.voice_pipeline !== undefined ||
+  input.realtime_model !== undefined
 
 /**
  * The voice model and language model an assistant picks must be ones with a level (usage-level.ts) for the voice
@@ -617,11 +850,15 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
     after.realtime_model === stored.realtime_model
   if (same) return null
   if (input.voice?.model && !voiceModelLevel(input.voice.provider, input.voice.model))
-    throw new Reject(`${input.voice.model} is not a voice model of ${input.voice.provider} here: pick one of voice.options`)
+    throw new Reject(
+      `${input.voice.model} is not a voice model of ${input.voice.provider} here: pick one of voice.options`,
+    )
   if (input.llm_model) {
     const llm = await activeProvider(tx, 'llm').catch(() => null)
     if (!llm || !languageModelLevel(llm.provider, input.llm_model))
-      throw new Reject(`${input.llm_model} is not a language model of this server's provider: pick one of voice.options`)
+      throw new Reject(
+        `${input.llm_model} is not a language model of this server's provider: pick one of voice.options`,
+      )
   }
   if (input.realtime_model && !realtimeModelLevel(input.realtime_model))
     throw new Reject(`${input.realtime_model} is not a realtime model an assistant can pick: pick one of voice.options`)
@@ -636,7 +873,10 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
  */
 async function withoutStrayRealtimeModel<I extends LevelInput>(tx: Tx, workspaceId: string, input: I): Promise<I> {
   if (!input.realtime_model) return input
-  const pipeline = input.voice_pipeline !== undefined ? input.voice_pipeline : (await assistantIn(tx, workspaceId, input.assistantId))?.voice_pipeline
+  const pipeline =
+    input.voice_pipeline !== undefined
+      ? input.voice_pipeline
+      : (await assistantIn(tx, workspaceId, input.assistantId))?.voice_pipeline
   return pipeline === 'three_stage' ? { ...input, realtime_model: null } : input
 }
 
@@ -663,7 +903,11 @@ function usageLevelChange(stored: LevelFields, after: LevelFields): UsageLevelCh
 }
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
-export const preparers: Record<string, Preparer> = { ...voicePreparers, ...authenticatorPreparers, ...stripeEventPreparers }
+export const preparers: Record<string, Preparer> = {
+  ...voicePreparers,
+  ...authenticatorPreparers,
+  ...stripeEventPreparers,
+}
 
 /**
  * The next steps the API itself put on a call while it ran (BOOKING_MISSES_NOTE when booking changes were locked):
@@ -683,14 +927,19 @@ const handlers: Record<string, Handler> = {
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
     // The languages against the voice the calls speak with: again when the voice changes.
     if (input.languages || input.voice || input.voice_pipeline !== undefined) {
-      const languages = input.languages ?? (await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.languages
+      const languages =
+        input.languages ?? (await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.languages
       if (input.languages || languages)
-        await checkAssistantLanguages(ctx.tx, ctx.actor.workspaceId, input.assistantId, languages, { voice: input.voice, voice_pipeline: input.voice_pipeline })
+        await checkAssistantLanguages(ctx.tx, ctx.actor.workspaceId, input.assistantId, languages, {
+          voice: input.voice,
+          voice_pipeline: input.voice_pipeline,
+        })
     }
     // Only contacts that can be dialled: one switched off because its line forwards to Linedesk
     // (switchOffLoopingTransfers) keeps its number, and the rest of the list stays editable.
     for (const contact of (input.transfers ?? []) as TransferContact[])
-      if (isActiveContact(contact)) await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
+      if (isActiveContact(contact))
+        await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
     const before = input.transfers ? await assistantTransfers(ctx.tx, ctx.actor.workspaceId, input.assistantId) : null
     // The voice and model it will answer with: models of the lists only, and on Linedesk Cloud of a level it may use.
     const levelChange = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor.workspaceId, input) : null
@@ -701,7 +950,13 @@ const handlers: Record<string, Handler> = {
     const changes = before && transferChanges(before, input.transfers as TransferContact[])
     // So is a change of the voice model, language model or pipeline (audit.ts, usageLevelChange): what the calls cost.
     if (!changes && !levelChange) return result
-    return { ...result, data: { ...(changes ? { transferChanges: changes } : {}), ...(levelChange ? { usageLevelChange: levelChange } : {}) } }
+    return {
+      ...result,
+      data: {
+        ...(changes ? { transferChanges: changes } : {}),
+        ...(levelChange ? { usageLevelChange: levelChange } : {}),
+      },
+    }
   },
 
   // An earlier version back, as a new version: the same checks as assistant.update. Its calendars are matched to the
@@ -715,15 +970,24 @@ const handlers: Record<string, Handler> = {
     const current = (await assistantIn(tx, workspaceId, input.assistantId))!
     const { settings } = await versionOf(tx, workspaceId, input.assistantId, input.number)
     const { calendars: kept, ...fields } = settings
-    if (actor.emailUnverified && setsTransferNumber(fields)) throw new Forbidden('Confirm your email first: this version puts calls through to a number')
+    if (actor.emailUnverified && setsTransferNumber(fields))
+      throw new Forbidden('Confirm your email first: this version puts calls through to a number')
     await checkAssistantVoice(tx, workspaceId, fields.voice).catch(e => {
-      throw new Reject(`Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`)
+      throw new Reject(
+        `Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`,
+      )
     })
     if (fields.languages)
-      await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages, { voice: fields.voice, voice_pipeline: fields.voice_pipeline ?? null }).catch(e => {
-        throw new Reject(`Version ${input.number}'s languages can't be used any more (${errorMessage(e)}): pick the languages and save instead`)
+      await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages, {
+        voice: fields.voice,
+        voice_pipeline: fields.voice_pipeline ?? null,
+      }).catch(e => {
+        throw new Reject(
+          `Version ${input.number}'s languages can't be used any more (${errorMessage(e)}): pick the languages and save instead`,
+        )
       })
-    for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
+    for (const contact of fields.transfers ?? [])
+      if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
     // Like assistant.update: checked only when the version changes the voice, the model or the pipeline.
     const levelAfter = {
       voice: fields.voice,
@@ -734,40 +998,69 @@ const handlers: Record<string, Handler> = {
     }
     const levelChange = usageLevelChange(current, levelAfter)
     if (levelChange)
-      await checkAssistantLevel(tx, workspaceId, levelAfter, { picksRealtime: picksRealtime(current, levelAfter) }).catch(e => {
-        throw new Reject(`Version ${input.number}'s voice or model can't be used here (${errorMessage(e)}): pick them and save instead`)
+      await checkAssistantLevel(tx, workspaceId, levelAfter, {
+        picksRealtime: picksRealtime(current, levelAfter),
+      }).catch(e => {
+        throw new Reject(
+          `Version ${input.number}'s voice or model can't be used here (${errorMessage(e)}): pick them and save instead`,
+        )
       })
     const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
     // A version from before a level column has no key for it: the column's default (null), as the check and the audit
     // above assume, not what the assistant has now.
     const restored = await tx
       .update(assistants)
-      .set({ ...fields, llm_model: levelAfter.llm_model, voice_pipeline: levelAfter.voice_pipeline, realtime_model: levelAfter.realtime_model })
-      .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
+      .set({
+        ...fields,
+        llm_model: levelAfter.llm_model,
+        voice_pipeline: levelAfter.voice_pipeline,
+        realtime_model: levelAfter.realtime_model,
+      })
+      .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId)))
+      .returning()
     await releaseUnusedClones(tx, workspaceId)
-    const linked = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, input.assistantId))
+    const linked = await tx
+      .select()
+      .from(assistant_calendars)
+      .where(eq(assistant_calendars.assistant_id, input.assistantId))
     const keyOf = (c: { connection_id: string; external_id: string }) => `${c.connection_id}/${c.external_id}`
     const wanted = new Map(kept.map(c => [keyOf(c), c]))
     const calendars = []
     for (const row of linked) {
       const was = wanted.get(keyOf(row))
-      const set = was ? { instruction: was.instruction, enabled: was.enabled, is_default: was.is_default } : { enabled: false, is_default: false }
-      calendars.push(...(await tx.update(assistant_calendars).set(set).where(eq(assistant_calendars.id, row.id)).returning()))
+      const set = was
+        ? { instruction: was.instruction, enabled: was.enabled, is_default: was.is_default }
+        : { enabled: false, is_default: false }
+      calendars.push(
+        ...(await tx.update(assistant_calendars).set(set).where(eq(assistant_calendars.id, row.id)).returning()),
+      )
     }
     // The assistant keeps a default while it has calendars: the version's, else the oldest one that is on.
     if (calendars.length && !calendars.some(c => c.is_default)) {
-      const next = [...calendars].sort((a, b) => a.created_at.localeCompare(b.created_at)).find(c => c.enabled) ?? calendars[0]!
-      const [updated] = await tx.update(assistant_calendars).set({ is_default: true, enabled: true }).where(eq(assistant_calendars.id, next.id)).returning()
+      const next =
+        [...calendars].sort((a, b) => a.created_at.localeCompare(b.created_at)).find(c => c.enabled) ?? calendars[0]!
+      const [updated] = await tx
+        .update(assistant_calendars)
+        .set({ is_default: true, enabled: true })
+        .where(eq(assistant_calendars.id, next.id))
+        .returning()
       calendars.splice(calendars.indexOf(next), 1, updated!)
     }
     const linkedKeys = new Set(linked.map(keyOf))
     const missingCalendars = kept.filter(c => !linkedKeys.has(keyOf(c))).map(c => c.name)
-    const number = await recordVersion(tx, workspaceId, input.assistantId, { by: actor.actorId, restoredFrom: input.number })
+    const number = await recordVersion(tx, workspaceId, input.assistantId, {
+      by: actor.actorId,
+      restoredFrom: input.number,
+    })
     const data: AssistantRestoreData = { number: number!, missingCalendars }
     const changes = transferChanges(transfersBefore, restored[0]?.transfers ?? [])
     return {
       rows: { assistants: restored, assistant_calendars: calendars },
-      data: { ...data, ...(changes ? { transferChanges: changes } : {}), ...(levelChange ? { usageLevelChange: levelChange } : {}) },
+      data: {
+        ...data,
+        ...(changes ? { transferChanges: changes } : {}),
+        ...(levelChange ? { usageLevelChange: levelChange } : {}),
+      },
     }
   },
 
@@ -805,6 +1098,8 @@ const handlers: Record<string, Handler> = {
   ...outboundHandlers(),
   ...liveCallHandlers(),
   ...apiKeyHandlers,
+  ...personalKeyHandlers,
+  ...recordHandlers,
   ...agentSetupHandlers,
   ...installSetupHandlers,
   ...bookingHandlers,
@@ -823,7 +1118,9 @@ const handlers: Record<string, Handler> = {
     await clearCallPayloads(ctx.tx, ctx.actor.workspaceId!, input.callId)
     await purgeCommandsAbout(ctx.tx, ctx.actor.workspaceId!, 'callId', input.callId)
     // Its evaluation goes too (it quotes what went wrong on the call); a restored call can be evaluated again.
-    await ctx.tx.delete(call_evaluations).where(and(eq(call_evaluations.call_id, input.callId), eq(call_evaluations.workspace_id, ctx.actor.workspaceId!)))
+    await ctx.tx
+      .delete(call_evaluations)
+      .where(and(eq(call_evaluations.call_id, input.callId), eq(call_evaluations.workspace_id, ctx.actor.workspaceId!)))
     return result
   },
 
@@ -836,8 +1133,12 @@ const handlers: Record<string, Handler> = {
 
   'contact.create': async ({ tx, actor }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    const [existing] = await tx.select().from(contacts).where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
-    if (existing && (!existing.deleted_at || existing.merged_into)) throw new Reject(`${input.phone} is already a contact`)
+    const [existing] = await tx
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
+    if (existing && (!existing.deleted_at || existing.merged_into))
+      throw new Reject(`${input.phone} is already a contact`)
     const fields = {
       name: input.name ?? null,
       name_source: input.name ? ('member' as const) : null,
@@ -847,8 +1148,15 @@ const handlers: Record<string, Handler> = {
       note: input.note ?? null,
     }
     const [contact] = existing
-      ? await tx.update(contacts).set({ ...fields, deleted_at: null }).where(eq(contacts.id, existing.id)).returning()
-      : await tx.insert(contacts).values({ id: newId('ct'), workspace_id: actor.workspaceId, phone: input.phone, ...fields }).returning()
+      ? await tx
+          .update(contacts)
+          .set({ ...fields, deleted_at: null })
+          .where(eq(contacts.id, existing.id))
+          .returning()
+      : await tx
+          .insert(contacts)
+          .values({ id: newId('ct'), workspace_id: actor.workspaceId, phone: input.phone, ...fields })
+          .returning()
     return { rows: { contacts: [contact!] }, data: { contactId: contact!.id } }
   },
 
@@ -868,46 +1176,96 @@ const handlers: Record<string, Handler> = {
     // Our own forwarding check arriving: not answered, not filed, never a real call (forwarding-check.ts).
     const check = await claimForwardingCheck(tx, { from, to, now })
     if (check) return forwardingCheckStart(check)
-    return withCallToken(await openCall({ tx, now }, number.workspace_id, {
-      from, to, room: input.room, source: input.source, label: to, assistant, attestation: input.attestation, spamLikely: input.spamLikely,
-    }))
+    return withCallToken(
+      await openCall({ tx, now }, number.workspace_id, {
+        from,
+        to,
+        room: input.room,
+        source: input.source,
+        label: to,
+        assistant,
+        attestation: input.attestation,
+        spamLikely: input.spamLikely,
+      }),
+    )
   },
 
   // The agent only knows the workspace from the dispatch the API signed (assistant.startTestCall).
   'call.startTest': async ({ tx, actor, now }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace (send x-workspace-id)')
     // The assistant comes from the signed dispatch; it must still be one of this workspace's.
-    const [workspace] = await tx.select({ id: organization.id }).from(organization).where(eq(organization.id, actor.workspaceId))
+    const [workspace] = await tx
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, actor.workspaceId))
     if (!workspace) throw new Reject('no such workspace')
     const assistant = await assistantIn(tx, actor.workspaceId, input.assistantId)
     // A room is one test call: the browser's join token outlives the room, and rejoining would open a new call.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`test-room:${input.room}`}))`)
     // The dispatch the API signed ties a room to one workspace, so looking in it is enough (and uses its index).
-    const [used] = await tx.select({ id: calls.id }).from(calls).where(and(eq(calls.workspace_id, actor.workspaceId), eq(calls.room, input.room))).limit(1)
+    const [used] = await tx
+      .select({ id: calls.id })
+      .from(calls)
+      .where(and(eq(calls.workspace_id, actor.workspaceId), eq(calls.room, input.room)))
+      .limit(1)
     if (used) throw new Reject('this test call has ended: start a new one')
-    return withCallToken(await openCall({ tx, now }, actor.workspaceId, { from: testCallContact.phone, to: testCallContact.phone, room: input.room, source: 'test', label: 'this test call', assistant }))
+    return withCallToken(
+      await openCall({ tx, now }, actor.workspaceId, {
+        from: testCallContact.phone,
+        to: testCallContact.phone,
+        room: input.room,
+        source: 'test',
+        label: 'this test call',
+        assistant,
+      }),
+    )
   },
 
   'call.findForTest': async ({ tx, now, calendars }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw new Reject(`${input.to} is not set up in any workspace`)
     // A phone call comes in on the number; a no-phone test call is found by its room.
-    const which = input.room ? eq(calls.room, input.room) : input.from ? and(eq(calls.from_number, input.from), eq(calls.to_number, input.to)) : undefined
+    const which = input.room
+      ? eq(calls.room, input.room)
+      : input.from
+        ? and(eq(calls.from_number, input.from), eq(calls.to_number, input.to))
+        : undefined
     const [call] = which
-      ? await tx.select().from(calls).where(and(eq(calls.workspace_id, number.workspace_id), which, gte(calls.started_at, input.since))).orderBy(desc(calls.started_at)).limit(1)
+      ? await tx
+          .select()
+          .from(calls)
+          .where(and(eq(calls.workspace_id, number.workspace_id), which, gte(calls.started_at, input.since)))
+          .orderBy(desc(calls.started_at))
+          .limit(1)
       : []
     const segments = call
-      ? await tx.select({ speaker: transcript_segments.speaker, text: transcript_segments.text, at_ms: transcript_segments.at_ms }).from(transcript_segments)
-        .where(eq(transcript_segments.call_id, call.id)).orderBy(asc(transcript_segments.at_ms))
+      ? await tx
+          .select({
+            speaker: transcript_segments.speaker,
+            text: transcript_segments.text,
+            at_ms: transcript_segments.at_ms,
+          })
+          .from(transcript_segments)
+          .where(eq(transcript_segments.call_id, call.id))
+          .orderBy(asc(transcript_segments.at_ms))
       : []
     const count = (speaker: string) => segments.filter(s => s.speaker === speaker).length
     const data: CallTestFinding = {
       workspaceId: number.workspace_id,
-      call: call ? {
-        id: call.id, status: call.status, outcome: call.outcome, urgency: call.urgency, title: call.title, summary: call.summary,
-        recording_key: call.recording_key, duration_sec: call.duration_sec, action_items: call.action_items.length,
-        transfer_result: call.transfer_result,
-      } : null,
+      call: call
+        ? {
+            id: call.id,
+            status: call.status,
+            outcome: call.outcome,
+            urgency: call.urgency,
+            title: call.title,
+            summary: call.summary,
+            recording_key: call.recording_key,
+            duration_sec: call.duration_sec,
+            action_items: call.action_items.length,
+            transfer_result: call.transfer_result,
+          }
+        : null,
       turns: { caller: count('caller'), agent: count('agent'), system: count('system') },
       lines: segments,
       bookingReady: (await bookingContext(tx, number.workspace_id, now, { assistantId: number.assistant_id })) !== null,
@@ -935,19 +1293,33 @@ const handlers: Record<string, Handler> = {
     if (!actor.workspaceId) throw new Reject('no workspace')
     if (actor.role === 'agent') throw new Forbidden('the assistant cannot assign calls')
     // Same answer as the patch it stands in for: a call of another workspace is not found.
-    const [call] = await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, actor.workspaceId)))
+    const [call] = await tx
+      .select()
+      .from(calls)
+      .where(and(eq(calls.id, input.callId), eq(calls.workspace_id, actor.workspaceId)))
     if (!call) throw notFound('calls')
     if (input.userId) {
-      const [assignee] = await tx.select({ disabled: workspace_members.disabled }).from(workspace_members)
+      const [assignee] = await tx
+        .select({ disabled: workspace_members.disabled })
+        .from(workspace_members)
         .where(and(eq(workspace_members.workspace_id, call.workspace_id), eq(workspace_members.user_id, input.userId)))
       if (!assignee) throw new Reject('that user is not a member of this workspace')
-      if (assignee.disabled) throw new Reject('that member\'s account is disabled')
+      if (assignee.disabled) throw new Reject("that member's account is disabled")
     }
     if (call.assignee_id === input.userId) return { rows: { calls: [call] } }
     const actorId = actor.apiKeyId ? null : actor.actorId
-    const [event] = await tx.insert(call_events).values({
-      id: newId('cev'), workspace_id: call.workspace_id, call_id: call.id, kind: 'assigned', actor_id: actorId, assignee_id: input.userId, created_at: now,
-    }).returning()
+    const [event] = await tx
+      .insert(call_events)
+      .values({
+        id: newId('cev'),
+        workspace_id: call.workspace_id,
+        call_id: call.id,
+        kind: 'assigned',
+        actor_id: actorId,
+        assignee_id: input.userId,
+        created_at: now,
+      })
+      .returning()
     if (input.userId && input.userId !== actorId && input.notify !== false) await queueAssignNotification(tx, event!.id)
     const updated = await tx.update(calls).set({ assignee_id: input.userId }).where(eq(calls.id, call.id)).returning()
     return { rows: { calls: updated, call_events: [event!] } }
@@ -956,7 +1328,8 @@ const handlers: Record<string, Handler> = {
   // The members calls can be assigned to (API keys and MCP clients look up a userId here).
   'member.list': async ({ tx, actor }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    const rows = await tx.select({ userId: workspace_members.user_id, name: workspace_members.name, role: workspace_members.role })
+    const rows = await tx
+      .select({ userId: workspace_members.user_id, name: workspace_members.name, role: workspace_members.role })
       .from(workspace_members)
       .where(and(eq(workspace_members.workspace_id, actor.workspaceId), eq(workspace_members.disabled, false)))
       .orderBy(asc(workspace_members.name))
@@ -965,10 +1338,18 @@ const handlers: Record<string, Handler> = {
 
   'call.appendTranscript': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
-    const [segment] = await tx.insert(transcript_segments).values({
-      id: newId('seg'), workspace_id: call.workspace_id, call_id: call.id,
-      speaker: input.speaker, text: input.text, at_ms: input.atMs, tool_event: input.toolEvent ?? null,
-    }).returning()
+    const [segment] = await tx
+      .insert(transcript_segments)
+      .values({
+        id: newId('seg'),
+        workspace_id: call.workspace_id,
+        call_id: call.id,
+        speaker: input.speaker,
+        text: input.text,
+        at_ms: input.atMs,
+        tool_event: input.toolEvent ?? null,
+      })
+      .returning()
     return { rows: { transcript_segments: [segment!] } }
   },
 
@@ -983,25 +1364,46 @@ const handlers: Record<string, Handler> = {
     // email per streak). A vague reason comes back refined by the provider's own test, and that is what the call keeps
     // and the agent shows on the test call.
     const recorded = await recordProviderFailure(
-      tx, input.failure.provider, { reason: input.failure.reason, message: input.failure.message }, 'agent',
+      tx,
+      input.failure.provider,
+      { reason: input.failure.reason, message: input.failure.message },
+      'agent',
       { scope: { workspaceId: call.workspace_id, callId: call.id } },
     )
-    const failure: VoiceFailure = { ...input.failure, reason: recorded.reason, message: recorded.message.slice(0, VOICE_FAILURE_MESSAGE_MAX) }
+    const failure: VoiceFailure = {
+      ...input.failure,
+      reason: recorded.reason,
+      message: recorded.message.slice(0, VOICE_FAILURE_MESSAGE_MAX),
+    }
     const { stage, provider, reason } = failure
     const known = call.voice_failures.some(f => f.stage === stage && f.provider === provider && f.reason === reason)
     if (known || call.voice_failures.length >= VOICE_FAILURES_PER_CALL) return { rows: {}, data: { failure } }
-    const rows = await tx.update(calls).set({ voice_failures: [...call.voice_failures, { ...failure, at: now }] })
-      .where(eq(calls.id, call.id)).returning()
+    const rows = await tx
+      .update(calls)
+      .set({ voice_failures: [...call.voice_failures, { ...failure, at: now }] })
+      .where(eq(calls.id, call.id))
+      .returning()
     return { rows: { calls: rows }, data: { failure } }
   },
 
   'call.recordTimings': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
-    await tx.insert(reply_timings).values(input.replies.map((r: ReplyTiming) => ({
-      id: newId('rt'), workspace_id: call.workspace_id, call_id: call.id, at: r.at, pipeline: input.pipeline, providers: input.providers,
-      turn_ms: r.turnMs ?? null, model_ms: r.modelMs ?? null, voice_ms: r.voiceMs ?? null, server_ms: r.serverMs ?? null,
-      total_ms: r.totalMs ?? null, heard_ms: r.heardMs ?? null,
-    })))
+    await tx.insert(reply_timings).values(
+      input.replies.map((r: ReplyTiming) => ({
+        id: newId('rt'),
+        workspace_id: call.workspace_id,
+        call_id: call.id,
+        at: r.at,
+        pipeline: input.pipeline,
+        providers: input.providers,
+        turn_ms: r.turnMs ?? null,
+        model_ms: r.modelMs ?? null,
+        voice_ms: r.voiceMs ?? null,
+        server_ms: r.serverMs ?? null,
+        total_ms: r.totalMs ?? null,
+        heard_ms: r.heardMs ?? null,
+      })),
+    )
     return { rows: {} }
   },
 
@@ -1009,13 +1411,23 @@ const handlers: Record<string, Handler> = {
     const call = await loadCall(tx, actor, input.callId)
     const duration_sec = Math.max(0, Math.round((Date.parse(now) - Date.parse(call.started_at)) / 1000))
     const { outcome, urgency } = keptUrgent(call.urgency, input.outcome ?? 'answered', input.urgency ?? call.urgency)
-    const [updated] = await tx.update(calls).set({
-      status: 'completed', ended_at: now, duration_sec,
-      outcome, urgency,
-      title: input.title ?? call.title, summary: input.summary ?? call.summary,
-      action_items: input.actionItems ? [...input.actionItems, ...teamNotesOf(call.action_items, input.actionItems)] : call.action_items,
-      fields: input.fields ?? call.fields,
-    }).where(eq(calls.id, call.id)).returning()
+    const [updated] = await tx
+      .update(calls)
+      .set({
+        status: 'completed',
+        ended_at: now,
+        duration_sec,
+        outcome,
+        urgency,
+        title: input.title ?? call.title,
+        summary: input.summary ?? call.summary,
+        action_items: input.actionItems
+          ? [...input.actionItems, ...teamNotesOf(call.action_items, input.actionItems)]
+          : call.action_items,
+        fields: input.fields ?? call.fields,
+      })
+      .where(eq(calls.id, call.id))
+      .returning()
     const rows: ActionResult['rows'] = { calls: [updated!] }
     // A billed call's usage posts now, with its end and duration set above (call-billing.ts); a repeated finish finds
     // it posted. A failure leaves the call finished: the stale sweep posts it again.
@@ -1023,7 +1435,12 @@ const handlers: Record<string, Handler> = {
     if (input.callerName && call.contact_id) {
       const [contact] = await tx.select().from(contacts).where(eq(contacts.id, call.contact_id))
       // A caller's word for who they are: kept as a caller's, so it unlocks nothing on later calls (contacts.name_source).
-      if (contact && !contact.name) rows.contacts = await tx.update(contacts).set({ name: input.callerName, name_source: 'caller' }).where(eq(contacts.id, contact.id)).returning()
+      if (contact && !contact.name)
+        rows.contacts = await tx
+          .update(contacts)
+          .set({ name: input.callerName, name_source: 'caller' })
+          .where(eq(contacts.id, contact.id))
+          .returning()
     }
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
     if (call.status !== 'completed') {
@@ -1047,9 +1464,15 @@ const handlers: Record<string, Handler> = {
   },
 
   // Read-only in the registry, like call.lookUpCaller: the request to the business's system holds no transaction open.
-  'call.askWebhook': async ({ tx, actor }, input: { callId: string; lookup: string; values: Record<string, unknown> }) => {
+  'call.askWebhook': async (
+    { tx, actor },
+    input: { callId: string; lookup: string; values: Record<string, unknown> },
+  ) => {
     const call = await loadCall(tx, actor, input.callId)
-    return { rows: {}, data: await askWebhook(tx, call, input, process.env, (request, answer) => queueLookup(tx, call, request, answer)) }
+    return {
+      rows: {},
+      data: await askWebhook(tx, call, input, process.env, (request, answer) => queueLookup(tx, call, request, answer)),
+    }
   },
 
   'call.startRecording': async ({ tx, actor }, input) => {
@@ -1057,7 +1480,9 @@ const handlers: Record<string, Handler> = {
     // One start at a time per call, so a retry finds the egress the first one started (recording-egress.ts).
     const [locked] = await tx.select({ status: calls.status }).from(calls).where(eq(calls.id, call.id)).for('update')
     if (locked?.status !== 'live') throw new Reject('the call has ended')
-    const assistant = call.assistant_id ? await assistantIn(tx, call.workspace_id, call.assistant_id).catch(() => null) : null
+    const assistant = call.assistant_id
+      ? await assistantIn(tx, call.workspace_id, call.assistant_id).catch(() => null)
+      : null
     if (assistant?.record_calls === false) throw new Reject("the call's assistant does not record calls")
     const egressId = await startS3Recording(tx, call.room ?? call.id, recordingKey(call.workspace_id, call.id))
     return { rows: {}, data: { egressId } }
@@ -1082,7 +1507,9 @@ const handlers: Record<string, Handler> = {
     // Only messages count: other next steps (a note for the team after failed booking changes) take no slot.
     const taken = call.action_items.filter(item => item.kind === 'message').length
     if (call.status === 'live' && taken >= MESSAGES_PER_CALL) {
-      throw new Reject(`${MESSAGES_PER_CALL} messages are saved on this call already: tell the caller the team has them, and add nothing more`)
+      throw new Reject(
+        `${MESSAGES_PER_CALL} messages are saved on this call already: tell the caller the team has them, and add nothing more`,
+      )
     }
     const action_items = [...call.action_items, { text: input.message, kind: 'message' as const }]
     if (call.source !== 'test') await queueCallPush(tx, call.id, 'message')
@@ -1099,7 +1526,9 @@ const handlers: Record<string, Handler> = {
 
   'onboarding.setStep': async ({ tx, actor, now }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    await tx.insert(workspace_settings).values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, onboarding_step: input.step })
+    await tx
+      .insert(workspace_settings)
+      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, onboarding_step: input.step })
       .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { onboarding_step: input.step } })
     await recordOnboardingStep(tx, actor.workspaceId, input.step, now)
     return { rows: {} }
@@ -1122,7 +1551,11 @@ const handlers: Record<string, Handler> = {
     const owned = await atCarrier(() => provider.listNumbers(CARRIER_NUMBERS_PAGE))
     const all = owned.map(n => n.e164)
     const taken = all.length
-      ? new Set((await tx.select({ e164: phone_numbers.e164 }).from(phone_numbers).where(inArray(phone_numbers.e164, all))).map(n => n.e164))
+      ? new Set(
+          (
+            await tx.select({ e164: phone_numbers.e164 }).from(phone_numbers).where(inArray(phone_numbers.e164, all))
+          ).map(n => n.e164),
+        )
       : new Set<string>()
     const numbers = all.filter(e164 => !taken.has(e164)).sort()
     return { rows: {}, data: { numbers, more: owned.length >= CARRIER_NUMBERS_PAGE } satisfies CarrierNumbersData }
@@ -1138,7 +1571,8 @@ const handlers: Record<string, Handler> = {
     if (!(await tryLockWorkspaceCarrier(tx, workspace_id))) throw new Reject(NUMBER_SETUP_BUSY)
     const { provider, account: carrier_account } = await setupCarrier(tx, workspace_id, telephony)
     const sipEndpoint = process.env.LIVEKIT_SIP_ENDPOINT ?? ''
-    if (provider.name !== 'dev' && !sipEndpoint) throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
+    if (provider.name !== 'dev' && !sipEndpoint)
+      throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
 
     // Everything that can refuse is checked before the carrier is asked anything, and before anything is bought.
     if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
@@ -1150,7 +1584,8 @@ const handlers: Record<string, Handler> = {
     const country = input.purchase ? await purchaseCountry(tx, workspace_id, input) : null
     const countryRefusal = country ? buyCountryRefusal(country) : null
     if (countryRefusal && !input.e164) throw new Reject(countryRefusal)
-    const areaRefusal = country && input.areaCode && !input.e164 ? areaCodeCountryRefusal(input.areaCode, country) : null
+    const areaRefusal =
+      country && input.areaCode && !input.e164 ? areaCodeCountryRefusal(input.areaCode, country) : null
     if (areaRefusal) throw new Reject(areaRefusal)
     // A purchase by area code: its limits are checked before the carrier is searched, so a refused one makes no
     // carrier request (and takes the install-wide purchase lock before it does).
@@ -1163,18 +1598,29 @@ const handlers: Record<string, Handler> = {
     // The search is in the area code's own country (US, CA or PR: the carriers file Puerto Rico's numbers under PR).
     const searchCountry = (input.areaCode && buyableAreaCode(input.areaCode)?.country) || 'US'
     const e164: string | undefined =
-      input.e164 ?? (await firstFreeNumber(tx, await atCarrier(() => provider.searchNumbers({ country: searchCountry, areaCode: input.areaCode, limit: 5 }))))
+      input.e164 ??
+      (await firstFreeNumber(
+        tx,
+        await atCarrier(() => provider.searchNumbers({ country: searchCountry, areaCode: input.areaCode, limit: 5 })),
+      ))
     if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
     const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
     if (taken) throw new Reject(`${e164} is already set up`)
 
     const existing = await atCarrier(() => provider.findNumber(e164))
     if (!existing && !input.purchase) {
-      throw new Reject(`${e164} is not in the ${provider.name} account. Check the number; to buy it, pass purchase: true`)
+      throw new Reject(
+        `${e164} is not in the ${provider.name} account. Check the number; to buy it, pass purchase: true`,
+      )
     }
     // The install's account is shared by every workspace: only an instance admin may hand one of its
     // numbers to a workspace. Others buy a new one, or bring their own account. (`dev` has no account.)
-    if (existing && carrier_account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
+    if (
+      existing &&
+      carrier_account === 'install' &&
+      provider.name !== 'dev' &&
+      !actor.permissions.includes('instance:admin')
+    ) {
       throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     }
     const buying = !existing
@@ -1188,23 +1634,37 @@ const handlers: Record<string, Handler> = {
     const numberRefusal = buying && country && input.e164 ? numberCountryRefusal(input.e164, country) : null
     if (numberRefusal) throw new Reject(numberRefusal)
     // Logged (committed) before the carrier is asked: a purchase that fails later still counts.
-    if (buying) await logPurchase(actor, { workspaceId: workspace_id, e164, provider: provider.name, carrierAccount: carrier_account })
+    if (buying)
+      await logPurchase(actor, {
+        workspaceId: workspace_id,
+        e164,
+        provider: provider.name,
+        carrierAccount: carrier_account,
+      })
     const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
     if (buying) onRollback?.(releaseBought(provider, number))
 
     await atCarrier(() => provider.routeToSip(number, sipEndpoint))
-    const rows = await tx.insert(phone_numbers).values({
-      id: newId('pn'), workspace_id, e164, provider: provider.name, provider_ref: number.providerRef, carrier_account,
-      assistant_id: assistant?.id ?? null,
-      // A bought number is the business's new number; an attached one is taken as a forwarding
-      // target, the product's default, and counts as verified only after a test call.
-      mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),
-      purchased: !existing,
-      verified_at: !existing && (input.mode ?? 'new') === 'new' ? now : null,
-      // The API's clock, as calls.started_at: forwardingVerifiedFor compares the two, and the database's clock
-      // (transaction start, microseconds) can be a few milliseconds ahead of a call that comes in right after.
-      created_at: now,
-    }).returning()
+    const rows = await tx
+      .insert(phone_numbers)
+      .values({
+        id: newId('pn'),
+        workspace_id,
+        e164,
+        provider: provider.name,
+        provider_ref: number.providerRef,
+        carrier_account,
+        assistant_id: assistant?.id ?? null,
+        // A bought number is the business's new number; an attached one is taken as a forwarding
+        // target, the product's default, and counts as verified only after a test call.
+        mode: input.mode ?? (existing ? 'forward_conditional' : 'new'),
+        purchased: !existing,
+        verified_at: !existing && (input.mode ?? 'new') === 'new' ? now : null,
+        // The API's clock, as calls.started_at: forwardingVerifiedFor compares the two, and the database's clock
+        // (transaction start, microseconds) can be a few milliseconds ahead of a call that comes in right after.
+        created_at: now,
+      })
+      .returning()
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace')
       await refreshTransferTrunk(tx, workspace_id, {
@@ -1227,7 +1687,9 @@ const handlers: Record<string, Handler> = {
   // The carrier is asked last, right before the commit: if it refuses, nothing changes here.
   'phoneNumber.release': async ({ tx, actor, telephony, onCommit }, input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    const [number] = await tx.select().from(phone_numbers)
+    const [number] = await tx
+      .select()
+      .from(phone_numbers)
       .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, actor.workspaceId)))
     if (!number) throw new Reject('phone number not found')
     if (!confirmsNumber(input.confirm, number.e164)) throw new Reject(`type the number ${number.e164} to confirm`)
@@ -1241,7 +1703,9 @@ const handlers: Record<string, Handler> = {
       if (number.purchased) {
         // A bought number goes back to the carrier: only at the carrier that has it.
         if (provider.name !== number.provider) {
-          throw new Reject(`${number.e164} is at ${number.provider}, but ${provider.name} is the carrier in use: release it there, or switch the carrier back first`)
+          throw new Reject(
+            `${number.e164} is at ${number.provider}, but ${provider.name} is the carrier in use: release it there, or switch the carrier back first`,
+          )
         }
         if (!owned) throw new Reject(`${number.e164} has no carrier reference: release it at ${number.provider}`)
         await atCarrier(() => provider.releaseNumber(owned))
@@ -1283,7 +1747,15 @@ export function runHandler(ctx: HandlerCtx, def: ActionDef, input: unknown) {
 /** The first of the carrier's candidates that no workspace has set up yet. */
 async function firstFreeNumber(tx: Tx, candidates: { e164: string }[]): Promise<string | undefined> {
   if (!candidates.length) return undefined
-  const taken = await tx.select({ e164: phone_numbers.e164 }).from(phone_numbers).where(inArray(phone_numbers.e164, candidates.map(c => c.e164)))
+  const taken = await tx
+    .select({ e164: phone_numbers.e164 })
+    .from(phone_numbers)
+    .where(
+      inArray(
+        phone_numbers.e164,
+        candidates.map(c => c.e164),
+      ),
+    )
   const used = new Set(taken.map(t => t.e164))
   return candidates.find(c => !used.has(c.e164))?.e164
 }

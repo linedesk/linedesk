@@ -373,130 +373,134 @@ export const call_events = pgTable(
 )
 
 // Per-workspace settings that Better Auth's organization table does not hold. One row per workspace.
-export const workspace_settings = pgTable('workspace_settings', {
-  workspace_id: text('workspace_id').primaryKey(),
-  /** IANA time zone; working hours and exceptions are wall-clock times in it. */
-  timezone: text('timezone').notNull(),
-  /**
-   * Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished.
-   * `hours`, `calendar` and `test_call` are steps of the earlier flow, still read (resumeStep maps them).
-   */
-  onboarding_step: text('onboarding_step', {
-    enum: ['business', 'assistant', 'pickup', 'notify', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'],
-  }),
-  /**
-   * When the assistant picks up, as chosen in onboarding: `no_answer` (calls the business doesn't answer, by
-   * conditional forwarding), `always` (every call, forwarding all) or `after_hours` (only when closed: conditional
-   * forwarding plus the business hours). It picks the forwarding code shown; routing itself stays with the
-   * number's mode and the hours. null: never chosen.
-   */
-  pickup_mode: text('pickup_mode', { enum: ['no_answer', 'always', 'after_hours'] }),
-  /**
-   * Linedesk Cloud: the owner allows Premium voices and models (10¢ a minute instead of 5¢; usageLevel in
-   * @linedesk/actions). Off: assistants can pick Standard ones only. Not read on an install without billing.
-   */
-  allow_premium: boolean('allow_premium').notNull().default(false),
-  /**
-   * Linedesk Cloud: the owner allows Ultra, assistants answered by a realtime model (20¢ a minute; usageLevel in
-   * @linedesk/actions). Off: no assistant answers with a realtime model. Not read on an install without billing.
-   */
-  allow_ultra: boolean('allow_ultra').notNull().default(false),
-  /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
-  recording_retention_days: integer('recording_retention_days').default(90),
-  /** New-call notifications for members who have not set their own (member_notification_settings). */
-  notify_email_default: boolean('notify_email_default').notNull().default(true),
-  notify_browser_default: boolean('notify_browser_default').notNull().default(true),
-  /** The workspace uses its business hours (availability_rules) for calls. Off: the assistant says nothing about hours. */
-  business_hours_on: boolean('business_hours_on').notNull().default(false),
-  /** The assistant says a recording notice right after the greeting (on by default; no per-state rules). */
-  recording_notice_on: boolean('recording_notice_on').notNull().default(true),
-  /** The sentence it says; null: DEFAULT_RECORDING_NOTICE. */
-  recording_notice: text('recording_notice'),
-  /**
-   * The carrier account the workspace's numbers use: `default` is the install's (Admin, Providers), `twilio`
-   * or `telnyx` the workspace's own account, its credentials in provider_settings rows with this workspace_id.
-   */
-  carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] })
-    .notNull()
-    .default('default'),
-  /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
-  closure: jsonb('closure').$type<Closure>(),
-  /**
-   * Where the business is (ISO 3166-1 alpha-2, upper case: "DE"). null: never set, worked out when read
-   * (resolveWorkspaceCountry in @linedesk/actions: the assistant's number, the business phone, the holidays, the
-   * country hint, the time zone, else US). A workspace made in the app starts with it set.
-   * The default region for phone numbers, the forwarding guide, the holiday calendar and the currency.
-   */
-  country: text('country'),
-  /**
-   * A guess at the country, saved once when the workspace was made (countryHintOf in @linedesk/actions): the country
-   * code a proxy in front of the install sent with the request (CF-IPCountry), else the time zone's country, else the
-   * browser language's region. Only the two-letter code; never the address. null: none known.
-   * What New workspace prefilled; counts for Automatic after the holidays.
-   */
-  country_hint: text('country_hint'),
-  /** Where country_hint came from. */
-  country_hint_source: text('country_hint_source', { enum: ['sign_up_location', 'time_zone', 'browser_language'] }),
-  /** The public holiday calendar the workspace follows; null: never set up. */
-  holidays: jsonb('holidays').$type<HolidayCalendar>(),
-  /** What a booked job is worth on average, in the minor units of job_value_currency (cents; whole units for JPY, KRW and CLP), for Insights ("≈ $X in booked work"). null: not set. */
-  job_value_cents: integer('job_value_cents'),
-  /** The currency of job_value_cents (ISO 4217, one of jobValueCurrencies in @linedesk/actions). */
-  job_value_currency: text('job_value_currency', {
-    enum: [
-      'USD',
-      'AED',
-      'ARS',
-      'AUD',
-      'BRL',
-      'CAD',
-      'CHF',
-      'CLP',
-      'CNY',
-      'COP',
-      'CZK',
-      'DKK',
-      'EGP',
-      'EUR',
-      'GBP',
-      'HKD',
-      'HUF',
-      'IDR',
-      'ILS',
-      'INR',
-      'JPY',
-      'KES',
-      'KRW',
-      'MXN',
-      'MYR',
-      'NGN',
-      'NOK',
-      'NZD',
-      'PEN',
-      'PHP',
-      'PLN',
-      'RON',
-      'SAR',
-      'SEK',
-      'SGD',
-      'THB',
-      'TRY',
-      'TWD',
-      'ZAR',
-    ],
-  })
-    .notNull()
-    .default('USD'),
-  created_at: createdAt(),
-  version: version(),
-}, t => [
-  // The hint is only ever a two-letter code with one of the known sources (or neither).
-  check('workspace_settings_country_hint', sql`${t.country_hint} ~ '^[A-Z]{2}$'`),
-  check(
-    'workspace_settings_country_hint_source',
-    sql`${t.country_hint_source} in ('sign_up_location', 'time_zone', 'browser_language')`,
-  ),
-])
+export const workspace_settings = pgTable(
+  'workspace_settings',
+  {
+    workspace_id: text('workspace_id').primaryKey(),
+    /** IANA time zone; working hours and exceptions are wall-clock times in it. */
+    timezone: text('timezone').notNull(),
+    /**
+     * Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished.
+     * `hours`, `calendar` and `test_call` are steps of the earlier flow, still read (resumeStep maps them).
+     */
+    onboarding_step: text('onboarding_step', {
+      enum: ['business', 'assistant', 'pickup', 'notify', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'],
+    }),
+    /**
+     * When the assistant picks up, as chosen in onboarding: `no_answer` (calls the business doesn't answer, by
+     * conditional forwarding), `always` (every call, forwarding all) or `after_hours` (only when closed: conditional
+     * forwarding plus the business hours). It picks the forwarding code shown; routing itself stays with the
+     * number's mode and the hours. null: never chosen.
+     */
+    pickup_mode: text('pickup_mode', { enum: ['no_answer', 'always', 'after_hours'] }),
+    /**
+     * Linedesk Cloud: the owner allows Premium voices and models (10¢ a minute instead of 5¢; usageLevel in
+     * @linedesk/actions). Off: assistants can pick Standard ones only. Not read on an install without billing.
+     */
+    allow_premium: boolean('allow_premium').notNull().default(false),
+    /**
+     * Linedesk Cloud: the owner allows Ultra, assistants answered by a realtime model (20¢ a minute; usageLevel in
+     * @linedesk/actions). Off: no assistant answers with a realtime model. Not read on an install without billing.
+     */
+    allow_ultra: boolean('allow_ultra').notNull().default(false),
+    /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
+    recording_retention_days: integer('recording_retention_days').default(90),
+    /** New-call notifications for members who have not set their own (member_notification_settings). */
+    notify_email_default: boolean('notify_email_default').notNull().default(true),
+    notify_browser_default: boolean('notify_browser_default').notNull().default(true),
+    /** The workspace uses its business hours (availability_rules) for calls. Off: the assistant says nothing about hours. */
+    business_hours_on: boolean('business_hours_on').notNull().default(false),
+    /** The assistant says a recording notice right after the greeting (on by default; no per-state rules). */
+    recording_notice_on: boolean('recording_notice_on').notNull().default(true),
+    /** The sentence it says; null: DEFAULT_RECORDING_NOTICE. */
+    recording_notice: text('recording_notice'),
+    /**
+     * The carrier account the workspace's numbers use: `default` is the install's (Admin, Providers), `twilio`
+     * or `telnyx` the workspace's own account, its credentials in provider_settings rows with this workspace_id.
+     */
+    carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] })
+      .notNull()
+      .default('default'),
+    /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
+    closure: jsonb('closure').$type<Closure>(),
+    /**
+     * Where the business is (ISO 3166-1 alpha-2, upper case: "DE"). null: never set, worked out when read
+     * (resolveWorkspaceCountry in @linedesk/actions: the assistant's number, the business phone, the holidays, the
+     * country hint, the time zone, else US). A workspace made in the app starts with it set.
+     * The default region for phone numbers, the forwarding guide, the holiday calendar and the currency.
+     */
+    country: text('country'),
+    /**
+     * A guess at the country, saved once when the workspace was made (countryHintOf in @linedesk/actions): the country
+     * code a proxy in front of the install sent with the request (CF-IPCountry), else the time zone's country, else the
+     * browser language's region. Only the two-letter code; never the address. null: none known.
+     * What New workspace prefilled; counts for Automatic after the holidays.
+     */
+    country_hint: text('country_hint'),
+    /** Where country_hint came from. */
+    country_hint_source: text('country_hint_source', { enum: ['sign_up_location', 'time_zone', 'browser_language'] }),
+    /** The public holiday calendar the workspace follows; null: never set up. */
+    holidays: jsonb('holidays').$type<HolidayCalendar>(),
+    /** What a booked job is worth on average, in the minor units of job_value_currency (cents; whole units for JPY, KRW and CLP), for Insights ("≈ $X in booked work"). null: not set. */
+    job_value_cents: integer('job_value_cents'),
+    /** The currency of job_value_cents (ISO 4217, one of jobValueCurrencies in @linedesk/actions). */
+    job_value_currency: text('job_value_currency', {
+      enum: [
+        'USD',
+        'AED',
+        'ARS',
+        'AUD',
+        'BRL',
+        'CAD',
+        'CHF',
+        'CLP',
+        'CNY',
+        'COP',
+        'CZK',
+        'DKK',
+        'EGP',
+        'EUR',
+        'GBP',
+        'HKD',
+        'HUF',
+        'IDR',
+        'ILS',
+        'INR',
+        'JPY',
+        'KES',
+        'KRW',
+        'MXN',
+        'MYR',
+        'NGN',
+        'NOK',
+        'NZD',
+        'PEN',
+        'PHP',
+        'PLN',
+        'RON',
+        'SAR',
+        'SEK',
+        'SGD',
+        'THB',
+        'TRY',
+        'TWD',
+        'ZAR',
+      ],
+    })
+      .notNull()
+      .default('USD'),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [
+    // The hint is only ever a two-letter code with one of the known sources (or neither).
+    check('workspace_settings_country_hint', sql`${t.country_hint} ~ '^[A-Z]{2}$'`),
+    check(
+      'workspace_settings_country_hint_source',
+      sql`${t.country_hint_source} in ('sign_up_location', 'time_zone', 'browser_language')`,
+    ),
+  ],
+)
 
 // A member's own new-call notifications in one workspace. null: the workspace default applies.
 // Not synced: read and written through notifications.* actions (the caller's own row), and by the workspace's
@@ -825,6 +829,32 @@ export const api_keys = pgTable(
   t => [index('api_keys_ws').on(t.workspace_id)],
 )
 
+// Personal API keys (LIN-339): a key a person makes for themselves, for the CLI, MCP clients and scripts. It acts
+// exactly as its maker does today, in every workspace they belong to (apps/api/src/personal-keys.ts). Not synced, not
+// per workspace; stored as a SHA-256 hash like api_keys.
+export const personal_keys = pgTable(
+  'personal_keys',
+  {
+    id: id(),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** The key's first characters ("ldp_AbCd1234"), to tell keys apart; not enough to use one. */
+    prefix: text('prefix').notNull(),
+    key_hash: text('key_hash').notNull().unique(),
+    /**
+     * Made in a session that passed the passkey check (an instance admin's Server admin check): only such a key
+     * carries instance:admin, as only such a session does (context.ts).
+     */
+    passkey_confirmed: boolean('passkey_confirmed').notNull().default(false),
+    created_at: createdAt(),
+    last_used_at: ts('last_used_at'),
+    revoked_at: ts('revoked_at'),
+  },
+  t => [index('personal_keys_user').on(t.user_id)],
+)
+
 // Every command the API accepted or rejected: idempotency per command id + audit log.
 export const commands = pgTable(
   'commands',
@@ -840,6 +870,8 @@ export const commands = pgTable(
     impersonated_by: text('impersonated_by'),
     /** The agent setup key (agent_setup_keys.id) this was done with: an AI agent acting as `actor_id`; null otherwise. */
     setup_key_id: text('setup_key_id'),
+    /** The personal API key (personal_keys.id) this was done with: the CLI, an MCP client or a script as `actor_id`. */
+    personal_key_id: text('personal_key_id'),
     created_at: createdAt(),
     /** When input and result were cut down to ids: 90 days on, or when the call or contact was deleted (apps/api/src/command-log.ts). */
     pruned_at: ts('pruned_at'),
@@ -1618,7 +1650,6 @@ export const profile_changes = pgTable('profile_changes', {
 /** profile_changes.previous. */
 export type ProfileBefore = { name?: string; avatar?: { version: string; png: string } | null }
 
-
 // --- Billing (Linedesk Cloud; docs/billing.md §4) ---
 // Not synced to browsers; read through read-only actions. Usage and extra numbers are paid from a prepaid
 // balance per bill, recharged automatically (decision 14). Amounts in US micro-dollars (`bigint`, 1 USD =
@@ -1665,9 +1696,7 @@ export const billing_accounts = pgTable(
     /** The user who pays; no foreign key, so the bill outlives the account. */
     owner_user_id: text('owner_user_id').notNull(),
     status: text('status', { enum: BILLING_STATUSES }).notNull().default('pending_payment'),
-    interval: text('interval', { enum: BILLING_INTERVALS })
-      .notNull()
-      .default('month'),
+    interval: text('interval', { enum: BILLING_INTERVALS }).notNull().default('month'),
     stripe_customer_id: text('stripe_customer_id').unique(),
     stripe_subscription_id: text('stripe_subscription_id').unique(),
     trial_ends_at: ts('trial_ends_at'),
@@ -1926,9 +1955,7 @@ export const billing_recharges = pgTable(
     resolved_at: ts('resolved_at'),
   },
   t => [
-    uniqueIndex('billing_recharges_one_pending')
-      .on(t.billing_account_id)
-      .where(sql`${t.status} = 'pending'`),
+    uniqueIndex('billing_recharges_one_pending').on(t.billing_account_id).where(sql`${t.status} = 'pending'`),
     index('billing_recharges_bill_created').on(t.billing_account_id, t.created_at),
     check('billing_recharges_status', oneOf(t.status, RECHARGE_STATUSES)),
     check(

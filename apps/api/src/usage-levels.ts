@@ -109,7 +109,9 @@ export function installVoiceModel(provider: string, configured: string | null | 
   const id = configured?.trim() || DEFAULT_VOICE_MODELS[provider] || ''
   if (!billed || voiceModelLevel(provider, id) === 'standard') return id
   const standard = standardVoiceModelOf(provider)
-  alertOnce(`the install's voice model "${id}" (${provider}) is not Standard: calls use ${standard ? `"${standard}"` : 'none (not answered)'}`)
+  alertOnce(
+    `the install's voice model "${id}" (${provider}) is not Standard: calls use ${standard ? `"${standard}"` : 'none (not answered)'}`,
+  )
   return standard ?? id
 }
 
@@ -121,11 +123,17 @@ export function installVoiceModel(provider: string, configured: string | null | 
 export function installLanguageModel(provider: LlmProvider, configured: string | null | undefined, billed: boolean) {
   const id = firstModel(configured, provider)
   if (billed)
-    for (const fallback of modelsOf(configured, provider).slice(1).filter(m => languageModelLevel(provider, m) !== 'standard'))
-      alertOnce(`the install's fallback language model "${fallback}" (${provider}) is not Standard: Standard calls never use it`)
+    for (const fallback of modelsOf(configured, provider)
+      .slice(1)
+      .filter(m => languageModelLevel(provider, m) !== 'standard'))
+      alertOnce(
+        `the install's fallback language model "${fallback}" (${provider}) is not Standard: Standard calls never use it`,
+      )
   if (!billed || languageModelLevel(provider, id) === 'standard') return id
   const standard = standardLanguageModelOf(provider)
-  alertOnce(`the install's language model "${id}" (${provider}) is not Standard: calls use ${standard ? `"${standard}"` : 'none (not answered)'}`)
+  alertOnce(
+    `the install's language model "${id}" (${provider}) is not Standard: calls use ${standard ? `"${standard}"` : 'none (not answered)'}`,
+  )
   return standard ?? id
 }
 
@@ -153,10 +161,12 @@ export async function refuseNonStandardDefault(tx: Tx, provider: string, model: 
     const id = modelsOf(model, provider as LlmProvider).find(m => languageModelLevel(provider, m) !== 'standard')
     if (id)
       throw new Reject(
-        `${id} is not a Standard language model: on ${brandName()} Cloud the server's default must be one (${languageModelsOf(provider)
-          .filter(m => m.level === 'standard')
-          .map(m => m.id)
-          .join(', ') || 'this provider has none'})`,
+        `${id} is not a Standard language model: on ${brandName()} Cloud the server's default must be one (${
+          languageModelsOf(provider)
+            .filter(m => m.level === 'standard')
+            .map(m => m.id)
+            .join(', ') || 'this provider has none'
+        })`,
       )
     return
   }
@@ -164,10 +174,12 @@ export async function refuseNonStandardDefault(tx: Tx, provider: string, model: 
     const id = model?.trim() || DEFAULT_VOICE_MODELS[provider] || ''
     if (voiceModelLevel(provider, id) !== 'standard')
       throw new Reject(
-        `${id || 'No model'} is not a Standard voice model: on ${brandName()} Cloud the server's default must be one (${voiceModelsOf(provider)
-          .filter(m => m.level === 'standard')
-          .map(m => m.model)
-          .join(', ') || 'this provider has none'})`,
+        `${id || 'No model'} is not a Standard voice model: on ${brandName()} Cloud the server's default must be one (${
+          voiceModelsOf(provider)
+            .filter(m => m.level === 'standard')
+            .map(m => m.model)
+            .join(', ') || 'this provider has none'
+        })`,
       )
   }
 }
@@ -190,7 +202,10 @@ type AssistantChoices = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'
 
 /** The models of a "model, fallback, ..." list, or the provider's default alone. */
 const modelsOf = (list: string | null | undefined, provider: LlmProvider) => {
-  const models = (list ?? '').split(',').map(m => m.trim()).filter(Boolean)
+  const models = (list ?? '')
+    .split(',')
+    .map(m => m.trim())
+    .filter(Boolean)
   return models.length ? models : [llmEndpoints[provider].models[0]!]
 }
 /** The first model of a "model, fallback" list, or the provider's default. */
@@ -379,7 +394,9 @@ function paidLevelOf(c: Choices): PaidLevel | null {
 }
 
 const describeChoices = (c: Choices) =>
-  c.pipeline === 'realtime' ? c.model.model : `${c.voice.provider}/${c.voice.model}, ${c.model.provider}/${c.model.model}`
+  c.pipeline === 'realtime'
+    ? c.model.model
+    : `${c.voice.provider}/${c.voice.model}, ${c.model.provider}/${c.model.model}`
 
 /**
  * The voices a call of the assistant speaks with, for the language checks: on the three stages its one voice
@@ -428,7 +445,10 @@ export async function assistantsOffUltra(tx: Tx, workspaceId: string, by: string
     if (row.voice_pipeline !== 'realtime' && !row.realtime_model) continue
     const [updated] = await tx
       .update(assistants)
-      .set({ voice_pipeline: row.voice_pipeline === 'realtime' ? 'three_stage' : row.voice_pipeline, realtime_model: null })
+      .set({
+        voice_pipeline: row.voice_pipeline === 'realtime' ? 'three_stage' : row.voice_pipeline,
+        realtime_model: null,
+      })
       .where(and(eq(assistants.id, row.id), eq(assistants.workspace_id, workspaceId)))
       .returning()
     await recordVersion(tx, workspaceId, row.id, { by })
@@ -448,7 +468,8 @@ const LANGUAGE_PREMIUM = (id: string) =>
 export function refuseBillingActor(actor: Actor) {
   if (actor.impersonation)
     throw new Forbidden('not while signed in as someone else: the owner decides what the workspace pays')
-  if (actor.apiKeyId || actor.setupKeyId) throw new Forbidden('only the owner, signed in to the app, can change this')
+  if (actor.apiKeyId || actor.personalKeyId || actor.setupKeyId)
+    throw new Forbidden('only the owner, signed in to the app, can change this')
 }
 
 /** What the assistant editor shows of levels (voice.options `levels`). */

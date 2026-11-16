@@ -193,7 +193,7 @@ async function setSpendingCap(tx: Tx, workspaceId: string, capUsd: number | null
 /** Handlers that hand out an enrolment code refuse a session that is not passkey-confirmed (admin-step-up.ts). */
 function refuseEnrolmentCode(actor: Actor) {
   // Only a person signed in as themselves (or the CLI): never an AI agent's setup key, an API key or an impersonation.
-  if (actor.setupKeyId || actor.apiKeyId || actor.impersonation)
+  if (actor.setupKeyId || actor.apiKeyId || actor.personalKeyId || actor.impersonation)
     throw new Forbidden('only an instance admin signed in as themselves, or the server operator, can do this')
   if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden('confirm with your passkey to do this')
 }
@@ -380,7 +380,8 @@ export const adminHandlers: Record<string, Handler> = {
 
   'provider.setActive': async ({ tx, actor, now, onCommit }, input) => {
     // After-call transcription uploads recordings: only its own action selects it (afterCallTranscript.set).
-    if (input.category === 'transcript') throw new Reject('select after-call transcription with afterCallTranscript.set')
+    if (input.category === 'transcript')
+      throw new Reject('select after-call transcription with afterCallTranscript.set')
     if (moneyCategories.includes(input.category)) refuseMoneyKeysChange(actor)
     if (input.provider && defaultModelCategories.includes(input.category)) {
       const config = await withSecretsKey(() => resolveProvider(tx, input.provider))

@@ -2,6 +2,8 @@ import {
   actions,
   avatarUrlOf,
   CLONE_BODY_MAX_BYTES,
+  inputSchema,
+  IRREVERSIBLE_ACTIONS,
   openApiDocument,
   type WorkspaceCreateData,
   workspaceNameProblem,
@@ -16,7 +18,10 @@ import { bodyLimit } from 'hono/body-limit'
 const ACTION_BODY_MAX_BYTES = 4 * 1024 * 1024
 import { setFirstPassword } from './account.ts'
 import { registerDemoCallRoutes } from './demo-call.ts'
-import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
+import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, keyOf, tooManyInvalidApiKeys } from './api-keys.ts'
+import { shapeFilter } from './records.ts'
+import { isPersonalKey } from './personal-keys.ts'
+import { personalKeyMayRequest } from './key-reads.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
@@ -65,7 +70,7 @@ import { voiceFailing } from './provider-failures.ts'
 import { voiceReady } from './provider-settings.ts'
 import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from './recording-route.ts'
 import { previewLanguage, servePreview } from './voices.ts'
-import { runAction } from './run-action.ts'
+import { runAction, runnableBy } from './run-action.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
 /** Electric refuses shape requests without it (docker-compose.yml); only the API has it. */
@@ -189,7 +194,10 @@ export { WORKSPACE_CREATION_CLOSED }
 app.get('/v1/workspaces/country-hint', async c => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers })
   if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
-  const hint = requestCountryHint(c.req.raw.headers, { timeZone: c.req.query('timeZone'), locale: c.req.query('locale') })
+  const hint = requestCountryHint(c.req.raw.headers, {
+    timeZone: c.req.query('timeZone'),
+    locale: c.req.query('locale'),
+  })
   c.header('cache-control', 'no-store')
   return c.json({ ok: true, hint })
 })
@@ -225,7 +233,12 @@ app.post('/v1/workspaces', async c => {
   const countryHint = requestCountryHint(headers, { timeZone, locale: body.locale })
   const made = await runAction(
     'workspace.create',
-    { name, ...(timeZone ? { timeZone } : {}), ...(country ? { country } : {}), ...(countryHint ? { countryHint } : {}) },
+    {
+      name,
+      ...(timeZone ? { timeZone } : {}),
+      ...(country ? { country } : {}),
+      ...(countryHint ? { countryHint } : {}),
+    },
     caller.actor,
   )
   // Refused by workspace.create: 403 as before; invalid input stays 422.
@@ -240,8 +253,12 @@ app.get('/v1/openapi.json', c => c.json(openApi))
 
 // MCP for a workspace's own AI tools: API keys only, its own gate (mcp.ts).
 // The size limit applies while the body is read, also to a chunked one without content-length.
-app.use('/mcp', bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ ok: false, error: 'request too large' }, 413) }))
-app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c)))
+app.use(
+  '/mcp',
+  bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ ok: false, error: 'request too large' }, 413) }),
+)
+// A personal key's api_get tool reads the API as the key, through the same routes and checks (key-reads.ts).
+app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c), async (path, headers) => app.request(path, { headers }, c.env)))
 // Setup MCP for an AI agent setting up the install: setup keys only, in the path or as Bearer (setup-mcp.ts).
 const setupMcpLimit = bodyLimit({
   maxSize: MCP_MAX_BODY_BYTES,
@@ -280,12 +297,12 @@ app.use('/v1/*', async (c, next) => {
   if (!actor) {
     // An address that sent too many unknown keys is not looked up any more (api-keys.ts).
     const bearer = c.req.header('authorization')?.replace(/^Bearer /, '') ?? ''
-    if (isApiKey(bearer) && tooManyInvalidApiKeys(ip)) {
+    if ((isApiKey(bearer) || isPersonalKey(bearer)) && tooManyInvalidApiKeys(ip)) {
       c.header('retry-after', '600')
       return c.json({ ok: false, error: 'too many invalid API keys from this address; try again later' }, 429)
     }
     // Guessing the agent token: the address is refused for a while (context.ts).
-    if (bearer && !isApiKey(bearer) && tooManyInvalidAgentTokens(ip)) {
+    if (bearer && !isApiKey(bearer) && !isPersonalKey(bearer) && tooManyInvalidAgentTokens(ip)) {
       c.header('retry-after', '600')
       return c.json({ ok: false, error: 'too many invalid tokens from this address; try again later' }, 429)
     }
@@ -293,10 +310,15 @@ app.use('/v1/*', async (c, next) => {
     const code = 'missing' in caller ? caller.missing : 'signed_out'
     return c.json({ ok: false, error: 'not signed in or no workspace', code }, 401)
   }
-  if (actor.apiKeyId && !apiKeyWithinLimit(actor.apiKeyId)) {
+  // Workspace and personal keys alike (api-keys.ts keyOf).
+  const limitedKey = keyOf(actor)
+  if (limitedKey && !apiKeyWithinLimit(limitedKey)) {
     c.header('retry-after', '60')
     return c.json({ ok: false, error: `rate limit: ${API_KEY_REQUESTS_PER_MINUTE} requests a minute per API key` }, 429)
   }
+  // A personal key runs actions and reads the routes listed in key-reads.ts; the rest is the browser's.
+  if (actor.personalKeyId && !personalKeyMayRequest(c.req.method, c.req.path))
+    return c.json({ ok: false, error: 'a personal key cannot use this route (docs/api.md)', code: 'forbidden' }, 403)
   // The tab's workspace must be the session's: never read or write another one (a switch in another tab).
   const refusal =
     accountRefusal(actor, c.req.header(ACCOUNT_HEADER) ?? null) ??
@@ -512,6 +534,25 @@ app.get('/v1/actions', c =>
   c.json([...actions.values()].map(a => ({ name: a.name, description: a.description, permission: a.permission }))),
 )
 
+// The actions the caller may run here, with their input schema: what the `linedesk` CLI offers (packages/cli).
+app.get('/v1/me/actions', c => {
+  const actor = c.get('actor')
+  c.header('cache-control', 'no-store')
+  return c.json({
+    workspaceId: actor.workspaceId ?? null,
+    actions: [...actions.values()]
+      .filter(def => runnableBy(def, actor))
+      .map(def => ({
+        name: def.name,
+        description: def.description,
+        permission: def.permission,
+        readOnly: Boolean(def.readOnly),
+        destructive: Boolean(def.destructive) || IRREVERSIBLE_ACTIONS.has(def.name),
+        input: inputSchema(def),
+      })),
+  })
+})
+
 // A voice recording is the one large input: it is capped before the body is read; every other action at 4 MB (a contact import of 500 rows fits).
 app.use(
   '/v1/actions/voice.clone',
@@ -568,13 +609,6 @@ app.get('/v1/calls/:id/recording', c => {
 const ELECTRIC_CLIENT_STATUSES = [400, 404, 409, 410]
 
 const streamParams = ['offset', 'handle', 'live', 'cursor', 'live_sse', 'experimental_live_sse']
-/** Which rows of a table a member's browser receives: their workspace's; webhook URLs (they can carry a token) only for owners and admins. */
-function shapeFilter(table: TableName, permissions: readonly string[]) {
-  if (table === 'calls') return 'workspace_id = $1 AND deleted_at IS NULL'
-  if (table === 'webhook_endpoints' && !permissions.includes('settings:write')) return 'workspace_id = $1 AND false'
-  return 'workspace_id = $1'
-}
-
 /** Read sync is the browser's: it streams whole tables, settings included (assistants, numbers, calendars, webhooks). */
 export const SHAPE_NOT_FOR_API_KEYS =
   'API keys cannot use read sync; use the public API (GET /v1/openapi.json) or the MCP read tools'
@@ -582,7 +616,8 @@ export const SHAPE_NOT_FOR_API_KEYS =
 app.get('/v1/shape/:table', async c => {
   const table = c.req.param('table') as TableName
   const { workspaceId, apiKeyId, role, permissions } = c.get('actor')
-  if (apiKeyId) return c.json({ ok: false, error: SHAPE_NOT_FOR_API_KEYS, code: 'forbidden' }, 403)
+  if (apiKeyId || c.get('actor').personalKeyId)
+    return c.json({ ok: false, error: SHAPE_NOT_FOR_API_KEYS, code: 'forbidden' }, 403)
   if (!tableNames.includes(table) || !workspaceId) return c.json({ ok: false, error: 'unknown table' }, 404)
   // Read sync is for members and API keys that read calls; never the voice agent, whose tools read nothing.
   if (role === 'agent' || !permissions.includes('call:read'))

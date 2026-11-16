@@ -13,19 +13,32 @@ import {
   setupLinkNeedsFreshSignIn,
   setupLinkSignInRefusal,
 } from './owner-step-up.ts'
-import { actions, droppedFields, rolePermissions, setsTransferNumber, inputErrorText, redactInput, unknownFieldsText, type ActionDef, type ActionRejection, type ActionResult } from '@linedesk/actions'
+import {
+  actions,
+  droppedFields,
+  rolePermissions,
+  setsTransferNumber,
+  inputErrorText,
+  redactInput,
+  unknownFieldsText,
+  type ActionDef,
+  type ActionRejection,
+  type ActionResult,
+} from '@linedesk/actions'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, preparers, Reject, runHandler, type Undo } from './handlers.ts'
+import { personalKeyRefusal } from './personal-key-scope.ts'
 import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
 /** API keys run only the actions of the public API (`public` in the registry, GET /v1/openapi.json). */
-export const API_KEY_PUBLIC_ONLY = 'API keys can only run the actions of the public API (GET /v1/openapi.json); do this in the app'
+export const API_KEY_PUBLIC_ONLY =
+  'API keys can only run the actions of the public API (GET /v1/openapi.json); do this in the app'
 
 const rejection = (status: RunResult['status'], error: string): RunResult => ({ status, body: { ok: false, error } })
 const forbidden = (error: string): RunResult => ({ status: 403, body: { ok: false, error, code: 'forbidden' } })
@@ -61,6 +74,8 @@ function unknownFieldsRefusal(name: string, rawInput: unknown, parsed: unknown, 
  */
 export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'apiKey.create',
+  // A personal key reaches every workspace of its maker.
+  'personalKey.create',
   // A workspace owner's AI agent setup link: like an API key, a way in for an agent.
   'agentSetup.createWorkspaceKey',
   'webhook.create',
@@ -87,7 +102,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
 ])
 
 /** What a workspace setup key hears outside its workspace. */
-export const WORKSPACE_KEY_SCOPE = "This setup link is for one workspace only: it cannot change the server or another workspace."
+export const WORKSPACE_KEY_SCOPE =
+  'This setup link is for one workspace only: it cannot change the server or another workspace.'
 /** Whether a workspace setup key's actor reaches past its one workspace (run before every action, as a backstop). */
 export function workspaceKeyOutOfScope(def: Pick<ActionDef, 'name' | 'permission'>, actor: Actor): boolean {
   if (def.permission === 'instance:admin') return true
@@ -105,12 +121,16 @@ export function workspaceKeyOutOfScope(def: Pick<ActionDef, 'name' | 'permission
 export const needsConfirmedEmail = (name: string, input: unknown) =>
   NEEDS_CONFIRMED_EMAIL.has(name) || (name === 'assistant.update' && setsTransferNumber(input))
 export const EMAIL_NOT_VERIFIED = 'EMAIL_NOT_VERIFIED'
-const emailNotVerified: RunResult = { status: 403, body: { ok: false, error: 'Confirm your email first', code: EMAIL_NOT_VERIFIED } as ActionRejection }
+const emailNotVerified: RunResult = {
+  status: 403,
+  body: { ok: false, error: 'Confirm your email first', code: EMAIL_NOT_VERIFIED } as ActionRejection,
+}
 
 /** Runs every undo, newest first; each reports in a few words what it did, or that it failed. */
 async function runUndos(undos: Undo[]): Promise<string[]> {
   const notes: string[] = []
-  for (const undo of undos.reverse()) notes.push(await undo().catch(e => `undo failed: ${e instanceof Error ? e.message : e}`))
+  for (const undo of undos.reverse())
+    notes.push(await undo().catch(e => `undo failed: ${e instanceof Error ? e.message : e}`))
   return notes
 }
 
@@ -155,6 +175,7 @@ async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promis
       actor_id: actor.actorId,
       impersonated_by: impersonator,
       setup_key_id: actor.setupKeyId ?? null,
+      personal_key_id: actor.personalKeyId ?? null,
       action: def.name,
       input: storedInput(def, redactInput(def, input)) as object,
       result: result.body.ok ? { ok: true, rows: {} } : result.body,
@@ -165,7 +186,10 @@ async function runReadOnly(def: ActionDef, input: unknown, actor: Actor): Promis
 
 async function runRead(def: ActionDef, input: unknown, actor: Actor): Promise<RunResult> {
   try {
-    return { status: 200, body: { ok: true, ...(await runHandler({ tx: db, actor, now: new Date().toISOString() }, def, input)) } }
+    return {
+      status: 200,
+      body: { ok: true, ...(await runHandler({ tx: db, actor, now: new Date().toISOString() }, def, input)) },
+    }
   } catch (e) {
     if (!(e instanceof Reject)) throw e
     const body = rejectionBody(e)
@@ -173,13 +197,39 @@ async function runRead(def: ActionDef, input: unknown, actor: Actor): Promise<Ru
   }
 }
 
-export async function runAction(name: string, rawInput: unknown, actor: Actor, commandId: string = crypto.randomUUID()): Promise<RunResult> {
+/**
+ * Whether this actor may run the action at all, by the checks that do not depend on the input: what GET /v1/me/actions
+ * lists (the CLI) and what MCP offers. runAction checks the same and more.
+ */
+export function runnableBy(def: ActionDef, actor: Actor): boolean {
+  if (secondFactorRefusal(actor, def.permission) || adminPasskeyRefusal(actor, def.permission)) return false
+  const allowed =
+    actor.role === 'agent' && def.agent
+      ? actor.permissions.includes('agent')
+      : actor.permissions.includes(def.permission)
+  if (!allowed) return false
+  if (actor.setupWorkspaceId && workspaceKeyOutOfScope(def, actor)) return false
+  if (actor.impersonation && !mayRunWhileImpersonating(def)) return false
+  if (actor.apiKeyId && !def.public) return false
+  if (actor.personalKeyId && personalKeyRefusal(def.name)) return false
+  return true
+}
+
+export async function runAction(
+  name: string,
+  rawInput: unknown,
+  actor: Actor,
+  commandId: string = crypto.randomUUID(),
+): Promise<RunResult> {
   const def = actions.get(name)
   if (!def) return rejection(404, `unknown action ${name}`)
   // Server admin needs the passkey check, for every instance-admin action (admin-second-factor.ts).
   const refusal = secondFactorRefusal(actor, def.permission) ?? adminPasskeyRefusal(actor, def.permission)
   if (refusal) return { status: 403, body: refusal }
-  const allowed = actor.role === 'agent' && def.agent ? actor.permissions.includes('agent') : actor.permissions.includes(def.permission)
+  const allowed =
+    actor.role === 'agent' && def.agent
+      ? actor.permissions.includes('agent')
+      : actor.permissions.includes(def.permission)
   if (!allowed) return forbidden(`missing permission ${def.permission}`)
   // A workspace owner's setup key (agent-setup.ts): its own workspace only, never the server's or another workspace's,
   // whatever the actor says otherwise; outside one, only ending its own link.
@@ -188,6 +238,9 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
   if (actor.apiKeyId && !def.public) return forbidden(API_KEY_PUBLIC_ONLY)
+  // A personal key is its maker, except for what needs them signed in or a browser (personal-key-scope.ts).
+  const personalRefused = actor.personalKeyId ? personalKeyRefusal(name) : null
+  if (personalRefused) return forbidden(personalRefused)
   if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) return rejection(422, inputErrorText(parsed.error, rawInput))
@@ -202,7 +255,10 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   if (name === 'team.leave' && (await leaveNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown })))
     return { status: 403, body: leaveSignInRefusal }
   // So does the owner deleting a removed member's account (owner-step-up.ts; LIN-264 review F3).
-  if (name === 'team.removeMember' && (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown; keepAccount?: unknown })))
+  if (
+    name === 'team.removeMember' &&
+    (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown; keepAccount?: unknown }))
+  )
     return { status: 403, body: removeSignInRefusal }
   // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
   if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))
@@ -212,7 +268,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))
   if (seen) {
     // A command id belongs to the workspace and action that used it first; nobody else gets its result.
-    if (seen.workspace_id !== actor.workspaceId || seen.action !== name) return rejection(409, 'idempotency key was used for another command')
+    if (seen.workspace_id !== actor.workspaceId || seen.action !== name)
+      return rejection(409, 'idempotency key was used for another command')
     // Rows are read again by id (command-log.ts).
     const body = (await replayedResult(db, seen.workspace_id, seen.result)) as RunResult['body']
     return { status: body.ok ? 200 : statusOf(body), body }
@@ -227,6 +284,8 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
     impersonated_by: impersonatorOf(actor),
     // An AI agent with the admin's setup key (agent-setup.ts): the audit log says so.
     setup_key_id: actor.setupKeyId ?? null,
+    // A personal API key (personal-keys.ts): which one, so a leaked key's commands can be told from the person's own.
+    personal_key_id: actor.personalKeyId ?? null,
     action: name,
     input: storedInput(def, redactInput(def, parsed.data)) as object,
   }
@@ -238,7 +297,9 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
   const onCommit = (work: () => Promise<void>) => void committed.push(work)
   try {
     const prepare = preparers[name]
-    const prepared = prepare ? await prepare({ actor, now: new Date().toISOString(), onRollback }, parsed.data) : undefined
+    const prepared = prepare
+      ? await prepare({ actor, now: new Date().toISOString(), onRollback }, parsed.data)
+      : undefined
     const body = await db.transaction(async tx => {
       const ctx = { tx, actor, now: new Date().toISOString(), onRollback, onCommit, prepared }
       const result: ActionResult = { ok: true, ...(await runHandler(ctx, def, parsed.data)) }
@@ -256,7 +317,10 @@ export async function runAction(name: string, rawInput: unknown, actor: Actor, c
       throw e // unexpected: 500, the client retries
     }
     const body = rejectionBody(e, undone)
-    await db.insert(commands).values({ ...record, result: body, rejected: true }).onConflictDoNothing()
+    await db
+      .insert(commands)
+      .values({ ...record, result: body, rejected: true })
+      .onConflictDoNothing()
     return { status: statusOf(body), body }
   }
 }

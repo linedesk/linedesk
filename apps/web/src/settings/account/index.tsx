@@ -51,6 +51,7 @@ import {
 } from './account-model.ts'
 import { useAddPasskey } from './add-passkey.ts'
 import { AUTHENTICATOR_HOURS, AuthenticatorQr, useAuthenticatorSetup } from './authenticator.tsx'
+import { PersonalKeys } from './PersonalKeys.tsx'
 import { Preferences } from './Preferences.tsx'
 
 type SectionProps = { account: Account; reload: () => Promise<void> }
@@ -967,8 +968,8 @@ function Sessions() {
   )
 }
 
-type SectionId = 'profile' | 'preferences' | 'notifications' | 'security' | 'sessions'
-const SECTION_IDS: readonly SectionId[] = ['profile', 'preferences', 'notifications', 'security', 'sessions']
+type SectionId = 'profile' | 'preferences' | 'notifications' | 'security' | 'sessions' | 'apiKeys'
+const SECTION_IDS: readonly SectionId[] = ['profile', 'preferences', 'notifications', 'security', 'sessions', 'apiKeys']
 
 /** The page's sections in the active language; without a workspace there are no notifications to set. */
 function useSections(hasWorkspace: boolean): readonly PageSection<SectionId>[] {
@@ -1055,6 +1056,7 @@ function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
         {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
         {props && current === 'security' && <SignIn {...props} />}
         {current === 'sessions' && <Sessions />}
+        {current === 'apiKeys' && <PersonalKeys />}
       </SettingsLayout>
     </div>
   )

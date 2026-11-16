@@ -53,7 +53,8 @@ type Target = typeof member.$inferSelect
 async function editableMember(tx: Tx, actor: Actor, memberId: string, lock: boolean): Promise<Target> {
   // Reading is what an impersonation is for (seeing Linedesk as the user does); changing is refused (run-action too).
   if (actor.impersonation && lock) throw new Forbidden(NOT_WHILE_IMPERSONATING)
-  if (actor.role === 'agent' || actor.setupKeyId || actor.apiKeyId || !actor.sessionId)
+  // A personal key is its maker (personal-keys.ts); a workspace key, a setup link or the agent is nobody's teammate.
+  if (actor.role === 'agent' || actor.setupKeyId || actor.apiKeyId || (!actor.sessionId && !actor.personalKeyId))
     throw new Forbidden('only a signed-in owner or admin can change a teammate')
   if (!actor.workspaceId) throw new Reject('no workspace')
   const where = and(eq(member.id, memberId), eq(member.organizationId, actor.workspaceId))

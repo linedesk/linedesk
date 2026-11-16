@@ -13,6 +13,11 @@ import type { z } from 'zod'
  * `secondFactor:own` likewise (every session of an instance admin, not while impersonating): their own authenticator
  * app, the alternative to the passkey for Server admin (authenticator.ts). Its handlers check the rest.
  */
+/**
+ * `account:own`: a person's own account, here their personal API keys (personal-keys.ts). It belongs to no role: the API
+ * adds it to every session of a person signed in as themselves (not while impersonating), with or without a workspace,
+ * and never to a key, so a key never makes or revokes keys.
+ */
 /** `call:export`: every call of a date range at once (call.export), owners and admins only. */
 /**
  * `billing:manage`: what the bill owner decides because it changes what the workspace pays (Allow Premium; later the
@@ -27,13 +32,64 @@ import type { z } from 'zod'
  * `workspace:own`: what only the workspace's one owner does: delete the workspace and hand it over to someone else
  * (workspace rights, docs/architecture.md). Never part of an API key's permissions (api-keys.ts).
  */
-export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'billing:manage' | 'billing:system' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'secondFactor:own' | 'invitation:respond'
+export type Permission =
+  | 'call:read'
+  | 'call:write'
+  | 'call:export'
+  | 'contact:write'
+  | 'settings:write'
+  | 'calendar:read'
+  | 'calendar:write'
+  | 'team:read'
+  | 'team:write'
+  | 'workspace:own'
+  | 'billing:manage'
+  | 'billing:system'
+  | 'agent'
+  | 'instance:admin'
+  | 'impersonation:stop'
+  | 'setupLink:end'
+  | 'secondFactor:own'
+  | 'invitation:respond'
+  | 'account:own'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {
-  owner: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'workspace:own', 'billing:manage', 'invitation:respond'],
-  admin: ['call:read', 'call:write', 'call:export', 'contact:write', 'settings:write', 'calendar:read', 'calendar:write', 'team:read', 'team:write', 'invitation:respond'],
-  member: ['call:read', 'call:write', 'contact:write', 'calendar:read', 'calendar:write', 'team:read', 'invitation:respond'],
+  owner: [
+    'call:read',
+    'call:write',
+    'call:export',
+    'contact:write',
+    'settings:write',
+    'calendar:read',
+    'calendar:write',
+    'team:read',
+    'team:write',
+    'workspace:own',
+    'billing:manage',
+    'invitation:respond',
+  ],
+  admin: [
+    'call:read',
+    'call:write',
+    'call:export',
+    'contact:write',
+    'settings:write',
+    'calendar:read',
+    'calendar:write',
+    'team:read',
+    'team:write',
+    'invitation:respond',
+  ],
+  member: [
+    'call:read',
+    'call:write',
+    'contact:write',
+    'calendar:read',
+    'calendar:write',
+    'team:read',
+    'invitation:respond',
+  ],
   // The voice agent: only the `agent` actions, plus the member actions marked with `agent` below.
   agent: ['agent'],
 }

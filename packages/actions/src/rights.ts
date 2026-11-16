@@ -27,6 +27,8 @@ export function rightOf(permission: Permission): Right {
   if (permission === 'impersonation:stop') return 'impersonation'
   // Answering invitations needs no workspace (context.ts gives it to the workspace-less too, through invitee checks).
   if (permission === 'invitation:respond') return 'account'
+  // Personal API keys: every person signed in as themselves (context.ts), never a key.
+  if (permission === 'account:own') return 'account'
   // The Stripe webhook's processor and the billing jobs: nobody signed in holds it (docs/billing.md §8).
   if (permission === 'billing:system') return 'system'
   const role = workspaceRoles.find(r => rolePermissions[r].includes(permission))

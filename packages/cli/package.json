@@ -1,0 +1,9 @@
+{
+  "name": "@linedesk/cli",
+  "private": true,
+  "type": "module",
+  "bin": { "linedesk": "./bin/linedesk.ts" },
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p .", "test": "vitest run" },
+  "devDependencies": { "@types/node": "^26.6.6", "vitest": "^5.1.0" }
+}

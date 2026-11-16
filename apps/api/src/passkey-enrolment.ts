@@ -10,6 +10,7 @@ import {
   agent_setup_keys,
   member,
   passkey,
+  personal_keys,
   type SetupKeyEndReason,
   session,
   type Tx,
@@ -68,7 +69,11 @@ type EnrolmentRow = { passkeyEnrolmentHash: string | null; passkeyEnrolmentExpir
 
 /** Whether the account has a code that has not expired (whatever it is). */
 export const enrolmentPending = (account: EnrolmentRow, now = Date.now()) =>
-  Boolean(account.passkeyEnrolmentHash && account.passkeyEnrolmentExpiresAt && account.passkeyEnrolmentExpiresAt.getTime() > now)
+  Boolean(
+    account.passkeyEnrolmentHash &&
+      account.passkeyEnrolmentExpiresAt &&
+      account.passkeyEnrolmentExpiresAt.getTime() > now,
+  )
 
 /** Whether `code` is the account's current, unexpired code. Constant time. */
 export function enrolmentCodeValid(account: EnrolmentRow, code: string | null | undefined, now = Date.now()): boolean {
@@ -117,6 +122,7 @@ const withSetupKeyLocks = <T>(tx: Tx, userIds: readonly string[], revoke: (t: Tx
  */
 export async function revokeSetupKeysOf(tx: Tx, userId: string, reason: SetupKeyEndReason): Promise<number> {
   return withSetupKeyLocks(tx, [userId], async t => {
+    await endPersonalKeysOf(t, userId, reason)
     const ended = await t
       .update(agent_setup_keys)
       .set({ revoked_at: new Date().toISOString(), ended_reason: reason })
@@ -127,12 +133,48 @@ export async function revokeSetupKeysOf(tx: Tx, userId: string, reason: SetupKey
 }
 
 /**
+ * Personal API keys (personal-keys.ts) on the same occasions: a lost admin role takes their server-admin rights for
+ * good (a later grant does not bring them back); a password changed or reset, passkeys reset, or the account
+ * disabled or recovered revokes them, so a key made from a stolen session does not outlast the recovery.
+ */
+export async function endPersonalKeysOf(tx: Tx, userId: string, reason: SetupKeyEndReason): Promise<void> {
+  const open = and(eq(personal_keys.user_id, userId), isNull(personal_keys.revoked_at))
+  if (reason === 'admin_role_removed')
+    await tx
+      .update(personal_keys)
+      .set({ passkey_confirmed: false })
+      .where(and(open, eq(personal_keys.passkey_confirmed, true)))
+  else if (REVOKES_PERSONAL_KEYS.has(reason)) await revokePersonalKeysOf(tx, userId)
+}
+
+/** Revokes every personal key of the person (also after an email change, email-change.ts). */
+export async function revokePersonalKeysOf(tx: Tx, userId: string): Promise<void> {
+  await tx
+    .update(personal_keys)
+    .set({ revoked_at: new Date().toISOString() })
+    .where(and(eq(personal_keys.user_id, userId), isNull(personal_keys.revoked_at)))
+}
+
+/** The cleanups after which none of the person's ways in may last: their personal keys are revoked too. */
+const REVOKES_PERSONAL_KEYS: ReadonlySet<SetupKeyEndReason> = new Set([
+  'password_changed',
+  'password_reset',
+  'passkeys_reset',
+  'account_disabled',
+  'account_recovery',
+])
+
+/**
  * Ends every working workspace setup link for one workspace (agent_setup_keys.workspace_id): when it is handed to
  * another owner or disabled. Ended for good, so a link never works again when the owner or the workspace comes back
  * within its hours. Install links are not touched. Holds the lock of each owner and admin there (the only ones who make
  * these links), so a link one of them is making right now ends too. Returns how many were working.
  */
-export async function revokeWorkspaceSetupKeys(tx: Tx, workspaceId: string, reason: SetupKeyEndReason): Promise<number> {
+export async function revokeWorkspaceSetupKeys(
+  tx: Tx,
+  workspaceId: string,
+  reason: SetupKeyEndReason,
+): Promise<number> {
   const makers = await tx
     .select({ userId: member.userId })
     .from(member)

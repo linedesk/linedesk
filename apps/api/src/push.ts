@@ -232,7 +232,14 @@ export async function notifyCallPush(
   if (!('id' in call)) return call
   const callerName = await callerNameOf(tx, call)
   const recipients = await pushRecipients(tx, call.workspace_id)
-  return deliver(tx, sender, call, recipients, r => pushPayload(call, kind, callerName, r.summary === true, localeForUser(r)), options)
+  return deliver(
+    tx,
+    sender,
+    call,
+    recipients,
+    r => pushPayload(call, kind, callerName, r.summary === true, localeForUser(r)),
+    options,
+  )
 }
 
 /** Tells one member on their browsers that `byName` assigned them the call. */
@@ -248,7 +255,14 @@ export async function notifyAssignedPush(
   if (!('id' in call)) return call
   const callerName = await callerNameOf(tx, call)
   const recipients = await pushRecipients(tx, call.workspace_id, userId)
-  return deliver(tx, sender, call, recipients, r => assignedPushPayload(call, callerName, byName, r.summary === true, localeForUser(r)), options)
+  return deliver(
+    tx,
+    sender,
+    call,
+    recipients,
+    r => assignedPushPayload(call, callerName, byName, r.summary === true, localeForUser(r)),
+    options,
+  )
 }
 
 /** "Mike assigned you a call", who called, and with `withSummary` what about. */
@@ -302,7 +316,8 @@ const allowSubscribe = createRateLimiter({ max: 20, windowMs: 3_600_000 })
 /** A person signed in to a workspace: not the agent and not an API key (push is per browser). */
 function pushPerson(actor: Actor): { workspaceId: string; userId: string } {
   if (!actor.workspaceId || actor.role === 'agent') throw new Reject('no workspace')
-  if (actor.apiKeyId) throw new Reject('push notifications are set up in the browser, not with an API key')
+  if (actor.apiKeyId || actor.personalKeyId)
+    throw new Reject('push notifications are set up in the browser, not with an API key')
   return { workspaceId: actor.workspaceId, userId: actor.actorId }
 }
 

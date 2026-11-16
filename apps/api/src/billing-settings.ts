@@ -147,7 +147,7 @@ export function refusedStripeKey(secretKey: string | undefined, env: Env = serve
  * their passkey: never through an AI agent's setup link, an API key or an impersonation (like enrolment codes).
  */
 export function refuseMoneyKeysChange(actor: Actor) {
-  if (actor.setupKeyId || actor.apiKeyId || actor.impersonation)
+  if (actor.setupKeyId || actor.apiKeyId || actor.personalKeyId || actor.impersonation)
     throw new Forbidden('only an instance admin signed in as themselves can change the billing keys')
   if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden('confirm with your passkey to change the billing keys')
 }

@@ -26,6 +26,31 @@ To publish another action, add `public: true` to its `defineAction` and make sur
   - Not destructive: `call_markDone` (the call stays, under done, and `call_markNotDone` brings it back; it is the main thing an assistant does with the inbox) and `contact_update` (clearing a field with null is no worse than overwriting it with other text, which is the tool's purpose; flagging it would leave member keys no way to keep contacts up to date). A run over many calls is bounded by one message per request and the key's rate limit.
 - **Clients:** both the current protocol (2026-07-28) and 2025-era clients, which are served statelessly.
 
+## Personal API keys, the CLI and MCP (everything the app does)
+
+A personal key reaches every action of the web app, for the person who made it (LIN-339, Tim's decision 2026-11-16). Workspace keys (above) stay for integrations such as Zapier.
+
+- **Make one:** Account settings › Personal API keys (`personalKey.create`, `.list`, `.revoke`), only signed in as yourself: never with a key, never during support access. A key is `ldp_` + 32 random bytes, shown once; only its SHA-256 hash is stored (`personal_keys`, not synced). At most 25 keys a person.
+- **What it may do:** exactly what its maker may do now. Every workspace they belong to, with their role there; `x-workspace-id: <id>` picks one, else their first. In a disabled workspace it only reads. A server admin's key has Server admin too, when the install does not ask for the passkey check (`ADMIN_SECOND_FACTOR`) or the key was made in a session that passed it (only an instance admin's key records that; it keeps it until it is revoked or the admin role is removed, and a later grant does not bring it back; the list marks such a key "Server admin"). Changing or resetting the password, resetting the passkeys, changing the email, disabling the account and the account-recovery cleanups revoke all of the person's keys, so a key made from a stolen session does not outlast the recovery (`endPersonalKeysOf`, `passkey-enrolment.ts`). The command log names the key (`commands.personal_key_id`). A role change, a removal, a disabled account or a lost admin flag apply to the key at the next request (`apps/api/src/personal-keys.ts`).
+- **What it may not do** (`PERSONAL_KEY_REFUSED`, `apps/api/src/personal-key-scope.ts`, each with its reason): manage keys or setup links; set up or remove an authenticator app; start or stop support access; push, listening in and taking over (they belong to a browser); delete your own workspace (needs a fresh sign-in); the premium switches only an owner sets in the app; Zapier subscriptions (a workspace key's).
+- **Routes:** `POST /v1/actions/<name>` for every action, and `GET` only on the routes in `KEY_READ_ROUTES` (`apps/api/src/key-reads.ts`): `/v1/me`, `/v1/me/workspaces`, `/v1/me/actions` (the actions this key may run here, with their JSON input schema), `/v1/assistant/status`, `/v1/calendar/providers`, `/v1/invitations/:id`, every `/v1/admin/*` read, recordings, voice previews and pictures. Any other `/v1` route answers 403. The browser's read sync (`/v1/shape`) is one of them: a key reads table rows with the `records.list` action (`{ table, id?, callId?, limit?, after? }`, scoped to the workspace, paged: pass the `next` it returns as `after`).
+- **MCP:** `/mcp` with `Authorization: Bearer ldp_…` offers every action the key may run except webhooks and provider keys (`NOT_OVER_MCP_FOR_PERSONAL_KEYS`: where every future call goes stays out of reach of an assistant that reads caller text), every write marked `destructiveHint: true` so the client asks first, every result with data inside `untrusted_caller_content`, each with an optional `workspaceId` argument (not where the action names a workspace itself), plus the read tools above and `workspaces_list` and `api_get` (GET one of the JSON routes in `KEY_READ_ROUTES`). `x-workspace-id` or `?workspace=` picks the default workspace.
+- **CLI:** `packages/cli`, no dependencies, runs on Node 22.18 or later (it runs its TypeScript directly): `pnpm linedesk <command>` in a checkout. It asks before a destructive or irreversible action (`IRREVERSIBLE_ACTIONS`, `packages/actions/src/personal-keys.ts`: `/v1/me/actions` marks them `destructive`); `--yes` skips the question.
+
+```sh
+pnpm linedesk login --url https://app.example.com   # asks for the key, hidden; stored in ~/.config/linedesk/config.json (600)
+pnpm linedesk workspaces
+pnpm linedesk actions call                          # what you may run, filtered
+pnpm linedesk help call.markDone                    # its fields
+pnpm linedesk call.markDone --callId call_123 --workspace <id>
+pnpm linedesk records.list --table calls --limit 20
+pnpm linedesk get /v1/admin/overview
+```
+
+`LINEDESK_URL` and `LINEDESK_API_KEY` replace `login` in scripts. A destructive action asks first; `--yes` skips the question. Nested fields use dots (`--patch.name Mike`), `--json '{…}'` gives the whole input.
+
+The coverage test `apps/api/test/ui-parity.test.ts` fails when an action has no path for a personal key (neither runnable nor refused with a reason) or when the web app calls a `/v1` route that is neither an action, a key read nor a listed browser-only route.
+
 ## Setup MCP
 
 The preferred way to set up an install is an AI agent (LIN-125). `/mcp/setup` is a second MCP server, for an instance admin's agent (Claude Code, Claude, ChatGPT, Codex, Cursor, any MCP client) to set up the install and the admin's own business with them (`apps/api/src/setup-mcp.ts`, keys in `apps/api/src/agent-setup.ts`).

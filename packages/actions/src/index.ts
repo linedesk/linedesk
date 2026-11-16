@@ -3,6 +3,8 @@ import * as agentSetup from './agent-setup.ts'
 import * as authenticator from './authenticator.ts'
 import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
+import * as personalKeys from './personal-keys.ts'
+import * as records from './records.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as billing from './billing.ts'
 import * as branding from './branding.ts'
@@ -45,6 +47,8 @@ export * from './agent-setup.ts'
 export * from './authenticator.ts'
 export * from './install-setup.ts'
 export * from './api-keys.ts'
+export * from './personal-keys.ts'
+export * from './records.ts'
 export * from './assistant-prompt.ts'
 export * from './assistant-versions.ts'
 export * from './billing.ts'
@@ -205,6 +209,10 @@ const all = [
   apiKeys.apiKeyCreate,
   apiKeys.apiKeyList,
   apiKeys.apiKeyRevoke,
+  personalKeys.personalKeyCreate,
+  personalKeys.personalKeyList,
+  personalKeys.personalKeyRevoke,
+  records.recordsList,
   installSetup.installSetProgress,
   installSetup.providerTryOut,
   installSetup.providerConfirmEmail,

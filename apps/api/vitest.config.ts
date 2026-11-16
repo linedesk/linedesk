@@ -39,6 +39,8 @@ const INSTANCE_WIDE_FILES = [
   'test/setup-mcp.test.ts',
   'test/setup-mcp-workspace.test.ts',
   'test/workspace-limit-retired.test.ts',
+  // Makes server admins and switches the passkey check (personal keys carry Server admin).
+  'test/personal-keys.test.ts',
   'test/workspace-create-cli.test.ts',
   'test/install-setup.test.ts',
   'test/provider-health-check.test.ts',

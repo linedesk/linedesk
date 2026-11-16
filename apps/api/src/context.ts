@@ -1,17 +1,30 @@
 // Who is calling: a signed-in member (session cookie) or the voice agent (bearer token).
 import { timingSafeEqual } from 'node:crypto'
-import { CLIENT_PROTOCOL, CLIENT_PROTOCOL_HEADER, rolePermissions, teamRoles, type Permission, type Role } from '@linedesk/actions'
+import {
+  CLIENT_PROTOCOL,
+  CLIENT_PROTOCOL_HEADER,
+  rolePermissions,
+  teamRoles,
+  type Permission,
+  type Role,
+} from '@linedesk/actions'
 import { member, organization, passkey, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { isCallToken, verifyCallToken } from './agent-token.ts'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
+import { actorForPersonalKey, isPersonalKey } from './personal-keys.ts'
 import { auth } from './auth.ts'
 import { addressBucket } from './client-ip.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { db } from './db.ts'
 import { impersonationEndsAt } from './impersonation-guard.ts'
-import { type AdminSecondFactor, adminSecondFactorGap, passkeyConfirmed, passkeySignedIn } from './admin-second-factor.ts'
+import {
+  type AdminSecondFactor,
+  adminSecondFactorGap,
+  passkeyConfirmed,
+  passkeySignedIn,
+} from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { brandName } from './branding.ts'
 
@@ -50,6 +63,11 @@ export interface Actor {
   sessionId?: string
   /** When that session ends unless it is used again (Better Auth extends it as it is used). */
   sessionExpiresAt?: Date
+  /**
+   * The request came with this personal API key (personal-keys.ts): the key's maker, with their own role and
+   * workspaces, but no session (nothing that needs a fresh sign-in, a passkey or a browser).
+   */
+  personalKeyId?: string
   /** The voice agent with a call token (agent-token.ts): only this call, in `workspaceId`. */
   callId?: string
   /**
@@ -69,7 +87,12 @@ export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
  * The impersonation a session stands for, or null when it must not be used any more: past its
  * hour, or the admin who started it is gone, disabled or no longer an instance admin.
  */
-async function checkImpersonation(s: { id: string; createdAt: Date; expiresAt: Date; impersonatedBy: string }): Promise<Impersonation | null> {
+async function checkImpersonation(s: {
+  id: string
+  createdAt: Date
+  expiresAt: Date
+  impersonatedBy: string
+}): Promise<Impersonation | null> {
   const endsAt = impersonationEndsAt(s.createdAt)
   if (endsAt.getTime() <= Date.now()) return null
   const [admin] = await db.select().from(user).where(eq(user.id, s.impersonatedBy))
@@ -87,7 +110,8 @@ async function hasPasskey(userId: string): Promise<boolean> {
 }
 
 /** A disabled workspace's members keep reading, and can still answer invitations to other workspaces. */
-const readOnly = (permissions: readonly Permission[]) => permissions.filter(p => p.endsWith(':read') || p === 'invitation:respond')
+const readOnly = (permissions: readonly Permission[]) =>
+  permissions.filter(p => p.endsWith(':read') || p === 'invitation:respond')
 
 /** Constant-time: the agent token also reads the provider keys. */
 function sameToken(given: string, expected: string) {
@@ -120,9 +144,18 @@ export const tooManyInvalidAgentTokens = (ip: string | null) => invalidAgentToke
  * before `call.start`), with a call token in that call's workspace. Nothing in a disabled workspace.
  */
 async function agentActor(workspaceId: string | null, callId?: string): Promise<Actor> {
-  const actor: Actor = { actorId: 'agent', role: 'agent', workspaceId, permissions: rolePermissions.agent, ...(callId ? { callId } : {}) }
+  const actor: Actor = {
+    actorId: 'agent',
+    role: 'agent',
+    workspaceId,
+    permissions: rolePermissions.agent,
+    ...(callId ? { callId } : {}),
+  }
   if (!workspaceId) return actor
-  const [workspace] = await db.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspaceId))
+  const [workspace] = await db
+    .select({ disabledAt: organization.disabledAt })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
   return workspace?.disabledAt ? { ...actor, permissions: [], workspaceDisabled: true } : actor
 }
 
@@ -148,6 +181,10 @@ export async function resolveCaller(
   if (bearer) {
     if (isApiKey(bearer)) {
       const actor = await actorForApiKey(bearer, clientIp)
+      return actor ? { actor } : signedOut
+    }
+    if (isPersonalKey(bearer)) {
+      const actor = await actorForPersonalKey(bearer, clientIp, headers.get(WORKSPACE_HEADER))
       return actor ? { actor } : signedOut
     }
     // The agent reaches the API through the internal listener only; anywhere else its tokens (install-wide
@@ -189,7 +226,9 @@ export async function resolveCaller(
   const extra = {
     sessionId: session.session.id,
     sessionExpiresAt: new Date(session.session.expiresAt),
-    ...(!impersonation && passkeyConfirmed(session.session.passkeyVerifiedAt) ? { passkeyConfirmed: true as const } : {}),
+    ...(!impersonation && passkeyConfirmed(session.session.passkeyVerifiedAt)
+      ? { passkeyConfirmed: true as const }
+      : {}),
     // The check was a passkey sign-in, not a code from the authenticator app: changing the app needs it.
     ...(!impersonation && passkeySignedIn(session.session) ? { passkeySignedIn: true as const } : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
@@ -197,23 +236,56 @@ export async function resolveCaller(
     ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),
   }
   // The active workspace, or the member's first one right after sign-in.
-  const active = session.session.activeOrganizationId
-  const memberships = await db.select().from(member).where(eq(member.userId, session.user.id)).orderBy(asc(member.createdAt))
-  const m = memberships.find(x => x.organizationId === active) ?? memberships[0]
+  // A person signed in as themselves manages their own account (personal keys); never while impersonating.
+  const own: Permission[] = impersonation ? [] : ['account:own']
+  const actor = await personActor(
+    account.id,
+    session.session.activeOrganizationId ?? null,
+    extraPermissions,
+    own,
+    extra,
+  )
+  return actor ? { actor } : { missing: 'no_workspace' }
+}
+
+/**
+ * A person as they are now: their membership in `preferred` (else their first one), with that role's permissions
+ * (read only in a disabled workspace), plus `extraPermissions` and `own`. Without a membership only when
+ * `extraPermissions` gives them something to do (an instance admin, an impersonation), else null. Sessions and
+ * personal keys (personal-keys.ts) both come through here, so a key is exactly its maker.
+ */
+export async function personActor(
+  userId: string,
+  preferred: string | null,
+  extraPermissions: readonly Permission[],
+  own: readonly Permission[],
+  extra: Partial<Actor>,
+): Promise<Actor | null> {
+  const memberships = await db.select().from(member).where(eq(member.userId, userId)).orderBy(asc(member.createdAt))
+  const m = memberships.find(x => x.organizationId === preferred) ?? memberships[0]
   // An instance admin can use the admin area before they belong to a workspace, and an impersonation can be ended; everyone else needs one.
   if (!m)
-    return extraPermissions.length || secondFactorGap
-      ? { actor: { actorId: account.id, role: 'member', workspaceId: null, permissions: extraPermissions, ...extra } }
-      : { missing: 'no_workspace' }
+    return extraPermissions.length || extra.adminSecondFactor
+      ? { actorId: userId, role: 'member', workspaceId: null, permissions: [...extraPermissions, ...own], ...extra }
+      : null
   const workspaceId = m.organizationId
   // Only a team role maps to its permissions: a membership row with any other role ("agent", a typo) is a plain member.
   const role: Role = (teamRoles as readonly string[]).includes(m.role) ? (m.role as Role) : 'member'
-  const [workspace] = await db.select({ disabledAt: organization.disabledAt }).from(organization).where(eq(organization.id, workspaceId))
+  const [workspace] = await db
+    .select({ disabledAt: organization.disabledAt })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
   if (workspace?.disabledAt) {
-    const permissions = [...readOnly(rolePermissions[role]), ...extraPermissions]
-    return { actor: { actorId: account.id, role, workspaceId, permissions, workspaceDisabled: true, ...extra } }
+    const permissions = [...readOnly(rolePermissions[role]), ...extraPermissions, ...own]
+    return { actorId: userId, role, workspaceId, permissions, workspaceDisabled: true, ...extra }
   }
-  return { actor: { actorId: account.id, role, workspaceId, permissions: [...rolePermissions[role], ...extraPermissions], ...extra } }
+  return {
+    actorId: userId,
+    role,
+    workspaceId,
+    permissions: [...rolePermissions[role], ...extraPermissions, ...own],
+    ...extra,
+  }
 }
 
 /**
@@ -243,10 +315,14 @@ export const ACCOUNT_HEADER = 'x-linedesk-account'
  */
 export function accountRefusal(actor: Actor, pageAccount: string | null): WorkspaceRefusal | null {
   if (!pageAccount || actor.apiKeyId || actor.role === 'agent' || pageAccount === actor.actorId) return null
-  return { ok: false, error: 'Someone else signed in on this browser. Reload to continue as them.', code: 'account_switched' }
+  return {
+    ok: false,
+    error: 'Someone else signed in on this browser. Reload to continue as them.',
+    code: 'account_switched',
+  }
 }
 
-type BrowserRequest ={ method: string; path: string; header: (name: string) => string | undefined }
+type BrowserRequest = { method: string; path: string; header: (name: string) => string | undefined }
 
 /**
  * A page loaded before a deploy that changed what workspace requests carry (CLIENT_PROTOCOL): its
@@ -257,7 +333,9 @@ type BrowserRequest ={ method: string; path: string; header: (name: string) => s
  */
 export function clientOutdated(actor: Actor, req: BrowserRequest): WorkspaceRefusal | null {
   if (!req.header('sec-fetch-site') || actor.apiKeyId || actor.role === 'agent' || !actor.workspaceId) return null
-  const workspaceData = (req.method === 'POST' && req.path.startsWith('/v1/actions/')) || (req.method === 'GET' && req.path.startsWith('/v1/shape/'))
+  const workspaceData =
+    (req.method === 'POST' && req.path.startsWith('/v1/actions/')) ||
+    (req.method === 'GET' && req.path.startsWith('/v1/shape/'))
   if (!workspaceData) return null
   const protocol = Number(req.header(CLIENT_PROTOCOL_HEADER) ?? 0)
   if (protocol >= CLIENT_PROTOCOL && req.header(WORKSPACE_HEADER)) return null

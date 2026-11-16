@@ -25,7 +25,8 @@
     "i18n:translate": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/translate.ts",
     "i18n:lock": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/lock.ts",
     "i18n:changed": "node --disable-warning=ExperimentalWarning packages/i18n/scripts/changed.ts",
-    "zapier:generate": "node --disable-warning=ExperimentalWarning packages/actions/scripts/zapier.ts"
+    "zapier:generate": "node --disable-warning=ExperimentalWarning packages/actions/scripts/zapier.ts",
+    "linedesk": "node --disable-warning=ExperimentalWarning packages/cli/bin/linedesk.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

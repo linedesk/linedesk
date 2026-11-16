@@ -35,6 +35,7 @@ import {
   emailChangeRefusedEmail,
 } from './emails/templates.ts'
 import { envAdminEmails } from './instance-admin.ts'
+import { revokePersonalKeysOf } from './passkey-enrolment.ts'
 import { PASSKEY_CONFIRMATION_REQUIRED } from './passkeys.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { countWrongCode } from './sign-in-limits.ts'
@@ -287,6 +288,8 @@ export async function finishEmailChange(ctx: Ctx) {
     if (sessionId) changing.delete(sessionId)
     if (isAPIError(ctx.context.returned) || !userId || !sessionId) return
     await db.delete(session).where(and(eq(session.userId, userId), ne(session.id, sessionId)))
+    // Personal API keys end with the other sessions: one made from a stolen session does not outlast the change.
+    await revokePersonalKeysOf(db, userId)
     await ctx.context.internalAdapter.deleteVerificationByIdentifier(provenIdentifier(sessionId))
     const headers = ctx.request?.headers ?? ctx.headers
     await recordAuthEvent({
