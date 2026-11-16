@@ -227,7 +227,7 @@ export async function guardEmailChange(ctx: Ctx) {
   // expired or ran out of tries. Better Auth would answer those last two with "expired" (400) or "too
   // many attempts" (403), and an after-hook can change the body but not the status (finding 1).
   if (mustProve || (await unusable(newEmail, me.id)) || (await spentChangeCode(adapter, me.id, newEmail))) {
-    countWrongCode(ctx)
+    await countWrongCode(ctx)
     throw refusedCode()
   }
   changing.set(mine.id, me.email)

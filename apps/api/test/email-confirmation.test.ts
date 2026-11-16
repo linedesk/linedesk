@@ -12,8 +12,8 @@ import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { NEEDS_CONFIRMED_EMAIL } from '../src/run-action.ts'
 import { auth, confirmationCodeEmail } from '../src/auth.ts'
-import { addressBucket, CLIENT_IP_HEADER } from '../src/client-ip.ts'
-import { codeFailures, countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
+import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
+import { addressAndIpKey, codeFailures, countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { act, anonymous, createWorkspace, FROM, randomIp, request, signUp } from './helpers.ts'
 
 afterEach(() => vi.restoreAllMocks())
@@ -335,7 +335,7 @@ test('wrong confirmation codes count like wrong sign-in codes (per address and n
     ({ path: '/email-otp/verify-email', body: { email, otp: wrong }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
   // ...so seven more make ten: confirming from that network is refused, from another one it is not.
   for (let i = 0; i < 7; i++) await countSignInFailures(at(`${net}::${100 + i}`, new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })))
-  expect(codeFailures.blocked(`${email}|${addressBucket(`${net}::1`)}`)).toBe(true)
+  expect(codeFailures.blocked(addressAndIpKey(email, `${net}::1`))).toBe(true)
   await expect(limitSignIns(at(`${net}::200`))).rejects.toMatchObject({ statusCode: 429 })
   // From another network the same address passes the limit (and meets the session check: this call has no session).
   await expect(limitSignIns(at('198.51.100.77'))).rejects.toMatchObject({ statusCode: 403 })

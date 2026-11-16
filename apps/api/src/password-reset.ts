@@ -87,7 +87,7 @@ export async function guardPasswordReset(ctx: Ctx) {
   const email = bodyField(ctx, 'email')
   if (!email) return // the endpoint's own validation answers
   if ((await accountByEmail(email))?.disabledAt || (await spentCode(ctx, email))) {
-    countWrongCode(ctx)
+    await countWrongCode(ctx)
     throw refusedCode()
   }
 }

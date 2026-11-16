@@ -1,16 +1,26 @@
 // "Forgot password?": a code by email, then the code with a new password (password-reset.ts). The
 // same answer for every address, the code limits of a sign-in code, every session ended, an unproven
 // address cleaned up as by a code sign-in, passkeys untouched and still needing a passkey sign-in.
-import { account, agent_setup_keys, api_keys, auth_events, passkey, session, user, verification } from '@linedesk/db'
+import {
+  account,
+  agent_setup_keys,
+  api_keys,
+  auth_events,
+  passkey,
+  session,
+  sign_in_counters,
+  user,
+  verification,
+} from '@linedesk/db'
 import { APIError } from 'better-auth/api'
-import { and, eq, like } from 'drizzle-orm'
+import { and, eq, like, sql } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { PASSKEY_CONFIRMATION_REQUIRED } from '../src/passkeys.ts'
 import { afterPasswordReset, endSessionsAfterReset } from '../src/password-reset.ts'
-import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
+import { codeFailuresAnywhere, codeFailuresDaily, countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { anonymous, appRequest, type Caller, FROM, randomIp, request, signUp, type User } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
@@ -22,6 +32,30 @@ const accountOf = async (email: string) => (await db.select().from(user).where(e
 afterEach(() => {
   vi.restoreAllMocks()
 })
+
+/** A bare account row for the limits per account: its address. */
+const makeAccount = async (prefix: string) => {
+  const email = address(prefix)
+  await db.insert(user).values({ id: crypto.randomUUID(), name: 'Test User', email })
+  return email
+}
+/**
+ * Moves an account's sign-in counters `hours` back in time, as if those hours had passed, and forgets the caps in
+ * memory, as a restart does: what still holds is the database's. Through a range no row is in, so a row never lands on
+ * the hour of another one while the update runs (the key is checked row by row).
+ */
+const hoursAgo = async (email: string, hours: number) => {
+  const mine = eq(sign_in_counters.user_id, (await accountOf(email))!.id)
+  const shift = (by: ReturnType<typeof sql>) =>
+    db
+      .update(sign_in_counters)
+      .set({ hour: sql`${sign_in_counters.hour} + ${by}` })
+      .where(mine)
+  await shift(sql`interval '1000 years'`)
+  await shift(sql`- interval '1000 years' - make_interval(hours => ${hours})`)
+  codeFailuresAnywhere.clear()
+  codeFailuresDaily.clear()
+}
 
 /** Spies on outgoing email; `codeFor` waits for the latest reset code sent to an address. */
 function mailbox() {
@@ -348,7 +382,7 @@ describe('limits', () => {
     await expect(limitSignIns(at(guessed, '198.51.100.32', '/email-otp/reset-password'))).resolves.toBeUndefined()
   })
 
-  test('wrong codes are capped per address across every IP too: 200 an hour (review I1)', async () => {
+  test('wrong codes are capped per account across every IP too: 30 an hour, 150 a day, in the database (LIN-396)', async () => {
     const at = (email: string, ip: string, path: string, returned?: unknown) =>
       ({
         path,
@@ -356,16 +390,129 @@ describe('limits', () => {
         headers: new Headers({ [CLIENT_IP_HEADER]: ip }),
         context: { returned },
       }) as never
-    const email = address('spread')
+    const email = await makeAccount('spread')
     const wrong = new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })
     const ipOf = (i: number) => `198.18.${Math.floor(i / 250)}.${i % 250}`
-    for (let i = 0; i < 199; i++) await countSignInFailures(at(email, ipOf(i), '/email-otp/reset-password', wrong))
+    for (let i = 0; i < 29; i++) await countSignInFailures(at(email, ipOf(i), '/email-otp/reset-password', wrong))
     await expect(limitSignIns(at(email, '192.0.2.77', '/sign-in/email-otp'))).resolves.toBeUndefined()
-    await countSignInFailures(at(email, ipOf(199), '/sign-in/email-otp', wrong))
+    await countSignInFailures(at(email, ipOf(29), '/sign-in/email-otp', wrong))
     for (const path of ['/email-otp/reset-password', '/sign-in/email-otp'])
       await expect(limitSignIns(at(email, '192.0.2.77', path))).rejects.toMatchObject({ statusCode: 429 })
-    // Another address is not touched.
-    await expect(limitSignIns(at(address('other'), '192.0.2.77', '/sign-in/email-otp'))).resolves.toBeUndefined()
+    // Another account is not touched.
+    await expect(
+      limitSignIns(at(await makeAccount('other'), '192.0.2.77', '/sign-in/email-otp')),
+    ).resolves.toBeUndefined()
+    // The next clock hour: the hourly cap lifts.
+    await hoursAgo(email, 1)
+    await expect(limitSignIns(at(email, '192.0.2.77', '/sign-in/email-otp'))).resolves.toBeUndefined()
+
+    // The day: 150 wrong codes, even when each hour stays below 30.
+    const daily = await makeAccount('daily')
+    for (let i = 0; i < 149; i++) {
+      if (i % 25 === 0) await hoursAgo(daily, 1) // a new hour
+      await countSignInFailures(at(daily, ipOf(i), '/sign-in/email-otp', wrong))
+    }
+    await hoursAgo(daily, 1)
+    await expect(limitSignIns(at(daily, '192.0.2.78', '/sign-in/email-otp'))).resolves.toBeUndefined()
+    await countSignInFailures(at(daily, ipOf(149), '/sign-in/email-otp', wrong))
+    await expect(limitSignIns(at(daily, '192.0.2.78', '/sign-in/email-otp'))).rejects.toMatchObject({ statusCode: 429 })
+    // A day later every hour has fallen out of the window, and the next count drops the old rows.
+    await hoursAgo(daily, 25)
+    await expect(limitSignIns(at(daily, '192.0.2.78', '/sign-in/email-otp'))).resolves.toBeUndefined()
+    await countSignInFailures(at(daily, ipOf(150), '/sign-in/email-otp', wrong))
+    const rows = await db
+      .select()
+      .from(sign_in_counters)
+      .where(eq(sign_in_counters.user_id, (await accountOf(daily))!.id))
+    expect(rows.map(r => r.count)).toEqual([1])
+  })
+
+  test('an address without an account gets the same answer: 30 wrong codes an hour from any IP (LIN-396)', async () => {
+    const at = (email: string, ip: string, returned?: unknown) =>
+      ({
+        path: '/sign-in/email-otp',
+        body: { email, otp: '000000' },
+        headers: new Headers({ [CLIENT_IP_HEADER]: ip }),
+        context: { returned },
+      }) as never
+    const wrong = new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })
+    for (const email of [await makeAccount('known'), address('unknown')]) {
+      for (let i = 0; i < 30; i++) await countSignInFailures(at(email, `198.18.9.${i}`, wrong))
+      await expect(limitSignIns(at(email, '192.0.2.79'))).rejects.toMatchObject({ statusCode: 429 })
+    }
+  })
+
+  test('an address without an account leaves no counter rows (LIN-396)', async () => {
+    const at = (email: string, path: string, returned?: unknown) =>
+      ({
+        path,
+        body: { email, otp: '000000', type: 'sign-in' },
+        headers: new Headers({ [CLIENT_IP_HEADER]: randomIp() }),
+        context: { returned },
+      }) as never
+    const nobody = address('nobody')
+    await limitSignIns(at(nobody, '/email-otp/send-verification-otp'))
+    await countSignInFailures(at(nobody, '/sign-in/email-otp', new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })))
+    const { rows } = await db.execute<{ n: number }>(
+      sql`select count(*)::int as n from ${sign_in_counters} c join ${user} u on u.id = c.user_id where u.email = ${nobody}`,
+    )
+    expect(rows[0]!.n).toBe(0)
+  })
+
+  test('one network alone can not reach the caps across IPs: 10 codes and 20 wrong codes from it (LIN-396)', async () => {
+    const at = (email: string, ip: string, path: string, returned?: unknown) =>
+      ({
+        path,
+        body: { email, otp: '000000', type: 'sign-in' },
+        headers: new Headers({ [CLIENT_IP_HEADER]: ip }),
+        context: { returned },
+      }) as never
+    const email = await makeAccount('one-net')
+    const ip = '203.0.113.41'
+    let refused = 0
+    for (let i = 0; i < 40; i++)
+      await limitSignIns(at(email, ip, '/email-otp/send-verification-otp')).catch(() => refused++)
+    expect(refused).toBe(35) // 5 in 10 minutes from one network
+    // The owner, from their own network, still gets a code.
+    await expect(limitSignIns(at(email, '198.51.100.41', '/email-otp/send-verification-otp'))).resolves.toBeUndefined()
+
+    const guessed = await makeAccount('one-net-guess')
+    const wrong = new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })
+    let guesses = 0
+    for (let i = 0; i < 40; i++) {
+      const allowed = await limitSignIns(at(guessed, ip, '/sign-in/email-otp')).then(
+        () => true,
+        () => false,
+      )
+      if (!allowed) continue
+      guesses++
+      await countSignInFailures(at(guessed, ip, '/sign-in/email-otp', wrong))
+    }
+    expect(guesses).toBe(10)
+    await expect(limitSignIns(at(guessed, '198.51.100.42', '/sign-in/email-otp'))).resolves.toBeUndefined()
+  })
+
+  test('code requests are capped per address across every IP: 40 an hour (LIN-396)', async () => {
+    const at = (email: string, ip: string) =>
+      ({
+        path: '/email-otp/send-verification-otp',
+        body: { email, type: 'sign-in' },
+        headers: new Headers({ [CLIENT_IP_HEADER]: ip }),
+        context: {},
+      }) as never
+    for (const email of [await makeAccount('flooded'), address('flooded-no-account')]) {
+      for (let i = 0; i < 40; i++) await limitSignIns(at(email, randomIp()))
+      await expect(limitSignIns(at(email, randomIp()))).rejects.toMatchObject({ statusCode: 429 })
+    }
+    // The account's cap holds in the database: it outlives the memory of this process.
+    const kept = await makeAccount('flooded-kept')
+    for (let i = 0; i < 40; i++) await limitSignIns(at(kept, randomIp()))
+    // Summed: at the turn of a clock hour the 40 land in two rows.
+    const rows = await db
+      .select()
+      .from(sign_in_counters)
+      .where(and(eq(sign_in_counters.user_id, (await accountOf(kept))!.id), eq(sign_in_counters.kind, 'code_request')))
+    expect(rows.reduce((sum, row) => sum + row.count, 0)).toBe(40)
   })
 })
 

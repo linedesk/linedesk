@@ -1761,6 +1761,23 @@ export const user_avatars = pgTable('user_avatars', {
   updated_at: ts('updated_at').notNull().defaultNow(),
 })
 
+// Sign-in attempts per account across every IP (apps/api/src/sign-in-limits.ts): code emails asked for (`code_request`)
+// and wrong codes (`code_failure`), counted per clock hour. Only for addresses of existing accounts, so the number of
+// rows stays bounded, and in the database, so a restart, a second API process or a flood of other addresses does not
+// reset them. Rows older than a day go when the account counts its next one. Not synced to browsers.
+export const sign_in_counters = pgTable(
+  'sign_in_counters',
+  {
+    user_id: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['code_request', 'code_failure'] }).notNull(),
+    hour: ts('hour').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  t => [primaryKey({ columns: [t.user_id, t.kind, t.hour] })],
+)
+
 // The last change to a person's profile (name, picture) made by someone else: an owner or admin of a workspace they
 // are in (team.updateMemberProfile, team.setMemberAvatar, team.removeMemberAvatar). Account settings › Profile says
 // "Last changed by <name>". One row per account at most; it goes when the person changes their profile themselves.
@@ -1910,7 +1927,10 @@ export const billing_accounts = pgTable(
     check('billing_accounts_kind', oneOf(t.kind, BILLING_KINDS)),
     check('billing_accounts_status', oneOf(t.status, BILLING_STATUSES)),
     check('billing_accounts_interval', oneOf(t.interval, BILLING_INTERVALS)),
-    check('billing_accounts_trial_refused', sql`${t.trial_refused} is null or ${t.trial_refused} in ('card_used', 'prepaid')`),
+    check(
+      'billing_accounts_trial_refused',
+      sql`${t.trial_refused} is null or ${t.trial_refused} in ('card_used', 'prepaid')`,
+    ),
     check('billing_accounts_recharge_cap_base', sql`${t.recharge_cap_base_cents} >= 0`),
     check(
       'billing_accounts_suspend_reason',

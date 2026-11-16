@@ -890,6 +890,13 @@
       "when": 1794867162471,
       "tag": "0127_app_slack",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794870880357,
+      "tag": "0128_sign_in_counters",
+      "breakpoints": true
     }
   ]
 }
