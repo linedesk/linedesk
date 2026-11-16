@@ -29,6 +29,18 @@ All commands for working on Linedesk. The short list every session needs is in [
 - Talk to the assistant without a phone: Settings, Assistant, "Start test call" in the web app (needs `pnpm voice:up` and the agent worker; the call is filed in the inbox as a test call). From a phone's browser: `scripts/tunnel.sh [web-port]` (ngrok, `NGROK_AUTHTOKEN` or ngrok's own config; prints the env lines to set). The older `pnpm --filter @linedesk/agent talk` page still works.
 - The docker compose stack on a public HTTPS address like a server (OAuth redirects, passkeys, push, phone test call): `scripts/local-public.sh start|stop|status` ([local.md](local.md)).
 
+## LLM test suite
+
+The system prompt and tools against the install's LLM, text only (no speech, no phone, no LiveKit): about 85 calls with edge cases (scope, AI disclosure, languages, emergencies, transfers, messages, hours, prices, booking, lookups, prompt injection, ending, spam and style), each graded by deterministic checks and an LLM judge. Run it after a change to the text the assistant reads (rule 11), a new tool or a model change. It calls a paid model (a full run, 3 runs per case on gpt-4.1-mini with a gpt-4.1 judge and caller, costs about $0.45 and takes about 3 minutes), so it is not in CI.
+
+`pnpm --filter @linedesk/agent llm-test [--case <id|prefix-,...>] [--category <name,...>] [--runs 3] [--concurrency 6] [--model <id>] [--judge-model <id>] [--no-judge] [--list]`
+
+- Keys: like the agent, from the install's Admin › Providers (the database, decrypted with `SECRETS_KEY`), then the env. It reads `DATABASE_URL`, else the compose Postgres on 127.0.0.1:5433 with `POSTGRES_PASSWORD`; the script loads the repo's `.env`. Read-only.
+- It uses the real `buildInstructions` and the real tool definitions (`assistantTools`, `apps/agent/src/assistant-tools.ts`); booking and lookup tools run their real code against a fake API; collection steps and `transfer_call` return their real result texts. The prompt text is the one in the code, not the instance admin's System prompt overrides.
+- A case passes when every run passes (`must`: safety and hard rules) or two runs in three (`should`). Exit code 1 when a case fails.
+- Report: a table on the console, and `apps/agent/llm-test-results/<timestamp>/` (gitignored) with `report.json`, `report.md` (the transcripts and reasons of failed runs) and `prompts/<case>.txt` (the system prompt of each failed case).
+- Add a case in `apps/agent/src/llm-test/cases.ts` (how: [README](../apps/agent/src/llm-test/README.md)); `pnpm --filter @linedesk/agent test` checks the catalogue without a model.
+
 ## Voice
 
 - `pnpm voice:up` (LiveKit on 7880, LiveKit SIP on 5060, Redis).
