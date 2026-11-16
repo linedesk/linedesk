@@ -875,6 +875,7 @@
   "provider.blurb.phoneCarrier": "Numéros de téléphone et appels.",
   "provider.blurb.postmark": "E-mail avec un jeton de serveur.",
   "provider.blurb.s3": "AWS S3, R2, Hetzner, Backblaze ou MinIO.",
+  "provider.blurb.slack": "Les entreprises connectent leur Slack, choisissent un canal, et chaque appel terminé y est publié.",
   "provider.blurb.smtp": "Codes de connexion, invitations et e-mails d'appel.",
   "provider.blurb.stripe": "Factures, essais et minutes d'appel pour Linedesk Cloud.",
   "provider.blurb.turnstile": "La vérification anti-robots de la page d'inscription, pour que les codes d'inscription aillent à des personnes, pas à des scripts.",

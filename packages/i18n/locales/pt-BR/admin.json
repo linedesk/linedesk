@@ -875,6 +875,7 @@
   "provider.blurb.phoneCarrier": "Números de telefone e chamadas.",
   "provider.blurb.postmark": "E-mail com um token de servidor.",
   "provider.blurb.s3": "AWS S3, R2, Hetzner, Backblaze ou MinIO.",
+  "provider.blurb.slack": "As empresas conectam o Slack delas, escolhem um canal, e cada chamada concluída é publicada lá.",
   "provider.blurb.smtp": "Códigos de login, convites e e-mails de chamadas.",
   "provider.blurb.stripe": "Faturas, testes grátis e minutos de chamada do Linedesk Cloud.",
   "provider.blurb.turnstile": "A verificação anti-bots na página de cadastro, para que os códigos de cadastro cheguem a pessoas, não a scripts.",

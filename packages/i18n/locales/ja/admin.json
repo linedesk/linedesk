@@ -875,6 +875,7 @@
   "provider.blurb.phoneCarrier": "電話番号と通話。",
   "provider.blurb.postmark": "サーバートークンでメールを送信。",
   "provider.blurb.s3": "AWS S3、R2、Hetzner、Backblaze、MinIO。",
+  "provider.blurb.slack": "事業者がSlackを接続してチャンネルを選ぶと、終了したすべての通話がそこに投稿されます。",
   "provider.blurb.smtp": "サインインコード、招待、通話のメール。",
   "provider.blurb.stripe": "Linedesk Cloudの請求、無料トライアル、通話時間。",
   "provider.blurb.turnstile": "登録ページのボットチェック。登録コードがスクリプトではなく人に届くようにします。",

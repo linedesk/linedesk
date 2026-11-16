@@ -5770,6 +5770,11 @@
       "out": "64232e331a8b500be2856df8cf1a85d761e857711fff1ea8b62e0dd0b635556b",
       "src": "ed34422ead0f3955c6ed355f2a2d0cddc667222ce6be080f905224d2b516871b"
     },
+    "admin.provider.blurb.slack": {
+      "by": "ai",
+      "out": "f93eeba70ada1fb22b94e20566bc1496caace9563563eb96535a373f4c287c8c",
+      "src": "4216851e6606d929b42731a784424963b064238489e6ae36a248923019a97cfe"
+    },
     "admin.provider.blurb.smtp": {
       "by": "ai",
       "out": "6e9c445274b3ad8d6da35b168524b01b8b2e1b98990d6150f0d43c323dba0ec2",
@@ -10905,10 +10910,20 @@
       "out": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8",
       "src": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8"
     },
+    "email.appPush.caller": {
+      "by": "ai",
+      "out": "3df975b7cd4fbb832ff9ec53ea982566a455d043dda88c6098e6b9c49228ab5a",
+      "src": "9bc9b83c11ddcb417258094c42d71f0b548df6b26b39b91e64042143f19112e7"
+    },
     "email.appPush.nextSteps": {
       "by": "ai",
       "out": "89efd75817e71ea005cbb6b5b10f9570d655a663e5c0f905ad29e43824e1bd4c",
       "src": "dd00d3d3e9f73d277737cfacfb788bc46a717458297644788de995b658ceb915"
+    },
+    "email.appPush.number": {
+      "by": "ai",
+      "out": "9732e51294688edd0fe5d5ee09cb94532d02bf1c59bb71a54962a3a845d903d7",
+      "src": "bd82cf16699be29ec05cbb763199c12f0dced428dde8381dbdd31c1d5dd0e8d4"
     },
     "email.appPush.openCall": {
       "by": "ai",
@@ -10919,6 +10934,11 @@
       "by": "ai",
       "out": "9400bf32b85ac00297b56a1f50f4270fa9fd59e49e571950ff7b8646f8cc9dce",
       "src": "266541b40bbebed177ebbfd169d170769bc6b569bc52d754acc160627ad6ed02"
+    },
+    "email.appPush.urgent": {
+      "by": "ai",
+      "out": "d82fbef41e0ff74d6d5bbb1c509963ee3e10cfd1b8e8fac64f8b7d635a42ac35",
+      "src": "1b015904cc17649ef4e6ef2980260f9bf64f80f68b6f9b5f93346160be630753"
     },
     "email.assigned.callFrom": {
       "by": "ai",
@@ -19140,6 +19160,11 @@
       "out": "9a07ddb6e03de8cde6837793e54d27e4f0227d3ae1b090bb7baa83ef028327ff",
       "src": "d0a22ac2e589b0e336a63cde66f7e670141c4a86e6e83bc825ae25571a0fc806"
     },
+    "settings.integrations.app.channelIn": {
+      "by": "ai",
+      "out": "4f412e1fe8b667a08fcb0efd84606ab519f7d70c6aae41cf61f629f41e8a6f67",
+      "src": "4f412e1fe8b667a08fcb0efd84606ab519f7d70c6aae41cf61f629f41e8a6f67"
+    },
     "settings.integrations.app.connect": {
       "by": "ai",
       "out": "048c7c350cf18facd1efd5406a7fadc81feb693a6bf2cdae4a520832c01d9c96",
@@ -19305,6 +19330,16 @@
       "out": "666def4a1cc973b41ec8c5e89ee6fd95dcb2251cdc8d161abc9b7696e5e554e2",
       "src": "f3280819909dc8ced77ef9e219caaef45e061563cc5b029f643c4d6c844238d2"
     },
+    "settings.integrations.app.pushError.channelArchived": {
+      "by": "ai",
+      "out": "d4dae8a0858cba198d7397a5e9e2a433280760e4b966ff4f0ed8f49d785d8578",
+      "src": "f06097570582910c68677c2ebc23c7516586174f11037410e6d0acca68dbdefb"
+    },
+    "settings.integrations.app.pushError.channelNotFound": {
+      "by": "ai",
+      "out": "c68317f0ba782a53985c253186ed6c4ca7cc0608064404e5a583e303b4c4a19e",
+      "src": "7da51660c1a67309f2df2a2558a122a1d7e9778522c64d1158baaf96b96fb122"
+    },
     "settings.integrations.app.pushError.internal": {
       "by": "ai",
       "out": "bcf152be78a8589ccdf90039aba548fe4866a50b9661bff09095272bd0174cb5",
@@ -19329,6 +19364,11 @@
       "by": "ai",
       "out": "92125b9857bee29e908c9ae5b8250cbf0089b3bce5b607f5dbf7a8096f815083",
       "src": "b5b876cecdc0137406a36b226e99ffff62eae6524bf5ad0414c11218d77aaf56"
+    },
+    "settings.integrations.app.pushError.notUrgent": {
+      "by": "ai",
+      "out": "8a4584a0043bd670c63b9b45a278a8bf32f3521e13a4790942e9400a57c8a649",
+      "src": "7c139c3ea6afbe2696536b7f8ff909385869c0f973417978e12f5aeb5d847870"
     },
     "settings.integrations.app.pushError.rateLimited": {
       "by": "ai",
@@ -19435,10 +19475,60 @@
       "out": "f9828edd644497baeab935eecac35ea2abc96dd2ddfe5bf598ccf38b04385319",
       "src": "6b562248ef77f69b9753dc758ed24c609a7769b8005c4a43b4d35cb303a9e1de"
     },
+    "settings.integrations.app.settings.onlyUrgent": {
+      "by": "ai",
+      "out": "510c082a8ae916d44ec965e4cd42b463361663e600c1de909c15b18f06dfad9c",
+      "src": "f7faab08c23cbb891d14f3257d9955c509d8628fba7e9879cb50d41ddeff8918"
+    },
+    "settings.integrations.app.settings.onlyUrgentHelp": {
+      "by": "ai",
+      "out": "f4d2dc6c763de1ec9847c49ec39d15ec31e21cddbe0f838874d551c11a8ff8d2",
+      "src": "11e3f160d4df1fcf7c6a7701314e4d7f7fb664138296abdf8ecf8f39baef9db6"
+    },
+    "settings.integrations.app.settings.onlyUrgentTip": {
+      "by": "ai",
+      "out": "80a82f25a2c6e1a6ece92d4073b72d41d0467314f746545d665456c26d1a6998",
+      "src": "a3f928e1425ab0684022a8cf35b90ff66071c55b46da3df44b7d38d700a482c1"
+    },
+    "settings.integrations.app.settings.postCalls": {
+      "by": "ai",
+      "out": "1e2df8759e280a3a1416b53748a6ca305baef7ef79487c352bef6974468d23a6",
+      "src": "fab1dacfdb6be8ba60255a5f8713bdfe77999cd74715a1daac28558f3cdfe284"
+    },
+    "settings.integrations.app.settings.postCallsHelp": {
+      "by": "ai",
+      "out": "cd44f2201f4a99b2c943623ff1ba5e9af652e3cfa273fa966f5bf26a86c955c9",
+      "src": "832c0814fe29d6bf363db87eab4f44f7ac576eb7c0865ed630f55ee62fc6c990"
+    },
+    "settings.integrations.app.settings.postCallsTip": {
+      "by": "ai",
+      "out": "7f77970d42331741e256f65e7b4ed19d258d21fc3974ecfaf390fa179fda3500",
+      "src": "8e074f6bac5761ce6e5fb169986c4d3674a1648bd0a2f617c5650610ec96d67c"
+    },
     "settings.integrations.app.settings.title": {
       "by": "ai",
       "out": "93360581377980d35517ae93722acafe4a315e97b137ba566a5a33383e050337",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
+    },
+    "settings.integrations.app.slack.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "28ade8d17306318c4f9f41c38419187a35cb66edfb51357784611da66661b7ab",
+      "src": "d37e52c0936ebdc2c09ae1208537e460ae3f474ec0f6ccc0b16d1cb729b27a37"
+    },
+    "settings.integrations.app.slack.help": {
+      "by": "ai",
+      "out": "73f18478655a2ea310e6eab165b046c69875892a32446cd040b7e72205783e7f",
+      "src": "af66845c60eed4095ede86283f510e4418ae848aa587b8b5917de11bad9579ec"
+    },
+    "settings.integrations.app.slack.notConnected": {
+      "by": "ai",
+      "out": "7e50c87474e2ce14b50f7dcf7ef60359f20c068df6afc2cae2fa68782126c5fd",
+      "src": "dcdf5f3344d8a9b914dd29d3eb00878d7d51a9aa012ee14ce3ff928bcee3949e"
+    },
+    "settings.integrations.app.slack.scope": {
+      "by": "ai",
+      "out": "b2391c84d6003042eddcf84fedc3eb78e2deb88b900804094537b531ba48c76d",
+      "src": "6bbe497385923d93b1c95039a712dfae5e181374dbb18107e200d8925144f776"
     },
     "settings.integrations.app.title": {
       "by": "ai",
@@ -30427,6 +30517,11 @@
       "out": "b9f94742fa672e9ca6e15265182727da257ce4a47c6635c6bd645e4394ca7529",
       "src": "ed34422ead0f3955c6ed355f2a2d0cddc667222ce6be080f905224d2b516871b"
     },
+    "admin.provider.blurb.slack": {
+      "by": "ai",
+      "out": "6c3d77a4eaf2368f167d3add7ee95860eea03dbfe2117ed3b97b91345ed7c96b",
+      "src": "4216851e6606d929b42731a784424963b064238489e6ae36a248923019a97cfe"
+    },
     "admin.provider.blurb.smtp": {
       "by": "ai",
       "out": "17c6636b62b9a8ca193ba603bb38d0cf3e566a87a164e072f42fa6f295471969",
@@ -35562,10 +35657,20 @@
       "out": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8",
       "src": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8"
     },
+    "email.appPush.caller": {
+      "by": "ai",
+      "out": "f7e02803bf78ea5c6ba14c8c2afb2cd3d04620d41546df3fce4b0ed492d770ec",
+      "src": "9bc9b83c11ddcb417258094c42d71f0b548df6b26b39b91e64042143f19112e7"
+    },
     "email.appPush.nextSteps": {
       "by": "ai",
       "out": "b3af5f8decf2fd6aaf43fab945533a3acbee71953b322c60cc4a122e949acade",
       "src": "dd00d3d3e9f73d277737cfacfb788bc46a717458297644788de995b658ceb915"
+    },
+    "email.appPush.number": {
+      "by": "ai",
+      "out": "67e494d69c2d20d04d9a9003f0d88d61c80323ae3321c7bcf19de1386600c534",
+      "src": "bd82cf16699be29ec05cbb763199c12f0dced428dde8381dbdd31c1d5dd0e8d4"
     },
     "email.appPush.openCall": {
       "by": "ai",
@@ -35576,6 +35681,11 @@
       "by": "ai",
       "out": "40672f7d88cf3f269909fb2d3ed95419dcf1d25a1bbabd71190e25c55f8f8355",
       "src": "266541b40bbebed177ebbfd169d170769bc6b569bc52d754acc160627ad6ed02"
+    },
+    "email.appPush.urgent": {
+      "by": "ai",
+      "out": "9dc81c64f1531ab4d0a4f557bf4e2a43dd832f4b2d4f81c91b15e3d3cb3126b4",
+      "src": "1b015904cc17649ef4e6ef2980260f9bf64f80f68b6f9b5f93346160be630753"
     },
     "email.assigned.callFrom": {
       "by": "ai",
@@ -43797,6 +43907,11 @@
       "out": "66b18194ded2a28bec56627925b682197234a8c0210ab5641eedc5c4bef2ce21",
       "src": "d0a22ac2e589b0e336a63cde66f7e670141c4a86e6e83bc825ae25571a0fc806"
     },
+    "settings.integrations.app.channelIn": {
+      "by": "ai",
+      "out": "a7ca8ca0aa2397b890df15847cdc0b6cf6940a2ec80169e385164e17142048db",
+      "src": "4f412e1fe8b667a08fcb0efd84606ab519f7d70c6aae41cf61f629f41e8a6f67"
+    },
     "settings.integrations.app.connect": {
       "by": "ai",
       "out": "f41c786983be1b253f85abfd78ec01b3c3b61df08906bf471c4f52c133c95201",
@@ -43962,6 +44077,16 @@
       "out": "b2e270745a185cf048ea3515ee7c323c0670d6641d51ebd8eb204e0ad52ec640",
       "src": "f3280819909dc8ced77ef9e219caaef45e061563cc5b029f643c4d6c844238d2"
     },
+    "settings.integrations.app.pushError.channelArchived": {
+      "by": "ai",
+      "out": "7940a7687b5c4ecb8b6b9958bd25e32fbf5412a372273b1302ca22a7b8332532",
+      "src": "f06097570582910c68677c2ebc23c7516586174f11037410e6d0acca68dbdefb"
+    },
+    "settings.integrations.app.pushError.channelNotFound": {
+      "by": "ai",
+      "out": "7fdd9c34a7da5cfb6b7dff5880d4bc386dff5bcd8f9dfd7976ff9fc2d0c731db",
+      "src": "7da51660c1a67309f2df2a2558a122a1d7e9778522c64d1158baaf96b96fb122"
+    },
     "settings.integrations.app.pushError.internal": {
       "by": "ai",
       "out": "4aeb68bcb5830f28c76a2c43aea0db4fdc8fbe17b35854c3d81894f382e57351",
@@ -43986,6 +44111,11 @@
       "by": "ai",
       "out": "20ca1695b3491c8b1e954c61d05e91a3d9c268fe6d8688f521017455807692de",
       "src": "b5b876cecdc0137406a36b226e99ffff62eae6524bf5ad0414c11218d77aaf56"
+    },
+    "settings.integrations.app.pushError.notUrgent": {
+      "by": "ai",
+      "out": "efe2108b0020c67ef43b734ad9dc8ac92caaa168632f593f868922e7e983456a",
+      "src": "7c139c3ea6afbe2696536b7f8ff909385869c0f973417978e12f5aeb5d847870"
     },
     "settings.integrations.app.pushError.rateLimited": {
       "by": "ai",
@@ -44092,10 +44222,60 @@
       "out": "c917d96b2e16d63c1a2d07a2b0d61e9e19ad8321b0b2c9c893283d80eff8d7cf",
       "src": "6b562248ef77f69b9753dc758ed24c609a7769b8005c4a43b4d35cb303a9e1de"
     },
+    "settings.integrations.app.settings.onlyUrgent": {
+      "by": "ai",
+      "out": "954dd2bea7ed74a81e691f9856ee9ca6cee8799f96948306aeb056c4c6d1aaf3",
+      "src": "f7faab08c23cbb891d14f3257d9955c509d8628fba7e9879cb50d41ddeff8918"
+    },
+    "settings.integrations.app.settings.onlyUrgentHelp": {
+      "by": "ai",
+      "out": "eb969a35639c1d47f2ae048a8c7b6976b1889326ef88d47687e987d55f5563e0",
+      "src": "11e3f160d4df1fcf7c6a7701314e4d7f7fb664138296abdf8ecf8f39baef9db6"
+    },
+    "settings.integrations.app.settings.onlyUrgentTip": {
+      "by": "ai",
+      "out": "95a3bf444cb9536bf72c1fe750b64c6e486a97a4761fd4370c587dc31a0b6de5",
+      "src": "a3f928e1425ab0684022a8cf35b90ff66071c55b46da3df44b7d38d700a482c1"
+    },
+    "settings.integrations.app.settings.postCalls": {
+      "by": "ai",
+      "out": "32b4b7515d87bc703e99e6e443eb2abc3f3a353bf6541dd3c958a54986f0ec59",
+      "src": "fab1dacfdb6be8ba60255a5f8713bdfe77999cd74715a1daac28558f3cdfe284"
+    },
+    "settings.integrations.app.settings.postCallsHelp": {
+      "by": "ai",
+      "out": "c40d3a54db55e4f0349793f00146bef7db2c79bd831054feb9e872529a6d493a",
+      "src": "832c0814fe29d6bf363db87eab4f44f7ac576eb7c0865ed630f55ee62fc6c990"
+    },
+    "settings.integrations.app.settings.postCallsTip": {
+      "by": "ai",
+      "out": "19cbaf72527771091aa22054bf0aafa1d2a065feba9ba406adde418ca1d9da56",
+      "src": "8e074f6bac5761ce6e5fb169986c4d3674a1648bd0a2f617c5650610ec96d67c"
+    },
     "settings.integrations.app.settings.title": {
       "by": "ai",
       "out": "6d98a13df639eff6974ffd592a58f0a5b9bb62d2dd2467cdd9b1b81e9b909d72",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
+    },
+    "settings.integrations.app.slack.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "5b81c67fd1b92439fc4546c2002515691aa4cdd773a4b4af0ca051659bb86892",
+      "src": "d37e52c0936ebdc2c09ae1208537e460ae3f474ec0f6ccc0b16d1cb729b27a37"
+    },
+    "settings.integrations.app.slack.help": {
+      "by": "ai",
+      "out": "53c8ba65d3b6a24335af5644a8c82532d1c26c23492468311adac013cf69f2cd",
+      "src": "af66845c60eed4095ede86283f510e4418ae848aa587b8b5917de11bad9579ec"
+    },
+    "settings.integrations.app.slack.notConnected": {
+      "by": "ai",
+      "out": "2f08ac930396db490c21f8a826f5ac99503657d180b65e98d6aa42d83d0b19a1",
+      "src": "dcdf5f3344d8a9b914dd29d3eb00878d7d51a9aa012ee14ce3ff928bcee3949e"
+    },
+    "settings.integrations.app.slack.scope": {
+      "by": "ai",
+      "out": "7c39a923d184d446937e8e300f29c8576b008c513e20e9edd7e74a1fc0bb694c",
+      "src": "6bbe497385923d93b1c95039a712dfae5e181374dbb18107e200d8925144f776"
     },
     "settings.integrations.app.title": {
       "by": "ai",
@@ -55084,6 +55264,11 @@
       "out": "1e91e41a8b018343b52d98e52c341d2c716770b9c7b17ef3d647c9ff98658f1c",
       "src": "ed34422ead0f3955c6ed355f2a2d0cddc667222ce6be080f905224d2b516871b"
     },
+    "admin.provider.blurb.slack": {
+      "by": "ai",
+      "out": "f4d14b6bd16af5d7418b987a279a778d6b1ac3bdf321f47fe551c95974e873ba",
+      "src": "4216851e6606d929b42731a784424963b064238489e6ae36a248923019a97cfe"
+    },
     "admin.provider.blurb.smtp": {
       "by": "ai",
       "out": "47ecb7e780477e0b872e985d1198cebbaa5394de5d6911e9df0413ce2249432c",
@@ -60219,10 +60404,20 @@
       "out": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8",
       "src": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8"
     },
+    "email.appPush.caller": {
+      "by": "ai",
+      "out": "36de20c262d67238d1a1a13a4b8831675f5d8ecf479c8078a582e1e5cdd48d69",
+      "src": "9bc9b83c11ddcb417258094c42d71f0b548df6b26b39b91e64042143f19112e7"
+    },
     "email.appPush.nextSteps": {
       "by": "ai",
       "out": "ff84ab36ad197e6174b26f7750cfb2798629a5a0196ed3c6e652b1dfc659789e",
       "src": "dd00d3d3e9f73d277737cfacfb788bc46a717458297644788de995b658ceb915"
+    },
+    "email.appPush.number": {
+      "by": "ai",
+      "out": "a61794270e4f40c7f39647e76eef32dff3a08b219a8414f3e4fc4751415bf1aa",
+      "src": "bd82cf16699be29ec05cbb763199c12f0dced428dde8381dbdd31c1d5dd0e8d4"
     },
     "email.appPush.openCall": {
       "by": "ai",
@@ -60233,6 +60428,11 @@
       "by": "ai",
       "out": "2a081eaaf729175499f27b0e9e369aabc128df79d4b9b05524290e0cad7f7887",
       "src": "266541b40bbebed177ebbfd169d170769bc6b569bc52d754acc160627ad6ed02"
+    },
+    "email.appPush.urgent": {
+      "by": "ai",
+      "out": "1b015904cc17649ef4e6ef2980260f9bf64f80f68b6f9b5f93346160be630753",
+      "src": "1b015904cc17649ef4e6ef2980260f9bf64f80f68b6f9b5f93346160be630753"
     },
     "email.assigned.callFrom": {
       "by": "ai",
@@ -68454,6 +68654,11 @@
       "out": "2ecd63baa42c0016da519eaad5481536c423e033a5dc7921fae5d75a47408848",
       "src": "d0a22ac2e589b0e336a63cde66f7e670141c4a86e6e83bc825ae25571a0fc806"
     },
+    "settings.integrations.app.channelIn": {
+      "by": "ai",
+      "out": "80b0ae29aca6315f8ef2a40074b6fe9fe46fffdbe2ef10147fbc9449c6bc5914",
+      "src": "4f412e1fe8b667a08fcb0efd84606ab519f7d70c6aae41cf61f629f41e8a6f67"
+    },
     "settings.integrations.app.connect": {
       "by": "ai",
       "out": "b173f116d616a22f2686232f41b787eb77f4bdd06ef37f04be466d3501272eee",
@@ -68619,6 +68824,16 @@
       "out": "197eda8432493fe87c3aaa9dcbeac435e366d4985c7b1076de392c23ca5a83d6",
       "src": "f3280819909dc8ced77ef9e219caaef45e061563cc5b029f643c4d6c844238d2"
     },
+    "settings.integrations.app.pushError.channelArchived": {
+      "by": "ai",
+      "out": "7d7d1e7b20c1d89148b585e63f945c947b6f60b79966060fe5f3f18955751c71",
+      "src": "f06097570582910c68677c2ebc23c7516586174f11037410e6d0acca68dbdefb"
+    },
+    "settings.integrations.app.pushError.channelNotFound": {
+      "by": "ai",
+      "out": "77dfdc8e7dcce0e29c81238532a4cab31ba300141d0e0c7bba5be0de7e54ac40",
+      "src": "7da51660c1a67309f2df2a2558a122a1d7e9778522c64d1158baaf96b96fb122"
+    },
     "settings.integrations.app.pushError.internal": {
       "by": "ai",
       "out": "18ad0dfa09208eac0efdcf60a5a38a198018eb5040a5984943d959cf724dcb78",
@@ -68643,6 +68858,11 @@
       "by": "ai",
       "out": "141ba52f52ea87e4d418c3204a8f11475ec6c008cac6f610d522aa8feae1d207",
       "src": "b5b876cecdc0137406a36b226e99ffff62eae6524bf5ad0414c11218d77aaf56"
+    },
+    "settings.integrations.app.pushError.notUrgent": {
+      "by": "ai",
+      "out": "625f1613f0136c5545f69113932d3a09baa6ffceef2baef140ebdcc05a4f934f",
+      "src": "7c139c3ea6afbe2696536b7f8ff909385869c0f973417978e12f5aeb5d847870"
     },
     "settings.integrations.app.pushError.rateLimited": {
       "by": "ai",
@@ -68749,10 +68969,60 @@
       "out": "1dd2c5641dbee7df039870fbf01284c17c0ae1808e43615afe35cbc118c5f390",
       "src": "6b562248ef77f69b9753dc758ed24c609a7769b8005c4a43b4d35cb303a9e1de"
     },
+    "settings.integrations.app.settings.onlyUrgent": {
+      "by": "ai",
+      "out": "af2423af4bf31563ba44330015a3e10e9fb93208daf9e067c366ec01c33f7a4a",
+      "src": "f7faab08c23cbb891d14f3257d9955c509d8628fba7e9879cb50d41ddeff8918"
+    },
+    "settings.integrations.app.settings.onlyUrgentHelp": {
+      "by": "ai",
+      "out": "6ae611c61affd1b430f6a724490a464fad516083ed0121f08a0a75a3b49a429b",
+      "src": "11e3f160d4df1fcf7c6a7701314e4d7f7fb664138296abdf8ecf8f39baef9db6"
+    },
+    "settings.integrations.app.settings.onlyUrgentTip": {
+      "by": "ai",
+      "out": "81c107539f4128471c389d3d158931ec9d17b02f087ad339d487d6ea5e095bd6",
+      "src": "a3f928e1425ab0684022a8cf35b90ff66071c55b46da3df44b7d38d700a482c1"
+    },
+    "settings.integrations.app.settings.postCalls": {
+      "by": "ai",
+      "out": "4152a3288980d6af2d1de99b947bd4625abd94a5341a98c55f928b4c51a132d2",
+      "src": "fab1dacfdb6be8ba60255a5f8713bdfe77999cd74715a1daac28558f3cdfe284"
+    },
+    "settings.integrations.app.settings.postCallsHelp": {
+      "by": "ai",
+      "out": "64dcacad4010e84681ffb3aa3f1ebc9d58025c1f81b36adbb6147c38314826d1",
+      "src": "832c0814fe29d6bf363db87eab4f44f7ac576eb7c0865ed630f55ee62fc6c990"
+    },
+    "settings.integrations.app.settings.postCallsTip": {
+      "by": "ai",
+      "out": "f9b16acdc9e7467e881ea411463b746233b71f88b8cfeb79e16ae9475702b64b",
+      "src": "8e074f6bac5761ce6e5fb169986c4d3674a1648bd0a2f617c5650610ec96d67c"
+    },
     "settings.integrations.app.settings.title": {
       "by": "ai",
       "out": "18eaaf2ebc4991365ecc4eb0d634927ccb8f29bd719b6e35c20563e8b0fa94ce",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
+    },
+    "settings.integrations.app.slack.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "9910705cb6d30c0ec9c1d7db51c8959d5a2ec57a12d1beec991598264dc010f8",
+      "src": "d37e52c0936ebdc2c09ae1208537e460ae3f474ec0f6ccc0b16d1cb729b27a37"
+    },
+    "settings.integrations.app.slack.help": {
+      "by": "ai",
+      "out": "fde3c2ba49488e76339a9755f97d64ac9d6d6714d1b37578efd92ba31e600f95",
+      "src": "af66845c60eed4095ede86283f510e4418ae848aa587b8b5917de11bad9579ec"
+    },
+    "settings.integrations.app.slack.notConnected": {
+      "by": "ai",
+      "out": "e96605e0742a116bfe82a3711584345da4e107911a85333c3cba5c2ff2432975",
+      "src": "dcdf5f3344d8a9b914dd29d3eb00878d7d51a9aa012ee14ce3ff928bcee3949e"
+    },
+    "settings.integrations.app.slack.scope": {
+      "by": "ai",
+      "out": "a0c8b60be5d0e23b4b08119f2729e6161ab7da8af9b44732a835c625d14abd4d",
+      "src": "6bbe497385923d93b1c95039a712dfae5e181374dbb18107e200d8925144f776"
     },
     "settings.integrations.app.title": {
       "by": "ai",
@@ -79741,6 +80011,11 @@
       "out": "7bd7ed37ed8b01e3606e05a633a3141e3129f43d564a294cd9e1288441293a76",
       "src": "ed34422ead0f3955c6ed355f2a2d0cddc667222ce6be080f905224d2b516871b"
     },
+    "admin.provider.blurb.slack": {
+      "by": "ai",
+      "out": "bc02ea2d2ad6bf08abc7b96a573874099b9f5c2a02a71217b02175e34803547e",
+      "src": "4216851e6606d929b42731a784424963b064238489e6ae36a248923019a97cfe"
+    },
     "admin.provider.blurb.smtp": {
       "by": "ai",
       "out": "b7d417421f7f0a81493d845a34cbeb52770172945bca48e5b0c565148109d761",
@@ -84876,10 +85151,20 @@
       "out": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8",
       "src": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8"
     },
+    "email.appPush.caller": {
+      "by": "ai",
+      "out": "64a71d7480116df4b0b01f5fa268100872f16ff01b36a1d0b1fc6d1584fb216a",
+      "src": "9bc9b83c11ddcb417258094c42d71f0b548df6b26b39b91e64042143f19112e7"
+    },
     "email.appPush.nextSteps": {
       "by": "ai",
       "out": "8a1aef9b62a550506668fa234622d2e3b1eeef90e33dca0053a6a074a5cf2c0e",
       "src": "dd00d3d3e9f73d277737cfacfb788bc46a717458297644788de995b658ceb915"
+    },
+    "email.appPush.number": {
+      "by": "ai",
+      "out": "18e554f0d70996ee87e68c6c450ced4138287897741837be4c75999d77c38879",
+      "src": "bd82cf16699be29ec05cbb763199c12f0dced428dde8381dbdd31c1d5dd0e8d4"
     },
     "email.appPush.openCall": {
       "by": "ai",
@@ -84890,6 +85175,11 @@
       "by": "ai",
       "out": "f106c7102d637968130e5968dd4f4cc58b60322fe2e3346d26975a6d3d4c5dc7",
       "src": "266541b40bbebed177ebbfd169d170769bc6b569bc52d754acc160627ad6ed02"
+    },
+    "email.appPush.urgent": {
+      "by": "ai",
+      "out": "ffbcf22494349d7fa4d860a57923fe89a60850d1364d66d174ef2c78c442c6f4",
+      "src": "1b015904cc17649ef4e6ef2980260f9bf64f80f68b6f9b5f93346160be630753"
     },
     "email.assigned.callFrom": {
       "by": "ai",
@@ -93111,6 +93401,11 @@
       "out": "9d0faeeb9da466336b16a6b25a570f8a52aed9de4490b38cdf409c80f5235366",
       "src": "d0a22ac2e589b0e336a63cde66f7e670141c4a86e6e83bc825ae25571a0fc806"
     },
+    "settings.integrations.app.channelIn": {
+      "by": "ai",
+      "out": "3ec66cdd0de4754661a389e1e8278c904dd9c8d2bea28cebf221a2f7c0cc79c2",
+      "src": "4f412e1fe8b667a08fcb0efd84606ab519f7d70c6aae41cf61f629f41e8a6f67"
+    },
     "settings.integrations.app.connect": {
       "by": "ai",
       "out": "876334f299d8b43de55f45730b307865adf46644727b699b9bedacd05098e33a",
@@ -93276,6 +93571,16 @@
       "out": "354cfe61315d4af604f2acda209fc8221c51e56c1abd6000371d8957b884b28a",
       "src": "f3280819909dc8ced77ef9e219caaef45e061563cc5b029f643c4d6c844238d2"
     },
+    "settings.integrations.app.pushError.channelArchived": {
+      "by": "ai",
+      "out": "6ad2743adcf2a4520a30077ec1e0acc67693bce3b46226e030886dc89403a510",
+      "src": "f06097570582910c68677c2ebc23c7516586174f11037410e6d0acca68dbdefb"
+    },
+    "settings.integrations.app.pushError.channelNotFound": {
+      "by": "ai",
+      "out": "b66687cc923548e1ac73cd597389b69d8de77fb85a9d297108492e37d76c2cc3",
+      "src": "7da51660c1a67309f2df2a2558a122a1d7e9778522c64d1158baaf96b96fb122"
+    },
     "settings.integrations.app.pushError.internal": {
       "by": "ai",
       "out": "46521ecb2b11ccbab3787be5b8fa7f2c306576a76553cea46314dffd8a4501c7",
@@ -93300,6 +93605,11 @@
       "by": "ai",
       "out": "d64bb0594be260e3c01d79cbedb457bb7df623409326b4ae333faff1a515d8d2",
       "src": "b5b876cecdc0137406a36b226e99ffff62eae6524bf5ad0414c11218d77aaf56"
+    },
+    "settings.integrations.app.pushError.notUrgent": {
+      "by": "ai",
+      "out": "7e1903f6f2649a749680a10e1237093585e22f2f9a4ca0225bf1a91c7ad7a4fa",
+      "src": "7c139c3ea6afbe2696536b7f8ff909385869c0f973417978e12f5aeb5d847870"
     },
     "settings.integrations.app.pushError.rateLimited": {
       "by": "ai",
@@ -93406,10 +93716,60 @@
       "out": "bfe76e4235824e6bca3917b385849524d52cc4137a079e9fbdd7f71e478841e0",
       "src": "6b562248ef77f69b9753dc758ed24c609a7769b8005c4a43b4d35cb303a9e1de"
     },
+    "settings.integrations.app.settings.onlyUrgent": {
+      "by": "ai",
+      "out": "b6de63f7ecadf47f90d6d43b80c2ae14689d8cb7ced8fbe2081402386411059c",
+      "src": "f7faab08c23cbb891d14f3257d9955c509d8628fba7e9879cb50d41ddeff8918"
+    },
+    "settings.integrations.app.settings.onlyUrgentHelp": {
+      "by": "ai",
+      "out": "166dc45b8944a54d52f5950d881172cf15f7e1a8d7eaf8289c6658dd5367c56a",
+      "src": "11e3f160d4df1fcf7c6a7701314e4d7f7fb664138296abdf8ecf8f39baef9db6"
+    },
+    "settings.integrations.app.settings.onlyUrgentTip": {
+      "by": "ai",
+      "out": "45a55b580c816c0781291d053ec4fd426ca918418066dfe69bbfb4735dd36eb0",
+      "src": "a3f928e1425ab0684022a8cf35b90ff66071c55b46da3df44b7d38d700a482c1"
+    },
+    "settings.integrations.app.settings.postCalls": {
+      "by": "ai",
+      "out": "a8c8554859918d2598b4957923a17d5eff8f26c595531ce0e58734e940be9272",
+      "src": "fab1dacfdb6be8ba60255a5f8713bdfe77999cd74715a1daac28558f3cdfe284"
+    },
+    "settings.integrations.app.settings.postCallsHelp": {
+      "by": "ai",
+      "out": "839b0c5b95298bf55755574222849f0237978b1e5d2c83261bc74698202fd679",
+      "src": "832c0814fe29d6bf363db87eab4f44f7ac576eb7c0865ed630f55ee62fc6c990"
+    },
+    "settings.integrations.app.settings.postCallsTip": {
+      "by": "ai",
+      "out": "cc7200a7d6c83969e6d20a9a018c597ec4cd8ca25b4b22aa1eb478eaa06ca8e5",
+      "src": "8e074f6bac5761ce6e5fb169986c4d3674a1648bd0a2f617c5650610ec96d67c"
+    },
     "settings.integrations.app.settings.title": {
       "by": "ai",
       "out": "1872b3e7c9f17be1504ded1c210e61daffdf3ac361e46abec3eb351bee3c063d",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
+    },
+    "settings.integrations.app.slack.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "753ac034973f5cc084c41e162b9ce94def7e3d9385fdfc48952f73635f44e325",
+      "src": "d37e52c0936ebdc2c09ae1208537e460ae3f474ec0f6ccc0b16d1cb729b27a37"
+    },
+    "settings.integrations.app.slack.help": {
+      "by": "ai",
+      "out": "149c93793fe42870be7dfe0f1b76de4a2c82727f670f42921e90565c0bd0903d",
+      "src": "af66845c60eed4095ede86283f510e4418ae848aa587b8b5917de11bad9579ec"
+    },
+    "settings.integrations.app.slack.notConnected": {
+      "by": "ai",
+      "out": "3768ca1fdb6151b2262f5372cfa99ad7eafa65f8275779158eaf3775773383fc",
+      "src": "dcdf5f3344d8a9b914dd29d3eb00878d7d51a9aa012ee14ce3ff928bcee3949e"
+    },
+    "settings.integrations.app.slack.scope": {
+      "by": "ai",
+      "out": "b18e3fe7610087fbe9d4f08a6f79f9409c7a1c533828c02824191392ecae8ff9",
+      "src": "6bbe497385923d93b1c95039a712dfae5e181374dbb18107e200d8925144f776"
     },
     "settings.integrations.app.title": {
       "by": "ai",
@@ -104398,6 +104758,11 @@
       "out": "1e91e41a8b018343b52d98e52c341d2c716770b9c7b17ef3d647c9ff98658f1c",
       "src": "ed34422ead0f3955c6ed355f2a2d0cddc667222ce6be080f905224d2b516871b"
     },
+    "admin.provider.blurb.slack": {
+      "by": "ai",
+      "out": "d85cc1501f259699e8c47f779b4a49f5e8394c3950507a3f224e2779d8a37718",
+      "src": "4216851e6606d929b42731a784424963b064238489e6ae36a248923019a97cfe"
+    },
     "admin.provider.blurb.smtp": {
       "by": "ai",
       "out": "505dcd3ff58a7b294a7b341ed0200322bf57b3b11311d520daed5c43b6e854be",
@@ -109533,10 +109898,20 @@
       "out": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8",
       "src": "24ee890e7afbc9445bb7862a3e88a6fd82986f3641087ab9b088e2ae11e467c8"
     },
+    "email.appPush.caller": {
+      "by": "ai",
+      "out": "e4c50d603b5ff4e288aceeed7331f7d0af3ec46cd78529b6f9b9cdc7334911b7",
+      "src": "9bc9b83c11ddcb417258094c42d71f0b548df6b26b39b91e64042143f19112e7"
+    },
     "email.appPush.nextSteps": {
       "by": "ai",
       "out": "73de256c4f60722accf404a860868ba0686248f022434923f014397ad5ba5d05",
       "src": "dd00d3d3e9f73d277737cfacfb788bc46a717458297644788de995b658ceb915"
+    },
+    "email.appPush.number": {
+      "by": "ai",
+      "out": "67e494d69c2d20d04d9a9003f0d88d61c80323ae3321c7bcf19de1386600c534",
+      "src": "bd82cf16699be29ec05cbb763199c12f0dced428dde8381dbdd31c1d5dd0e8d4"
     },
     "email.appPush.openCall": {
       "by": "ai",
@@ -109547,6 +109922,11 @@
       "by": "ai",
       "out": "b154ec5d9df8a9139a33d11e16bc8882d9e7dddb3ea25b0d9cbbda003d3cc664",
       "src": "266541b40bbebed177ebbfd169d170769bc6b569bc52d754acc160627ad6ed02"
+    },
+    "email.appPush.urgent": {
+      "by": "ai",
+      "out": "9dc81c64f1531ab4d0a4f557bf4e2a43dd832f4b2d4f81c91b15e3d3cb3126b4",
+      "src": "1b015904cc17649ef4e6ef2980260f9bf64f80f68b6f9b5f93346160be630753"
     },
     "email.assigned.callFrom": {
       "by": "ai",
@@ -117768,6 +118148,11 @@
       "out": "64d799e0f4a3ac65c3d44bc7eeb3c4b3ff876872b0810ce1bc4a89aa2ffe014a",
       "src": "d0a22ac2e589b0e336a63cde66f7e670141c4a86e6e83bc825ae25571a0fc806"
     },
+    "settings.integrations.app.channelIn": {
+      "by": "ai",
+      "out": "2883a31daf46eb9ebb2bdd40ef9ee4f083374b1389fdb930431b1eca77af17df",
+      "src": "4f412e1fe8b667a08fcb0efd84606ab519f7d70c6aae41cf61f629f41e8a6f67"
+    },
     "settings.integrations.app.connect": {
       "by": "ai",
       "out": "f41c786983be1b253f85abfd78ec01b3c3b61df08906bf471c4f52c133c95201",
@@ -117933,6 +118318,16 @@
       "out": "92e200ff07c7833be39f8b75f979e38dfd1a751ec24b813eb23e43cdcb4e4868",
       "src": "f3280819909dc8ced77ef9e219caaef45e061563cc5b029f643c4d6c844238d2"
     },
+    "settings.integrations.app.pushError.channelArchived": {
+      "by": "ai",
+      "out": "e5bca1c4bc10f0e9163d2ab0a5282084852dcd05811ef218201477b3fea006e4",
+      "src": "f06097570582910c68677c2ebc23c7516586174f11037410e6d0acca68dbdefb"
+    },
+    "settings.integrations.app.pushError.channelNotFound": {
+      "by": "ai",
+      "out": "e9746d5927016256326a6f5f7025cfea06360eba07017b7ea16e5b084dde86c9",
+      "src": "7da51660c1a67309f2df2a2558a122a1d7e9778522c64d1158baaf96b96fb122"
+    },
     "settings.integrations.app.pushError.internal": {
       "by": "ai",
       "out": "a1bc4606048274cdf3271c34dbc825f1c5c395433e1d4147c03360a5aba703a5",
@@ -117957,6 +118352,11 @@
       "by": "ai",
       "out": "b2fbb2271a9d0be2dc32c0fb420d0af6f2b8459ae8d33cbdd4ee75e225f457f6",
       "src": "b5b876cecdc0137406a36b226e99ffff62eae6524bf5ad0414c11218d77aaf56"
+    },
+    "settings.integrations.app.pushError.notUrgent": {
+      "by": "ai",
+      "out": "4c3f651b5a2b965085b0d4f23e2649fe26a8df4661a65d6df194bd5674507363",
+      "src": "7c139c3ea6afbe2696536b7f8ff909385869c0f973417978e12f5aeb5d847870"
     },
     "settings.integrations.app.pushError.rateLimited": {
       "by": "ai",
@@ -118063,10 +118463,60 @@
       "out": "228438d200a03ecbdda3bf2ab0fd088a2a42735e00a4bc3b20cbb0ea03ddf57c",
       "src": "6b562248ef77f69b9753dc758ed24c609a7769b8005c4a43b4d35cb303a9e1de"
     },
+    "settings.integrations.app.settings.onlyUrgent": {
+      "by": "ai",
+      "out": "5f06fbebb2c6db0f9ae11820784c7b1d79580c0fa74d855026608ef8a1ae8913",
+      "src": "f7faab08c23cbb891d14f3257d9955c509d8628fba7e9879cb50d41ddeff8918"
+    },
+    "settings.integrations.app.settings.onlyUrgentHelp": {
+      "by": "ai",
+      "out": "89e3ec5acdbe22674f661aa9c830d87f04b962307bd2abb8ff3294158b446ae5",
+      "src": "11e3f160d4df1fcf7c6a7701314e4d7f7fb664138296abdf8ecf8f39baef9db6"
+    },
+    "settings.integrations.app.settings.onlyUrgentTip": {
+      "by": "ai",
+      "out": "1587b04f4a0f110084ad6b4a61be4b16124167529a19b6aa4c51995e5855cccc",
+      "src": "a3f928e1425ab0684022a8cf35b90ff66071c55b46da3df44b7d38d700a482c1"
+    },
+    "settings.integrations.app.settings.postCalls": {
+      "by": "ai",
+      "out": "b8e1451bec3189d8fce19323135cb13e117e6f4acc633367a7a239f8a12c3890",
+      "src": "fab1dacfdb6be8ba60255a5f8713bdfe77999cd74715a1daac28558f3cdfe284"
+    },
+    "settings.integrations.app.settings.postCallsHelp": {
+      "by": "ai",
+      "out": "05013c658bc67e481354e43d3630628e8e75e6f7289de843f3acafaefb7311ce",
+      "src": "832c0814fe29d6bf363db87eab4f44f7ac576eb7c0865ed630f55ee62fc6c990"
+    },
+    "settings.integrations.app.settings.postCallsTip": {
+      "by": "ai",
+      "out": "7389f8a96c08f29feef0c3d3a001b215e4c6cbcc3feb52ee4f2a83662bbaeb7e",
+      "src": "8e074f6bac5761ce6e5fb169986c4d3674a1648bd0a2f617c5650610ec96d67c"
+    },
     "settings.integrations.app.settings.title": {
       "by": "ai",
       "out": "34d48145d5626459aa1a9c9c7baac74a94c2092b45a2f4110982545279c91d0e",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
+    },
+    "settings.integrations.app.slack.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "7a88b1d626461bca83577773beeafc8f5df9fe77ceb097fd00a04fc9ec93de23",
+      "src": "d37e52c0936ebdc2c09ae1208537e460ae3f474ec0f6ccc0b16d1cb729b27a37"
+    },
+    "settings.integrations.app.slack.help": {
+      "by": "ai",
+      "out": "1021eed9d8b153887c60214bbefeba7e36e39b585583e7db1bd14644514787fc",
+      "src": "af66845c60eed4095ede86283f510e4418ae848aa587b8b5917de11bad9579ec"
+    },
+    "settings.integrations.app.slack.notConnected": {
+      "by": "ai",
+      "out": "b84b90e828ef10add5b55c4843283205029bf4b3357bfc4f1190256a15b56993",
+      "src": "dcdf5f3344d8a9b914dd29d3eb00878d7d51a9aa012ee14ce3ff928bcee3949e"
+    },
+    "settings.integrations.app.slack.scope": {
+      "by": "ai",
+      "out": "929a4d55d0fbaee036a12d06d54b7b477fff2fd63760043626c5b7e0eff2db26",
+      "src": "6bbe497385923d93b1c95039a712dfae5e181374dbb18107e200d8925144f776"
     },
     "settings.integrations.app.title": {
       "by": "ai",
