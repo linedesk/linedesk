@@ -277,6 +277,17 @@ describe('microsoft specifics', () => {
     expect(seen).toHaveLength(2)
     expect(seen[1]!.url.searchParams.get('page')).toBe('2')
   })
+
+  test("an all-day event blocks the business's day, not the UTC day Graph gives it as", async () => {
+    const allDay = { isAllDay: true, showAs: 'busy', isCancelled: false,
+      start: { dateTime: '2026-11-25T00:00:00.0000000', timeZone: 'UTC' }, end: { dateTime: '2026-11-26T00:00:00.0000000', timeZone: 'UTC' } }
+    const fetch = (async () => Response.json({ value: [allDay] })) as typeof globalThis.fetch
+    const week = { start: '2026-11-23T00:00:00.000Z', end: '2026-11-28T00:00:00.000Z' }
+    expect(await createMicrosoftCalendar({ accessToken: tokens(), timeZone: 'America/Los_Angeles', fetch }).busy(['main'], week))
+      .toEqual([{ start: '2026-11-25T08:00:00.000Z', end: '2026-11-26T08:00:00.000Z' }])
+    expect(await createMicrosoftCalendar({ accessToken: tokens(), fetch }).busy(['main'], week))
+      .toEqual([{ start: '2026-11-25T00:00:00.000Z', end: '2026-11-26T00:00:00.000Z' }])
+  })
 })
 
 describe('OAuth', () => {

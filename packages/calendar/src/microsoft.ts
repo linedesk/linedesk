@@ -5,6 +5,7 @@ import {
   createHttp, mergeBusy, tokenRequest,
 } from './provider.ts'
 import type { Interval } from './slots.ts'
+import { zonedTimeToInstant } from './zoned-time.ts'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const login = (tenant: string) => `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0`
@@ -12,7 +13,8 @@ const login = (tenant: string) => `https://login.microsoftonline.com/${encodeURI
 /** offline_access for a refresh token, User.Read for the account's address, Calendars.ReadWrite for the rest. */
 export const MICROSOFT_CALENDAR_SCOPES = ['openid', 'email', 'offline_access', 'User.Read', 'Calendars.ReadWrite'] as const
 
-export type MicrosoftCalendarOptions = { accessToken: AccessTokenSource; fetch?: typeof fetch; timeoutMs?: number }
+/** `timeZone`: the business's, for all-day events (default UTC). */
+export type MicrosoftCalendarOptions = { accessToken: AccessTokenSource; timeZone?: string; fetch?: typeof fetch; timeoutMs?: number }
 
 /** Graph returns times in this zone, without an offset. */
 const UTC = { Prefer: 'outlook.timezone="UTC"' }
@@ -35,6 +37,12 @@ export function graphForbidden(body: Json, method: string): { kind: CalendarErro
   return { kind: 'invalid' }
 }
 const utc = (when: Json | undefined) => new Date(`${String(when?.dateTime ?? '').replace(/Z?$/, '')}Z`).toISOString()
+/**
+ * An all-day event has no zone of its own: Graph gives it as midnight to midnight in the zone asked for (UTC here).
+ * It blocks the business's day, as in the CalDAV adapter.
+ */
+const businessDay = (when: Json | undefined, timeZone: string) =>
+  new Date(zonedTimeToInstant(String(when?.dateTime ?? '').slice(0, 10), '00:00', timeZone)).toISOString()
 
 function eventBody(event: Partial<CalendarEventInput>) {
   return {
@@ -46,19 +54,20 @@ function eventBody(event: Partial<CalendarEventInput>) {
   }
 }
 
-export function createMicrosoftCalendar({ accessToken, fetch: doFetch = fetch, timeoutMs = 4000 }: MicrosoftCalendarOptions): CalendarProvider {
+export function createMicrosoftCalendar({ accessToken, timeZone = 'UTC', fetch: doFetch = fetch, timeoutMs = 4000 }: MicrosoftCalendarOptions): CalendarProvider {
   const request = createHttp({ provider: 'microsoft', accessToken, fetch: doFetch, timeoutMs, reasonOf, forbidden: graphForbidden })
   const event = (eventId: string) => `${GRAPH}/me/events/${encodeURIComponent(eventId)}`
 
   /** One calendar's busy times: calendarView expands recurring events into their occurrences. */
   async function busyOf(calendarId: string, window: Interval): Promise<Interval[]> {
-    const params = new URLSearchParams({ startDateTime: window.start, endDateTime: window.end, $select: 'start,end,showAs,isCancelled', $top: '100' })
+    const params = new URLSearchParams({ startDateTime: window.start, endDateTime: window.end, $select: 'start,end,showAs,isCancelled,isAllDay', $top: '100' })
     let url: string | undefined = `${GRAPH}/me/calendars/${encodeURIComponent(calendarId)}/calendarView?${params}`
     const busy: Interval[] = []
     for (let page = 0; url && page < MAX_PAGES; page++) {
       const body = await request('check availability', { url, headers: UTC })
       for (const e of (body?.value ?? []) as Json[]) {
-        if (!e.isCancelled && !FREE.has(e.showAs)) busy.push({ start: utc(e.start), end: utc(e.end) })
+        if (e.isCancelled || FREE.has(e.showAs)) continue
+        busy.push(e.isAllDay ? { start: businessDay(e.start, timeZone), end: businessDay(e.end, timeZone) } : { start: utc(e.start), end: utc(e.end) })
       }
       url = body?.['@odata.nextLink']
     }
