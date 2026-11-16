@@ -30,7 +30,10 @@ export function ipv6Groups(ip: string): number[] | null {
 
 function privateIpv4([a, b, c]: number[]): boolean {
   return (
-    a === 0 || a === 10 || a === 127 || a! >= 224 ||
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    a! >= 224 ||
     (a === 100 && b! >= 64 && b! < 128) || // carrier-grade NAT
     (a === 169 && b === 254) || // link-local, cloud metadata
     (a === 172 && b! >= 16 && b! < 32) ||
@@ -73,7 +76,7 @@ export function isPrivateAddress(ip: string): boolean {
 
 /**
  * Link-local addresses (169.254.0.0/16, fe80::/10), where clouds answer with the server's own credentials, and the
- * other cloud metadata addresses (AWS over IPv6, Alibaba): never a place the API sends a request to, whoever set the
+ * other cloud metadata addresses (AWS, GCP and OCI over IPv6, Alibaba): never a place the API sends a request to, whoever set the
  * URL. IPv4 addresses embedded in IPv6 count as the IPv4 address they reach.
  */
 export function isLinkLocalAddress(ip: string): boolean {
@@ -82,12 +85,17 @@ export function isLinkLocalAddress(ip: string): boolean {
   const g = ipv6Groups(ip)
   if (!g) return false
   const zeroUpTo = (n: number) => g.slice(0, n).every(x => x === 0)
-  if (zeroUpTo(6) || (zeroUpTo(5) && g[5] === 0xffff) || (g[0] === 0x64 && g[1] === 0xff9b))
+  const siit = zeroUpTo(4) && g[4] === 0xffff && g[5] === 0 // ::ffff:0:a.b.c.d, through a SIIT translator
+  if (zeroUpTo(6) || (zeroUpTo(5) && g[5] === 0xffff) || siit || (g[0] === 0x64 && g[1] === 0xff9b))
     return linkLocalIpv4(embeddedIpv4(g[6]!, g[7]!))
   if (g[0] === 0x2002) return linkLocalIpv4(embeddedIpv4(g[1]!, g[2]!))
-  // fd00:ec2::254: the AWS metadata service over IPv6.
-  const awsMetadata = g[0] === 0xfd00 && g[1] === 0xec2 && g.slice(2, 7).every(x => x === 0) && g[7] === 0x254
-  return (g[0]! & 0xffc0) === 0xfe80 || awsMetadata
+  // The metadata services over IPv6: AWS fd00:ec2::254, GCP fd20:ce::254, OCI fd00:c1::a9fe:a9fe.
+  const is = (...want: number[]) => want.every((x, i) => g[i] === x)
+  const metadata =
+    is(0xfd00, 0xec2, 0, 0, 0, 0, 0, 0x254) ||
+    is(0xfd20, 0xce, 0, 0, 0, 0, 0, 0x254) ||
+    is(0xfd00, 0xc1, 0, 0, 0, 0, 0xa9fe, 0xa9fe)
+  return (g[0]! & 0xffc0) === 0xfe80 || metadata
 }
 
 function linkLocalIpv4([a, b, c, d]: number[]): boolean {

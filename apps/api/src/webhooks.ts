@@ -34,7 +34,7 @@ import { and, asc, desc, eq, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { WEB_ORIGIN } from './auth.ts'
 import { type Handler, Reject } from './handler-context.ts'
-import { checkedLookup, isPrivateAddress, type Resolve, resolveAll } from './ip-address.ts'
+import { checkedLookup, isLinkLocalAddress, isPrivateAddress, type Resolve, resolveAll } from './ip-address.ts'
 import { queueWebhookDelivery } from './jobs.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { recordingLink } from './recording-route.ts'
@@ -61,21 +61,29 @@ const short = (text: string) => (text.length > 300 ? `${text.slice(0, 297)}...` 
 
 // --- Where deliveries may go -----------------------------------------------------------------
 
-/** WEBHOOK_ALLOW_PRIVATE_URLS=true: development and closed networks may send to http and private addresses. */
+/**
+ * WEBHOOK_ALLOW_PRIVATE_URLS=true: development and closed networks may send to http and private addresses. Never to
+ * link-local and cloud metadata addresses (isLinkLocalAddress), whoever set the URL.
+ */
 const allowPrivate = (env: Env) => env.WEBHOOK_ALLOW_PRIVATE_URLS === 'true'
 const PRIVATE = 'that address is private; webhooks go to public ones only'
+export const LINK_LOCAL = 'that address is a link-local or cloud metadata address'
 /** Ports a webhook may use: HTTPS ones only, so a URL cannot aim at another service on a public host. */
 export const WEBHOOK_PORTS = ['443', '8443']
 /** Endpoints per workspace: each slow one holds a delivery worker for up to the timeout. */
 export const WEBHOOK_ENDPOINTS_PER_WORKSPACE = 10
 
-/** https, and not a private address written as such. Names are checked when they are resolved (publicLookup). */
+/**
+ * https, and not a private address written as such; never a link-local one, also where private addresses are allowed.
+ * Names are checked when they are resolved (publicLookup, lanLookup).
+ */
 function addressProblem(url: string, env: Env): string | null {
-  if (allowPrivate(env)) return null
   const { protocol, hostname, port } = new URL(url)
+  const host = hostname.replace(/^\[|\]$/g, '')
+  if (isIP(host) && isLinkLocalAddress(host)) return LINK_LOCAL
+  if (allowPrivate(env)) return null
   if (protocol !== 'https:') return 'Use an https address.'
   if (port && !WEBHOOK_PORTS.includes(port)) return `Use port ${WEBHOOK_PORTS.join(' or ')}.`
-  const host = hostname.replace(/^\[|\]$/g, '')
   return isIP(host) && isPrivateAddress(host) ? PRIVATE : null
 }
 
@@ -87,21 +95,29 @@ export function publicLookup(resolve: Resolve = resolveAll) {
   return checkedLookup(isPrivateAddress, PRIVATE, resolve)
 }
 
+/** The `lookup` where private addresses are allowed (WEBHOOK_ALLOW_PRIVATE_URLS): refuses only link-local ones. */
+export function lanLookup(resolve: Resolve = resolveAll) {
+  return checkedLookup(isLinkLocalAddress, LINK_LOCAL, resolve)
+}
+
 const publicAgent = new Agent({ connect: { lookup: publicLookup() as never, timeout: TIMEOUT_MS } })
-const anyAgent = new Agent({ connect: { timeout: TIMEOUT_MS } })
+const lanAgent = new Agent({ connect: { lookup: lanLookup() as never, timeout: TIMEOUT_MS } })
 
 /**
  * Why events must not go to this URL, or null: shown when an endpoint is saved. Sending checks again
  * on its own (addressProblem and publicLookup), since the name may point elsewhere by then.
  */
-export async function urlProblem(url: string, env: Env = process.env): Promise<string | null> {
+export async function urlProblem(url: string, env: Env = process.env, resolve: Resolve = resolveAll): Promise<string | null> {
   const problem = addressProblem(url, env)
-  if (problem || allowPrivate(env)) return problem
+  if (problem) return problem
   const host = new URL(url).hostname
   if (isIP(host.replace(/^\[|\]$/g, ''))) return null
-  const addresses = await new Promise<LookupAddress[] | null>(resolve => resolveAll(host, (err, list) => resolve(err ? null : list)))
-  if (!addresses?.length) return `${host} could not be found.`
-  return addresses.some(a => isPrivateAddress(a.address)) ? `${host}: ${PRIVATE}.` : null
+  const addresses = await new Promise<LookupAddress[] | null>(done => resolve(host, (err, list) => done(err ? null : list)))
+  const lan = allowPrivate(env)
+  // Where private addresses are allowed, a name only the API's network knows may not resolve here; sending checks it again.
+  if (!addresses?.length) return lan ? null : `${host} could not be found.`
+  const refused = lan ? isLinkLocalAddress : isPrivateAddress
+  return addresses.some(a => refused(a.address)) ? `${host}: ${lan ? LINK_LOCAL : PRIVATE}.` : null
 }
 
 // --- Signing and sending ---------------------------------------------------------------------
@@ -166,7 +182,7 @@ export async function sendWebhook(url: string, secret: string | null, deliveryId
     const res = await undiciFetch(url, {
       method: 'POST',
       redirect: 'manual',
-      dispatcher: allowPrivate(env) ? anyAgent : publicAgent,
+      dispatcher: allowPrivate(env) ? lanAgent : publicAgent,
       signal: AbortSignal.timeout(timeoutMs),
       headers: {
         'content-type': 'application/json',
@@ -183,7 +199,7 @@ export async function sendWebhook(url: string, secret: string | null, deliveryId
     if (reply === undefined) await res.body?.cancel().catch(() => {})
     return { ok, responseStatus: res.status, error: ok ? null : `answered ${res.status}`, ...(options.readReply ? { reply } : {}) }
   } catch (e) {
-    if (causeCode(e) === 'EPRIVATEADDRESS') return { ok: false, responseStatus: null, error: PRIVATE }
+    if (causeCode(e) === 'EPRIVATEADDRESS') return { ok: false, responseStatus: null, error: allowPrivate(env) ? LINK_LOCAL : PRIVATE }
     if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError'))
       return { ok: false, responseStatus: null, error: `no answer within ${timeoutMs >= 1000 ? `${timeoutMs / 1000} s` : `${timeoutMs} ms`}` }
     console.warn(`webhook request ${deliveryId} could not connect: ${e instanceof Error ? `${e.message} ${causeCode(e) ?? ''}` : e}`)

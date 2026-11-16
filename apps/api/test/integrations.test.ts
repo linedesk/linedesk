@@ -181,6 +181,14 @@ describe('subscribing', () => {
     }
   })
 
+  test('never a link-local or cloud metadata address, also when private addresses are allowed', async () => {
+    const { key } = await createKey(ws.owner)
+    for (const targetUrl of ['http://169.254.169.254/latest/meta-data/', 'http://[fd00:ec2::254]/', 'http://[fe80::1]/hook']) {
+      const res = await act(bearer(key), 'integration.subscribe', { event: 'call_finished', targetUrl })
+      expect(res, targetUrl).toMatchObject({ status: 409, body: { error: expect.stringMatching(/link-local/) } })
+    }
+  })
+
   test("the command log holds the hook URL redacted (it is the Zap's capability)", async () => {
     const { key } = await createKey(ws.owner)
     await subscribe(key, '/hook-must-not-be-logged')

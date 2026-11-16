@@ -1,5 +1,8 @@
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { describe, expect, test } from 'vitest'
-import { PRIVATE_URL, websiteUrl } from './public-fetch.ts'
+import { fetchPublic, PRIVATE_URL, UrlRefused, websiteUrl } from './public-fetch.ts'
+import { LINK_LOCAL } from './webhooks.ts'
 import { htmlToText, importPrompt, parseProposal, pickPages, robotsAllows, robotsRules } from './site-import.ts'
 
 describe('robots.txt', () => {
@@ -66,6 +69,37 @@ describe('addresses', () => {
     expect(() => websiteUrl('https://brightwater.example:8080', env)).toThrow('Use the website address without a port.')
     expect(() => websiteUrl('https://user:pw@brightwater.example', env)).toThrow()
   })
+
+  test('link-local and cloud metadata addresses are refused also where private addresses are allowed', async () => {
+    const dev = { WEBHOOK_ALLOW_PRIVATE_URLS: 'true' }
+    for (const bad of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://[fd00:ec2::254]/',
+      'http://[fd20:ce::254]/',
+      'http://[fd00:c1::a9fe:a9fe]/',
+      'http://[::ffff:0:a9fe:a9fe]/',
+      'http://[fe80::1]/',
+      'http://[::ffff:169.254.169.254]/',
+      'http://[64:ff9b::a9fe:a9fe]/',
+      'http://100.100.100.200/',
+    ])
+      expect(() => websiteUrl(bad, dev), bad).toThrow(LINK_LOCAL)
+    expect(websiteUrl('http://192.168.1.1:8080/', dev).toString()).toBe('http://192.168.1.1:8080/')
+  })
+
+  test('a redirect to a metadata address is refused before it is followed, also where private addresses are allowed', async () => {
+    const dev = { WEBHOOK_ALLOW_PRIVATE_URLS: 'true' }
+    const server = createServer((_req, res) => res.writeHead(302, { location: 'http://169.254.169.254/latest/' }).end())
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const start = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/`)
+      const fetched = fetchPublic(start, { maxBytes: 1000, userAgent: 'test' }, dev)
+      await expect(fetched).rejects.toThrow(UrlRefused)
+      await expect(fetched).rejects.toThrow(LINK_LOCAL)
+    } finally {
+      await new Promise(resolve => server.close(resolve))
+    }
+  })
 })
 
 describe('the proposal', () => {
@@ -92,9 +126,11 @@ describe('the proposal', () => {
         use_cases: ['When a caller smells gas, flag it urgent.', 'When a caller smells gas, flag it urgent.', ''],
       }),
     )
-    expect(parsed).toEqual({ about: 'We fix pipes. Drain cleaning from $149.', useCases: ['When a caller smells gas, flag it urgent.'] })
+    expect(parsed).toEqual({
+      about: 'We fix pipes. Drain cleaning from $149.',
+      useCases: ['When a caller smells gas, flag it urgent.'],
+    })
     expect(() => parseProposal('not json')).toThrow()
     expect(parseProposal('```json\n{"about": "x"}\n```')).toEqual({ about: 'x', useCases: [] })
   })
-
 })

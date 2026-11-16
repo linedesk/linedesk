@@ -13,7 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import {
-  attemptDelivery, clearOldPayloads, isPrivateAddress, publicLookup, SIGNATURE_HEADER, sendWebhook, urlProblem, WEBHOOK_ATTEMPTS, WEBHOOK_ENDPOINTS_PER_WORKSPACE,
+  attemptDelivery, clearOldPayloads, isPrivateAddress, LINK_LOCAL, lanLookup, publicLookup, SIGNATURE_HEADER, sendWebhook, urlProblem, WEBHOOK_ATTEMPTS, WEBHOOK_ENDPOINTS_PER_WORKSPACE,
   WEBHOOK_DISABLE_AFTER, WEBHOOK_PAYLOAD_DAYS, WEBHOOK_TESTS_PER_MINUTE, webhookHandlers,
 } from '../src/webhooks.ts'
 import { act, addMember, agent, anonymous, createWorkspace, request, type User, type Workspace } from './helpers.ts'
@@ -170,7 +170,24 @@ describe('webhooks', () => {
     for (const ip of privateOnes) expect(isPrivateAddress(ip), ip).toBe(true)
     for (const ip of ['::ffff:808:808', '64:ff9b::808:808', '2002:808:808::1', '2001:4860:4860::8888']) expect(isPrivateAddress(ip), ip).toBe(false)
     expect(await urlProblem('https://[::ffff:7f00:1]/hook', {})).toMatch(/private/)
-    expect(await urlProblem('https://[64:ff9b::a9fe:a9fe]/hook', {})).toMatch(/private/)
+    expect(await urlProblem('https://[64:ff9b::a9fe:a9fe]/hook', {})).toBe(LINK_LOCAL)
+  })
+
+  test('link-local and cloud metadata addresses stay refused where private addresses are allowed', async () => {
+    const dev = { WEBHOOK_ALLOW_PRIVATE_URLS: 'true' }
+    const resolveTo = (address: string) => (_host: string, callback: (err: Error | null, list: { address: string; family: number }[]) => void) =>
+      callback(null, [{ address, family: address.includes(':') ? 6 : 4 }])
+    for (const url of [
+      'http://169.254.169.254/latest/meta-data/', 'http://[fd00:ec2::254]/', 'http://[fe80::1]/', 'http://[::ffff:a9fe:a9fe]/',
+      'http://[64:ff9b::a9fe:a9fe]/', 'http://[2002:a9fe:a9fe::1]/', 'http://100.100.100.200/',
+    ])
+      expect(await urlProblem(url, dev), url).toBe(LINK_LOCAL)
+    expect(await urlProblem('http://metadata.example/hook', dev, resolveTo('169.254.169.254'))).toBe(`metadata.example: ${LINK_LOCAL}.`)
+    expect(await urlProblem('http://metadata.example/hook', dev, resolveTo('fe80::1'))).toMatch(/link-local/)
+    // Private ones stay allowed there, and a name that does not resolve here is checked again when sending.
+    expect(await urlProblem('http://192.168.1.10:8080/hook', dev)).toBeNull()
+    expect(await urlProblem('http://lan.example/hook', dev, resolveTo('10.0.0.5'))).toBeNull()
+    expect(await urlProblem('http://nowhere.example/hook', dev, (_host, callback) => callback(new Error('ENOTFOUND'), []))).toBeNull()
   })
 
   test(`at most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} webhooks per workspace`, async () => {
@@ -216,6 +233,19 @@ describe('sending goes to the address that was checked', () => {
     expect(await lookupOnce(publicLookup(resolveTo('::ffff:a9fe:a9fe', 6)), true)).toMatchObject([{ code: 'EPRIVATEADDRESS' }])
     expect(await lookupOnce(publicLookup(resolveTo('93.184.215.14')), false)).toEqual([null, '93.184.215.14', 4])
     expect(await lookupOnce(publicLookup(resolveTo('93.184.215.14')), true)).toEqual([null, [{ address: '93.184.215.14', family: 4 }]])
+  })
+
+  test('where private addresses are allowed the lookup still refuses link-local and metadata addresses', async () => {
+    expect(await lookupOnce(lanLookup(resolveTo('169.254.169.254')), false)).toMatchObject([{ code: 'EPRIVATEADDRESS', message: LINK_LOCAL }])
+    expect(await lookupOnce(lanLookup(resolveTo('fd00:ec2::254', 6)), true)).toMatchObject([{ code: 'EPRIVATEADDRESS' }])
+    expect(await lookupOnce(lanLookup(resolveTo('::ffff:a9fe:a9fe', 6)), true)).toMatchObject([{ code: 'EPRIVATEADDRESS' }])
+    expect(await lookupOnce(lanLookup(resolveTo('127.0.0.1')), false)).toEqual([null, '127.0.0.1', 4])
+  })
+
+  test('a send to a metadata address is refused before any connection, also where private addresses are allowed', async () => {
+    const dev = { WEBHOOK_ALLOW_PRIVATE_URLS: 'true' }
+    for (const url of ['http://169.254.169.254/latest/meta-data/', 'http://[fd00:ec2::254]/', 'http://[::ffff:169.254.169.254]/'])
+      expect(await sendWebhook(url, 'whsec_x', 'whd_1', 'webhook.test', '{}', { env: dev }), url).toEqual({ ok: false, responseStatus: null, error: LINK_LOCAL })
   })
 
   test('a real request to a name for a private address is refused when it connects', async () => {

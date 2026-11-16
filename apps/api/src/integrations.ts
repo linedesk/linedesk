@@ -61,7 +61,7 @@ type Env = Record<string, string | undefined>
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const short = (text: string) => (text.length > 300 ? `${text.slice(0, 297)}...` : text)
 
-/** WEBHOOK_ALLOW_PRIVATE_URLS=true (development, closed networks): any host, as for webhooks. */
+/** WEBHOOK_ALLOW_PRIVATE_URLS=true (development, closed networks): any host, as for webhooks; never link-local (urlProblem). */
 const allowAnyHost = (env: Env) => env.WEBHOOK_ALLOW_PRIVATE_URLS === 'true'
 
 /**

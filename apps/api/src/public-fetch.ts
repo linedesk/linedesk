@@ -1,14 +1,15 @@
 // GET requests to URLs that users give (website import), with the webhook guard: only public
 // addresses, checked on the address the connection really uses (publicLookup, no DNS rebinding), web
-// ports only, redirects followed by hand and checked again, and a cap on time and size.
+// ports only, redirects followed by hand and checked again, and a cap on time and size. Never link-local or cloud
+// metadata addresses, also where private addresses are allowed (lanLookup).
 import { isIP } from 'node:net'
 import { Agent, fetch as undiciFetch } from 'undici'
-import { isPrivateAddress } from './ip-address.ts'
-import { publicLookup } from './webhooks.ts'
+import { isLinkLocalAddress, isPrivateAddress } from './ip-address.ts'
+import { LINK_LOCAL, lanLookup, publicLookup } from './webhooks.ts'
 
 type Env = Record<string, string | undefined>
 
-/** WEBHOOK_ALLOW_PRIVATE_URLS=true: development and closed networks may also read private addresses. */
+/** WEBHOOK_ALLOW_PRIVATE_URLS=true: development and closed networks may also read private addresses, never link-local ones. */
 const allowPrivate = (env: Env) => env.WEBHOOK_ALLOW_PRIVATE_URLS === 'true'
 export const PRIVATE_URL = 'that address is private; only public websites can be read'
 const WEB_PORTS = ['', '80', '443']
@@ -16,7 +17,7 @@ const TIMEOUT_MS = 8_000
 const MAX_REDIRECTS = 3
 
 const publicAgent = new Agent({ connect: { lookup: publicLookup() as never, timeout: TIMEOUT_MS } })
-const anyAgent = new Agent({ connect: { timeout: TIMEOUT_MS } })
+const lanAgent = new Agent({ connect: { lookup: lanLookup() as never, timeout: TIMEOUT_MS } })
 
 /** A user-given URL refused before any request: not http(s), another port, a private address written as such. */
 export class UrlRefused extends Error {}
@@ -25,9 +26,10 @@ export class UrlRefused extends Error {}
 export function webUrlProblem(url: URL, env: Env = process.env): string | null {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return 'Use a website address (http or https).'
   if (url.username || url.password) return 'Leave the user name and password out of the address.'
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  if (isIP(host) && isLinkLocalAddress(host)) return LINK_LOCAL
   if (allowPrivate(env)) return null
   if (!WEB_PORTS.includes(url.port)) return 'Use the website address without a port.'
-  const host = url.hostname.replace(/^\[|\]$/g, '')
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal')) return PRIVATE_URL
   return isIP(host) && isPrivateAddress(host) ? PRIVATE_URL : null
 }
@@ -90,13 +92,13 @@ export async function fetchPublic(
     try {
       res = await undiciFetch(url, {
         redirect: 'manual',
-        dispatcher: allowPrivate(env) ? anyAgent : publicAgent,
+        dispatcher: allowPrivate(env) ? lanAgent : publicAgent,
         signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: { 'user-agent': userAgent, accept: 'text/html,text/plain;q=0.9,*/*;q=0.1' },
       })
     } catch (e) {
       const code = e instanceof Error ? (e.cause as { code?: string } | undefined)?.code : undefined
-      if (code === 'EPRIVATEADDRESS') throw new UrlRefused(PRIVATE_URL)
+      if (code === 'EPRIVATEADDRESS') throw new UrlRefused(allowPrivate(env) ? LINK_LOCAL : PRIVATE_URL)
       throw new Error(`could not connect to ${url.host}`)
     }
     const location = res.headers.get('location')
