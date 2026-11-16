@@ -9,7 +9,16 @@ import {
   workspaceNameProblem,
 } from '@linedesk/actions'
 import { requestCountryHint } from './country-hint.ts'
-import { member, organization, passkey, SIGNUP_COUNTRIES, user, workspace_icons, tableNames, type TableName } from '@linedesk/db'
+import {
+  member,
+  organization,
+  passkey,
+  SIGNUP_COUNTRIES,
+  user,
+  workspace_icons,
+  tableNames,
+  type TableName,
+} from '@linedesk/db'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -23,6 +32,7 @@ import { shapeFilter } from './records.ts'
 import { isPersonalKey } from './personal-keys.ts'
 import { personalKeyMayRequest } from './key-reads.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
+import { publicHealth } from './admin-overview.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
 import { registerTestLookupRoute } from './test-lookup.ts'
@@ -130,6 +140,13 @@ registerStripeWebhookRoute(app)
 app.get('/v1/auth-methods', async c =>
   c.json({ ...currentAuthMethods(), errorReporting: browserErrorReporting(), setupNeeded: await setupNeeded(db) }),
 )
+
+// Public: for uptime checks from outside, whether the voice agent is there to answer calls (admin-overview.ts).
+app.get('/v1/health', c => {
+  const { status, body } = publicHealth()
+  c.header('cache-control', 'no-store')
+  return c.json(body, status)
+})
 
 // Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in.
 app.get('/v1/branding', c => {
@@ -259,7 +276,8 @@ const SIGNUP_HOSTNAMES = TRUSTED_ORIGINS.map(origin => new URL(origin).hostname.
 // Turnstile site key for the page. Nothing else (no counts, no reason it is closed).
 app.get('/v1/signup/config', async c => {
   const state = await db.transaction(tx => selfServeState(tx))
-  const siteKey = state.open && state.rules.turnstile ? ((await db.transaction(tx => turnstileKeys(tx)))?.siteKey ?? null) : null
+  const siteKey =
+    state.open && state.rules.turnstile ? ((await db.transaction(tx => turnstileKeys(tx)))?.siteKey ?? null) : null
   c.header('cache-control', 'no-store')
   return c.json({ ok: true, open: state.open, turnstileSiteKey: siteKey, countries: SIGNUP_COUNTRIES })
 })
@@ -268,7 +286,9 @@ app.get('/v1/signup/config', async c => {
 // before the code is sent, and the answer never says whether the address has an account. The code itself is Better
 // Auth's sign-in code; entering it signs in, and creates the account (signup-gate.ts) only after this attempt.
 app.post('/v1/signup/code', async c => {
-  const body = await c.req.json<{ email?: unknown; token?: unknown }>().catch(() => ({ email: undefined, token: undefined }))
+  const body = await c.req
+    .json<{ email?: unknown; token?: unknown }>()
+    .catch(() => ({ email: undefined, token: undefined }))
   if (typeof body.email !== 'string') return c.json({ ok: false, code: 'invalid_email' }, 422)
   const email = body.email.trim().toLowerCase()
   const ip = clientIpOf(c)
@@ -281,7 +301,8 @@ app.post('/v1/signup/code', async c => {
   })
   c.header('cache-control', 'no-store')
   if (!answer.ok) {
-    const status = answer.reason === 'too_many' || answer.reason === 'busy' ? 429 : answer.reason === 'closed' ? 404 : 422
+    const status =
+      answer.reason === 'too_many' || answer.reason === 'busy' ? 429 : answer.reason === 'closed' ? 404 : 422
     return c.json({ ok: false, code: answer.reason }, status)
   }
   // Committed above, so the sign-in code's own check (signup-gate.ts maySendSignInCode) sees the attempt; only this

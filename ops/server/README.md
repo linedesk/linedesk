@@ -17,7 +17,7 @@ sudo ops/server/setup.sh --dry-run    # shows every file it would change, touche
 | Restore test of the newest backup into a throwaway database (`scripts/restore-backup.sh`); for encrypted backups only that the newest is there, not tiny and age-encrypted (the private key stays off the server) | `bin/linedesk-restore-test` | Sundays 10:00 UTC, with the backup |
 | SIP (5060) only from the carriers in `etc/sip-allow.txt` and this server's `/etc/linedesk/sip-allow.local.txt` | `bin/linedesk-sip-firewall` | at boot, before Docker |
 | `--cloudflare`: web ports only from Cloudflare (an install behind its proxy), IPv4 and IPv6; the list is refreshed by each run and refused if it looks wrong | `bin/linedesk-web-firewall` | at boot, before Docker |
-| `--monitor <host> [--monitor-sip <host>]`: web, API, LiveKit and SIP of another install, from this server; email after 2 failures in a row and when back | `bin/linedesk-monitor` | every 2 minutes |
+| `--monitor <host> [--monitor-sip <host>]`: web, API, the voice agent (`GET /v1/health`), LiveKit and SIP of another install, from this server; email after 2 failures in a row and when back | `bin/linedesk-monitor` | every 2 minutes |
 | `--harden-ssh`: keys only, no root login, 3 tries (refuses unless a sudo user with a full SSH key exists; checks `sshd -t` first and `sshd -T` after) | `etc/sshd-hardening.conf` | |
 | `--ufw`: only SSH reaches the host's own services (Docker's published ports go past ufw; the firewalls above cover them) | | |
 

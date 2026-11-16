@@ -222,15 +222,37 @@ export function agentStatus(nowMs = Date.now(), seenAt = agentSeenAt, startedAt 
   return { ok: true, message: `Checked in ${ago} s ago.` }
 }
 
+/**
+ * GET /v1/health, public, for uptime checks from outside (ops/server/bin/linedesk-monitor): whether a call now would
+ * be answered as far as this API can tell. 503 when the voice agent has not checked in lately; 200 otherwise, also on
+ * an install without LiveKit (no calls to answer). Says nothing more than ok or away.
+ */
+export function publicHealth(
+  env: { LIVEKIT_URL?: string } = process.env,
+  nowMs = Date.now(),
+  seenAt = agentSeenAt,
+  startedAt = apiStartedAt,
+): { status: 200 | 503; body: { ok: boolean; agent: 'ok' | 'away' | 'off' } } {
+  if (!env.LIVEKIT_URL) return { status: 200, body: { ok: true, agent: 'off' } }
+  return agentAway(nowMs, seenAt, startedAt)
+    ? { status: 503, body: { ok: false, agent: 'away' } }
+    : { status: 200, body: { ok: true, agent: 'ok' } }
+}
+
 /** Electric, the read sync behind GET /v1/shape: its own health endpoint (200 active, 202 still starting). */
-export async function readSyncStatus(electricUrl = process.env.ELECTRIC_URL ?? 'http://localhost:3001'): Promise<ServiceStatus> {
+export async function readSyncStatus(
+  electricUrl = process.env.ELECTRIC_URL ?? 'http://localhost:3001',
+): Promise<ServiceStatus> {
   try {
     const res = await fetch(new URL('/v1/health', electricUrl), { signal: AbortSignal.timeout(3000) })
     if (res.status === 200) return { ok: true, message: 'Answering.' }
     if (res.status === 202) return { ok: false, message: 'Starting up. Lists in the app load once it is ready.' }
     return { ok: false, message: `Electric answered ${res.status}. Lists in the app don't load until it answers.` }
   } catch {
-    return { ok: false, message: "Electric can't be reached. Is its container running? Lists in the app don't load until it is." }
+    return {
+      ok: false,
+      message: "Electric can't be reached. Is its container running? Lists in the app don't load until it is.",
+    }
   }
 }
 

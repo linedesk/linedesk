@@ -1,6 +1,6 @@
 #!/bin/bash
 # External uptime checks for another Linedesk install, run from a different server (another provider or region) every
-# 2 minutes (linedesk-monitor.timer). LINEDESK_MONITOR_HOST (web, API, LiveKit) and LINEDESK_MONITOR_SIP_HOST (SIP)
+# 2 minutes (linedesk-monitor.timer). LINEDESK_MONITOR_HOST (web, API, voice agent, LiveKit) and LINEDESK_MONITOR_SIP_HOST (SIP)
 # in /etc/linedesk/ops.env. A check counts as down after 2 failures in a row; one email when it goes down, one when it
 # is back (linedesk-alert-text, SMTP of this server's stack).
 set -u
@@ -19,6 +19,7 @@ http_is() { # <url> <expected code>
 check() { # <name>
   case $1 in
     api) http_is "https://$host/v1/auth-methods" 200 ;;
+    agent) http_is "https://$host/v1/health" 200 ;;
     web) http_is "https://$host/" 200 ;;
     livekit) http_is "https://$host/rtc/validate" 401 ;;
     sip) timeout 6 bash -c 'exec 3<>"/dev/tcp/$1/5060"' _ "$sip_host" ;;
@@ -27,6 +28,7 @@ check() { # <name>
 describe() { # <name>
   case $1 in
     api) echo "GET https://$host/v1/auth-methods answers 200" ;;
+    agent) echo "GET https://$host/v1/health answers 200 (503: the voice agent has not checked in for 90 s, calls are not answered)" ;;
     web) echo "GET https://$host/ answers 200" ;;
     livekit) echo "GET https://$host/rtc/validate answers 401" ;;
     sip) echo "TCP to $sip_host:5060 connects" ;;
@@ -34,7 +36,7 @@ describe() { # <name>
 }
 mail() { LINEDESK_ALERT_LABEL="$host" /usr/local/sbin/linedesk-alert-text "$1" "$2"; }
 
-for name in api web livekit sip; do
+for name in api agent web livekit sip; do
   fails=$(cat "$dir/$name.fails" 2>/dev/null || echo 0)
   state=$(cat "$dir/$name.state" 2>/dev/null || echo up)
   if check "$name"; then
