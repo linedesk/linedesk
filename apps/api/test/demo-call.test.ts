@@ -2,7 +2,7 @@
 // and the cleanup of demo calls (demo-rooms.ts). Own database (vitest.config.ts): demo tokens and live demo calls are
 // counted across the install.
 import { createHmac } from 'node:crypto'
-import { DEMO_CALL_MAX_SECONDS, DEMO_LANGUAGES } from '@linedesk/actions'
+import { DEMO_CALL_MAX_SECONDS, DEMO_LANGUAGES, DEMO_LINE_LANGUAGES, LANGUAGES } from '@linedesk/actions'
 import {
   assistants,
   calendar_connections,
@@ -259,8 +259,12 @@ describe('the language the visitor picked', () => {
     },
   )
 
+  // Turned off after the demo language retest (2026-11-16): they have lines, but a visitor can't pick them.
+  const off = DEMO_LINE_LANGUAGES.filter(code => !(DEMO_LANGUAGES as readonly string[]).includes(code))
+
   test('anything else is 400 language, before the industry, the limits or a token', async () => {
-    for (const language of ['xx', 'DE', 'de-DE', 'ko', '', null, 7, ['de'], { code: 'de' }])
+    expect(off).toEqual(['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+    for (const language of [...off, 'xx', 'DE', 'de-DE', 'ko', '', null, 7, ['de'], { code: 'de' }])
       expect(await ask({ industry: 'auto', ipHash: hash(), language })).toEqual({
         status: 400,
         body: { ok: false, error: 'language' },
@@ -278,51 +282,56 @@ describe('the language the visitor picked', () => {
     expect(await loggedInputs()).toEqual([])
   })
 
-  test("a demo assistant whose voice can't speak the language: 503 off with an ALERT line; English still works", async () => {
-    const stages = {
-      STT_PROVIDER: 'deepgram',
-      DEEPGRAM_API_KEY: 'placeholder',
-      LLM_PROVIDER: 'openai',
-      OPENAI_API_KEY: 'placeholder',
-      TTS_PROVIDER: 'elevenlabs',
-      ELEVENLABS_API_KEY: 'placeholder',
-      // An English-only ElevenLabs model.
-      TTS_MODEL: 'eleven_flash_v2',
-    }
-    const kept = Object.fromEntries(Object.keys(stages).map(k => [k, process.env[k]]))
-    Object.assign(process.env, stages)
-    const [own] = await db
-      .select({ pipeline: assistants.voice_pipeline })
-      .from(assistants)
-      .where(eq(assistants.id, ws.assistant.id))
-    await db.update(assistants).set({ voice_pipeline: 'three_stage' }).where(eq(assistants.id, ws.assistant.id))
-    const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      expect(await ask({ industry: 'auto', ipHash: hash(), language: 'de' })).toEqual({
-        status: 503,
-        body: { ok: false, error: 'off', retryAfterSec: null },
-      })
-      expect(alert.mock.calls.map(c => String(c[0]))).toEqual([
-        expect.stringMatching(
-          /^ALERT demo calls: the voice of the demo assistant .* \(auto, eleven_flash_v2\) can't speak German/,
-        ),
-      ])
-      expect((await ask({ industry: 'auto', ipHash: hash() })).status).toBe(200)
-      // With a model that speaks it (the default, Flash v2.5), German works.
-      process.env.TTS_MODEL = 'eleven_flash_v2_5'
-      expect((await ask({ industry: 'auto', ipHash: hash(), language: 'de' })).status).toBe(200)
-    } finally {
-      alert.mockRestore()
-      await db
-        .update(assistants)
-        .set({ voice_pipeline: own?.pipeline ?? null })
-        .where(eq(assistants.id, ws.assistant.id))
-      for (const [k, v] of Object.entries(kept)) {
-        if (v === undefined) delete process.env[k]
-        else process.env[k] = v
+  test.each(DEMO_LANGUAGES.filter(code => code !== 'en'))(
+    "%s: a demo assistant whose voice can't speak it: 503 off with an ALERT line; English still works",
+    async code => {
+      const stages = {
+        STT_PROVIDER: 'deepgram',
+        DEEPGRAM_API_KEY: 'placeholder',
+        LLM_PROVIDER: 'openai',
+        OPENAI_API_KEY: 'placeholder',
+        TTS_PROVIDER: 'elevenlabs',
+        ELEVENLABS_API_KEY: 'placeholder',
+        // An English-only ElevenLabs model.
+        TTS_MODEL: 'eleven_flash_v2',
       }
-    }
-  })
+      const kept = Object.fromEntries(Object.keys(stages).map(k => [k, process.env[k]]))
+      Object.assign(process.env, stages)
+      const [own] = await db
+        .select({ pipeline: assistants.voice_pipeline })
+        .from(assistants)
+        .where(eq(assistants.id, ws.assistant.id))
+      await db.update(assistants).set({ voice_pipeline: 'three_stage' }).where(eq(assistants.id, ws.assistant.id))
+      const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        expect(await ask({ industry: 'auto', ipHash: hash(), language: code })).toEqual({
+          status: 503,
+          body: { ok: false, error: 'off', retryAfterSec: null },
+        })
+        expect(alert.mock.calls.map(c => String(c[0]))).toEqual([
+          expect.stringMatching(
+            new RegExp(
+              `^ALERT demo calls: the voice of the demo assistant .* \\(auto, eleven_flash_v2\\) can't speak ${LANGUAGES[code]}`,
+            ),
+          ),
+        ])
+        expect((await ask({ industry: 'auto', ipHash: hash() })).status).toBe(200)
+        // With a model that speaks it (the default, Flash v2.5), the language works.
+        process.env.TTS_MODEL = 'eleven_flash_v2_5'
+        expect((await ask({ industry: 'auto', ipHash: hash(), language: code })).status).toBe(200)
+      } finally {
+        alert.mockRestore()
+        await db
+          .update(assistants)
+          .set({ voice_pipeline: own?.pipeline ?? null })
+          .where(eq(assistants.id, ws.assistant.id))
+        for (const [k, v] of Object.entries(kept)) {
+          if (v === undefined) delete process.env[k]
+          else process.env[k] = v
+        }
+      }
+    },
+  )
 })
 
 describe('off, not authorized, bad requests', () => {

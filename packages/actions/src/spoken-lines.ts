@@ -711,10 +711,10 @@ export const businessOfGreeting = (text: string): string | null =>
 export const DEMO_CALL_MAX_SECONDS = 120
 
 /**
- * The languages a visitor may pick for a demo call: Deepgram Flux's 10. A demo call in one of them speaks only that
- * one (no switching): accented English on multilingual Flux was too often heard as another language.
+ * The languages the demo has its fixed lines in (demoLines): Deepgram Flux's 10. A demo call in one of them speaks only
+ * that one (no switching): accented English on multilingual Flux was too often heard as another language.
  */
-export const DEMO_LANGUAGES = [
+export const DEMO_LINE_LANGUAGES = [
   'en',
   'es',
   'fr',
@@ -726,12 +726,20 @@ export const DEMO_LANGUAGES = [
   'hi',
   'ja',
 ] as const satisfies readonly Language[]
+export type DemoLineLanguage = (typeof DEMO_LINE_LANGUAGES)[number]
+
+/**
+ * The languages a visitor may pick for a demo call: those of DEMO_LINE_LANGUAGES whose demo calls passed the demo
+ * language retest (2026-11-16, LIN-372). The others stay off until a retest passes; turning one on is adding it here
+ * (and to the website's list).
+ */
+export const DEMO_LANGUAGES = ['en'] as const satisfies readonly DemoLineLanguage[]
 export type DemoLanguage = (typeof DEMO_LANGUAGES)[number]
 
 /** `opening`: said right after the greeting, as part of the same opening. `limit`: said at DEMO_CALL_MAX_SECONDS, before the agent hangs up. */
 export type DemoLines = { opening: string; limit: string }
 
-const DEMO_LINES: Record<DemoLanguage, DemoLines> = {
+const DEMO_LINES: Record<DemoLineLanguage, DemoLines> = {
   en: {
     opening: 'This is a two-minute demo.',
     limit: "That's the two minutes for this demo. Thanks for trying it out. Goodbye!",
@@ -778,6 +786,9 @@ const DEMO_LINES: Record<DemoLanguage, DemoLines> = {
 export const isDemoLanguage = (value: unknown): value is DemoLanguage =>
   (DEMO_LANGUAGES as readonly unknown[]).includes(value)
 
-/** A demo call's fixed lines in its language; English for any other. */
+const isDemoLineLanguage = (value: unknown): value is DemoLineLanguage =>
+  (DEMO_LINE_LANGUAGES as readonly unknown[]).includes(value)
+
+/** A demo call's fixed lines in its language (any of DEMO_LINE_LANGUAGES); English for any other. */
 export const demoLines = (language: string | null | undefined): DemoLines =>
-  isDemoLanguage(language) ? DEMO_LINES[language] : DEMO_LINES.en
+  isDemoLineLanguage(language) ? DEMO_LINES[language] : DEMO_LINES.en

@@ -64,13 +64,13 @@ LiveKit must be configured (`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRE
 `POST /v1/demo/call`, `Authorization: Bearer <DEMO_GATEWAY_SECRET>`, `Content-Type: application/json`, a body of at most 4 KB:
 
 ```json
-{ "industry": "auto", "ipHash": "3f1c…", "country": "US", "language": "de" }
+{ "industry": "auto", "ipHash": "3f1c…", "country": "US", "language": "en" }
 ```
 
 - `industry`: a key of `DEMO_ASSISTANTS`.
 - `ipHash`: 16 to 128 characters of hex or base64url, the gateway's peppered hash of the visitor's address. Stored with the token in the command log for the per-visitor limits, and removed from it after 24 hours (the hourly cleanup job: at most 25 hours in all). The rest of the row (industry, country, room) is cut down to ids after 90 days like every command.
 - `country`: optional, ISO 3166-1 alpha-2 in upper case, stored with the token for statistics.
-- `language`: optional, the language the visitor picked: one of `en`, `es`, `fr`, `de`, `it`, `pt`, `nl`, `ru`, `hi`, `ja` (`DEMO_LANGUAGES`, Deepgram Flux's 10). Missing: `en`. Any other value (also `null` or another case): 400 `language`, checked first after the secret and the content type. Stored with the token for statistics. `en` is the call exactly as without the field. Any other: the call speaks only that language (see "On the call").
+- `language`: optional, the language the visitor picked: one of `DEMO_LANGUAGES`, today only `en`. The demo has its lines in Deepgram Flux's 10 (`DEMO_LINE_LANGUAGES`: `en`, `es`, `fr`, `de`, `it`, `pt`, `nl`, `ru`, `hi`, `ja`), but the others stay off until their demo calls pass the language retest (none did on 2026-11-16: names and callback numbers were read back wrong or skipped); turning one on is adding it to `DEMO_LANGUAGES` and to the website's list. Missing: `en`. Any other value (also `null` or another case): 400 `language`, checked first after the secret and the content type. Stored with the token for statistics. `en` is the call exactly as without the field. Any other: the call speaks only that language (see "On the call").
 
 Answers (the gateway may pass them on as they are; 503 and 429 also set `Retry-After` when there is a time):
 
@@ -93,7 +93,7 @@ Each refusal of the install's own (budget, cap, busy, agent, setup, safety) logs
 
 Checked on every request, because anyone may change the demo workspace after the setup script: demo calls are refused while the demo workspace has a phone number (real callers, an outbound caller ID), a calendar connection (real bookings, confirmation emails to any address a visitor says) or a switched-on webhook (what visitors say sent out, lookups during the call), or while the chosen assistant records its calls or has anyone to put callers through to (a transfer contact or the old transfer number). Remove it, and demo calls work again at the next request.
 
-On the call: the assistant greets as usual and adds "This is a two-minute demo." At 120 s it says "That's the two minutes for this demo. Thanks for trying it out. Goodbye!" and hangs up. Both lines exist in every demo language (`demoLines`).
+On the call: the assistant greets as usual and adds "This is a two-minute demo." At 120 s it says "That's the two minutes for this demo. Thanks for trying it out. Goodbye!" and hangs up. Both lines exist in each of `DEMO_LINE_LANGUAGES` (`demoLines`).
 
 The language: English calls use the install's speech recognition as it is (Deepgram `flux-general-en`) and the assistant's English setting, exactly as before the language choice. With another language the API puts `mainLanguage` into the room metadata and the agent uses the same per-call override as the call tests: the assistant's main language becomes that one, with no other language allowed. So the default greeting is said in it (with the AI note and the demo line in it too, cached per text and voice), the instructions tell the assistant to speak only that language, speech recognition is `flux-general-multi` with `languageHint` that one language only (no `en` hint: it cannot switch), and the voice is told the language (ElevenLabs Flash v2.5, the default model, speaks all ten; a demo assistant whose voice model can't speak it is refused, 503 `off` with an `ALERT` line). A demo assistant on a realtime model hears and speaks the language itself. Why no automatic detection: on `flux-general-multi` with all ten as hints, English with a foreign accent was often heard, and answered, as another language (test of 2026-11-16). A demo room still open 150 s after the call started is deleted by the stale-call sweep (it runs every minute), and only then is the call filed as ended: while LiveKit cannot delete the room, the call stays live, and counted, until a later sweep can. A transfer reaches a simulated person, never a phone. Demo calls are test calls (`source: 'test'`, room `demo-…`): no push, no evaluation, no call-start webhook, a shared "Test call" contact.
 

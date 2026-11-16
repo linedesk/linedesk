@@ -1,6 +1,6 @@
 import { initializeLogger } from '@livekit/agents'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
-import { DEMO_LANGUAGES, demoLines, LANGUAGES, spokenLines, voiceSpeaks } from '@linedesk/actions'
+import { DEMO_LINE_LANGUAGES, demoLines, LANGUAGES, spokenLines, voiceSpeaks } from '@linedesk/actions'
 import { announceRecording, callLimitOf, callOrigin, startCall, TEST_CALL_LIMIT_MS, withRecordingNotice } from './call-session.ts'
 import { configFromEnv } from './config.ts'
 import { callLanguagesOf, callVoicesOf, createPipeline, deepgramChoice } from './pipeline.ts'
@@ -354,7 +354,7 @@ describe('a public demo call in the language the visitor picked (mainLanguage in
     expect(sttModel(createPipeline(stages, null, undefined, languages))).toBe(stages.stt.model)
   })
 
-  test.each(DEMO_LANGUAGES.filter(code => code !== 'en'))('%s: only that language, on flux-general-multi hinted to it alone', async code => {
+  test.each(DEMO_LINE_LANGUAGES.filter(code => code !== 'en'))('%s: only that language, on flux-general-multi hinted to it alone', async code => {
     const stages = await configFromEnv(env)
     const call = await demoCall({ mainLanguage: code })
     const lines = spokenLines(code)

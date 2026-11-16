@@ -2,7 +2,7 @@
 // The API only signs a LiveKit token. The token joins one new room, may publish the microphone
 // and nothing else, and carries the agent dispatch with the workspace in its metadata; the browser
 // cannot change any of it without breaking the signature.
-import type { DemoLanguage, TestCallData } from '@linedesk/actions'
+import type { DemoLineLanguage, TestCallData } from '@linedesk/actions'
 import { commands, type Tx } from '@linedesk/db'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { agentAway } from './admin-overview.ts'
@@ -129,7 +129,7 @@ export type TestCallMetadata = {
   assistantId?: string
   simulateTransfer: true
   demo?: true
-  mainLanguage?: Exclude<DemoLanguage, 'en'>
+  mainLanguage?: Exclude<DemoLineLanguage, 'en'>
 }
 
 type LivekitKeys = { LIVEKIT_API_KEY: string; LIVEKIT_API_SECRET: string }

@@ -4,6 +4,7 @@ import { fluxRecognizes, languageCodes } from './languages.ts'
 import {
   businessOfGreeting,
   DEMO_LANGUAGES,
+  DEMO_LINE_LANGUAGES,
   defaultGreetingWithAi,
   demoLines,
   isDemoLanguage,
@@ -67,9 +68,9 @@ test('the business of an English default greeting, with or without the AI note; 
   expect(businessOfGreeting('Hello, you reached the front desk.')).toBeNull()
 })
 
-test("a public demo call's languages are Flux's 10, each with its own opening and limit line", () => {
-  expect(DEMO_LANGUAGES).toEqual(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
-  for (const code of DEMO_LANGUAGES) {
+test("a public demo call's lines are in Flux's 10, each with its own opening and limit line", () => {
+  expect(DEMO_LINE_LANGUAGES).toEqual(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+  for (const code of DEMO_LINE_LANGUAGES) {
     expect(fluxRecognizes(code), code).toBe(true)
     const { opening, limit } = demoLines(code)
     expect(opening.trim().length, code).toBeGreaterThan(0)
@@ -86,8 +87,15 @@ test("a public demo call's languages are Flux's 10, each with its own opening an
   // Anything else is English; only the exact codes count.
   expect(demoLines('ko')).toEqual(demoLines('en'))
   expect(demoLines(null)).toEqual(demoLines('en'))
-  expect(isDemoLanguage('de')).toBe(true)
-  for (const value of ['DE', 'ko', '', null, undefined, 7]) expect(isDemoLanguage(value)).toBe(false)
+})
+
+test('a visitor may pick only the demo languages that passed the language retest: English, with lines in each', () => {
+  // The others keep their lines (above) and stay off until a retest passes (2026-11-16).
+  expect(DEMO_LANGUAGES).toEqual(['en'])
+  for (const code of DEMO_LANGUAGES) expect(DEMO_LINE_LANGUAGES).toContain(code)
+  expect(isDemoLanguage('en')).toBe(true)
+  for (const value of ['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja', 'EN', 'ko', '', null, undefined, 7])
+    expect(isDemoLanguage(value), String(value)).toBe(false)
 })
 
 test('the AI note in a default greeting of another language names the assistant once', () => {
