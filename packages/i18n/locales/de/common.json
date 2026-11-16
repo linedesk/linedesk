@@ -53,6 +53,8 @@
   "load.loading": "Wird geladen: {what}",
   "load.noAnswer": "Der Server ist nicht erreichbar. Prüf deine Verbindung und versuch es noch einmal.",
   "load.noAnswerKept": "Der Server ist nicht erreichbar. Prüf deine Verbindung und versuch es noch einmal. Deine Änderungen bleiben erhalten.",
+  "load.slow": "{what}: wird noch geladen…",
+  "load.slowHint": "Das dauert länger als sonst. Es erscheint hier von selbst, sobald es da ist.",
   "load.unreachable": "Der Server ist nicht erreichbar. Neuer Versuch…",
   "phone.countries": "Länder",
   "phone.countryCode": "Ländervorwahl: {country}",

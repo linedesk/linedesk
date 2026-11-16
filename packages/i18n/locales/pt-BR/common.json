@@ -53,6 +53,8 @@
   "load.loading": "Carregando {what}",
   "load.noAnswer": "Não foi possível acessar o servidor. Verifique sua conexão e tente novamente.",
   "load.noAnswerKept": "Não foi possível acessar o servidor. Verifique sua conexão e tente novamente. Suas alterações foram mantidas.",
+  "load.slow": "{what}: ainda carregando…",
+  "load.slowHint": "Está demorando mais do que o normal. Aparece aqui sozinho assim que chegar.",
   "load.unreachable": "Não foi possível acessar o servidor. Tentando novamente…",
   "phone.countries": "Países",
   "phone.countryCode": "Código do país: {country}",

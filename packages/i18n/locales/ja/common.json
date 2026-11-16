@@ -53,6 +53,8 @@
   "load.loading": "{what}を読み込み中",
   "load.noAnswer": "サーバーに接続できません。接続を確認して、もう一度お試しください。",
   "load.noAnswerKept": "サーバーに接続できません。接続を確認して、もう一度お試しください。変更内容は保持されています。",
+  "load.slow": "{what}：まだ読み込み中…",
+  "load.slowHint": "いつもより時間がかかっています。届きしだい、ここに自動で表示されます。",
   "load.unreachable": "サーバーに接続できません。再試行しています…",
   "phone.countries": "国",
   "phone.countryCode": "国番号：{country}",

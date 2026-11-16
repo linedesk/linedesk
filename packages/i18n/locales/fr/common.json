@@ -53,6 +53,8 @@
   "load.loading": "Chargement de {what}",
   "load.noAnswer": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
   "load.noAnswerKept": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez. Vos modifications sont conservées.",
+  "load.slow": "{what} : chargement en cours…",
+  "load.slowHint": "Cela prend plus de temps que d'habitude. Le contenu s'affichera ici dès qu'il arrivera.",
   "load.unreachable": "Impossible de joindre le serveur. Nouvelle tentative…",
   "phone.countries": "Pays",
   "phone.countryCode": "Indicatif du pays : {country}",
