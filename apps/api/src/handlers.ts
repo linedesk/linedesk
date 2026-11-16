@@ -33,7 +33,7 @@ import { switchOffLoopingTransfers } from './transfer-loops.ts'
 import { impersonationHandlers } from './impersonation.ts'
 import type { Actor } from './context.ts'
 import { impersonatorOf } from './impersonation-guard.ts'
-import { type Handler, type HandlerCtx, lockCall, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
+import { type Handler, type HandlerCtx, lockCall, notFound, type Preparer, Forbidden, Reject, type Undo } from './handler-context.ts'
 import { activeProvider, installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { assistantForCall, assistantVoiceOf, checkAssistantLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
@@ -89,7 +89,7 @@ async function runPatch({ tx, actor, now }: HandlerCtx, def: ActionDef, input: u
   const rows = Object.keys(values).length
     ? await tx.update(table).set(values).where(scope).returning()
     : await tx.select().from(table).where(scope)
-  if (!rows[0]) throw new Reject(`${patch.table} row not found`)
+  if (!rows[0]) throw notFound(patch.table)
   return { rows: { [patch.table]: rows } }
 }
 
@@ -936,7 +936,7 @@ const handlers: Record<string, Handler> = {
     if (actor.role === 'agent') throw new Forbidden('the assistant cannot assign calls')
     // Same answer as the patch it stands in for: a call of another workspace is not found.
     const [call] = await tx.select().from(calls).where(and(eq(calls.id, input.callId), eq(calls.workspace_id, actor.workspaceId)))
-    if (!call) throw new Reject('calls row not found')
+    if (!call) throw notFound('calls')
     if (input.userId) {
       const [assignee] = await tx.select({ disabled: workspace_members.disabled }).from(workspace_members)
         .where(and(eq(workspace_members.workspace_id, call.workspace_id), eq(workspace_members.user_id, input.userId)))

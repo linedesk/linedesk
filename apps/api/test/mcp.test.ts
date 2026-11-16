@@ -119,7 +119,7 @@ describe('tools', () => {
     expect(logged!.actor_id).toMatch(/^apikey:/)
 
     const foreign = await callTool(memberKey, 'call_markDone', { callId: other.call.id })
-    expect(foreign.body.result).toMatchObject({ isError: true, content: [{ text: 'calls row not found' }] })
+    expect(foreign.body.result).toMatchObject({ isError: true, content: [{ text: 'call not found' }] })
     expect((await getCall(other.call.id))!.inbox_state).toBe('open')
     expect((await callTool(memberKey, 'call_markDone', {})).body.result).toMatchObject({
       isError: true,

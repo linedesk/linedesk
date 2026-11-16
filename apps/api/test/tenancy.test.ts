@@ -71,7 +71,7 @@ const snapshot = async (ws: Workspace) => [
 ]
 
 /** Patch actions with a server handler of their own say so in their words. */
-const notFound: Record<string, string> = { 'webhook.update': 'webhook not found', 'call.flagUrgent': 'call not found' }
+const notFound: Record<string, string> = { assistant_calendars: 'calendar not found', webhook_endpoints: 'webhook not found' }
 
 describe('patch actions', () => {
   test.each(patchActions.map(def => [def.name, def] as const))(
@@ -79,7 +79,7 @@ describe('patch actions', () => {
     async (name, def) => {
       const before = await snapshot(b)
       const guessed = await act(callerFor(def, a), name, inputFor(def, b))
-      expect(guessed).toMatchObject({ status: 409, body: { ok: false, error: notFound[name] ?? `${def.patch!.table} row not found` } })
+      expect(guessed).toMatchObject({ status: 409, body: { ok: false, error: notFound[def.patch!.table] ?? `${def.patch!.table.replace(/s$/, '')} not found` } })
       // Naming a workspace one is not a member of is refused before the action runs.
       const withHeader = await request(a.owner, 'POST', `/v1/actions/${name}`, inputFor(def, b), {
         'x-workspace-id': b.id,

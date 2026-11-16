@@ -10,7 +10,7 @@ import { call_events, calls, workspace_members, type Tx } from '@linedesk/db'
 import type { Call } from '@linedesk/db/types'
 import { and, eq, gt, ne } from 'drizzle-orm'
 import type { Actor } from './context.ts'
-import { Forbidden, type Handler, lockCall, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, lockCall, notFound, Reject } from './handler-context.ts'
 import { livekitToken } from './livekit-status.ts'
 
 /** LiveKit checks a token only when joining: short, so a token cannot be kept to join later. */
@@ -41,7 +41,7 @@ async function liveCall(tx: Tx, workspaceId: string, callId: string): Promise<Ca
     .select()
     .from(calls)
     .where(and(eq(calls.id, callId), eq(calls.workspace_id, workspaceId)))
-  if (!call) throw new Reject('calls row not found')
+  if (!call) throw notFound('calls')
   if (call.status !== 'live' || !call.room) throw new Reject('This call has ended.')
   return call as Call & { room: string }
 }

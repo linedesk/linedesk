@@ -55,7 +55,7 @@ test('a rejected command is recorded, returns 409, and stays rejected when repla
   const key = crypto.randomUUID()
   const callId = `call_${crypto.randomUUID().slice(0, 8)}`
   const first = await act(ws.owner, 'call.markDone', { callId }, key)
-  expect(first).toMatchObject({ status: 409, body: { ok: false, error: 'calls row not found' } })
+  expect(first).toMatchObject({ status: 409, body: { ok: false, error: 'call not found' } })
   expect(await recorded(key)).toMatchObject([{ action: 'call.markDone', rejected: true, result: first.body }])
 
   // Even when the same command could succeed now, the first answer is final.

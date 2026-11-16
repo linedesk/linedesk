@@ -11,6 +11,10 @@ import type { RecordingStore } from './recording-store.ts'
 /** A business-rule rejection: the command is final, clients must not retry it. Answered 409 (a conflict with the data's state). */
 export class Reject extends Error {}
 
+/** What a synced table's row is called in an error: `call not found`, not `calls row not found`. */
+const ROW_NOUN: Record<string, string> = { assistant_calendars: 'calendar', webhook_endpoints: 'webhook' }
+export const notFound = (table: string) => new Reject(`${ROW_NOUN[table] ?? table.replace(/s$/, '')} not found`)
+
 /**
  * A rejection because of who asks, not of the data's state: a rule only an owner passes, something
  * not possible while signed in as another user or with an API key. Answered 403 with `code: 'forbidden'`.
