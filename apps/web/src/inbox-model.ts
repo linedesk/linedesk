@@ -183,9 +183,16 @@ export function answeredByLabel(call: Call, segments: TranscriptSegment[], assis
     : t('inbox.status.answeredBy', { assistant })
 }
 
+/**
+ * A test call from the app (Settings › Test call) has no caller: it reads as one, in the reader's language, never as
+ * the name stored on its contact (testCallContact) or as a person.
+ */
+export const isTestCall = (call: Pick<Call, 'source'>) => call.source === 'test'
+export const testCallLabel = () => i18n().t('inbox.caller.testCall')
+
 /** A deleted contact no longer names the call: the number does. */
 export const callerName = (call: Call, contact?: Contact) =>
-  (!contact?.deleted_at && contact?.name) || formatPhone(call.from_number)
+  isTestCall(call) ? testCallLabel() : (!contact?.deleted_at && contact?.name) || formatPhone(call.from_number)
 export const callTitle = (call: Call) =>
   call.title ?? (call.status === 'live' ? i18n().t('inbox.status.inProgress') : i18n().t('inbox.status.call'))
 

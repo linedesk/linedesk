@@ -1,6 +1,6 @@
 import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
-import { assigneeTabs, callerName, type InboxTab, type splits, visibleSplits } from '../inbox-model.ts'
+import { assigneeTabs, callerName, type InboxTab, isTestCall, type splits, visibleSplits } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistantNameOrNull, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
@@ -125,16 +125,25 @@ function LiveCallButton({ call, onOpen }: { call: Call; onOpen?: (call: Call) =>
   const caller = callerName(call, useContact(call.contact_id))
   const elapsed = useElapsed(parseTs(call.started_at))
   return (
-    <button type="button" className="ib-maya is-live" title={t('inbox.presence.openLive')} onClick={() => onOpen?.(call)}>
+    <button
+      type="button"
+      className="ib-maya is-live"
+      title={t('inbox.presence.openLive')}
+      onClick={() => onOpen?.(call)}
+    >
       <span className="ib-dot" />
-      <T
-        k="inbox.presence.onCall"
-        values={{
-          assistant,
-          caller: caller.startsWith('+') ? caller : caller.split(' ')[0],
-          time: <time>{clock(elapsed)}</time>,
-        }}
-      />
+      {isTestCall(call) ? (
+        <T k="inbox.presence.onTestCall" values={{ assistant, time: <time>{clock(elapsed)}</time> }} />
+      ) : (
+        <T
+          k="inbox.presence.onCall"
+          values={{
+            assistant,
+            caller: caller.startsWith('+') ? caller : caller.split(' ')[0],
+            time: <time>{clock(elapsed)}</time>,
+          }}
+        />
+      )}
     </button>
   )
 }
@@ -180,9 +189,7 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
       {/* Whether calls are answered is a status: the mark, never a bare grey dot (design-principles.md, Messages). */}
       <StatusMark state={failing ? 'failing' : 'missing'} label={why} />
       <span className="ib-maya-t">
-        {failing
-          ? t('inbox.presence.cannotAnswer', { assistant })
-          : t('inbox.presence.cannotAnswerYet', { assistant })}
+        {failing ? t('inbox.presence.cannotAnswer', { assistant }) : t('inbox.presence.cannotAnswerYet', { assistant })}
       </span>
       {fix && (
         <a className="ib-maya-fix" href={fix}>
@@ -201,8 +208,7 @@ export function InboxHead({
 }: InboxHeadProps & { resultCount: number; menu?: ReactNode; bulk?: BulkActions }) {
   const t = useT()
   const title = modeTitle[p.tab]
-  const mode =
-    p.tab === 'member' && p.memberName ? t('inbox.view.member', { name: p.memberName }) : title && t(title)
+  const mode = p.tab === 'member' && p.memberName ? t('inbox.view.member', { name: p.memberName }) : title && t(title)
   if (bulk && bulk.count > 0)
     return (
       <div className="ib-head">

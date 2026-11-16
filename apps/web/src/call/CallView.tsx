@@ -7,7 +7,9 @@ import {
   callTitle,
   formatPhone,
   hasReminder,
+  isTestCall,
   STATUS_WORD,
+  testCallLabel,
   transferText,
 } from '../inbox-model.ts'
 import { useCallAssistantName, useContact } from '../store.tsx'
@@ -97,11 +99,7 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
         disabled={index >= count - 1}
         onClick={() => on.onStep(1)}
       />
-      {index > -1 && (
-        <span className="cv-pos">
-          {t('call.bar.position', { index: index + 1, count })}
-        </span>
-      )}
+      {index > -1 && <span className="cv-pos">{t('call.bar.position', { index: index + 1, count })}</span>}
       {on.onAssign && (
         <span className="cv-assign">
           <AssignButton call={call} onAssign={on.onAssign} />
@@ -196,7 +194,10 @@ function AssignButton({ call, onAssign }: { call: Call; onAssign: (call: Call, a
       icon={call.assignee_id ? undefined : 'user'}
       className="cv-assign-btn"
       aria-haspopup="dialog"
-      title={t('common.withKey', { label: call.assignee_id ? t('inbox.row.reassignTitle', { name }) : t('inbox.assign.label'), key: 'A' })}
+      title={t('common.withKey', {
+        label: call.assignee_id ? t('inbox.row.reassignTitle', { name }) : t('inbox.assign.label'),
+        key: 'A',
+      })}
       onClick={e => onAssign(call, e.currentTarget.getBoundingClientRect())}
     >
       {call.assignee_id ? (
@@ -281,11 +282,13 @@ function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: Hea
         <div className="cv-line">
           <ContactLink
             name={
-              contact?.name
-                ? contact.company
-                  ? t('call.header.nameAndCompany', { name: contact.name, company: contact.company })
-                  : contact.name
-                : null
+              isTestCall(call)
+                ? testCallLabel()
+                : contact?.name
+                  ? contact.company
+                    ? t('call.header.nameAndCompany', { name: contact.name, company: contact.company })
+                    : contact.name
+                  : null
             }
             number={formatPhone(call.from_number)}
             open={contactOpen}
@@ -334,7 +337,12 @@ function CopyNumber({ number }: { number: string }) {
       () => {},
     )
   return (
-    <button type="button" className="sub fact-copy" title={copied ? t('call.header.copied') : t('call.header.copyNumber')} onClick={copy}>
+    <button
+      type="button"
+      className="sub fact-copy"
+      title={copied ? t('call.header.copied') : t('call.header.copyNumber')}
+      onClick={copy}
+    >
       {copied ? t('call.header.copied') : number}
     </button>
   )
@@ -411,7 +419,9 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
                   <div className="tr-h">
                     <b>{t('call.transcript.title')}</b>
                     <span>
-                      {live ? t('call.transcript.turnsLive', { count: turns }) : t('call.transcript.turns', { count: turns })}
+                      {live
+                        ? t('call.transcript.turnsLive', { count: turns })
+                        : t('call.transcript.turns', { count: turns })}
                     </span>
                     <Button
                       size="sm"
@@ -425,7 +435,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
                   {transcriptOpen && (
                     <Transcript
                       segments={segments}
-                      callerName={contact?.name ?? t('call.transcript.caller')}
+                      callerName={(!isTestCall(call) && contact?.name) || t('call.transcript.caller')}
                       assistantName={assistant}
                       search={search}
                       pending={live ? pending : []}

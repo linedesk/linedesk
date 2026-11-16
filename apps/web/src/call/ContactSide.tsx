@@ -1,5 +1,5 @@
 import type { Call, Contact } from '@linedesk/db/types'
-import { callTitle, formatPhone } from '../inbox-model.ts'
+import { callTitle, formatPhone, isTestCall, testCallLabel } from '../inbox-model.ts'
 import { useContact, useRows, useRun } from '../store.tsx'
 import { parseTs, shortDuration, timeLabel } from '../time.ts'
 import { Avatar, Badge, Button, Icon } from '../ui/kit.tsx'
@@ -165,12 +165,13 @@ export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
   const t = useT()
   const linked = useContact(call.contact_id)
   const contact = linked?.deleted_at ? undefined : linked // a deleted contact reads as an unknown caller
+  const name = isTestCall(call) ? testCallLabel() : contact?.name
   return (
     <aside className="cv-side" aria-label={t('call.contact.label')}>
       <div className="side-who">
-        <Avatar name={contact?.name ?? '?'} />
+        <Avatar name={name ?? '?'} />
         <div>
-          <b>{contact?.name ?? t('call.contact.unknownCaller')}</b>
+          <b>{name ?? t('call.contact.unknownCaller')}</b>
           <span>{contact?.company ?? formatPhone(call.from_number)}</span>
         </div>
       </div>
@@ -180,7 +181,10 @@ export function ContactSide({ call, onOpen, toast, onToggleBlock }: Props) {
           <Button
             size="sm"
             variant="ghost"
-            title={t('common.withKey', { label: contact.blocked_at ? t('call.contact.unblockNumber') : t('call.contact.blockNumber'), key: '⇧B' })}
+            title={t('common.withKey', {
+              label: contact.blocked_at ? t('call.contact.unblockNumber') : t('call.contact.blockNumber'),
+              key: '⇧B',
+            })}
             onClick={() => onToggleBlock(call)}
           >
             {contact.blocked_at ? t('call.contact.unblock') : t('call.contact.block')}

@@ -1,7 +1,7 @@
 // Search (/) covers every call: caller, number, title, summary and transcript text.
 import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
-import { callTitle, formatPhone } from '../inbox-model.ts'
+import { callerName, callTitle, formatPhone } from '../inbox-model.ts'
 import { i18n } from '../i18n/index.tsx'
 
 export type SearchHit = { field: string; text: string; atMs?: number }
@@ -9,11 +9,17 @@ export type SearchHit = { field: string; text: string; atMs?: number }
 type Searchable = { call: Call; contact?: Contact; segments: TranscriptSegment[]; assistantName: string }
 
 function speakerName(s: TranscriptSegment, callerLabel: string, assistantName: string): string {
-  return s.speaker === 'caller' ? callerLabel : s.speaker === 'agent' ? assistantName : s.speaker === 'human' ? i18n().t('inbox.search.team') : i18n().t('inbox.search.event')
+  return s.speaker === 'caller'
+    ? callerLabel
+    : s.speaker === 'agent'
+      ? assistantName
+      : s.speaker === 'human'
+        ? i18n().t('inbox.search.team')
+        : i18n().t('inbox.search.event')
 }
 
 function textsOf({ call, contact, segments, assistantName }: Searchable): SearchHit[] {
-  const caller = contact?.name || formatPhone(call.from_number)
+  const caller = callerName(call, contact)
   return [
     { field: i18n().t('inbox.search.summary'), text: call.summary ?? '' },
     { field: i18n().t('inbox.search.topic'), text: callTitle(call) },
@@ -44,7 +50,16 @@ export function matchesSearch(item: Searchable, query: string): boolean {
   const { call, contact } = item
   const phone = phoneDigits(query)
   if (phone && digitsOf(call.from_number).includes(phone)) return true
-  const everything = [contact?.name, contact?.company, call.from_number, formatPhone(call.from_number), ...textsOf(item).map(t => t.text)].filter(Boolean).join('\n').toLowerCase()
+  const everything = [
+    callerName(call, contact),
+    contact?.company,
+    call.from_number,
+    formatPhone(call.from_number),
+    ...textsOf(item).map(t => t.text),
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase()
   return wordsOf(query).every(word => everything.includes(word))
 }
 
@@ -62,5 +77,13 @@ export function highlight(text: string, query: string | null, max?: number): Rea
   const i = text.toLowerCase().indexOf(q)
   const from = max && text.length > max ? Math.max(0, i - Math.round(max * 0.3)) : 0
   const to = max && text.length > max ? Math.min(text.length, from + max) : text.length
-  return <>{from > 0 ? '…' : ''}{text.slice(from, i)}<mark>{text.slice(i, i + q.length)}</mark>{text.slice(i + q.length, to)}{to < text.length ? '…' : ''}</>
+  return (
+    <>
+      {from > 0 ? '…' : ''}
+      {text.slice(from, i)}
+      <mark>{text.slice(i, i + q.length)}</mark>
+      {text.slice(i + q.length, to)}
+      {to < text.length ? '…' : ''}
+    </>
+  )
 }
