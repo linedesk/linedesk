@@ -24,6 +24,14 @@ test('five short steps: inbox, a call, assign and finish, settings, the rest', (
   expect(steps[0]!.text).toContain('Ava')
 })
 
+test('alone in the workspace, the finish step names no A (nobody to assign to)', () => {
+  const alone = tourSteps('Ava', false)[2]!
+  expect(alone.title).toBe('Remind and finish')
+  expect(alone.text).not.toContain('A ')
+  expect(alone.text).toContain('H reminds you later')
+  expect(tourSteps('Ava', true)[2]!.text).toContain('A assigns a call to you')
+})
+
 test('→ moves on and closes after the last step, ← goes back, Esc closes, other keys stay with the app', () => {
   expect(tourKey('ArrowRight', 0, 5)).toBe(1)
   expect(tourKey('ArrowRight', 4, 5)).toBe('close')
@@ -116,11 +124,13 @@ test('the tour waits while a dialog is open: New workspace, ⌘K, the shortcut s
   // A page of elements by their attributes, matched against attribute selectors like [role="dialog"][aria-modal="true"].
   const page = (...elements: Record<string, string>[]) => ({
     querySelector: (selectors: string) =>
-      selectors.split(',').some(selector =>
-        elements.some(attrs =>
-          [...selector.matchAll(/\[([a-z-]+)="([^"]*)"\]/g)].every(([, name, value]) => attrs[name!] === value),
-        ),
-      )
+      selectors
+        .split(',')
+        .some(selector =>
+          elements.some(attrs =>
+            [...selector.matchAll(/\[([a-z-]+)="([^"]*)"\]/g)].every(([, name, value]) => attrs[name!] === value),
+          ),
+        )
         ? ({} as Element)
         : null,
   })

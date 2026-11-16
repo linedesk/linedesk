@@ -153,6 +153,7 @@
   "row.unread": "unread",
   "row.unreadMarkRead": "Unread, mark read",
   "sample.line": "<b>Sample calls.</b> {count, plural, one {# example} other {# examples}} of how calls land here. Try {done}, {assign} and {open} on them.",
+  "sample.lineAlone": "<b>Sample calls.</b> {count, plural, one {# example} other {# examples}} of how calls land here. Try {done}, {remind} and {open} on them.",
   "sample.remove": "Remove sample calls",
   "sample.removeTitle": "Remove every sample call",
   "sample.removed": "Sample calls removed.",

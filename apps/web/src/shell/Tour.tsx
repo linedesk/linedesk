@@ -12,10 +12,10 @@ import { useT } from '@linedesk/i18n/react'
 const GAP = 12 // between the target and the card's arrow tip
 const EDGE = 12 // the card keeps this far from the window's edges
 
-export function Tour({ onClose }: { onClose: () => void }) {
+export function Tour({ onClose, canAssign }: { onClose: () => void; canAssign: boolean }) {
   const t = useT()
   const assistant = useAssistantName()
-  const steps = useMemo(() => tourSteps(assistant), [assistant])
+  const steps = useMemo(() => tourSteps(assistant, canAssign), [assistant, canAssign])
   const [at, setAt] = useState(0)
   const step = steps[at]!
   const last = at === steps.length - 1
@@ -44,7 +44,12 @@ export function Tour({ onClose }: { onClose: () => void }) {
               {last ? t('common.action.close') : t('shell.tour.skip')}
             </Button>
             {at > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => setAt(at - 1)} title={t('common.withKey', { label: t('shell.tour.back'), key: '←' })}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setAt(at - 1)}
+                title={t('common.withKey', { label: t('shell.tour.back'), key: '←' })}
+              >
                 {t('shell.tour.back')}
               </Button>
             )}
@@ -200,7 +205,12 @@ function useDialogOpen(): boolean {
     const check = () => setOpen(dialogOpen())
     check()
     const observer = new MutationObserver(check)
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['role', 'aria-modal'] })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['role', 'aria-modal'],
+    })
     return () => observer.disconnect()
   }, [])
   return open

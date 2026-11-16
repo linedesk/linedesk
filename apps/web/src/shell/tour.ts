@@ -22,7 +22,8 @@ export type TourStep = {
 const CURSOR_ROW = '.ib-list .row.is-cursor'
 const FIRST_ROW = '.ib-list .row'
 
-export function tourSteps(assistant: string): TourStep[] {
+/** `canAssign`: the workspace has someone else to assign calls to; alone, A does nothing, so the tour skips it. */
+export function tourSteps(assistant: string, canAssign = true): TourStep[] {
   const { t } = i18n()
   return [
     {
@@ -38,8 +39,10 @@ export function tourSteps(assistant: string): TourStep[] {
       placement: 'bottom',
     },
     {
-      title: t('shell.tour.finish.title'),
-      text: t('shell.tour.finish.text', { assign: 'A', remind: 'H', done: 'E', undo: 'Z' }),
+      title: canAssign ? t('shell.tour.finish.title') : t('shell.tour.finishAlone.title'),
+      text: canAssign
+        ? t('shell.tour.finish.text', { assign: 'A', remind: 'H', done: 'E', undo: 'Z' })
+        : t('shell.tour.finishAlone.text', { remind: 'H', done: 'E', undo: 'Z' }),
       targets: [`${CURSOR_ROW} .r-acts`, CURSOR_ROW, FIRST_ROW],
       placement: 'bottom-end',
     },
@@ -124,7 +127,8 @@ export function findTarget(
  * comes back at the same step once it closes. The tour's own card is not modal, so it never counts.
  */
 const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"], [role="alertdialog"]'
-export const dialogOpen = (root: Pick<Document, 'querySelector'> = document) => root.querySelector(MODAL_SELECTOR) !== null
+export const dialogOpen = (root: Pick<Document, 'querySelector'> = document) =>
+  root.querySelector(MODAL_SELECTOR) !== null
 
 /** The spotlight's window: the target with some room around it, kept inside the screen so its corners show. */
 export function spotlightBox(target: Box, viewport: { width: number; height: number }, pad = 6, inset = 4) {

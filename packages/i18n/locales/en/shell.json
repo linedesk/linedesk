@@ -266,6 +266,8 @@
   "tour.done": "Done",
   "tour.finish.text": "{assign} assigns a call to you, {remind} reminds you later, {done} marks it done and moves on. {undo} undoes.",
   "tour.finish.title": "Assign and finish",
+  "tour.finishAlone.text": "{remind} reminds you later, {done} marks it done and moves on. {undo} undoes.",
+  "tour.finishAlone.title": "Remind and finish",
   "tour.inbox.text": "Every call {assistant} answers lands here with a summary and the next step. {down} and {up} move.",
   "tour.inbox.title": "Your inbox",
   "tour.next": "Next",

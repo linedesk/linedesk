@@ -5,7 +5,16 @@ import { useRows } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { T, useT } from '@linedesk/i18n/react'
 
-export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
+export function SampleCallsBar({
+  canEdit,
+  canAssign,
+  toast,
+}: {
+  canEdit: boolean
+  /** Someone else to assign calls to: alone, A does nothing, so the line suggests H (remind) instead. */
+  canAssign: boolean
+  toast: (text: string) => void
+}) {
   const t = useT()
   const write = useWriteAction()
   const count = useRows('calls').filter(c => c.source === 'sample' && !c.deleted_at).length
@@ -26,12 +35,13 @@ export function SampleCallsBar({ canEdit, toast }: { canEdit: boolean; toast: (t
     <div className="ib-sample" role="status">
       <span>
         <T
-          k="inbox.sample.line"
-          values={{ count, b: chunks => <b>{chunks}</b>, done: 'E', assign: 'A', open: 'Enter' }}
+          k={canAssign ? 'inbox.sample.line' : 'inbox.sample.lineAlone'}
+          values={{ count, b: chunks => <b>{chunks}</b>, done: 'E', assign: 'A', remind: 'H', open: 'Enter' }}
         />
       </span>
       {canEdit && (
-        <Button busy={busy}
+        <Button
+          busy={busy}
           size="sm"
           variant="ghost"
           disabled={busy}

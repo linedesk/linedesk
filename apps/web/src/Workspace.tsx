@@ -540,7 +540,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       <button type="button" className="scrim" aria-label={t('shell.nav.closeMenu')} tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
         {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canManageKeys} />}
-        {!page && !openCall && <SampleCallsBar canEdit={canEditSettings} toast={toaster.show} />}
+        {!page && !openCall && <SampleCallsBar canEdit={canEditSettings} canAssign={canAssign} toast={toaster.show} />}
         {page ? (
           <>
             {!page.ownHeader && (
@@ -679,7 +679,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         onCommand={runCommand}
         onReminder={pickReminder}
       />
-      {tourOpen && !page && <Tour onClose={closeTour} />}
+      {tourOpen && !page && <Tour onClose={closeTour} canAssign={canAssign} />}
       {askForPasskey && !(tourOpen || !!page || !!openCall || overlay !== null || newWorkspace) && (
         <PasskeyCard account={me.actorId} needsEnrolmentCode={Boolean(me.passkeyEnrolment)} onAdded={() => {
             toaster.show(t('account.passkey.added'))
