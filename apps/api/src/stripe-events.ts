@@ -247,9 +247,16 @@ export function notCreditedReason(
   if (line.currency !== 'usd') return { reason: 'currency' }
   if (line.amountCents !== recharge.amount_cents) return { reason: 'amount_mismatch' }
   // Credit only for a real payment of the whole invoice (M4; security review of #865, L1): not marked paid out of
-  // band, no discount, no customer credit balance applied, and its total paid by charges or payment intents.
+  // band, no discount or credit on the recharge's own line (a coupon on the plan line of a conversion invoice is the
+  // plan's business; recheck of #865, L-A), no customer credit balance applied, and its total paid by charges or
+  // payment intents.
   if (invoice.amountPaidOffStripeCents > 0) return { reason: 'out_of_band' }
-  if (invoice.discountCents !== 0) return { reason: 'discounted' }
+  if (line.discountCents !== 0) return { reason: 'discounted' }
+  // The rest of the invoice must not pay for the recharge (delta review of #866): no negative line (a credit item, a
+  // proration credit) beside it, and the pre-tax total at least the recharge, so a $20 line next to a −$15 line paid
+  // with $5 credits nothing. Fails closed: an admin decides.
+  if (invoice.lines.some(l => l.amountCents < 0) || invoice.totalCents - invoice.taxCents < line.amountCents)
+    return { reason: 'not_covered' }
   if (
     invoice.startingBalanceCents !== 0 ||
     invoice.amountPaidCents !== invoice.totalCents ||

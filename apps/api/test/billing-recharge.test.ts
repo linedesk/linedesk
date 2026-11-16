@@ -3,10 +3,10 @@
 // it, and applies the failed-recharge rules: automatic collection off before the attempt is marked, a decline voided
 // (`canceled`), 3DS kept open (`failed`), the bill waiting for a new card, and the owner emailed once per invoice.
 import { type BillingProvider, BillingSetupError, type RechargeInvoiceInput } from '@linedesk/billing'
-import { billing_accounts, billing_alerts, billing_recharges, ledger_entries } from '@linedesk/db'
+import { billing_accounts, billing_alerts, billing_recharges, instance_settings, ledger_entries } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { chargeRecharge, rechargeGaveUp, sendBillingAlert } from '../src/billing-recharge.ts'
+import { chargeRecharge, rechargeGaveUp, rechargeSetupAlertKey, sendBillingAlert } from '../src/billing-recharge.ts'
 import { db } from '../src/db.ts'
 import type { Email, EmailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -253,6 +253,33 @@ describe('the job’s last retry failed (review L3)', () => {
     const sent: Email[] = []
     const sender: EmailSender = { send: async e => void sent.push(e) } as EmailSender
     expect(await sendBillingAlert(db, sender, queued[0]!.data as never)).toEqual({ sent: 'admins' })
+  })
+
+  test('the setup alert goes out once per install and error code a day, not once per bill (recheck of #865, L-B)', async () => {
+    const code = `stripe_${rid('t')}`
+    const { provider } = fakeProvider(() => ({ status: 'paid', invoiceId: 'x' }))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const giveUp = async (c: string) => {
+      const r = await pendingRecharge()
+      await rechargeGaveUp(db, r.attempt.id, { provider, setupError: new BillingSetupError(c) })
+      expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'canceled', failure_code: c })
+    }
+    const alerts = () => queued.filter(q => q.data.kind === 'recharge_setup')
+    await giveUp(code)
+    await giveUp(code)
+    await giveUp(code)
+    expect(alerts().map(q => q.data.code)).toEqual([code])
+    // Another code is its own alert.
+    await giveUp(`${code}_other`)
+    expect(alerts().map(q => q.data.code)).toEqual([code, `${code}_other`])
+    // A day later the same code alerts again.
+    await db
+      .update(instance_settings)
+      .set({ updated_at: new Date(Date.now() - 25 * 3_600_000).toISOString() })
+      .where(eq(instance_settings.key, rechargeSetupAlertKey(code)))
+    await giveUp(code)
+    error.mockRestore()
+    expect(alerts().map(q => q.data.code)).toEqual([code, `${code}_other`, code])
   })
 })
 

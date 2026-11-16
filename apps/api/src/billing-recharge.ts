@@ -12,6 +12,7 @@ import {
   billing_balances,
   billing_recharges,
   type Db,
+  instance_settings,
   organization,
   rechargeCapCents,
   type Tx,
@@ -157,10 +158,16 @@ export async function rechargeGaveUp(
   console.error(`billing: recharge ${rechargeId} gave up after the job's last retry`)
 }
 
+/** How often the setup alert goes out per install and error code (recheck of #865, L-B). */
+export const RECHARGE_SETUP_ALERT_MS = 24 * 60 * 60_000
+/** The instance setting that remembers when the setup alert for a code last went out. */
+export const rechargeSetupAlertKey = (code: string) => `billing.rechargeSetupAlerted:${code}`
+
 /**
  * The last try failed on our own setup (recheck of #864, L2: a 401, 403 or 404 from Stripe): not the owner's card, so no
  * `recharge_failed_at` and no owner email. The attempt is canceled (a later decision may try again once the setup is
- * fixed), its invoice is stopped when that still works, and the instance admins are emailed.
+ * fixed), its invoice is stopped when that still works, and the instance admins are emailed: once per install and
+ * error code in 24 hours, not once per bill (a broken key fails every bill's recharge the same way).
  */
 async function setupGaveUp(
   db: Db,
@@ -173,9 +180,19 @@ async function setupGaveUp(
     await provider
       .stopRechargeInvoice(attempt.stripe_invoice_id, { void: true })
       .catch(e => console.error(`billing: invoice ${attempt.stripe_invoice_id} could not be stopped:`, e))
-  await settle(db, attempt.id, { status: 'canceled', failure_code: code }, now, async (tx, billId) =>
-    queueBillingAlert(tx, { kind: 'recharge_setup', bill: billId, rechargeId: attempt.id, code }),
-  )
+  await settle(db, attempt.id, { status: 'canceled', failure_code: code }, now, async (tx, billId) => {
+    const before = new Date(Date.parse(now) - RECHARGE_SETUP_ALERT_MS).toISOString()
+    const due = await tx
+      .insert(instance_settings)
+      .values({ key: rechargeSetupAlertKey(code), value: now, updated_at: now })
+      .onConflictDoUpdate({
+        target: instance_settings.key,
+        set: { value: now, updated_at: now },
+        setWhere: lt(instance_settings.updated_at, before),
+      })
+      .returning({ key: instance_settings.key })
+    if (due.length) await queueBillingAlert(tx, { kind: 'recharge_setup', bill: billId, rechargeId: attempt.id, code })
+  })
   console.error(`billing: recharge ${attempt.id} gave up on a Stripe setup error (${code})`)
 }
 

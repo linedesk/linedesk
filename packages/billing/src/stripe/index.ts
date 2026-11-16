@@ -67,6 +67,10 @@ function lineOf(line: Stripe.InvoiceLineItem): BillingInvoiceLine {
           ? 'subscription'
           : 'other',
     rechargeId: line.metadata?.billing_recharge_id ?? null,
+    // Counts a discount twice (it is in both lists): only ever compared with 0 (provider.ts BillingInvoiceLine).
+    discountCents:
+      (line.discount_amounts ?? []).reduce((sum, d) => sum + d.amount, 0) +
+      (line.pretax_credit_amounts ?? []).reduce((sum, c) => sum + c.amount, 0),
   }
 }
 
@@ -183,7 +187,6 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         amountPaidOffStripeCents: invoice.amount_paid_off_stripe ?? 0,
         chargedCents: charged,
         startingBalanceCents: invoice.starting_balance ?? 0,
-        discountCents: (invoice.total_pretax_credit_amounts ?? []).reduce((sum, c) => sum + c.amount, 0),
         paymentFailureCode: failure,
         rechargeId: invoice.metadata?.billing_recharge_id ?? null,
         lines: lines.map(lineOf),

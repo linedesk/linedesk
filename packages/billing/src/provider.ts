@@ -67,6 +67,12 @@ export type BillingInvoiceLine = {
   kind: 'invoice_item' | 'subscription' | 'other'
   /** `metadata.billing_recharge_id` of the line (set on the invoice item by the recharge job). */
   rechargeId: string | null
+  /**
+   * Whether discounts or pre-tax credits (coupons, credit grants) were applied to this line: non-zero means yes. Not an
+   * amount: Stripe lists a discount in both `discount_amounts` and `pretax_credit_amounts`, so it is counted twice here.
+   * Never use it to compute what was paid or credited.
+   */
+  discountCents: number
 }
 
 /** An invoice fetched from the service (fetch-before-act): only what billing decides on. */
@@ -88,8 +94,6 @@ export type BillingInvoice = {
   chargedCents: number
   /** The customer's credit balance applied to it (Stripe's `starting_balance`; negative is a credit). */
   startingBalanceCents: number
-  /** Discounts and other pre-tax credits on it (coupons, credit grants), in cents. */
-  discountCents: number
   /** Why its last payment failed: `authentication_required` when the customer has to confirm it, else the decline. */
   paymentFailureCode: string | null
   /** `metadata.billing_recharge_id` of the invoice. */

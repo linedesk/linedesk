@@ -42,6 +42,7 @@ export type NotCreditedReason =
   | 'out_of_band'
   | 'not_charged'
   | 'discounted'
+  | 'not_covered'
   | 'amount_mismatch'
   | 'no_line'
   | 'currency'

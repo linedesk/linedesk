@@ -262,6 +262,9 @@ importers:
 
   packages/billing:
     dependencies:
+      '@linedesk/db':
+        specifier: workspace:*
+        version: link:../db
       stripe:
         specifier: 22.2.2
         version: 22.2.2(@types/node@26.6.6)

@@ -500,7 +500,6 @@ describe('fetching', () => {
         total: 13_000,
         total_taxes: [{ amount: 100 }, { amount: 100 }],
         starting_balance: -500,
-        total_pretax_credit_amounts: [{ amount: 300, type: 'discount' }],
         amount_paid: 13_000,
         amount_paid_off_stripe: 0,
         metadata: {},
@@ -512,8 +511,11 @@ describe('fetching', () => {
         invoice_pdf: null,
       },
       '/v1/invoices/in_1/lines': list([
-        line('il_1', 10_800, 'subscription_item_details'),
-        line('il_2', 2000, 'invoice_item_details', 'rc_1'),
+        { ...line('il_1', 10_800, 'subscription_item_details'), discount_amounts: [{ amount: 300, discount: 'di_1' }] },
+        {
+          ...line('il_2', 2000, 'invoice_item_details', 'rc_1'),
+          pretax_credit_amounts: [{ amount: 50, type: 'credit_balance_transaction' }],
+        },
       ]),
       '/v1/invoice_payments': list([
         {
@@ -559,11 +561,11 @@ describe('fetching', () => {
       // Only charges and payment intents are money that came in through Stripe.
       chargedCents: 12_000,
       startingBalanceCents: -500,
-      discountCents: 300,
       paymentFailureCode: null,
       lines: [
-        { id: 'il_1', amountCents: 10_800, kind: 'subscription', rechargeId: null },
-        { id: 'il_2', amountCents: 2000, kind: 'invoice_item', rechargeId: 'rc_1' },
+        // Discounts and credits per line: a plan coupon is not the recharge's (recheck of #865, L-A).
+        { id: 'il_1', amountCents: 10_800, kind: 'subscription', rechargeId: null, discountCents: 300 },
+        { id: 'il_2', amountCents: 2000, kind: 'invoice_item', rechargeId: 'rc_1', discountCents: 50 },
       ],
       periodStart: new Date(1_800_000_000_000).toISOString(),
     })

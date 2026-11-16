@@ -462,12 +462,7 @@ describe('invoice.paid for a recharge', () => {
     ['marked paid out of band', { amount_paid_off_stripe: 2000, amount_paid: 0 }, 0, 'out_of_band'],
     ['paid from the customer credit balance', { amount_paid: 0 }, 0, 'not_charged'],
     // The total counts, not the recharge's line (security review of #865, L1).
-    [
-      'a coupon took 10 % off',
-      { total: 1800, amount_paid: 1800, total_pretax_credit_amounts: [{ amount: 200, type: 'discount' }] },
-      1800,
-      'discounted',
-    ],
+    ['a coupon took 10 % off the recharge', { total: 1800, amount_paid: 1800, lineDiscount: 200 }, 1800, 'discounted'],
     ['$3 of it came from the customer credit balance', { starting_balance: -300 }, 1700, 'not_charged'],
     ['the card paid less than the total with tax', { total: 2170, amount_paid: 2170 }, 2000, 'not_charged'],
     ['a line of another amount than the attempt', { line: 5000 }, 5000, 'amount_mismatch'],
@@ -476,11 +471,10 @@ describe('invoice.paid for a recharge', () => {
     const { bill } = await billWith()
     const invoiceId = rid('in')
     const recharge = await pendingRecharge(bill.id, invoiceId)
-    const { line, ...fields } = change as { line?: number } & Json
-    stripe.invoices.set(
-      invoiceId,
-      invoice(invoiceId, bill.stripe_customer_id!, { ...fields, lines: [rechargeLine(recharge.id, line ?? 2000)] }),
-    )
+    const { line, lineDiscount, ...fields } = change as { line?: number; lineDiscount?: number } & Json
+    const recharged = rechargeLine(recharge.id, line ?? 2000)
+    if (lineDiscount) recharged.discount_amounts = [{ amount: lineDiscount, discount: rid('di') }]
+    stripe.invoices.set(invoiceId, invoice(invoiceId, bill.stripe_customer_id!, { ...fields, lines: [recharged] }))
     if (charged) paidBy(invoiceId, charged)
     else stripe.payments.delete(invoiceId)
     const evt = event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!))
@@ -492,6 +486,79 @@ describe('invoice.paid for a recharge', () => {
     )
     expect(mails.some(m => /was not credited/.test(m.subject))).toBe(true)
     expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
+  })
+
+  test('a coupon on the plan line of the same invoice does not block the recharge (recheck of #865, L-A)', async () => {
+    // The trial conversion invoice: the plan (with a promotion code) and the first recharge, paid in full by card.
+    const { bill } = await billWith()
+    const invoiceId = rid('in')
+    const recharge = await pendingRecharge(bill.id, invoiceId)
+    const plan: Json = {
+      id: rid('il'),
+      object: 'line_item',
+      amount: 1100,
+      currency: 'usd',
+      parent: { type: 'subscription_item_details' },
+      metadata: {},
+      discount_amounts: [{ amount: 550, discount: rid('di') }],
+    }
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        total: 2550,
+        amount_paid: 2550,
+        total_discount_amounts: [{ amount: 550, discount: rid('di') }],
+        lines: [plan, rechargeLine(recharge.id)],
+      }),
+    )
+    paidBy(invoiceId, 2550)
+    const evt = event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!))
+    expect(await deliverAndProcess(evt)).toMatchObject({ credited: { recharge: recharge.id, posted: true } })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+  })
+
+  /** An invoice with the recharge line and other invoice-item lines of the given amounts, its total paid by card. */
+  async function rechargeBeside(others: number[], tax = 0) {
+    const { bill } = await billWith()
+    const invoiceId = rid('in')
+    const recharge = await pendingRecharge(bill.id, invoiceId)
+    const extra = others.map(
+      (amount): Json => ({
+        id: rid('il'),
+        object: 'line_item',
+        amount,
+        currency: 'usd',
+        parent: { type: 'invoice_item_details', invoice_item_details: { invoice_item: rid('ii') } },
+        metadata: {},
+      }),
+    )
+    const total = 2000 + others.reduce((a, b) => a + b, 0) + tax
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        total,
+        amount_paid: total,
+        total_taxes: tax ? [{ amount: tax }] : [],
+        lines: [rechargeLine(recharge.id), ...extra],
+      }),
+    )
+    paidBy(invoiceId, total)
+    const outcome = await deliverAndProcess(event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!)))
+    return { bill, recharge, outcome }
+  }
+
+  test('a negative line beside the recharge credits nothing: $20 line, −$15 line, $5 paid (delta review of #866)', async () => {
+    const { bill, recharge, outcome } = await rechargeBeside([-1500])
+    expect(outcome).toMatchObject({ notCredited: { recharge: recharge.id, reason: 'not_covered' } })
+    expect(await rechargeEntries(recharge.id)).toHaveLength(0)
+    expect(await balanceOf(bill.id)).toBe(0)
+    expect(mails.some(m => /was not credited/.test(m.subject))).toBe(true)
+  })
+
+  test('another positive line beside the recharge, all paid by card with tax: credited once (positive control)', async () => {
+    const { bill, recharge, outcome } = await rechargeBeside([500], 213)
+    expect(outcome).toMatchObject({ credited: { recharge: recharge.id, micros: 20_000_000, posted: true } })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
   })
 
   test('paid before the recharge job stored the invoice id: found through the fetched invoice, credited once', async () => {

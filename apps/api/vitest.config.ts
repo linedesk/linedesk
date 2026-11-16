@@ -29,6 +29,8 @@ const INSTANCE_WIDE_FILES = [
   'test/after-call-transcript.test.ts',
   // Stripe keys and the billing switch (provider_settings, instance_settings).
   'test/billing-settings.test.ts',
+  // The once-a-day setup alert of the recharge job (instance_settings).
+  'test/billing-recharge.test.ts',
   'test/authenticator.test.ts',
   'test/admin-subjects.test.ts',
   'test/workspace-delete-own.test.ts',

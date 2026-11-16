@@ -9,6 +9,37 @@
 // - The recharge constants below: database CHECKs on `billing_accounts` use them, so they change only by migration.
 // Stripe price and account ids are never in the code: they live in the Stripe account and the provider settings.
 
+/**
+ * The plan fees as Stripe prices (docs/billing.md §2.1 and §2.1b), created and kept up to date by the bootstrap script
+ * (`pnpm --filter @linedesk/billing bootstrap`), found by `lookupKey`. USD, per unit, tax-exclusive. The founding prices
+ * have the same amounts today and their own prices, so a later change of the public ones does not touch a lock.
+ * Usage and extra numbers are never Stripe prices: they are paid from the balance (`BILLING_DEFAULTS`).
+ */
+export const PLAN_PRICES = [
+  { lookupKey: 'ws_monthly', product: 'workspace', cents: 1100, interval: 'month' },
+  { lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' },
+  { lookupKey: 'partner_monthly', product: 'partner', cents: 1900, interval: 'month' },
+  { lookupKey: 'partner_yearly', product: 'partner', cents: 16_800, interval: 'year' },
+  { lookupKey: 'ws_monthly_founding', product: 'workspace', cents: 1100, interval: 'month' },
+  { lookupKey: 'ws_yearly_founding', product: 'workspace', cents: 10_800, interval: 'year' },
+  { lookupKey: 'partner_monthly_founding', product: 'partner', cents: 1900, interval: 'month' },
+  { lookupKey: 'partner_yearly_founding', product: 'partner', cents: 16_800, interval: 'year' },
+] as const satisfies readonly PlanPrice[]
+export type PlanProduct = 'workspace' | 'partner' | 'balance_recharge' | 'balance_topup'
+export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number; interval: 'month' | 'year' }
+/**
+ * The Stripe products (their names show on invoices and receipts). The balance products have no fixed price: a
+ * recharge invoice item and a top-up Checkout line give the amount (`price_data` with the product).
+ */
+export const PLAN_PRODUCTS: Record<PlanProduct, string> = {
+  workspace: 'Linedesk workspace',
+  partner: 'Linedesk Partner',
+  balance_recharge: 'Balance recharge',
+  balance_topup: 'Prepaid minutes',
+}
+/** Stripe Tax code of every product and the account default: SaaS, business use (docs/billing.md §5.2). */
+export const STRIPE_TAX_CODE = 'txcd_10103001'
+
 /** A bill's default monthly recharge cap base ($50): auto-recharges stop for the calendar month at the cap. */
 export const RECHARGE_CAP_BASE_CENTS = 5000
 /** What each workspace after the first adds to a bill's monthly recharge cap ($25). */
