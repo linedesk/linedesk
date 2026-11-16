@@ -99,11 +99,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'calendar.connectFinish',
     'calendar.listCalendars',
     'calendar.disconnect',
-    // Connected apps (apps.ts, docs/crm-sync.md): connecting HubSpot and the like is a workspace setting.
-    'app.connectStart',
-    'app.connectFinish',
-    'app.disconnect',
-    'app.pushes',
     // Connecting a CalDAV, Calendly or Cal.com account with its key (only the tools Server admin switched on).
     'calendar.connectWithPassword',
     'assistantCalendar.add',
