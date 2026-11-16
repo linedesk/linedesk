@@ -135,7 +135,9 @@ async function billsAgainstStripe(provider: BillingProvider): Promise<ReconcileF
   const findings: ReconcileFinding[] = []
   for (const bill of bills) {
     const sub = await provider.subscription(bill.stripe_subscription_id!)
-    const expected = EXPECTED_STATUS[bill.status]
+    // A dispute or fraud-warning suspension leaves the subscription as it is (paid): not compared (PR 11).
+    const expected =
+      bill.status === 'suspended' && bill.suspend_reason !== 'payment' ? undefined : EXPECTED_STATUS[bill.status]
     if (!sub) {
       if (expected) findings.push({ kind: 'status', bill: bill.id, ours: bill.status, stripe: 'missing' })
       continue

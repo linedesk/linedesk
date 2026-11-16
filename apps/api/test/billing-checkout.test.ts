@@ -35,7 +35,7 @@ import { setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
-import { processStripeEventJob, UNHANDLED_PLAN } from '../src/stripe-events.ts'
+import { processStripeEventJob } from '../src/stripe-events.ts'
 import { act, addMember, type Caller, createWorkspace, type User } from './helpers.ts'
 // After the app (helpers.ts loads it): the sweep's module reaches the handler registry.
 const { sweepSignUps } = await import('../src/signup-handlers.ts')
@@ -859,12 +859,18 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     })
     expect(item.idempotencyKey).toBe(`${recharge!.id}:item`)
 
-    // A failed conversion invoice is dunning's (PR 11): never voided here, the recharge stays pending.
+    // A failed conversion invoice is dunning's (PR 11): the bill goes past_due after a failed first payment, the
+    // invoice is never voided here, and the recharge stays pending.
     Object.assign(stripe.invoices.get(invoiceId)!, { status: 'open' })
+    stripe.subscriptions.get(sub.id as string)!.status = 'past_due'
     stripe.requests.length = 0
     expect(await processEvent('invoice.payment_failed', object)).toMatchObject({
-      outcome: 'unhandled',
-      marker: UNHANDLED_PLAN,
+      outcome: 'lifecycle',
+      change: 'past_due',
+    })
+    expect((await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id)))[0]).toMatchObject({
+      status: 'past_due',
+      past_due_first_payment: true,
     })
     expect(stripe.requests.filter(r => r.method === 'POST' && r.path.startsWith('/v1/invoices/'))).toEqual([])
     expect((await db.select().from(billing_recharges).where(eq(billing_recharges.id, recharge!.id)))[0]!.status).toBe(

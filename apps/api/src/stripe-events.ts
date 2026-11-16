@@ -28,7 +28,7 @@ import {
   stripe_events,
   type Tx,
 } from '@linedesk/db'
-import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { rechargeFailed } from './billing-recharge.ts'
@@ -60,8 +60,8 @@ export const UNKNOWN_RETRY_MS = 60 * 60_000
 /**
  * `last_error` of an event this release stores but does not act on (security review of #865, M1): it stays unprocessed,
  * its attempts at the cap, so nothing retries or alerts on it. `UNHANDLED_TYPE`: the type is not handled; the sweeper
- * queues it again once a release handles the type. `UNHANDLED_PLAN`: a plan invoice's failure or void (dunning, a later
- * PR), which that PR processes again by type and marker.
+ * queues it again once a release handles the type. `UNHANDLED_PLAN`: a plan invoice's failure or void stored before
+ * dunning existed; the sweeper queues it again (billing-lifecycle.ts handles plan invoices now).
  */
 export const UNHANDLED_TYPE = 'unhandled: type'
 export const UNHANDLED_PLAN = 'unhandled: plan invoice'
@@ -82,12 +82,22 @@ const CHECKOUT_EVENTS = [
   'customer.subscription.trial_will_end',
   'invoice.created',
 ] as const
+/** Cancellations, disputes, fraud warnings and refunds (billing-lifecycle.ts, PR 11). By the job too (they ask Stripe). */
+const LIFECYCLE_EVENTS = [
+  'customer.subscription.deleted',
+  'charge.dispute.created',
+  'charge.dispute.closed',
+  'radar.early_fraud_warning.created',
+  // A refunded charge closes its fraud warning (security review of #920, M4).
+  'charge.refunded',
+] as const
 /** The event types this release acts on. */
 export const HANDLED_EVENTS: readonly string[] = [
   INVOICE_PAID,
   ...INVOICE_FAILURES,
   ...CARD_CHANGES,
   ...CHECKOUT_EVENTS,
+  ...LIFECYCLE_EVENTS,
 ]
 
 /** The API's billing jobs: `billing:system` only, which no role, API key, setup link or session has. */
@@ -260,6 +270,8 @@ export type EventOutcome =
     }
   /** A new card after a failed recharge: the wait ended (`cleared`), or the card is the one that failed. */
   | { outcome: 'card_changed'; bill: string; cleared: boolean }
+  /** The bill's life changed (billing-lifecycle.ts): past_due, a dispute, a fraud warning, canceled. */
+  | { outcome: 'lifecycle'; bill: string; change: string }
 
 /** Why a paid recharge invoice must not credit the balance, or its line when it is a real payment of the attempt's amount. */
 export function notCreditedReason(
@@ -384,9 +396,18 @@ async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | 
   await tx
     .update(billing_accounts)
     .set({
-      ...(held ? {} : { status: 'active' as const, past_due_since: null, suspended_at: null, suspend_reason: null }),
+      ...(held
+        ? {}
+        : {
+            status: 'active' as const,
+            past_due_since: null,
+            past_due_first_payment: false,
+            suspended_at: null,
+            suspend_reason: null,
+          }),
       current_period_start: subscription.currentPeriodStart,
       current_period_end: subscription.currentPeriodEnd,
+      ...(subscription.billingCycleAnchor ? { billing_anchor: subscription.billingCycleAnchor } : {}),
       ...(subscription.interval ? { interval: subscription.interval } : {}),
       updated_at: now,
     })
@@ -706,16 +727,28 @@ async function invoiceFailedJob(event: StoredEvent): Promise<EventOutcome> {
   if (!invoice) return done({ outcome: 'not_found' })
   if (!bill.stripe_customer_id || invoice.customerId !== bill.stripe_customer_id) return done({ outcome: 'unknown' })
   const recharge = await rechargeOfFailedInvoice(invoice, bill, stored)
-  // A plan invoice: dunning (a later PR) handles it, from the stored events. One carrying the first recharge too: the
+  // A plan invoice: dunning (billing-lifecycle.ts) makes the bill past_due. One carrying the first recharge too: the
   // recharge is canceled only when the invoice is voided, and dunning still gets the event.
   if (recharge && invoice.subscriptionId) await failRechargeInvoice(provider, invoice, recharge, now, false)
-  if (!recharge || invoice.subscriptionId) return done({ outcome: 'unhandled', marker: UNHANDLED_PLAN })
+  if (!recharge || invoice.subscriptionId) {
+    const { planInvoiceFailed } = await import('./billing-lifecycle.ts')
+    return done(await planInvoiceFailed(provider, invoice, bill, event.created, now))
+  }
   const code = await failRechargeInvoice(provider, invoice, recharge, now, event.type === 'invoice.payment_failed')
   return done(
     code
       ? { outcome: 'recharge_failed', bill: bill.id, recharge: recharge.id, code }
       : { outcome: 'applied', bill: bill.id },
   )
+}
+
+/** A cancellation, dispute or fraud warning (billing-lifecycle.ts): an unknown bill is retried while the event is young. */
+async function lifecycleJob(event: StoredEvent): Promise<EventOutcome> {
+  const now = new Date().toISOString()
+  const { lifecycleEvent } = await import('./billing-lifecycle.ts')
+  const outcome = await lifecycleEvent(event, eventSubject(event.payload).objectId, now)
+  const retry = outcome.outcome === 'unknown' && retryUnknown(event.received_at, now)
+  return finishEvent(event, now)(retry ? { outcome: 'unknown_retry' } : outcome)
 }
 
 /**
@@ -764,6 +797,7 @@ export async function processStripeEventJob(eventId: string) {
     if ((INVOICE_FAILURES as readonly string[]).includes(event.type)) return await invoiceFailedJob(event)
     if ((CARD_CHANGES as readonly string[]).includes(event.type)) return await cardChangedJob(event)
     if ((CHECKOUT_EVENTS as readonly string[]).includes(event.type)) return await checkoutEventJob(event)
+    if ((LIFECYCLE_EVENTS as readonly string[]).includes(event.type)) return await lifecycleJob(event)
     const result = await runAsBillingSystem('billing.processStripeEvent', { eventId })
     if (!result.body.ok) throw new Error(result.body.error)
     return result.body.data as EventOutcome
@@ -791,8 +825,11 @@ export async function sweepStripeEvents(now = new Date()) {
     .where(
       and(
         isNull(stripe_events.processed_at),
-        eq(stripe_events.last_error, UNHANDLED_TYPE),
-        inArray(stripe_events.type, [...HANDLED_EVENTS]),
+        or(
+          and(eq(stripe_events.last_error, UNHANDLED_TYPE), inArray(stripe_events.type, [...HANDLED_EVENTS])),
+          // Plan invoice failures stored before dunning existed (PR 11).
+          eq(stripe_events.last_error, UNHANDLED_PLAN),
+        ),
       ),
     )
   const stale = await db

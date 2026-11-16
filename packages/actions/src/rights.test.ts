@@ -244,6 +244,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.moveWorkspace',
     'billing.transferOwner',
     'billing.reviewHold',
+    // Bill ownership and port-outs, by an instance admin (docs/billing.md §3.4, §8).
+    'billing.recordPortOut',
     'workspace.create',
     'membership.add',
     'membership.setRole',
@@ -264,6 +266,10 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.startTopUp',
     'billing.cancel',
     'billing.resume',
+    // The bill owner (the handlers check it is the bill's owner, not only the workspace's): the banner, port-out, hand-over.
+    'billing.state',
+    'billing.portOutInfo',
+    'billing.handOver',
   ],
   impersonation: ['impersonation.stop'],
   // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
@@ -324,9 +330,12 @@ describe('workspace rights', () => {
     expect([...expectedRights.owner].sort()).toEqual([
       'billing.cancel',
       'billing.confirmCheckout',
+      'billing.handOver',
+      'billing.portOutInfo',
       'billing.resume',
       'billing.startCheckout',
       'billing.startTopUp',
+      'billing.state',
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',

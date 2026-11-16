@@ -213,6 +213,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billing.startTopUp': 'account',
   'billing.cancel': 'account',
   'billing.resume': 'account',
+  // Bill ownership and port-outs (docs/billing.md §3.4, §8; PR 11). Reads that reveal a secret are audited too.
+  'billing.recordPortOut': 'admin',
+  'billing.handOver': 'team',
+  'billing.portOutInfo': 'account',
   'user.invite': 'admin',
   'user.disable': 'admin',
   'user.enable': 'admin',

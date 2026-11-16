@@ -46,6 +46,10 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     rechargeInvoicePage: async id => `https://invoice.stripe.com/i/${id}`,
     rechargeCard: async () => null,
     checkoutPaymentMethodConfiguration: async () => null,
+    // The lifecycle side (PR 10/11) is not used here.
+    dispute: async () => null,
+    earlyFraudWarning: async () => null,
+    charge: async () => null,
     // The webhook side (PR 5) is not used here.
     webhookEvent: () => {
       throw new Error('not used')

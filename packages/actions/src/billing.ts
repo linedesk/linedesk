@@ -84,3 +84,85 @@ export type BillingEnabledData = {
   liveAllowed: boolean
   guardsOk: boolean
 }
+
+// ---- The bill's life (docs/billing.md §3.4, §8; PR 11) ----
+
+/**
+ * What the in-app banner shows the bill owner: the bill's status and why it is suspended, the dunning dates, the dates
+ * after a cancellation, and the extra numbers whose month is unpaid. Only the bill owner gets it; for everyone else
+ * (and on an unbilled workspace) `data.bill` is null.
+ */
+export const billingState = defineAction({
+  name: 'billing.state',
+  description:
+    "The workspace's bill as its owner sees it in the banner: status (active, past_due, suspended, canceled, …), why it is suspended, when it is suspended or canceled if the plan fee stays unpaid, when the numbers are released and until when the data can be exported after a cancellation, and the extra numbers whose month is unpaid. Only the bill owner; null for anyone else.",
+  input: z.object({}),
+  permission: 'billing:manage',
+  readOnly: true,
+})
+/** `data` of `billing.state`: `bill` null for anyone but the bill owner. Dates are ISO strings; null where they do not apply. */
+export type BillingStateData = { bill: BillingStateBill | null }
+export type BillingStateBill = {
+  status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled' | 'comped'
+  suspendedReason: 'admin' | 'payment' | 'dispute' | 'early_fraud_warning' | null
+  pastDueSince: string | null
+  suspendsAt: string | null
+  cancelsAt: string | null
+  canceledAt: string | null
+  numbersReleaseAt: string | null
+  dataUntil: string | null
+  rechargeFailed: boolean
+  unpaidNumbers: { e164: string; releaseAt: string }[]
+}
+
+/**
+ * The port-out details of the bill's numbers on Linedesk's carrier account (docs/billing.md §3.4): what another carrier
+ * asks for to move a number away. The bill owner only, signed in as themselves in the app with the owner step-up (a
+ * recent sign-in, the passkey when they have one); logged. Without the step-up `stepUp` says what is missing and no
+ * code is returned.
+ */
+export const billingPortOutInfo = defineAction({
+  name: 'billing.portOutInfo',
+  description:
+    "The port-out details (account number and PIN per number) of the bill's numbers bought through Linedesk, for moving a number to another carrier. Only the bill owner, signed in to the app, after confirming it is them (a recent sign-in, the passkey when they have one).",
+  input: z.object({}),
+  permission: 'billing:manage',
+  // The PINs go to the owner once; the command log keeps that it was asked, never them.
+  secretResult: true,
+})
+/** `data` of `billing.portOutInfo`. */
+export type BillingPortOutData = {
+  stepUp: 'passkey' | 'signIn' | null
+  numbers: { phoneNumberId: string; e164: string; accountNumber: string; pin: string }[]
+}
+
+/**
+ * An instance admin records that another carrier asked to port one of the bill's numbers away (Telnyx tells the
+ * account by email or in its portal), and checks the PIN the request names against the owner's (`pinMatches`). The
+ * bill owner and the workspace owner are emailed at once.
+ */
+export const billingRecordPortOut = defineAction({
+  name: 'billing.recordPortOut',
+  description:
+    'Record that another carrier asked to port a number away, and check the PIN the request names: its bill owner and its workspace owner are emailed at once. Instance admins only.',
+  input: z.object({ phoneNumberId: z.string().min(1).max(100), pin: z.string().max(20).optional() }),
+  permission: 'instance:admin',
+  sensitive: ['pin'],
+})
+/** `data` of `billing.recordPortOut`: whether the PIN matched (null without a PIN or before the owner ever saw one). */
+export type BillingRecordPortOutData = { e164: string; billId: string; pinMatches: boolean | null }
+
+/**
+ * The bill owner hands the bill to a member of one of its workspaces (docs/billing.md §8, bill ownership), with the
+ * owner step-up. The new owner must have a confirmed email address.
+ */
+export const billingHandOver = defineAction({
+  name: 'billing.handOver',
+  description:
+    "Hand the bill (who pays for its workspaces) to another member of one of its workspaces. Only the bill owner, signed in to the app, after confirming it is them; the new owner's email address must be confirmed.",
+  input: z.object({ userId: z.string().min(1).max(100) }),
+  permission: 'billing:manage',
+})
+
+/** `data` of `billing.handOver`. An instance admin names another owner with #919's `billing.transferOwner`. */
+export type BillingOwnerData = { billId: string; ownerUserId: string; previousOwnerUserId: string }

@@ -13,8 +13,6 @@ import {
   auth_events,
   calls,
   commands,
-  setup_emails,
-  setup_events,
   instance_settings,
   invitation,
   ledger_entries,
@@ -27,29 +25,27 @@ import {
   provider_settings,
   push_subscriptions,
   session,
+  setup_emails,
+  setup_events,
   usage_counters,
   user,
   voice_clones,
 } from '@linedesk/db'
+import { APIError } from 'better-auth/api'
 import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
-import { auth } from '../src/auth.ts'
-import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { mapOidcProfile } from '../src/account-linking.ts'
 import {
   adminSignInEmail,
-  browserOf,
   alertInstanceAdmins,
   alertOnAdminSignIn,
+  browserOf,
   isLocalInstance,
   plainSnippet,
 } from '../src/admin-alerts.ts'
-import { markSetupSignIn } from '../src/setup.ts'
 import { deviceCookie, deviceHash, pruneOldAdminDevices } from '../src/admin-devices.ts'
 import { adminHandlers } from '../src/admin-handlers.ts'
-import { forgetTests } from '../src/setup-checklist.ts'
-import { brandName, decodeLogo, resetBranding } from '../src/branding.ts'
-import { adminAlertEmail, passkeysResetAlert } from '../src/emails/alerts.ts'
-import { signInCodeEmail } from '../src/emails/templates.ts'
+import { costEstimate } from '../src/admin-overview.ts'
 import {
   adminSecondFactorGap,
   adminSecondFactorRequired,
@@ -59,17 +55,18 @@ import {
   secondFactorOffWarning,
 } from '../src/admin-second-factor.ts'
 import { mayReceiveEnrolmentCode } from '../src/admin-step-up.ts'
-import type { Actor } from '../src/context.ts'
-import { runAction } from '../src/run-action.ts'
 import { signInMethod } from '../src/audit.ts'
-import { emailSender, sendNotice } from '../src/email.ts'
-import { db } from '../src/db.ts'
-import { mapOidcProfile } from '../src/account-linking.ts'
-import { APIError } from 'better-auth/api'
+import { auth } from '../src/auth.ts'
+import { brandName, decodeLogo, resetBranding } from '../src/branding.ts'
+import { notifyCallFinished } from '../src/call-notifications.ts'
 import { CLIENT_IP_HEADER } from '../src/client-ip.ts'
-import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
+import type { Actor } from '../src/context.ts'
+import { db } from '../src/db.ts'
+import type { Email, EmailSender } from '../src/email.ts'
+import { emailSender, sendNotice } from '../src/email.ts'
+import { adminAlertEmail, passkeysResetAlert } from '../src/emails/alerts.ts'
+import { signInCodeEmail } from '../src/emails/templates.ts'
 import { mayRunWhileImpersonating } from '../src/impersonation-guard.ts'
-import { loadInstanceEnv } from '../src/instance-env.ts'
 import {
   createAdminWithPassword,
   grantFirstUser,
@@ -77,34 +74,37 @@ import {
   instanceAdminHooks,
   refuseUnverifiedAdminAddress,
 } from '../src/instance-admin.ts'
+import { loadInstanceEnv } from '../src/instance-env.ts'
+import { SPENDING_CAP_ALERT, setJobQueue } from '../src/jobs.ts'
 import { issueFirstPasskeyEnrolment, issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
-import { mayCreateUser } from '../src/signup-gate.ts'
 import { telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
 import { recordingStoreCache } from '../src/recording-store.ts'
-import { costEstimate } from '../src/admin-overview.ts'
-import { notifyCallFinished } from '../src/call-notifications.ts'
-import type { Email, EmailSender } from '../src/email.ts'
+import { runAction } from '../src/run-action.ts'
+import { markSetupSignIn } from '../src/setup.ts'
+import { forgetTests } from '../src/setup-checklist.ts'
 import { atRiskWorkspaces, sendDueSetupEmails, workspacesOldEnough } from '../src/setup-emails.ts'
-import { setJobQueue, SPENDING_CAP_ALERT } from '../src/jobs.ts'
+import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
+import { mayCreateUser } from '../src/signup-gate.ts'
 import { sendSpendingAlert } from '../src/spending-cap.ts'
 import { TEST_CALLS_OVER_CAP } from '../src/test-call.ts'
+import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { fakeS3 } from './fake-s3.ts'
 import {
   act,
   addMember,
-  appRequest,
   agent,
   anonymous,
+  appRequest,
   type Caller,
   createWorkspace,
+  FROM,
+  getCall,
   randomIp,
   request,
   signUp,
   type User,
   type Workspace,
-  FROM,
-  getCall,
 } from './helpers.ts'
 
 const SECRET = 'KEY-made-up-0123456789-abcd'
@@ -189,6 +189,7 @@ describe('access', () => {
       'billing.adminSetStatus',
       'billing.credit',
       'billing.moveWorkspace',
+      'billing.recordPortOut',
       'billing.refund',
       'billing.reprocessEvent',
       'billing.reviewHold',
@@ -2364,6 +2365,8 @@ describe('impersonation', () => {
       'billing.adminBills',
       'billing.adminEvents',
       'billing.adminReview',
+      // The bill owner's banner data (PR 11), so support sees what the owner sees; port-out PINs stay refused.
+      'billing.state',
       'billingEnabled.get',
       'billingRules.get',
       'calendar.findSlots',
@@ -3481,15 +3484,13 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
     })
     // Workspace users' level: a workspace the admin is in works with any sign-in method.
     const biz = await createWorkspace(`Admin Biz ${crypto.randomUUID().slice(0, 6)}`)
-    await db
-      .insert(memberTable)
-      .values({
-        id: `m_${crypto.randomUUID().slice(0, 12)}`,
-        organizationId: biz.id,
-        userId: admin.userId,
-        role: 'admin',
-        createdAt: new Date(),
-      })
+    await db.insert(memberTable).values({
+      id: `m_${crypto.randomUUID().slice(0, 12)}`,
+      organizationId: biz.id,
+      userId: admin.userId,
+      role: 'admin',
+      createdAt: new Date(),
+    })
     const tab = { 'x-workspace-id': biz.id }
     const me = (await request(fresh, 'GET', '/v1/me', undefined, tab)).body
     expect(me.permissions).toEqual(expect.arrayContaining(['settings:write', 'team:write']))
@@ -3730,17 +3731,15 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       const now = new Date()
       await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
       const adminMember = `m_${crypto.randomUUID().slice(0, 12)}`
-      await db
-        .insert(memberTable)
-        .values([
-          {
-            id: adminMember,
-            organizationId: other.id,
-            userId: otherAdmin.userId,
-            role: 'admin',
-            createdAt: new Date(),
-          },
-        ])
+      await db.insert(memberTable).values([
+        {
+          id: adminMember,
+          organizationId: other.id,
+          userId: otherAdmin.userId,
+          role: 'admin',
+          createdAt: new Date(),
+        },
+      ])
       expect((await act(admin, 'membership.setRole', { memberId: adminMember, role: 'member' })).status).toBe(200)
       expect((await act(admin, 'membership.remove', { memberId: adminMember })).status).toBe(200)
       expect((await act(admin, 'user.disable', { userId: target.userId })).status).toBe(200)
@@ -5169,13 +5168,24 @@ describe("the system prompt: the instance admin's wording for every workspace (L
   test('the agent gets the edits at call start, cleaned; the default text and a reset go back to the default', async () => {
     await db.delete(prompt_overrides)
     const ws = await createWorkspace('Prompt Edit Plumbing')
-    const set = await act(operator, 'systemPrompt.setPart', { key: 'role.intro', text: ' You are {name}.\r\nBe brief.\u0007 ' })
+    const set = await act(operator, 'systemPrompt.setPart', {
+      key: 'role.intro',
+      text: ' You are {name}.\r\nBe brief.\u0007 ',
+    })
     expect(set.status).toBe(200)
     expect(set.body.data.overrides).toEqual([
-      expect.objectContaining({ key: 'role.intro', text: 'You are {name}.\nBe brief.', defaultChanged: false, fits: true }),
+      expect.objectContaining({
+        key: 'role.intro',
+        text: 'You are {name}.\nBe brief.',
+        defaultChanged: false,
+        fits: true,
+      }),
     ])
     await act(operator, 'systemPrompt.setPart', { key: 'rules.spam', text: 'Spam: hang up politely.' })
-    expect(await startCall(ws)).toEqual({ 'role.intro': 'You are {name}.\nBe brief.', 'rules.spam': 'Spam: hang up politely.' })
+    expect(await startCall(ws)).toEqual({
+      'role.intro': 'You are {name}.\nBe brief.',
+      'rules.spam': 'Spam: hang up politely.',
+    })
     // The audit log keeps who changed the prompt.
     const logged = await db.select().from(commands).where(eq(commands.action, 'systemPrompt.setPart'))
     expect(logged.length).toBeGreaterThanOrEqual(2)

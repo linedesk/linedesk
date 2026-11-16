@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { categoryEnv, providerNames, providers } from '@linedesk/actions'
 import { existsSync, readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
+import { categoryEnv, providerNames, providers } from '@linedesk/actions'
 import { configDefaults, defineConfig } from 'vitest/config'
 import { isReachable, runDatabaseUrl, testDatabaseBaseUrl } from './test/test-database.ts'
 
@@ -33,6 +33,10 @@ const INSTANCE_WIDE_FILES = [
   'test/billing-recharge.test.ts',
   // Stripe keys and the billing switch, the Checkout setup alert to the instance admins.
   'test/billing-checkout.test.ts',
+  // The billing switch and the renewal reminder setting (instance_settings).
+  'test/billing-periods.test.ts',
+  // The billing switch (dunning, bill ownership, port-out).
+  'test/billing-lifecycle.test.ts',
   'test/authenticator.test.ts',
   'test/admin-subjects.test.ts',
   'test/workspace-delete-own.test.ts',
@@ -71,6 +75,8 @@ const INSTANCE_WIDE_FILES = [
   'test/billing-admin.test.ts',
   // Opens self-serve sign-up and sets its rules and the Turnstile keys (instance_settings, provider_settings).
   'test/self-serve.test.ts',
+  // Re-encrypts every stored secret of the install (rolled back, but it reads them all).
+  'test/rotate-secrets-key.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

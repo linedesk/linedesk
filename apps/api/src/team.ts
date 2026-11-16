@@ -5,22 +5,28 @@
 import { randomBytes } from 'node:crypto'
 import { avatarUrlOf, INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
 import { invitation, member, organization, type Tx, user, user_avatars, workspace_settings } from '@linedesk/db'
+import { getT } from '@linedesk/i18n/server'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { insertAuthEvent, invitationSubject, memberSubject } from './audit.ts'
-import { revokeMemberSetupKeys, revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
+import { billOnWorkspaceHandOver } from './billing-owner.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
+import { invitationLocale } from './email-locale.ts'
 import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
-import { type Handler, Forbidden, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { forgetMember, ownerJoined } from './memberships.ts'
-import { LEAVE_SIGN_IN_AGAIN, leaveNeedsFreshSignIn, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from './owner-step-up.ts'
+import {
+  LEAVE_SIGN_IN_AGAIN,
+  leaveNeedsFreshSignIn,
+  REMOVE_SIGN_IN_AGAIN,
+  removeNeedsFreshSignIn,
+} from './owner-step-up.ts'
+import { revokeMemberSetupKeys, revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
-import { getT } from '@linedesk/i18n/server'
-import { invitationLocale } from './email-locale.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
@@ -47,18 +53,35 @@ export async function insertInvitation(
   invite: { organizationId: string; email: string; role: string; inviterId: string; joinOnSignIn?: boolean },
   now: string,
 ) {
-  const [row] = await tx.insert(invitation).values({
-    id: newInvitationId(), organizationId: invite.organizationId, email: invite.email, role: invite.role, status: 'pending',
-    expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS), createdAt: new Date(now), inviterId: invite.inviterId,
-    joinOnSignIn: invite.joinOnSignIn ?? false,
-  }).returning()
+  const [row] = await tx
+    .insert(invitation)
+    .values({
+      id: newInvitationId(),
+      organizationId: invite.organizationId,
+      email: invite.email,
+      role: invite.role,
+      status: 'pending',
+      expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS),
+      createdAt: new Date(now),
+      inviterId: invite.inviterId,
+      joinOnSignIn: invite.joinOnSignIn ?? false,
+    })
+    .returning()
   return row!
 }
 
 /** A pending invitation to `email` in this workspace, if there is one. */
 export async function pendingInvitationTo(tx: Tx, workspaceId: string, email: string) {
-  const [pending] = await tx.select({ id: invitation.id }).from(invitation)
-    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'), sql`lower(${invitation.email}) = ${email.toLowerCase()}`))
+  const [pending] = await tx
+    .select({ id: invitation.id })
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.organizationId, workspaceId),
+        eq(invitation.status, 'pending'),
+        sql`lower(${invitation.email}) = ${email.toLowerCase()}`,
+      ),
+    )
   return pending ?? null
 }
 
@@ -71,11 +94,18 @@ export async function sendInvitation(
   invite: { id: string; email: string; organizationId: string; inviterId: string },
   addedAs?: string,
 ) {
-  if (emailSender.kind === 'none') throw new Reject('email is not set up, so invitations cannot be sent (connect it in Server admin › Providers › Email)')
+  if (emailSender.kind === 'none')
+    throw new Reject(
+      'email is not set up, so invitations cannot be sent (connect it in Server admin › Providers › Email)',
+    )
   if (!allowEmailFor(invite.organizationId)) throw new Reject('too many invitations in the last hour; try again later')
   // The same answer whether or not the address has an account anywhere.
-  if (!allowEmailTo(invite.email.toLowerCase())) throw new Reject('too many invitations to this address in the last hour; try again later')
-  const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, invite.organizationId))
+  if (!allowEmailTo(invite.email.toLowerCase()))
+    throw new Reject('too many invitations to this address in the last hour; try again later')
+  const [ws] = await tx
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, invite.organizationId))
   const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, invite.inviterId))
   // The workspace's language when the web app has it, else the inviter's (email-locale.ts).
   const locale = await invitationLocale(tx, invite.organizationId, invite.inviterId)
@@ -99,15 +129,28 @@ export async function sendInvitation(
 }
 
 async function loadPendingInvitation(tx: Tx, workspaceId: string, invitationId: string) {
-  const [row] = await tx.select().from(invitation)
-    .where(and(eq(invitation.id, invitationId), eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'))).for('update')
+  const [row] = await tx
+    .select()
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.id, invitationId),
+        eq(invitation.organizationId, workspaceId),
+        eq(invitation.status, 'pending'),
+      ),
+    )
+    .for('update')
   if (!row) throw new Reject('invitation not found')
   return row
 }
 
 /** Locked: a role change or removal decided on this row cannot overwrite a change committed meanwhile. */
 async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
-  const [row] = await tx.select().from(member).where(and(eq(member.id, memberId), eq(member.organizationId, workspaceId))).for('update')
+  const [row] = await tx
+    .select()
+    .from(member)
+    .where(and(eq(member.id, memberId), eq(member.organizationId, workspaceId)))
+    .for('update')
   if (!row) throw new Reject('member not found')
   return row
 }
@@ -132,12 +175,22 @@ export async function queueRemovedEmail(
   now: string,
 ) {
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
-  const [settings] = await tx.select({ timezone: workspace_settings.timezone }).from(workspace_settings)
+  const [settings] = await tx
+    .select({ timezone: workspace_settings.timezone })
+    .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, workspaceId))
-  await queueWorkspaceDeletedEmails(tx, [{
-    to, workspace: emailSafeName(ws?.name, '') || null, by: by.name, byRole: by.role, at: now, timeZone: settings?.timezone ?? null,
-    accountDeleted: true, removed: true,
-  }])
+  await queueWorkspaceDeletedEmails(tx, [
+    {
+      to,
+      workspace: emailSafeName(ws?.name, '') || null,
+      by: by.name,
+      byRole: by.role,
+      at: now,
+      timeZone: settings?.timezone ?? null,
+      accountDeleted: true,
+      removed: true,
+    },
+  ])
 }
 
 /**
@@ -148,8 +201,16 @@ export async function queueRemovedEmail(
  * delete passes them to those owners, workspace-delete.ts). Runs before the account delete. Returns how many.
  */
 export async function cancelSentInvitations(tx: Tx, workspaceId: string, senderId: string): Promise<number> {
-  const canceled = await tx.update(invitation).set({ status: 'canceled' })
-    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.inviterId, senderId), eq(invitation.status, 'pending')))
+  const canceled = await tx
+    .update(invitation)
+    .set({ status: 'canceled' })
+    .where(
+      and(
+        eq(invitation.organizationId, workspaceId),
+        eq(invitation.inviterId, senderId),
+        eq(invitation.status, 'pending'),
+      ),
+    )
     .returning({ email: invitation.email })
   for (const invite of canceled)
     await insertAuthEvent(tx, { event: 'invitation_withdrawn', userId: senderId, method: invite.email, workspaceId })
@@ -178,8 +239,11 @@ function guardOwner(target: { role: string }) {
  * the workspace over a moment ago no longer counts as one (read here, never from the session's role).
  */
 async function lockedOwner(tx: Tx, workspaceId: string) {
-  const [owner] = await tx.select().from(member)
-    .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'))).for('update')
+  const [owner] = await tx
+    .select()
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner')))
+    .for('update')
   return owner ?? null
 }
 
@@ -187,7 +251,11 @@ async function lockedOwner(tx: Tx, workspaceId: string) {
  * Makes `target` the owner of its workspace: the owner before (if any) becomes an admin first (the unique owner
  * index allows one at a time), and a pending owner invitation is withdrawn, so it cannot add a second owner later.
  */
-export async function makeOwner(tx: Tx, target: { id: string; organizationId: string }, previousOwnerId: string | null) {
+export async function makeOwner(
+  tx: Tx,
+  target: { id: string; organizationId: string },
+  previousOwnerId: string | null,
+) {
   if (previousOwnerId) await tx.update(member).set({ role: 'admin' }).where(eq(member.id, previousOwnerId))
   await tx.update(member).set({ role: 'owner' }).where(eq(member.id, target.id))
   // The owner before and the new owner (an admin until now) get other roles: every workspace setup link there ends for
@@ -196,28 +264,67 @@ export async function makeOwner(tx: Tx, target: { id: string; organizationId: st
   await revokeWorkspaceSetupKeys(tx, target.organizationId, 'owner_lost')
   // A server admin giving an ownerless workspace its owner (membership.setRole) starts the setup emails' clock.
   await ownerJoined(tx, target.organizationId, 'owner', new Date().toISOString())
-  await tx.update(invitation).set({ status: 'canceled' })
-    .where(and(eq(invitation.organizationId, target.organizationId), eq(invitation.status, 'pending'), eq(invitation.role, 'owner')))
+  await tx
+    .update(invitation)
+    .set({ status: 'canceled' })
+    .where(
+      and(
+        eq(invitation.organizationId, target.organizationId),
+        eq(invitation.status, 'pending'),
+        eq(invitation.role, 'owner'),
+      ),
+    )
 }
 
 async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
   const workspaceId = workspaceOf(actor)
-  const members: TeamMember[] = (await tx
-    .select({ memberId: member.id, userId: user.id, name: user.name, email: user.email, role: member.role, joinedAt: member.createdAt, avatarVersion: user_avatars.version })
-    .from(member).innerJoin(user, eq(user.id, member.userId))
-    .leftJoin(user_avatars, eq(user_avatars.user_id, user.id))
-    .where(eq(member.organizationId, workspaceId)).orderBy(asc(member.createdAt)))
-    .map(({ avatarVersion, ...m }) => ({ ...m, role: m.role as TeamMember['role'], joinedAt: m.joinedAt.toISOString(), avatarUrl: avatarUrlOf(m.userId, avatarVersion) }))
+  const members: TeamMember[] = (
+    await tx
+      .select({
+        memberId: member.id,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: member.role,
+        joinedAt: member.createdAt,
+        avatarVersion: user_avatars.version,
+      })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .leftJoin(user_avatars, eq(user_avatars.user_id, user.id))
+      .where(eq(member.organizationId, workspaceId))
+      .orderBy(asc(member.createdAt))
+  ).map(({ avatarVersion, ...m }) => ({
+    ...m,
+    role: m.role as TeamMember['role'],
+    joinedAt: m.joinedAt.toISOString(),
+    avatarUrl: avatarUrlOf(m.userId, avatarVersion),
+  }))
   const canManage = actor.permissions.includes('team:write')
   // Invitees' addresses are for those who invite: a member sees the team, not who is invited.
   if (!canManage) return { members, invitations: [], canManage, me: actor.actorId }
   const inviter = alias(user, 'inviter')
   const now = Date.now()
-  const invitations: TeamInvitation[] = (await tx
-    .select({ invitationId: invitation.id, email: invitation.email, role: invitation.role, invitedBy: inviter.name, invitedById: inviter.id, expiresAt: invitation.expiresAt })
-    .from(invitation).innerJoin(inviter, eq(inviter.id, invitation.inviterId))
-    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending'))).orderBy(asc(invitation.createdAt)))
-    .map(i => ({ ...i, role: i.role === 'admin' ? 'admin' : 'member', expiresAt: i.expiresAt.toISOString(), expired: i.expiresAt.getTime() < now }))
+  const invitations: TeamInvitation[] = (
+    await tx
+      .select({
+        invitationId: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        invitedBy: inviter.name,
+        invitedById: inviter.id,
+        expiresAt: invitation.expiresAt,
+      })
+      .from(invitation)
+      .innerJoin(inviter, eq(inviter.id, invitation.inviterId))
+      .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.status, 'pending')))
+      .orderBy(asc(invitation.createdAt))
+  ).map(i => ({
+    ...i,
+    role: i.role === 'admin' ? 'admin' : 'member',
+    expiresAt: i.expiresAt.toISOString(),
+    expired: i.expiresAt.getTime() < now,
+  }))
   return { members, invitations, canManage, me: actor.actorId }
 }
 
@@ -226,18 +333,29 @@ export const teamHandlers: Record<string, Handler> = {
 
   'team.invite': async ({ tx, actor, now }, input: { email: string; role: string }) => {
     const workspaceId = workspaceOf(actor)
-    const [already] = await tx.select({ id: member.id }).from(member).innerJoin(user, eq(user.id, member.userId))
+    const [already] = await tx
+      .select({ id: member.id })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
       .where(and(eq(member.organizationId, workspaceId), sql`lower(${user.email}) = ${input.email}`))
     if (already) throw new Reject(`${input.email} is already on the team`)
-    if (await pendingInvitationTo(tx, workspaceId, input.email)) throw new Reject(`${input.email} is already invited; resend the invitation instead`)
-    const row = await insertInvitation(tx, { organizationId: workspaceId, email: input.email, role: input.role, inviterId: actor.actorId }, now)
+    if (await pendingInvitationTo(tx, workspaceId, input.email))
+      throw new Reject(`${input.email} is already invited; resend the invitation instead`)
+    const row = await insertInvitation(
+      tx,
+      { organizationId: workspaceId, email: input.email, role: input.role, inviterId: actor.actorId },
+      now,
+    )
     await sendInvitation(tx, row)
     return { rows: {}, data: { invitationId: row.id } }
   },
 
   'team.resendInvite': async ({ tx, actor, now }, input: { invitationId: string }) => {
     const invite = await loadPendingInvitation(tx, workspaceOf(actor), input.invitationId)
-    await tx.update(invitation).set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) }).where(eq(invitation.id, invite.id))
+    await tx
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) })
+      .where(eq(invitation.id, invite.id))
     await sendInvitation(tx, invite)
     return { rows: {}, data: { subject: invitationSubject(invite) } }
   },
@@ -261,18 +379,23 @@ export const teamHandlers: Record<string, Handler> = {
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
-  'team.transferOwnership': async ({ tx, actor }, input: { memberId: string }) => {
+  'team.transferOwnership': async ({ tx, actor, now }, input: { memberId: string }) => {
     if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
     const owner = await lockedOwner(tx, workspaceId)
     if (!owner || owner.userId !== actor.actorId) throw new Forbidden('only the owner can hand the workspace over')
     const target = await loadMember(tx, workspaceId, input.memberId)
     if (target.id === owner.id) throw new Reject('you are the owner already')
-    const [account] = await tx.select({ emailVerified: user.emailVerified, disabledAt: user.disabledAt, email: user.email })
-      .from(user).where(eq(user.id, target.userId))
+    const [account] = await tx
+      .select({ emailVerified: user.emailVerified, disabledAt: user.disabledAt, email: user.email })
+      .from(user)
+      .where(eq(user.id, target.userId))
     if (!account || account.disabledAt) throw new Reject('this account is disabled')
     // The owner decides who may delete the workspace: only a proven address (as for owner and admin elsewhere).
-    if (!account.emailVerified) throw new Reject(`${account.email} must confirm their email address before they can be the owner`)
+    if (!account.emailVerified)
+      throw new Reject(`${account.email} must confirm their email address before they can be the owner`)
+    // The bill goes with the only workspace on it; with several, the bill is handed over first (docs/billing.md §8).
+    await billOnWorkspaceHandOver(tx, actor, workspaceId, owner.userId, target.userId, now)
     await makeOwner(tx, target, owner.id)
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
@@ -281,22 +404,31 @@ export const teamHandlers: Record<string, Handler> = {
     if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     const workspaceId = workspaceOf(actor)
     // Locked: a hand-over to this member at the same moment waits, and the owner check then sees the new role.
-    const [me] = await tx.select().from(member)
-      .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId))).for('update')
+    const [me] = await tx
+      .select()
+      .from(member)
+      .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
+      .for('update')
     if (!me) throw new Reject('member not found')
-    if (me.role === 'owner') throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
+    if (me.role === 'owner')
+      throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
     await tx.delete(member).where(eq(member.id, me.id))
     // The unassigned calls are not returned: the one leaving no longer sees the workspace's calls.
     await forgetMember(tx, workspaceId, actor.actorId)
-    const [next] = await tx.select({ id: member.organizationId }).from(member)
-      .where(eq(member.userId, actor.actorId)).orderBy(asc(member.createdAt)).limit(1)
+    const [next] = await tx
+      .select({ id: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, actor.actorId))
+      .orderBy(asc(member.createdAt))
+      .limit(1)
     // Their last workspace: the account goes only when the request says so (deleteAccount: true; never a server admin's,
     // workspace-delete.ts). A request that does not say, e.g. a tab still on an older version, is refused: never a
     // silent delete. Its sessions and passkeys go with the account, its API keys stop working (no membership left).
     if (!next && input.deleteAccount === undefined) throw new Reject(LEAVE_SAY_ACCOUNT)
     // Deleting the account needs a sign-in in the last 10 minutes; checked by run-action before the transaction too.
     if (await leaveNeedsFreshSignIn(tx, actor, input)) throw new Forbidden(LEAVE_SIGN_IN_AGAIN)
-    const accountDeleted = !next && input.deleteAccount === true && (await deleteAccountWithoutWorkspace(tx, actor.actorId))
+    const accountDeleted =
+      !next && input.deleteAccount === true && (await deleteAccountWithoutWorkspace(tx, actor.actorId))
     return { rows: {}, data: { nextWorkspaceId: next?.id ?? null, accountDeleted } }
   },
 
@@ -320,7 +452,13 @@ export const teamHandlers: Record<string, Handler> = {
     // Their last workspace: the account goes too when the owner asks (workspace-delete.ts), and they are told.
     const accountDeleted = deleteAccount && (await deleteAccountWithoutWorkspace(tx, target.userId))
     if (accountDeleted && subject.email)
-      await queueRemovedEmail(tx, subject.email, workspaceId, { name: await removerLabel(tx, actor.actorId), role: 'admin' }, now)
+      await queueRemovedEmail(
+        tx,
+        subject.email,
+        workspaceId,
+        { name: await removerLabel(tx, actor.actorId), role: 'admin' },
+        now,
+      )
     return { rows: { calls: forgotten.calls }, data: { accountDeleted, invitationsCanceled, subject } }
   },
 }

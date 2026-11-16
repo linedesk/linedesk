@@ -35,9 +35,10 @@ import { outboundLimits } from './outbound-policy.ts'
 
 /**
  * Why billing did not let a call start: the gate's own reasons, a failure while checking or billing switched on but
- * not working (`billing_error`, always a refusal), or a voice or model the plan does not allow (`level_not_allowed`).
+ * not working (`billing_error`, always a refusal), a voice or model the plan does not allow (`level_not_allowed`), or
+ * an extra number whose month is unpaid (`number_unpaid`, billing-periods.ts).
  */
-export type CallRefusal = GateReason | 'billing_error' | 'level_not_allowed'
+export type CallRefusal = GateReason | 'billing_error' | 'level_not_allowed' | 'number_unpaid'
 
 /** The bill a phone call is billed to; `usable` false while billing is switched on but cannot run (refuse the call). */
 export type CallBill = { billId: string; usable: boolean }
@@ -216,7 +217,7 @@ export async function callsPastTheirLimit(tx: Tx, now: string): Promise<{ id: st
  * monthly cap reached the first time this month emails the owner; and with auto-recharge off a balance below the
  * threshold emails the owner once per low stretch (docs/billing.md §4.3).
  */
-async function afterDebit(tx: Tx, billId: string, recharge: RechargeOutcome, now: string) {
+export async function afterDebit(tx: Tx, billId: string, recharge: RechargeOutcome, now: string) {
   if (recharge.kind === 'recharge') await queueRecharge(tx, recharge.rechargeId)
   if (recharge.kind === 'cap_reached' && recharge.firstThisMonth)
     await queueBillingAlert(tx, { kind: 'recharge_cap_reached', bill: billId, ref: now.slice(0, 7) })

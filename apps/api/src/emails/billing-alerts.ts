@@ -187,3 +187,107 @@ export const checkoutRefusedAlert =
       ],
     }
   }
+
+/** One run of the hourly billing periods job had steps that failed (billing-periods.ts): the next run tries again. */
+export const billingPeriodsFailedAlert =
+  (failed: string[]): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.billingPeriodsFailed.subject', { brand: brandName(), count: failed.length }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.billingPeriodsFailed.text') },
+        { kind: 'list', title: t('email.adminAlert.billingPeriodsFailed.steps'), items: failed },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.billingPeriodsFailed.next') },
+      ],
+    }
+  }
+
+/** One run of the hourly dunning job had steps that failed (billing-lifecycle.ts): the next run tries again. */
+export const billingLifecycleFailedAlert =
+  (failed: string[]): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.billingLifecycleFailed.subject', { brand: brandName(), count: failed.length }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.billingLifecycleFailed.text') },
+        { kind: 'list', title: t('email.adminAlert.billingLifecycleFailed.steps'), items: failed },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.billingLifecycleFailed.next') },
+      ],
+    }
+  }
+
+/**
+ * A card dispute or an early fraud warning suspended a bill (docs/billing.md §3.4, M4): the instance admins answer
+ * the dispute or refund the charge. `adjustedCents`: what was taken off the balance (a disputed recharge or top-up).
+ */
+export const billingDisputeAlert =
+  (facts: {
+    bill: string
+    kind: 'dispute' | 'fraud_warning'
+    object: string
+    charge: string
+    adjustedCents: number | null
+  }): AdminAlertText =>
+  locale => {
+    const { t, format } = getT(locale)
+    const rows: [string, string][] = [
+      [t('email.adminAlert.billingDispute.bill'), facts.bill],
+      [t('email.adminAlert.billingDispute.charge'), facts.charge],
+      [t('email.adminAlert.billingDispute.object'), facts.object],
+    ]
+    if (facts.adjustedCents !== null)
+      rows.push([t('email.adminAlert.billingDispute.adjusted'), format.currency(facts.adjustedCents / 100, 'USD')])
+    return {
+      subject: t('email.adminAlert.billingDispute.subject', { brand: brandName(), kind: facts.kind, bill: facts.bill }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.billingDispute.text', { kind: facts.kind }) },
+        { kind: 'facts', rows },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.billingDispute.next', { kind: facts.kind }) },
+      ],
+    }
+  }
+
+/**
+ * A dispute closed or a fraud warning settled (security review of #920, M4): what Stripe says now, what went back on
+ * the balance, and whether the suspension lifted. Lost, or still held by something else: the bill stays suspended
+ * until an instance admin resumes it.
+ */
+export const billingDisputeClosedAlert =
+  (facts: {
+    bill: string
+    object: string
+    charge: string
+    status: string
+    returnedCents: number | null
+    lifted: boolean
+  }): AdminAlertText =>
+  locale => {
+    const { t, format } = getT(locale)
+    const rows: [string, string][] = [
+      [t('email.adminAlert.billingDispute.bill'), facts.bill],
+      [t('email.adminAlert.billingDispute.charge'), facts.charge],
+      [t('email.adminAlert.billingDispute.object'), facts.object],
+      [t('email.adminAlert.billingDisputeClosed.status'), facts.status],
+    ]
+    if (facts.returnedCents !== null)
+      rows.push([
+        t('email.adminAlert.billingDisputeClosed.returned'),
+        format.currency(facts.returnedCents / 100, 'USD'),
+      ])
+    return {
+      subject: t('email.adminAlert.billingDisputeClosed.subject', {
+        brand: brandName(),
+        bill: facts.bill,
+        lifted: facts.lifted ? 'yes' : 'no',
+      }),
+      blocks: [
+        {
+          kind: 'text',
+          text: t('email.adminAlert.billingDisputeClosed.text', { lifted: facts.lifted ? 'yes' : 'no' }),
+        },
+        { kind: 'facts', rows },
+      ],
+    }
+  }

@@ -3,6 +3,7 @@
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
 import {
+  type BillingChargeSource,
   type BillingEvent,
   type BillingInvoice,
   type BillingInvoiceLine,
@@ -15,8 +16,8 @@ import {
   type CheckoutSession,
   type RechargeCard,
   type RechargeCharge,
-  type RefundBlocker,
   type RechargeInvoiceInput,
+  type RefundBlocker,
   type StripeKeys,
   WEBHOOK_TOLERANCE_SECONDS,
   WebhookRefused,
@@ -395,6 +396,44 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         throw setupError(error) ?? error
       }
     },
+
+    async dispute(id) {
+      let dispute: Stripe.Dispute
+      try {
+        dispute = await stripe.disputes.retrieve(id)
+      } catch (error) {
+        if (missing(error)) return null
+        throw error
+      }
+      const chargeId = idOf(dispute.charge)!
+      return {
+        id: dispute.id,
+        status: dispute.status,
+        amountCents: dispute.amount,
+        currency: dispute.currency,
+        ...(await chargeSource(stripe, chargeId)),
+      }
+    },
+
+    async earlyFraudWarning(id) {
+      let warning: Stripe.Radar.EarlyFraudWarning
+      try {
+        warning = await stripe.radar.earlyFraudWarnings.retrieve(id)
+      } catch (error) {
+        if (missing(error)) return null
+        throw error
+      }
+      return { id: warning.id, ...(await chargeSource(stripe, idOf(warning.charge)!)) }
+    },
+
+    async charge(id) {
+      try {
+        return await chargeSource(stripe, id)
+      } catch (error) {
+        if (missing(error)) return null
+        throw error
+      }
+    },
   }
 }
 
@@ -440,6 +479,7 @@ function subscriptionOf(sub: Stripe.Subscription): BillingSubscription {
     status: sub.status,
     currentPeriodStart: iso(first?.current_period_start),
     currentPeriodEnd: iso(first?.current_period_end),
+    billingCycleAnchor: iso(sub.billing_cycle_anchor),
     interval: first?.price.recurring?.interval === 'year' ? 'year' : first ? 'month' : null,
     cancelAtPeriodEnd: sub.cancel_at_period_end,
     trialEnd: iso(sub.trial_end),
@@ -448,6 +488,7 @@ function subscriptionOf(sub: Stripe.Subscription): BillingSubscription {
     items: sub.items.data.map(item => ({
       lookupKey: item.price.lookup_key ?? item.price.metadata?.linedesk ?? null,
       quantity: item.quantity ?? 0,
+      unitAmountCents: item.price.unit_amount ?? null,
     })),
   }
 }
@@ -626,6 +667,36 @@ async function checkoutSession(stripe: Stripe, id: string): Promise<CheckoutSess
     amountSubtotalCents: session.amount_subtotal,
     currency: session.currency,
     charged: intent?.status === 'succeeded' && !!charge && typeof charge === 'object' && charge.paid,
+  }
+}
+
+/**
+ * What a charge paid for: its customer, and through its payment intent the invoice (a recharge or plan invoice, by its
+ * invoice payment) or the Checkout session (a top-up). Ids only.
+ */
+async function chargeSource(stripe: Stripe, chargeId: string): Promise<BillingChargeSource> {
+  const charge = await stripe.charges.retrieve(chargeId)
+  const intent = idOf(charge.payment_intent)
+  let invoiceId: string | null = null
+  let checkoutSessionId: string | null = null
+  if (intent) {
+    const payments = await stripe.invoicePayments.list({
+      payment: { type: 'payment_intent', payment_intent: intent },
+      limit: 1,
+    })
+    invoiceId = idOf(payments.data[0]?.invoice as string | { id: string } | undefined)
+    // Always, not only without an invoice: a top-up's Checkout session makes an invoice paid by the same payment
+    // intent, so a top-up's charge has both, and its credit is found only through the session (#920 review, M5).
+    const sessions = await stripe.checkout.sessions.list({ payment_intent: intent, limit: 1 })
+    checkoutSessionId = sessions.data[0]?.id ?? null
+  }
+  return {
+    chargeId,
+    customerId: idOf(charge.customer),
+    invoiceId,
+    checkoutSessionId,
+    chargeAmountCents: charge.amount,
+    refunded: charge.refunded,
   }
 }
 

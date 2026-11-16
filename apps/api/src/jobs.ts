@@ -49,6 +49,8 @@ import {
 } from './billing-recharge.ts'
 import { createReconcileQueue, runReconcileJob } from './billing-reconcile.ts'
 import { createStripeEventQueues, runStripeEventJobs } from './stripe-events.ts'
+import { createBillingPeriodQueues, runBillingPeriodJobs } from './billing-periods.ts'
+import { createBillingLifecycleQueues, runBillingLifecycleJobs } from './billing-lifecycle.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -293,6 +295,9 @@ async function runJobs(instance: PgBoss, env: Env) {
   // Stripe's webhook events and the nightly reconciliation with Stripe (stripe-events.ts, billing-reconcile.ts).
   await runStripeEventJobs(instance)
   await runReconcileJob(instance)
+  // Periods, extra numbers and renewal reminders (billing-periods.ts).
+  await runBillingPeriodJobs(instance, emailSender)
+  await runBillingLifecycleJobs(instance)
   await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
   await instance.work(HOLIDAY_SYNC, async () => {
     // One transaction per workspace, so a long run holds no locks for long.
@@ -425,6 +430,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(SIGNUP_SWEEP, { retryLimit: 0, expireInSeconds: 1800 })
   await createStripeEventQueues(instance)
   await createReconcileQueue(instance)
+  await createBillingPeriodQueues(instance)
+  await createBillingLifecycleQueues(instance)
   await instance.createQueue(SETUP_EMAILS)
   await instance.createQueue(HELD_NEWS_SWEEP)
   // One run at a time, never retried: the next scheduled run is the retry.

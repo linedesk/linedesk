@@ -38,6 +38,7 @@ import type { TelephonyProvider } from '@linedesk/telephony'
 import { and, eq, getTableName, inArray, is, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 import { alias, getTableConfig, PgTable } from 'drizzle-orm/pg-core'
 import { AUDITED_ACTIONS, insertAuthEvent } from './audit.ts'
+import { refuseDeletingBillOwners } from './billing-owner.ts'
 import { pruneSet } from './command-log.ts'
 import { Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
@@ -181,7 +182,13 @@ export async function membersOnlyHere(tx: Tx, workspaceId: string, spareUserId: 
 async function reassignInvitations(tx: Tx, ids: string[]) {
   const owner = alias(member, 'owner')
   const pending = await tx
-    .select({ id: invitation.id, workspaceId: invitation.organizationId, email: invitation.email, senderId: invitation.inviterId, ownerId: owner.userId })
+    .select({
+      id: invitation.id,
+      workspaceId: invitation.organizationId,
+      email: invitation.email,
+      senderId: invitation.inviterId,
+      ownerId: owner.userId,
+    })
     .from(invitation)
     .innerJoin(owner, and(eq(owner.organizationId, invitation.organizationId), eq(owner.role, 'owner')))
     .where(and(inArray(invitation.inviterId, ids), eq(invitation.status, 'pending'), notInArray(owner.userId, ids)))
@@ -190,7 +197,11 @@ async function reassignInvitations(tx: Tx, ids: string[]) {
     await tx.update(invitation).set({ inviterId: invite.ownerId }).where(eq(invitation.id, invite.id))
     // Who sent it (user), to whom (method) and who holds it now (subject: the owner), so the log shows the hand-over.
     await insertAuthEvent(tx, {
-      event: 'invitation_reassigned', userId: invite.senderId, method: invite.email, workspaceId: invite.workspaceId, subjectId: invite.ownerId,
+      event: 'invitation_reassigned',
+      userId: invite.senderId,
+      method: invite.email,
+      workspaceId: invite.workspaceId,
+      subjectId: invite.ownerId,
     })
   }
 }
@@ -198,6 +209,8 @@ async function reassignInvitations(tx: Tx, ids: string[]) {
 /** Deletes these accounts: sessions, sign-in methods and passkeys go with them (on delete cascade); the audit log keeps its ids. */
 export async function deleteAccounts(tx: Tx, ids: string[]) {
   if (!ids.length) return
+  // The owner of a running bill hands it over or cancels first (docs/billing.md §8).
+  await refuseDeletingBillOwners(tx, ids)
   await reassignInvitations(tx, ids)
   await tx.delete(star_prompts).where(inArray(star_prompts.user_id, ids))
   await tx.delete(user).where(inArray(user.id, ids))

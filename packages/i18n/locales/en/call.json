@@ -10,6 +10,7 @@
   "autoSummary.missed.billing.billing_inactive": "Nobody answered this call: the workspace's plan is not active. Call the caller back.",
   "autoSummary.missed.billing.level_not_allowed": "Nobody answered this call: the assistant's voice or model is not allowed on this plan. Call the caller back.",
   "autoSummary.missed.billing.no_balance": "Nobody answered this call: the prepaid balance is used up. Call the caller back.",
+  "autoSummary.missed.billing.number_unpaid": "Nobody answered this call: this month of the number it came in on is not paid. Call the caller back.",
   "autoSummary.missed.billing.too_many_calls": "Nobody answered this call: the bill had as many calls in progress as it allows at once. Call the caller back.",
   "autoSummary.missed.busy": "Nobody answered this call: {count} other calls were in progress. Call the caller back.",
   "autoSummary.missed.callBack": "Call back",

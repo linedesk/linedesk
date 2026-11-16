@@ -1795,7 +1795,19 @@ const PERIOD_KINDS = ['trial', 'month'] as const
 const PRICE_BASES = [...USAGE_LEVELS, 'fixed_5c', 'cost_plus_10'] as const
 const INVOICE_KINDS = ['subscription', 'recharge', 'topup'] as const
 const INVOICE_STATUSES = ['draft', 'open', 'paid', 'uncollectible', 'void'] as const
-const ALERT_KINDS = ['recharge_failed', 'recharge_cap_reached', 'low_balance', 'renewal_reminder', 'trial_will_end'] as const
+const ALERT_KINDS = [
+  'recharge_failed',
+  'recharge_cap_reached',
+  'low_balance',
+  'renewal_reminder',
+  'trial_will_end',
+  // PR 10/11 (migration 0126): an extra number whose month is unpaid, the dunning steps of an unpaid plan invoice,
+  // and the numbers of a canceled bill (the release date, then the release).
+  'number_unpaid',
+  'dunning',
+  'numbers_release',
+  'numbers_released',
+] as const
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 
 export const BILLING_KINDS = ['cloud', 'partner'] as const
@@ -1836,6 +1848,12 @@ export const billing_accounts = pgTable(
     trial_ends_at: ts('trial_ends_at'),
     current_period_start: ts('current_period_start'),
     current_period_end: ts('current_period_end'),
+    /**
+     * The subscription's billing cycle anchor (Stripe's `billing_cycle_anchor`): the bill's months are counted from it,
+     * its day clamped in short months. Never `current_period_start`, which is already clamped (Feb 28 for an anchor on
+     * the 31st), so months counted from it drift and leave stub periods (security review of #879, M1).
+     */
+    billing_anchor: ts('billing_anchor'),
     /** Auto-recharge, on by default: below the threshold the saved card is charged the amount. Off: "Buy minutes" only. */
     auto_recharge: boolean('auto_recharge').notNull().default(true),
     recharge_threshold_cents: integer('recharge_threshold_cents').notNull().default(RECHARGE_DEFAULTS.thresholdCents),
@@ -1875,6 +1893,8 @@ export const billing_accounts = pgTable(
     /** Calls at once an instance admin set for this bill (Server admin › Billing); null: the rules' cap (§4.4). */
     concurrent_calls_cap: integer('concurrent_calls_cap'),
     canceled_at: ts('canceled_at'),
+    /** The failed plan invoice is the first after the trial: 3 days of grace instead of 7 (decision 9). */
+    past_due_first_payment: boolean('past_due_first_payment').notNull().default(false),
     created_at: createdAt(),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },
@@ -2285,5 +2305,67 @@ export const billing_alerts = pgTable(
   t => [
     primaryKey({ columns: [t.billing_account_id, t.kind, t.ref] }),
     check('billing_alerts_kind', oneOf(t.kind, ALERT_KINDS)),
+  ],
+)
+
+/**
+ * A bill's state of a number on Linedesk's carrier account (docs/billing.md §3.4, §4.2): an extra number whose month
+ * could not be paid (`unpaid_since`: inbound calls get the fixed line, released after 30 days), and the port-out code
+ * shown only to the bill owner (encrypted with SECRETS_KEY). Not synced to browsers; read through billing actions.
+ */
+export const billing_numbers = pgTable(
+  'billing_numbers',
+  {
+    phone_number_id: text('phone_number_id')
+      .primaryKey()
+      .references(() => phone_numbers.id, { onDelete: 'cascade' }),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    /** Its month could not be paid since then; null: paid (or not an extra number). */
+    unpaid_since: ts('unpaid_since'),
+    /** The period whose month is unpaid. */
+    unpaid_period_id: text('unpaid_period_id').references(() => billing_periods.id),
+    /** The port-out code (AES-256-GCM with SECRETS_KEY, slot `port_out:<number id>`), made when it is first shown. */
+    port_out_code: text('port_out_code'),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    index('billing_numbers_bill').on(t.billing_account_id),
+    check('billing_numbers_unpaid', sql`(${t.unpaid_since} is null) = (${t.unpaid_period_id} is null)`),
+  ],
+)
+
+export const DISPUTE_KINDS = ['dispute', 'fraud_warning'] as const
+
+/**
+ * Card disputes and early fraud warnings of a bill's charges (docs/billing.md §3.4): what was taken off the balance
+ * while a dispute is open (`adjustment_entry_id`) and given back when it was won (`reversal_entry_id`). A refund
+ * (PR 13) refuses a charge with an open or lost dispute or a fraud warning here.
+ */
+export const billing_disputes = pgTable(
+  'billing_disputes',
+  {
+    /** Stripe's `du_…` or `issfr_…`. */
+    id: text('id').primaryKey(),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    kind: text('kind', { enum: DISPUTE_KINDS }).notNull(),
+    /** The disputed or warned charge (`ch_…`). */
+    charge_id: text('charge_id').notNull(),
+    /** Stripe's dispute status (`needs_response`, `won`, `lost`, …); `open` for a fraud warning. */
+    status: text('status').notNull(),
+    /** The balance credit the charge paid for (a recharge or a top-up), when it was one. */
+    credit_entry_id: text('credit_entry_id'),
+    adjustment_entry_id: text('adjustment_entry_id'),
+    reversal_entry_id: text('reversal_entry_id'),
+    created_at: createdAt(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    index('billing_disputes_bill').on(t.billing_account_id),
+    index('billing_disputes_charge').on(t.charge_id),
+    check('billing_disputes_kind', oneOf(t.kind, DISPUTE_KINDS)),
   ],
 )

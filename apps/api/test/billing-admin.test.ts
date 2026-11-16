@@ -170,6 +170,10 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     recentEvents: async () => ({ events: [], truncated: false }),
     rechargeCard: async () => null,
     checkoutPaymentMethodConfiguration: async () => null,
+    // The lifecycle side (PR 10/11) is not used here.
+    dispute: async () => null,
+    earlyFraudWarning: async () => null,
+    charge: async () => null,
     refundBlockers: async () => blockers as never,
     refundInvoice: async input => {
       refunds.push(input)

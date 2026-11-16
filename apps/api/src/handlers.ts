@@ -62,6 +62,7 @@ import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
 import { billingAdminHandlers } from './billing-admin.ts'
+import { billingOwnerHandlers } from './billing-owner.ts'
 import { stripeEventHandlers, stripeEventPreparers } from './stripe-events.ts'
 import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
@@ -174,6 +175,7 @@ import { queueFinishedNews, releaseHeldNews } from './call-news.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
+import { numberUnpaid } from './billing-periods.ts'
 import { billOfCall, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
 import { evaluationHandlers } from './evaluations.ts'
 import { businessHandlers } from './business-import.ts'
@@ -521,6 +523,8 @@ async function openCall(
   let refused: CallRefusal | null = null
   if (bill && !bill.usable) refused = 'billing_error'
   else if (bill && forCall?.level === 'not_allowed') refused = 'level_not_allowed'
+  // An extra number whose month could not be paid answers with the fixed line until it is paid (docs/billing.md §4.2).
+  else if (bill && (await numberUnpaid(tx, workspace_id, to))) refused = 'number_unpaid'
   else if (bill) {
     const gate = await gateCall(tx, {
       callId: id,
@@ -1118,6 +1122,7 @@ const handlers: Record<string, Handler> = {
   ...billingSettingsHandlers,
   ...billingAdminHandlers,
   ...stripeEventHandlers,
+  ...billingOwnerHandlers,
   ...selfServeHandlers,
   ...checkoutHandlers,
   ...starHandlers,

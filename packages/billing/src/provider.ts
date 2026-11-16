@@ -203,12 +203,44 @@ export type BillingSubscription = {
   /** ISO times, from its items (they share one interval). */
   currentPeriodStart: string | null
   currentPeriodEnd: string | null
+  /**
+   * The fixed point the subscription's periods are counted from (Stripe's `billing_cycle_anchor`, ISO): a period
+   * start is clamped in short months (an anchor on the 31st starts one on Feb 28), the anchor keeps its day.
+   */
+  billingCycleAnchor: string | null
   interval: 'month' | 'year' | null
   cancelAtPeriodEnd: boolean
   trialEnd: string | null
   defaultPaymentMethod: string | null
-  items: { lookupKey: string | null; quantity: number }[]
+  /** `unitAmountCents`: the item's price per unit before tax (the renewal reminder names it); null when Stripe has none. */
+  items: { lookupKey: string | null; quantity: number; unitAmountCents?: number | null }[]
 }
+
+/**
+ * What a disputed or fraud-warned charge paid for, as fetched (docs/billing.md §3.4): the customer, and the invoice
+ * (a recharge or a plan invoice) or the Checkout session (a top-up) the charge belongs to, found through its payment
+ * intent. Ids only: billing finds the bill and the credit through ids it stored.
+ */
+export type BillingChargeSource = {
+  chargeId: string
+  customerId: string | null
+  /**
+   * Both are looked up: a top-up's Checkout session creates an invoice too (`invoice_creation`), paid by the same
+   * payment intent, so the charge has an invoice and a session (security review of #920, M5).
+   */
+  invoiceId: string | null
+  checkoutSessionId: string | null
+  /** The charge's amount (with tax), in cents; a partial dispute takes off its share of the credit. */
+  chargeAmountCents: number
+  /** The charge is refunded in full. */
+  refunded: boolean
+}
+
+/** A card dispute as it is now. `status`: Stripe's (`warning_needs_response`, `needs_response`, `under_review`, `won`, `lost`, …). */
+export type BillingDispute = BillingChargeSource & { id: string; status: string; amountCents: number; currency: string }
+
+/** A Radar early fraud warning: the card issuer reported the charge as fraud; a dispute may follow. */
+export type BillingFraudWarning = BillingChargeSource & { id: string }
 
 /**
  * Stripe refused a request because of our own setup, not the customer's card: the key lacks a permission (403), is
@@ -402,6 +434,12 @@ export type BillingProvider = {
   checkoutInvoice(sessionId: string): Promise<string | null>
   /** Sets the seat item's quantity; `no_seat_item` when the subscription has none (a seat price is `ws_…`). */
   setSeatQuantity(input: SeatQuantityInput): Promise<'updated' | 'unchanged' | 'no_seat_item'>
+  /** The dispute as it is now, with what its charge paid for; null when the service does not know it. */
+  dispute(id: string): Promise<BillingDispute | null>
+  /** The early fraud warning as it is now, with what its charge paid for; null when the service does not know it. */
+  earlyFraudWarning(id: string): Promise<BillingFraudWarning | null>
+  /** The charge as it is now, with what it paid for (`charge.refunded`); null when the service does not know it. */
+  charge(id: string): Promise<BillingChargeSource | null>
 }
 
 /** The keys of the `stripe` adapter, as stored under Server admin › Providers › Billing. */

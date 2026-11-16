@@ -7,7 +7,10 @@ export { isStripeWebhookSecret, LIVE_KEYS_REFUSED, liveKeysAllowed, stripeKeyMod
 export { noneBillingProvider } from './none.ts'
 export type {
   BillingAccountInfo,
+  BillingChargeSource,
+  BillingDispute,
   BillingEvent,
+  BillingFraudWarning,
   BillingInvoice,
   BillingInvoiceLine,
   BillingProvider,

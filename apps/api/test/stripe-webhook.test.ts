@@ -9,6 +9,7 @@ import {
   billing_accounts,
   billing_alerts,
   billing_balances,
+  billing_disputes,
   billing_invoices,
   billing_periods,
   billing_recharges,
@@ -25,6 +26,7 @@ import { reconcileBilling } from '../src/billing-reconcile.ts'
 import { forgetWebhookBillingProvider, setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
+import { decideRecharge, postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import {
   processStripeEventJob,
@@ -59,6 +61,12 @@ const stripe = {
   payments: new Map<string, Json[]>(),
   subscriptions: new Map<string, Json>(),
   customers: new Map<string, Json>(),
+  // Disputes and fraud warnings (PR 11): the objects, their charges, and what each charge's payment intent paid.
+  disputes: new Map<string, Json>(),
+  warnings: new Map<string, Json>(),
+  charges: new Map<string, Json>(),
+  intentInvoices: new Map<string, string>(),
+  intentSessions: new Map<string, string>(),
   events: [] as Json[],
   requests: [] as string[],
   failWith: null as number | null,
@@ -76,8 +84,25 @@ const fakeStripe: typeof fetch = async input => {
   if (stripe.failWith) return reply(stripe.failWith, { error: { type: 'api_error', message: 'Stripe is down' } })
   const [, , kind, id] = url.pathname.split('/')
   if (kind === 'invoices' && id) return stripe.invoices.has(id) ? reply(200, stripe.invoices.get(id)) : notFound()
+  if (kind === 'invoice_payments' && url.searchParams.has('payment[payment_intent]')) {
+    const invoiceId = stripe.intentInvoices.get(url.searchParams.get('payment[payment_intent]')!)
+    return reply(
+      200,
+      list(invoiceId ? [{ id: rid('inpay'), object: 'invoice_payment', invoice: invoiceId }] : [], url.pathname),
+    )
+  }
   if (kind === 'invoice_payments')
     return reply(200, list(stripe.payments.get(url.searchParams.get('invoice') ?? '') ?? [], url.pathname))
+  if (kind === 'disputes' && id) return stripe.disputes.has(id) ? reply(200, stripe.disputes.get(id)) : notFound()
+  if (kind === 'charges' && id) return stripe.charges.has(id) ? reply(200, stripe.charges.get(id)) : notFound()
+  if (kind === 'radar') {
+    const warningId = url.pathname.split('/')[4]!
+    return stripe.warnings.has(warningId) ? reply(200, stripe.warnings.get(warningId)) : notFound()
+  }
+  if (kind === 'checkout' && url.pathname === '/v1/checkout/sessions') {
+    const session = stripe.intentSessions.get(url.searchParams.get('payment_intent') ?? '')
+    return reply(200, list(session ? [{ id: session, object: 'checkout.session' }] : [], url.pathname))
+  }
   if (kind === 'subscriptions' && id)
     return stripe.subscriptions.has(id) ? reply(200, stripe.subscriptions.get(id)) : notFound()
   if (kind === 'customers' && id) return stripe.customers.has(id) ? reply(200, stripe.customers.get(id)) : notFound()
@@ -111,6 +136,33 @@ function invoice(id: string, customer: string, over: Partial<Json> & { lines?: J
     ...rest,
   }
 }
+/** A plan subscription as Stripe's API returns it (monthly, one seat). */
+function subscription(id: string, customer: string, status: string): Json {
+  const start = nowSec()
+  return {
+    id,
+    object: 'subscription',
+    customer,
+    status,
+    cancel_at_period_end: false,
+    trial_end: null,
+    default_payment_method: null,
+    items: list(
+      [
+        {
+          id: rid('si'),
+          object: 'subscription_item',
+          quantity: 1,
+          current_period_start: start,
+          current_period_end: start + 30 * 86_400,
+          price: { id: rid('price'), object: 'price', lookup_key: 'ws_monthly', recurring: { interval: 'month' } },
+        },
+      ],
+      '/v1/subscription_items',
+    ),
+  }
+}
+
 const rechargeLine = (rechargeId: string, amount = 2000): Json => ({
   id: rid('il'),
   object: 'line_item',
@@ -647,6 +699,8 @@ describe('invoice.paid for a plan', () => {
       object: 'subscription',
       customer: bill.stripe_customer_id,
       status: 'active',
+      // The fixed anchor the months are counted from (an hour earlier than this period's start, as after a change).
+      billing_cycle_anchor: start - 3600,
       cancel_at_period_end: false,
       trial_end: null,
       default_payment_method: rid('pm'),
@@ -682,6 +736,8 @@ describe('invoice.paid for a plan', () => {
     const [after] = await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))
     expect(after).toMatchObject({ status: 'active', past_due_since: null, interval: 'year' })
     expect(new Date(after!.current_period_end!).getTime()).toBe(end * 1000)
+    // The bill's months are counted from the subscription's anchor, not from current_period_start (#879 review, M1).
+    expect(new Date(after!.billing_anchor!).getTime()).toBe((start - 3600) * 1000)
     expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe('active')
     // The plan fee is not balance.
     expect(await balanceOf(bill.id)).toBe(0)
@@ -1027,20 +1083,72 @@ describe('invoice.payment_failed and invoice.voided for a recharge (PR 4’s fai
     expect(await attempt(recharge.id)).toMatchObject({ status: 'canceled', failure_code: 'invoice_voided' })
   })
 
-  test('a plan invoice’s failure waits, unprocessed, for dunning (a later PR)', async () => {
-    const { bill } = await billWith()
+  test('a plan invoice’s failure makes the bill past_due (dunning, PR 11); one stored before is armed again', async () => {
+    const subscriptionId = rid('sub')
+    const { bill, ws } = await billWith({ stripe_subscription_id: subscriptionId })
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'past_due'))
     const invoiceId = rid('in')
-    stripe.invoices.set(invoiceId, invoice(invoiceId, bill.stripe_customer_id!, { status: 'open', amount_paid: 0 }))
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        status: 'open',
+        amount_paid: 0,
+        billing_reason: 'subscription_cycle',
+        parent: { type: 'subscription_details', subscription_details: { subscription: subscriptionId } },
+      }),
+    )
     const evt = event('invoice.payment_failed', invoice(invoiceId, bill.stripe_customer_id!))
-    expect(await deliverAndProcess(evt)).toEqual({ outcome: 'unhandled', marker: UNHANDLED_PLAN })
-    expect(await storedEvent(evt.id as string)).toMatchObject({ processed_at: null, last_error: UNHANDLED_PLAN })
-    // The sweeper does not re-arm it: the type is handled, this invoice is not yet.
+    // As the release before dunning left it.
+    expect((await deliver(JSON.stringify(evt))).status).toBe(200)
     await db
       .update(stripe_events)
-      .set({ received_at: new Date(Date.now() - 3_600_000).toISOString() })
+      .set({ attempts: 5, last_error: UNHANDLED_PLAN, received_at: new Date(Date.now() - 3_600_000).toISOString() })
       .where(eq(stripe_events.id, evt.id as string))
     await sweepStripeEvents()
-    expect(await storedEvent(evt.id as string)).toMatchObject({ attempts: 5, last_error: UNHANDLED_PLAN })
+    expect(await storedEvent(evt.id as string)).toMatchObject({ attempts: 0, last_error: null })
+    expect(await processStripeEventJob(evt.id as string)).toEqual({
+      outcome: 'lifecycle',
+      bill: bill.id,
+      change: 'past_due',
+    })
+    const [after] = await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))
+    expect(after).toMatchObject({ status: 'past_due', past_due_first_payment: false })
+    expect(Date.parse(after!.past_due_since!)).toBe((evt.created as number) * 1000)
+    // Calls are answered as normal while past_due.
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe('active')
+    expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
+  })
+
+  test('the first payment after the trial failing is flagged (3 days of grace); a paid-up subscription changes nothing', async () => {
+    const subscriptionId = rid('sub')
+    const { bill } = await billWith({ status: 'trialing', stripe_subscription_id: subscriptionId })
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'past_due'))
+    const planInvoice = (id: string) =>
+      invoice(id, bill.stripe_customer_id!, {
+        status: 'open',
+        amount_paid: 0,
+        parent: { type: 'subscription_details', subscription_details: { subscription: subscriptionId } },
+      })
+    const first = rid('in')
+    stripe.invoices.set(first, planInvoice(first))
+    await deliverAndProcess(event('invoice.payment_failed', invoice(first, bill.stripe_customer_id!)))
+    const [after] = await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))
+    expect(after).toMatchObject({ status: 'past_due', past_due_first_payment: true })
+
+    const paidSub = rid('sub')
+    const other = await billWith({ stripe_subscription_id: paidSub })
+    stripe.subscriptions.set(paidSub, subscription(paidSub, other.bill.stripe_customer_id!, 'active'))
+    const second = rid('in')
+    stripe.invoices.set(second, {
+      ...invoice(second, other.bill.stripe_customer_id!, { status: 'open', amount_paid: 0 }),
+      parent: { type: 'subscription_details', subscription_details: { subscription: paidSub } },
+    })
+    expect(
+      await deliverAndProcess(event('invoice.payment_failed', invoice(second, other.bill.stripe_customer_id!))),
+    ).toEqual({ outcome: 'applied', bill: other.bill.id })
+    expect((await db.select().from(billing_accounts).where(eq(billing_accounts.id, other.bill.id)))[0]!.status).toBe(
+      'active',
+    )
   })
 })
 
@@ -1073,7 +1181,7 @@ describe('the processor', () => {
   })
 
   test('a type this release does not act on stays unprocessed with its marker; no retry, no alert (M1)', async () => {
-    const evt = event('charge.dispute.created', { id: rid('dp'), object: 'dispute' })
+    const evt = event('invoice.finalized', invoice(rid('in'), rid('cus')))
     expect(await deliverAndProcess(evt)).toEqual({ outcome: 'unhandled', marker: UNHANDLED_TYPE })
     expect(await storedEvent(evt.id as string)).toMatchObject({
       processed_at: null,
@@ -1400,4 +1508,433 @@ test('a recharge on a bill without any period fails and is retried, never credit
   }
   expect(await rechargeEntries(recharge.id)).toHaveLength(0)
   expect((await storedEvent(evt.id as string))!.processed_at).toBeNull()
+})
+
+describe('disputes, fraud warnings and cancellations (docs/billing.md §3.4, M4; PR 11)', () => {
+  /** A recharge of `cents` paid by invoice `invoiceId` and credited, its charge `ch_…` through a payment intent. */
+  async function creditedRecharge(billId: string, periodId: string, cents = 2000) {
+    const invoiceId = rid('in')
+    const [recharge] = await db
+      .insert(billing_recharges)
+      .values({
+        id: rid('rc'),
+        billing_account_id: billId,
+        amount_cents: cents,
+        stripe_invoice_id: invoiceId,
+        status: 'paid',
+        resolved_at: new Date().toISOString(),
+      })
+      .returning()
+    await db.transaction(tx =>
+      postEntry(tx, {
+        billing_account_id: billId,
+        period_id: periodId,
+        kind: 'recharge',
+        amount_micros: cents * 10_000,
+        source_type: 'billing_recharge',
+        source_id: recharge!.id,
+      }),
+    )
+    const intent = rid('pi')
+    const charge = rid('ch')
+    stripe.intentInvoices.set(intent, invoiceId)
+    return { recharge: recharge!, invoiceId, intent, charge }
+  }
+  const chargeOf = (id: string, customer: string, intent: string, amount = 2000, refunded = false) =>
+    stripe.charges.set(id, { id, object: 'charge', customer, payment_intent: intent, amount, refunded })
+  const disputeOf = (id: string, charge: string, status: string, amount = 2000) =>
+    stripe.disputes.set(id, { id, object: 'dispute', charge, status, amount, currency: 'usd' })
+  const billNow = async (id: string) =>
+    (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!
+  const disputeEntries = (billId: string) =>
+    db
+      .select()
+      .from(ledger_entries)
+      .where(and(eq(ledger_entries.billing_account_id, billId), eq(ledger_entries.kind, 'adjustment')))
+
+  test('a dispute suspends at once and takes the disputed credit off the balance, once; won gives it back and lifts', async () => {
+    const subscriptionId = rid('sub')
+    const { bill, period, ws } = await billWith({ stripe_subscription_id: subscriptionId })
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'active'))
+    const paid = await creditedRecharge(bill.id, period.id)
+    chargeOf(paid.charge, bill.stripe_customer_id!, paid.intent)
+    const disputeId = rid('du')
+    disputeOf(disputeId, paid.charge, 'needs_response')
+    const created = event('charge.dispute.created', { id: disputeId, object: 'dispute', charge: paid.charge })
+    expect(await deliverAndProcess(created)).toEqual({ outcome: 'lifecycle', bill: bill.id, change: 'dispute' })
+    expect(await billNow(bill.id)).toMatchObject({ status: 'suspended', suspend_reason: 'dispute' })
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe('suspended')
+    expect(await balanceOf(bill.id)).toBe(0)
+    expect(mails.map(m => m.subject).filter(s => /dispute/i.test(s))).toHaveLength(1)
+    // The same dispute again (Reprocess): nothing more is taken.
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: created.id, reason: 'Replayed after the dispute' }))
+        .status,
+    ).toBe(200)
+    await processStripeEventJob(created.id as string)
+    expect(await disputeEntries(bill.id)).toHaveLength(1)
+    expect(await balanceOf(bill.id)).toBe(0)
+    // A paid plan invoice does not lift a dispute's suspension (review of #865, N1).
+    const planInvoice = rid('in')
+    stripe.invoices.set(
+      planInvoice,
+      invoice(planInvoice, bill.stripe_customer_id!, {
+        total: 900,
+        amount_paid: 900,
+        parent: { type: 'subscription_details', subscription_details: { subscription: subscriptionId } },
+      }),
+    )
+    paidBy(planInvoice, 900)
+    expect(
+      await deliverAndProcess(event('invoice.paid', invoice(planInvoice, bill.stripe_customer_id!))),
+    ).toMatchObject({
+      plan: 'unchanged',
+    })
+    expect((await billNow(bill.id)).status).toBe('suspended')
+    // Won: the reversing adjustment, the bill active again.
+    disputeOf(disputeId, paid.charge, 'won')
+    expect(
+      await deliverAndProcess(
+        event('charge.dispute.closed', { id: disputeId, object: 'dispute', charge: paid.charge }),
+      ),
+    ).toEqual({ outcome: 'lifecycle', bill: bill.id, change: 'dispute_won' })
+    const entries = await disputeEntries(bill.id)
+    expect(entries).toHaveLength(2)
+    const taken = entries.find(e => e.amount_micros < 0)!
+    expect(entries.find(e => e.amount_micros > 0)).toMatchObject({
+      amount_micros: 20_000_000,
+      reverses_entry_id: taken.id,
+    })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    expect(await billNow(bill.id)).toMatchObject({ status: 'active', suspend_reason: null })
+  })
+
+  test('a disputed top-up is taken off too; a dispute of a plan charge only suspends; lost stays suspended', async () => {
+    const { bill, period } = await billWith()
+    const session = rid('cs')
+    await db.transaction(tx =>
+      postEntry(tx, {
+        billing_account_id: bill.id,
+        period_id: period.id,
+        kind: 'topup',
+        amount_micros: 50_000_000,
+        source_type: 'stripe_checkout',
+        source_id: session,
+      }),
+    )
+    const intent = rid('pi')
+    const charge = rid('ch')
+    stripe.intentSessions.set(intent, session)
+    chargeOf(charge, bill.stripe_customer_id!, intent)
+    const disputeId = rid('du')
+    disputeOf(disputeId, charge, 'needs_response', 5000)
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    expect(await balanceOf(bill.id)).toBe(0)
+    disputeOf(disputeId, charge, 'lost', 5000)
+    await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))
+    expect(await disputeEntries(bill.id)).toHaveLength(1)
+    expect(await billNow(bill.id)).toMatchObject({ status: 'suspended', suspend_reason: 'dispute' })
+
+    const other = await billWith()
+    const planCharge = rid('ch')
+    chargeOf(planCharge, other.bill.stripe_customer_id!, rid('pi'))
+    const planDispute = rid('du')
+    disputeOf(planDispute, planCharge, 'needs_response', 900)
+    await deliverAndProcess(event('charge.dispute.created', { id: planDispute, object: 'dispute' }))
+    expect(await disputeEntries(other.bill.id)).toEqual([])
+    expect((await billNow(other.bill.id)).status).toBe('suspended')
+  })
+
+  test('a dispute of a charge whose customer no bill has changes nothing here', async () => {
+    const charge = rid('ch')
+    chargeOf(charge, rid('cus'), rid('pi'))
+    const disputeId = rid('du')
+    disputeOf(disputeId, charge, 'needs_response')
+    expect(await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))).toEqual({
+      outcome: 'unknown_retry',
+    })
+  })
+
+  test('an early fraud warning suspends and turns auto-recharge off; a won dispute does not lift it', async () => {
+    const subscriptionId = rid('sub')
+    const { bill, period } = await billWith({ stripe_subscription_id: subscriptionId })
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'active'))
+    const paid = await creditedRecharge(bill.id, period.id)
+    chargeOf(paid.charge, bill.stripe_customer_id!, paid.intent)
+    const warningId = rid('issfr')
+    stripe.warnings.set(warningId, { id: warningId, object: 'radar.early_fraud_warning', charge: paid.charge })
+    expect(
+      await deliverAndProcess(
+        event('radar.early_fraud_warning.created', { id: warningId, object: 'radar.early_fraud_warning' }),
+      ),
+    ).toEqual({ outcome: 'lifecycle', bill: bill.id, change: 'fraud_warning' })
+    expect(await billNow(bill.id)).toMatchObject({
+      status: 'suspended',
+      suspend_reason: 'early_fraud_warning',
+      auto_recharge: false,
+    })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    // The dispute that follows takes the credit; won, it gives it back, but the warning still holds the bill.
+    const disputeId = rid('du')
+    disputeOf(disputeId, paid.charge, 'needs_response')
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    // The warning stays the reason: only an instance admin lifts it (re-review of #920, N1).
+    expect((await billNow(bill.id)).suspend_reason).toBe('early_fraud_warning')
+    disputeOf(disputeId, paid.charge, 'won')
+    await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    expect((await billNow(bill.id)).status).toBe('suspended')
+  })
+
+  /** A bill with an active subscription and a credited $20 recharge whose charge is `paid.charge`. */
+  async function disputable() {
+    const subscriptionId = rid('sub')
+    const billed = await billWith({ stripe_subscription_id: subscriptionId })
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, billed.bill.stripe_customer_id!, 'active'))
+    const paid = await creditedRecharge(billed.bill.id, billed.period.id)
+    chargeOf(paid.charge, billed.bill.stripe_customer_id!, paid.intent)
+    return { ...billed, paid }
+  }
+  const closedMails = () => mails.map(m => m.subject).filter(s => /is settled|stays suspended/.test(s))
+
+  test('an inquiry closed without a chargeback (warning_closed), or a prevented one: the credit back, lifted, admins told', async () => {
+    for (const closedAs of ['warning_closed', 'prevented']) {
+      const { bill, paid } = await disputable()
+      const disputeId = rid('du')
+      disputeOf(disputeId, paid.charge, 'warning_needs_response')
+      await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+      expect(await billNow(bill.id)).toMatchObject({ status: 'suspended', suspend_reason: 'dispute' })
+      expect(await balanceOf(bill.id)).toBe(0)
+      const before = closedMails().length
+      disputeOf(disputeId, paid.charge, closedAs)
+      expect(await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))).toEqual({
+        outcome: 'lifecycle',
+        bill: bill.id,
+        change: `dispute_${closedAs}`,
+      })
+      expect(await balanceOf(bill.id)).toBe(20_000_000)
+      expect(await billNow(bill.id)).toMatchObject({ status: 'active', suspend_reason: null })
+      expect(closedMails().length).toBe(before + 1)
+    }
+  })
+
+  test('a created event processed after the dispute was won takes nothing again and does not suspend', async () => {
+    const { bill, paid } = await disputable()
+    const disputeId = rid('du')
+    disputeOf(disputeId, paid.charge, 'needs_response')
+    const created = event('charge.dispute.created', { id: disputeId, object: 'dispute' })
+    await deliverAndProcess(created)
+    disputeOf(disputeId, paid.charge, 'won')
+    await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))
+    expect(await billNow(bill.id)).toMatchObject({ status: 'active' })
+    // The created event again (an admin's Reprocess, or a retry after a crash): Stripe says won now.
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: created.id, reason: 'Replayed after the dispute' }))
+        .status,
+    ).toBe(200)
+    await processStripeEventJob(created.id as string)
+    expect(await billNow(bill.id)).toMatchObject({ status: 'active', suspend_reason: null })
+    expect(await disputeEntries(bill.id)).toHaveLength(2)
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    // A dispute whose first event we see is already won: stored, nothing taken, nothing suspended.
+    const late = await disputable()
+    const wonId = rid('du')
+    disputeOf(wonId, late.paid.charge, 'won')
+    await deliverAndProcess(event('charge.dispute.created', { id: wonId, object: 'dispute' }))
+    expect(await billNow(late.bill.id)).toMatchObject({ status: 'active' })
+    expect(await disputeEntries(late.bill.id)).toEqual([])
+  })
+
+  test('a partial dispute takes off only the disputed share of the credit (the charge includes tax)', async () => {
+    const { bill, paid, period } = await disputable()
+    // $20 credited, charged $22 with tax; $11 disputed: half the credit.
+    chargeOf(paid.charge, bill.stripe_customer_id!, paid.intent, 2200)
+    const disputeId = rid('du')
+    disputeOf(disputeId, paid.charge, 'needs_response', 1100)
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    expect(await balanceOf(bill.id)).toBe(10_000_000)
+    // Never more than the credit, even when the dispute names more than the charge.
+    const other = await creditedRecharge(bill.id, period.id)
+    chargeOf(other.charge, bill.stripe_customer_id!, other.intent, 2200)
+    const bigger = rid('du')
+    disputeOf(bigger, other.charge, 'needs_response', 9900)
+    await deliverAndProcess(event('charge.dispute.created', { id: bigger, object: 'dispute' }))
+    expect(await balanceOf(bill.id)).toBe(10_000_000)
+  })
+
+  test('a lost dispute keeps the bill suspended and tells the admins', async () => {
+    const { bill, paid } = await disputable()
+    const disputeId = rid('du')
+    disputeOf(disputeId, paid.charge, 'needs_response')
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    const before = mails.filter(m => /stays suspended/.test(m.subject)).length
+    disputeOf(disputeId, paid.charge, 'lost')
+    await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))
+    expect(await billNow(bill.id)).toMatchObject({ status: 'suspended', suspend_reason: 'dispute' })
+    expect(await balanceOf(bill.id)).toBe(0)
+    expect(mails.filter(m => /stays suspended/.test(m.subject)).length).toBe(before + 1)
+  })
+
+  test('a fraud-warned charge refunded in full: the warning closed, its credit taken off once, the bill still held (re-review of #920, N1)', async () => {
+    const { bill, paid } = await disputable()
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    const warningId = rid('issfr')
+    stripe.warnings.set(warningId, { id: warningId, object: 'radar.early_fraud_warning', charge: paid.charge })
+    await deliverAndProcess(
+      event('radar.early_fraud_warning.created', { id: warningId, object: 'radar.early_fraud_warning' }),
+    )
+    expect(await billNow(bill.id)).toMatchObject({ status: 'suspended', suspend_reason: 'early_fraud_warning' })
+    const refundedEvent = () =>
+      event('charge.refunded', { id: paid.charge, object: 'charge', customer: bill.stripe_customer_id })
+    // Partly refunded: nothing changes.
+    expect(await deliverAndProcess(refundedEvent())).toEqual({ outcome: 'applied', bill: bill.id })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    // The $20 recharge refunded in full (the Dashboard's refund): the card got the money back, so the minutes go.
+    chargeOf(paid.charge, bill.stripe_customer_id!, paid.intent, 2000, true)
+    expect(await deliverAndProcess(refundedEvent())).toEqual({
+      outcome: 'lifecycle',
+      bill: bill.id,
+      change: 'fraud_warning_refunded',
+    })
+    expect(await balanceOf(bill.id)).toBe(0)
+    const [row] = await db.select().from(billing_disputes).where(eq(billing_disputes.id, warningId))
+    expect(row!.status).toBe('refunded')
+    // Not opened again on its own: the flagged card is still saved, so an instance admin decides; no recharge.
+    expect(await billNow(bill.id)).toMatchObject({
+      status: 'suspended',
+      suspend_reason: 'early_fraud_warning',
+      auto_recharge: false,
+    })
+    expect(await db.transaction(tx => decideRecharge(tx, bill.id, new Date().toISOString()))).toEqual({ kind: 'none' })
+    // The refund event again: nothing more is taken.
+    await deliverAndProcess(refundedEvent())
+    expect(await balanceOf(bill.id)).toBe(0)
+    expect(await disputeEntries(bill.id)).toHaveLength(1)
+  })
+
+  test('a warning whose charge was refunded before it came: the credit taken off, the bill held all the same (re-review of #920, N1)', async () => {
+    const { bill, paid } = await disputable()
+    chargeOf(paid.charge, bill.stripe_customer_id!, paid.intent, 2000, true)
+    const warningId = rid('issfr')
+    stripe.warnings.set(warningId, { id: warningId, object: 'radar.early_fraud_warning', charge: paid.charge })
+    await deliverAndProcess(
+      event('radar.early_fraud_warning.created', { id: warningId, object: 'radar.early_fraud_warning' }),
+    )
+    expect(await balanceOf(bill.id)).toBe(0)
+    expect(await billNow(bill.id)).toMatchObject({
+      status: 'suspended',
+      suspend_reason: 'early_fraud_warning',
+      auto_recharge: false,
+    })
+    const [row] = await db.select().from(billing_disputes).where(eq(billing_disputes.id, warningId))
+    expect(row!.status).toBe('refunded')
+    // Its refund event after it takes nothing again.
+    await deliverAndProcess(
+      event('charge.refunded', { id: paid.charge, object: 'charge', customer: bill.stripe_customer_id }),
+    )
+    expect(await balanceOf(bill.id)).toBe(0)
+  })
+
+  test('a stale created that commits after closed (won) never writes its status over the final one (re-review of #920, N3)', async () => {
+    const { bill, paid } = await disputable()
+    const disputeId = rid('du')
+    // closed is processed first and stores won; the created event fetched needs_response before that and commits now.
+    disputeOf(disputeId, paid.charge, 'won')
+    await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))
+    disputeOf(disputeId, paid.charge, 'needs_response')
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    const [row] = await db.select().from(billing_disputes).where(eq(billing_disputes.id, disputeId))
+    expect(row!.status).toBe('won')
+    expect(await disputeEntries(bill.id)).toEqual([])
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    expect(await billNow(bill.id)).toMatchObject({ status: 'active', suspend_reason: null })
+  })
+
+  test("an instance admin's suspension stays: a dispute does not take it over, a won one does not lift it (#919's suspend_reason)", async () => {
+    const { bill, paid } = await disputable()
+    await db
+      .update(billing_accounts)
+      .set({
+        status: 'suspended',
+        suspend_reason: 'admin',
+        suspended_from: 'active',
+        suspended_at: new Date().toISOString(),
+      })
+      .where(eq(billing_accounts.id, bill.id))
+    const disputeId = rid('du')
+    disputeOf(disputeId, paid.charge, 'needs_response')
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    expect(await billNow(bill.id)).toMatchObject({
+      status: 'suspended',
+      suspend_reason: 'admin',
+      suspended_from: 'active',
+    })
+    expect(await balanceOf(bill.id)).toBe(0)
+    disputeOf(disputeId, paid.charge, 'won')
+    await deliverAndProcess(event('charge.dispute.closed', { id: disputeId, object: 'dispute' }))
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    expect(await billNow(bill.id)).toMatchObject({ status: 'suspended', suspend_reason: 'admin' })
+  })
+
+  test("a disputed top-up whose Checkout made an invoice too (Stripe's invoice_creation): its credit is found and taken off", async () => {
+    // Stripe's documented shape for a Checkout payment with invoice_creation: the session's payment intent pays the
+    // invoice Checkout made, so invoice_payments lists that invoice for the intent, and the session lists the intent.
+    const { bill, period } = await billWith()
+    const session = rid('cs')
+    await db.transaction(tx =>
+      postEntry(tx, {
+        billing_account_id: bill.id,
+        period_id: period.id,
+        kind: 'topup',
+        amount_micros: 50_000_000,
+        source_type: 'stripe_checkout',
+        source_id: session,
+      }),
+    )
+    const intent = rid('pi')
+    const charge = rid('ch')
+    stripe.intentInvoices.set(intent, rid('in'))
+    stripe.intentSessions.set(intent, session)
+    chargeOf(charge, bill.stripe_customer_id!, intent, 5000)
+    const disputeId = rid('du')
+    disputeOf(disputeId, charge, 'needs_response', 5000)
+    await deliverAndProcess(event('charge.dispute.created', { id: disputeId, object: 'dispute' }))
+    expect(await balanceOf(bill.id)).toBe(0)
+    const [row] = await db.select().from(billing_disputes).where(eq(billing_disputes.id, disputeId))
+    expect(row!.adjustment_entry_id).not.toBeNull()
+  })
+
+  test('a subscription deleted in Stripe cancels the bill, once, with the release date for the owner', async () => {
+    const subscriptionId = rid('sub')
+    const { bill, ws } = await billWith({ stripe_subscription_id: subscriptionId })
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'canceled'))
+    const deleted = event('customer.subscription.deleted', {
+      id: subscriptionId,
+      object: 'subscription',
+      customer: bill.stripe_customer_id,
+    })
+    expect(await deliverAndProcess(deleted)).toEqual({ outcome: 'lifecycle', bill: bill.id, change: 'canceled' })
+    const after = await billNow(bill.id)
+    expect(after.status).toBe('canceled')
+    expect(after.canceled_at).not.toBeNull()
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe('suspended')
+    const alerts = await db
+      .select()
+      .from(billing_alerts)
+      .where(and(eq(billing_alerts.billing_account_id, bill.id), eq(billing_alerts.kind, 'numbers_release')))
+    expect(alerts).toHaveLength(1)
+    // Still active in Stripe (a stale event): nothing.
+    const liveId = rid('sub')
+    const live = await billWith({ stripe_subscription_id: liveId })
+    stripe.subscriptions.set(liveId, subscription(liveId, live.bill.stripe_customer_id!, 'active'))
+    expect(
+      await deliverAndProcess(
+        event('customer.subscription.deleted', {
+          id: liveId,
+          object: 'subscription',
+          customer: live.bill.stripe_customer_id,
+        }),
+      ),
+    ).toEqual({ outcome: 'applied', bill: live.bill.id })
+  })
 })
