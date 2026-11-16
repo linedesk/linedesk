@@ -710,6 +710,51 @@
       "out": "4b516ca868671d5505e28dee088ce13f7b79c30921a3b217db12458f91c9fa49",
       "src": "92a3bf892c27295c09772683fffe4aeaf36a877e5077395af071e482452db311"
     },
+    "account.notify.card.assigned": {
+      "by": "ai",
+      "out": "3a439cb0dbf2cc741201bc1a467e7e734e47ea46754b8af374915b4f3e0b92b2",
+      "src": "1361a4063eb8d073512c4abea1aa5600e390f5b6b45967dc1b2e2bb8cb985aee"
+    },
+    "account.notify.card.deviceOpen": {
+      "by": "ai",
+      "out": "7c845bdf8ae090339937da57efa5e4fd915eae4c752f362693c0676cca79886d",
+      "src": "d23456360fd5ba591dfd199d5c86801b96d45ba3be9662df2b512d04302a9f5d"
+    },
+    "account.notify.card.devicePush": {
+      "by": "ai",
+      "out": "f5cdc62236f8d3a5430667d9a9ca5b2fd22e8fe29a2b119fa4d78f063f3668b5",
+      "src": "58b59e03408b28e0f61f3c7dd2217e5e42cd27236ebdd3f3e1e9238af54d6536"
+    },
+    "account.notify.card.email": {
+      "by": "ai",
+      "out": "e2dac7fee70f3a953cb4b2333ec90ead0ebf6d00bb2beb3ad9fa6d9d22b6753c",
+      "src": "25d85b7367f0d73b5940e7cb3ec29f0f1bbbc772c9460152492970717f9329bd"
+    },
+    "account.notify.card.gets": {
+      "by": "ai",
+      "out": "d4a38d9af614f39d57167a4681921c60771a4464207055711d451c59e17133a8",
+      "src": "c3c56221650d80fff84a8bfcf05fa61a2db9817b8c7acfbf789cbf0b6b43ab9f"
+    },
+    "account.notify.card.none": {
+      "by": "ai",
+      "out": "82a5711b33a21e40606d6e13dbcc6e2432f54abd0bbc1f69e2f668361e6c30a9",
+      "src": "d4d1f2e07670708b6a015aa5599d46a05cb830a4a566d70eede812313fe32ce1"
+    },
+    "account.notify.card.otherDevices": {
+      "by": "ai",
+      "out": "dd193836e8e20c40dc3786b119cac7018bcddf1defd9493041a9c29d55896dbb",
+      "src": "60fa1e19416fd7c5ad7ca9cdd568cce5473384479c1be2c18be72123be991e57"
+    },
+    "account.notify.card.setup": {
+      "by": "ai",
+      "out": "d13a7de898dcfe18d4806e8fb1c97eb67ff530db142310717d067690fa9020a8",
+      "src": "ce0c40816d73190a5c481e0d6afb927e3439a9ea3f516627b4f374e0c21d8067"
+    },
+    "account.notify.card.withSummary": {
+      "by": "ai",
+      "out": "511db96f9a235aefdd3312f3f745816d56b5b712b8551331c2fad7f98021e11c",
+      "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
+    },
     "account.notify.defaults": {
       "by": "ai",
       "out": "5225d237111582bb58de80cb5ec3f824bb8bb9149dee840da99c162d4a4ab452",
@@ -5080,6 +5125,16 @@
       "out": "0c328374c5b2d7582fabe8bb041300b9df0757ab821a7b000b596a914745f6ba",
       "src": "965b13c1f513c8254fadd86bddbfa2ef6ae6c37e14805025a57ed4f6faa67560"
     },
+    "admin.prompt.collapse": {
+      "by": "ai",
+      "out": "1f6944cfe5b6567a90e8f59d5760e46d74592f5e34f6060ba60e5600e5d46d19",
+      "src": "bed45f46a41f6a028b611e54f177ff0cb2882be27fe2d75bb7660c88da770645"
+    },
+    "admin.prompt.collapseAll": {
+      "by": "ai",
+      "out": "06b090be5a0ac6157315375486780cf4aee9ffa7d0812402d88ceaf38f60b2e8",
+      "src": "25f7b3721119f1ec7fdf7c8c66e779ee9999e2049e569afc3b00a9fbdeece7db"
+    },
     "admin.prompt.defaultChanged": {
       "by": "ai",
       "out": "9adce44b1430bdb050427bb6d78c55910f1e57f8345725992e6cb33361a41b1b",
@@ -5105,10 +5160,25 @@
       "out": "d63c93a908a9fc43a12263c79d3f04ae9c1d3a36665f0ffac3a6de7a83df87cf",
       "src": "7117f0807129493fd1f4d6942340d55e82980ef0a82bf629871829666824c7b3"
     },
+    "admin.prompt.editedCount": {
+      "by": "ai",
+      "out": "53e7e36b8147ff873ea144c5cf8a99ec8b9cd05362346e2cd7918b5186387165",
+      "src": "4f411cf4d5efe0a496210976e8513bc9bbaa7c7c3ddb49d07e770c4ed722a5e2"
+    },
     "admin.prompt.empty": {
       "by": "ai",
       "out": "ba454e0a2c35f5e8b4071e556a8cc96fd1ec5b6cdb336f2ea2638b9cae087a1a",
       "src": "08b1693bd48d31f0518d465219ee6fd7cd3178d92ae4b337de5772c6d93f2a34"
+    },
+    "admin.prompt.expand": {
+      "by": "ai",
+      "out": "49d6fe17cc73601b2980f1455a1a7aa3d4a6a2e0ca6c5b2cfa1aaa207dff6dde",
+      "src": "ba67328b6f998c146129b0f2f051bb4f2ed2b7e0199476c8bfabadd856e78d44"
+    },
+    "admin.prompt.expandAll": {
+      "by": "ai",
+      "out": "b2b294988fd92ea232f92111195fba3be810d2b2bdd9f65192e462731acd6220",
+      "src": "a3e586be3eff5fb9f768c0846035db47ccf0f0e10727b0f14d829ff3a5913324"
     },
     "admin.prompt.failed": {
       "by": "ai",
@@ -5129,6 +5199,11 @@
       "by": "ai",
       "out": "8a82059e7ee0e40a15917e3f137ec68ab3cad9c6d240075d3de8b256404028f8",
       "src": "1191dcb13bfef6a170ff7e91d4001ee7c7e638be87d098916fd29624b8a3c72d"
+    },
+    "admin.prompt.parts": {
+      "by": "ai",
+      "out": "43a0a0244d883bfaed4a59dd3c2c5fbb4707ce2f8c80cd3d744e7451b07f9b4e",
+      "src": "85e36d469872155821a7b5cca02159f46afefa6bf96f319997b976a6be50ce51"
     },
     "admin.prompt.pieceLabel": {
       "by": "ai",
@@ -5919,6 +5994,11 @@
       "by": "ai",
       "out": "f165a08a9a0a8ec42c7bdfc3483c36f114e0961387612cb9114e900aaa4a61db",
       "src": "144159517ed76a72e715296d884f93c2b004206ebc5dd5b2c669d1ea5676c208"
+    },
+    "admin.providerError.oauthClientRejected": {
+      "by": "ai",
+      "out": "e60e0d9aafdb34e3fdf3177c48875526f3a081f94bb6692db731b4a750832717",
+      "src": "69a00f1c775957cbfa1451aa9ad28fc23e32430bf3a6fbf05013007a6e9c35d0"
     },
     "admin.providerStatus.callAudio.noTrunk": {
       "by": "ai",
@@ -21020,6 +21100,101 @@
       "out": "d92f35b30a98d8198be03cb3d1f6c7cdb4fd36e0ccbf964a1d9a6ab018688207",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
+    "settings.summary.hours.needsHours": {
+      "by": "ai",
+      "out": "8b604c7451af283cef63711e16a74e238685d50435f586cbe7dca5299a8b2072",
+      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
+    },
+    "settings.summary.hours.nextClosed": {
+      "by": "ai",
+      "out": "06c6c3172aac4dd91ee0939fbbb35f8f13e560c60839df7e7c553ac0f3e08627",
+      "src": "898c0fde5f993ad31c5a84ebf3cb604bce795e3b85819ce1bebd6a3c077d10f1"
+    },
+    "settings.summary.hours.nextClosedNamed": {
+      "by": "ai",
+      "out": "363ac2675346895f371a3871e5fe08eb2445f0ff1224c142c426ba3a805de23c",
+      "src": "9e564d18fde63c2e0a07b824373349fb30f82aedfa4f18d4dd2757e4ffc07a72"
+    },
+    "settings.summary.hours.nextShorter": {
+      "by": "ai",
+      "out": "b408c0a56825be31af06ac9b0f48a8466561f7b1c789a59949e5e0b7dfefc9ae",
+      "src": "98e135bf02ec674ef93bb9835c3e32321bedf3505b8c0db4ef312ca8121bd056"
+    },
+    "settings.summary.hours.none": {
+      "by": "ai",
+      "out": "32ab6443f4ae1b5e11e170fa9c37166a3ac27f26f4b0535814be0ee1ea9b2e46",
+      "src": "1b9c370a694b7bdca360a933c2617e94faa32afa25834c20eda6237997d947c2"
+    },
+    "settings.summary.hours.off": {
+      "by": "ai",
+      "out": "a550bb02825ef53fe60af1f0221984a55a16cdc6b577bf70084de3cf7dc9d377",
+      "src": "76cebf72bd56a7d2159b88b81d65312d89620ba4428484829f4688919e24977c"
+    },
+    "settings.summary.hours.open": {
+      "by": "ai",
+      "out": "b4614b773eece503df2067bca97d3d6246b14956bf1b56571533f561d45190b2",
+      "src": "b9ad3c516cc66766f1585bf50d931df80eb0f95ef0864edc1e923f6c1a9b45f1"
+    },
+    "settings.summary.hours.outsideGreeting": {
+      "by": "ai",
+      "out": "106f2a016938ae314e59644d50164458fe55f008cb145b349d1d4bf91b4226bd",
+      "src": "4cfe8d42a65d5868384ed65913f6d36fb21c798d7c94d86d3a515064933745bd"
+    },
+    "settings.summary.hours.vacationOn": {
+      "by": "ai",
+      "out": "597b6cabaaf2a7b04b532a9eba82ffebc67da996339d0d8b48fdab81a09be089",
+      "src": "f3d949e1ce412b666eb3e2ac88d74a7cc60f612f48a2e8d04e92bbbb8e166a04"
+    },
+    "settings.summary.hours.vacationScheduled": {
+      "by": "ai",
+      "out": "2679257825a5ede53c0371dbf61751407179df5f0449d5c83b14578527dff07c",
+      "src": "6ecf3e5193e70db961d2580cf733a3983a42070bd29671023d35dca1d42dc1f7"
+    },
+    "settings.summary.label": {
+      "by": "ai",
+      "out": "9d589ca0f3ade5c8a175d1eb024050c16fd466700e44707a5a60c2d388420893",
+      "src": "8e76a94ac8320d515375e625bef1829238b097ecbd33611b59eeefd4ffefebfb"
+    },
+    "settings.summary.needsYou": {
+      "by": "ai",
+      "out": "64509e1af49cd9877c460e68d2674bd1532f9aa17e0d4f63518911dc10cab331",
+      "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.transfers.allHoursOnly": {
+      "by": "ai",
+      "out": "356055f97294690183acbd0ebbb0d1341942aee2304cb5269a5da00a52802e0d",
+      "src": "f57536bdea0e2e96e0d737eb3e6b0587c2aba53f424ba2900528b48819044235"
+    },
+    "settings.summary.transfers.hoursOnly": {
+      "by": "ai",
+      "out": "d06ca24f9bef5b06130c78cbb075c69dd882222d8cf7af34b023252951852fb9",
+      "src": "7217c2d06aaecd334e4060795e573791e3ff6721dcde58393948cd572f46a636"
+    },
+    "settings.summary.transfers.noNumber": {
+      "by": "ai",
+      "out": "4797768c69e05c8e5eef5a651524206a938e7728b90a78aed03f39c8ef992856",
+      "src": "38f5bde441e9cc2ab208443a8dd76e0b533a14907b6ed633784fe1187e3c83d5"
+    },
+    "settings.summary.transfers.none": {
+      "by": "ai",
+      "out": "1f1b4f1b720d304bd7e34090c2c03b1bcaefd135e84d8762d0a34f5b80a85cad",
+      "src": "69278e3e034a0195cffc89e8d9fd5585d9d2a1f36ca3d9dc4d3068b38791fd72"
+    },
+    "settings.summary.transfers.otherwise": {
+      "by": "ai",
+      "out": "654643095f592f67a866eaf49a4317bc6a397b0a77977f82ae51b09a3de56a21",
+      "src": "a675c5fc460c1e6657f422f6168bd4702c4236277cd56a5ca706f7177f88416f"
+    },
+    "settings.summary.transfers.to": {
+      "by": "ai",
+      "out": "f873d0ec2a4f2f8bf82cea5fdddee4e91ac6a7ed117eccf1191fecb605ad7eae",
+      "src": "953e9f4df78a34b0df5ecebb91e48397c77b7ff21875f5f921749efab5a9c052"
+    },
+    "settings.summary.transfers.vacation": {
+      "by": "ai",
+      "out": "705c5eec087b5fe4fdcd5869acfbde4ad2f207d7fe7a95a1ad761c0539c4f6c0",
+      "src": "e2639ca409d28aae42f50352a8fe5883af422aa2ccc3e303e60767d8060ac43c"
+    },
     "settings.testCall.agentLeft": {
       "by": "ai",
       "out": "4b44eb37b7aa7ec1b4a3c5c4ab42d71be1be659070551f8e7ac7776037fd0cb5",
@@ -25176,6 +25351,51 @@
       "by": "ai",
       "out": "3db690be25934d6d5f431b4b3ed49afbdd74e94c297680edca47c900edebb80f",
       "src": "92a3bf892c27295c09772683fffe4aeaf36a877e5077395af071e482452db311"
+    },
+    "account.notify.card.assigned": {
+      "by": "ai",
+      "out": "14d31439dddf3c1ea1019e68d5fefef155f8f0717a953647b55b62a8dffe393d",
+      "src": "1361a4063eb8d073512c4abea1aa5600e390f5b6b45967dc1b2e2bb8cb985aee"
+    },
+    "account.notify.card.deviceOpen": {
+      "by": "ai",
+      "out": "70bad621520b78ad72fdff3bb11a1526cfcd78a4bc5a055ec73146802fad4c75",
+      "src": "d23456360fd5ba591dfd199d5c86801b96d45ba3be9662df2b512d04302a9f5d"
+    },
+    "account.notify.card.devicePush": {
+      "by": "ai",
+      "out": "c1814d31161db2d3d94d1ff661caeee16738e4a2109bec033854f96b884609c1",
+      "src": "58b59e03408b28e0f61f3c7dd2217e5e42cd27236ebdd3f3e1e9238af54d6536"
+    },
+    "account.notify.card.email": {
+      "by": "ai",
+      "out": "129e80e1fb8066900bb73f68a1c5a686b10d3f3b5181ff35bf67ba923a30280c",
+      "src": "25d85b7367f0d73b5940e7cb3ec29f0f1bbbc772c9460152492970717f9329bd"
+    },
+    "account.notify.card.gets": {
+      "by": "ai",
+      "out": "1ff85f80a6abbf40b92a9a8d8c48559e5eef42aebefed436e7dd51cf08401822",
+      "src": "c3c56221650d80fff84a8bfcf05fa61a2db9817b8c7acfbf789cbf0b6b43ab9f"
+    },
+    "account.notify.card.none": {
+      "by": "ai",
+      "out": "4304e0372a1bfa20517a9a9a61e0b007063f1cce992b9f494145daa5bd0468a8",
+      "src": "d4d1f2e07670708b6a015aa5599d46a05cb830a4a566d70eede812313fe32ce1"
+    },
+    "account.notify.card.otherDevices": {
+      "by": "ai",
+      "out": "35dc366467a09423bd9f4f284cdf43c8a64816f6110122d641afda7023c95751",
+      "src": "60fa1e19416fd7c5ad7ca9cdd568cce5473384479c1be2c18be72123be991e57"
+    },
+    "account.notify.card.setup": {
+      "by": "ai",
+      "out": "1ff1b929d90e162b1f86f59b40349241b90d85163a4208ba70893f154cf7a60c",
+      "src": "ce0c40816d73190a5c481e0d6afb927e3439a9ea3f516627b4f374e0c21d8067"
+    },
+    "account.notify.card.withSummary": {
+      "by": "ai",
+      "out": "26e522f434d00b02eb419f92a1cd59159f0ef56b001bacaf10af8e766b0c7acb",
+      "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
     "account.notify.defaults": {
       "by": "ai",
@@ -29547,6 +29767,16 @@
       "out": "a8f43083367c543d896ae7115dfe09103f2cde1d681a0bc1dd5ced1fae33e592",
       "src": "965b13c1f513c8254fadd86bddbfa2ef6ae6c37e14805025a57ed4f6faa67560"
     },
+    "admin.prompt.collapse": {
+      "by": "ai",
+      "out": "c8fa433e8f98c2a716d72a23c0246befd0ea7f8ba6dc2c42145b4bfa5288c6d1",
+      "src": "bed45f46a41f6a028b611e54f177ff0cb2882be27fe2d75bb7660c88da770645"
+    },
+    "admin.prompt.collapseAll": {
+      "by": "ai",
+      "out": "6247236d4e36709d84e32b0e2245811d6bc21017e61ff910c9086673ed5e9e77",
+      "src": "25f7b3721119f1ec7fdf7c8c66e779ee9999e2049e569afc3b00a9fbdeece7db"
+    },
     "admin.prompt.defaultChanged": {
       "by": "ai",
       "out": "4ff3f8a34c1336133beb12bf969116018388972bf264293d2bcd97dcd99a1ade",
@@ -29572,10 +29802,25 @@
       "out": "e19b84853c7aca41a758ccde36bc81175ae4e8a3a9d75cf17b830c1142010f61",
       "src": "7117f0807129493fd1f4d6942340d55e82980ef0a82bf629871829666824c7b3"
     },
+    "admin.prompt.editedCount": {
+      "by": "ai",
+      "out": "430ba9ca98c6c87814612ef62af49d3d83b912108bfba4fa1bae97b26b72ea06",
+      "src": "4f411cf4d5efe0a496210976e8513bc9bbaa7c7c3ddb49d07e770c4ed722a5e2"
+    },
     "admin.prompt.empty": {
       "by": "ai",
       "out": "a17dcef78bef0323071144751d96036771c9958bc38550004c05e9a4cf61ed43",
       "src": "08b1693bd48d31f0518d465219ee6fd7cd3178d92ae4b337de5772c6d93f2a34"
+    },
+    "admin.prompt.expand": {
+      "by": "ai",
+      "out": "97ccd832a4aa97e89e7e5c8efad163a6ccdb6e532b1ef91dcbcaac9fe3bb74ec",
+      "src": "ba67328b6f998c146129b0f2f051bb4f2ed2b7e0199476c8bfabadd856e78d44"
+    },
+    "admin.prompt.expandAll": {
+      "by": "ai",
+      "out": "1663b5ed99f633bf9028222443a3c5dc9e1b20344e3b4008f09105e50c61d640",
+      "src": "a3e586be3eff5fb9f768c0846035db47ccf0f0e10727b0f14d829ff3a5913324"
     },
     "admin.prompt.failed": {
       "by": "ai",
@@ -29596,6 +29841,11 @@
       "by": "ai",
       "out": "d2ef1469cb56462212085ce85e1aba169ff7f7d68efb12f0e24740168d25e782",
       "src": "1191dcb13bfef6a170ff7e91d4001ee7c7e638be87d098916fd29624b8a3c72d"
+    },
+    "admin.prompt.parts": {
+      "by": "ai",
+      "out": "cfdb9dd5ca690c565e1254684fcee80258ddfd764bb424056f3429b2cb52b7df",
+      "src": "85e36d469872155821a7b5cca02159f46afefa6bf96f319997b976a6be50ce51"
     },
     "admin.prompt.pieceLabel": {
       "by": "ai",
@@ -30386,6 +30636,11 @@
       "by": "ai",
       "out": "37e2248463bc1e1ebba233c9f1e3490fcd543a0768ab879ec4b87a795955a304",
       "src": "144159517ed76a72e715296d884f93c2b004206ebc5dd5b2c669d1ea5676c208"
+    },
+    "admin.providerError.oauthClientRejected": {
+      "by": "ai",
+      "out": "1c31f38cf6c06c5070c006345802e656d44e75a3ae7ecef83479322e1c062bf6",
+      "src": "69a00f1c775957cbfa1451aa9ad28fc23e32430bf3a6fbf05013007a6e9c35d0"
     },
     "admin.providerStatus.callAudio.noTrunk": {
       "by": "ai",
@@ -45487,6 +45742,101 @@
       "out": "3d0351fcba04282ba0443b25c18495463f79ea48314a28ec8aafe84608623d78",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
+    "settings.summary.hours.needsHours": {
+      "by": "ai",
+      "out": "c9c9212bbc60cafac87f4c571d85f1332d4f8eaf5ee9dc25566391b0d088765b",
+      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
+    },
+    "settings.summary.hours.nextClosed": {
+      "by": "ai",
+      "out": "de017cdc1f4c78925e48c873ccfe1416368fe20ad7c230124541b24316195de2",
+      "src": "898c0fde5f993ad31c5a84ebf3cb604bce795e3b85819ce1bebd6a3c077d10f1"
+    },
+    "settings.summary.hours.nextClosedNamed": {
+      "by": "ai",
+      "out": "93260a955d5c559bc966d37f946f523885b087478d6880f7d5afc5e6a40bba85",
+      "src": "9e564d18fde63c2e0a07b824373349fb30f82aedfa4f18d4dd2757e4ffc07a72"
+    },
+    "settings.summary.hours.nextShorter": {
+      "by": "ai",
+      "out": "0e81f61ab0e304392c949c698176a62cb7f41393f7bae4170a08532da4ae6f41",
+      "src": "98e135bf02ec674ef93bb9835c3e32321bedf3505b8c0db4ef312ca8121bd056"
+    },
+    "settings.summary.hours.none": {
+      "by": "ai",
+      "out": "b24b226b829079356459301c26a30895be4bbd3dac75d88e666948aef8446d93",
+      "src": "1b9c370a694b7bdca360a933c2617e94faa32afa25834c20eda6237997d947c2"
+    },
+    "settings.summary.hours.off": {
+      "by": "ai",
+      "out": "5938454b59e93c16f3c26d9d3006a0fd8e2a4d3242a1253273dd21b38611d319",
+      "src": "76cebf72bd56a7d2159b88b81d65312d89620ba4428484829f4688919e24977c"
+    },
+    "settings.summary.hours.open": {
+      "by": "ai",
+      "out": "321831fc77f0deb64cc35c67c4ce0b19582296ebe3077bc426d4bcadca733246",
+      "src": "b9ad3c516cc66766f1585bf50d931df80eb0f95ef0864edc1e923f6c1a9b45f1"
+    },
+    "settings.summary.hours.outsideGreeting": {
+      "by": "ai",
+      "out": "0af5b5d09c77e9c2961bf3a7f0c2362ba1473e4354d73ab87ecb9fde46626209",
+      "src": "4cfe8d42a65d5868384ed65913f6d36fb21c798d7c94d86d3a515064933745bd"
+    },
+    "settings.summary.hours.vacationOn": {
+      "by": "ai",
+      "out": "9c6f2fb811e624de38b2b19d71b656957358aae3bb74094445efb71b7c283b89",
+      "src": "f3d949e1ce412b666eb3e2ac88d74a7cc60f612f48a2e8d04e92bbbb8e166a04"
+    },
+    "settings.summary.hours.vacationScheduled": {
+      "by": "ai",
+      "out": "b3c734ca71209a502d4ce9298cbabac820daeaccc5c330c9d236e0548d16c3f0",
+      "src": "6ecf3e5193e70db961d2580cf733a3983a42070bd29671023d35dca1d42dc1f7"
+    },
+    "settings.summary.label": {
+      "by": "ai",
+      "out": "ed7bdc67c84b3ed6bbef57fc8e22855e9c63e2b248cbec541c015edeb57fccfa",
+      "src": "8e76a94ac8320d515375e625bef1829238b097ecbd33611b59eeefd4ffefebfb"
+    },
+    "settings.summary.needsYou": {
+      "by": "ai",
+      "out": "bb6e430ce0a7eb8b64bdd8c8f17465eee24955679dedbaeec993ae217b48b341",
+      "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.transfers.allHoursOnly": {
+      "by": "ai",
+      "out": "aa5d72429a10a0b0d8675a53c5b85be0d08a75813af64e4ae9b92c34c9df5484",
+      "src": "f57536bdea0e2e96e0d737eb3e6b0587c2aba53f424ba2900528b48819044235"
+    },
+    "settings.summary.transfers.hoursOnly": {
+      "by": "ai",
+      "out": "277848c8ef832201e08f7fc0d9b6c066fb7b1c2be62c9cfc7207bef87de97a9e",
+      "src": "7217c2d06aaecd334e4060795e573791e3ff6721dcde58393948cd572f46a636"
+    },
+    "settings.summary.transfers.noNumber": {
+      "by": "ai",
+      "out": "674a9ea155944dcd485b02229c795bfd368bbdd0f991aff8342980bae9892200",
+      "src": "38f5bde441e9cc2ab208443a8dd76e0b533a14907b6ed633784fe1187e3c83d5"
+    },
+    "settings.summary.transfers.none": {
+      "by": "ai",
+      "out": "759928e2917b84ed8daa6ad7dad771c3f62b2e6a2d9e7eb774454e33724945c6",
+      "src": "69278e3e034a0195cffc89e8d9fd5585d9d2a1f36ca3d9dc4d3068b38791fd72"
+    },
+    "settings.summary.transfers.otherwise": {
+      "by": "ai",
+      "out": "e8401dcd3d71a9b539db9e4937b7907f7827c7cb284b39c7dfd4b625cdb9c6c8",
+      "src": "a675c5fc460c1e6657f422f6168bd4702c4236277cd56a5ca706f7177f88416f"
+    },
+    "settings.summary.transfers.to": {
+      "by": "ai",
+      "out": "615530d613b37358d56a47686ef7630cdf7d4a6d60f3812a8ce057b7edd12a6e",
+      "src": "953e9f4df78a34b0df5ecebb91e48397c77b7ff21875f5f921749efab5a9c052"
+    },
+    "settings.summary.transfers.vacation": {
+      "by": "ai",
+      "out": "eec9d06c0114d34f7d7795f5e71f00a5aa06f889ac6d62f8833d7e9b4e2daca2",
+      "src": "e2639ca409d28aae42f50352a8fe5883af422aa2ccc3e303e60767d8060ac43c"
+    },
     "settings.testCall.agentLeft": {
       "by": "ai",
       "out": "2c04a17e3acfd14745e100909187cf29aa841d176aa41500a3b09e4173ee5c61",
@@ -49643,6 +49993,51 @@
       "by": "ai",
       "out": "82c574616e8527b513fff38436908b0da387fc2ca5aa12725106373c1572b18c",
       "src": "92a3bf892c27295c09772683fffe4aeaf36a877e5077395af071e482452db311"
+    },
+    "account.notify.card.assigned": {
+      "by": "ai",
+      "out": "db6a72336a530942dcb48a7ae20899659c7018f44296fd345a3bf1df22328d08",
+      "src": "1361a4063eb8d073512c4abea1aa5600e390f5b6b45967dc1b2e2bb8cb985aee"
+    },
+    "account.notify.card.deviceOpen": {
+      "by": "ai",
+      "out": "f3f4560fc5473a85ec1545e93467cf3d099a0cd6156134bbdd1c7dcc55c3deb7",
+      "src": "d23456360fd5ba591dfd199d5c86801b96d45ba3be9662df2b512d04302a9f5d"
+    },
+    "account.notify.card.devicePush": {
+      "by": "ai",
+      "out": "bd7ac66ace9f30422c0d4464e6b13f55c43b259d7ac1ef983ae11af7baa6ccfa",
+      "src": "58b59e03408b28e0f61f3c7dd2217e5e42cd27236ebdd3f3e1e9238af54d6536"
+    },
+    "account.notify.card.email": {
+      "by": "ai",
+      "out": "dee54afb923c7a08f267326fb9def92ae7fdd4f98e83c889e2157db3abb62d06",
+      "src": "25d85b7367f0d73b5940e7cb3ec29f0f1bbbc772c9460152492970717f9329bd"
+    },
+    "account.notify.card.gets": {
+      "by": "ai",
+      "out": "9331ce5835ed0bf953ecf3303de9c75304ea5008df607a362a6ab177f11581d6",
+      "src": "c3c56221650d80fff84a8bfcf05fa61a2db9817b8c7acfbf789cbf0b6b43ab9f"
+    },
+    "account.notify.card.none": {
+      "by": "ai",
+      "out": "61c13511e1c201457d754954b029fce1ff34cb1729856da99c932bba54b8b9e7",
+      "src": "d4d1f2e07670708b6a015aa5599d46a05cb830a4a566d70eede812313fe32ce1"
+    },
+    "account.notify.card.otherDevices": {
+      "by": "ai",
+      "out": "d4af3dcde8950e52aff05cf7e7b8b5901da78019ae738b65fe90912fe791d818",
+      "src": "60fa1e19416fd7c5ad7ca9cdd568cce5473384479c1be2c18be72123be991e57"
+    },
+    "account.notify.card.setup": {
+      "by": "ai",
+      "out": "b07ef222b7a5bb7a96684c031e6c857fa92b4a166625fcfda029d47bf585337e",
+      "src": "ce0c40816d73190a5c481e0d6afb927e3439a9ea3f516627b4f374e0c21d8067"
+    },
+    "account.notify.card.withSummary": {
+      "by": "ai",
+      "out": "23e0bbcb14156703a6d49d3eaeb739b908d4866606c65fbcb6dbcfd6c6ee34f5",
+      "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
     "account.notify.defaults": {
       "by": "ai",
@@ -54014,6 +54409,16 @@
       "out": "2bbe30f2987929c22498e9a1bd8d5381dd5cff1f4bf91e8b542eabaab8ae8cfb",
       "src": "965b13c1f513c8254fadd86bddbfa2ef6ae6c37e14805025a57ed4f6faa67560"
     },
+    "admin.prompt.collapse": {
+      "by": "ai",
+      "out": "1b601407b98eb3964e18352c0ddb4c430435edc5bae904098c16f9e5705a084b",
+      "src": "bed45f46a41f6a028b611e54f177ff0cb2882be27fe2d75bb7660c88da770645"
+    },
+    "admin.prompt.collapseAll": {
+      "by": "ai",
+      "out": "423b2a20c712daf7d1396799ea87858dfa6b188327a320e8b41003b43c680863",
+      "src": "25f7b3721119f1ec7fdf7c8c66e779ee9999e2049e569afc3b00a9fbdeece7db"
+    },
     "admin.prompt.defaultChanged": {
       "by": "ai",
       "out": "756dfa8e5e65f1a22488360328fedff749d5deced4248b2ea7fcce338f01109e",
@@ -54039,10 +54444,25 @@
       "out": "98bc28b4bbdbd5b7b0ea039f47986f4f71f1ceff958b82f73a04a6ec0f7dec6b",
       "src": "7117f0807129493fd1f4d6942340d55e82980ef0a82bf629871829666824c7b3"
     },
+    "admin.prompt.editedCount": {
+      "by": "ai",
+      "out": "57e90b6a705b657a829d6469498e5f5111498011ac65c4beb42934155a5cfa7b",
+      "src": "4f411cf4d5efe0a496210976e8513bc9bbaa7c7c3ddb49d07e770c4ed722a5e2"
+    },
     "admin.prompt.empty": {
       "by": "ai",
       "out": "3ccc174a46e827f68728206f3b258573af02eb94b0f72a0727b0c33555018adb",
       "src": "08b1693bd48d31f0518d465219ee6fd7cd3178d92ae4b337de5772c6d93f2a34"
+    },
+    "admin.prompt.expand": {
+      "by": "ai",
+      "out": "4adbcac3b8b07a97b318e3fb93cb30d4be8fb33d7f718bfe7134dc1e574cac3a",
+      "src": "ba67328b6f998c146129b0f2f051bb4f2ed2b7e0199476c8bfabadd856e78d44"
+    },
+    "admin.prompt.expandAll": {
+      "by": "ai",
+      "out": "17f6e09dbc9399c7b19a150d01c9b7d534642db6b7ad0eff412aca5c34079cb6",
+      "src": "a3e586be3eff5fb9f768c0846035db47ccf0f0e10727b0f14d829ff3a5913324"
     },
     "admin.prompt.failed": {
       "by": "ai",
@@ -54063,6 +54483,11 @@
       "by": "ai",
       "out": "e6d8791c251a5f3156225b084ed0e788c0b0458a1721ebd3e6068247c5a37e68",
       "src": "1191dcb13bfef6a170ff7e91d4001ee7c7e638be87d098916fd29624b8a3c72d"
+    },
+    "admin.prompt.parts": {
+      "by": "ai",
+      "out": "75704aaf0573aaf3b434bfdeaca528d1178aedd29556df8d02db9acee041c6d3",
+      "src": "85e36d469872155821a7b5cca02159f46afefa6bf96f319997b976a6be50ce51"
     },
     "admin.prompt.pieceLabel": {
       "by": "ai",
@@ -54853,6 +55278,11 @@
       "by": "ai",
       "out": "a91cc0710913184a437e3b799083d79c54a7193e0e946535ef17299021393fc1",
       "src": "144159517ed76a72e715296d884f93c2b004206ebc5dd5b2c669d1ea5676c208"
+    },
+    "admin.providerError.oauthClientRejected": {
+      "by": "ai",
+      "out": "b0bba326ab80dc6b7bc6785a157b7d592dbb951b037a365ce1729a5bf4ba2207",
+      "src": "69a00f1c775957cbfa1451aa9ad28fc23e32430bf3a6fbf05013007a6e9c35d0"
     },
     "admin.providerStatus.callAudio.noTrunk": {
       "by": "ai",
@@ -69954,6 +70384,101 @@
       "out": "e1c49818e701237ece65db345a87fe8046b2964dc66c76cea1b6dc9d1a700f7f",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
+    "settings.summary.hours.needsHours": {
+      "by": "ai",
+      "out": "76c053ae7fb2eb4de13e89cfb03d9d78b095e9c951b42b9a328821cd533e214a",
+      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
+    },
+    "settings.summary.hours.nextClosed": {
+      "by": "ai",
+      "out": "2dd157e3afc55a4b123fdf3291b998f02344139c605760e24f2f4895a1b940c4",
+      "src": "898c0fde5f993ad31c5a84ebf3cb604bce795e3b85819ce1bebd6a3c077d10f1"
+    },
+    "settings.summary.hours.nextClosedNamed": {
+      "by": "ai",
+      "out": "38ee13b2dade274ad8dce8b7bc3a42dfa9ebb00e8425217ac8accb34b9d16b27",
+      "src": "9e564d18fde63c2e0a07b824373349fb30f82aedfa4f18d4dd2757e4ffc07a72"
+    },
+    "settings.summary.hours.nextShorter": {
+      "by": "ai",
+      "out": "429abc023af1657e8bd6b3b4a2463abdf7879f1e877a7edfa983e9603143fb10",
+      "src": "98e135bf02ec674ef93bb9835c3e32321bedf3505b8c0db4ef312ca8121bd056"
+    },
+    "settings.summary.hours.none": {
+      "by": "ai",
+      "out": "131cdccf73fb580835c9e0eea3bcf45add44c0af8531c205c4b1867514ef99b9",
+      "src": "1b9c370a694b7bdca360a933c2617e94faa32afa25834c20eda6237997d947c2"
+    },
+    "settings.summary.hours.off": {
+      "by": "ai",
+      "out": "dbcddb322444596cfa54cd798fda4b5b8a84a90633ebe82ea11ea583b7b58697",
+      "src": "76cebf72bd56a7d2159b88b81d65312d89620ba4428484829f4688919e24977c"
+    },
+    "settings.summary.hours.open": {
+      "by": "ai",
+      "out": "ae8aab7dfa177433371ce94234e209f488783a08369f151500ff388fdbaafd40",
+      "src": "b9ad3c516cc66766f1585bf50d931df80eb0f95ef0864edc1e923f6c1a9b45f1"
+    },
+    "settings.summary.hours.outsideGreeting": {
+      "by": "ai",
+      "out": "bf68c35cb0c96b9decf61fe2cc63088992b966a9cd05ad8e91a4e89f604d6afd",
+      "src": "4cfe8d42a65d5868384ed65913f6d36fb21c798d7c94d86d3a515064933745bd"
+    },
+    "settings.summary.hours.vacationOn": {
+      "by": "ai",
+      "out": "052118c9264122ef5278d6bb3ff13e2b978a86a1a0ab8be65bd5952399e35263",
+      "src": "f3d949e1ce412b666eb3e2ac88d74a7cc60f612f48a2e8d04e92bbbb8e166a04"
+    },
+    "settings.summary.hours.vacationScheduled": {
+      "by": "ai",
+      "out": "2c69231fbe04461a308e1774608444b6e91d202514cce55ee7a88bbd46f10be7",
+      "src": "6ecf3e5193e70db961d2580cf733a3983a42070bd29671023d35dca1d42dc1f7"
+    },
+    "settings.summary.label": {
+      "by": "ai",
+      "out": "9d750fae748681ca14e2c3fe0c1ed0a2b56984cf12747e281cf815833de21c9c",
+      "src": "8e76a94ac8320d515375e625bef1829238b097ecbd33611b59eeefd4ffefebfb"
+    },
+    "settings.summary.needsYou": {
+      "by": "ai",
+      "out": "f8569bf0fb131f06a7be30b01d8094b073ad2d353b2c80c05db3348d79907bbb",
+      "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.transfers.allHoursOnly": {
+      "by": "ai",
+      "out": "d5df0b366635879cc669405d2f7693c0668bbb52bb79413a1d999a5a7bd123a3",
+      "src": "f57536bdea0e2e96e0d737eb3e6b0587c2aba53f424ba2900528b48819044235"
+    },
+    "settings.summary.transfers.hoursOnly": {
+      "by": "ai",
+      "out": "cf21787c1129eebd048705ce68a37721065124e453b70294e22fe9fab8e8600c",
+      "src": "7217c2d06aaecd334e4060795e573791e3ff6721dcde58393948cd572f46a636"
+    },
+    "settings.summary.transfers.noNumber": {
+      "by": "ai",
+      "out": "aeef68c0aad84f21a7f703690cee5b55f12f7f700966d72f0fa40a472bfa882e",
+      "src": "38f5bde441e9cc2ab208443a8dd76e0b533a14907b6ed633784fe1187e3c83d5"
+    },
+    "settings.summary.transfers.none": {
+      "by": "ai",
+      "out": "a007503fc36796e3bce9ab42e4e81094756d40b0a21643164c054735bb544388",
+      "src": "69278e3e034a0195cffc89e8d9fd5585d9d2a1f36ca3d9dc4d3068b38791fd72"
+    },
+    "settings.summary.transfers.otherwise": {
+      "by": "ai",
+      "out": "5570aade3968698e8a2ff99f52398286dd8f9216ff671cb4ac8cfd8235f21590",
+      "src": "a675c5fc460c1e6657f422f6168bd4702c4236277cd56a5ca706f7177f88416f"
+    },
+    "settings.summary.transfers.to": {
+      "by": "ai",
+      "out": "0defbca3953299715d2af463ebc447c765c544347dd1334432daa946741a224c",
+      "src": "953e9f4df78a34b0df5ecebb91e48397c77b7ff21875f5f921749efab5a9c052"
+    },
+    "settings.summary.transfers.vacation": {
+      "by": "ai",
+      "out": "14dadf59d5b5ec93d07c1acf1c7bce7f9fc27d08341026f893ee6d509775471d",
+      "src": "e2639ca409d28aae42f50352a8fe5883af422aa2ccc3e303e60767d8060ac43c"
+    },
     "settings.testCall.agentLeft": {
       "by": "ai",
       "out": "52e6e03a7456ce5cca5fecb4146004ec133cf8fcb26b2593d38f7c8a2da22f81",
@@ -74110,6 +74635,51 @@
       "by": "ai",
       "out": "6e2eba43043c6858e3501132c23b7a3f82f247a86269107dde06c3b799d74a18",
       "src": "92a3bf892c27295c09772683fffe4aeaf36a877e5077395af071e482452db311"
+    },
+    "account.notify.card.assigned": {
+      "by": "ai",
+      "out": "6ec58a45e2236af3f296e71d8e5fc78eb9ae69708796b3753f2d5c3cb7aa806e",
+      "src": "1361a4063eb8d073512c4abea1aa5600e390f5b6b45967dc1b2e2bb8cb985aee"
+    },
+    "account.notify.card.deviceOpen": {
+      "by": "ai",
+      "out": "d54521c423dff9ae41eb58efab6fa37b6a1f8322f149534a5e213c4eb8c7a94e",
+      "src": "d23456360fd5ba591dfd199d5c86801b96d45ba3be9662df2b512d04302a9f5d"
+    },
+    "account.notify.card.devicePush": {
+      "by": "ai",
+      "out": "1ef34459336789d36d03b4f9c72348dc7866b9801e88d80eac3b5244a4158c74",
+      "src": "58b59e03408b28e0f61f3c7dd2217e5e42cd27236ebdd3f3e1e9238af54d6536"
+    },
+    "account.notify.card.email": {
+      "by": "ai",
+      "out": "1f30529ece9d4eac4dd37a441ffc7880d18995c5f9cdce241cd5f076dc6c4f05",
+      "src": "25d85b7367f0d73b5940e7cb3ec29f0f1bbbc772c9460152492970717f9329bd"
+    },
+    "account.notify.card.gets": {
+      "by": "ai",
+      "out": "50cfb5819a7fa2aacdf538c829035ffb083503b981bd6b124bef177d11d96841",
+      "src": "c3c56221650d80fff84a8bfcf05fa61a2db9817b8c7acfbf789cbf0b6b43ab9f"
+    },
+    "account.notify.card.none": {
+      "by": "ai",
+      "out": "34e517a55e59fdba956eab84fe53942f4c4b80dc827733778ea0e794a6460205",
+      "src": "d4d1f2e07670708b6a015aa5599d46a05cb830a4a566d70eede812313fe32ce1"
+    },
+    "account.notify.card.otherDevices": {
+      "by": "ai",
+      "out": "aec895675ab8a6bfbdf9fc8b1f7031cfc386a2aa2a669faa5e4b2dcf1c093152",
+      "src": "60fa1e19416fd7c5ad7ca9cdd568cce5473384479c1be2c18be72123be991e57"
+    },
+    "account.notify.card.setup": {
+      "by": "ai",
+      "out": "04645d13bf31f2a6d94e0450e43dd6d806b38f76473096f3673bc6396d0a5bff",
+      "src": "ce0c40816d73190a5c481e0d6afb927e3439a9ea3f516627b4f374e0c21d8067"
+    },
+    "account.notify.card.withSummary": {
+      "by": "ai",
+      "out": "8ef4eae30baeef82b38af2311ab5cfae94d54cc41f23da34d2e6563de6368db4",
+      "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
     "account.notify.defaults": {
       "by": "ai",
@@ -78481,6 +79051,16 @@
       "out": "66c3724c2d0926732a2e054064f75b1e8bd7b9a740a7d2066cdb8fc26ff75971",
       "src": "965b13c1f513c8254fadd86bddbfa2ef6ae6c37e14805025a57ed4f6faa67560"
     },
+    "admin.prompt.collapse": {
+      "by": "ai",
+      "out": "a138d86fb4b31dc65aeadfe97020e5af769acc5636b2cc90392aca42e1cd60a0",
+      "src": "bed45f46a41f6a028b611e54f177ff0cb2882be27fe2d75bb7660c88da770645"
+    },
+    "admin.prompt.collapseAll": {
+      "by": "ai",
+      "out": "f4fe505d548016428b03d2e4222de51d08fb32203ae6391d599fb441b9717fa0",
+      "src": "25f7b3721119f1ec7fdf7c8c66e779ee9999e2049e569afc3b00a9fbdeece7db"
+    },
     "admin.prompt.defaultChanged": {
       "by": "ai",
       "out": "4167ff33d5fdd1198e249086ff236368830a9416b39c6439882ae6ac57ebb3af",
@@ -78506,10 +79086,25 @@
       "out": "92080f1d1c14acb7eef61f95537890fe6837c6b5f264b28f1c0d14d492473679",
       "src": "7117f0807129493fd1f4d6942340d55e82980ef0a82bf629871829666824c7b3"
     },
+    "admin.prompt.editedCount": {
+      "by": "ai",
+      "out": "91504099d76357932612973c496975a3682aaa205979238b5ef80788da72d29e",
+      "src": "4f411cf4d5efe0a496210976e8513bc9bbaa7c7c3ddb49d07e770c4ed722a5e2"
+    },
     "admin.prompt.empty": {
       "by": "ai",
       "out": "d14e276214cce8a145be4a82e4c2a0cf7fbfda95cb93673eabdd5da6f3f39496",
       "src": "08b1693bd48d31f0518d465219ee6fd7cd3178d92ae4b337de5772c6d93f2a34"
+    },
+    "admin.prompt.expand": {
+      "by": "ai",
+      "out": "483ebc27cec7a1807697d6d809435ed658fc156f573a75b51b4541d477e208ed",
+      "src": "ba67328b6f998c146129b0f2f051bb4f2ed2b7e0199476c8bfabadd856e78d44"
+    },
+    "admin.prompt.expandAll": {
+      "by": "ai",
+      "out": "127ced042f4f2c7ccf01700d10b84a2fdada4bda57a68b3e7e24625908d55c3e",
+      "src": "a3e586be3eff5fb9f768c0846035db47ccf0f0e10727b0f14d829ff3a5913324"
     },
     "admin.prompt.failed": {
       "by": "ai",
@@ -78530,6 +79125,11 @@
       "by": "ai",
       "out": "6465db0358e3022b762ed944febba5b34b26b43d8c82dc864835d327cf635b41",
       "src": "1191dcb13bfef6a170ff7e91d4001ee7c7e638be87d098916fd29624b8a3c72d"
+    },
+    "admin.prompt.parts": {
+      "by": "ai",
+      "out": "2e714f302ccd69a2ee89c0d779ccfe766005bb94d1cc673e39bb22a5cd16b6eb",
+      "src": "85e36d469872155821a7b5cca02159f46afefa6bf96f319997b976a6be50ce51"
     },
     "admin.prompt.pieceLabel": {
       "by": "ai",
@@ -79320,6 +79920,11 @@
       "by": "ai",
       "out": "a60b40821e4ae8c7b3919c59db5323ba65fe19e9c00d70adbef8af591667f389",
       "src": "144159517ed76a72e715296d884f93c2b004206ebc5dd5b2c669d1ea5676c208"
+    },
+    "admin.providerError.oauthClientRejected": {
+      "by": "ai",
+      "out": "d29cbfa0f50f08c2d112a0023bbe08a3862f6c28530a0238fa7a3d16afe9ceda",
+      "src": "69a00f1c775957cbfa1451aa9ad28fc23e32430bf3a6fbf05013007a6e9c35d0"
     },
     "admin.providerStatus.callAudio.noTrunk": {
       "by": "ai",
@@ -94421,6 +95026,101 @@
       "out": "14ae753afed2b8741909f9dea4336ef645504ce617e3105587d17a8f96e6753d",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
+    "settings.summary.hours.needsHours": {
+      "by": "ai",
+      "out": "51e852eb396c76ade6ef909798b5640bf0f5ffa26447d286d5527c44dada8c93",
+      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
+    },
+    "settings.summary.hours.nextClosed": {
+      "by": "ai",
+      "out": "3eb5bab0504c21c40cda442c5f9aa98f6720dd932e5b7ffd42a889832c9d28b9",
+      "src": "898c0fde5f993ad31c5a84ebf3cb604bce795e3b85819ce1bebd6a3c077d10f1"
+    },
+    "settings.summary.hours.nextClosedNamed": {
+      "by": "ai",
+      "out": "2eb2c2ae5422f06764aa3da83c629ada6324f54afc3c9639a13aeef9dcb33c88",
+      "src": "9e564d18fde63c2e0a07b824373349fb30f82aedfa4f18d4dd2757e4ffc07a72"
+    },
+    "settings.summary.hours.nextShorter": {
+      "by": "ai",
+      "out": "cc10860b01b00e93acfc1e9e4ae0e2ecac3821adf5e9cfe2029e21882eddd7de",
+      "src": "98e135bf02ec674ef93bb9835c3e32321bedf3505b8c0db4ef312ca8121bd056"
+    },
+    "settings.summary.hours.none": {
+      "by": "ai",
+      "out": "d5ede408f079eb36484015e31788b3ec71243ca81c7fce5e1cf42f8a8fefca8a",
+      "src": "1b9c370a694b7bdca360a933c2617e94faa32afa25834c20eda6237997d947c2"
+    },
+    "settings.summary.hours.off": {
+      "by": "ai",
+      "out": "e90960166bf6c3fa3b5902360050001a870eca11a534fa2f5d29d0ee9ccb9bf9",
+      "src": "76cebf72bd56a7d2159b88b81d65312d89620ba4428484829f4688919e24977c"
+    },
+    "settings.summary.hours.open": {
+      "by": "ai",
+      "out": "7d7a35fbfa1e59367d9d373d46c19be7be56884851da046255b1e8a4ccb8747d",
+      "src": "b9ad3c516cc66766f1585bf50d931df80eb0f95ef0864edc1e923f6c1a9b45f1"
+    },
+    "settings.summary.hours.outsideGreeting": {
+      "by": "ai",
+      "out": "77a53957fd6b6ce86323d43cd29d04da93acb91eebc52de108e5a49fb1e9c928",
+      "src": "4cfe8d42a65d5868384ed65913f6d36fb21c798d7c94d86d3a515064933745bd"
+    },
+    "settings.summary.hours.vacationOn": {
+      "by": "ai",
+      "out": "6dd2f537ed9bfbfc3f69d57a8800f03cb64f7f6fbff12aff630d5a2522906601",
+      "src": "f3d949e1ce412b666eb3e2ac88d74a7cc60f612f48a2e8d04e92bbbb8e166a04"
+    },
+    "settings.summary.hours.vacationScheduled": {
+      "by": "ai",
+      "out": "bad1cc2f515612db8ff6311fe6c8db2a600be1cd5cd6a7a046b890b9d8372c69",
+      "src": "6ecf3e5193e70db961d2580cf733a3983a42070bd29671023d35dca1d42dc1f7"
+    },
+    "settings.summary.label": {
+      "by": "ai",
+      "out": "aaaf449bd4eac9c5629ab332244ab95c20fab59150ca0428592b44e1ffeba446",
+      "src": "8e76a94ac8320d515375e625bef1829238b097ecbd33611b59eeefd4ffefebfb"
+    },
+    "settings.summary.needsYou": {
+      "by": "ai",
+      "out": "568bbd01e3de11e10172f32e5722825d7dc69b7f80f738e35a2ccf15d844761a",
+      "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.transfers.allHoursOnly": {
+      "by": "ai",
+      "out": "1c47e9ccf320e4dae5e924649fab8cac3846e7f243993e58a9c1c78d4dbd1608",
+      "src": "f57536bdea0e2e96e0d737eb3e6b0587c2aba53f424ba2900528b48819044235"
+    },
+    "settings.summary.transfers.hoursOnly": {
+      "by": "ai",
+      "out": "24ebe53c9e838b936be2bab616e1abe37c3ba27f9ea5c81762662efa1ef05038",
+      "src": "7217c2d06aaecd334e4060795e573791e3ff6721dcde58393948cd572f46a636"
+    },
+    "settings.summary.transfers.noNumber": {
+      "by": "ai",
+      "out": "ba543f4ad60f4db0a582e1a18b7f14f1b1c2b386c3ba18e16a2dce32f4f9acd1",
+      "src": "38f5bde441e9cc2ab208443a8dd76e0b533a14907b6ed633784fe1187e3c83d5"
+    },
+    "settings.summary.transfers.none": {
+      "by": "ai",
+      "out": "68a6bb897bf08a14296e8db5a2d258309ca12343070ef375f14c75a61253a78f",
+      "src": "69278e3e034a0195cffc89e8d9fd5585d9d2a1f36ca3d9dc4d3068b38791fd72"
+    },
+    "settings.summary.transfers.otherwise": {
+      "by": "ai",
+      "out": "1458fcd7cd50d4fa306b111163ad0093815fd8b37815b614c9a798c089de2029",
+      "src": "a675c5fc460c1e6657f422f6168bd4702c4236277cd56a5ca706f7177f88416f"
+    },
+    "settings.summary.transfers.to": {
+      "by": "ai",
+      "out": "d6bb23e8b63de39c718e1cb62d32112f09d80b85620fa5cf4c0c4c19921a2abc",
+      "src": "953e9f4df78a34b0df5ecebb91e48397c77b7ff21875f5f921749efab5a9c052"
+    },
+    "settings.summary.transfers.vacation": {
+      "by": "ai",
+      "out": "11e53d7151a9c5ee37c0bac80d87da00a5cda09ac8f214bcf4d795b952d4f12e",
+      "src": "e2639ca409d28aae42f50352a8fe5883af422aa2ccc3e303e60767d8060ac43c"
+    },
     "settings.testCall.agentLeft": {
       "by": "ai",
       "out": "eaa0c16776fa2f8544a4ef87f98c735f00ec1e9ae761adc940d988bce8b4aa8a",
@@ -98577,6 +99277,51 @@
       "by": "ai",
       "out": "55420e88fd0debd356867dab31eb9661e9cc70312ba6e4deb236cc2f928e2e55",
       "src": "92a3bf892c27295c09772683fffe4aeaf36a877e5077395af071e482452db311"
+    },
+    "account.notify.card.assigned": {
+      "by": "ai",
+      "out": "3cf3bfed146380e0b2dbf4b31b59ea25de24c34f9c51e9762fa42e715a46c3d1",
+      "src": "1361a4063eb8d073512c4abea1aa5600e390f5b6b45967dc1b2e2bb8cb985aee"
+    },
+    "account.notify.card.deviceOpen": {
+      "by": "ai",
+      "out": "bedcd564c4afab6de116b58bb7d7ed2a7e9fec238e5995aa63a74197dd9583fc",
+      "src": "d23456360fd5ba591dfd199d5c86801b96d45ba3be9662df2b512d04302a9f5d"
+    },
+    "account.notify.card.devicePush": {
+      "by": "ai",
+      "out": "861ab9828536cc645c0a96224e614800cdda0ca0775ccd0899b7dbed23aac921",
+      "src": "58b59e03408b28e0f61f3c7dd2217e5e42cd27236ebdd3f3e1e9238af54d6536"
+    },
+    "account.notify.card.email": {
+      "by": "ai",
+      "out": "61b328de5f3bf8a005236e0ace57045cac171d941469f2badbf9683887859610",
+      "src": "25d85b7367f0d73b5940e7cb3ec29f0f1bbbc772c9460152492970717f9329bd"
+    },
+    "account.notify.card.gets": {
+      "by": "ai",
+      "out": "c486356d5694f617b620b0b0f312374b682eb4eccb540feb4d66d6899866166b",
+      "src": "c3c56221650d80fff84a8bfcf05fa61a2db9817b8c7acfbf789cbf0b6b43ab9f"
+    },
+    "account.notify.card.none": {
+      "by": "ai",
+      "out": "cc53c07921484c657825bc4a31b3c58bca10c5b257d1276153c74d280568114b",
+      "src": "d4d1f2e07670708b6a015aa5599d46a05cb830a4a566d70eede812313fe32ce1"
+    },
+    "account.notify.card.otherDevices": {
+      "by": "ai",
+      "out": "de600b7829b35aba7e84ebf70a0fe43a83fdb4d454bc3d156b8f9f8bc6e2f200",
+      "src": "60fa1e19416fd7c5ad7ca9cdd568cce5473384479c1be2c18be72123be991e57"
+    },
+    "account.notify.card.setup": {
+      "by": "ai",
+      "out": "9ddf621ce53d3026989345378e17609740828eb36ff4f94fda32e787685c2882",
+      "src": "ce0c40816d73190a5c481e0d6afb927e3439a9ea3f516627b4f374e0c21d8067"
+    },
+    "account.notify.card.withSummary": {
+      "by": "ai",
+      "out": "ba11dc542a89c6af3c5e4014c0da140d0baba947c01151f40b87e418276af922",
+      "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
     "account.notify.defaults": {
       "by": "ai",
@@ -102948,6 +103693,16 @@
       "out": "134f37446dfbf669fa3c74bbfce9bd4e8620ee94bf35f8264b86cd4a691ab41e",
       "src": "965b13c1f513c8254fadd86bddbfa2ef6ae6c37e14805025a57ed4f6faa67560"
     },
+    "admin.prompt.collapse": {
+      "by": "ai",
+      "out": "66356316d1042681905f066959d4a858ab7ace9f037501b6b341a36016893d8c",
+      "src": "bed45f46a41f6a028b611e54f177ff0cb2882be27fe2d75bb7660c88da770645"
+    },
+    "admin.prompt.collapseAll": {
+      "by": "ai",
+      "out": "f4fc6990632834f4ce82552884bd95377c745fd0a61803ef47ccf5582e0f8041",
+      "src": "25f7b3721119f1ec7fdf7c8c66e779ee9999e2049e569afc3b00a9fbdeece7db"
+    },
     "admin.prompt.defaultChanged": {
       "by": "ai",
       "out": "94bd71863b6a7634fdc390090b11d9a1ac299d2358c4d7e774d96050b579e28a",
@@ -102973,10 +103728,25 @@
       "out": "e19b84853c7aca41a758ccde36bc81175ae4e8a3a9d75cf17b830c1142010f61",
       "src": "7117f0807129493fd1f4d6942340d55e82980ef0a82bf629871829666824c7b3"
     },
+    "admin.prompt.editedCount": {
+      "by": "ai",
+      "out": "5f0ffcc9dac9e06022297e57aa9955f22ec260554873bb39ba78116413a47cfc",
+      "src": "4f411cf4d5efe0a496210976e8513bc9bbaa7c7c3ddb49d07e770c4ed722a5e2"
+    },
     "admin.prompt.empty": {
       "by": "ai",
       "out": "4b9926067798ac950b62fcba3c6616d5ba4585f237eb8be24e0c44969bb630da",
       "src": "08b1693bd48d31f0518d465219ee6fd7cd3178d92ae4b337de5772c6d93f2a34"
+    },
+    "admin.prompt.expand": {
+      "by": "ai",
+      "out": "01be6662fd1bc671de126d4efb0d21ad687a6e5b11712759fe32f8177be62e69",
+      "src": "ba67328b6f998c146129b0f2f051bb4f2ed2b7e0199476c8bfabadd856e78d44"
+    },
+    "admin.prompt.expandAll": {
+      "by": "ai",
+      "out": "830863223dd62222cab588aed6544839eca4a4ce176ed2846013965ae5afdb06",
+      "src": "a3e586be3eff5fb9f768c0846035db47ccf0f0e10727b0f14d829ff3a5913324"
     },
     "admin.prompt.failed": {
       "by": "ai",
@@ -102997,6 +103767,11 @@
       "by": "ai",
       "out": "e80823a485ae1a0fabbbd56ec29f95336edebc270a38a84bcce56601ca98feef",
       "src": "1191dcb13bfef6a170ff7e91d4001ee7c7e638be87d098916fd29624b8a3c72d"
+    },
+    "admin.prompt.parts": {
+      "by": "ai",
+      "out": "7130284783f5fa337d73d1311933e0e90a0a6d24f5490b40c0f3bc9f89ac1070",
+      "src": "85e36d469872155821a7b5cca02159f46afefa6bf96f319997b976a6be50ce51"
     },
     "admin.prompt.pieceLabel": {
       "by": "ai",
@@ -103787,6 +104562,11 @@
       "by": "ai",
       "out": "1c37e4f245ec9ae4f385cf533fb24d9f519330b3d4a650c0a282ce4416d2fbb4",
       "src": "144159517ed76a72e715296d884f93c2b004206ebc5dd5b2c669d1ea5676c208"
+    },
+    "admin.providerError.oauthClientRejected": {
+      "by": "ai",
+      "out": "5045e0fe0f99373d3cf46d48e665fad987d8f9bbe77c87eb13c1920f8d7a2580",
+      "src": "69a00f1c775957cbfa1451aa9ad28fc23e32430bf3a6fbf05013007a6e9c35d0"
     },
     "admin.providerStatus.callAudio.noTrunk": {
       "by": "ai",
@@ -118887,6 +119667,101 @@
       "by": "ai",
       "out": "ecd6cc6c2ae90a10fad4f333dee46b1ba8e1269dc63ce836e0f2d67edcaee8e6",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
+    },
+    "settings.summary.hours.needsHours": {
+      "by": "ai",
+      "out": "f21dd21c0db5c4d849f09cb57607db83e3455632e71b0e439e75bf73ee3e975b",
+      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
+    },
+    "settings.summary.hours.nextClosed": {
+      "by": "ai",
+      "out": "fbd2f62425e4bbed0690d0bcbd3539e254fdf4c25f440cfbb69d2acbed02b263",
+      "src": "898c0fde5f993ad31c5a84ebf3cb604bce795e3b85819ce1bebd6a3c077d10f1"
+    },
+    "settings.summary.hours.nextClosedNamed": {
+      "by": "ai",
+      "out": "5082e959b517b20ecd737d65c8d28b2d3e1f498ca6c1932553634b57838125ee",
+      "src": "9e564d18fde63c2e0a07b824373349fb30f82aedfa4f18d4dd2757e4ffc07a72"
+    },
+    "settings.summary.hours.nextShorter": {
+      "by": "ai",
+      "out": "26b3a297fb4e1202a1eb5f536fa5d25ef98077c8a68a65aeedd22d358fce5b7d",
+      "src": "98e135bf02ec674ef93bb9835c3e32321bedf3505b8c0db4ef312ca8121bd056"
+    },
+    "settings.summary.hours.none": {
+      "by": "ai",
+      "out": "53ade38878c0215f8de72a2e17d672cc91fc609b7e8e36f49617f3e790562664",
+      "src": "1b9c370a694b7bdca360a933c2617e94faa32afa25834c20eda6237997d947c2"
+    },
+    "settings.summary.hours.off": {
+      "by": "ai",
+      "out": "a112d1f9d5c2807cb6c86114b59cca7a3980e8c903f5b929d20dc26ef79b43e4",
+      "src": "76cebf72bd56a7d2159b88b81d65312d89620ba4428484829f4688919e24977c"
+    },
+    "settings.summary.hours.open": {
+      "by": "ai",
+      "out": "1e5d7dcc080466e7903ecbeb2c7cc70b2be9265ee16ce0be76fe330ce026d376",
+      "src": "b9ad3c516cc66766f1585bf50d931df80eb0f95ef0864edc1e923f6c1a9b45f1"
+    },
+    "settings.summary.hours.outsideGreeting": {
+      "by": "ai",
+      "out": "bf6d274a59515e3f448d4dd33765ea9bf32b4599178d983e79f8a6f813c505d3",
+      "src": "4cfe8d42a65d5868384ed65913f6d36fb21c798d7c94d86d3a515064933745bd"
+    },
+    "settings.summary.hours.vacationOn": {
+      "by": "ai",
+      "out": "0382d70ae083311a718630d1ef7ae1d7f3b7115bdae3e0f55088dda289dd8931",
+      "src": "f3d949e1ce412b666eb3e2ac88d74a7cc60f612f48a2e8d04e92bbbb8e166a04"
+    },
+    "settings.summary.hours.vacationScheduled": {
+      "by": "ai",
+      "out": "468fdaf488d0d7d80ecb2b7a44c24f96baeae3df9c284cdd52b7b53764405048",
+      "src": "6ecf3e5193e70db961d2580cf733a3983a42070bd29671023d35dca1d42dc1f7"
+    },
+    "settings.summary.label": {
+      "by": "ai",
+      "out": "3c9717bdf2260bc9ef2033566ad1f5d48e398d53fa0a6910c063a5ae9dcdedda",
+      "src": "8e76a94ac8320d515375e625bef1829238b097ecbd33611b59eeefd4ffefebfb"
+    },
+    "settings.summary.needsYou": {
+      "by": "ai",
+      "out": "7c091a838d933cbdc59464c6d6ab43b42ade7608398757e978a1c5962bbb5455",
+      "src": "74b6abdf59690fdffec2059089487cd63658249da5301cbf065e9977518fbd8f"
+    },
+    "settings.summary.transfers.allHoursOnly": {
+      "by": "ai",
+      "out": "5c47a7f00941b8060c5d14b36c9ce1233a51fc245bf839bf0c85443737df019b",
+      "src": "f57536bdea0e2e96e0d737eb3e6b0587c2aba53f424ba2900528b48819044235"
+    },
+    "settings.summary.transfers.hoursOnly": {
+      "by": "ai",
+      "out": "41cea15478400980976a0ce9e472df8c65c47f67d2b1b44eea54193dcb94cfe9",
+      "src": "7217c2d06aaecd334e4060795e573791e3ff6721dcde58393948cd572f46a636"
+    },
+    "settings.summary.transfers.noNumber": {
+      "by": "ai",
+      "out": "c7067413a691a3f035f144b3b63a2e1f623c695d524f7b9bae0dc076362bf245",
+      "src": "38f5bde441e9cc2ab208443a8dd76e0b533a14907b6ed633784fe1187e3c83d5"
+    },
+    "settings.summary.transfers.none": {
+      "by": "ai",
+      "out": "1bbfb7febc95ff3638cd08fc6c9211f498d3b2ee4456b3c06c3b9b3c54c48934",
+      "src": "69278e3e034a0195cffc89e8d9fd5585d9d2a1f36ca3d9dc4d3068b38791fd72"
+    },
+    "settings.summary.transfers.otherwise": {
+      "by": "ai",
+      "out": "392585354ac7551c4183bab838ebb3b2cf247b0956ef76bbefc3f3070316f12f",
+      "src": "a675c5fc460c1e6657f422f6168bd4702c4236277cd56a5ca706f7177f88416f"
+    },
+    "settings.summary.transfers.to": {
+      "by": "ai",
+      "out": "f2f68b1db9227af8aed880bdb6f65e7b1f6bcb15dfb8c1ba3c95c84b0adfc256",
+      "src": "953e9f4df78a34b0df5ecebb91e48397c77b7ff21875f5f921749efab5a9c052"
+    },
+    "settings.summary.transfers.vacation": {
+      "by": "ai",
+      "out": "d742ca912ac66a697a7fc199aafaf50592ae99686c2743dd22d58b5ea679f532",
+      "src": "e2639ca409d28aae42f50352a8fe5883af422aa2ccc3e303e60767d8060ac43c"
     },
     "settings.testCall.agentLeft": {
       "by": "ai",
