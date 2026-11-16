@@ -108,3 +108,65 @@ export function formatSummaries(rows: LevelSummary[]): string {
   )
   return [head, `|${'---|'.repeat(13)}`, ...lines].join('\n')
 }
+
+/** What the callers saw in one level, from their results alone (all a run against another install has). */
+export type CallsSummary = {
+  level: number
+  calls: number
+  answered: number
+  answeredPct: number
+  /** Dial to the first business audio the caller heard, over the answered calls that heard one. */
+  heardGreetingP50: number | null
+  heardGreetingP95: number | null
+  replyP50: number | null
+  replyP95: number | null
+  dialFailed: number
+  /** `index: reason` for every call that failed or heard nothing. */
+  failures: string[]
+}
+
+export function summarizeCalls(level: number, results: CallResult[]): CallsSummary {
+  const answered = results.filter(r => r.answered)
+  const greetings = answered.flatMap(r => (r.heardGreetingMs === null ? [] : [r.heardGreetingMs]))
+  const replies = answered.flatMap(r => r.replyMs)
+  return {
+    level,
+    calls: level,
+    answered: answered.length,
+    // Calls that printed no result (the caller process died) count as not answered.
+    answeredPct: level ? (100 * answered.length) / level : 0,
+    heardGreetingP50: percentile(greetings, 50),
+    heardGreetingP95: percentile(greetings, 95),
+    replyP50: percentile(replies, 50),
+    replyP95: percentile(replies, 95),
+    dialFailed: results.filter(r => r.dialFailed).length,
+    failures: [...results]
+      .sort((a, b) => a.index - b.index)
+      .flatMap(r => (r.error ? [`call ${r.index}: ${r.error}`] : [])),
+  }
+}
+
+/** The run stops after a level below this share of answered calls… */
+export const MIN_ANSWERED_PCT = 90
+/** …or with the greeting heard later than this in the middle (dial to first business audio)… */
+export const MAX_GREETING_P50_MS = 3500
+
+/** …or when any call could not be dialled. Empty: go on to the next level. */
+export function abortReasons(s: CallsSummary): string[] {
+  const reasons: string[] = []
+  if (s.answeredPct < MIN_ANSWERED_PCT)
+    reasons.push(`answered ${s.answeredPct.toFixed(0)} % (${s.answered} of ${s.calls}), below ${MIN_ANSWERED_PCT} %`)
+  if (s.heardGreetingP50 !== null && s.heardGreetingP50 > MAX_GREETING_P50_MS)
+    reasons.push(`greeting p50 ${sec(s.heardGreetingP50)}, above ${sec(MAX_GREETING_P50_MS)}`)
+  if (s.dialFailed) reasons.push(`${s.dialFailed} call(s) could not be dialled`)
+  return reasons
+}
+
+export function formatCallsSummaries(rows: CallsSummary[]): string {
+  const head = '| Calls | Answered | Greeting heard p50 / p95 | Reply p50 / p95 | Dial failed | Problems |'
+  const lines = rows.map(
+    r =>
+      `| ${r.calls} | ${r.answered} (${r.answeredPct.toFixed(0)} %) | ${sec(r.heardGreetingP50)} / ${sec(r.heardGreetingP95)} | ${sec(r.replyP50)} / ${sec(r.replyP95)} | ${r.dialFailed} | ${r.failures.length} |`,
+  )
+  return [head, `|${'---|'.repeat(6)}`, ...lines].join('\n')
+}

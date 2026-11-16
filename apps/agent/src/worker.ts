@@ -698,7 +698,9 @@ async function runAsTestCaller(ctx: JobContext, scenario: TestCallerMetadata) {
     console.error(`test caller cannot call: ${readiness.ready ? 'it talks through speech to text, language model and voice, which are not set up' : readiness.reason}`)
     return ctx.deleteRoom()
   }
-  await runTestCaller(ctx, scenario, stages, readiness.ready && isRealtime(readiness.config) ? readiness.config.realtime : null)
+  // The load test asks for the three stages only: then the caller's voice is never OpenAI's with the realtime key.
+  const openAi = !scenario.threeStage && readiness.ready && isRealtime(readiness.config) ? readiness.config.realtime : null
+  await runTestCaller(ctx, scenario, stages, openAi)
 }
 
 async function runAsOnCallResponder(ctx: JobContext, responder: OnCallResponderMetadata) {

@@ -1,9 +1,12 @@
-// Test calls without a phone: the test caller and the business's assistant in one LiveKit room. Used by call-test
-// and by the load test, which puts the test callers on a worker of their own (`callerAgent`).
+// Test calls: without a phone, the test caller and the business's assistant in one LiveKit room; over the phone, the
+// test caller in its own room dialling the business number. Used by call-test and by the load test, which puts the test
+// callers on a worker of their own (`callerAgent`).
 import { callFindForTest, type CallTestFinding, VOICE_PIPELINE_LABELS, type VoicePipeline } from '@linedesk/actions'
 import { AgentDispatchClient, RoomServiceClient } from 'livekit-server-sdk'
 import type { ApiClient } from '../api-client.ts'
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv } from '../env.ts'
+import { findOutboundTrunk, sipClient } from '../sip-trunks.ts'
+import { CALLEE_IDENTITY } from './caller.ts'
 import { type AgentSetup, LATENCY_ATTRIBUTE, type LatencySample, SETUP_ATTRIBUTE } from './latency.ts'
 import { type Scenario, type ScenarioName, scenarios, type TestCallerMetadata } from './scenarios.ts'
 
@@ -114,3 +117,48 @@ export async function startInRoom(
     `Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone${pipeline ? `, ${VOICE_PIPELINE_LABELS[pipeline].toLowerCase()}` : ''}${realtimeModel ? `, ${realtimeModel}` : ''})…`,
   )
 }
+
+/**
+ * The test caller (on `callerAgent`) in its own room, dialling `to` from `from` over the install's test-caller trunk
+ * (run setup-test-caller once). Resolves when the business picks up; throws when the call cannot be placed or is not
+ * answered within 30 s.
+ */
+export async function startByPhone(
+  { name, room, to, persona }: Pick<RoomCall, 'name' | 'room' | 'to' | 'persona'>,
+  from: string,
+  maxCallSeconds: number,
+  { callerAgent = AGENT_NAME, threeStage = false }: { callerAgent?: string; threeStage?: boolean } = {},
+) {
+  const sip = sipClient()
+  const trunkId = await findOutboundTrunk(sip)
+  if (!trunkId) throw new Error('No outbound trunk "linedesk-test-caller": run setup-test-caller first.')
+  const caller: TestCallerMetadata = {
+    source: 'test-caller',
+    scenario: name,
+    mode: 'phone',
+    ...(persona ? { persona } : {}),
+    ...(threeStage ? { threeStage: true as const } : {}),
+  }
+  await dispatcher().createDispatch(room, callerAgent, { metadata: JSON.stringify(caller) })
+  await sip.createSipParticipant(trunkId, to, room, {
+    participantIdentity: CALLEE_IDENTITY,
+    fromNumber: from,
+    waitUntilAnswered: true,
+    ringingTimeout: 30,
+    maxCallDuration: maxCallSeconds,
+  })
+}
+
+/** Hangs up every test call whose room name starts with `prefix`: deleting the room ends both legs. Returns how many. */
+export async function hangUpRooms(prefix: string) {
+  const rooms = roomService()
+  const open = (await rooms.listRooms()).filter(r => r.name.startsWith(prefix))
+  await Promise.all(open.map(r => rooms.deleteRoom(r.name).catch(() => {})))
+  return open.length
+}
+
+/** Ends one test call: deleting the room hangs up every leg in it. Never throws (the room may be gone already). */
+export const endRoom = (room: string) =>
+  roomService()
+    .deleteRoom(room)
+    .catch(() => {})

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { parseDockerStats, parseRss, percentile, type Sample, summarizeLevel } from './summary.ts'
+import type { CallResult } from './calls.ts'
+import {
+  abortReasons,
+  parseDockerStats,
+  parseRss,
+  percentile,
+  type Sample,
+  summarizeCalls,
+  summarizeLevel,
+} from './summary.ts'
 
 describe('load test summary', () => {
   it('reads docker stats in any unit', () => {
@@ -26,13 +35,17 @@ describe('load test summary', () => {
       cpuCores,
       processMb,
     })
-    const call = (index: number, answered: boolean) => ({
+    const call = (index: number, answered: boolean): CallResult => ({
       index,
       room: `r${index}`,
+      to: '+15035550100',
       answered,
       greetingMs: answered ? 1200 + index : null,
+      heardGreetingMs: null,
+      pickupMs: null,
       replyMs: [800],
       durationMs: 60_000,
+      dialFailed: false,
     })
     const row = summarizeLevel(
       3,
@@ -57,5 +70,79 @@ describe('load test summary', () => {
       greetingMax: 1201,
       replyP50: 800,
     })
+  })
+
+  const phoneCall = (index: number, over: Partial<CallResult> = {}): CallResult => ({
+    index,
+    room: `load-test-abc-0-${index}`,
+    to: '+15035550100',
+    answered: true,
+    greetingMs: null,
+    heardGreetingMs: 2000 + index * 100,
+    pickupMs: 900,
+    replyMs: [700 + index, 900],
+    durationMs: 60_000,
+    dialFailed: false,
+    ...over,
+  })
+
+  it('sums up what the callers saw in a level', () => {
+    const results = [
+      phoneCall(0),
+      phoneCall(1),
+      phoneCall(2, { heardGreetingMs: null, replyMs: [], error: 'no business audio heard' }),
+      phoneCall(3, {
+        answered: false,
+        heardGreetingMs: null,
+        pickupMs: null,
+        replyMs: [],
+        dialFailed: true,
+        error: 'dial: 486 busy',
+      }),
+    ]
+    expect(summarizeCalls(4, results)).toEqual({
+      level: 4,
+      calls: 4,
+      answered: 3,
+      answeredPct: 75,
+      heardGreetingP50: 2000,
+      heardGreetingP95: 2100,
+      replyP50: 701,
+      replyP95: 900,
+      dialFailed: 1,
+      failures: ['call 2: no business audio heard', 'call 3: dial: 486 busy'],
+    })
+  })
+
+  it('counts calls that printed no result as not answered', () => {
+    expect(summarizeCalls(4, [phoneCall(0), phoneCall(1)]).answeredPct).toBe(50)
+  })
+
+  it('goes on after a good level, stops after a bad one and says why', () => {
+    const good = summarizeCalls(
+      10,
+      Array.from({ length: 10 }, (_, i) => phoneCall(i)),
+    )
+    expect(abortReasons(good)).toEqual([])
+    // 9 of 10 answered is exactly 90 %: still fine.
+    const nine = summarizeCalls(
+      10,
+      Array.from({ length: 9 }, (_, i) => phoneCall(i)),
+    )
+    expect(abortReasons(nine)).toEqual([])
+    const few = summarizeCalls(
+      10,
+      Array.from({ length: 8 }, (_, i) => phoneCall(i)),
+    )
+    expect(abortReasons(few)).toEqual(['answered 80 % (8 of 10), below 90 %'])
+    const slow = summarizeCalls(2, [phoneCall(0, { heardGreetingMs: 3600 }), phoneCall(1, { heardGreetingMs: 3700 })])
+    expect(abortReasons(slow)).toEqual(['greeting p50 3.60 s, above 3.50 s'])
+    const atLimit = summarizeCalls(1, [phoneCall(0, { heardGreetingMs: 3500 })])
+    expect(abortReasons(atLimit)).toEqual([])
+    const results = [
+      ...Array.from({ length: 19 }, (_, i) => phoneCall(i)),
+      phoneCall(19, { answered: false, dialFailed: true, error: 'dial: x' }),
+    ]
+    expect(abortReasons(summarizeCalls(20, results))).toEqual(['1 call(s) could not be dialled'])
   })
 })

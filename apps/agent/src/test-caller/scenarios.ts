@@ -389,11 +389,16 @@ export type TestCallerMetadata = {
   mode: CallTestMode
   /** Who the caller is instead of the scenario's persona (call-test --persona); the scenario's checks stay. */
   persona?: string
+  /**
+   * The caller speaks with the three stages' voice only, never OpenAI's speech model with the realtime key (load test
+   * over the phone: no OpenAI realtime anywhere in a load or live test, decision of 2026-11-16).
+   */
+  threeStage?: true
 }
 
 export function parseTestCallerMetadata(metadata: string): TestCallerMetadata | null {
   try {
-    const parsed = JSON.parse(metadata) as { source?: unknown; scenario?: unknown; mode?: unknown; persona?: unknown }
+    const parsed = JSON.parse(metadata) as { source?: unknown; scenario?: unknown; mode?: unknown; persona?: unknown; threeStage?: unknown }
     if (parsed.source !== 'test-caller' || typeof parsed.scenario !== 'string' || !isScenario(parsed.scenario))
       return null
     const persona = typeof parsed.persona === 'string' && parsed.persona.trim() ? parsed.persona.trim() : undefined
@@ -402,6 +407,7 @@ export function parseTestCallerMetadata(metadata: string): TestCallerMetadata | 
       scenario: parsed.scenario,
       mode: parsed.mode === 'room' ? 'room' : 'phone',
       ...(persona ? { persona } : {}),
+      ...(parsed.threeStage === true ? { threeStage: true as const } : {}),
     }
   } catch {
     return null

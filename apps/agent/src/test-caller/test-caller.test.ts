@@ -28,6 +28,8 @@ test('the job metadata picks a known scenario and mode; nothing else turns an ag
   expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"silence"}')?.mode).toBe('phone')
   expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"booking","mode":"room","persona":" You are Test Linedesk. "}')?.persona).toBe('You are Test Linedesk.')
   expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"booking","persona":""}')).not.toHaveProperty('persona')
+  expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"booking","threeStage":true}')?.threeStage).toBe(true)
+  expect(parseTestCallerMetadata('{"source":"test-caller","scenario":"booking","threeStage":"yes"}')).not.toHaveProperty('threeStage')
   for (const metadata of ['', 'nope', '{"source":"test","workspaceId":"ws_1"}', '{"source":"test-caller","scenario":"rob-a-bank"}']) {
     expect(parseTestCallerMetadata(metadata)).toBeNull()
   }

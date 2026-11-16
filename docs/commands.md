@@ -77,11 +77,27 @@ Provision a business without the web app: `node apps/api/src/workspace-create.ts
 
 ## Load test
 
-What calls at once cost the agent; a dev machine or test server, never production.
+What calls at once cost the agent (on a dev machine or test server), or how another install's numbers hold up under N calls at once. The business side never runs on production; production can only be the number called (`--remote`).
 
-`pnpm --filter @linedesk/agent load-test [--calls 1,5,10] [--to <business number>] [--scenario <name>] [--pipeline realtime|three_stage] [--memory 4g]`
+`pnpm --filter @linedesk/agent load-test [--calls 1,5,10] [--to <number>[,<number>…]] [--scenario <name>] [--spread 2] [--pipeline realtime|three_stage] [--memory 4g] [--cpuset 1] [--caller-memory 3g] [--caller-cpuset 6-13] [--phone] [--remote] [--project linedesk] [--no-abort]`
 
-Starts a second agent container that plays the test callers (`AGENT_NAME=linedesk-load-caller`, so only the business side is measured), raises the agent's memory limit for the test and puts it back, then per level starts N test calls without a phone (`apps/agent/src/load-test/calls.ts`) while sampling the agent container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Every call is billed on both sides. Use `--pipeline three_stage`; `realtime` only when Tim asks for it (see Call test).
+Starts a second agent container that plays the test callers (`linedesk-load-caller`, `AGENT_NAME=linedesk-load-caller`, so the install's own business worker is never a caller), then per level starts N test calls (`apps/agent/src/load-test/calls.ts` in that container) and waits 45 s between levels.
+
+- Default (no phone): both agents in one room. Raises the local agent's limits for the test (`--memory`, `--cpuset`) and puts them back, samples its container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Use `--pipeline three_stage`; `realtime` only when Tim asks for it (see Call test).
+- `--phone`: real calls over the install's test-caller trunk (as `call-test --phone`): from `CALL_TEST_FROM` to `--to` (default `CALL_TEST_TO`), the numbers in turn; the calls of a level start spread over `--spread` seconds. The callers use the three stages only, never OpenAI's realtime voice; the business answers with its assistant's own setting (`--pipeline` is refused). Transfer scenarios are refused.
+- `--remote` (implies `--phone`, needs `--to`): the numbers belong to another install. The local business agent is not changed, restarted or sampled (`--memory`, `--cpuset`, `--container` are refused); only the caller container is started and removed, with `--caller-memory` and `--caller-cpuset`. `--project`: the compose project to start it in.
+- Output: one `LOADTEST {json}` line per call (`level`, `index`, `to`, `answered`, `heardGreetingMs` from the dial to the first business audio the caller heard, `pickupMs`, `replyMs` as the caller heard them, `dialFailed`, `error`, `durationMs`), a summary per level (answered %, greeting heard p50/p95, reply p50/p95, failures) and a table of all levels at the end.
+- The run stops after a level when fewer than 90 % were answered, the greeting heard p50 is over 3.5 s or any call could not be dialled (or was not answered within 30 s); it prints why and exits 1. `--no-abort` goes on.
+- Kill switch: Ctrl-C hangs up every call of the run (deletes its rooms: both legs end) and removes the caller container. Hard stop: `docker rm -f linedesk-load-caller`; a call already dialled then ends when the other install's assistant hangs up.
+
+Capacity check against production, run on staging (the callers on staging, production only the number called):
+
+`pnpm --filter @linedesk/agent load-test --remote --to <prod number 1>,<prod number 2>,<prod number 3>,<prod number 4> --calls 1,5,10,20 --caller-memory 6g --caller-cpuset <cores>`
+
+- A workspace answers at most 5 phone calls at once (`LIVE_CALLS_PER_WORKSPACE`); the others hear the busy line, which counts as answered here (a short `durationMs`). For 20 real calls give 4 or more numbers of different workspaces.
+- Production's test workspaces must have their assistant on the three stages (Settings › Assistant › Answered by).
+- Cost: every call is billed on both sides (speech, model and voice on staging for the caller, on production for the assistant: about a cent a minute per side) plus Telnyx for both legs (staging's outbound, production's inbound). 1+5+10+20 calls of up to 3.5 minutes are 36 calls.
+- The test-caller trunk places all calls from the one `CALL_TEST_FROM` number: Telnyx's channel limit of the staging account must allow 20 at once.
 
 ## Self-host stack
 

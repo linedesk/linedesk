@@ -23,10 +23,9 @@ import {
 } from '@linedesk/actions'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { isRealtimeModelId } from './call-session.ts'
-import { AGENT_NAME, requireEnv, runScript } from './env.ts'
-import { CALLEE_IDENTITY } from './test-caller/caller.ts'
+import { requireEnv, runScript } from './env.ts'
 import { evaluateCall, formatCallerLatency, formatReport, greetingCheck } from './test-caller/report.ts'
-import { dispatcher, latencyReader, type RoomCall, startInRoom, waitForCallEnd } from './test-caller/room.ts'
+import { latencyReader, type RoomCall, startByPhone, startInRoom, waitForCallEnd } from './test-caller/room.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
 import {
   callTestCapSeconds,
@@ -37,9 +36,7 @@ import {
   scenarioNames,
   scenarios,
   type CallTestMode,
-  type TestCallerMetadata,
 } from './test-caller/scenarios.ts'
-import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
 
 /** How long to wait after hang-up for the summary and finish to land. */
 const RESULT_WAIT_MS = 90_000
@@ -48,29 +45,6 @@ type Run = RoomCall & { mode: CallTestMode }
 
 const isPipeline = (value: string | undefined): value is VoicePipeline =>
   (VOICE_PIPELINES as readonly (string | undefined)[]).includes(value)
-
-/** The test caller in its own room, dialling the business number over Telnyx. */
-async function startByPhone({ name, room, to, persona }: Run, from: string, maxCallSeconds: number) {
-  const sip = sipClient()
-  const trunkId = await findOutboundTrunk(sip)
-  if (!trunkId) throw new Error('No outbound trunk "linedesk-test-caller": run setup-test-caller first.')
-  const caller: TestCallerMetadata = {
-    source: 'test-caller',
-    scenario: name,
-    mode: 'phone',
-    ...(persona ? { persona } : {}),
-  }
-  await dispatcher().createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(caller) })
-  console.log(`Calling ${to} from ${from} (scenario ${name}, room ${room})…`)
-  await sip.createSipParticipant(trunkId, to, room, {
-    participantIdentity: CALLEE_IDENTITY,
-    fromNumber: from,
-    waitUntilAnswered: true,
-    ringingTimeout: 30,
-    maxCallDuration: maxCallSeconds,
-  })
-  console.log('Answered.')
-}
 
 async function main() {
   const args = process.argv.slice(2)
@@ -116,7 +90,11 @@ async function main() {
     realtimeModel,
   }
 
-  if (from) await startByPhone(run, from, maxCallSeconds)
+  if (from) {
+    console.log(`Calling ${to} from ${from} (scenario ${name}, room ${run.room})…`)
+    await startByPhone(run, from, maxCallSeconds)
+    console.log('Answered.')
+  }
   else await startInRoom(run)
   console.log(`The conversation runs for up to ${Math.round(maxCallSeconds / 60)} minutes; waiting for the call to finish…`)
 
