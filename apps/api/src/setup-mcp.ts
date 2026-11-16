@@ -22,7 +22,7 @@ import {
   abroadWarning,
   type ActionDef,
   actions,
-  callAudioGuide,
+  callAudioGuideIn,
   canBuyNumbersIn,
   type DialCode,
   type ForwardingGuide,
@@ -39,14 +39,17 @@ import {
   moneyCategories,
   NUMBER_BUY_COUNTRIES,
   oneKey,
+  oneKeyIn,
   onboardingSteps,
   pipelineFor,
   pipelinesAllowed,
   rolePermissions,
   type ProviderCategory,
   type ProviderName,
-  providerCategories,
+  categoryNames,
+  providerCategoryLabel,
   providerGroupIds,
+  groupText,
   providerGroups,
   providerSpec,
   REALTIME_VOICE_IDS,
@@ -417,8 +420,8 @@ export const devNumberLine = () =>
       ]
 const callAudioLines = () => [
   'LiveKit and its SIP bridge carry the call audio; they run on this server.',
-  ...callAudioGuide.steps,
-  `Cost: ${callAudioGuide.cost}`,
+  ...callAudioGuideIn().steps,
+  `Cost: ${callAudioGuideIn().cost}`,
   'If you cannot run commands on the server, tell the admin these steps.',
 ]
 
@@ -448,7 +451,7 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
         group('answering'),
         [
           'Two ways; ask the admin which they prefer.',
-          `Simplest, one account: OpenAI (${oneKey.url}). ${oneKey.steps.slice(0, 2).join(' ')} Ask the admin to paste the key to you, then provider_connectOneKey { apiKey }. ${oneKey.cost} ${oneKey.caveat}`,
+          `Simplest, one account: OpenAI (${oneKey.url}). ${oneKeyIn().steps.slice(0, 2).join(' ')} Ask the admin to paste the key to you, then provider_connectOneKey { apiKey }. ${oneKeyIn().cost} ${oneKeyIn().caveat}`,
           'Best voice and every feature, three accounts (speech to text, language model, voice):',
           ...guideLines(recommendedProviders.stt),
           ...guideLines(recommendedProviders.llm),
@@ -626,8 +629,7 @@ function optionalSteps(groups: GroupStatus[]) {
       const state = group ? GROUP_STATE[group.state] : 'todo'
       return {
         id: spec.id,
-        label: spec.label,
-        why: spec.why,
+        ...groupText(spec.id),
         state: group?.state === 'off' ? 'off' : state,
         ...(group?.state === 'works' ? {} : { how: how[spec.id] ?? [] }),
       }
@@ -977,7 +979,7 @@ function registerTools(server: McpServer, actor: Actor) {
         'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business, apps; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
       inputSchema: z.object({
         category: z
-          .enum(Object.keys(providerCategories).filter(c => !moneyCategories.includes(c as ProviderCategory)) as [ProviderCategory])
+          .enum([...categoryNames].filter(c => !moneyCategories.includes(c as ProviderCategory)) as [ProviderCategory])
           .optional(),
       }),
       annotations: read,
@@ -1008,7 +1010,7 @@ function registerTools(server: McpServer, actor: Actor) {
               ...(spec.category === 'sign_in' || spec.category === 'apps' ? { redirect_uris: redirectUris(p.provider) } : {}),
             }
           })
-        return answer({ categories: providerCategories, providers: rows })
+        return answer({ categories: Object.fromEntries(categoryNames.map(c => [c, providerCategoryLabel(c)])), providers: rows })
       }),
   )
   if (serverTools) server.registerTool(

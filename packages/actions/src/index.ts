@@ -44,6 +44,7 @@ import * as userAvatar from './user-avatar.ts'
 import * as workspaceCreation from './workspace-creation.ts'
 
 export * from './define.ts'
+export * from './words.ts'
 export * from './agent-token.ts'
 export * from './area-codes.ts'
 export * from './client.ts'

@@ -129,6 +129,8 @@ export interface Formatters {
    * language, for narrow columns; hours only when there are any, "1:03:01").
    */
   duration(seconds: number, style?: 'long' | 'short' | 'narrow' | 'digital'): string
+  /** A country or region by its code: "DE" → "Germany" in en, "Deutschland" in de; the code when unknown. */
+  region(code: string): string
 }
 
 const intlCache = new Map<string, unknown>()
@@ -166,6 +168,13 @@ export function createFormatters(active: ActiveLocale): Formatters {
     },
     list: (items, options = { type: 'conjunction' }) =>
       cached('lf', locale, options, () => new Intl.ListFormat(locale, options)).format(items),
+    region: code => {
+      try {
+        return cached('rn', locale, undefined, () => new Intl.DisplayNames(locale, { type: 'region' })).of(code) ?? code
+      } catch {
+        return code
+      }
+    },
     duration: (seconds, style = 'short') => {
       const total = Math.max(0, Math.round(seconds))
       const hours = Math.floor(total / 3600)

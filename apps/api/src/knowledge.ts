@@ -1,7 +1,7 @@
 // Knowledge (docs/architecture.md, Knowledge): "Write with help", which drafts the assistant's About text from
 // the owner's words and the business's website. The About text is a field of the assistant (assistant.update);
 // the questions the assistant could not answer are in knowledge-questions.ts.
-import { type KnowledgeImportData, providerFailureReasonLabels } from '@linedesk/actions'
+import { type KnowledgeImportData, providerFailureReasonLabel } from '@linedesk/actions'
 import { assistantIn } from './assistants.ts'
 import { db } from './db.ts'
 import { ChatRequestError, evaluationModel } from './evaluations.ts'
@@ -46,7 +46,7 @@ async function importProposal(input: ImportInput): Promise<KnowledgeImportData> 
     // A provider failure (quota, key) is recorded for the admins (evaluations.ts); the member hears it is not a timeout.
     if (e instanceof ChatRequestError && e.status >= 300)
       throw new ImportRefused(
-        `The language model is not working right now (${providerFailureReasonLabels[reasonOf(e.status, e.body)].toLowerCase()}). An admin can see it under Server admin › Providers.`,
+        `The language model is not working right now (${providerFailureReasonLabel(reasonOf(e.status, e.body)).toLowerCase()}). An admin can see it under Server admin › Providers.`,
       )
     throw new ImportRefused('The language model did not answer in time. Try again.')
   }

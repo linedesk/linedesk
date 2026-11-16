@@ -265,21 +265,24 @@ export function memberAddedByAdminEmail(
   })
 }
 
-/** "November 14, 2026 at 9:05 AM PST" in the reader's language and the workspace's zone (UTC when unknown). */
+/**
+ * "November 14, 2026 at 9:05 AM PST" in the reader's language and the workspace's zone (UTC when unknown). Date and
+ * time are formatted apart and joined by the catalog (email.dateAtTime): how ICU joins them in one format changes
+ * between Node releases (Spanish "2026, 9:05" or "2026 a las 9:05"), the email must not.
+ */
 export function deletedWhen(at: string, timeZone: string | null | undefined, locale?: EmailLocale): string {
-  const { format } = getT(locale)
-  const options = {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'short',
-  } as const
+  const { t, format } = getT(locale)
+  const write = (zone: string) => {
+    const date = new Date(at)
+    return t('email.dateAtTime', {
+      date: format.dateTime(date, { month: 'long', day: 'numeric', year: 'numeric', timeZone: zone }),
+      time: format.dateTime(date, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: zone }),
+    })
+  }
   try {
-    return format.dateTime(new Date(at), { ...options, timeZone: timeZone || 'UTC' })
+    return write(timeZone || 'UTC')
   } catch {
-    return format.dateTime(new Date(at), { ...options, timeZone: 'UTC' })
+    return write('UTC')
   }
 }
 

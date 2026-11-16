@@ -54,6 +54,8 @@ import {
 } from './scan.ts'
 
 export const BASELINE_FILE = `${PACKAGE_DIR}hardcoded-baseline.json`
+/** The server-side ratchet: user-visible English left per file of SERVER_TEXT_ROOTS ("Server-side text"). */
+export const SERVER_BASELINE_FILE = `${PACKAGE_DIR}server-text-baseline.json`
 
 export interface Report {
   errors: string[]
@@ -194,6 +196,34 @@ export function checkFormatting(uses: FormattingUse[], report: Report) {
       )
 }
 
+/**
+ * Server-side text the web app shows (packages/actions, apps/api): no file above `server-text-baseline.json`, and a
+ * file it does not list (a new one, or one moved to keys) has none. Unlike the web app's, this baseline is not empty
+ * yet: it only goes down (docs/translations.md, "Server-side text").
+ */
+export function checkServerText(
+  counts: Record<string, number>,
+  baseline: Record<string, number>,
+  report: Report,
+  hits: Record<string, Hardcoded[]> = {},
+): { lowered: string[] } {
+  const lowered: string[] = []
+  for (const [file, count] of Object.entries(counts)) {
+    const allowed = baseline[file] ?? 0
+    if (count > allowed)
+      report.errors.push(
+        `${file}: ${count} hardcoded user-visible strings on the server, server-text-baseline.json allows ${allowed}. ` +
+          'Add the text to packages/i18n/locales/en/ and hand the web app a key and params, or write it with the ' +
+          "reader's words (Words, getT(locale)); the setup MCP and the CLI get the same key in English " +
+          '(docs/translations.md, "Server-side text")' +
+          (hits[file] ?? []).map(hit => `\n    ${file}:${hit.line}: ${JSON.stringify(hit.text)}`).join(''),
+      )
+  }
+  for (const [file, allowed] of Object.entries(baseline))
+    if ((counts[file] ?? 0) < allowed) lowered.push(`${file}: ${allowed} → ${counts[file] ?? 0}`)
+  return { lowered }
+}
+
 /** The size of the server-side work: strings per root, and every one of them for `--server-text`. */
 export function serverTextSummary(hits: Record<string, Hardcoded[]>, list: boolean): string {
   const lines: string[] = []
@@ -203,7 +233,7 @@ export function serverTextSummary(hits: Record<string, Hardcoded[]>, list: boole
     return `${root} ${files.reduce((sum, [, h]) => sum + h.length, 0)} in ${files.length} files`
   })
   lines.push(
-    `Server-side text (reported, not yet checked): ${total} user-visible strings (${perRoot.join(', ')}). ` +
+    `Server-side text (checked against server-text-baseline.json): ${total} user-visible strings (${perRoot.join(', ')}). ` +
       (list ? '' : 'pnpm i18n:check --server-text lists them.'),
   )
   if (list)
@@ -251,11 +281,20 @@ function main() {
     report,
   )
   const ignores = webFiles.reduce((sum, file) => sum + ignoreComments(readFileSync(`${REPO_DIR}${file}`, 'utf8')), 0)
+  const serverHits = hardcodedIn(SERVER_TEXT_ROOTS, ignore)
+  const serverCounts = Object.fromEntries(Object.entries(serverHits).map(([file, h]) => [file, h.length]))
   if (args.has('--update-baseline')) {
     writeJson(BASELINE_FILE, counts)
     console.log(
       `hardcoded-baseline.json: ${Object.values(counts).reduce((a, b) => a + b, 0)} strings in ${Object.keys(counts).length} files`,
     )
+    // Only down: a file above its count stays an error, so this never makes room for new English on the server.
+    const serverBaseline = readJson<Record<string, number>>(SERVER_BASELINE_FILE, {})
+    const lowered = Object.fromEntries(
+      Object.entries(serverCounts).map(([file, count]) => [file, Math.min(count, serverBaseline[file] ?? 0)]),
+    )
+    writeJson(SERVER_BASELINE_FILE, Object.fromEntries(Object.entries(lowered).filter(([, count]) => count > 0)))
+    checkServerText(serverCounts, serverBaseline, report, serverHits)
   } else {
     const baseline = readJson<Record<string, number>>(BASELINE_FILE, {})
     if (complete) checkBaselineEmpty(baseline, report)
@@ -277,7 +316,19 @@ function main() {
     0,
   )
 
-  console.log(serverTextSummary(hardcodedIn(SERVER_TEXT_ROOTS, ignore), args.has('--server-text')))
+  if (!args.has('--update-baseline')) {
+    const { lowered } = checkServerText(
+      serverCounts,
+      readJson<Record<string, number>>(SERVER_BASELINE_FILE, {}),
+      report,
+      serverHits,
+    )
+    if (lowered.length)
+      console.log(
+        `Fewer server-side strings than server-text-baseline.json (run pnpm i18n:check --update-baseline):\n  ${lowered.join('\n  ')}`,
+      )
+  }
+  console.log(serverTextSummary(serverHits, args.has('--server-text')))
   console.log(`// i18n-ignore comments in the web app: ${ignores}, in emails and notifications: ${messageIgnores}`)
 
   for (const warning of report.warnings) console.warn(`warning: ${warning}`)

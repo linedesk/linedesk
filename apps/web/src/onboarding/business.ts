@@ -189,7 +189,8 @@ export function draftProblems(draft: ProfileDraft): Partial<Record<'name' | 'pho
   if (name) problems.name = name
   // The phone field's value is E.164 as far as typed: an unfinished number says so for its country.
   const phone =
-    (draft.phone.trim().startsWith('+') ? phoneNumberProblem(draft.phone) : null) ?? businessPhoneProblem(draft.phone)
+    (draft.phone.trim().startsWith('+') ? phoneNumberProblem(draft.phone, i18n()) : null) ??
+    businessPhoneProblem(draft.phone)
   if (phone) problems.phone = phone
   const website = businessWebsiteProblem(draft.website)
   if (website) problems.website = website

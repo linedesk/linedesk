@@ -10,6 +10,7 @@
 // Reading the checklist never calls a provider.
 import { createHmac, randomBytes } from 'node:crypto'
 import {
+  english,
   isMultiCategory,
   type ProviderFact,
   type ProviderName,
@@ -20,6 +21,7 @@ import {
   type StoredTest,
   statusGroups,
   type VoicePipeline,
+  type Words,
 } from '@linedesk/actions'
 import { assistants, provider_settings, provider_tests, type Tx } from '@linedesk/db'
 import { eq, isNull, max } from 'drizzle-orm'
@@ -101,6 +103,8 @@ export const isSetUp = (provider: ProviderName, config: ProviderConfig) =>
 type Options = {
   env?: Env
   livekit?: () => Promise<LivekitStatus>
+  /** The reader's words; English for the MCP and the CLI. */
+  words?: Words
 }
 
 /**
@@ -169,12 +173,12 @@ export function storedTests(facts: readonly ProviderFact[]) {
 }
 
 /** The dev carrier's line; a carrier whose keys are set (in the app or in env) waits for TELEPHONY_PROVIDER to change. */
-function devCarrierMessage(facts: readonly ProviderFact[]) {
-  const base = 'Development carrier (TELEPHONY_PROVIDER=dev): numbers and calls are simulated'
+function devCarrierMessage(facts: readonly ProviderFact[], words: Words) {
+  const setting = 'TELEPHONY_PROVIDER=dev'
   const withKeys = facts.find(f => f.configured && providerSpec(f.provider).category === 'telephony')
   return withKeys
-    ? `${base}. ${providerSpec(withKeys.provider).label} keys are set: remove TELEPHONY_PROVIDER=dev to use them`
-    : base
+    ? words.t('admin.provider.devCarrierKeys', { setting, provider: providerSpec(withKeys.provider).label })
+    : words.t('admin.provider.devCarrierLine', { setting })
 }
 
 /**
@@ -193,7 +197,12 @@ async function assistantPipelines(tx: Tx): Promise<(VoicePipeline | null)[]> {
  * how each assistant answers, whether email codes go to the log, the development carrier's line, and whether saved
  * sign-in settings wait for a restart.
  */
-export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: readonly ProviderFact[]) {
+export async function statusContext(
+  tx: Tx,
+  env: Env = serverEnv(),
+  facts?: readonly ProviderFact[],
+  words: Words = english,
+) {
   const providers = facts ?? (await providerFacts(tx, env))
   const telephonyInUse = providers.some(
     f => f.active && f.configured && providerSpec(f.provider).category === 'telephony',
@@ -202,7 +211,7 @@ export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: read
   return {
     assistantPipelines: pipelines,
     emailToLog: emailDelivery(env) === 'log',
-    devCarrier: !telephonyInUse && env.TELEPHONY_PROVIDER === 'dev' ? devCarrierMessage(providers) : null,
+    devCarrier: !telephonyInUse && env.TELEPHONY_PROVIDER === 'dev' ? devCarrierMessage(providers, words) : null,
     signInPending: restart.pending,
   }
 }
@@ -210,13 +219,17 @@ export async function statusContext(tx: Tx, env: Env = serverEnv(), facts?: read
 /** Every group's status, as Server admin › Providers shows it. Asks LiveKit (cheap), never a paid provider. */
 export async function setupChecklist(tx: Tx, options: Options = {}): Promise<StatusGroups> {
   const env = options.env ?? serverEnv()
-  const livekit = (options.livekit ?? (() => livekitStatus()))()
+  const words = options.words ?? english
+  const livekit = (options.livekit ?? (() => livekitStatus(process.env, fetch, words)))()
   const providers = await providerFacts(tx, env)
   const audio = await livekit
-  return statusGroups({
-    providers,
-    failures: await listProviderFailures(tx),
-    callAudio: { configured: !!audio.url, server: audio.server, sip: audio.sip },
-    ...(await statusContext(tx, env, providers)),
-  })
+  return statusGroups(
+    {
+      providers,
+      failures: await listProviderFailures(tx),
+      callAudio: { configured: !!audio.url, server: audio.server, sip: audio.sip },
+      ...(await statusContext(tx, env, providers, words)),
+    },
+    words,
+  )
 }

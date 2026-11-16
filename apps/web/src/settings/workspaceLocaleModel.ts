@@ -16,7 +16,10 @@ export function countryOptions(resolvedCountry: string, source: WorkspaceCountry
     label:
       source === 'explicit'
         ? i18n().t('settings.general.locale.automaticCountryExplicit')
-        : i18n().t('settings.general.locale.automaticCountry', { country: phoneCountryName(resolvedCountry), source }),
+        : i18n().t('settings.general.locale.automaticCountry', {
+            country: phoneCountryName(resolvedCountry, i18n()),
+            source,
+          }),
   }
   return [
     automatic,

@@ -16,7 +16,7 @@ import {
   guidesForCountry,
   hasForwardingCountry,
   OTHER_COUNTRY,
-  otherCountryOption,
+  phoneCountryName,
   phoneChecklist,
   preselectForwardingCountry,
   type ResolvedCode,
@@ -24,6 +24,8 @@ import {
 } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { intlLocale } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { useAssistants } from '../store.tsx'
 import { useAnchoredList } from '../ui/floating.ts'
@@ -336,9 +338,12 @@ export function CarrierPicker({
   )
 }
 
+/** Countries with guides by their name in the reader's language, A–Z, then "Other country". */
 const countryOptions = (otherDescription: string): readonly PickerItem[] => [
-  ...forwardingCountries.map(c => ({ id: c.code, name: c.name })),
-  { id: otherCountryOption.code, name: otherCountryOption.name, description: otherDescription },
+  ...forwardingCountries
+    .map(c => ({ id: c.code, name: phoneCountryName(c.code, i18n()) }))
+    .sort((a, b) => a.name.localeCompare(b.name, intlLocale())),
+  { id: OTHER_COUNTRY, name: i18n().t('onboarding.forwarding.otherCountry'), description: otherDescription },
 ]
 const countryWords = (name: string) => ` ${name.toLowerCase()}`
 
@@ -384,7 +389,7 @@ export function GuidePickers({
         items={countries}
         placeholder={t('onboarding.forwarding.country')}
         listLabel={t('common.phone.countries')}
-        empty={t('onboarding.forwarding.countryEmpty', { other: otherCountryOption.name })}
+        empty={t('onboarding.forwarding.countryEmpty', { other: t('onboarding.forwarding.otherCountry') })}
       />
       <CarrierPicker id={id} label={label} value={guideId} onChange={onGuide} country={country} />
     </div>

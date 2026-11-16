@@ -9,12 +9,11 @@ import {
   groupSpec,
   type InstallSetupState,
   type InstallStep,
-  installSkipEffects,
   installStepGroups,
-  installStepLabels,
   installSteps,
   type ProviderName,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { LinkButton } from '../ui/AppLink.tsx'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
@@ -50,6 +49,24 @@ let openFrom: InstallSetupFrom = 'left'
 export const openInstallSetup = ({ from = 'left' }: { from?: InstallSetupFrom } = {}) => {
   openFrom = from
   window.location.hash = INSTALL_SETUP_HASH
+}
+
+/** Each step's name in the reader's language (installStepLabels in @linedesk/actions is the English for the CLI). */
+const stepLabelKeys: Record<InstallStep, MessageKey> = {
+  welcome: msg('onboarding.install.step.welcome'),
+  email: msg('onboarding.install.step.email'),
+  answering: msg('onboarding.install.step.answering'),
+  telephony: msg('onboarding.install.step.telephony'),
+  'call-audio': msg('onboarding.install.step.callAudio'),
+  done: msg('onboarding.install.step.done'),
+}
+
+/** What does not work when a step is skipped (installSkipEffects), in the reader's language. */
+const skipEffectKeys: Partial<Record<InstallStep, MessageKey>> = {
+  email: msg('onboarding.install.skipEffect.email'),
+  answering: msg('onboarding.install.skipEffect.answering'),
+  telephony: msg('onboarding.install.skipEffect.telephony'),
+  'call-audio': msg('onboarding.install.skipEffect.callAudio'),
 }
 
 /** The screen the walkthrough opens on. The welcome screen is the first run's intro; Back from Email still reaches it. */
@@ -153,11 +170,11 @@ export function InstallSetup({ onExit }: Props) {
             ? t('onboarding.install.count')
             : partIndex >= 0
               ? t('onboarding.install.countStepOf', {
-                  step: installStepLabels[step],
+                  step: t(stepLabelKeys[step]),
                   number: partIndex + 1,
                   total: partSteps.length,
                 })
-              : t('onboarding.install.countStep', { step: installStepLabels[step] })}
+              : t('onboarding.install.countStep', { step: t(stepLabelKeys[step]) })}
         </span>
         <Button size="sm" variant="ghost" onClick={later} title={t('onboarding.install.laterTip')}>
           {t('onboarding.install.later')}
@@ -324,7 +341,7 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
       <div className="ob-body">
         <span className="as-kicker">{t('onboarding.install.part.stepOf', { number, total: partSteps.length })}</span>
         <h1>{group.label}</h1>
-        <p className="ob-lede">{groupSpec(group.id).why}</p>
+        <p className="ob-lede">{t(groupSpec(group.id).whyKey)}</p>
       </div>
 
       <ProviderGroup
@@ -354,7 +371,7 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
         onSkip={ready && group.state !== 'works' ? onSkip : undefined}
         skipTitle={t('onboarding.install.skipTip', {
           part: group.label,
-          effect: installSkipEffects[step] ?? '',
+          effect: skipEffectKeys[step] ? t(skipEffectKeys[step]) : '',
         }).trim()}
         onNext={ready ? onNext : onSkip}
         nextLabel={ready ? t('onboarding.action.continue') : t('onboarding.action.skipForNow')}
@@ -411,8 +428,8 @@ function Done({
                   skipped.includes(s) ? 'onboarding.install.done.remainingSkipped' : 'onboarding.install.done.remaining'
                 }
                 values={{
-                  part: installStepLabels[s],
-                  effect: installSkipEffects[s],
+                  part: t(stepLabelKeys[s]),
+                  effect: skipEffectKeys[s] ? t(skipEffectKeys[s]) : '',
                   link: chunks => <LinkButton onClick={() => onOpen(s)}>{chunks}</LinkButton>,
                 }}
               />

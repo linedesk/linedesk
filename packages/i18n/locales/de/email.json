@@ -254,6 +254,7 @@
   "confirmationCode.reason": "Du bekommst diese E-Mail, weil dein Konto diese Adresse bestätigen wollte. Wenn du das nicht warst, kannst du sie ignorieren.",
   "confirmationCode.subject": "{code} ist dein {brand}-Bestätigungscode",
   "confirmationCode.text": "Dieser Code bestätigt diese Adresse für dein {brand}-Konto unter {site}. Gib ihn auf {site} ein, wo {brand} danach gefragt hat.",
+  "dateAtTime": "{date} um {time}",
   "emailChangeCode.heading": "Bestätige deine neue E-Mail-Adresse",
   "emailChangeCode.preheader": "Gib ihn in den Kontoeinstellungen auf {site} ein, um dich ab jetzt mit dieser Adresse anzumelden.",
   "emailChangeCode.reason": "Du bekommst diese E-Mail, weil jemand, der bei {brand} unter {site} angemeldet ist, diese Adresse für sein Konto nutzen wollte. Wenn du das nicht warst, kannst du sie ignorieren: Ohne diesen Code ändert sich nichts.",

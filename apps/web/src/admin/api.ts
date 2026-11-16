@@ -19,7 +19,7 @@ import {
   type ProviderFailure,
   type ProviderName,
   type ProviderTestData,
-  providerCategories,
+  providerCategoryKeys,
   type StatusGroups,
   type StatusInput,
   type StoredTest,
@@ -224,7 +224,7 @@ export const ADMIN_HEALTH = 'admin.health'
  * the API can be newer than the page: a provider or category the page has no registry entry for is left out instead
  * of breaking the page.
  */
-const isKnownProvider = (p: ProviderStatus) => p.provider in providerRegistry && p.category in providerCategories
+const isKnownProvider = (p: ProviderStatus) => p.provider in providerRegistry && p.category in providerCategoryKeys
 
 /** What the lists need (Workspaces, Users, Usage, Audit log): fast, so these pages never wait for the providers. */
 export type AdminLists = Pick<AdminData, 'workspaces' | 'users' | 'usage' | 'usageMonths'>

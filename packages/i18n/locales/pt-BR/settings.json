@@ -1103,7 +1103,7 @@
   "voice.level.premiumOff": "Premium, {price}/min. Requer Permitir Premium",
   "voice.level.premiumTag": "Premium, {price}/min",
   "voice.level.standardNote": "{level}: as chamadas com este assistente custam {price} por minuto.",
-  "voice.level.standardTag": "Standard",
+  "voice.level.standardTag": "Padrão",
   "voice.level.title": "Modelo de voz e modelo de linguagem",
   "voice.level.voiceModel": "Modelo de voz",
   "voice.level.voiceModelHelp": "Como a voz é gerada: o mais rápido possível ou com mais expressão.",

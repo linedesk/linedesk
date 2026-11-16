@@ -6,6 +6,7 @@
 // check (provider.test with `free`: no tokens, no speech), never a paid round trip.
 import {
   callAudioGuide,
+  callAudioStep,
   type GroupStatus,
   groupSpec,
   isMultiCategory,
@@ -105,7 +106,7 @@ export function providerStatus(
 ): StatusGroups & { lines: Record<ProviderName, ProviderLine> } {
   const providers = providerFacts(data, local)
   const failures = data.providerFailures
-  const status = statusGroups({ providers, failures, callAudio: callAudioOf(health), ...data.statusContext })
+  const status = statusGroups({ providers, failures, callAudio: callAudioOf(health), ...data.statusContext }, i18n())
   const lines = Object.fromEntries(providers.map(f => [f.provider, providerLine(f, failures)])) as Record<
     ProviderName,
     ProviderLine
@@ -133,7 +134,7 @@ export function groupNote(group: GroupStatus): string | null {
  * already says it, so there is none there.
  */
 export function groupHelp(group: Pick<GroupStatus, 'id'>, embedded = false): string | null {
-  return embedded ? null : groupSpec(group.id).why
+  return embedded ? null : i18n().t(groupSpec(group.id).whyKey)
 }
 
 /**
@@ -156,7 +157,7 @@ export function rowStatus(
   { use = null, fromServer = false }: { use?: 'in_use' | 'not_in_use' | null; fromServer?: boolean } = {},
 ): { label: string; words: string | null } {
   const { t } = i18n()
-  const text = statusText(line)
+  const text = statusText(line, i18n())
   const useText =
     use === 'in_use' ? t('admin.providers.row.inUse') : use === 'not_in_use' ? t('admin.providers.row.notInUse') : null
   const label = [text, useText, fromServer ? t('admin.providers.row.keysFromServer') : null].filter(Boolean).join(' · ')
@@ -180,14 +181,14 @@ export function groupProblem(group: GroupStatus): { line: string; detail: string
   if (group.id === 'call-audio' && group.state === 'partly') {
     return {
       line: i18n().t('admin.providerStatus.callAudio.noTrunk'),
-      detail: [server && `${server}.`, callAudioGuide.steps[2]].filter(Boolean).join(' '),
+      detail: [server && `${server}.`, callAudioStep(callAudioGuide.stepKeys[2], i18n())].filter(Boolean).join(' '),
     }
   }
   if (group.id === 'call-audio') {
     return { line: i18n().t('admin.providerStatus.callAudio.unreachable'), detail: server && `${server}.` }
   }
   // One short line (a provider's raw error never: providerErrorLine); the full text behind the (?).
-  if (!group.message) return { line: statusText(group), detail: null }
+  if (!group.message) return { line: statusText(group, i18n()), detail: null }
   const line = group.state === 'failing' ? providerErrorLine(group.message) : group.message
   return { line, detail: line === group.message.trim() ? null : group.message }
 }
@@ -196,11 +197,11 @@ export function groupProblem(group: GroupStatus): { line: string; detail: string
 export function providerErrorLine(message: string): string {
   const rejectedBy = oauthClientRejectedBy(message)
   if (rejectedBy) return i18n().t('admin.providerError.oauthClientRejected', { provider: rejectedBy })
-  return providerErrorSummary(message)
+  return providerErrorSummary(message, i18n())
 }
 
 export function groupValue(group: GroupStatus): string | null {
-  if (group.state !== 'works') return statusText(group)
+  if (group.state !== 'works') return statusText(group, i18n())
   return group.answeredBy?.length ? group.answeredBy.join(' · ') : group.providerLabel
 }
 

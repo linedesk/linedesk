@@ -406,7 +406,7 @@ export function numberProblem(typed: string, countries: OutboundCountries = 'any
   const e164 = outboundE164(typed)
   if (e164) return onCallNumberProblem(e164, countries)
   // The phone field's value (E.164 as typed): an unfinished number says so for its country.
-  const unfinished = typed.trim().startsWith('+') ? phoneNumberProblem(typed) : null
+  const unfinished = typed.trim().startsWith('+') ? phoneNumberProblem(typed, i18n()) : null
   return unfinished ?? i18n().t('settings.assistant.draft.numberFormat', { example: '+1 503 555 0100' })
 }
 

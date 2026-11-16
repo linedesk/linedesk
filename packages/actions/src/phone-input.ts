@@ -12,6 +12,7 @@ import {
   validatePhoneNumberLength,
 } from 'libphonenumber-js/max'
 import examples from 'libphonenumber-js/mobile/examples'
+import { english, type Words } from './words.ts'
 
 /** Every country (ISO 3166-1 alpha-2) libphonenumber knows, with its calling code. */
 const COUNTRIES = new Set<string>(getCountries())
@@ -62,15 +63,19 @@ export function countryOfNumber(e164: string | null | undefined): string | null 
   return parsed?.countryCallingCode ? countryOfCallingCode(parsed.countryCallingCode) : null
 }
 
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' })
 /** Country names said with "the" in a sentence ("for the United States"). */
 const WITH_THE = new Set('US GB NL PH AE DO BS GM CF KM MV MH SB VA CD CG'.split(' '))
 
-/** "DE" → "Germany". */
-export const phoneCountryName = (country: string): string => regionNames.of(country.toUpperCase()) ?? country
+/** "DE" → "Germany", "Deutschland" in German words. */
+export const phoneCountryName = (country: string, words: Words = english): string =>
+  words.format.region(country.toUpperCase())
 
-/** The name as it goes into a sentence: "the United States", "Germany". */
-export const nameInSentence = (country: string) => `${WITH_THE.has(country) ? 'the ' : ''}${phoneCountryName(country)}`
+/** The name as it goes into a sentence: "the United States", "Germany"; the "the" is English only. */
+export const nameInSentence = (country: string, words: Words = english) =>
+  words.t('common.phone.countryInSentence', {
+    the: WITH_THE.has(country) ? 'yes' : 'no',
+    country: phoneCountryName(country, words),
+  })
 
 /** The region of a locale: "de-DE" → "DE", "de" → "DE" (its likely region), "en" → "US"; null when unknown. */
 export function localeRegion(locale: string | null | undefined): string | null {
@@ -151,20 +156,20 @@ export function phonePlaceholder(country: string): string {
  * Why a value of the phone field is not a phone number, in words for the person typing it; null when it is one or
  * nothing is typed. Says which country it was checked for ("This number doesn't look complete for Germany.").
  */
-export function phoneNumberProblem(e164: string | null | undefined): string | null {
+export function phoneNumberProblem(e164: string | null | undefined, words: Words = english): string | null {
   const value = e164?.trim()
   if (!value) return null
-  if (!value.startsWith('+')) return 'Enter the number with its country code, like +1 503 555 0100.'
+  if (!value.startsWith('+')) return words.t('common.phone.problem.countryCode', { example: '+1 503 555 0100' })
   const country = countryOfNumber(value)
-  if (!country) return 'Pick the country of this number.'
-  const where = nameInSentence(country)
+  if (!country) return words.t('common.phone.problem.pickCountry')
+  const where = nameInSentence(country, words)
   const length = validatePhoneNumberLength(value)
-  if (length === 'TOO_LONG') return `This number is too long for ${where}.`
-  if (length === 'TOO_SHORT' || length === 'NOT_A_NUMBER') return `This number doesn't look complete for ${where}.`
+  if (length === 'TOO_LONG') return words.t('common.phone.problem.tooLong', { where })
+  if (length === 'TOO_SHORT' || length === 'NOT_A_NUMBER') return words.t('common.phone.problem.incomplete', { where })
   const parsed = parsePhoneNumberFromString(value)
-  if (!parsed) return `This number doesn't look complete for ${where}.`
+  if (!parsed) return words.t('common.phone.problem.incomplete', { where })
   // A North American 555 number is fine: demo and test numbers use them.
-  if (!parsed.isValid() && !/^\+1\d{10}$/.test(value)) return `This doesn't look like a phone number in ${where}.`
+  if (!parsed.isValid() && !/^\+1\d{10}$/.test(value)) return words.t('common.phone.problem.notANumber', { where })
   return null
 }
 

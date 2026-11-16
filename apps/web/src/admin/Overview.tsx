@@ -1,7 +1,7 @@
 // Server admin › Overview: the first thing an operator sees, under the "Ready for calls" card (StatusCard.tsx, which
 // says whether the parts of the install work). Usage (calls, minutes), roughly what it costs per provider, and how many
 // workspaces and people there are.
-import { providerCategories } from '@linedesk/actions'
+import { providerCategoryLabel } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import type { ReactNode } from 'react'
 import { useQuery } from '../cachedQuery.ts'
@@ -89,7 +89,7 @@ function Costs({ overview }: { overview: AdminOverview }) {
           <tbody>
             {overview.costs.map(c => (
               <tr key={c.category}>
-                <th scope="row">{providerCategories[c.category]}</th>
+                <th scope="row">{providerCategoryLabel(c.category, i18n())}</th>
                 <td>{c.label ?? <span className="help">{t('admin.overview.costs.notSetUp')}</span>}</td>
                 <td className="adm-num">{count(c.minutes7d)}</td>
                 <td className="adm-num">{c.provider ? money(c.cost7d) : EMPTY}</td>

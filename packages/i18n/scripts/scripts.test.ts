@@ -5,6 +5,7 @@ import {
   checkFormatting,
   checkMessages,
   checkRatchet,
+  checkServerText,
   checkUsage,
   type Report,
   serverTextSummary,
@@ -313,6 +314,19 @@ describe('formatting guard', () => {
 })
 
 describe('server-side text', () => {
+  it('fails a server file above its baseline and a file it does not list, reports lowered ones', () => {
+    const report: Report = { errors: [], warnings: [] }
+    const { lowered } = checkServerText(
+      { 'apps/api/src/a.ts': 4, 'packages/actions/src/new.ts': 1, 'apps/api/src/c.ts': 2 },
+      { 'apps/api/src/a.ts': 4, 'apps/api/src/c.ts': 5 },
+      report,
+      { 'packages/actions/src/new.ts': [{ line: 7, text: 'Key rejected' }] },
+    )
+    expect(report.errors).toHaveLength(1)
+    expect(report.errors[0]).toMatch(/^packages\/actions\/src\/new\.ts: 1 hardcoded user-visible strings on the server/)
+    expect(report.errors[0]).toContain('packages/actions/src/new.ts:7: "Key rejected"')
+    expect(lowered).toEqual(['apps/api/src/c.ts: 5 → 2'])
+  })
   it('counts per root and lists every string only when asked', () => {
     const hits = {
       'packages/actions/src/a.ts': [{ line: 3, text: 'Key rejected' }],
@@ -322,7 +336,7 @@ describe('server-side text', () => {
       ],
     }
     expect(serverTextSummary(hits, false)).toBe(
-      'Server-side text (reported, not yet checked): 3 user-visible strings (packages/actions/src 1 in 1 files, ' +
+      'Server-side text (checked against server-text-baseline.json): 3 user-visible strings (packages/actions/src 1 in 1 files, ' +
         'apps/api/src 2 in 1 files). pnpm i18n:check --server-text lists them.',
     )
     expect(serverTextSummary(hits, true).split('\n').slice(1)).toEqual([

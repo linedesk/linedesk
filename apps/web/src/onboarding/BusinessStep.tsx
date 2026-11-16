@@ -8,12 +8,13 @@ import {
   type BusinessSearchData,
   type BusinessTemplateId,
   businessTemplateIds,
-  businessTemplates,
   phoneCountryName,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
+import { i18n } from '../i18n/index.tsx'
 import { type KeyboardEvent, type ReactNode, useState } from 'react'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
@@ -414,7 +415,16 @@ function FindForm({
   )
 }
 
-const templateOptions = businessTemplateIds.map(id => ({ value: id, label: businessTemplates[id].label }))
+const templateLabelKeys: Record<BusinessTemplateId, MessageKey> = {
+  plumbing_hvac: msg('onboarding.business.template.plumbingHvac'),
+  dental_medical: msg('onboarding.business.template.dentalMedical'),
+  salon_spa: msg('onboarding.business.template.salonSpa'),
+  law_office: msg('onboarding.business.template.lawOffice'),
+  home_services: msg('onboarding.business.template.homeServices'),
+  other: msg('onboarding.business.template.other'),
+}
+/** In the active language: built when the step shows, never at import (that would freeze English). */
+const templateOptions = () => businessTemplateIds.map(id => ({ value: id, label: i18n().t(templateLabelKeys[id]) }))
 /** "Choose…" until the owner picks one, when the lookup did not tell the kind of business. */
 const NO_TEMPLATE = ''
 
@@ -519,7 +529,7 @@ function ReviewProfile({
             id="ob-biz-kind"
             label={t('onboarding.business.field.kind')}
             value={draft.template ?? NO_TEMPLATE}
-            options={templateOptions}
+            options={templateOptions()}
             onChange={kind => kind && setDraft(d => switchTemplate(d, kind))}
           />
         </Field>
@@ -564,7 +574,7 @@ function ReviewProfile({
             ) : (
               <span className="ob-biz-country">
                 <span id="ob-biz-country">
-                  {flagOf(country)} {phoneCountryName(country)}
+                  {flagOf(country)} {phoneCountryName(country, i18n())}
                 </span>
                 <Button
                   size="sm"

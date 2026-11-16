@@ -39,12 +39,14 @@ export function OneKey({ disabled, onDone }: { disabled: boolean; onDone: () => 
     <div className="adm-onekey">
       <b>{t('admin.oneKey.title')}</b>
       <p className="help">
-        {t('admin.oneKey.intro', { provider: oneKey.label })} {oneKey.caveat} {oneKey.cost}
+        {t('admin.oneKey.intro', { provider: oneKey.label })} {t(oneKey.caveatKey)} {t(oneKey.costKey)}
       </p>
       <ol className="adm-guide-steps">
-        {oneKey.steps.map(step => (
-          <li key={step}>{step}</li>
-        ))}
+        {oneKey.stepKeys
+          .map(key => t(key))
+          .map(step => (
+            <li key={step}>{step}</li>
+          ))}
       </ol>
       <form
         className="adm-onekey-form"

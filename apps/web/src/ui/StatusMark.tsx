@@ -4,9 +4,10 @@
 // accessible label and a tooltip. Used wherever a screen says whether something works (design-principles.md,
 // "Status marks"): Server admin › Providers, the overview's "Ready for calls" card, the provider dialog, the install
 // walkthrough, System, Calendar, Webhooks.
-import { type StatusState, statusWords } from '@linedesk/actions'
+import { type StatusState, statusWord } from '@linedesk/actions'
 import { cx, Icon, Spinner } from './kit.tsx'
 import './status-mark.css'
+import { i18n } from '../i18n/index.tsx'
 
 export type MarkKind = 'works' | 'partly' | 'failing' | 'empty' | 'busy'
 
@@ -46,7 +47,7 @@ type Props = {
 
 export function StatusMark({ state, label, className }: Props) {
   const kind = markKind(state)
-  const words = label ?? statusWords[state]
+  const words = label ?? statusWord(state, i18n())
   if (kind === 'busy')
     return (
       <span className={cx('k-mark', 'k-mark-busy', className)} role="img" aria-label={words} title={words}>

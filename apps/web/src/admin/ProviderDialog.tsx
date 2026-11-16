@@ -8,7 +8,7 @@ import {
   type ProviderLine,
   type ProviderPreset,
   type ProviderTestData,
-  providerCategories,
+  providerCategoryLabel,
   providerSpec,
   providers as providerSpecs,
   restartCategories,
@@ -43,6 +43,7 @@ import { StatusWords } from './ProviderGroup.tsx'
 import { Logo, presetMeta, providerMeta, redirectUris } from './ProviderLogo.tsx'
 import { testedAgo } from './providerStatus.ts'
 import { TryOut, tryKindOf } from './TryOut.tsx'
+import { i18n } from '../i18n/index.tsx'
 
 /** A value that comes from the server's settings: a small server icon, the rest in its tooltip. */
 export function ServerSet() {
@@ -343,7 +344,7 @@ export function ProviderDialog(props: Props) {
     <Dialog
       title={provider.label}
       description={t('admin.providerDialog.description', {
-        category: providerCategories[provider.category],
+        category: providerCategoryLabel(provider.category, i18n()),
         blurb: t(meta.blurb),
       })}
       icon={<Logo mark={meta.mark} size={40} />}

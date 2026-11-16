@@ -258,6 +258,9 @@ importers:
       '@linedesk/db':
         specifier: workspace:*
         version: link:../db
+      '@linedesk/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       libphonenumber-js:
         specifier: ^1.13.16
         version: 1.13.16

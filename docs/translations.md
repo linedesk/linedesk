@@ -151,8 +151,12 @@ a fallback (`name ?? 'Assistant'`) and an error message the page shows are all u
   check fails on English handed straight to a sender (`sender.send({ subject: 'Hi', … })`, `sendNotice`,
   `alertInstanceAdmins`), in an object with a text `subject` or with a `title` and a `body`, and in an email's
   `subject`, `preheader`, `heading`, `eyebrow` or `html`. See "Emails and notifications" below.
-- Server-side text: the same scan over `packages/actions` and `apps/api` is reported, not checked yet (the count is in
-  the check's output; `pnpm i18n:check --server-text` lists every string). See "Server-side text" below.
+- Server-side text (checked, ratchet): the same scan over `packages/actions` and `apps/api`. `server-text-baseline.json`
+  counts the English still left per file; a file above its count fails, and so does any file it does not list (a new
+  one, or one already moved to keys, such as `provider-status.ts` or `phone-input.ts`), which lists each string with
+  its line. The baseline is not empty yet and only goes down: `pnpm i18n:check --update-baseline` lowers it after
+  strings move to keys, and never raises a count or adds a file. `pnpm i18n:check --server-text` lists every string.
+  See "Server-side text" below.
 
 ## Server-side text
 
@@ -171,6 +175,15 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   (`spoken-lines.ts`), not the reader's.
 - Order: what the web app shows most (provider status, carrier steps, field labels, refusals), then emails, then the
   rest. Once an area is done, the check fails on new English there, as it does for the web app.
+- How a shared builder does it (`packages/actions/src/words.ts`): it takes `words: Words = english` and writes every
+  sentence with `words.t(key, params)` and every list, date or country with `words.format`. The web app passes
+  `i18n()`, the API passes `getT(locale)` of the person reading (`localeForUserId`), and the setup MCP and the CLI pass
+  nothing, so they get the same keys in English. A label map is `Record<Id, MessageKey>`, never English strings, and
+  is read when the screen renders, never at import (a module-level list built from `t()` freezes the first language).
+- Done: provider status and health (Server admin › Providers, the overview and the install walkthrough), LiveKit and
+  service health, provider and voice failures, phone-number checks and country names, the onboarding business
+  templates and install steps. Left, in `server-text-baseline.json`: the providers' setup guides and costs
+  (`admin.ts`), carrier forwarding guides, refusals (`Reject` and API error bodies) and the rest of the API.
 
 ## Emails and notifications
 

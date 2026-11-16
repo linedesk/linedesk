@@ -210,7 +210,7 @@ export function phoneSetupInput(
     const e164 = international ? completePhone(typed) : toE164(typed)
     if (e164) return { input: { e164, purchase: false, ...(forwarding ? { mode: forwarding } : {}) } }
     return {
-      problem: (international && phoneNumberProblem(typed)) || i18n().t('onboarding.flow.problem.enterNumber'),
+      problem: (international && phoneNumberProblem(typed, i18n())) || i18n().t('onboarding.flow.problem.enterNumber'),
     }
   }
   if (!buyableAreaCode(choice.areaCode)) return { problem: i18n().t('onboarding.flow.problem.pickAreaCode') }
@@ -353,8 +353,7 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
   // A refused setting, an unknown number and anything else are about this request: the cases above and the default.
   // The provider-failure sentences are the shared package's (@linedesk/actions), English for now, so is their label.
   if (reason !== 'config' && reason !== 'not_found' && reason !== 'unknown')
-    // i18n-ignore: the label goes into the shared package's English sentence (server-side text)
-    return providerFailureText(reason, 'The phone carrier', audience)
+    return providerFailureText(reason, t('onboarding.flow.phoneCarrier'), audience, i18n())
   return t('onboarding.flow.setupError.failed')
 }
 
@@ -573,7 +572,8 @@ export function whoHearsProblem(
   if (!e164)
     return {
       field: 'mobile',
-      message: (typed.startsWith('+') && phoneNumberProblem(typed)) || t('onboarding.flow.whoHears.mobileAreaCode'),
+      message:
+        (typed.startsWith('+') && phoneNumberProblem(typed, i18n())) || t('onboarding.flow.whoHears.mobileAreaCode'),
     }
   const problem = onCallNumberProblem(e164, countries)
   if (problem) return { field: 'mobile', message: problem }

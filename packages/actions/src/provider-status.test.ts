@@ -15,7 +15,7 @@ import {
   recommendedProviders,
   pinnedProviders,
   pinnedProvidersOf,
-  providerCategories,
+  providerCategoryKeys,
   type ProviderCategory,
   redactInput,
   type StatusInput,
@@ -92,7 +92,7 @@ describe('groups', () => {
     expect(pinnedProvidersOf('email')).toEqual(['resend', 'smtp'])
     expect(pinnedProvidersOf('llm')).toEqual(['openai', 'openrouter', 'anthropic'])
     expect(pinnedProvidersOf('sign_in')).toEqual(['google', 'oidc'])
-    for (const category of Object.keys(providerCategories) as ProviderCategory[]) {
+    for (const category of Object.keys(providerCategoryKeys) as ProviderCategory[]) {
       const pinned = pinnedProvidersOf(category)
       expect(pinned[0], category).toBe(recommendedProviders[category])
       for (const p of pinned) expect(providersIn(category), category).toContain(p)
@@ -186,7 +186,7 @@ describe('statusGroups', () => {
     const facts = [works('openai_realtime'), works('deepgram'), works('openrouter'), works('elevenlabs')]
     const both = group(input(facts, { assistantPipelines: ['realtime', 'three_stage'] }), 'answering')
     expect(both.message).toBe(
-      'Answered by OpenAI Realtime and Deepgram, OpenRouter and ElevenLabs, as each assistant chose.',
+      'Answered by OpenAI Realtime and Deepgram, OpenRouter, and ElevenLabs, as each assistant chose.',
     )
     const failing = group(
       input(facts, {

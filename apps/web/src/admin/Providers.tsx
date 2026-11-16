@@ -10,7 +10,7 @@ import {
   type InstallSetupState,
   isMultiCategory,
   type ProviderName,
-  providerCategories,
+  providerCategoryLabel,
   type TranscriptProviderName,
 } from '@linedesk/actions'
 import { useFormat, useT } from '@linedesk/i18n/react'
@@ -134,12 +134,12 @@ export function ProviderDialogFor({ name, data, status, oauthReturn, reload, not
       await set(provider)
       notify(
         provider
-          ? t('admin.providers.use.now', { category: providerCategories[category], provider: opened!.label })
+          ? t('admin.providers.use.now', { category: providerCategoryLabel(category, i18n()), provider: opened!.label })
           : category === 'recording'
             ? t('admin.providers.use.recordingOff')
             : category === 'transcript'
               ? t('admin.providers.use.transcriptOff')
-              : t('admin.providers.use.default', { category: providerCategories[category] }),
+              : t('admin.providers.use.default', { category: providerCategoryLabel(category, i18n()) }),
         () => set(before),
       )
     } catch (err) {

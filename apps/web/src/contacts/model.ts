@@ -172,7 +172,7 @@ export function newContactInput(
 ): { input: NewContactInput; problem?: undefined } | { problem: string; input?: undefined } {
   const e164 = form.phone.trim()
   if (!e164) return { problem: i18n().t('contacts.new.enterPhone') }
-  const problem = phoneNumberProblem(e164)
+  const problem = phoneNumberProblem(e164, i18n())
   if (problem) return { problem }
   if (existing.has(e164)) return { problem: i18n().t('contacts.new.exists') }
   const input: NewContactInput = { phone: e164 }

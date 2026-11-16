@@ -5,7 +5,7 @@ import {
   groupOfCategory,
   isProviderGroupId,
   type ProviderCategory,
-  providerCategories,
+  providerCategoryKeys,
   type ProviderGroupId,
   type ProviderName,
   providers as providerRegistry,
@@ -93,7 +93,7 @@ export function providersTarget(id: string | null): { group: ProviderGroupId } |
   if (!id) return null
   if (isProviderGroupId(id)) return { group: id }
   if (id in providerRegistry) return { provider: id as ProviderName }
-  if (id in providerCategories) return { group: groupOfCategory(id as ProviderCategory) }
+  if (id in providerCategoryKeys) return { group: groupOfCategory(id as ProviderCategory) }
   // Links from before the groups: the setup checklist's parts.
   if (id === 'livekit') return { group: 'call-audio' }
   if (id === 'ai') return { group: 'answering' }

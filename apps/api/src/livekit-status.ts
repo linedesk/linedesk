@@ -1,5 +1,6 @@
 // LiveKit is part of the install, not a provider: its URL, key and secret are set in env. The
 // admin area only shows whether the server and its SIP service answer.
+import { english, type Words } from '@linedesk/actions'
 import { createHmac } from 'node:crypto'
 import { normalizeCallerId } from '@linedesk/actions'
 import { errorText, TIMEOUT_MS } from './provider-test.ts'
@@ -41,20 +42,27 @@ async function call(
   return { status: res.status, body: ((await res.json().catch(() => null)) as Record<string, unknown> | null) ?? {} }
 }
 
-const count = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
-const failure = (status: number, body: Record<string, unknown>) =>
+/** "LiveKit rejected the API key and secret (HTTP 401)", "The SIP API answered HTTP 500: …". */
+const failure = (part: 'server' | 'sip', status: number, body: Record<string, unknown>, words: Words) =>
   status === 401 || status === 403
-    ? `rejected the API key and secret (HTTP ${status})`
-    : `answered HTTP ${status}${typeof body.msg === 'string' ? `: ${body.msg.slice(0, 160)}` : ''}`
+    ? words.t(part === 'server' ? 'admin.livekit.server.rejected' : 'admin.livekit.sip.rejected', { status })
+    : typeof body.msg === 'string'
+      ? words.t(part === 'server' ? 'admin.livekit.server.answeredWith' : 'admin.livekit.sip.answeredWith', {
+          status,
+          detail: body.msg.slice(0, 160),
+        })
+      : words.t(part === 'server' ? 'admin.livekit.server.answered' : 'admin.livekit.sip.answered', { status })
 
-async function check(run: () => Promise<ServiceStatus>): Promise<ServiceStatus> {
+async function check(run: () => Promise<ServiceStatus>, words: Words): Promise<ServiceStatus> {
   try {
     return await run()
   } catch (e) {
     const timedOut = e instanceof Error && e.name === 'TimeoutError'
     return {
       ok: false,
-      message: timedOut ? `No answer within ${TIMEOUT_MS / 1000} seconds` : `Not reachable: ${errorText(e)}`,
+      message: timedOut
+        ? words.t('admin.livekit.timeout', { seconds: TIMEOUT_MS / 1000 })
+        : words.t('admin.livekit.unreachable', { error: errorText(e) }),
     }
   }
 }
@@ -173,15 +181,19 @@ export async function findSipCallerRoom(
 }
 
 /** Asks the LiveKit server for its rooms and its SIP trunks. `doFetch` is replaced in tests. */
-export async function livekitStatus(env: Env = process.env, doFetch: typeof fetch = fetch): Promise<LivekitStatus> {
+export async function livekitStatus(
+  env: Env = process.env,
+  doFetch: typeof fetch = fetch,
+  words: Words = english,
+): Promise<LivekitStatus> {
   const { LIVEKIT_URL: url, LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret } = env
   if (!url || !key || !secret) {
     const missing = {
       ok: false,
-      message: 'LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET are not all set in the environment',
+      message: words.t('admin.livekit.notSet', { url: 'LIVEKIT_URL', key: 'LIVEKIT_API_KEY', secret: 'LIVEKIT_API_SECRET' }),
     }
     // SIP lives on the LiveKit server: say so once, not the same env message twice.
-    return { url: url ?? null, server: missing, sip: { ok: false, message: 'Not checked: LiveKit is not set up' } }
+    return { url: url ?? null, server: missing, sip: { ok: false, message: words.t('admin.livekit.sip.notCheckedNoLivekit') } }
   }
   const base = twirpBase(url)
   const server = await check(async () => {
@@ -190,21 +202,25 @@ export async function livekitStatus(env: Env = process.env, doFetch: typeof fetc
       `${base}/livekit.RoomService/ListRooms`,
       livekitToken(key, secret, { video: { roomList: true } }),
     )
-    if (status !== 200) return { ok: false, message: `LiveKit ${failure(status, body)}` }
-    return { ok: true, message: `Reachable, ${count(Array.isArray(body.rooms) ? body.rooms.length : 0, 'room')} open` }
-  })
-  if (!server.ok) return { url, server, sip: { ok: false, message: 'Not checked: the LiveKit server does not answer' } }
+    if (status !== 200) return { ok: false, message: failure('server', status, body, words) }
+    return {
+      ok: true,
+      message: words.t('admin.livekit.server.reachable', { count: Array.isArray(body.rooms) ? body.rooms.length : 0 }),
+    }
+  }, words)
+  if (!server.ok)
+    return { url, server, sip: { ok: false, message: words.t('admin.livekit.sip.notCheckedNoServer') } }
   const sip = await check(async () => {
     const { status, body } = await call(
       doFetch,
       `${base}/livekit.SIP/ListSIPInboundTrunk`,
       livekitToken(key, secret, { sip: { admin: true } }),
     )
-    if (status !== 200) return { ok: false, message: `The SIP API ${failure(status, body)}` }
+    if (status !== 200) return { ok: false, message: failure('sip', status, body, words) }
     const trunks = Array.isArray(body.items) ? body.items.length : 0
     // The server answers this without the SIP bridge running; it shows the setup, not that the bridge is up.
-    if (!trunks) return { ok: false, message: 'No inbound trunk, so no call can arrive (run setup-sip)' }
-    return { ok: true, message: `${count(trunks, 'inbound trunk')} configured` }
-  })
+    if (!trunks) return { ok: false, message: words.t('admin.livekit.sip.noTrunk', { command: 'setup-sip' }) }
+    return { ok: true, message: words.t('admin.livekit.sip.trunks', { count: trunks }) }
+  }, words)
   return { url, server, sip }
 }

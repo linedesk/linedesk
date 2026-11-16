@@ -3,9 +3,11 @@
 // and `scripts/setup.sh --check`), and the one status function that turns what is known about each provider into one
 // status per group, in the same words. Pure: the API brings the facts from the database, the web app from the admin
 // data plus the tests it runs right now.
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { type ProviderCategory, type ProviderName, providerSpec, providersIn } from './admin.ts'
-import { type ProviderFailure, providerFailureReasonLabels } from './provider-health.ts'
+import { type ProviderFailure, providerFailureReasonKeys } from './provider-health.ts'
 import { pipelineFor, type VoicePipeline } from './settings.ts'
+import { english, type Words } from './words.ts'
 
 export const providerGroupIds = [
   'email',
@@ -26,14 +28,14 @@ export const isProviderGroupId = (value: string): value is ProviderGroupId =>
 
 export type ProviderGroupSpec = {
   id: ProviderGroupId
-  label: string
+  labelKey: MessageKey
   /** A first answered call needs it. The others are optional: "Off" until set up. */
   needed: boolean
   /** The categories whose providers it lists, in order; none for call audio (LiveKit and SIP, set in .env). */
   categories: readonly ProviderCategory[]
   /** Only these providers of its categories (calendar: the sign-in apps that also connect calendars). */
   only?: readonly ProviderName[]
-  why: string
+  whyKey: MessageKey
 }
 
 /** The OAuth apps that connect calendars: Google's and Microsoft's also serve sign-in; Calendly's and Cal.com's only calendars. */
@@ -46,82 +48,82 @@ export const STAGE_CATEGORIES = ['stt', 'llm', 'tts'] as const satisfies readonl
 export const providerGroups: readonly ProviderGroupSpec[] = [
   {
     id: 'email',
-    label: 'Email',
+    labelKey: msg('admin.provider.group.email.label'),
     needed: true,
     categories: ['email'],
-    why: 'Sign-in codes, invitations and call emails.',
+    whyKey: msg('admin.provider.group.email.why'),
   },
   {
     id: 'telephony',
-    label: 'Phone carrier',
+    labelKey: msg('admin.provider.group.telephony.label'),
     needed: true,
     categories: ['telephony'],
-    why: 'Gives the business a number and brings its calls in.',
+    whyKey: msg('admin.provider.group.telephony.why'),
   },
   {
     id: 'answering',
-    label: 'Answering calls',
+    labelKey: msg('admin.provider.group.answering.label'),
     needed: true,
     categories: ['realtime', ...STAGE_CATEGORIES],
-    why: 'Two ways to answer. Either one realtime model that listens, thinks and speaks. Or three parts: speech to text, a language model and a voice.',
+    whyKey: msg('admin.provider.group.answering.why'),
   },
   {
     id: 'call-audio',
-    label: 'Call audio',
+    labelKey: msg('admin.provider.group.callAudio.label'),
     needed: true,
     categories: [],
-    why: 'LiveKit and its SIP bridge carry the call audio. Set in .env on the server.',
+    whyKey: msg('admin.provider.group.callAudio.why'),
   },
   {
     id: 'sign-in',
-    label: 'Sign-in',
+    labelKey: msg('admin.provider.group.signIn.label'),
     needed: false,
     categories: ['sign_in'],
     only: SIGN_IN_APPS,
-    why: 'Sign in with Google, Microsoft, GitHub or your own single sign-on.',
+    whyKey: msg('admin.provider.group.signIn.why'),
   },
   {
     id: 'calendar',
-    label: 'Calendar',
+    labelKey: msg('admin.provider.group.calendar.label'),
     needed: false,
     categories: ['sign_in'],
     only: CALENDAR_APPS,
-    why: 'Bookings in Google or Microsoft calendars (the same apps as for sign-in), and one-click connecting for Calendly and Cal.com. iCloud and other CalDAV calendars need no app; without an app, Calendly and Cal.com connect with a key.',
+    whyKey: msg('admin.provider.group.calendar.why'),
   },
   {
     id: 'apps',
-    label: 'Connected apps',
+    labelKey: msg('admin.provider.group.apps.label'),
     needed: false,
     categories: ['apps'],
-    why: 'Apps a business connects under Integrations, such as HubSpot: every finished phone call goes to the caller’s record there. Each app needs its own OAuth app here.',
+    whyKey: msg('admin.provider.group.apps.why'),
   },
   {
     id: 'recording',
-    label: 'Recording storage',
+    labelKey: msg('admin.provider.group.recording.label'),
     needed: false,
     categories: ['recording'],
-    why: 'Where call recordings are kept. Off: calls are not recorded.',
+    whyKey: msg('admin.provider.group.recording.why'),
   },
   {
     id: 'transcript',
-    label: 'After-call transcription',
+    labelKey: msg('admin.provider.group.transcript.label'),
     needed: false,
     categories: ['transcript'],
-    why: 'After each call, the recording file is uploaded to the provider you select, which transcribes it again; the caller’s lines of the transcript are corrected. Off until you select one.',
+    whyKey: msg('admin.provider.group.transcript.why'),
   },
   {
     id: 'business',
-    label: 'Business lookup',
+    labelKey: msg('admin.provider.group.business.label'),
     needed: false,
     categories: ['business'],
-    why: 'Finds a business by name and city in onboarding and fills in its details.',
+    whyKey: msg('admin.provider.group.business.why'),
   },
   {
     id: 'billing',
-    label: 'Billing',
+    labelKey: msg('admin.provider.group.billing.label'),
     needed: false,
     categories: ['billing', 'bot_check'],
-    why: 'Linedesk Cloud only: bills, trials and call minutes through Stripe, and the bot check on the sign-up page. Off until Stripe is connected and billing is turned on; a self-hosted install bills nobody.',
+    whyKey: msg('admin.provider.group.billing.why'),
   },
 ]
 export const groupSpec = (id: ProviderGroupId) => providerGroups.find(g => g.id === id)!
@@ -149,13 +151,24 @@ export const isNeededProvider = (provider: ProviderName) => groupSpec(groupOfPro
 /** How to make call audio work: part of the install, set up on the server (scripts/setup.sh, docker compose). */
 export const callAudioGuide = {
   url: 'https://docs.livekit.io/home/self-hosting/ports-firewall/',
-  steps: [
-    'docker compose up starts LiveKit and its SIP bridge; scripts/setup.sh puts their keys in .env.',
-    'Open the SIP port (5060) and LiveKit’s audio ports in your firewall, so carriers reach this server.',
-    'Once a number is connected: docker compose exec agent node apps/agent/src/setup-sip.ts <number> (with pnpm: pnpm --filter @linedesk/agent setup-sip <number>).',
+  stepKeys: [
+    msg('admin.provider.callAudio.step.start'),
+    msg('admin.provider.callAudio.step.firewall'),
+    msg('admin.provider.callAudio.step.sip'),
   ],
-  cost: 'Nothing extra: it runs on this server.',
+  costKey: msg('admin.provider.callAudio.cost'),
 } as const
+/** The commands and files the call audio steps name: code, never translated (`{compose}`, `{setup}` …). */
+export const callAudioValues = {
+  compose: 'docker compose up',
+  setup: 'scripts/setup.sh',
+  env: '.env',
+  port: '5060',
+  command: 'docker compose exec agent node apps/agent/src/setup-sip.ts <number>',
+  pnpmCommand: 'pnpm --filter @linedesk/agent setup-sip <number>',
+} as const
+/** One step of the call audio guide in the reader's words. */
+export const callAudioStep = (key: MessageKey, words: Words = english) => words.t(key, callAudioValues)
 
 /**
  * One key for the whole Answering group. OpenAI is the only provider in the registry that hears, thinks and speaks in
@@ -166,14 +179,9 @@ export const callAudioGuide = {
 export const oneKey = {
   label: 'OpenAI',
   url: 'https://platform.openai.com/api-keys',
-  steps: [
-    'Sign up at platform.openai.com and add credit (Settings → Billing).',
-    'API keys → Create new secret key. Copy the key.',
-    'Paste it here.',
-  ],
-  cost: 'About $0.05 per call minute with gpt-realtime-mini.',
-  caveat:
-    'Calls are answered by OpenAI Realtime, one speech-to-speech model. Warm transfer, the voice picker and the cached greeting are not available with it; connect speech, model and voice separately for those.',
+  stepKeys: [msg('admin.oneKey.step.signUp'), msg('admin.oneKey.step.createKey'), msg('admin.oneKey.step.paste')],
+  costKey: msg('admin.oneKey.cost'),
+  caveatKey: msg('admin.oneKey.caveat'),
 } as const
 
 // --- Status ------------------------------------------------------------------------------------------------------
@@ -184,22 +192,26 @@ export const oneKey = {
  * is not set up.
  */
 export type StatusState = 'works' | 'failing' | 'missing' | 'partly' | 'checking' | 'untested' | 'not_needed' | 'off'
-export const statusWords: Record<StatusState, string> = {
-  works: 'Works',
-  failing: 'Failing',
-  missing: 'Not set up',
-  partly: 'Partly works',
-  checking: 'Checking…',
-  untested: 'Not tested',
-  not_needed: 'Not needed',
-  off: 'Off',
+export const statusWordKeys: Record<StatusState, MessageKey> = {
+  works: msg('admin.provider.statusWord.works'),
+  failing: msg('admin.provider.statusWord.failing'),
+  missing: msg('admin.provider.statusWord.missing'),
+  partly: msg('admin.provider.statusWord.partly'),
+  checking: msg('admin.provider.statusWord.checking'),
+  untested: msg('admin.provider.statusWord.untested'),
+  not_needed: msg('admin.provider.statusWord.notNeeded'),
+  off: msg('admin.provider.statusWord.off'),
 }
+/** The one word for a status ("Works", "Failing"), in the reader's language. */
+export const statusWord = (state: StatusState, words: Words = english) => words.t(statusWordKeys[state])
 /** "Failing: Key rejected", "Partly works: voice missing", "Works". */
-export const statusText = (s: { state: StatusState; detail: string | null }) =>
+export function statusText(s: { state: StatusState; detail: string | null }, words: Words = english): string {
+  const word = statusWord(s.state, words)
   // The word once: a detail that only repeats it ("Failing: Failing") is left out.
-  s.detail && (s.state === 'failing' || s.state === 'partly') && s.detail !== statusWords[s.state]
-    ? `${statusWords[s.state]}: ${s.detail}`
-    : statusWords[s.state]
+  return s.detail && (s.state === 'failing' || s.state === 'partly') && s.detail !== word
+    ? words.t('admin.provider.statusWithDetail', { word, detail: s.detail })
+    : word
+}
 
 /** A stored test of the keys in effect (provider_tests). */
 export type StoredTest = { ok: boolean; message: string; at: string }
@@ -275,20 +287,26 @@ export type StatusGroups = {
 }
 
 const labelOf = (p: ProviderName) => providerSpec(p).label
-/** "a, b and c" */
-export const listWords = (words: readonly string[], last: 'and' | 'or' = 'and') =>
-  words.length < 2 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} ${last} ${words.at(-1)}`
+/** "a, b and c" in the reader's language. */
+export const listWords = (items: readonly string[], words: Words = english) => words.format.list(items)
 
 // The OpenAI tests list the models with the key: they prove the key, not a call round trip.
 const keyOnlyChecks = new Set<ProviderName>(['openai_realtime', 'openai_stt', 'openai'])
-const testMessage = (provider: ProviderName, message: string) =>
-  keyOnlyChecks.has(provider) && message === 'Connected' ? 'Key accepted' : message
+// A stored test's message is the server's English (provider_tests): its one fixed word gets the reader's.
+const testMessage = (provider: ProviderName, message: string, words: Words) =>
+  message === 'Connected'
+    ? words.t(keyOnlyChecks.has(provider) ? 'admin.provider.keyAccepted' : 'admin.provider.connected')
+    : message
 
 /**
  * A provider's status. A recorded failure (a call, an email, the health check) beats a stored passing test until a
  * newer test passes; a failing test shows the failure's reason when one is recorded.
  */
-export function providerLine(fact: ProviderFact, failures: readonly FailureFact[] = []): ProviderLine {
+export function providerLine(
+  fact: ProviderFact,
+  failures: readonly FailureFact[] = [],
+  words: Words = english,
+): ProviderLine {
   const base = { provider: fact.provider, label: labelOf(fact.provider) }
   if (!fact.configured) return { ...base, state: 'missing', detail: null, message: null, testedAt: null }
   if (fact.test === 'running') return { ...base, state: 'checking', detail: null, message: null, testedAt: null }
@@ -301,14 +319,15 @@ export function providerLine(fact: ProviderFact, failures: readonly FailureFact[
       ...base,
       state: 'failing',
       // An unknown reason adds nothing to "Failing".
-      detail: failure.reason === 'unknown' ? null : providerFailureReasonLabels[failure.reason],
+      detail: failure.reason === 'unknown' ? null : words.t(providerFailureReasonKeys[failure.reason]),
       message: failure.message,
       testedAt,
       failedAt: failure.last_at,
     }
-  if (!test) return { ...base, state: 'untested', detail: null, message: 'Keys set, not tested yet', testedAt }
+  if (!test)
+    return { ...base, state: 'untested', detail: null, message: words.t('admin.provider.keysNotTested'), testedAt }
   if (!test.ok) return { ...base, state: 'failing', detail: null, message: test.message, testedAt, failedAt: test.at }
-  return { ...base, state: 'works', detail: null, message: testMessage(fact.provider, test.message), testedAt }
+  return { ...base, state: 'works', detail: null, message: testMessage(fact.provider, test.message, words), testedAt }
 }
 
 /** Several providers that are all in use: the worst status wins. */
@@ -345,14 +364,15 @@ const empty = (state: StatusState, message: string | null = null): GroupBody => 
   parts: [],
 })
 
-const stageNames: Record<(typeof STAGE_CATEGORIES)[number], string> = {
-  stt: 'speech to text',
-  llm: 'language model',
-  tts: 'voice',
+const stageNameKeys: Record<(typeof STAGE_CATEGORIES)[number], MessageKey> = {
+  stt: msg('admin.provider.stage.stt'),
+  llm: msg('admin.provider.stage.llm'),
+  tts: msg('admin.provider.stage.tts'),
 }
 
 /** Answering calls: what actually answers (each assistant's choice, with the fallback the voice agent uses). */
-function answering(input: StatusInput, lineOf: (c: ProviderCategory) => ProviderLine | null): GroupBody {
+function answering(input: StatusInput, lineOf: (c: ProviderCategory) => ProviderLine | null, words: Words): GroupBody {
+  const stageName = (c: (typeof STAGE_CATEGORIES)[number]) => words.t(stageNameKeys[c])
   const realtime = lineOf('realtime')
   const stages = STAGE_CATEGORIES.map(c => lineOf(c) ?? missingLine(null, c))
   const setUp = { realtime: !!realtime, three_stage: stages.every(s => s.state !== 'missing') }
@@ -363,19 +383,26 @@ function answering(input: StatusInput, lineOf: (c: ProviderCategory) => Provider
     s.state === 'missing' && onlyRealtime
       ? { ...s, state: 'not_needed' as const }
       : s.state === 'missing'
-        ? { ...s, label: s.label || stageNames[STAGE_CATEGORIES[i]!] }
+        ? { ...s, label: s.label || stageName(STAGE_CATEGORIES[i]!) }
         : s,
   )
   const parts = [...(realtime ? [realtime] : []), ...stageParts]
-  const threeLabel = listWords(stages.filter(s => s.state !== 'missing').map(s => s.label))
+  const threeLabel = listWords(
+    stages.filter(s => s.state !== 'missing').map(s => s.label),
+    words,
+  )
   if (!setUp.realtime && !setUp.three_stage) {
-    const missing = STAGE_CATEGORIES.filter((_, i) => stages[i]!.state === 'missing').map(c => stageNames[c])
+    const missing = STAGE_CATEGORIES.filter((_, i) => stages[i]!.state === 'missing').map(c => stageName(c))
     if (missing.length === 3) return { ...empty('missing'), parts }
     const failingStage = stages.find(s => s.state === 'failing')
     return {
       state: failingStage ? 'failing' : 'partly',
-      detail: failingStage ? (failingStage.detail ?? null) : `${listWords(missing)} missing`,
-      message: failingStage?.message ?? `${threeLabel} set up; ${listWords(missing)} missing.`,
+      detail: failingStage
+        ? (failingStage.detail ?? null)
+        : words.t('admin.provider.partsMissing', { parts: listWords(missing, words) }),
+      message:
+        failingStage?.message ??
+        words.t('admin.provider.partsSetUpMissing', { setUp: threeLabel, missing: listWords(missing, words) }),
       provider: null,
       providerLabel: threeLabel || null,
       testedAt: null,
@@ -388,14 +415,16 @@ function answering(input: StatusInput, lineOf: (c: ProviderCategory) => Provider
   const used = [...answeredBy]
   const line = worst(used.map(pipelineLine))
   const names = used.map(p => (p === 'realtime' ? realtime!.label : threeLabel))
-  const answeredText = `Answered by ${listWords(names, 'and')}${used.length > 1 ? ', as each assistant chose' : ''}.`
+  const answeredText = words.t(used.length > 1 ? 'admin.provider.answeredByEach' : 'admin.provider.answeredBy', {
+    names: listWords(names, words),
+  })
   const answerers = used.flatMap(p => (p === 'realtime' ? [realtime!.label] : stages.map(s => s.label)))
   return {
     state: line.state,
     detail: line.detail,
     message: line.state === 'works' ? answeredText : (line.message ?? answeredText),
     provider: used.length === 1 && used[0] === 'realtime' ? realtime!.provider : null,
-    providerLabel: listWords(names),
+    providerLabel: listWords(names, words),
     testedAt: line.testedAt,
     parts,
     answeredBy: [...new Set(answerers)],
@@ -403,22 +432,26 @@ function answering(input: StatusInput, lineOf: (c: ProviderCategory) => Provider
   }
 }
 
-function callAudio(fact: CallAudioFact | null | undefined): GroupBody {
+function callAudio(fact: CallAudioFact | null | undefined, words: Words): GroupBody {
   if (!fact) return empty('checking')
   if (!fact.configured) return empty('missing', fact.server.message)
-  if (!fact.server.ok) return { ...empty('failing', fact.server.message), detail: 'LiveKit not reachable' }
-  if (!fact.sip.ok) return { ...empty('partly', fact.sip.message), detail: 'phone calls (SIP) not set up' }
-  return { ...empty('works', `${fact.server.message}; ${fact.sip.message}`), providerLabel: 'LiveKit and SIP' }
+  if (!fact.server.ok)
+    return { ...empty('failing', fact.server.message), detail: words.t('admin.provider.callAudio.notReachable') }
+  if (!fact.sip.ok) return { ...empty('partly', fact.sip.message), detail: words.t('admin.provider.callAudio.noSip') }
+  return {
+    ...empty('works', words.t('admin.provider.callAudio.both', { server: fact.server.message, sip: fact.sip.message })),
+    providerLabel: words.t('admin.provider.callAudio.label'),
+  }
 }
 
 /**
  * Every group's status from what is known about each provider: `providers` (configured, in use, last test) and the
  * failures recorded since. Needed groups that are not set up are "Not set up"; optional ones are "Off".
  */
-export function statusGroups(input: StatusInput): StatusGroups {
+export function statusGroups(input: StatusInput, words: Words = english): StatusGroups {
   const failures = input.failures ?? []
   const fact = (p: ProviderName) => input.providers.find(f => f.provider === p)
-  const line = (p: ProviderName) => providerLine(fact(p)!, failures)
+  const line = (p: ProviderName) => providerLine(fact(p)!, failures, words)
   /** The provider a category uses, when it has all its keys; null when none. */
   const inUse = (category: ProviderCategory) => {
     const used = providersIn(category).find(p => fact(p)?.active && fact(p)?.configured)
@@ -430,7 +463,10 @@ export function statusGroups(input: StatusInput): StatusGroups {
     return {
       ...fromLine(w, lines),
       provider: lines.length === 1 ? w.provider : null,
-      providerLabel: listWords(lines.map(l => l.label)),
+      providerLabel: listWords(
+        lines.map(l => l.label),
+        words,
+      ),
     }
   }
   const configured = (ps: readonly ProviderName[]) => ps.filter(p => fact(p)?.configured).map(line)
@@ -441,26 +477,30 @@ export function statusGroups(input: StatusInput): StatusGroups {
         if (used) return fromLine(used)
         return empty(
           'missing',
-          input.emailToLog ? 'Sign-in codes go to the API log (EMAIL_TO_LOG): for development only' : null,
+          input.emailToLog ? words.t('admin.provider.emailToLog', { name: 'EMAIL_TO_LOG' }) : null,
         )
       }
       case 'telephony': {
         const used = inUse('telephony')
         if (used) return fromLine(used)
         return input.devCarrier
-          ? { ...empty('works', input.devCarrier), providerLabel: 'Development carrier' }
+          ? { ...empty('works', input.devCarrier), providerLabel: words.t('admin.provider.devCarrier') }
           : empty('missing')
       }
       case 'answering':
-        return answering(input, inUse)
+        return answering(input, inUse, words)
       case 'call-audio':
-        return callAudio(input.callAudio)
+        return callAudio(input.callAudio, words)
       case 'sign-in': {
         const apps = several(configured(providersIn('sign_in')))
         // A test passes before the API runs with the new settings: until it restarted, it is not in effect.
         if (!input.signInPending || apps.state === 'off') return apps
-        const later = 'saved, takes effect after the API restarts'
-        return { ...apps, state: 'partly', detail: later, message: 'Saved, takes effect after the API restarts.' }
+        return {
+          ...apps,
+          state: 'partly',
+          detail: words.t('admin.provider.signInPending.detail'),
+          message: words.t('admin.provider.signInPending.message'),
+        }
       }
       case 'calendar':
         return several(configured(CALENDAR_APPS))
@@ -486,7 +526,7 @@ export function statusGroups(input: StatusInput): StatusGroups {
     const b = body(spec.id)
     // An optional group not set up is Off, never "Not set up".
     const state = !spec.needed && b.state === 'missing' ? 'off' : b.state
-    return { id: spec.id, label: spec.label, needed: spec.needed, ...b, state }
+    return { id: spec.id, label: words.t(spec.labelKey), needed: spec.needed, ...b, state }
   })
   return { groups, ready: groups.filter(g => g.needed).every(g => g.state === 'works') }
 }
@@ -501,24 +541,61 @@ const CALL_GROUPS: readonly ProviderGroupId[] = ['telephony', 'answering', 'call
  * The overview's headline: ready, calls not answered (a group calls need is failing), something failing, or not
  * set up yet. `reason` names the group and why.
  */
-export function readiness(groups: readonly GroupStatus[]): {
+export function readiness(
+  groups: readonly GroupStatus[],
+  words: Words = english,
+): {
   state: 'ready' | 'blocked' | 'failing' | 'missing' | 'checking'
   headline: string
   reason: string | null
 } {
   const needed = groups.filter(g => g.needed)
   const failingCall = needed.find(g => CALL_GROUPS.includes(g.id) && g.state === 'failing')
-  const reasonOf = (g: GroupStatus) => `${g.label}: ${statusText(g)}`
-  if (failingCall) return { state: 'blocked', headline: 'Calls are not answered', reason: reasonOf(failingCall) }
+  const reasonOf = (g: GroupStatus) =>
+    words.t('admin.provider.reason', { group: g.label, status: statusText(g, words) })
+  if (failingCall)
+    return { state: 'blocked', headline: words.t('admin.provider.readiness.blocked'), reason: reasonOf(failingCall) }
   const failing = groups.find(g => g.state === 'failing')
-  if (failing) return { state: 'failing', headline: `${failing.label} is failing`, reason: reasonOf(failing) }
+  if (failing)
+    return {
+      state: 'failing',
+      headline: words.t('admin.provider.readiness.failing', { group: failing.label }),
+      reason: reasonOf(failing),
+    }
   const missing = needed.filter(g => g.state === 'missing' || g.state === 'partly')
   if (missing.length)
     return {
       state: 'missing',
-      headline: 'Not ready for calls yet',
-      reason: `${listWords(missing.map(g => g.label))} ${missing.length > 1 ? 'are' : 'is'} not set up.`,
+      headline: words.t('admin.provider.readiness.missing'),
+      reason: words.t('admin.provider.readiness.notSetUp', {
+        count: missing.length,
+        groups: listWords(
+          missing.map(g => g.label),
+          words,
+        ),
+      }),
     }
-  if (needed.every(g => g.state === 'works')) return { state: 'ready', headline: 'Ready for calls', reason: null }
-  return { state: 'checking', headline: 'Checking…', reason: null }
+  if (needed.every(g => g.state === 'works'))
+    return { state: 'ready', headline: words.t('admin.provider.readiness.ready'), reason: null }
+  return { state: 'checking', headline: words.t('admin.provider.statusWord.checking'), reason: null }
+}
+
+/** The call audio guide in the reader's words (ProviderGuide); English for the setup MCP and the CLI. */
+export const callAudioGuideIn = (words: Words = english) => ({
+  url: callAudioGuide.url,
+  steps: callAudioGuide.stepKeys.map(key => callAudioStep(key, words)),
+  cost: words.t(callAudioGuide.costKey),
+})
+/** The one-key offer in the reader's words; English for the setup MCP and the CLI. */
+export const oneKeyIn = (words: Words = english) => ({
+  label: oneKey.label,
+  url: oneKey.url,
+  steps: oneKey.stepKeys.map(key => words.t(key)),
+  cost: words.t(oneKey.costKey),
+  caveat: words.t(oneKey.caveatKey),
+})
+/** A group's name and why in the reader's words; English for the setup MCP and the CLI. */
+export const groupText = (id: ProviderGroupId, words: Words = english) => {
+  const spec = groupSpec(id)
+  return { label: words.t(spec.labelKey), why: words.t(spec.whyKey) }
 }

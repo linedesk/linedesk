@@ -1,6 +1,8 @@
 // Provider health (LIN-111): what a provider test found, and the failures the API and the voice agent
 // record per provider while they work (apps/api/src/provider-failures.ts). A used-up quota, a rejected key or a
 // model that no longer exists shows up in Server admin › Providers and the admin overview instead of failing silently.
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { english, type Words } from './words.ts'
 import { z } from 'zod'
 import { type ProviderCategory, type ProviderName, providerNames } from './admin.ts'
 import { defineAction } from './define.ts'
@@ -26,17 +28,20 @@ export const providerFailureReasons = [
 ] as const
 export type ProviderFailureReason = (typeof providerFailureReasons)[number]
 
-export const providerFailureReasonLabels: Record<ProviderFailureReason, string> = {
-  quota: 'Quota or credit used up',
-  auth: 'Key rejected',
-  permission: 'Missing permission',
-  not_found: 'Not found',
-  config: 'Setting refused',
-  network: 'Not reachable',
-  timeout: 'No answer in time',
-  no_output: 'Answered with nothing',
-  unknown: 'Failing',
+export const providerFailureReasonKeys: Record<ProviderFailureReason, MessageKey> = {
+  quota: msg('errors.provider.reason.quota'),
+  auth: msg('errors.provider.reason.auth'),
+  permission: msg('errors.provider.reason.permission'),
+  not_found: msg('errors.provider.reason.notFound'),
+  config: msg('errors.provider.reason.config'),
+  network: msg('errors.provider.reason.network'),
+  timeout: msg('errors.provider.reason.timeout'),
+  no_output: msg('errors.provider.reason.noOutput'),
+  unknown: msg('errors.provider.reason.unknown'),
 }
+/** A failure reason in a few words ("Key rejected"), in the reader's language. */
+export const providerFailureReasonLabel = (reason: ProviderFailureReason, words: Words = english) =>
+  words.t(providerFailureReasonKeys[reason])
 
 /** Codes and words in error text that mean credit, quota or billing, whatever the status. */
 const QUOTA =
@@ -81,7 +86,26 @@ export function providerFailureReason({
 /** Who reads an error: an instance admin can fix a provider (Server admin › Providers), a member can only ask. */
 export type ProviderAudience = 'admin' | 'member'
 
-const ASK = 'Ask whoever runs this server'
+/** The problem per reason ("{label} rejected the key it was given."). */
+const PROBLEM: Record<ProviderFailureReason, MessageKey> = {
+  quota: msg('errors.provider.problem.quota'),
+  auth: msg('errors.provider.problem.auth'),
+  permission: msg('errors.provider.problem.permission'),
+  not_found: msg('errors.provider.problem.notFound'),
+  config: msg('errors.provider.problem.config'),
+  network: msg('errors.provider.problem.network'),
+  timeout: msg('errors.provider.problem.timeout'),
+  no_output: msg('errors.provider.problem.noOutput'),
+  unknown: msg('errors.provider.problem.unknown'),
+}
+/** What an admin does about a lasting problem, and what a member asks for; a passing one says to try again. */
+const FIX: Partial<Record<ProviderFailureReason, { admin: MessageKey; member: MessageKey }>> = {
+  quota: { admin: msg('errors.provider.fix.admin.quota'), member: msg('errors.provider.fix.member.quota') },
+  auth: { admin: msg('errors.provider.fix.admin.auth'), member: msg('errors.provider.fix.member.key') },
+  permission: { admin: msg('errors.provider.fix.admin.permission'), member: msg('errors.provider.fix.member.key') },
+  not_found: { admin: msg('errors.provider.fix.admin.notFound'), member: msg('errors.provider.fix.member.setup') },
+  config: { admin: msg('errors.provider.fix.admin.config'), member: msg('errors.provider.fix.member.setup') },
+}
 
 /**
  * What a provider failure means for the person who ran into it, and what they can do next: the one mapping from a
@@ -93,59 +117,26 @@ export function providerFailureAdvice(
   reason: ProviderFailureReason,
   label: string,
   audience: ProviderAudience,
+  words: Words = english,
 ): { problem: string; fix: string } {
-  const admin = audience === 'admin'
-  const persistent = (adminFix: string, memberFix: string) => (admin ? adminFix : `${ASK} ${memberFix}`)
-  const passing = admin
-    ? 'Try again in a moment. If it keeps failing, test it under Server admin › Providers.'
-    : `Try again in a moment. If it keeps failing, ${ASK.charAt(0).toLowerCase()}${ASK.slice(1)}.`
-  switch (reason) {
-    case 'quota':
-      return {
-        problem: `${label} has used up its quota or credit.`,
-        fix: persistent(
-          `Add credit or raise the limit at ${label}, then test it under Server admin › Providers.`,
-          'to add credit.',
-        ),
-      }
-    case 'auth':
-      return {
-        problem: `${label} rejected the key it was given.`,
-        fix: persistent('Enter a valid key under Server admin › Providers.', 'to check the key.'),
-      }
-    case 'permission':
-      return {
-        problem: `The key for ${label} is missing a permission.`,
-        fix: persistent(
-          'Give the key the permission, or enter another key under Server admin › Providers.',
-          'to check the key.',
-        ),
-      }
-    case 'not_found':
-      return {
-        problem: `${label} does not know a model, voice or account it was set up with.`,
-        fix: persistent('Pick another one under Server admin › Providers.', 'to check the setup.'),
-      }
-    case 'config':
-      return {
-        problem: `${label} refused a setting.`,
-        fix: persistent('Check its settings under Server admin › Providers.', 'to check the setup.'),
-      }
-    case 'network':
-      return { problem: `${label} is not reachable right now.`, fix: passing }
-    case 'timeout':
-      return { problem: `${label} did not answer in time.`, fix: passing }
-    case 'no_output':
-      return { problem: `${label} answered with nothing.`, fix: passing }
-    case 'unknown':
-      return { problem: `${label} failed.`, fix: passing }
+  const fix = FIX[reason]
+  return {
+    problem: words.t(PROBLEM[reason], { label }),
+    fix: fix
+      ? words.t(fix[audience], { label })
+      : words.t(audience === 'admin' ? 'errors.provider.fix.admin.passing' : 'errors.provider.fix.member.passing'),
   }
 }
 
 /** providerFailureAdvice as one sentence pair, ready to show. */
-export function providerFailureText(reason: ProviderFailureReason, label: string, audience: ProviderAudience): string {
-  const { problem, fix } = providerFailureAdvice(reason, label, audience)
-  return `${problem} ${fix}`
+export function providerFailureText(
+  reason: ProviderFailureReason,
+  label: string,
+  audience: ProviderAudience,
+  words: Words = english,
+): string {
+  const { problem, fix } = providerFailureAdvice(reason, label, audience, words)
+  return words.t('errors.provider.problemAndFix', { problem, fix })
 }
 
 /**
@@ -183,13 +174,13 @@ export function oauthClientRejectedBy(text: string): string | null {
 export const PROVIDER_ERROR_SUMMARY_MAX = 120
 
 /** Known error codes in a provider's text, said for people (one line each). */
-const SUMMARIES: [RegExp, string][] = [
-  [PER_CALL_ERROR, 'A call sent two replies at once. Calls still work.'],
-  [QUOTA, "The provider's limit or credit is used up."],
-  [/\b429\b|rate[_ ]limit|too many requests/i, "The provider's limit or credit is used up."],
+const SUMMARIES: [RegExp, MessageKey][] = [
+  [PER_CALL_ERROR, msg('errors.provider.summary.twoReplies')],
+  [QUOTA, msg('errors.provider.summary.quota')],
+  [/\b429\b|rate[_ ]limit|too many requests/i, msg('errors.provider.summary.quota')],
   [
     /\b401\b|invalid[_ ]?(api[_ ]?)?key|incorrect api key|unauthori[sz]ed|key rejected|rejected the key/i,
-    'The API key is not accepted.',
+    msg('errors.provider.summary.key'),
   ],
 ]
 
@@ -197,9 +188,9 @@ const SUMMARIES: [RegExp, string][] = [
  * A provider's error text as one short human line (at most PROVIDER_ERROR_SUMMARY_MAX characters): a known code in
  * plain words, else the text's first sentence without any JSON or ids after it. The full text is for "Details".
  */
-export function providerErrorSummary(text: string): string {
+export function providerErrorSummary(text: string, words: Words = english): string {
   const known = SUMMARIES.find(([pattern]) => pattern.test(text))
-  if (known) return known[1]
+  if (known) return words.t(known[1])
   // Up to the first JSON object or array: what follows is the provider's raw answer.
   const prose = text
     .split(/\s[{[]/, 1)[0]!
@@ -207,7 +198,7 @@ export function providerErrorSummary(text: string): string {
     .trim()
   // The first sentence: up to ". " followed by a capital, or the end.
   const sentence = (/^.*?[.!?](?=\s+[A-Z]|$)/.exec(prose)?.[0] ?? prose).trim()
-  const line = sentence || 'The provider returned an error.'
+  const line = sentence || words.t('errors.provider.summary.error')
   return line.length > PROVIDER_ERROR_SUMMARY_MAX ? `${line.slice(0, PROVIDER_ERROR_SUMMARY_MAX - 1).trimEnd()}…` : line
 }
 

@@ -130,7 +130,7 @@ export function fieldErrors(provider: ProviderStatus, values: Record<string, str
     const typed = (values[f.field] ?? '').trim()
     if (typed) {
       // A number typed here must be a whole one; a value saved before as it was typed stays as it is.
-      const problem = isPhone(provider, f) && typed !== (f.value ?? '') ? phoneNumberProblem(typed) : null
+      const problem = isPhone(provider, f) && typed !== (f.value ?? '') ? phoneNumberProblem(typed, i18n()) : null
       if (problem) errors[f.field] = problem
       continue
     }

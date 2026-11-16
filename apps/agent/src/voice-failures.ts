@@ -7,7 +7,7 @@ import {
   type VoiceFailure,
   type VoiceStage,
   voiceFailureReason,
-  voiceStageNames,
+  voiceStageName,
 } from '@linedesk/actions'
 import { APIConnectionError, APIStatusError, APITimeoutError, voice } from '@livekit/agents'
 
@@ -68,7 +68,7 @@ export function onceEachStage(report: (failure: VoiceFailure) => void, log: (lin
     const key = `${failure.stage}:${failure.provider}`
     if (seen.has(key)) return
     seen.add(key)
-    log(`${voiceStageNames[failure.stage]} ${failure.provider} failed (${failure.reason}): ${failure.message}`)
+    log(`${voiceStageName(failure.stage)} ${failure.provider} failed (${failure.reason}): ${failure.message}`)
     report(failure)
   }
 }

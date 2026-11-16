@@ -3,7 +3,7 @@
 import { createServer } from 'node:http'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageNames, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, spokenLines, swapDefault, templateNames } from '@linedesk/actions'
+import { agentTokenProblem, VOICE_FAILURE_ATTRIBUTE, type Language, type ProviderName, type VoiceFailure, type VoiceStage, voiceProviderLabel, voiceStageName, CALL_MAX_MINUTES, callFlagUrgent, callStartRecording, fillTemplate, goodbyeLineOf, mainLanguageOf, spokenLines, swapDefault, templateNames } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import type { RemoteParticipant, Room } from '@livekit/rtc-node'
@@ -144,7 +144,7 @@ async function greet(session: voice.AgentSession, config: AgentConfig, call: Cal
  * its transcript), and the agent says it on itself (VOICE_FAILURE_ATTRIBUTE), where a test call's browser shows it at once.
  */
 function reportVoiceFailure(room: Room, call: CallSession, log: CallLog, failure: VoiceFailure) {
-  const stage = voiceStageNames[failure.stage]
+  const stage = voiceStageName(failure.stage)
   log.voiceFailed ??= failure.stage
   // No reason on the transcript: the first one may still be refined (below); the call's failure keeps the cause.
   log.record('system', `${stage[0]!.toUpperCase()}${stage.slice(1)} failed: ${voiceProviderLabel(failure.provider)}`)
@@ -249,7 +249,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     stages ? [stages.stt.apiKey, stages.llm.apiKey, stages.tts.apiKey] : [realtime!.apiKey],
     failure => {
       callErrors++
-      console.warn(`call ${call.callId}: ${voiceStageNames[failure.stage]} ${failure.provider} refused a reply (per-call, not a provider failure): ${failure.message}`)
+      console.warn(`call ${call.callId}: ${voiceStageName(failure.stage)} ${failure.provider} refused a reply (per-call, not a provider failure): ${failure.message}`)
     },
   )
   // A call the assistant answered in: the providers of every stage that did not fail worked, so a failure recorded for

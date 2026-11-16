@@ -51,7 +51,7 @@ export const groupRow = (g: GroupStatus): Row => {
     id: g.id,
     label: g.label,
     state: g.state,
-    mark: statusText(g),
+    mark: statusText(g, i18n()),
     // A problem is said under the name, in full; the right side stays short.
     value: problem ? null : groupValue(g),
     problem: problem?.line ?? null,
@@ -171,7 +171,7 @@ export function StatusCard({ status }: { status: ProviderStatusState }) {
   const [open, setOpen] = useState<boolean | null>(null)
   if (!status.status) return <Skeleton className="adm-card adm-skel-card" />
   const { groups } = status.status
-  const ready = readiness(groups)
+  const ready = readiness(groups, i18n())
   const server = serverRows(status.health)
   const serverDown = server.find(r => r.state === 'failing')
   const allGood = ready.state === 'ready' && !serverDown && server.every(r => r.state === 'works')

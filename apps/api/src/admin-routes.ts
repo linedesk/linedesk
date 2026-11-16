@@ -6,10 +6,12 @@ import { avatarUrlOf, type Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
+import { getT } from '@linedesk/i18n/server'
 import { z } from 'zod'
 import { adminHealth, adminOverview, costEstimate, noteAgentSeen } from './admin-overview.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
+import { localeForUserId } from './email-locale.ts'
 import { isEnvAdmin } from './instance-admin.ts'
 import { serverEnv } from './instance-env.ts'
 import { livekitStatus } from './livekit-status.ts'
@@ -34,6 +36,9 @@ const requirePermission = (permission: Permission) => async (c: Context<Env>, ne
     return c.json({ ok: false, error: `missing permission ${permission}` }, 403)
   await next()
 }
+
+/** The words of the person reading the page: status texts the admin screens show in their language. */
+const readerWords = async (c: Context<Env>) => getT(await localeForUserId(db, c.get('actor').actorId))
 
 /** `days` of GET /v1/admin/onboarding: whole days, clamped to 0 … AT_RISK_MAX_DAYS; anything else is the default. */
 const setupDays = z.coerce.number().int()
@@ -216,20 +221,21 @@ export function registerAdminRoutes(app: Hono<Env>) {
     return c.json({ days, oldEnough, workspaces })
   })
   // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
-  app.get('/v1/admin/health', async c => c.json(await adminHealth()))
+  app.get('/v1/admin/health', async c => c.json(await adminHealth(await readerWords(c))))
 
   // The providers, which are in use, which are failing now (provider-failures.ts) and the last test of each one's keys
   // in effect (setup-checklist.ts): every screen starts from the stored result instead of testing again.
   // Each part is read once, side by side: the page waits for this.
   app.get('/v1/admin/providers', async c => {
     const env = serverEnv()
+    const words = await readerWords(c)
     const [providers, failures] = await Promise.all([providerStatus(db, env), listProviderFailures(db)])
     const facts = await providerFacts(db, env, providers.active)
     return c.json({
       ...providers,
       failures,
       tests: storedTests(facts),
-      status: await statusContext(db, env, facts),
+      status: await statusContext(db, env, facts, words),
     })
   })
 
@@ -267,10 +273,12 @@ export function registerAdminRoutes(app: Hono<Env>) {
   app.get('/v1/admin/install-setup', async c => c.json(await installSetupState()))
 
   // Every provider group's status (setup-checklist.ts, statusGroups), read-only: tests run through provider.test.
-  app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db)))
+  app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db, { words: await readerWords(c) })))
 
   // LiveKit is part of the install (keys in env): read-only status of the server and its SIP service.
-  app.get('/v1/admin/system', async c => c.json({ livekit: await livekitStatus() }))
+  app.get('/v1/admin/system', async c =>
+    c.json({ livekit: await livekitStatus(process.env, fetch, await readerWords(c)) }),
+  )
 
   // For the voice agent: the active speech and LLM providers with their keys, in clear. The install-wide
   // agent token only: no member, not even an instance admin, and no call token (a leaked one must not

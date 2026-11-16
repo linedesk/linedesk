@@ -1,5 +1,5 @@
 import {
-  groupSpec,
+  groupText,
   type ProviderFailure,
   type ProviderName,
   providerNames,
@@ -153,7 +153,7 @@ test('why a group is there is help on demand, and not again inside the walkthrou
   const email = groupOf(providerStatus(data(['resend'], { tests }), {}, health), 'email')
   // A group that is fine has no visible line; why it is there sits behind the (?).
   expect(groupNote(email)).toBeNull()
-  expect(groupHelp(email)).toBe(groupSpec('email').why)
+  expect(groupHelp(email)).toBe(groupText('email').why)
   expect(groupHelp(email, true)).toBeNull()
   // A failing provider says it on its own card (ProviderError), not again in a line above it.
   const failing = groupOf(

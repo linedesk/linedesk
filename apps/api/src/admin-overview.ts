@@ -1,6 +1,7 @@
 // The admin overview: how much the install is used, what that roughly costs per provider, and
 // whether its parts (API, LiveKit, SIP, voice agent, email) work. Numbers are cheap SQL; health is
 // a separate request because LiveKit and SMTP can take seconds to answer.
+import { english, type Words } from '@linedesk/actions'
 import {
   categoryNames,
   type ProviderCategory,
@@ -211,16 +212,21 @@ export function agentAway(nowMs = Date.now(), seenAt = agentSeenAt, startedAt = 
   return nowMs - (seenAt ?? startedAt) > AGENT_STALE_MS
 }
 
-export function agentStatus(nowMs = Date.now(), seenAt = agentSeenAt, startedAt = apiStartedAt): ServiceStatus {
+export function agentStatus(
+  nowMs = Date.now(),
+  seenAt = agentSeenAt,
+  startedAt = apiStartedAt,
+  words: Words = english,
+): ServiceStatus {
   // Right after the API starts the agent has not had its chance yet (agentAway): not failing until it is overdue.
   if (seenAt === null)
     return agentAway(nowMs, seenAt, startedAt)
-      ? { ok: false, message: 'Not seen since the API started. Is the agent worker running?' }
-      : { ok: true, message: 'Waiting for its first check-in (every 30 s) since the API started.' }
+      ? { ok: false, message: words.t('admin.health.agent.notSeen') }
+      : { ok: true, message: words.t('admin.health.agent.waiting', { seconds: 30 }) }
   const ago = Math.round((nowMs - seenAt) / 1000)
   if (nowMs - seenAt > AGENT_STALE_MS)
-    return { ok: false, message: `Last seen ${ago} s ago. Is the agent worker running?` }
-  return { ok: true, message: `Checked in ${ago} s ago.` }
+    return { ok: false, message: words.t('admin.health.agent.lastSeen', { seconds: ago }) }
+  return { ok: true, message: words.t('admin.health.agent.checkedIn', { seconds: ago }) }
 }
 
 /**
@@ -243,17 +249,15 @@ export function publicHealth(
 /** Electric, the read sync behind GET /v1/shape: its own health endpoint (200 active, 202 still starting). */
 export async function readSyncStatus(
   electricUrl = process.env.ELECTRIC_URL ?? 'http://localhost:3001',
+  words: Words = english,
 ): Promise<ServiceStatus> {
   try {
     const res = await fetch(new URL('/v1/health', electricUrl), { signal: AbortSignal.timeout(3000) })
-    if (res.status === 200) return { ok: true, message: 'Answering.' }
-    if (res.status === 202) return { ok: false, message: 'Starting up. Lists in the app load once it is ready.' }
-    return { ok: false, message: `Electric answered ${res.status}. Lists in the app don't load until it answers.` }
+    if (res.status === 200) return { ok: true, message: words.t('admin.health.answering') }
+    if (res.status === 202) return { ok: false, message: words.t('admin.health.readSync.starting') }
+    return { ok: false, message: words.t('admin.health.readSync.answered', { status: res.status }) }
   } catch {
-    return {
-      ok: false,
-      message: "Electric can't be reached. Is its container running? Lists in the app don't load until it is.",
-    }
+    return { ok: false, message: words.t('admin.health.readSync.unreachable') }
   }
 }
 
@@ -278,15 +282,19 @@ async function emailHealth(): Promise<ServiceStatus> {
   return checked.ok && failing ? { ok: false, message: failing.message } : checked
 }
 
-export async function adminHealth(): Promise<AdminHealth> {
-  const [livekit, email, readSync] = await Promise.all([livekitStatus(), emailHealth(), readSyncStatus()])
+export async function adminHealth(words: Words = english): Promise<AdminHealth> {
+  const [livekit, email, readSync] = await Promise.all([
+    livekitStatus(process.env, fetch, words),
+    emailHealth(),
+    readSyncStatus(undefined, words),
+  ])
   return {
     livekitConfigured: !!livekit.url,
-    api: { ok: true, message: 'Answering.' },
+    api: { ok: true, message: words.t('admin.health.answering') },
     readSync,
     livekit: livekit.server,
     sip: livekit.sip,
-    agent: agentStatus(),
+    agent: agentStatus(undefined, undefined, undefined, words),
     email,
   }
 }

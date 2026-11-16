@@ -7,16 +7,17 @@
 // Help on demand: why the group is there sits behind the (?) next to its heading; only a problem is a visible line.
 import {
   callAudioGuide,
+  callAudioStep,
   type GroupStatus,
   isMultiCategory,
   type ProviderCategory,
   type ProviderLine,
   type ProviderName,
-  providerCategories,
+  providerCategoryLabel,
   recommendedProviders,
   type StatusState,
   statusText,
-  statusWords,
+  statusWord,
   type VoicePipeline,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -44,10 +45,11 @@ import {
   wayAfterKey,
   wayOfCategory, pinnedOfList } from './providerList.ts'
 import { groupAttention, groupHelp, groupNote, groupProblem, rowStatus } from './providerStatus.ts'
+import { i18n } from '../i18n/index.tsx'
 
 /** "Works", "Failing: Key rejected", "Partly works: voice missing", in red only when it fails. */
 export function StatusWords({ status }: { status: { state: StatusState; detail: string | null } }) {
-  return <span className={cx('adm-status', status.state === 'failing' && 'adm-status-bad')}>{statusText(status)}</span>
+  return <span className={cx('adm-status', status.state === 'failing' && 'adm-status-bad')}>{statusText(status, i18n())}</span>
 }
 
 /** The two ways Answering works, as two tabs over its lists. */
@@ -154,7 +156,7 @@ export function ProviderGroup({
   const attention = groupAttention(group)
   const status = attention && (
     <span className={cx('adm-provcat-note', attention === 'failing' && 'adm-status-bad')}>
-      <StatusMark state={attention} /> {statusWords[attention]}
+      <StatusMark state={attention} /> {statusWord(attention, i18n())}
     </span>
   )
   return (
@@ -203,7 +205,7 @@ export function ProviderGroup({
           {lists.map(({ key, category, providers }) => (
             <ProviderList
               key={key}
-              title={lists.length > 1 ? providerCategories[category] : null}
+              title={lists.length > 1 ? providerCategoryLabel(category, i18n()) : null}
               category={category}
               providers={providers}
               data={data}
@@ -354,7 +356,7 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
         <details className="adm-guide" open={group.state === 'missing'}>
           <summary>{t('admin.providers.callAudio.howTo')}</summary>
           <ol className="adm-guide-steps">
-            {callAudioGuide.steps.map(step => (
+            {callAudioGuide.stepKeys.map(key => callAudioStep(key, i18n())).map(step => (
               <li key={step}>{step}</li>
             ))}
           </ol>
@@ -363,7 +365,7 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
               {t('admin.providers.callAudio.ports')}
             </a>
             {' · '}
-            {callAudioGuide.cost}
+            {t(callAudioGuide.costKey)}
           </p>
         </details>
       )}

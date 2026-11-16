@@ -3,6 +3,7 @@
 // (outbound.countries, packages/actions/src/outbound.ts).
 import { type OutboundCountries, type OutboundCountriesView, phoneNumberProblem } from '@linedesk/actions'
 import { useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { readAction } from '../settings/settings-api.ts'
 import type { WhoHearsDraft, WhoHearsProblem } from './flow.ts'
 
@@ -14,7 +15,7 @@ import type { WhoHearsDraft, WhoHearsProblem } from './flow.ts'
 export function withUnfinishedNumber(draft: WhoHearsDraft, problem: WhoHearsProblem | null): WhoHearsProblem | null {
   const mobile = draft.mobile.trim()
   if (draft.urgent !== 'transfer' || !mobile.startsWith('+')) return problem
-  const own = phoneNumberProblem(mobile)
+  const own = phoneNumberProblem(mobile, i18n())
   return own ? { field: 'mobile', message: own } : problem
 }
 

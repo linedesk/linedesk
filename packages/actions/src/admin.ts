@@ -1,10 +1,12 @@
 // The admin area: actions for the operator of the install. All need `instance:admin`, which no
 // workspace role has. They change tables that are not synced, so none has a `patch`.
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 import { type MembershipRole, membershipRoles } from './membership.ts'
 import type { ProviderCheckStatus, ProviderFailureReason } from './provider-health.ts'
+import { english, type Words } from './words.ts'
 
 export type ProviderCategory =
   | 'telephony'
@@ -20,21 +22,24 @@ export type ProviderCategory =
   | 'billing'
   | 'apps'
   | 'bot_check'
-export const providerCategories: Record<ProviderCategory, string> = {
-  telephony: 'Telephony',
-  stt: 'Speech to text',
-  llm: 'Language model',
-  tts: 'Voice',
-  realtime: 'Realtime model',
-  email: 'Email',
-  sign_in: 'Sign-in and calendar',
-  recording: 'Recording storage',
-  transcript: 'After-call transcription',
-  business: 'Business lookup',
-  billing: 'Billing',
-  apps: 'Connected apps',
-  bot_check: 'Bot check',
+export const providerCategoryKeys: Record<ProviderCategory, MessageKey> = {
+  telephony: msg('admin.provider.category.telephony'),
+  stt: msg('admin.provider.category.stt'),
+  llm: msg('admin.provider.category.llm'),
+  tts: msg('admin.provider.category.tts'),
+  realtime: msg('admin.provider.category.realtime'),
+  email: msg('admin.provider.category.email'),
+  sign_in: msg('admin.provider.category.signIn'),
+  recording: msg('admin.provider.category.recording'),
+  transcript: msg('admin.provider.category.transcript'),
+  business: msg('admin.provider.category.business'),
+  billing: msg('admin.provider.category.billing'),
+  apps: msg('admin.provider.category.apps'),
+  bot_check: msg('admin.provider.category.botCheck'),
 }
+/** A category's name ("Speech to text") in the reader's words; English for the setup MCP and the CLI. */
+export const providerCategoryLabel = (category: ProviderCategory, words: Words = english) =>
+  words.t(providerCategoryKeys[category])
 
 /** Categories where every provider that is set up is in use at once (no pick): sign-in with Google and GitHub, say. */
 export const multiCategories: readonly ProviderCategory[] = ['sign_in', 'apps']
@@ -67,7 +72,7 @@ export const categoryEnv: Partial<Record<ProviderCategory, string>> = {
   email: 'EMAIL_PROVIDER',
   recording: 'RECORDING_STORE',
 }
-export const categoryNames = Object.keys(providerCategories) as [ProviderCategory, ...ProviderCategory[]]
+export const categoryNames = Object.keys(providerCategoryKeys) as [ProviderCategory, ...ProviderCategory[]]
 
 /**
  * `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a

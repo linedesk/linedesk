@@ -1,6 +1,7 @@
 // The country list of the phone field (PhoneInput.tsx): each country with its flag and calling code, common ones
 // first, the search over name, ISO code and calling code, and where the caret goes when the number is formatted.
 import { callingCodeOf, isPhoneCountry, phoneCountryCodes, phoneCountryName } from '@linedesk/actions'
+import { intlLocale } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 
 export type PhoneCountryOption = {
@@ -26,7 +27,7 @@ export const flagOf = (country: string): string =>
 
 const optionOf = (value: string, group?: string): PhoneCountryOption => ({
   value,
-  name: phoneCountryName(value),
+  name: phoneCountryName(value, i18n()),
   callingCode: callingCodeOf(value),
   flag: flagOf(value),
   ...(group ? { group } : {}),
@@ -78,14 +79,15 @@ const cached = new Map<string, PhoneCountryOption[]>()
 export function phoneCountryOptions(viewer?: string | null): PhoneCountryOption[] {
   const firsts = commonPhoneCountries(viewer)
   const group = allCountriesGroup()
-  const key = `${firsts.join(',')}|${group}`
+  const locale = intlLocale()
+  const key = `${locale}|${firsts.join(',')}|${group}`
   const known = cached.get(key)
   if (known) return known
   const common = new Set(firsts)
   const others = phoneCountryCodes()
     .filter(c => !common.has(c))
     .map(c => optionOf(c, group))
-    .sort((a, b) => a.name.localeCompare(b.name, 'en'))
+    .sort((a, b) => a.name.localeCompare(b.name, locale))
   const options = [...firsts.map(c => optionOf(c)), ...others]
   cached.set(key, options)
   return options

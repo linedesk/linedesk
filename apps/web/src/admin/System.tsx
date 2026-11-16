@@ -24,6 +24,7 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { externalLink } from '../settings/ZapierGuide.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 
@@ -306,7 +307,10 @@ function OutboundCalls() {
               <Note tone="warning">
                 {t('admin.system.twilioBlocked', {
                   countries: countryList(data.twilioBlocked),
-                  names: fmt().list(data.twilioBlocked.map(phoneCountryName), { type: 'unit', style: 'short' }),
+                  names: fmt().list(
+                    data.twilioBlocked.map(country => phoneCountryName(country, i18n())),
+                    { type: 'unit', style: 'short' },
+                  ),
                 })}
               </Note>
             ) : null}

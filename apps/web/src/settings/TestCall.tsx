@@ -28,6 +28,7 @@ import {
   watchPickup,
   within,
 } from './testCallModel.ts'
+import { i18n } from '../i18n/index.tsx'
 
 type Phase = 'idle' | 'starting' | 'live' | 'ended'
 
@@ -174,7 +175,7 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
             const failed = isAgent(p) ? parseVoiceFailure(changed[VOICE_FAILURE_ATTRIBUTE]) : null
             if (!failed || room.current !== next) return
             watch.stop()
-            setFailure(voiceFailureText(failed, operator))
+            setFailure(voiceFailureText(failed, operator, i18n()))
           })
           // The browser is the caller here: its own speech is the stream about its own track.
           live.listen(next, (reader, from, room) => {

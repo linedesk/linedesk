@@ -4,8 +4,10 @@
 // (VOICE_FAILURE_ATTRIBUTE), where a test call's browser shows it at once. Shaped like LIN-111's provider failure event
 // (ProviderFailureEvent: stage, provider, reason, message) with its reasons; the API also records it as that
 // provider's failure (provider_failures), so Server admin › Providers and the call show the same problem.
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { providerNames, providers } from './admin.ts'
+import { english, type Words } from './words.ts'
 import { defineAction } from './define.ts'
 import {
   type ProviderFailureReason,
@@ -53,12 +55,15 @@ export function parseVoiceFailure(value: string | undefined | null): VoiceFailur
 /** The reason from a provider's HTTP status and error text: the shared classifier (provider-health.ts). */
 export const voiceFailureReason = providerFailureReason
 
-export const voiceStageNames: Record<VoiceStage, string> = {
-  stt: 'speech to text',
-  llm: 'language model',
-  tts: 'voice',
-  realtime: 'realtime model',
+export const voiceStageNameKeys: Record<VoiceStage, MessageKey> = {
+  stt: msg('errors.voice.stage.stt'),
+  llm: msg('errors.voice.stage.llm'),
+  tts: msg('errors.voice.stage.tts'),
+  realtime: msg('errors.voice.stage.realtime'),
 }
+
+/** A stage's name in the reader's words ("speech to text"); English by default, for logs. */
+export const voiceStageName = (stage: VoiceStage, words: Words = english) => words.t(voiceStageNameKeys[stage])
 
 /** The provider's name as the admin area shows it; its id when it is not in the registry. */
 export const voiceProviderLabel = (provider: string) =>
@@ -68,11 +73,12 @@ export const voiceProviderLabel = (provider: string) =>
  * The failure in words. `operator` (an instance admin): which stage and provider, why, and where to fix it. Everyone
  * else: which part of the assistant is not working, and who can fix it; no provider, no internals.
  */
-export function voiceFailureText(failure: VoiceFailure, operator: boolean): string {
-  const stage = voiceStageNames[failure.stage]
-  if (!operator) return `The assistant's ${stage} isn't working right now. Ask whoever runs this server.`
+export function voiceFailureText(failure: VoiceFailure, operator: boolean, words: Words = english): string {
+  const stage = voiceStageName(failure.stage, words)
+  if (!operator) return words.t('errors.voice.member', { stage })
   // The same words as Server admin › Providers and the failure email (providerFailureText): one wording per reason.
-  return `The assistant's ${stage}: ${providerFailureText(failure.reason, voiceProviderLabel(failure.provider), 'admin')}`
+  const problem = providerFailureText(failure.reason, voiceProviderLabel(failure.provider), 'admin', words)
+  return words.t('errors.voice.operator', { stage, problem })
 }
 
 export const callReportVoiceFailure = defineAction({

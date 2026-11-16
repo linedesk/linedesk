@@ -5,9 +5,10 @@
 // with the steps for what is missing. Exit code 0 when every group a call needs works, 1 when something is missing or
 // failing, 2 when the check itself could not run. Never prints a key.
 import {
-  callAudioGuide,
+  callAudioGuideIn,
   type GroupStatus,
   oneKey,
+  oneKeyIn,
   type ProviderGuide,
   providerSpec,
   providersOfGroup,
@@ -40,7 +41,7 @@ const marks: Record<GroupStatus['state'], string> = {
 
 /** The steps of the provider we recommend for a group (call audio: the server's own). */
 function guideOf(group: GroupStatus): { label: string | null; guide: ProviderGuide } {
-  if (group.id === 'call-audio') return { label: null, guide: callAudioGuide }
+  if (group.id === 'call-audio') return { label: null, guide: callAudioGuideIn() }
   const category = providerSpec(providersOfGroup(group.id)[0]!).category
   const recommended = group.id === 'answering' ? recommendedProviders.stt : recommendedProviders[category]
   return { label: providerSpec(recommended).label, guide: providerSpec(recommended).guide }
@@ -55,7 +56,7 @@ function print(group: GroupStatus) {
   if (group.state !== 'missing') return
   // The steps for a group that is not there yet; a failing one only needs its message (the fix).
   if (group.id === 'answering') {
-    console.log(`              One key: ${oneKey.label} (${oneKey.url}). ${oneKey.cost}`)
+    console.log(`              One key: ${oneKey.label} (${oneKey.url}). ${oneKeyIn().cost}`)
     console.log('              Or speech to text, a language model and a voice, e.g.:')
   }
   const { label, guide } = guideOf(group)

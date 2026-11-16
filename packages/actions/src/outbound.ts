@@ -123,7 +123,7 @@ function splitCallingCode(digits: string): { code: string; national: string } | 
 
 /** "the United States", "Canada and Mexico", "Canada, Mexico and the United States". */
 export function countryList(countries: readonly string[]): string {
-  const names = countries.map(nameInSentence)
+  const names = countries.map(country => nameInSentence(country))
   if (names.length <= 1) return names[0] ?? ''
   return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 }

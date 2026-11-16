@@ -54,10 +54,9 @@ import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
 
-const modeOptions: SelectOption<PhoneNumberMode>[] = phoneNumberModes.map(mode => ({
-  value: mode,
-  label: numberModeLabel[mode],
-}))
+// A function, not a constant: the labels are read in the language shown now, not the one at import.
+const modeOptions = (): SelectOption<PhoneNumberMode>[] =>
+  phoneNumberModes.map(mode => ({ value: mode, label: numberModeLabel[mode] }))
 
 type Props = {
   canEdit: boolean
@@ -336,7 +335,7 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
                 value={number.mode}
                 label={t('settings.phone.manage.mode')}
                 disabled={!canEdit}
-                options={modeOptions}
+                options={modeOptions()}
                 onChange={mode =>
                   void run('phoneNumber.update', {
                     phoneNumberId: number.id,
