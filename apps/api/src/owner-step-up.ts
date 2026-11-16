@@ -4,13 +4,15 @@
 // code it can act on) and again inside its handler. Impersonation sessions never pass. ADMIN_SECOND_FACTOR=off
 // (an install without https, where passkeys cannot work) leaves only the 10 minutes.
 import type { OwnerStepUp } from '@linedesk/actions'
-import { member, passkey, session, type Tx } from '@linedesk/db'
+import { member, passkey, session, type Tx, user } from '@linedesk/db'
 import { and, eq, ne } from 'drizzle-orm'
 import { RECENT_SIGN_IN_MS, SIGN_IN_AGAIN, signedInRecently } from './account.ts'
 import { adminSecondFactorRequired, signedInWithin } from './admin-second-factor.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
+import { hasAuthenticator } from './authenticator.ts'
 import type { Actor } from './context.ts'
 import type { db } from './db.ts'
+import { isInstanceAdmin } from './instance-admin.ts'
 
 /** The actions that need it. */
 export const OWNER_STEP_UP_ACTIONS: ReadonlySet<string> = new Set(['workspace.deleteOwn'])
@@ -147,13 +149,57 @@ export async function setupLinkNeedsFreshSignIn(tx: Tx | typeof db, actor: Actor
 export const PERSONAL_KEY_SIGN_IN_AGAIN =
   'Sign in again to create a personal API key. Creating one needs a sign-in from the last 10 minutes.'
 
-/** The refusal run-action answers before the key is made: Settings › Personal API keys offers "Sign in again". */
-export const personalKeySignInRefusal = { ok: false as const, error: PERSONAL_KEY_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
+/** personalKey.create by someone with a passkey, not confirmed in the last 10 minutes. */
+export const PERSONAL_KEY_CONFIRM =
+  'Confirm with your passkey or authenticator app to create a personal API key. Creating one needs a confirmation from the last 10 minutes.'
+
+/** What the person still has to do before making a personal key; `authenticator`: the app is offered next to the passkey. */
+export type PersonalKeyStepUp = { stepUp: OwnerStepUp; authenticator: boolean }
 
 /**
- * A personal API key (personalKey.create) needs a sign-in within the last 10 minutes (signedInJustNow): the key acts
- * as its maker in every workspace and never expires, so a session left open or stolen must not make one.
+ * A personal API key (personalKey.create) acts as its maker in every workspace and never expires, so a session left
+ * open or stolen must not make one (security review M2). Someone with a passkey confirms it in place (Tim,
+ * 2026-11-16): their passkey, or an instance admin's authenticator app, within the last 10 minutes (the check sets
+ * passkeyVerifiedAt either way). Without a passkey, or with ADMIN_SECOND_FACTOR=off: a sign-in within the last
+ * 10 minutes. No session (an API key, the agent) or an impersonation: `signIn`, which they can never satisfy that way.
  */
-export async function personalKeyNeedsFreshSignIn(tx: Tx | typeof db, actor: Actor, now = Date.now()) {
-  return !(await signedInJustNow(tx, actor, now))
+export async function personalKeyStepUpNeeded(
+  tx: Tx | typeof db,
+  actor: Actor,
+  now = Date.now(),
+): Promise<PersonalKeyStepUp | null> {
+  const signIn = { stepUp: 'signIn' as const, authenticator: false }
+  if (!actor.sessionId || actor.impersonation) return signIn
+  const [own] = await tx
+    .select({
+      createdAt: session.createdAt,
+      passkeyVerifiedAt: session.passkeyVerifiedAt,
+      impersonatedBy: session.impersonatedBy,
+    })
+    .from(session)
+    .where(and(eq(session.id, actor.sessionId), eq(session.userId, actor.actorId)))
+  if (!own || own.impersonatedBy) return signIn
+  const [key] = await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)
+  if (key && adminSecondFactorRequired()) {
+    if (signedInWithin(own.passkeyVerifiedAt, RECENT_HOURS, now)) return null
+    // Only instance admins can check a code from the app (account.authenticatorCheck, by the account, not the
+    // session: before its passkey confirmation an admin's session has no instance:admin).
+    const [account] = await tx.select().from(user).where(eq(user.id, actor.actorId))
+    const app = !!account && isInstanceAdmin(account) && (await hasAuthenticator(tx, actor.actorId))
+    return { stepUp: 'passkey', authenticator: app }
+  }
+  return signedInWithin(own.createdAt, RECENT_HOURS, now) ? null : signIn
+}
+
+/** The refusal run-action answers before the key is made: Settings › Personal API keys acts on the code. */
+export function personalKeyStepUpRefusal({ stepUp, authenticator }: PersonalKeyStepUp) {
+  return stepUp === 'passkey'
+    ? {
+        ok: false as const,
+        error: PERSONAL_KEY_CONFIRM,
+        code: PASSKEY_STEP_UP_REQUIRED,
+        stepUp: 'confirm' as const,
+        authenticator,
+      }
+    : { ok: false as const, error: PERSONAL_KEY_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
 }

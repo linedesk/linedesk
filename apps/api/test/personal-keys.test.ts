@@ -2,7 +2,7 @@
 // its maker does now (every workspace, the role there, server admin), over /v1, MCP and records.list, never managing
 // keys and never reaching the browser's routes. Instance-wide file (vitest.config.ts): it makes a server admin.
 import { IRREVERSIBLE_ACTIONS, actions } from '@linedesk/actions'
-import { assistants, commands, member, personal_keys, session, user } from '@linedesk/db'
+import { admin_authenticators, assistants, commands, member, passkey, personal_keys, session, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { dropUnprovenAccessOf } from '../src/account-linking.ts'
@@ -123,6 +123,54 @@ describe('managing personal keys', () => {
       expect(rows.map(r => r.name)).toEqual(['Fresh'])
     } finally {
       send.mockRestore()
+    }
+  })
+
+  test('with a passkey, making a key needs a passkey or authenticator confirmation from the last 10 minutes', async () => {
+    const before = process.env.ADMIN_SECOND_FACTOR
+    process.env.ADMIN_SECOND_FACTOR = 'on'
+    const person = await addMember(ws.id, 'admin')
+    try {
+      await db.insert(passkey).values({
+        id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+        userId: person.userId,
+        publicKey: 'cHVibGlj',
+        credentialID: `cred-${crypto.randomUUID()}`,
+        counter: 0,
+        deviceType: 'multiDevice',
+        backedUp: true,
+      })
+      const confirmedAt = (at: Date | null, method: 'passkey' | 'authenticator' | null = null) =>
+        db
+          .update(session)
+          .set({ passkeyVerifiedAt: at, secondFactorMethod: method })
+          .where(eq(session.userId, person.userId))
+      // A fresh sign-in without the passkey is not enough; the refusal offers no authenticator to a non-admin.
+      await confirmedAt(null)
+      expect(await act(person, 'personalKey.create', { name: 'No passkey yet' })).toMatchObject({
+        status: 403,
+        body: { code: 'PASSKEY_STEP_UP_REQUIRED', stepUp: 'confirm', authenticator: false },
+      })
+      await confirmedAt(new Date(Date.now() - 11 * 60_000), 'passkey')
+      expect((await act(person, 'personalKey.create', { name: 'Old passkey' })).status).toBe(403)
+      await confirmedAt(new Date(), 'passkey')
+      await makeKey(person, 'Passkey')
+      // An instance admin with an authenticator app is offered it, and a code checked just now counts.
+      await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, person.userId))
+      await db.insert(admin_authenticators).values({ user_id: person.userId, secret: 'x', confirmed_at: new Date().toISOString() })
+      await confirmedAt(new Date(Date.now() - 11 * 60_000), 'passkey')
+      expect(await act(person, 'personalKey.create', { name: 'Old again' })).toMatchObject({
+        status: 403,
+        body: { code: 'PASSKEY_STEP_UP_REQUIRED', authenticator: true },
+      })
+      await confirmedAt(new Date(), 'authenticator')
+      await makeKey(person, 'Authenticator')
+      const rows = await db.select().from(personal_keys).where(eq(personal_keys.user_id, person.userId))
+      expect(rows.map(r => r.name).sort()).toEqual(['Authenticator', 'Passkey'])
+    } finally {
+      if (before === undefined) delete process.env.ADMIN_SECOND_FACTOR
+      else process.env.ADMIN_SECOND_FACTOR = before
+      await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, person.userId))
     }
   })
 

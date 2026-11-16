@@ -11,8 +11,8 @@ import {
   removeNeedsFreshSignIn,
   removeSignInRefusal,
   setupLinkNeedsFreshSignIn,
-  personalKeyNeedsFreshSignIn,
-  personalKeySignInRefusal,
+  personalKeyStepUpNeeded,
+  personalKeyStepUpRefusal,
   setupLinkSignInRefusal,
 } from './owner-step-up.ts'
 import {
@@ -262,9 +262,10 @@ export async function runAction(
   // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
   if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))
     return { status: 403, body: setupLinkSignInRefusal }
-  // And a personal API key (owner-step-up.ts; LIN-339 security review M2); the handler checks it once more.
-  if (name === 'personalKey.create' && (await personalKeyNeedsFreshSignIn(db, actor)))
-    return { status: 403, body: personalKeySignInRefusal }
+  // And a personal API key: a passkey or authenticator confirmation, or a sign-in (owner-step-up.ts; LIN-339 M2).
+  // The handler checks it once more.
+  const personalKeyStepUp = name === 'personalKey.create' ? await personalKeyStepUpNeeded(db, actor) : null
+  if (personalKeyStepUp) return { status: 403, body: personalKeyStepUpRefusal(personalKeyStepUp) }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))

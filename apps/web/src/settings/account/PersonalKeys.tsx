@@ -5,15 +5,21 @@
 import type { PersonalKeyCreated, PersonalKeyListData, PersonalKeySummary } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
+import { passkeySupported } from '../../auth.ts'
+import { checkAuthenticator } from '../../authenticator-api.ts'
+import { brandName } from '../../brand.ts'
 import { setQueryData, useQuery } from '../../cachedQuery.ts'
 import { fmt } from '../../i18n/format.ts'
 import { signInAgain } from '../../localData.ts'
+import { AuthError } from '../../ui/AuthError.tsx'
 import { Dialog, Input } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../../ui/list.tsx'
 import { Loading, SkeletonList } from '../../ui/LoadStates.tsx'
 import { Field, Section } from '../fields.tsx'
 import { callAction, readAction } from '../settings-api.ts'
+import { confirmWithPasskey } from './account-api.ts'
+import { authenticatorErrorText } from './authenticator.tsx'
 import '../../integrations/developers.css'
 
 const KEYS = 'personalKey.list'
@@ -134,12 +140,13 @@ function CreateKey({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
-  // Making a key needs a sign-in from the last 10 minutes (the server's SIGN_IN_AGAIN).
+  // Making a key needs a sign-in from the last 10 minutes (the server's SIGN_IN_AGAIN), or, with a passkey, a passkey
+  // or authenticator confirmation from the last 10 minutes, asked for here (PASSKEY_STEP_UP_REQUIRED).
   const [signInFirst, setSignInFirst] = useState(false)
+  const [confirm, setConfirm] = useState<{ authenticator: boolean } | null>(null)
+  const [code, setCode] = useState('')
 
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setSaving(true)
+  async function create() {
     setError(null)
     setSignInFirst(false)
     try {
@@ -150,11 +157,51 @@ function CreateKey({ onClose }: { onClose: () => void }) {
         .then(d => setQueryData<PersonalKeyListData | undefined>(KEYS, d, { persist: true }))
         .catch(() => {})
     } catch (err) {
-      if ((err as { code?: unknown }).code === 'SIGN_IN_AGAIN') setSignInFirst(true)
+      const { code: refusal, authenticator } = err as { code?: unknown; authenticator?: unknown }
+      if (refusal === 'SIGN_IN_AGAIN') setSignInFirst(true)
+      else if (refusal === 'PASSKEY_STEP_UP_REQUIRED') setConfirm({ authenticator: authenticator === true })
       else setError((err as Error).message)
+    }
+  }
+
+  /** Runs one step (a confirmation, then the create) with the dialog busy. */
+  async function busyWith(work: () => Promise<void>) {
+    setSaving(true)
+    try {
+      await work()
     } finally {
       setSaving(false)
     }
+  }
+
+  // confirmWithPasskey: another account's passkey signs out instead of making a key for that account.
+  const withPasskey = () =>
+    busyWith(async () => {
+      setError(null)
+      try {
+        await confirmWithPasskey()
+      } catch (err) {
+        return setError((err as Error).message)
+      }
+      await create()
+    })
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    if (saving) return
+    const typed = code.trim()
+    if (confirm && !typed) return void withPasskey()
+    if (!confirm) return void busyWith(create)
+    void busyWith(async () => {
+      setError(null)
+      try {
+        await checkAuthenticator(typed)
+      } catch (err) {
+        return setError(authenticatorErrorText(err, t))
+      }
+      setCode('')
+      await create()
+    })
   }
 
   if (created)
@@ -209,6 +256,20 @@ function CreateKey({ onClose }: { onClose: () => void }) {
             <Button variant="primary" title={t('account.signInAgain.title')} onClick={() => void signInAgain()}>
               {t('account.signInAgain.button')}
             </Button>
+          ) : confirm && !code.trim() ? (
+            <Button
+              busy={saving}
+              variant="primary"
+              type="submit"
+              disabled={saving || !name.trim() || !passkeySupported()}
+              title={t('admin.stepUp.confirm.tip')}
+            >
+              {saving ? t('admin.stepUp.waiting') : t('admin.stepUp.confirm.button')}
+            </Button>
+          ) : confirm ? (
+            <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
+              {t('account.apiKeys.confirm.withCode')}
+            </Button>
           ) : (
             <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
               {saving ? t('settings.developers.dialog.creating') : t('settings.developers.dialog.create')}
@@ -231,6 +292,26 @@ function CreateKey({ onClose }: { onClose: () => void }) {
           onChange={e => setName(e.target.value)}
         />
       </Field>
+      {confirm && (
+        <p className="help" role="status">
+          {t(confirm.authenticator ? 'account.apiKeys.confirm.withEither' : 'account.apiKeys.confirm.withPasskey')}
+        </p>
+      )}
+      {confirm && !passkeySupported() && <AuthError message={t('admin.stepUp.httpsNeeded', { brand: brandName() })} />}
+      {confirm?.authenticator && (
+        <Field id="ac-key-code" label={t('account.authenticator.code')}>
+          <Input
+            id="ac-key-code"
+            placeholder={t('account.authenticator.codePlaceholder')}
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={7}
+            disabled={saving}
+          />
+        </Field>
+      )}
     </Dialog>
   )
 }

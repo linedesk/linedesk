@@ -30,12 +30,14 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
   }).catch(() => null)
   const body = (await res?.json().catch(() => null)) as
     | ActionResult
-    | { ok: false; error?: string; code?: string }
+    | { ok: false; error?: string; code?: string; authenticator?: boolean }
     | null
-  // The code goes with the error, for pages that act on it (SIGN_IN_AGAIN: the setup link offers "Sign in again").
+  // The code goes with the error, for pages that act on it (SIGN_IN_AGAIN: the setup link offers "Sign in again";
+  // PASSKEY_STEP_UP_REQUIRED with `authenticator`: a new personal key offers the authenticator app next to the passkey).
   if (!res?.ok || !body?.ok)
     throw Object.assign(new Error((body && !body.ok && body.error) || i18n().t('errors.unreachable')), {
       code: body && !body.ok && 'code' in body ? body.code : undefined,
+      authenticator: body && !body.ok && 'authenticator' in body ? body.authenticator === true : undefined,
     })
   return body
 }

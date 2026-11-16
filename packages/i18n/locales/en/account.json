@@ -1,4 +1,7 @@
 {
+  "apiKeys.confirm.withCode": "Confirm and create",
+  "apiKeys.confirm.withEither": "Confirm with your passkey, or enter the code from your authenticator app, to create the key. Creating one needs a confirmation from the last 10 minutes.",
+  "apiKeys.confirm.withPasskey": "Confirm with your passkey to create the key. Creating one needs a confirmation from the last 10 minutes.",
   "apiKeys.create": "Create key",
   "apiKeys.created.title": "Your personal API key",
   "apiKeys.dialog.description": "The key acts as you: same workspaces, same rights.",
