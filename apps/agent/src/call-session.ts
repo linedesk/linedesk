@@ -5,7 +5,11 @@ import {
   type BookingContext,
   type CallerHistory,
   callAppendTranscript,
+  callCorrectTranscript,
+  callFinalize,
+  type CallFinishData,
   callFinish,
+  type CorrectTranscriptData,
   callRecordTimings,
   callReportVoiceFailure,
   providerReportOk,
@@ -49,6 +53,8 @@ import { type CallerContext, forHours } from './prompt.ts'
 
 export type Speaker = z.input<typeof callAppendTranscript.input>['speaker']
 export type CallResult = Omit<z.input<typeof callFinish.input>, 'callId'>
+/** call.finalize without the call id: the summary of the corrected transcript and what it replaces. */
+export type FinalResult = Omit<z.input<typeof callFinalize.input>, 'callId'>
 
 /**
  * The business's hours as `call.start` reports them: `summary` is a ready sentence for the assistant.
@@ -124,7 +130,12 @@ export interface CallSession {
   /** The instance admin's wording for parts of the system prompt (Server admin › System prompt); missing: the defaults. */
   promptOverrides?: PromptOverrides
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
-  finish(result: CallResult): Promise<void>
+  /** `{ held: true }` (CallFinishData): the call's news waits for call.finalize (result.awaitTranscript, after-call transcription on). */
+  finish(result: CallResult): Promise<unknown>
+  /** The after-call transcript of a held call, made now (call.correctTranscript); missing on fakes. */
+  correctTranscript?(): Promise<CorrectTranscriptData>
+  /** The summary of the corrected transcript, and the news the call held (call.finalize); missing on fakes. */
+  finalize?(result: FinalResult): Promise<void>
   /** Stores how long the replies took (call.recordTimings), for the admin overview. */
   recordTimings(timings: CallTimings): Promise<void>
   /** Marks the call with a failed stage of the voice pipeline (call.reportVoiceFailure); the failure as kept, refined. */
@@ -467,7 +478,16 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
       await api.run(callAppendTranscript, { callId, speaker, text, atMs: Date.now() - startedAt, toolEvent }, scope)
     },
     async finish(result) {
-      await api.run(callFinish, { callId, ...result }, scope)
+      const done = await api.run(callFinish, { callId, ...result }, scope)
+      // An older API holds nothing.
+      return { held: (done.data as CallFinishData | undefined)?.held === true }
+    },
+    async correctTranscript() {
+      const done = await api.run(callCorrectTranscript, { callId }, scope)
+      return (done.data as CorrectTranscriptData | undefined) ?? { status: 'skipped' }
+    },
+    async finalize(result) {
+      await api.run(callFinalize, { callId, ...result }, scope)
     },
     async recordTimings(timings) {
       await api.run(callRecordTimings, { callId, ...timings }, scope)

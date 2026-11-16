@@ -9,6 +9,7 @@ import {
   TranscriberError,
   transcriberFor,
 } from './transcriber.ts'
+import { cleanTerms } from './transcript-hints.ts'
 
 const file = { name: 'call.ogg', contentType: 'audio/ogg' }
 const audio = new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/ogg' })
@@ -27,6 +28,7 @@ function fakeFetch(answers: (Response | (() => Response))[]) {
   return { sent, doFetch }
 }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
+const hints = { terms: ['Brightwater Plumbing & Heating', 'Maya', 'Water heater repair'], language: 'de' }
 
 describe('OpenAI (gpt-transcribe)', () => {
   it('sends the file with the model and the key, and returns the text', async () => {
@@ -39,6 +41,21 @@ describe('OpenAI (gpt-transcribe)', () => {
     const form = sent[0]!.init.body as FormData
     expect([form.get('model'), form.get('response_format')]).toEqual(['gpt-transcribe', 'json'])
     expect((form.get('file') as File).size).toBe(3)
+  })
+
+  it('sends the names as keywords and a known language; none without hints', async () => {
+    const { sent, doFetch } = fakeFetch([json({ text: 'Hallo.' }), json({ text: 'Hallo.' })])
+    const transcriber = openAiTranscriber('sk-test', { doFetch })
+    await transcriber.transcribe(audio, file, hints)
+    await transcriber.transcribe(audio, file, { terms: [], language: null })
+    const [given, none] = sent.map(s => s.init.body as FormData)
+    expect([given!.getAll('keywords[]'), given!.getAll('languages[]')]).toEqual([hints.terms, ['de']])
+    expect([none!.has('keywords[]'), none!.has('languages[]'), none!.has('language'), none!.has('prompt')]).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ])
   })
 
   it('refusals and answers that are not JSON fail with the status only', async () => {
@@ -82,12 +99,22 @@ describe('Deepgram (Nova-3, recorded audio)', () => {
     expect(url.origin + url.pathname).toBe('https://api.deepgram.com/v1/listen')
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
       model: 'nova-3',
+      // Deepgram's default is English only.
+      language: 'multi',
       diarize: 'true',
       utterances: 'true',
       mip_opt_out: 'true',
     })
+    expect(url.searchParams.has('keyterm')).toBe(false)
     expect(sent[0]!.init.headers).toMatchObject({ authorization: 'Token dg-key', 'content-type': 'audio/ogg' })
     expect(sent[0]!.init.body).toBe(audio)
+  })
+
+  it('sends each name as a key term and a known language', async () => {
+    const { sent, doFetch } = fakeFetch([json({ results: { channels: [{ alternatives: [{ transcript: 'Hallo.' }] }] } })])
+    await deepgramTranscriber('dg-key', { doFetch }).transcribe(audio, file, hints)
+    const url = new URL(sent[0]!.url)
+    expect([url.searchParams.get('language'), url.searchParams.getAll('keyterm')]).toEqual(['de', hints.terms])
   })
 
   it('fails without the body', async () => {
@@ -140,8 +167,21 @@ describe('AssemblyAI (Universal)', () => {
       audio_url: 'https://cdn.assemblyai.com/upload/abc',
       speaker_labels: true,
       punctuate: true,
+      language_detection: true,
     })
     expect(waits).toEqual([2000])
+  })
+
+  it('sends the names as key terms and a known language', async () => {
+    const { sent, doFetch } = fakeFetch([
+      json({ upload_url: 'u' }),
+      json({ id: 'tr_3' }),
+      json({ id: 'tr_3', status: 'completed', text: 'Hallo.' }),
+      new Response(null, { status: 200 }),
+    ])
+    await assemblyAiTranscriber('k', { doFetch, wait: async () => {} }).transcribe(audio, file, hints)
+    expect(JSON.parse(sent[1]!.init.body as string)).toMatchObject({ language_code: 'de', keyterms_prompt: hints.terms })
+    expect(JSON.parse(sent[1]!.init.body as string)).not.toHaveProperty('language_detection')
   })
 
   it('a transcription that failed at AssemblyAI is refused for good, without its error text, and deleted', async () => {
@@ -189,6 +229,14 @@ describe('ElevenLabs Scribe', () => {
       'true',
       'word',
     ])
+    expect([form.has('language_code'), form.has('keyterms')]).toEqual([false, false])
+  })
+
+  it('sends the names as key terms and a known language', async () => {
+    const { sent, doFetch } = fakeFetch([json({ text: 'Hallo.' })])
+    await elevenLabsTranscriber('xi-key', { doFetch }).transcribe(audio, file, hints)
+    const form = sent[0]!.init.body as FormData
+    expect([form.get('language_code'), form.getAll('keyterms')]).toEqual(['de', hints.terms])
   })
 })
 
@@ -200,5 +248,27 @@ describe('transcriberFor', () => {
     expect(transcriberFor('elevenlabs_transcript', 'k').model).toBe('scribe_v2')
     for (const name of ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript'] as const)
       expect(transcriberFor(name, 'k').maxBytes).toBe(25 * 1024 * 1024)
+  })
+})
+
+describe('cleanTerms', () => {
+  it('keeps names every provider takes: no refused characters, at most 5 words and 50 characters, no repeats', () => {
+    expect(
+      cleanTerms([
+        '  Brightwater   Plumbing & Heating ',
+        'brightwater plumbing & heating',
+        'Maya',
+        null,
+        '',
+        'Line<one>\nLine two',
+        'Install {new} [boiler] \\ today',
+        'One two three four five six',
+        'x'.repeat(51),
+      ]),
+    ).toEqual(['Brightwater Plumbing & Heating', 'Maya', 'Line one Line two', 'Install new boiler today'])
+  })
+
+  it('takes at most 20', () => {
+    expect(cleanTerms(Array.from({ length: 30 }, (_, i) => `Type ${i}`))).toHaveLength(20)
   })
 })

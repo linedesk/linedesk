@@ -106,7 +106,11 @@ export const memberList = defineAction({
 export const callSetActionItems = defineAction({
   name: 'call.setActionItems',
   description: 'Replace the next steps of a call, for example to tick one off.',
-  input: callId.extend({ items: z.array(z.object({ text: z.string().min(1), done: z.boolean().optional(), kind: z.literal('message').optional() })) }),
+  input: callId.extend({
+    items: z.array(
+      z.object({ text: z.string().min(1), done: z.boolean().optional(), kind: z.literal('message').optional() }),
+    ),
+  }),
   permission: 'call:write',
   public: true,
   patch: { table: 'calls', id: i => i.callId, set: i => ({ action_items: i.items }) },
@@ -192,11 +196,15 @@ export function normalizeCallerId(value: string, { nationalUs = false }: { natio
   const raw = value.trim()
   if (!/^[+\d\s().-]+$/.test(raw)) return raw
   const digits = raw.replace(/\D/g, '')
-  const e164 = raw.startsWith('+') ? `+${digits}`
-    : digits.startsWith('00') ? `+${digits.slice(2)}`
-    : /^1[2-9]\d{9}$/.test(digits) ? `+${digits}`
-    : nationalUs && /^[2-9]\d{9}$/.test(digits) ? `+1${digits}`
-    : null
+  const e164 = raw.startsWith('+')
+    ? `+${digits}`
+    : digits.startsWith('00')
+      ? `+${digits.slice(2)}`
+      : /^1[2-9]\d{9}$/.test(digits)
+        ? `+${digits}`
+        : nationalUs && /^[2-9]\d{9}$/.test(digits)
+          ? `+1${digits}`
+          : null
   return e164 && isE164(e164) ? e164 : raw
 }
 
@@ -283,7 +291,13 @@ export type BookingContext = {
    * `instruction`: when the assistant offers the type (empty: no condition). `required_fields` includes
    * 'name' when the type asks for the caller's name (an API of an older version always wanted it and did not list it).
    */
-  appointmentTypes: { id: string; name: string; duration_min: number; required_fields: ('name' | 'phone' | 'email' | 'address')[]; instruction?: string }[]
+  appointmentTypes: {
+    id: string
+    name: string
+    duration_min: number
+    required_fields: ('name' | 'phone' | 'email' | 'address')[]
+    instruction?: string
+  }[]
   calendars: { id: string; name: string; instruction: string; is_default: boolean }[]
   /**
    * Always empty: caller ID is not proof of identity, so the assistant is never told a caller's bookings.
@@ -353,6 +367,71 @@ export const callFinish = defineAction({
     fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
     /** The caller's name as the summary found it: names the contact when it has no name yet. */
     callerName: z.string().trim().max(CALLER_NAME_MAX).optional(),
+    /**
+     * The call was recorded: when after-call transcription is on, its news (email, push, evaluation, webhooks) waits
+     * for the corrected transcript (`data.held`), and the agent follows up with call.correctTranscript and
+     * call.finalize. Missing: the news goes now, as before.
+     */
+    awaitTranscript: z.boolean().optional(),
+  }),
+  permission: 'agent',
+  logged: 'ids',
+})
+/** `data` of call.finish: whether the call's news waits for the corrected transcript (call.finalize sends it). */
+/** `named`: this finish gave the call's contact the caller's name (call.finalize may then correct it). */
+export type CallFinishData = { held: boolean; named?: boolean }
+
+/** How long a held call's news waits at most for call.finalize; then the CALL_RELEASE job sends it (seconds). */
+export const AWAIT_TRANSCRIPT_MAX_SEC = 60
+
+/**
+ * The agent asks for the after-call transcript of a held call now, after call.setRecording: the provider hears the
+ * recording and the caller's lines are corrected. `data` is CorrectTranscriptData. Runs outside a transaction (the
+ * provider takes seconds), like call.lookUpCaller.
+ */
+export const callCorrectTranscript = defineAction({
+  name: 'call.correctTranscript',
+  description: "Transcribe a finished call's recording again and correct the caller's lines; the corrected transcript.",
+  input: callId,
+  permission: 'agent',
+  readOnly: true,
+})
+/** `data` of call.correctTranscript: `lines` (the whole transcript, in order) only when caller lines changed. */
+export type CorrectTranscriptData = {
+  status: 'updated' | 'skipped' | 'failed'
+  lines?: { speaker: z.infer<typeof speaker>; text: string }[]
+}
+
+/**
+ * The summary of the corrected transcript for a held call (call.finish with awaitTranscript), then the call's news
+ * goes out. Without the summary fields the one call.finish stored stays. A call no longer held keeps its news as sent.
+ */
+export const callFinalize = defineAction({
+  name: 'call.finalize',
+  description: "Store the summary of a call's corrected transcript and send the call's notifications.",
+  input: callId.extend({
+    outcome: outcome.optional(),
+    urgency: urgency.optional(),
+    title: z.string().optional(),
+    summary: z.string().optional(),
+    actionItems: z.array(z.object({ text: z.string(), done: z.boolean().optional() })).optional(),
+    fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    callerName: z.string().trim().max(CALLER_NAME_MAX).optional(),
+    /**
+     * What the agent sent with call.finish: its action items are replaced (the team's notes stay); `callerName` only
+     * when call.finish named the contact with it (CallFinishData.named), which is then named again; `urgency`: the
+     * first summary's, which the new one may change while the news is held; `title` and `summary`: the first summary's,
+     * replaced only when the team has not changed them since.
+     */
+    previous: z
+      .object({
+        actionItems: z.array(z.string()).max(200).default([]),
+        callerName: z.string().trim().max(CALLER_NAME_MAX).optional(),
+        urgency: urgency.optional(),
+        title: z.string().optional(),
+        summary: z.string().optional(),
+      })
+      .optional(),
   }),
   permission: 'agent',
   logged: 'ids',
@@ -380,7 +459,11 @@ export const callRecordTimings = defineAction({
     pipeline: z.enum(REPLY_PIPELINES),
     /** Who did each part: turn, model, voice → provider id. */
     providers: z
-      .object({ turn: z.string().max(80).optional(), model: z.string().max(80).optional(), voice: z.string().max(80).optional() })
+      .object({
+        turn: z.string().max(80).optional(),
+        model: z.string().max(80).optional(),
+        voice: z.string().max(80).optional(),
+      })
       .default({}),
     replies: z.array(replyTiming).min(1).max(500),
   }),
@@ -408,11 +491,14 @@ const setUrgencyInput = callId.extend({ urgency })
 /** The team's own urgent flag (⌘K Mark urgent / Not urgent). */
 export const callSetUrgency = defineAction({
   name: 'call.setUrgency',
-  description: "Set how urgent a call is: urgent puts it at the top of the inbox; normal or low takes the flag off.",
+  description: 'Set how urgent a call is: urgent puts it at the top of the inbox; normal or low takes the flag off.',
   input: setUrgencyInput,
   permission: 'call:write',
   public: true,
-  patch: { table: 'calls', id: i => i.callId, set: i => ({ urgency: i.urgency }) } satisfies PatchSpec<z.infer<typeof setUrgencyInput>, 'calls'>,
+  patch: { table: 'calls', id: i => i.callId, set: i => ({ urgency: i.urgency }) } satisfies PatchSpec<
+    z.infer<typeof setUrgencyInput>,
+    'calls'
+  >,
 })
 
 // Recordings. The key is never taken from a client: both sides derive it from the workspace and the call.
@@ -446,7 +532,8 @@ export const isRecordingPrefix = (prefix: string) => {
 /** The object key in an S3 bucket: the optional prefix, then the recording key. Egress writes it, the API reads it. */
 export function recordingObjectKey(prefix: string | null | undefined, key: string): string {
   if (!isStoreKey(key)) throw new Error(`not a recording key: ${key}`)
-  if (prefix && !isRecordingPrefix(prefix)) throw new Error('the S3 path prefix may only hold letters, digits, - _ . and /')
+  if (prefix && !isRecordingPrefix(prefix))
+    throw new Error('the S3 path prefix may only hold letters, digits, - _ . and /')
   const trimmed = (prefix ?? '').replace(/^\/+|\/+$/g, '')
   return trimmed ? `${trimmed}/${key}` : key
 }
@@ -455,7 +542,8 @@ export function recordingObjectKey(prefix: string | null | undefined, key: strin
 // the agent; the agent stops it and reports it with call.setRecording as for the other stores.
 export const callStartRecording = defineAction({
   name: 'call.startRecording',
-  description: "Start recording a call's room into the S3-compatible recording store; returns the egress id in `data.egressId`.",
+  description:
+    "Start recording a call's room into the S3-compatible recording store; returns the egress id in `data.egressId`.",
   input: callId,
   permission: 'agent',
 })

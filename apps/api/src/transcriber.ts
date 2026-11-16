@@ -3,6 +3,7 @@
 // takes (checked before the recording is read) and never puts a response body into an error: a successful body is
 // the caller's words. The recording comes as a Blob: a file on this server is not read into memory (openAsBlob).
 import { type TranscriptProviderName, transcriptModels, transcriptProviders } from '@linedesk/actions'
+import { NO_HINTS, type TranscribeHints } from './transcript-hints.ts'
 
 /** One speaker's turn, as a service with speaker labels hears it. `start` and `end` in milliseconds. */
 export type HeardTurn = { speaker: string; start: number; end: number; text: string }
@@ -14,7 +15,8 @@ export interface Transcriber {
   readonly model: string
   /** The largest file it takes: a larger recording is skipped before it is read. */
   readonly maxBytes: number
-  transcribe(audio: Blob, file: { name: string; contentType: string }): Promise<Heard>
+  /** `hints`: names the call may contain and its language, where known (transcript-hints.ts). */
+  transcribe(audio: Blob, file: { name: string; contentType: string }, hints?: TranscribeHints): Promise<Heard>
 }
 
 /** A transcription request that failed: the status, and what failed in our words (never the service's body). */
@@ -57,11 +59,13 @@ export function openAiTranscriber(apiKey: string, { doFetch = fetch }: Options =
   return {
     model: transcriptModels.openai_transcript,
     maxBytes: MAX_FILE,
-    async transcribe(audio, file) {
+    async transcribe(audio, file, { terms, language } = NO_HINTS) {
       const form = new FormData()
       form.append('file', audio, file.name)
       form.append('model', 'gpt-transcribe')
       form.append('response_format', 'json')
+      for (const term of terms) form.append('keywords[]', term)
+      if (language) form.append('languages[]', language)
       const response = await doFetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: { authorization: `Bearer ${apiKey}` },
@@ -76,11 +80,21 @@ export function openAiTranscriber(apiKey: string, { doFetch = fetch }: Options =
 
 /** Deepgram Nova-3 for recorded audio, with speaker labels (diarize) and turns (utterances). */
 export function deepgramTranscriber(apiKey: string, { doFetch = fetch }: Options = {}): Transcriber {
-  const query = 'model=nova-3&diarize=true&utterances=true&punctuate=true&smart_format=true&mip_opt_out=true'
   return {
     model: transcriptModels.deepgram_transcript,
     maxBytes: MAX_FILE,
-    async transcribe(audio, file) {
+    async transcribe(audio, file, { terms, language } = NO_HINTS) {
+      // Without a language Deepgram hears English only: `multi` when the call may be in several.
+      const query = new URLSearchParams([
+        ['model', 'nova-3'],
+        ['language', language ?? 'multi'],
+        ['diarize', 'true'],
+        ['utterances', 'true'],
+        ['punctuate', 'true'],
+        ['smart_format', 'true'],
+        ['mip_opt_out', 'true'],
+        ...terms.map(term => ['keyterm', term]),
+      ])
       const response = await doFetch(`https://api.deepgram.com/v1/listen?${query}`, {
         method: 'POST',
         headers: { authorization: `Token ${apiKey}`, 'content-type': file.contentType },
@@ -124,7 +138,7 @@ export function assemblyAiTranscriber(
   return {
     model: transcriptModels.assemblyai,
     maxBytes: MAX_FILE,
-    async transcribe(audio) {
+    async transcribe(audio, _file, { terms, language } = NO_HINTS) {
       const signal = AbortSignal.timeout(ASSEMBLYAI_RUN_MS)
       const uploaded = await jsonOf(
         await doFetch(`${base}/upload`, {
@@ -139,7 +153,14 @@ export function assemblyAiTranscriber(
         await doFetch(`${base}/transcript`, {
           method: 'POST',
           headers: { ...headers, 'content-type': 'application/json' },
-          body: JSON.stringify({ audio_url: uploaded.upload_url, speaker_labels: true, punctuate: true }),
+          body: JSON.stringify({
+            audio_url: uploaded.upload_url,
+            speaker_labels: true,
+            punctuate: true,
+            // Without a language AssemblyAI detects it.
+            ...(language ? { language_code: language } : { language_detection: true }),
+            ...(terms.length ? { keyterms_prompt: terms } : {}),
+          }),
           signal,
         }),
         'the transcription request',
@@ -191,10 +212,13 @@ export function elevenLabsTranscriber(apiKey: string, { doFetch = fetch }: Optio
   return {
     model: transcriptModels.elevenlabs_transcript,
     maxBytes: MAX_FILE,
-    async transcribe(audio, file) {
+    async transcribe(audio, file, { terms, language } = NO_HINTS) {
       const form = new FormData()
       form.append('file', audio, file.name)
       form.append('model_id', 'scribe_v2')
+      // Without a language ElevenLabs detects it.
+      if (language) form.append('language_code', language)
+      for (const term of terms) form.append('keyterms', term)
       form.append('diarize', 'true')
       form.append('tag_audio_events', 'false')
       form.append('timestamps_granularity', 'word')

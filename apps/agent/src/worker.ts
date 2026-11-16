@@ -13,7 +13,7 @@ import { initErrorReporting } from './error-reporting.ts'
 import { bookingTools } from './booking-tools.ts'
 import { type CollectContext, collectTools, nudgeIfQuiet, stepFacts } from './collect/collect-tools.ts'
 import { callerIdOf } from './callback-number.ts'
-import { CallLog, finishCall, hangUp, once, RECORDING_WAIT_MS, repeatFilter } from './call-log.ts'
+import { CallLog, finalizeCall, finishCall, type FinishedCall, hangUp, once, RECORDING_WAIT_MS, repeatFilter } from './call-log.ts'
 import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { retryEmptyReplies } from './empty-reply.ts'
 import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
@@ -690,10 +690,13 @@ async function entry(ctx: JobContext) {
   const stopCallRecording = async () => stopRecording(recorder, await recording) // at hang-up
   // A transfer only goes ahead when the recording really stopped.
   const stopRecordingForTransfer = async () => stopRecordingOrThrow(recorder, await recording)
+  let finished: FinishedCall | null = null
   const finish = () => hangUp({
     stopRecording: stopCallRecording,
-    finishCall: () => finishCall(call, log, summaryLlm(config)),
+    // A recorded call's news may wait for the after-call transcript (finalizeCall).
+    finishCall: async () => (finished = await finishCall(call, log, summaryLlm(config), undefined, recorder !== null)),
     saveRecording: async () => saveRecording(api, call, recorder, await recording, RECORDING_WAIT_MS),
+    finalize: async saved => finalizeCall(call, log, summaryLlm(config), finished!, saved),
   })
   const finishOnce = once(finish, `could not finish call ${call.callId}`)
   ctx.addShutdownCallback(finishOnce)

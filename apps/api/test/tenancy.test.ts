@@ -108,6 +108,8 @@ describe('agent-facing actions', () => {
     ['call.flagUrgent', { callId }],
     ['call.startRecording', { callId }],
     ['call.setRecording', { callId }],
+    ['call.correctTranscript', { callId }],
+    ['call.finalize', { callId, summary: 'taken over' }],
     ['call.transfer', { callId, to: '+15035550199', result: 'not_answered' }],
     ['call.lookUpCaller', { callId }],
     ['call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1' } }],

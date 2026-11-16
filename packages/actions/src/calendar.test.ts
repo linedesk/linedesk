@@ -39,6 +39,7 @@ describe('calendar.findSlots', () => {
       'calendar.listCalendars',
       'calendarTools.get',
       'call.askWebhook',
+      'call.correctTranscript',
       'call.export',
       'call.findForTest',
       'call.getEvaluation',

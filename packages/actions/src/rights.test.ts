@@ -159,6 +159,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'call.listNumbers',
     'call.startRecording',
     'call.setRecording',
+    'call.correctTranscript',
+    'call.finalize',
     'call.transfer',
     'carrier.transferTrunk',
     'carrier.provisionTransferTrunk',

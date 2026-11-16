@@ -78,6 +78,27 @@ test('hang-up: the recording stops first and is saved even when finishing the ca
   expect(order).toEqual(['stop', 'finish', 'save'])
 })
 
+test('hang-up: a held call is finalized after the recording is saved, and only then', async () => {
+  const order: string[] = []
+  const finalize = vi.fn(async (saved: boolean) => { order.push(`finalize ${saved}`) })
+  await hangUp({
+    stopRecording: async () => { order.push('stop') },
+    finishCall: async () => { order.push('finish'); return { held: true } },
+    saveRecording: async () => { order.push('save'); return true },
+    finalize,
+  })
+  expect(order).toEqual(['stop', 'finish', 'save', 'finalize true'])
+
+  // Not held (after-call transcription off, an older API): the news went with call.finish.
+  finalize.mockClear()
+  await hangUp({ stopRecording: async () => {}, finishCall: async () => ({ held: false }), saveRecording: async () => true, finalize })
+  expect(finalize).not.toHaveBeenCalled()
+
+  // Held, but the recording never got saved: the news still goes, with the first summary.
+  await hangUp({ stopRecording: async () => {}, finishCall: async () => ({ held: true }), saveRecording: async () => false, finalize })
+  expect(finalize).toHaveBeenCalledWith(false)
+})
+
 test('hang-up is cut off when it does not fit the budget', async () => {
   const never = () => new Promise<void>(() => {})
   await expect(hangUp({ stopRecording: async () => {}, finishCall: never, saveRecording: async () => {} }, 20)).rejects.toThrow('gave up after 0.02 s')

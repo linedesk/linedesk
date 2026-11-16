@@ -83,7 +83,7 @@ export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
  * a call), and the bulk export of the workspace's calls (an impersonation is for support, not for taking
  * customer data out).
  */
-const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'call.lookUpCaller', 'call.askWebhook', 'carrier.test', 'assistant.startTestCall', 'knowledge.import', 'business.search', 'business.import', 'call.listen', 'call.takeOver', 'call.export', 'phoneNumber.lookupLine', 'workspace.deletePreview'])
+const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set(['webhook.test', 'call.lookUpCaller', 'call.askWebhook', 'call.correctTranscript', 'carrier.test', 'assistant.startTestCall', 'knowledge.import', 'business.search', 'business.import', 'call.listen', 'call.takeOver', 'call.export', 'phoneNumber.lookupLine', 'workspace.deletePreview'])
 
 /** Whether an impersonated session may run this action. */
 export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean }): boolean {

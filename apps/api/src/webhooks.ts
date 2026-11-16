@@ -317,7 +317,7 @@ export async function askWebhook(
  * built when it is sent (CALL_END_DELAY_SEC later, so the recording is saved); until then the row holds
  * only the call's id. Test calls send nothing.
  */
-export async function queueCallEnd(tx: Tx, call: Call) {
+export async function queueCallEnd(tx: Tx, call: Call, afterSec = CALL_END_DELAY_SEC) {
   if (call.source !== 'phone') return
   const found = await activeHook(tx, call.assistant_id, 'call_end')
   if (!found) return
@@ -325,7 +325,7 @@ export async function queueCallEnd(tx: Tx, call: Call) {
   await tx.insert(webhook_deliveries).values({
     id, workspace_id: call.workspace_id, endpoint_id: found.endpoint.id, event: 'call_end', payload: { hook: 'call_end', call_id: call.id },
   })
-  await queueWebhookDelivery(tx, id, CALL_END_DELAY_SEC)
+  await queueWebhookDelivery(tx, id, afterSec)
 }
 
 /** Where the API is reached from outside: the recording link points there. */

@@ -1,10 +1,18 @@
 // What happened in one call, and how it ends: every call that was started gets finished.
 import type { VoiceStage } from '@linedesk/actions'
-import type { CallSession, CallTimings, Speaker } from './call-session.ts'
+import type { CallResult, CallSession, CallTimings, Speaker } from './call-session.ts'
 import type { ReplyTimes } from './turn-metrics.ts'
 import { withRetry, type RetryOptions } from './retry.ts'
 import { callerIdOf, hasCallbackNumber } from './callback-number.ts'
-import { type CollectedDetail, mergeToolResults, summarizeCall, unsummarizedResult, voiceFailedResult, type CompleteJson, type TranscriptLine } from './summary.ts'
+import {
+  type CollectedDetail,
+  mergeToolResults,
+  summarizeCall,
+  unsummarizedResult,
+  voiceFailedResult,
+  type CompleteJson,
+  type TranscriptLine,
+} from './summary.ts'
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -63,7 +71,8 @@ export class CallLog {
 
   record(speaker: Speaker, text: string, tool?: string) {
     this.lines.push({ speaker, text })
-    const write = this.call.append(speaker, text, tool ? { tool, label: text } : undefined)
+    const write = this.call
+      .append(speaker, text, tool ? { tool, label: text } : undefined)
       .catch(e => console.error(`could not write transcript segment: ${message(e)}`))
     this.pending.push(write)
   }
@@ -76,36 +85,156 @@ export class CallLog {
  * `call.finish` is retried with backoff. Throws only if the API cannot be reached at all, in which
  * case the API's sweep completes the call later.
  */
-export async function finishCall(call: CallSession, log: CallLog, complete: CompleteJson, retry?: RetryOptions) {
+/** What call.finish was sent; `held`: its news waits for finalizeCall. */
+export type FinishedCall = { held: boolean; result: CallResult; named?: boolean }
+
+/**
+ * Summarizes the call and finishes it. `awaitTranscript`: the call is recorded, so the API may hold the news for the
+ * after-call transcript (finalizeCall).
+ */
+export async function finishCall(
+  call: CallSession,
+  log: CallLog,
+  complete: CompleteJson,
+  retry?: RetryOptions,
+  awaitTranscript = false,
+): Promise<FinishedCall> {
   await log.flush()
   // The reply times are for the admin overview: a failure there never holds up finishing the call.
   if (log.timing && log.replies.length)
-    void call.recordTimings({ ...log.timing, replies: log.replies }).catch(e => console.warn(`could not store the reply times of call ${call.callId}: ${message(e)}`))
+    void call
+      .recordTimings({ ...log.timing, replies: log.replies })
+      .catch(e => console.warn(`could not store the reply times of call ${call.callId}: ${message(e)}`))
   // Silent because the voice pipeline failed: a caller to call back, not a hang-up (nothing to summarize either).
   const silent = !log.lines.some(l => l.speaker === 'caller')
   // No caller ID and no number given: no action item asks the owner to call back (B4).
-  const callbackKnown = hasCallbackNumber(callerIdOf(call), { confirmed: log.confirmedNumbers, saved: log.messages, country: call.country })
-  const summary = silent && log.voiceFailed ? voiceFailedResult(log.voiceFailed, call.teamLanguage) : await summarizeWithRetry(call, log, complete, callbackKnown, retry).catch(e => {
-    console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
-    return unsummarizedResult(log.lines, log.messages, call.teamLanguage, log.details)
+  const callbackKnown = hasCallbackNumber(callerIdOf(call), {
+    confirmed: log.confirmedNumbers,
+    saved: log.messages,
+    country: call.country,
   })
-  await withRetry(() => call.finish(mergeToolResults(summary, log, callbackKnown, call.teamLanguage)), retry)
+  const summary =
+    silent && log.voiceFailed
+      ? voiceFailedResult(log.voiceFailed, call.teamLanguage)
+      : await summarizeWithRetry(call, log.lines, log, complete, callbackKnown, retry).catch(e => {
+          console.error(`could not summarize call ${call.callId}, finishing it without a summary: ${message(e)}`)
+          return unsummarizedResult(log.lines, log.messages, call.teamLanguage, log.details)
+        })
+  const result = mergeToolResults(summary, log, callbackKnown, call.teamLanguage)
+  // A silent call has no caller line to correct.
+  const done = await withRetry(
+    () => call.finish({ ...result, ...(awaitTranscript && !silent ? { awaitTranscript: true } : {}) }),
+    retry,
+  )
+  return { held: isHeld(done), result, named: hasFlag(done, 'named') }
+}
+
+/**
+ * For a call whose news waits (FinishedCall.held), once its recording is reported: asks for the after-call transcript,
+ * summarizes the corrected lines with the same prompt, then sends call.finalize, which sends the news. Any failure
+ * leaves the first summary; call.finalize then only sends the news. Without it the API sends them after
+ * AWAIT_TRANSCRIPT_MAX_SEC.
+ */
+export async function finalizeCall(
+  call: CallSession,
+  log: CallLog,
+  complete: CompleteJson,
+  finished: FinishedCall,
+  recordingSaved: boolean,
+  retry?: RetryOptions,
+) {
+  if (!call.finalize) return
+  const corrected =
+    recordingSaved && call.correctTranscript
+      ? await call.correctTranscript().catch(e => {
+          console.warn(`after-call transcript of call ${call.callId} failed, keeping the first summary: ${message(e)}`)
+          return null
+        })
+      : null
+  let better: CallResult | null = null
+  const lines = corrected?.status === 'updated' ? withCorrectedCallerLines(log.lines, corrected.lines ?? []) : null
+  if (lines) {
+    const callbackKnown = hasCallbackNumber(callerIdOf(call), {
+      confirmed: log.confirmedNumbers,
+      saved: log.messages,
+      country: call.country,
+    })
+    better = await summarizeWithRetry(call, lines, log, complete, callbackKnown, retry)
+      .then(summary => mergeToolResults(summary, log, callbackKnown, call.teamLanguage))
+      .catch(e => {
+        console.warn(
+          `summary of the after-call transcript of call ${call.callId} failed, keeping the first one: ${message(e)}`,
+        )
+        return null
+      })
+  }
+  const first = finished.result
+  await withRetry(
+    () =>
+      call.finalize!(
+        better
+          ? {
+              title: better.title,
+              summary: better.summary,
+              outcome: better.outcome,
+              urgency: better.urgency,
+              actionItems: better.actionItems,
+              fields: better.fields,
+              callerName: better.callerName,
+              previous: {
+                actionItems: (first.actionItems ?? []).map(item => item.text).slice(0, 200),
+                ...(finished.named ? { callerName: first.callerName } : {}),
+                urgency: first.urgency,
+                title: first.title,
+                summary: first.summary,
+              },
+            }
+          : {},
+      ),
+    retry,
+  )
+}
+
+/**
+ * The lines the first summary had, with the caller's lines as the after-call transcript has them. The two lists are
+ * matched by the caller's lines in order; when they differ in number (a line that never reached the API), null: the
+ * first summary stays.
+ */
+export function withCorrectedCallerLines(
+  own: readonly TranscriptLine[],
+  corrected: readonly TranscriptLine[],
+): TranscriptLine[] | null {
+  const texts = corrected.filter(l => l.speaker === 'caller').map(l => l.text)
+  if (!texts.length || texts.length !== own.filter(l => l.speaker === 'caller').length) return null
+  let next = 0
+  return own.map(line => (line.speaker === 'caller' ? { ...line, text: texts[next++]! } : line))
 }
 
 /** A timed-out request is not repeated: a second one would not fit into the hang-up budget. */
-const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutError' || /timeout|timed out/i.test(e.message))
+const isTimeout = (e: unknown) =>
+  e instanceof Error && (e.name === 'TimeoutError' || /timeout|timed out/i.test(e.message))
 export const SUMMARY_RETRY_DELAY_MS = 2000
 
 /** Summarizes; a failed request (a rate limit, a bad answer) is tried once more after a short pause. */
-async function summarizeWithRetry(call: CallSession, log: CallLog, complete: CompleteJson, callbackKnown: boolean, retry?: RetryOptions) {
+async function summarizeWithRetry(
+  call: CallSession,
+  lines: TranscriptLine[],
+  log: CallLog,
+  complete: CompleteJson,
+  callbackKnown: boolean,
+  retry?: RetryOptions,
+) {
   try {
-    return await summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown, details: log.details })
+    return await summarizeCall(lines, complete, log.messages, call.teamLanguage, {
+      callbackKnown,
+      details: log.details,
+    })
   } catch (e) {
     if (isTimeout(e)) throw e
     console.warn(`summary of call ${call.callId} failed, trying once more: ${message(e)}`)
     const pause = retry?.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
     await pause(SUMMARY_RETRY_DELAY_MS)
-    return summarizeCall(log.lines, complete, log.messages, call.teamLanguage, { callbackKnown, details: log.details })
+    return summarizeCall(lines, complete, log.messages, call.teamLanguage, { callbackKnown, details: log.details })
   }
 }
 
@@ -116,17 +245,30 @@ async function summarizeWithRetry(call: CallSession, log: CallLog, complete: Com
  *                                           timeout is tried once more after 2 s; then finish without one
  *   call.finish                             4 attempts of at most 5 s each, 3.5 s of backoff in between
  *   wait for the recording file, report it  at most RECORDING_WAIT_MS, then call.setRecording
+ *   only when call.finish held the news (after-call transcription on, finalizeCall):
+ *     after-call transcript                 at most 30 s (call.correctTranscript), usually 2-10 s
+ *     summary of the corrected lines        as above, only when caller lines changed
+ *     call.finalize                         like call.finish
  * The whole sequence is cut off after HANGUP_BUDGET_MS. What did not fit is repaired by the API:
- * it completes calls that stay live and links recording files that were never reported.
+ * it completes calls that stay live, links recording files that were never reported, and sends held news after
+ * AWAIT_TRANSCRIPT_MAX_SEC (the CALL_RELEASE job).
  */
 export const HANGUP_BUDGET_MS = 50_000
 export const RECORDING_WAIT_MS = 15_000
 
 export interface HangUpSteps {
   stopRecording(): Promise<void>
-  finishCall(): Promise<void>
-  saveRecording(): Promise<void>
+  /** `{ held: true }`: the news waits for `finalize`. */
+  finishCall(): Promise<unknown>
+  /** true once the recording is reported. */
+  saveRecording(): Promise<unknown>
+  /** Only for a held call, after saveRecording: the corrected transcript's summary and the news. */
+  finalize?(recordingSaved: boolean): Promise<void>
 }
+
+const hasFlag = (data: unknown, flag: 'held' | 'named') =>
+  typeof data === 'object' && data !== null && flag in data && (data as Record<string, unknown>)[flag] === true
+const isHeld = (finished: unknown) => hasFlag(finished, 'held')
 
 /** The order of things at hang-up. The recording is saved even if finishing the call failed. */
 export async function hangUp(steps: HangUpSteps, budgetMs = HANGUP_BUDGET_MS) {
@@ -136,11 +278,14 @@ export async function hangUp(steps: HangUpSteps, budgetMs = HANGUP_BUDGET_MS) {
   })
   const sequence = async () => {
     await steps.stopRecording()
+    let held = false
+    let saved: unknown = false
     try {
-      await steps.finishCall()
+      held = isHeld(await steps.finishCall())
     } finally {
-      await steps.saveRecording()
+      saved = await steps.saveRecording()
     }
+    if (held && steps.finalize) await steps.finalize(saved === true)
   }
   try {
     await Promise.race([sequence(), outOfTime])

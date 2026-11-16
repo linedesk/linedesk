@@ -3,8 +3,8 @@
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
 import type { RecordingStoreName } from '@linedesk/actions'
 import { BillingSetupError } from '@linedesk/billing'
-import type { Tx } from '@linedesk/db'
-import { sql } from 'drizzle-orm'
+import { calls, type Tx } from '@linedesk/db'
+import { lt, sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
 import { notifyAssigned } from './assign-notifications.ts'
 import { sendBookingConfirmation } from './booking-confirmation.ts'
@@ -14,14 +14,20 @@ import { emailSender } from './email.ts'
 import { type WorkspaceDeletedEmail, workspaceDeletedEmail } from './emails/templates.ts'
 import { runForwardingCheck } from './forwarding-check.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
-import { transcribeCallAgain, transcriberInEffect } from './after-call-transcript.ts'
+import { transcribeCallAgain, transcriberInEffect, transcribesAfterCalls } from './after-call-transcript.ts'
+import { releaseHeldNews } from './call-news.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
 import { deleteCallRecording, deleteExpiredRecordings } from './recording-retention.ts'
 import { clearOldDemoCalls, demoTranscriptDays, stripOldDemoIpHashes } from './demo-rooms.ts'
 import { pruneOldCommands } from './command-log.ts'
 import { pruneExpiredVerifications } from './verifications.ts'
 import { pruneOldAdminDevices } from './admin-devices.ts'
-import { healthCheckCron, healthCheckHours, PROVIDER_HEALTH_CHECK, runProviderHealthCheck } from './provider-health-check.ts'
+import {
+  healthCheckCron,
+  healthCheckHours,
+  PROVIDER_HEALTH_CHECK,
+  runProviderHealthCheck,
+} from './provider-health-check.ts'
 import { syncDerivedDays, workspacesWithDerivedDays } from './public-holidays.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { deleteClonedVoice } from './voices.ts'
@@ -69,6 +75,11 @@ export const BOOKING_CONFIRM = 'booking.confirm'
 export const CALL_EVALUATE = 'call.evaluate'
 /** After-call transcription of a call whose recording was saved (after-call-transcript.ts). */
 export const CALL_TRANSCRIBE = 'call.transcribe'
+/** A finished call whose news still waits for its corrected transcript gets it sent now (call-news.ts). */
+export const CALL_RELEASE = 'call.release'
+/** Every 5 minutes: holds older than 5 minutes past their end (call-news.ts) are released. */
+const HELD_NEWS_SWEEP = 'call.held-news-sweep'
+const HELD_NEWS_SWEEP_CRON = '*/5 * * * *'
 /** One webhook or integration delivery (webhooks.ts, integrations.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
 export const WEBHOOK_DELIVER = 'webhook.deliver'
 /** Webhook deliveries one API process sends at the same time. */
@@ -153,7 +164,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   })
   await instance.work<{ eventId: string }>(CALL_ASSIGNED, async ([job]) => {
     const result = await notifyAssigned(db, emailSender, pushSender(), job!.data.eventId)
-    if (result.email === 'failed' && !result.push?.sent) throw new Error('the assignment notification could not be sent')
+    if (result.email === 'failed' && !result.push?.sent)
+      throw new Error('the assignment notification could not be sent')
     return result
   })
   await instance.work<SpendingAlert>(SPENDING_CAP_ALERT, async ([job]) => {
@@ -166,9 +178,13 @@ async function runJobs(instance: PgBoss, env: Env) {
     // The account may be gone with the workspace: then English.
     await emailSender.send({ to, ...workspaceDeletedEmail(content, undefined, await localeForEmail(db, to)) })
   })
-  await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) => sendBookingConfirmation(db, emailSender, job!.data.bookingId))
+  await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) =>
+    sendBookingConfirmation(db, emailSender, job!.data.bookingId),
+  )
   // No language model set up: nothing to do, and no retry. A failed request (provider down) is retried.
-  await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) => evaluateCall(db, job!.data.callId, await evaluationModel(db)))
+  await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) =>
+    evaluateCall(db, job!.data.callId, await evaluationModel(db)),
+  )
   // A failure (model or bucket down) is logged and tried again; after the last try the live transcript stays. No
   // transaction around it: the model takes seconds; the lines are written in one short transaction at the end.
   await instance.work<{ callId: string }>(CALL_TRANSCRIBE, async ([job]) => {
@@ -180,9 +196,48 @@ async function runJobs(instance: PgBoss, env: Env) {
       throw e
     }
   })
-  await instance.work<{ checkId: string }>(FORWARDING_CHECK, { localConcurrency: FORWARDING_CHECK_WORKERS }, async ([job]) => ({
-    status: await runForwardingCheck(job!.data.checkId),
-  }))
+  // The agent never brought the summary of the corrected transcript (call.finalize): the news goes with the one it has.
+  const releaseCall = async (callId: string) => {
+    // A recording reported meanwhile is still transcribed again, in the same transaction, unless call.correctTranscript
+    // already started on it (it queues its own retry when it fails).
+    const released = await db.transaction(async tx => {
+      const call = await releaseHeldNews(tx, callId)
+      if (call?.recording_key && !call.transcript_requested_at && (await transcribesAfterCalls(tx)))
+        await queueCallTranscript(tx, callId)
+      return call
+    })
+    if (released)
+      console.warn(
+        `call ${callId}: no summary of the corrected transcript came in time, its news went with the live one`,
+      )
+    return { released: !!released }
+  }
+  await instance.work<{ callId: string }>(CALL_RELEASE, async ([job]) => releaseCall(job!.data.callId))
+  // Last resort: a hold whose CALL_RELEASE job never ran or gave up is released here, so no call's news is lost.
+  await instance.schedule(HELD_NEWS_SWEEP, HELD_NEWS_SWEEP_CRON)
+  await instance.work(HELD_NEWS_SWEEP, async () => {
+    const held = await db
+      .select({ id: calls.id })
+      .from(calls)
+      .where(lt(calls.awaiting_transcript_until, sql`now() - interval '5 minutes'`))
+      .limit(100)
+    let released = 0
+    for (const { id } of held) {
+      const result = await releaseCall(id).catch(e => {
+        console.error(`held news sweep: call ${id} could not be released:`, e)
+        return { released: false }
+      })
+      if (result.released) released++
+    }
+    return { released }
+  })
+  await instance.work<{ checkId: string }>(
+    FORWARDING_CHECK,
+    { localConcurrency: FORWARDING_CHECK_WORKERS },
+    async ([job]) => ({
+      status: await runForwardingCheck(job!.data.checkId),
+    }),
+  )
   // The free key check of every provider that is set up (provider-health-check.ts); off with PROVIDER_HEALTH_CHECK_HOURS=0.
   const healthHours = healthCheckHours(env)
   if (healthHours) await instance.schedule(PROVIDER_HEALTH_CHECK, healthCheckCron(healthHours))
@@ -212,9 +267,7 @@ async function runJobs(instance: PgBoss, env: Env) {
       if (job!.retryCount >= BILLING_RECHARGE_RETRIES)
         await rechargeGaveUp(db, job!.data.rechargeId, {
           setupError: error instanceof BillingSetupError ? error : undefined,
-        }).catch(e =>
-          console.error(`billing: recharge ${job!.data.rechargeId} could not be given up:`, e),
-        )
+        }).catch(e => console.error(`billing: recharge ${job!.data.rechargeId} could not be given up:`, e))
       throw error
     }
   })
@@ -319,7 +372,13 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(WORKSPACE_DELETED_EMAIL, { retryLimit: 6, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
-  await instance.createQueue(CALL_TRANSCRIBE, { retryLimit: 3, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 })
+  await instance.createQueue(CALL_TRANSCRIBE, {
+    retryLimit: 3,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 600,
+  })
+  await instance.createQueue(CALL_RELEASE, { retryLimit: 4, retryDelay: 30, retryBackoff: true })
   await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
   await instance.createQueue(WEBHOOK_CLEANUP)
   await instance.createQueue(DEMO_CALL_CLEANUP)
@@ -337,6 +396,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await createStripeEventQueues(instance)
   await createReconcileQueue(instance)
   await instance.createQueue(SETUP_EMAILS)
+  await instance.createQueue(HELD_NEWS_SWEEP)
   // One run at a time, never retried: the next scheduled run is the retry.
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
@@ -369,7 +429,12 @@ export type RecordingFile = { store: RecordingStoreName | null; key: string }
 
 /** Queues the deletion of recording files in the caller's transaction: they go once it commits, retried until the store takes it. */
 export async function queueRecordingFileDeletions(tx: Tx, files: RecordingFile[]) {
-  if (files.length) await boss?.insert(RECORDING_FILE_DELETE, files.map(data => ({ data })), { db: fromDrizzle(tx, sql) })
+  if (files.length)
+    await boss?.insert(
+      RECORDING_FILE_DELETE,
+      files.map(data => ({ data })),
+      { db: fromDrizzle(tx, sql) },
+    )
 }
 
 /** Queues the deletion of a call's recording in the caller's transaction (a workspace that keeps none). */
@@ -415,12 +480,25 @@ export async function queueCallEvaluation(tx: Tx, callId: string) {
 
 /** Queues the after-call transcription of a call in call.setRecording's transaction: it runs once the recording is reported. */
 export async function queueCallTranscript(tx: Tx, callId: string) {
-  await boss?.send(CALL_TRANSCRIBE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 })
+  await boss?.send(
+    CALL_TRANSCRIBE,
+    { callId },
+    { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 },
+  )
+}
+
+/** Queues the release of a held call's news `afterSec` later, in call.finish's transaction (call-news.ts). */
+export async function queueCallRelease(tx: Tx, callId: string, afterSec: number) {
+  await boss?.send(CALL_RELEASE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, startAfter: afterSec })
 }
 
 /** Queues one webhook delivery in the transaction that caused it, `afterSec` later. Without a queue (tests) it stays pending. */
 export async function queueWebhookDelivery(tx: Tx, deliveryId: string, afterSec = 0) {
-  await boss?.send(WEBHOOK_DELIVER, { deliveryId }, { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) })
+  await boss?.send(
+    WEBHOOK_DELIVER,
+    { deliveryId },
+    { db: fromDrizzle(tx, sql), ...(afterSec ? { startAfter: afterSec } : {}) },
+  )
 }
 
 /** Queues the deletion of a cloned voice at its provider, in the transaction that stopped using it. */
@@ -442,5 +520,10 @@ export type WorkspaceDeletedJob = WorkspaceDeletedEmail & { to: string }
  * nothing is sent.
  */
 export async function queueWorkspaceDeletedEmails(tx: Tx, emails: WorkspaceDeletedJob[]) {
-  if (emails.length) await boss?.insert(WORKSPACE_DELETED_EMAIL, emails.map(data => ({ data })), { db: fromDrizzle(tx, sql) })
+  if (emails.length)
+    await boss?.insert(
+      WORKSPACE_DELETED_EMAIL,
+      emails.map(data => ({ data })),
+      { db: fromDrizzle(tx, sql) },
+    )
 }

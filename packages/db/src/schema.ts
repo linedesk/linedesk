@@ -302,6 +302,14 @@ export const calls = pgTable(
     caller_details: jsonb('caller_details').$type<CallerDetails>(),
     /** Stages of the voice pipeline that failed on this call (call.reportVoiceFailure), one per stage, provider and reason. */
     voice_failures: jsonb('voice_failures').$type<CallVoiceFailure[]>().notNull().default([]),
+    /**
+     * The call's news (email, push, evaluation, after-call webhook and integrations) waits for the after-call
+     * transcript until this time (call.finish with awaitTranscript): the agent then sends the summary of the corrected
+     * transcript (call.finalize), or the CALL_RELEASE job sends the news with the summary it has. null: nothing waits.
+     */
+    awaiting_transcript_until: ts('awaiting_transcript_until'),
+    /** When call.correctTranscript started on this held call: only one runs, and the CALL_RELEASE job then queues none. */
+    transcript_requested_at: ts('transcript_requested_at'),
     deleted_at: ts('deleted_at'),
     version: version(),
   },

@@ -2,6 +2,9 @@
 import {
   actions,
   type AssistantRestoreData,
+  AWAIT_TRANSCRIPT_MAX_SEC,
+  type CallFinishData,
+  type CorrectTranscriptData,
   buyableAreaCode,
   behaviourOn,
   callerRecognized,
@@ -54,7 +57,7 @@ import {
 } from '@linedesk/db'
 import type { ActionItem, Assistant, AssistantVoice, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
-import { and, asc, desc, eq, gt, gte, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
@@ -153,14 +156,21 @@ import {
   queueCallTranscript,
   queueForwardingCheck,
   queueRecordingDeletion,
-  queueCallNotification,
   queueCallPush,
+  queueCallRelease,
 } from './jobs.ts'
-import { afterCallTranscriptHandlers, transcribesAfterCalls } from './after-call-transcript.ts'
+import {
+  afterCallTranscriptHandlers,
+  transcribeCallAgain,
+  transcriberInEffect,
+  transcribesAfterCalls,
+} from './after-call-transcript.ts'
+import { queueFinishedNews, releaseHeldNews } from './call-news.ts'
+import { recordingStoreCache } from './recording-store.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { billOfCall, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
-import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
+import { evaluationHandlers } from './evaluations.ts'
 import { businessHandlers } from './business-import.ts'
 import { knowledgeHandlers } from './knowledge.ts'
 import { knowledgeQuestionHandlers } from './knowledge-questions.ts'
@@ -171,15 +181,8 @@ import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
-import { integrationHandlers, queueCallStarted, queueIntegrationDeliveries, queueLookup } from './integrations.ts'
-import {
-  askWebhook,
-  clearCallPayloads,
-  duringCallLookups,
-  lookUpCaller,
-  queueCallEnd,
-  webhookHandlers,
-} from './webhooks.ts'
+import { integrationHandlers, queueCallStarted, queueLookup } from './integrations.ts'
+import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, webhookHandlers } from './webhooks.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 
@@ -916,6 +919,19 @@ export const preparers: Record<string, Preparer> = {
  * The next steps the API itself put on a call while it ran (BOOKING_MISSES_NOTE when booking changes were locked):
  * call.finish replaces the assistant's list, these stay. Messages the assistant took come back in its list.
  */
+/**
+ * Names the call's contact with the name the caller gave, when it has none yet; kept as a caller's, so it unlocks
+ * nothing on later calls (contacts.name_source). `replacing`: a name an earlier summary of this call gave, which a
+ * better one replaces. The contacts written, or null.
+ */
+async function nameCaller(tx: Tx, contactId: string | null, name: string | undefined, replacing?: string) {
+  if (!name || !contactId) return null
+  const [contact] = await tx.select().from(contacts).where(eq(contacts.id, contactId))
+  const replaces = !!replacing && contact?.name === replacing && contact.name_source === 'caller'
+  if (!contact || (contact.name && !replaces) || contact.name === name) return null
+  return tx.update(contacts).set({ name, name_source: 'caller' }).where(eq(contacts.id, contact.id)).returning()
+}
+
 export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) =>
   stored.filter(item => item.kind !== 'message' && !finished.some(f => f.text === item.text))
 
@@ -1415,6 +1431,14 @@ const handlers: Record<string, Handler> = {
     const call = await loadCall(tx, actor, input.callId)
     const duration_sec = Math.max(0, Math.round((Date.parse(now) - Date.parse(call.started_at)) / 1000))
     const { outcome, urgency } = keptUrgent(call.urgency, input.outcome ?? 'answered', input.urgency ?? call.urgency)
+    // A recorded call's news waits for the corrected transcript when after-call transcription is on (call-news.ts).
+    // A repeated finish (agent retry after a lost answer) gets the hold the first one set.
+    const held =
+      call.status === 'completed'
+        ? !!call.awaiting_transcript_until
+        : input.awaitTranscript === true &&
+          (await keepsRecordings(tx, call.workspace_id)) &&
+          (await transcribesAfterCalls(tx))
     const [updated] = await tx
       .update(calls)
       .set({
@@ -1429,6 +1453,9 @@ const handlers: Record<string, Handler> = {
           ? [...input.actionItems, ...teamNotesOf(call.action_items, input.actionItems)]
           : call.action_items,
         fields: input.fields ?? call.fields,
+        ...(held && call.status !== 'completed'
+          ? { awaiting_transcript_until: new Date(Date.parse(now) + AWAIT_TRANSCRIPT_MAX_SEC * 1000).toISOString() }
+          : {}),
       })
       .where(eq(calls.id, call.id))
       .returning()
@@ -1436,28 +1463,109 @@ const handlers: Record<string, Handler> = {
     // A billed call's usage posts now, with its end and duration set above (call-billing.ts); a repeated finish finds
     // it posted. A failure leaves the call finished: the stale sweep posts it again.
     await postFinishedCall(tx, call.id, now)
-    if (input.callerName && call.contact_id) {
-      const [contact] = await tx.select().from(contacts).where(eq(contacts.id, call.contact_id))
-      // A caller's word for who they are: kept as a caller's, so it unlocks nothing on later calls (contacts.name_source).
-      if (contact && !contact.name)
-        rows.contacts = await tx
-          .update(contacts)
-          .set({ name: input.callerName, name_source: 'caller' })
-          .where(eq(contacts.id, contact.id))
-          .returning()
-    }
+    const named = await nameCaller(tx, call.contact_id, input.callerName)
+    if (named) rows.contacts = named
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.
     if (call.status !== 'completed') {
-      await queueCallNotification(tx, call.id)
-      await queueCallPush(tx, call.id, 'finished')
-      // Test calls are evaluated only when the call view asks (call.evaluate).
-      if (evaluatedAutomatically(updated!)) await queueCallEvaluation(tx, call.id)
-      await queueCallEnd(tx, updated!)
-      await queueIntegrationDeliveries(tx, updated!)
+      if (held) await queueCallRelease(tx, call.id, AWAIT_TRANSCRIPT_MAX_SEC)
+      else await queueFinishedNews(tx, updated!)
       // This call's minutes may take the workspace to 80 % or 100 % of its spending cap.
       await queueSpendingAlerts(tx, call.workspace_id, now)
       await recordCallFinished(tx, updated!, now)
     }
+    return { rows, data: { held, named: !!named } satisfies CallFinishData }
+  },
+
+  // The agent asks for the corrected transcript of a held call: outside a transaction (the provider takes seconds), the
+  // lines are written in one short one at the end. A failure leaves the live lines and tries again in the background.
+  'call.correctTranscript': async ({ tx, actor }, input: { callId: string }) => {
+    const call = await loadCall(tx, actor, input.callId)
+    // Once per call: a second request (a retry, a second agent) finds it taken, and the CALL_RELEASE job queues no
+    // background transcription for a call whose transcription started here.
+    const [claimed] = await tx
+      .update(calls)
+      .set({ transcript_requested_at: sql`now()` })
+      .where(
+        and(eq(calls.id, call.id), isNotNull(calls.awaiting_transcript_until), isNull(calls.transcript_requested_at)),
+      )
+      .returning({ id: calls.id })
+    if (!claimed) return { rows: {}, data: { status: 'skipped' } satisfies CorrectTranscriptData }
+    // Recordings turned off since call.finish: the recording is being deleted and leaves the server no more.
+    if (!(await keepsRecordings(tx, call.workspace_id)))
+      return { rows: {}, data: { status: 'skipped' } satisfies CorrectTranscriptData }
+    try {
+      const result = await transcribeCallAgain(tx, call.id, await transcriberInEffect(tx), recordingStoreCache(tx))
+      if (result.status !== 'updated' || !result.lines)
+        return { rows: {}, data: { status: 'skipped' } satisfies CorrectTranscriptData }
+      const lines = await tx
+        .select({ speaker: transcript_segments.speaker, text: transcript_segments.text })
+        .from(transcript_segments)
+        .where(eq(transcript_segments.call_id, call.id))
+        .orderBy(asc(transcript_segments.at_ms), asc(transcript_segments.id))
+      return { rows: {}, data: { status: 'updated', lines } satisfies CorrectTranscriptData }
+    } catch (e) {
+      console.warn(`after-call transcription of call ${call.id} failed, trying again later: ${errorMessage(e)}`)
+      await queueCallTranscript(tx, call.id)
+      return { rows: {}, data: { status: 'failed' } satisfies CorrectTranscriptData }
+    }
+  },
+
+  // The summary of the corrected transcript, then the news the call held (call-news.ts). A call no longer held (the
+  // CALL_RELEASE job was first) keeps the summary its news went out with: the email and the inbox say the same, and
+  // the team may have changed it since.
+  'call.finalize': async ({ tx, actor }, input) => {
+    await lockCall(tx, input.callId)
+    const call = await loadCall(tx, actor, input.callId)
+    if (call.status !== 'completed') throw new Reject('the call has not finished')
+    if (!call.awaiting_transcript_until) return { rows: {} }
+    // A title or summary the team changed while the news was held stays.
+    const unchanged = (stored: string | null, sent: string | undefined) => sent === undefined || stored === sent
+    const rows: ActionResult['rows'] = {}
+    if (
+      input.summary !== undefined ||
+      input.title !== undefined ||
+      input.outcome ||
+      input.urgency ||
+      input.actionItems ||
+      input.callerName
+    ) {
+      const previous = new Set(input.previous?.actionItems ?? [])
+      // Urgent stays urgent when the team or a tool flagged it. While the news is held, an urgency only the first
+      // summary set (unchanged since) may change: it may come from a misheard word. A tool's flag is in both summaries.
+      const fromFirstSummary = input.previous?.urgency === call.urgency
+      const current = fromFirstSummary ? (input.urgency ?? call.urgency) : call.urgency
+      const { outcome, urgency } = keptUrgent(
+        current,
+        input.outcome ?? call.outcome ?? 'answered',
+        input.urgency ?? call.urgency,
+      )
+      const [updated] = await tx
+        .update(calls)
+        .set({
+          outcome,
+          urgency,
+          title: unchanged(call.title, input.previous?.title) ? (input.title ?? call.title) : call.title,
+          summary: unchanged(call.summary, input.previous?.summary) ? (input.summary ?? call.summary) : call.summary,
+          // The agent's items from call.finish are replaced; what the team or a tool added stays.
+          action_items: input.actionItems
+            ? [
+                ...input.actionItems,
+                ...teamNotesOf(
+                  call.action_items.filter(item => !previous.has(item.text)),
+                  input.actionItems,
+                ),
+              ]
+            : call.action_items,
+          fields: input.fields ?? call.fields,
+        })
+        .where(eq(calls.id, call.id))
+        .returning()
+      rows.calls = [updated!]
+      const named = await nameCaller(tx, call.contact_id, input.callerName, input.previous?.callerName)
+      if (named) rows.contacts = named
+    }
+    const released = await releaseHeldNews(tx, call.id)
+    if (released) rows.calls = [released]
     return { rows }
   },
 
@@ -1500,8 +1608,10 @@ const handlers: Record<string, Handler> = {
     const rows = await tx.update(calls).set({ recording_key, recording_store }).where(eq(calls.id, call.id)).returning()
     // A workspace that keeps no recordings (an agent that recorded anyway: older, or the setting changed mid-call).
     if (!(await keepsRecordings(tx, call.workspace_id))) await queueRecordingDeletion(tx, call.id)
-    // A stronger model hears the recording again and corrects the caller's lines (after-call-transcript.ts).
-    else if (await transcribesAfterCalls(tx)) await queueCallTranscript(tx, call.id)
+    // A stronger model hears the recording again and corrects the caller's lines (after-call-transcript.ts); for a
+    // held call the agent asks for it now (call.correctTranscript).
+    else if (!call.awaiting_transcript_until && (await transcribesAfterCalls(tx)))
+      await queueCallTranscript(tx, call.id)
     return { rows: { calls: rows } }
   },
 

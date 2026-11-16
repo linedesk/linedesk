@@ -16,8 +16,11 @@ const CALENDAR_TIMEOUT_MS = 25_000
 /** A during-call lookup: the API waits DURING_CALL_TIMEOUT_MS (7 s) for the business's system, plus its own trip. */
 const LOOKUP_ACTION = 'call.askWebhook'
 const LOOKUP_TIMEOUT_MS = 9000
+/** call.correctTranscript waits while a transcription model hears the whole recording again. */
+const TRANSCRIPT_TIMEOUT_MS = 30_000
+const SLOW_ACTIONS: Record<string, number> = { [LOOKUP_ACTION]: LOOKUP_TIMEOUT_MS, 'call.correctTranscript': TRANSCRIPT_TIMEOUT_MS }
 const timeoutOf = (name: string) =>
-  CALENDAR_ACTIONS.has(name) ? CALENDAR_TIMEOUT_MS : name === LOOKUP_ACTION ? LOOKUP_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+  CALENDAR_ACTIONS.has(name) ? CALENDAR_TIMEOUT_MS : (SLOW_ACTIONS[name] ?? REQUEST_TIMEOUT_MS)
 
 export class ActionError extends Error {
   readonly action: string

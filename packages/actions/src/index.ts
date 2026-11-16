@@ -122,6 +122,8 @@ const all = [
   calls.callListNumbers,
   calls.callStartRecording,
   calls.callSetRecording,
+  calls.callCorrectTranscript,
+  calls.callFinalize,
   transfer.callTransfer,
   outbound.outboundCountriesView,
   outbound.outboundCountriesGet,

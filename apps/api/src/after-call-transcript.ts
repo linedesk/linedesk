@@ -33,6 +33,7 @@ import { ownRecordingKey, recordingContentType } from './recording-route.ts'
 import type { RecordingStore } from './recording-store.ts'
 import { type Heard, isTranscriptProvider, type Transcriber, TranscriberError, transcriberFor } from './transcriber.ts'
 import { alignCallerLines, type StoredLine } from './transcript-align.ts'
+import { NO_HINTS, transcriptHints } from './transcript-hints.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -188,6 +189,8 @@ export async function readRecording(
  * again changes nothing and would only upload the audio again.
  */
 const REFUSED_FOR_GOOD = new Set([400, 401, 403, 404, 413, 415, 422])
+/** What a provider answers to a request field it does not take. */
+const HINTS_REFUSED = new Set([400, 422])
 
 export type TranscribeResult =
   | { status: 'updated'; lines: number; model: string }
@@ -242,10 +245,17 @@ export async function transcribeCallAgain(
     return { status: 'skipped', reason: 'too large' }
   }
   let heard: Heard
+  const file = { name: key.split('/').pop()!, contentType: recordingContentType(key) }
+  const hints = await transcriptHints(tx, call.id)
   try {
-    heard = await transcriber.transcribe(recording.audio, {
-      name: key.split('/').pop()!,
-      contentType: recordingContentType(key),
+    heard = await transcriber.transcribe(recording.audio, file, hints).catch(e => {
+      // A provider that refuses the hints (a term it does not take, a language it lacks) still hears the call without.
+      if (!(e instanceof TranscriberError) || !HINTS_REFUSED.has(e.status) || (!hints.terms.length && !hints.language))
+        throw e
+      console.warn(
+        `after-call transcription of call ${callId}: ${transcriber.model} refused the hints, trying without: ${e.message}`,
+      )
+      return transcriber.transcribe(recording.audio, file, NO_HINTS)
     })
   } catch (e) {
     if (!(e instanceof TranscriberError) || !REFUSED_FOR_GOOD.has(e.status)) throw e

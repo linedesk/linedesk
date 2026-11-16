@@ -125,9 +125,9 @@ async function queueEvent(tx: Tx, workspaceId: string, event: IntegrationEvent, 
  * Queues `call_finished` for every working subscription of the call's workspace, in the transaction that finished
  * the call (call.finish). The payload is built when it is sent, like the after-call webhook's.
  */
-export async function queueIntegrationDeliveries(tx: Tx, call: Call) {
+export async function queueIntegrationDeliveries(tx: Tx, call: Call, afterSec = CALL_END_DELAY_SEC) {
   if (!sendsCall(call)) return
-  await queueEvent(tx, call.workspace_id, 'call_finished', () => ({ event: 'call_finished', call_id: call.id }), CALL_END_DELAY_SEC)
+  await queueEvent(tx, call.workspace_id, 'call_finished', () => ({ event: 'call_finished', call_id: call.id }), afterSec)
 }
 
 /** Queues `call_started` in the transaction that opened an answered phone call (openCall). Built when it is sent. */
