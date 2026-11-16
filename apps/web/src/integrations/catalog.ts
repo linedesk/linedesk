@@ -6,7 +6,14 @@
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { type AppConnectError, type ConnectableApp, isAppConnectError } from '@linedesk/actions'
+import {
+  APP_SETTINGS,
+  type AppConnectError,
+  type AppSettingId,
+  appSettingOn,
+  type ConnectableApp,
+  isAppConnectError,
+} from '@linedesk/actions'
 import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
 import type { ProviderId } from '../settings/calendarModel.ts'
 
@@ -352,7 +359,24 @@ const PUSH_ERROR: Record<AppErrorCode, MessageKey> = {
   call_deleted: msg('settings.integrations.app.pushError.callDeleted'),
   no_caller_id: msg('settings.integrations.app.pushError.noCallerId'),
   internal: msg('settings.integrations.app.pushError.internal'),
+  calls_off: msg('settings.integrations.app.pushError.callsOff'),
+  no_contact: msg('settings.integrations.app.pushError.noContact'),
 }
+
+/**
+ * The switches app.updateSettings gets when one of them changes: every switch of the app, as shown, with the one
+ * changed. Whole, so the optimistic row is whole too (the server merges them into what is stored).
+ */
+export const appSettingsWith = (
+  app: ConnectableApp,
+  stored: Readonly<Record<string, boolean>> | null | undefined,
+  id: AppSettingId,
+  on: boolean,
+): Record<AppSettingId, boolean> =>
+  Object.fromEntries(APP_SETTINGS[app].map(s => [s, s === id ? on : appSettingOn(stored, s)])) as Record<
+    AppSettingId,
+    boolean
+  >
 
 /** The text (with `{name}`) for why a call did not go to a connected app; an unknown code is `internal`'s. */
 export const appPushErrorKey = (code: string): MessageKey => PUSH_ERROR[code as AppErrorCode] ?? PUSH_ERROR.internal

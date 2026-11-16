@@ -47,11 +47,14 @@ export function Switch({
   onChange,
   label,
   disabled,
+  title,
 }: {
   on: boolean
   onChange: (on: boolean) => void
   label: string
   disabled?: boolean
+  /** The hover tooltip (ui/tooltips.ts); without it there is none. */
+  title?: string
 }) {
   return (
     <button
@@ -60,6 +63,7 @@ export function Switch({
       className="sw"
       aria-checked={on}
       aria-label={label}
+      title={title}
       disabled={disabled}
       onClick={() => onChange(!on)}
     />

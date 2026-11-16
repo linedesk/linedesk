@@ -293,6 +293,8 @@ export function auditLabel(
       const app = appNames[String(input.app)]
       return t('admin.audit.appDisconnected', { app: app ?? '', known: known(app) })
     }
+    case 'app.updateSettings':
+      return t('admin.audit.appSettingsChanged')
     case 'phoneNumber.setup':
       return input.purchase ? t('admin.audit.numberBought') : t('admin.audit.numberConnected')
     case 'phoneNumber.release':

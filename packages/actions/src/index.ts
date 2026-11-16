@@ -221,6 +221,7 @@ const all = [
   apps.appConnectStart,
   apps.appConnectFinish,
   apps.appDisconnect,
+  apps.appUpdateSettings,
   apps.appPushes,
   calendar.assistantCalendarAdd,
   calendar.assistantCalendarUpdate,

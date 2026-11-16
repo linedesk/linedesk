@@ -104,6 +104,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'app.connectFinish',
     'app.disconnect',
     'app.pushes',
+    // What Linedesk does in the app (LIN-367): log calls, add new callers, fill empty fields.
+    'app.updateSettings',
     // Connecting a CalDAV, Calendly or Cal.com account with its key (only the tools Server admin switched on).
     'calendar.connectWithPassword',
     'assistantCalendar.add',

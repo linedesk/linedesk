@@ -3,7 +3,14 @@
 // disconnecting with revocation. Sending finished calls to them is app-pushes.ts. Each app's HTTP is in
 // @linedesk/connectors; its OAuth app (client ID and secret) is the install's, under Server admin › Providers.
 import { randomBytes } from 'node:crypto'
-import type { AppConnectError, AppConnectStartData, AppDisconnectData, ConnectableApp } from '@linedesk/actions'
+import {
+  APP_SETTINGS,
+  type AppConnectError,
+  type AppConnectStartData,
+  type AppDisconnectData,
+  type AppSettingId,
+  type ConnectableApp,
+} from '@linedesk/actions'
 import {
   APP_IDS,
   APP_LABEL,
@@ -305,6 +312,31 @@ export const appConnectionHandlers: Record<string, Handler> = {
     }
     await saveTokens(tx, connection, tokens, grant)
     return { rows: { app_connections: [connection] }, data: { connectionId: connection.id } }
+  },
+
+  // The switches of what Linedesk does in the app (APP_SETTINGS). Merged into what is stored, so two members changing
+  // different switches at once both keep theirs. Read by the push job at send time (app-pushes.ts).
+  'app.updateSettings': async (
+    { tx, actor },
+    input: { id: string; settings: Partial<Record<AppSettingId, boolean>> },
+  ) => {
+    const workspace_id = workspaceOf(actor)
+    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    const [existing] = await tx
+      .select({ provider: app_connections.provider })
+      .from(app_connections)
+      .where(and(eq(app_connections.id, input.id), eq(app_connections.workspace_id, workspace_id)))
+    if (!existing) throw rejectApp('not_connected', 'the app is not connected')
+    const allowed: readonly string[] = APP_SETTINGS[existing.provider]
+    const unknown = Object.keys(input.settings).filter(id => !allowed.includes(id))
+    if (unknown.length) throw new Reject(`${APP_LABEL[existing.provider]} has no setting ${unknown.join(', ')}`)
+    const [connection] = await tx
+      .update(app_connections)
+      .set({ settings: sql`${app_connections.settings} || ${JSON.stringify(input.settings)}::jsonb` })
+      .where(and(eq(app_connections.id, input.id), eq(app_connections.workspace_id, workspace_id)))
+      .returning()
+    if (!connection) throw rejectApp('not_connected', 'the app is not connected')
+    return { rows: { app_connections: [connection] } }
   },
 
   // Deleted here first; the app is asked once that has committed. An app that cannot be reached does not keep the

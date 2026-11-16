@@ -2,8 +2,11 @@ import {
   type AppId,
   AppError,
   type FinishedCall,
+  DEFAULT_PUSH_OPTIONS,
+  type PushOptions,
   type PushProgress,
   type PushResult,
+  PushSkipped,
   type TokenSource,
 } from './types.ts'
 
@@ -76,26 +79,30 @@ export function fillOnly(existing: CrmFields, known: Partial<CrmFields>): Partia
 /**
  * The phase-1 push: find the caller's record (the stored link, then phone, then email), else create it;
  * fill empty fields; log the call on it. Returns the record id to store as the link. `progress` hears of the
- * record as soon as it is known, and of the logged call, so a retry neither creates nor logs twice.
+ * record as soon as it is known, and of the logged call, so a retry neither creates nor logs twice. `options`:
+ * without createContacts a caller with no record throws PushSkipped (nothing is made at the app); without
+ * fillFields an existing record is never changed.
  */
 export async function pushCallToCrm(
   crm: CrmProvider,
   token: TokenSource,
   call: FinishedCall,
   progress: PushProgress = {},
+  options: PushOptions = DEFAULT_PUSH_OPTIONS,
 ): Promise<PushResult> {
   const known = callerFields(call)
   let contact = call.linkedRecordId ? await crm.getContact(token, call.linkedRecordId) : null
   if (!contact && isE164(call.callerNumber)) contact = await crm.findContactByPhone(token, call.callerNumber)
   if (!contact && known.email) contact = await crm.findContactByEmail(token, known.email)
   if (!contact) {
+    if (!options.createContacts) throw new PushSkipped('no_contact')
     if (!known.phone && !known.email)
       throw new AppError(crm.app, 'invalid', 'the caller has no number or email to find or create a contact')
     contact = await crm.createContact(token, known)
     await progress.onRecord?.(contact.id)
   } else {
     await progress.onRecord?.(contact.id)
-    const patch = fillOnly(contact, known)
+    const patch = options.fillFields ? fillOnly(contact, known) : {}
     if (Object.keys(patch).length > 0) await crm.fillContact(token, contact.id, patch)
   }
   const activityId = await crm.logCall(token, contact.id, call)

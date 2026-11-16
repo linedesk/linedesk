@@ -3,10 +3,20 @@
 // or creates the caller's record, fills its empty fields and logs the call on it. No transaction stays open while
 // the app is asked: a push is claimed, sent, and each step saved in short transactions (attemptAppPush). Retried
 // with backoff; a push that keeps failing counts against its connection, which then asks for attention on the
-// app's page. Failures are stored as codes (AppErrorCode); the app's own words go to the server log only.
+// app's page. Failures are stored as codes (AppErrorCode); the app's own words go to the server log only. The
+// connection's switches (APP_SETTINGS) are read when the call is queued and again when it is sent: a call that they
+// say not to send is `skipped` with its reason, never counted as a failure.
 import type { AppPushesData } from '@linedesk/actions'
-import { CALL_END_DELAY_SEC } from '@linedesk/actions'
-import { AppError, type AppId, type FinishedCall, isE164, retryable } from '@linedesk/connectors'
+import { appSettingOn, CALL_END_DELAY_SEC } from '@linedesk/actions'
+import {
+  AppError,
+  type AppId,
+  type FinishedCall,
+  isE164,
+  type PushResult,
+  PushSkipped,
+  retryable,
+} from '@linedesk/connectors'
 import {
   type AppConnection,
   type AppErrorCode,
@@ -48,16 +58,18 @@ const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-
 const nowIso = () => new Date().toISOString()
 
 /**
- * With the call's finished news (call-news.ts): one push per connected app of the workspace. Phone calls only.
- * `afterSec`: after the summary has had its time, like the webhooks; 0 when the news waited for the transcript.
+ * With the call's finished news (call-news.ts): one push per connected app of the workspace that logs calls
+ * (log_calls). Phone calls only. `afterSec`: after the summary has had its time, like the webhooks; 0 when the news
+ * waited for the transcript.
  */
 export async function queueAppPushes(tx: Tx, call: Call, afterSec = CALL_END_DELAY_SEC) {
   if (!sendsCall(call)) return
   const connected = await tx
-    .select({ id: app_connections.id })
+    .select({ id: app_connections.id, settings: app_connections.settings })
     .from(app_connections)
     .where(eq(app_connections.workspace_id, call.workspace_id))
   for (const connection of connected) {
+    if (!appSettingOn(connection.settings, 'log_calls')) continue
     const [push] = await tx
       .insert(app_pushes)
       .values({ id: newId('apush'), workspace_id: call.workspace_id, connection_id: connection.id, call_id: call.id })
@@ -250,7 +262,7 @@ export async function attemptAppPush(
 
 async function sendClaimed(database: Tx, claim: Claimed, services?: AppServices): Promise<AppPushOutcome> {
   const { push, connection } = claim
-  const finish = (status: 'done' | 'failed', set: Partial<AppPushRow>) =>
+  const finish = (status: 'done' | 'failed' | 'skipped', set: Partial<AppPushRow>) =>
     whileMine(database, claim, tx =>
       tx
         .update(app_pushes)
@@ -258,6 +270,11 @@ async function sendClaimed(database: Tx, claim: Claimed, services?: AppServices)
         .where(eq(app_pushes.id, push.id)),
     )
 
+  // Logging calls was turned off after this call was queued: not sent. Unless an earlier try already logged it.
+  if (!push.external_id && !appSettingOn(connection.settings, 'log_calls')) {
+    await finish('skipped', { error_code: 'calls_off' })
+    return 'skipped'
+  }
   const found = await finishedCall(database, connection, push)
   if (!found) {
     await finish('failed', { error_code: 'call_deleted' })
@@ -287,20 +304,38 @@ async function sendClaimed(database: Tx, claim: Claimed, services?: AppServices)
     return 'failed'
   }
   const apps = appServicesOf({ apps: services })
-  const result = await apps.connector(connection.provider).pushCall(appTokenSource(database, apps, connection), call, {
-    onRecord: recordId =>
-      whileMine(database, claim, async tx => {
-        await tx.update(app_pushes).set({ record_id: recordId }).where(eq(app_pushes.id, push.id))
-        if (contactId) await linkContact(tx, connection, contactId, recordId)
-      }),
-    onLogged: activityId =>
-      whileMine(
-        database,
-        claim,
-        async tx =>
-          void (await tx.update(app_pushes).set({ external_id: activityId }).where(eq(app_pushes.id, push.id))),
-      ),
-  })
+  // The switches as they are now (read under the lock when the push was claimed).
+  const options = {
+    createContacts: appSettingOn(connection.settings, 'create_contacts'),
+    fillFields: appSettingOn(connection.settings, 'fill_fields'),
+  }
+  let result: PushResult
+  try {
+    result = await apps.connector(connection.provider).pushCall(
+      appTokenSource(database, apps, connection),
+      call,
+      {
+        onRecord: recordId =>
+          whileMine(database, claim, async tx => {
+            await tx.update(app_pushes).set({ record_id: recordId }).where(eq(app_pushes.id, push.id))
+            if (contactId) await linkContact(tx, connection, contactId, recordId)
+          }),
+        onLogged: activityId =>
+          whileMine(
+            database,
+            claim,
+            async tx =>
+              void (await tx.update(app_pushes).set({ external_id: activityId }).where(eq(app_pushes.id, push.id))),
+          ),
+      },
+      options,
+    )
+  } catch (e) {
+    // No contact matched the caller and creating contacts is off: skipped, not a failure of the connection.
+    if (!(e instanceof PushSkipped)) throw e
+    await finish('skipped', { error_code: e.reason })
+    return 'skipped'
+  }
   await succeed(result.recordId, result.activityId)
   return 'done'
 }

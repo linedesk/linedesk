@@ -140,7 +140,7 @@ const AUDITED_ACTION_NAMES = [
   'invitation.decline', 'membership.add', 'workspace.create', 'membership.setRole', 'membership.remove',
   'invitation.revoke', 'invitation.resend', 'apiKey.create', 'apiKey.revoke', 'webhook.create', 'webhook.update',
   'webhook.delete', 'webhook.test', 'calendar.connectFinish', 'calendar.disconnect', 'app.connectFinish', 'app.disconnect',
-  'phoneNumber.setup',
+  'app.updateSettings', 'phoneNumber.setup',
   'phoneNumber.release', 'agentSetup.createKey', 'agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey',
   'agentSetup.revoke', 'agentSetup.endOwnAccess', 'agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace',
 ]
@@ -194,6 +194,9 @@ describe('every audited action reads as words', () => {
       'Connected HubSpot',
     )
     expect(label('app.disconnect', { app: 'hubspot' })).toBe('Disconnected HubSpot')
+    expect(label('app.updateSettings', { id: 'appc_1', settings: { create_contacts: false } })).toBe(
+      'Changed what Linedesk does in a connected app',
+    )
     expect(label('phoneNumber.setup', { areaCode: '503', purchase: true })).toBe('Bought a phone number')
     expect(label('phoneNumber.setup', { e164: '+15035550142', purchase: false })).toBe('Connected a phone number')
   })

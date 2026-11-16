@@ -123,6 +123,7 @@
   "audit.apiKeyRevokedNamed": "Revoked API key “{name}”",
   "audit.appConnected": "{known, select, yes {Connected {app}} other {Connected an app}}",
   "audit.appDisconnected": "{known, select, yes {Disconnected {app}} other {Disconnected an app}}",
+  "audit.appSettingsChanged": "Changed what Linedesk does in a connected app",
   "audit.appointment.book": "Booked an appointment",
   "audit.appointment.cancel": "Cancelled an appointment",
   "audit.appointment.reschedule": "Moved an appointment",

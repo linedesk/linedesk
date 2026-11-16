@@ -190,6 +190,10 @@ export const appErrorCodes = [
   'call_deleted',
   'no_caller_id',
   'internal',
+  // Skipped by the connection's settings (status `skipped`), not failures: logging calls is off, or no contact
+  // matched the caller and creating contacts is off.
+  'calls_off',
+  'no_contact',
 ] as const
 export type AppErrorCode = (typeof appErrorCodes)[number]
 

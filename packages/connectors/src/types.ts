@@ -56,6 +56,19 @@ export class AppError extends Error {
 export const retryable = (err: unknown) =>
   !(err instanceof AppError) || err.kind === 'rate_limited' || err.kind === 'unavailable'
 
+/**
+ * A push the connection's settings said not to send, found out at the app: `no_contact`, no contact matched the
+ * caller and creating contacts is off. Not a failure: nothing is retried or counted against the connection.
+ */
+export class PushSkipped extends Error {
+  readonly reason: 'no_contact'
+  constructor(reason: 'no_contact') {
+    super(`push skipped: ${reason}`)
+    this.name = 'PushSkipped'
+    this.reason = reason
+  }
+}
+
 /** Gives a valid access token; `forceRefresh` after the app answered 401 with the current one. */
 export type TokenSource = (forceRefresh?: boolean) => Promise<string>
 
@@ -91,10 +104,18 @@ export type PushProgress = {
   onLogged?(activityId: string): Promise<void>
 }
 
-/** What a connected app does with a finished call. */
+/**
+ * What a push may do at the app: the connection's switches (APP_SETTINGS in @linedesk/actions). createContacts: add a
+ * caller with no record (else PushSkipped `no_contact`); fillFields: fill empty fields of an existing record.
+ */
+export type PushOptions = { createContacts: boolean; fillFields: boolean }
+
+export const DEFAULT_PUSH_OPTIONS: PushOptions = { createContacts: true, fillFields: true }
+
+/** What a connected app does with a finished call. Throws PushSkipped when `options` say not to send it. */
 export interface AppConnector {
   readonly id: AppId
-  pushCall(token: TokenSource, call: FinishedCall, progress?: PushProgress): Promise<PushResult>
+  pushCall(token: TokenSource, call: FinishedCall, progress?: PushProgress, options?: PushOptions): Promise<PushResult>
 }
 
 export type Json = Record<string, any>

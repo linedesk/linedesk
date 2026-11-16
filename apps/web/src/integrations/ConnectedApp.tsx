@@ -2,20 +2,30 @@
 // which account it is and whether calls still go through, the last calls sent, and disconnect. The connection is a
 // synced row (app_connections); connecting is an OAuth round trip, so the page names the table to read again on
 // return (refreshOnReturn), and the callback's result comes back in the hash (`?app=connected` or `?app=error`).
-import type { AppConnectStartData, AppDisconnectData, AppPush, AppPushesData, ConnectableApp } from '@linedesk/actions'
+// While connected, "What Linedesk does" holds the connection's switches (app.updateSettings, local-first).
+import {
+  APP_SETTINGS,
+  type AppConnectStartData,
+  type AppDisconnectData,
+  type AppPush,
+  type AppPushesData,
+  type AppSettingId,
+  appSettingOn,
+  type ConnectableApp,
+} from '@linedesk/actions'
 import type { AppConnection } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
-import { Section } from '../settings/fields.tsx'
+import { Section, SwitchRow } from '../settings/fields.tsx'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
-import { useRows } from '../store.tsx'
+import { useRows, useRun } from '../store.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
-import { appConnectErrorKey, appConnectResult, appPushErrorKey, nameKey } from './catalog.ts'
+import { appConnectErrorKey, appConnectResult, appPushErrorKey, appSettingsWith, nameKey } from './catalog.ts'
 
 type Props = {
   app: ConnectableApp
@@ -51,6 +61,7 @@ export function ConnectedApp({ app, canEdit, toast }: Props) {
           )}
         </Loading>
       </Section>
+      {ready && connection && <AppSettings app={app} connection={connection} canEdit={canEdit} />}
       {ready && connection && canEdit && <Pushes app={app} />}
     </>
   )
@@ -203,11 +214,76 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
   )
 }
 
+const SETTING_TEXT: Record<AppSettingId, { title: MessageKey; help: MessageKey; tip: MessageKey }> = {
+  log_calls: {
+    title: msg('settings.integrations.app.settings.logCalls'),
+    help: msg('settings.integrations.app.settings.logCallsHelp'),
+    tip: msg('settings.integrations.app.settings.logCallsTip'),
+  },
+  create_contacts: {
+    title: msg('settings.integrations.app.settings.createContacts'),
+    help: msg('settings.integrations.app.settings.createContactsHelp'),
+    tip: msg('settings.integrations.app.settings.createContactsTip'),
+  },
+  fill_fields: {
+    title: msg('settings.integrations.app.settings.fillFields'),
+    help: msg('settings.integrations.app.settings.fillFieldsHelp'),
+    tip: msg('settings.integrations.app.settings.fillFieldsTip'),
+  },
+}
+
+/**
+ * What Linedesk does in the app: one switch per setting, applied locally at once and sent through the outbox. Every
+ * switch is sent, so the optimistic row is whole. The others only matter while calls are logged: nested, greyed out
+ * when that is off. Members see them; owners and admins change them.
+ */
+function AppSettings({
+  app,
+  connection,
+  canEdit,
+}: {
+  app: ConnectableApp
+  connection: AppConnection
+  canEdit: boolean
+}) {
+  const t = useT()
+  const run = useRun()
+  const name = t(nameKey(app))
+  const ids = APP_SETTINGS[app]
+  const logging = appSettingOn(connection.settings, 'log_calls')
+  const set = (id: AppSettingId, on: boolean) =>
+    void run('app.updateSettings', { id: connection.id, settings: appSettingsWith(app, connection.settings, id, on) })
+  return (
+    <Section
+      id="ig-app-settings"
+      title={t('settings.integrations.app.settings.title')}
+      help={t('settings.integrations.app.settings.help', { name })}
+    >
+      <div className="st-swlist">
+        {ids.map(id => (
+          <SwitchRow
+            key={id}
+            title={t(SETTING_TEXT[id].title)}
+            description={t(SETTING_TEXT[id].help, { name })}
+            tip={t(SETTING_TEXT[id].tip, { name })}
+            on={appSettingOn(connection.settings, id)}
+            onChange={on => set(id, on)}
+            disabled={!canEdit}
+            nested={id !== 'log_calls'}
+            dimmed={id !== 'log_calls' && !logging}
+          />
+        ))}
+      </div>
+    </Section>
+  )
+}
+
 const PUSH_STATE: Record<AppPush['status'], { label: MessageKey; tone: 'ok' | 'danger' | 'outline' }> = {
   done: { label: msg('settings.integrations.app.push.done'), tone: 'ok' },
   pending: { label: msg('settings.integrations.app.push.pending'), tone: 'outline' },
   sending: { label: msg('settings.integrations.app.push.pending'), tone: 'outline' },
   failed: { label: msg('settings.integrations.app.push.failed'), tone: 'danger' },
+  skipped: { label: msg('settings.integrations.app.push.skipped'), tone: 'outline' },
 }
 
 /** The last calls sent to the app, newest first: what went through and why one did not. */

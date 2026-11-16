@@ -60,6 +60,48 @@ export const appDisconnect = defineAction({
 /** `data` of app.disconnect. revoked: the app confirmed it withdrew the grant. */
 export type AppDisconnectData = { revoked: boolean }
 
+/**
+ * What Linedesk does in a connected app: switches a member turns on or off per connection (Integrations › HubSpot).
+ * All on by default, so a connection behaves as before they existed; a connection stores only those changed.
+ * - log_calls: every finished phone call goes to the app. Off: no call is sent (nor queued).
+ * - create_contacts: a caller with no contact in the app gets one. Off: such a call is skipped (`no_contact`);
+ *   callers who have a contact still get the call.
+ * - fill_fields: empty fields of the caller's contact are filled from Linedesk. Off: an existing contact is never
+ *   changed (a new one still gets the caller's name, number, email and company).
+ */
+export const appSettingIds = ['log_calls', 'create_contacts', 'fill_fields'] as const
+export type AppSettingId = (typeof appSettingIds)[number]
+
+/** The switches each app has, in the order the page shows them. */
+export const APP_SETTINGS: Record<ConnectableApp, readonly AppSettingId[]> = {
+  hubspot: ['log_calls', 'create_contacts', 'fill_fields'],
+}
+
+/** Whether a switch is on for a connection: its own choice, else on. */
+export const appSettingOn = (stored: Readonly<Record<string, boolean>> | null | undefined, id: AppSettingId): boolean =>
+  stored?.[id] ?? true
+
+export const appUpdateSettings = defineAction({
+  name: 'app.updateSettings',
+  description:
+    "Turn what Linedesk does in a connected app on or off. `id`: the connection (app_connections). `settings`: the switches to set, each true or false; a switch left out keeps its value. log_calls: send every finished phone call to the app; create_contacts: add a caller with no contact in the app as a new contact (off: such a call is skipped); fill_fields: fill empty fields of the caller's contact (off: an existing contact is never changed). All are on until changed.",
+  input: z.object({
+    id: z.string().min(1).max(100),
+    settings: z
+      .object({ log_calls: z.boolean(), create_contacts: z.boolean(), fill_fields: z.boolean() })
+      .partial()
+      .strict(),
+  }),
+  permission: 'settings:write',
+  // Optimistic in the browser (the page sends every switch, so the row is whole); the handler checks the app has
+  // these switches and merges them into what is stored.
+  patch: {
+    table: 'app_connections',
+    id: input => input.id,
+    set: input => ({ settings: input.settings as Record<string, boolean> }),
+  },
+})
+
 export const appPushes = defineAction({
   name: 'app.pushes',
   description: 'The last calls sent to a connected app, newest first, with their state and the last failure.',
@@ -74,10 +116,10 @@ export type AppPush = {
   callId: string
   /** The caller as Linedesk shows them: the contact's name, else the number. */
   caller: string
-  /** `sending` shows as pending: it is being sent now. */
-  status: 'pending' | 'sending' | 'done' | 'failed'
+  /** `sending` shows as pending: it is being sent now. `skipped`: the connection's settings said not to send it. */
+  status: 'pending' | 'sending' | 'done' | 'failed' | 'skipped'
   attempts: number
-  /** Why it failed or is being retried; the page words it. */
+  /** Why it failed, is being retried or was skipped; the page words it. */
   error: AppErrorCode | null
   createdAt: string
   finishedAt: string | null

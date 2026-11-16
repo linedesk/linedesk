@@ -737,6 +737,11 @@ export const app_connections = pgTable(
     last_push_at: ts('last_push_at'),
     /** The member who connected the app; text the app gets is in their language. */
     connected_by: text('connected_by').notNull(),
+    /**
+     * What Linedesk does in the app (APP_SETTINGS in @linedesk/actions): only the switches a member changed, a missing
+     * one is on. Changed with app.updateSettings.
+     */
+    settings: jsonb('settings').$type<Record<string, boolean>>().notNull().default({}),
     created_at: createdAt(),
     version: version(),
   },
@@ -799,8 +804,11 @@ export const app_pushes = pgTable(
     call_id: text('call_id')
       .notNull()
       .references(() => calls.id, { onDelete: 'cascade' }),
-    /** `sending`: a job has claimed it (claimed_at) and is talking to the app; one per connection at a time. */
-    status: text('status', { enum: ['pending', 'sending', 'done', 'failed'] })
+    /**
+     * `sending`: a job has claimed it (claimed_at) and is talking to the app; one per connection at a time.
+     * `skipped`: the connection's settings said not to send it (error_code says which: calls_off, no_contact).
+     */
+    status: text('status', { enum: ['pending', 'sending', 'done', 'failed', 'skipped'] })
       .notNull()
       .default('pending'),
     /** Tries started (counted when claimed, so a try that crashed counts too). */

@@ -7,6 +7,7 @@ import {
   appConnectErrorKey,
   appConnectResult,
   appPushErrorKey,
+  appSettingsWith,
   availableIntegrations,
   byCategory,
   CATALOG,
@@ -22,6 +23,9 @@ import {
   searchIntegrations,
   statusOf,
 } from './catalog.ts'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { SwitchRow } from '../settings/fields.tsx'
 
 const text = (key: MessageKey) => (en as Record<string, string>)[key.replace(/^settings\./, '')] ?? key
 const ids = (list: readonly { id: string }[]) => list.map(i => i.id)
@@ -205,5 +209,40 @@ describe('setup snippets', () => {
         },
       },
     })
+  })
+})
+
+describe('What Linedesk does (app switches, LIN-367)', () => {
+  it('sends every switch, as shown, with the one changed', () => {
+    expect(appSettingsWith('hubspot', {}, 'create_contacts', false)).toEqual({
+      log_calls: true,
+      create_contacts: false,
+      fill_fields: true,
+    })
+    expect(appSettingsWith('hubspot', { fill_fields: false }, 'log_calls', false)).toEqual({
+      log_calls: false,
+      create_contacts: true,
+      fill_fields: false,
+    })
+  })
+
+  it('each switch is a keyboard-reachable button with its tooltip; the options under logging are nested', () => {
+    const html = renderToStaticMarkup(
+      createElement(SwitchRow, {
+        title: 'Add new callers as contacts',
+        tip: 'Turn adding new callers to HubSpot on or off',
+        on: false,
+        onChange: () => {},
+        nested: true,
+      }),
+    )
+    expect(html).toContain('<button type="button" role="switch" class="sw" aria-checked="false"')
+    expect(html).toContain('title="Turn adding new callers to HubSpot on or off"')
+    expect(html).toContain('swrow is-nested')
+  })
+
+  it('a skipped call says why', () => {
+    expect(appPushErrorKey('calls_off')).toBe('settings.integrations.app.pushError.callsOff')
+    expect(appPushErrorKey('no_contact')).toBe('settings.integrations.app.pushError.noContact')
   })
 })

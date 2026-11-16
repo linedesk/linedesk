@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fillOnly, splitName } from './crm.ts'
 import { createHubSpotConnector, createHubSpotOAuth, phoneFilterGroups } from './hubspot.ts'
-import { AppError, type FinishedCall, type TokenSource } from './types.ts'
+import { AppError, type FinishedCall, PushSkipped, type TokenSource } from './types.ts'
 
 type Seen = { method: string; url: string; headers: Record<string, string>; body: any }
 type Reply = { status?: number; body?: unknown }
@@ -210,6 +210,60 @@ describe('HubSpot push', () => {
     })
     await createHubSpotConnector({ fetch: doFetch }).pushCall(staticToken, call())
     expect(seen.some(r => r.method === 'PATCH')).toBe(false)
+  })
+
+  it('with adding contacts off, a caller with no contact is skipped and nothing is made in HubSpot', async () => {
+    const { doFetch, seen } = fakeHubSpot({
+      'POST /crm/v3/objects/contacts/search': () => ({ body: { total: 0, results: [] } }),
+      'POST /crm/v3/objects/contacts': () => ({ status: 201, body: contact('501', {}) }),
+      'POST /crm/v3/objects/calls': () => ({ status: 201, body: { id: '9001' } }),
+    })
+    const err = await createHubSpotConnector({ fetch: doFetch })
+      .pushCall(staticToken, call(), {}, { createContacts: false, fillFields: true })
+      .catch(e => e)
+    expect(err).toBeInstanceOf(PushSkipped)
+    expect(err.reason).toBe('no_contact')
+    expect(seen.every(r => r.url.endsWith('/search'))).toBe(true)
+  })
+
+  it('with adding contacts off, a caller who has a contact still gets the call', async () => {
+    const { doFetch, seen } = fakeHubSpot({
+      'POST /crm/v3/objects/contacts/search': () => ({
+        body: { results: [contact('77', { firstname: 'Dee', email: null, phone: '+15035550142' })] },
+      }),
+      'PATCH /crm/v3/objects/contacts/77': () => ({ body: contact('77', {}) }),
+      'POST /crm/v3/objects/calls': () => ({ status: 201, body: { id: '9003' } }),
+    })
+    const result = await createHubSpotConnector({ fetch: doFetch }).pushCall(
+      staticToken,
+      call(),
+      {},
+      { createContacts: false, fillFields: true },
+    )
+    expect(result).toEqual({ recordId: '77', activityId: '9003' })
+    expect(seen.some(r => r.method === 'POST' && r.url.endsWith('/crm/v3/objects/contacts'))).toBe(false)
+  })
+
+  it('with filling fields off, an existing contact is never changed; a new one still gets the caller details', async () => {
+    const found = fakeHubSpot({
+      'POST /crm/v3/objects/contacts/search': () => ({
+        body: { results: [contact('77', { firstname: null, lastname: null, email: null, phone: '+15035550142' })] },
+      }),
+      'POST /crm/v3/objects/calls': () => ({ status: 201, body: { id: '9004' } }),
+    })
+    const off = { createContacts: true, fillFields: false }
+    await createHubSpotConnector({ fetch: found.doFetch }).pushCall(staticToken, call(), {}, off)
+    expect(found.seen.some(r => r.method === 'PATCH')).toBe(false)
+    expect(found.seen.some(r => r.url.endsWith('/crm/v3/objects/calls'))).toBe(true)
+
+    const fresh = fakeHubSpot({
+      'POST /crm/v3/objects/contacts/search': () => ({ body: { total: 0, results: [] } }),
+      'POST /crm/v3/objects/contacts': () => ({ status: 201, body: contact('502', {}) }),
+      'POST /crm/v3/objects/calls': () => ({ status: 201, body: { id: '9005' } }),
+    })
+    await createHubSpotConnector({ fetch: fresh.doFetch }).pushCall(staticToken, call(), {}, off)
+    const created = fresh.seen.find(r => r.method === 'POST' && r.url.endsWith('/crm/v3/objects/contacts'))!
+    expect(created.body.properties).toMatchObject({ firstname: 'Dana', email: 'dana@brightwater.example' })
   })
 
   it('uses the stored link before searching, and searches when the record is gone', async () => {

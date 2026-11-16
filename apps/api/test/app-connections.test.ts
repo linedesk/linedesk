@@ -2,7 +2,14 @@
 // revocation, and the push of every finished phone call; who may do it and in which workspace. Handlers run with a
 // fake app inside a transaction that is rolled back; permissions and tenancy go through the API.
 import { actions, rolePermissions } from '@linedesk/actions'
-import { type AppConnector, AppError, type AppOAuth, type FinishedCall, type OAuthTokens } from '@linedesk/connectors'
+import {
+  type AppConnector,
+  AppError,
+  type AppOAuth,
+  type FinishedCall,
+  type OAuthTokens,
+  PushSkipped,
+} from '@linedesk/connectors'
 import { app_connections, app_credentials, app_oauth_states, app_pushes, calls, crm_links, type Tx } from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
@@ -19,6 +26,7 @@ import {
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { runHandler, type Undo } from '../src/handlers.ts'
+import { AUDITED_ACTIONS } from '../src/audit.ts'
 import { decryptSecret, encryptSecret } from '../src/secrets.ts'
 import { act, addMember, agent, createWorkspace, type User, type Workspace } from './helpers.ts'
 
@@ -342,7 +350,7 @@ describe('disconnecting', () => {
 })
 
 /** A committed HubSpot connection of the workspace, so call.finish (its own transaction) queues a push for it. */
-async function committedConnection(workspace: Workspace) {
+async function committedConnection(workspace: Workspace, settings: Record<string, boolean> = {}) {
   const id = `appc_${crypto.randomUUID().slice(0, 12)}`
   const [connection] = await db
     .insert(app_connections)
@@ -353,6 +361,7 @@ async function committedConnection(workspace: Workspace) {
       account_id: '42',
       account_name: 'portal-42.example',
       connected_by: workspace.owner.userId,
+      settings,
     })
     .returning()
   await db.insert(app_credentials).values({
@@ -497,6 +506,134 @@ describe('pushing finished calls', () => {
     expect(pushes.length).toBeGreaterThan(0)
     expect(pushes.every(p => p.status === 'pending')).toBe(true)
     expect((await act(ws.owner, 'app.pushes', { app: 'hubspot' })).body.data).toEqual({ pushes: [] })
+  })
+})
+
+describe('what Linedesk does in the app (LIN-367)', () => {
+  let shop: Workspace
+  let connectionId: string
+  let shopOwner: Actor
+
+  beforeAll(async () => {
+    shop = await createWorkspace('Brightwater Switches')
+    connectionId = (await committedConnection(shop)).id
+    shopOwner = { actorId: shop.owner.userId, role: 'owner', workspaceId: shop.id, permissions: rolePermissions.owner }
+  })
+
+  const settingsOf = async (tx: Tx, id: string) =>
+    (await tx.select().from(app_connections).where(eq(app_connections.id, id)))[0]!.settings
+  const failuresOf = async (tx: Tx, id: string) =>
+    (await tx.select().from(app_connections).where(eq(app_connections.id, id)))[0]!.failures
+
+  test('app.updateSettings merges the switches into the connection and returns the row', async () => {
+    const { services } = fakeHubSpot()
+    await inRollback(async tx => {
+      const first = await run(tx, shopOwner, services, 'app.updateSettings', {
+        id: connectionId,
+        settings: { create_contacts: false },
+      })
+      expect(first.rows.app_connections![0]).toMatchObject({ id: connectionId, settings: { create_contacts: false } })
+      // Another member changing another switch keeps the first.
+      await run(tx, shopOwner, services, 'app.updateSettings', { id: connectionId, settings: { fill_fields: false } })
+      expect(await settingsOf(tx, connectionId)).toEqual({ create_contacts: false, fill_fields: false })
+      await run(tx, shopOwner, services, 'app.updateSettings', {
+        id: connectionId,
+        settings: { create_contacts: true },
+      })
+      expect(await settingsOf(tx, connectionId)).toEqual({ create_contacts: true, fill_fields: false })
+    })
+  })
+
+  test("another workspace's connection is not found; not while signed in as the member", async () => {
+    const { services } = fakeHubSpot()
+    await inRollback(async tx => {
+      await expect(
+        run(tx, owner, services, 'app.updateSettings', { id: connectionId, settings: { log_calls: false } }),
+      ).rejects.toThrow(/not connected/)
+      const impersonated = {
+        ...shopOwner,
+        impersonation: { by: 'admin', sessionId: 's', expiresAt: new Date(Date.now() + 60_000) },
+      }
+      await expect(
+        run(tx, impersonated, services, 'app.updateSettings', { id: connectionId, settings: { log_calls: false } }),
+      ).rejects.toThrow(/another user/)
+      expect(await settingsOf(tx, connectionId)).toEqual({})
+    })
+  })
+
+  test('through the API: owners change it and it is audited; members and the agent cannot', async () => {
+    expect(AUDITED_ACTIONS['app.updateSettings']).toBe('integrations')
+    const input = { id: connectionId, settings: { fill_fields: false } }
+    expect((await act(shop.owner, 'app.updateSettings', input)).status).toBe(200)
+    expect((await db.select().from(app_connections).where(eq(app_connections.id, connectionId)))[0]!.settings).toEqual({
+      fill_fields: false,
+    })
+    expect((await act(agent(shop.id), 'app.updateSettings', input)).status).toBe(403)
+    const shopMember = await addMember(shop.id, 'member')
+    expect((await act(shopMember, 'app.updateSettings', input)).status).toBe(403)
+    await db.update(app_connections).set({ settings: {} }).where(eq(app_connections.id, connectionId))
+  })
+
+  test('logging calls off: a finished call is not queued, and one queued before is skipped when it is sent', async () => {
+    const off = await createWorkspace('Brightwater No Logging')
+    const offId = (await committedConnection(off, { log_calls: false })).id
+    expect(await pushOf(offId, await finishedCall(off))).toBeUndefined()
+
+    const { services, pushCall } = fakeHubSpot()
+    const callId = await finishedCall(shop)
+    await inRollback(async tx => {
+      const id = (await pushOf(connectionId, callId))!.id
+      await tx
+        .update(app_connections)
+        .set({ settings: { log_calls: false } })
+        .where(eq(app_connections.id, connectionId))
+      expect(await attemptAppPush(id, services, tx)).toBe('skipped')
+      expect(pushCall).not.toHaveBeenCalled()
+      expect((await tx.select().from(app_pushes).where(eq(app_pushes.id, id)))[0]).toMatchObject({
+        status: 'skipped',
+        error_code: 'calls_off',
+      })
+      expect(await failuresOf(tx, connectionId)).toBe(0)
+    })
+  })
+
+  test('adding contacts off: the push may not create one; a caller with none is skipped, not failed', async () => {
+    const { services, pushCall } = fakeHubSpot()
+    const callId = await finishedCall(shop)
+    await inRollback(async tx => {
+      const id = (await pushOf(connectionId, callId))!.id
+      await tx
+        .update(app_connections)
+        .set({ settings: { create_contacts: false } })
+        .where(eq(app_connections.id, connectionId))
+      pushCall.mockRejectedValueOnce(new PushSkipped('no_contact'))
+      expect(await attemptAppPush(id, services, tx)).toBe('skipped')
+      expect(pushCall.mock.calls[0]![3]).toEqual({ createContacts: false, fillFields: true })
+      expect((await tx.select().from(app_pushes).where(eq(app_pushes.id, id)))[0]).toMatchObject({
+        status: 'skipped',
+        error_code: 'no_contact',
+        external_id: null,
+      })
+      const [connection] = await tx.select().from(app_connections).where(eq(app_connections.id, connectionId))
+      expect(connection).toMatchObject({ status: 'connected', failures: 0, error_code: null })
+      const { body } = await act(shop.owner, 'app.pushes', { app: 'hubspot' })
+      expect(body.ok).toBe(true)
+    })
+  })
+
+  test('filling fields off, and the defaults: the push gets the switches as they are when it is sent', async () => {
+    const { services, pushCall } = fakeHubSpot()
+    const callIds = [await finishedCall(shop), await finishedCall(shop)]
+    await inRollback(async tx => {
+      expect(await attemptAppPush((await pushOf(connectionId, callIds[0]!))!.id, services, tx)).toBe('done')
+      expect(pushCall.mock.calls[0]![3]).toEqual({ createContacts: true, fillFields: true })
+      await tx
+        .update(app_connections)
+        .set({ settings: { fill_fields: false } })
+        .where(eq(app_connections.id, connectionId))
+      expect(await attemptAppPush((await pushOf(connectionId, callIds[1]!))!.id, services, tx)).toBe('done')
+      expect(pushCall.mock.calls[1]![3]).toEqual({ createContacts: true, fillFields: false })
+    })
   })
 })
 

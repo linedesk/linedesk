@@ -109,9 +109,11 @@ type SwitchRowProps = {
   dimmed?: boolean
   /** An option of the row above: indented under it, without the line between them. */
   nested?: boolean
+  /** The switch's hover tooltip. */
+  tip?: string
 }
 
-export function SwitchRow({ title, description, aside, on, onChange, disabled, dimmed, nested }: SwitchRowProps) {
+export function SwitchRow({ title, description, aside, on, onChange, disabled, dimmed, nested, tip }: SwitchRowProps) {
   const className = ['swrow', dimmed && 'is-dimmed', nested && 'is-nested'].filter(Boolean).join(' ')
   return (
     <div className={className}>
@@ -122,7 +124,7 @@ export function SwitchRow({ title, description, aside, on, onChange, disabled, d
         </b>
         {description && <span className="help">{description}</span>}
       </div>
-      <Switch on={on} onChange={onChange} label={title} disabled={disabled} />
+      <Switch on={on} onChange={onChange} label={title} disabled={disabled} title={tip} />
     </div>
   )
 }

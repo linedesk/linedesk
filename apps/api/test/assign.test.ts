@@ -37,7 +37,15 @@ describe('call.assign', () => {
   })
 })
 
-test('only assistant.update (checks the voice), call.assign, call.delete and contact.delete (clear webhook payloads and the command log), call.flagUrgent (queues a push) and webhook.update (checks the URL) have both a patch and a handler', () => {
+test('only app.updateSettings (checks the app has the switches, merges them), assistant.update (checks the voice), call.assign, call.delete and contact.delete (clear webhook payloads and the command log), call.flagUrgent (queues a push) and webhook.update (checks the URL) have both a patch and a handler', () => {
   const both = [...actions.values()].filter(def => def.patch && handlerNames.has(def.name)).map(def => def.name)
-  expect(both.sort()).toEqual(['assistant.update', 'call.assign', 'call.delete', 'call.flagUrgent', 'contact.delete', 'webhook.update'])
+  expect(both.sort()).toEqual([
+    'app.updateSettings',
+    'assistant.update',
+    'call.assign',
+    'call.delete',
+    'call.flagUrgent',
+    'contact.delete',
+    'webhook.update',
+  ])
 })
