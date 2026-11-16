@@ -48,6 +48,19 @@ A generic base for **connected apps** (business tools a workspace connects by OA
 
 Not built yet: `crm.setFields` and phase 2 (pull), a privacy note in the connect step.
 
+## Slack (LIN-351)
+
+Slack is a connected app on the same base, but not a CRM: every finished phone call becomes one message in a channel the business picks.
+
+- Server admin › Providers › Slack (apps group): client ID and secret (secret encrypted, sensitive), a key guide, and the app from `integrations/slack/manifest.json` (app "Linedesk", bot scope `incoming-webhook`, token rotation off). Redirect URL: `<origin>/v1/apps/callback/slack`.
+- The provider test checks the form of both values and asks Slack (`oauth.v2.exchange`) whether it knows the client ID. Slack has no free check of the client secret (every method checks the code or token first), so a known client ID passes with a warning. A wrong secret shows when a business connects: the member reads "not set up", and Server admin sees Slack as failing (`provider_failures`, source `app`).
+- Connect: OAuth v2 with the one scope `incoming-webhook`; Slack's consent page lets the member pick the channel. The token answer carries the channel's incoming webhook: its URL is stored only in `app_credentials.webhook_url_encrypted` (AES-256-GCM, slot `app.<id>.slack.webhook`), never in a synced row or a log; a URL not on `hooks.slack.com` is refused. `app_connections.channel` keeps the channel name (`#calls`) for the page, which shows "#calls in <Slack workspace>". The bot token is the lasting grant (no refresh token, does not run out) and is kept only to uninstall.
+- One Slack workspace, one bot token (`grantPerAccount`): connecting again or disconnecting never uninstalls the app while another Linedesk connection uses the same Slack workspace.
+- Push: the same rules as HubSpot (phone calls only, no test calls, no spam; the same job, lock and retries). One Block Kit message: title, an urgent line, caller and number, the summary, the next steps, the time (Slack's `<!date>` token, so each reader sees their own zone; the server's text in UTC as fallback), and a button to the call. All words come from `email.json` (`appPush.*`, `getT(locale)`). A call without caller ID is still posted. A webhook post has no id at Slack: the call's id marks it posted, so a retry never posts twice.
+- Failures: `channel_not_found` and `channel_is_archived` (codes `channel_not_found`, `channel_archived`), `invalid_token`, `no_service`, `no_team`, `team_disabled`, 403, 404 and 410 (code `auth`) set Needs attention at once. 429 waits for `Retry-After` (a new job with that delay, the try counted); 5xx and network failures retry with backoff like HubSpot; other 400s are `invalid`.
+- Switches: `log_calls` ("Post every call", on) and `only_urgent` ("Only urgent calls", off by default, `OFF_BY_DEFAULT`). Only urgent is checked when the push is sent, after the summary set the urgency; a call not sent ends `skipped`/`not_urgent`.
+- Disconnect: deletes the tokens and the webhook, then `apps.uninstall` with the bot token after the commit, best effort.
+
 ## Open questions
 
 - Is HubSpot really first for US trades, or Jobber / Housecall Pro? Ask the first ten customers before building.

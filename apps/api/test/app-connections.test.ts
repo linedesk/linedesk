@@ -77,7 +77,7 @@ function fakeHubSpot({ scope = SCOPE, portal = '42', refreshFails = false } = {}
     pushed.push({ call, token: await token() })
     return { recordId: call.linkedRecordId ?? 'hs-contact-1', activityId: `hs-call-${pushed.length}` }
   })
-  const services: AppServices = { oauth: async () => oauth, connector: () => ({ id: 'hubspot', pushCall }) }
+  const services: AppServices = { oauth: async () => oauth, connector: () => ({ id: 'hubspot', crm: true, pushCall }) }
   return { oauth, services, pushCall, pushed }
 }
 

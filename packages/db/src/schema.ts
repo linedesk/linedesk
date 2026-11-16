@@ -722,10 +722,15 @@ export const app_connections = pgTable(
     id: id(),
     workspace_id: workspaceId(),
     /** The app (connectableApps in @linedesk/actions, APP_IDS in @linedesk/connectors). */
-    provider: text('provider', { enum: ['hubspot'] }).notNull(),
-    /** The account at the app (a HubSpot portal id) and its name for the page (the portal's domain). */
+    provider: text('provider', { enum: ['hubspot', 'slack'] }).notNull(),
+    /**
+     * The account at the app (a HubSpot portal id, a Slack workspace id) and its name for the page (the portal's
+     * domain, the Slack workspace's name).
+     */
     account_id: text('account_id').notNull(),
     account_name: text('account_name').notNull(),
+    /** Where in the account calls go, for the page: the Slack channel (`#calls`) picked when connecting; else null. */
+    channel: text('channel'),
     /** `needs_attention`: the grant was refused, or calls failed several times in a row; see error_code. */
     status: text('status', { enum: ['connected', 'needs_attention'] })
       .notNull()
@@ -758,6 +763,8 @@ export const app_credentials = pgTable('app_credentials', {
   refresh_token_encrypted: text('refresh_token_encrypted').notNull(),
   expires_at: ts('expires_at').notNull(),
   scope: text('scope'),
+  /** Slack: the incoming webhook calls are posted to (its URL is a secret), encrypted like the tokens; else null. */
+  webhook_url_encrypted: text('webhook_url_encrypted'),
   updated_at: ts('updated_at').notNull().defaultNow(),
 })
 
@@ -767,7 +774,7 @@ export const app_oauth_states = pgTable('app_oauth_states', {
   id: id(),
   workspace_id: workspaceId(),
   user_id: text('user_id').notNull(),
-  provider: text('provider', { enum: ['hubspot'] }).notNull(),
+  provider: text('provider', { enum: ['hubspot', 'slack'] }).notNull(),
   expires_at: ts('expires_at').notNull(),
   created_at: createdAt(),
 })

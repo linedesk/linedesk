@@ -1,5 +1,6 @@
 // Connected apps of a workspace (docs/crm-sync.md): connecting by OAuth (a state bound to the member and workspace,
-// used once), tokens encrypted with SECRETS_KEY and refreshed when they run out (HubSpot's last 30 minutes), and
+// used once), tokens encrypted with SECRETS_KEY and refreshed when they run out (HubSpot's last 30 minutes; Slack's
+// bot token does not run out, and its incoming webhook URL is stored encrypted beside it), and
 // disconnecting with revocation. Sending finished calls to them is app-pushes.ts. Each app's HTTP is in
 // @linedesk/connectors; its OAuth app (client ID and secret) is the install's, under Server admin › Providers.
 import { randomBytes } from 'node:crypto'
@@ -14,6 +15,7 @@ import {
 import {
   APP_IDS,
   APP_LABEL,
+  type AppAccess,
   type AppConnector,
   AppError,
   type AppId,
@@ -34,6 +36,7 @@ import {
 import { and, eq, lt, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
+import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { resolveProvider } from './provider-settings.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 
@@ -80,7 +83,10 @@ const REFRESH_MARGIN_MS = 60_000
 /** Scopes every app must have granted (HUBSPOT_SCOPES without `oauth`, which HubSpot does not always report). */
 const REQUIRED_SCOPES: Record<AppId, readonly string[]> = {
   hubspot: ['crm.objects.contacts.read', 'crm.objects.contacts.write'],
+  slack: ['incoming-webhook'],
 }
+/** An access token that does not run out (Slack without token rotation) is stored with this expiry. */
+const NEVER = '9999-12-31T00:00:00.000Z'
 
 const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -94,7 +100,7 @@ export function appRedirectUri(
 }
 
 /** The slot (secrets.ts) of a connection's token: the ciphertext is bound to its connection, app and kind. */
-export const appSlot = (connection: Pick<AppConnection, 'id' | 'provider'>, kind: 'access' | 'refresh') =>
+export const appSlot = (connection: Pick<AppConnection, 'id' | 'provider'>, kind: 'access' | 'refresh' | 'webhook') =>
   `app.${connection.id}.${connection.provider}.${kind}`
 
 function workspaceOf(actor: Actor) {
@@ -115,6 +121,19 @@ async function oauthOrReject(tx: Tx, ctx: Pick<HandlerCtx, 'apps'>, app: AppId) 
 function rejectAppError(e: unknown): never {
   if (e instanceof AppError || e instanceof SecretsKeyError) {
     console.warn(`app connect: ${e.message}`)
+    // The install's own app was refused (a wrong client secret, which Slack checks only here): Server admin's to fix,
+    // so it shows there as this provider failing; the member reads that the app is not set up.
+    if (e instanceof AppError && e.kind === 'client') {
+      void noteProviderFailure(
+        e.app,
+        {
+          reason: 'auth',
+          message: `${APP_LABEL[e.app]} refused the client ID or secret when a business connected. Enter them again under Server admin › Providers › ${APP_LABEL[e.app]}.`,
+        },
+        'app',
+      )
+      throw rejectApp('not_set_up', e.message)
+    }
     throw rejectApp('failed', e.message)
   }
   throw e
@@ -124,8 +143,10 @@ function tokenValues(connection: Pick<AppConnection, 'id' | 'provider'>, tokens:
   return {
     access_token_encrypted: encryptSecret(tokens.accessToken, appSlot(connection, 'access')),
     refresh_token_encrypted: encryptSecret(refreshToken, appSlot(connection, 'refresh')),
-    // An app that names no expiry: refreshed after HubSpot's 30 minutes anyway.
-    expires_at: tokens.expiresAt ?? new Date(Date.now() + 30 * 60_000).toISOString(),
+    // An app that names no expiry: refreshed after HubSpot's 30 minutes anyway; one that gives no refresh token
+    // (Slack) has a token that does not run out.
+    expires_at:
+      tokens.expiresAt ?? (tokens.refreshToken ? new Date(Date.now() + 30 * 60_000).toISOString() : NEVER),
     scope: tokens.scope,
     updated_at: new Date().toISOString(),
   }
@@ -137,7 +158,10 @@ async function saveTokens(
   tokens: OAuthTokens,
   refreshToken: string,
 ) {
-  const values = tokenValues(connection, tokens, refreshToken)
+  const values = {
+    ...tokenValues(connection, tokens, refreshToken),
+    webhook_url_encrypted: tokens.webhook ? encryptSecret(tokens.webhook.url, appSlot(connection, 'webhook')) : null,
+  }
   await tx
     .insert(app_credentials)
     .values({ connection_id: connection.id, workspace_id: connection.workspace_id, ...values })
@@ -183,6 +207,35 @@ export function appTokenSource(database: Tx, services: AppServices, connection: 
     if (now && good(now.expires_at)) return decryptSecret(now.access_token_encrypted, appSlot(connection, 'access'))
     throw new AppError(connection.provider, 'auth', 'the access changed while it was refreshed: connect it again')
   }
+}
+
+/**
+ * What a connector gets for a connection: its token source and, for Slack, the stored incoming webhook URL (read
+ * when the post is made, so a connect again in between is used).
+ */
+export function appAccess(database: Tx, services: AppServices, connection: AppConnection): AppAccess {
+  return Object.assign(appTokenSource(database, services, connection), {
+    async webhookUrl() {
+      const [stored] = await database
+        .select({ webhook: app_credentials.webhook_url_encrypted })
+        .from(app_credentials)
+        .where(eq(app_credentials.connection_id, connection.id))
+      if (!stored?.webhook) throw new AppError(connection.provider, 'auth', 'no stored webhook: connect it again')
+      return decryptSecret(stored.webhook, appSlot(connection, 'webhook'))
+    },
+  })
+}
+
+/**
+ * Whether another connection (any workspace) uses this account of the app. An app whose grant is one per account
+ * (grantPerAccount: Slack) must then not withdraw it: that would cut the other connection too.
+ */
+async function accountShared(tx: Tx, app: AppId, accountId: string, exceptId: string | null) {
+  const rows = await tx
+    .select({ id: app_connections.id })
+    .from(app_connections)
+    .where(and(eq(app_connections.provider, app), eq(app_connections.account_id, accountId)))
+  return rows.some(r => r.id !== exceptId)
 }
 
 function tryDecrypt(ciphertext: string, slot: string) {
@@ -256,9 +309,16 @@ export const appConnectionHandlers: Record<string, Handler> = {
     const tokens = await oauth
       .exchangeCode({ code: input.code, redirectUri: appRedirectUri(input.app) })
       .catch(rejectAppError)
-    const grant = tokens.refreshToken
+    onCommit?.(async () => void (await noteProviderOk(input.app)))
+    // The lasting grant: the refresh token; an app without one (Slack) has an access token that does not run out.
+    const grant = tokens.refreshToken ?? (oauth.grantPerAccount ? tokens.accessToken : null)
+    // A grant one per account that another connection already uses is that connection's too: never withdrawn here.
+    const shared =
+      oauth.grantPerAccount && tokens.account
+        ? await accountShared(tx, input.app, tokens.account.id, null)
+        : false
     // Whatever goes wrong from here, the grant just made is withdrawn again.
-    if (grant)
+    if (grant && !shared)
       onRollback?.(async () =>
         (await oauth.revoke(grant).catch(() => false))
           ? 'the new access was revoked'
@@ -267,7 +327,9 @@ export const appConnectionHandlers: Record<string, Handler> = {
     if (!grant) throw rejectApp('no_grant', `${label} did not grant lasting access. Start again and allow access.`)
     if (missingScope(input.app, tokens.scope))
       throw rejectApp('scope', `${label} did not grant access to contacts. Start again and allow every permission.`)
-    const account = await oauth.account(tokens.accessToken).catch(rejectAppError)
+    if (REQUIRED_SCOPES[input.app].includes('incoming-webhook') && !tokens.webhook)
+      throw rejectApp('scope', `${label} did not give a channel to post to. Start again and pick a channel.`)
+    const account = tokens.account ?? (await oauth.account(tokens.accessToken).catch(rejectAppError))
 
     const existing = await connectionOf(tx, workspace_id, input.app)
     let connection: AppConnection
@@ -283,13 +345,15 @@ export const appConnectionHandlers: Record<string, Handler> = {
           .from(app_credentials)
           .where(eq(app_credentials.connection_id, existing.id))
         const oldGrant = old ? decryptSecret(old.refresh, appSlot(existing, 'refresh')) : null
-        if (oldGrant) onCommit?.(async () => void (await oauth.revoke(oldGrant).catch(() => false)))
+        const oldShared = oauth.grantPerAccount && (await accountShared(tx, input.app, existing.account_id, existing.id))
+        if (oldGrant && !oldShared) onCommit?.(async () => void (await oauth.revoke(oldGrant).catch(() => false)))
       }
       ;[connection] = (await tx
         .update(app_connections)
         .set({
           account_id: account.id,
           account_name: account.name,
+          channel: tokens.webhook?.channel || null,
           status: 'connected',
           error_code: null,
           failures: 0,
@@ -306,6 +370,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
           provider: input.app,
           account_id: account.id,
           account_name: account.name,
+          channel: tokens.webhook?.channel || null,
           connected_by: actor.actorId,
         })
         .returning()) as [AppConnection]
@@ -354,8 +419,11 @@ export const appConnectionHandlers: Record<string, Handler> = {
       .where(eq(app_credentials.connection_id, existing.id))
     await tx.delete(app_connections).where(eq(app_connections.id, existing.id))
     const oauth = credentials ? await appServicesOf(ctx).oauth(tx, input.app) : null
+    // A grant one per account that another workspace's connection still uses stays (Slack: uninstalling the app
+    // would stop that workspace's posts too).
+    const shared = oauth?.grantPerAccount ? await accountShared(tx, input.app, existing.account_id, existing.id) : false
     // A grant that no longer decrypts (SECRETS_KEY changed) cannot be withdrawn; the connection still goes.
-    const grant = credentials && oauth ? tryDecrypt(credentials.refresh, appSlot(existing, 'refresh')) : null
+    const grant = credentials && oauth && !shared ? tryDecrypt(credentials.refresh, appSlot(existing, 'refresh')) : null
     // Filled in after the commit, before the answer goes out (run-action.ts); the command log keeps `revoked: false`.
     const data: AppDisconnectData = { revoked: false }
     if (oauth && grant) {

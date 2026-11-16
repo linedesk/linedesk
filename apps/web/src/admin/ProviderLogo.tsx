@@ -173,6 +173,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.hubspot'),
     keysUrl: 'https://developers.hubspot.com/',
   },
+  slack: {
+    mark: { brand: 'slack' },
+    blurb: msg('admin.provider.blurb.slack'),
+    keysUrl: 'https://api.slack.com/apps',
+  },
   github: {
     mark: { brand: 'github' },
     blurb: msg('admin.provider.blurb.github'),
@@ -192,7 +197,7 @@ export function redirectUris(provider: ProviderName, origin: string): string[] {
   // Calendly allows exactly one redirect URI per app: the calendar one.
   if (provider === 'calendly' || provider === 'calcom') return [`${origin}/v1/calendar/callback/${provider}`]
   if (provider === 'oidc') return [`${origin}/api/auth/oauth2/callback/oidc`]
-  if (provider === 'hubspot') return [`${origin}/v1/apps/callback/hubspot`]
+  if (provider === 'hubspot' || provider === 'slack') return [`${origin}/v1/apps/callback/${provider}`]
   return []
 }
 

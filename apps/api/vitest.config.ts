@@ -42,6 +42,8 @@ const INSTANCE_WIDE_FILES = [
   'test/workspace-delete-own.test.ts',
   'test/setup-checklist.test.ts',
   'test/provider-failures.test.ts',
+  // A refused Slack client secret is recorded as the Slack provider failing (provider_failures).
+  'test/app-slack.test.ts',
   'test/setup-mcp.test.ts',
   'test/setup-mcp-workspace.test.ts',
   'test/workspace-limit-retired.test.ts',

@@ -138,6 +138,9 @@ describe('statusOf', () => {
     expect(statusOf('hubspot', { ...NOTHING, apps: { hubspot: 'needs_attention' } })).toEqual({
       kind: 'needsAttention',
     })
+    expect(statusOf('slack', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'notConnected' })
+    expect(statusOf('slack', { ...NOTHING, apps: { slack: 'connected' } })).toEqual({ kind: 'connected' })
+    expect(statusOf('slack', { ...NOTHING, apps: { slack: 'needs_attention' } })).toEqual({ kind: 'needsAttention' })
   })
 
   it('says in progress for what is being built, whatever the facts', () => {

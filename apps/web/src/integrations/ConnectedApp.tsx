@@ -1,5 +1,5 @@
-// Integrations › HubSpot (and the next connected apps, docs/crm-sync.md): connect the app with its consent page, see
-// which account it is and whether calls still go through, the last calls sent, and disconnect. The connection is a
+// Integrations › HubSpot and Slack (connected apps, docs/crm-sync.md): connect the app with its consent page, see
+// which account (Slack: which channel in which workspace) it is and whether calls still go through, the last calls sent, and disconnect. The connection is a
 // synced row (app_connections); connecting is an OAuth round trip, so the page names the table to read again on
 // return (refreshOnReturn), and the callback's result comes back in the hash (`?app=connected` or `?app=error`).
 // While connected, "What Linedesk does" holds the connection's switches (app.updateSettings, local-first).
@@ -36,6 +36,27 @@ type Props = {
 
 const pushesKey = (app: ConnectableApp) => `app.pushes.${app}`
 
+/** The texts that differ per app: HubSpot is a CRM (contacts), Slack posts to a channel. */
+type AppText = { help: MessageKey; notConnected: MessageKey; disconnectConfirmTip: MessageKey; scope: MessageKey }
+const APP_TEXT: Record<ConnectableApp, AppText> = {
+  hubspot: {
+    help: msg('settings.integrations.app.help'),
+    notConnected: msg('settings.integrations.app.notConnected'),
+    disconnectConfirmTip: msg('settings.integrations.app.disconnectConfirmTip'),
+    scope: msg('settings.integrations.app.error.scope'),
+  },
+  slack: {
+    help: msg('settings.integrations.app.slack.help'),
+    notConnected: msg('settings.integrations.app.slack.notConnected'),
+    disconnectConfirmTip: msg('settings.integrations.app.slack.disconnectConfirmTip'),
+    scope: msg('settings.integrations.app.slack.scope'),
+  },
+}
+
+/** Why connecting did not work, in the app's words where they differ (Slack gave no channel). */
+const connectErrorKey = (app: ConnectableApp, code: unknown, fallback?: MessageKey) =>
+  code === 'scope' ? APP_TEXT[app].scope : appConnectErrorKey(code, fallback)
+
 export function ConnectedApp({ app, canEdit, toast }: Props) {
   const t = useT()
   const name = t(nameKey(app))
@@ -44,11 +65,7 @@ export function ConnectedApp({ app, canEdit, toast }: Props) {
   useConnectResult(app, toast)
   return (
     <>
-      <Section
-        id="ig-app"
-        title={t('settings.integrations.app.title')}
-        help={t('settings.integrations.app.help', { name })}
-      >
+      <Section id="ig-app" title={t('settings.integrations.app.title')} help={t(APP_TEXT[app].help, { name })}>
         <Loading
           what={t('settings.integrations.app.title')}
           loading={!ready}
@@ -75,7 +92,7 @@ function useConnectResult(app: ConnectableApp, toast: Props['toast']) {
     if (!result) return
     const name = t(nameKey(app))
     toast(
-      result.ok ? t('settings.integrations.app.connected', { name }) : t(appConnectErrorKey(result.reason), { name }),
+      result.ok ? t('settings.integrations.app.connected', { name }) : t(connectErrorKey(app, result.reason), { name }),
     )
     history.replaceState(null, '', window.location.hash.split('?')[0])
   }, [result, toast, app, t])
@@ -96,7 +113,7 @@ function useConnect(app: ConnectableApp, toast: Props['toast']) {
       window.location.assign(url)
     } catch (e) {
       // Not set up on this server (no client id in Server admin), no SECRETS_KEY: the code says what is missing.
-      toast(t(appConnectErrorKey(codeOf(e)), { name: t(nameKey(app)) }))
+      toast(t(connectErrorKey(app, codeOf(e)), { name: t(nameKey(app)) }))
       setOpening(false)
     }
   }
@@ -110,7 +127,7 @@ function NotConnected({ app, canEdit, toast }: Props) {
   if (!canEdit) return <p className="help">{t('settings.integrations.app.onlyAdmins', { name })}</p>
   return (
     <div className="ig-app-connect">
-      <p className="help">{t('settings.integrations.app.notConnected', { name })}</p>
+      <p className="help">{t(APP_TEXT[app].notConnected, { name })}</p>
       <Button
         variant="primary"
         disabled={opening}
@@ -145,7 +162,7 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
           : t('settings.integrations.app.disconnectedNotRevoked', { name }),
       )
     } catch (e) {
-      toast(t(appConnectErrorKey(codeOf(e), msg('settings.integrations.app.disconnectFailed')), { name }))
+      toast(t(connectErrorKey(app, codeOf(e), msg('settings.integrations.app.disconnectFailed')), { name }))
       setBusy(false)
       setConfirming(false)
     }
@@ -164,7 +181,14 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
   return (
     <List label={t('settings.integrations.app.title')}>
       <ListRow
-        title={connection.account_name}
+        title={
+          connection.channel
+            ? t('settings.integrations.app.channelIn', {
+                channel: connection.channel,
+                account: connection.account_name,
+              })
+            : connection.account_name
+        }
         sub={sub}
         aside={
           attention ? (
@@ -198,7 +222,7 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
                 onBlur={() => setConfirming(false)}
                 title={
                   confirming
-                    ? t('settings.integrations.app.disconnectConfirmTip', { name })
+                    ? t(APP_TEXT[app].disconnectConfirmTip, { name })
                     : t('settings.integrations.app.disconnectTip', { name })
                 }
               >
@@ -230,7 +254,24 @@ const SETTING_TEXT: Record<AppSettingId, { title: MessageKey; help: MessageKey; 
     help: msg('settings.integrations.app.settings.fillFieldsHelp'),
     tip: msg('settings.integrations.app.settings.fillFieldsTip'),
   },
+  only_urgent: {
+    title: msg('settings.integrations.app.settings.onlyUrgent'),
+    help: msg('settings.integrations.app.settings.onlyUrgentHelp'),
+    tip: msg('settings.integrations.app.settings.onlyUrgentTip'),
+  },
 }
+
+/** A switch whose words differ per app: Slack posts the call to a channel instead of logging it on a contact. */
+const APP_SETTING_TEXT: Partial<Record<ConnectableApp, Partial<typeof SETTING_TEXT>>> = {
+  slack: {
+    log_calls: {
+      title: msg('settings.integrations.app.settings.postCalls'),
+      help: msg('settings.integrations.app.settings.postCallsHelp'),
+      tip: msg('settings.integrations.app.settings.postCallsTip'),
+    },
+  },
+}
+const settingText = (app: ConnectableApp, id: AppSettingId) => APP_SETTING_TEXT[app]?.[id] ?? SETTING_TEXT[id]
 
 /**
  * What Linedesk does in the app: one switch per setting, applied locally at once and sent through the outbox. Every
@@ -263,9 +304,9 @@ function AppSettings({
         {ids.map(id => (
           <SwitchRow
             key={id}
-            title={t(SETTING_TEXT[id].title)}
-            description={t(SETTING_TEXT[id].help, { name })}
-            tip={t(SETTING_TEXT[id].tip, { name })}
+            title={t(settingText(app, id).title)}
+            description={t(settingText(app, id).help, { name })}
+            tip={t(settingText(app, id).tip, { name })}
             on={appSettingOn(connection.settings, id)}
             onChange={on => set(id, on)}
             disabled={!canEdit}

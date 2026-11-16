@@ -84,6 +84,8 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
       .set({
         access_token_encrypted: again(row.access_token_encrypted, appSlot(connection, 'access')),
         refresh_token_encrypted: again(row.refresh_token_encrypted, appSlot(connection, 'refresh')),
+        webhook_url_encrypted:
+          row.webhook_url_encrypted && again(row.webhook_url_encrypted, appSlot(connection, 'webhook')),
       })
       .where(eq(app_credentials.connection_id, row.connection_id))
   }

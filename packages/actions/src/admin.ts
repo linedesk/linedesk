@@ -416,6 +416,15 @@ const guides = {
     ],
     cost: 'Free. Each business connects its own HubSpot, on any HubSpot plan.',
   },
+  slack: {
+    url: 'https://api.slack.com/apps',
+    steps: [
+      'At api.slack.com/apps: Create New App › From a manifest, pick any Slack workspace of yours, and paste integrations/slack/manifest.json of the Linedesk repo (change the redirect URLs to the one shown below).',
+      'Manage Distribution › Activate Public Distribution, so other Slack workspaces can install it.',
+      'Basic Information › App Credentials: copy the client ID and the client secret and paste them here.',
+    ],
+    cost: 'Free. Each business connects its own Slack, on any Slack plan.',
+  },
   turnstile: {
     url: 'https://dash.cloudflare.com/?to=/:account/turnstile',
     steps: [
@@ -988,6 +997,16 @@ export const providers = {
       client_secret: { label: 'Client secret', env: 'HUBSPOT_CLIENT_SECRET', secret: true },
     },
     help: 'A HubSpot app with the redirect URL below and the contact scopes. Businesses then connect their HubSpot under Integrations, and every finished phone call goes to the caller’s contact.',
+  },
+  slack: {
+    label: 'Slack',
+    category: 'apps',
+    guide: guides.slack,
+    fields: {
+      client_id: { label: 'Client ID', env: 'SLACK_CLIENT_ID', secret: false, hint: '1234567890.1234567890' },
+      client_secret: { label: 'Client secret', env: 'SLACK_CLIENT_SECRET', secret: true },
+    },
+    help: 'A Slack app with the redirect URL below and the incoming-webhook scope. Businesses then connect their Slack under Integrations, pick a channel, and every finished phone call is posted there. Slack checks the client secret only when a business connects.',
   },
   // Self-serve sign-up's bot check (Linedesk Cloud, docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
   // and the server checks its answer with the secret before a sign-up code goes out.

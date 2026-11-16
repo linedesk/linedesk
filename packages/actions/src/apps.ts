@@ -6,7 +6,7 @@ import { defineAction } from './define.ts'
  * Connected apps (docs/crm-sync.md): business tools a workspace connects by OAuth, so every finished
  * phone call goes to them. Same list as APP_IDS in @linedesk/connectors (the API checks they match).
  */
-export const connectableApps = ['hubspot'] as const
+export const connectableApps = ['hubspot', 'slack'] as const
 export type ConnectableApp = (typeof connectableApps)[number]
 const app = z.enum(connectableApps)
 
@@ -33,7 +33,8 @@ export const isAppConnectError = (value: unknown): value is AppConnectError =>
 
 export const appConnectStart = defineAction({
   name: 'app.connectStart',
-  description: "Start connecting an app (HubSpot) to the workspace. Returns the URL of the app's consent page.",
+  description:
+    "Start connecting an app (HubSpot, Slack) to the workspace. Returns the URL of the app's consent page; Slack's lets the member pick the channel calls are posted to.",
   input: z.object({ app }),
   permission: 'settings:write',
 })
@@ -62,33 +63,41 @@ export type AppDisconnectData = { revoked: boolean }
 
 /**
  * What Linedesk does in a connected app: switches a member turns on or off per connection (Integrations › HubSpot).
- * All on by default, so a connection behaves as before they existed; a connection stores only those changed.
- * - log_calls: every finished phone call goes to the app. Off: no call is sent (nor queued).
+ * On by default (except those in OFF_BY_DEFAULT), so a connection behaves as before they existed; a connection stores
+ * only those changed.
+ * - log_calls: every finished phone call goes to the app (Slack: is posted to the channel). Off: no call is sent
+ *   (nor queued).
+ * - only_urgent (Slack, off by default): only calls the summary marked urgent are posted; the others are skipped
+ *   (`not_urgent`).
  * - create_contacts: a caller with no contact in the app gets one. Off: such a call is skipped (`no_contact`);
  *   callers who have a contact still get the call.
  * - fill_fields: empty fields of the caller's contact are filled from Linedesk. Off: an existing contact is never
  *   changed (a new one still gets the caller's name, number, email and company).
  */
-export const appSettingIds = ['log_calls', 'create_contacts', 'fill_fields'] as const
+export const appSettingIds = ['log_calls', 'create_contacts', 'fill_fields', 'only_urgent'] as const
 export type AppSettingId = (typeof appSettingIds)[number]
 
 /** The switches each app has, in the order the page shows them. */
 export const APP_SETTINGS: Record<ConnectableApp, readonly AppSettingId[]> = {
   hubspot: ['log_calls', 'create_contacts', 'fill_fields'],
+  slack: ['log_calls', 'only_urgent'],
 }
 
-/** Whether a switch is on for a connection: its own choice, else on. */
+/** Switches that are off until a member turns them on. */
+const OFF_BY_DEFAULT: readonly AppSettingId[] = ['only_urgent']
+
+/** Whether a switch is on for a connection: its own choice, else its default (on, except OFF_BY_DEFAULT). */
 export const appSettingOn = (stored: Readonly<Record<string, boolean>> | null | undefined, id: AppSettingId): boolean =>
-  stored?.[id] ?? true
+  stored?.[id] ?? !OFF_BY_DEFAULT.includes(id)
 
 export const appUpdateSettings = defineAction({
   name: 'app.updateSettings',
   description:
-    "Turn what Linedesk does in a connected app on or off. `id`: the connection (app_connections). `settings`: the switches to set, each true or false; a switch left out keeps its value. log_calls: send every finished phone call to the app; create_contacts: add a caller with no contact in the app as a new contact (off: such a call is skipped); fill_fields: fill empty fields of the caller's contact (off: an existing contact is never changed). All are on until changed.",
+    "Turn what Linedesk does in a connected app on or off. `id`: the connection (app_connections). `settings`: the switches to set, each true or false; a switch left out keeps its value. log_calls: send every finished phone call to the app; create_contacts: add a caller with no contact in the app as a new contact (off: such a call is skipped); fill_fields: fill empty fields of the caller's contact (off: an existing contact is never changed); only_urgent (Slack): post only calls marked urgent. All are on until changed, except only_urgent.",
   input: z.object({
     id: z.string().min(1).max(100),
     settings: z
-      .object({ log_calls: z.boolean(), create_contacts: z.boolean(), fill_fields: z.boolean() })
+      .object({ log_calls: z.boolean(), create_contacts: z.boolean(), fill_fields: z.boolean(), only_urgent: z.boolean() })
       .partial()
       .strict(),
   }),

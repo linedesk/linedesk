@@ -5,7 +5,8 @@
 // with backoff; a push that keeps failing counts against its connection, which then asks for attention on the
 // app's page. Failures are stored as codes (AppErrorCode); the app's own words go to the server log only. The
 // connection's switches (APP_SETTINGS) are read when the call is queued and again when it is sent: a call that they
-// say not to send is `skipped` with its reason, never counted as a failure.
+// say not to send is `skipped` with its reason, never counted as a failure. Slack (not a CRM) gets one message per
+// call in the channel picked when connecting; "only urgent calls" is checked when it is sent, after the summary.
 import type { AppPushesData } from '@linedesk/actions'
 import { appSettingOn, CALL_END_DELAY_SEC } from '@linedesk/actions'
 import {
@@ -29,7 +30,7 @@ import {
   type Tx,
 } from '@linedesk/db'
 import { and, desc, eq, gt, inArray, lt, ne, or, sql } from 'drizzle-orm'
-import { type AppServices, appServicesOf, appTokenSource, errorMessage, lockConnection } from './app-connections.ts'
+import { type AppServices, appAccess, appServicesOf, errorMessage, lockConnection } from './app-connections.ts'
 import { WEB_ORIGIN } from './auth.ts'
 import { db } from './db.ts'
 import { appPushText } from './emails/app-push-text.ts'
@@ -100,7 +101,7 @@ async function finishedCall(
   const callerNumber = (call.direction === 'in' ? call.from_number : call.to_number) ?? ''
   const businessNumber = (call.direction === 'in' ? call.to_number : call.from_number) ?? null
   const { resolvedLanguage } = await workspaceLocale(tx, connection.workspace_id)
-  const text = appPushText(resolvedLanguage, contact?.name || callerNumber)
+  const text = appPushText(resolvedLanguage, contact?.name || callerNumber, call.started_at)
   const durationSec =
     call.duration_sec ??
     (call.ended_at ? Math.max(0, Math.round((Date.parse(call.ended_at) - Date.parse(call.started_at)) / 1000)) : 0)
@@ -123,7 +124,15 @@ async function finishedCall(
     },
     // The record an earlier try of this push found or created comes first: a retry never creates it twice.
     linkedRecordId: push.record_id ?? link?.external_id ?? null,
-    labels: { nextSteps: text.nextSteps, openCall: text.openCall },
+    urgent: call.urgency === 'urgent',
+    labels: {
+      nextSteps: text.nextSteps,
+      openCall: text.openCall,
+      caller: text.caller,
+      number: text.number,
+      urgent: text.urgent,
+      when: text.when,
+    },
   }
   return { call: finished, contactId: contact?.id ?? null }
 }
@@ -229,7 +238,11 @@ const linkContact = (tx: Tx, connection: AppConnection, contactId: string, recor
       set: { external_id: recordId, updated_at: nowIso() },
     })
 
-const errorCodeOf = (e: unknown): AppErrorCode => (e instanceof AppError ? e.kind : 'internal')
+const errorCodeOf = (e: unknown): AppErrorCode =>
+  e instanceof AppError ? (e.kind === 'client' ? 'auth' : e.kind) : 'internal'
+
+/** Failures only connecting again fixes (a refused grant, the Slack channel deleted or archived): attention at once. */
+const NEEDS_RECONNECT: ReadonlySet<AppErrorCode> = new Set(['auth', 'channel_not_found', 'channel_archived'])
 
 /**
  * One try of a push, outside any long transaction: claimed in a short one, sent to the app without a transaction
@@ -241,6 +254,8 @@ export async function attemptAppPush(
   pushId: string,
   services?: AppServices,
   database: Tx = db,
+  /** Hears how long the app asked to wait (Retry-After) when the outcome is 'retry' after a rate limit. */
+  onRetryAfter?: (sec: number) => void,
 ): Promise<AppPushOutcome> {
   const claim = await claimPush(database, pushId)
   if (claim === 'skipped' || claim === 'busy') return claim
@@ -253,10 +268,12 @@ export async function attemptAppPush(
     console.warn(
       `app push ${push.id} (${connection.provider}, try ${push.attempts} of ${APP_PUSH_ATTEMPTS}): ${errorMessage(e)}`,
     )
-    return noteFailure(database, claim, e).catch(gone => {
+    const outcome = await noteFailure(database, claim, e).catch(gone => {
       if (gone instanceof PushGone) return 'skipped' as const
       throw gone
     })
+    if (outcome === 'retry' && e instanceof AppError && e.retryAfterSec) onRetryAfter?.(e.retryAfterSec)
+    return outcome
   }
 }
 
@@ -298,12 +315,18 @@ async function sendClaimed(database: Tx, claim: Claimed, services?: AppServices)
     await succeed(push.record_id, push.external_id)
     return 'done'
   }
-  // A withheld number and no email: nothing to file the call under. Not the connection's fault, so not counted.
-  if (!call.linkedRecordId && !isE164(call.callerNumber) && !call.caller.email) {
+  const apps = appServicesOf({ apps: services })
+  const connector = apps.connector(connection.provider)
+  // Only urgent calls go and this one is not (urgency is known once the summary is made, before the push is sent).
+  if (appSettingOn(connection.settings, 'only_urgent') && !call.urgent) {
+    await finish('skipped', { error_code: 'not_urgent' })
+    return 'skipped'
+  }
+  // A withheld number and no email: nothing to file the call under in a CRM. Not the connection's fault, so not counted.
+  if (connector.crm && !call.linkedRecordId && !isE164(call.callerNumber) && !call.caller.email) {
     await finish('failed', { error_code: 'no_caller_id' })
     return 'failed'
   }
-  const apps = appServicesOf({ apps: services })
   // The switches as they are now (read under the lock when the push was claimed).
   const options = {
     createContacts: appSettingOn(connection.settings, 'create_contacts'),
@@ -311,8 +334,8 @@ async function sendClaimed(database: Tx, claim: Claimed, services?: AppServices)
   }
   let result: PushResult
   try {
-    result = await apps.connector(connection.provider).pushCall(
-      appTokenSource(database, apps, connection),
+    result = await connector.pushCall(
+      appAccess(database, apps, connection),
       call,
       {
         onRecord: recordId =>
@@ -358,7 +381,7 @@ function noteFailure(database: Tx, claim: Claimed, e: unknown): Promise<AppPushO
       .set({ status: 'failed', error_code, finished_at: nowIso() })
       .where(eq(app_pushes.id, push.id))
     const failures = connection.failures + 1
-    const attention = error_code === 'auth' || failures >= NEEDS_ATTENTION_AFTER
+    const attention = NEEDS_RECONNECT.has(error_code) || failures >= NEEDS_ATTENTION_AFTER
     await tx
       .update(app_connections)
       .set({ failures, error_code, ...(attention ? { status: 'needs_attention' as const } : {}) })

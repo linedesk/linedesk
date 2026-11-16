@@ -3,10 +3,10 @@
  * (docs/crm-sync.md). Every app has an OAuth side and a connector that does the work; vendor HTTP lives
  * only in the app's own file.
  */
-export const APP_IDS = ['hubspot'] as const
+export const APP_IDS = ['hubspot', 'slack'] as const
 export type AppId = (typeof APP_IDS)[number]
 
-export const APP_LABEL: Record<AppId, string> = { hubspot: 'HubSpot' }
+export const APP_LABEL: Record<AppId, string> = { hubspot: 'HubSpot', slack: 'Slack' }
 
 export const isAppId = (value: string): value is AppId => (APP_IDS as readonly string[]).includes(value)
 
@@ -15,17 +15,30 @@ export type OAuthTokens = {
   refreshToken: string | null
   expiresAt: string | null
   scope: string | null
+  /**
+   * Where calls go, when the app gives that with the grant: Slack's incoming webhook (a secret URL) and the channel
+   * the member picked on Slack's consent page.
+   */
+  webhook?: { url: string; channel: string } | null
+  /** The account, when the token answer names it (Slack's workspace); else `account()` asks the app. */
+  account?: AppAccount | null
 }
 
 export type OAuthClient = { clientId: string; clientSecret: string }
 
-/** The account a grant belongs to, as the app names it (a HubSpot portal). */
+/** The account a grant belongs to, as the app names it (a HubSpot portal, a Slack workspace). */
 export type AppAccount = { id: string; name: string }
 
 /** The OAuth side of an app: consent URL, code exchange, refresh, revoke, and whose account it is. */
 export interface AppOAuth {
   readonly id: AppId
   readonly scopes: readonly string[]
+  /**
+   * The grant is one per account at the app, not one per connect (a Slack bot token is the same for every install of
+   * the app in a workspace): withdrawing it would cut every connection to that account, so it is withdrawn only when
+   * no other connection uses the account.
+   */
+  readonly grantPerAccount?: boolean
   authorizeUrl(params: { redirectUri: string; state: string }): string
   exchangeCode(params: { code: string; redirectUri: string }): Promise<OAuthTokens>
   refresh(refreshToken: string): Promise<OAuthTokens>
@@ -37,19 +50,32 @@ export interface AppOAuth {
 /**
  * auth: the grant is gone or lacks a scope, someone must connect again (no retry).
  * rate_limited / unavailable: try again later. invalid: the app refused the data (no retry helps).
+ * channel_not_found / channel_archived: the Slack channel calls go to is gone or archived (connect again, no retry).
+ * client: the app refused the install's own client ID or secret (Server admin › Providers), not one account's grant.
  */
-export type AppErrorKind = 'auth' | 'rate_limited' | 'unavailable' | 'invalid' | 'not_found'
+export type AppErrorKind =
+  | 'auth'
+  | 'rate_limited'
+  | 'unavailable'
+  | 'invalid'
+  | 'not_found'
+  | 'channel_not_found'
+  | 'channel_archived'
+  | 'client'
 
 export class AppError extends Error {
   readonly app: AppId
   readonly kind: AppErrorKind
   readonly status: number | undefined
-  constructor(app: AppId, kind: AppErrorKind, message: string, status?: number) {
+  /** rate_limited: the seconds the app asked to wait (Retry-After), when it said. */
+  readonly retryAfterSec: number | undefined
+  constructor(app: AppId, kind: AppErrorKind, message: string, status?: number, retryAfterSec?: number) {
     super(`${APP_LABEL[app]}: ${message}`)
     this.name = 'AppError'
     this.app = app
     this.kind = kind
     this.status = status
+    this.retryAfterSec = retryAfterSec
   }
 }
 
@@ -72,6 +98,9 @@ export class PushSkipped extends Error {
 /** Gives a valid access token; `forceRefresh` after the app answered 401 with the current one. */
 export type TokenSource = (forceRefresh?: boolean) => Promise<string>
 
+/** A connection's access as a connector gets it: the token source, and for Slack the stored incoming webhook URL. */
+export type AppAccess = TokenSource & { webhookUrl?: () => Promise<string> }
+
 /** One finished phone call as the apps get it. Text is already in the workspace's language. */
 export type FinishedCall = {
   callId: string
@@ -89,7 +118,13 @@ export type FinishedCall = {
   caller: { name: string | null; email: string | null; company: string | null; phone: string }
   /** The record this caller is linked to in the app, from an earlier push. */
   linkedRecordId: string | null
-  labels: { nextSteps: string; openCall: string }
+  /** The summary marked the call urgent. */
+  urgent: boolean
+  /**
+   * Linedesk's words around the call, in the workspace's language (apps/api/src/emails/app-push-text.ts). `when`:
+   * the start, written out, for apps that cannot show a date in each reader's own zone and language.
+   */
+  labels: { nextSteps: string; openCall: string; caller: string; number: string; urgent: string; when: string }
 }
 
 /** recordId: the app's record for the caller (stored as the link). activityId: the logged call. */
@@ -115,7 +150,9 @@ export const DEFAULT_PUSH_OPTIONS: PushOptions = { createContacts: true, fillFie
 /** What a connected app does with a finished call. Throws PushSkipped when `options` say not to send it. */
 export interface AppConnector {
   readonly id: AppId
-  pushCall(token: TokenSource, call: FinishedCall, progress?: PushProgress, options?: PushOptions): Promise<PushResult>
+  /** Files each call under the caller's record (a CRM): a call with no number or email to find them cannot go. */
+  readonly crm: boolean
+  pushCall(access: AppAccess, call: FinishedCall, progress?: PushProgress, options?: PushOptions): Promise<PushResult>
 }
 
 export type Json = Record<string, any>

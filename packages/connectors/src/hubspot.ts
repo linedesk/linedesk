@@ -335,6 +335,7 @@ export function createHubSpotConnector(options: Options = {}): AppConnector {
   const crm = createHubSpotCrm(options)
   return {
     id: 'hubspot',
+    crm: true,
     pushCall: (token, call, progress, pushOptions) => pushCallToCrm(crm, token, call, progress, pushOptions),
   }
 }

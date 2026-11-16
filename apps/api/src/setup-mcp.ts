@@ -579,7 +579,7 @@ function redirectUris(provider: ProviderName): string[] {
   if (provider === 'github') return [`${app}/api/auth/callback/github`]
   if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
   if (provider === 'calendly' || provider === 'calcom') return [`${app}/v1/calendar/callback/${provider}`]
-  if (provider === 'hubspot') return [`${app}/v1/apps/callback/hubspot`]
+  if (provider === 'hubspot' || provider === 'slack') return [`${app}/v1/apps/callback/${provider}`]
   return []
 }
 

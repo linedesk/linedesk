@@ -454,6 +454,35 @@ const turnstile: Check = async (values, http) => {
   return ok()
 }
 
+// --- Connected apps -----------------------------------------------------------------------------
+// Slack checks a made-up code before the client (`oauth.v2.access` answers `invalid_code` to any client ID), so the
+// code exchange of the other OAuth apps proves nothing for Slack. `oauth.v2.exchange` with a made-up token checks the
+// client ID first (`invalid_client_id`); the secret Slack checks only with a real code, so here only its form (32 hex
+// digits). A wrong secret of the right form shows at the first connect, which records Slack as failing
+// (app-connections.ts). Free, nothing is changed at Slack.
+
+const slack: Check = async (values, http) => {
+  const clientId = values.client_id!.trim()
+  const secret = values.client_secret!.trim()
+  if (!/^\d+\.\d+$/.test(clientId))
+    return error('auth', 'This is not a Slack client ID (digits, a dot, digits): copy it from Basic Information › App Credentials.')
+  if (!/^[0-9a-f]{32}$/i.test(secret))
+    return error('auth', 'This is not a Slack client secret (32 letters and digits): copy it from Basic Information › App Credentials.')
+  const answer = await http.json('https://slack.com/api/oauth.v2.exchange', {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId, client_secret: secret, token: 'xoxb-linedesk-connection-test' }),
+  })
+  if (!answer.ok) return failed(answer.problem)
+  if (answer.body.error === 'invalid_client_id') return error('auth', 'Slack does not know this client ID')
+  if (answer.body.error === 'bad_client_secret') return error('auth', 'Slack rejected the client secret')
+  if (answer.body.error === 'ratelimited') return error('network', 'Slack asked to slow down: try again in a minute')
+  return warning(
+    'unknown',
+    'Slack knows the client ID. Slack checks the client secret only when a business connects: if it is wrong, connecting fails and Slack shows as failing here.',
+  )
+}
+
 type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService | 'stripe'>
 /** How to test each provider of the registry (packages/actions/src/admin.ts) that answers over HTTP. */
 const checks: Record<HttpProvider, Check> = {
@@ -472,6 +501,7 @@ const checks: Record<HttpProvider, Check> = {
   elevenlabs,
   cartesia,
   google_places: googlePlaces,
+  slack,
   openai_transcript: openaiTranscript,
   deepgram_transcript: deepgram,
   assemblyai,

@@ -325,7 +325,14 @@ async function runJobs(instance: PgBoss, env: Env) {
   // No transaction around it: the push claims itself and saves each step in short ones (app-pushes.ts).
   await instance.work<{ pushId: string }>(APP_PUSH, { localConcurrency: APP_PUSH_WORKERS }, async ([job]) => {
     const { pushId } = job!.data
-    const outcome = await attemptAppPush(pushId)
+    let waitSec: number | undefined
+    const outcome = await attemptAppPush(pushId, undefined, undefined, sec => (waitSec = sec))
+    // The app said how long to wait (Retry-After): the next try then, not after the queue's backoff. The tries are
+    // counted on the push itself (APP_PUSH_ATTEMPTS), so this job ends and a new one carries on.
+    if (outcome === 'retry' && waitSec) {
+      await instance.send(APP_PUSH, { pushId }, { startAfter: waitSec })
+      return { outcome, waitSec }
+    }
     if (outcome === 'retry') throw new Error(`app push ${pushId} failed; retrying`)
     if (outcome === 'busy') await instance.send(APP_PUSH, { pushId }, { startAfter: APP_PUSH_BUSY_DELAY_SEC })
     return { outcome }

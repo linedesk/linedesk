@@ -49,6 +49,7 @@ export const pricePerMinute: Record<ProviderName, number> = {
   calendly: 0,
   calcom: 0,
   hubspot: 0,
+  slack: 0,
   smtp: 0,
   resend: 0,
   postmark: 0,

@@ -2,9 +2,17 @@
 // of numbers too (security review of #920, L2) and the authenticator app secrets (LIN-402), in the caller's
 // transaction. Instance-wide: it reads every stored secret of the install, so it has a database of its own.
 import { randomBytes } from 'node:crypto'
-import { admin_authenticators, billing_accounts, billing_numbers, phone_numbers } from '@linedesk/db'
+import {
+  admin_authenticators,
+  app_connections,
+  app_credentials,
+  billing_accounts,
+  billing_numbers,
+  phone_numbers,
+} from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
+import { appSlot } from '../src/app-connections.ts'
 import { authenticatorSlot } from '../src/authenticator.ts'
 import { portOutSlot } from '../src/billing-owner.ts'
 import { db } from '../src/db.ts'
@@ -63,4 +71,36 @@ test('an authenticator app secret is re-encrypted with the new key and still rea
   expect(() => decryptSecret(rotated.stored, authenticatorSlot(admin.userId), from)).toThrow()
   // Under another person's slot it does not read: a secret copied to another row stays useless.
   expect(() => decryptSecret(rotated.stored, authenticatorSlot('someone-else'), to)).toThrow()
+})
+
+test('a Slack webhook URL is re-encrypted with the new key, next to the tokens', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const connection = { id: rid('app'), provider: 'slack' as const }
+  const url = 'https://hooks.slack.com/services/T000/B000/xyz'
+  await db.insert(app_connections).values({
+    ...connection,
+    workspace_id: ws.id,
+    account_id: 'T000',
+    account_name: 'Brightwater',
+    connected_by: ws.owner.userId,
+  })
+  await db.insert(app_credentials).values({
+    connection_id: connection.id,
+    workspace_id: ws.id,
+    access_token_encrypted: encryptSecret('xoxb-1', appSlot(connection, 'access')),
+    refresh_token_encrypted: encryptSecret('none', appSlot(connection, 'refresh')),
+    expires_at: new Date(Date.now() + 3600_000).toISOString(),
+    webhook_url_encrypted: encryptSecret(url, appSlot(connection, 'webhook')),
+  })
+  const from = parseSecretsKey(process.env.SECRETS_KEY!)
+  const to = randomBytes(32)
+  const rotated = await db
+    .transaction(async tx => {
+      await reencryptSecrets(tx, from, to)
+      const [row] = await tx.select().from(app_credentials).where(eq(app_credentials.connection_id, connection.id))
+      throw Object.assign(new Error('rollback'), { stored: row!.webhook_url_encrypted! })
+    })
+    .catch((e: { stored: string }) => e)
+  expect(decryptSecret(rotated.stored, appSlot(connection, 'webhook'), to)).toBe(url)
+  expect(() => decryptSecret(rotated.stored, appSlot(connection, 'webhook'), from)).toThrow()
 })

@@ -180,6 +180,7 @@ export type TableName = keyof Tables
 /**
  * Why a push to a connected app failed (app_pushes, app_connections): the app's AppErrorKind (@linedesk/connectors),
  * `call_deleted`, `no_caller_id` (no number or email to file the call under) or `internal` (anything else).
+ * `channel_not_found` / `channel_archived`: the Slack channel calls are posted to was deleted or archived.
  */
 export const appErrorCodes = [
   'auth',
@@ -187,13 +188,16 @@ export const appErrorCodes = [
   'unavailable',
   'invalid',
   'not_found',
+  'channel_not_found',
+  'channel_archived',
   'call_deleted',
   'no_caller_id',
   'internal',
   // Skipped by the connection's settings (status `skipped`), not failures: logging calls is off, or no contact
-  // matched the caller and creating contacts is off.
+  // matched the caller and creating contacts is off, or the call was not urgent and only urgent calls are sent.
   'calls_off',
   'no_contact',
+  'not_urgent',
 ] as const
 export type AppErrorCode = (typeof appErrorCodes)[number]
 

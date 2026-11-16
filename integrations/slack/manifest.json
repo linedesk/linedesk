@@ -1,0 +1,20 @@
+{
+  "display_information": {
+    "name": "Linedesk",
+    "description": "Every finished phone call from your Linedesk assistant, posted to a channel you pick."
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "https://staging.example.com/v1/apps/callback/slack",
+      "https://app.linedesk.ai/v1/apps/callback/slack"
+    ],
+    "scopes": {
+      "bot": ["incoming-webhook"]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

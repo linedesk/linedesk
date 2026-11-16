@@ -44,7 +44,15 @@ const call = (over: Partial<FinishedCall> = {}): FinishedCall => ({
   callUrl: 'https://app.example/#call/call-1',
   caller: { name: 'Dana Whitfield', email: 'dana@brightwater.example', company: null, phone: '+15035550142' },
   linkedRecordId: null,
-  labels: { nextSteps: 'Next steps', openCall: 'Open the call in Linedesk' },
+  urgent: false,
+  labels: {
+    nextSteps: 'Next steps',
+    openCall: 'Open the call in Linedesk',
+    caller: 'Caller',
+    number: 'Number',
+    urgent: 'Urgent',
+    when: 'Nov 16, 2026, 9:30 AM',
+  },
   ...over,
 })
 

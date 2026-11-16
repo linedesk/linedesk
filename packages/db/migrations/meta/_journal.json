@@ -883,6 +883,13 @@
       "when": 1794864985692,
       "tag": "0126_billing_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1794867162471,
+      "tag": "0127_app_slack",
+      "breakpoints": true
     }
   ]
 }

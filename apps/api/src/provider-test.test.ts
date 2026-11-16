@@ -583,3 +583,41 @@ describe('billing: Stripe', () => {
     expect(fake.calls).toEqual([])
   })
 })
+
+describe('apps: Slack', () => {
+  const ID = '1234567890.1234567890'
+  const SECRET = '0123456789abcdef0123456789abcdef'
+
+  test('a client ID or secret in the wrong form is refused before any request', async () => {
+    const fake = provider({})
+    expect(
+      await testProvider('slack', config({ client_id: 'abc', client_secret: SECRET }), fake.doFetch),
+    ).toMatchObject({
+      ok: false,
+      reason: 'auth',
+    })
+    expect(await testProvider('slack', config({ client_id: ID, client_secret: 'short' }), fake.doFetch)).toMatchObject({
+      ok: false,
+      reason: 'auth',
+    })
+    expect(fake.calls).toEqual([])
+  })
+
+  test.each([
+    ['invalid_client_id', /does not know this client ID/],
+    ['bad_client_secret', /rejected the client secret/],
+  ])('Slack refusing the app (%s) is an error', async (code, message) => {
+    const fake = provider({ 'POST oauth.v2.exchange': [200, { ok: false, error: code }] })
+    const result = await testProvider('slack', config({ client_id: ID, client_secret: SECRET }), fake.doFetch)
+    expect(result).toMatchObject({ ok: false, status: 'error', reason: 'auth' })
+    expect(result.message).toMatch(message)
+  })
+
+  test('a known client ID passes with a warning: Slack checks the secret only when a business connects', async () => {
+    const fake = provider({ 'POST oauth.v2.exchange': [200, { ok: false, error: 'token_rotation_not_enabled' }] })
+    const result = await testProvider('slack', config({ client_id: ID, client_secret: SECRET }), fake.doFetch)
+    expect(result).toMatchObject({ status: 'warning' })
+    expect(result.message).toMatch(/only when a business connects/)
+    expect(fake.calls).toEqual(['POST https://slack.com/api/oauth.v2.exchange'])
+  })
+})

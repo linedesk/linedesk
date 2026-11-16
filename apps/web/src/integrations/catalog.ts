@@ -1,8 +1,9 @@
 // Integrations (#integrations): the catalog of everything Linedesk connects to, by category, without React. Only what
 // works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
 // calendar providers this install offers, API keys, the REST API and the MCP server. Each opens its detail view here
-// (`#integrations/<id>`) or the place where it is set up. HubSpot is a connected app (OAuth, docs/crm-sync.md): its
-// detail view connects it. The ones being built (Slack, Jobber, ServiceTitan) show as "In progress" and open nothing. Phone carriers are not here: they are Server admin's (provider keys).
+// (`#integrations/<id>`) or the place where it is set up. HubSpot and Slack are connected apps (OAuth,
+// docs/crm-sync.md): their detail view connects them. The ones being built (Jobber, ServiceTitan) show as "In
+// progress" and open nothing. Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -29,11 +30,11 @@ export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
 }
 
 /** Integrations with a detail view on this page; every other card opens the place where it is set up. */
-export const DETAIL_IDS = ['zapier', 'hubspot', 'api-keys', 'rest-api', 'mcp'] as const
+export const DETAIL_IDS = ['zapier', 'hubspot', 'slack', 'api-keys', 'rest-api', 'mcp'] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
 
 /** Being built: shown as "In progress", they open nothing yet. */
-export const IN_PROGRESS_IDS = ['jobber', 'servicetitan', 'slack'] as const
+export const IN_PROGRESS_IDS = ['jobber', 'servicetitan'] as const
 export type InProgressId = (typeof IN_PROGRESS_IDS)[number]
 
 export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId | InProgressId
@@ -151,7 +152,7 @@ export const CATALOG: readonly Integration[] = [
     id: 'slack',
     category: 'chat',
     mark: { kind: 'logo', logo: 'slack', color: '#4A154B' },
-    opens: null,
+    opens: detail('slack'),
     keywords: 'team chat channel notify message',
   },
   {
@@ -279,7 +280,8 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
     case 'rest-api':
     case 'mcp':
       return { kind: 'ready' }
-    case 'hubspot': {
+    case 'hubspot':
+    case 'slack': {
       if (facts.apps === undefined) return { kind: 'loading' }
       const state = facts.apps[id]
       return state === 'connected'
@@ -361,6 +363,9 @@ const PUSH_ERROR: Record<AppErrorCode, MessageKey> = {
   internal: msg('settings.integrations.app.pushError.internal'),
   calls_off: msg('settings.integrations.app.pushError.callsOff'),
   no_contact: msg('settings.integrations.app.pushError.noContact'),
+  channel_not_found: msg('settings.integrations.app.pushError.channelNotFound'),
+  channel_archived: msg('settings.integrations.app.pushError.channelArchived'),
+  not_urgent: msg('settings.integrations.app.pushError.notUrgent'),
 }
 
 /**
