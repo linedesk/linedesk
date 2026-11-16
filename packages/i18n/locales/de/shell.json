@@ -266,6 +266,8 @@
   "tour.done": "Fertig",
   "tour.finish.text": "{assign} weist dir einen Anruf zu, {remind} erinnert dich später, {done} archiviert ihn und geht weiter. {undo} macht es rückgängig.",
   "tour.finish.title": "Zuweisen und archivieren",
+  "tour.finishAlone.text": "{remind} erinnert dich später, {done} archiviert den Anruf und geht weiter. {undo} macht es rückgängig.",
+  "tour.finishAlone.title": "Erinnern und archivieren",
   "tour.inbox.text": "Jeder Anruf, den {assistant} annimmt, landet hier mit Zusammenfassung und nächstem Schritt. {down} und {up} bewegen.",
   "tour.inbox.title": "Dein Posteingang",
   "tour.next": "Weiter",

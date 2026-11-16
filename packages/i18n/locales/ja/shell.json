@@ -266,6 +266,8 @@
   "tour.done": "完了",
   "tour.finish.text": "{assign}で通話を自分に割り当て、{remind}で後でリマインド、{done}で完了にして次へ進みます。{undo}で元に戻します。",
   "tour.finish.title": "割り当てて完了",
+  "tour.finishAlone.text": "{remind}で後でリマインド、{done}で完了にして次へ進みます。{undo}で元に戻します。",
+  "tour.finishAlone.title": "リマインドして完了",
   "tour.inbox.text": "{assistant}が応答したすべての通話が、要約と次のステップ付きでここに届きます。{down}と{up}で移動します。",
   "tour.inbox.title": "受信トレイ",
   "tour.next": "次へ",

@@ -266,6 +266,8 @@
   "tour.done": "Concluir",
   "tour.finish.text": "{assign} atribui uma chamada a você, {remind} lembra você mais tarde, {done} marca como concluída e segue para a próxima. {undo} desfaz.",
   "tour.finish.title": "Atribua e conclua",
+  "tour.finishAlone.text": "{remind} lembra você mais tarde, {done} marca como concluída e segue para a próxima. {undo} desfaz.",
+  "tour.finishAlone.title": "Lembre e conclua",
   "tour.inbox.text": "Cada chamada que {assistant} atende chega aqui com um resumo e o próximo passo. {down} e {up} navegam.",
   "tour.inbox.title": "Sua caixa de entrada",
   "tour.next": "Próximo",

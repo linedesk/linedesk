@@ -153,6 +153,7 @@
   "row.unread": "non lu",
   "row.unreadMarkRead": "Non lu, marquer comme lu",
   "sample.line": "<b>Appels d'exemple.</b> {count, plural, one {# exemple} many {# exemples} other {# exemples}} de la façon dont les appels arrivent ici. Essayez {done}, {assign} et {open} dessus.",
+  "sample.lineAlone": "<b>Appels d'exemple.</b> {count, plural, one {# exemple} many {# exemples} other {# exemples}} de la façon dont les appels arrivent ici. Essayez {done}, {remind} et {open} dessus.",
   "sample.remove": "Retirer les appels d'exemple",
   "sample.removeTitle": "Retirer tous les appels d'exemple",
   "sample.removed": "Appels d'exemple retirés.",

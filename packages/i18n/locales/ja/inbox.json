@@ -153,6 +153,7 @@
   "row.unread": "未読",
   "row.unreadMarkRead": "未読、既読にする",
   "sample.line": "<b>サンプル通話</b> 通話がここに届く様子の例が{count, plural, other {#件}}あります。{done}、{assign}、{open}を試してみてください。",
+  "sample.lineAlone": "<b>サンプル通話</b> 通話がここに届く様子の例が{count, plural, other {#件}}あります。{done}、{remind}、{open}を試してみてください。",
   "sample.remove": "サンプル通話を削除",
   "sample.removeTitle": "すべてのサンプル通話を削除",
   "sample.removed": "サンプル通話を削除しました。",

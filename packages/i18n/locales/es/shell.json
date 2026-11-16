@@ -266,6 +266,8 @@
   "tour.done": "Listo",
   "tour.finish.text": "{assign} te asigna una llamada, {remind} te la recuerda más tarde, {done} la marca como lista y pasa a la siguiente. {undo} deshace.",
   "tour.finish.title": "Asigna y termina",
+  "tour.finishAlone.text": "{remind} te la recuerda más tarde, {done} la marca como lista y pasa a la siguiente. {undo} deshace.",
+  "tour.finishAlone.title": "Recuerda y termina",
   "tour.inbox.text": "Cada llamada que contesta {assistant} llega aquí con un resumen y el siguiente paso. {down} y {up} se mueven.",
   "tour.inbox.title": "Tu bandeja de entrada",
   "tour.next": "Siguiente",

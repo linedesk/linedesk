@@ -153,6 +153,7 @@
   "row.unread": "não lida",
   "row.unreadMarkRead": "Não lida, marcar como lida",
   "sample.line": "<b>Chamadas de exemplo.</b> {count, plural, one {# exemplo} many {# exemplos} other {# exemplos}} de como as chamadas chegam aqui. Experimente {done}, {assign} e {open} nelas.",
+  "sample.lineAlone": "<b>Chamadas de exemplo.</b> {count, plural, one {# exemplo} many {# exemplos} other {# exemplos}} de como as chamadas chegam aqui. Experimente {done}, {remind} e {open} nelas.",
   "sample.remove": "Remover chamadas de exemplo",
   "sample.removeTitle": "Remover todas as chamadas de exemplo",
   "sample.removed": "Chamadas de exemplo removidas.",

@@ -266,6 +266,8 @@
   "tour.done": "Terminer",
   "tour.finish.text": "{assign} vous attribue un appel, {remind} vous le rappelle plus tard, {done} le marque comme terminé et passe au suivant. {undo} annule.",
   "tour.finish.title": "Attribuer et terminer",
+  "tour.finishAlone.text": "{remind} vous le rappelle plus tard, {done} le marque comme terminé et passe au suivant. {undo} annule.",
+  "tour.finishAlone.title": "Rappeler et terminer",
   "tour.inbox.text": "Chaque appel auquel {assistant} répond arrive ici avec un résumé et la prochaine étape. {down} et {up} pour se déplacer.",
   "tour.inbox.title": "Votre boîte de réception",
   "tour.next": "Suivant",

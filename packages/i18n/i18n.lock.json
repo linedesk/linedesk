@@ -13435,6 +13435,11 @@
       "out": "4355ecec19f5e39a9d217045657bb089ae32f5aebdac80a6453f1257aed5b283",
       "src": "63d61c83528f9536cd51d465c0032d7fc9c1367a5a98fbaf1da283440ab6ee2a"
     },
+    "inbox.sample.lineAlone": {
+      "by": "ai",
+      "out": "5129e1916c5bc4ad82e5cc590fa0c860a0639049112621a5250dee55fc773342",
+      "src": "625a3fe1da1decbefb066dc73ad723430346f9d2efc1cabb2a6a10d970a8e48e"
+    },
     "inbox.sample.remove": {
       "by": "ai",
       "out": "7f25cc38d6a0700034948cd27ba68d586dea0c1a1f7be2884130a1edd4718e59",
@@ -24044,6 +24049,16 @@
       "by": "human",
       "out": "5e6016a9c3003c033cdb215df108806efad7cd271f8c755387c0ae5e97fea8c9",
       "src": "25f2f45b2f310d22cf9de66508992cbbfda7b0f7f2795c6484288dcea485f87c"
+    },
+    "shell.tour.finishAlone.text": {
+      "by": "ai",
+      "out": "f491d66d4620a53a6d5fe4388a94ff495c10121d28f5307ef44123a4153cb8a2",
+      "src": "6475bebce5f867cfe56971ad7bafa0402205ad29e8c886d5a005c65f3e98a7f0"
+    },
+    "shell.tour.finishAlone.title": {
+      "by": "ai",
+      "out": "7a48359f780e03ac68b6aa749e66df951575ccdca643424fad5e4cf45e6dad06",
+      "src": "19b1a6c52ee826a936448ceb3b97c7dae5754d0da355a47d007d8c55825a95ea"
     },
     "shell.tour.inbox.text": {
       "by": "ai",
@@ -38077,6 +38092,11 @@
       "out": "c01207896fd76260c460e58c16b1be09b4bfedd05421905260c342b8a3ec0d17",
       "src": "63d61c83528f9536cd51d465c0032d7fc9c1367a5a98fbaf1da283440ab6ee2a"
     },
+    "inbox.sample.lineAlone": {
+      "by": "ai",
+      "out": "6427b639030d7890e3c3449c38057451471e09f2740cf8d84c54d4c76d7fb4e9",
+      "src": "625a3fe1da1decbefb066dc73ad723430346f9d2efc1cabb2a6a10d970a8e48e"
+    },
     "inbox.sample.remove": {
       "by": "ai",
       "out": "7785a38a07368e3fc77c7bbac669acedef659203fe5a7cee30b8bc88916cd938",
@@ -48686,6 +48706,16 @@
       "by": "ai",
       "out": "431bbf45fac353ac10a3b995378d33cbe2a48ef046fc2479ab47f6d9c3055c4f",
       "src": "25f2f45b2f310d22cf9de66508992cbbfda7b0f7f2795c6484288dcea485f87c"
+    },
+    "shell.tour.finishAlone.text": {
+      "by": "ai",
+      "out": "1b94ce1bffc25541d2c712b62dbe8d474669de75b078dec50b45f817a3e68146",
+      "src": "6475bebce5f867cfe56971ad7bafa0402205ad29e8c886d5a005c65f3e98a7f0"
+    },
+    "shell.tour.finishAlone.title": {
+      "by": "ai",
+      "out": "a3f3052b9cf2df149aba17644d812650b93718d3f47d4c154bf87f3e7f18da75",
+      "src": "19b1a6c52ee826a936448ceb3b97c7dae5754d0da355a47d007d8c55825a95ea"
     },
     "shell.tour.inbox.text": {
       "by": "ai",
@@ -62719,6 +62749,11 @@
       "out": "6ffb1bf3d45eb9c5eb479fac3e9bc06b0a400d0f0c4bdeee998e3ec17a4078f5",
       "src": "63d61c83528f9536cd51d465c0032d7fc9c1367a5a98fbaf1da283440ab6ee2a"
     },
+    "inbox.sample.lineAlone": {
+      "by": "ai",
+      "out": "28965333b0d60d7fdbaa6b2f30984ed6559ea44d7e5caa3ddc34dcad86f40f32",
+      "src": "625a3fe1da1decbefb066dc73ad723430346f9d2efc1cabb2a6a10d970a8e48e"
+    },
     "inbox.sample.remove": {
       "by": "ai",
       "out": "a4471ea01f58d55a2830e2b98de85f4b25c3f45625b6660bb676cfab8d4805c2",
@@ -73328,6 +73363,16 @@
       "by": "ai",
       "out": "2478f19ab2f599bdcff1dd31e49ceea53678500c1537aa5fc7f35a046f0e83e8",
       "src": "25f2f45b2f310d22cf9de66508992cbbfda7b0f7f2795c6484288dcea485f87c"
+    },
+    "shell.tour.finishAlone.text": {
+      "by": "ai",
+      "out": "6b870910f95470dbcfa93174f7d32b887b3200b8b00dc3c0449ffb7374e327fa",
+      "src": "6475bebce5f867cfe56971ad7bafa0402205ad29e8c886d5a005c65f3e98a7f0"
+    },
+    "shell.tour.finishAlone.title": {
+      "by": "ai",
+      "out": "de3babf125ec4ff3a821aa260cecddb92b290a2ac75354c3696b27d4b1e50800",
+      "src": "19b1a6c52ee826a936448ceb3b97c7dae5754d0da355a47d007d8c55825a95ea"
     },
     "shell.tour.inbox.text": {
       "by": "ai",
@@ -87361,6 +87406,11 @@
       "out": "1f432417f99f0bd6b57269d5396defece30b93969d2966efb40d9df4307101ab",
       "src": "63d61c83528f9536cd51d465c0032d7fc9c1367a5a98fbaf1da283440ab6ee2a"
     },
+    "inbox.sample.lineAlone": {
+      "by": "ai",
+      "out": "9e357f722af8ce9b07ffb5600120998f950f9cb09a360a67d45cfa905431888a",
+      "src": "625a3fe1da1decbefb066dc73ad723430346f9d2efc1cabb2a6a10d970a8e48e"
+    },
     "inbox.sample.remove": {
       "by": "ai",
       "out": "832ec57a51850686c2076d622f6cf791c41e60e97146fb1d80a1adc24870d799",
@@ -97970,6 +98020,16 @@
       "by": "ai",
       "out": "7aeb3a98839abbe11872287c19dce11f73d2c6bcea2ad28e964338b4f46e25fd",
       "src": "25f2f45b2f310d22cf9de66508992cbbfda7b0f7f2795c6484288dcea485f87c"
+    },
+    "shell.tour.finishAlone.text": {
+      "by": "ai",
+      "out": "810a9473dc22ee1e7f3b19da037bb24e6c8eed0eab6d8acee690102a90a0a4fd",
+      "src": "6475bebce5f867cfe56971ad7bafa0402205ad29e8c886d5a005c65f3e98a7f0"
+    },
+    "shell.tour.finishAlone.title": {
+      "by": "ai",
+      "out": "bd92133972a008522be6ff47ac27bc751b21862b40c4baafe87bc0bd127fdad1",
+      "src": "19b1a6c52ee826a936448ceb3b97c7dae5754d0da355a47d007d8c55825a95ea"
     },
     "shell.tour.inbox.text": {
       "by": "ai",
@@ -112003,6 +112063,11 @@
       "out": "24d3752ccdbef1836ba1ce3d3c86c6d86449f787b6b050dfe826af0e92bfa27a",
       "src": "63d61c83528f9536cd51d465c0032d7fc9c1367a5a98fbaf1da283440ab6ee2a"
     },
+    "inbox.sample.lineAlone": {
+      "by": "ai",
+      "out": "180cb483c4907b0702fdc56812f86dddc6c92ee2da2d895afdc52c2ce61bf6c5",
+      "src": "625a3fe1da1decbefb066dc73ad723430346f9d2efc1cabb2a6a10d970a8e48e"
+    },
     "inbox.sample.remove": {
       "by": "ai",
       "out": "f49d450dbf273821201e8a2ce2fc1447886f8fbd39e06591b28a0a3ba986f3fa",
@@ -122612,6 +122677,16 @@
       "by": "ai",
       "out": "e1d9c087a5eb5f8ad2c82215fd306ccacf96d890af9d2f7cae841521dfa74c42",
       "src": "25f2f45b2f310d22cf9de66508992cbbfda7b0f7f2795c6484288dcea485f87c"
+    },
+    "shell.tour.finishAlone.text": {
+      "by": "ai",
+      "out": "e0d4da53c86a4073c664264e30ee5e1b67a547840716435cc6a2000176de13ab",
+      "src": "6475bebce5f867cfe56971ad7bafa0402205ad29e8c886d5a005c65f3e98a7f0"
+    },
+    "shell.tour.finishAlone.title": {
+      "by": "ai",
+      "out": "0dc078e9bbe34f737745f273cccb559c824745a97ad318501d1958a31e699d2e",
+      "src": "19b1a6c52ee826a936448ceb3b97c7dae5754d0da355a47d007d8c55825a95ea"
     },
     "shell.tour.inbox.text": {
       "by": "ai",

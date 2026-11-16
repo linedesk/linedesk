@@ -153,6 +153,7 @@
   "row.unread": "ungelesen",
   "row.unreadMarkRead": "Ungelesen, als gelesen markieren",
   "sample.line": "<b>Beispielanrufe.</b> {count, plural, one {# Beispiel} other {# Beispiele}} dafür, wie Anrufe hier ankommen. Probier {done}, {assign} und {open} daran aus.",
+  "sample.lineAlone": "<b>Beispielanrufe.</b> {count, plural, one {# Beispiel} other {# Beispiele}} dafür, wie Anrufe hier ankommen. Probier {done}, {remind} und {open} daran aus.",
   "sample.remove": "Beispielanrufe entfernen",
   "sample.removeTitle": "Alle Beispielanrufe entfernen",
   "sample.removed": "Beispielanrufe entfernt.",
