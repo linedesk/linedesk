@@ -61,6 +61,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from
 import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
+import { billingAdminHandlers } from './billing-admin.ts'
 import { stripeEventHandlers, stripeEventPreparers } from './stripe-events.ts'
 import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
@@ -1107,6 +1108,7 @@ const handlers: Record<string, Handler> = {
   ...notificationHandlers,
   ...setupEmailHandlers,
   ...billingSettingsHandlers,
+  ...billingAdminHandlers,
   ...stripeEventHandlers,
   ...starHandlers,
   ...pushHandlers,

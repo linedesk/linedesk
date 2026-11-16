@@ -52,6 +52,44 @@ export function mergeBillingRules(stored: unknown): { rules: BillingRules; probl
   return { rules, problems }
 }
 
+/**
+ * The lowest price per minute an admin may set for a level (docs/billing.md §11, PR 13): the server's
+ * BILLING_MIN_MICROS_PER_MINUTE (Linedesk Cloud sets it, so a mistyped 0 never gives calls away); 0 without it, so a
+ * self-hosted partner may charge nothing.
+ */
+export function minMicrosPerMinute(env: Record<string, string | undefined> = process.env): number {
+  const value = Number(env.BILLING_MIN_MICROS_PER_MINUTE ?? '')
+  return Number.isSafeInteger(value) && value > 0 ? value : 0
+}
+
+/**
+ * Checks rules an instance admin is about to store (Server admin › Billing): unlike `mergeBillingRules`, which keeps a
+ * running install going whatever the row holds, anything unknown, out of range or below the server's minimum price
+ * refuses the whole change. Answers the problems, or the rules to store (only the fields given).
+ */
+export function checkBillingRules(
+  input: Record<string, unknown>,
+  minMicros = minMicrosPerMinute(),
+): { problems: string[] } | { problems: []; stored: Record<string, unknown> } {
+  const problems: string[] = []
+  for (const [key, value] of Object.entries(input)) {
+    if (key === 'levels') continue
+    const schema = FIELDS[key as keyof typeof FIELDS]
+    if (!schema?.safeParse(value).success) problems.push(key)
+  }
+  if (input.levels !== undefined) {
+    const levels = input.levels
+    if (typeof levels !== 'object' || levels === null || Array.isArray(levels)) problems.push('levels')
+    else
+      for (const [name, value] of Object.entries(levels)) {
+        const parsed = level.safeParse(value)
+        if (!(PAID_LEVELS as readonly string[]).includes(name) || !parsed.success) problems.push(`levels.${name}`)
+        else if (parsed.data.microsPerMinute < minMicros) problems.push(`levels.${name}.microsPerMinute`)
+      }
+  }
+  return problems.length ? { problems } : { problems: [], stored: input }
+}
+
 /** The rules in effect on this install. */
 export async function billingRules(tx: Pick<Tx, 'select'>): Promise<BillingRules> {
   const [row] = await tx

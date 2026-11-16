@@ -53,6 +53,14 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     invoice: async () => null,
     subscription: async () => null,
     recentEvents: async () => ({ events: [], truncated: false }),
+    // Server admin's refunds and seats (PR 13) are not used here.
+    refundBlockers: async () => [],
+    refundInvoice: () => {
+      throw new Error('not used')
+    },
+    findRefund: async () => null,
+    checkoutInvoice: async () => null,
+    setSeatQuantity: async () => 'unchanged',
   }
   return { provider, calls }
 }

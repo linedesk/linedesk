@@ -248,6 +248,8 @@ export type GateBill = {
   /** Calls of the bill running now (its reservation rows). */
   running: number
   workspaces: number
+  /** Calls at once an instance admin set for this bill (Server admin › Billing); null or absent: the rules' cap. */
+  concurrencyCap?: number | null
 }
 export type GateReason = 'billing_inactive' | 'too_many_calls' | 'no_balance'
 export type GateAnswer = { allow: true } | { allow: false; reason: GateReason }
@@ -261,7 +263,7 @@ export function callGate(bill: GateBill, needMicros: number, rules: BillingRules
   if (!['trialing', 'active', 'past_due', 'comped'].includes(bill.status))
     return { allow: false, reason: 'billing_inactive' }
   const trialing = bill.status === 'trialing'
-  if (bill.running >= concurrentCallCap(trialing, bill.workspaces, rules))
+  if (bill.running >= (bill.concurrencyCap ?? concurrentCallCap(trialing, bill.workspaces, rules)))
     return { allow: false, reason: 'too_many_calls' }
   if (bill.status === 'comped') return { allow: true }
   const buffer = trialing ? 0 : rules.balanceBufferMicros

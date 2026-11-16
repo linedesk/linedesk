@@ -144,6 +144,21 @@ const AUDITED_ACTION_NAMES = [
   'agentSetup.revoke', 'agentSetup.endOwnAccess', 'agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace',
 ]
 
+describe('Server admin › Billing', () => {
+  test('money actions name the amount; the rest say what changed', () => {
+    expect(label('billing.credit', { kind: 'credit', amountCents: 1250 })).toBe('Credited $12.50 to a bill')
+    expect(label('billing.credit', { kind: 'writeoff', amountCents: 500 })).toBe('Wrote off $5 of a bill')
+    expect(label('billing.credit', { kind: 'adjustment', amountCents: -300 })).toBe('Adjusted a bill by -$3')
+    expect(label('billing.refund', { amountCents: 2000 })).toBe('Refunded $20 to the card')
+    expect(label('billing.adminSetStatus', { status: 'suspended' })).toBe('Suspended a bill')
+    expect(label('billing.setConcurrency', { concurrentCalls: null })).toBe(
+      "Set a bill's calls at once back to the rules",
+    )
+    expect(label('billing.reviewHold', { decision: 'deny' })).toBe('Denied a bill held for review')
+    expect(label('signup.setSelfServe', { on: true })).toBe('Turned self-serve sign-up on')
+  })
+})
+
 describe('every audited action reads as words', () => {
   test.each(AUDITED_ACTION_NAMES)('%s has a label', what => {
     expect(label(what)).not.toBe(what)
@@ -227,6 +242,9 @@ describe('signing in as a user', () => {
     )
     expect(auditReason({ what: 'user.impersonate', input: { userId: 'u1' } })).toBeNull()
     expect(auditReason({ what: 'team.invite', input: { reason: 'x' } })).toBeNull()
+    expect(auditReason({ what: 'billing.refund', input: { amountCents: 500, reason: 'Duplicate charge' } })).toBe(
+      'Reason: Duplicate charge',
+    )
     expect(label('impersonationEmails.set', { on: true })).toBe('Turned on emails to users when an admin signs in as them')
   })
 })

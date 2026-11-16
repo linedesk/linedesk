@@ -1636,6 +1636,10 @@ const ALERT_KINDS = ['recharge_failed', 'recharge_cap_reached', 'low_balance', '
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 
 export const BILLING_KINDS = ['cloud', 'partner'] as const
+/** Why a bill is suspended (`billing_accounts.suspend_reason`). */
+export const SUSPEND_REASONS = ['admin', 'payment', 'dispute', 'early_fraud_warning'] as const
+/** The most calls at once an instance admin may allow one bill (`billing_accounts.concurrent_calls_cap`). */
+export const CONCURRENT_CALLS_CAP_MAX = 1000
 export const BILLING_STATUSES = [
   'pending_payment',
   'trialing',
@@ -1645,6 +1649,8 @@ export const BILLING_STATUSES = [
   'canceled',
   'comped',
 ] as const
+/** The statuses an admin suspension can come from (`billing_accounts.suspended_from`): not suspended or canceled. */
+export const SUSPENDED_FROM = ['pending_payment', 'trialing', 'active', 'past_due', 'comped'] as const
 
 /**
  * A bill: one Stripe customer and subscription (the plan fee, charged in advance), paying for one or more
@@ -1676,6 +1682,18 @@ export const billing_accounts = pgTable(
     held_for_review_at: ts('held_for_review_at'),
     past_due_since: ts('past_due_since'),
     suspended_at: ts('suspended_at'),
+    /**
+     * Why the bill is suspended (null while it is not): `admin` (Server admin › Billing; only an instance admin lifts
+     * it, never a payment), `payment` (dunning), `dispute`, `early_fraud_warning` (docs/billing.md §3.4, review of #865 N1).
+     */
+    suspend_reason: text('suspend_reason', { enum: SUSPEND_REASONS }),
+    /**
+     * The status an instance admin's suspension came from (Server admin › Billing; null otherwise): resume goes back to
+     * it, so a bill waiting for Checkout or past due is not made active by suspend and resume (re-review of #919, R3).
+     */
+    suspended_from: text('suspended_from', { enum: SUSPENDED_FROM }),
+    /** Calls at once an instance admin set for this bill (Server admin › Billing); null: the rules' cap (§4.4). */
+    concurrent_calls_cap: integer('concurrent_calls_cap'),
     canceled_at: ts('canceled_at'),
     created_at: createdAt(),
     updated_at: ts('updated_at').notNull().defaultNow(),
@@ -1686,6 +1704,21 @@ export const billing_accounts = pgTable(
     check('billing_accounts_status', oneOf(t.status, BILLING_STATUSES)),
     check('billing_accounts_interval', oneOf(t.interval, BILLING_INTERVALS)),
     check('billing_accounts_recharge_cap_base', sql`${t.recharge_cap_base_cents} >= 0`),
+    check(
+      'billing_accounts_suspend_reason',
+      sql`${t.suspend_reason} is null or ${oneOf(t.suspend_reason, SUSPEND_REASONS)}`,
+    ),
+    // A suspended bill always says why (security review of #919, L1): a suspension path that forgets its reason fails
+    // here instead of being lifted by the next paid invoice.
+    check('billing_accounts_suspended_reason', sql`${t.status} <> 'suspended' or ${t.suspend_reason} is not null`),
+    check(
+      'billing_accounts_suspended_from',
+      sql`${t.suspended_from} is null or ${oneOf(t.suspended_from, SUSPENDED_FROM)}`,
+    ),
+    check(
+      'billing_accounts_concurrent_calls_cap',
+      sql`${t.concurrent_calls_cap} is null or ${t.concurrent_calls_cap} between 1 and ${sql.raw(String(CONCURRENT_CALLS_CAP_MAX))}`,
+    ),
     check(
       'billing_accounts_recharge_threshold',
       sql`${t.recharge_threshold_cents} between ${sql.raw(String(RECHARGE_LIMITS.thresholdCents.min))} and ${sql.raw(String(RECHARGE_LIMITS.thresholdCents.max))}`,
@@ -1926,6 +1959,51 @@ export const billing_recharges = pgTable(
       sql`${t.amount_cents} between ${sql.raw(String(RECHARGE_LIMITS.amountCents.min))} and ${sql.raw(String(RECHARGE_LIMITS.amountCents.max))}`,
     ),
     check('billing_recharges_resolved', sql`(${t.status} = 'pending') = (${t.resolved_at} is null)`),
+  ],
+)
+
+const REFUND_STATUSES = ['pending', 'posted', 'void'] as const
+
+/**
+ * A refund from the balance (Server admin › Billing, `billing.refund`), written and committed before Stripe is asked
+ * (security review of #919, M2): `pending` until its ledger entry is posted (`posted`), or until Stripe is found to
+ * have made no credit note for it (`void`). A pending row whose action did not finish is settled from Stripe (the
+ * credit note carries the row id in `metadata.linedesk_refund`) by the next refund of the bill and the nightly
+ * reconciliation, so a payout never stays without its entry. While one is pending, the bill takes no other refund.
+ */
+export const billing_refunds = pgTable(
+  'billing_refunds',
+  {
+    id: id(),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    /** The admin dialog's request id: a retry of the same dialog finishes this refund, never makes a second. */
+    request_id: text('request_id').notNull().unique(),
+    /** The ledger entry of the payment refunded (a recharge or a top-up). */
+    payment_entry_id: text('payment_entry_id').notNull(),
+    stripe_invoice_id: text('stripe_invoice_id').notNull(),
+    stripe_line_id: text('stripe_line_id').notNull(),
+    amount_cents: integer('amount_cents').notNull(),
+    /** The period the refund entry posts in, chosen before Stripe is asked. */
+    period_id: text('period_id')
+      .notNull()
+      .references(() => billing_periods.id),
+    status: text('status', { enum: REFUND_STATUSES }).notNull().default('pending'),
+    credit_note_id: text('credit_note_id'),
+    /** What went back to the card, tax included (the credit note's total). */
+    refunded_cents: integer('refunded_cents'),
+    ledger_entry_id: text('ledger_entry_id'),
+    actor_id: text('actor_id'),
+    reason: text('reason').notNull(),
+    created_at: createdAt(),
+    resolved_at: ts('resolved_at'),
+  },
+  t => [
+    index('billing_refunds_bill_status').on(t.billing_account_id, t.status),
+    check('billing_refunds_status', oneOf(t.status, REFUND_STATUSES)),
+    check('billing_refunds_amount', sql`${t.amount_cents} > 0`),
+    check('billing_refunds_resolved', sql`(${t.status} = 'pending') = (${t.resolved_at} is null)`),
   ],
 )
 

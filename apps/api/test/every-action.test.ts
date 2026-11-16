@@ -46,7 +46,10 @@ const OWN_ROUTE = new Set([
 ])
 const toolName = (action: string) => action.replaceAll('.', '_')
 
-/** Keys of one person, a new one before the per-key limit (300 a minute) is near. */
+/**
+ * Keys of one person, a new one before the per-key limit (300 a minute) is near. A use is one request: a CLI run that
+ * makes several reports the rest with `spent`, so a run of many CLI calls never passes the limit on one key.
+ */
 class KeyPool {
   private key = ''
   private used = 0
@@ -63,6 +66,10 @@ class KeyPool {
     }
     this.used++
     return this.key
+  }
+  /** Requests made with the current key beyond the one `next` counted. */
+  spent(requests: number) {
+    this.used += requests
   }
 }
 
@@ -123,6 +130,7 @@ async function cli(p: Person, argv: string[], probe = false) {
   const realFetch = globalThis.fetch
   process.env.LINEDESK_URL = 'http://localhost:3999'
   process.env.LINEDESK_API_KEY = await p.keys.next()
+  let requests = 0
   globalThis.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = new URL(String(input))
     expect(url.origin).toBe('http://localhost:3999')
@@ -134,6 +142,7 @@ async function cli(p: Person, argv: string[], probe = false) {
       ...(probe && isAction ? { body: '[]' } : {}),
     })
     if (isAction) posts.push({ path: url.pathname, status: res.status })
+    requests++
     return res
   }) as typeof fetch
   try {
@@ -141,6 +150,7 @@ async function cli(p: Person, argv: string[], probe = false) {
     return { code, out: out.join('\n'), err: err.join('\n'), posts }
   } finally {
     globalThis.fetch = realFetch
+    p.keys.spent(Math.max(0, requests - 1))
   }
 }
 

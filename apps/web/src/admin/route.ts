@@ -1,5 +1,5 @@
-// Where admin mode is: `#admin/<section>` and `#admin/<section>/<id>` (a workspace, a user, or on Providers a group
-// or a provider).
+// Where admin mode is: `#admin/<section>` and `#admin/<section>/<id>` (a workspace, a user, a bill, or on Providers a
+// group or a provider).
 // Kept in the hash like the rest of the app, so reload and the browser's Back work. Labels are message keys (t()).
 import {
   groupOfCategory,
@@ -36,12 +36,17 @@ export const adminSections = [
   { id: 'system', label: msg('admin.sections.system.label'), description: msg('admin.sections.system.description') },
   { id: 'prompt', label: msg('admin.sections.prompt.label'), description: msg('admin.sections.prompt.description') },
   { id: 'audit', label: msg('admin.sections.audit.label'), description: msg('admin.sections.audit.description') },
+  // Last, so the sections before it keep their number keys. It is the eleventh, so it has none (sectionKey).
+  { id: 'billing', label: msg('admin.sections.billing.label'), description: msg('admin.sections.billing.description') },
 ] as const satisfies readonly { id: string; label: MessageKey; description: MessageKey | null }[]
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }
 
-/** The digit that opens the section at `index`: 1 to 9, then 0 for the tenth. */
-export const sectionKey = (index: number) => String((index + 1) % 10)
+/**
+ * The digit that opens the section at `index`: 1 to 9, then 0 for the tenth. A section past the tenth has none (there
+ * is no eleventh digit); Tab and the list reach it.
+ */
+export const sectionKey = (index: number) => (index < 10 ? String((index + 1) % 10) : undefined)
 /** The index of the section a digit opens: `sectionKey`'s opposite. */
 export const sectionIndexOfKey = (key: string) => (Number(key) + 9) % 10
 

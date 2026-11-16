@@ -192,6 +192,18 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billingEnabled.set': 'admin',
   // A stored Stripe event processed again by an instance admin (docs/billing.md §5.1).
   'billing.reprocessEvent': 'admin',
+  // Server admin › Billing (docs/billing.md §8, PR 13): every change to a bill, its money or the install's billing
+  // rules, each with the admin's reason in its input; reads are not listed.
+  'billing.credit': 'admin',
+  'billing.refund': 'admin',
+  'billing.adminSetStatus': 'admin',
+  'billing.setCap': 'admin',
+  'billing.setConcurrency': 'admin',
+  'billing.moveWorkspace': 'admin',
+  'billing.transferOwner': 'admin',
+  'billing.reviewHold': 'admin',
+  'billingRules.set': 'admin',
+  'signup.setSelfServe': 'admin',
   'user.invite': 'admin',
   'user.disable': 'admin',
   'user.enable': 'admin',

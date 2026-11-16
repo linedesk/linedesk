@@ -10,6 +10,7 @@ const BROWSER = 'this works only in the browser'
 const FRESH_SIGN_IN = 'this needs a fresh sign-in in the app'
 const OWNER_IN_APP = 'what the workspace pays is decided by the owner, signed in to the app'
 const INTEGRATIONS = 'integrations (Zapier) subscribe with a workspace API key'
+const MONEY = 'money and billing rules are changed in the app, signed in as yourself with your passkey'
 
 export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['personalKey.create', KEYS],
@@ -42,6 +43,18 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['workspace.setAllowUltra', OWNER_IN_APP],
   ['integration.subscribe', INTEGRATIONS],
   ['integration.unsubscribe', INTEGRATIONS],
+  // Server admin › Billing writes (billing-admin.ts refuseMoneyChange; security review of #919, H1 and I3).
+  ['billing.credit', MONEY],
+  ['billing.refund', MONEY],
+  ['billing.adminSetStatus', MONEY],
+  ['billing.setCap', MONEY],
+  ['billing.setConcurrency', MONEY],
+  ['billing.moveWorkspace', MONEY],
+  ['billing.transferOwner', MONEY],
+  ['billing.reviewHold', MONEY],
+  ['billing.reprocessEvent', MONEY],
+  ['billingRules.set', MONEY],
+  ['signup.setSelfServe', MONEY],
 ])
 
 /** Why a personal key may not run `name`, or null when it may (if its maker may). */

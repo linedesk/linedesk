@@ -63,6 +63,8 @@ const INSTANCE_WIDE_FILES = [
   'test/usage-levels.test.ts',
   // Sets up the three stages through the environment; switches billing on (the call gate, PR 4).
   'test/call-billing.test.ts',
+  // Server admin › Billing: instance admins, the billing rules and self-serve settings, Stripe keys (PR 13).
+  'test/billing-admin.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

@@ -201,6 +201,40 @@ export const billingSwitchAlert =
     }
   }
 
+/** The install's billing rules changed (Server admin › Billing): every instance admin hears which fields. */
+export const billingRulesAlert =
+  ({ actor, fields, reason }: { actor: AlertActor; fields: string[]; reason: string }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const values = {
+      actor: actorLabel(actor, locale),
+      fields: fields.length ? fields.join(', ') : t('email.adminAlert.billingRules.reset'),
+      reason,
+    }
+    return {
+      subject: t('email.adminAlert.billingRules.subject'),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.billingRules.text', values) },
+        { kind: 'text', text: t('email.adminAlert.checkBilling') },
+      ],
+    }
+  }
+
+/** Self-serve sign-up turned on or off (Server admin › Billing, `signup.selfServe`). */
+export const selfServeAlert =
+  ({ actor, on, reason }: { actor: AlertActor; on: boolean; reason: string }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const values = { actor: actorLabel(actor, locale), on: on ? 'yes' : 'no', reason }
+    return {
+      subject: t('email.adminAlert.selfServe.subject', values),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.selfServe.text', values) },
+        { kind: 'text', text: t('email.adminAlert.checkBilling') },
+      ],
+    }
+  }
+
 /** The nightly billing check found ledger guards missing or sums that do not add up (ledger.ts `checkLedger`). */
 export const ledgerCheckAlert =
   ({

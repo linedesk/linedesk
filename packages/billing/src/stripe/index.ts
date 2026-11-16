@@ -12,6 +12,7 @@ import {
   CHECKOUT_PMC_NAME,
   type RechargeCard,
   type RechargeCharge,
+  type RefundBlocker,
   type RechargeInvoiceInput,
   type StripeKeys,
   WEBHOOK_TOLERANCE_SECONDS,
@@ -137,7 +138,10 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       }
       if (invoice.status === 'open' && invoice.auto_advance !== false)
         await stripe.invoices.update(invoiceId, { auto_advance: false })
-      if (options.void && invoice.status === 'open') await stripe.invoices.voidInvoice(invoiceId)
+      // An uncollectible invoice stays payable by the customer: voided too, or a hand credit and a later payment
+      // would charge twice for one credit (security re-review of #919, R4).
+      if (options.void && (invoice.status === 'open' || invoice.status === 'uncollectible'))
+        await stripe.invoices.voidInvoice(invoiceId)
     },
     async rechargeInvoicePage(invoiceId) {
       return (await stripe.invoices.retrieve(invoiceId)).hosted_invoice_url ?? null
@@ -255,7 +259,111 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       const events = [...found.values()].sort((a, b) => a.created - b.created)
       return { events: events.slice(-limit), truncated: truncated || events.length > limit }
     },
+
+    // Money leaves only through these, each with the caller's idempotency key; refused for our setup → BillingSetupError.
+    refundBlockers: invoiceId =>
+      refundBlockers(stripe, invoiceId).catch(error => {
+        throw setupError(error) ?? error
+      }),
+
+    async refundInvoice(input) {
+      try {
+        const lines = [
+          { type: 'invoice_line_item' as const, invoice_line_item: input.lineId, amount: input.amountCents },
+        ]
+        // The preview says what the line comes to with its tax, so the card gets back what it paid for that part.
+        const preview = await stripe.creditNotes.preview({ invoice: input.invoiceId, lines })
+        const note = await stripe.creditNotes.create(
+          {
+            invoice: input.invoiceId,
+            lines,
+            refund_amount: preview.total,
+            memo: input.memo.slice(0, 500),
+            metadata: { linedesk_refund: input.idempotencyKey },
+          },
+          { idempotencyKey: `${input.idempotencyKey}:credit_note` },
+        )
+        const refund = note.refunds?.[0]?.refund
+        return { creditNoteId: note.id, refundId: idOf(refund ?? null), refundedCents: note.total }
+      } catch (error) {
+        throw setupError(error) ?? error
+      }
+    },
+
+    async findRefund(invoiceId, idempotencyKey) {
+      try {
+        const notes = await stripe.creditNotes
+          .list({ invoice: invoiceId, limit: 100 })
+          .autoPagingToArray({ limit: 1000 })
+        const note = notes.find(n => n.metadata?.linedesk_refund === idempotencyKey)
+        if (!note) return null
+        return { creditNoteId: note.id, refundId: idOf(note.refunds?.[0]?.refund ?? null), refundedCents: note.total }
+      } catch (error) {
+        throw setupError(error) ?? error
+      }
+    },
+
+    async checkoutInvoice(sessionId) {
+      try {
+        return idOf((await stripe.checkout.sessions.retrieve(sessionId)).invoice ?? null)
+      } catch (error) {
+        if (missing(error)) return null
+        throw error
+      }
+    },
+
+    async setSeatQuantity(input) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(input.subscriptionId)
+        const seat = sub.items.data.find(item =>
+          (item.price.lookup_key ?? item.price.metadata?.linedesk ?? '').startsWith(SEAT_LOOKUP_PREFIX),
+        )
+        if (!seat) return 'no_seat_item'
+        if (seat.quantity === input.quantity) return 'unchanged'
+        await stripe.subscriptions.update(
+          input.subscriptionId,
+          { items: [{ id: seat.id, quantity: input.quantity }], proration_behavior: input.prorationBehavior },
+          { idempotencyKey: input.idempotencyKey },
+        )
+        return 'updated'
+      } catch (error) {
+        throw setupError(error) ?? error
+      }
+    },
   }
+}
+
+/** The seat prices' lookup keys (`ws_monthly`, `ws_yearly`, the founding ones): docs/billing.md §2.1. */
+const SEAT_LOOKUP_PREFIX = 'ws_'
+
+/** Dispute statuses after which a refund pays nothing out twice: the business won, or a warning closed. */
+const SETTLED_DISPUTES = new Set(['won', 'warning_closed'])
+
+/**
+ * What stops refunding a paid invoice's payment (docs/billing.md §4.5, M4): for each card payment of it, an open or
+ * lost dispute, or an early fraud warning on its charge. No card payment at all: `no_charge`.
+ */
+async function refundBlockers(stripe: Stripe, invoiceId: string): Promise<RefundBlocker[]> {
+  const payments = await stripe.invoicePayments
+    .list({ invoice: invoiceId, limit: 100, expand: ['data.payment.payment_intent'] })
+    .autoPagingToArray({ limit: 1000 })
+  const charges = payments
+    .filter(p => p.status === 'paid')
+    .map(p => {
+      if (p.payment.type === 'charge') return idOf(p.payment.charge ?? null)
+      const intent = p.payment.payment_intent
+      return typeof intent === 'object' && intent ? idOf(intent.latest_charge ?? null) : null
+    })
+    .filter((id): id is string => !!id)
+  if (!charges.length) return ['no_charge']
+  const found = new Set<RefundBlocker>()
+  for (const charge of charges) {
+    const disputes = await stripe.disputes.list({ charge, limit: 100 })
+    if (disputes.data.some(d => !SETTLED_DISPUTES.has(d.status))) found.add('dispute')
+    const warnings = await stripe.radar.earlyFraudWarnings.list({ charge, limit: 1 })
+    if (warnings.data.length) found.add('early_fraud_warning')
+  }
+  return [...found]
 }
 
 /** Events read per type group: one more must fit Stripe's 10,000-item cap on `autoPagingToArray`. */

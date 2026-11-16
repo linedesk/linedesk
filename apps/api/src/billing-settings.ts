@@ -143,14 +143,22 @@ export function refusedStripeKey(secretKey: string | undefined, env: Env = serve
 }
 
 /**
- * The billing keys are set, removed or picked only by an instance admin signed in as themselves who confirmed with
- * their passkey: never through an AI agent's setup link, an API key or an impersonation (like enrolment codes).
+ * Money is changed only by an instance admin signed in as themselves who confirmed with their passkey: never through
+ * an AI agent's setup link, an API key, a personal key or an impersonation (like enrolment codes). A personal key made
+ * after the passkey check carries that check until it is revoked, so it is refused by name. One check for the billing
+ * keys and the Server admin › Billing writes, so the two never drift apart again (security review of #919, H1).
  */
-export function refuseMoneyKeysChange(actor: Actor) {
+function refuseUnlessSignedInWithPasskey(actor: Actor, what: string) {
   if (actor.setupKeyId || actor.apiKeyId || actor.personalKeyId || actor.impersonation)
-    throw new Forbidden('only an instance admin signed in as themselves can change the billing keys')
-  if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden('confirm with your passkey to change the billing keys')
+    throw new Forbidden(`only an instance admin signed in as themselves can change ${what}`)
+  if (!mayReceiveEnrolmentCode(actor)) throw new Forbidden(`confirm with your passkey to change ${what}`)
 }
+
+/** The billing keys are set, removed or picked only by an instance admin as themselves, with their passkey. */
+export const refuseMoneyKeysChange = (actor: Actor) => refuseUnlessSignedInWithPasskey(actor, 'the billing keys')
+
+/** Every Server admin › Billing write (billing-admin.ts) and reprocessing a Stripe event: the same rule. */
+export const refuseMoneyChange = (actor: Actor) => refuseUnlessSignedInWithPasskey(actor, 'billing')
 
 /**
  * Locks the switch's row (made first if missing) until the transaction ends: a key change and the switch never run

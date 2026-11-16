@@ -18,6 +18,7 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { SecondPasskeyNote } from './SecondPasskeyNote.tsx'
 import { AuditLog } from './AuditLog.tsx'
+import { Billing, useBillTitle } from './Billing.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Onboarding } from './Onboarding.tsx'
@@ -177,7 +178,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const workspace =
     place.section === 'workspaces' && place.id ? data?.workspaces.find(w => w.id === place.id) : undefined
   const user = place.section === 'users' && place.id ? data?.users.find(u => u.id === place.id) : undefined
-  const detailTitle = workspace?.name ?? (user ? user.name || user.email : null)
+  const billTitle = useBillTitle(place.section === 'billing' ? place.id : null)
+  const detailTitle = workspace?.name ?? (user ? user.name || user.email : billTitle)
   const viewerWorkspaces = new Set(data?.users.find(u => u.id === currentUserId)?.workspaces.map(w => w.id))
 
   function page(): ReactNode {
@@ -191,6 +193,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         </>
       )
     if (place.section === 'onboarding') return <Onboarding />
+    // Billing loads its own rows (the bills, the Stripe events), and says itself when a bill is not found.
+    if (place.section === 'billing') return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} />
     if (!data)
       return (
         <div className="adm-card adm-listcard">

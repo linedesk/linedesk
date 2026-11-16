@@ -7,19 +7,31 @@
 //   voided goes through PR 4's failed-recharge rules (rechargeFailed). The admins already hear of every attempt
 //   pending for more than 2 hours from PR 4's stuck-recharge alert (hourly, and nightly for all), so this run reports
 //   none itself: one alert, one settlement (review of #865, M1);
+// - refunds from the balance still pending after a few minutes (their action failed after Stripe was asked) are
+//   settled from Stripe: one Stripe made is posted now and reported, one Stripe never made is voided (review of
+//   #919, M2);
 // - every bill with a subscription is compared with Stripe: status, period, seats, and the card a recharge charges;
 // - events that failed five times are counted; stored events older than 90 days are removed, billing on or off (L4).
 //
 // Differences are reported to the instance admins, never "fixed" from Stripe's side here: a status or quantity change
 // has its own path (the webhook, the dunning jobs, the admin actions).
 import { type BillingProvider, type BillingSubscription, WEBHOOK_EVENTS } from '@linedesk/billing'
-import { billing_accounts, billing_recharges, organization, stripe_events, type Tx } from '@linedesk/db'
+import {
+  billing_accounts,
+  billing_recharges,
+  billing_refunds,
+  organization,
+  stripe_events,
+  type Tx,
+} from '@linedesk/db'
 import { and, eq, gte, isNotNull, isNull, like, lt, not, or, sql } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
+import { settlePendingRefunds } from './billing-admin.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import { db } from './db.ts'
 import { billingReconcileAlert, type ReconcileFinding } from './emails/billing-alerts.ts'
+import { lockBalance } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import {
   failRechargeInvoice,
@@ -97,6 +109,26 @@ async function settleOldRecharges(provider: BillingProvider, now: Date) {
   return settled
 }
 
+/**
+ * Refunds from the balance whose action did not finish (billing-admin.ts `settlePendingRefunds`): each bill's under its
+ * balance lock. A refund Stripe made without its ledger entry is posted now and reported.
+ */
+async function settleRefunds(provider: BillingProvider, now: Date): Promise<ReconcileFinding[]> {
+  const bills = await db
+    .selectDistinct({ id: billing_refunds.billing_account_id })
+    .from(billing_refunds)
+    .where(eq(billing_refunds.status, 'pending'))
+  const findings: ReconcileFinding[] = []
+  for (const { id } of bills) {
+    const { posted } = await db.transaction(async tx => {
+      await lockBalance(tx, id)
+      return settlePendingRefunds(tx, provider, id, now.toISOString())
+    })
+    for (const p of posted) findings.push({ kind: 'refund', bill: id, ours: p.refundId, stripe: p.creditNoteId })
+  }
+  return findings
+}
+
 /** Every bill with a subscription against Stripe's: status, period, seats, the card a recharge charges. */
 async function billsAgainstStripe(provider: BillingProvider): Promise<ReconcileFinding[]> {
   const bills = await db.select().from(billing_accounts).where(isNotNull(billing_accounts.stripe_subscription_id))
@@ -172,6 +204,7 @@ export async function reconcileBilling(now = new Date(), options: { eventLimit?:
   const findings: ReconcileFinding[] = [
     ...(missed ? [{ kind: 'missed_events' as const, count: missed }] : []),
     ...(truncated ? [{ kind: 'events_truncated' as const, count: eventLimit }] : []),
+    ...(await settleRefunds(provider, now)),
     ...(await billsAgainstStripe(provider)),
   ]
   const failed = await failedEvents()

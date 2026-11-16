@@ -7,6 +7,7 @@ import * as personalKeys from './personal-keys.ts'
 import * as records from './records.ts'
 import * as assistantVersions from './assistant-versions.ts'
 import * as billing from './billing.ts'
+import * as billingAdmin from './billing-admin.ts'
 import * as branding from './branding.ts'
 import * as business from './business.ts'
 import * as calendar from './calendar.ts'
@@ -55,6 +56,7 @@ export * from './prompt-texts.ts'
 export * from './system-prompt.ts'
 export * from './assistant-versions.ts'
 export * from './billing.ts'
+export * from './billing-admin.ts'
 export * from './branding.ts'
 export * from './business.ts'
 export * from './calendar.ts'
@@ -255,6 +257,22 @@ const all = [
   billing.billingProcessStripeEvent,
   billing.billingSettleInvoice,
   billing.billingReprocessEvent,
+  billingAdmin.billingAdminBills,
+  billingAdmin.billingAdminBill,
+  billingAdmin.billingAdminEvents,
+  billingAdmin.billingAdminReview,
+  billingAdmin.billingRulesGet,
+  billingAdmin.signupGetSelfServe,
+  billingAdmin.billingCredit,
+  billingAdmin.billingAdminSetStatus,
+  billingAdmin.billingRefund,
+  billingAdmin.billingSetCap,
+  billingAdmin.billingSetConcurrency,
+  billingAdmin.billingMoveWorkspace,
+  billingAdmin.billingTransferOwner,
+  billingAdmin.billingReviewHold,
+  billingAdmin.billingRulesSet,
+  billingAdmin.signupSetSelfServe,
   admin.impersonationEmailsGet,
   admin.impersonationEmailsSet,
   workspaceCreation.workspaceCreate,

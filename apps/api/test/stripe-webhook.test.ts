@@ -451,7 +451,10 @@ describe('invoice.paid for a recharge', () => {
     // event for the same invoice: still one credit.
     expect((await deliver(JSON.stringify(evt))).status).toBe(200)
     expect(await processStripeEventJob(evt.id as string)).toEqual({ skipped: 'processed' })
-    expect((await act(operator, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(200)
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: evt.id, reason: 'Stripe was down for an hour' }))
+        .status,
+    ).toBe(200)
     expect(await processStripeEventJob(evt.id as string)).toMatchObject({ credited: { posted: false } })
     expect(await deliverAndProcess(event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!)))).toMatchObject({
       credited: { posted: false },
@@ -711,6 +714,41 @@ describe('invoice.paid for a plan', () => {
       'canceled',
     )
   })
+
+  test('a payment does not lift a suspension an instance admin made (review of #865, N1; PR 13)', async () => {
+    const subscriptionId = rid('sub')
+    const { bill, ws } = await billWith({
+      status: 'suspended',
+      suspend_reason: 'admin',
+      suspended_at: new Date().toISOString(),
+      stripe_subscription_id: subscriptionId,
+    })
+    await db.update(organization).set({ billingState: 'suspended' }).where(eq(organization.id, ws.id))
+    stripe.subscriptions.set(subscriptionId, {
+      id: subscriptionId,
+      object: 'subscription',
+      customer: bill.stripe_customer_id,
+      status: 'active',
+      cancel_at_period_end: false,
+      trial_end: null,
+      default_payment_method: null,
+      items: list([], '/v1/subscription_items'),
+    })
+    const invoiceId = rid('in')
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        parent: { type: 'subscription_details', subscription_details: { subscription: subscriptionId } },
+      }),
+    )
+    paidBy(invoiceId, 2000)
+    expect(await deliverAndProcess(event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!)))).toMatchObject({
+      plan: 'unchanged',
+    })
+    const [after] = await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))
+    expect(after).toMatchObject({ status: 'suspended', suspend_reason: 'admin' })
+    expect((await db.select().from(organization).where(eq(organization.id, ws.id)))[0]!.billingState).toBe('suspended')
+  })
 })
 
 /** A subscription as Stripe returns it: one item per lookup key, a month from now. */
@@ -774,7 +812,10 @@ describe('invoice.paid of Checkout’s first invoice, before the bill has its su
     // Processed with its effect; an admin's reprocess applies it as the bill's own subscription, linking nothing again.
     expect(await storedEvent(evt.id as string)).toMatchObject({ last_error: null })
     expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
-    expect((await act(operator, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(200)
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: evt.id, reason: 'Stripe was down for an hour' }))
+        .status,
+    ).toBe(200)
     const again = await processStripeEventJob(evt.id as string)
     expect(again).toMatchObject({ outcome: 'applied', plan: 'active' })
     expect(again).not.toHaveProperty('linked')
@@ -890,7 +931,10 @@ describe('invoice.payment_failed and invoice.voided for a recharge (PR 4’s fai
     expect(await alertsOf(bill.id)).toMatchObject([{ kind: 'recharge_failed', ref: invoiceId }])
     expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
     // Again (a redelivery, a reprocess): nothing more.
-    expect((await act(operator, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(200)
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: evt.id, reason: 'Stripe was down for an hour' }))
+        .status,
+    ).toBe(200)
     expect(await processStripeEventJob(evt.id as string)).toEqual({ outcome: 'applied', bill: bill.id })
     expect(await alertsOf(bill.id)).toHaveLength(1)
   })
@@ -1068,7 +1112,10 @@ describe('the processor', () => {
     stripe.failWith = null
     stripe.invoices.set(invoiceId, invoice(invoiceId, bill.stripe_customer_id!, { lines: [rechargeLine(recharge.id)] }))
     paidBy(invoiceId, 2000)
-    expect((await act(operator, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(200)
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: evt.id, reason: 'Stripe was down for an hour' }))
+        .status,
+    ).toBe(200)
     expect(await storedEvent(evt.id as string)).toMatchObject({ attempts: 0, last_error: null })
     expect(await processStripeEventJob(evt.id as string)).toMatchObject({ credited: { posted: true } })
     expect(await balanceOf(bill.id)).toBe(20_000_000)
@@ -1126,9 +1173,22 @@ describe('who runs what', () => {
     const { ws } = await billWith()
     const evt = event('customer.updated', { id: rid('cus') })
     expect((await deliver(JSON.stringify(evt))).status).toBe(200)
-    expect((await act(ws.owner, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(403)
-    expect((await act(operator, 'billing.reprocessEvent', { eventId: 'evt_unknown123' })).status).toBe(409)
-    expect((await act(operator, 'billing.reprocessEvent', { eventId: evt.id })).status).toBe(200)
+    expect(
+      (await act(ws.owner, 'billing.reprocessEvent', { eventId: evt.id, reason: 'Stripe was down for an hour' }))
+        .status,
+    ).toBe(403)
+    expect(
+      (
+        await act(operator, 'billing.reprocessEvent', {
+          eventId: 'evt_unknown123',
+          reason: 'Stripe was down for an hour',
+        })
+      ).status,
+    ).toBe(409)
+    expect(
+      (await act(operator, 'billing.reprocessEvent', { eventId: evt.id, reason: 'Stripe was down for an hour' }))
+        .status,
+    ).toBe(200)
     const logged = await db
       .select()
       .from(commands)

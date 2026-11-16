@@ -28,7 +28,7 @@ import {
   type Tx,
   usage_counters,
 } from '@linedesk/db'
-import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
 import { checkLedgerGuards, missingLedgerGuards } from './ledger-guards.ts'
 import { closedLegSeconds } from './transfer-legs.ts'
@@ -81,6 +81,23 @@ export async function periodAt(tx: Tx, billId: string, at: string) {
       ),
     )
   return period ?? null
+}
+
+/**
+ * The bill's period for money posted now (a credit, a refund): the one that contains now, else its latest, so money
+ * that moved after the last period closed (a refund up to 90 days after the bill ended) still has a place. Null only
+ * for a bill without any period.
+ */
+export async function periodForMoney(tx: Tx, billId: string, now: string) {
+  const current = await periodAt(tx, billId, now)
+  if (current) return current
+  const [latest] = await tx
+    .select()
+    .from(billing_periods)
+    .where(eq(billing_periods.billing_account_id, billId))
+    .orderBy(desc(billing_periods.starts_at))
+    .limit(1)
+  return latest ?? null
 }
 
 async function workspacesOnBill(tx: Tx, billId: string): Promise<number> {
@@ -229,6 +246,7 @@ export async function reserveCall(tx: Tx, input: ReserveInput): Promise<ReserveA
       reservedMicros: balance.reserved_micros,
       running: running?.n ?? 0,
       workspaces: await workspacesOnBill(tx, input.billId),
+      concurrencyCap: bill.concurrent_calls_cap,
     },
     reservedMicros,
     rules,

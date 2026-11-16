@@ -201,6 +201,40 @@ export const WEBHOOK_EVENTS = [
 /** The name of the card-only payment method configuration the bootstrap makes and Checkout uses (docs/billing.md §2.4). */
 export const CHECKOUT_PMC_NAME = 'Linedesk Checkout'
 
+/**
+ * Why a paid invoice's payment may not be refunded from the balance (docs/billing.md §4.5, M4): a dispute that is open
+ * or lost (a refund would pay the money out twice), an early fraud warning (the instance admin refunds that charge
+ * itself, PR 11), or no card payment at all (paid out of band or from a credit balance).
+ */
+export type RefundBlocker = 'dispute' | 'early_fraud_warning' | 'no_charge'
+
+/** A refund of part of a paid invoice's line (a recharge or a top-up): a credit note that refunds the card. */
+export type InvoiceRefundInput = {
+  invoiceId: string
+  /** The line refunded (the recharge's or top-up's invoice item). */
+  lineId: string
+  /** Pre-tax, in cents: what leaves the balance. The tax on it is refunded with it (the credit note computes it). */
+  amountCents: number
+  /** The Stripe idempotency key: the same request never refunds twice. */
+  idempotencyKey: string
+  /** The credit note's memo (the customer sees it). */
+  memo: string
+}
+
+/** What a refund came to: the credit note, the card refund it made, and what went back to the card (tax included). */
+export type InvoiceRefund = { creditNoteId: string; refundId: string | null; refundedCents: number }
+
+/**
+ * The seat quantity of a subscription (docs/billing.md §2.1): `always_invoice` on a yearly bill that grows (paid now),
+ * `create_prorations` on a monthly one, `none` when it shrinks (no refund for the rest of the period).
+ */
+export type SeatQuantityInput = {
+  subscriptionId: string
+  quantity: number
+  prorationBehavior: 'always_invoice' | 'create_prorations' | 'none'
+  idempotencyKey: string
+}
+
 /** Stripe's default: a signature older than five minutes is refused (replays). */
 export const WEBHOOK_TOLERANCE_SECONDS = 300
 
@@ -255,6 +289,19 @@ export type BillingProvider = {
     types: readonly string[],
     limit?: number,
   ): Promise<{ events: BillingEvent[]; truncated: boolean }>
+  /** What stops a refund of this paid invoice's payment; empty: none (Server admin › Billing, `billing.refund`). */
+  refundBlockers(invoiceId: string): Promise<RefundBlocker[]>
+  /** Refunds part of a paid invoice's line to the card, with a credit note (keeps the tax right). */
+  refundInvoice(input: InvoiceRefundInput): Promise<InvoiceRefund>
+  /**
+   * The refund `refundInvoice` made on this invoice with this idempotency key (the credit note's `metadata.linedesk_refund`),
+   * or null when there is none: how a refund whose ledger entry was not posted is settled later (review of #919, M2).
+   */
+  findRefund(invoiceId: string, idempotencyKey: string): Promise<InvoiceRefund | null>
+  /** The invoice a paid Checkout session made ("Buy minutes": `invoice_creation`), or null. */
+  checkoutInvoice(sessionId: string): Promise<string | null>
+  /** Sets the seat item's quantity; `no_seat_item` when the subscription has none (a seat price is `ws_…`). */
+  setSeatQuantity(input: SeatQuantityInput): Promise<'updated' | 'unchanged' | 'no_seat_item'>
 }
 
 /** The keys of the `stripe` adapter, as stored under Server admin › Providers › Billing. */

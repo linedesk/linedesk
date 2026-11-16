@@ -34,8 +34,9 @@ test('Providers: a group scrolls, a provider opens its dialog, old category and 
 
 test('Tab and Shift-Tab go round the sections', () => {
   expect(nextSection('overview', false)).toBe('workspaces')
-  expect(nextSection('overview', true)).toBe('audit')
-  expect(nextSection('audit', false)).toBe('overview')
+  expect(nextSection('overview', true)).toBe('billing')
+  expect(nextSection('audit', false)).toBe('billing')
+  expect(nextSection('billing', false)).toBe('overview')
 })
 
 test('Tab switches sections only from the page body, never from a control', () => {
@@ -57,10 +58,11 @@ test('section names and descriptions are message keys, so every language shows i
   expect(enMessages[adminSections.find(s => s.id === 'audit')!.label]).toBe('Audit log')
 })
 
-test('digits 1 to 9, then 0, open the sections in order (LIN-346: ten sections)', () => {
-  const keys = adminSections.map((_, i) => sectionKey(i))
-  expect(new Set(keys).size).toBe(adminSections.length)
-  expect(keys.slice(0, 2)).toEqual(['1', '2'])
-  expect(sectionKey(9)).toBe('0')
-  for (const [i] of adminSections.entries()) expect(sectionIndexOfKey(sectionKey(i))).toBe(i)
+test('digits 1 to 9, then 0, open the first ten sections in order; Billing, the eleventh, has none', () => {
+  const keys = adminSections.slice(0, 10).map((_, i) => sectionKey(i))
+  expect(keys).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
+  for (const [i] of keys.entries()) expect(sectionIndexOfKey(sectionKey(i)!)).toBe(i)
+  expect(adminSections[10]!.id).toBe('billing')
+  expect(sectionKey(10)).toBeUndefined()
+  expect(parseAdminHash('#admin/billing/bill_1')).toEqual({ section: 'billing', id: 'bill_1' })
 })

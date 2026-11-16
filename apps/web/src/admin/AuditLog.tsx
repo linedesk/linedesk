@@ -53,10 +53,26 @@ const roleOf = (role: unknown) => (role === 'owner' || role === 'admin' ? role :
 /** Why an admin signed in as a user (user.impersonate's reason), or null: entries from before it was asked for have none. */
 export function auditReason(e: Pick<AuditEntry, 'what' | 'input'>): string | null {
   const reason = (e.input as { reason?: unknown } | null)?.reason
-  return e.what === 'user.impersonate' && typeof reason === 'string' && reason.trim()
+  return REASONED.has(e.what) && typeof reason === 'string' && reason.trim()
     ? t('admin.audit.reason', { reason: reason.trim() })
     : null
 }
+
+/** Actions that ask the admin why (support access; Server admin › Billing): the log shows the reason under them. */
+const REASONED = new Set([
+  'user.impersonate',
+  'billing.credit',
+  'billing.adminSetStatus',
+  'billing.refund',
+  'billing.setCap',
+  'billing.setConcurrency',
+  'billing.moveWorkspace',
+  'billing.transferOwner',
+  'billing.reviewHold',
+  'billingRules.set',
+  'signup.setSelfServe',
+  'billing.reprocessEvent',
+])
 
 /** What happened, in a few words. */
 export function auditLabel(
@@ -101,9 +117,7 @@ export function auditLabel(
       // Whom it was: kept by the handler since the reason was added; older entries have none.
       return subject ? t('admin.audit.impersonateAs', { who: subject }) : t('admin.audit.impersonate')
     case 'impersonationEmails.set':
-      return input.on === true
-        ? t('admin.audit.impersonationEmailsOn')
-        : t('admin.audit.impersonationEmailsOff')
+      return input.on === true ? t('admin.audit.impersonationEmailsOn') : t('admin.audit.impersonationEmailsOff')
     case 'impersonation.stop':
       return t('admin.audit.impersonationStop')
     case 'provider.setKeys':
@@ -160,9 +174,7 @@ export function auditLabel(
     case 'apiKey.create':
       return t('admin.audit.apiKeyCreated', name)
     case 'apiKey.revoke':
-      return e.apiKeyName
-        ? t('admin.audit.apiKeyRevokedNamed', { name: e.apiKeyName })
-        : t('admin.audit.apiKeyRevoked')
+      return e.apiKeyName ? t('admin.audit.apiKeyRevokedNamed', { name: e.apiKeyName }) : t('admin.audit.apiKeyRevoked')
     case 'workspace.rename':
       return t('admin.audit.workspaceRenamed', name)
     case 'notifications.update':
@@ -241,6 +253,32 @@ export function auditLabel(
       return t('admin.audit.setupEmailsSet')
     case 'billingEnabled.set':
       return t('admin.audit.billingEnabledSet', { on: input.on === true ? 'yes' : 'no' })
+    case 'billing.credit':
+      return t('admin.audit.billingCredit', {
+        kind: String(input.kind ?? ''),
+        amount: usd(Math.abs(Number(input.amountCents)) / 100),
+        negative: Number(input.amountCents) < 0 ? 'yes' : 'no',
+      })
+    case 'billing.refund':
+      return t('admin.audit.billingRefund', { amount: usd(Number(input.amountCents) / 100) })
+    case 'billing.adminSetStatus':
+      return t('admin.audit.billingStatus', { status: String(input.status ?? '') })
+    case 'billing.setCap':
+      return t('admin.audit.billingCap', { amount: usd(Number(input.capBaseCents) / 100) })
+    case 'billing.setConcurrency':
+      return input.concurrentCalls === null
+        ? t('admin.audit.billingConcurrencyReset')
+        : t('admin.audit.billingConcurrency', { count: Number(input.concurrentCalls) })
+    case 'billing.moveWorkspace':
+      return t('admin.audit.billingMoveWorkspace')
+    case 'billing.transferOwner':
+      return t('admin.audit.billingTransferOwner')
+    case 'billing.reviewHold':
+      return t('admin.audit.billingReview', { decision: input.decision === 'approve' ? 'approve' : 'deny' })
+    case 'billingRules.set':
+      return t('admin.audit.billingRulesSet')
+    case 'signup.setSelfServe':
+      return t('admin.audit.selfServeSet', { on: input.on === true ? 'yes' : 'no' })
     case 'calendar.connectFinish': {
       const calendar = calendarNames[String(input.provider)]
       return t('admin.audit.calendarConnected', { calendar: calendar ?? '', known: known(calendar) })
@@ -261,9 +299,12 @@ export function auditLabel(
     case 'assistant.update':
       if (e.transferChanges)
         return t('admin.audit.transferContactsChanged', { changes: transferChangeList(e.transferChanges) })
-      if (e.usageLevelChange) return t('admin.audit.usageLevelChanged', { changes: levelChangeList(e.usageLevelChange) })
+      if (e.usageLevelChange)
+        return t('admin.audit.usageLevelChanged', { changes: levelChangeList(e.usageLevelChange) })
       // A refused change (no result): its input had the contacts.
-      return Array.isArray(input.transfers) ? t('admin.audit.transferContactsEdited') : t('admin.audit.assistantChanged')
+      return Array.isArray(input.transfers)
+        ? t('admin.audit.transferContactsEdited')
+        : t('admin.audit.assistantChanged')
     case 'assistant.restoreVersion':
       if (e.transferChanges)
         return t('admin.audit.transferContactsRestored', { changes: transferChangeList(e.transferChanges) })

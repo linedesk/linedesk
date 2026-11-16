@@ -285,7 +285,10 @@ describe('the gate in call.start', () => {
 
   test('a bill that is not in service refuses as billing_inactive; one with balance after the allowance allows', async () => {
     const suspended = await billed('active')
-    await db.update(billing_accounts).set({ status: 'suspended' }).where(eq(billing_accounts.id, suspended.billId))
+    await db
+      .update(billing_accounts)
+      .set({ status: 'suspended', suspend_reason: 'payment' })
+      .where(eq(billing_accounts.id, suspended.billId))
     expect(await start(suspended.ws)).toMatchObject({ blocked: true, refused: 'billing_inactive' })
     const paying = await billed('active', { allowanceUsed: true, creditMicros: 2_000_000 })
     const started = await start(paying.ws)

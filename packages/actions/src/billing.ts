@@ -55,13 +55,17 @@ export const billingSettleInvoice = defineAction({
 
 /**
  * Processes a stored Stripe event again (Server admin › Billing › Events): it is queued as if it had just arrived, and
- * everything it does happens once (the ledger's unique source keys).
+ * everything it does happens once (the ledger's unique source keys). Like every billing write, only an instance admin
+ * signed in as themselves with their passkey, and with a reason for the audit log (security review of #919, I3).
  */
 export const billingReprocessEvent = defineAction({
   name: 'billing.reprocessEvent',
   description:
-    'Process a stored Stripe event again, for example after it failed five times. Every effect it has (a credit, a status) happens once.',
-  input: z.object({ eventId: stripeEventId }),
+    'Process a stored Stripe event again, for example after it failed five times. Every effect it has (a credit, a status) happens once. Needs the reason, kept in the audit log.',
+  input: z.object({
+    eventId: stripeEventId,
+    reason: z.string().trim().min(3, 'say why, in a few words').max(500),
+  }),
   permission: 'instance:admin',
 })
 

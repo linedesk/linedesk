@@ -87,6 +87,8 @@ export type ReconcileFinding =
   /** Stripe listed more events than the run reads: the oldest of them were not compared (security review of #865, L5). */
   | { kind: 'events_truncated'; count: number }
   | { kind: 'status' | 'period' | 'quantity' | 'payment_method'; bill: string; ours: string; stripe: string }
+  /** A refund Stripe made whose ledger entry was missing: posted by this run (`ours`: the refund row, `stripe`: the credit note). */
+  | { kind: 'refund'; bill: string; ours: string; stripe: string }
   | { kind: 'failed_events'; count: number }
   /** The run itself failed (Stripe unreachable, the ledger guards missing): nothing was compared. */
   | { kind: 'run_failed'; error: string }

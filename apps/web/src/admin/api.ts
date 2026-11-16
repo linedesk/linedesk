@@ -6,6 +6,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { i18n } from '../i18n/index.tsx'
 import {
   type AgentSetupState,
+  type BillingEventFilter,
   type BrandingInput,
   type CalendarTool,
   type CalendarToolMode,
@@ -311,6 +312,33 @@ type AdminInputs = {
   }
   'provider.tryOut': { kind: TryOutKind; areaCode?: string }
   'provider.confirmEmail': { code: string }
+  // Server admin › Billing (Billing.tsx): reads, then the writes, which carry a reason and, where they reach Stripe, a
+  // request id (one per dialog).
+  'billing.adminBills': Record<string, never>
+  'billing.adminBill': { billingAccountId: string }
+  'billing.adminEvents': { filter?: BillingEventFilter; before?: string }
+  'billing.adminReview': Record<string, never>
+  'billingRules.get': Record<string, never>
+  'signup.getSelfServe': Record<string, never>
+  'billing.reprocessEvent': { eventId: string; reason: string }
+  'billing.credit': {
+    billingAccountId: string
+    kind: 'credit' | 'writeoff' | 'adjustment'
+    amountCents: number
+    reason: string
+    requestId: string
+    rechargeId?: string
+    reversesEntryId?: string
+  }
+  'billing.adminSetStatus': { billingAccountId: string; status: 'comped' | 'suspended' | 'active'; reason: string }
+  'billing.refund': { billingAccountId: string; amountCents: number; reason: string; requestId: string }
+  'billing.setCap': { billingAccountId: string; capBaseCents: number; reason: string }
+  'billing.setConcurrency': { billingAccountId: string; concurrentCalls: number | null; reason: string }
+  'billing.moveWorkspace': { workspaceId: string; toBillingAccountId: string; reason: string; requestId: string }
+  'billing.transferOwner': { billingAccountId: string; userId: string; reason: string }
+  'billing.reviewHold': { billingAccountId: string; decision: 'approve' | 'deny'; reason: string }
+  'billingRules.set': { rules: Record<string, unknown>; reason: string }
+  'signup.setSelfServe': { on: boolean; reason: string }
 }
 
 /**
@@ -352,6 +380,16 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'provider.setKeys': msg('admin.stepUp.what.providerSetKeys'),
   'provider.clearKeys': msg('admin.stepUp.what.providerClearKeys'),
   'outboundCountries.set': msg('admin.stepUp.what.outboundCountriesSet'),
+  'billing.credit': msg('admin.stepUp.what.billingMoney'),
+  'billing.adminSetStatus': msg('admin.stepUp.what.billingMoney'),
+  'billing.refund': msg('admin.stepUp.what.billingMoney'),
+  'billing.setCap': msg('admin.stepUp.what.billingMoney'),
+  'billing.setConcurrency': msg('admin.stepUp.what.billingMoney'),
+  'billing.moveWorkspace': msg('admin.stepUp.what.billingMoney'),
+  'billing.transferOwner': msg('admin.stepUp.what.billingMoney'),
+  'billing.reviewHold': msg('admin.stepUp.what.billingMoney'),
+  'billingRules.set': msg('admin.stepUp.what.billingRules'),
+  'signup.setSelfServe': msg('admin.stepUp.what.selfServe'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {
@@ -446,7 +484,12 @@ export type AuditEntry = {
   ipAddress: string | null
 }
 /** What decides an assistant's usage level, as the audit log keeps it (null: the server's default). */
-export type LevelFields = { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null; realtime_model?: string | null }
+export type LevelFields = {
+  voice_model: string | null
+  llm_model: string | null
+  voice_pipeline: string | null
+  realtime_model?: string | null
+}
 /** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */
 export type AuditFilter = {
   kind?: AuditKind

@@ -20,4 +20,9 @@ export const noneBillingProvider: BillingProvider = {
   invoice: async () => null,
   subscription: async () => null,
   recentEvents: async () => ({ events: [], truncated: false }),
+  refundBlockers: off,
+  refundInvoice: off,
+  findRefund: off,
+  checkoutInvoice: off,
+  setSeatQuantity: off,
 }

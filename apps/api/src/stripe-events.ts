@@ -22,24 +22,23 @@ import type {
 import {
   billing_accounts,
   billing_invoices,
-  billing_periods,
   billing_recharges,
   organization,
   PLAN_PRICES,
   stripe_events,
   type Tx,
 } from '@linedesk/db'
-import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { rechargeFailed } from './billing-recharge.ts'
-import { billingProvider, billingState } from './billing-settings.ts'
+import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type NotCreditedReason, rechargeNotCreditedAlert, stripeEventFailedAlert } from './emails/billing-alerts.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
 import { jobQueue } from './jobs.ts'
-import { lockBalance, periodAt, postEntry } from './ledger.ts'
+import { lockBalance, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
 /** Processes one stored event. */
@@ -284,16 +283,9 @@ export function notCreditedReason(
 
 /** The bill's period for an entry posted now: the one that contains now, else its latest (a credit is never lost). */
 async function periodForCredit(tx: Tx, billId: string, now: string) {
-  const current = await periodAt(tx, billId, now)
-  if (current) return current
-  const [latest] = await tx
-    .select()
-    .from(billing_periods)
-    .where(eq(billing_periods.billing_account_id, billId))
-    .orderBy(desc(billing_periods.starts_at))
-    .limit(1)
-  if (!latest) throw new Error(`billing: bill ${billId} has no period to credit a recharge in`)
-  return latest
+  const period = await periodForMoney(tx, billId, now)
+  if (!period) throw new Error(`billing: bill ${billId} has no period to credit a recharge in`)
+  return period
 }
 
 /** Credits a paid recharge once (docs/billing.md §2.2): the attempt becomes `paid`, the balance gets the pre-tax amount. */
@@ -365,18 +357,20 @@ const ACTIVATED_BY_PAYMENT: readonly Bill['status'][] = ['trialing', 'active', '
 /** A paid plan invoice (docs/billing.md §3.2 step 9, §3.4): the bill active, its period from the fetched subscription. */
 async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | null, now: string) {
   if (subscription?.status !== 'active' || !ACTIVATED_BY_PAYMENT.includes(bill.status)) return 'unchanged' as const
+  // A payment lifts only a payment suspension: one an instance admin made (or a dispute's) stays (review of #865, N1).
+  // Fails closed: a suspension without a reason (the database refuses one, review of #919 L1) stays too.
+  const held = bill.status === 'suspended' && bill.suspend_reason !== 'payment'
   await tx
     .update(billing_accounts)
     .set({
-      status: 'active',
-      past_due_since: null,
-      suspended_at: null,
+      ...(held ? {} : { status: 'active' as const, past_due_since: null, suspended_at: null, suspend_reason: null }),
       current_period_start: subscription.currentPeriodStart,
       current_period_end: subscription.currentPeriodEnd,
       ...(subscription.interval ? { interval: subscription.interval } : {}),
       updated_at: now,
     })
     .where(eq(billing_accounts.id, bill.id))
+  if (held) return 'unchanged' as const
   await tx.update(organization).set({ billingState: 'active' }).where(eq(organization.billingAccountId, bill.id))
   return 'active' as const
 }
@@ -534,7 +528,8 @@ export const stripeEventHandlers: Record<string, Handler> = {
     return { rows: {}, data: outcome }
   },
 
-  'billing.reprocessEvent': async ({ tx }, input: { eventId: string }) => {
+  'billing.reprocessEvent': async ({ tx, actor }, input: { eventId: string; reason: string }) => {
+    refuseMoneyChange(actor)
     const [event] = await tx
       .update(stripe_events)
       .set({ processed_at: null, attempts: 0, last_error: null })

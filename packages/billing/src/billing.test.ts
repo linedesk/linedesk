@@ -392,6 +392,21 @@ describe('stripe recharges', () => {
     },
   )
 
+  test('an uncollectible invoice is voided when asked, so the customer cannot still pay it (re-review of #919, R4)', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('uncollectible', 2000, { auto_advance: false })],
+      'POST /v1/invoices/in_1Rc/void': () => [200, invoice('void')],
+    })
+    const stripe = await stripeWith(doFetch)
+    await stripe.stopRechargeInvoice('in_1Rc', { void: true })
+    await stripe.stopRechargeInvoice('in_1Rc', { void: false })
+    expect(calls.map(c => c.route)).toEqual([
+      'GET /v1/invoices/in_1Rc',
+      'POST /v1/invoices/in_1Rc/void',
+      'GET /v1/invoices/in_1Rc',
+    ])
+  })
+
   test('a failed draft is deleted, or kept with collection off when it is not voided', async () => {
     const { doFetch, calls } = stripeRoutes({
       'GET /v1/invoices/in_1Rc': () => [200, invoice('draft', 2000, { auto_advance: true })],
@@ -533,6 +548,165 @@ describe('stripe recharges', () => {
 
   test('none refuses every charge without a network call', async () => {
     await expect(noneBillingProvider.chargeRecharge(recharge)).rejects.toThrow('billing is off')
+  })
+})
+
+describe('stripe refunds and seats (Server admin › Billing, PR 13)', () => {
+  const creditNote = {
+    id: 'cn_1',
+    object: 'credit_note',
+    total: 538,
+    refunds: [{ refund: 're_1', amount_refunded: 538 }],
+  }
+  const refund = {
+    invoiceId: 'in_1Rc',
+    lineId: 'il_1',
+    amountCents: 500,
+    idempotencyKey: 'refund_rf0123456789',
+    memo: 'Refund',
+  }
+
+  test('a refund previews the credit note for its tax, then refunds that total, with the idempotency key', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/credit_notes/preview': () => [200, { ...creditNote, id: 'cn_preview' }],
+      'POST /v1/credit_notes': () => [200, creditNote],
+    })
+    expect(await (await stripeWith(doFetch)).refundInvoice(refund)).toEqual({
+      creditNoteId: 'cn_1',
+      refundId: 're_1',
+      refundedCents: 538,
+    })
+    expect(calls.map(c => [c.route, c.key])).toEqual([
+      ['GET /v1/credit_notes/preview', null],
+      ['POST /v1/credit_notes', 'refund_rf0123456789:credit_note'],
+    ])
+    expect(Object.fromEntries(calls[1]!.body)).toMatchObject({
+      invoice: 'in_1Rc',
+      'lines[0][type]': 'invoice_line_item',
+      'lines[0][invoice_line_item]': 'il_1',
+      'lines[0][amount]': '500',
+      refund_amount: '538',
+      'metadata[linedesk_refund]': 'refund_rf0123456789',
+    })
+  })
+
+  test('a refund is found again by its idempotency key on the invoice’s credit notes, or not at all', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/credit_notes': () => [
+        200,
+        {
+          object: 'list',
+          has_more: false,
+          url: '/v1/credit_notes',
+          data: [
+            { ...creditNote, id: 'cn_other', metadata: { linedesk_refund: 'refund_other' } },
+            { ...creditNote, metadata: { linedesk_refund: 'refund_rf0123456789' } },
+          ],
+        },
+      ],
+    })
+    const stripe = await stripeWith(doFetch)
+    expect(await stripe.findRefund('in_1Rc', 'refund_rf0123456789')).toEqual({
+      creditNoteId: 'cn_1',
+      refundId: 're_1',
+      refundedCents: 538,
+    })
+    expect(await stripe.findRefund('in_1Rc', 'refund_missing')).toBeNull()
+    expect(calls[0]!.route).toBe('GET /v1/credit_notes')
+    await expect(noneBillingProvider.findRefund('in_1Rc', 'refund_rf0123456789')).rejects.toThrow('billing is off')
+  })
+
+  test('a key without the credit note permission is our setup, not a refusal of the card', async () => {
+    const { doFetch } = stripeRoutes({
+      'GET /v1/credit_notes/preview': () => [
+        403,
+        { error: { type: 'invalid_request_error', code: 'permission_denied' } },
+      ],
+    })
+    await expect((await stripeWith(doFetch)).refundInvoice(refund)).rejects.toBeInstanceOf(BillingSetupError)
+  })
+
+  const payments = (charge: string | null) => ({
+    object: 'list',
+    has_more: false,
+    url: '/v1/invoice_payments',
+    data: charge
+      ? [
+          {
+            id: 'inpay_1',
+            object: 'invoice_payment',
+            status: 'paid',
+            amount_paid: 2000,
+            payment: { type: 'charge', charge },
+          },
+        ]
+      : [],
+  })
+  const list = (data: unknown[]) => ({ object: 'list', has_more: false, url: '/v1/x', data })
+
+  test('blockers: an open or lost dispute, an early fraud warning, no card charge; a won dispute is none', async () => {
+    const answer = async (disputes: string[], warnings: number, charge: string | null = 'ch_1') => {
+      const { doFetch } = stripeRoutes({
+        'GET /v1/invoice_payments': () => [200, payments(charge)],
+        'GET /v1/disputes': () => [
+          200,
+          list(disputes.map((status, i) => ({ id: `dp_${i}`, object: 'dispute', status }))),
+        ],
+        'GET /v1/radar/early_fraud_warnings': () => [
+          200,
+          list(Array.from({ length: warnings }, (_, i) => ({ id: `issfr_${i}` }))),
+        ],
+      })
+      return (await stripeWith(doFetch)).refundBlockers('in_1Rc')
+    }
+    expect(await answer([], 0)).toEqual([])
+    expect(await answer(['won'], 0)).toEqual([])
+    expect(await answer(['needs_response'], 0)).toEqual(['dispute'])
+    expect(await answer(['lost'], 1)).toEqual(['dispute', 'early_fraud_warning'])
+    expect(await answer([], 0, null)).toEqual(['no_charge'])
+  })
+
+  test('seats: the ws_ item gets the quantity with the proration and the idempotency key; unchanged asks nothing', async () => {
+    const sub = (quantity: number) => ({
+      id: 'sub_1',
+      object: 'subscription',
+      items: list([
+        { id: 'si_base', object: 'subscription_item', quantity: 1, price: { lookup_key: 'partner_yearly' } },
+        { id: 'si_seat', object: 'subscription_item', quantity, price: { lookup_key: 'ws_yearly' } },
+      ]),
+    })
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/subscriptions/sub_1': () => [200, sub(2)],
+      'POST /v1/subscriptions/sub_1': () => [200, sub(3)],
+    })
+    const stripe = await stripeWith(doFetch)
+    const input = {
+      subscriptionId: 'sub_1',
+      quantity: 3,
+      prorationBehavior: 'always_invoice' as const,
+      idempotencyKey: 'move_r_b',
+    }
+    expect(await stripe.setSeatQuantity(input)).toBe('updated')
+    expect(calls[1]!.key).toBe('move_r_b')
+    expect(Object.fromEntries(calls[1]!.body)).toMatchObject({
+      'items[0][id]': 'si_seat',
+      'items[0][quantity]': '3',
+      proration_behavior: 'always_invoice',
+    })
+    expect(await stripe.setSeatQuantity({ ...input, quantity: 2 })).toBe('unchanged')
+    expect(calls).toHaveLength(3)
+  })
+
+  test('none refuses them without a network call', async () => {
+    await expect(noneBillingProvider.refundInvoice(refund)).rejects.toThrow('billing is off')
+    await expect(
+      noneBillingProvider.setSeatQuantity({
+        subscriptionId: 's',
+        quantity: 1,
+        prorationBehavior: 'none',
+        idempotencyKey: 'k',
+      }),
+    ).rejects.toThrow('billing is off')
   })
 })
 

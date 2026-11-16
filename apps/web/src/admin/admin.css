@@ -1538,3 +1538,25 @@
   margin-top: 4px;
   font-size: 12px;
 }
+
+/* Server admin › Billing: the rules editor (a level's price and allowance side by side) and a refund's payments. */
+.adm-rules {
+  display: grid;
+  gap: 12px;
+}
+.adm-rules-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 559px) {
+  .adm-rules-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.adm-refundable {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
