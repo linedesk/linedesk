@@ -4,10 +4,11 @@
 import { IRREVERSIBLE_ACTIONS, actions } from '@linedesk/actions'
 import { assistants, commands, member, personal_keys, session, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { dropUnprovenAccessOf } from '../src/account-linking.ts'
 import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
+import { emailSender } from '../src/email.ts'
 import { NOT_OVER_MCP_FOR_PERSONAL_KEYS, toolName } from '../src/mcp.ts'
 import { revokePersonalKeysOf, revokeSetupKeysOf } from '../src/passkey-enrolment.ts'
 import {
@@ -94,6 +95,35 @@ describe('managing personal keys', () => {
     expect(list.status).toBe(200)
     expect(JSON.stringify(list.body.data)).not.toContain(key)
     expect(list.body.data.keys.some((k: { name: string }) => k.name === 'Script')).toBe(true)
+  })
+
+  test('making a key needs a sign-in from the last 10 minutes, and emails the person', async () => {
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    try {
+      const person = await addMember(ws.id, 'member')
+      const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, person.userId))
+      await makeKey(person, 'Fresh')
+      await vi.waitFor(() =>
+        expect(send).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: account!.email,
+            subject: 'A personal API key was created for your Linedesk account',
+          }),
+        ),
+      )
+      await db
+        .update(session)
+        .set({ createdAt: new Date(Date.now() - 11 * 60_000) })
+        .where(eq(session.userId, person.userId))
+      expect(await act(person, 'personalKey.create', { name: 'Late' })).toMatchObject({
+        status: 403,
+        body: { code: 'SIGN_IN_AGAIN' },
+      })
+      const rows = await db.select().from(personal_keys).where(eq(personal_keys.user_id, person.userId))
+      expect(rows.map(r => r.name)).toEqual(['Fresh'])
+    } finally {
+      send.mockRestore()
+    }
   })
 
   test('a key never makes, lists or revokes keys', async () => {

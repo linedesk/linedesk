@@ -7,6 +7,7 @@ import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { setQueryData, useQuery } from '../../cachedQuery.ts'
 import { fmt } from '../../i18n/format.ts'
+import { signInAgain } from '../../localData.ts'
 import { Dialog, Input } from '../../ui/form.tsx'
 import { Badge, Button } from '../../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../../ui/list.tsx'
@@ -133,11 +134,14 @@ function CreateKey({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  // Making a key needs a sign-in from the last 10 minutes (the server's SIGN_IN_AGAIN).
+  const [signInFirst, setSignInFirst] = useState(false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError(null)
+    setSignInFirst(false)
     try {
       const result = await callAction<PersonalKeyCreated>('personalKey.create', { name: name.trim() })
       setCreated(result.key)
@@ -146,7 +150,8 @@ function CreateKey({ onClose }: { onClose: () => void }) {
         .then(d => setQueryData<PersonalKeyListData | undefined>(KEYS, d, { persist: true }))
         .catch(() => {})
     } catch (err) {
-      setError((err as Error).message)
+      if ((err as { code?: unknown }).code === 'SIGN_IN_AGAIN') setSignInFirst(true)
+      else setError((err as Error).message)
     } finally {
       setSaving(false)
     }
@@ -200,13 +205,23 @@ function CreateKey({ onClose }: { onClose: () => void }) {
       footer={
         <>
           <Button onClick={onClose}>{t('common.action.cancel')}</Button>
-          <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
-            {saving ? t('settings.developers.dialog.creating') : t('settings.developers.dialog.create')}
-          </Button>
+          {signInFirst ? (
+            <Button variant="primary" title={t('account.signInAgain.title')} onClick={() => void signInAgain()}>
+              {t('account.signInAgain.button')}
+            </Button>
+          ) : (
+            <Button busy={saving} type="submit" variant="primary" disabled={saving || !name.trim()}>
+              {saving ? t('settings.developers.dialog.creating') : t('settings.developers.dialog.create')}
+            </Button>
+          )}
         </>
       }
     >
-      <Field id="ac-key-name" label={t('settings.developers.dialog.name')} error={error}>
+      <Field
+        id="ac-key-name"
+        label={t('settings.developers.dialog.name')}
+        error={signInFirst ? t('account.apiKeys.signInFirst') : error}
+      >
         <Input
           id="ac-key-name"
           maxLength={60}

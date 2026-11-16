@@ -416,6 +416,34 @@ export function passkeyChangedEmail(
   })
 }
 
+/** A personal API key was made for the account (personal-keys.ts; LIN-339 security review M2). */
+export function personalKeyCreatedEmail(
+  name: string,
+  prefix: string,
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const brand = brandName()
+  return renderEmail({
+    locale: lang,
+    subject: t('email.personalKeyCreated.subject', { brand }),
+    preheader: t('email.security.nothingToDo'),
+    eyebrow: t('email.eyebrow.security'),
+    heading: t('email.personalKeyCreated.heading'),
+    blocks: [
+      {
+        kind: 'text',
+        text: `${t('email.personalKeyCreated.text', { name: emailSafeName(name, '-'), prefix, brand, site: siteHost(origin) })} ${t('email.security.nothingToDo')}`,
+      },
+      { kind: 'text', text: t('email.personalKeyCreated.notYou') },
+      { kind: 'button', label: t('email.personalKeyCreated.review'), url: `${origin}/#account/apiKeys` },
+    ],
+    reason: t('email.personalKeyCreated.reason'),
+    origin,
+  })
+}
+
 /** An instance admin's authenticator app was added or removed (authenticator.ts). */
 export function authenticatorChangedEmail(
   change: 'added' | 'removed',
@@ -645,9 +673,19 @@ export function impersonationStartedEmail(
     blocks: [
       {
         kind: 'text',
-        text: t('email.impersonationStarted.text', { by, when, site, brand, workspace: ws, hasWorkspace: ws ? 'yes' : 'no' }),
+        text: t('email.impersonationStarted.text', {
+          by,
+          when,
+          site,
+          brand,
+          workspace: ws,
+          hasWorkspace: ws ? 'yes' : 'no',
+        }),
       },
-      { kind: 'text', text: t('email.impersonationStarted.reason', { reason: defuseLinks(reason.replace(/\s+/g, ' ').trim()) }) },
+      {
+        kind: 'text',
+        text: t('email.impersonationStarted.reason', { reason: defuseLinks(reason.replace(/\s+/g, ' ').trim()) }),
+      },
       { kind: 'text', text: t('email.impersonationStarted.limits', { minutes }) },
       { kind: 'text', tone: 'muted', text: t('email.impersonationStarted.unexpected') },
     ],

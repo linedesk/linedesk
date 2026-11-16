@@ -508,6 +508,27 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "personal-key-created",
+    "A personal API key was created for your Linedesk account",
+    "Security notice
+
+A personal API key was created
+
+A personal API key named "Laptop command line" (starting ldp_AbCd1234) was created for your Linedesk account at desk.example.com. It can do everything you can, in every workspace you belong to. If this was you, there is nothing to do.
+
+If it wasn't you, revoke the key in Account settings › Personal API keys and change your password: that signs out your other sessions and revokes every key.
+
+Review your API keys:
+https://desk.example.com/#account/apiKeys
+
+--
+
+You got this email because a personal API key was created for your account. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "passkeys-reset",
     "The passkeys of your Linedesk account were removed",
     "Security notice
@@ -1255,6 +1276,27 @@ https://desk.example.com/#account/security
 --
 
 Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "personal-key-created",
+    "A personal API key was created for your Linedesk account",
+    "Aviso de seguridad
+
+A personal API key was created
+
+A personal API key named "Laptop command line" (starting ldp_AbCd1234) was created for your Linedesk account at desk.example.com. It can do everything you can, in every workspace you belong to. Si fuiste tú, no tienes que hacer nada.
+
+If it wasn't you, revoke the key in Account settings › Personal API keys and change your password: that signs out your other sessions and revokes every key.
+
+Review your API keys:
+https://desk.example.com/#account/apiKeys
+
+--
+
+You got this email because a personal API key was created for your account. We always send it.
 
 Linedesk · desk.example.com
 ",

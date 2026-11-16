@@ -19,8 +19,12 @@ import { mustConfirmEmail } from './auth-methods.ts'
 import { noteRefusedKey, noteWorkingKey, tooManyInvalidApiKeys, workedRecently } from './api-keys.ts'
 import { type Actor, personActor } from './context.ts'
 import { db } from './db.ts'
+import { sendNotice } from './email.ts'
+import { localeForEmail } from './email-locale.ts'
+import { personalKeyCreatedEmail } from './emails/templates.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { PERSONAL_KEY_SIGN_IN_AGAIN, personalKeyNeedsFreshSignIn } from './owner-step-up.ts'
 
 /** Shown in lists to tell keys apart: the prefix and 8 characters of the key. */
 const SHOWN_LENGTH = PERSONAL_KEY_PREFIX.length + 8
@@ -114,8 +118,10 @@ function refuseNonPerson(actor: Actor): string {
 }
 
 export const personalKeyHandlers: Record<string, Handler> = {
-  'personalKey.create': async ({ tx, actor }, input: { name: string }) => {
+  'personalKey.create': async ({ tx, actor, onCommit }, input: { name: string }) => {
     const userId = refuseNonPerson(actor)
+    // A sign-in from the last 10 minutes (security review M2): run-action answers SIGN_IN_AGAIN first.
+    if (await personalKeyNeedsFreshSignIn(tx, actor)) throw new Forbidden(PERSONAL_KEY_SIGN_IN_AGAIN)
     // One create at a time per person, so two at once cannot both pass the count.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`personal_keys:${userId}`}))`)
     const open = await tx
@@ -140,6 +146,17 @@ export const personalKeyHandlers: Record<string, Handler> = {
       })
       .returning()
     const data: PersonalKeyCreated = { personalKeyId: row!.id, key, prefix: row!.prefix }
+    // The person hears of every new key, as of a new passkey (security review M2): one made from a stolen session
+    // is noticed. Not awaited past the commit: a slow or broken mail server must not fail the action.
+    onCommit?.(async () => {
+      const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId))
+      if (!account?.email) return
+      const locale = await localeForEmail(db, account.email)
+      sendNotice(
+        { to: account.email, ...personalKeyCreatedEmail(input.name, row!.prefix, undefined, locale) },
+        'personal key email',
+      )
+    })
     return { rows: {}, data }
   },
 

@@ -59,7 +59,8 @@ export function ownerStepUpRefusal(stepUp: OwnerStepUp) {
 }
 
 /** team.leave deleting the account without a sign-in in the last 10 minutes (Janik, 2026-11-15; LIN-264). */
-export const LEAVE_SIGN_IN_AGAIN = 'Sign in again to delete your account. Deleting it needs a sign-in from the last 10 minutes.'
+export const LEAVE_SIGN_IN_AGAIN =
+  'Sign in again to delete your account. Deleting it needs a sign-in from the last 10 minutes.'
 
 /** The refusal run-action answers before the leave runs: the web app offers "Sign in again" on the code. */
 export const leaveSignInRefusal = { ok: false as const, error: LEAVE_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
@@ -70,7 +71,9 @@ export const leaveSignInRefusal = { ok: false as const, error: LEAVE_SIGN_IN_AGA
  */
 async function signedInJustNow(tx: Tx | typeof db, actor: Actor, now: number): Promise<boolean> {
   if (!actor.sessionId || actor.impersonation) return false
-  const [own] = await tx.select({ createdAt: session.createdAt, impersonatedBy: session.impersonatedBy }).from(session)
+  const [own] = await tx
+    .select({ createdAt: session.createdAt, impersonatedBy: session.impersonatedBy })
+    .from(session)
     .where(and(eq(session.id, actor.sessionId), eq(session.userId, actor.actorId)))
   return !!own && !own.impersonatedBy && signedInRecently(own.createdAt, now)
 }
@@ -88,8 +91,11 @@ export async function leaveNeedsFreshSignIn(
   now = Date.now(),
 ): Promise<boolean> {
   if (input.deleteAccount !== true || !actor.workspaceId) return false
-  const [other] = await tx.select({ id: member.id }).from(member)
-    .where(and(eq(member.userId, actor.actorId), ne(member.organizationId, actor.workspaceId))).limit(1)
+  const [other] = await tx
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.userId, actor.actorId), ne(member.organizationId, actor.workspaceId)))
+    .limit(1)
   if (other) return false
   return !(await signedInJustNow(tx, actor, now))
 }
@@ -114,7 +120,9 @@ export async function removeNeedsFreshSignIn(
   now = Date.now(),
 ): Promise<boolean> {
   if (input.deleteAccount !== true || input.keepAccount === true || !actor.workspaceId) return false
-  const [owner] = await tx.select({ userId: member.userId }).from(member)
+  const [owner] = await tx
+    .select({ userId: member.userId })
+    .from(member)
     .where(and(eq(member.organizationId, actor.workspaceId), eq(member.role, 'owner')))
   if (owner?.userId !== actor.actorId) return false
   return !(await signedInJustNow(tx, actor, now))
@@ -133,5 +141,20 @@ export const setupLinkSignInRefusal = { ok: false as const, error: SETUP_LINK_SI
  * passkey for it, so a stolen or forgotten long-lived session must not hand one out.
  */
 export async function setupLinkNeedsFreshSignIn(tx: Tx | typeof db, actor: Actor, now = Date.now()): Promise<boolean> {
+  return !(await signedInJustNow(tx, actor, now))
+}
+
+/** personalKey.create without a sign-in in the last 10 minutes (LIN-339 security review M2). */
+export const PERSONAL_KEY_SIGN_IN_AGAIN =
+  'Sign in again to create a personal API key. Creating one needs a sign-in from the last 10 minutes.'
+
+/** The refusal run-action answers before the key is made: Settings › Personal API keys offers "Sign in again". */
+export const personalKeySignInRefusal = { ok: false as const, error: PERSONAL_KEY_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
+
+/**
+ * A personal API key (personalKey.create) needs a sign-in within the last 10 minutes (signedInJustNow): the key acts
+ * as its maker in every workspace and never expires, so a session left open or stolen must not make one.
+ */
+export async function personalKeyNeedsFreshSignIn(tx: Tx | typeof db, actor: Actor, now = Date.now()) {
   return !(await signedInJustNow(tx, actor, now))
 }

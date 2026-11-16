@@ -1,6 +1,13 @@
 // Every email with demo data (Brightwater Plumbing & Heating), for the preview script and the tests.
 
-import { adminAlertEmail, adminSignInAlert, installTestEmail, providerFailureAlert, settingsChangedAlert, spendingCapEmail } from './alerts.ts'
+import {
+  adminAlertEmail,
+  adminSignInAlert,
+  installTestEmail,
+  providerFailureAlert,
+  settingsChangedAlert,
+  spendingCapEmail,
+} from './alerts.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
   addedToWorkspaceEmail,
@@ -15,6 +22,7 @@ import {
   invitationEmail,
   PARTNER_DIRECTORY_URL,
   passkeyChangedEmail,
+  personalKeyCreatedEmail,
   passkeyEnrolmentIssuedEmail,
   passkeysResetEmail,
   impersonationStartedEmail,
@@ -145,7 +153,12 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
     },
     {
       name: 'sign-in-code',
-      email: signInCodeEmail('482913', origin, locale, `${origin}/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg`),
+      email: signInCodeEmail(
+        '482913',
+        origin,
+        locale,
+        `${origin}/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg`,
+      ),
     },
     { name: 'sign-in-code-only', email: signInCodeEmail('482913', origin, locale) },
     { name: 'password-reset-code', email: passwordResetCodeEmail('815302', origin, locale) },
@@ -168,7 +181,11 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
     {
       name: 'admin-alert-provider-failure',
       email: adminAlertEmail(
-        providerFailureAlert('ElevenLabs', 'quota', 'quota_exceeded: This request exceeds your quota of 10000.')(locale),
+        providerFailureAlert(
+          'ElevenLabs',
+          'quota',
+          'quota_exceeded: This request exceeds your quota of 10000.',
+        )(locale),
         origin,
         locale,
       ),
@@ -234,6 +251,10 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
     },
     { name: 'welcome', email: welcomeEmail({ name: 'Sam Patel', email: 'sam@example.com' }, origin, locale) },
     { name: 'passkey-added', email: passkeyChangedEmail('added', origin, locale) },
+    {
+      name: 'personal-key-created',
+      email: personalKeyCreatedEmail('Laptop command line', 'ldp_AbCd1234', origin, locale),
+    },
     { name: 'passkeys-reset', email: passkeysResetEmail(2, origin, locale) },
     {
       name: 'impersonation-started',

@@ -19,6 +19,7 @@ import {
   invitationEmail,
   memberAddedByAdminEmail,
   passkeyChangedEmail,
+  personalKeyCreatedEmail,
   passkeyEnrolmentIssuedEmail,
   passwordChangedEmail,
   passwordResetCodeEmail,
@@ -328,7 +329,7 @@ describe('sign-in code', () => {
     expect(email.text).toContain("Don't share this code")
   })
 
-  it('the button names the install\'s own product name', () => {
+  it("the button names the install's own product name", () => {
     setBrandingInMemory({ name: 'Front Desk Pro' })
     expect(signInCodeEmail('482913', ORIGIN, 'en', LINK).html).toContain('>Sign in to Front Desk Pro</a>')
   })
@@ -467,6 +468,18 @@ describe('passkey notice', () => {
     expect(email.subject).toBe('A passkey was added to your Linedesk account')
     expect(email.text).toContain('Reset passkeys')
     expect(email.html).toContain('href="https://desk.example.com/#account/security"')
+  })
+})
+
+describe('personal key notice', () => {
+  it('names the key, links to the keys and says what to do if it was not you', () => {
+    const email = personalKeyCreatedEmail('Laptop <b>CLI</b>', 'ldp_AbCd1234', ORIGIN)
+    expect(email.subject).toBe('A personal API key was created for your Linedesk account')
+    expect(email.text).toContain('Laptop')
+    expect(email.text).toContain('ldp_AbCd1234')
+    expect(email.html).not.toContain('<b>CLI</b>')
+    expect(email.text).toContain('change your password')
+    expect(email.html).toContain('href="https://desk.example.com/#account/apiKeys"')
   })
 })
 

@@ -10,6 +10,7 @@
   "apiKeys.revoked": "{name} is revoked.",
   "apiKeys.serverAdmin": "Server admin",
   "apiKeys.serverAdminTip": "Made after a passkey sign-in: this key can also use Server admin until {until}, while you are a server admin. Then make a new key.",
+  "apiKeys.signInFirst": "Sign in again to create a key. Creating one needs a sign-in from the last 10 minutes.",
   "authenticator.add": "Set up authenticator app",
   "authenticator.addHereButtonTitle": "Create a passkey on this device for your account",
   "authenticator.addHereCancelled": "No passkey was added. Try again, or continue without one.",
