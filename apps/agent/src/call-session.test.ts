@@ -218,6 +218,11 @@ test('a call over the spending cap or the calls at once is not answered, and the
   // A blocked number (Spam) hears a short goodbye too; an API of the release before sends no overCap.
   expect(unansweredLine(await startCall(api({ blocked: true }), phone))).toBe(BLOCKED_LINE)
   expect((await startCall(api({}), phone)).overCap).toBe(false)
+  // Refused by billing on Linedesk Cloud (no balance): the business calls back, the same line as over the cap.
+  const refused = await startCall(api({ blocked: true, refused: 'no_balance' }), phone)
+  expect(refused).toMatchObject({ blocked: true, refused: 'no_balance', overCap: false, busy: false })
+  expect(unansweredLine(refused)).toBe(OVER_CAP_LINE)
+  expect((await startCall(api({}), phone)).refused).toBeNull()
 })
 
 test('the usage level call.start decided reaches the call; an install without billing (or an older API) sends none', async () => {

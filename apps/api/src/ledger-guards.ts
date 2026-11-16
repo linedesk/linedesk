@@ -5,8 +5,9 @@
 // checks at every start (server.ts) that each trigger exists, is enabled, fires as the migration made it and runs
 // the function body the migration wrote (its md5); and that the constraints and the index the money logic relies on
 // (one credit per source, the signs, one pending recharge per bill) are there with the migration's definition. Billing
-// is not in effect otherwise (`ledgerGuardsOk`, billing-settings.ts). The nightly rebuild and every billing job check
-// again (`requireLedgerGuards`), so a guard dropped while the API runs stops billing then, not at the next restart.
+// is not in effect otherwise (`ledgerGuardsOk`, billing-settings.ts), and every process checks again every few
+// minutes. The nightly rebuild and every billing job check again (`requireLedgerGuards`), so a guard dropped while the
+// API runs stops billing then, not at the next restart.
 // A migration that changes one of these updates its definition here in the same change.
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
@@ -77,7 +78,14 @@ export const LEDGER_INDEXES = [
   },
 ] as const
 
-let checked: boolean | null = null
+/**
+ * The last check's answer and when it ran, in this process. Every API process checks again once it is older than
+ * GUARDS_RECHECK_MS (`ledgerGuardsOk`), so with several processes each one turns billing off within that time when a
+ * guard goes missing, not only the one that ran the nightly job (security review of #857, L4).
+ */
+let checked: { ok: boolean; at: number } | null = null
+/** How long one process trusts its last check of the guards. */
+export const GUARDS_RECHECK_MS = 5 * 60_000
 
 /**
  * The guards that are missing, disabled or changed (how a trigger fires, its function's body, a constraint's or
@@ -118,16 +126,27 @@ export async function missingLedgerGuards(tx: Tx): Promise<string[]> {
 /** Checks the guards (at start, nightly, before billing work) and remembers the answer; logs what is missing. */
 export async function checkLedgerGuards(tx: Tx): Promise<boolean> {
   const missing = await missingLedgerGuards(tx)
-  checked = missing.length === 0
-  if (!checked)
+  checked = { ok: missing.length === 0, at: Date.now() }
+  if (!checked.ok)
     console.error(
       `billing is off: the ledger guards are missing, disabled or changed (${missing.join(', ')}); run the migrations again`,
     )
-  return checked
+  return checked.ok
 }
 
-/** Whether billing may run: the guards were found at the last check. False until checked. */
-export const ledgerGuardsOk = () => checked === true
+/**
+ * Whether billing may run: the guards were found at this process's last check, made again when that is older than
+ * GUARDS_RECHECK_MS (or there was none). A check that throws counts as missing guards for this request only: it is not
+ * remembered, so the next one checks again (security review of #864, M2).
+ */
+export async function ledgerGuardsOk(tx: Tx, nowMs = Date.now()): Promise<boolean> {
+  if (checked && nowMs - checked.at < GUARDS_RECHECK_MS) return checked.ok
+  return checkLedgerGuards(tx).catch(error => {
+    console.error('billing is off for this request: the ledger guards could not be checked:', error)
+    checked = null
+    return false
+  })
+}
 
 /** For a billing job: checks the guards again and stops the job when one is missing (billing is then off too). */
 export async function requireLedgerGuards(tx: Tx) {

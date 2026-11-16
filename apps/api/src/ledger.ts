@@ -29,10 +29,9 @@ import {
   usage_counters,
 } from '@linedesk/db'
 import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
-import { alertInstanceAdmins } from './admin-alerts.ts'
 import { billingRules } from './billing-rules.ts'
-import { cappedCallAlert } from './emails/alerts.ts'
 import { checkLedgerGuards, missingLedgerGuards } from './ledger-guards.ts'
+import { closedLegSeconds } from './transfer-legs.ts'
 
 /**
  * The allowance factor of an entry's price basis, in SQL, from the install's rules (level names are constants and the
@@ -254,6 +253,7 @@ export type PostOutcome =
   | { kind: 'not_finished' }
   | {
       kind: 'posted'
+      billId: string
       entry: typeof ledger_entries.$inferSelect
       /** False when an earlier post of this call already made the entry. */
       posted: boolean
@@ -266,8 +266,8 @@ export type PostOutcome =
  * reservation, in the period it started in; releases the reservation. Only a finished call posts: before its status
  * is `completed` with `ended_at` and `duration_sec` set, nothing posts and the reservation stays, so an early or
  * repeated finish never locks in $0 (security review of #857, M1). The billed seconds are capped at the reservation's
- * limit plus the grace; when the cap applies the entry's note keeps the reported seconds and the instance admins are
- * told (M2). A test, simulated or sample call never counts: its reservation goes and nothing posts.
+ * limit plus the grace; when the cap applies the entry's note keeps the reported seconds (M2), and the caller tells
+ * the instance admins once the transaction committed (call-billing.ts; recheck N1). A test, simulated or sample call never counts: its reservation goes and nothing posts.
  * `ownKeysConfirmed`: the usage report confirmed every part ran on the customer's own keys; it makes the call $0 only
  * when own keys was also forecast at its start. A comped bill gets a $0 entry that uses no allowance.
  */
@@ -299,7 +299,8 @@ export async function postCallUsage(
     {
       comped: bill?.status === 'comped',
       durationSeconds: call.duration_sec,
-      transferSeconds: call.transfer_seconds,
+      // Every transfer leg, the one still bridged when the call ended up to that end (security review of #864, H1).
+      transferSeconds: closedLegSeconds(call, call.ended_at),
       level: reservation.usage_level,
       ownKeysConfirmed: reservation.own_keys && options.ownKeysConfirmed === true,
       allowanceUsed: counter.included_seconds_used,
@@ -337,18 +338,13 @@ export async function postCallUsage(
           eq(usage_counters.workspace_id, call.workspace_id),
         ),
       )
-    if (rating.cappedFromSeconds !== null) {
-      const capped = { bill: billId, call: callId, reported: rating.cappedFromSeconds, billed: rating.seconds }
+    if (rating.cappedFromSeconds !== null)
       console.error(
-        `billing: call ${callId} reported ${capped.reported} s, billed ${capped.billed} s (its limit plus the grace)`,
+        `billing: call ${callId} reported ${rating.cappedFromSeconds} s, billed ${rating.seconds} s (its limit plus the grace)`,
       )
-      alertInstanceAdmins(cappedCallAlert(capped)).catch(error =>
-        console.error(`billing: the capped-call alert for ${callId} failed:`, error),
-      )
-    }
   }
   await tx.delete(call_reservations).where(eq(call_reservations.call_id, callId))
-  return { kind: 'posted', entry, posted, rating, recharge: await decideRecharge(tx, billId, now) }
+  return { kind: 'posted', billId, entry, posted, rating, recharge: await decideRecharge(tx, billId, now) }
 }
 
 export type RechargeOutcome =
@@ -452,14 +448,19 @@ export async function ledgerDifferences(tx: Tx): Promise<LedgerDifference[]> {
     allowance: number
     charged: string
   }>(sql`
-    select c.billing_account_id as bill, c.period_id as period, c.workspace_id as workspace,
-      c.included_seconds_used as used, c.usage_micros as usage,
-      coalesce(sum(l.included_seconds * ${allowanceFactorSql(await billingRules(tx))}), 0)::int as allowance,
-      coalesce(-sum(l.amount_micros), 0) as charged
+    with counted as (
+      select l.billing_account_id as bill, l.period_id as period, l.workspace_id as workspace,
+        sum(l.included_seconds * ${allowanceFactorSql(await billingRules(tx))})::int as allowance,
+        -sum(l.amount_micros) as charged
+      from ledger_entries l where l.kind = 'usage'
+      group by l.billing_account_id, l.period_id, l.workspace_id)
+    select coalesce(c.billing_account_id, u.bill) as bill, coalesce(c.period_id, u.period) as period,
+      coalesce(c.workspace_id, u.workspace) as workspace,
+      coalesce(c.included_seconds_used, 0) as used, coalesce(c.usage_micros, 0) as usage,
+      coalesce(u.allowance, 0) as allowance, coalesce(u.charged, 0) as charged
     from usage_counters c
-    left join ledger_entries l on l.kind = 'usage' and l.billing_account_id = c.billing_account_id
-      and l.period_id = c.period_id and l.workspace_id = c.workspace_id
-    group by c.billing_account_id, c.period_id, c.workspace_id, c.included_seconds_used, c.usage_micros`)
+    full outer join counted u on u.bill = c.billing_account_id and u.period = c.period_id
+      and u.workspace = c.workspace_id`)
   const uncredited = await tx.execute<{ bill: string; id: string }>(sql`
     select r.billing_account_id as bill, r.id from billing_recharges r
     where r.status = 'paid' and not exists (

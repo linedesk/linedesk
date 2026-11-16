@@ -618,10 +618,18 @@ async function entry(ctx: JobContext) {
   }
   if (registered.blocked) {
     // The API already filed the call: in Spam (blocked caller) or as missed with a callback (busy, over the spending
-    // cap). Each caller hears one line first, once the voice is set up.
+    // cap, refused by billing). Each caller hears one line first, once the voice is set up.
     await tellCaller(ctx, registered, unansweredLine(registered), ready, callerJoined)
     await ctx.deleteRoom()
-    return ctx.shutdown(registered.overCap ? 'workspace over its monthly spending cap' : registered.busy ? 'too many calls at once in the workspace' : 'blocked caller')
+    return ctx.shutdown(
+      registered.overCap
+        ? 'workspace over its monthly spending cap'
+        : registered.refused
+          ? `refused by billing: ${registered.refused}`
+          : registered.busy
+            ? 'too many calls at once in the workspace'
+            : 'blocked caller',
+    )
   }
   // The call-start webhook is asked now, so its answer is on the way while the voice is set up. Not on a test call.
   const callerDetails = registered.businessNumber === null ? Promise.resolve(null) : lookUpCaller(api, registered)

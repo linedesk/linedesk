@@ -53,6 +53,8 @@ const INSTANCE_WIDE_FILES = [
   'test/demo-workspace.test.ts',
   // Sets up the three stages through the environment; switches billing on (usage levels).
   'test/usage-levels.test.ts',
+  // Sets up the three stages through the environment; switches billing on (the call gate, PR 4).
+  'test/call-billing.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

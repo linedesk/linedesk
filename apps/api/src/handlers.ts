@@ -1,7 +1,7 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, spokenLanguages, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, languageModelLevel, realtimeModelLevel, voiceModelLevel, type VoicePipeline, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
-import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
+import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, call_reservations, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
 } from '@linedesk/db'
 import type { ActionItem, Assistant, AssistantVoice, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
@@ -58,6 +58,7 @@ import { queueAssignNotification, queueCallEvaluation, queueCallTranscript, queu
 import { afterCallTranscriptHandlers, transcribesAfterCalls } from './after-call-transcript.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
+import { billOfCall, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
 import { evaluatedAutomatically, evaluationHandlers } from './evaluations.ts'
 import { businessHandlers } from './business-import.ts'
 import { knowledgeHandlers } from './knowledge.ts'
@@ -270,16 +271,20 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // A withheld or malformed caller ID ("anonymous", "restricted") names nobody: no contact (all such
   // callers would share one), so no bookings to change and nothing to block.
   const contact = source === 'test' || isE164(from) ? await callerContact(tx, workspace_id, from, source) : null
-  const id = newId('call')
+  // A second call.start for the room of a live billed call (the agent's request timed out after the first one
+  // committed, and LiveKit dispatched the job again): that call is answered again, never a second one opened beside it,
+  // so no phantom call holds a reservation or is billed (security review of #864, L4). Unbilled calls as before.
+  const again = source === 'phone' && room ? await liveBilledCallInRoom(tx, workspace_id, room) : null
+  const id = again?.id ?? newId('call')
   // A blocked caller is not answered: the call is filed quietly in Spam and the agent hangs up (`blocked`).
-  const spam = source !== 'test' && !!contact?.row.blocked_at
+  const spam = !again && source !== 'test' && !!contact?.row.blocked_at
   // Over the workspace's monthly spending cap: not answered by the assistant (spending-cap.ts), filed like a busy call.
   // A simulated call (the call simulator) costs nothing and holds no line: no cap, no live-call limit.
-  const cap = source === 'phone' && !spam ? await spendingCap(tx, workspace_id, now) : null
+  const cap = source === 'phone' && !spam && !again ? await spendingCap(tx, workspace_id, now) : null
   const overCap = !!cap?.reached
-  const busy = source === 'phone' && !spam && !overCap && (await atLiveCallLimit(tx, workspace_id, now))
-  // Older agents only know `blocked`: hang up without answering. It covers all three.
-  const blocked = spam || busy || overCap
+  const busy = source === 'phone' && !spam && !overCap && !again && (await atLiveCallLimit(tx, workspace_id, now))
+  // The fixed line and nothing else so far: spam, busy, over the admin's cap. Billing may refuse the call below too.
+  const unanswered = spam || busy || overCap
   // The owner calling from their own phone to try it out: kept on the call, so it never counts as a real caller.
   const fromOwnNumber = source === 'phone' && isE164(from) && (await isOwnNumber(tx, workspace_id, from))
   // The business's time zone (Workspace settings › General): the assistant is told the date and time in it.
@@ -290,18 +295,65 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // the texts a call that is not answered is filed with).
   const locale = await workspaceLocale(tx, workspace_id, zone ?? null)
   const t = teamT(locale.resolvedLanguage)
-  const [call] = await tx.insert(calls).values({
-    id, workspace_id, contact_id: contact?.row.id ?? null, from_number: from, to_number: to, source, started_at: now, room: room ?? id,
-    from_own_number: fromOwnNumber,
-    caller_attestation: source === 'phone' ? (attestation ?? null) : null,
-    spam_likely: source === 'phone' && spamLikely === true,
-    assistant_id: assistant?.id ?? null,
-    assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
-    ...(spam ? blockedCall(now, t) : overCap ? overCapCall(now, t) : busy ? busyCall(now, t) : {}),
-  }).returning()
-  await recordCallStarted(tx, call!, spam)
+  // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace. On
+  // Linedesk Cloud the call's level is decided here, once: a voice or model the workspace may no longer use (Allow
+  // Premium off) falls back to the install's defaults for this call.
+  // On Cloud it is also what the agent answers with (`pipeline`): never a realtime model without Allow Ultra, never the
+  // install's own models when they are not Standard. A call still `not_allowed` after the fallback is not answered.
+  const forCall = assistant && (await assistantForCall(tx, workspace_id, assistant))
+  // Linedesk Cloud: a phone call of a workspace on a bill passes the billing gate (call-billing.ts), which reserves it
+  // or refuses it. Null on every install and workspace that is not billed: the call goes on as before.
+  const bill = source === 'phone' && !unanswered && !again ? await billOfCall(tx, workspace_id, now) : null
+  let [call] = again
+    ? [again]
+    : await tx
+        .insert(calls)
+        .values({
+          id,
+          workspace_id,
+          contact_id: contact?.row.id ?? null,
+          from_number: from,
+          to_number: to,
+          source,
+          started_at: now,
+          room: room ?? id,
+          from_own_number: fromOwnNumber,
+          caller_attestation: source === 'phone' ? (attestation ?? null) : null,
+          spam_likely: source === 'phone' && spamLikely === true,
+          assistant_id: assistant?.id ?? null,
+          assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
+          ...(spam ? blockedCall(now, t) : overCap ? overCapCall(now, t) : busy ? busyCall(now, t) : {}),
+        })
+        .returning()
+  // Refused by billing (no balance, too many calls on the bill, the plan not active, billing switched on but not
+  // working, a voice or model the plan does not allow): the same fixed line as over the spending cap, filed as missed
+  // with "Call back" and the reason (docs/billing.md §4.4). The API refuses these itself, never relying on the agent.
+  let refused: CallRefusal | null = null
+  if (bill && !bill.usable) refused = 'billing_error'
+  else if (bill && forCall?.level === 'not_allowed') refused = 'level_not_allowed'
+  else if (bill) {
+    const gate = await gateCall(tx, {
+      callId: id,
+      billId: bill.billId,
+      workspaceId: workspace_id,
+      assistant,
+      level: forCall?.level ?? null,
+      paidLevel: forCall?.paidLevel ?? null,
+      now,
+    })
+    if (!gate.allow) refused = gate.reason
+  }
+  if (refused)
+    [call] = await tx
+      .update(calls)
+      .set(refusedCall(now, t, refused))
+      .where(eq(calls.id, id))
+      .returning()
+  // Older agents only know `blocked`: hang up without answering. It covers every call that is not answered.
+  const blocked = unanswered || !!refused
+  if (!again) await recordCallStarted(tx, call!, spam)
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
-  if (busy || overCap) await queueCallPush(tx, id, 'finished')
+  if (busy || overCap || refused) await queueCallPush(tx, id, 'finished')
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
@@ -321,17 +373,57 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
     : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
   const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
-  // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace. On
-  // Linedesk Cloud the call's level is decided here, once: a voice or model the workspace may no longer use (Allow
-  // Premium off) falls back to the install's defaults for this call.
-  // On Cloud it is also what the agent answers with (`pipeline`): never a realtime model without Allow Ultra, never the
-  // install's own models when they are not Standard. A call still `not_allowed` after the fallback is not answered.
-  const forCall = assistant && (await assistantForCall(tx, workspace_id, assistant))
-  const answeredBy = forCall && { ...forCall.assistant, voice_pipeline: forCall.pipeline ?? pipelineChoiceUnder(await voicePipelinePolicy(tx), forCall.assistant.voice_pipeline) }
+  const answeredBy = forCall && {
+    ...forCall.assistant,
+    voice_pipeline:
+      forCall.pipeline ?? pipelineChoiceUnder(await voicePipelinePolicy(tx), forCall.assistant.voice_pipeline),
+  }
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
-    data: { callId: id, workspaceId: workspace_id, isNewContact: contact?.isNew ?? false, contact: contact ? contactForAssistant(contact.row, recognized) : null, callerRecognized: recognized, assistant: answeredBy ?? null, blocked, busy, overCap, businessHours, booking, recordingNotice, keepRecording, callerHistory: history, timeZone, lookups, workspaceCountry: locale.resolvedCountry, workspaceLanguage: locale.resolvedLanguage, usageLevel: forCall?.level ?? null },
+    data: {
+      callId: id,
+      workspaceId: workspace_id,
+      isNewContact: contact?.isNew ?? false,
+      contact: contact ? contactForAssistant(contact.row, recognized) : null,
+      callerRecognized: recognized,
+      assistant: answeredBy ?? null,
+      blocked,
+      busy,
+      overCap,
+      refused,
+      businessHours,
+      booking,
+      recordingNotice,
+      keepRecording,
+      callerHistory: history,
+      timeZone,
+      lookups,
+      workspaceCountry: locale.resolvedCountry,
+      workspaceLanguage: locale.resolvedLanguage,
+      usageLevel: forCall?.level ?? null,
+    },
   }
+}
+
+/**
+ * The live phone call in this room of the workspace that holds a billing reservation, if any. Locked by the room's
+ * name first, so two call.starts for one room never both open a billed call.
+ */
+async function liveBilledCallInRoom(tx: Tx, workspace_id: string, room: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`call-room:${room}`}, 0))`)
+  const [live] = await tx
+    .select({ call: calls })
+    .from(calls)
+    .innerJoin(call_reservations, eq(call_reservations.call_id, calls.id))
+    .where(
+      and(
+        eq(calls.workspace_id, workspace_id),
+        eq(calls.room, room),
+        eq(calls.source, 'phone'),
+        eq(calls.status, 'live'),
+      ),
+    )
+  return live?.call ?? null
 }
 
 /** The contact with this number: found (a merged one's survivor, a deleted one restored) or created. */
@@ -399,6 +491,21 @@ const busyCall = (now: string, t: TeamT) => ({
 const overCapCall = (now: string, t: TeamT) => ({
   status: 'completed' as const, ended_at: now, duration_sec: 0, outcome: 'hangup' as const,
   title: t('call.autoSummary.missed.title'), summary: t('call.autoSummary.missed.overCap'),
+  action_items: [{ text: t('call.autoSummary.missed.callBack') }],
+})
+
+/**
+ * A call the billing gate refused (call-billing.ts): filed as missed, unread, with a callback and the reason. The agent
+ * says the same line as over the spending cap (the business will call back) and hangs up.
+ */
+// i18n-dynamic: call.autoSummary.missed.billing.*
+const refusedCall = (now: string, t: TeamT, reason: CallRefusal) => ({
+  status: 'completed' as const,
+  ended_at: now,
+  duration_sec: 0,
+  outcome: 'hangup' as const,
+  title: t('call.autoSummary.missed.title'),
+  summary: t(`call.autoSummary.missed.billing.${reason}`),
   action_items: [{ text: t('call.autoSummary.missed.callBack') }],
 })
 
@@ -904,6 +1011,9 @@ const handlers: Record<string, Handler> = {
       fields: input.fields ?? call.fields,
     }).where(eq(calls.id, call.id)).returning()
     const rows: ActionResult['rows'] = { calls: [updated!] }
+    // A billed call's usage posts now, with its end and duration set above (call-billing.ts); a repeated finish finds
+    // it posted. A failure leaves the call finished: the stale sweep posts it again.
+    await postFinishedCall(tx, call.id, now)
     if (input.callerName && call.contact_id) {
       const [contact] = await tx.select().from(contacts).where(eq(contacts.id, call.contact_id))
       // A caller's word for who they are: kept as a caller's, so it unlocks nothing on later calls (contacts.name_source).

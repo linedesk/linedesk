@@ -17,19 +17,30 @@ import { takeSetupSignIn } from './setup.ts'
 
 /**
  * Emails every enabled instance admin, each in their own language: `alert` builds the alert's text for one language
- * (emails/alerts.ts). Resolves once the list and their languages are read; the sends run on their own. Without email
- * set up: skipped with one log line (no stack, nothing to retry).
+ * (emails/alerts.ts). Resolves once the list and their languages are read; the sends run on their own, unless `wait`
+ * (a job, so its retries can help): then it resolves once every email went out and throws when one did not. Without
+ * email set up: skipped with one log line (no stack, nothing to retry).
  */
-export async function alertInstanceAdmins(alert: AdminAlertText, sender: EmailSender = emailSender) {
+export async function alertInstanceAdmins(
+  alert: AdminAlertText,
+  sender: EmailSender = emailSender,
+  { wait = false }: { wait?: boolean } = {},
+) {
   if (sender.kind === 'none') {
     console.log(`Admin alert not sent (email is not set up): ${alert(SOURCE).subject}`)
     return
   }
   const admins = await instanceAdminEmails()
   const locales = await Promise.all(admins.map(to => localeForEmail(db, to).catch(() => SOURCE)))
-  admins.forEach((to, i) =>
-    sendNotice({ to, ...adminAlertEmail(alert(locales[i]), undefined, locales[i]) }, 'admin alert email', sender),
+  const emails = admins.map((to, i) => ({ to, ...adminAlertEmail(alert(locales[i]), undefined, locales[i]) }))
+  if (!wait) {
+    for (const email of emails) sendNotice(email, 'admin alert email', sender)
+    return
+  }
+  const failed = (await Promise.allSettled(emails.map(email => sender.send(email)))).filter(
+    r => r.status === 'rejected',
   )
+  if (failed.length) throw new Error(`admin alert email: ${failed.length} of ${emails.length} could not be sent`)
 }
 
 type SignIn = {

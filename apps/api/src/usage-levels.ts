@@ -30,7 +30,7 @@ import {
   voiceModelsOf,
   type VoicePipeline,
 } from '@linedesk/actions'
-import { assistants, type Tx, workspace_settings } from '@linedesk/db'
+import { assistants, type PaidLevel, type Tx, workspace_settings } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
 import { and, eq } from 'drizzle-orm'
 import { recordVersion } from './assistant-versions.ts'
@@ -334,13 +334,18 @@ export async function assistantForCall<A extends AssistantChoices>(
   workspaceId: string,
   assistant: A,
   log: (line: string) => void = alert,
-): Promise<{ assistant: A; level: UsageLevel | null; pipeline: VoicePipeline | null }> {
-  if (!(await usageLevelsBilled(tx))) return { assistant, level: null, pipeline: null }
+): Promise<{ assistant: A; level: UsageLevel | null; paidLevel: PaidLevel | null; pipeline: VoicePipeline | null }> {
+  if (!(await usageLevelsBilled(tx))) return { assistant, level: null, paidLevel: null, pipeline: null }
   const flags = await workspaceFlags(tx, workspaceId)
   const choices = await assistantChoices(tx, assistant, { billed: true })
   const level = choices ? usageLevel({ ...choices, ...flags }) : 'not_allowed'
   if (choices && level !== 'not_allowed')
-    return { assistant: withCheckedModels(assistant, choices), level, pipeline: choices.pipeline }
+    return {
+      assistant: withCheckedModels(assistant, choices),
+      level,
+      paidLevel: paidLevelOf(choices),
+      pipeline: choices.pipeline,
+    }
   const fallback = { ...onStandardDefaults(assistant), voice_pipeline: 'three_stage' as const }
   const standard = await assistantChoices(tx, fallback, { billed: true, pipeline: 'three_stage' })
   const fallbackLevel = standard ? usageLevel({ ...standard, ...flags }) : 'not_allowed'
@@ -354,8 +359,23 @@ export async function assistantForCall<A extends AssistantChoices>(
         : `the call falls back to the Standard defaults (${describeChoices(standard!)})`
     }`,
   )
-  if (!standard || fallbackLevel === 'not_allowed') return { assistant: fallback, level: 'not_allowed', pipeline: 'three_stage' }
-  return { assistant: withCheckedModels(fallback, standard), level: fallbackLevel, pipeline: 'three_stage' }
+  if (!standard || fallbackLevel === 'not_allowed')
+    return { assistant: fallback, level: 'not_allowed', paidLevel: null, pipeline: 'three_stage' }
+  return {
+    assistant: withCheckedModels(fallback, standard),
+    level: fallbackLevel,
+    paidLevel: paidLevelOf(standard),
+    pipeline: 'three_stage',
+  }
+}
+
+/**
+ * The level a call with these choices pays when own keys is not confirmed (docs/billing.md §2.1a, M2): its voice and
+ * model's level whatever the owner allows; null for an option in neither list (billing reserves its dearest level).
+ */
+function paidLevelOf(c: Choices): PaidLevel | null {
+  const level = usageLevel({ ...c, ownKeys: false, allowPremium: true, allowUltra: true })
+  return level === 'not_allowed' || level === 'own_keys' ? null : level
 }
 
 const describeChoices = (c: Choices) =>

@@ -29,8 +29,15 @@ import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 import { localeForEmail } from './email-locale.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
-import { ledgerCheckAlert } from './emails/alerts.ts'
+import { ledgerCheckAlert, stuckRechargesAlert } from './emails/alerts.ts'
 import { checkLedger } from './ledger.ts'
+import {
+  type BillingAlertJob,
+  chargeRecharge,
+  rechargeGaveUp,
+  sendBillingAlert,
+  stuckRecharges,
+} from './billing-recharge.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -73,6 +80,18 @@ const COMMAND_PRUNE_CRON = '47 3 * * *'
 /** Nightly: the ledger guards and the billing sums (ledger.ts checkLedger); instance admins hear about what is wrong. */
 export const LEDGER_CHECK = 'billing.ledgerCheck'
 const LEDGER_CHECK_CRON = '57 3 * * *'
+/**
+ * Charges one auto-recharge attempt (billing-recharge.ts), queued in the transaction that decided it. Retried with
+ * backoff for about an hour; every try sends the same Stripe idempotency keys, so a retry never charges twice.
+ */
+export const BILLING_RECHARGE = 'billing.recharge'
+/** How often the recharge job is retried; after the last one the attempt gives up (billing-recharge.ts rechargeGaveUp). */
+const BILLING_RECHARGE_RETRIES = 6
+/** Hourly: recharge attempts that crossed 2 hours pending in the last hour are named to the instance admins. */
+export const STUCK_RECHARGE_CHECK = 'billing.stuckRecharges'
+const STUCK_RECHARGE_CHECK_CRON = '27 * * * *'
+/** One billing email: to the bill owner (a failed recharge, the cap, a low balance), or a capped call to the admins. */
+export const BILLING_ALERT = 'billing.alert'
 /** Daily: the public holidays and yearly days of the next twelve months move one day on (public-holidays.ts). */
 export const HOLIDAY_SYNC = 'holidays.sync'
 const HOLIDAY_SYNC_CRON = '17 2 * * *'
@@ -180,16 +199,21 @@ async function runJobs(instance: PgBoss, env: Env) {
     oldAdminDevices: await pruneOldAdminDevices(db),
   }))
   await instance.schedule(LEDGER_CHECK, LEDGER_CHECK_CRON)
-  await instance.work(LEDGER_CHECK, async () => {
-    const found = await db.transaction(tx => checkLedger(tx))
-    if (!found) return { bills: false }
-    const problems = found.guardsMissing.length + found.differences.length
-    if (problems) {
-      console.error(`billing check: ${problems} problems (${JSON.stringify(found)})`)
-      await alertInstanceAdmins(ledgerCheckAlert(found))
+  await instance.work(LEDGER_CHECK, async () => runLedgerCheck())
+  await instance.work<{ rechargeId: string }>(BILLING_RECHARGE, async ([job]) => {
+    try {
+      return await chargeRecharge(db, job!.data.rechargeId)
+    } catch (error) {
+      if (job!.retryCount >= BILLING_RECHARGE_RETRIES)
+        await rechargeGaveUp(db, job!.data.rechargeId).catch(e =>
+          console.error(`billing: recharge ${job!.data.rechargeId} could not be given up:`, e),
+        )
+      throw error
     }
-    return { bills: true, problems }
   })
+  await instance.schedule(STUCK_RECHARGE_CHECK, STUCK_RECHARGE_CHECK_CRON)
+  await instance.work(STUCK_RECHARGE_CHECK, async () => runStuckRechargeCheck())
+  await instance.work<BillingAlertJob>(BILLING_ALERT, async ([job]) => sendBillingAlert(db, emailSender, job!.data))
   await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
   await instance.work(HOLIDAY_SYNC, async () => {
     // One transaction per workspace, so a long run holds no locks for long.
@@ -214,6 +238,55 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (outcome === 'retry') throw new Error(`webhook delivery ${job!.data.deliveryId} failed; retrying`)
     return { outcome }
   })
+}
+
+/**
+ * The nightly billing check. It is never retried (the next night is the retry), so a run that throws alerts the
+ * instance admins itself instead of failing unheard (security review of #857, L4).
+ */
+export async function runLedgerCheck({
+  alert = alertInstanceAdmins,
+  check = checkLedger,
+}: {
+  alert?: typeof alertInstanceAdmins
+  check?: typeof checkLedger
+} = {}) {
+  try {
+    const found = await db.transaction(tx => check(tx))
+    if (!found) return { bills: false }
+    const problems = found.guardsMissing.length + found.differences.length
+    if (problems) {
+      console.error(`billing check: ${problems} problems (${JSON.stringify(found)})`)
+      await alert(ledgerCheckAlert(found))
+    }
+    // Every recharge still pending after 2 hours, each night until it is settled (review of #864, M1).
+    const stuck = await stuckRecharges(db, new Date().toISOString())
+    if (stuck.length) await alert(stuckRechargesAlert(stuck))
+    return { bills: true, problems, stuck: stuck.length }
+  } catch (error) {
+    console.error('billing check failed:', error)
+    await alert(ledgerCheckAlert({ guardsMissing: [], differences: [], failed: true }))
+    return { bills: true, failed: true }
+  }
+}
+
+/**
+ * The hourly check (review of #864, M1): recharge attempts that crossed 2 hours pending in the last hour are emailed
+ * to the instance admins, so a stuck bill is noticed the same day; the nightly check names every one still pending.
+ */
+export async function runStuckRechargeCheck({
+  alert = alertInstanceAdmins,
+  now = new Date(),
+}: {
+  alert?: typeof alertInstanceAdmins
+  now?: Date
+} = {}) {
+  const stuck = await stuckRecharges(db, now.toISOString(), new Date(now.getTime() - 60 * 60_000).toISOString())
+  if (stuck.length) {
+    console.error(`billing: ${stuck.length} recharge attempt(s) pending for more than 2 hours`)
+    await alert(stuckRechargesAlert(stuck), undefined, { wait: true })
+  }
+  return { stuck: stuck.length }
 }
 
 export async function startJobs(env: Env = process.env): Promise<PgBoss> {
@@ -243,6 +316,14 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(COMMAND_PRUNE)
   await instance.createQueue(HOLIDAY_SYNC)
   await instance.createQueue(LEDGER_CHECK, { retryLimit: 0, expireInSeconds: 600 })
+  await instance.createQueue(STUCK_RECHARGE_CHECK, { retryLimit: 0, expireInSeconds: 300 })
+  await instance.createQueue(BILLING_RECHARGE, {
+    retryLimit: BILLING_RECHARGE_RETRIES,
+    retryDelay: 60,
+    retryBackoff: true,
+    expireInSeconds: 120,
+  })
+  await instance.createQueue(BILLING_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(SETUP_EMAILS)
   // One run at a time, never retried: the next scheduled run is the retry.
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
@@ -292,6 +373,17 @@ export async function queueCallPush(tx: Tx, callId: string, kind: PushKind) {
 /** Queues the assignee's notification in call.assign's transaction; sent after ASSIGNED_DELAY_SECONDS if it still stands. */
 export async function queueAssignNotification(tx: Tx, eventId: string) {
   await boss?.send(CALL_ASSIGNED, { eventId }, { db: fromDrizzle(tx, sql), startAfter: ASSIGNED_DELAY_SECONDS })
+}
+
+/** Queues the charge of a recharge attempt in the transaction that decided it: it runs only if that commits. */
+export async function queueRecharge(tx: Tx, rechargeId: string) {
+  // Queued once per attempt; a second run of the same attempt only meets Stripe's idempotency keys.
+  await boss?.send(BILLING_RECHARGE, { rechargeId }, { db: fromDrizzle(tx, sql) })
+}
+
+/** Queues a billing email in the transaction that made its occasion (a `billing_alerts` row, a posted entry). */
+export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob) {
+  await boss?.send(BILLING_ALERT, alert, { db: fromDrizzle(tx, sql) })
 }
 
 /** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */

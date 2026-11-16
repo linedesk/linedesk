@@ -5,7 +5,15 @@ import type { BillingProvider, StripeKeys } from './provider.ts'
 
 export { isStripeWebhookSecret, LIVE_KEYS_REFUSED, liveKeysAllowed, stripeKeyMode } from './keys.ts'
 export { noneBillingProvider } from './none.ts'
-export type { BillingAccountInfo, BillingProvider, BillingProviderName, KeyMode, StripeKeys } from './provider.ts'
+export type {
+  BillingAccountInfo,
+  BillingProvider,
+  BillingProviderName,
+  KeyMode,
+  RechargeCharge,
+  RechargeInvoiceInput,
+  StripeKeys,
+} from './provider.ts'
 
 /** The provider for the keys in effect: `none` without keys, else the Stripe adapter, loaded on first use. */
 export async function loadBillingProvider(

@@ -75,6 +75,11 @@ export interface CallSession {
   forwardingCheck: boolean
   busy: boolean
   overCap: boolean
+  /**
+   * Linedesk Cloud: why billing refused the call (`no_balance`, `too_many_calls`, `billing_inactive`, `billing_error`;
+   * blocked too, filed as missed): the caller hears the same line as over the spending cap. null: not refused.
+   */
+  refused?: string | null
   /** null: the business has no hours set, and the assistant says nothing about them. */
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
@@ -134,6 +139,7 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   forwardingCheck?: boolean
   busy?: boolean
   overCap?: boolean
+  refused?: string | null
   businessHours?: BusinessHours | null
   booking?: BookingContext | null
   /** The workspace's recording notice, said right after the greeting; null or missing: off. */
@@ -433,6 +439,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     forwardingCheck,
     busy,
     overCap,
+    refused: started.refused ?? null,
     businessHours,
     booking,
     caller,

@@ -1,6 +1,7 @@
 // A caller the assistant does not answer hears one short line in the assistant's voice before the agent hangs up,
 // never silence: over the workspace's limit of calls at once (`busy`) or its monthly spending cap (`overCap`; the API
-// filed both as missed with a callback), or a blocked number (filed in Spam).
+// filed both as missed with a callback), refused by billing on Linedesk Cloud (`refused`, the same line as over the
+// cap), or a blocked number (filed in Spam).
 import { mainLanguageOf, spokenLines } from '@linedesk/actions'
 import type { Room } from '@livekit/rtc-node'
 import type { CallSession } from './call-session.ts'
@@ -33,9 +34,10 @@ export async function lineAudio(voice: LineVoice, text: string): Promise<Greetin
 }
 
 /** What a caller the assistant does not answer hears: over the spending cap, busy, or a blocked number. */
-export function unansweredLine(call: Pick<CallSession, 'busy' | 'overCap' | 'assistant'>): string {
+export function unansweredLine(call: Pick<CallSession, 'busy' | 'overCap' | 'refused' | 'assistant'>): string {
   const lines = spokenLines(mainLanguageOf(call.assistant?.languages))
-  if (call.overCap) return lines.overCap
+  // Refused by billing (Linedesk Cloud): the business calls back, like over the spending cap.
+  if (call.overCap || call.refused) return lines.overCap
   if (call.busy) return lines.busy
   return lines.blocked
 }

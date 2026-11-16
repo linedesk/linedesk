@@ -19,9 +19,10 @@ import {
   type TransferResult,
   TRANSFERS_PER_HOUR,
 } from '@linedesk/actions'
-import { type Call, calls, type Tx } from '@linedesk/db'
+import { call_reservations, calls, type Tx } from '@linedesk/db'
 import { and, eq, gte, inArray, ne, sql } from 'drizzle-orm'
 import { assistantForNumber } from './assistants.ts'
+import { billingRules } from './billing-rules.ts'
 import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import {
   numberRoute,
@@ -30,6 +31,7 @@ import {
   outboundRefusal,
   transferMinutesAllowed,
 } from './outbound-policy.ts'
+import { closedLegSeconds, legOpen } from './transfer-legs.ts'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -115,6 +117,20 @@ async function callTransfer({ tx, actor, now }: HandlerCtx, input: Input, hoursF
   if (call.source === 'phone') {
     await checkTransferLimits(tx, workspaceId, call.id, now)
     maxMinutes = await transferMinutesAllowed(tx, workspaceId, now, route)
+    // A billed call (it has a reservation, call-billing.ts): the leg, and with it the time the call stays bridged,
+    // lasts at most the billed transfer cap, which its reservation was sized for (docs/billing.md §2.1a, M1). A call
+    // whose reservation cannot hold a capped transfer from now (sized without one: the contact was added after the
+    // call started) is not put through: billing fails closed (security review of #864).
+    const reservation = await reservationOf(tx, call.id)
+    if (reservation) {
+      const capSeconds = (await billingRules(tx)).billedTransferCapSeconds
+      const elapsed = Math.ceil((Date.parse(now) - Date.parse(call.started_at)) / 1000)
+      if (elapsed + closedLegSeconds(call, now) + 2 * capSeconds > reservation.limit_seconds) {
+        console.warn(`transfer of call ${call.id} refused: its billing reservation does not cover a transfer`)
+        throw new Reject("transfer refused: the call's billing limit does not cover a transfer")
+      }
+      maxMinutes = Math.min(maxMinutes, Math.floor(capSeconds / 60))
+    }
   }
   const rows = await tx
     .update(calls)
@@ -132,23 +148,13 @@ async function callTransfer({ tx, actor, now }: HandlerCtx, input: Input, hoursF
   return { rows: { calls: rows }, data: { callerId, maxMinutes } satisfies CallTransferData }
 }
 
-/** Whether a leg of this call is open: dialled and not ended by a result other than `connected`. */
-const legOpen = (call: Pick<Call, 'transfer_result' | 'transfer_at'>) =>
-  !!call.transfer_at && (call.transfer_result === 'dialing' || call.transfer_result === 'connected')
-
-/**
- * The call's `transfer_seconds` once its open leg ends at `now` (at the call's end when that came first): the seconds
- * from that leg's dial added, ringing included (as the day's minutes count it). Unchanged when no leg is open (a contact
- * that could not be dialled, a second result for the same leg).
- */
-export function closedLegSeconds(
-  call: Pick<Call, 'transfer_result' | 'transfer_at' | 'transfer_seconds' | 'ended_at'>,
-  now: string,
-) {
-  if (!legOpen(call)) return call.transfer_seconds
-  const end = Math.min(Date.parse(now), call.ended_at ? Date.parse(call.ended_at) : Number.POSITIVE_INFINITY)
-  const seconds = Math.ceil((end - Date.parse(call.transfer_at!)) / 1000)
-  return call.transfer_seconds + Math.max(0, seconds)
+/** The call's reservation from the billing gate: only a billed call has one. */
+async function reservationOf(tx: Tx, callId: string) {
+  const [row] = await tx
+    .select({ limit_seconds: call_reservations.limit_seconds })
+    .from(call_reservations)
+    .where(eq(call_reservations.call_id, callId))
+  return row ?? null
 }
 
 /**

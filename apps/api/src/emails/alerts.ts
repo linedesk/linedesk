@@ -203,9 +203,26 @@ export const billingSwitchAlert =
 
 /** The nightly billing check found ledger guards missing or sums that do not add up (ledger.ts `checkLedger`). */
 export const ledgerCheckAlert =
-  ({ guardsMissing, differences }: { guardsMissing: string[]; differences: LedgerDifference[] }): AdminAlertText =>
+  ({
+    guardsMissing,
+    differences,
+    failed = false,
+  }: {
+    guardsMissing: string[]
+    differences: LedgerDifference[]
+    /** The check itself threw: it found nothing, and nobody would hear of it otherwise. */
+    failed?: boolean
+  }): AdminAlertText =>
   locale => {
     const { t } = getT(locale)
+    if (failed)
+      return {
+        subject: t('email.adminAlert.ledgerCheck.failedSubject', { brand: brandName() }),
+        blocks: [
+          { kind: 'text', text: t('email.adminAlert.ledgerCheck.failed') },
+          { kind: 'text', tone: 'muted', text: t('email.adminAlert.ledgerCheck.nightly') },
+        ],
+      }
     const rows = differences.map((d): [string, string] => [
       t('email.adminAlert.ledgerCheck.kind', { kind: d.kind }),
       d.kind === 'uncredited'
@@ -248,6 +265,44 @@ export const cappedCallAlert =
           ],
         },
         { kind: 'text', text: t('email.adminAlert.cappedCall.check') },
+      ],
+    }
+  }
+
+/**
+ * Billing is switched on but cannot run (call-billing.ts `billOfCall`): calls of workspaces on a bill are refused until
+ * it works again. Once per streak.
+ */
+export const billingUnusableAlert =
+  (reason: 'guards' | 'keys'): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.billingUnusable.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.billingUnusable.text', { reason }) },
+        { kind: 'text', text: t('email.adminAlert.billingUnusable.fix') },
+      ],
+    }
+  }
+
+/** Recharge attempts still pending after STUCK_RECHARGE_MS (billing-recharge.ts `stuckRecharges`). */
+export const stuckRechargesAlert =
+  (stuck: { recharge: string; bill: string; since: string }[]): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.stuckRecharges.subject', { brand: brandName(), count: stuck.length }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.stuckRecharges.text') },
+        {
+          kind: 'facts',
+          rows: stuck.map((s): [string, string] => [
+            s.recharge,
+            t('email.adminAlert.stuckRecharges.row', { bill: s.bill, since: utcTime(s.since, locale) }),
+          ]),
+        },
+        { kind: 'text', text: t('email.adminAlert.stuckRecharges.check') },
       ],
     }
   }

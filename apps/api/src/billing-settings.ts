@@ -63,7 +63,7 @@ export async function billingState(tx: Tx, env: Env = serverEnv()): Promise<Bill
   const liveAllowed = liveKeysAllowed(env)
   const on = await billingSwitchOn(tx)
   const usable = !!keys && !!mode && (mode === 'test' || liveAllowed)
-  const guardsOk = ledgerGuardsOk()
+  const guardsOk = await ledgerGuardsOk(tx)
   return { on, inEffect: on && usable && guardsOk ? 'stripe' : 'none', connected: !!keys, mode, liveAllowed, guardsOk }
 }
 

@@ -8,9 +8,16 @@
 // A public demo call (demo-call.ts) is ended, room and all, once it is older than DEMO_ROOM_MAX_MS, whoever is in it:
 // the agent says goodbye earlier, so this only catches one that did not. Its room is deleted first, and the call is
 // filed only once that worked: while LiveKit cannot delete it, the call stays live (and counted) for the next sweep.
+// A billed call (Linedesk Cloud, call-billing.ts) still live after its limit plus the grace is ended the same way, at
+// once, whoever is in its room: filed with its full length while someone is in its room or LiveKit cannot be asked,
+// else with its last activity (a bridged call: at most the billed transfer cap after the transfer), so a call that
+// ended unreported is not billed its whole limit (security review of #864, L1). Then every ended call whose usage has
+// not posted yet (this sweep's, or a finish whose post failed) is posted.
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { calls, transcript_segments, type Tx } from '@linedesk/db'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { billingRules } from './billing-rules.ts'
+import { callsPastTheirLimit, postEndedCalls } from './call-billing.ts'
 import { DEMO_ROOM_MAX_MS, isDemoRoom } from './demo-rooms.ts'
 import { deleteLivekitRoom, listLivekitRooms } from './livekit-status.ts'
 
@@ -35,6 +42,7 @@ type Activity = {
   last_ms: number | null
   caller_turns: number
   transferred: boolean
+  transfer_at: string | null
   room: string | null
   source: string
 }
@@ -48,6 +56,7 @@ async function liveCallsStartedBefore(tx: Tx, cutoff: string): Promise<Activity[
       last_ms: sql<number | null>`max(${transcript_segments.at_ms})`,
       caller_turns: sql<number>`count(*) filter (where ${transcript_segments.speaker} = 'caller')`.mapWith(Number),
       transferred: sql<boolean>`${calls.transfer_result} = 'connected'`.mapWith(Boolean),
+      transfer_at: calls.transfer_at,
       room: calls.room,
       source: calls.source,
     })
@@ -120,16 +129,23 @@ async function openRooms(listRooms: ListRooms): Promise<Map<string, number> | nu
   }
 }
 
-type Verdict = 'live' | 'room-gone' | 'room-empty' | 'quiet' | 'demo-over'
+type Verdict = 'live' | 'room-gone' | 'room-empty' | 'quiet' | 'demo-over' | 'over-limit'
 
 /**
  * Whether a live call is over. A call with someone in its LiveKit room stays live; one whose room is gone or empty is
  * over after a minute of quiet (a dead agent leaves its room open and empty: the call ended, LIN-277). Without an
  * answer from LiveKit (or for a call that has no LiveKit room) only the quiet time counts.
  */
-function verdict(call: Activity, rooms: Map<string, number> | null, nowMs: number, staleAfterMin: number): Verdict {
+function verdict(
+  call: Activity,
+  rooms: Map<string, number> | null,
+  nowMs: number,
+  staleAfterMin: number,
+  pastLimit: Set<string>,
+): Verdict {
   const startedMs = Date.parse(call.started_at)
   const quietMs = nowMs - (startedMs + (call.last_ms ?? 0))
+  if (pastLimit.has(call.id)) return 'over-limit'
   if (call.source === 'test' && isDemoRoom(call.room) && nowMs - startedMs > DEMO_ROOM_MAX_MS) return 'demo-over'
   if (call.transferred && nowMs - startedMs < TRANSFERRED_STALE_MS) return 'live'
   if (rooms && call.room && IN_LIVEKIT.includes(call.source)) {
@@ -163,24 +179,41 @@ export async function finishStaleCalls(
   }: SweepOptions = {},
 ): Promise<string[]> {
   const nowMs = now.getTime()
+  const ended = await endStaleCalls(tx, nowMs, staleAfterMin, endRoom, listRooms)
+  await postEndedCalls(tx, now.toISOString())
+  return ended
+}
+
+async function endStaleCalls(tx: Tx, nowMs: number, staleAfterMin: number, endRoom: EndRoom, listRooms: ListRooms) {
   const candidates = await liveCallsStartedBefore(tx, new Date(nowMs - ROOM_GONE_QUIET_MS).toISOString())
   if (!candidates.length) return []
   const rooms = candidates.some(c => c.room && IN_LIVEKIT.includes(c.source)) ? await openRooms(listRooms) : null
+  const pastLimit = new Set((await callsPastTheirLimit(tx, new Date(nowMs).toISOString())).map(c => c.id))
   const ended: string[] = []
   for (const call of candidates) {
-    const over = verdict(call, rooms, nowMs, staleAfterMin)
+    const over = verdict(call, rooms, nowMs, staleAfterMin, pastLimit)
     if (over === 'live') continue
-    // A demo room may still hold a stuck agent: end it before filing the call, or leave the call live until it can be.
-    if (over === 'demo-over' && call.room && !(await roomDeleted(endRoom, call.room))) continue
+    // A demo room may still hold a stuck agent, a call past its limit is still running at the carrier: end the room
+    // before filing the call, or leave the call live until it can be.
+    if ((over === 'demo-over' || over === 'over-limit') && call.room && !(await roomDeleted(endRoom, call.room)))
+      continue
     const startedMs = Date.parse(call.started_at)
-    const lastActivityMs = startedMs + (call.last_ms ?? 0)
+    const quietSinceMs = startedMs + (call.last_ms ?? 0)
+    // A call past its limit with someone in its room (or LiveKit not answering) ran until now (rating caps it at the
+    // limit plus the grace); one whose room is gone or empty, and any other, ended when it went quiet.
+    const lastActivityMs =
+      over === 'over-limit' && !roomGoneOrEmpty(call, rooms)
+        ? nowMs
+        : over === 'over-limit' && call.transferred && call.transfer_at
+          ? Math.min(nowMs, Math.max(quietSinceMs, Date.parse(call.transfer_at) + (await transferCapMs(tx))))
+          : quietSinceMs
     const { action_items, ...result } = cutOffResult(call.caller_turns, call.last_ms ?? 0)
     const updated = await tx
       .update(calls)
       .set({
         status: 'completed',
         ended_at: new Date(lastActivityMs).toISOString(),
-        duration_sec: Math.round((call.last_ms ?? 0) / 1000),
+        duration_sec: Math.round((lastActivityMs - startedMs) / 1000),
         ...result,
         // Keep anything the call already had (a title or next steps the assistant saved).
         title: sql`coalesce(${calls.title}, ${result.title})`,
@@ -192,10 +225,21 @@ export async function finishStaleCalls(
       ended.push(id)
       // A room LiveKit no longer has needs no delete. An empty one is closed, so a restarted agent does not take its
       // job up again; without an answer from LiveKit it may still be open.
-      if (room && over !== 'room-gone' && over !== 'demo-over') await endRoomQuietly(endRoom, room)
+      if (room && over !== 'room-gone' && over !== 'demo-over' && over !== 'over-limit')
+        await endRoomQuietly(endRoom, room)
     }
   }
   return ended
+}
+
+/** Whether LiveKit answered that the call's room is gone or has nobody in it. */
+function roomGoneOrEmpty(call: Activity, rooms: Map<string, number> | null) {
+  return !!rooms && !!call.room && IN_LIVEKIT.includes(call.source) && !rooms.get(call.room)
+}
+
+/** The longest a billed call stays bridged after its transfer (billing rules), in ms. */
+async function transferCapMs(tx: Tx) {
+  return (await billingRules(tx)).billedTransferCapSeconds * 1000
 }
 
 /** Runs the sweep every minute in the API process. Never throws. */

@@ -24,6 +24,7 @@ import {
   LEDGER_CONSTRAINTS,
   LEDGER_GUARDS,
   LEDGER_INDEXES,
+  GUARDS_RECHECK_MS,
   checkLedgerGuards,
   ledgerGuardsOk,
   missingLedgerGuards,
@@ -413,19 +414,46 @@ describe('ledger guards', () => {
   test('the API finds every guard, and notices one that is disabled', async () => {
     expect(await missingLedgerGuards(db)).toEqual([])
     expect(await checkLedgerGuards(db)).toBe(true)
-    expect(ledgerGuardsOk()).toBe(true)
+    expect(await ledgerGuardsOk(db)).toBe(true)
     const error = console.error
     console.error = () => {}
     try {
       await db.execute(sql`alter table ledger_entries disable trigger ledger_entries_no_update_delete`)
       expect(await missingLedgerGuards(db)).toEqual(['ledger_entries.ledger_entries_no_update_delete'])
       expect(await checkLedgerGuards(db)).toBe(false)
-      expect(ledgerGuardsOk()).toBe(false)
+      expect(await ledgerGuardsOk(db)).toBe(false)
     } finally {
       await db.execute(sql`alter table ledger_entries enable trigger ledger_entries_no_update_delete`)
       console.error = error
     }
     expect(await checkLedgerGuards(db)).toBe(true)
+    // Another process dropped a guard: this one trusts its last check only for GUARDS_RECHECK_MS, then checks itself
+    // (security review of #857, L4).
+    try {
+      await db.execute(sql`alter table ledger_entries disable trigger ledger_entries_no_update_delete`)
+      console.error = () => {}
+      expect(await ledgerGuardsOk(db)).toBe(true)
+      expect(await ledgerGuardsOk(db, Date.now() + GUARDS_RECHECK_MS)).toBe(false)
+    } finally {
+      await db.execute(sql`alter table ledger_entries enable trigger ledger_entries_no_update_delete`)
+      console.error = error
+    }
+    expect(await ledgerGuardsOk(db, Date.now() + 2 * GUARDS_RECHECK_MS)).toBe(true)
+    // A check that throws (a timeout, a lost connection) counts for that request only: the next one checks again
+    // instead of trusting it for GUARDS_RECHECK_MS (security review of #864, M2).
+    const later = Date.now() + 4 * GUARDS_RECHECK_MS
+    const broken = {
+      execute: async () => {
+        throw new Error('canceling statement due to statement timeout')
+      },
+    } as never
+    console.error = () => {}
+    try {
+      expect(await ledgerGuardsOk(broken, later)).toBe(false)
+    } finally {
+      console.error = error
+    }
+    expect(await ledgerGuardsOk(db, later)).toBe(true)
     expect(LEDGER_GUARDS.map(g => `${g.table}.${g.trigger}`)).toEqual([
       'ledger_entries.ledger_entries_no_update_delete',
       'ledger_entries.ledger_entries_no_truncate',
@@ -489,7 +517,7 @@ describe('ledger guards: constraints and indexes', () => {
           'billing_recharges.billing_recharges_one_pending',
         ])
         await expect(requireLedgerGuards(tx)).rejects.toThrow(/billing is off/)
-        expect(ledgerGuardsOk()).toBe(false)
+        expect(await ledgerGuardsOk(tx)).toBe(false)
         throw rolledBack
       })
     } catch (e) {
@@ -499,7 +527,7 @@ describe('ledger guards: constraints and indexes', () => {
     }
     expect(await missingLedgerGuards(db)).toEqual([])
     await requireLedgerGuards(db)
-    expect(ledgerGuardsOk()).toBe(true)
+    expect(await ledgerGuardsOk(db)).toBe(true)
   })
 })
 

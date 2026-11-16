@@ -113,3 +113,216 @@ describe('stripe', () => {
     )
   })
 })
+
+/**
+ * Recorded answers of the recharge requests (shapes from the Stripe sandbox, cut to what the adapter reads), served
+ * by method and path, each request recorded with its form body and idempotency key.
+ */
+function stripeRoutes(routes: Record<string, (body: URLSearchParams) => [number, unknown]>) {
+  const calls: { route: string; body: URLSearchParams; key: string | null }[] = []
+  const doFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input))
+    const route = `${(init?.method ?? 'GET').toUpperCase()} ${url.pathname}`
+    const body = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
+    calls.push({ route, body, key: header(init, 'idempotency-key') })
+    const answer = routes[route]
+    const [status, json] = answer ? answer(body) : [404, { error: { type: 'invalid_request_error', message: route } }]
+    return new Response(JSON.stringify(json), { status, headers: { 'content-type': 'application/json' } })
+  }) as typeof fetch
+  return { doFetch, calls }
+}
+const invoice = (status: string, total = 2000, extra: Record<string, unknown> = {}) => ({
+  id: 'in_1Rc',
+  object: 'invoice',
+  status,
+  total,
+  metadata: { billing_recharge_id: 'rc_abc' },
+  hosted_invoice_url: 'https://invoice.stripe.com/i/acct_1/test_x',
+  ...extra,
+})
+const recharge = {
+  customerId: 'cus_1',
+  amountCents: 2000,
+  rechargeId: 'rc_abc',
+  description: 'Linedesk balance recharge',
+}
+const stripeWith = (doFetch: typeof fetch) =>
+  loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
+
+describe('stripe recharges', () => {
+  test('one invoice with one item, automatic tax, finalized and paid, each request with its own idempotency key', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
+    })
+    expect(await (await stripeWith(doFetch)).chargeRecharge(recharge)).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
+    expect(calls.map(c => [c.route, c.key])).toEqual([
+      ['POST /v1/invoices', 'rc_abc:invoice'],
+      ['POST /v1/invoiceitems', 'rc_abc:item'],
+      ['POST /v1/invoices/in_1Rc/finalize', 'rc_abc:finalize'],
+      ['POST /v1/invoices/in_1Rc/pay', 'rc_abc:pay'],
+    ])
+    expect(Object.fromEntries(calls[0]!.body)).toMatchObject({
+      customer: 'cus_1',
+      collection_method: 'charge_automatically',
+      auto_advance: 'true',
+      'automatic_tax[enabled]': 'true',
+      pending_invoice_items_behavior: 'exclude',
+      currency: 'usd',
+      'metadata[billing_recharge_id]': 'rc_abc',
+    })
+    expect(Object.fromEntries(calls[1]!.body)).toMatchObject({
+      invoice: 'in_1Rc',
+      amount: '2000',
+      currency: 'usd',
+      tax_behavior: 'exclusive',
+    })
+  })
+
+  test('a known invoice is charged again, never made a second time; one of another recharge is refused', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('open')],
+    })
+    const stripe = await stripeWith(doFetch)
+    expect(await stripe.chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' })).toEqual({
+      status: 'open',
+      invoiceId: 'in_1Rc',
+    })
+    expect(calls.map(c => c.route)).toEqual(['GET /v1/invoices/in_1Rc', 'POST /v1/invoices/in_1Rc/pay'])
+    await expect(stripe.chargeRecharge({ ...recharge, rechargeId: 'rc_other', invoiceId: 'in_1Rc' })).rejects.toThrow(
+      'is not the one of recharge rc_other',
+    )
+  })
+
+  test('a decline answers failed with the decline code; 3DS answers authentication_required; a server error throws', async () => {
+    const declined = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [
+        402,
+        {
+          error: {
+            type: 'card_error',
+            code: 'card_declined',
+            decline_code: 'generic_decline',
+            message: 'Your card was declined.',
+          },
+        },
+      ],
+    })
+    expect(await (await stripeWith(declined.doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' })).toEqual({
+      status: 'failed',
+      invoiceId: 'in_1Rc',
+      failureCode: 'generic_decline',
+    })
+    const needsOwner = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [
+        402,
+        {
+          error: {
+            type: 'card_error',
+            code: 'authentication_required',
+            message: 'This payment requires authentication.',
+          },
+        },
+      ],
+    })
+    expect(
+      await (await stripeWith(needsOwner.doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' }),
+    ).toMatchObject({
+      status: 'failed',
+      failureCode: 'authentication_required',
+    })
+    const down = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [500, { error: { type: 'api_error', message: 'Something went wrong' } }],
+    })
+    await expect(
+      (await stripeWith(down.doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' }),
+    ).rejects.toMatchObject({
+      statusCode: 500,
+    })
+  })
+
+  test('a failed recharge: collection off, then voided when asked; found again by its metadata', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open', 2000, { auto_advance: true })],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('open', 2000, { auto_advance: false })],
+      'POST /v1/invoices/in_1Rc/void': () => [200, invoice('void')],
+      'GET /v1/invoices/search': () => [200, { object: 'search_result', data: [invoice('paid')], has_more: false }],
+    })
+    const stripe = await stripeWith(doFetch)
+    await stripe.stopRechargeInvoice('in_1Rc', { void: true })
+    expect(calls.map(c => c.route)).toEqual([
+      'GET /v1/invoices/in_1Rc',
+      'POST /v1/invoices/in_1Rc',
+      'POST /v1/invoices/in_1Rc/void',
+    ])
+    expect(Object.fromEntries(calls[1]!.body)).toEqual({ auto_advance: 'false' })
+    expect(await stripe.findRechargeInvoice('rc_abc')).toBe('in_1Rc')
+    await expect(stripe.findRechargeInvoice("rc_x' OR '1")).rejects.toThrow('not a recharge id')
+    expect(await stripe.rechargeInvoicePage('in_1Rc')).toBe('https://invoice.stripe.com/i/acct_1/test_x')
+  })
+
+  test('a request Stripe refuses for good (a 4xx that is no card error, conflict or rate limit) fails the recharge (review L3)', async () => {
+    const noTax = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [
+        400,
+        {
+          error: { type: 'invalid_request_error', code: 'customer_tax_location_invalid', message: 'No tax location.' },
+        },
+      ],
+    })
+    expect(await (await stripeWith(noTax.doFetch)).chargeRecharge(recharge)).toEqual({
+      status: 'failed',
+      invoiceId: 'in_1Rc',
+      failureCode: 'stripe_customer_tax_location_invalid',
+    })
+    const noCard = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [
+        400,
+        { error: { type: 'invalid_request_error', code: 'invoice_no_payment_method_types', message: 'No card.' } },
+      ],
+    })
+    expect(await (await stripeWith(noCard.doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' })).toMatchObject(
+      {
+        status: 'failed',
+        failureCode: 'stripe_invoice_no_payment_method_types',
+      },
+    )
+    const busy = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [409, { error: { type: 'idempotency_error', message: 'In progress.' } }],
+    })
+    await expect(
+      (await stripeWith(busy.doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' }),
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  test('a failed draft is deleted, or kept with collection off when it is not voided', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('draft', 2000, { auto_advance: true })],
+      'DELETE /v1/invoices/in_1Rc': () => [200, { id: 'in_1Rc', object: 'invoice', deleted: true }],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 2000, { auto_advance: false })],
+    })
+    const stripe = await stripeWith(doFetch)
+    await stripe.stopRechargeInvoice('in_1Rc', { void: true })
+    await stripe.stopRechargeInvoice('in_1Rc', { void: false })
+    expect(calls.map(c => c.route)).toEqual([
+      'GET /v1/invoices/in_1Rc',
+      'DELETE /v1/invoices/in_1Rc',
+      'GET /v1/invoices/in_1Rc',
+      'POST /v1/invoices/in_1Rc',
+    ])
+  })
+
+  test('none refuses every charge without a network call', async () => {
+    await expect(noneBillingProvider.chargeRecharge(recharge)).rejects.toThrow('billing is off')
+  })
+})
