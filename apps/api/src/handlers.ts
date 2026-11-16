@@ -518,6 +518,17 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
   return usageLevelChange(stored, after)
 }
 
+/**
+ * A realtime model is only for an assistant that answers with one: on the three stages a save stores none, as Allow
+ * Ultra off leaves it. A save that picks one right after Allow Ultra off moved the assistant to the three stages (it
+ * waited for the version lock) would otherwise set it there again, without an Ultra check.
+ */
+async function withoutStrayRealtimeModel<I extends LevelInput>(tx: Tx, workspaceId: string, input: I): Promise<I> {
+  if (!input.realtime_model) return input
+  const pipeline = input.voice_pipeline !== undefined ? input.voice_pipeline : (await assistantIn(tx, workspaceId, input.assistantId))?.voice_pipeline
+  return pipeline === 'three_stage' ? { ...input, realtime_model: null } : input
+}
+
 type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'> & { realtime_model?: string | null }
 
 /** Whether a save turns on answering with a realtime model, or picks another one (Ultra on Linedesk Cloud). */
@@ -552,8 +563,12 @@ export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) 
 
 const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
-  'assistant.update': async (ctx, input) => {
+  'assistant.update': async (ctx, given) => {
     if (!ctx.actor.workspaceId) throw new Reject('no workspace')
+    // The version lock first (withVersion took it already; taking it again does not wait), as Allow Premium and Allow
+    // Ultra off take it before they move the assistants: everything read below is what the save writes over.
+    await lockAssistantVersion(ctx.tx, given.assistantId)
+    const input = await withoutStrayRealtimeModel(ctx.tx, ctx.actor.workspaceId, given)
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
     // The languages against the voice the calls speak with: again when the voice changes.
     if (input.languages || input.voice || input.voice_pipeline !== undefined) {
@@ -603,7 +618,8 @@ const handlers: Record<string, Handler> = {
       voice: fields.voice,
       llm_model: fields.llm_model ?? null,
       voice_pipeline: fields.voice_pipeline ?? null,
-      realtime_model: fields.realtime_model ?? null,
+      // As assistant.update stores it: no realtime model on the three stages.
+      realtime_model: fields.voice_pipeline === 'three_stage' ? null : (fields.realtime_model ?? null),
     }
     const levelChange = usageLevelChange(current, levelAfter)
     if (levelChange)

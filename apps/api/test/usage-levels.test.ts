@@ -493,6 +493,24 @@ describe('Allow Ultra', () => {
     })
   })
 
+  test('a realtime model picked on the three stages is not stored: never three_stage with a realtime model', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Stray Model Plumbing')
+      const update = (input: Record<string, unknown>) =>
+        act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
+      await setAllowUltra(ws.owner, true)
+      expect((await update({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime' })).status).toBe(200)
+      // The order the race test can hit: Allow Ultra off first, then a save that only picks another realtime model.
+      expect((await setAllowUltra(ws.owner, false)).status).toBe(200)
+      expect((await update({ realtime_model: 'gpt-realtime-2' })).status).toBe(200)
+      expect(await getAssistant(ws.assistant.id)).toMatchObject({ voice_pipeline: 'three_stage', realtime_model: null })
+      // With Allow Ultra on, too: the three stages and a realtime model in one save keep no model.
+      await setAllowUltra(ws.owner, true)
+      expect((await update({ voice_pipeline: 'three_stage', realtime_model: 'gpt-realtime' })).status).toBe(200)
+      expect(await getAssistant(ws.assistant.id)).toMatchObject({ voice_pipeline: 'three_stage', realtime_model: null })
+    })
+  })
+
   test('restoring a version from before the realtime model column: the install\'s realtime model, in the row and the audit', async () => {
     await withEnv(REALTIME, async () => {
       const ws = await createWorkspace('Ultra Old Version Plumbing')
