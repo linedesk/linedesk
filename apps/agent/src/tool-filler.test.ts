@@ -7,7 +7,6 @@ import type { Reply } from './hang-up.ts'
 import {
   FILLER_AFTER_MS,
   STILL_AFTER_MS,
-  STILL_EVERY_MS,
   TOO_SLOW_REPLY,
   type FillerSession,
   isSlowTool,
@@ -125,7 +124,7 @@ test('withFillers: the slow tools get say_while_waiting, never pass it on, and r
   expect(tools.lookup_order_status!.description).toBe('lookup')
 })
 
-test('a long wait: the caller hears it takes longer, again every few seconds, never over speech, never once done', async () => {
+test('a long wait: the caller hears once that it takes longer, never over speech, never once done', async () => {
   const { session: s } = session()
   const say = vi.fn(async (_line: string) => {})
   let running = true
@@ -134,15 +133,25 @@ test('a long wait: the caller hears it takes longer, again every few seconds, ne
   expect(say).not.toHaveBeenCalled() // the assistant spoke before the tool: no first filler
   await vi.advanceTimersByTimeAsync(1)
   expect(say).toHaveBeenLastCalledWith('Still on it.')
+  await vi.advanceTimersByTimeAsync(20_000)
+  expect(say).toHaveBeenCalledTimes(1) // once only
+  running = false
+})
+
+test('the long-wait line waits while someone speaks, and is dropped once the tool is done', async () => {
+  const { session: s } = session()
+  const say = vi.fn(async (_line: string) => {})
+  let running = true
+  toolFiller(s, say)(replyOf('Let me check.'), () => running, { slow: 'Still on it.' })
   s.agentState = 'speaking'
-  await vi.advanceTimersByTimeAsync(STILL_EVERY_MS)
-  expect(say).toHaveBeenCalledTimes(1) // still speaking: it waits
+  await vi.advanceTimersByTimeAsync(STILL_AFTER_MS + 2000)
+  expect(say).not.toHaveBeenCalled() // still speaking: it waits
   s.agentState = 'thinking'
   await vi.advanceTimersByTimeAsync(1000)
-  expect(say).toHaveBeenCalledTimes(2)
+  expect(say).toHaveBeenCalledTimes(1)
   running = false
-  await vi.advanceTimersByTimeAsync(STILL_EVERY_MS * 3)
-  expect(say).toHaveBeenCalledTimes(2)
+  await vi.advanceTimersByTimeAsync(20_000)
+  expect(say).toHaveBeenCalledTimes(1)
 })
 
 // LIN-341: the caller never waits longer than TOOL_MAX_WAIT_MS for another system.

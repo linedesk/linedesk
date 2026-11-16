@@ -4,7 +4,7 @@
 // looks up, in the language of the call. When the tool is still running a moment after it started and the assistant
 // said nothing in that reply, the agent says that sentence (at most once per caller turn). When it takes seconds, the
 // agent says a second one the model wrote with the call, say_if_slow ("This is taking a little longer, I'm still on
-// it."), and again every few seconds while the tool still runs, so the caller always knows. LiveKit frees the speech queue before it waits for a reply's tools, so the line plays while the tool runs,
+// it.") once, so the caller knows (a second one would come after the cut-off at TOOL_MAX_WAIT_MS). LiveKit frees the speech queue before it waits for a reply's tools, so the line plays while the tool runs,
 // in both pipelines (the three stages say it with the voice provider, a realtime call plays it in the model's voice).
 // No tool of these makes the caller wait longer than TOOL_MAX_WAIT_MS: then the model hears it did not finish.
 import { TOOL_MAX_WAIT_MS } from '@linedesk/actions'
@@ -15,9 +15,8 @@ import { type Reply, saidWords } from './hang-up.ts'
 /** How long a slow tool may run before the filler is said: a quick answer needs none. */
 export const FILLER_AFTER_MS = 700
 
-/** When a slow tool still runs this long, the caller hears that it takes longer; then again every STILL_EVERY_MS. */
+/** When a slow tool still runs this long, the caller hears once that it takes longer. */
 export const STILL_AFTER_MS = 4000
-export const STILL_EVERY_MS = 8000
 /** The agent or the caller still speaks when the long-wait sentence is due: try again this much later. */
 const STILL_RETRY_MS = 1000
 
@@ -46,7 +45,7 @@ const fillerParams = {
 export const TOO_SLOW_REPLY =
   'This took too long, and it is not clear whether it worked. Do not say it worked. Tell the caller you could not finish that right now, and offer to take a message so the team follows up.'
 
-export type FillerTimes = { afterMs?: number; stillAfterMs?: number; stillEveryMs?: number }
+export type FillerTimes = { afterMs?: number; stillAfterMs?: number }
 
 /** The tools that wait on another system; the others answer at once or speak themselves (collection steps, transfer_call). */
 export const isSlowTool = (name: string) =>
@@ -68,7 +67,7 @@ export type FillerSession = {
  * for the wait; `running()` is false once it is done. `say` says one (fixedLineSpeaker: in either pipeline).
  */
 export function toolFiller(session: FillerSession, say: (line: string) => Promise<unknown>, times: FillerTimes = {}) {
-  const { afterMs = FILLER_AFTER_MS, stillAfterMs = STILL_AFTER_MS, stillEveryMs = STILL_EVERY_MS } = times
+  const { afterMs = FILLER_AFTER_MS, stillAfterMs = STILL_AFTER_MS } = times
   let saidSinceCaller = false
   const replies = new WeakSet<object>()
   session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
@@ -97,7 +96,6 @@ export function toolFiller(session: FillerSession, say: (line: string) => Promis
           if (!running()) return
           if (!quiet()) return stillAt(STILL_RETRY_MS)
           sayLine(slow)
-          stillAt(stillEveryMs)
         }, ms).unref?.()
       stillAt(stillAfterMs)
     }
