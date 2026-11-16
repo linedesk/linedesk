@@ -5,6 +5,7 @@
 import type { ProviderFailureReason } from '@linedesk/actions'
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
+import type { LedgerDifference } from '../ledger.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { type EmailLocale, WEB_ORIGIN } from './templates.ts'
 
@@ -196,6 +197,57 @@ export const billingSwitchAlert =
       blocks: [
         { kind: 'text', text: t('email.adminAlert.billingSwitch.text', values) },
         { kind: 'text', text: t('email.adminAlert.checkProviders') },
+      ],
+    }
+  }
+
+/** The nightly billing check found ledger guards missing or sums that do not add up (ledger.ts `checkLedger`). */
+export const ledgerCheckAlert =
+  ({ guardsMissing, differences }: { guardsMissing: string[]; differences: LedgerDifference[] }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const rows = differences.map((d): [string, string] => [
+      t('email.adminAlert.ledgerCheck.kind', { kind: d.kind }),
+      d.kind === 'uncredited'
+        ? t('email.adminAlert.ledgerCheck.uncredited', { bill: d.bill, recharge: d.recharge })
+        : d.kind === 'balance' || d.kind === 'reserved'
+          ? t('email.adminAlert.ledgerCheck.bill', { bill: d.bill, found: d.found, expected: d.expected })
+          : t('email.adminAlert.ledgerCheck.counter', { ...d }),
+    ])
+    return {
+      subject: t('email.adminAlert.ledgerCheck.subject', { brand: brandName(), count: guardsMissing.length + differences.length }),
+      blocks: [
+        ...(guardsMissing.length
+          ? [
+              { kind: 'text', text: t('email.adminAlert.ledgerCheck.guards') } as const,
+              { kind: 'facts', rows: guardsMissing.map((g): [string, string] => [t('email.adminAlert.ledgerCheck.guard'), g]) } as const,
+            ]
+          : []),
+        ...(rows.length
+          ? [{ kind: 'text', text: t('email.adminAlert.ledgerCheck.sums') } as const, { kind: 'facts', rows } as const]
+          : []),
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.ledgerCheck.nightly') },
+      ],
+    }
+  }
+
+/** A call reported more seconds than its limit plus the grace, so its bill was capped (ledger.ts `postCallUsage`). */
+export const cappedCallAlert =
+  ({ bill, call, reported, billed }: { bill: string; call: string; reported: number; billed: number }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.cappedCall.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.cappedCall.text', { reported, billed }) },
+        {
+          kind: 'facts',
+          rows: [
+            [t('email.adminAlert.cappedCall.bill'), bill],
+            [t('email.adminAlert.cappedCall.call'), call],
+          ],
+        },
+        { kind: 'text', text: t('email.adminAlert.cappedCall.check') },
       ],
     }
   }

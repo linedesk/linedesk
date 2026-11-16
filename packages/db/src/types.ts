@@ -164,31 +164,5 @@ export const tableNames = [
   'webhook_endpoints', 'workspace_members', 'call_events', 'knowledge_documents', 'knowledge_questions',
 ] as const satisfies readonly TableName[]
 
-// Billing (Linedesk Cloud; docs/billing.md §4, decision 14): usage and extra numbers are paid from a prepaid
-// balance that is recharged automatically. Amounts in US cents unless the name says micros (1 USD = 1,000,000).
-
-/** A bill's default monthly recharge cap base ($50): auto-recharges stop for the calendar month at the cap. */
-export const RECHARGE_CAP_BASE_CENTS = 5000
-/** What each workspace after the first adds to a bill's monthly recharge cap ($25). */
-export const RECHARGE_CAP_PER_WORKSPACE_CENTS = 2500
-/** The highest recharge cap an owner sets alone (with the step-up); above it only an instance admin. */
-export const RECHARGE_CAP_SELF_SERVE_MAX_CENTS = 100_000
-/** Auto-recharge: when the balance falls below the threshold, the saved card is charged the amount. */
-export const RECHARGE_DEFAULTS = { thresholdCents: 500, amountCents: 2000 } as const
-/** The owner's range for the threshold and the amount; $20 is also the smallest top-up. */
-export const RECHARGE_LIMITS = {
-  thresholdCents: { min: 500, max: 10_000 },
-  amountCents: { min: 2000, max: 50_000 },
-} as const
-/** A recharge lifts the balance at least this far above the threshold, so one recharge is enough (no repeats). */
-export const RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS = 500
-/** How far below zero the balance may go before new calls are refused (a failed recharge, the cap reached). */
-export const BALANCE_BUFFER_MICROS = 5_000_000
-
-/**
- * The monthly recharge cap in effect for a bill: its stored base plus $25 for each workspace after the first.
- * Computed on every read, never stored, so adding or removing a workspace moves it without a write.
- */
-export function rechargeCapCents(baseCents: number, workspaces: number): number {
-  return baseCents + RECHARGE_CAP_PER_WORKSPACE_CENTS * Math.max(0, workspaces - 1)
-}
+// Billing prices and rules: one module (docs/billing.md §7a).
+export * from './billing-config.ts'

@@ -23,8 +23,9 @@ export const monthOf = (now: string) => new Date(now).toISOString().slice(0, 7)
 const monthStart = (now: string) => `${monthOf(now)}-01T00:00:00.000Z`
 
 /**
- * The workspace's estimated cost this UTC month, in USD. Deleted calls count (they were paid for); sample calls are
- * not calls. A call still live counts once it has finished.
+ * The workspace's estimated cost this UTC month, in USD. Deleted calls count (they were paid for); sample, simulated
+ * and test calls never count (docs/billing.md decision 5, the same as for billing). A call still live counts once it
+ * has finished.
  */
 export async function monthlySpend(tx: Tx, workspaceId: string, now: string): Promise<number> {
   const [row] = await tx
@@ -33,7 +34,7 @@ export async function monthlySpend(tx: Tx, workspaceId: string, now: string): Pr
       phone: sql<number>`coalesce(sum(${calls.duration_sec}) filter (where ${calls.source} = 'phone'), 0)::int`,
     })
     .from(calls)
-    .where(and(eq(calls.workspace_id, workspaceId), notInArray(calls.source, ['sample', 'simulated']), gte(calls.started_at, monthStart(now))))
+    .where(and(eq(calls.workspace_id, workspaceId), notInArray(calls.source, ['sample', 'simulated', 'test']), gte(calls.started_at, monthStart(now))))
   return (await costEstimate(tx))({ all: row?.all ?? 0, phone: row?.phone ?? 0 })
 }
 

@@ -4183,13 +4183,13 @@ describe('monthly spending cap', () => {
   const capOf = async (workspaceId: string) =>
     (await db.select().from(organization).where(eq(organization.id, workspaceId)))[0]?.spendingCapCents
   /** A finished phone call of `minutes` this month (or `daysAgo` back), straight into the table. */
-  const pastCall = (workspaceId: string, minutes: number, daysAgo = 0) =>
+  const pastCall = (workspaceId: string, minutes: number, daysAgo = 0, source: 'phone' | 'test' = 'phone') =>
     db.insert(calls).values({
       id: `call_cap_${randomBytes(6).toString('hex')}`,
       workspace_id: workspaceId,
       from_number: '+15035550142',
       to_number: '+15035550100',
-      source: 'phone',
+      source,
       status: 'completed',
       duration_sec: Math.round(minutes * 60),
       started_at: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
@@ -4210,6 +4210,13 @@ describe('monthly spending cap', () => {
   afterEach(() => {
     setJobQueue(null)
     vi.unstubAllEnvs()
+  })
+
+  test('test calls never count (docs/billing.md decision 5)', async () => {
+    const ws = await createWorkspace('Tested Plumbing')
+    await pastCall(ws.id, 10_000, 0, 'test')
+    const set = await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1 })
+    expect(set.body.data).toMatchObject({ spent_usd: 0, reached: false })
   })
 
   test('off by default; only instance admins set it; 80 % and 100 % alerts once a month; at the cap calls get a line and a callback', async () => {

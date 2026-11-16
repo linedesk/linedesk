@@ -10,8 +10,10 @@ import {
   adminAlertEmail,
   adminGrantedAlert,
   adminSignInAlert,
+  cappedCallAlert,
   enrolmentIssuedAlert,
   installTestEmail,
+  ledgerCheckAlert,
   passkeysResetAlert,
   providerFailureAlert,
   settingsChangedAlert,
@@ -19,8 +21,8 @@ import {
 } from './alerts.ts'
 import type { RenderedEmail } from './layout.ts'
 import { setupUnsubscribePage } from './pages.ts'
-import { signInCodeEmail } from './templates.ts'
 import { assignedPushText, callPushTitle } from './push-text.ts'
+import { signInCodeEmail } from './templates.ts'
 
 const ORIGIN = 'https://desk.example.com'
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0 Safari/537.36'
@@ -83,6 +85,33 @@ describe('in the pseudo-locale nothing is left in English', () => {
       at: AT,
     })
     expectTranslated(adminAlertEmail(bare(pseudo), ORIGIN, pseudo), ['a@b.test', utc])
+  })
+
+  it('a call billed at its limit', () => {
+    const alert = cappedCallAlert({ bill: 'bill_1', call: 'call_1', reported: 36_000, billed: 120 })
+    expectTranslated(adminAlertEmail(alert(pseudo), ORIGIN, pseudo), ['bill_1', 'call_1', '36000', '120'])
+    expect(alert('en').blocks[0]).toMatchObject({ text: expect.stringContaining('reported 36000 seconds') })
+  })
+
+  it('the nightly billing check', () => {
+    const found = {
+      guardsMissing: ['ledger_entries.ledger_entries_append_only'],
+      differences: [
+        { kind: 'balance', bill: 'bill_1', found: 5, expected: 7 },
+        { kind: 'counter_allowance', bill: 'bill_1', period: 'bp_1', workspace: 'ws_1', found: 0, expected: 120 },
+        { kind: 'uncredited', bill: 'bill_1', recharge: 'rc_1' },
+      ],
+    } as const
+    const email = adminAlertEmail(
+      ledgerCheckAlert({ ...found, guardsMissing: [...found.guardsMissing], differences: [...found.differences] })(
+        pseudo,
+      ),
+      ORIGIN,
+      pseudo,
+    )
+    expectTranslated(email, ['ledger_entries.ledger_entries_append_only', 'bill_1', 'bp_1', 'ws_1', 'rc_1'])
+    const english = ledgerCheckAlert({ guardsMissing: [], differences: [...found.differences] })('en')
+    expect(english.subject).toBe(`Billing check on ${brandName()}: 3 problems found`)
   })
 
   it('the English alert says what it said before', () => {

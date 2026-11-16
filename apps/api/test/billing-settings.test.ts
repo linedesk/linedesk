@@ -3,10 +3,11 @@
 // admin as themselves with the passkey changes the keys; keys are not swapped while on; turning on binds billing to
 // one Stripe account; every change emails every instance admin. Instance-wide (provider keys, instance settings): its
 // own database (vitest.config.ts).
-import { commands, instance_settings, provider_settings, user } from '@linedesk/db'
+import { BILLING_DEFAULTS, commands, instance_settings, provider_settings, user } from '@linedesk/db'
 import { desc, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { adminHandlers } from '../src/admin-handlers.ts'
+import { BILLING_RULES_KEY, billingRules } from '../src/billing-rules.ts'
 import { billingProvider, billingSettingsHandlers, billingState, setBillingFetch } from '../src/billing-settings.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
@@ -318,5 +319,22 @@ describe('keys', () => {
     const rows = await db.select().from(commands).where(eq(commands.action, 'provider.setKeys'))
     expect(JSON.stringify(rows)).not.toContain(TEST_KEY)
     expect(JSON.stringify(rows)).not.toContain(WEBHOOK)
+  })
+})
+
+describe('the billing rules setting (docs/billing.md §7a)', () => {
+  test('without a row the defaults; a stored row over them; a row that does not parse is the defaults', async () => {
+    await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY))
+    expect(await billingRules(db)).toEqual(BILLING_DEFAULTS)
+    await db
+      .insert(instance_settings)
+      .values({ key: BILLING_RULES_KEY, value: JSON.stringify({ extraNumberCents: 500 }) })
+    expect(await billingRules(db)).toEqual({ ...BILLING_DEFAULTS, extraNumberCents: 500 })
+    await db.update(instance_settings).set({ value: '{' }).where(eq(instance_settings.key, BILLING_RULES_KEY))
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(await billingRules(db)).toEqual(BILLING_DEFAULTS)
+    expect(errors).toHaveBeenCalled()
+    errors.mockRestore()
+    await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY))
   })
 })

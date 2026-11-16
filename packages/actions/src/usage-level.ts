@@ -4,6 +4,7 @@
 // usage fee and no restriction. Self-hosted installs (no billing) use every option, without levels. A call answered by
 // a realtime (speech-to-speech) model is Ultra, which needs Allow Ultra (not built yet: no Cloud call is Ultra so far).
 // The one source of truth for the lists: the voice picker, the API's checks (assistant.update, call.start) and billing.
+import { LEVEL_PRICES } from '@linedesk/db/types'
 import type { LlmProvider } from './admin.ts'
 
 export const USAGE_LEVELS = ['standard', 'premium', 'ultra'] as const
@@ -16,12 +17,15 @@ export type UsageTier = (typeof USAGE_LEVELS)[number]
 export type UsageLevel = UsageTier | 'own_keys' | 'not_allowed'
 
 /**
- * What a call minute costs on each level, in US cents (billed per second). A level without a price here (`not_allowed`,
- * and Ultra until it is priced) never runs: centsPerMinute throws for it.
+ * What a call minute costs on each level, in US cents (billed per second), from the one billing price table
+ * (`LEVEL_PRICES` in packages/db/src/billing-config.ts, Linedesk Cloud's defaults). A level without a price here
+ * (`not_allowed`, and Ultra until Allow Ultra exists) never runs: centsPerMinute throws for it.
  */
-export const USAGE_CENTS_PER_MINUTE = { standard: 5, premium: 10, own_keys: 0 } as const satisfies Partial<
-  Record<UsageLevel, number>
->
+export const USAGE_CENTS_PER_MINUTE = {
+  standard: LEVEL_PRICES.standard.microsPerMinute / 10_000,
+  premium: LEVEL_PRICES.premium.microsPerMinute / 10_000,
+  own_keys: 0,
+} as const satisfies Partial<Record<UsageLevel, number>>
 
 /** What a call minute on this level costs, in US cents; throws for a level without a price (a call that must not run). */
 export function centsPerMinute(level: UsageLevel): number {

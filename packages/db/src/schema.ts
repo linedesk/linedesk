@@ -30,6 +30,8 @@ import {
   RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS,
   RECHARGE_DEFAULTS,
   RECHARGE_LIMITS,
+  PAID_LEVELS,
+  USAGE_LEVELS,
   type ActionItem,
   type AssistantLanguages,
   type AssistantVoice,
@@ -1598,7 +1600,9 @@ const oneOf = (column: AnyPgColumn, values: readonly string[]) =>
   sql`${column} in (${sql.raw(values.map(v => `'${v}'`).join(', '))})`
 const BILLING_INTERVALS = ['month', 'year'] as const
 const PERIOD_KINDS = ['trial', 'month'] as const
-const PRICE_BASES = ['fixed_5c', 'cost_plus_10', 'own_keys'] as const
+// The usage levels of `LEVEL_PRICES` plus `own_keys` (decision 15); a new level there regenerates this CHECK.
+// `fixed_5c` and `cost_plus_10` are the 0107 values, still allowed (expand-only) but no longer written.
+const PRICE_BASES = [...USAGE_LEVELS, 'fixed_5c', 'cost_plus_10'] as const
 const INVOICE_KINDS = ['subscription', 'recharge', 'topup'] as const
 const INVOICE_STATUSES = ['draft', 'open', 'paid', 'uncollectible', 'void'] as const
 const ALERT_KINDS = ['recharge_failed', 'recharge_cap_reached', 'low_balance', 'renewal_reminder'] as const
@@ -1822,6 +1826,7 @@ export const usage_counters = pgTable(
       .notNull()
       .references(() => billing_periods.id),
     workspace_id: text('workspace_id').notNull(),
+    /** The included allowance used, in Standard seconds: a Premium second counts 2, an own-keys second 0. */
     included_seconds_used: integer('included_seconds_used').notNull().default(0),
     /** Charged for usage beyond the included minutes, as a positive amount. */
     usage_micros: micros('usage_micros').notNull().default(0),
@@ -1838,16 +1843,32 @@ export const usage_counters = pgTable(
  * billed workspace has a row, so the rows also count the bill's running calls. Released when the usage posts.
  * A trigger (migration 0107) keeps `billing_balances.reserved_micros` equal to their sum, a deleted call included.
  */
-export const call_reservations = pgTable('call_reservations', {
-  call_id: text('call_id')
-    .primaryKey()
-    .references(() => calls.id, { onDelete: 'cascade' }),
-  billing_account_id: text('billing_account_id')
-    .notNull()
-    .references(() => billing_accounts.id),
-  reserved_micros: micros('reserved_micros').notNull(),
-  created_at: createdAt(),
-})
+export const call_reservations = pgTable(
+  'call_reservations',
+  {
+    call_id: text('call_id')
+      .primaryKey()
+      .references(() => calls.id, { onDelete: 'cascade' }),
+    billing_account_id: text('billing_account_id')
+      .notNull()
+      .references(() => billing_accounts.id),
+    reserved_micros: micros('reserved_micros').notNull(),
+    /** The level the call pays, fixed when it started (decision 15): its usage entry is rated with it. */
+    usage_level: text('usage_level', { enum: PAID_LEVELS }).notNull().default('standard'),
+    /** Every part was to run on the customer's own keys: only a forecast, confirmed after the call (§2.1a). */
+    own_keys: boolean('own_keys').notNull().default(false),
+    /** The longest the call may last, fixed when it started: max call length plus the capped transfer (§4.4). */
+    limit_seconds: integer('limit_seconds').notNull().default(3600),
+    /** The included allowance this call holds while it runs, in Standard seconds (docs/billing.md §4.4). */
+    included_reserved_seconds: integer('included_reserved_seconds').notNull().default(0),
+    created_at: createdAt(),
+  },
+  t => [
+    check('call_reservations_usage_level', oneOf(t.usage_level, PAID_LEVELS)),
+    check('call_reservations_limit', sql`${t.limit_seconds} > 0`),
+    check('call_reservations_included_reserved', sql`${t.included_reserved_seconds} >= 0`),
+  ],
+)
 
 /**
  * A bill's automatic recharges, one row per attempt (failed ones are kept). At most one is pending per bill (a

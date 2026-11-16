@@ -28,6 +28,9 @@ import { sendDueSetupEmails } from './setup-emails.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptDelivery, clearOldPayloads, WEBHOOK_ATTEMPTS } from './webhooks.ts'
 import { localeForEmail } from './email-locale.ts'
+import { alertInstanceAdmins } from './admin-alerts.ts'
+import { ledgerCheckAlert } from './emails/alerts.ts'
+import { checkLedger } from './ledger.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -67,6 +70,9 @@ const WEBHOOK_CLEANUP_CRON = '37 3 * * *'
 /** Daily: command log inputs and results older than 90 days keep only ids (command-log.ts). */
 export const COMMAND_PRUNE = 'commands.prune'
 const COMMAND_PRUNE_CRON = '47 3 * * *'
+/** Nightly: the ledger guards and the billing sums (ledger.ts checkLedger); instance admins hear about what is wrong. */
+export const LEDGER_CHECK = 'billing.ledgerCheck'
+const LEDGER_CHECK_CRON = '57 3 * * *'
 /** Daily: the public holidays and yearly days of the next twelve months move one day on (public-holidays.ts). */
 export const HOLIDAY_SYNC = 'holidays.sync'
 const HOLIDAY_SYNC_CRON = '17 2 * * *'
@@ -173,6 +179,17 @@ async function runJobs(instance: PgBoss, env: Env) {
     expiredVerifications: await pruneExpiredVerifications(db),
     oldAdminDevices: await pruneOldAdminDevices(db),
   }))
+  await instance.schedule(LEDGER_CHECK, LEDGER_CHECK_CRON)
+  await instance.work(LEDGER_CHECK, async () => {
+    const found = await db.transaction(tx => checkLedger(tx))
+    if (!found) return { bills: false }
+    const problems = found.guardsMissing.length + found.differences.length
+    if (problems) {
+      console.error(`billing check: ${problems} problems (${JSON.stringify(found)})`)
+      await alertInstanceAdmins(ledgerCheckAlert(found))
+    }
+    return { bills: true, problems }
+  })
   await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
   await instance.work(HOLIDAY_SYNC, async () => {
     // One transaction per workspace, so a long run holds no locks for long.
@@ -225,6 +242,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(DEMO_CALL_CLEANUP)
   await instance.createQueue(COMMAND_PRUNE)
   await instance.createQueue(HOLIDAY_SYNC)
+  await instance.createQueue(LEDGER_CHECK, { retryLimit: 0, expireInSeconds: 600 })
   await instance.createQueue(SETUP_EMAILS)
   // One run at a time, never retried: the next scheduled run is the retry.
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
