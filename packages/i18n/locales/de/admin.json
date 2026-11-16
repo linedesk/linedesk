@@ -174,6 +174,8 @@
   "audit.contact.unblock": "Kontakt entsperrt",
   "audit.contact.update": "Kontakt geändert",
   "audit.emailChanged": "{known, select, yes {E-Mail-Adresse in {email} geändert} other {E-Mail-Adresse geändert}}",
+  "audit.emailRoutingChanged": "Empfänger der Anruf-E-Mails geändert ({changes})",
+  "audit.emailRoutingEdited": "Empfänger der Anruf-E-Mails geändert",
   "audit.empty": "Keine Einträge.",
   "audit.forwardingChecked": "Rufumleitung geprüft",
   "audit.from": "Von",

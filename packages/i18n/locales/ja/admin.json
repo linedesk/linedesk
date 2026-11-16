@@ -174,6 +174,8 @@
   "audit.contact.unblock": "連絡先のブロックを解除しました",
   "audit.contact.update": "連絡先を変更しました",
   "audit.emailChanged": "{known, select, yes {メールアドレスを{email}に変更しました} other {メールアドレスを変更しました}}",
+  "audit.emailRoutingChanged": "通話メールの送信先を変更しました（{changes}）",
+  "audit.emailRoutingEdited": "通話メールの送信先を変更しました",
   "audit.empty": "記録はありません。",
   "audit.forwardingChecked": "転送を確認しました",
   "audit.from": "開始",
