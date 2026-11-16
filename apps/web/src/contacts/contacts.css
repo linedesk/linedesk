@@ -4,7 +4,7 @@
    in ui/list.tsx). The time and name columns are the inbox's time and caller columns, so both pages
    line up. */
 .ib-list.ct-list {
-  --ct-columns: 128px minmax(110px, 220px) minmax(90px, 160px) minmax(0, 1fr) 56px;
+  --ct-columns: 128px minmax(110px, 220px) minmax(90px, 160px) minmax(0, 1fr) 84px;
 }
 .row.cust-row.ct-row,
 .ib-list .ib-cols.ct-cols {

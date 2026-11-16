@@ -12,7 +12,7 @@
   "assign.you": "vous",
   "assigneeViews.label": "Attribués à",
   "assigneeViews.placeholder": "Afficher les appels attribués à…",
-  "bulk.clear": "Effacer",
+  "bulk.clear": "Désélectionner",
   "bulk.label": "Appels sélectionnés",
   "bulk.selected": "{count} sélectionnés",
   "change.assigned": "Attribué à {who}.",

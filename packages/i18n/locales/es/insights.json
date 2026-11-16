@@ -56,7 +56,7 @@
   "number.missedHelp": "Nadie contestó: el asistente no estaba funcionando o no estaba configurado.",
   "number.shareOf": "{share, number, percent} de {count, plural, one {# llamada} many {# llamadas} other {# llamadas}}",
   "number.tabs": "Mostrar en el gráfico",
-  "number.versus": "{change} frente a {versus}",
+  "number.versus": "{change} vs. {versus}",
   "outcomes.afterHours": "{count, plural, one {# llamada} many {# llamadas} other {# llamadas}} fuera de horario",
   "outcomes.desc": "Cada llamada cuenta una vez.",
   "outcomes.message": "Mensaje o devolución de llamada",

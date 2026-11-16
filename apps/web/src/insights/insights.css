@@ -119,9 +119,8 @@
 .in-tile-s {
   font-size: 12px;
   color: var(--ink-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* wraps instead of cutting off: the comparison is longer than English in most languages */
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
 .in-danger {

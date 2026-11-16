@@ -47,7 +47,7 @@
   "command.selectAllInTheView": "ビュー内をすべて選択",
   "command.selectCall": "通話を選択",
   "command.selectedCall": "選択中の通話 · {name}",
-  "command.showGoLiveChecklist": "公開前チェックリストを表示",
+  "command.showGoLiveChecklist": "運用開始チェックリストを表示",
   "command.showKeyboardShortcuts": "キーボードショートカットを表示",
   "command.showTheTour": "ツアーを表示",
   "command.signOut": "サインアウト",

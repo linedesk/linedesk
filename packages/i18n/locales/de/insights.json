@@ -50,7 +50,7 @@
   "number.booked": "Termine gebucht",
   "number.bookedHelp": "Anrufe, die mit einem vom Assistenten gebuchten Termin endeten.",
   "number.label": "Kennzahlen",
-  "number.messages": "Aufgenommene Nachrichten",
+  "number.messages": "Nachrichten",
   "number.messagesHelp": "Nachrichten und Rückrufbitten.",
   "number.missed": "Verpasst",
   "number.missedHelp": "Niemand hat abgenommen: Der Assistent lief nicht oder war nicht eingerichtet.",
