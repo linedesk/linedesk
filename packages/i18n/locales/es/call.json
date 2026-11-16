@@ -10,6 +10,7 @@
   "autoSummary.missed.billing.billing_inactive": "Nadie contestó esta llamada: el plan del espacio de trabajo no está activo. Devuelve la llamada.",
   "autoSummary.missed.billing.level_not_allowed": "Nadie contestó esta llamada: la voz o el modelo del asistente no está permitido en este plan. Devuelve la llamada.",
   "autoSummary.missed.billing.no_balance": "Nadie contestó esta llamada: se agotó el saldo prepago. Devuelve la llamada.",
+  "autoSummary.missed.billing.number_unpaid": "Nadie contestó esta llamada: el mes en curso del número por el que entró no está pagado. Devuelve la llamada.",
   "autoSummary.missed.billing.too_many_calls": "Nadie contestó esta llamada: la factura ya tenía en curso tantas llamadas simultáneas como permite. Devuelve la llamada.",
   "autoSummary.missed.busy": "Nadie contestó esta llamada: había {count} llamadas más en curso. Devuelve la llamada.",
   "autoSummary.missed.callBack": "Devolver la llamada",

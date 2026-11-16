@@ -794,6 +794,7 @@
   "prompt.variable.types": "予約の種類",
   "prompt.variableHint": "通話ごとに埋め込まれます。変更や削除はできません。",
   "prompt.what": "システムプロンプト",
+  "prompt.when.aiAtStart": "アシスタントが最初にAIだと伝える場合",
   "prompt.when.aiConsent": "挨拶でAIへの同意を求める場合",
   "prompt.when.aiNever": "アシスタントが自分からAIだと言わない場合",
   "prompt.when.booking": "アシスタントが予約できる場合",

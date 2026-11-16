@@ -794,6 +794,7 @@
   "prompt.variable.types": "types de rendez-vous",
   "prompt.variableHint": "Rempli à chaque appel. Vous ne pouvez ni le modifier ni le supprimer.",
   "prompt.what": "le prompt système",
+  "prompt.when.aiAtStart": "Quand l'assistant dit dès le début qu'il est une IA",
   "prompt.when.aiConsent": "Quand l'accueil demande l'accord pour parler à une IA",
   "prompt.when.aiNever": "Quand l'assistant ne dit pas de lui-même qu'il est une IA",
   "prompt.when.booking": "Quand l'assistant peut réserver des rendez-vous",

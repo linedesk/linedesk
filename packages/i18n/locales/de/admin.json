@@ -794,6 +794,7 @@
   "prompt.variable.types": "Terminarten",
   "prompt.variableHint": "Wird bei jedem Anruf ausgefüllt. Du kannst es nicht ändern oder entfernen.",
   "prompt.what": "Der Systemprompt",
+  "prompt.when.aiAtStart": "Wenn der Assistent zu Beginn sagt, dass er eine KI ist",
   "prompt.when.aiConsent": "Wenn die Begrüßung um Zustimmung zu einer KI bittet",
   "prompt.when.aiNever": "Wenn der Assistent nicht von sich aus sagt, dass er eine KI ist",
   "prompt.when.booking": "Wenn der Assistent Termine buchen kann",

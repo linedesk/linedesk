@@ -10,6 +10,7 @@
   "autoSummary.missed.billing.billing_inactive": "Niemand hat diesen Anruf angenommen: Der Tarif des Workspaces ist nicht aktiv. Ruf den Anrufer zurück.",
   "autoSummary.missed.billing.level_not_allowed": "Niemand hat diesen Anruf angenommen: Stimme oder Modell des Assistenten sind in diesem Tarif nicht erlaubt. Ruf den Anrufer zurück.",
   "autoSummary.missed.billing.no_balance": "Niemand hat diesen Anruf angenommen: Das Prepaid-Guthaben ist aufgebraucht. Ruf den Anrufer zurück.",
+  "autoSummary.missed.billing.number_unpaid": "Niemand hat diesen Anruf angenommen: Der aktuelle Monat der Nummer, auf der er einging, ist nicht bezahlt. Ruf den Anrufer zurück.",
   "autoSummary.missed.billing.too_many_calls": "Niemand hat diesen Anruf angenommen: Auf der Rechnung liefen bereits so viele Anrufe gleichzeitig, wie sie erlaubt. Ruf den Anrufer zurück.",
   "autoSummary.missed.busy": "Niemand hat diesen Anruf angenommen: {count} andere Anrufe liefen gerade. Ruf den Anrufer zurück.",
   "autoSummary.missed.callBack": "Zurückrufen",

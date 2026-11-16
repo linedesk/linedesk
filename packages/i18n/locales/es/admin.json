@@ -794,6 +794,7 @@
   "prompt.variable.types": "tipos de cita",
   "prompt.variableHint": "Se completa en cada llamada. No puedes cambiarlo ni quitarlo.",
   "prompt.what": "el prompt del sistema",
+  "prompt.when.aiAtStart": "Cuando el asistente dice al principio que es una IA",
   "prompt.when.aiConsent": "Cuando el saludo pide consentimiento para hablar con una IA",
   "prompt.when.aiNever": "Cuando el asistente no dice por sí mismo que es una IA",
   "prompt.when.booking": "Cuando el asistente puede agendar citas",

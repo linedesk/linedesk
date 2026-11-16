@@ -794,6 +794,7 @@
   "prompt.variable.types": "tipos de agendamento",
   "prompt.variableHint": "Preenchido em cada chamada. Você não pode alterá-lo nem removê-lo.",
   "prompt.what": "o prompt de sistema",
+  "prompt.when.aiAtStart": "Quando o assistente diz no início que é uma IA",
   "prompt.when.aiConsent": "Quando a saudação pede consentimento para falar com uma IA",
   "prompt.when.aiNever": "Quando o assistente não diz por conta própria que é uma IA",
   "prompt.when.booking": "Quando o assistente pode marcar agendamentos",
