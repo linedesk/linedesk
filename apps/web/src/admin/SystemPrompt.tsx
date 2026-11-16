@@ -17,7 +17,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FocusEvent, type FormEvent, type KeyboardEvent, useRef, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { Badge, Button, cx, Note } from '../ui/kit.tsx'
+import { Badge, Button, cx, Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 
@@ -167,8 +167,9 @@ type PartProps = {
 }
 
 /**
- * One part: each piece of fixed text between the variables is editable on its own, so the variables stay where they
- * are. Leaving the part saves it; Esc puts it back as it was, ⌘↵ saves. A form, so admin mode leaves its keys alone.
+ * One part, drawn as a text field (LIN-356) so it is clear the text can change: each piece of fixed text between the
+ * variables is editable on its own, so the variables stay where they are. Leaving the part saves it; Esc undoes,
+ * ⌘↵ saves at once. A form, so admin mode leaves its keys alone.
  */
 function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
   const t = useT()
@@ -176,6 +177,9 @@ function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
   const current = textInUse(partKey, edit)
   const { texts, variables } = splitText(current)
   const pieces = useRef<(HTMLSpanElement | null)[]>([])
+  const [focused, setFocused] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [saved, setSaved] = useState(false)
   const read = () =>
     joinText(
       texts.map((text, i) => pieces.current[i]?.textContent ?? text),
@@ -186,9 +190,11 @@ function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
       const piece = pieces.current[i]
       if (piece) piece.textContent = text
     })
+    setDirty(false)
   }
   function save() {
     const next = read()
+    setDirty(false)
     if (next === current) return
     if (!next.trim()) {
       restore()
@@ -196,9 +202,12 @@ function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
       return
     }
     onSave(partKey, next)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
   function onBlur(e: FocusEvent<HTMLFormElement>) {
     if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setFocused(false)
     save()
   }
   function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
@@ -215,13 +224,15 @@ function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
   const onSubmit = (e: FormEvent) => e.preventDefault()
   return (
     <form
-      className={cx('adm-prompt-part', edit && 'is-edited')}
+      className={cx('adm-prompt-part', edit && 'is-edited', focused && 'is-focused')}
       onBlur={onBlur}
+      onFocus={() => setFocused(true)}
       onKeyDown={onKeyDown}
+      onInput={() => setDirty(read() !== current)}
       onSubmit={onSubmit}
       data-part={partKey}
     >
-      {(def.when || edit) && (
+      {(def.when || edit || saved) && (
         <div className="adm-prompt-meta">
           {def.when && <span className="adm-prompt-when">{t(CONDITIONS[def.when])}</span>}
           {edit && <Badge tone="outline">{t('admin.prompt.edited')}</Badge>}
@@ -235,16 +246,17 @@ function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
               {t('admin.prompt.notInUse')}
             </Badge>
           )}
+          {saved && (
+            <span className="adm-prompt-saved" role="status">
+              <Icon name="check" size={12} /> {t('admin.prompt.saved')}
+            </span>
+          )}
           {edit && (
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="restart"
-              className="adm-prompt-reset"
-              onClick={() => onReset(partKey)}
-            >
-              {t('admin.prompt.reset')}
-            </Button>
+            <span className="adm-prompt-tools">
+              <Button size="sm" variant="ghost" icon="restart" onClick={() => onReset(partKey)}>
+                {t('admin.prompt.reset')}
+              </Button>
+            </span>
           )}
         </div>
       )}
@@ -273,6 +285,9 @@ function Part({ partKey, edit, onSave, onReset, onEmpty }: PartProps) {
           </span>
         ))}
       </p>
+      {focused && (
+        <p className="adm-prompt-hint">{dirty ? t('admin.prompt.unsaved') : t('admin.prompt.autoSaveHint')}</p>
+      )}
       {edit && (
         <details className="adm-prompt-default">
           <summary>{t('admin.prompt.defaultText')}</summary>
