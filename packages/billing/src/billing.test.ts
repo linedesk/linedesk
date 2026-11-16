@@ -1,7 +1,19 @@
 // Contract tests of the billing adapters: `none` without a network call, `stripe` against recorded responses of
 // GET /v1/account (the shape Stripe sends), never the network.
+import { createHmac } from 'node:crypto'
+import Stripe from 'stripe'
 import { describe, expect, test } from 'vitest'
-import { isStripeWebhookSecret, liveKeysAllowed, loadBillingProvider, noneBillingProvider, stripeKeyMode } from './index.ts'
+import {
+  BillingSetupError,
+  isStripeWebhookSecret,
+  liveKeysAllowed,
+  loadBillingProvider,
+  noneBillingProvider,
+  type StripeKeys,
+  stripeKeyMode,
+  WEBHOOK_EVENTS,
+  WebhookRefused,
+} from './index.ts'
 import { STRIPE_API_VERSION } from './stripe/index.ts'
 
 /** A made-up Stripe key, put together at run time so the secret scan never sees a key-shaped string in the repo. */
@@ -305,6 +317,55 @@ describe('stripe recharges', () => {
     ).rejects.toMatchObject({ statusCode: 409 })
   })
 
+  test('3DS is recognised whatever the status: a 400 needing the customer keeps the invoice for the owner (recheck L1)', async () => {
+    const { doFetch } = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'POST /v1/invoices/in_1Rc/pay': () => [
+        400,
+        {
+          error: {
+            type: 'invalid_request_error',
+            code: 'invoice_payment_intent_requires_action',
+            message: 'This payment requires additional user action.',
+          },
+        },
+      ],
+    })
+    expect(await (await stripeWith(doFetch)).chargeRecharge({ ...recharge, invoiceId: 'in_1Rc' })).toEqual({
+      status: 'failed',
+      invoiceId: 'in_1Rc',
+      failureCode: 'authentication_required',
+    })
+  })
+
+  test.each([
+    [401, 'POST /v1/invoices/in_1Rc/pay', 'stripe_401'],
+    [403, 'POST /v1/invoices/in_1Rc/pay', 'stripe_secret_key_required'],
+    [404, 'POST /v1/invoices/in_1Rc/finalize', 'stripe_resource_missing'],
+    [403, 'POST /v1/invoices', 'stripe_secret_key_required'],
+  ])(
+    'a %i (our keys or account) is a setup error for the admins, never a failed card payment (recheck L2)',
+    async (status, route, code) => {
+      const error = {
+        error: {
+          type: 'invalid_request_error',
+          ...(status === 401 ? {} : { code: status === 404 ? 'resource_missing' : 'secret_key_required' }),
+          message: 'Refused.',
+        },
+      }
+      const { doFetch } = stripeRoutes({
+        'POST /v1/invoices': () => (route === 'POST /v1/invoices' ? [status, error] : [200, invoice('draft', 0)]),
+        'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+        'GET /v1/invoices/in_1Rc': () => [200, invoice(route.endsWith('finalize') ? 'draft' : 'open', 2000)],
+        [route]: () => [status, error],
+      })
+      const input = route === 'POST /v1/invoices' ? recharge : { ...recharge, invoiceId: 'in_1Rc' }
+      const refused = (await stripeWith(doFetch)).chargeRecharge(input)
+      await expect(refused).rejects.toBeInstanceOf(BillingSetupError)
+      await expect(refused).rejects.toMatchObject({ code })
+    },
+  )
+
   test('a failed draft is deleted, or kept with collection off when it is not voided', async () => {
     const { doFetch, calls } = stripeRoutes({
       'GET /v1/invoices/in_1Rc': () => [200, invoice('draft', 2000, { auto_advance: true })],
@@ -324,5 +385,304 @@ describe('stripe recharges', () => {
 
   test('none refuses every charge without a network call', async () => {
     await expect(noneBillingProvider.chargeRecharge(recharge)).rejects.toThrow('billing is off')
+  })
+})
+
+describe('webhooks', () => {
+  const SECRET = ['whsec', 'MadeUpSigningSecret0123'].join('_')
+  const OLD = ['whsec', 'MadeUpOldSecret0123'].join('_')
+  const body = (livemode = false, apiVersion: string = STRIPE_API_VERSION) =>
+    JSON.stringify({
+      id: 'evt_1Test',
+      object: 'event',
+      type: 'invoice.paid',
+      livemode,
+      api_version: apiVersion,
+      created: 1_800_000_000,
+      data: { object: { id: 'in_1Test', object: 'invoice', customer: 'cus_1Test' } },
+    })
+  const now = () => Math.floor(Date.now() / 1000)
+  /** Stripe's scheme, built here independently of the SDK: HMAC-SHA256 over "<t>.<body>". */
+  const sign = (payload: string, secret: string, at = now()) =>
+    `t=${at},v1=${createHmac('sha256', secret).update(`${at}.${payload}`).digest('hex')}`
+  const stripeWith = (keys: Partial<StripeKeys> = {}) =>
+    loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: SECRET, ...keys }, recordingFetch(200, {}).doFetch)
+
+  test('our signature matches the SDK’s own test header, and the event reads its object and customer', async () => {
+    const payload = body()
+    const at = now()
+    expect(sign(payload, SECRET, at)).toBe(
+      Stripe.webhooks.generateTestHeaderString({ payload, secret: SECRET, timestamp: at }),
+    )
+    const event = (await stripeWith()).webhookEvent(new TextEncoder().encode(payload), sign(payload, SECRET))
+    expect(event).toMatchObject({
+      id: 'evt_1Test',
+      type: 'invoice.paid',
+      livemode: false,
+      objectId: 'in_1Test',
+      customerId: 'cus_1Test',
+    })
+  })
+
+  test('the previous secret is accepted only when given; a stranger’s, an old or a changed one never', async () => {
+    const payload = new TextEncoder().encode(body())
+    const plain = await stripeWith()
+    expect(() => plain.webhookEvent(payload, sign(body(), OLD))).toThrow(WebhookRefused)
+    expect((await stripeWith({ webhookSecretPrevious: OLD })).webhookEvent(payload, sign(body(), OLD)).id).toBe(
+      'evt_1Test',
+    )
+    expect(() => plain.webhookEvent(payload, sign(body(), SECRET, now() - 301))).toThrow(WebhookRefused)
+    expect(() => plain.webhookEvent(new TextEncoder().encode(`${body()} `), sign(body(), SECRET))).toThrow(
+      WebhookRefused,
+    )
+  })
+
+  test('a live event on a test key and an event of another API version are refused, and `none` refuses everything', async () => {
+    const live = body(true)
+    try {
+      ;(await stripeWith()).webhookEvent(new TextEncoder().encode(live), sign(live, SECRET))
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toMatchObject({ reason: 'livemode' })
+    }
+    // Signed, but in the account's default version: the endpoint is not pinned to the adapter's.
+    const other = body(false, '2026-10-28.endive')
+    try {
+      ;(await stripeWith()).webhookEvent(new TextEncoder().encode(other), sign(other, SECRET))
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toMatchObject({ reason: 'api_version', apiVersion: '2026-10-28.endive' })
+    }
+    expect(() => noneBillingProvider.webhookEvent(new TextEncoder().encode(body()), sign(body(), SECRET))).toThrow(
+      WebhookRefused,
+    )
+  })
+})
+
+describe('fetching', () => {
+  /** A recorded Stripe API: answers by path. */
+  function routes(table: Record<string, unknown>) {
+    const calls: string[] = []
+    const doFetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      calls.push(`${url.pathname}${url.search}`)
+      const body = table[url.pathname]
+      return new Response(
+        JSON.stringify(
+          body ?? { error: { type: 'invalid_request_error', code: 'resource_missing', message: 'No such' } },
+        ),
+        { status: body ? 200 : 404, headers: { 'content-type': 'application/json' } },
+      )
+    }) as typeof fetch
+    return { doFetch, calls }
+  }
+  const list = (data: unknown[], hasMore = false) => ({ object: 'list', data, has_more: hasMore, url: '/v1/x' })
+  const line = (id: string, amount: number, kind: string, rechargeId?: string) => ({
+    id,
+    object: 'line_item',
+    amount,
+    currency: 'usd',
+    parent: { type: kind },
+    metadata: rechargeId ? { billing_recharge_id: rechargeId } : {},
+  })
+
+  test('an invoice with all its lines, its real payments, tax and subscription', async () => {
+    const { doFetch, calls } = routes({
+      '/v1/invoices/in_1': {
+        id: 'in_1',
+        object: 'invoice',
+        livemode: false,
+        customer: 'cus_1',
+        parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_1' } },
+        status: 'paid',
+        billing_reason: 'subscription_cycle',
+        currency: 'usd',
+        total: 13_000,
+        total_taxes: [{ amount: 100 }, { amount: 100 }],
+        starting_balance: -500,
+        total_pretax_credit_amounts: [{ amount: 300, type: 'discount' }],
+        amount_paid: 13_000,
+        amount_paid_off_stripe: 0,
+        metadata: {},
+        lines: list([line('il_1', 10_800, 'subscription_item_details')], true),
+        number: 'LD-1',
+        period_start: 1_800_000_000,
+        period_end: 1_800_000_000,
+        hosted_invoice_url: null,
+        invoice_pdf: null,
+      },
+      '/v1/invoices/in_1/lines': list([
+        line('il_1', 10_800, 'subscription_item_details'),
+        line('il_2', 2000, 'invoice_item_details', 'rc_1'),
+      ]),
+      '/v1/invoice_payments': list([
+        {
+          id: 'inpay_1',
+          object: 'invoice_payment',
+          amount_paid: 12_000,
+          status: 'paid',
+          created: 10,
+          payment: {
+            type: 'payment_intent',
+            payment_intent: { id: 'pi_1', object: 'payment_intent', status: 'succeeded' },
+          },
+        },
+        {
+          id: 'inpay_2',
+          object: 'invoice_payment',
+          amount_paid: 1000,
+          status: 'paid',
+          created: 20,
+          payment: { type: 'payment_record', payment_record: 'pr_1' },
+        },
+        {
+          id: 'inpay_3',
+          object: 'invoice_payment',
+          amount_paid: 0,
+          status: 'failed',
+          created: 5,
+          payment: {
+            type: 'payment_intent',
+            payment_intent: { id: 'pi_0', object: 'payment_intent', status: 'requires_payment_method' },
+          },
+        },
+      ]),
+    })
+    const provider = await loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
+    expect(await provider.invoice('in_1')).toMatchObject({
+      id: 'in_1',
+      customerId: 'cus_1',
+      subscriptionId: 'sub_1',
+      status: 'paid',
+      taxCents: 200,
+      amountPaidCents: 13_000,
+      // Only charges and payment intents are money that came in through Stripe.
+      chargedCents: 12_000,
+      startingBalanceCents: -500,
+      discountCents: 300,
+      paymentFailureCode: null,
+      lines: [
+        { id: 'il_1', amountCents: 10_800, kind: 'subscription', rechargeId: null },
+        { id: 'il_2', amountCents: 2000, kind: 'invoice_item', rechargeId: 'rc_1' },
+      ],
+      periodStart: new Date(1_800_000_000_000).toISOString(),
+    })
+    expect(calls.some(c => c.startsWith('/v1/invoice_payments?') && c.includes('invoice=in_1'))).toBe(true)
+    expect(await provider.invoice('in_missing')).toBeNull()
+  })
+
+  test('a subscription: status, period from its items, interval, seats', async () => {
+    const { doFetch } = routes({
+      '/v1/subscriptions/sub_1': {
+        id: 'sub_1',
+        object: 'subscription',
+        customer: 'cus_1',
+        status: 'active',
+        cancel_at_period_end: false,
+        trial_end: null,
+        default_payment_method: 'pm_1',
+        items: list([
+          {
+            id: 'si_1',
+            object: 'subscription_item',
+            quantity: 3,
+            current_period_start: 1_800_000_000,
+            current_period_end: 1_831_536_000,
+            price: { id: 'price_1', object: 'price', lookup_key: 'ws_yearly', recurring: { interval: 'year' } },
+          },
+        ]),
+      },
+    })
+    const provider = await loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
+    expect(await provider.subscription('sub_1')).toMatchObject({
+      status: 'active',
+      interval: 'year',
+      defaultPaymentMethod: 'pm_1',
+      currentPeriodEnd: new Date(1_831_536_000_000).toISOString(),
+      items: [{ lookupKey: 'ws_yearly', quantity: 3 }],
+    })
+    expect(await provider.subscription('sub_missing')).toBeNull()
+  })
+
+  test('recent events: at most 20 types a request, merged oldest first', async () => {
+    const { doFetch, calls } = routes({
+      '/v1/events': list([
+        {
+          id: 'evt_2',
+          object: 'event',
+          type: 'invoice.paid',
+          livemode: false,
+          created: 20,
+          data: { object: { id: 'in_2' } },
+        },
+        {
+          id: 'evt_1',
+          object: 'event',
+          type: 'invoice.paid',
+          livemode: false,
+          created: 10,
+          data: { object: { id: 'in_1' } },
+        },
+      ]),
+    })
+    const provider = await loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
+    const { events, truncated } = await provider.recentEvents(5, WEBHOOK_EVENTS)
+    expect(events.map(e => e.id)).toEqual(['evt_1', 'evt_2'])
+    expect(events[0]).toMatchObject({ objectId: 'in_1', objectType: null })
+    expect(events[0]).not.toHaveProperty('payload')
+    expect(truncated).toBe(false)
+    expect(calls).toHaveLength(Math.ceil(WEBHOOK_EVENTS.length / 20))
+    // More than the limit: the newest are kept and the answer says so (security review of #865, L5).
+    const capped = await provider.recentEvents(5, WEBHOOK_EVENTS, 1)
+    expect(capped.events.map(e => e.id)).toEqual(['evt_2'])
+    expect(capped.truncated).toBe(true)
+  })
+
+  test('a failed payment says why: the decline code, or authentication_required for 3DS', async () => {
+    const invoice = (id: string) => ({
+      id,
+      object: 'invoice',
+      livemode: false,
+      customer: 'cus_1',
+      parent: null,
+      status: 'open',
+      billing_reason: 'manual',
+      currency: 'usd',
+      total: 2000,
+      total_taxes: [],
+      amount_paid: 0,
+      amount_paid_off_stripe: 0,
+      metadata: { billing_recharge_id: 'rc_1' },
+      lines: list([]),
+      number: null,
+      period_start: 1_800_000_000,
+      period_end: 1_800_000_000,
+    })
+    const failed = (intent: Record<string, unknown>) =>
+      list([
+        {
+          id: 'inpay_1',
+          object: 'invoice_payment',
+          amount_paid: 0,
+          status: 'open',
+          created: 10,
+          payment: { type: 'payment_intent', payment_intent: { id: 'pi_1', object: 'payment_intent', ...intent } },
+        },
+      ])
+    const declined = routes({
+      '/v1/invoices/in_1': invoice('in_1'),
+      '/v1/invoice_payments': failed({
+        status: 'requires_payment_method',
+        last_payment_error: { code: 'card_declined', decline_code: 'insufficient_funds' },
+      }),
+    })
+    const provider = await loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, declined.doFetch)
+    expect((await provider.invoice('in_1'))?.paymentFailureCode).toBe('insufficient_funds')
+    const threeDs = routes({
+      '/v1/invoices/in_1': invoice('in_1'),
+      '/v1/invoice_payments': failed({ status: 'requires_action', last_payment_error: null }),
+    })
+    const provider3ds = await loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, threeDs.doFetch)
+    expect((await provider3ds.invoice('in_1'))?.paymentFailureCode).toBe('authentication_required')
   })
 })

@@ -20,10 +20,14 @@ import type { z } from 'zod'
  * impersonation (the handlers refuse those too: refuseBillingActor in apps/api).
  */
 /**
+ * `billing:system`: the Stripe webhook's processor and the billing jobs (docs/billing.md §5.1, §8). No role, no API key,
+ * no setup link and no session has it; only the API's own billing jobs act with it (apps/api/src/stripe-events.ts).
+ */
+/**
  * `workspace:own`: what only the workspace's one owner does: delete the workspace and hand it over to someone else
  * (workspace rights, docs/architecture.md). Never part of an API key's permissions (api-keys.ts).
  */
-export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'billing:manage' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'secondFactor:own' | 'invitation:respond'
+export type Permission = 'call:read' | 'call:write' | 'call:export' | 'contact:write' | 'settings:write' | 'calendar:read' | 'calendar:write' | 'team:read' | 'team:write' | 'workspace:own' | 'billing:manage' | 'billing:system' | 'agent' | 'instance:admin' | 'impersonation:stop' | 'setupLink:end' | 'secondFactor:own' | 'invitation:respond'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {

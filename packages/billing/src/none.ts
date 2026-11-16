@@ -1,4 +1,4 @@
-import type { BillingProvider } from './provider.ts'
+import { type BillingProvider, WebhookRefused } from './provider.ts'
 
 /** The default: no payment service. Self-hosted installs bill nothing; every billing path stays off. */
 const off = async (): Promise<never> => {
@@ -12,4 +12,10 @@ export const noneBillingProvider: BillingProvider = {
   findRechargeInvoice: off,
   stopRechargeInvoice: off,
   rechargeInvoicePage: off,
+  webhookEvent() {
+    throw new WebhookRefused('signature')
+  },
+  invoice: async () => null,
+  subscription: async () => null,
+  recentEvents: async () => ({ events: [], truncated: false }),
 }

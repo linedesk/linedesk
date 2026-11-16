@@ -2,6 +2,7 @@
 // same database, so self-hosting needs nothing extra. Several API replicas share the work.
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
 import type { RecordingStoreName } from '@linedesk/actions'
+import { BillingSetupError } from '@linedesk/billing'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
@@ -38,6 +39,8 @@ import {
   sendBillingAlert,
   stuckRecharges,
 } from './billing-recharge.ts'
+import { createReconcileQueue, runReconcileJob } from './billing-reconcile.ts'
+import { createStripeEventQueues, runStripeEventJobs } from './stripe-events.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -204,8 +207,11 @@ async function runJobs(instance: PgBoss, env: Env) {
     try {
       return await chargeRecharge(db, job!.data.rechargeId)
     } catch (error) {
+      // A setup error (our keys or account, not the card) gives up as an admin alert (recheck of #864, L2).
       if (job!.retryCount >= BILLING_RECHARGE_RETRIES)
-        await rechargeGaveUp(db, job!.data.rechargeId).catch(e =>
+        await rechargeGaveUp(db, job!.data.rechargeId, {
+          setupError: error instanceof BillingSetupError ? error : undefined,
+        }).catch(e =>
           console.error(`billing: recharge ${job!.data.rechargeId} could not be given up:`, e),
         )
       throw error
@@ -214,6 +220,9 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.schedule(STUCK_RECHARGE_CHECK, STUCK_RECHARGE_CHECK_CRON)
   await instance.work(STUCK_RECHARGE_CHECK, async () => runStuckRechargeCheck())
   await instance.work<BillingAlertJob>(BILLING_ALERT, async ([job]) => sendBillingAlert(db, emailSender, job!.data))
+  // Stripe's webhook events and the nightly reconciliation with Stripe (stripe-events.ts, billing-reconcile.ts).
+  await runStripeEventJobs(instance)
+  await runReconcileJob(instance)
   await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
   await instance.work(HOLIDAY_SYNC, async () => {
     // One transaction per workspace, so a long run holds no locks for long.
@@ -324,6 +333,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
     expireInSeconds: 120,
   })
   await instance.createQueue(BILLING_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  await createStripeEventQueues(instance)
+  await createReconcileQueue(instance)
   await instance.createQueue(SETUP_EMAILS)
   // One run at a time, never retried: the next scheduled run is the retry.
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })

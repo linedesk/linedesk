@@ -5,7 +5,7 @@
 //
 // No transaction stays open while Stripe is asked. The result is written under the bill's lock order (balance row,
 // then the recharge row), and only onto an attempt that is still pending, so a webhook that settled it meanwhile wins.
-import type { BillingProvider, RechargeCharge } from '@linedesk/billing'
+import type { BillingProvider, BillingSetupError, RechargeCharge } from '@linedesk/billing'
 import {
   billing_accounts,
   billing_alerts,
@@ -25,6 +25,7 @@ import type { EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
 import { billingUnusableAlert, cappedCallAlert } from './emails/alerts.ts'
 import { billingOwnerEmail } from './emails/billing.ts'
+import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
 import { lockBalance } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
@@ -142,17 +143,40 @@ export async function rechargeFailed(
 export async function rechargeGaveUp(
   db: Db,
   rechargeId: string,
-  options: { provider?: BillingProvider; now?: () => string } = {},
+  options: { provider?: BillingProvider; now?: () => string; setupError?: BillingSetupError } = {},
 ) {
   const now = options.now ?? (() => new Date().toISOString())
   const [attempt] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, rechargeId))
   if (attempt?.status !== 'pending') return
   const provider = options.provider ?? (await db.transaction(tx => billingProvider(tx)))
+  if (options.setupError) return setupGaveUp(db, provider, attempt, options.setupError.code, now())
   const invoiceId =
     attempt.stripe_invoice_id ?? (provider.name === 'none' ? null : await provider.findRechargeInvoice(rechargeId))
   if (invoiceId) await rechargeFailed(db, provider, rechargeId, invoiceId, 'stripe_error', now())
   else await settle(db, rechargeId, { status: 'canceled', failure_code: 'stripe_error' }, now())
   console.error(`billing: recharge ${rechargeId} gave up after the job's last retry`)
+}
+
+/**
+ * The last try failed on our own setup (recheck of #864, L2: a 401, 403 or 404 from Stripe): not the owner's card, so no
+ * `recharge_failed_at` and no owner email. The attempt is canceled (a later decision may try again once the setup is
+ * fixed), its invoice is stopped when that still works, and the instance admins are emailed.
+ */
+async function setupGaveUp(
+  db: Db,
+  provider: BillingProvider,
+  attempt: typeof billing_recharges.$inferSelect,
+  code: string,
+  now: string,
+) {
+  if (attempt.stripe_invoice_id && provider.name !== 'none')
+    await provider
+      .stopRechargeInvoice(attempt.stripe_invoice_id, { void: true })
+      .catch(e => console.error(`billing: invoice ${attempt.stripe_invoice_id} could not be stopped:`, e))
+  await settle(db, attempt.id, { status: 'canceled', failure_code: code }, now, async (tx, billId) =>
+    queueBillingAlert(tx, { kind: 'recharge_setup', bill: billId, rechargeId: attempt.id, code }),
+  )
+  console.error(`billing: recharge ${attempt.id} gave up on a Stripe setup error (${code})`)
 }
 
 /** How long a recharge attempt may stay pending before the instance admins hear of it (review of #864, M1). */
@@ -214,6 +238,7 @@ export type BillingAlertJob =
   | { kind: 'billing_unusable'; reason: 'guards' | 'keys' }
   | { kind: 'recharge_cap_reached' | 'low_balance'; bill: string; ref: string }
   | { kind: 'recharge_failed'; bill: string; ref: string; rechargeId: string; needsOwner: boolean }
+  | { kind: 'recharge_setup'; bill: string; rechargeId: string; code: string }
 
 /**
  * Sends one billing email. The facts are read when it is sent (the cap, the balance, the amount); an owner without an
@@ -226,8 +251,13 @@ export async function sendBillingAlert(
   options: { provider?: BillingProvider } = {},
 ) {
   // Awaited, so the job's retries help when an email does not go out (review of #864, N2).
-  if (job.kind === 'capped_call' || job.kind === 'billing_unusable') {
-    const alert = job.kind === 'capped_call' ? cappedCallAlert(job) : billingUnusableAlert(job.reason)
+  if (job.kind === 'capped_call' || job.kind === 'billing_unusable' || job.kind === 'recharge_setup') {
+    const alert =
+      job.kind === 'capped_call'
+        ? cappedCallAlert(job)
+        : job.kind === 'recharge_setup'
+          ? rechargeSetupAlert({ bill: job.bill, recharge: job.rechargeId, code: job.code })
+          : billingUnusableAlert(job.reason)
     await alertInstanceAdmins(alert, sender, { wait: true })
     return { sent: 'admins' as const }
   }

@@ -2,7 +2,7 @@
 // attempt through the billing provider (a fake here; the Stripe adapter has its own contract tests), never credits
 // it, and applies the failed-recharge rules: automatic collection off before the attempt is marked, a decline voided
 // (`canceled`), 3DS kept open (`failed`), the bill waiting for a new card, and the owner emailed once per invoice.
-import type { BillingProvider, RechargeInvoiceInput } from '@linedesk/billing'
+import { type BillingProvider, BillingSetupError, type RechargeInvoiceInput } from '@linedesk/billing'
 import { billing_accounts, billing_alerts, billing_recharges, ledger_entries } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
@@ -44,6 +44,13 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
       calls.push({ method: 'stopRechargeInvoice', args: [id, options] })
     },
     rechargeInvoicePage: async id => `https://invoice.stripe.com/i/${id}`,
+    // The webhook side (PR 5) is not used here.
+    webhookEvent: () => {
+      throw new Error('not used')
+    },
+    invoice: async () => null,
+    subscription: async () => null,
+    recentEvents: async () => ({ events: [], truncated: false }),
   }
   return { provider, calls }
 }
@@ -220,6 +227,32 @@ describe('the job’s last retry failed (review L3)', () => {
     expect(calls.map(c => c.method)).toEqual(['find'])
     expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'canceled', failure_code: 'stripe_error' })
     expect((await billOf(r.billId)).recharge_failed_at).toBeNull()
+  })
+
+  test('on our own setup error (401/403/404): canceled, the admins alerted, never the owner (recheck of #864, L2)', async () => {
+    const r = await pendingRecharge()
+    await db
+      .update(billing_recharges)
+      .set({ stripe_invoice_id: 'in_setup' })
+      .where(eq(billing_recharges.id, r.attempt.id))
+    const { provider, calls } = fakeProvider(() => ({ status: 'paid', invoiceId: 'x' }))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await rechargeGaveUp(db, r.attempt.id, { provider, setupError: new BillingSetupError('stripe_403') })
+    error.mockRestore()
+    expect(calls.map(c => c.method)).toEqual(['stopRechargeInvoice'])
+    expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'canceled', failure_code: 'stripe_403' })
+    expect((await billOf(r.billId)).recharge_failed_at).toBeNull()
+    expect(await db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, r.billId))).toEqual([])
+    expect(queued).toMatchObject([
+      {
+        name: 'billing.alert',
+        data: { kind: 'recharge_setup', bill: r.billId, rechargeId: r.attempt.id, code: 'stripe_403' },
+      },
+    ])
+    // The alert goes to the instance admins, not the bill owner.
+    const sent: Email[] = []
+    const sender: EmailSender = { send: async e => void sent.push(e) } as EmailSender
+    expect(await sendBillingAlert(db, sender, queued[0]!.data as never)).toEqual({ sent: 'admins' })
   })
 })
 

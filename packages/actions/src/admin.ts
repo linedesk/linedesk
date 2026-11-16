@@ -943,6 +943,14 @@ export const providers = {
       // `env` is never read for billing keys (provider-settings.ts): they come only from the store.
       secret_key: { label: 'Secret key', env: 'STRIPE_SECRET_KEY', secret: true, hint: 'rk_test_… (a restricted key)' },
       webhook_secret: { label: 'Webhook signing secret', env: 'STRIPE_WEBHOOK_SECRET', secret: true, hint: 'whsec_…' },
+      // Rotation (docs/billing.md §5.1): the old secret is accepted beside the new one until it is removed.
+      webhook_secret_previous: {
+        label: 'Previous webhook signing secret',
+        env: 'STRIPE_WEBHOOK_SECRET_PREVIOUS',
+        secret: true,
+        optional: true,
+        hint: 'whsec_… (only while rotating)',
+      },
     },
     help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below.',
   },
@@ -994,8 +1002,10 @@ export const providerSetKeys = defineAction({
           code: 'custom',
           message: 'the secret key is a Stripe secret key (sk_test_…, sk_live_…) or restricted key (rk_test_…, rk_live_…)',
         })
-      if (provider === 'stripe' && values.webhook_secret !== undefined && !/^whsec_[A-Za-z0-9]+$/.test(values.webhook_secret))
-        ctx.addIssue({ code: 'custom', message: 'the webhook signing secret starts with whsec_' })
+      const signingSecrets = { webhook_secret: 'the webhook signing secret', webhook_secret_previous: 'the previous webhook signing secret' }
+      for (const [field, name] of Object.entries(signingSecrets))
+        if (provider === 'stripe' && values[field] !== undefined && !/^whsec_[A-Za-z0-9]+$/.test(values[field]))
+          ctx.addIssue({ code: 'custom', message: `${name} starts with whsec_` })
     }),
   permission: 'instance:admin',
   sensitive: ['values'],

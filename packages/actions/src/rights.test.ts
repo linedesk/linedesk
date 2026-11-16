@@ -205,6 +205,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'impersonationEmails.set',
     'outboundCountries.get',
     'outboundCountries.set',
+    'billing.reprocessEvent',
     'workspace.create',
     'membership.add',
     'membership.setRole',
@@ -221,6 +222,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'workspace.setAllowUltra',
   ],
   impersonation: ['impersonation.stop'],
+  // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
+  system: ['billing.processStripeEvent', 'billing.settleInvoice'],
   account: ['invitation.listMine', 'invitation.accept', 'invitation.decline'],
 }
 

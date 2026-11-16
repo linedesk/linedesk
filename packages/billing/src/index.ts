@@ -7,13 +7,19 @@ export { isStripeWebhookSecret, LIVE_KEYS_REFUSED, liveKeysAllowed, stripeKeyMod
 export { noneBillingProvider } from './none.ts'
 export type {
   BillingAccountInfo,
+  BillingEvent,
+  BillingInvoice,
+  BillingInvoiceLine,
   BillingProvider,
   BillingProviderName,
+  BillingSubscription,
   KeyMode,
   RechargeCharge,
   RechargeInvoiceInput,
   StripeKeys,
+  WebhookRefusal,
 } from './provider.ts'
+export { BillingSetupError, WEBHOOK_EVENTS, WEBHOOK_TOLERANCE_SECONDS, WebhookRefused } from './provider.ts'
 
 /** The provider for the keys in effect: `none` without keys, else the Stripe adapter, loaded on first use. */
 export async function loadBillingProvider(
@@ -24,4 +30,3 @@ export async function loadBillingProvider(
   const { createStripeBillingProvider } = await import('./stripe/index.ts')
   return createStripeBillingProvider(keys, doFetch)
 }
-

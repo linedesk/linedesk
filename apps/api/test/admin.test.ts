@@ -181,6 +181,7 @@ describe('access', () => {
       'afterCallTranscript.get',
       'afterCallTranscript.set',
       'agentSetup.createKey',
+      'billing.reprocessEvent',
       'billingEnabled.get',
       'billingEnabled.set',
       'branding.set',

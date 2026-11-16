@@ -15,18 +15,19 @@ import {
   LIVE_KEYS_REFUSED,
   liveKeysAllowed,
   loadBillingProvider,
+  type StripeKeys,
   stripeKeyMode,
 } from '@linedesk/billing'
-import { instance_settings, type Tx, user } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
+import { and, eq, isNull } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
-import { db } from './db.ts'
-import { ledgerGuardsOk } from './ledger-guards.ts'
-import { billingSwitchAlert } from './emails/alerts.ts'
 import type { Actor } from './context.ts'
+import { db } from './db.ts'
+import { billingSwitchAlert } from './emails/alerts.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { serverEnv } from './instance-env.ts'
+import { ledgerGuardsOk } from './ledger-guards.ts'
 import { resolveProvider } from './provider-settings.ts'
 
 /** The instance setting that turns billing on ('on'; anything else or no row: off). */
@@ -48,12 +49,40 @@ export async function billingSwitchOn(tx: Tx): Promise<boolean> {
   return row?.value === 'on'
 }
 
+/**
+ * How long the previous webhook signing secret is accepted after it was stored (docs/billing.md §5.1): Stripe's
+ * longest overlap when a secret is rolled. After that it is ignored, so a rotation ends without a second step.
+ */
+export const WEBHOOK_ROTATION_DAYS = 7
+
+/** The previous signing secret while its overlap lasts, else null. */
+async function previousWebhookSecret(tx: Tx, value: string | undefined, now = new Date()) {
+  if (!value) return null
+  const [row] = await tx
+    .select({ updated_at: provider_settings.updated_at })
+    .from(provider_settings)
+    .where(
+      and(
+        isNull(provider_settings.workspace_id),
+        eq(provider_settings.provider, 'stripe'),
+        eq(provider_settings.field, 'webhook_secret_previous'),
+      ),
+    )
+  const storedAt = row ? new Date(row.updated_at).getTime() : 0
+  return now.getTime() - storedAt < WEBHOOK_ROTATION_DAYS * 86_400_000 ? value : null
+}
+
 /** The Stripe keys in effect, or null while one is missing. Stored keys only: `.env` is never read for them. */
-async function stripeKeys(tx: Tx) {
+async function stripeKeys(tx: Tx): Promise<StripeKeys | null> {
   const config = await resolveProvider(tx, 'stripe')
   const secretKey = config.secret_key?.value
   const webhookSecret = config.webhook_secret?.value
-  return secretKey && webhookSecret ? { secretKey, webhookSecret } : null
+  if (!secretKey || !webhookSecret) return null
+  return {
+    secretKey,
+    webhookSecret,
+    webhookSecretPrevious: await previousWebhookSecret(tx, config.webhook_secret_previous?.value),
+  }
 }
 
 /** What Server admin › Providers › Billing shows next to the switch. */
@@ -79,6 +108,32 @@ export async function billingProvider(
   const state = await billingState(tx, env)
   if (state.inEffect === 'none') return loadBillingProvider(null)
   return loadBillingProvider(await stripeKeys(tx), doFetch)
+}
+
+/** How long the webhook route reuses the provider it built (security review of #865, L3). */
+export const WEBHOOK_PROVIDER_TTL_MS = 30_000
+let webhookCache: { provider: Promise<BillingProvider>; at: number } | null = null
+
+/**
+ * The provider for the Stripe webhook route: built once and reused for WEBHOOK_PROVIDER_TTL_MS, so an unauthenticated
+ * request costs no key decryption or query. Forgotten when the keys or the switch change here; another API process
+ * picks a change up within the TTL (a delivery refused meanwhile is retried by Stripe).
+ */
+export function webhookBillingProvider(now = Date.now()): Promise<BillingProvider> {
+  if (!webhookCache || now - webhookCache.at >= WEBHOOK_PROVIDER_TTL_MS) {
+    const provider = billingProvider(db)
+    webhookCache = { provider, at: now }
+    // A failed build is not kept.
+    provider.catch(() => {
+      if (webhookCache?.provider === provider) webhookCache = null
+    })
+  }
+  return webhookCache.provider
+}
+
+/** Forgets the webhook route's provider (a key or switch change, after commit; tests). */
+export function forgetWebhookBillingProvider() {
+  webhookCache = null
 }
 
 /** A live Stripe key where the server does not allow one: refused before it is stored (provider.setKeys). */
@@ -109,13 +164,17 @@ async function lockBillingSwitch(tx: Tx, actor: Actor, now: string) {
   await tx.select().from(instance_settings).where(eq(instance_settings.key, BILLING_ENABLED_KEY)).for('update')
 }
 
+/** The fields that may change while billing is on: the webhook signing secrets (a rotation moves no customer). */
+const ROTATABLE_WHILE_ON = ['webhook_secret', 'webhook_secret_previous']
+
 /**
  * A new secret key while billing is on would move every customer to another account: turn billing off first. The
- * webhook secret alone may be rotated while on (it moves no customer; the change is emailed like any key change).
+ * webhook signing secrets alone may be rotated while on (they move no customer; the change is emailed like any key
+ * change): the new one as `webhook_secret`, the old one as `webhook_secret_previous` for the overlap.
  */
 export async function refuseStripeKeysWhileOn(tx: Tx, values: Record<string, string>, actor: Actor, now: string) {
   await lockBillingSwitch(tx, actor, now)
-  const onlyWebhookSecret = Object.keys(values).every(field => field === 'webhook_secret')
+  const onlyWebhookSecret = Object.keys(values).every(field => ROTATABLE_WHILE_ON.includes(field))
   if (!onlyWebhookSecret && (await billingSwitchOn(tx)))
     throw new Reject('Turn billing off before changing the Stripe secret key.')
 }
@@ -205,6 +264,7 @@ export const billingSettingsHandlers: Record<string, Handler> = {
       await writeSetting(tx, BILLING_ACCOUNT_KEY, JSON.stringify(binding), actor, now)
     }
     await writeSetting(tx, BILLING_ENABLED_KEY, input.on ? 'on' : 'off', actor, now)
+    onCommit?.(async () => forgetWebhookBillingProvider())
     if (input.on !== state.on) alertSwitch(onCommit, actor, input.on, binding)
     return { rows: {}, data: await billingState(tx) }
   },

@@ -59,7 +59,13 @@ import {
   setProviderKeys,
 } from './provider-settings.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
-import { billingOffWithKeys, refusedStripeKey, refuseMoneyKeysChange, refuseStripeKeysWhileOn } from './billing-settings.ts'
+import {
+  billingOffWithKeys,
+  forgetWebhookBillingProvider,
+  refusedStripeKey,
+  refuseMoneyKeysChange,
+  refuseStripeKeysWhileOn,
+} from './billing-settings.ts'
 import { missingFields, testProvider } from './provider-test.ts'
 import { recentTest, rememberTest } from './setup-checklist.ts'
 import { s3EndpointProblem } from './s3-endpoint.ts'
@@ -357,6 +363,7 @@ export const adminHandlers: Record<string, Handler> = {
     if (defaultModelCategories.includes(providerSpec(input.provider).category) && 'model' in input.values)
       await refuseNonStandardDefault(tx, input.provider, input.values.model)
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
+    if (input.provider === 'stripe') onCommit?.(async () => forgetWebhookBillingProvider())
     afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'changed', actor))
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },
@@ -366,6 +373,7 @@ export const adminHandlers: Record<string, Handler> = {
     // Billing goes off with its keys (an emergency removal stops billing at once).
     if (input.provider === 'stripe') await billingOffWithKeys(tx, actor, now)
     await clearProviderKeys(tx, input.provider)
+    if (input.provider === 'stripe') onCommit?.(async () => forgetWebhookBillingProvider())
     afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'removed', actor))
     return { rows: {}, data: { provider: await statusOf(tx, input.provider) } }
   },

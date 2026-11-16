@@ -19,6 +19,7 @@ import { registerDemoCallRoutes } from './demo-call.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, tooManyInvalidApiKeys } from './api-keys.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
+import { registerStripeWebhookRoute } from './stripe-webhook.ts'
 import { clientIpOf, withClientIp } from './client-ip.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
@@ -110,6 +111,9 @@ registerSetupUnsubscribeRoutes(app)
 
 // Before every /v1 route: a write signed in by the cookie only from the web app, as JSON (csrf.ts).
 app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
+
+// Public: Stripe's webhook, checked by its signature, 404 while billing is off (stripe-webhook.ts).
+registerStripeWebhookRoute(app)
 
 // Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
 app.get('/v1/auth-methods', async c =>

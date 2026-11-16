@@ -51,6 +51,8 @@ const INSTANCE_WIDE_FILES = [
   'test/demo-call.test.ts',
   // Makes a server admin.
   'test/demo-workspace.test.ts',
+  // Stripe keys and the billing switch; counts and prunes the install's Stripe events (stripe-webhook.ts).
+  'test/stripe-webhook.test.ts',
   // Sets up the three stages through the environment; switches billing on (usage levels).
   'test/usage-levels.test.ts',
   // Sets up the three stages through the environment; switches billing on (the call gate, PR 4).

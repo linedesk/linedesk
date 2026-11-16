@@ -10,6 +10,7 @@ import { and, asc, desc, eq, gt, gte, inArray, or, sql, } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
+import { stripeEventHandlers, stripeEventPreparers } from './stripe-events.ts'
 import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
@@ -659,7 +660,7 @@ function usageLevelChange(stored: LevelFields, after: LevelFields): UsageLevelCh
 }
 
 /** Actions with work before their transaction (handler-context.ts, Preparer). */
-export const preparers: Record<string, Preparer> = { ...voicePreparers, ...authenticatorPreparers }
+export const preparers: Record<string, Preparer> = { ...voicePreparers, ...authenticatorPreparers, ...stripeEventPreparers }
 
 /**
  * The next steps the API itself put on a call while it ran (BOOKING_MISSES_NOTE when booking changes were locked):
@@ -790,6 +791,7 @@ const handlers: Record<string, Handler> = {
   ...notificationHandlers,
   ...setupEmailHandlers,
   ...billingSettingsHandlers,
+  ...stripeEventHandlers,
   ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
