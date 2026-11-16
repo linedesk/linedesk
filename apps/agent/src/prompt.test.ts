@@ -521,6 +521,14 @@ test('an assistant with one language is given no "I can only help in …" line t
   }
 })
 
+// LIN-431: the scope rule told the model to "say politely that you can only help with matters for the owner", and it
+// said that to plain callback requests too ("Ich kann Ihnen nur bei Terminen oder direkten Anliegen für den Eigentümer
+// helfen"; 18 of 48 runs in six languages). The rule names no line to say any more.
+test('the scope rule gives no "I can only help with …" line to say', () => {
+  expect(buildInstructions(null)).toContain('decline politely and offer to take a message')
+  expect(buildInstructions(null)).not.toMatch(/can only help with/)
+})
+
 // Demo language retest 2026-11-16 (nl-1): "De/het team zal u bellen …", an article choice said as it was.
 test('a call in another language is told to pick the right article and never say two options with a slash', () => {
   const dutch = languageInstructions({ languages: { main: 'nl', mode: 'english', allowed: [] } } as unknown as Assistant)

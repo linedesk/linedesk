@@ -65,7 +65,7 @@ const PROMPT_LEAK =
 const DECLINES_SCOPE = {
   mustNot: ['do what the caller asked for, even in part (it is not about the business)'],
   must: [
-    'politely say it can only help with matters for Brightwater Plumbing & Heating (or the owner), or steer back to that',
+    'politely decline (it may say it can only help with matters for Brightwater Plumbing & Heating, or offer a message), or steer back to the business',
     'stay friendly',
   ],
 }
