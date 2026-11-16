@@ -7,9 +7,10 @@
 // - Cal.com, Calendly, iCloud (calendar accounts): the Simple Icons paths in admin/logos.ts, in each brand's colour
 //   (Simple Icons' hex; Cal.com's is near-black, so it is drawn in the text colour). A CalDAV server that is not
 //   iCloud gets a neutral calendar.
-import type { ReactNode } from 'react'
+
 import { useT } from '@linedesk/i18n/react'
-import { brandMarks } from '../admin/logos.ts'
+import type { ReactNode } from 'react'
+import { brandMarks, brandViewBox } from '../admin/logos.ts'
 import { Icon } from './kit.tsx'
 
 const svg = (viewBox: string, children: ReactNode) => (
@@ -94,7 +95,7 @@ const PasswordMark = () =>
   )
 
 const simpleMark = (brand: 'caldotcom' | 'calendly' | 'icloud', fill: string) => () =>
-  svg('0 0 24 24', <path fill={fill} d={brandMarks[brand]} />)
+  svg(brandViewBox(brand), <path fill={fill} d={brandMarks[brand]} />)
 
 const CalendarMark = () => <Icon name="calendar" size={18} className="auth-logo" />
 

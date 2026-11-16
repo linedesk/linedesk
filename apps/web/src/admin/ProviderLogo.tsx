@@ -5,7 +5,7 @@ import type { ProviderName } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import type { IconName } from '../ui/icons.ts'
 import { cx, Icon } from '../ui/kit.tsx'
-import { type BrandMark, brandMarks } from './logos.ts'
+import { type BrandMark, brandMarks, brandViewBox } from './logos.ts'
 
 /** A brand mark from Simple Icons, or a neutral icon where there is none (Telnyx, Cartesia, Local disk). */
 type Mark = { brand: BrandMark } | { icon: IconName }
@@ -203,7 +203,14 @@ export function Logo({ mark, size = 36 }: { mark: Mark; size?: 28 | 36 | 40 }) {
   return (
     <span className={cx('adm-logo', `adm-logo-${size}`)} aria-hidden="true">
       {'brand' in mark ? (
-        <svg width={glyph} height={glyph} viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true">
+        <svg
+          width={glyph}
+          height={glyph}
+          viewBox={brandViewBox(mark.brand)}
+          fill="currentColor"
+          focusable="false"
+          aria-hidden="true"
+        >
           <path d={brandMarks[mark.brand]} />
         </svg>
       ) : (
