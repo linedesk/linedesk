@@ -198,8 +198,18 @@ function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, lang
   if (tts.provider === 'cartesia')
     return new cartesia.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
   const paced = speed ? { voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed } } : {}
-  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, ...paced })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, ...paced, preferredAlignment: ELEVENLABS_ALIGNMENT })
 }
+
+/**
+ * Which of ElevenLabs' word timings the reply's text is taken from. LiveKit takes the text the voice speaks along with
+ * from the voice provider's timings, and that text, not the model's, becomes the reply in the call's history and
+ * transcript. LiveKit's default is ElevenLabs' normalized text, which is romanized for Japanese (佐藤 → "Zuo Teng"):
+ * the model then copied that style from its second reply on and the voice read the romanization out. The original
+ * timings carry the model's own text in its own script, still word by word, so a reply the caller cuts off is kept up
+ * to where it stopped as before (for English and every language written with spaces).
+ */
+export const ELEVENLABS_ALIGNMENT = 'original' as const
 
 /** A voice whose language can be changed mid-call (followCallerLanguage): either provider, or one with a backup. */
 export type CallVoice = ttsTypes.TTS & { updateOptions(opts: { language?: string }): void }
