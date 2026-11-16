@@ -233,3 +233,69 @@ export function calendarsOf(rows: AssistantCalendar[], assistantId: string): Ass
     .filter(c => c.assistant_id === assistantId)
     .sort((a, b) => Number(b.is_default) - Number(a.is_default) || a.created_at.localeCompare(b.created_at))
 }
+
+/** Scheduling tools (Cal.com, Calendly): an account is one entry, its event types are picked under it. */
+export const isSchedulingTool = (provider: ProviderId): boolean => provider === 'calcom' || provider === 'calendly'
+
+/** The mark of a calendar account: the brand, iCloud for a CalDAV login at Apple, else a neutral calendar. */
+export type AccountMark = Exclude<ProviderId, 'caldav'> | 'icloud' | 'caldav'
+
+/**
+ * Apple IDs and logins at caldav.icloud.com (the address of a CalDAV login without one is `<user>@<server host>`).
+ * The server address itself is not synced: an Apple ID at another domain keeps the neutral mark.
+ */
+const ICLOUD_ADDRESS = /@(icloud\.com|me\.com|mac\.com|caldav\.icloud\.com)$/i
+
+export function accountMark(connection: Pick<CalendarConnection, 'provider' | 'account_email'>): AccountMark {
+  if (connection.provider !== 'caldav') return connection.provider
+  return ICLOUD_ADDRESS.test(connection.account_email.trim()) ? 'icloud' : 'caldav'
+}
+
+/** The mark of a provider in the connect menus: "iCloud / CalDAV" shows iCloud's, the service most connect there. */
+export const connectMark = (provider: ProviderId): AccountMark => (provider === 'caldav' ? 'icloud' : provider)
+
+/** One entry of the Calendars card: a plain calendar, or a scheduling-tool account with its picked event types. */
+export type CalendarEntry =
+  | { kind: 'calendar'; calendar: AssistantCalendar }
+  | { kind: 'tool'; connection: CalendarConnection; types: AssistantCalendar[] }
+
+/**
+ * The Calendars card's entries, in the assistant's calendar order (calendarsOf): an account of a scheduling tool once,
+ * where its first event type is, with all its types; a tool account without a picked type at the end, so it can be
+ * picked from.
+ */
+export function calendarEntries(calendars: AssistantCalendar[], connections: CalendarConnection[]): CalendarEntry[] {
+  const byId = new Map(connections.map(c => [c.id, c]))
+  const entries: CalendarEntry[] = []
+  const tools = new Map<string, { kind: 'tool'; connection: CalendarConnection; types: AssistantCalendar[] }>()
+  for (const calendar of calendars) {
+    const connection = byId.get(calendar.connection_id)
+    if (!connection || !isSchedulingTool(connection.provider)) {
+      entries.push({ kind: 'calendar', calendar })
+      continue
+    }
+    const tool = tools.get(connection.id)
+    if (tool) tool.types.push(calendar)
+    else {
+      const entry = { kind: 'tool' as const, connection, types: [calendar] }
+      tools.set(connection.id, entry)
+      entries.push(entry)
+    }
+  }
+  const empty = connections
+    .filter(c => isSchedulingTool(c.provider) && !tools.has(c.id))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+  return [...entries, ...empty.map(connection => ({ kind: 'tool' as const, connection, types: [] }))]
+}
+
+/** What saving the event-type picker does: the types to add and the assistant calendars to remove. */
+export function pickChanges(
+  current: Pick<AssistantCalendar, 'id' | 'external_id'>[],
+  picked: ReadonlySet<string>,
+): { add: string[]; remove: string[] } {
+  const have = new Set(current.map(c => c.external_id))
+  return {
+    add: [...picked].filter(id => !have.has(id)),
+    remove: current.filter(c => !picked.has(c.external_id)).map(c => c.id),
+  }
+}

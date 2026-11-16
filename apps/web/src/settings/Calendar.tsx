@@ -1,13 +1,13 @@
-// Settings › Assistant › Calendar: connected Google, Microsoft and CalDAV (iCloud) accounts, the calendars this
-// assistant books into (on or off, a note on when to use each, one default), and the appointment
-// types it offers. Changes apply at once (not part of the page's Save): connecting leaves the page
+// Settings › Assistant › Calendar: connected Google, Microsoft, CalDAV (iCloud), Cal.com and Calendly accounts, the
+// calendars this assistant books into (on or off, a note on when to use each, one default; a Cal.com or Calendly
+// account is one entry with the event types picked under it), and the appointment types it offers. Changes apply at once (not part of the page's Save): connecting leaves the page
 // for the provider's consent screen anyway (or checks a CalDAV login in a dialog), and the rest are small,
 // single changes through the outbox.
 import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@linedesk/actions'
 import { CONDITION_MAX } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
-import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { useRows, useRun } from '../store.tsx'
 import { SignInMark } from '../ui/brand-logos.tsx'
@@ -20,6 +20,7 @@ import { Loading, Skeleton, SkeletonList, useLoadState } from '../ui/LoadStates.
 import { useQuery } from '../cachedQuery.ts'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
 import {
+  accountMark,
   BOOK_WHEN,
   BOOKING_FIELDS,
   type BookingFieldId,
@@ -28,14 +29,18 @@ import {
   bookWhenLabel,
   bufferLabel,
   CONNECT_RETURN_KEY,
+  calendarEntries,
   calendarsOf,
+  connectMark,
   connectResult,
   DURATIONS,
   durationLabel,
   fieldLabel,
   isPasswordProvider,
+  isSchedulingTool,
   type KeyProviderId,
   PROVIDER_LABEL,
+  pickChanges,
   type ProviderId,
   requiredLabel,
   rulesLabel,
@@ -128,7 +133,7 @@ export function ConnectButtons({ assistantId, toast }: { assistantId: string; to
           onClick={() => connect(p)}
           title={t('settings.calendar.connectTip', { provider: PROVIDER_LABEL[p] })}
         >
-          <SignInMark method={p} />
+          <SignInMark method={connectMark(p)} />
           {busy === p
             ? t('settings.calendar.opening', { provider: PROVIDER_LABEL[p] })
             : t('settings.calendar.connect', { provider: PROVIDER_LABEL[p] })}
@@ -145,7 +150,7 @@ export function AccountRow({ connection, children }: { connection: CalendarConne
   const c = connection
   return (
     <ListRow
-      lead={<SignInMark method={c.provider} />}
+      lead={<SignInMark method={accountMark(c)} />}
       title={c.account_email}
       sub={c.status === 'needs_reconnect' ? (c.last_error ?? t('settings.calendar.accessWithdrawn')) : undefined}
       aside={
@@ -182,7 +187,7 @@ function AddAccount({ providers, busy, connect }: ReturnType<typeof useConnect>)
       items={providers.map(p => ({
         id: p,
         label: PROVIDER_LABEL[p],
-        lead: <SignInMark method={p} />,
+        lead: <SignInMark method={connectMark(p)} />,
         onSelect: () => void connect(p),
       }))}
     />
@@ -331,7 +336,7 @@ function CalendarRow({
   return (
     <ListRow
       off={!calendar.enabled}
-      lead={account && <SignInMark method={account.provider} />}
+      lead={account && <SignInMark method={accountMark(account)} />}
       title={
         <>
           {calendar.name}
@@ -505,7 +510,241 @@ export function AddCalendar({
   )
 }
 
-/** `pickFrom`: the account just connected (back from its consent page): its calendars open to pick one. */
+/**
+ * A picked event type of a scheduling tool, under its account: on or off, a note on when to use it, one default (like a
+ * calendar: an event type is the tool's calendar and its own appointment type at once).
+ */
+function EventTypeRow({ type, canEdit }: { type: AssistantCalendar; canEdit: boolean }) {
+  const t = useT()
+  const run = useRun()
+  return (
+    <ListRow
+      off={!type.enabled}
+      title={
+        <>
+          <span className="k-row-text">{type.name}</span>
+          {type.is_default && <Badge tone="outline">{t('settings.calendar.default')}</Badge>}
+        </>
+      }
+      aside={type.duration_min !== null ? durationLabel(type.duration_min) : undefined}
+      actions={
+        <>
+          <Switch
+            label={t('settings.calendar.bookInto', { name: type.name })}
+            on={type.enabled}
+            disabled={!canEdit}
+            onChange={on => void run('assistantCalendar.update', { assistantCalendarId: type.id, enabled: on })}
+          />
+          {canEdit && (
+            <MenuButton
+              title={t('settings.calendar.actionsFor', { name: type.name })}
+              items={[
+                ...(type.is_default
+                  ? []
+                  : [
+                      {
+                        id: 'default',
+                        label: t('settings.calendar.makeDefault'),
+                        onSelect: () => void run('assistantCalendar.setDefault', { assistantCalendarId: type.id }),
+                      },
+                    ]),
+                {
+                  id: 'remove',
+                  label: t('settings.calendar.remove'),
+                  danger: true,
+                  onSelect: () => void run('assistantCalendar.remove', { assistantCalendarId: type.id }),
+                },
+              ]}
+            />
+          )}
+        </>
+      }
+      below={
+        <ConditionField
+          what="type"
+          name={type.name}
+          value={type.instruction}
+          placeholder={
+            type.is_default
+              ? t('settings.calendar.condition.defaultExample')
+              : t('settings.calendar.condition.typeExample')
+          }
+          disabled={!canEdit}
+          onSave={instruction => void run('assistantCalendar.update', { assistantCalendarId: type.id, instruction })}
+        />
+      }
+    />
+  )
+}
+
+/**
+ * A Cal.com or Calendly account as one entry of the Calendars card: its mark and address, "Event types" to pick which
+ * ones the assistant books, and the picked ones under it.
+ */
+function SchedulingToolEntry({
+  assistant,
+  connection,
+  types,
+  canEdit,
+  onPick,
+}: {
+  assistant: Assistant
+  connection: CalendarConnection
+  types: AssistantCalendar[]
+  canEdit: boolean
+  onPick: () => void
+}) {
+  const t = useT()
+  const provider = PROVIDER_LABEL[connection.provider]
+  return (
+    <ListRow
+      className="cal-tool"
+      lead={<SignInMark method={accountMark(connection)} />}
+      title={provider}
+      sub={connection.account_email}
+      actions={
+        canEdit && (
+          <Button
+            size="sm"
+            icon="checks"
+            disabled={connection.status !== 'connected'}
+            title={t('settings.calendar.eventTypes.pickTip', { provider, email: connection.account_email })}
+            onClick={onPick}
+          >
+            {t('settings.calendar.eventTypes.button')}
+          </Button>
+        )
+      }
+      below={
+        types.length > 0 ? (
+          <List className="cal-tool-types" label={t('settings.calendar.eventTypes.listLabel', { provider })}>
+            {types.map(type => (
+              <EventTypeRow key={type.id} type={type} canEdit={canEdit} />
+            ))}
+          </List>
+        ) : (
+          <p className="cal-tool-empty">{t('settings.calendar.eventTypes.none', { name: assistant.name, provider })}</p>
+        )
+      }
+    />
+  )
+}
+
+/**
+ * The event types of a Cal.com or Calendly account, as checkboxes: the ones the assistant books are ticked. Saving adds
+ * the newly ticked ones and removes the unticked ones (assistantCalendar.add / .remove, one at a time).
+ */
+export function EventTypePicker({
+  assistant,
+  connection,
+  onClose,
+  toast,
+}: {
+  assistant: Assistant
+  connection: CalendarConnection
+  onClose: () => void
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const write = useWriteAction()
+  const listed = useQuery(`calendar.list.${connection.id}`, () =>
+    callAction<ListCalendarsData>('calendar.listCalendars', { connectionId: connection.id }).then(data =>
+      data.calendars.filter(c => c.canWrite),
+    ),
+  )
+  const types = listed.data ?? null
+  const current = useRows('assistant_calendars').filter(
+    c => c.assistant_id === assistant.id && c.connection_id === connection.id,
+  )
+  const [picked, setPicked] = useState<Set<string> | null>(null)
+  const shown = picked ?? new Set(current.map(c => c.external_id))
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const provider = PROVIDER_LABEL[connection.provider]
+  const toggle = (id: string, on: boolean) =>
+    setPicked(() => {
+      const next = new Set(shown)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  async function save(e?: FormEvent) {
+    e?.preventDefault()
+    if (saving || !types) return
+    // In the order the tool lists them, so the first one added (the default when there is none yet) is the first one.
+    const inOrder = new Set(types.map(c => c.id).filter(id => shown.has(id)))
+    const { add, remove } = pickChanges(current, inOrder)
+    if (!add.length && !remove.length) return onClose()
+    setSaving(true)
+    setSaveError(null)
+    try {
+      for (const externalId of add)
+        await write('assistantCalendar.add', { assistantId: assistant.id, connectionId: connection.id, externalId })
+      for (const assistantCalendarId of remove) await write('assistantCalendar.remove', { assistantCalendarId })
+      toast(t('settings.calendar.eventTypes.saved', { provider }))
+      onClose()
+    } catch (err) {
+      setSaveError((err as Error).message)
+      setSaving(false)
+    }
+  }
+  const error = types ? null : listed.error
+  return (
+    <Dialog
+      title={t('settings.calendar.eventTypes.title', { provider })}
+      description={t('settings.calendar.eventTypes.description', {
+        name: assistant.name,
+        email: connection.account_email,
+      })}
+      icon={<SignInMark method={accountMark(connection)} />}
+      onClose={onClose}
+      onSubmit={save}
+      size="sm"
+      footer={
+        <>
+          <Button onClick={onClose}>{t('common.action.cancel')}</Button>
+          <Button
+            type="submit"
+            variant="primary"
+            busy={saving}
+            disabled={!types}
+            title={t('common.action.saveWithKey', { key: '⌘S' })}
+          >
+            {t('common.action.save')}
+          </Button>
+        </>
+      }
+    >
+      {saveError && <p className="k-field-msg">{saveError}</p>}
+      <Loading
+        what={t('settings.calendar.eventTypes.button')}
+        loading={!types}
+        error={error}
+        onRetry={() => void listed.reload()}
+        skeleton={<SkeletonList rows={3} sub={false} action />}
+      >
+        {types && types.length > 0 && (
+          <ul className="k-list cal-pick">
+            {types.map(c => (
+              <li key={c.id} className="k-row">
+                <Checkbox checked={shown.has(c.id)} disabled={saving} onChange={on => toggle(c.id, on)}>
+                  <span className="cal-pick-name">{c.name}</span>
+                  {c.durationMin ? <span className="cal-pick-len">{durationLabel(c.durationMin)}</span> : null}
+                </Checkbox>
+              </li>
+            ))}
+          </ul>
+        )}
+        {types?.length === 0 && <ListEmpty>{t('settings.calendar.eventTypes.noneAtTool', { provider })}</ListEmpty>}
+      </Loading>
+    </Dialog>
+  )
+}
+
+/**
+ * `pickFrom`: the account just connected (back from its consent page, or from a key form): a calendar account opens
+ * its calendars to pick one, a scheduling tool its event types.
+ */
 function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: string | null }) {
   const t = useT()
   const run = useRun()
@@ -514,11 +753,14 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
   const ready = useCalendarsReady()
   /** The picker is open, on this account ('' for the first one). */
   const [adding, setAdding] = useState<string | null>(canEdit ? pickFrom : null)
-  // An account connected on this page (CalDAV): its calendars open to pick one.
+  // An account connected on this page (CalDAV, Cal.com, Calendly): its calendars or event types open to pick.
   useEffect(() => {
     if (canEdit && pickFrom) setAdding(pickFrom)
   }, [canEdit, pickFrom])
   const connected = connections.filter(c => c.status === 'connected')
+  const plain = connected.filter(c => !isSchedulingTool(c.provider))
+  const entries = calendarEntries(calendars, connections)
+  const pickingTool = adding ? connected.find(c => c.id === adding && isSchedulingTool(c.provider)) : undefined
   return (
     <Section
       id="as-cal-calendars"
@@ -527,7 +769,7 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
       actions={
         canEdit &&
         ready &&
-        connected.length > 0 && (
+        plain.length > 0 && (
           <Button size="sm" icon="plus" onClick={() => setAdding('')}>
             {t('settings.calendar.addCalendar')}
           </Button>
@@ -535,17 +777,28 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
       }
     >
       <Loading what={t('settings.calendar.calendars')} loading={!ready} skeleton={<SkeletonList rows={1} action />}>
-        {calendars.length > 0 ? (
+        {entries.length > 0 ? (
           <List label={t('settings.calendar.calendars')}>
-            {calendars.map(c => (
-              <CalendarRow
-                key={c.id}
-                calendar={c}
-                account={connections.find(a => a.id === c.connection_id)}
-                canEdit={canEdit}
-                onRemove={() => void run('assistantCalendar.remove', { assistantCalendarId: c.id })}
-              />
-            ))}
+            {entries.map(entry =>
+              entry.kind === 'tool' ? (
+                <SchedulingToolEntry
+                  key={entry.connection.id}
+                  assistant={assistant}
+                  connection={entry.connection}
+                  types={entry.types}
+                  canEdit={canEdit}
+                  onPick={() => setAdding(entry.connection.id)}
+                />
+              ) : (
+                <CalendarRow
+                  key={entry.calendar.id}
+                  calendar={entry.calendar}
+                  account={connections.find(a => a.id === entry.calendar.connection_id)}
+                  canEdit={canEdit}
+                  onRemove={() => void run('assistantCalendar.remove', { assistantCalendarId: entry.calendar.id })}
+                />
+              ),
+            )}
           </List>
         ) : (
           <ListEmpty>
@@ -555,10 +808,19 @@ function Calendars({ assistant, canEdit, toast, pickFrom }: Props & { pickFrom: 
           </ListEmpty>
         )}
       </Loading>
-      {adding !== null && ready && connected.length > 0 && (
+      {adding !== null && ready && pickingTool && (
+        <EventTypePicker
+          key={pickingTool.id}
+          assistant={assistant}
+          connection={pickingTool}
+          onClose={() => setAdding(null)}
+          toast={toast}
+        />
+      )}
+      {adding !== null && ready && !pickingTool && plain.length > 0 && (
         <AddCalendar
           assistant={assistant}
-          connections={connected}
+          connections={plain}
           initialConnectionId={adding || undefined}
           onClose={() => setAdding(null)}
           toast={toast}

@@ -1,10 +1,30 @@
 import { expect, test } from 'vitest'
-import { calendarsOf, connectResult, durationLabel, requiredLabel, rulesLabel, typeFields } from './calendarModel.ts'
+import {
+  accountMark,
+  calendarEntries,
+  calendarsOf,
+  connectMark,
+  connectResult,
+  durationLabel,
+  pickChanges,
+  requiredLabel,
+  rulesLabel,
+  typeFields,
+} from './calendarModel.ts'
 
 test('the OAuth callback result in the hash becomes a toast', () => {
-  expect(connectResult('#assistant/as_1/calendar?calendar=connected')).toEqual({ ok: true, text: 'Calendar connected. Pick the calendars the assistant books into.' })
-  expect(connectResult('#assistant/as_1/calendar?calendar=connected&connection=calc_1')).toMatchObject({ ok: true, connectionId: 'calc_1' })
-  expect(connectResult('#assistant/as_1/calendar?calendar=error&reason=Access%20was%20not%20granted.')).toEqual({ ok: false, text: 'Access was not granted.' })
+  expect(connectResult('#assistant/as_1/calendar?calendar=connected')).toEqual({
+    ok: true,
+    text: 'Calendar connected. Pick the calendars the assistant books into.',
+  })
+  expect(connectResult('#assistant/as_1/calendar?calendar=connected&connection=calc_1')).toMatchObject({
+    ok: true,
+    connectionId: 'calc_1',
+  })
+  expect(connectResult('#assistant/as_1/calendar?calendar=error&reason=Access%20was%20not%20granted.')).toEqual({
+    ok: false,
+    text: 'Access was not granted.',
+  })
   expect(connectResult('#assistant/as_1/calendar')).toBeNull()
   expect(connectResult('#assistant/as_1/calendar?other=1')).toBeNull()
 })
@@ -22,7 +42,11 @@ test('durations and required details read as the owner says them', () => {
 })
 
 test('booking rules read short, only what differs from the defaults', () => {
-  const t = (buffer_before_min: number, buffer_after_min: number, book_when: 'business_hours' | 'outside_business_hours' | 'any_time' = 'business_hours') => ({ buffer_before_min, buffer_after_min, book_when })
+  const t = (
+    buffer_before_min: number,
+    buffer_after_min: number,
+    book_when: 'business_hours' | 'outside_business_hours' | 'any_time' = 'business_hours',
+  ) => ({ buffer_before_min, buffer_after_min, book_when })
   expect(rulesLabel(t(0, 0))).toBe('')
   expect(rulesLabel(t(15, 15))).toBe('15 min buffer')
   expect(rulesLabel(t(15, 0, 'outside_business_hours'))).toBe('15 min before · Outside business hours')
@@ -30,7 +54,52 @@ test('booking rules read short, only what differs from the defaults', () => {
 })
 
 test("an assistant's calendars: the default first, then in the order they were added", () => {
-  const row = (id: string, assistant_id: string, created_at: string, is_default = false) => ({ id, assistant_id, created_at, is_default }) as never
-  const rows = [row('b', 'as_1', '2026-01-02'), row('c', 'as_2', '2026-01-01'), row('a', 'as_1', '2026-01-01'), row('d', 'as_1', '2026-01-03', true)]
+  const row = (id: string, assistant_id: string, created_at: string, is_default = false) =>
+    ({ id, assistant_id, created_at, is_default }) as never
+  const rows = [
+    row('b', 'as_1', '2026-01-02'),
+    row('c', 'as_2', '2026-01-01'),
+    row('a', 'as_1', '2026-01-01'),
+    row('d', 'as_1', '2026-01-03', true),
+  ]
   expect(calendarsOf(rows, 'as_1').map(c => (c as { id: string }).id)).toEqual(['d', 'a', 'b'])
+})
+
+test('a calendar account shows its brand; a CalDAV login at Apple shows iCloud, other servers a neutral calendar', () => {
+  const account = (provider: 'google' | 'caldav' | 'calcom' | 'calendly', account_email: string) => ({
+    provider,
+    account_email,
+  })
+  expect(accountMark(account('google', 'mike@brightwater.example'))).toBe('google')
+  expect(accountMark(account('calcom', 'mike@brightwater.example'))).toBe('calcom')
+  expect(accountMark(account('calendly', 'mike@brightwater.example'))).toBe('calendly')
+  expect(accountMark(account('caldav', 'mike@icloud.com'))).toBe('icloud')
+  expect(accountMark(account('caldav', 'Mike@Me.com'))).toBe('icloud')
+  expect(accountMark(account('caldav', 'mike@caldav.icloud.com'))).toBe('icloud')
+  expect(accountMark(account('caldav', 'mike@caldav.fastmail.com'))).toBe('caldav')
+  expect(connectMark('caldav')).toBe('icloud')
+  expect(connectMark('calendly')).toBe('calendly')
+})
+
+test('the Calendars card: a scheduling-tool account is one entry with its event types, also without any picked', () => {
+  const conn = (id: string, provider: string, created_at = '2026-01-01') => ({ id, provider, created_at }) as never
+  const cal = (id: string, connection_id: string) => ({ id, connection_id }) as never
+  const connections = [conn('g', 'google'), conn('cc', 'calcom'), conn('cl', 'calendly', '2026-01-02')]
+  const entries = calendarEntries([cal('a', 'g'), cal('t1', 'cc'), cal('b', 'g'), cal('t2', 'cc')], connections)
+  const shape = entries.map(e =>
+    e.kind === 'calendar'
+      ? (e.calendar as { id: string }).id
+      : `${(e.connection as { id: string }).id}:${e.types.map(t => (t as { id: string }).id).join('+')}`,
+  )
+  expect(shape).toEqual(['a', 'cc:t1+t2', 'b', 'cl:'])
+})
+
+test('saving the event-type picker adds the newly ticked types and removes the unticked ones', () => {
+  const current = [
+    { id: 'acal_1', external_id: 'et_1' },
+    { id: 'acal_2', external_id: 'et_2' },
+  ]
+  expect(pickChanges(current, new Set(['et_2', 'et_3', 'et_4']))).toEqual({ add: ['et_3', 'et_4'], remove: ['acal_1'] })
+  expect(pickChanges(current, new Set(['et_1', 'et_2']))).toEqual({ add: [], remove: [] })
+  expect(pickChanges([], new Set(['et_9']))).toEqual({ add: ['et_9'], remove: [] })
 })

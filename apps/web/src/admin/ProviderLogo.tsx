@@ -154,12 +154,12 @@ export const providerMeta: Record<ProviderName, Meta> = {
     keysUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade',
   },
   calendly: {
-    mark: { icon: 'calendar' },
+    mark: { brand: 'calendly' },
     blurb: msg('admin.provider.blurb.calendly'),
     keysUrl: 'https://calendly.com/app/developer',
   },
   calcom: {
-    mark: { icon: 'calendar' },
+    mark: { brand: 'caldotcom' },
     blurb: msg('admin.provider.blurb.calcom'),
     keysUrl: 'https://app.cal.com/settings/developer/oauth',
   },

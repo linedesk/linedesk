@@ -4,8 +4,13 @@
 // - Microsoft logo: Microsoft identity platform sign-in branding guidelines
 //   (learn.microsoft.com/entra/identity-platform/howto-add-branding-in-apps), four squares.
 // - GitHub mark: GitHub logos (github.com/logos), the Octicons `mark-github` path; drawn in the text colour.
+// - Cal.com, Calendly, iCloud (calendar accounts): the Simple Icons paths in admin/logos.ts, in each brand's colour
+//   (Simple Icons' hex; Cal.com's is near-black, so it is drawn in the text colour). A CalDAV server that is not
+//   iCloud gets a neutral calendar.
 import type { ReactNode } from 'react'
 import { useT } from '@linedesk/i18n/react'
+import { brandMarks } from '../admin/logos.ts'
+import { Icon } from './kit.tsx'
 
 const svg = (viewBox: string, children: ReactNode) => (
   <svg className="auth-logo" width="18" height="18" viewBox={viewBox} aria-hidden="true" focusable="false">
@@ -88,10 +93,19 @@ const PasswordMark = () =>
     </g>,
   )
 
+const simpleMark = (brand: 'caldotcom' | 'calendly' | 'icloud', fill: string) => () =>
+  svg('0 0 24 24', <path fill={fill} d={brandMarks[brand]} />)
+
+const CalendarMark = () => <Icon name="calendar" size={18} className="auth-logo" />
+
 const marks: Record<string, () => ReactNode> = {
   google: GoogleMark,
   microsoft: MicrosoftMark,
   github: GitHubMark,
+  calcom: simpleMark('caldotcom', 'currentColor'),
+  calendly: simpleMark('calendly', '#006BFF'),
+  icloud: simpleMark('icloud', '#3693F3'),
+  caldav: CalendarMark,
   password: PasswordMark,
   passkey: PasskeyMark,
 }
@@ -119,9 +133,13 @@ export function ProviderButton({ method, label, lastUsed, busy, busyText, disabl
   return (
     <button type="button" className="k-btn k-btn-secondary auth-provider" disabled={disabled} onClick={onClick}>
       <SignInMark method={method} />
-      <span className="auth-provider-label">{busy ? (busyText ?? t('auth.provider.opening', { provider: label })) : method === 'password'
+      <span className="auth-provider-label">
+        {busy
+          ? (busyText ?? t('auth.provider.opening', { provider: label }))
+          : method === 'password'
             ? t('auth.provider.continuePassword')
-            : t('auth.provider.continue', { provider: label })}</span>
+            : t('auth.provider.continue', { provider: label })}
+      </span>
       {lastUsed && <LastUsed />}
     </button>
   )
