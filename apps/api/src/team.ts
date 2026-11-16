@@ -155,6 +155,21 @@ async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
   return row
 }
 
+/**
+ * The one inviting or renewing an invitation still manages the team, read from their member row: the permission came
+ * from the role when the request started, and a demotion or removal committed since then must win. FOR SHARE, so a
+ * role change or removal of this row (locked FOR UPDATE, loadMember) waits for the invitation, and its
+ * cancelSentInvitations then sees it, or the invitation waits and sees the new role.
+ */
+async function lockInviter(tx: Tx, workspaceId: string, actorId: string) {
+  const [row] = await tx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actorId)))
+    .for('share')
+  if (row?.role !== 'owner' && row?.role !== 'admin') throw new Forbidden('missing permission team:write')
+}
+
 /** team.leave from the last workspace without deleteAccount: the request must say whether the account goes too. */
 export const LEAVE_SAY_ACCOUNT =
   'this is your only workspace: say whether to delete your account too (deleteAccount true or false). In the app, reload the page and leave again'
@@ -333,6 +348,7 @@ export const teamHandlers: Record<string, Handler> = {
 
   'team.invite': async ({ tx, actor, now }, input: { email: string; role: string }) => {
     const workspaceId = workspaceOf(actor)
+    await lockInviter(tx, workspaceId, actor.actorId)
     const [already] = await tx
       .select({ id: member.id })
       .from(member)
@@ -351,7 +367,9 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.resendInvite': async ({ tx, actor, now }, input: { invitationId: string }) => {
-    const invite = await loadPendingInvitation(tx, workspaceOf(actor), input.invitationId)
+    const workspaceId = workspaceOf(actor)
+    await lockInviter(tx, workspaceId, actor.actorId)
+    const invite = await loadPendingInvitation(tx, workspaceId, input.invitationId)
     await tx
       .update(invitation)
       .set({ expiresAt: new Date(Date.parse(now) + INVITATION_DAYS * DAY_MS) })
@@ -376,6 +394,9 @@ export const teamHandlers: Record<string, Handler> = {
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     // Their workspace setup links act with the role they were made with: another role ends them for good.
     if (target.role !== input.role) await revokeMemberSetupKeys(tx, workspaceId, target.userId, 'role_changed')
+    // A member does not invite: the invitations they sent as admin end with the demotion, so one to a second address
+    // of their own cannot make them admin again (security review LIN-396, T2).
+    if (target.role !== 'member' && input.role === 'member') await cancelSentInvitations(tx, workspaceId, target.userId)
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 

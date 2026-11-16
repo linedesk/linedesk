@@ -523,6 +523,9 @@ export const membershipHandlers: Record<string, Handler> = {
       // A workspace setup link acts with the role it was made with: another role ends it for good.
       if (target.role !== input.role)
         await revokeMemberSetupKeys(tx, target.organizationId, target.userId, 'role_changed')
+      // Demoted to member: the invitations they sent end with it, as in team.setRole (security review LIN-396, T2).
+      if (target.role !== 'member' && input.role === 'member')
+        await cancelSentInvitations(tx, target.organizationId, target.userId)
     }
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },

@@ -6,6 +6,8 @@ import { createEmailVerificationToken } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { auth } from '../src/auth.ts'
+import { personActor } from '../src/context.ts'
+import { runAction } from '../src/run-action.ts'
 import { db } from '../src/db.ts'
 import { LEAVE_SAY_ACCOUNT, ONLY_OWNER_DELETES_ACCOUNTS, OWNER_STAYS } from '../src/team.ts'
 import { LEAVE_SIGN_IN_AGAIN, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from '../src/owner-step-up.ts'
@@ -788,6 +790,56 @@ describe('deleting accounts (LIN-264)', () => {
       const res = await asServerAdmin(operator, () => act(operator, 'membership.remove', { memberId, keepAccount: true }))
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false, invitationsCanceled: 1 } } })
       expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+    })
+
+    test('an admin demoted to member (team.setRole): their invitations are canceled; admin to admin keeps them (LIN-406)', async () => {
+      const shop = await createWorkspace('Invite Cancel Demoted Co')
+      const sender = await addMember(shop.id, 'admin')
+      const invitee = newEmail()
+      const openId = await invite(sender, invitee)
+      const ownersId = await invite(shop.owner, newEmail())
+      const memberId = await memberIdOf(shop.id, sender)
+      expect((await act(shop.owner, 'team.setRole', { memberId, role: 'admin' })).status).toBe(200)
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'pending' })
+      expect((await act(shop.owner, 'team.setRole', { memberId, role: 'member' })).status).toBe(200)
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+      expect(await gone(openId)).toEqual({ status: 'gone' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, ownersId)))[0]).toMatchObject({ status: 'pending' })
+      expect(await withdrawn(sender)).toEqual([expect.objectContaining({ method: invitee, workspace_id: shop.id })])
+    })
+
+    test('a server admin demoting an admin to member (membership.setRole) cancels them as well (LIN-406)', async () => {
+      const shop = await createWorkspace('Invite Cancel Server Admin Demote Co')
+      const operator = await signUp()
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, operator.userId))
+      const sender = await addMember(shop.id, 'admin')
+      const openId = await invite(sender, newEmail())
+      const memberId = await memberIdOf(shop.id, sender)
+      const res = await asServerAdmin(operator, () => act(operator, 'membership.setRole', { memberId, role: 'member' }))
+      expect(res.status).toBe(200)
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+      expect(await withdrawn(sender)).toHaveLength(1)
+    })
+
+    test('an invitation from a request that started before the demotion or removal is refused (LIN-406 review)', async () => {
+      const shop = await createWorkspace('Invite Cancel Stale Admin Co')
+      const sender = await addMember(shop.id, 'admin')
+      const openId = await invite(shop.owner, newEmail())
+      // The permissions as they were read when the request began: still an admin.
+      const stale = (await personActor(sender.userId, shop.id, [], ['account:own'], {}))!
+      expect(stale.permissions).toContain('team:write')
+      const memberId = await memberIdOf(shop.id, sender)
+      expect((await act(shop.owner, 'team.setRole', { memberId, role: 'member' })).status).toBe(200)
+      const late = newEmail()
+      expect(await runAction('team.invite', { email: late, role: 'admin' }, stale)).toMatchObject({
+        status: 403,
+        body: { error: 'missing permission team:write' },
+      })
+      expect(await db.select().from(invitation).where(eq(invitation.email, late))).toEqual([])
+      expect((await runAction('team.resendInvite', { invitationId: openId }, stale)).status).toBe(403)
+      expect((await act(shop.owner, 'team.removeMember', { memberId })).status).toBe(200)
+      expect((await runAction('team.invite', { email: late, role: 'admin' }, stale)).status).toBe(403)
+      expect(await db.select().from(invitation).where(eq(invitation.email, late))).toEqual([])
     })
   })
 
