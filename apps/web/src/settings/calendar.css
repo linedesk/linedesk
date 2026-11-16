@@ -137,3 +137,13 @@
   flex: none;
   color: var(--ink-muted);
 }
+/* A Cal.com team's event types in the picker, under the team's name. */
+.cal-pick-group + .cal-pick-group {
+  margin-top: 12px;
+}
+.cal-pick-group h3 {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}

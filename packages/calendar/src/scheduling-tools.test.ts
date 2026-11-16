@@ -81,6 +81,11 @@ function fakeCalCom(fault?: Fault) {
         expect(s.url.searchParams.get('username')).toBe('mike-brennan')
         return json({ status: 'success', data: types })
       }
+      if (s.method === 'GET' && path === '/v2/teams') return json({ status: 'success', data: [{ id: 55, name: 'Brightwater Crew', slug: 'crew' }] })
+      if (s.method === 'GET' && path === '/v2/teams/55/event-types') {
+        expect(s.version).toBe('2024-06-14')
+        return json({ status: 'success', data: [{ id: 201, title: 'Emergency call-out', slug: 'emergency', lengthInMinutes: 90, schedulingType: 'roundRobin' }] })
+      }
       if (s.method === 'GET' && path === '/v2/slots') {
         expect(s.version).toBe('2024-09-04')
         if (!types.some(t => String(t.id) === s.url.searchParams.get('eventTypeId')))
@@ -514,7 +519,7 @@ describe('cal.com specifics', () => {
   test('a number that is not E.164 is left out; the event type list is asked for the account by its user name', async () => {
     const { provider, bookings, seen } = make()
     await provider.listCalendars()
-    expect(seen.map(s => `${s.method} ${s.url.pathname}`)).toEqual(['GET /v2/me', 'GET /v2/event-types'])
+    expect(seen.map(s => `${s.method} ${s.url.pathname}`)).toEqual(['GET /v2/me', 'GET /v2/event-types', 'GET /v2/teams', 'GET /v2/teams/55/event-types'])
     await provider.createEvent('101', {
       title: 'x',
       description: '',
@@ -523,6 +528,22 @@ describe('cal.com specifics', () => {
       attendee: { name: 'Sam', phone: 'anonymous' },
     })
     expect([...bookings.values()][0]!.attendee.phoneNumber).toBeUndefined()
+  })
+
+  test("the event types of the account's teams follow its own, each under its team; without teams, its own only", async () => {
+    const { fetch } = fakeCalCom()
+    const login = { serverUrl: 'https://api.cal.com/', username: '', password: KEY }
+    const list = await createCalComCalendar({ login, fetch }).listCalendars()
+    expect(list.map(c => [c.id, c.group, c.primary])).toEqual([
+      ['101', undefined, true],
+      ['102', undefined, false],
+      ['201', 'Brightwater Crew', false],
+    ])
+    expect(list[2]).toMatchObject({ name: 'Emergency call-out', canWrite: true, durationMin: 90 })
+    // No team access (an API key without teams, a grant from before the team scopes): the account's own types.
+    const noTeams: typeof fetch = (input, init) =>
+      String(input).includes('/v2/teams') ? Promise.resolve(json({ status: 'error', error: { message: 'Forbidden' } }, 403)) : fetch(input, init)
+    expect((await createCalComCalendar({ login, fetch: noTeams }).listCalendars()).map(c => c.id)).toEqual(['101', '102'])
   })
 
   test("cloud only: always Cal.com's own API, also when a stored login names another server", async () => {
@@ -712,7 +733,9 @@ describe('OAuth of the scheduling tools', () => {
   test("Cal.com: consent at app.cal.com with the scopes, tokens at api.cal.com; no revoke; the account's address", async () => {
     const url = new URL(createCalComOAuth(client).authorizeUrl({ redirectUri: 'https://app.test/v1/calendar/callback/calcom', state: 'st', codeChallenge: 'ch' }))
     expect(url.origin + url.pathname).toBe('https://app.cal.com/auth/oauth2/authorize')
-    expect(url.searchParams.get('scope')).toBe('PROFILE_READ EVENT_TYPE_READ BOOKING_READ BOOKING_WRITE')
+    expect(url.searchParams.get('scope')).toBe(
+      'PROFILE_READ EVENT_TYPE_READ BOOKING_READ BOOKING_WRITE TEAM_PROFILE_READ TEAM_EVENT_TYPE_READ TEAM_BOOKING_READ TEAM_BOOKING_WRITE',
+    )
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     const { fetch, sent } = recorder(tokens)
     const oauth = createCalComOAuth(client, { fetch })

@@ -370,6 +370,12 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
     )?.focus()
   }, [])
   function onKey(e: KeyboardEvent) {
+    // ⌘S and ⌘↵ belong to this dialog (its form, or nothing): never to a page form the dialog opened from.
+    if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 's' || e.key === 'Enter')) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     if (e.key !== 'Escape') return
     e.stopPropagation()
     onClose()
@@ -390,6 +396,12 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         onKeyDown={onKey}
+        // A dialog opened from inside a page form (Settings › Assistant) is inside it in React's tree too: its submit
+        // must not reach the page's Save, nor reload the page.
+        onSubmit={e => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
       >
         <header className="k-dialog-head">
           {icon}

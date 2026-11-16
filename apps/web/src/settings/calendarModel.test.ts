@@ -6,9 +6,11 @@ import {
   connectMark,
   connectResult,
   durationLabel,
+  groupByTeam,
   pickChanges,
   requiredLabel,
   rulesLabel,
+  toolTypeRows,
   typeFields,
 } from './calendarModel.ts'
 
@@ -102,4 +104,28 @@ test('saving the event-type picker adds the newly ticked types and removes the u
   expect(pickChanges(current, new Set(['et_2', 'et_3', 'et_4']))).toEqual({ add: ['et_3', 'et_4'], remove: ['acal_1'] })
   expect(pickChanges(current, new Set(['et_1', 'et_2']))).toEqual({ add: [], remove: [] })
   expect(pickChanges([], new Set(['et_9']))).toEqual({ add: ['et_9'], remove: [] })
+  // A row the list does not show (a team type the account no longer reaches) is never removed.
+  expect(pickChanges(current, new Set(['et_2']), new Set(['et_2', 'et_3']))).toEqual({ add: [], remove: [] })
+})
+
+test("the picker lists a Cal.com account's own event types first, then each team's under the team", () => {
+  const list = [{ id: '1' }, { id: '2', group: 'Crew' }, { id: '3' }, { id: '4', group: 'Office' }]
+  expect(groupByTeam(list)).toEqual([
+    { calendars: [{ id: '1' }, { id: '3' }] },
+    { group: 'Crew', calendars: [{ id: '2', group: 'Crew' }] },
+    { group: 'Office', calendars: [{ id: '4', group: 'Office' }] },
+  ])
+  expect(groupByTeam([])).toEqual([])
+})
+
+test("Appointment types show all of a tool's event types, the added ones with their row; one gone from the tool stays", () => {
+  const row = (id: string, external_id: string) => ({ id, external_id }) as never
+  const added = [row('acal_2', 'et_2'), row('acal_9', 'et_9')]
+  expect(toolTypeRows(added, [{ id: 'et_1' }, { id: 'et_2' }])).toEqual([
+    { listed: { id: 'et_1' } },
+    { added: added[0], listed: { id: 'et_2' } },
+    { added: added[1] },
+  ])
+  // Before the tool's list loads: the added ones.
+  expect(toolTypeRows(added, null)).toEqual([{ added: added[0] }, { added: added[1] }])
 })

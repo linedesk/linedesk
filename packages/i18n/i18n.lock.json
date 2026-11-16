@@ -14385,11 +14385,6 @@
       "out": "6feedf80d1e8c3c4b01a30b8b7fca93631f84c68074c7dce1d5871135970ebd8",
       "src": "4e884340d80b8cdcf7cbf7ef5143f9ba7879dee890ade1ff9ff6cdd3cde82dac"
     },
-    "settings.calendar.account": {
-      "by": "ai",
-      "out": "df8525011f618f54a41da2ac9e08cbf57c8f4674244d601d41f0fa18d54c19d2",
-      "src": "7e1b0d5641f2640ce9a953ec231eea2c27a2a7633f7d3c273e5735e2b30c10b7"
-    },
     "settings.calendar.accountFirst": {
       "by": "ai",
       "out": "838ca558624e9ee08f343f3db7f176013a049d0a18c05885b9946be2bd280db3",
@@ -14420,35 +14415,10 @@
       "out": "e21054deef7f0c8b4867ccce83de1d668f2aef1f703e9068ec8b5bcf103ea7a7",
       "src": "5fed5fc51cd4564794f0505627e14741fdb2a4a211e061dd7e3c22a0a2b9a4fe"
     },
-    "settings.calendar.addCalendar": {
-      "by": "ai",
-      "out": "359b95977f5e591a7ca1ce115e929c6f471465cb17f25a47a5f4d921ed6c535e",
-      "src": "9067e0e861927ff178d7a597e56d9f230522a3a8fa7b3c28fd6abd2287e577ee"
-    },
-    "settings.calendar.addCalendarTitle": {
-      "by": "ai",
-      "out": "359b95977f5e591a7ca1ce115e929c6f471465cb17f25a47a5f4d921ed6c535e",
-      "src": "05863ddda32f319f9a12785677b36241820a468f3d8949dc107302a309f8b2e1"
-    },
     "settings.calendar.addType": {
       "by": "ai",
       "out": "10e810e7840c5879eeac1a0d5657b1b1fc42a81a1bf21fee51d217c5c2b23587",
       "src": "60f7694e9cd6a41408c6d9255859955729d475479856438548983b93d8d88cfd"
-    },
-    "settings.calendar.added": {
-      "by": "human",
-      "out": "88a94932e94cbbd3afeb6c9e2d73cb5bc57ca253e9aa80a12949e3038e163630",
-      "src": "d08930258023328a94af8b2f459c7993f901e0516352fdd8d8306e95a837d954"
-    },
-    "settings.calendar.addedBadge": {
-      "by": "ai",
-      "out": "1625f5023f05ea653d124ea0290bbe4583e91d3128a09943e4c1f3bb06620451",
-      "src": "6b02e0d363a4af1c95eef50364bb0202c8b250aa05a48a69e68fd7787b4b0632"
-    },
-    "settings.calendar.adding": {
-      "by": "ai",
-      "out": "24c82e62f86e8ac7221f7f9a51728e3adb52739f2f7ea9b823532cb202b44545",
-      "src": "c6de6f45c827f464b161b668ae93192ce4e6585c4029d8dd71795cbd7f922719"
     },
     "settings.calendar.askField.address": {
       "by": "ai",
@@ -14594,11 +14564,6 @@
       "by": "ai",
       "out": "633596547305bbdb412c6f70a74754afffe690435cabe17f0bfbd7e52e0c112e",
       "src": "04cf31a0a67317789620950404eb7ab7093c5baa49f89fe52973c2e00c7f52f1"
-    },
-    "settings.calendar.eventType": {
-      "by": "ai",
-      "out": "abc61cc01e8bca873629fe96ac2a8015a5787366fc045c0917dd217129a39bbb",
-      "src": "bf7d34c96019cc514169c63e0d26310ddd6de53fd9f48ed10f69a712064404a6"
     },
     "settings.calendar.eventTypeOf": {
       "by": "ai",
@@ -35002,11 +34967,6 @@
       "out": "80276726f7d291bf4fa3316f256f5a880c559550387e8f41e249ca0d8779a5a3",
       "src": "4e884340d80b8cdcf7cbf7ef5143f9ba7879dee890ade1ff9ff6cdd3cde82dac"
     },
-    "settings.calendar.account": {
-      "by": "ai",
-      "out": "e436ddcd06e85cd09adb3157de3ea2a9934639b98f497f3e24e9fb37ed0da731",
-      "src": "7e1b0d5641f2640ce9a953ec231eea2c27a2a7633f7d3c273e5735e2b30c10b7"
-    },
     "settings.calendar.accountFirst": {
       "by": "ai",
       "out": "5f61d9c92cf8a5a874523b8113a577b31b0da7cf0d59a0fb7d68af9242a4f2e4",
@@ -35037,35 +34997,10 @@
       "out": "c5b9bf486227a2ae57965ce50039cc409c7d2e113e535f899e6b474cf61651c9",
       "src": "5fed5fc51cd4564794f0505627e14741fdb2a4a211e061dd7e3c22a0a2b9a4fe"
     },
-    "settings.calendar.addCalendar": {
-      "by": "ai",
-      "out": "54ce645649c9bf4e5f4b6b4c613ffaf6d4c3a00effbcde99ac628da08bdc9f10",
-      "src": "9067e0e861927ff178d7a597e56d9f230522a3a8fa7b3c28fd6abd2287e577ee"
-    },
-    "settings.calendar.addCalendarTitle": {
-      "by": "ai",
-      "out": "3fe850a24fc70134332ef1b527c9566c83a8963527e541b9719083cf2e838616",
-      "src": "05863ddda32f319f9a12785677b36241820a468f3d8949dc107302a309f8b2e1"
-    },
     "settings.calendar.addType": {
       "by": "ai",
       "out": "c52ccef993a2352ccc573f92a3b41b83676fae3c76dcd3947f34e5fdb40b4695",
       "src": "60f7694e9cd6a41408c6d9255859955729d475479856438548983b93d8d88cfd"
-    },
-    "settings.calendar.added": {
-      "by": "ai",
-      "out": "f1b6c1b1caca93a81992fd075ed560368702f73ccc87cbe1a53889b71caa80a0",
-      "src": "d08930258023328a94af8b2f459c7993f901e0516352fdd8d8306e95a837d954"
-    },
-    "settings.calendar.addedBadge": {
-      "by": "ai",
-      "out": "2ec5b2ffe0f6de22d9f9ff0cce0e3838d115d3437c5a51c68e522970f5294be8",
-      "src": "6b02e0d363a4af1c95eef50364bb0202c8b250aa05a48a69e68fd7787b4b0632"
-    },
-    "settings.calendar.adding": {
-      "by": "ai",
-      "out": "bc72627b80a1c802771d139f25a26a0b752e2831f0654a72c0c306302e7f29ee",
-      "src": "c6de6f45c827f464b161b668ae93192ce4e6585c4029d8dd71795cbd7f922719"
     },
     "settings.calendar.askField.address": {
       "by": "ai",
@@ -35211,11 +35146,6 @@
       "by": "ai",
       "out": "a0ebe5355c630bf2dd28040c593e4b26b0cbc098135551e8cf3a007065dc456c",
       "src": "04cf31a0a67317789620950404eb7ab7093c5baa49f89fe52973c2e00c7f52f1"
-    },
-    "settings.calendar.eventType": {
-      "by": "ai",
-      "out": "4e78489b67d15f0a5ef809e81317c03116648b82c12f53c81f61119adf47ead4",
-      "src": "bf7d34c96019cc514169c63e0d26310ddd6de53fd9f48ed10f69a712064404a6"
     },
     "settings.calendar.eventTypeOf": {
       "by": "ai",
@@ -55619,11 +55549,6 @@
       "out": "8e70fbfb7b486e099e947566293738fbb9a904dd5697ef8ee4d3811b88fd81d1",
       "src": "4e884340d80b8cdcf7cbf7ef5143f9ba7879dee890ade1ff9ff6cdd3cde82dac"
     },
-    "settings.calendar.account": {
-      "by": "ai",
-      "out": "dacd47619a726cd9000bce980932d6cd6b013524a504ea93f00f819d3f1a9ceb",
-      "src": "7e1b0d5641f2640ce9a953ec231eea2c27a2a7633f7d3c273e5735e2b30c10b7"
-    },
     "settings.calendar.accountFirst": {
       "by": "ai",
       "out": "963c2161092dc116bf76577484b6b48e293db040efe4fce44e85292fd38babe1",
@@ -55654,35 +55579,10 @@
       "out": "8dee1ca8565bd3f655ea992e1bc9055739c7eaf96471377db59b957cd3a5beab",
       "src": "5fed5fc51cd4564794f0505627e14741fdb2a4a211e061dd7e3c22a0a2b9a4fe"
     },
-    "settings.calendar.addCalendar": {
-      "by": "ai",
-      "out": "076194fa9b8e9ffb3c8b57df46e437fa1f0865ed9921425059a0ef165026856a",
-      "src": "9067e0e861927ff178d7a597e56d9f230522a3a8fa7b3c28fd6abd2287e577ee"
-    },
-    "settings.calendar.addCalendarTitle": {
-      "by": "ai",
-      "out": "076194fa9b8e9ffb3c8b57df46e437fa1f0865ed9921425059a0ef165026856a",
-      "src": "05863ddda32f319f9a12785677b36241820a468f3d8949dc107302a309f8b2e1"
-    },
     "settings.calendar.addType": {
       "by": "ai",
       "out": "6afe41138324b5bd652fc5e23fbf37107d29d56d487389327c4863dc5f839d83",
       "src": "60f7694e9cd6a41408c6d9255859955729d475479856438548983b93d8d88cfd"
-    },
-    "settings.calendar.added": {
-      "by": "ai",
-      "out": "74b731640013051e6f1ae93f00b1fb55b47bb05c987bda7f95dd01fc5760a737",
-      "src": "d08930258023328a94af8b2f459c7993f901e0516352fdd8d8306e95a837d954"
-    },
-    "settings.calendar.addedBadge": {
-      "by": "ai",
-      "out": "e3d6179b13fcd6c997c1572c2f9242554b6f2145a5b54e374bbf8bd01d0f8352",
-      "src": "6b02e0d363a4af1c95eef50364bb0202c8b250aa05a48a69e68fd7787b4b0632"
-    },
-    "settings.calendar.adding": {
-      "by": "ai",
-      "out": "479e71b1be77ed3e11e231e0cba1d5d8e681de2d19e73a15aa92dddac62272db",
-      "src": "c6de6f45c827f464b161b668ae93192ce4e6585c4029d8dd71795cbd7f922719"
     },
     "settings.calendar.askField.address": {
       "by": "ai",
@@ -55828,11 +55728,6 @@
       "by": "ai",
       "out": "ed61ee8d9a13561e9c24ffafda586787a994fdcded624f45f76f9d197ca9cd21",
       "src": "04cf31a0a67317789620950404eb7ab7093c5baa49f89fe52973c2e00c7f52f1"
-    },
-    "settings.calendar.eventType": {
-      "by": "ai",
-      "out": "09292ad66d3ef78845fb50398b570e48774a52a27364d1ac78bc27748e0e93ee",
-      "src": "bf7d34c96019cc514169c63e0d26310ddd6de53fd9f48ed10f69a712064404a6"
     },
     "settings.calendar.eventTypeOf": {
       "by": "ai",
@@ -76236,11 +76131,6 @@
       "out": "22b38b66d85c554fbc1407077736ff3d9c5b4e5aaa276466b185406a08343268",
       "src": "4e884340d80b8cdcf7cbf7ef5143f9ba7879dee890ade1ff9ff6cdd3cde82dac"
     },
-    "settings.calendar.account": {
-      "by": "ai",
-      "out": "f74f2247c76cf7e0ba968717e11650c2b106b02356dac304a22d9d37141cf7ce",
-      "src": "7e1b0d5641f2640ce9a953ec231eea2c27a2a7633f7d3c273e5735e2b30c10b7"
-    },
     "settings.calendar.accountFirst": {
       "by": "ai",
       "out": "fb6c3023352cf61275ed596238b347376a324bb822227b9393532a795f5b703d",
@@ -76271,35 +76161,10 @@
       "out": "544353720256c032af30525cca62bae0299b90fae84c8f1b934e133184a329c2",
       "src": "5fed5fc51cd4564794f0505627e14741fdb2a4a211e061dd7e3c22a0a2b9a4fe"
     },
-    "settings.calendar.addCalendar": {
-      "by": "ai",
-      "out": "6499b4e7b986cdb981ec6f11d02f53465fcefe1c8410d6b48a439ed758212fd6",
-      "src": "9067e0e861927ff178d7a597e56d9f230522a3a8fa7b3c28fd6abd2287e577ee"
-    },
-    "settings.calendar.addCalendarTitle": {
-      "by": "ai",
-      "out": "6499b4e7b986cdb981ec6f11d02f53465fcefe1c8410d6b48a439ed758212fd6",
-      "src": "05863ddda32f319f9a12785677b36241820a468f3d8949dc107302a309f8b2e1"
-    },
     "settings.calendar.addType": {
       "by": "ai",
       "out": "216638fec1057a572d9b72471e5c82199bacc45f876d5dd4158e3bf977bcfa98",
       "src": "60f7694e9cd6a41408c6d9255859955729d475479856438548983b93d8d88cfd"
-    },
-    "settings.calendar.added": {
-      "by": "ai",
-      "out": "662e62eaa5e626d52b0c7c9e5ddc64fa46375a29263415d12d855caaccc3b5a1",
-      "src": "d08930258023328a94af8b2f459c7993f901e0516352fdd8d8306e95a837d954"
-    },
-    "settings.calendar.addedBadge": {
-      "by": "ai",
-      "out": "980d64b006ff700bb62af2712971258b32484c8da63fc3233a9fc93364e8729b",
-      "src": "6b02e0d363a4af1c95eef50364bb0202c8b250aa05a48a69e68fd7787b4b0632"
-    },
-    "settings.calendar.adding": {
-      "by": "ai",
-      "out": "1d3f17a4b4e77743e5241f2450968662cb80fe26b0b4f225fefc2863c2e0ba0c",
-      "src": "c6de6f45c827f464b161b668ae93192ce4e6585c4029d8dd71795cbd7f922719"
     },
     "settings.calendar.askField.address": {
       "by": "ai",
@@ -76445,11 +76310,6 @@
       "by": "ai",
       "out": "383c675d5f323656efbfd1624e967a3a01ee71f96c3a6272460ff3b88d6112d5",
       "src": "04cf31a0a67317789620950404eb7ab7093c5baa49f89fe52973c2e00c7f52f1"
-    },
-    "settings.calendar.eventType": {
-      "by": "ai",
-      "out": "69823826c414bb56dda7dfddca8681133fdf453cf539d0e7238069774d0bc75f",
-      "src": "bf7d34c96019cc514169c63e0d26310ddd6de53fd9f48ed10f69a712064404a6"
     },
     "settings.calendar.eventTypeOf": {
       "by": "ai",
@@ -96853,11 +96713,6 @@
       "out": "a86250709689313bc6157f369dd0451e1586ed14832da91090e585eecfc3b6fa",
       "src": "4e884340d80b8cdcf7cbf7ef5143f9ba7879dee890ade1ff9ff6cdd3cde82dac"
     },
-    "settings.calendar.account": {
-      "by": "ai",
-      "out": "5a4cc65d866b2781b629e06a6419358d4036eed48fdaafdbbeead47d87c5f432",
-      "src": "7e1b0d5641f2640ce9a953ec231eea2c27a2a7633f7d3c273e5735e2b30c10b7"
-    },
     "settings.calendar.accountFirst": {
       "by": "ai",
       "out": "c89984eab5543d7bb436b70f27dadae044f7771acdc3765868d730c300fb2d5f",
@@ -96888,35 +96743,10 @@
       "out": "be2d97b6e3fef89104de99177b51d9ebf9ce1c23d136660752b13fe680b5258b",
       "src": "5fed5fc51cd4564794f0505627e14741fdb2a4a211e061dd7e3c22a0a2b9a4fe"
     },
-    "settings.calendar.addCalendar": {
-      "by": "ai",
-      "out": "a560e24565e07dd6dd09ed03efd2252c160aafe27ee5398244412e0044f16d2c",
-      "src": "9067e0e861927ff178d7a597e56d9f230522a3a8fa7b3c28fd6abd2287e577ee"
-    },
-    "settings.calendar.addCalendarTitle": {
-      "by": "ai",
-      "out": "e6e42a5b201b58596e5592cd35b02c8d73a745903427a3931a721958bf858095",
-      "src": "05863ddda32f319f9a12785677b36241820a468f3d8949dc107302a309f8b2e1"
-    },
     "settings.calendar.addType": {
       "by": "ai",
       "out": "911e92dcf6d26dbad11b1250b7317066539d36d770684b9630662cd196910485",
       "src": "60f7694e9cd6a41408c6d9255859955729d475479856438548983b93d8d88cfd"
-    },
-    "settings.calendar.added": {
-      "by": "ai",
-      "out": "5c0229b0e23a13084577bd0c4ea1e061bc0fbdf10078d7b73ab93c930b171d68",
-      "src": "d08930258023328a94af8b2f459c7993f901e0516352fdd8d8306e95a837d954"
-    },
-    "settings.calendar.addedBadge": {
-      "by": "ai",
-      "out": "055cc401e68d07d8203d97ec39dfcb61b5d0d63aed518a15c8624dc2c008279c",
-      "src": "6b02e0d363a4af1c95eef50364bb0202c8b250aa05a48a69e68fd7787b4b0632"
-    },
-    "settings.calendar.adding": {
-      "by": "ai",
-      "out": "55bcd5927081cac89ed960771ff22038b225c8cf5831b6e47c0cd9125b81435d",
-      "src": "c6de6f45c827f464b161b668ae93192ce4e6585c4029d8dd71795cbd7f922719"
     },
     "settings.calendar.askField.address": {
       "by": "ai",
@@ -97062,11 +96892,6 @@
       "by": "ai",
       "out": "b946f0933395a34d5c8b9ce939a8d304b7b21cb46ab8ae60bd8d8b509229d341",
       "src": "04cf31a0a67317789620950404eb7ab7093c5baa49f89fe52973c2e00c7f52f1"
-    },
-    "settings.calendar.eventType": {
-      "by": "ai",
-      "out": "4e78489b67d15f0a5ef809e81317c03116648b82c12f53c81f61119adf47ead4",
-      "src": "bf7d34c96019cc514169c63e0d26310ddd6de53fd9f48ed10f69a712064404a6"
     },
     "settings.calendar.eventTypeOf": {
       "by": "ai",

@@ -292,10 +292,38 @@ export function calendarEntries(calendars: AssistantCalendar[], connections: Cal
 export function pickChanges(
   current: Pick<AssistantCalendar, 'id' | 'external_id'>[],
   picked: ReadonlySet<string>,
+  listed?: ReadonlySet<string>,
 ): { add: string[]; remove: string[] } {
   const have = new Set(current.map(c => c.external_id))
   return {
     add: [...picked].filter(id => !have.has(id)),
-    remove: current.filter(c => !picked.has(c.external_id)).map(c => c.id),
+    // Only what the picker showed unticked: a row the account does not list now (a team it lost, a calendar now
+    // read-only, a list that failed in part) stays as it is.
+    remove: current.filter(c => !picked.has(c.external_id) && (!listed || listed.has(c.external_id))).map(c => c.id),
   }
+}
+
+/** The calendars of a picker by team (a Cal.com team's event types), in the order listed: the account's own first. */
+export function groupByTeam<T extends { group?: string }>(
+  calendars: readonly T[],
+): { group?: string; calendars: T[] }[] {
+  const groups = new Map<string, T[]>()
+  for (const c of calendars) groups.set(c.group ?? '', [...(groups.get(c.group ?? '') ?? []), c])
+  return [...groups].map(([group, list]) => ({ ...(group && { group }), calendars: list }))
+}
+
+/**
+ * A scheduling tool's event types under Appointment types: all the tool lists (in its order), each with the assistant
+ * calendar when one was added; added ones the tool no longer lists (or before the list loads) at the end.
+ */
+export function toolTypeRows<T extends { id: string }>(
+  added: readonly AssistantCalendar[],
+  listed: readonly T[] | null,
+): { added?: AssistantCalendar; listed?: T }[] {
+  const byExternal = new Map(added.map(a => [a.external_id, a]))
+  const ids = new Set((listed ?? []).map(l => l.id))
+  return [
+    ...(listed ?? []).map(l => ({ ...(byExternal.has(l.id) && { added: byExternal.get(l.id) }), listed: l })),
+    ...added.filter(a => !ids.has(a.external_id)).map(a => ({ added: a })),
+  ]
 }

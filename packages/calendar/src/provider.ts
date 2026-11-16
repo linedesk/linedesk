@@ -54,6 +54,8 @@ export type ProviderCalendar = {
    * itself (type, length, availability, buffers, notice); Linedesk's appointment types and hours do not apply.
    */
   durationMin?: number
+  /** The team it belongs to (a Cal.com team's event type), to list it under that team; unset for the account's own. */
+  group?: string
 }
 
 export type CalendarEventInput = {

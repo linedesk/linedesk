@@ -266,7 +266,7 @@ export const calendarListCalendars = defineAction({
 })
 
 /** `data` of calendar.listCalendars. */
-export type ListCalendarsData = { calendars: { id: string; name: string; primary: boolean; canWrite: boolean; durationMin?: number }[] }
+export type ListCalendarsData = { calendars: { id: string; name: string; primary: boolean; canWrite: boolean; durationMin?: number; group?: string }[] }
 
 export const calendarDisconnect = defineAction({
   name: 'calendar.disconnect',

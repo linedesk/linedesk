@@ -31,8 +31,14 @@ export type CalComOptions = ({ login: CalendarLogin } | { accessToken: AccessTok
 const CALCOM_API = 'https://api.cal.com/'
 const CALCOM_AUTHORIZE = 'https://app.cal.com/auth/oauth2/authorize'
 const CALCOM_TOKEN = 'https://api.cal.com/v2/auth/oauth2/token'
-/** The account's address, its event types and bookings; slots and booking, moving and cancelling need no scope. */
-export const CALCOM_SCOPES = ['PROFILE_READ', 'EVENT_TYPE_READ', 'BOOKING_READ', 'BOOKING_WRITE'] as const
+/**
+ * The account's address, its event types and bookings, and the same for the teams it is in (a team's round-robin or
+ * collective event types); slots and booking, moving and cancelling need no scope.
+ */
+export const CALCOM_SCOPES = [
+  'PROFILE_READ', 'EVENT_TYPE_READ', 'BOOKING_READ', 'BOOKING_WRITE',
+  'TEAM_PROFILE_READ', 'TEAM_EVENT_TYPE_READ', 'TEAM_BOOKING_READ', 'TEAM_BOOKING_WRITE',
+] as const
 
 /** Cal.com's OAuth: consent at app.cal.com, tokens at api.cal.com. The client must be approved by Cal.com first. */
 export function createCalComOAuth({ clientId, clientSecret }: OAuthClient, { fetch: doFetch = fetch, timeoutMs = 8000 } = {}): CalendarOAuth {
@@ -84,6 +90,7 @@ export function createCalComOAuth({ clientId, clientSecret }: OAuthClient, { fet
 const V_BOOKINGS = '2026-02-25'
 const V_SLOTS = '2024-09-04'
 const V_EVENT_TYPES = '2026-06-12'
+const V_TEAM_EVENT_TYPES = '2024-06-14'
 
 /** A provider's words, short and without markup: they may reach the member and the voice agent. */
 export const cleanReason = (text: unknown) =>
@@ -133,6 +140,38 @@ export function createCalComCalendar(options: CalComOptions): CalendarProvider {
       me = null
     })
     return me
+  }
+
+  const eventType = (t: Json, group?: string) => ({
+    id: String(t.id),
+    name: String(t.title ?? t.slug ?? t.id),
+    primary: false,
+    canWrite: true,
+    durationMin: Number(t.lengthInMinutes) > 0 ? Number(t.lengthInMinutes) : 30,
+    ...(group && { group }),
+  })
+
+  /**
+   * The event types of the teams the account is in, each under its team's name. Best effort: an API key of a member
+   * without teams, or an OAuth grant from before the team scopes, lists the account's own types only.
+   */
+  async function teamEventTypes() {
+    const teams = await request('list teams', { url: api('teams') }).then(
+      body => (Array.isArray(body?.data) ? body.data : []) as Json[],
+      () => [] as Json[],
+    )
+    const lists = await Promise.all(
+      teams.map(team =>
+        request('list team event types', {
+          url: api(`teams/${encodeURIComponent(String(team.id))}/event-types`),
+          headers: { 'cal-api-version': V_TEAM_EVENT_TYPES },
+        }).then(
+          body => ((Array.isArray(body?.data) ? body.data : []) as Json[]).map(t => eventType(t, String(team.name ?? team.slug ?? team.id))),
+          () => [],
+        ),
+      ),
+    )
+    return lists.flat()
   }
 
   const booking = (body: Json | null): Json => (Array.isArray(body?.data) ? body.data[0] : body?.data) ?? {}
@@ -189,18 +228,15 @@ export function createCalComCalendar(options: CalComOptions): CalendarProvider {
 
     async listCalendars() {
       const { username } = await profile()
-      const body = await request('list event types', {
-        url: api('event-types', username ? { username } : {}),
-        headers: { 'cal-api-version': V_EVENT_TYPES },
-      })
-      const types = (Array.isArray(body?.data) ? body.data : []) as Json[]
-      return types.map((t, i) => ({
-        id: String(t.id),
-        name: String(t.title ?? t.slug ?? t.id),
-        primary: i === 0,
-        canWrite: true,
-        durationMin: Number(t.lengthInMinutes) > 0 ? Number(t.lengthInMinutes) : 30,
-      }))
+      const [body, teams] = await Promise.all([
+        request('list event types', {
+          url: api('event-types', username ? { username } : {}),
+          headers: { 'cal-api-version': V_EVENT_TYPES },
+        }),
+        teamEventTypes(),
+      ])
+      const own = ((Array.isArray(body?.data) ? body.data : []) as Json[]).map(t => eventType(t))
+      return [...own, ...teams].map((t, i) => ({ ...t, primary: i === 0 }))
     },
 
     // Cal.com's own availability is in `slots`; nothing extra to subtract here.
