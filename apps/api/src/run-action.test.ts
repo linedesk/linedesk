@@ -11,14 +11,22 @@ const fake = vi.hoisted(() => {
   }
   const db = {
     select: () => ({ from: () => ({ where: async () => record('select', state.seen) }) }),
-    insert: () => ({ values: () => record('insert', Object.assign(Promise.resolve(), { onConflictDoNothing: async () => {} })) }),
+    insert: () => ({
+      values: () => record('insert', Object.assign(Promise.resolve(), { onConflictDoNothing: async () => {} })),
+    }),
     transaction: (run: (tx: unknown) => unknown) => run(db),
   }
   return { state, db, runHandler: vi.fn() }
 })
 vi.mock('./db.ts', () => ({ db: fake.db }))
 vi.mock('./handlers.ts', () => {
-  class Reject extends Error {}
+  class Reject extends Error {
+    code?: string
+    constructor(message: string, code?: string) {
+      super(message)
+      if (code) this.code = code
+    }
+  }
   return { Reject, Forbidden: class Forbidden extends Reject {}, runHandler: fake.runHandler, preparers: {} }
 })
 
@@ -53,9 +61,20 @@ describe('runAction: read-only actions', () => {
     expect(fake.state.log).toEqual([])
   })
 
+  it('keeps the code of a rejection, for the web app to say it in its own words', async () => {
+    fake.runHandler.mockRejectedValue(new Reject('this assistant books into its own calendars', 'BOOKING_MODE'))
+    expect(await findSlots()).toEqual({
+      status: 409,
+      body: { ok: false, error: 'this assistant books into its own calendars', code: 'BOOKING_MODE' },
+    })
+  })
+
   it('turns a refusal of who asks into 403 with its code', async () => {
     fake.runHandler.mockRejectedValue(new Forbidden('only an owner can do that'))
-    expect(await findSlots()).toEqual({ status: 403, body: { ok: false, error: 'only an owner can do that', code: 'forbidden' } })
+    expect(await findSlots()).toEqual({
+      status: 403,
+      body: { ok: false, error: 'only an owner can do that', code: 'forbidden' },
+    })
   })
 
   it('lets unexpected errors through', async () => {
@@ -65,7 +84,9 @@ describe('runAction: read-only actions', () => {
 
   it('still validates input and checks the permission', async () => {
     expect((await runAction('calendar.findSlots', {}, member)).status).toBe(422)
-    expect(await runAction('calendar.findSlots', { appointmentTypeId: 'at_1' }, { ...member, permissions: [] })).toEqual({
+    expect(
+      await runAction('calendar.findSlots', { appointmentTypeId: 'at_1' }, { ...member, permissions: [] }),
+    ).toEqual({
       status: 403,
       body: { ok: false, error: 'missing permission calendar:read', code: 'forbidden' },
     })
@@ -155,7 +176,9 @@ describe('runAction: writing actions', () => {
   })
 
   it('replays a stored result without running the handler again', async () => {
-    fake.state.seen = [{ workspace_id: 'ws_1', action: 'call.markDone', rejected: false, result: { ok: true, rows: {} } }]
+    fake.state.seen = [
+      { workspace_id: 'ws_1', action: 'call.markDone', rejected: false, result: { ok: true, rows: {} } },
+    ]
     expect(await markDone()).toEqual({ status: 200, body: { ok: true, rows: {} } })
     expect(fake.runHandler).not.toHaveBeenCalled()
     expect(fake.state.log).toEqual(['select'])
@@ -171,7 +194,14 @@ describe('runAction: writing actions', () => {
     const refused = { ok: false, error: 'only an owner can do that', code: 'forbidden' }
     fake.state.seen = [{ workspace_id: 'ws_1', action: 'call.markDone', rejected: true, result: refused }]
     expect(await markDone()).toEqual({ status: 403, body: refused })
-    fake.state.seen = [{ workspace_id: 'ws_1', action: 'call.markDone', rejected: true, result: { ok: false, error: 'calls row not found' } }]
+    fake.state.seen = [
+      {
+        workspace_id: 'ws_1',
+        action: 'call.markDone',
+        rejected: true,
+        result: { ok: false, error: 'calls row not found' },
+      },
+    ]
     expect((await markDone()).status).toBe(409)
   })
 })

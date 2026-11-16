@@ -1,12 +1,10 @@
 import { expect, test } from 'vitest'
 import {
   accountMark,
-  calendarEntries,
   calendarsOf,
   connectMark,
   connectResult,
   durationLabel,
-  groupByTeam,
   pickChanges,
   requiredLabel,
   rulesLabel,
@@ -83,19 +81,6 @@ test('a calendar account shows its brand; a CalDAV login at Apple shows iCloud, 
   expect(connectMark('calendly')).toBe('calendly')
 })
 
-test('the Calendars card: a scheduling-tool account is one entry with its event types, also without any picked', () => {
-  const conn = (id: string, provider: string, created_at = '2026-01-01') => ({ id, provider, created_at }) as never
-  const cal = (id: string, connection_id: string) => ({ id, connection_id }) as never
-  const connections = [conn('g', 'google'), conn('cc', 'calcom'), conn('cl', 'calendly', '2026-01-02')]
-  const entries = calendarEntries([cal('a', 'g'), cal('t1', 'cc'), cal('b', 'g'), cal('t2', 'cc')], connections)
-  const shape = entries.map(e =>
-    e.kind === 'calendar'
-      ? (e.calendar as { id: string }).id
-      : `${(e.connection as { id: string }).id}:${e.types.map(t => (t as { id: string }).id).join('+')}`,
-  )
-  expect(shape).toEqual(['a', 'cc:t1+t2', 'b', 'cl:'])
-})
-
 test('saving the event-type picker adds the newly ticked types and removes the unticked ones', () => {
   const current = [
     { id: 'acal_1', external_id: 'et_1' },
@@ -106,16 +91,6 @@ test('saving the event-type picker adds the newly ticked types and removes the u
   expect(pickChanges([], new Set(['et_9']))).toEqual({ add: ['et_9'], remove: [] })
   // A row the list does not show (a team type the account no longer reaches) is never removed.
   expect(pickChanges(current, new Set(['et_2']), new Set(['et_2', 'et_3']))).toEqual({ add: [], remove: [] })
-})
-
-test("the picker lists a Cal.com account's own event types first, then each team's under the team", () => {
-  const list = [{ id: '1' }, { id: '2', group: 'Crew' }, { id: '3' }, { id: '4', group: 'Office' }]
-  expect(groupByTeam(list)).toEqual([
-    { calendars: [{ id: '1' }, { id: '3' }] },
-    { group: 'Crew', calendars: [{ id: '2', group: 'Crew' }] },
-    { group: 'Office', calendars: [{ id: '4', group: 'Office' }] },
-  ])
-  expect(groupByTeam([])).toEqual([])
 })
 
 test("Appointment types show all of a tool's event types, the added ones with their row; one gone from the tool stays", () => {

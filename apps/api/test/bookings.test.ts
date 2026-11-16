@@ -4,12 +4,36 @@
 import { actions, isE164, normalizeCallerId, rolePermissions } from '@linedesk/actions'
 import type { CalendarEventInput, CalendarProvider, Interval } from '@linedesk/calendar'
 import { CalendarError } from '@linedesk/calendar'
-import { appointment_types, assistant_calendars, assistants, availability_rules, bookings, calls, contacts, phone_numbers, type Tx, webhook_deliveries, webhook_endpoints, workspace_settings } from '@linedesk/db'
+import {
+  appointment_types,
+  assistant_calendars,
+  assistants,
+  availability_rules,
+  bookings,
+  calls,
+  contacts,
+  phone_numbers,
+  type Tx,
+  webhook_deliveries,
+  webhook_endpoints,
+  workspace_settings,
+} from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import {
-  BOOKING_CHANGES_LOCKED, BOOKING_MISSES_NOTE, BOOKING_MISSES_PER_DAY, BOOKINGS_PER_CALL, bookedNameOf, bookingContext, CONFIRMATIONS_PER_HOUR, DEFAULT_BOOKING_HOURS,
-  namesMatch, NO_MATCHING_BOOKING, slotLabel, TIME_NOT_FREE, withoutLinks,
+  BOOKING_CHANGES_LOCKED,
+  BOOKING_MISSES_NOTE,
+  BOOKING_MISSES_PER_DAY,
+  BOOKINGS_PER_CALL,
+  bookedNameOf,
+  bookingContext,
+  CONFIRMATIONS_PER_HOUR,
+  DEFAULT_BOOKING_HOURS,
+  namesMatch,
+  NO_MATCHING_BOOKING,
+  slotLabel,
+  TIME_NOT_FREE,
+  withoutLinks,
 } from '../src/bookings.ts'
 import type { CalendarServices } from '../src/calendar-connections.ts'
 import type { Actor } from '../src/context.ts'
@@ -20,12 +44,14 @@ import { act, addMember, agent, createWorkspace, type User, type Workspace } fro
 class Rollback extends Error {}
 
 async function inRollback(body: (tx: Tx) => Promise<void>) {
-  await db.transaction(async tx => {
-    await body(tx)
-    throw new Rollback()
-  }).catch(e => {
-    if (!(e instanceof Rollback)) throw e
-  })
+  await db
+    .transaction(async tx => {
+      await body(tx)
+      throw new Rollback()
+    })
+    .catch(e => {
+      if (!(e instanceof Rollback)) throw e
+    })
 }
 
 /** A calendar in memory: busy intervals, and the events written into it. */
@@ -86,28 +112,46 @@ beforeAll(async () => {
   owner = { actorId: ws.owner.userId, role: 'owner', workspaceId: ws.id, permissions: rolePermissions.owner }
   await db.update(workspace_settings).set({ timezone: ZONE }).where(eq(workspace_settings.workspace_id, ws.id))
   typeId = `at_${crypto.randomUUID().slice(0, 8)}`
-  await db.insert(appointment_types).values({ id: typeId, workspace_id: ws.id, name: 'Repair visit', duration_min: 60, max_days_ahead: 30 })
+  await db
+    .insert(appointment_types)
+    .values({ id: typeId, workspace_id: ws.id, name: 'Repair visit', duration_min: 60, max_days_ahead: 30 })
 })
 
 const run = (tx: Tx, actor: Actor, services: CalendarServices, name: string, input: unknown, undos: Undo[] = []) =>
-  runHandler({ tx, actor, now: new Date().toISOString(), calendars: services, onRollback: u => undos.push(u) }, actions.get(name)!, actions.get(name)!.input.parse(input))
+  runHandler(
+    { tx, actor, now: new Date().toISOString(), calendars: services, onRollback: u => undos.push(u) },
+    actions.get(name)!,
+    actions.get(name)!.input.parse(input),
+  )
 
 const day = () => ({ appointmentTypeId: typeId, fromDate: MONDAY, toDate: MONDAY })
 const book = (start: string, extra: Record<string, unknown> = {}) => ({
-  appointmentTypeId: typeId, calendarId: ws.assistantCalendar.id, start, callerName: 'Sam Patel', reason: 'Water heater maintenance',
-  address: '220 NE Alberta St, Portland', callId: ws.call.id, ...extra,
+  appointmentTypeId: typeId,
+  calendarId: ws.assistantCalendar.id,
+  start,
+  callerName: 'Sam Patel',
+  reason: 'Water heater maintenance',
+  address: '220 NE Alberta St, Portland',
+  callId: ws.call.id,
+  ...extra,
 })
-
 
 /** Ends the workspace's live calls, so a test that opens many in a row stays under the calls-at-once limit (LIVE_CALLS_PER_WORKSPACE). */
 const endLiveCalls = (tx: Tx, workspaceId: string) =>
-  tx.update(calls).set({ status: 'completed' }).where(and(eq(calls.workspace_id, workspaceId), eq(calls.status, 'live')))
+  tx
+    .update(calls)
+    .set({ status: 'completed' })
+    .where(and(eq(calls.workspace_id, workspaceId), eq(calls.status, 'live')))
 
 describe('free slots', () => {
   test('without business hours: Monday to Friday 9 to 5 in the business time zone, labelled as the business says them', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      const { data } = await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
+      const { data } = await run(tx, owner, services, 'calendar.findSlots', {
+        ...day(),
+        calendarId: ws.assistantCalendar.id,
+        limit: 50,
+      })
       const slots = data!.slots as { start: string; label: string }[]
       expect(DEFAULT_BOOKING_HOURS).toHaveLength(5)
       expect(slots[0]!.start).toBe(at('09:00'))
@@ -120,10 +164,30 @@ describe('free slots', () => {
   test('business hours count only when they are switched on', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '13:00', end_time: '15:00' })
-      const starts = async () => ((await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })).data!.slots as { start: string }[]).map(s => s.start)
+      await tx
+        .insert(availability_rules)
+        .values({
+          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          weekday: 1,
+          start_time: '13:00',
+          end_time: '15:00',
+        })
+      const starts = async () =>
+        (
+          (
+            await run(tx, owner, services, 'calendar.findSlots', {
+              ...day(),
+              calendarId: ws.assistantCalendar.id,
+              limit: 50,
+            })
+          ).data!.slots as { start: string }[]
+        ).map(s => s.start)
       expect((await starts())[0]).toBe(at('09:00'))
-      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
+      await tx
+        .update(workspace_settings)
+        .set({ business_hours_on: true })
+        .where(eq(workspace_settings.workspace_id, ws.id))
       expect(await starts()).toEqual([at('13:00'), at('13:30'), at('14:00')])
     })
   })
@@ -131,10 +195,30 @@ describe('free slots', () => {
   test("the calendar's busy times at the provider are left out, with one request for the whole window", async () => {
     const { services, busyCalls } = fakeCalendar([{ start: at('10:00'), end: at('12:00') }])
     await inRollback(async tx => {
-      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
-      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '08:00', end_time: '13:00' })
-      const { data } = await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
-      expect((data!.slots as { start: string }[]).map(s => s.start)).toEqual([at('08:00'), at('08:30'), at('09:00'), at('12:00')])
+      await tx
+        .update(workspace_settings)
+        .set({ business_hours_on: true })
+        .where(eq(workspace_settings.workspace_id, ws.id))
+      await tx
+        .insert(availability_rules)
+        .values({
+          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          weekday: 1,
+          start_time: '08:00',
+          end_time: '13:00',
+        })
+      const { data } = await run(tx, owner, services, 'calendar.findSlots', {
+        ...day(),
+        calendarId: ws.assistantCalendar.id,
+        limit: 50,
+      })
+      expect((data!.slots as { start: string }[]).map(s => s.start)).toEqual([
+        at('08:00'),
+        at('08:30'),
+        at('09:00'),
+        at('12:00'),
+      ])
       expect(busyCalls).toHaveLength(1)
       expect(busyCalls[0]!.ids).toEqual(['primary'])
     })
@@ -143,13 +227,41 @@ describe('free slots', () => {
   test("the type's buffers keep a gap after and before the calendar's events", async () => {
     const { services } = fakeCalendar([{ start: at('10:00'), end: at('12:00') }])
     await inRollback(async tx => {
-      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
-      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '08:00', end_time: '14:00' })
-      const starts = async () => ((await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })).data!.slots as { start: string }[]).map(s => s.start)
+      await tx
+        .update(workspace_settings)
+        .set({ business_hours_on: true })
+        .where(eq(workspace_settings.workspace_id, ws.id))
+      await tx
+        .insert(availability_rules)
+        .values({
+          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          weekday: 1,
+          start_time: '08:00',
+          end_time: '14:00',
+        })
+      const starts = async () =>
+        (
+          (
+            await run(tx, owner, services, 'calendar.findSlots', {
+              ...day(),
+              calendarId: ws.assistantCalendar.id,
+              limit: 50,
+            })
+          ).data!.slots as { start: string }[]
+        ).map(s => s.start)
       const set = (bufferBeforeMin: number, bufferAfterMin: number) =>
-        run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: typeId, name: 'Repair visit', durationMin: 60, bufferBeforeMin, bufferAfterMin })
+        run(tx, owner, services, 'appointmentType.upsert', {
+          appointmentTypeId: typeId,
+          name: 'Repair visit',
+          durationMin: 60,
+          bufferBeforeMin,
+          bufferAfterMin,
+        })
       const changed = await set(30, 0)
-      expect(changed.rows.appointment_types).toMatchObject([{ buffer_before_min: 30, buffer_after_min: 0, buffer_min: 30 }])
+      expect(changed.rows.appointment_types).toMatchObject([
+        { buffer_before_min: 30, buffer_after_min: 0, buffer_min: 30 },
+      ])
       expect(await starts()).toEqual([at('08:00'), at('08:30'), at('09:00'), at('12:30'), at('13:00')])
       await set(0, 30)
       expect(await starts()).toEqual([at('08:00'), at('08:30'), at('12:00'), at('12:30'), at('13:00')])
@@ -159,34 +271,66 @@ describe('free slots', () => {
   test('a type booked only outside business hours: no slots inside them, and booking inside them is refused', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      await tx.update(workspace_settings).set({ business_hours_on: true }).where(eq(workspace_settings.workspace_id, ws.id))
-      await tx.insert(availability_rules).values({ id: `ar_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, weekday: 1, start_time: '08:00', end_time: '13:00' })
-      await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: typeId, name: 'Repair visit', durationMin: 60, bookWhen: 'outside_business_hours' })
-      const { data } = await run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
+      await tx
+        .update(workspace_settings)
+        .set({ business_hours_on: true })
+        .where(eq(workspace_settings.workspace_id, ws.id))
+      await tx
+        .insert(availability_rules)
+        .values({
+          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          weekday: 1,
+          start_time: '08:00',
+          end_time: '13:00',
+        })
+      await run(tx, owner, services, 'appointmentType.upsert', {
+        appointmentTypeId: typeId,
+        name: 'Repair visit',
+        durationMin: 60,
+        bookWhen: 'outside_business_hours',
+      })
+      const { data } = await run(tx, owner, services, 'calendar.findSlots', {
+        ...day(),
+        calendarId: ws.assistantCalendar.id,
+        limit: 50,
+      })
       const starts = (data!.slots as { start: string }[]).map(s => s.start)
       expect(starts).toContain(at('13:00'))
       expect(starts.filter(s => s >= at('07:30') && s < at('13:00'))).toEqual([])
       await expect(run(tx, owner, services, 'appointment.book', book(at('09:00')))).rejects.toThrow(/not free/)
       expect((await run(tx, owner, services, 'appointment.book', book(at('14:00')))).rows.bookings).toHaveLength(1)
       // Any time: inside the hours again too.
-      await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: typeId, name: 'Repair visit', durationMin: 60, bookWhen: 'any_time' })
+      await run(tx, owner, services, 'appointmentType.upsert', {
+        appointmentTypeId: typeId,
+        name: 'Repair visit',
+        durationMin: 60,
+        bookWhen: 'any_time',
+      })
       expect((await run(tx, owner, services, 'appointment.book', book(at('09:00')))).rows.bookings).toHaveLength(1)
     })
   })
 
   test('a calendar that cannot be reached is a rejection with the reason, so the agent can take a message', async () => {
-    const { services } = fakeCalendar([], { fail: new CalendarError('google', 'unavailable', 'check availability took longer than 4000 ms') })
+    const { services } = fakeCalendar([], {
+      fail: new CalendarError('google', 'unavailable', 'check availability took longer than 4000 ms'),
+    })
     await inRollback(async tx => {
-      await expect(run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id })).rejects.toThrow(/could not be reached: Google: check availability took longer/)
+      await expect(
+        run(tx, owner, services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id }),
+      ).rejects.toThrow(/could not be reached: Google: check availability took longer/)
     })
   })
 })
 
 describe('booking', () => {
-  test('sends no webhook of its own: the after-call webhook carries the call\'s bookings', async () => {
+  test("sends no webhook of its own: the after-call webhook carries the call's bookings", async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      await tx.update(webhook_endpoints).set({ hooks: ['call_end'], status: 'active' }).where(eq(webhook_endpoints.id, ws.webhookEndpoint.id))
+      await tx
+        .update(webhook_endpoints)
+        .set({ hooks: ['call_end'], status: 'active' })
+        .where(eq(webhook_endpoints.id, ws.webhookEndpoint.id))
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       expect(await tx.select().from(webhook_deliveries).where(eq(webhook_deliveries.workspace_id, ws.id))).toEqual([])
     })
@@ -195,14 +339,40 @@ describe('booking', () => {
   test('writes the event with caller, number, reason and address, and stores the booking on the call', async () => {
     const { services, events } = fakeCalendar()
     await inRollback(async tx => {
-      const { rows, data } = await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { assistantId: ws.assistant.id }))
-      expect(rows.bookings).toMatchObject([{
-        workspace_id: ws.id, call_id: ws.call.id, contact_id: ws.contact.id, appointment_type_id: typeId, calendar_id: ws.assistantCalendar.id,
-        title: 'Repair visit · Sam Patel', calendar_name: 'Office', status: 'confirmed', external_event_id: 'ev1',
-      }])
-      expect(data).toMatchObject({ start: at('09:00'), end: at('10:00'), calendarName: 'Office', label: slotLabel(at('09:00'), ZONE) })
+      const { rows, data } = await run(
+        tx,
+        agent_(ws.id),
+        services,
+        'appointment.book',
+        book(at('09:00'), { assistantId: ws.assistant.id }),
+      )
+      expect(rows.bookings).toMatchObject([
+        {
+          workspace_id: ws.id,
+          call_id: ws.call.id,
+          contact_id: ws.contact.id,
+          appointment_type_id: typeId,
+          calendar_id: ws.assistantCalendar.id,
+          title: 'Repair visit · Sam Patel',
+          calendar_name: 'Office',
+          status: 'confirmed',
+          external_event_id: 'ev1',
+        },
+      ])
+      expect(data).toMatchObject({
+        start: at('09:00'),
+        end: at('10:00'),
+        calendarName: 'Office',
+        label: slotLabel(at('09:00'), ZONE),
+      })
       const event = events.get('ev1')!
-      expect(event).toMatchObject({ calendarId: 'primary', title: 'Repair visit · Sam Patel', start: at('09:00'), end: at('10:00'), location: '220 NE Alberta St, Portland' })
+      expect(event).toMatchObject({
+        calendarId: 'primary',
+        title: 'Repair visit · Sam Patel',
+        start: at('09:00'),
+        end: at('10:00'),
+        location: '220 NE Alberta St, Portland',
+      })
       expect(event.description).toContain('Water heater maintenance')
       expect(event.description).toContain(`Phone: ${ws.call.from_number}`)
       expect(event.description).toContain(`#call/${ws.call.id}`)
@@ -224,10 +394,19 @@ describe('booking', () => {
   test("only into an enabled calendar of the assistant's", async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      await expect(run(tx, owner, services, 'appointment.book', book(at('09:00'), { calendarId: other.assistantCalendar.id }))).rejects.toThrow(/not one of the assistant's calendars/)
-      await expect(run(tx, owner, services, 'appointment.book', book(at('09:00'), { assistantId: other.assistant.id }))).rejects.toThrow(/not one of the assistant's calendars/)
-      await expect(run(tx, owner, services, 'appointment.book', book(at('09:00'), { callId: other.call.id }))).rejects.toThrow(/call not found/)
-      await tx.update(assistant_calendars).set({ enabled: false }).where(eq(assistant_calendars.id, ws.assistantCalendar.id))
+      await expect(
+        run(tx, owner, services, 'appointment.book', book(at('09:00'), { calendarId: other.assistantCalendar.id })),
+      ).rejects.toThrow(/not one of the assistant's calendars/)
+      await expect(
+        run(tx, owner, services, 'appointment.book', book(at('09:00'), { assistantId: other.assistant.id })),
+      ).rejects.toThrow(/not one of the assistant's calendars/)
+      await expect(
+        run(tx, owner, services, 'appointment.book', book(at('09:00'), { callId: other.call.id })),
+      ).rejects.toThrow(/call not found/)
+      await tx
+        .update(assistant_calendars)
+        .set({ enabled: false })
+        .where(eq(assistant_calendars.id, ws.assistantCalendar.id))
       await expect(run(tx, owner, services, 'appointment.book', book(at('09:00')))).rejects.toThrow(/switched off/)
     })
   })
@@ -246,10 +425,23 @@ describe('booking', () => {
     const { services, events } = fakeCalendar()
     await inRollback(async tx => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
-      const finding = await run(tx, agent_(null), services, 'call.findForTest', { to: ws.number, since: '2000-01-01T00:00:00Z', from: ws.call.from_number })
-      expect(finding.data).toMatchObject({ bookingReady: true, bookings: [{ event: 'found', event_start: at('09:00'), calendar_name: 'Office', title: 'Repair visit · Sam Patel' }] })
+      const finding = await run(tx, agent_(null), services, 'call.findForTest', {
+        to: ws.number,
+        since: '2000-01-01T00:00:00Z',
+        from: ws.call.from_number,
+      })
+      expect(finding.data).toMatchObject({
+        bookingReady: true,
+        bookings: [
+          { event: 'found', event_start: at('09:00'), calendar_name: 'Office', title: 'Repair visit · Sam Patel' },
+        ],
+      })
       events.clear()
-      const gone = await run(tx, agent_(null), services, 'call.findForTest', { to: ws.number, since: '2000-01-01T00:00:00Z', from: ws.call.from_number })
+      const gone = await run(tx, agent_(null), services, 'call.findForTest', {
+        to: ws.number,
+        since: '2000-01-01T00:00:00Z',
+        from: ws.call.from_number,
+      })
       expect(gone.data).toMatchObject({ bookings: [{ event: 'missing' }] })
     })
   })
@@ -257,19 +449,60 @@ describe('booking', () => {
   test("a call answered by one assistant cannot book into another assistant's calendar of the same workspace", async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      const [second] = await tx.insert(assistants).values({ id: `as_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, name: 'Sam' }).returning()
-      const [call] = await tx.insert(calls).values({ id: `call_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, contact_id: ws.contact.id, from_number: ws.call.from_number, to_number: ws.number, assistant_id: second!.id }).returning()
-      await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { callId: call!.id }))).rejects.toThrow(/not one of the assistant's calendars/)
-      await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { callId: call!.id, assistantId: ws.assistant.id }))).rejects.toThrow(/not one of the assistant's calendars/)
+      const [second] = await tx
+        .insert(assistants)
+        .values({ id: `as_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, name: 'Sam' })
+        .returning()
+      const [call] = await tx
+        .insert(calls)
+        .values({
+          id: `call_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          contact_id: ws.contact.id,
+          from_number: ws.call.from_number,
+          to_number: ws.number,
+          assistant_id: second!.id,
+        })
+        .returning()
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { callId: call!.id })),
+      ).rejects.toThrow(/not one of the assistant's calendars/)
+      await expect(
+        run(
+          tx,
+          agent_(ws.id),
+          services,
+          'appointment.book',
+          book(at('09:00'), { callId: call!.id, assistantId: ws.assistant.id }),
+        ),
+      ).rejects.toThrow(/not one of the assistant's calendars/)
     })
   })
 
-  test("find_slots on a call looks only in the calendars of the assistant that answered it", async () => {
+  test('find_slots on a call looks only in the calendars of the assistant that answered it', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      const [second] = await tx.insert(assistants).values({ id: `as_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, name: 'Sam' }).returning()
-      const [call] = await tx.insert(calls).values({ id: `call_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, contact_id: ws.contact.id, from_number: ws.call.from_number, to_number: ws.number, assistant_id: second!.id }).returning()
-      const search = (callId?: string) => run(tx, agent_(ws.id), services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, ...(callId ? { callId } : {}) })
+      const [second] = await tx
+        .insert(assistants)
+        .values({ id: `as_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, name: 'Sam' })
+        .returning()
+      const [call] = await tx
+        .insert(calls)
+        .values({
+          id: `call_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          contact_id: ws.contact.id,
+          from_number: ws.call.from_number,
+          to_number: ws.number,
+          assistant_id: second!.id,
+        })
+        .returning()
+      const search = (callId?: string) =>
+        run(tx, agent_(ws.id), services, 'calendar.findSlots', {
+          ...day(),
+          calendarId: ws.assistantCalendar.id,
+          ...(callId ? { callId } : {}),
+        })
       await expect(search(call!.id)).rejects.toThrow(/not one of the assistant's calendars/)
       expect((await search(ws.call.id)).data!.slots).not.toHaveLength(0)
       await expect(search('call_nope')).rejects.toThrow('call not found')
@@ -281,7 +514,9 @@ describe('booking', () => {
     await inRollback(async tx => {
       await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00')))
       await run(tx, agent_(ws.id), services, 'appointment.book', book(at('11:00')))
-      await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('13:00')))).rejects.toThrow(`${BOOKINGS_PER_CALL} appointments are booked on this call already`)
+      await expect(run(tx, agent_(ws.id), services, 'appointment.book', book(at('13:00')))).rejects.toThrow(
+        `${BOOKINGS_PER_CALL} appointments are booked on this call already`,
+      )
       expect((await run(tx, owner, services, 'appointment.book', book(at('13:00')))).rows.bookings).toHaveLength(1)
     })
   })
@@ -289,9 +524,19 @@ describe('booking', () => {
   test('links in the reason do not reach the calendar', async () => {
     const { services, events } = fakeCalendar()
     await inRollback(async tx => {
-      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), { reason: 'Leak, see https://evil.example/pay and www.evil.example or evil.com/x or pay-here.xyz now' }))
+      await run(
+        tx,
+        agent_(ws.id),
+        services,
+        'appointment.book',
+        book(at('09:00'), {
+          reason: 'Leak, see https://evil.example/pay and www.evil.example or evil.com/x or pay-here.xyz now',
+        }),
+      )
       const description = [...events.values()][0]!.description!
-      expect(description).toContain('Leak, see [link removed] and [link removed] or [link removed] or [link removed] now')
+      expect(description).toContain(
+        'Leak, see [link removed] and [link removed] or [link removed] or [link removed] now',
+      )
       expect(description).not.toMatch(/evil|pay-here/)
     })
     expect(withoutLinks('Water heater maintenance, 2 p.m. at No. 5')).toBe('Water heater maintenance, 2 p.m. at No. 5')
@@ -300,11 +545,18 @@ describe('booking', () => {
   test('HTML links and bare domains in the name, address and reason do not reach the calendar', async () => {
     const { services, events } = fakeCalendar()
     await inRollback(async tx => {
-      await run(tx, agent_(ws.id), services, 'appointment.book', book(at('09:00'), {
-        callerName: 'Sam <a href="https://evil.example">Pay</a>',
-        address: '12 Oak St, deposit at pay-deposit.shop',
-        reason: 'Leak. <a href="https://evil.example/pay">Pay the deposit</a> or pay-deposit.shop/now or 10.0.0.1/pay <b',
-      }))
+      await run(
+        tx,
+        agent_(ws.id),
+        services,
+        'appointment.book',
+        book(at('09:00'), {
+          callerName: 'Sam <a href="https://evil.example">Pay</a>',
+          address: '12 Oak St, deposit at pay-deposit.shop',
+          reason:
+            'Leak. <a href="https://evil.example/pay">Pay the deposit</a> or pay-deposit.shop/now or 10.0.0.1/pay <b',
+        }),
+      )
       const event = [...events.values()][0]!
       const text = [event.title, event.location, event.description].join('\n')
       expect(text).not.toMatch(/evil|pay-deposit|10\.0\.0\.1|<|href/)
@@ -314,7 +566,12 @@ describe('booking', () => {
   })
 
   test('withoutLinks keeps ordinary text: times, abbreviations, prices, addresses', () => {
-    for (const text of ['Costs $3.50, version 2.5, e.g. after 9 a.m.', '123 Main St., Portland, OR 97201', 'St. Johns Heating', 'Müller-Lüdenscheid'])
+    for (const text of [
+      'Costs $3.50, version 2.5, e.g. after 9 a.m.',
+      '123 Main St., Portland, OR 97201',
+      'St. Johns Heating',
+      'Müller-Lüdenscheid',
+    ])
       expect(withoutLinks(text)).toBe(text)
     expect(withoutLinks('Mail sam@evil.example')).toBe('Mail sam@[link removed]')
     expect(withoutLinks('Café zürich.ünï')).toBe('Café [link removed]')
@@ -323,9 +580,20 @@ describe('booking', () => {
   test('details the type requires must be there; an email address is kept for the confirmation', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      await tx.update(appointment_types).set({ required_fields: ['email', 'address'] }).where(eq(appointment_types.id, typeId))
-      await expect(run(tx, owner, services, 'appointment.book', book(at('09:00'), { address: undefined }))).rejects.toThrow("A Repair visit needs the caller's email address and address: ask for it, then book.")
-      const { rows } = await run(tx, owner, services, 'appointment.book', book(at('09:00'), { callerEmail: 'sam@example.com' }))
+      await tx
+        .update(appointment_types)
+        .set({ required_fields: ['email', 'address'] })
+        .where(eq(appointment_types.id, typeId))
+      await expect(
+        run(tx, owner, services, 'appointment.book', book(at('09:00'), { address: undefined })),
+      ).rejects.toThrow("A Repair visit needs the caller's email address and address: ask for it, then book.")
+      const { rows } = await run(
+        tx,
+        owner,
+        services,
+        'appointment.book',
+        book(at('09:00'), { callerEmail: 'sam@example.com' }),
+      )
       expect(rows.bookings).toMatchObject([{ caller_email: 'sam@example.com' }])
     })
   })
@@ -359,19 +627,55 @@ describe('booking', () => {
   test('confirmation emails: one per call, and at most 20 per workspace an hour; the bookings themselves go through', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      const first = await run(tx, owner, services, 'appointment.book', book(at('09:00'), { callerEmail: 'sam@example.com' }))
+      const first = await run(
+        tx,
+        owner,
+        services,
+        'appointment.book',
+        book(at('09:00'), { callerEmail: 'sam@example.com' }),
+      )
       expect(first.rows.bookings).toMatchObject([{ confirmation: 'queued' }])
-      const second = await run(tx, owner, services, 'appointment.book', book(at('11:00'), { callerEmail: 'sam@example.com' }))
+      const second = await run(
+        tx,
+        owner,
+        services,
+        'appointment.book',
+        book(at('11:00'), { callerEmail: 'sam@example.com' }),
+      )
       expect(second.rows.bookings).toMatchObject([{ confirmation: 'skipped', status: 'confirmed' }])
       // No address, nothing to confirm.
-      expect((await run(tx, owner, services, 'appointment.book', book(at('13:00'), { callId: undefined }))).rows.bookings).toMatchObject([{ confirmation: null }])
+      expect(
+        (await run(tx, owner, services, 'appointment.book', book(at('13:00'), { callId: undefined }))).rows.bookings,
+      ).toMatchObject([{ confirmation: null }])
 
-      await tx.insert(bookings).values(Array.from({ length: CONFIRMATIONS_PER_HOUR - 1 }, (_, i) => ({
-        id: `bk_flood_${i}_${crypto.randomUUID().slice(0, 6)}`, workspace_id: ws.id, start_at: at('09:00'), end_at: at('10:00'), status: 'cancelled' as const,
-        caller_email: `x${i}@example.com`, confirmation: 'queued' as const,
-      })))
-      const [other] = await tx.insert(calls).values({ id: `call_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, contact_id: ws.contact.id, from_number: ws.call.from_number, to_number: ws.number }).returning()
-      const capped = await run(tx, owner, services, 'appointment.book', book(at('14:00'), { callId: other!.id, callerEmail: 'next@example.com' }))
+      await tx.insert(bookings).values(
+        Array.from({ length: CONFIRMATIONS_PER_HOUR - 1 }, (_, i) => ({
+          id: `bk_flood_${i}_${crypto.randomUUID().slice(0, 6)}`,
+          workspace_id: ws.id,
+          start_at: at('09:00'),
+          end_at: at('10:00'),
+          status: 'cancelled' as const,
+          caller_email: `x${i}@example.com`,
+          confirmation: 'queued' as const,
+        })),
+      )
+      const [other] = await tx
+        .insert(calls)
+        .values({
+          id: `call_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          contact_id: ws.contact.id,
+          from_number: ws.call.from_number,
+          to_number: ws.number,
+        })
+        .returning()
+      const capped = await run(
+        tx,
+        owner,
+        services,
+        'appointment.book',
+        book(at('14:00'), { callId: other!.id, callerEmail: 'next@example.com' }),
+      )
       expect(capped.rows.bookings).toMatchObject([{ confirmation: 'skipped' }])
     })
   })
@@ -381,8 +685,18 @@ describe('booking', () => {
     await inRollback(async tx => {
       const { data } = await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const bookingId = data!.bookingId as string
-      const [stranger] = await tx.insert(calls).values({ id: `call_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, from_number: '+15035550999', to_number: ws.number }).returning()
-      await expect(run(tx, owner, services, 'appointment.cancel', { bookingId, callId: stranger!.id })).rejects.toThrow(/not the caller's/)
+      const [stranger] = await tx
+        .insert(calls)
+        .values({
+          id: `call_${crypto.randomUUID().slice(0, 8)}`,
+          workspace_id: ws.id,
+          from_number: '+15035550999',
+          to_number: ws.number,
+        })
+        .returning()
+      await expect(run(tx, owner, services, 'appointment.cancel', { bookingId, callId: stranger!.id })).rejects.toThrow(
+        /not the caller's/,
+      )
       await expect(run(tx, owner, services, 'appointment.cancel', {})).rejects.toThrow(/bookingId is required/)
       await run(tx, owner, services, 'appointment.cancel', { bookingId })
       await expect(run(tx, owner, services, 'appointment.cancel', { bookingId })).rejects.toThrow(/cancelled already/)
@@ -395,18 +709,42 @@ describe('booking', () => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       // A later call of the same caller (same number, so the same contact): no booking id is known on it.
       const callId = (await callFrom(tx, services, ws.call.from_number)).callId
-      const described = (extra: Record<string, unknown>) => ({ callId, bookingDate: MONDAY, bookedName: 'Sam Patel', readsRefusals: true, ...extra })
+      const described = (extra: Record<string, unknown>) => ({
+        callId,
+        bookingDate: MONDAY,
+        bookedName: 'Sam Patel',
+        readsRefusals: true,
+        ...extra,
+      })
 
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, bookingDate: MONDAY, bookedName: 'Sam Patel' })).rejects.toThrow(/only change a booking on a call/)
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId })).rejects.toThrow(/ask the caller for the day/)
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.cancel', {
+          readsRefusals: true,
+          bookingDate: MONDAY,
+          bookedName: 'Sam Patel',
+        }),
+      ).rejects.toThrow(/only change a booking on a call/)
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId }),
+      ).rejects.toThrow(/ask the caller for the day/)
       // By id only a booking made on this very call.
       const [booked] = await tx.select().from(bookings).where(eq(bookings.call_id, ws.call.id))
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId: booked!.id, callId })).rejects.toThrow(/describe the booking by its day and name/)
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.cancel', { bookingId: booked!.id, callId }),
+      ).rejects.toThrow(/describe the booking by its day and name/)
       // The agent must say which type and calendar it searched the new time with.
-      await expect(run(tx, agent_(ws.id), services, 'appointment.reschedule', described({ start: at('09:30') }))).rejects.toThrow(/appointment type and calendar/)
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.reschedule', described({ start: at('09:30') })),
+      ).rejects.toThrow(/appointment type and calendar/)
 
       // Spelled, ordered and cased differently, it is still the name on the booking.
-      const moved = await run(tx, agent_(ws.id), services, 'appointment.reschedule', described({ bookedName: 'patel, sam', start: at('11:00'), ...searched() }))
+      const moved = await run(
+        tx,
+        agent_(ws.id),
+        services,
+        'appointment.reschedule',
+        described({ bookedName: 'patel, sam', start: at('11:00'), ...searched() }),
+      )
       expect(moved.rows.bookings).toMatchObject([{ status: 'rescheduled' }])
       expect(moved.data).toMatchObject({ changed: true })
       expect([...events.values()][0]).toMatchObject({ start: at('11:00'), end: at('12:00') })
@@ -422,22 +760,44 @@ describe('booking', () => {
     await inRollback(async tx => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const [caller] = await tx.select().from(calls).where(eq(calls.id, ws.call.id))
-      await tx.update(contacts).set({ email: 'sam@brightwater.example', name: 'Sam Patel', name_source: 'member' }).where(eq(contacts.id, caller!.contact_id!))
-      const started = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number, attestation: 'B' })
+      await tx
+        .update(contacts)
+        .set({ email: 'sam@brightwater.example', name: 'Sam Patel', name_source: 'member' })
+        .where(eq(contacts.id, caller!.contact_id!))
+      const started = await run(tx, agent_(null), services, 'call.start', {
+        from: ws.call.from_number,
+        to: ws.number,
+        attestation: 'B',
+      })
       const callId = started.data!.callId as string
       expect(started.data!.booking).toMatchObject({ canChangeBookings: false })
       const described = { callId, bookingDate: MONDAY, bookedName: 'Sam Patel', readsRefusals: true }
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', described)).rejects.toThrow(/cannot change bookings by phone/)
+      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', described)).rejects.toThrow(
+        /cannot change bookings by phone/,
+      )
       expect(await missesOf(tx, callId)).toBe(0)
       expect(events.size).toBe(1)
       // A new booking on that call: the contact's saved email is not used, so no confirmation reaches the number's owner.
-      const { rows } = await run(tx, agent_(ws.id), services, 'appointment.book', book(at('11:00'), { callId, callerName: 'Mallory Stone' }))
+      const { rows } = await run(
+        tx,
+        agent_(ws.id),
+        services,
+        'appointment.book',
+        book(at('11:00'), { callId, callerName: 'Mallory Stone' }),
+      )
       expect(rows.bookings).toMatchObject([{ caller_email: null }])
       // Nor does the name the caller gave replace the contact's.
       expect(rows.contacts).toBeUndefined()
-      expect((await tx.select().from(contacts).where(eq(contacts.id, caller!.contact_id!)))[0]).toMatchObject({ name: 'Sam Patel', name_source: 'member' })
+      expect((await tx.select().from(contacts).where(eq(contacts.id, caller!.contact_id!)))[0]).toMatchObject({
+        name: 'Sam Patel',
+        name_source: 'member',
+      })
       // The same carrier answer with A: the booking can be changed as usual.
-      const verified = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number, attestation: 'A' })
+      const verified = await run(tx, agent_(null), services, 'call.start', {
+        from: ws.call.from_number,
+        to: ws.number,
+        attestation: 'A',
+      })
       expect(verified.data!.booking).toMatchObject({ canChangeBookings: true })
     })
   })
@@ -448,7 +808,13 @@ describe('booking', () => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const { callId } = await callFrom(tx, services, ws.call.from_number)
       const cancel = (extra: Record<string, unknown>) =>
-        run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId, bookingDate: MONDAY, bookedName: 'Sam Patel', ...extra })
+        run(tx, agent_(ws.id), services, 'appointment.cancel', {
+          readsRefusals: true,
+          callId,
+          bookingDate: MONDAY,
+          bookedName: 'Sam Patel',
+          ...extra,
+        })
       for (const wrong of [{ bookedName: 'Alex Patel' }, { bookedName: 'Patel' }]) {
         const refused = await cancel(wrong)
         expect(refused.data, JSON.stringify(wrong)).toEqual({ changed: false, refused: NO_MATCHING_BOOKING })
@@ -466,7 +832,12 @@ describe('booking', () => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       await run(tx, owner, services, 'appointment.book', book(at('13:00')))
       const { callId } = await callFrom(tx, services, ws.call.from_number)
-      const refused = await run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId, bookingDate: MONDAY, bookedName: 'Sam Patel' })
+      const refused = await run(tx, agent_(ws.id), services, 'appointment.cancel', {
+        readsRefusals: true,
+        callId,
+        bookingDate: MONDAY,
+        bookedName: 'Sam Patel',
+      })
       expect(refused.data).toEqual({ changed: false, refused: NO_MATCHING_BOOKING })
       expect(await missesOf(tx, callId)).toBe(1)
     })
@@ -474,7 +845,12 @@ describe('booking', () => {
     await inRollback(async tx => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const { callId } = await callFrom(tx, services, ws.call.from_number)
-      const refused = await run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId, bookingDate: shiftDay(MONDAY, 1), bookedName: 'Sam Patel' })
+      const refused = await run(tx, agent_(ws.id), services, 'appointment.cancel', {
+        readsRefusals: true,
+        callId,
+        bookingDate: shiftDay(MONDAY, 1),
+        bookedName: 'Sam Patel',
+      })
       expect(refused.data).toEqual({ changed: false, refused: NO_MATCHING_BOOKING })
     })
   })
@@ -485,7 +861,13 @@ describe('booking', () => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const { callId } = await callFrom(tx, services, ws.call.from_number)
       const move = (bookedName: string, start: string) =>
-        run(tx, agent_(ws.id), services, 'appointment.reschedule', { callId, bookingDate: MONDAY, bookedName, start, ...searched() })
+        run(tx, agent_(ws.id), services, 'appointment.reschedule', {
+          callId,
+          bookingDate: MONDAY,
+          bookedName,
+          start,
+          ...searched(),
+        })
       // The right booking and a stranger's guess get the same answer for a time that is not free.
       const taken = { changed: false, refused: TIME_NOT_FREE, slotTaken: true }
       expect((await move('Sam Patel', at('14:00'))).data).toEqual(taken)
@@ -503,8 +885,13 @@ describe('booking', () => {
     await inRollback(async tx => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const { callId } = await callFrom(tx, services, ws.call.from_number)
-      await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { callId, bookingDate: MONDAY, bookedName: 'Sam Patel' }))
-        .rejects.toThrow(/must be updated/)
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.cancel', {
+          callId,
+          bookingDate: MONDAY,
+          bookedName: 'Sam Patel',
+        }),
+      ).rejects.toThrow(/must be updated/)
       expect(events.size).toBe(1)
       expect(await missesOf(tx, callId)).toBe(0)
     })
@@ -515,7 +902,12 @@ describe('booking', () => {
     await inRollback(async tx => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
       const guess = (callId: string, bookedName: string) =>
-        run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId, bookingDate: MONDAY, bookedName })
+        run(tx, agent_(ws.id), services, 'appointment.cancel', {
+          readsRefusals: true,
+          callId,
+          bookingDate: MONDAY,
+          bookedName,
+        })
       // Two misses on one call, the third on the next call: the limit counts calls together.
       const first = await callFrom(tx, services, ws.call.from_number)
       await guess(first.callId, 'Guess One')
@@ -524,13 +916,24 @@ describe('booking', () => {
       expect(second.booking).toMatchObject({ canChangeBookings: true })
       const third = await guess(second.callId, 'Guess Three')
       expect(third.data).toEqual({ changed: false, refused: BOOKING_CHANGES_LOCKED })
-      expect(third.rows.calls).toMatchObject([{ urgency: 'urgent', booking_misses: 1, action_items: [{ text: BOOKING_MISSES_NOTE }] }])
+      expect(third.rows.calls).toMatchObject([
+        { urgency: 'urgent', booking_misses: 1, action_items: [{ text: BOOKING_MISSES_NOTE }] },
+      ])
 
       // Now even the right day and name change nothing, and nothing more is counted.
-      expect((await guess(second.callId, 'Sam Patel')).data).toEqual({ changed: false, refused: BOOKING_CHANGES_LOCKED })
+      expect((await guess(second.callId, 'Sam Patel')).data).toEqual({
+        changed: false,
+        refused: BOOKING_CHANGES_LOCKED,
+      })
       // An agent of the release before (no type and calendar on reschedule) reads any answer as moved: still a plain refusal.
-      await expect(run(tx, agent_(ws.id), services, 'appointment.reschedule', { callId: second.callId, bookingDate: MONDAY, bookedName: 'Sam Patel', start: at('11:00') }))
-        .rejects.toThrow(/appointment type and calendar/)
+      await expect(
+        run(tx, agent_(ws.id), services, 'appointment.reschedule', {
+          callId: second.callId,
+          bookingDate: MONDAY,
+          bookedName: 'Sam Patel',
+          start: at('11:00'),
+        }),
+      ).rejects.toThrow(/appointment type and calendar/)
       expect(await missesOf(tx, second.callId)).toBe(1)
       expect(events.size).toBe(1)
       // The next call is not offered changes at all.
@@ -539,11 +942,20 @@ describe('booking', () => {
       expect((await callFrom(tx, services, '+15035550998')).booking).toMatchObject({ canChangeBookings: true })
 
       // The assistant's own next steps at the end of the call do not replace the note for the team.
-      const finished = await run(tx, agent_(ws.id), services, 'call.finish', { callId: second.callId, outcome: 'callback', actionItems: [{ text: 'Call Sam back' }] })
-      expect(finished.rows.calls).toMatchObject([{ action_items: [{ text: 'Call Sam back' }, { text: BOOKING_MISSES_NOTE }] }])
+      const finished = await run(tx, agent_(ws.id), services, 'call.finish', {
+        callId: second.callId,
+        outcome: 'callback',
+        actionItems: [{ text: 'Call Sam back' }],
+      })
+      expect(finished.rows.calls).toMatchObject([
+        { action_items: [{ text: 'Call Sam back' }, { text: BOOKING_MISSES_NOTE }] },
+      ])
 
       // Misses older than a day no longer count.
-      await tx.update(calls).set({ started_at: new Date(Date.now() - 25 * 3_600_000).toISOString() }).where(eq(calls.contact_id, ws.contact.id))
+      await tx
+        .update(calls)
+        .set({ started_at: new Date(Date.now() - 25 * 3_600_000).toISOString() })
+        .where(eq(calls.contact_id, ws.contact.id))
       expect((await callFrom(tx, services, ws.call.from_number)).booking).toMatchObject({ canChangeBookings: true })
     })
   })
@@ -554,7 +966,9 @@ describe('booking', () => {
       ...services,
       provider: (name, token) => ({
         ...services.provider(name, token),
-        [method]: async () => { throw new CalendarError('google', 'unavailable', 'calendar down') },
+        [method]: async () => {
+          throw new CalendarError('google', 'unavailable', 'calendar down')
+        },
       }),
     })
     await inRollback(async tx => {
@@ -566,7 +980,11 @@ describe('booking', () => {
       const cancel = await run(tx, agent_(ws.id), refusing('deleteEvent'), 'appointment.cancel', which)
       expect(cancel.data).toEqual({ changed: false, refused: NO_MATCHING_BOOKING })
       // The calendar refuses to move it: the booking keeps its time.
-      const move = await run(tx, agent_(ws.id), refusing('updateEvent'), 'appointment.reschedule', { ...which, start: at('11:00'), ...searched() })
+      const move = await run(tx, agent_(ws.id), refusing('updateEvent'), 'appointment.reschedule', {
+        ...which,
+        start: at('11:00'),
+        ...searched(),
+      })
       expect(move.data).toEqual({ changed: false, refused: NO_MATCHING_BOOKING })
       const [kept] = await tx.select().from(bookings).where(eq(bookings.call_id, ws.call.id))
       expect(kept!.status).toBe('confirmed')
@@ -576,15 +994,23 @@ describe('booking', () => {
     })
   })
 
-  test("a booking whose appointment type was switched off since cannot be changed by phone: a miss, said like no match", async () => {
+  test('a booking whose appointment type was switched off since cannot be changed by phone: a miss, said like no match', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
       const oldType = `at_${crypto.randomUUID().slice(0, 8)}`
-      await tx.insert(appointment_types).values({ id: oldType, workspace_id: ws.id, name: 'Old visit', duration_min: 60, max_days_ahead: 30 })
+      await tx
+        .insert(appointment_types)
+        .values({ id: oldType, workspace_id: ws.id, name: 'Old visit', duration_min: 60, max_days_ahead: 30 })
       await run(tx, owner, services, 'appointment.book', book(at('09:00'), { appointmentTypeId: oldType }))
       await tx.update(appointment_types).set({ enabled: false }).where(eq(appointment_types.id, oldType))
       const { callId } = await callFrom(tx, services, ws.call.from_number)
-      const moved = await run(tx, agent_(ws.id), services, 'appointment.reschedule', { callId, bookingDate: MONDAY, bookedName: 'Sam Patel', start: at('11:00'), ...searched() })
+      const moved = await run(tx, agent_(ws.id), services, 'appointment.reschedule', {
+        callId,
+        bookingDate: MONDAY,
+        bookedName: 'Sam Patel',
+        start: at('11:00'),
+        ...searched(),
+      })
       expect(moved.data).toEqual({ changed: false, refused: NO_MATCHING_BOOKING })
       expect(await missesOf(tx, callId)).toBe(1)
     })
@@ -595,29 +1021,50 @@ describe('booking', () => {
     const from = '+15035550777'
     const { callId: first } = await db.transaction(tx => callFrom(tx, services, from))
     const { callId: second } = await db.transaction(tx => callFrom(tx, services, from))
-    await db.update(calls).set({ booking_misses: BOOKING_MISSES_PER_DAY - 1 }).where(eq(calls.id, first))
-    const guess = (tx: Tx, callId: string) => run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId, bookingDate: MONDAY, bookedName: 'Nobody Here' })
+    await db
+      .update(calls)
+      .set({ booking_misses: BOOKING_MISSES_PER_DAY - 1 })
+      .where(eq(calls.id, first))
+    const guess = (tx: Tx, callId: string) =>
+      run(tx, agent_(ws.id), services, 'appointment.cancel', {
+        readsRefusals: true,
+        callId,
+        bookingDate: MONDAY,
+        bookedName: 'Nobody Here',
+      })
     // The first call's miss is counted but not committed yet when the second call tries.
     let commitFirst!: () => void
     let firstCounted!: () => void
-    const counted = new Promise<void>(resolve => { firstCounted = resolve })
+    const counted = new Promise<void>(resolve => {
+      firstCounted = resolve
+    })
     const firstDone = db.transaction(async tx => {
       const answer = await guess(tx, first)
       firstCounted()
-      await new Promise<void>(resolve => { commitFirst = resolve })
+      await new Promise<void>(resolve => {
+        commitFirst = resolve
+      })
       return answer
     })
     await counted
     let secondSettled = false
-    const secondDone = db.transaction(tx => guess(tx, second)).finally(() => { secondSettled = true })
+    const secondDone = db
+      .transaction(tx => guess(tx, second))
+      .finally(() => {
+        secondSettled = true
+      })
     await new Promise(resolve => setTimeout(resolve, 300))
     expect(secondSettled).toBe(false)
     commitFirst()
     const answers = await Promise.all([firstDone, secondDone])
     expect(answers.map(a => a.data)).toEqual([
-      { changed: false, refused: BOOKING_CHANGES_LOCKED }, { changed: false, refused: BOOKING_CHANGES_LOCKED },
+      { changed: false, refused: BOOKING_CHANGES_LOCKED },
+      { changed: false, refused: BOOKING_CHANGES_LOCKED },
     ])
-    const rows = await db.select({ misses: calls.booking_misses, urgency: calls.urgency }).from(calls).where(eq(calls.from_number, from))
+    const rows = await db
+      .select({ misses: calls.booking_misses, urgency: calls.urgency })
+      .from(calls)
+      .where(eq(calls.from_number, from))
     expect(rows.reduce((sum, r) => sum + r.misses, 0)).toBe(BOOKING_MISSES_PER_DAY)
     expect(rows.filter(r => r.urgency === 'urgent')).toHaveLength(1)
   })
@@ -638,11 +1085,26 @@ describe('booking', () => {
       for (const from of ['anonymous', 'Restricted', '12345', '+0123456789', 'sip:alice@example.test']) {
         await endLiveCalls(tx, ws.id)
         const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number })
-        expect(started.data, from).toMatchObject({ contact: null, isNewContact: false, blocked: false, booking: { canChangeBookings: false, upcoming: [] } })
+        expect(started.data, from).toMatchObject({
+          contact: null,
+          isNewContact: false,
+          blocked: false,
+          booking: { canChangeBookings: false, upcoming: [] },
+        })
         expect(started.rows.contacts, from).toBeUndefined()
-        const [call] = await tx.select().from(calls).where(eq(calls.id, started.data!.callId as string))
+        const [call] = await tx
+          .select()
+          .from(calls)
+          .where(eq(calls.id, started.data!.callId as string))
         expect(call, from).toMatchObject({ contact_id: null, from_number: from })
-        await expect(run(tx, agent_(ws.id), services, 'appointment.cancel', { readsRefusals: true, callId: call!.id, bookingDate: MONDAY, bookedName: 'Sam Patel' })).rejects.toThrow(/no caller number/)
+        await expect(
+          run(tx, agent_(ws.id), services, 'appointment.cancel', {
+            readsRefusals: true,
+            callId: call!.id,
+            bookingDate: MONDAY,
+            bookedName: 'Sam Patel',
+          }),
+        ).rejects.toThrow(/no caller number/)
       }
       // Anonymous callers do not share a contact (there is none).
       expect(await tx.select().from(contacts).where(eq(contacts.phone, 'anonymous'))).toEqual([])
@@ -660,11 +1122,23 @@ describe('booking', () => {
     await inRollback(async tx => {
       const e164 = ws.call.from_number
       const national = e164.slice(2)
-      for (const from of [e164.slice(1), national, `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`, `00${e164.slice(1)}`]) {
+      for (const from of [
+        e164.slice(1),
+        national,
+        `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`,
+        `00${e164.slice(1)}`,
+      ]) {
         await endLiveCalls(tx, ws.id)
         const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number.slice(1) })
-        expect(started.data, from).toMatchObject({ isNewContact: false, contact: { id: ws.contact.id }, booking: { canChangeBookings: true } })
-        const [call] = await tx.select().from(calls).where(eq(calls.id, started.data!.callId as string))
+        expect(started.data, from).toMatchObject({
+          isNewContact: false,
+          contact: { id: ws.contact.id },
+          booking: { canChangeBookings: true },
+        })
+        const [call] = await tx
+          .select()
+          .from(calls)
+          .where(eq(calls.id, started.data!.callId as string))
         expect(call, from).toMatchObject({ from_number: e164, to_number: ws.number, contact_id: ws.contact.id })
       }
     })
@@ -674,10 +1148,15 @@ describe('booking', () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
       const uk = '+447700900555'
-      await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, e164: uk, provider: 'dev' })
+      await tx
+        .insert(phone_numbers)
+        .values({ id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, e164: uk, provider: 'dev' })
       const national = ws.call.from_number.slice(2)
       const started = await run(tx, agent_(null), services, 'call.start', { from: national, to: uk })
-      const [call] = await tx.select().from(calls).where(eq(calls.id, started.data!.callId as string))
+      const [call] = await tx
+        .select()
+        .from(calls)
+        .where(eq(calls.id, started.data!.callId as string))
       expect(call).toMatchObject({ from_number: national, to_number: uk, contact_id: null })
     })
   })
@@ -715,7 +1194,8 @@ test('the name on a booking: every word of it, in any order, and nothing else', 
   expect(namesMatch('', 'Sam Patel')).toBe(false)
 })
 
-const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+const shiftDay = (date: string, days: number) =>
+  new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 /** The type and calendar the agent searched the new time with. */
 const searched = () => ({ appointmentTypeId: typeId, calendarId: ws.assistantCalendar.id })
 
@@ -744,7 +1224,8 @@ function fakeTool(offered: string[]) {
     },
     slots: async (_id, window) => offered.filter(t => t >= window.start && t < window.end && !taken().has(t)),
     createEvent: async (calendarId, event) => {
-      if (!offered.includes(event.start) || taken().has(event.start)) throw new CalendarError('calcom', 'invalid', 'book failed: not available')
+      if (!offered.includes(event.start) || taken().has(event.start))
+        throw new CalendarError('calcom', 'invalid', 'book failed: not available')
       const id = `tool${++next}`
       events.set(id, { ...event, calendarId })
       return { id }
@@ -771,7 +1252,11 @@ function fakeTool(offered: string[]) {
 
 describe('scheduling tools (Cal.com, Calendly): their event type is the appointment type', () => {
   /** Makes the workspace's calendar a tool's event type of `minutes` (inside the rolled-back transaction). */
-  const asTool = (tx: Tx, minutes = 60) => tx.update(assistant_calendars).set({ duration_min: minutes, name: 'Repair visit' }).where(eq(assistant_calendars.id, ws.assistantCalendar.id))
+  const asTool = (tx: Tx, minutes = 60) =>
+    tx
+      .update(assistant_calendars)
+      .set({ duration_min: minutes, name: 'Repair visit' })
+      .where(eq(assistant_calendars.id, ws.assistantCalendar.id))
   const toolTypeId = () => `cal:${ws.assistantCalendar.id}`
 
   test("the tool's start times as they are: no Linedesk hours, buffers or grid; the length is the event type's", async () => {
@@ -779,12 +1264,27 @@ describe('scheduling tools (Cal.com, Calendly): their event type is the appointm
     const tool = fakeTool([at('08:00'), at('09:15'), at('11:00')])
     await inRollback(async tx => {
       await asTool(tx, 45)
-      const { data } = await run(tx, owner, tool.services, 'calendar.findSlots', { appointmentTypeId: toolTypeId(), fromDate: MONDAY, toDate: MONDAY, limit: 50 })
+      const { data } = await run(tx, owner, tool.services, 'calendar.findSlots', {
+        appointmentTypeId: toolTypeId(),
+        fromDate: MONDAY,
+        toDate: MONDAY,
+        limit: 50,
+      })
       expect(data!.appointmentTypeId).toBe(toolTypeId())
-      expect(data!.slots).toEqual([at('08:00'), at('09:15'), at('11:00')].map(start => ({ start, end: new Date(Date.parse(start) + 45 * 60_000).toISOString(), label: slotLabel(start, ZONE) })))
+      expect(data!.slots).toEqual(
+        [at('08:00'), at('09:15'), at('11:00')].map(start => ({
+          start,
+          end: new Date(Date.parse(start) + 45 * 60_000).toISOString(),
+          label: slotLabel(start, ZONE),
+        })),
+      )
       expect(tool.busyAsked()).toBe(0)
       // Named with a Linedesk type, the tool's calendar still follows its own event type.
-      const named = await run(tx, owner, tool.services, 'calendar.findSlots', { ...day(), calendarId: ws.assistantCalendar.id, limit: 50 })
+      const named = await run(tx, owner, tool.services, 'calendar.findSlots', {
+        ...day(),
+        calendarId: ws.assistantCalendar.id,
+        limit: 50,
+      })
       expect(named.data!.appointmentTypeId).toBe(toolTypeId())
     })
   })
@@ -793,15 +1293,35 @@ describe('scheduling tools (Cal.com, Calendly): their event type is the appointm
     const tool = fakeTool([at('11:00')])
     await inRollback(async tx => {
       await asTool(tx)
-      const book_ = (start: string, extra = {}) => book(start, { appointmentTypeId: toolTypeId(), assistantId: ws.assistant.id, ...extra })
-      await expect(run(tx, agent_(ws.id), tool.services, 'appointment.book', book_(at('10:00')))).rejects.toThrow(/not free/)
+      const book_ = (start: string, extra = {}) =>
+        book(start, { appointmentTypeId: toolTypeId(), assistantId: ws.assistant.id, ...extra })
+      await expect(run(tx, agent_(ws.id), tool.services, 'appointment.book', book_(at('10:00')))).rejects.toThrow(
+        /not free/,
+      )
       expect(tool.events.size).toBe(0)
-      const { rows, data } = await run(tx, agent_(ws.id), tool.services, 'appointment.book', book_(at('11:00'), { callerEmail: 'sam@brightwater.example' }))
-      expect(rows.bookings).toMatchObject([{ external_event_id: 'tool1', appointment_type_id: null, title: 'Repair visit · Sam Patel' }])
+      const { rows, data } = await run(
+        tx,
+        agent_(ws.id),
+        tool.services,
+        'appointment.book',
+        book_(at('11:00'), { callerEmail: 'sam@brightwater.example' }),
+      )
+      expect(rows.bookings).toMatchObject([
+        { external_event_id: 'tool1', appointment_type_id: null, title: 'Repair visit · Sam Patel' },
+      ])
       expect(data).toMatchObject({ start: at('11:00'), end: at('12:00'), calendarName: 'Repair visit' })
-      expect(tool.events.get('tool1')!.attendee).toEqual({ name: 'Sam Patel', email: 'sam@brightwater.example', phone: ws.call.from_number })
+      expect(tool.events.get('tool1')!.attendee).toEqual({
+        name: 'Sam Patel',
+        email: 'sam@brightwater.example',
+        phone: ws.call.from_number,
+      })
       // Booked: the tool no longer offers it.
-      const { data: after } = await run(tx, owner, tool.services, 'calendar.findSlots', { appointmentTypeId: toolTypeId(), fromDate: MONDAY, toDate: MONDAY, limit: 50 })
+      const { data: after } = await run(tx, owner, tool.services, 'calendar.findSlots', {
+        appointmentTypeId: toolTypeId(),
+        fromDate: MONDAY,
+        toDate: MONDAY,
+        limit: 50,
+      })
       expect(after!.slots).toEqual([])
     })
   })
@@ -810,13 +1330,24 @@ describe('scheduling tools (Cal.com, Calendly): their event type is the appointm
     const tool = fakeTool([at('09:00'), at('13:00'), at('15:00')])
     await inRollback(async tx => {
       await asTool(tx)
-      const { data } = await run(tx, owner, tool.services, 'appointment.book', book(at('09:00'), { appointmentTypeId: toolTypeId() }))
+      const { data } = await run(
+        tx,
+        owner,
+        tool.services,
+        'appointment.book',
+        book(at('09:00'), { appointmentTypeId: toolTypeId() }),
+      )
       const bookingId = data!.bookingId as string
       const moved = await run(tx, owner, tool.services, 'appointment.reschedule', { bookingId, start: at('13:00') })
       expect(moved.rows.bookings).toMatchObject([{ id: bookingId, external_event_id: 'tool2', status: 'rescheduled' }])
       expect(tool.events.get('tool1')!.cancelled).toBe(true)
       const byAgent = await run(tx, agent_(ws.id), tool.services, 'appointment.reschedule', {
-        callId: ws.call.id, bookingDate: MONDAY, bookedName: 'Sam Patel', start: at('15:00'), appointmentTypeId: toolTypeId(), calendarId: ws.assistantCalendar.id,
+        callId: ws.call.id,
+        bookingDate: MONDAY,
+        bookedName: 'Sam Patel',
+        start: at('15:00'),
+        appointmentTypeId: toolTypeId(),
+        calendarId: ws.assistantCalendar.id,
       })
       expect(byAgent.data).toMatchObject({ changed: true })
       await run(tx, owner, tool.services, 'appointment.cancel', { bookingId })
@@ -829,9 +1360,62 @@ describe('scheduling tools (Cal.com, Calendly): their event type is the appointm
     await inRollback(async tx => {
       await asTool(tx)
       const booking = await bookingContext(tx, ws.id, new Date().toISOString(), { assistantId: ws.assistant.id })
-      expect(booking!.appointmentTypes).toEqual([{ id: toolTypeId(), name: 'Repair visit', duration_min: 60, required_fields: ['name'], instruction: expect.any(String) }])
+      expect(booking!.appointmentTypes).toEqual([
+        {
+          id: toolTypeId(),
+          name: 'Repair visit',
+          duration_min: 60,
+          required_fields: ['name'],
+          instruction: expect.any(String),
+        },
+      ])
       expect(booking!.calendars.map(c => c.id)).toEqual([ws.assistantCalendar.id])
       void tool
+    })
+  })
+
+  test('rows from before the one-mode rule (LIN-355): the default row decides, the other kind is left out of booking', async () => {
+    const tool = fakeTool([at('11:00')])
+    await inRollback(async tx => {
+      const plainId = `acal_${crypto.randomUUID().slice(0, 8)}`
+      await tx.insert(assistant_calendars).values({
+        id: plainId,
+        workspace_id: ws.id,
+        assistant_id: ws.assistant.id,
+        connection_id: ws.assistantCalendar.connection_id,
+        external_id: 'jobs',
+        name: 'Jobs',
+      })
+      const context = () => bookingContext(tx, ws.id, new Date().toISOString(), { assistantId: ws.assistant.id })
+
+      // The default is the tool's event type: only its type and calendar; no Linedesk type, no plain calendar.
+      await asTool(tx)
+      expect((await context())!.appointmentTypes.map(t => t.id)).toEqual([toolTypeId()])
+      expect((await context())!.calendars.map(c => c.id)).toEqual([ws.assistantCalendar.id])
+      await tx.update(calls).set({ assistant_id: ws.assistant.id }).where(eq(calls.id, ws.call.id))
+      const onCall = { callId: ws.call.id, limit: 5 }
+      await expect(
+        run(tx, agent_(ws.id), tool.services, 'calendar.findSlots', { ...day(), ...onCall }),
+      ).rejects.toThrow(/appointment type not found/)
+      await expect(
+        run(tx, agent_(ws.id), tool.services, 'calendar.findSlots', { ...day(), ...onCall, calendarId: plainId }),
+      ).rejects.toThrow(/not one of the assistant's calendars/)
+
+      // The default is a plain calendar: the tool's event type is left out.
+      await tx
+        .update(assistant_calendars)
+        .set({ is_default: false })
+        .where(eq(assistant_calendars.id, ws.assistantCalendar.id))
+      await tx.update(assistant_calendars).set({ is_default: true }).where(eq(assistant_calendars.id, plainId))
+      expect((await context())!.appointmentTypes.map(t => t.id)).toEqual([typeId])
+      expect((await context())!.calendars.map(c => c.id)).toEqual([plainId])
+      await expect(
+        run(tx, agent_(ws.id), tool.services, 'calendar.findSlots', {
+          ...day(),
+          ...onCall,
+          appointmentTypeId: toolTypeId(),
+        }),
+      ).rejects.toThrow(/not one of the assistant's calendars/)
     })
   })
 })
@@ -842,21 +1426,57 @@ describe('appointment types', () => {
     await inRollback(async tx => {
       const added = await run(tx, owner, services, 'appointmentType.upsert', { name: 'Estimate', durationMin: 30 })
       const id = (added.rows.appointment_types as { id: string }[])[0]!.id
-      expect(added.rows.appointment_types).toMatchObject([{ name: 'Estimate', duration_min: 30, workspace_id: ws.id, enabled: true }])
+      expect(added.rows.appointment_types).toMatchObject([
+        { name: 'Estimate', duration_min: 30, workspace_id: ws.id, enabled: true },
+      ])
       // New types ask for the name unless told otherwise; "name" is kept as its own column.
-      expect(added.rows.appointment_types).toMatchObject([{ name_required: true, required_fields: [], instruction: '' }])
+      expect(added.rows.appointment_types).toMatchObject([
+        { name_required: true, required_fields: [], instruction: '' },
+      ])
       const changed = await run(tx, owner, services, 'appointmentType.upsert', {
-        appointmentTypeId: id, name: 'Estimate', durationMin: 30, requiredFields: ['phone', 'name', 'phone'], instruction: '  the caller wants a price first ',
+        appointmentTypeId: id,
+        name: 'Estimate',
+        durationMin: 30,
+        requiredFields: ['phone', 'name', 'phone'],
+        instruction: '  the caller wants a price first ',
       })
-      expect(changed.rows.appointment_types).toMatchObject([{ name_required: true, required_fields: ['phone'], instruction: 'the caller wants a price first' }])
-      const without = await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: id, name: 'Estimate', durationMin: 30, requiredFields: [] })
-      expect(without.rows.appointment_types).toMatchObject([{ name_required: false, required_fields: [], instruction: 'the caller wants a price first' }])
-      expect(() => actions.get('appointmentType.upsert')!.input.parse({ name: 'x', durationMin: 30, instruction: 'x'.repeat(301) })).toThrow()
-      expect((await run(tx, owner, services, 'appointmentType.upsert', { appointmentTypeId: id, name: 'Free estimate', durationMin: 45 })).rows.appointment_types).toMatchObject([{ name: 'Free estimate', duration_min: 45 }])
-      expect(await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: id })).toMatchObject({ data: { deleted: true }, deleted: { appointment_types: [id] } })
+      expect(changed.rows.appointment_types).toMatchObject([
+        { name_required: true, required_fields: ['phone'], instruction: 'the caller wants a price first' },
+      ])
+      const without = await run(tx, owner, services, 'appointmentType.upsert', {
+        appointmentTypeId: id,
+        name: 'Estimate',
+        durationMin: 30,
+        requiredFields: [],
+      })
+      expect(without.rows.appointment_types).toMatchObject([
+        { name_required: false, required_fields: [], instruction: 'the caller wants a price first' },
+      ])
+      expect(() =>
+        actions
+          .get('appointmentType.upsert')!
+          .input.parse({ name: 'x', durationMin: 30, instruction: 'x'.repeat(301) }),
+      ).toThrow()
+      expect(
+        (
+          await run(tx, owner, services, 'appointmentType.upsert', {
+            appointmentTypeId: id,
+            name: 'Free estimate',
+            durationMin: 45,
+          })
+        ).rows.appointment_types,
+      ).toMatchObject([{ name: 'Free estimate', duration_min: 45 }])
+      expect(await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: id })).toMatchObject({
+        data: { deleted: true },
+        deleted: { appointment_types: [id] },
+      })
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
-      expect((await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: typeId })).data).toEqual({ deleted: false })
-      expect((await tx.select().from(appointment_types).where(eq(appointment_types.id, typeId)))[0]!.enabled).toBe(false)
+      expect((await run(tx, owner, services, 'appointmentType.delete', { appointmentTypeId: typeId })).data).toEqual({
+        deleted: false,
+      })
+      expect((await tx.select().from(appointment_types).where(eq(appointment_types.id, typeId)))[0]!.enabled).toBe(
+        false,
+      )
     })
   })
 })
@@ -865,7 +1485,8 @@ describe('through the API', () => {
   test('call.start tells the agent what it can book: types, calendars with their notes, today in the business time zone', async () => {
     const started = await act(agent(), 'call.start', { from: '+15035550177', to: ws.number })
     expect(started.body.data.booking).toMatchObject({
-      timeZone: ZONE, todayDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      timeZone: ZONE,
+      todayDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       // The name is listed with the details, first; the condition comes along (empty: none).
       appointmentTypes: [
         { id: typeId, name: 'Repair visit', duration_min: 60, required_fields: ['name'], instruction: '' },
@@ -879,24 +1500,47 @@ describe('through the API', () => {
   test('members and the agent (for its call) may book; types are for owners and admins', async () => {
     for (const name of ['appointment.book', 'appointment.cancel']) {
       expect(actions.get(name)!.permission).toBe('calendar:write')
-      for (const role of ['owner', 'admin', 'member'] as const) expect(rolePermissions[role]).toContain('calendar:write')
+      for (const role of ['owner', 'admin', 'member'] as const)
+        expect(rolePermissions[role]).toContain('calendar:write')
       expect(actions.get(name)!.agent).toBe('call')
     }
     for (const name of ['appointmentType.upsert', 'appointmentType.delete']) {
-      expect((await act(member, name, { appointmentTypeId: typeId, name: 'x', durationMin: 30 })).status, name).toBe(403)
-      expect((await act(agent(ws.id), name, { appointmentTypeId: typeId, name: 'x', durationMin: 30 })).status, name).toBe(403)
+      expect((await act(member, name, { appointmentTypeId: typeId, name: 'x', durationMin: 30 })).status, name).toBe(
+        403,
+      )
+      expect(
+        (await act(agent(ws.id), name, { appointmentTypeId: typeId, name: 'x', durationMin: 30 })).status,
+        name,
+      ).toBe(403)
     }
   })
 
-  test("nothing of another workspace: its types, calendars, bookings and calls", async () => {
+  test('nothing of another workspace: its types, calendars, bookings and calls', async () => {
     const theirs = `at_${crypto.randomUUID().slice(0, 8)}`
     await db.insert(appointment_types).values({ id: theirs, workspace_id: other.id, name: 'Theirs', duration_min: 30 })
-    const [booking] = await db.insert(bookings).values({ id: `bk_${crypto.randomUUID().slice(0, 8)}`, workspace_id: other.id, start_at: at('09:00'), end_at: at('10:00') }).returning()
-    expect(await act(ws.owner, 'appointmentType.upsert', { appointmentTypeId: theirs, name: 'Mine now', durationMin: 30 })).toMatchObject({ status: 409 })
+    const [booking] = await db
+      .insert(bookings)
+      .values({
+        id: `bk_${crypto.randomUUID().slice(0, 8)}`,
+        workspace_id: other.id,
+        start_at: at('09:00'),
+        end_at: at('10:00'),
+      })
+      .returning()
+    expect(
+      await act(ws.owner, 'appointmentType.upsert', { appointmentTypeId: theirs, name: 'Mine now', durationMin: 30 }),
+    ).toMatchObject({ status: 409 })
     expect(await act(ws.owner, 'appointmentType.delete', { appointmentTypeId: theirs })).toMatchObject({ status: 409 })
-    expect(await act(member, 'appointment.cancel', { bookingId: booking!.id })).toMatchObject({ status: 409, body: { error: 'booking not found' } })
-    expect(await act(agent(ws.id), 'appointment.book', { ...book(at('09:00')), calendarId: other.assistantCalendar.id })).toMatchObject({ status: 409 })
-    expect(await act(agent(ws.id), 'appointment.book', { ...book(at('09:00')), appointmentTypeId: theirs })).toMatchObject({ status: 409, body: { error: 'appointment type not found' } })
+    expect(await act(member, 'appointment.cancel', { bookingId: booking!.id })).toMatchObject({
+      status: 409,
+      body: { error: 'booking not found' },
+    })
+    expect(
+      await act(agent(ws.id), 'appointment.book', { ...book(at('09:00')), calendarId: other.assistantCalendar.id }),
+    ).toMatchObject({ status: 409 })
+    expect(
+      await act(agent(ws.id), 'appointment.book', { ...book(at('09:00')), appointmentTypeId: theirs }),
+    ).toMatchObject({ status: 409, body: { error: 'appointment type not found' } })
     expect((await db.select().from(appointment_types).where(eq(appointment_types.id, theirs)))[0]!.name).toBe('Theirs')
     expect((await db.select().from(bookings).where(eq(bookings.id, booking!.id)))[0]!.status).toBe('confirmed')
     expect(await db.select().from(calls).where(eq(calls.id, other.call.id))).toHaveLength(1)

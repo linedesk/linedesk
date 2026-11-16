@@ -5,9 +5,11 @@ import {
   appointmentCancel,
   appointmentReschedule,
   applyLocally,
+  bookingMode,
   CALLER_NAME_MAX,
   calendarFindSlots,
   callFinish,
+  fitsBookingMode,
   type LocalTables,
   rolePermissions,
   type Role,
@@ -223,5 +225,24 @@ describe('caller names', () => {
 
   it('the summary may still find no name', () => {
     expect(callFinish.input.parse({ callId: 'c_1', callerName: '  ' })).toEqual({ callId: 'c_1', callerName: '' })
+  })
+})
+
+describe('how an assistant books (LIN-355)', () => {
+  const plain = (id: string, is_default = false) => ({ connection_id: id, duration_min: null, is_default })
+  const tool = (id: string, is_default = false) => ({ connection_id: id, duration_min: 30, is_default })
+
+  it('own calendars without rows or without event types; a tool account when its event type is the default', () => {
+    expect(bookingMode([])).toEqual({ toolConnectionId: null })
+    expect(bookingMode([plain('g', true), plain('m')])).toEqual({ toolConnectionId: null })
+    expect(bookingMode([tool('cal', true), tool('cal')])).toEqual({ toolConnectionId: 'cal' })
+  })
+
+  it('rows from before the rule: the default decides, else the oldest; the other kind does not fit', () => {
+    const mode = bookingMode([plain('g'), tool('cal', true), tool('other')])
+    expect(mode).toEqual({ toolConnectionId: 'cal' })
+    expect([plain('g'), tool('cal'), tool('other')].map(r => fitsBookingMode(mode, r))).toEqual([false, true, false])
+    const own = bookingMode([plain('g'), tool('cal')])
+    expect([plain('g'), tool('cal')].map(r => fitsBookingMode(own, r))).toEqual([true, false])
   })
 })

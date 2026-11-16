@@ -4,14 +4,41 @@
 // for a connection, disconnecting with revocation, and the calendars an assistant books into.
 import { randomBytes } from 'node:crypto'
 import {
-  type CalendarProviderId, type ConnectStartData, type ConnectWithPasswordData, type DisconnectData, type ListCalendarsData, type OAuthCalendarProviderId,
-  type ProviderAudience, providerFailureText,
+  BOOKING_MODE_REFUSED,
+  type CalendarProviderId,
+  type ConnectStartData,
+  type ConnectWithPasswordData,
+  type DisconnectData,
+  type ListCalendarsData,
+  type OAuthCalendarProviderId,
+  type ProviderAudience,
+  providerFailureText,
 } from '@linedesk/actions'
 import {
-  type AccessTokenSource, CALENDAR_PROVIDER_LABEL, type CalendarAccess, CalendarError, type CalendarLogin, type CalendarOAuth, type CalendarProvider,
-  DEFAULT_SERVER_URL, type OAuthTokens, type PasswordCalendarProviderName, calendarOAuthFromEnv, createCalendarProvider, isPasswordProvider, pkcePair,
+  type AccessTokenSource,
+  CALENDAR_PROVIDER_LABEL,
+  type CalendarAccess,
+  CalendarError,
+  type CalendarLogin,
+  type CalendarOAuth,
+  type CalendarProvider,
+  DEFAULT_SERVER_URL,
+  type OAuthTokens,
+  type PasswordCalendarProviderName,
+  calendarOAuthFromEnv,
+  createCalendarProvider,
+  isPasswordProvider,
+  pkcePair,
 } from '@linedesk/calendar'
-import { assistant_calendars, assistants, calendar_connections, calendar_credentials, calendar_oauth_states, type CalendarConnection, type Tx } from '@linedesk/db'
+import {
+  assistant_calendars,
+  assistants,
+  calendar_connections,
+  calendar_credentials,
+  calendar_oauth_states,
+  type CalendarConnection,
+  type Tx,
+} from '@linedesk/db'
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
 import { ensureAppointmentType, timeZoneOf } from './bookings.ts'
 import type { Actor } from './context.ts'
@@ -37,9 +64,19 @@ export const defaultCalendarServices: CalendarServices = {
   // Every request of a key provider goes through the address guard: CalDAV with the server the member named, Calendly
   // and Cal.com (cloud only) always with their own API, whether they connected with a key or an OAuth token.
   provider: (name, access) =>
-    createCalendarProvider(name, isPasswordProvider(name)
-      ? { ...access, fetch: calendarServerFetch(new URL(DEFAULT_SERVER_URL[name] ?? ('login' in access ? access.login.serverUrl : 'https://invalid.example/'))) }
-      : access),
+    createCalendarProvider(
+      name,
+      isPasswordProvider(name)
+        ? {
+            ...access,
+            fetch: calendarServerFetch(
+              new URL(
+                DEFAULT_SERVER_URL[name] ?? ('login' in access ? access.login.serverUrl : 'https://invalid.example/'),
+              ),
+            ),
+          }
+        : access,
+    ),
   serverUrl: typed => calendarServerUrl(typed),
 }
 
@@ -66,23 +103,29 @@ const LOGIN_SCOPE = 'login'
 
 /** What the member reads when a password provider refuses the login while connecting. */
 const REFUSED_LOGIN: Record<PasswordCalendarProviderName, (host: string) => string> = {
-  caldav: host => `${host} did not accept that user name and password. Check both; for iCloud, use an app-specific password, not your Apple ID password.`,
+  caldav: host =>
+    `${host} did not accept that user name and password. Check both; for iCloud, use an app-specific password, not your Apple ID password.`,
   calcom: () => 'Cal.com did not accept that API key. Copy it again from Cal.com (Settings, Developer, API keys).',
-  calendly: () => 'Calendly did not accept that token. Create a personal access token in Calendly (Integrations, API and webhooks) and paste it.',
+  calendly: () =>
+    'Calendly did not accept that token. Create a personal access token in Calendly (Integrations, API and webhooks) and paste it.',
 }
 const NO_CALENDARS: Record<PasswordCalendarProviderName, (host: string, account: string) => string> = {
   caldav: (host, account) => `${host} shows no calendars for ${account}.`,
-  calcom: (_host, account) => `${account} has no event type in Cal.com yet. Add one there (for example a 1-hour visit), then connect again.`,
-  calendly: (_host, account) => `${account} has no active event type in Calendly yet. Add one there, then connect again.`,
+  calcom: (_host, account) =>
+    `${account} has no event type in Cal.com yet. Add one there (for example a 1-hour visit), then connect again.`,
+  calendly: (_host, account) =>
+    `${account} has no active event type in Calendly yet. Add one there, then connect again.`,
 }
 /** Where the member deletes the key they made for Linedesk, after disconnecting. */
 const DELETE_KEY_AT: Record<PasswordCalendarProviderName, string> = {
-  caldav: 'the app-specific password you made for it (iCloud: account.apple.com, Sign-In and Security, App-Specific Passwords)',
+  caldav:
+    'the app-specific password you made for it (iCloud: account.apple.com, Sign-In and Security, App-Specific Passwords)',
   calcom: 'its API key in Cal.com (Settings, Developer, API keys)',
   calendly: 'its personal access token in Calendly (Integrations, API and webhooks)',
 }
 
-const NO_SECRETS_KEY = 'SECRETS_KEY is not set, so calendar access cannot be stored. Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.'
+const NO_SECRETS_KEY =
+  'SECRETS_KEY is not set, so calendar access cannot be stored. Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.'
 
 /** A started connect is good for this long: enough to pick an account and consent. */
 const STATE_TTL_MS = 10 * 60_000
@@ -93,7 +136,10 @@ const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Where the provider sends the browser back: the public address of this install, which serves /v1 too. */
-export function calendarRedirectUri(provider: CalendarProviderId, base = process.env.BETTER_AUTH_URL ?? process.env.WEB_ORIGIN ?? 'http://localhost:5173') {
+export function calendarRedirectUri(
+  provider: CalendarProviderId,
+  base = process.env.BETTER_AUTH_URL ?? process.env.WEB_ORIGIN ?? 'http://localhost:5173',
+) {
   return new URL(`/v1/calendar/callback/${provider}`, base).toString()
 }
 
@@ -145,7 +191,8 @@ export function noteCalendarAppFailure(e: unknown) {
     e.code === 'api_disabled'
       ? {
           reason: 'config',
-          message: 'The Google Calendar API is not enabled in the Google Cloud project of the app: enable it there (APIs & Services). Calendars cannot be read or booked until then.',
+          message:
+            'The Google Calendar API is not enabled in the Google Cloud project of the app: enable it there (APIs & Services). Calendars cannot be read or booked until then.',
         }
       : {
           reason: 'auth',
@@ -165,11 +212,19 @@ function rejectCalendarError(e: unknown): never {
 
 /** Marks a connection whose grant the provider refused; outside the action's transaction, so it sticks when the action is rejected. */
 async function markNeedsReconnect(connectionId: string, reason: string) {
-  await db.update(calendar_connections).set({ status: 'needs_reconnect', last_error: reason }).where(eq(calendar_connections.id, connectionId))
+  await db
+    .update(calendar_connections)
+    .set({ status: 'needs_reconnect', last_error: reason })
+    .where(eq(calendar_connections.id, connectionId))
     .catch(e => console.error(`could not mark calendar connection ${connectionId}: ${errorMessage(e)}`))
 }
 
-async function saveTokens(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'workspace_id' | 'provider'>, tokens: OAuthTokens, refreshToken: string) {
+async function saveTokens(
+  tx: Tx,
+  connection: Pick<CalendarConnection, 'id' | 'workspace_id' | 'provider'>,
+  tokens: OAuthTokens,
+  refreshToken: string,
+) {
   const values = {
     access_token_encrypted: encryptSecret(tokens.accessToken, slot(connection, 'access')),
     refresh_token_encrypted: encryptSecret(refreshToken, slot(connection, 'refresh')),
@@ -177,7 +232,9 @@ async function saveTokens(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'w
     scope: tokens.scope,
     updated_at: new Date().toISOString(),
   }
-  await tx.insert(calendar_credentials).values({ connection_id: connection.id, workspace_id: connection.workspace_id, ...values })
+  await tx
+    .insert(calendar_credentials)
+    .values({ connection_id: connection.id, workspace_id: connection.workspace_id, ...values })
     .onConflictDoUpdate({ target: calendar_credentials.connection_id, set: values })
 }
 
@@ -186,12 +243,22 @@ async function saveTokens(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'w
  * stored again (Microsoft may hand out a new refresh token each time; the newest is kept). A refused
  * refresh marks the connection `needs_reconnect`.
  */
-export function tokenSource(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, connection: CalendarConnection): AccessTokenSource {
+export function tokenSource(
+  tx: Tx,
+  ctx: Pick<HandlerCtx, 'calendars'>,
+  connection: CalendarConnection,
+): AccessTokenSource {
   const provider = connection.provider
   if (provider === 'caldav') throw new Error('a CalDAV connection signs in with its login, not a token')
   return async (forceRefresh = false) => {
-    const [credentials] = await tx.select().from(calendar_credentials).where(eq(calendar_credentials.connection_id, connection.id))
-    if (!credentials) throw new Reject(`the ${LABEL[connection.provider]} account ${connection.account_email} has no stored access: connect it again`)
+    const [credentials] = await tx
+      .select()
+      .from(calendar_credentials)
+      .where(eq(calendar_credentials.connection_id, connection.id))
+    if (!credentials)
+      throw new Reject(
+        `the ${LABEL[connection.provider]} account ${connection.account_email} has no stored access: connect it again`,
+      )
     if (!forceRefresh && Date.parse(credentials.expires_at) - Date.now() > REFRESH_MARGIN_MS) {
       return decryptSecret(credentials.access_token_encrypted, slot(connection, 'access'))
     }
@@ -203,13 +270,18 @@ export function tokenSource(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, connecti
       return tokens.accessToken
     } catch (e) {
       noteCalendarAppFailure(e)
-      if (e instanceof CalendarError && e.kind === 'auth' && !isAppFailure(e)) await markNeedsReconnect(connection.id, e.message)
+      if (e instanceof CalendarError && e.kind === 'auth' && !isAppFailure(e))
+        await markNeedsReconnect(connection.id, e.message)
       throw e
     }
   }
 }
 
-async function saveLogin(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'workspace_id' | 'provider'>, login: CalendarLogin) {
+async function saveLogin(
+  tx: Tx,
+  connection: Pick<CalendarConnection, 'id' | 'workspace_id' | 'provider'>,
+  login: CalendarLogin,
+) {
   const values = {
     access_token_encrypted: encryptSecret(JSON.stringify(login), slot(connection, 'access')),
     refresh_token_encrypted: encryptSecret('', slot(connection, 'refresh')),
@@ -217,7 +289,9 @@ async function saveLogin(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'wo
     scope: LOGIN_SCOPE,
     updated_at: new Date().toISOString(),
   }
-  await tx.insert(calendar_credentials).values({ connection_id: connection.id, workspace_id: connection.workspace_id, ...values })
+  await tx
+    .insert(calendar_credentials)
+    .values({ connection_id: connection.id, workspace_id: connection.workspace_id, ...values })
     .onConflictDoUpdate({ target: calendar_credentials.connection_id, set: values })
 }
 
@@ -225,15 +299,23 @@ async function saveLogin(tx: Tx, connection: Pick<CalendarConnection, 'id' | 'wo
 async function usesLogin(tx: Tx, connection: CalendarConnection): Promise<boolean> {
   if (connection.provider === 'caldav') return true
   if (!isPasswordProvider(connection.provider)) return false
-  const [row] = await tx.select({ scope: calendar_credentials.scope }).from(calendar_credentials).where(eq(calendar_credentials.connection_id, connection.id))
+  const [row] = await tx
+    .select({ scope: calendar_credentials.scope })
+    .from(calendar_credentials)
+    .where(eq(calendar_credentials.connection_id, connection.id))
   return row?.scope === LOGIN_SCOPE
 }
 
 /** The stored login of a password connection. */
 async function loginOf(tx: Tx, connection: CalendarConnection): Promise<CalendarLogin> {
-  const [credentials] = await tx.select({ access: calendar_credentials.access_token_encrypted }).from(calendar_credentials)
+  const [credentials] = await tx
+    .select({ access: calendar_credentials.access_token_encrypted })
+    .from(calendar_credentials)
     .where(eq(calendar_credentials.connection_id, connection.id))
-  if (!credentials) throw new Reject(`the ${LABEL[connection.provider]} account ${connection.account_email} has no stored login: connect it again`)
+  if (!credentials)
+    throw new Reject(
+      `the ${LABEL[connection.provider]} account ${connection.account_email} has no stored login: connect it again`,
+    )
   const login = JSON.parse(decryptSecret(credentials.access, slot(connection, 'access'))) as Partial<CalendarLogin>
   if (typeof login.serverUrl !== 'string' || typeof login.username !== 'string' || typeof login.password !== 'string') {
     throw new Reject(`the stored login of ${connection.account_email} is unreadable: connect it again`)
@@ -246,14 +328,16 @@ async function loginOf(tx: Tx, connection: CalendarConnection): Promise<Calendar
  * change revokes every app-specific password). The connection is marked, like a refused OAuth refresh.
  */
 function markingRefusedLogin(provider: CalendarProvider, connection: CalendarConnection): CalendarProvider {
-  const marked = <A extends unknown[], R>(call: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
-    try {
-      return await call(...args)
-    } catch (e) {
-      if (e instanceof CalendarError && e.kind === 'auth') await markNeedsReconnect(connection.id, e.message)
-      throw e
+  const marked =
+    <A extends unknown[], R>(call: (...args: A) => Promise<R>) =>
+    async (...args: A): Promise<R> => {
+      try {
+        return await call(...args)
+      } catch (e) {
+        if (e instanceof CalendarError && e.kind === 'auth') await markNeedsReconnect(connection.id, e.message)
+        throw e
+      }
     }
-  }
   const { slots, accountEmail } = provider
   return {
     name: provider.name,
@@ -263,14 +347,23 @@ function markingRefusedLogin(provider: CalendarProvider, connection: CalendarCon
     updateEvent: marked((id, eventId, event) => provider.updateEvent(id, eventId, event)),
     deleteEvent: marked((id, eventId) => provider.deleteEvent(id, eventId)),
     getEvent: marked((id, eventId) => provider.getEvent(id, eventId)),
-    ...(slots && { slots: marked((id: string, window: Parameters<typeof slots>[1]) => slots.call(provider, id, window)) }),
+    ...(slots && {
+      slots: marked((id: string, window: Parameters<typeof slots>[1]) => slots.call(provider, id, window)),
+    }),
     ...(accountEmail && { accountEmail: marked(() => accountEmail.call(provider)) }),
   }
 }
 
 /** The adapter for a connection of the actor's workspace. */
-export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, workspaceId: string, connectionId: string) {
-  const [connection] = await tx.select().from(calendar_connections)
+export async function providerFor(
+  tx: Tx,
+  ctx: Pick<HandlerCtx, 'calendars'>,
+  workspaceId: string,
+  connectionId: string,
+) {
+  const [connection] = await tx
+    .select()
+    .from(calendar_connections)
     .where(and(eq(calendar_connections.id, connectionId), eq(calendar_connections.workspace_id, workspaceId)))
   if (!connection) throw new Reject('calendar account not found')
   // A tool switched off in Server admin is not read or booked into (its accounts stay, to be disconnected).
@@ -281,9 +374,15 @@ export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wo
   const timeZone = await timeZoneOf(tx, workspaceId)
   if (await usesLogin(tx, connection)) {
     const login = await loginOf(tx, connection).catch(e => rejectCalendarError(e))
-    return { connection, provider: markingRefusedLogin(services.provider(connection.provider, { login, timeZone }), connection) }
+    return {
+      connection,
+      provider: markingRefusedLogin(services.provider(connection.provider, { login, timeZone }), connection),
+    }
   }
-  return { connection, provider: services.provider(connection.provider, { accessToken: tokenSource(tx, ctx, connection), timeZone }) }
+  return {
+    connection,
+    provider: services.provider(connection.provider, { accessToken: tokenSource(tx, ctx, connection), timeZone }),
+  }
 }
 
 /**
@@ -291,16 +390,23 @@ export async function providerFor(tx: Tx, ctx: Pick<HandlerCtx, 'calendars'>, wo
  * refused (admins: Server admin › Providers, members: whoever runs the server), the account's access withdrawn (connect
  * it again), the provider busy or down (try again). Anything else keeps the provider's reason. Exported for tests.
  */
-export function calendarProblemText(e: CalendarError, connection: Pick<CalendarConnection, 'provider' | 'account_email'>, audience: ProviderAudience): string {
+export function calendarProblemText(
+  e: CalendarError,
+  connection: Pick<CalendarConnection, 'provider' | 'account_email'>,
+  audience: ProviderAudience,
+): string {
   const label = LABEL[connection.provider]
-  if (e.code === 'api_disabled') return providerFailureText('config', `The ${label} Calendar app of this server`, audience)
+  if (e.code === 'api_disabled')
+    return providerFailureText('config', `The ${label} Calendar app of this server`, audience)
   if (isAppFailure(e)) return providerFailureText('auth', `${label} Calendar`, audience)
   if (e.kind === 'auth' && connection.provider === 'caldav')
     return `The calendar server no longer accepts the password of ${connection.account_email}. Connect the account again with a new app-specific password.`
   if (e.kind === 'auth' && isPasswordProvider(connection.provider))
     return `${label} no longer accepts the key of ${connection.account_email}. Connect the account again with a new one.`
-  if (e.kind === 'auth') return `${label} no longer accepts the access to ${connection.account_email}. Connect the account again.`
-  if (e.kind === 'rate_limited' || e.kind === 'unavailable') return providerFailureText('network', `${label} Calendar`, audience)
+  if (e.kind === 'auth')
+    return `${label} no longer accepts the access to ${connection.account_email}. Connect the account again.`
+  if (e.kind === 'rate_limited' || e.kind === 'unavailable')
+    return providerFailureText('network', `${label} Calendar`, audience)
   return e.message
 }
 
@@ -309,7 +415,8 @@ async function listAt(provider: CalendarProvider, connection: CalendarConnection
   try {
     return await provider.listCalendars()
   } catch (e) {
-    if (e instanceof CalendarError && e.kind === 'auth' && !isAppFailure(e)) await markNeedsReconnect(connection.id, e.message)
+    if (e instanceof CalendarError && e.kind === 'auth' && !isAppFailure(e))
+      await markNeedsReconnect(connection.id, e.message)
     if (e instanceof CalendarError) {
       noteCalendarAppFailure(e)
       throw new Reject(calendarProblemText(e, connection, audience))
@@ -320,7 +427,11 @@ async function listAt(provider: CalendarProvider, connection: CalendarConnection
 
 /** Google lets the member untick scopes on the consent page; without these the connection is useless. */
 const REQUIRED_SCOPES: Record<OAuthCalendarProviderId, RegExp[]> = {
-  google: [/\/auth\/calendar\.events(\s|$)/, /\/auth\/calendar\.freebusy(\s|$)/, /\/auth\/calendar\.calendarlist\.readonly(\s|$)/],
+  google: [
+    /\/auth\/calendar\.events(\s|$)/,
+    /\/auth\/calendar\.freebusy(\s|$)/,
+    /\/auth\/calendar\.calendarlist\.readonly(\s|$)/,
+  ],
   microsoft: [/calendars\.readwrite/i],
   // The app's scopes are chosen in Calendly when the app is made; Cal.com refuses a consent without the asked ones.
   calendly: [],
@@ -344,47 +455,102 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     const state = randomBytes(32).toString('base64url')
     await tx.delete(calendar_oauth_states).where(lt(calendar_oauth_states.expires_at, now))
     await tx.insert(calendar_oauth_states).values({
-      id: state, workspace_id, user_id: actor.actorId, provider: input.provider, code_verifier: verifier,
+      id: state,
+      workspace_id,
+      user_id: actor.actorId,
+      provider: input.provider,
+      code_verifier: verifier,
       expires_at: new Date(Date.parse(now) + STATE_TTL_MS).toISOString(),
     })
-    const data: ConnectStartData = { url: oauth.authorizeUrl({ redirectUri: calendarRedirectUri(input.provider), state, codeChallenge: challenge }) }
+    const data: ConnectStartData = {
+      url: oauth.authorizeUrl({ redirectUri: calendarRedirectUri(input.provider), state, codeChallenge: challenge }),
+    }
     return { rows: {}, data }
   },
 
-  'calendar.connectFinish': async ({ tx, actor, now, onRollback, ...ctx }, input: { provider: OAuthCalendarProviderId; state: string; code: string }) => {
+  'calendar.connectFinish': async (
+    { tx, actor, now, onRollback, ...ctx },
+    input: { provider: OAuthCalendarProviderId; state: string; code: string },
+  ) => {
     const workspace_id = workspaceOf(actor)
     if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
     // The state is single use and only good for the member who started the connect, in that workspace.
-    const [started] = await tx.delete(calendar_oauth_states).where(eq(calendar_oauth_states.id, input.state)).returning()
-    if (!started || started.user_id !== actor.actorId || started.provider !== input.provider || Date.parse(started.expires_at) < Date.parse(now)) {
+    const [started] = await tx
+      .delete(calendar_oauth_states)
+      .where(eq(calendar_oauth_states.id, input.state))
+      .returning()
+    if (
+      !started ||
+      started.user_id !== actor.actorId ||
+      started.provider !== input.provider ||
+      Date.parse(started.expires_at) < Date.parse(now)
+    ) {
       throw new Reject('This connect link has expired or is not yours. Start again from Settings.')
     }
-    if (started.workspace_id !== workspace_id) throw new Reject('You switched workspace while connecting. Start again from Settings.')
+    if (started.workspace_id !== workspace_id)
+      throw new Reject('You switched workspace while connecting. Start again from Settings.')
     const oauth = oauthOrReject(ctx, input.provider)
     let tokens: OAuthTokens
     try {
-      tokens = await oauth.exchangeCode({ code: input.code, redirectUri: calendarRedirectUri(input.provider), codeVerifier: started.code_verifier })
+      tokens = await oauth.exchangeCode({
+        code: input.code,
+        redirectUri: calendarRedirectUri(input.provider),
+        codeVerifier: started.code_verifier,
+      })
     } catch (e) {
       return rejectCalendarError(e)
     }
     const grant = tokens.refreshToken ?? tokens.accessToken
     // Whatever goes wrong from here, the grant just made is withdrawn again.
-    onRollback?.(async () => ((await oauth.revoke(grant).catch(() => false)) ? 'the new access was revoked' : 'the new access could not be revoked'))
-    if (!tokens.refreshToken) throw new Reject(`${LABEL[input.provider]} did not grant lasting access. Start again and allow access.`)
-    if (missingScope(input.provider, tokens.scope)) throw new Reject(`${brandName()} needs to see and edit your calendar events. Start again and allow every calendar permission.`)
-    const account_email = (await oauth.accountEmail(tokens.accessToken).catch(e => rejectCalendarError(e))).toLowerCase()
+    onRollback?.(async () =>
+      (await oauth.revoke(grant).catch(() => false))
+        ? 'the new access was revoked'
+        : 'the new access could not be revoked',
+    )
+    if (!tokens.refreshToken)
+      throw new Reject(`${LABEL[input.provider]} did not grant lasting access. Start again and allow access.`)
+    if (missingScope(input.provider, tokens.scope))
+      throw new Reject(
+        `${brandName()} needs to see and edit your calendar events. Start again and allow every calendar permission.`,
+      )
+    const account_email = (
+      await oauth.accountEmail(tokens.accessToken).catch(e => rejectCalendarError(e))
+    ).toLowerCase()
 
-    const [existing] = await tx.select().from(calendar_connections).where(and(
-      eq(calendar_connections.workspace_id, workspace_id), eq(calendar_connections.provider, input.provider), eq(calendar_connections.account_email, account_email),
-    ))
+    const [existing] = await tx
+      .select()
+      .from(calendar_connections)
+      .where(
+        and(
+          eq(calendar_connections.workspace_id, workspace_id),
+          eq(calendar_connections.provider, input.provider),
+          eq(calendar_connections.account_email, account_email),
+        ),
+      )
     const [connection] = existing
-      ? await tx.update(calendar_connections).set({ status: 'connected', last_error: null, connected_by: actor.actorId }).where(eq(calendar_connections.id, existing.id)).returning()
-      : await tx.insert(calendar_connections).values({ id: newId('calc'), workspace_id, provider: input.provider, account_email, connected_by: actor.actorId }).returning()
+      ? await tx
+          .update(calendar_connections)
+          .set({ status: 'connected', last_error: null, connected_by: actor.actorId })
+          .where(eq(calendar_connections.id, existing.id))
+          .returning()
+      : await tx
+          .insert(calendar_connections)
+          .values({
+            id: newId('calc'),
+            workspace_id,
+            provider: input.provider,
+            account_email,
+            connected_by: actor.actorId,
+          })
+          .returning()
     await saveTokens(tx, connection!, tokens, tokens.refreshToken)
     return { rows: { calendar_connections: [connection!] }, data: { connectionId: connection!.id } }
   },
 
-  'calendar.connectWithPassword': async ({ tx, actor, ...ctx }, input: { provider: PasswordCalendarProviderName; serverUrl?: string; username?: string; password: string }) => {
+  'calendar.connectWithPassword': async (
+    { tx, actor, ...ctx },
+    input: { provider: PasswordCalendarProviderName; serverUrl?: string; username?: string; password: string },
+  ) => {
     const workspace_id = workspaceOf(actor)
     if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
     if (!hasSecretsKey()) throw new Reject(NO_SECRETS_KEY)
@@ -392,20 +558,30 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     const services = servicesOf(ctx)
     const label = LABEL[input.provider]
     // CalDAV needs the member's server and user name; Calendly and Cal.com are always their own API (Cal.com's cloud only).
-    if (input.provider === 'caldav' && (!input.serverUrl || !input.username)) throw new Reject('A CalDAV account needs the server address and the user name.')
-    if (passwordConnectBudget.blocked(workspace_id)) throw new Reject(`At most ${PASSWORD_CONNECTS_PER_HOUR} connects with a key or password an hour. Try again later.`)
+    if (input.provider === 'caldav' && (!input.serverUrl || !input.username))
+      throw new Reject('A CalDAV account needs the server address and the user name.')
+    if (passwordConnectBudget.blocked(workspace_id))
+      throw new Reject(
+        `At most ${PASSWORD_CONNECTS_PER_HOUR} connects with a key or password an hour. Try again later.`,
+      )
     passwordConnectBudget.fail(workspace_id)
     const typed = DEFAULT_SERVER_URL[input.provider] ?? input.serverUrl!
     const server = await (services.serverUrl ?? defaultCalendarServices.serverUrl!)(typed)
     if (typeof server === 'string') throw new Reject(server)
-    const login: CalendarLogin = { serverUrl: server.toString(), username: input.provider === 'caldav' ? input.username! : '', password: input.password }
+    const login: CalendarLogin = {
+      serverUrl: server.toString(),
+      username: input.provider === 'caldav' ? input.username! : '',
+      password: input.password,
+    }
     // The login is checked before anything is stored: the provider must accept it and show at least one calendar.
     const provider = services.provider(input.provider, { login })
     let calendars: Awaited<ReturnType<CalendarProvider['listCalendars']>>
     let account_email: string
     try {
       calendars = await provider.listCalendars()
-      account_email = provider.accountEmail ? (await provider.accountEmail()).trim().toLowerCase() : passwordAccountLabel(login)
+      account_email = provider.accountEmail
+        ? (await provider.accountEmail()).trim().toLowerCase()
+        : passwordAccountLabel(login)
     } catch (e) {
       if (e instanceof CalendarError && e.kind === 'auth') throw new Reject(REFUSED_LOGIN[input.provider](server.host))
       return rejectCalendarError(e)
@@ -413,15 +589,38 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     if (!account_email) throw new Reject(`${label} did not say which account this is.`)
     if (!calendars.length) throw new Reject(NO_CALENDARS[input.provider](server.host, account_email))
 
-    const [existing] = await tx.select().from(calendar_connections).where(and(
-      eq(calendar_connections.workspace_id, workspace_id), eq(calendar_connections.provider, input.provider), eq(calendar_connections.account_email, account_email),
-    ))
+    const [existing] = await tx
+      .select()
+      .from(calendar_connections)
+      .where(
+        and(
+          eq(calendar_connections.workspace_id, workspace_id),
+          eq(calendar_connections.provider, input.provider),
+          eq(calendar_connections.account_email, account_email),
+        ),
+      )
     // The same account on another server is another account: its calendars must not be read from the new one.
     const stored = existing && (await loginOf(tx, existing).catch(() => null))
-    if (stored && stored.serverUrl !== login.serverUrl) throw new Reject(`${account_email} is connected on ${new URL(stored.serverUrl).host} already. Disconnect it there first.`)
+    if (stored && stored.serverUrl !== login.serverUrl)
+      throw new Reject(
+        `${account_email} is connected on ${new URL(stored.serverUrl).host} already. Disconnect it there first.`,
+      )
     const [connection] = existing
-      ? await tx.update(calendar_connections).set({ status: 'connected', last_error: null, connected_by: actor.actorId }).where(eq(calendar_connections.id, existing.id)).returning()
-      : await tx.insert(calendar_connections).values({ id: newId('calc'), workspace_id, provider: input.provider, account_email, connected_by: actor.actorId }).returning()
+      ? await tx
+          .update(calendar_connections)
+          .set({ status: 'connected', last_error: null, connected_by: actor.actorId })
+          .where(eq(calendar_connections.id, existing.id))
+          .returning()
+      : await tx
+          .insert(calendar_connections)
+          .values({
+            id: newId('calc'),
+            workspace_id,
+            provider: input.provider,
+            account_email,
+            connected_by: actor.actorId,
+          })
+          .returning()
     await saveLogin(tx, connection!, login)
     const data: ConnectWithPasswordData = { connectionId: connection!.id }
     return { rows: { calendar_connections: [connection!] }, data }
@@ -438,37 +637,92 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
   'calendar.disconnect': async ({ tx, actor, ...ctx }, input: { connectionId: string }) => {
     const workspace_id = workspaceOf(actor)
     // Read before the delete: the tokens go with the connection (foreign key cascade), as do its assistant calendars.
-    const [credentials] = await tx.select({ refresh: calendar_credentials.refresh_token_encrypted, scope: calendar_credentials.scope }).from(calendar_credentials)
-      .where(and(eq(calendar_credentials.connection_id, input.connectionId), eq(calendar_credentials.workspace_id, workspace_id)))
-    const calendars = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars)
-      .where(and(eq(assistant_calendars.connection_id, input.connectionId), eq(assistant_calendars.workspace_id, workspace_id)))
-    const [connection] = await tx.delete(calendar_connections)
-      .where(and(eq(calendar_connections.id, input.connectionId), eq(calendar_connections.workspace_id, workspace_id))).returning()
+    const [credentials] = await tx
+      .select({ refresh: calendar_credentials.refresh_token_encrypted, scope: calendar_credentials.scope })
+      .from(calendar_credentials)
+      .where(
+        and(
+          eq(calendar_credentials.connection_id, input.connectionId),
+          eq(calendar_credentials.workspace_id, workspace_id),
+        ),
+      )
+    const calendars = await tx
+      .select({ id: assistant_calendars.id })
+      .from(assistant_calendars)
+      .where(
+        and(
+          eq(assistant_calendars.connection_id, input.connectionId),
+          eq(assistant_calendars.workspace_id, workspace_id),
+        ),
+      )
+    const [connection] = await tx
+      .delete(calendar_connections)
+      .where(and(eq(calendar_connections.id, input.connectionId), eq(calendar_connections.workspace_id, workspace_id)))
+      .returning()
     if (!connection) throw new Reject('calendar account not found')
-    const data: DisconnectData = await revokeGrant(ctx, connection, credentials?.refresh, connection.provider === 'caldav' || credentials?.scope === LOGIN_SCOPE)
-    return { rows: {}, deleted: { calendar_connections: [connection.id], assistant_calendars: calendars.map(c => c.id) }, data }
+    const data: DisconnectData = await revokeGrant(
+      ctx,
+      connection,
+      credentials?.refresh,
+      connection.provider === 'caldav' || credentials?.scope === LOGIN_SCOPE,
+    )
+    return {
+      rows: {},
+      deleted: { calendar_connections: [connection.id], assistant_calendars: calendars.map(c => c.id) },
+      data,
+    }
   },
 
-  'assistantCalendar.add': async ({ tx, actor, ...ctx }, input: { assistantId: string; connectionId: string; externalId: string; instruction?: string }) => {
+  'assistantCalendar.add': async (
+    { tx, actor, ...ctx },
+    input: { assistantId: string; connectionId: string; externalId: string; instruction?: string },
+  ) => {
     const workspace_id = workspaceOf(actor)
-    const [assistant] = await tx.select({ id: assistants.id }).from(assistants).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspace_id)))
+    const [assistant] = await tx
+      .select({ id: assistants.id })
+      .from(assistants)
+      .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspace_id)))
     if (!assistant) throw new Reject('assistant not found')
     const { connection, provider } = await providerFor(tx, ctx, workspace_id, input.connectionId)
     // The calendar must be one this account can write to; its name comes from the provider.
     const calendar = (await listAt(provider, connection, audienceOf(actor))).find(c => c.id === input.externalId)
     if (!calendar) throw new Reject(`no such calendar in ${connection.account_email}`)
-    if (!calendar.canWrite) throw new Reject(`${calendar.name} is read-only for ${connection.account_email}: pick a calendar you can add events to`)
-    const [taken] = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars).where(and(
-      eq(assistant_calendars.assistant_id, assistant.id), eq(assistant_calendars.connection_id, connection.id), eq(assistant_calendars.external_id, calendar.id),
-    ))
+    if (!calendar.canWrite)
+      throw new Reject(
+        `${calendar.name} is read-only for ${connection.account_email}: pick a calendar you can add events to`,
+      )
+    const [taken] = await tx
+      .select({ id: assistant_calendars.id })
+      .from(assistant_calendars)
+      .where(
+        and(
+          eq(assistant_calendars.assistant_id, assistant.id),
+          eq(assistant_calendars.connection_id, connection.id),
+          eq(assistant_calendars.external_id, calendar.id),
+        ),
+      )
     if (taken) throw new Reject(`${calendar.name} is already one of the assistant's calendars`)
-    const [first] = await tx.select({ id: assistant_calendars.id }).from(assistant_calendars).where(eq(assistant_calendars.assistant_id, assistant.id)).limit(1)
-    const rows = await tx.insert(assistant_calendars).values({
-      id: newId('acal'), workspace_id, assistant_id: assistant.id, connection_id: connection.id, external_id: calendar.id, name: calendar.name,
-      instruction: input.instruction ?? '', is_default: !first,
-      // A scheduling tool's event type brings its own length and rules: no Linedesk appointment type is needed for it.
-      duration_min: calendar.durationMin ?? null,
-    }).returning()
+    const existing = await tx
+      .select({ connection_id: assistant_calendars.connection_id, duration_min: assistant_calendars.duration_min })
+      .from(assistant_calendars)
+      .where(eq(assistant_calendars.assistant_id, assistant.id))
+    refuseOtherBookingMode(existing, connection, Boolean(calendar.durationMin))
+    const first = existing[0]
+    const rows = await tx
+      .insert(assistant_calendars)
+      .values({
+        id: newId('acal'),
+        workspace_id,
+        assistant_id: assistant.id,
+        connection_id: connection.id,
+        external_id: calendar.id,
+        name: calendar.name,
+        instruction: input.instruction ?? '',
+        is_default: !first,
+        // A scheduling tool's event type brings its own length and rules: no Linedesk appointment type is needed for it.
+        duration_min: calendar.durationMin ?? null,
+      })
+      .returning()
     const types = calendar.durationMin ? [] : await ensureAppointmentType(tx, workspace_id)
     return {
       rows: { assistant_calendars: rows, ...(types.length && { appointment_types: types }) },
@@ -478,9 +732,22 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
 
   'assistantCalendar.setDefault': async ({ tx, actor }, input: { assistantCalendarId: string }) => {
     const chosen = await loadAssistantCalendar(tx, workspaceOf(actor), input.assistantCalendarId)
-    const others = await tx.update(assistant_calendars).set({ is_default: false })
-      .where(and(eq(assistant_calendars.assistant_id, chosen.assistant_id), ne(assistant_calendars.id, chosen.id), eq(assistant_calendars.is_default, true))).returning()
-    const updated = await tx.update(assistant_calendars).set({ is_default: true, enabled: true }).where(eq(assistant_calendars.id, chosen.id)).returning()
+    const others = await tx
+      .update(assistant_calendars)
+      .set({ is_default: false })
+      .where(
+        and(
+          eq(assistant_calendars.assistant_id, chosen.assistant_id),
+          ne(assistant_calendars.id, chosen.id),
+          eq(assistant_calendars.is_default, true),
+        ),
+      )
+      .returning()
+    const updated = await tx
+      .update(assistant_calendars)
+      .set({ is_default: true, enabled: true })
+      .where(eq(assistant_calendars.id, chosen.id))
+      .returning()
     return { rows: { assistant_calendars: [...others, ...updated] } }
   },
 
@@ -490,9 +757,55 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     const deleted = { assistant_calendars: [removed.id] }
     // The assistant keeps a default as long as it has a calendar: the oldest remaining one.
     if (!removed.is_default) return { rows: {}, deleted }
-    const [next] = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, removed.assistant_id)).orderBy(asc(assistant_calendars.created_at)).limit(1)
-    return { rows: next ? { assistant_calendars: await tx.update(assistant_calendars).set({ is_default: true }).where(eq(assistant_calendars.id, next.id)).returning() } : {}, deleted }
+    const [next] = await tx
+      .select()
+      .from(assistant_calendars)
+      .where(eq(assistant_calendars.assistant_id, removed.assistant_id))
+      .orderBy(asc(assistant_calendars.created_at))
+      .limit(1)
+    return {
+      rows: next
+        ? {
+            assistant_calendars: await tx
+              .update(assistant_calendars)
+              .set({ is_default: true })
+              .where(eq(assistant_calendars.id, next.id))
+              .returning(),
+          }
+        : {},
+      deleted,
+    }
   },
+}
+
+/**
+ * An assistant books with the event types of one scheduling tool account or with plain calendars, never both
+ * (LIN-355): a calendar of the other kind, or an event type of a second tool account, is refused.
+ */
+function refuseOtherBookingMode(
+  existing: { connection_id: string; duration_min: number | null }[],
+  connection: CalendarConnection,
+  isEventType: boolean,
+) {
+  const tool = existing.find(r => r.duration_min !== null)
+  if (!isEventType && tool) {
+    throw new Reject(
+      'this assistant books with the event types of a scheduling tool: remove them before adding a calendar',
+      BOOKING_MODE_REFUSED,
+    )
+  }
+  if (isEventType && existing.some(r => r.duration_min === null)) {
+    throw new Reject(
+      "this assistant books into its own calendars: remove them before adding a scheduling tool's event type",
+      BOOKING_MODE_REFUSED,
+    )
+  }
+  if (isEventType && tool && tool.connection_id !== connection.id) {
+    throw new Reject(
+      `this assistant books with the event types of another account: remove them before adding one of ${connection.account_email}`,
+      BOOKING_MODE_REFUSED,
+    )
+  }
 }
 
 /** How a password account is named in the app: its user name when that is an address, else `<user name>@<server host>`. */
@@ -502,27 +815,51 @@ export function passwordAccountLabel(login: CalendarLogin): string {
 }
 
 async function loadAssistantCalendar(tx: Tx, workspaceId: string, id: string) {
-  const [row] = await tx.select().from(assistant_calendars).where(and(eq(assistant_calendars.id, id), eq(assistant_calendars.workspace_id, workspaceId)))
+  const [row] = await tx
+    .select()
+    .from(assistant_calendars)
+    .where(and(eq(assistant_calendars.id, id), eq(assistant_calendars.workspace_id, workspaceId)))
   if (!row) throw new Reject('calendar not found')
   return row
 }
 
 /** Withdraws the grant at the provider with the stored refresh token. Never throws: the result says what happened. */
-async function revokeGrant(ctx: Pick<HandlerCtx, 'calendars'>, connection: CalendarConnection, refreshEncrypted: string | undefined, login: boolean): Promise<DisconnectData> {
+async function revokeGrant(
+  ctx: Pick<HandlerCtx, 'calendars'>,
+  connection: CalendarConnection,
+  refreshEncrypted: string | undefined,
+  login: boolean,
+): Promise<DisconnectData> {
   // A password cannot be withdrawn from here: its owner deletes it where they made it.
   const provider = connection.provider
   if (provider === 'caldav' || (login && isPasswordProvider(provider))) {
-    return { revoked: false, note: `The login is deleted here. Also delete ${DELETE_KEY_AT[provider as PasswordCalendarProviderName]}.` }
+    return {
+      revoked: false,
+      note: `The login is deleted here. Also delete ${DELETE_KEY_AT[provider as PasswordCalendarProviderName]}.`,
+    }
   }
   const oauth = servicesOf(ctx).oauth(provider)
-  if (!oauth || !refreshEncrypted) return { revoked: false, note: `Remove ${brandName()}'s access in your ${LABEL[connection.provider]} account settings.` }
+  if (!oauth || !refreshEncrypted)
+    return {
+      revoked: false,
+      note: `Remove ${brandName()}'s access in your ${LABEL[connection.provider]} account settings.`,
+    }
   try {
     const revoked = await oauth.revoke(decryptSecret(refreshEncrypted, slot(connection, 'refresh')))
     if (revoked) return { revoked, note: null }
     return connection.provider === 'microsoft'
-      ? { revoked, note: `Microsoft keeps the access until you remove ${brandName()} in your Microsoft account (account.microsoft.com, Privacy, Apps and services).` }
-      : { revoked, note: `${LABEL[connection.provider]} keeps the access until you remove ${brandName()} in your ${LABEL[connection.provider]} settings (connected apps).` }
+      ? {
+          revoked,
+          note: `Microsoft keeps the access until you remove ${brandName()} in your Microsoft account (account.microsoft.com, Privacy, Apps and services).`,
+        }
+      : {
+          revoked,
+          note: `${LABEL[connection.provider]} keeps the access until you remove ${brandName()} in your ${LABEL[connection.provider]} settings (connected apps).`,
+        }
   } catch (e) {
-    return { revoked: false, note: `${LABEL[connection.provider]} could not be reached to revoke access (${errorMessage(e)}): remove ${brandName()} in your account settings.` }
+    return {
+      revoked: false,
+      note: `${LABEL[connection.provider]} could not be reached to revoke access (${errorMessage(e)}): remove ${brandName()} in your account settings.`,
+    }
   }
 }

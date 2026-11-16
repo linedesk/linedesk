@@ -1,3 +1,4 @@
+import type { AssistantCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
 import { CALLER_NAME_MAX } from './calls.ts'
 import { defineAction } from './define.ts'
@@ -13,7 +14,8 @@ export const bookWhen = z.enum(['business_hours', 'outside_business_hours', 'any
 // The server handler lives in apps/api; the slots come back in the result's `data`.
 export const calendarFindSlots = defineAction({
   name: 'calendar.findSlots',
-  description: 'Find free slots for an appointment type: working hours minus existing bookings, buffers and minimum notice.',
+  description:
+    'Find free slots for an appointment type: working hours minus existing bookings, buffers and minimum notice.',
   input: z.object({
     appointmentTypeId: z.string().min(1),
     /** Search window. Defaults to now until the type's booking horizon. */
@@ -141,7 +143,11 @@ export const appointmentTypeUpsert = defineAction({
   input: z.object({
     appointmentTypeId: z.string().min(1).optional(),
     name: z.string().trim().min(1).max(80),
-    durationMin: z.number().int().min(5).max(24 * 60),
+    durationMin: z
+      .number()
+      .int()
+      .min(5)
+      .max(24 * 60),
     /** Free time on both sides; kept for callers from before the two below, which win when given. */
     bufferMin: z.number().int().min(0).max(240).optional(),
     /** Free time kept after the appointment or event before this one (minutes). */
@@ -150,7 +156,12 @@ export const appointmentTypeUpsert = defineAction({
     bufferAfterMin: z.number().int().min(0).max(240).optional(),
     /** When it may be booked: inside the business hours (default), outside them, or at any time. */
     bookWhen: bookWhen.optional(),
-    minNoticeHours: z.number().int().min(0).max(24 * 30).optional(),
+    minNoticeHours: z
+      .number()
+      .int()
+      .min(0)
+      .max(24 * 30)
+      .optional(),
     maxDaysAhead: z.number().int().min(1).max(365).optional(),
     enabled: z.boolean().optional(),
     /** Details the assistant must have before booking, on top of the reason. */
@@ -163,7 +174,8 @@ export const appointmentTypeUpsert = defineAction({
 
 export const appointmentTypeDelete = defineAction({
   name: 'appointmentType.delete',
-  description: 'Delete an appointment type. One that has bookings is switched off instead, so its bookings keep their type.',
+  description:
+    'Delete an appointment type. One that has bookings is switched off instead, so its bookings keep their type.',
   input: z.object({ appointmentTypeId: z.string().min(1) }),
   permission: 'settings:write',
 })
@@ -176,7 +188,9 @@ export const appointmentTypeDelete = defineAction({
 
 export const oauthCalendarProvider = z.enum(['google', 'microsoft', 'calendly', 'calcom'])
 export const passwordCalendarProvider = z.enum(['caldav', 'calcom', 'calendly'])
-export const calendarProvider = z.enum([...new Set([...oauthCalendarProvider.options, ...passwordCalendarProvider.options])] as [
+export const calendarProvider = z.enum([
+  ...new Set([...oauthCalendarProvider.options, ...passwordCalendarProvider.options]),
+] as [
   'google' | 'microsoft' | 'calendly' | 'calcom' | 'caldav',
   ...('google' | 'microsoft' | 'calendly' | 'calcom' | 'caldav')[],
 ])
@@ -196,8 +210,13 @@ export type ConnectStartData = { url: string }
 
 export const calendarConnectFinish = defineAction({
   name: 'calendar.connectFinish',
-  description: 'Finish connecting a calendar account with the code the provider sent back. Run by the OAuth callback route.',
-  input: z.object({ provider: oauthCalendarProvider, state: z.string().min(16).max(200), code: z.string().min(1).max(4000) }),
+  description:
+    'Finish connecting a calendar account with the code the provider sent back. Run by the OAuth callback route.',
+  input: z.object({
+    provider: oauthCalendarProvider,
+    state: z.string().min(16).max(200),
+    code: z.string().min(1).max(4000),
+  }),
   permission: 'settings:write',
   sensitive: ['code'],
 })
@@ -218,7 +237,11 @@ export const calendarConnectWithPassword = defineAction({
       .max(254)
       .regex(/^[^:\p{Cc}]+$/u, 'The user name cannot contain a colon or control characters.')
       .optional(),
-    password: z.string().min(1).max(500).regex(/^[^\p{Cc}]+$/u, 'The password cannot contain control characters.'),
+    password: z
+      .string()
+      .min(1)
+      .max(500)
+      .regex(/^[^\p{Cc}]+$/u, 'The password cannot contain control characters.'),
   }),
   permission: 'settings:write',
   sensitive: ['password'],
@@ -238,7 +261,8 @@ export type CalendarToolModes = Record<CalendarTool, CalendarToolMode>
 
 export const calendarToolsGet = defineAction({
   name: 'calendarTools.get',
-  description: 'Which calendar tools (CalDAV, Calendly, Cal.com) members may connect, and how; and which OAuth apps are set up.',
+  description:
+    'Which calendar tools (CalDAV, Calendly, Cal.com) members may connect, and how; and which OAuth apps are set up.',
   input: z.object({}),
   permission: 'instance:admin',
   readOnly: true,
@@ -259,14 +283,17 @@ const connectionId = z.object({ connectionId: z.string().min(1) })
 
 export const calendarListCalendars = defineAction({
   name: 'calendar.listCalendars',
-  description: 'The calendars of a connected account, from the provider: id, name, whether it is the main one and whether events can be written.',
+  description:
+    'The calendars of a connected account, from the provider: id, name, whether it is the main one and whether events can be written.',
   input: connectionId,
   permission: 'settings:write',
   readOnly: true,
 })
 
 /** `data` of calendar.listCalendars. */
-export type ListCalendarsData = { calendars: { id: string; name: string; primary: boolean; canWrite: boolean; durationMin?: number; group?: string }[] }
+export type ListCalendarsData = {
+  calendars: { id: string; name: string; primary: boolean; canWrite: boolean; durationMin?: number; group?: string }[]
+}
 
 export const calendarDisconnect = defineAction({
   name: 'calendar.disconnect',
@@ -282,7 +309,7 @@ export type DisconnectData = { revoked: boolean; note: string | null }
 export const assistantCalendarAdd = defineAction({
   name: 'assistantCalendar.add',
   description:
-    'Let the assistant book into a calendar of a connected account. The first calendar becomes its default. When the workspace has no appointment type yet, a 30-minute "Appointment" is created with it, so the assistant can book at once.',
+    'Let the assistant book into a calendar of a connected account. The first calendar becomes its default. When the workspace has no appointment type yet, a 30-minute "Appointment" is created with it, so the assistant can book at once. An assistant books either with the event types of one scheduling tool account (Cal.com, Calendly) or with plain calendars and its appointment types, never both: adding the other kind, or event types of a second tool account, is refused (code BOOKING_MODE); remove the others first.',
   input: z.object({
     assistantId: z.string().min(1),
     connectionId: z.string().min(1),
@@ -292,6 +319,31 @@ export const assistantCalendarAdd = defineAction({
   }),
   permission: 'settings:write',
 })
+
+/** The refusal code of assistantCalendar.add when the calendar does not fit how the assistant books. */
+export const BOOKING_MODE_REFUSED = 'BOOKING_MODE'
+
+type BookingRow = Pick<AssistantCalendar, 'connection_id' | 'duration_min' | 'is_default'>
+
+/**
+ * How an assistant books (LIN-355): with the event types of one scheduling tool account (Cal.com, Calendly; their
+ * rows carry the event type's length), or with plain calendars and the workspace's own appointment types. The server
+ * refuses to mix them; for rows from before that rule, the default row decides. `toolConnectionId`: the tool
+ * account, null for plain calendars.
+ */
+export function bookingMode(rows: BookingRow[]): { toolConnectionId: string | null } {
+  const decides = rows.find(r => r.is_default) ?? rows[0]
+  return { toolConnectionId: decides && decides.duration_min !== null ? decides.connection_id : null }
+}
+
+/** Whether a row of an assistant's calendars is used in that mode; the others are left out of booking. */
+export const fitsBookingMode = (
+  mode: { toolConnectionId: string | null },
+  row: Pick<BookingRow, 'connection_id' | 'duration_min'>,
+) =>
+  mode.toolConnectionId === null
+    ? row.duration_min === null
+    : row.connection_id === mode.toolConnectionId && row.duration_min !== null
 
 export const assistantCalendarUpdate = defineAction({
   name: 'assistantCalendar.update',
@@ -306,7 +358,10 @@ export const assistantCalendarUpdate = defineAction({
   patch: {
     table: 'assistant_calendars',
     id: i => i.assistantCalendarId,
-    set: ({ instruction, enabled }) => ({ ...(instruction !== undefined && { instruction }), ...(enabled !== undefined && { enabled }) }),
+    set: ({ instruction, enabled }) => ({
+      ...(instruction !== undefined && { instruction }),
+      ...(enabled !== undefined && { enabled }),
+    }),
   },
 })
 
