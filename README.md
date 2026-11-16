@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/inst
 
 Real phone calls need a server with a public IP (carriers send calls and their audio over UDP). On your own computer everything else works, including test calls in the browser.
 
-By hand, on any machine: Docker with Compose v2.24 or newer and about 1.5 GB of free RAM. Everything stays inside the install folder and Docker: data in named volumes, no files written elsewhere, no host networking.
+By hand, on any machine: Docker with Compose v2.24 or newer and about 2 GB of free RAM. Everything stays inside the install folder and Docker: data in named volumes, no files written elsewhere, no host networking.
 
 ```sh
 git clone https://github.com/linedesk/linedesk.git && cd linedesk
@@ -170,16 +170,16 @@ These rules are not saved across reboots (use `iptables-persistent` or your own 
 
 ### Memory and CPU
 
-Every service has a hard memory limit, a CPU limit, a restart policy and rotated logs (3 files of 10 MB), so the stack cannot take more than its share of a machine it does not own. In all: 1.5 GB of memory and at most 1.5 CPUs.
+Every service has a hard memory limit, a CPU limit, a restart policy and rotated logs (3 files of 10 MB), so the stack cannot take more than its share of a machine it does not own. In all: 1.9 GB of memory and at most 1.5 CPUs.
 
 CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent and egress) share one pinned core, `LINEDESK_VOICE_CPUSET` (default: core `1`, the second core; set `0` on a machine with one core). A CPU quota made the agent stall audio even when idle, a pinned core does not. The other services have quotas that add up to half a core.
 
 | Service | Memory limit | CPU | Measured at rest |
 | --- | --- | --- | --- |
 | agent | 672 MB | voice core | 480 to 495 MB (registered with LiveKit, one process kept warm) |
-| electric | 320 MB | 0.2 | 230 MB |
-| postgres | 128 MB | 0.1 | 45 to 55 MB |
-| api | 128 MB | 0.1 | 65 to 70 MB |
+| electric | 384 MB | 0.2 | 230 MB |
+| postgres | 256 MB | 0.1 | 45 to 55 MB |
+| api | 256 MB | 0.1 | 65 to 70 MB |
 | livekit | 96 MB | voice core | 16 to 60 MB |
 | livekit-sip | 96 MB | voice core | 16 to 50 MB |
 | redis (Valkey) | 48 MB | 0.05 | 13 to 22 MB |

@@ -189,7 +189,12 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
  * How the assistant's calls are answered, in Advanced: a choice only while the workspace may use both (the instance
  * admin lets workspaces choose, Server admin › Providers); else nothing, there is nothing to decide.
  */
-function PipelineSection({ draft, set, setUp, billed }: SectionProps & { setUp: PipelinesSetUp | null; billed: boolean }) {
+function PipelineSection({
+  draft,
+  set,
+  setUp,
+  billed,
+}: SectionProps & { setUp: PipelinesSetUp | null; billed: boolean }) {
   const t = useT()
   // On Linedesk Cloud the choice is Ultra or not, in General (UltraSettings).
   if (billed || !setUp?.realtime || !setUp.three_stage) return null
@@ -213,7 +218,16 @@ type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice', 'llm_model', 'realtime_voice', 'realtime_model'],
+  general: [
+    'name',
+    'greeting',
+    'greeting_outside',
+    'languages',
+    'voice',
+    'llm_model',
+    'realtime_voice',
+    'realtime_model',
+  ],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   advanced: [
@@ -1102,7 +1116,7 @@ function sectionInHash(): SectionId {
  */
 function AssistantSkeleton({ slow }: { slow: boolean }) {
   const t = useT()
-  if (slow) return <LoadProblem what={t('settings.assistant.load')} />
+  if (slow) return <LoadProblem what={t('settings.assistant.load')} slow />
   const current = sectionInHash()
   return (
     <SettingsLayout

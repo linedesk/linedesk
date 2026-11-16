@@ -127,6 +127,7 @@ export function Overview({ onOpen }: Props) {
         className="adm-card"
         what={t('admin.overview.what')}
         message={overview.error ?? undefined}
+        slow={!overview.error}
         onRetry={() => void overview.retry()}
       />
     )

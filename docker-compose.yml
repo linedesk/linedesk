@@ -34,7 +34,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 2s
       retries: 20
-    mem_limit: ${LINEDESK_POSTGRES_MEM:-128m}
+    mem_limit: ${LINEDESK_POSTGRES_MEM:-256m}
     cpus: ${LINEDESK_POSTGRES_CPUS:-0.1}
 
   electric:
@@ -53,7 +53,7 @@ services:
       test: ["CMD-SHELL", "curl -fs http://localhost:3000/v1/health | grep -q active"]
       interval: 2s
       retries: 30
-    mem_limit: ${LINEDESK_ELECTRIC_MEM:-320m}
+    mem_limit: ${LINEDESK_ELECTRIC_MEM:-384m}
     cpus: ${LINEDESK_ELECTRIC_CPUS:-0.2}
 
   api:
@@ -89,7 +89,8 @@ services:
     # Health: GET /healthz (Dockerfile). scripts/deploy.sh starts the new API next to the old one and
     # stops the old one once the new one is healthy; migrations run once, in the new one, so they must
     # work with the previous release too (docs/architecture.md, "Updates without downtime").
-    mem_limit: ${LINEDESK_API_MEM:-128m}
+    # 128m was at its limit on staging and production (LIN-324): a big first sync made it swap and answer late.
+    mem_limit: ${LINEDESK_API_MEM:-256m}
     cpus: ${LINEDESK_API_CPUS:-0.1}
 
   # Caddy: the entry point. Proxies /api, /v1 and /mcp to the API, LiveKit signalling (/rtc) to LiveKit and

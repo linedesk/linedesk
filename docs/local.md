@@ -17,7 +17,7 @@ reserved domain instead.
 
 ## Resource limits
 
-The compose defaults are sized for a small server (Postgres 0.1 CPU and 128 MB, the API 0.1 CPU, all call
+The compose defaults are sized for a small server (Postgres 0.1 CPU and 256 MB, the API 0.1 CPU, all call
 audio on one pinned core). On a laptop that is also running builds and tests, that starves Postgres:
 requests and background jobs wait for a connection ("timeout exceeded when trying to connect") and
 saving hangs. For a local stack, add `docker-compose.local.yml` (generous limits, sized for Docker Desktop with

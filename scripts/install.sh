@@ -59,7 +59,7 @@ main() {
   fi
   mem_kb=$(sed -n 's/^MemTotal: *\([0-9]*\) kB/\1/p' /proc/meminfo)
   if [ "${mem_kb:-0}" -lt 1800000 ]; then
-    printf 'Note: this server has less than 2 GB of memory. Linedesk needs about 1.5 GB; 2 GB is the minimum, 4 GB is better.\n'
+    printf 'Note: this server has less than 2 GB of memory. Linedesk needs about 2 GB; 2 GB is the minimum, 4 GB is better.\n'
   fi
   if [ "${mem_kb:-0}" -lt 4000000 ] && [ -z "$(swapon --show --noheadings 2>/dev/null)" ] && [ ! -e /swapfile ]; then
     say "Adding a 2 GB swap file (less than 4 GB of memory)"

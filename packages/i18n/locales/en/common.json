@@ -53,6 +53,8 @@
   "load.loading": "Loading {what}",
   "load.noAnswer": "Can't reach the server. Check your connection and try again.",
   "load.noAnswerKept": "Can't reach the server. Check your connection and try again. Your changes are kept.",
+  "load.slow": "{what}: still loading…",
+  "load.slowHint": "This takes longer than usual. It shows here by itself as soon as it arrives.",
   "load.unreachable": "Can't reach the server. Retrying…",
   "phone.countries": "Countries",
   "phone.countryCode": "Country code: {country}",

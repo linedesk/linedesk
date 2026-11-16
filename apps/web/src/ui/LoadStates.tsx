@@ -92,6 +92,7 @@ export function Loading({ what, loading, error, onRetry, skeleton, className, ch
       <LoadProblem
         what={what}
         message={typeof error === 'string' ? error : undefined}
+        slow={typeof error !== 'string'}
         onRetry={onRetry}
         className={className}
       />
@@ -299,6 +300,20 @@ function ServerUnreachable({ className }: { className?: string }) {
   )
 }
 
+/** A load that takes longer than usual but has not failed: it shows its content by itself when that arrives. */
+function StillLoading({ what, onRetry, className }: { what: string; onRetry?: () => void; className?: string }) {
+  const t = useT()
+  return (
+    <div className={cx('empty', 'load-problem', className)} role="status">
+      <b>{t('common.load.slow', { what })}</b>
+      <span>{t('common.load.slowHint')}</span>
+      <Button size="sm" onClick={onRetry ?? (() => window.location.reload())}>
+        {t('common.action.tryAgain')}
+      </Button>
+    </div>
+  )
+}
+
 /** The answer of a server that is down or restarting, as the browser reports it. */
 const UNREACHABLE = /server answered 5\d\d|failed to fetch|networkerror|load failed/i
 
@@ -311,17 +326,23 @@ type LoadProblemProps = {
   what: string
   /** The server's own reason, shown when it says more than "not reachable". */
   message?: string
+  /**
+   * Nothing failed: the load only takes longer than `SLOW_MS` (a big first sync, a busy server). Says it is still
+   * loading, not that the server can't be reached; the content replaces it by itself when it arrives.
+   */
+  slow?: boolean
   /** Default: reload the page (the outbox survives a reload, so changes are kept). */
   onRetry?: () => void
   className?: string
 }
 
-/** Something did not load: say so plainly and offer to try again. */
-export function LoadProblem({ what, message, onRetry, className }: LoadProblemProps) {
+/** Something did not load (or takes very long): say so plainly and offer to try again. */
+export function LoadProblem({ what, message, slow, onRetry, className }: LoadProblemProps) {
   const t = useT()
   // A synced list (no reason, no retry of its own) while read sync is down: it comes back by itself.
   const readSyncDown = useReadSyncDown()
   if (readSyncDown && !message && !onRetry) return <ServerUnreachable className={className} />
+  if (slow && !message) return <StillLoading what={what} onRetry={onRetry} className={className} />
   const unreachable = !message || UNREACHABLE.test(message)
   const reason = unreachable && !onRetry ? t('common.load.noAnswerKept') : problemText(message)
   return (
