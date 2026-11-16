@@ -103,8 +103,6 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor, persona
         const { workspaceId, ...input } = (takesWorkspace ? raw : { ...(raw as object) }) as { workspaceId?: unknown }
         const as = takesWorkspace ? await actorFor(actor, personal, workspaceId) : actor
         if (!as) return refusal(NOT_A_MEMBER)
-        const refusedField = personal ? refusedFieldOverMcp(def.name, takesWorkspace ? input : raw) : null
-        if (refusedField) return refusal(refusedField)
         const { body } = await runAction(def.name, takesWorkspace ? input : raw, as)
         if (!body.ok) return refusal(body.error)
         const payload = { rows: body.rows, ...(body.data ? { data: body.data } : {}) }
@@ -348,22 +346,6 @@ export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
   'systemPrompt.setPart',
   'systemPrompt.resetPart',
 ])
-
-/**
- * Fields a personal key's MCP client may not set on a tool it has: the assistant's transfer contacts are numbers
- * callers get put through to, so a caller's text must not be able to add one (LIN-339 security review M4).
- */
-export const FIELDS_NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlyMap<string, readonly string[]> = new Map([
-  ['assistant.update', ['transfers']],
-])
-
-/** The refusal for a field in FIELDS_NOT_OVER_MCP_FOR_PERSONAL_KEYS, or null. */
-export function refusedFieldOverMcp(action: string, input: unknown): string | null {
-  const fields = FIELDS_NOT_OVER_MCP_FOR_PERSONAL_KEYS.get(action)
-  if (!fields || typeof input !== 'object' || input === null) return null
-  const field = fields.find(f => f in input)
-  return field ? `${field} is changed in the app, the command line or a script, not over MCP` : null
-}
 
 /**
  * Whether an MCP client gets this action as a tool. Destructive ones (delete, cancel, move, block, spam)

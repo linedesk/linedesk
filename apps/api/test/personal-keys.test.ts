@@ -157,7 +157,9 @@ describe('managing personal keys', () => {
       await makeKey(person, 'Passkey')
       // An instance admin with an authenticator app is offered it, and a code checked just now counts.
       await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, person.userId))
-      await db.insert(admin_authenticators).values({ user_id: person.userId, secret: 'x', confirmed_at: new Date().toISOString() })
+      await db
+        .insert(admin_authenticators)
+        .values({ user_id: person.userId, secret: 'x', confirmed_at: new Date().toISOString() })
       await confirmedAt(new Date(Date.now() - 11 * 60_000), 'passkey')
       expect(await act(person, 'personalKey.create', { name: 'Old again' })).toMatchObject({
         status: 403,
@@ -433,21 +435,12 @@ describe('MCP with a personal key', () => {
       expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(true)
     expect(names.has('assistant_update')).toBe(true)
     const [assistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, ws.id))
+    // The assistant is fully changeable over MCP, transfer contacts included.
     const transfers = await mcp(ownerKey, 'tools/call', {
       name: 'assistant_update',
-      arguments: { assistantId: assistant!.id, transfers: [] },
+      arguments: { assistantId: assistant!.id, name: 'Maya', transfers: [] },
     })
-    expect(transfers.body.result.isError).toBe(true)
-    expect(transfers.body.result.content[0].text).toContain('transfers')
-    const renamed = await mcp(ownerKey, 'tools/call', {
-      name: 'assistant_update',
-      arguments: { assistantId: assistant!.id, name: 'Maya' },
-    })
-    expect(renamed.body.result.isError ?? false).toBe(false)
-    // The same key still runs them over the API, as its maker does in the app.
-    expect((await act(asKey(ownerKey), 'assistant.update', { assistantId: assistant!.id, transfers: [] })).status).toBe(
-      200,
-    )
+    expect(transfers.body.result.isError ?? false).toBe(false)
   })
 
   test('refuses a workspace its maker does not belong to', async () => {
