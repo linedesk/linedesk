@@ -679,7 +679,17 @@ export function keptUrgent(
  * calls back, and the agent hangs up. Every call costs speech and model minutes; nobody can run up a bill
  * with many lines at once.
  */
-export const LIVE_CALLS_PER_WORKSPACE = 5
+export const LIVE_CALLS_PER_WORKSPACE = liveCallsPerWorkspace()
+
+/**
+ * LIVE_CALLS_PER_WORKSPACE from the environment: a whole number from 1 to 100, else the default 5. Raised only for a
+ * capacity check (many test calls to one number), then put back (docs/commands.md, "Load test").
+ */
+export function liveCallsPerWorkspace(env: { LIVE_CALLS_PER_WORKSPACE?: string } = process.env): number {
+  const raw = env.LIVE_CALLS_PER_WORKSPACE?.trim()
+  const value = raw ? Number(raw) : Number.NaN
+  return Number.isInteger(value) && value >= 1 && value <= 100 ? value : 5
+}
 /**
  * Live calls started longer ago than the assistant stays on a call (plus a margin) are not counted: their agent is
  * gone, or they were put through to a person and cost no assistant minutes any more.
