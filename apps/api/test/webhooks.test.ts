@@ -420,7 +420,7 @@ describe('during the call', () => {
     replyDelayMs = DURING_CALL_TIMEOUT_MS + 300
     replyBody = JSON.stringify({ answer: 'Too late' })
     expect((await ask(await newCall())).body.data).toEqual({ answer: null, problem: 'failed' })
-    expect((await deliveriesOf(endpointId))[0]).toMatchObject({ status: 'failed', error: 'no answer within 3 s' })
+    expect((await deliveriesOf(endpointId))[0]).toMatchObject({ status: 'failed', error: `no answer within ${DURING_CALL_TIMEOUT_MS / 1000} s` })
     replyDelayMs = 0
     replyBody = JSON.stringify({ status: 'shipped' })
     expect((await ask(await newCall())).body.data).toEqual({ answer: null, problem: 'failed' })

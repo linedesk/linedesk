@@ -13,6 +13,11 @@ const REQUEST_TIMEOUT_MS = 5000
  */
 const CALENDAR_ACTIONS = new Set(['calendar.findSlots', 'appointment.book', 'appointment.reschedule', 'appointment.cancel'])
 const CALENDAR_TIMEOUT_MS = 25_000
+/** A during-call lookup: the API waits DURING_CALL_TIMEOUT_MS (7 s) for the business's system, plus its own trip. */
+const LOOKUP_ACTION = 'call.askWebhook'
+const LOOKUP_TIMEOUT_MS = 9000
+const timeoutOf = (name: string) =>
+  CALENDAR_ACTIONS.has(name) ? CALENDAR_TIMEOUT_MS : name === LOOKUP_ACTION ? LOOKUP_TIMEOUT_MS : REQUEST_TIMEOUT_MS
 
 export class ActionError extends Error {
   readonly action: string
@@ -56,7 +61,7 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
           ...(scope ? { 'x-workspace-id': scope.workspaceId } : {}),
         },
         body: JSON.stringify(input),
-        signal: AbortSignal.timeout(CALENDAR_ACTIONS.has(def.name) ? CALENDAR_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutOf(def.name)),
       })
       const body = (await res.json().catch(() => null)) as ActionResult | ActionRejection | null
       if (!res.ok || !body?.ok) throw new ActionError(def.name, res.status, body && !body.ok ? body.error : res.statusText)

@@ -30,7 +30,10 @@ export function newWebhookSecret(): string {
 /** How long the call-start webhook may take to answer; the greeting waits at most this (plus the trip to the API). */
 export const CALL_START_TIMEOUT_MS = 1000
 /** How long a during-call lookup may take to answer; the assistant says a filler first, then waits. */
-export const DURING_CALL_TIMEOUT_MS = 3000
+export const DURING_CALL_TIMEOUT_MS = 7000
+/** The longest the caller waits for any tool that asks another system (a lookup, the calendar): after this the
+ * assistant says it could not do that and offers to take a message (LIN-341). */
+export const TOOL_MAX_WAIT_MS = 10_000
 /** During-call requests per call: a model that keeps asking cannot hammer the business's system. */
 export const DURING_CALL_MAX_PER_CALL = 5
 /** The after-call webhook goes out this long after the call ends, so the recording is saved by then (RECORDING_WAIT_MS in the agent). */

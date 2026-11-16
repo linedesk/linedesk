@@ -2,7 +2,7 @@
 // lookupAnswerFrom takes, for the request Linedesk itself sends (duringCallRequest).
 import { lookupAnswerFrom } from '@linedesk/actions'
 import { afterEach, describe, expect, test } from 'vitest'
-import { TEST_LOOKUP_PATH, testLookupAnswer } from '../src/test-lookup.ts'
+import { TEST_LOOKUP_MAX_DELAY_MS, TEST_LOOKUP_PATH, testLookupAnswer, testLookupDelay } from '../src/test-lookup.ts'
 import { appRequest } from './helpers.ts'
 
 const saved = process.env.TEST_LOOKUP
@@ -27,8 +27,8 @@ const request = (lookup: string, values: Record<string, unknown>) => ({
   caller: null,
 })
 
-const post = (body: unknown, contentType = 'application/json') =>
-  appRequest(TEST_LOOKUP_PATH, {
+const post = (body: unknown, contentType = 'application/json', query = '') =>
+  appRequest(TEST_LOOKUP_PATH + query, {
     method: 'POST',
     headers: { 'content-type': contentType, 'linedesk-hook': 'during_call' },
     body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -67,5 +67,16 @@ describe('test lookup responder', () => {
     expect(testLookupAnswer('account', { nested: { a: 1 } })).toBe('Found the record; everything is up to date.')
     const long = testLookupAnswer('order_status', { order: `12\n34 ${'x'.repeat(100)}` })
     expect(long).toBe(`Order 12 34 ${'x'.repeat(34)} shipped on Monday and arrives on Thursday.`)
+  })
+
+  test('?delay_ms= waits before it answers, at most TEST_LOOKUP_MAX_DELAY_MS', async () => {
+    process.env.TEST_LOOKUP = 'on'
+    const started = Date.now()
+    const res = await post(request('order_status', { order_number: '1' }), 'application/json', '?delay_ms=300')
+    expect(res.status).toBe(200)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(290)
+    expect(testLookupDelay('5000')).toBe(5000)
+    expect(testLookupDelay('999999')).toBe(TEST_LOOKUP_MAX_DELAY_MS)
+    for (const bad of [undefined, '', '-5', '1.5', 'abc']) expect(testLookupDelay(bad)).toBe(0)
   })
 })

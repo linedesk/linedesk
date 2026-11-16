@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events'
 import { z } from 'zod'
 import { voice } from '@livekit/agents'
+import { TOOL_MAX_WAIT_MS } from '@linedesk/actions'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Reply } from './hang-up.ts'
 import {
   FILLER_AFTER_MS,
   STILL_AFTER_MS,
   STILL_EVERY_MS,
+  TOO_SLOW_REPLY,
   type FillerSession,
   isSlowTool,
   toolFiller,
@@ -136,4 +138,27 @@ test('a long wait: the caller hears it takes longer, again every few seconds, ne
   running = false
   await vi.advanceTimersByTimeAsync(STILL_EVERY_MS * 3)
   expect(say).toHaveBeenCalledTimes(2)
+})
+
+// LIN-341: the caller never waits longer than TOOL_MAX_WAIT_MS for another system.
+test('a slow tool that runs too long is cut off: the model is told it did not finish, and the long-wait lines stop', async () => {
+  const started = vi.fn()
+  const book = {
+    type: 'function',
+    description: 'book',
+    parameters: z.object({ start: z.string() }),
+    execute: vi.fn(() => new Promise<string>(() => {})), // the calendar never answers
+  }
+  // biome-ignore lint/suspicious/noExplicitAny: a test double of a LiveKit tool
+  const tools = withFillers({ book_appointment: book as any }, started)
+  // biome-ignore lint/suspicious/noExplicitAny: a minimal ToolOptions
+  const result = tools.book_appointment!.execute({ start: '10:00' }, { ctx: { speechHandle: replyOf() } } as any)
+  let done = false
+  result.then(() => (done = true))
+  await vi.advanceTimersByTimeAsync(TOOL_MAX_WAIT_MS - 1)
+  expect(done).toBe(false)
+  expect(started.mock.calls[0]![1]()).toBe(true)
+  await vi.advanceTimersByTimeAsync(1)
+  await expect(result).resolves.toBe(TOO_SLOW_REPLY)
+  expect(started.mock.calls[0]![1]()).toBe(false)
 })

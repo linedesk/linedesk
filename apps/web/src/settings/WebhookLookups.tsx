@@ -3,6 +3,7 @@
 // fills in from what the caller says. Saved through the outbox (webhook.update), so the list changes at once;
 // Test asks the webhook with made-up values and needs the server's answer.
 import {
+  DURING_CALL_TIMEOUT_MS,
   LOOKUP_DESCRIPTION_MAX,
   LOOKUP_FIELDS_MAX,
   LOOKUP_WHEN_MAX,
@@ -77,7 +78,7 @@ export function WebhookLookups({ endpoint, toast }: Props) {
   return (
     <div className="wh-lookups">
       <div className="wh-lookups-head">
-        <span className="help">{t('settings.lookups.help')}</span>
+        <span className="help">{t('settings.lookups.help')} {t('settings.lookups.maxWait', { seconds: DURING_CALL_TIMEOUT_MS / 1000 })}</span>
         <Button
           size="sm"
           icon="plus"

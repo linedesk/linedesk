@@ -4,7 +4,7 @@
 // for the provider's consent screen anyway (or checks a CalDAV login in a dialog), and the rest are small,
 // single changes through the outbox.
 import type { ConnectStartData, DisconnectData, ListCalendarsData } from '@linedesk/actions'
-import { CONDITION_MAX } from '@linedesk/actions'
+import { CONDITION_MAX, TOOL_MAX_WAIT_MS } from '@linedesk/actions'
 import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { i18n } from '../i18n/index.tsx'
@@ -830,7 +830,7 @@ function Calendars({ assistant, canEdit, onPick }: Omit<Props, 'toast'> & { onPi
     <Section
       id="as-cal-calendars"
       title={t('settings.calendar.calendars')}
-      help={t('settings.calendar.calendarsHelp', { name: assistant.name })}
+      help={`${t('settings.calendar.calendarsHelp', { name: assistant.name })} ${t('settings.calendar.maxWait', { name: assistant.name, seconds: TOOL_MAX_WAIT_MS / 1000 })}`}
       actions={
         canEdit &&
         ready &&

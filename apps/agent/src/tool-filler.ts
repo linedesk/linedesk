@@ -6,6 +6,8 @@
 // agent says a second one the model wrote with the call, say_if_slow ("This is taking a little longer, I'm still on
 // it."), and again every few seconds while the tool still runs, so the caller always knows. LiveKit frees the speech queue before it waits for a reply's tools, so the line plays while the tool runs,
 // in both pipelines (the three stages say it with the voice provider, a realtime call plays it in the model's voice).
+// No tool of these makes the caller wait longer than TOOL_MAX_WAIT_MS: then the model hears it did not finish.
+import { TOOL_MAX_WAIT_MS } from '@linedesk/actions'
 import { type llm, voice } from '@livekit/agents'
 import { z } from 'zod'
 import { type Reply, saidWords } from './hang-up.ts'
@@ -36,6 +38,13 @@ const fillerParams = {
       'One short sentence the caller hears if this takes several seconds, in the language of the call, like "This is taking a little longer, I\'m still on it." Not a question.',
     ),
 }
+
+/**
+ * What the model gets when a slow tool runs longer than TOOL_MAX_WAIT_MS (rule 11: wording approved). A booking may
+ * still go through after that, so the model must not say it worked, nor that it failed for sure.
+ */
+export const TOO_SLOW_REPLY =
+  'This took too long, and it is not clear whether it worked. Do not say it worked. Tell the caller you could not finish that right now, and offer to take a message so the team follows up.'
 
 export type FillerTimes = { afterMs?: number; stillAfterMs?: number; stillEveryMs?: number }
 
@@ -98,8 +107,11 @@ export function toolFiller(session: FillerSession, say: (line: string) => Promis
 // biome-ignore lint/suspicious/noExplicitAny: tools of different parameter types in one map
 type Tools = Record<string, llm.AnonFunctionTool<any, any, any>>
 
-/** The tools, each slow one with the say_while_waiting and say_if_slow parameters; the tool itself never gets them. */
-export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>): Tools {
+/**
+ * The tools, each slow one with the say_while_waiting and say_if_slow parameters (the tool itself never gets them) and
+ * cut off after `maxWaitMs`: the caller never waits longer than that for another system.
+ */
+export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>, maxWaitMs = TOOL_MAX_WAIT_MS): Tools {
   return Object.fromEntries(
     Object.entries(tools).map(([name, tool]) => {
       if (!isSlowTool(name)) return [name, tool]
@@ -115,10 +127,18 @@ export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>
             const text = (v: unknown) => (typeof v === 'string' ? v : null)
             let running = true
             started(opts.ctx.speechHandle, () => running, { waiting: text(waiting), slow: text(slow) })
+            let timer: ReturnType<typeof setTimeout> | undefined
+            const tooSlow = new Promise<string>(resolve => {
+              timer = setTimeout(() => {
+                console.warn(`tool ${name} took longer than ${maxWaitMs} ms: the caller is told it did not finish`)
+                resolve(TOO_SLOW_REPLY)
+              }, maxWaitMs)
+            })
             try {
-              return await execute(rest, opts)
+              return await Promise.race([execute(rest, opts), tooSlow])
             } finally {
               running = false
+              clearTimeout(timer)
             }
           },
         },
