@@ -374,8 +374,6 @@ export const assistantUpdate = defineAction({
     assistantId: z.string().min(1),
     name: z.string().trim().min(1).max(60).optional(),
     greeting: z.string().optional(),
-    /** Replaced by ai_disclosure; still taken from a web app of the release before. */
-    disclose_ai: z.boolean().optional(),
     /** Whether and when the assistant mentions it is an AI: never, when_asked (default), at_start, at_start_consent. */
     ai_disclosure: z.enum(AI_DISCLOSURE_MODES).optional(),
     /** The tone it uses: standard (default), professional, casual, formal, empathetic. */

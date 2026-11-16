@@ -6,7 +6,7 @@
 // One access level (Janik's decision 2026-11-15): making a key is an instance-admin action, so it needs the session's
 // passkey check (admin-second-factor.ts); the key then may do everything the setup needs, email and sign-in included,
 // for SETUP_KEY_HOURS (4). There is no second "Allow" step any more (#694's agentSetup.confirmPasskey, withdrawn with
-// it; the column allow_request stays unread until a later contract step). The key row records whether the session that
+// it). The key row records whether the session that
 // made it had passed the passkey check (passkey_confirmed_until, its expiry then; null without one, which only an
 // install with ADMIN_SECOND_FACTOR=off allows): while the rule is on, a key without it does not work (setupKeyAccess),
 // so a link made with the switch off never acts as passkey-confirmed once the switch is back on.

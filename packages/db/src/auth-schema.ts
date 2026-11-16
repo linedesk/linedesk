@@ -58,9 +58,6 @@ export const session = pgTable(
     // What set passkeyVerifiedAt: 'passkey' (a passkey sign-in) or 'authenticator' (a code from an instance admin's
     // authenticator app, the fallback; apps/api/src/authenticator.ts). Null on sessions from before: a passkey.
     secondFactorMethod: text("second_factor_method"),
-    // When this session's passkey sign-in gave an AI agent's setup link email and sign-in (apps/api/src/agent-setup.ts):
-    // one passkey sign-in gives one grant.
-    passkeyGrantUsedAt: timestamp("passkey_grant_used_at"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );

@@ -4,7 +4,7 @@ import { DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure
 import { draftOf, draftProblem, languagesToSave, offeredLanguages, foldProfile, isDirty, mergeDraft, normalized, profileOf, spokenLength, staleGreetingName, transferProblem, transfersToSave, newTransferContact, moveTransfer, transferInactive, hangUpSummary, silenceProblem, silenceSummary, silenceToSave } from './assistantDraft.ts'
 
 const oldProfile = { description: 'Plumbing', services: ['Leak repair', ' ', 'Drains'], service_area: 'Portland', address: '1 Main St', hours: 'Mon–Fri', faqs: [{ q: 'Estimates?', a: 'Free.' }, { q: '', a: '' }] }
-const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', disclose_ai: true, business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
+const assistant = (over: Partial<Assistant> = {}) => ({ id: 'as1', name: 'Maya', greeting: 'Hello', business_profile: oldProfile, voice: { provider: 'elevenlabs', voice_id: '' }, ...over }) as Assistant
 
 describe('instructions', () => {
   it('folds the older fields into one text, once, in the shape the assistant read them', () => {

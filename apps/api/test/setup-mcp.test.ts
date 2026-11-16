@@ -868,7 +868,7 @@ describe('every key through the agent (LIN-182)', () => {
     db
       .update(session)
       // A new sign-in: its passkey (if any) has given no setup link a grant yet.
-      .set({ createdAt: new Date(), passkeyVerifiedAt: withPasskey ? new Date() : null, passkeyGrantUsedAt: null })
+      .set({ createdAt: new Date(), passkeyVerifiedAt: withPasskey ? new Date() : null })
       .where(eq(session.userId, who.userId))
   const clear = (...providers: string[]) =>
     Promise.all(providers.map(p => db.delete(provider_settings).where(eq(provider_settings.provider, p))))

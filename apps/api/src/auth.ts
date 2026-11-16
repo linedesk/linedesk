@@ -310,9 +310,6 @@ export const auth = betterAuth({
       passkeyVerifiedAt: { type: 'date', required: false, input: false },
       // 'passkey' or 'authenticator': what set passkeyVerifiedAt (admin-second-factor.ts passkeySignedIn).
       secondFactorMethod: { type: 'string', required: false, input: false },
-      // Unused since the one-level setup link (2026-11-15): was set when a passkey sign-in gave a setup link its email
-      // and sign-in grant. Kept until a later contract step (expand/contract, docs/architecture.md §11).
-      passkeyGrantUsedAt: { type: 'date', required: false, input: false },
     },
   },
   plugins: [

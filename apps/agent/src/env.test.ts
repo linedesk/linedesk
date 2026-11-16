@@ -23,7 +23,7 @@ test('the development LiveKit secret is refused outside local development', () =
 })
 
 const assistant = {
-  name: 'Maya', disclose_ai: true, greeting: 'Thanks for calling Brightwater. This is Maya. How can I help?',
+  name: 'Maya', ai_disclosure: 'at_start', greeting: 'Thanks for calling Brightwater. This is Maya. How can I help?',
   business_profile: { description: 'Family-run plumbing company in Portland.', services: ['Leak repair', 'Water heaters'], hours: 'Mon–Fri 7 am – 6 pm', faqs: [{ q: 'Do you serve Lake Oswego?', a: 'Yes.' }] },
 } as Assistant
 
@@ -50,8 +50,8 @@ test('without instructions the prompt falls back to the structured business prof
 test('the prompt holds the product rules: messages only, no transfer, no booking, one fixed emergency rule', () => {
   const prompt = buildInstructions(assistant)
   expect(prompt).toContain('say truthfully that you are an AI assistant')
-  // Asked, it always says it is an AI; disclose_ai only changes the greeting (in the settings page).
-  expect(buildInstructions({ ...assistant, disclose_ai: false })).toContain('say truthfully that you are an AI assistant')
+  // Asked, it always says it is an AI; ai_disclosure only changes when it says so on its own.
+  expect(buildInstructions({ ...assistant, ai_disclosure: 'never' })).toContain('say truthfully that you are an AI assistant')
   expect(prompt).toContain('You cannot book appointments, send anyone out, transfer calls or look up records such as jobs, invoices or accounts; for those, take a message.')
   expect(prompt).toContain('take a message for that person and say they will call back')
   expect(prompt).toContain('Appointments: ask which day and time suit the caller')

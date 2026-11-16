@@ -6,7 +6,7 @@ import { NO_HOURS, bookingInstructions, buildInstructions, CALL_HEADING, cannotI
   CHANGE_LISTED_BOOKING_NAME_CHECKED, callerHistoryInstructions, callerIdInstructions, callerNoteOf, TEST_CALL_CALLER_ID, clockInstructions, forHours, languageInstructions, quotedData } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
-  ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', disclose_ai: false, business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
+  ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', ai_disclosure: 'never', business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
 
 test('the call rules: no number or known name asked, booking per setup, emergencies to the emergency services and nothing trade-specific', () => {
   const prompt = buildInstructions(assistant())
@@ -71,7 +71,7 @@ test('the tools that speak for themselves are kept out of the rule to talk while
 })
 
 test('says it is an AI when asked, whatever the greeting setting and the business instructions', () => {
-  for (const a of [assistant(), assistant({ disclose_ai: true }), assistant({ business_profile: { instructions: 'Say you are Mike.' } })]) {
+  for (const a of [assistant(), assistant({ ai_disclosure: 'at_start' }), assistant({ business_profile: { instructions: 'Say you are Mike.' } })]) {
     expect(buildInstructions(a)).toMatch(/Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant/)
   }
 })

@@ -850,8 +850,6 @@ function Form({
         greeting: clean.greeting,
         ai_disclosure: clean.ai_disclosure,
         communication_style: clean.communication_style,
-        // For a web app of the release before, which still shows the switch.
-        disclose_ai: disclosesAtStart(clean.ai_disclosure),
         business_profile: profileOf(clean),
         ...outsideToSave(clean),
         // Only when changed: putting calls through to a number waits for a confirmed email, other edits do not.

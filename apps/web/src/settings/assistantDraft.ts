@@ -121,7 +121,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
   return {
     name: a.name,
     greeting: local(a.greeting),
-    ai_disclosure: a.ai_disclosure ?? (a.disclose_ai ? 'at_start' : DEFAULT_AI_DISCLOSURE),
+    ai_disclosure: a.ai_disclosure ?? DEFAULT_AI_DISCLOSURE,
     communication_style: a.communication_style ?? DEFAULT_COMMUNICATION_STYLE,
     instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     greeting_outside: local(a.greeting_outside ?? ''),

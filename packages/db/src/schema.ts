@@ -8,7 +8,6 @@ import {
   bigint,
   boolean,
   check,
-  customType,
   foreignKey,
   date,
   index,
@@ -95,8 +94,6 @@ export const assistants = pgTable(
     workspace_id: workspaceId(),
     name: text('name').notNull().default('Maya'),
     greeting: text('greeting').notNull().default(''),
-    /** Replaced by `ai_disclosure` (0054 migrated it); kept until the release after it is gone. */
-    disclose_ai: boolean('disclose_ai').notNull().default(true),
     /** Whether and when the assistant mentions it is an AI (AI_DISCLOSURE_MODES in @linedesk/actions). */
     ai_disclosure: text('ai_disclosure', { enum: ['never', 'when_asked', 'at_start', 'at_start_consent'] })
       .notNull()
@@ -948,52 +945,6 @@ export const reply_timings = pgTable(
 )
 
 // Knowledge (docs/architecture.md, Knowledge): questions callers asked that the assistant could not answer.
-// knowledge_documents and knowledge_chunks are no longer used (documents were removed) and are dropped in a later
-// release; the documents table stays synced until then, so a web app of the release before keeps working.
-export const knowledge_documents = pgTable(
-  'knowledge_documents',
-  {
-    id: id(),
-    workspace_id: workspaceId(),
-    assistant_id: text('assistant_id')
-      .notNull()
-      .references(() => assistants.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    mime_type: text('mime_type').notNull(),
-    size_bytes: integer('size_bytes').notNull(),
-    /** Characters of text extracted; what decides whether it goes into every call or is looked up. */
-    chars: integer('chars').notNull(),
-    /** Where the original file is (the recording store in effect when it was added); null: only the text is kept. */
-    store: text('store', { enum: ['file', 's3'] }),
-    storage_key: text('storage_key'),
-    created_by: text('created_by').notNull(),
-    created_at: createdAt(),
-    version: version(),
-  },
-  t => [index('knowledge_documents_ws').on(t.workspace_id), index('knowledge_documents_assistant').on(t.assistant_id)],
-)
-
-const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' })
-
-export const knowledge_chunks = pgTable(
-  'knowledge_chunks',
-  {
-    id: id(),
-    workspace_id: workspaceId(),
-    document_id: text('document_id')
-      .notNull()
-      .references(() => knowledge_documents.id, { onDelete: 'cascade' }),
-    assistant_id: text('assistant_id').notNull(),
-    position: integer('position').notNull(),
-    text: text('text').notNull(),
-    search: tsvector('search').notNull().generatedAlwaysAs(sql`to_tsvector('english', text)`),
-  },
-  t => [
-    index('knowledge_chunks_assistant').on(t.assistant_id),
-    index('knowledge_chunks_search').using('gin', t.search),
-  ],
-)
-
 export const knowledge_questions = pgTable(
   'knowledge_questions',
   {
@@ -1195,13 +1146,6 @@ export const agent_setup_keys = pgTable(
      * the rule is on, a key without it does not work. Rows from #694's Allow step keep their own time.
      */
     passkey_confirmed_until: ts('passkey_confirmed_until'),
-    /** Unused since the one-level setup link (2026-11-15): the last request that waited for #694's Allow step. */
-    allow_request: jsonb('allow_request').$type<{
-      at: string
-      ip: string | null
-      client: string | null
-      what: string
-    }>(),
   },
   t => [index('agent_setup_keys_creator').on(t.created_by)],
 )
@@ -1432,7 +1376,6 @@ export const syncedTables = {
   webhook_endpoints,
   workspace_members,
   call_events,
-  knowledge_documents,
   knowledge_questions,
 } as const
 
