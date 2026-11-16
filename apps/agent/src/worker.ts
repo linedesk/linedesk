@@ -87,7 +87,7 @@ function bookingToolset(api: ApiClient, call: CallSession, log: CallLog): Record
   const bookingDate = z.string().describe('The day of the appointment the caller wants to change, as the caller said it, in English ("Tuesday", "the 17th", "November 17") or YYYY-MM-DD.')
   return {
     find_slots: llm.tool({
-      description: 'Look up free times for an appointment in one calendar. Say a short filler like "Let me check the calendar" in the same response.',
+      description: 'Look up free times for an appointment in one calendar.',
       parameters: z.object({
         appointment_type_id: typeId,
         calendar_id: calendarId,
@@ -147,11 +147,11 @@ function assistantTools(api: ApiClient, call: CallSession, log: CallLog, endCall
       execute: async (_, { ctx }) => endCall(ctx.speechHandle),
     }),
     flag_urgent: llm.tool({
-      description: 'Flag this call as urgent: when it is urgent by what the business wants you to know, or the caller says it is. Call it in the same response in which you tell the caller.',
+      description: 'Flag this call as urgent: when it is urgent by what the owner wants you to know, or the caller says it is. Call it in the same response in which you tell the caller.',
       execute: async (_, opts) => {
         saving(opts)
         await flagUrgent()
-        return 'The call is flagged as urgent for the team. Take a message now; do not promise a response time.'
+        return 'The call is flagged as urgent. Take a message now; do not promise a response time.'
       },
     }),
   }

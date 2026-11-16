@@ -347,7 +347,7 @@ export function closureNow(closure: Closure | null | undefined, timeZone: string
   const back = dateLabel(addDays(closure.until, 1))
   return {
     openNow: false,
-    summary: `The business is closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}, and back on ${back}. Regular hours and appointments resume then.`,
+    summary: `Closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}, back on ${back}.`,
     closure: { greeting: closure.greeting },
   }
 }
@@ -402,7 +402,7 @@ function withUpcomingClosure(
   if (!closure || closure.from <= today || closure.from > addDays(today, 14)) return hours
   return {
     ...hours,
-    summary: `${hours.summary} The business will be closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.`,
+    summary: `${hours.summary} Closed for a break from ${dateLabel(closure.from)} to ${dateLabel(closure.until)}.`,
   }
 }
 

@@ -19,6 +19,7 @@ import {
   disclosesAtStart,
   greetingWithDisclosure,
   withDisclosure,
+  withoutConsentQuestion,
   withoutDisclosure,
   DEFAULT_SILENCE_REMINDER,
   TALKING_SPEED_PCT_DEFAULT,
@@ -474,24 +475,26 @@ const STYLE_LABELS: Record<CommunicationStyle, MessageKey> = {
 }
 
 /**
- * AI disclosure, the first row of the checklist. Picking a mode that says it at the start adds the note to
- * the greeting (so the field shows what callers hear); the others take it out.
+ * AI disclosure, the first row of the checklist. Picking a mode that says it at the start writes the note (and in
+ * the consent mode the consent question) into the greeting, where the owner can edit it; the call says the greeting
+ * as saved. The other modes take them out.
  */
 function AiDisclosureRow({ draft, set }: SectionProps) {
   const t = useT()
   function pick(mode: AiDisclosure) {
+    const language = mainOf(draft)
+    const plain = withoutConsentQuestion(draft.greeting, language)
     set('ai_disclosure', mode)
     set(
       'greeting',
-      disclosesAtStart(mode)
-        ? withDisclosure(draft.greeting, draft.name, mainOf(draft))
-        : withoutDisclosure(draft.greeting, draft.name, mainOf(draft)),
+      mode === 'at_start_consent'
+        ? greetingWithDisclosure(plain, draft.name, mode, language)
+        : disclosesAtStart(mode)
+          ? withDisclosure(plain, draft.name, language)
+          : withoutDisclosure(plain, draft.name, language),
     )
   }
-  const heard =
-    disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim()
-      ? greetingWithDisclosure(draft.greeting, draft.name, draft.ai_disclosure, mainOf(draft))
-      : null
+  const heard = disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim() ? draft.greeting.trim() : null
   return (
     <SelectRow
       id="as-ai-disclosure"

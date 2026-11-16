@@ -1,7 +1,6 @@
-// The number the team calls back on. With caller ID it is the number the caller is calling from: the team has it with
-// the call, and the assistant does not ask for one. A different number counts only once get_phone_number confirmed it,
-// asked for with a reason (the caller wants to be called back elsewhere). On realtime calls the assistant asked for a
-// number although caller ID was known, and saved the one the caller made up (LIN-99).
+// The number the owner calls back on. With caller ID it is the number the caller is calling from: the owner has it with
+// the call, and the assistant has no phone step at all (on realtime calls it asked for a number although caller ID was
+// known, and saved the one the caller made up, LIN-99). Without caller ID it counts once get_phone_number confirmed it.
 import { isE164 } from '@linedesk/actions'
 import { toE164 } from './collect/collectors.ts'
 
@@ -33,17 +32,4 @@ export function hasCallbackNumber(
   { confirmed, saved, country = 'US' }: { confirmed: readonly string[]; saved: readonly string[]; country?: string },
 ): boolean {
   return !!callerId || confirmed.length > 0 || saved.some(text => phoneNumbersIn(text, country).length > 0)
-}
-
-/**
- * Why get_phone_number does not ask: with caller ID, a callback number is only asked for when the caller wants another
- * one, and the assistant says why. null: it may ask.
- */
-export function phoneStepRefusal(
-  callerId: string | null,
-  what: string,
-  reason: string | null | undefined,
-): string | null {
-  if (!callerId || reason?.trim() || !/callback|call back|call-back/i.test(what)) return null
-  return `The caller is calling from ${callerId} (caller ID), and the team has that number as the callback number: do not ask for one. Use get_phone_number for a callback number only when the caller said they want to be called back on a different number, and give that as the reason.`
 }

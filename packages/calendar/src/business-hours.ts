@@ -109,7 +109,7 @@ export function businessHoursContext(
     .sort((a, b) => a.from - b.from)
   const current = spans.find(s => s.from <= nowMs && nowMs < s.to)
   const next = spans.find(s => s.from > nowMs)
-  const hours = [`Business hours: ${weeklyLabel(weekly)}.`, upcomingLabel(exceptions, today)].filter(Boolean).join(' ')
+  const hours = [`Opening hours: ${weeklyLabel(weekly)}.`, upcomingLabel(exceptions, today)].filter(Boolean).join(' ')
   if (current) {
     return {
       timeZone,

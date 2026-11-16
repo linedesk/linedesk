@@ -234,7 +234,7 @@ export async function warmTransfer(
     const { briefing: briefingAudio, connecting } = await Promise.race([lines, tooSlow])
     const answer = await decide(session, agent, consult, briefing, signal, briefingAudio)
     if (answer !== 'yes' || signal.aborted) {
-      if (answer === 'no') farewell = "Okay, I'll take a message for the team."
+      if (answer === 'no') farewell = "Okay, I'll take a message."
       return { result: answer === 'no' ? 'declined' : 'not_answered' }
     }
     // Fail closed: a recording that cannot be stopped means no bridge; the assistant takes a message.
@@ -244,7 +244,7 @@ export async function warmTransfer(
       console.warn(
         `not putting the call through, the recording could not be stopped: ${e instanceof Error ? e.message : String(e)}`,
       )
-      farewell = "Sorry, I can't put the call through right now. The team will get a message."
+      farewell = "Sorry, I can't put the call through right now. I'll take a message."
       return { result: 'failed' }
     }
 

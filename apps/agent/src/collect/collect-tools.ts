@@ -5,8 +5,7 @@ import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
 import { describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
-import { addressCollector, dateCollector, digitsCollector, emailCollector, nameCollector, phoneCollector, todayFact } from './collectors.ts'
-import { phoneStepRefusal } from '../callback-number.ts'
+import { addressCollector, emailCollector, nameCollector, phoneCollector, todayFact } from './collectors.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
 
@@ -36,7 +35,7 @@ export type CollectContext = {
  * date, and the business hours and address when known. Anything else goes back to the assistant (hand_back).
  */
 export function stepFacts({ today, hours, address }: { today: string; hours?: string | null; address?: string | null }): string {
-  return [todayFact(today), hours && `Business hours: ${hours}`, address?.trim() && `Business address: ${address.trim()}`].filter(Boolean).join('\n')
+  return [todayFact(today), hours && `Opening hours: ${hours}`, address?.trim() && `Business address: ${address.trim()}`].filter(Boolean).join('\n')
 }
 
 /**
@@ -151,51 +150,28 @@ export function phoneStep(ctx: Pick<CollectContext, 'callerId' | 'testCall' | 'c
 export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
-      description: "Get the caller's first and last name, with the last name spelled, and confirm it.",
+      description: "Get the caller's first and last name.",
       execute: async (_args, opts) => runStep(ctx, opts, nameCollector),
     }),
-    get_phone_number: llm.tool({
-      description: ctx.callerId
-        ? "Get a phone number from the caller and confirm it. The caller's own number is known from caller ID, and the team has it as the callback number: use this for a callback number only when the caller said they want to be called back on a different number."
-        : 'Get a phone number from the caller and confirm it.',
-      parameters: z.object({
-        what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
-        reason: z
-          .string()
-          .nullish()
-          .describe('Why the caller gives a number other than the one they are calling from, in their words, e.g. "wants a call back on their work phone". Needed for a callback number when caller ID is known.'),
-      }),
-      execute: async ({ what, reason }, opts) => {
-        const label = what?.trim() || 'callback number'
-        const refusal = phoneStepRefusal(ctx.callerId ?? null, label, reason)
-        if (refusal) return refusal
-        // Only with caller ID is a callback number "another" one, and the reason worth a line for the team.
-        if (ctx.callerId && reason?.trim()) ctx.log.record('system', `Asked for another ${label}: ${reason.trim()}`)
-        return runStep(ctx, opts, phoneStep(ctx, label))
-      },
-    }),
+    // With caller ID that number is the callback number: no phone step at all (call.callerId).
+    ...(ctx.callerId
+      ? {}
+      : {
+          get_phone_number: llm.tool({
+            description: 'Get a phone number from the caller and confirm it.',
+            parameters: z.object({
+              what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
+            }),
+            execute: async ({ what }, opts) => runStep(ctx, opts, phoneStep(ctx, what?.trim() || 'callback number')),
+          }),
+        }),
     get_address: llm.tool({
-      description: 'Get the street address of a visit (US) and confirm it.',
+      description: 'Get a street address from the caller.',
       execute: async (_args, opts) => runStep(ctx, opts, addressCollector),
     }),
     get_email: llm.tool({
-      description: "Get the caller's email address, spelled, and confirm it: only when the appointment type asks for one, or the caller wants a confirmation by email.",
+      description: "Get the caller's email address: only when the appointment type asks for one, or the caller wants a confirmation by email.",
       execute: async (_args, opts) => runStep(ctx, opts, emailCollector),
-    }),
-    get_date: llm.tool({
-      description: 'Get a date from the caller (for example a preferred day or a date of birth) and confirm it.',
-      parameters: z.object({ what: z.string().describe('What the date is for, in English, e.g. "preferred day" or "callback day" (not the day itself).') }),
-      execute: async ({ what }, opts) => runStep(ctx, opts, dateCollector({ what, today: ctx.today() })),
-    }),
-    get_digits: llm.tool({
-      description: 'Get a number made of digits (an account number, a ZIP code) and confirm it.',
-      parameters: z.object({
-        what: z.string().describe('What it is, in English, e.g. "account number".'),
-        min_digits: z.number().int().min(1).max(20).describe('Fewest digits it can have.'),
-        max_digits: z.number().int().min(1).max(20).describe('Most digits it can have.'),
-      }),
-      execute: async ({ what, min_digits, max_digits }, opts) =>
-        runStep(ctx, opts, digitsCollector({ what, minDigits: Math.min(min_digits, max_digits), maxDigits: Math.max(min_digits, max_digits) })),
     }),
   }
 }

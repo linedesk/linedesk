@@ -341,7 +341,7 @@ export function greetingPlayed(session: AgentStates, maxMs = GREETING_PLAYOUT_MA
 }
 
 /** The assistant's goodbye at ASSISTANT_CALL_MAX_MINUTES. */
-export const CALL_LIMIT_LINE = "I'm sorry, we've reached the time limit for this call. I've noted everything for the team, and someone will get back to you. Goodbye!"
+export const CALL_LIMIT_LINE = "I'm sorry, we've reached the time limit for this call. I've noted everything, and someone will get back to you. Goodbye!"
 /** The goodbye when a test call from the web app reaches its limit. */
 export const TEST_CALL_LIMIT_LINE = "This test call has reached its time limit, so I'll end it now. Goodbye!"
 /** Longest wait for a fixed line (CALL_LIMIT_LINE, the closing line) to be spoken, from the start of its synthesis. */

@@ -55,7 +55,7 @@ const SLOT_RULES =
  * "1:00 PM Eastern Time" and booked at 1:00 PM Pacific.
  */
 export const zoneRule = (timeZone: string) =>
-  `All these times are in the business's time zone (${timeZone}). If the caller means another time zone, convert, and say the time in both zones; never call a time by another zone's name without converting it.`
+  `All these times are in the owner's time zone (${timeZone}). If the caller means another time zone, convert, and say the time in both zones; never call a time by another zone's name without converting it.`
 
 /** A local date and time without a zone, as models write a start they copied from a label ("2026-11-17T08:30:00"). */
 const LOCAL_TIME = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::00(?:\.0+)?)?$/
@@ -173,7 +173,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   const NAME_FIRST =
     "Before you cancel or move an appointment, get the caller's full name with get_name: they say it and confirm it. Never use a name from your notes or the greeting."
   const outOfAttempts = () => failedDescriptions >= MAX_DESCRIBE_ATTEMPTS
-  const refused = (e: unknown, what: string) => `${what} did not work (${failure(e)}). Do not guess another day or name: take a message for the team instead.`
+  const refused = (e: unknown, what: string) => `${what} did not work (${failure(e)}). Do not guess another day or name: take a message instead.`
   /**
    * The API refused the change: counted as a miss (no match, or locked out), or, with `slotTaken`, the new time
    * is not free any more, which is no miss: the caller picks another one.
@@ -183,9 +183,9 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     if (answer?.changed !== false) return null
     if (answer.slotTaken) return 'That time is not free any more. Look for slots again and offer the caller another time.'
     failedDescriptions++
-    return `That did not work (${answer.refused ?? 'no booking matches'}). Do not guess another day, name or time: take a message for the team instead.`
+    return `That did not work (${answer.refused ?? 'no booking matches'}). Do not guess another day, name or time: take a message instead.`
   }
-  const NO_MORE = 'The booking could not be found on this call. Do not try again: take a message for the team instead.'
+  const NO_MORE = 'The booking could not be found on this call. Do not try again: take a message instead.'
 
   async function cancel(said: DescribedBooking): Promise<string> {
     if (outOfAttempts()) return NO_MORE

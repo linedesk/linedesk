@@ -39,7 +39,7 @@ const fillerParams = {
  * still go through after that, so the model must not say it worked, nor that it failed for sure.
  */
 export const TOO_SLOW_REPLY =
-  'This took too long, and it is not clear whether it worked. Do not say it worked. Tell the caller you could not finish that right now, and offer to take a message so the team follows up.'
+  'This took too long, and it is not clear whether it worked. Do not say it worked. Tell the caller you could not finish that right now, and offer to take a message.'
 
 export type FillerTimes = { afterMs?: number; stillAfterMs?: number }
 /** Called when a slow tool starts (toolFiller). */

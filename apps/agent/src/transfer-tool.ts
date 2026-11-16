@@ -187,7 +187,7 @@ export async function startTransfer(
 /** The tool's description: every contact with when to put the caller through to them. */
 export function transferToolDescription(contacts: readonly Pick<Dialable, 'name' | 'condition'>[]): string {
   const list = contacts.map(c => `"${c.name}": ${c.condition}`).join('; ')
-  return `Put the caller through to a person. The contacts, with when each one takes calls: ${list}. Use it only when a contact's condition fits the call, once you know the caller's name and what they need; contacts with the same condition are tried in the owner's order by themselves. It tells the caller itself that you are trying to reach them: say nothing else in the same response.`
+  return `Put the caller through to a person. The contacts, with when each one takes calls: ${list}. Use it only when a contact's condition fits the call; contacts with the same condition are tried in the owner's order by themselves. It tells the caller itself that you are trying to reach them: say nothing else in the same response.`
 }
 
 /**

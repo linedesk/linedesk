@@ -17,7 +17,7 @@ describe('business hours for the assistant', () => {
     expect(ctx.openNow).toBe(true)
     expect(ctx.nextChangeAt).toBe('2026-11-11T02:00:00.000Z') // 6 PM Pacific
     expect(ctx.summary).toBe(
-      'Business hours: Monday to Friday 7:00 AM–6:00 PM; Saturday 8:00 AM–12:00 PM. Open now, until 6:00 PM.',
+      'Opening hours: Monday to Friday 7:00 AM–6:00 PM; Saturday 8:00 AM–12:00 PM. Open now, until 6:00 PM.',
     )
   })
 

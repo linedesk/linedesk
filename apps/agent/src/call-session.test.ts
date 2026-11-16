@@ -15,14 +15,26 @@ test('a room dispatched by the web app is a test call in the workspace of its me
 })
 
 test('anything else is a phone call, numbered by LiveKit SIP', () => {
-  expect(callOrigin('', sip, 'call-1')).toEqual({ kind: 'phone', from: '+15035550191', to: '+15035550142', room: 'call-1' })
-  for (const metadata of ['not json', '{"source":"phone"}', '{"source":"test"}', '{"source":"test","workspaceId":""}', '{"source":"test","workspaceId":7}']) {
+  expect(callOrigin('', sip, 'call-1')).toEqual({
+    kind: 'phone',
+    from: '+15035550191',
+    to: '+15035550142',
+    room: 'call-1',
+  })
+  for (const metadata of [
+    'not json',
+    '{"source":"phone"}',
+    '{"source":"test"}',
+    '{"source":"test","workspaceId":""}',
+    '{"source":"test","workspaceId":7}',
+  ]) {
     expect(callOrigin(metadata, sip, 'call-1').kind).toBe('phone')
   }
 })
 
 test('a call test may make the assistant speak only one language; an unknown one is ignored', () => {
-  const test = (extra: object) => callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', ...extra }), {}, 'test-abc')
+  const test = (extra: object) =>
+    callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', ...extra }), {}, 'test-abc')
   expect(test({ mainLanguage: 'es' })).toMatchObject({ kind: 'test', mainLanguage: 'es' })
   expect(test({ mainLanguage: 'xx' })).not.toHaveProperty('mainLanguage')
 })
@@ -34,7 +46,12 @@ test("a phone call carries what the caller's carrier said: the attestation and t
     'sip.h.x-telnyx-call-screening': 'SPAM LIKELY',
   }
   expect(callOrigin('', headers, 'call-1')).toEqual({
-    kind: 'phone', from: '+15035550191', to: '+15035550142', room: 'call-1', attestation: 'B', spamLikely: true,
+    kind: 'phone',
+    from: '+15035550191',
+    to: '+15035550142',
+    room: 'call-1',
+    attestation: 'B',
+    spamLikely: true,
   })
 })
 
@@ -43,22 +60,38 @@ test('a room that is neither is refused', () => {
 })
 
 test('a phone call without a caller ID is registered as anonymous, never under some number', () => {
-  expect(callOrigin('', { 'sip.trunkPhoneNumber': '+15035550142' }, 'call-1')).toEqual({ kind: 'phone', from: 'anonymous', to: '+15035550142', room: 'call-1' })
+  expect(callOrigin('', { 'sip.trunkPhoneNumber': '+15035550142' }, 'call-1')).toEqual({
+    kind: 'phone',
+    from: 'anonymous',
+    to: '+15035550142',
+    room: 'call-1',
+  })
   expect(callOrigin('', { ...sip, 'sip.phoneNumber': '' }, 'call-1')).toMatchObject({ from: 'anonymous' })
 })
 
-test('a test room may bring business hours to use instead of the workspace\'s; anything malformed is ignored', async () => {
+test("a test room may bring business hours to use instead of the workspace's; anything malformed is ignored", async () => {
   const closed = { openNow: false, summary: 'Closed now; opens tomorrow at 7 AM.' }
   const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: closed }), {}, 'room')
   expect(origin).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'room', businessHours: closed })
-  expect(callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: { openNow: 'no' } }), {}, 'room')).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'room' })
+  expect(
+    callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: { openNow: 'no' } }), {}, 'room'),
+  ).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'room' })
 
   // The override wins over what call.startTest reports; without one, the API's hours are used.
-  const api = (hours: unknown) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, businessHours: hours } }) }) as never
+  const api = (hours: unknown) =>
+    ({
+      run: async () => ({
+        data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, businessHours: hours },
+      }),
+    }) as never
   const fromApi = { openNow: true, summary: 'Open now, until 6 PM.' }
   expect((await startCall(api(fromApi), origin)).businessHours).toEqual(closed)
-  expect((await startCall(api(fromApi), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toEqual(fromApi)
-  expect((await startCall(api(undefined), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toBeNull()
+  expect((await startCall(api(fromApi), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours).toEqual(
+    fromApi,
+  )
+  expect(
+    (await startCall(api(undefined), { kind: 'test', workspaceId: 'ws_1', room: 'room' })).businessHours,
+  ).toBeNull()
 })
 
 test('a test room names the assistant picked in the web app, and call.startTest gets it', async () => {
@@ -81,28 +114,44 @@ test('a test room names the assistant picked in the web app, and call.startTest 
   expect(sent).toEqual([{ room: 'room', assistantId: 'as_2' }, { room: 'other' }])
 })
 
-test('the call test may pick the pipeline for its call instead of the assistant\'s; anything else is ignored', async () => {
+test("the call test may pick the pipeline for its call instead of the assistant's; anything else is ignored", async () => {
   const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'three_stage' }), {}, 'r')
   expect(origin).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'r', pipeline: 'three_stage' })
-  expect(callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'cascaded' }), {}, 'r')).toEqual({ kind: 'test', workspaceId: 'ws_1', room: 'r' })
+  expect(callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'cascaded' }), {}, 'r')).toEqual({
+    kind: 'test',
+    workspaceId: 'ws_1',
+    room: 'r',
+  })
   const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, voice_pipeline: 'realtime' }
-  const api = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }) } as never
+  const api = {
+    run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }),
+  } as never
   expect((await startCall(api, origin)).assistant?.voice_pipeline).toBe('three_stage')
-  expect((await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.voice_pipeline).toBe('realtime')
+  expect((await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.voice_pipeline).toBe(
+    'realtime',
+  )
 })
 
-test('on an install that bills usage, the call test\'s pipeline and realtime model are ignored, with a warning', async () => {
-  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'realtime', realtimeModel: 'gpt-realtime-2' }), {}, 'r')
+test("on an install that bills usage, the call test's pipeline and realtime model are ignored, with a warning", async () => {
+  const origin = callOrigin(
+    JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'realtime', realtimeModel: 'gpt-realtime-2' }),
+    {},
+    'r',
+  )
   const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, voice_pipeline: 'three_stage' }
   const api = (usageLevel: unknown) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, usageLevel } }) }) as never
+    ({
+      run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, usageLevel } }),
+    }) as never
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'log').mockImplementation(() => {})
   try {
     const billed = await startCall(api('standard'), origin)
     expect(billed.assistant?.voice_pipeline).toBe('three_stage')
     expect(billed.realtimeModel).toBeUndefined()
-    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/call test's pipeline or realtime model is ignored \(usage level standard\)/))
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/call test's pipeline or realtime model is ignored \(usage level standard\)/),
+    )
     // Self-hosted (no level): the call test picks them, as before.
     const own = await startCall(api(null), origin)
     expect(own.assistant?.voice_pipeline).toBe('realtime')
@@ -116,46 +165,90 @@ test('outside business hours the call uses the outside greeting; the call test m
   const closed = { openNow: false, summary: 'Closed now.' }
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
   const api = (hours: unknown) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours } }) }) as never
-  expect((await startCall(api(closed), { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.greeting).toBe('We are closed.')
-  expect((await startCall(api({ openNow: true, summary: 'Open.' }), { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.greeting).toBe('Hello, this is Maya.')
-  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', businessHours: closed, outsideGreeting: 'After-hours line.' }), {}, 'r')
+    ({
+      run: async () => ({
+        data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours },
+      }),
+    }) as never
+  expect((await startCall(api(closed), { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.greeting).toBe(
+    'We are closed.',
+  )
+  expect(
+    (await startCall(api({ openNow: true, summary: 'Open.' }), { kind: 'test', workspaceId: 'ws_1', room: 'r' }))
+      .assistant?.greeting,
+  ).toBe('Hello, this is Maya.')
+  const origin = callOrigin(
+    JSON.stringify({
+      source: 'test',
+      workspaceId: 'ws_1',
+      businessHours: closed,
+      outsideGreeting: 'After-hours line.',
+    }),
+    {},
+    'r',
+  )
   expect((await startCall(api(null), origin)).assistant?.greeting).toBe('After-hours line.')
 })
 
 test('the recording notice from call.start is said right after the greeting, also outside hours, when the call is recorded', async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
   const api = (recordingNotice: unknown, hours: unknown = null) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours, recordingNotice } }) }) as never
+    ({
+      run: async () => ({
+        data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours, recordingNotice },
+      }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const notice = 'This call may be recorded.'
   const opening = async (recordingNotice: unknown, hours: unknown = null, canRecord = true) =>
     announceRecording(await startCall(api(recordingNotice, hours), phone), canRecord).assistant?.greeting
   expect(await opening(notice)).toBe('Hello, this is Maya. This call may be recorded.')
-  expect(await opening(notice, { openNow: false, summary: 'Closed now.' })).toBe('We are closed. This call may be recorded.')
+  expect(await opening(notice, { openNow: false, summary: 'Closed now.' })).toBe(
+    'We are closed. This call may be recorded.',
+  )
   for (const off of [null, undefined, '  ']) expect(await opening(off)).toBe(row.greeting)
 })
 
 test('the notice comes right after the greeting, before its closing question, so the caller answers the question last', () => {
-  const maya = { id: 'as_1', greeting: 'Thanks for calling Brightwater Plumbing & Heating. This is Maya. How can I help?', business_profile: {} } as never
+  const maya = {
+    id: 'as_1',
+    greeting: 'Thanks for calling Brightwater Plumbing & Heating. This is Maya. How can I help?',
+    business_profile: {},
+  } as never
   expect(withRecordingNotice(maya, 'This call may be recorded.')?.greeting).toBe(
     'Thanks for calling Brightwater Plumbing & Heating. This is Maya. This call may be recorded. How can I help?',
   )
   const question = { id: 'as_1', greeting: 'How can I help?', business_profile: {} } as never
-  expect(withRecordingNotice(question, 'This call may be recorded.')?.greeting).toBe('How can I help? This call may be recorded.')
+  expect(withRecordingNotice(question, 'This call may be recorded.')?.greeting).toBe(
+    'How can I help? This call may be recorded.',
+  )
 })
 
 test('no recording store on this server: the notice is not said, though the workspace turned it on', async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }
   const api = (hours: unknown = null) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, businessHours: hours, recordingNotice: 'This call may be recorded.' } }) }) as never
+    ({
+      run: async () => ({
+        data: {
+          callId: 'c',
+          workspaceId: 'ws_1',
+          assistant: row,
+          contact: {},
+          businessHours: hours,
+          recordingNotice: 'This call may be recorded.',
+        },
+      }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const started = await startCall(api(), phone)
   // Registered without it: the worker adds it only once it knows it records.
   expect(started.assistant?.greeting).toBe('Hello, this is Maya.')
   expect(started.recordingNotice).toBe('This call may be recorded.')
   expect(announceRecording(started, false).assistant?.greeting).toBe('Hello, this is Maya.')
-  expect(announceRecording(await startCall(api({ openNow: false, summary: 'Closed now.' }), phone), false).assistant?.greeting).toBe('We are closed.')
+  expect(
+    announceRecording(await startCall(api({ openNow: false, summary: 'Closed now.' }), phone), false).assistant
+      ?.greeting,
+  ).toBe('We are closed.')
   // Turned on later: the saved notice applies from the next call.
   expect(announceRecording(started, true).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
 })
@@ -163,7 +256,18 @@ test('no recording store on this server: the notice is not said, though the work
 test('a call that is not recorded does not say the notice: the assistant does not record, or the workspace keeps no recordings', async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', business_profile: {} }
   const api = (assistant: unknown, keepRecording?: boolean) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, recordingNotice: 'This call may be recorded.', ...(keepRecording === undefined ? {} : { keepRecording }) } }) }) as never
+    ({
+      run: async () => ({
+        data: {
+          callId: 'c',
+          workspaceId: 'ws_1',
+          assistant,
+          contact: {},
+          recordingNotice: 'This call may be recorded.',
+          ...(keepRecording === undefined ? {} : { keepRecording }),
+        },
+      }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const opening = async (assistant: unknown, keepRecording?: boolean) =>
     announceRecording(await startCall(api(assistant, keepRecording), phone), true).assistant?.greeting
@@ -175,21 +279,48 @@ test('a call that is not recorded does not say the notice: the assistant does no
 
 test('an assistant without a greeting opens with the fallback greeting before the notice, in its main language', async () => {
   const api = (assistant: unknown) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, recordingNotice: 'This call may be recorded.' } }) }) as never
+    ({
+      run: async () => ({
+        data: {
+          callId: 'c',
+          workspaceId: 'ws_1',
+          assistant,
+          contact: {},
+          recordingNotice: 'This call may be recorded.',
+        },
+      }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
-  const opening = async (assistant: unknown) => announceRecording(await startCall(api(assistant), phone), true).assistant?.greeting
+  const opening = async (assistant: unknown) =>
+    announceRecording(await startCall(api(assistant), phone), true).assistant?.greeting
   expect(await opening({ id: 'as_1', greeting: '', business_profile: {} })).toBe(
     'Thanks for calling. This call may be recorded. How can I help?',
   )
-  const es = await opening({ id: 'as_1', greeting: '', business_profile: {}, languages: { main: 'es', mode: 'english', allowed: [] } })
+  const es = await opening({
+    id: 'as_1',
+    greeting: '',
+    business_profile: {},
+    languages: { main: 'es', mode: 'english', allowed: [] },
+  })
   expect(es).toMatch(/ Esta llamada puede ser grabada\. \S[^.]*\?$/)
   expect(es!.startsWith('Esta llamada')).toBe(false)
 })
 
-test('the default notice is said in the call\'s main language: the assistant\'s own, else the workspace language', async () => {
+test("the default notice is said in the call's main language: the assistant's own, else the workspace language", async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', business_profile: {} }
   const api = (assistant: unknown, workspaceLanguage?: string) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, recordingNotice: 'This call may be recorded.', workspaceLanguage } }) }) as never
+    ({
+      run: async () => ({
+        data: {
+          callId: 'c',
+          workspaceId: 'ws_1',
+          assistant,
+          contact: {},
+          recordingNotice: 'This call may be recorded.',
+          workspaceLanguage,
+        },
+      }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const opening = async (assistant: unknown, workspaceLanguage?: string) =>
     announceRecording(await startCall(api(assistant, workspaceLanguage), phone), true).assistant?.greeting
@@ -200,8 +331,20 @@ test('the default notice is said in the call\'s main language: the assistant\'s 
   expect(await opening(row, 'en')).toBe('Hello, this is Maya. This call may be recorded.')
   // The owner's own sentence is said as written, in every language.
   const own = 'Calls are recorded for training.'
-  const ownApi = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: { ...row, languages: { main: 'fr', mode: 'english', allowed: [] } }, contact: {}, recordingNotice: own } }) } as never
-  expect(announceRecording(await startCall(ownApi, phone), true).assistant?.greeting).toBe(`Hello, this is Maya. ${own}`)
+  const ownApi = {
+    run: async () => ({
+      data: {
+        callId: 'c',
+        workspaceId: 'ws_1',
+        assistant: { ...row, languages: { main: 'fr', mode: 'english', allowed: [] } },
+        contact: {},
+        recordingNotice: own,
+      },
+    }),
+  } as never
+  expect(announceRecording(await startCall(ownApi, phone), true).assistant?.greeting).toBe(
+    `Hello, this is Maya. ${own}`,
+  )
 })
 
 test('every request about the call after call.start goes with the call token it returned', async () => {
@@ -215,12 +358,19 @@ test('every request about the call after call.start goes with the call token it 
   const call = await startCall(api, { kind: 'phone', from: '+15035550191', to: '+15035550142' })
   await call.append('caller', 'hi')
   await call.finish({ summary: 's', outcome: 'message', urgency: 'normal' } as never)
-  expect(sent).toEqual([undefined, { workspaceId: 'ws_1', token: 'ldcall_x' }, { workspaceId: 'ws_1', token: 'ldcall_x' }])
+  expect(sent).toEqual([
+    undefined,
+    { workspaceId: 'ws_1', token: 'ldcall_x' },
+    { workspaceId: 'ws_1', token: 'ldcall_x' },
+  ])
   expect(call).toMatchObject({ workspaceId: 'ws_1', token: 'ldcall_x' })
 })
 
 test('a call over the spending cap or the calls at once is not answered, and the caller hears a line, never silence', async () => {
-  const api = (data: Record<string, unknown>) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }) }) as never
+  const api = (data: Record<string, unknown>) =>
+    ({
+      run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550142', to: '+15035550100', room: 'r' } as const
   const overCap = await startCall(api({ blocked: true, overCap: true }), phone)
   expect(overCap).toMatchObject({ blocked: true, overCap: true, busy: false })
@@ -238,7 +388,10 @@ test('a call over the spending cap or the calls at once is not answered, and the
 })
 
 test('the usage level call.start decided reaches the call; an install without billing (or an older API) sends none', async () => {
-  const api = (data: Record<string, unknown>) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }) }) as never
+  const api = (data: Record<string, unknown>) =>
+    ({
+      run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact: {}, ...data } }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550142', to: '+15035550100', room: 'r' } as const
   expect((await startCall(api({ usageLevel: 'premium' }), phone)).usageLevel).toBe('premium')
   // Nothing the workspace may use is set up: the worker declines the call (notAllowedReason), it never runs unpriced.
@@ -247,27 +400,60 @@ test('the usage level call.start decided reaches the call; an install without bi
 })
 
 test('the contact call.start matched reaches the instructions with its note; a withheld number brings none', async () => {
-  const api = (contact: unknown) => ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact } }) }) as never
+  const api = (contact: unknown) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: null, contact } }) }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
-  const known = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'member', note: 'Prefers mornings.' }), phone)
-  expect(buildInstructions(known.assistant, known.businessHours, known.booking, [], known.caller)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
+  const known = await startCall(
+    api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'member', note: 'Prefers mornings.' }),
+    phone,
+  )
+  expect(buildInstructions(known.assistant, known.businessHours, known.booking, [], known.caller)).toContain(
+    '<caller_notes>Prefers mornings.</caller_notes>',
+  )
   // A name only a caller gave: the notes go in too (no name check).
-  const unconfirmed = await startCall(api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'caller', note: 'Prefers mornings.' }), phone)
-  expect(buildInstructions(unconfirmed.assistant, unconfirmed.businessHours, unconfirmed.booking, [], unconfirmed.caller)).toContain('<caller_notes>Prefers mornings.</caller_notes>')
+  const unconfirmed = await startCall(
+    api({ id: 'ct_1', name: 'Dana Ortiz', name_source: 'caller', note: 'Prefers mornings.' }),
+    phone,
+  )
+  expect(
+    buildInstructions(unconfirmed.assistant, unconfirmed.businessHours, unconfirmed.booking, [], unconfirmed.caller),
+  ).toContain('<caller_notes>Prefers mornings.</caller_notes>')
   const withheld = await startCall(api(null), { ...phone, from: 'anonymous' })
-  expect(buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, [], withheld.caller)).not.toContain('caller_notes')
+  expect(
+    buildInstructions(withheld.assistant, withheld.businessHours, withheld.booking, [], withheld.caller),
+  ).not.toContain('caller_notes')
 })
 
 test('a returning phone caller hears the usual greeting; their history reaches the prompt, a withheld number brings none', async () => {
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', business_profile: {} }
-  const callerHistory = { recentCalls: [{ when: 'Tuesday, November 3', title: 'Leak', summary: null, outcome: 'message', openSteps: [] }], upcomingBookings: [] }
+  const callerHistory = {
+    recentCalls: [{ when: 'Tuesday, November 3', title: 'Leak', summary: null, outcome: 'message', openSteps: [] }],
+    upcomingBookings: [],
+  }
   const api = (assistant: unknown, contact: unknown, history: unknown) =>
-    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact, callerHistory: history, recordingNotice: 'This call may be recorded.' } }) }) as never
+    ({
+      run: async () => ({
+        data: {
+          callId: 'c',
+          workspaceId: 'ws_1',
+          assistant,
+          contact,
+          callerHistory: history,
+          recordingNotice: 'This call may be recorded.',
+        },
+      }),
+    }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const linda = { id: 'ct_1', name: 'Linda Park', name_source: 'member', note: null, phone: phone.from }
   const known = announceRecording(await startCall(api(row, linda, callerHistory), phone), true)
   expect(known.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
-  expect(known.caller).toEqual({ name: 'Linda Park', note: null, phone: phone.from, nameConfirmed: true, history: callerHistory })
+  expect(known.caller).toEqual({
+    name: 'Linda Park',
+    note: null,
+    phone: phone.from,
+    nameConfirmed: true,
+    history: callerHistory,
+  })
   // A name only a caller gave (or an API of an older version, without name_source): the history goes in all the same;
   // nameConfirmed is only for a transfer's briefing.
   for (const name_source of ['caller', undefined]) {
@@ -275,7 +461,10 @@ test('a returning phone caller hears the usual greeting; their history reaches t
     expect(unconfirmed.caller).toMatchObject({ name: 'Linda Park', nameConfirmed: false, history: callerHistory })
   }
   // An assistant row of the release before still carries the old text for returning callers: not said.
-  const older = announceRecording(await startCall(api({ ...row, greeting_known_caller: 'Welcome back, {first_name}!' }, linda, callerHistory), phone), true)
+  const older = announceRecording(
+    await startCall(api({ ...row, greeting_known_caller: 'Welcome back, {first_name}!' }, linda, callerHistory), phone),
+    true,
+  )
   expect(older.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
   const withheld = await startCall(api(row, null, null), { ...phone, from: 'anonymous' })
   expect(withheld.caller).toBeNull()
@@ -293,7 +482,7 @@ test('a public demo call says it is a demo right after the greeting; other test 
   const row = {
     id: 'as_1',
     name: 'Maya',
-    greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya. How can I help?',
+    greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help?',
     ai_disclosure: 'at_start',
     business_profile: {},
   }
@@ -334,10 +523,25 @@ test("the time limit: two minutes for a public demo call, five for a test call, 
 
 describe('a public demo call in the language the visitor picked (mainLanguage in the room metadata)', () => {
   beforeAll(() => initializeLogger({ pretty: false, level: 'fatal' }))
-  const row = { id: 'as_1', name: 'Maya', greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya. How can I help?', ai_disclosure: 'at_start', business_profile: {} }
-  const api = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }) } as never
+  const row = {
+    id: 'as_1',
+    name: 'Maya',
+    greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help?',
+    ai_disclosure: 'at_start',
+    business_profile: {},
+  }
+  const api = {
+    run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }),
+  } as never
   const demoCall = (extra: object) => {
-    const metadata = JSON.stringify({ source: 'test', workspaceId: 'ws_1', assistantId: 'as_1', simulateTransfer: true, demo: true, ...extra })
+    const metadata = JSON.stringify({
+      source: 'test',
+      workspaceId: 'ws_1',
+      assistantId: 'as_1',
+      simulateTransfer: true,
+      demo: true,
+      ...extra,
+    })
     return startCall(api, callOrigin(metadata, {}, 'demo-abc') as never)
   }
   const env = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -346,9 +550,15 @@ describe('a public demo call in the language the visitor picked (mainLanguage in
   test('English (no mainLanguage): English Flux, the English greeting and lines, no other language', async () => {
     const stages = await configFromEnv(env)
     const call = await demoCall({})
-    expect(call.assistant?.greeting).toBe('Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help? This is a two-minute demo.')
+    expect(call.assistant?.greeting).toBe(
+      'Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help? This is a two-minute demo.',
+    )
     expect(callLimitOf(call, spokenLines('en')).line).toBe(demoLines('en').limit)
-    const languages = callLanguagesOf(call.assistant?.languages, callVoicesOf(stages.tts, call.assistant?.voice), stages.stt)
+    const languages = callLanguagesOf(
+      call.assistant?.languages,
+      callVoicesOf(stages.tts, call.assistant?.voice),
+      stages.stt,
+    )
     expect(languages).toEqual({ main: 'en', others: [] })
     expect(deepgramChoice('flux-general-en', languages)).toEqual({ protocol: 'flux', model: 'flux-general-en' })
     expect(sttModel(createPipeline(stages, null, undefined, languages))).toBe(stages.stt.model)

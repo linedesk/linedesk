@@ -33,17 +33,17 @@ const summarySchema = z.object({
 
 /** The system prompt; `language` is the team's (the workspace language): what the title, summary and items are written in. */
 export function summarySystem(language = 'en'): string {
-  return `You summarize a phone call between a business's assistant and a caller for the business owner's inbox.
+  return `You summarize a phone call between an AI assistant and a caller, for the owner's inbox.
 Answer with one JSON object and nothing else:
 {
   "title": short headline of what the call is about, at most 8 words, no caller name,
   "summary": one or two sentences with the facts the owner needs,
   "outcome": one of ${outcome.options.join(', ')},
   "urgency": one of ${urgency.options.join(', ')},
-  "action_items": things the owner still has to do, each a short imperative sentence, [] if none; each request the caller left for the team is one item, with the details it needs,
+  "action_items": things the owner still has to do, each a short imperative sentence, [] if none; each request the caller left is one item, with the details it needs,
   "caller_name": the caller's name if they gave it, else null
 }
-Outcomes: "booked" when the assistant booked an appointment, "message" when the caller left a message or a request for the team, "callback" when the caller expects a call back, "answered" when the question was fully answered, "transferred" when the caller was put through to a person, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. A caller who said what they wanted and then gave up or hung up before anything was saved is "callback", with an action item to call them back about it (with their name and number if they gave them), never "hangup". Use "urgent" only for emergencies.
+Outcomes: "booked" when the assistant booked an appointment, "message" when the caller left a message or a request, "callback" when the caller expects a call back, "answered" when the question was fully answered, "transferred" when the caller was put through to a person, "hangup" when the caller said nothing or left right away, "spam" for sales and robocalls. A caller who said what they wanted and then gave up or hung up before anything was saved is "callback", with an action item to call them back about it (with their name and number if they gave them), never "hangup". Use "urgent" only for emergencies.
 ${languageRule(language)}
 Lines starting with "system:" are tools the assistant used. Messages the assistant already saved are listed after the transcript: they are action items already, never repeat or rephrase them in "action_items".
 The details the caller gave when the assistant asked for them (name, phone number, address, email, date) are listed after the transcript too. Use them exactly as listed, and say when one is not confirmed. Never write a phone number that is not listed there: the transcript can hold numbers that were heard wrong.`
@@ -62,7 +62,7 @@ const formatTranscript = (lines: TranscriptLine[]) => lines.map(l => `${l.speake
  * What the summary is told when there is no number to call back on (no caller ID, none given): no item asks the owner
  * to call back, and a missing number is not a next step either (Tim, 2026-11-16); the summary says it.
  */
-const NO_CALLBACK_NOTE = 'The team has no number to call this caller back on (no caller ID, and the caller gave none): never write an action item to call them back. Write the action items about what the caller wants, and say in the summary that the caller left no number.'
+const NO_CALLBACK_NOTE = 'There is no number to call this caller back on (no caller ID, and the caller gave none): never write an action item to call them back. Write the action items about what the caller wants, and say in the summary that the caller left no number.'
 
 /** One listed detail: "- callback number: +15035550191" or "- address (not confirmed): 22 Oak St". */
 const detailLine = (d: CollectedDetail) => `- ${d.label}${d.confirmed ? '' : ' (not confirmed)'}: ${d.value}`

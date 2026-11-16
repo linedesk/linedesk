@@ -283,12 +283,12 @@ test("the instance admin's wording replaces only its part; one without the defau
   const withOverrides: Setup = [...setup]
   withOverrides[10] = {
     'rules.spam': 'Spam: hang up politely.',
-    'call.callerIdReadBack': 'Number: {number}.',
+    'call.callerId': 'Number: {number}.',
     'role.intro': 'You are an assistant.',
   }
   const edited = buildInstructions(...withOverrides)
   // The caller ID part around its {number}, as the default says it.
-  const [head, tail] = PROMPT_TEXTS['call.callerIdReadBack'].text.split('{number}') as [string, string]
+  const [head, tail] = PROMPT_TEXTS['call.callerId'].text.split('{number}') as [string, string]
   const start = before.indexOf(head)
   const end = before.indexOf(tail, start) + tail.length
   const number = before.slice(start + head.length, end - tail.length)

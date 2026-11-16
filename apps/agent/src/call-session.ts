@@ -17,7 +17,6 @@ import {
   type ReportVoiceFailureData,
   callStart,
   callStartTest,
-  DEFAULT_AI_DISCLOSURE,
   ASSISTANT_CALL_DEFAULT_MINUTES,
   type PromptOverrides,
   type UsageLevel,
@@ -25,7 +24,6 @@ import {
   DEMO_CALL_MAX_SECONDS,
   demoLines,
   type SpokenLines,
-  greetingWithDisclosure,
   withSentenceBeforeQuestion,
   type Language,
   languageCodes,
@@ -205,16 +203,6 @@ export function callerOf(
     nameConfirmed,
     history: history ?? null,
     ...(testCall ? { testCall } : {}),
-  }
-}
-
-/** The greeting with the AI note when the assistant says it at the start; an API of an older version sends no mode. */
-export function withAiNote(assistant: Assistant | null): Assistant | null {
-  if (!assistant?.greeting) return assistant
-  const mode = assistant.ai_disclosure ?? DEFAULT_AI_DISCLOSURE
-  return {
-    ...assistant,
-    greeting: greetingWithDisclosure(assistant.greeting, assistant.name, mode, mainLanguageOf(assistant.languages)),
   }
 }
 
@@ -436,11 +424,11 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
         }
       : own
   // The greeting and instructions that apply now: outside business hours, the outside variants.
-  // …with the AI note (and in the consent mode the question) the owner chose for the start of the call.
+  // The greeting is said as the owner saved it; the prompt has the AI note said next if it does not say it.
   // The recording notice is added later, once it is known that the call is recorded (announceRecording).
   // A public demo call says that it is one right after the greeting.
   const demo = origin.kind === 'test' && origin.demo === true
-  const greeted = withAiNote(forHours(inMainLanguage(configured), businessHours))
+  const greeted = forHours(inMainLanguage(configured), businessHours)
   const assistant = demo ? withDemoOpening(greeted) : greeted
   // A test room (the web app's test call, a call test): there is no caller ID, and the prompt says so (B4).
   const played = origin.kind === 'test' ? origin.caller : undefined

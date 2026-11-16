@@ -798,7 +798,6 @@
   "prompt.when.aiNever": "Quando o assistente não diz por conta própria que é uma IA",
   "prompt.when.booking": "Quando o assistente pode marcar agendamentos",
   "prompt.when.callerId": "Quando o número de quem liga é conhecido",
-  "prompt.when.callerIdReadBack": "Quando o número de quem liga é conhecido e o proprietário quer números confirmados",
   "prompt.when.changeBookings": "Quando quem liga pode cancelar ou remarcar agendamentos",
   "prompt.when.changeListed": "Quando os agendamentos de quem liga estão listados",
   "prompt.when.changeListedChecked": "Quando os agendamentos de quem liga estão listados e o nome é verificado",

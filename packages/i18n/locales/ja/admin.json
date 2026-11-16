@@ -798,7 +798,6 @@
   "prompt.when.aiNever": "アシスタントが自分からAIだと言わない場合",
   "prompt.when.booking": "アシスタントが予約できる場合",
   "prompt.when.callerId": "発信者の番号がわかっている場合",
-  "prompt.when.callerIdReadBack": "発信者の番号がわかっていて、オーナーが番号の確認を求める場合",
   "prompt.when.changeBookings": "発信者が予約をキャンセルまたは変更できる場合",
   "prompt.when.changeListed": "発信者の予約が一覧にある場合",
   "prompt.when.changeListedChecked": "発信者の予約が一覧にあり、名前が確認済みの場合",

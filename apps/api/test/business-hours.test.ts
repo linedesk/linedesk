@@ -71,7 +71,7 @@ describe('business hours', () => {
       weekly: weekdays,
       openNow: expect.any(Boolean),
       summary: expect.stringMatching(
-        /^Business hours: Monday to Friday 7:00 AM–6:00 PM\. (Open now|Closed now)/,
+        /^Opening hours: Monday to Friday 7:00 AM–6:00 PM\. (Open now|Closed now)/,
       ),
     })
     // Turned off again: nothing about hours, though they stay saved.

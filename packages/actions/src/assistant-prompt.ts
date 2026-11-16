@@ -191,8 +191,9 @@ function aiAppositive(language: Language): string {
 export const AI_CONSENT_QUESTION = 'Is that okay with you?'
 
 /**
- * The greeting as said on the call: with the AI note when the mode says so at the start, and in the consent
- * mode ending with the consent question instead of its own closing question ("How can I help?").
+ * The greeting with the AI note when the mode says so at the start, and in the consent mode ending with the
+ * consent question instead of its own closing question ("How can I help?"). The settings write it into the
+ * greeting field when the owner picks the mode; the call says the saved greeting as written.
  */
 export function greetingWithDisclosure(
   greeting: string,
@@ -206,6 +207,18 @@ export function greetingWithDisclosure(
   const sentences = noted.match(SENTENCE)?.map(s => s.trim()) ?? [noted]
   const kept = /[?？]$/.test(sentences.at(-1) ?? '') && sentences.length > 1 ? sentences.slice(0, -1) : sentences
   return `${kept.join(' ')} ${spokenLines(language).consentQuestion}`
+}
+
+/**
+ * The greeting without the consent question at its end: the default greeting's closing question ("How can I help?")
+ * takes its place again. Used when the owner leaves the consent mode.
+ */
+export function withoutConsentQuestion(greeting: string, language: Language = 'en'): string {
+  const lines = spokenLines(language)
+  const trimmed = greeting.trim()
+  if (!trimmed.endsWith(lines.consentQuestion)) return greeting
+  const closing = lines.greeting('B', 'N', false).match(SENTENCE)?.at(-1)?.trim() ?? ''
+  return `${trimmed.slice(0, -lines.consentQuestion.length).trim()} ${closing}`.trim()
 }
 
 /**
@@ -250,11 +263,10 @@ export function aiDisclosureInstructions(
     case 'when_asked':
       return pt('ai.whenAsked')
     case 'at_start':
-      // The greeting said it; the model has the greeting as its first message (LIN-130).
-      return pt('ai.whenAsked')
+      // The greeting is the owner's own text, said as written: the model says it next if the greeting did not.
+      return `${pt('ai.atStart')} ${pt('ai.whenAsked')}`
     case 'at_start_consent':
-      // The greeting asked AI_CONSENT_QUESTION; the model has it as its first message (LIN-130).
-      return `${pt('ai.consent')} ${pt('ai.whenAsked')}`
+      return `${pt('ai.atStartConsent')} ${pt('ai.consent')} ${pt('ai.whenAsked')}`
   }
 }
 

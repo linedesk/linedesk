@@ -798,7 +798,6 @@
   "prompt.when.aiNever": "Wenn der Assistent nicht von sich aus sagt, dass er eine KI ist",
   "prompt.when.booking": "Wenn der Assistent Termine buchen kann",
   "prompt.when.callerId": "Wenn die Nummer des Anrufers bekannt ist",
-  "prompt.when.callerIdReadBack": "Wenn die Nummer des Anrufers bekannt ist und der Inhaber Nummern bestätigen lassen will",
   "prompt.when.changeBookings": "Wenn Anrufer Termine absagen oder verschieben können",
   "prompt.when.changeListed": "Wenn die Termine des Anrufers aufgelistet sind",
   "prompt.when.changeListedChecked": "Wenn die Termine des Anrufers aufgelistet sind und der Name geprüft wird",

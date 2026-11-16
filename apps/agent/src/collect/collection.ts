@@ -164,14 +164,14 @@ export const TEST_CALL_NO_NUMBER = 'test call, no caller ID'
 export function describeOutcome(outcome: CollectOutcome, { callerId, testCall = false }: { callerId?: string | null; testCall?: boolean } = {}): string {
   switch (outcome.status) {
     case 'confirmed':
-      return `The caller confirmed the ${outcome.label}: ${outcome.value}. The team gets it with the call; use exactly this in a booking, and do not ask for it again.`
+      return `The caller confirmed the ${outcome.label}: ${outcome.value}. The owner gets it with the call; use exactly this in a booking, and do not ask for it again.`
     case 'incomplete':
       return `Could not get a confirmed ${outcome.label}${outcome.partial ? `; best guess (not confirmed): ${outcome.partial}` : ''}. Tell the caller you will note what you have and someone will call them back, and do not ask for it again.`
     case 'declined':
       if (!callerId && testCall && isCallbackNumber(outcome.label))
         return `This is a test call from the app, with no caller ID: there is no ${outcome.label} to get (${outcome.reason}). Do not ask for it again; go on.`
       if (!callerId && isCallbackNumber(outcome.label))
-        return `The caller did not give the ${outcome.label} (${outcome.reason}). Tell the caller the team cannot call back without a number, and ask once more.`
+        return `The caller did not give the ${outcome.label} (${outcome.reason}). Tell the caller nobody can call them back without a number, and ask once more.`
       return `The caller did not want to give the ${outcome.label} (${outcome.reason}). Go on without it.`
     case 'question':
       return `While you were getting the ${outcome.label}, the caller asked: "${outcome.question}". Answer that now, in a sentence or two${outcome.partial ? ` (heard so far, not confirmed: ${outcome.partial})` : ''}. Then, if you still need the ${outcome.label}, get it again with the same tool.`

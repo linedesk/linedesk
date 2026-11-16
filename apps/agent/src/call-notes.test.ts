@@ -44,7 +44,7 @@ test('the notes list the name, number, reason, details, bookings and messages, v
       '- "Address": "12 Oak St"',
       '- "Unit": "4B" (not confirmed yet)',
       '- Booked: "Tue 9am estimate"',
-      '- Message taken for the team: "Call back about the quote"',
+      '- Message taken: "Call back about the quote"',
       '- Marked urgent',
     ].join('\n'),
   )

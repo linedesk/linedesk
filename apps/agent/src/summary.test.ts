@@ -144,7 +144,7 @@ test('without a callback number (no caller ID, none given) no action item says "
   expect(complete.mock.calls.length).toBe(1)
 })
 
-// No take_message tool: the summary writes the team's next step, from the details the collection steps got.
+// No take_message tool: the summary writes the owner's next step, from the details the collection steps got.
 test('the LLM is given the details the caller gave, marked when not confirmed, and told to use only those numbers', async () => {
   const complete = vi.fn<CompleteJson>(async () => JSON.stringify(llmAnswer))
   const details = [
@@ -155,7 +155,7 @@ test('the LLM is given the details the caller gave, marked when not confirmed, a
   await summarizeCall(transcript, complete, [], 'en', { details })
   const [system, user] = complete.mock.calls[0]!
   expect(system).toContain('Never write a phone number that is not listed there')
-  expect(system).toContain('each request the caller left for the team is one item')
+  expect(system).toContain('each request the caller left is one item')
   expect(user).toContain('Details the caller gave:\n- name: Dana Reyes\n- callback number: +15035550183\n- address (not confirmed): 22 Oak St')
 })
 

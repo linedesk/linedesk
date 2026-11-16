@@ -66,7 +66,7 @@ function hoursContext(hours: BusinessHours | null | undefined, canBook: boolean,
  */
 export function cannotInstructions({ booking, transfer, lookup }: { booking: boolean; transfer: boolean; lookup: boolean }, pt: PromptTexts = defaultPromptTexts): string | null {
   const missing = [
-    ...(booking ? [] : [pt('cannot.book'), pt('cannot.sendOut')]),
+    ...(booking ? [] : [pt('cannot.book')]),
     ...(transfer ? [] : [pt('cannot.transfer')]),
     ...(lookup ? [] : [pt('cannot.lookup')]),
   ]
@@ -260,16 +260,15 @@ export function callerHistoryInstructions(caller: CallerContext | null | undefin
 /** On a test call from the app there is no caller ID: the owner trying it says "the number I'm calling from". */
 export const TEST_CALL_CALLER_ID = PROMPT_TEXTS['call.testCall'].text
 
-/** `readBack`: the owner's "Confirm the callback number" switch is on, so the number is read back once (behaviourLines). */
 /**
  * `keepNameBack`: the owner's "Ask for the booking name before changing an appointment" switch is on and the caller
  * can cancel or move an appointment, which the server checks by day and booked name; then the assistant never says
  * the contact's name first.
  */
-export function callerIdInstructions(caller: CallerContext | null | undefined, { readBack = false, keepNameBack = false } = {}, pt: PromptTexts = defaultPromptTexts): string {
+export function callerIdInstructions(caller: CallerContext | null | undefined, { keepNameBack = false } = {}, pt: PromptTexts = defaultPromptTexts): string {
   const phone = isE164(caller?.phone) ? caller.phone : null
   if (!phone) return withSentence(pt('call.unknownNumber'), caller?.testCall ? pt('call.testCall') : null)
-  const callerId = pt(readBack ? 'call.callerIdReadBack' : 'call.callerId', { number: displayNumber(phone) })
+  const callerId = pt('call.callerId', { number: displayNumber(phone) })
   const name = caller?.name?.trim()
   if (!name) return callerId
   const contact = pt('call.savedContact', { caller: quotedData(name, CALLER_NAME_MAX), callerId })
@@ -309,8 +308,8 @@ export function languageInstructions(assistant: Pick<Assistant, 'languages'> | n
     return `${only} ${teamRule} ${pt('language.spoken')}`
   }
   return [
-    pt('language.several', { main: mainName, others: languageNames(others) }),
-    pt('language.other', { main: mainName, all: languageNames([main, ...others], 'or') }),
+    pt('language.several', { main: mainName, all: languageNames([main, ...others]) }),
+    pt('language.other', { main: mainName }),
     teamRule,
     pt('language.spoken'),
   ].join(' ')
@@ -347,7 +346,7 @@ export function spokenLanguageRule(assistant: Pick<Assistant, 'languages'> | nul
 }
 
 /**
- * The date and time where the business is, when the call starts ("Thursday, November 12, 2026, 1:31 PM"), so the
+ * The date and time in the workspace time zone when the call starts ("Thursday, November 12, 2026, 1:31 PM"), so the
  * assistant can say what day it is and work out "tomorrow". null without a time zone (an older API).
  */
 export function clockInstructions(timeZone: string | null | undefined, now: number, pt: PromptTexts = defaultPromptTexts): string | null {
@@ -391,7 +390,8 @@ export function buildInstructions(
   // The booking context carries the business's time zone too, so a call that can book always has the clock line.
   const clock = clockInstructions(timeZone ?? booking?.timeZone, now, pt)
   return [
-    pt('role.intro', { name }),
+    // Right after who the assistant is: a later place let off-topic requests through (LLM tests, 2026-11-16).
+    `${pt('role.intro', { name })}\n${pt('role.scope')}`,
     languageInstructions(assistant, teamLanguage, pt),
     // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
     aiDisclosureInstructions(assistant?.ai_disclosure, pt),
@@ -416,7 +416,7 @@ export function buildInstructions(
     pt('call.heading'),
     clock,
     hoursContext(hours, !!booking, pt),
-    callerIdInstructions(caller, { readBack: behaviourOn(assistant?.behaviours, 'confirm_number'), keepNameBack: nameChecked && !!booking && canChangeBookings(booking) }, pt),
+    callerIdInstructions(caller, { keepNameBack: nameChecked && !!booking && canChangeBookings(booking) }, pt),
     transfer ? transferInstructions(pt) : heldTransferInstructions(heldTransferContacts(assistant, hours), pt),
     callerNotesInstructions(caller, pt),
     callerDetailsInstructions(callerDetails, pt),

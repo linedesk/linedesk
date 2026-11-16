@@ -35,7 +35,7 @@ export function callNotesOf(log: NotesSource): string | null {
       .filter(d => d.value.trim())
       .map(d => `- ${q(d.label)}: ${q(d.value)}${d.confirmed ? '' : ' (not confirmed yet)'}`),
     ...log.bookings.map(b => `- Booked: ${q(b)}`),
-    ...log.messages.map(m => `- Message taken for the team: ${q(m)}`),
+    ...log.messages.map(m => `- Message taken: ${q(m)}`),
     ...(log.urgent ? ['- Marked urgent'] : []),
   ]
   return notes.length ? [CALL_NOTES_HEADING, ...notes].join('\n') : null

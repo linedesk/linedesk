@@ -30,12 +30,12 @@ test('wrong_* before any caller turn is refused and does not use up a try', () =
   expect(step.attemptsLeft).toBe(MAX_ATTEMPTS - 1)
 })
 
-test('a declined callback number without caller ID: the assistant says the team cannot call back, and asks once more', () => {
+test('a declined callback number without caller ID: the assistant says nobody can call back, and asks once more', () => {
   const step = new Collection(phoneCollector())
   step.heardCaller()
   const outcome = step.decline("doesn't want to say").outcome!
   expect(describeOutcome(outcome)).toBe(
-    "The caller did not give the callback number (doesn't want to say). Tell the caller the team cannot call back without a number, and ask once more.",
+    "The caller did not give the callback number (doesn't want to say). Tell the caller nobody can call them back without a number, and ask once more.",
   )
   // With caller ID the team has a number: go on without the other one.
   expect(describeOutcome(outcome, { callerId: '+15035550142' })).toMatch(/Go on without it\.$/)

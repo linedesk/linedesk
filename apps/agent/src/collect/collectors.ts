@@ -1,10 +1,9 @@
 // What each collection step asks for, how it checks what the caller said and how it reads it back.
 // Ported from LiveKit's Python ready-made tasks (beta/workflows: GetPhoneNumberTask, GetNameTask,
-// GetEmailTask, GetAddressTask, GetDOBTask): the same prompts and checks, but the
+// GetEmailTask, GetAddressTask): the same prompts and checks, but the
 // normalizing of spoken input is done in code (spoken.ts), so it is the same on every model.
 import { callingCodeOf, isPhoneCountry, phoneCountryName, phoneFromDigits, phoneGroups, phonePlaceholder } from '@linedesk/actions'
 import { z } from 'zod'
-import { resolveDay } from '../spoken-day.ts'
 import { capitalizeName, readDigits, readLetters, spokenDigits, spokenEmail, spokenLetters } from './spoken.ts'
 
 /** Not ok: `problem` says what to do; `ask` marks a question back to the caller (which of two days), not a wrong value. */
@@ -30,29 +29,6 @@ export interface Collector<Args extends Record<string, unknown>, T> {
 
 const ok = <T>(value: T): Parsed<T> => ({ ok: true, value })
 const problem = (text: string): Parsed<never> => ({ ok: false, problem: text })
-
-// ---------- digits (account, ZIP, policy number) ----------
-
-export type DigitsOptions = { what: string; minDigits: number; maxDigits: number }
-
-export function digitsCollector({ what, minDigits, maxDigits }: DigitsOptions): Collector<{ digits: string }, string> {
-  const length = minDigits === maxDigits ? `${minDigits} digits` : `${minDigits} to ${maxDigits} digits`
-  return {
-    kind: 'digits',
-    label: what,
-    parameters: z.object({ digits: z.string().describe(`The ${what} as the caller said or typed it (${length}).`) }),
-    parse({ digits }) {
-      const plain = spokenDigits(digits).replace('+', '')
-      if (!plain) return problem(`No digits heard. Ask for the ${what} again.`)
-      if (plain.length < minDigits || plain.length > maxDigits) return problem(`That is ${plain.length} digits; the ${what} has ${length}. Ask again.`)
-      return ok(plain)
-    },
-    display: d => d,
-    readBack: d => readDigits(d, d.length > 4 ? [3, 3] : []),
-    instructions: `You collect the ${what} (${length}). Callers say digits as words ("five oh three"), in groups, or with "double". Pass what they said as it is; the tool turns it into digits.`,
-    ask: `Ask for the ${what}.`,
-  }
-}
 
 // ---------- phone number (E.164, in the workspace's country by default) ----------
 
@@ -129,7 +105,7 @@ export function phoneCollector(what = 'callback number', country = 'US'): Collec
     display: e164 => e164,
     readBack: e164 => readBackPhone(e164, country),
     instructions: home
-      ? `You collect the caller's ${what}. The business is in ${phoneCountryName(country)}: callers give numbers the way they are written there${example ? `, like ${example}` : ''}, with the leading 0, or a number from another country with + or 00 and its country code. Callers say digits as words in their language, in groups, or with "double". Pass the digits as numerals (0-9), with a leading + when they gave a country code; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`
+      ? `You collect the caller's ${what}. The owner is in ${phoneCountryName(country)}: callers give numbers the way they are written there${example ? `, like ${example}` : ''}, with the leading 0, or a number from another country with + or 00 and its country code. Callers say digits as words in their language, in groups, or with "double". Pass the digits as numerals (0-9), with a leading + when they gave a country code; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`
       : US_PHONE_INSTRUCTIONS(what),
     ask: `Ask for the ${what}.`,
   }
@@ -168,7 +144,7 @@ export const nameCollector: Collector<{ first_name: string; last_name: string; l
   display: n => `${n.first} ${n.last}`,
   readBack: n => `${n.first} ${n.last}, last name spelled ${readLetters(n.last)}`,
   instructions:
-    'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the business\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
+    'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the owner\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
   ask: 'Ask for their first and last name (if they already said it, ask them to spell the last name).',
 }
 
@@ -248,13 +224,11 @@ export const addressCollector: Collector<
   readBack: a =>
     `${a.street}${a.unit ? `, ${a.unit}` : ''}, ${a.city}, ${STATE_NAMES[a.state] ?? a.state}${a.zip ? `, ZIP ${readDigits(a.zip)}` : ''}`,
   instructions:
-    'You collect the street address of the visit (US format: number and street, unit if any, city, state, ZIP). Pass numbers as digits. If something is unclear, ask for the parts in order: street, unit, city and state, ZIP. Read ordinal street names in words ("Twenty-Third Avenue"). If a street name sounds unusual, ask the caller to spell it. Only an address the caller said counts: never fill in an example or placeholder (like 123 Main Street); if you have none, ask for it.',
-  ask: 'Ask for the address of the visit, including the ZIP code.',
+    'You collect a street address (US format: number and street, unit if any, city, state, ZIP). Pass numbers as digits. If something is unclear, ask for the parts in order: street, unit, city and state, ZIP. Read ordinal street names in words ("Twenty-Third Avenue"). If a street name sounds unusual, ask the caller to spell it. Only an address the caller said counts: never fill in an example or placeholder (like 123 Main Street); if you have none, ask for it.',
+  ask: 'Ask for the address, including the ZIP code.',
 }
 
 // ---------- date ----------
-
-export type DateOptions = { what: string; today: string; notBefore?: string; notAfter?: string }
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
 
@@ -290,33 +264,4 @@ export function parseDate(said: string, today: string): string | null {
  */
 export function todayFact(today: string): string {
   return `Today is ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.`
-}
-
-/** "next Tuesday afternoon" → "next Tuesday": the date step collects the day; a time of day said with it is not part of it. */
-const withoutTimeOfDay = (said: string) => said.replace(/\s+(?:in the\s+)?(?:morning|afternoon|evening|night)\s*$/i, '').trim()
-
-export function dateCollector({ what, today, notBefore, notAfter }: DateOptions): Collector<{ date: string }, string> {
-  return {
-    kind: 'date',
-    label: what,
-    parameters: z.object({
-      date: z
-        .string()
-        .describe(`The ${what} in the caller's words ("next Tuesday", "the 15th", "1/15/90"), or YYYY-MM-DD once the caller picked one of two days you offered.`),
-    }),
-    // The same day words as the booking tools (resolveDay, LIN-136): an ambiguous "next Tuesday" is asked back, never guessed.
-    parse({ date }) {
-      const day = resolveDay(withoutTimeOfDay(date), today)
-      if ('ask' in day) return { ok: false, problem: day.ask, ask: true }
-      if ('unknown' in day) return problem(`"${date}" is not a date. Ask for the month, then the day, then the year.`)
-      const iso = day.date
-      if (notBefore && iso < notBefore) return problem(`${iso} is too early for the ${what}. Ask again.`)
-      if (notAfter && iso > notAfter) return problem(`${iso} is too late for the ${what}. Ask again.`)
-      return ok(iso)
-    },
-    display: iso => iso,
-    readBack: iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }),
-    instructions: `You collect the ${what}. Callers say dates many ways ("next Tuesday", "the fifteenth", "1/15/90"). Pass the day in the caller's own words; the tool works out the date (never count days yourself), and when the words can mean two days ("next Tuesday") it tells you to ask which one. Read the date back with the weekday, month, day and year in words.`,
-    ask: `Ask for the ${what}.`,
-  }
 }

@@ -28,14 +28,15 @@ function fakeApi(data: unknown) {
   return { api: { run, providerSettings: async () => ({}) } as unknown as ApiClient, run }
 }
 
-test('one tool per lookup, named after it, saying when to use it, what to get first and to say a filler', () => {
+test('one tool per lookup, named after it, saying when to use it, and what to get first (the filler comes from say_while_waiting)', () => {
   const tools = lookupTools(fakeApi(null).api, call, new CallLog(call))
   expect(Object.keys(tools)).toEqual([lookupToolName(orderStatus)])
   expect(lookupToolName(orderStatus)).toBe('lookup_order_status')
   const description = lookupDescription(orderStatus)
   expect(description).toContain('Use it when: the caller asks where their order is.')
   expect(description).toContain('Get order_number from the caller first.')
-  expect(description).toMatch(/filler/)
+  expect(description).toContain("Ask the owner's own system.")
+  expect(description).not.toMatch(/filler/)
   expect(Object.keys(lookupTools(fakeApi(null).api, { ...call, lookups: [] }, new CallLog(call)))).toEqual([])
 })
 
