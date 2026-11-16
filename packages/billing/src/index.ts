@@ -22,6 +22,7 @@ export type {
   CheckoutInput,
   CheckoutSession,
   CheckoutStarted,
+  CustomerPurchases,
   InvoiceItemInput,
   KeyMode,
   RechargeCard,

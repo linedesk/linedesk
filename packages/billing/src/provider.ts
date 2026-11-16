@@ -118,6 +118,17 @@ export type CheckoutSession = {
   charged: boolean
 }
 
+/** What a customer bought at the service (`customerPurchases`): the first of each found, else null. */
+export type CustomerPurchases = {
+  /** A subscription that still runs (not `canceled` or `incomplete_expired`). */
+  subscriptionId: string | null
+  /**
+   * A Checkout Session with status `complete` outside a subscription (a payment or a saved card). A completed
+   * subscription Checkout counts through its subscription, so a refused trial (its subscription canceled) is not one.
+   */
+  checkoutSessionId: string | null
+}
+
 /** A first recharge added to the trial's first invoice while it is a draft (docs/billing.md §3.2 step 9). */
 export type InvoiceItemInput = {
   customerId: string
@@ -383,6 +394,14 @@ export type BillingProvider = {
    * how many were expired.
    */
   expireOpenCheckouts(customerId: string): Promise<number>
+  /**
+   * What the customer bought at the service, as the service has it now (not our database): its first subscription
+   * that still runs (any status but `canceled` and `incomplete_expired`) and its first completed Checkout Session
+   * outside a subscription; null for each when there is none. Any error throws (a 401, 403 or 404 as
+   * `BillingSetupError`): an unknown customer is no answer either. The sign-up sweep asks this
+   * before it deletes a bill, so a Checkout whose webhook is late is never undone (security verification of #961, V-1).
+   */
+  customerPurchases(customerId: string): Promise<CustomerPurchases>
   /** Deletes the customer (which cancels its subscriptions at once); a customer the service does not know is fine. */
   deleteCustomer(customerId: string): Promise<void>
   /**

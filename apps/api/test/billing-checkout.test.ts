@@ -22,7 +22,7 @@ import {
   user,
 } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   billingNumberRefusal,
   CHECKOUT_UNAVAILABLE,
@@ -34,6 +34,7 @@ import { sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
+import { setJobQueue } from '../src/jobs.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
 import { act, addMember, type Caller, createWorkspace, type User } from './helpers.ts'
@@ -149,6 +150,16 @@ const fakeStripe: typeof fetch = async (input, init) => {
   }
   if (kind === 'checkout' && id === 'sessions' && sub)
     return stripe.sessions.has(sub) ? reply(200, stripe.sessions.get(sub)) : notFound()
+  if (kind === 'subscriptions' && !id && method === 'GET') {
+    const customer = url.searchParams.get('customer')
+    const status = url.searchParams.get('status')
+    const found = [...stripe.subscriptions.values()].filter(
+      s =>
+        (!customer || s.customer === customer) &&
+        (status === 'all' || (status ? s.status === status : s.status !== 'canceled')),
+    )
+    return reply(200, list(found, url.pathname))
+  }
   if (kind === 'subscriptions' && id) {
     const found = stripe.subscriptions.get(id)
     if (!found) return notFound()
@@ -769,6 +780,206 @@ describe('security review of #961', () => {
       setBillingFetch(fakeStripe)
     }
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toHaveLength(1)
+  })
+
+  describe('V-1: Stripe is asked before a waiting bill is deleted (security verification of #961)', () => {
+    /** The jobs queued in a transaction (a fake queue: nothing runs). */
+    let queued: { name: string; data: Record<string, unknown> }[] = []
+    beforeEach(() => {
+      queued = []
+      setJobQueue({
+        send: async (name: string, data: Record<string, unknown>) => {
+          queued.push({ name, data })
+          return 'job'
+        },
+        insert: async () => [],
+      } as never)
+    })
+    afterEach(() => setJobQueue(null))
+    const keptAlerts = (bill: string) =>
+      queued.filter(j => j.name === 'billing.alert' && j.data.kind === 'signup_kept' && j.data.bill === bill)
+    const age = (billId: string) =>
+      db
+        .update(billing_accounts)
+        .set({ created_at: new Date(Date.now() - 8 * DAY_S * 1000).toISOString() })
+        .where(eq(billing_accounts.id, billId))
+
+    test('the plan paid in Stripe, its webhook not applied yet: kept, nothing canceled, the admins told', async () => {
+      const fingerprint = rid('fp')
+      await trialWith(fingerprint)
+      // The card had a trial: this sign-up's trial is refused, so its owner pays the plan at once.
+      const refused = await trialWith(fingerprint)
+      expect(await billRow(refused.bill.id)).toMatchObject({ status: 'pending_payment', trial_refused: 'card_used' })
+      await startCheckout(refused.owner)
+      const sessionId = [...stripe.sessions.keys()].at(-1)!
+      const customer = (await billRow(refused.bill.id)).stripe_customer_id!
+      const sub = subscription(customer, { status: 'active', card: card(fingerprint) })
+      stripe.payments.set(sub.latest_invoice as string, [
+        {
+          id: rid('inpay'),
+          object: 'invoice_payment',
+          status: 'paid',
+          amount_paid: 1100,
+          payment: {
+            type: 'payment_intent',
+            payment_intent: {
+              id: rid('pi'),
+              object: 'payment_intent',
+              status: 'succeeded',
+              payment_method: card(fingerprint),
+              latest_charge: { id: rid('ch'), object: 'charge', paid: true, outcome: { risk_level: 'normal' } },
+            },
+          },
+        },
+      ])
+      // Paid in Stripe; the owner closed the tab and the webhook is late: our database still shows nothing.
+      complete(sessionId, sub)
+      await age(refused.bill.id)
+      await sweepSignUps(db)
+
+      expect(stripe.deletedCustomers).not.toContain(customer)
+      expect(stripe.subscriptions.get(sub.id as string)!.status).toBe('active')
+      expect(await billRow(refused.bill.id)).toMatchObject({ status: 'pending_payment' })
+      expect(await db.select().from(organization).where(eq(organization.id, refused.ws.id))).toHaveLength(1)
+      expect(await db.select().from(user).where(eq(user.id, refused.ws.owner.userId))).toHaveLength(1)
+      expect(keptAlerts(refused.bill.id).map(a => a.data)).toEqual([
+        {
+          kind: 'signup_kept',
+          bill: refused.bill.id,
+          subscription: sub.id,
+          reason: 'in_stripe',
+          customer,
+          session: null,
+        },
+      ])
+
+      // The late webhook still finds the bill and applies the Checkout.
+      const done = await processEvent('checkout.session.completed', {
+        id: sessionId,
+        object: 'checkout.session',
+        customer,
+      })
+      expect(done).toMatchObject({ outcome: 'applied', bill: refused.bill.id })
+      expect(await billRow(refused.bill.id)).toMatchObject({ status: 'active', stripe_subscription_id: sub.id })
+    })
+
+    test('a trial started in Stripe, its webhook not applied yet: kept', async () => {
+      const { bill, owner, ws } = await pendingSignUp()
+      await startCheckout(owner)
+      const sessionId = [...stripe.sessions.keys()].at(-1)!
+      const customer = (await billRow(bill.id)).stripe_customer_id!
+      const sub = complete(sessionId, subscription(customer)).subscription as Json
+      await age(bill.id)
+      await sweepSignUps(db)
+      expect(stripe.deletedCustomers).not.toContain(customer)
+      expect(stripe.subscriptions.get(sub.id as string)!.status).toBe('trialing')
+      expect(await db.select().from(organization).where(eq(organization.id, ws.id))).toHaveLength(1)
+      expect(keptAlerts(bill.id)).toMatchObject([
+        { data: { subscription: sub.id, reason: 'in_stripe', customer, session: null } },
+      ])
+    })
+
+    test('a refused trial left alone (its Checkout complete, its subscription canceled) is still swept', async () => {
+      const fingerprint = rid('fp')
+      await trialWith(fingerprint)
+      const refused = await trialWith(fingerprint)
+      expect(stripe.subscriptions.get(refused.sub.id as string)!.status).toBe('canceled')
+      expect(stripe.sessions.get(refused.sessionId)!.status).toBe('complete')
+      const customer = (await billRow(refused.bill.id)).stripe_customer_id!
+      await age(refused.bill.id)
+      await sweepSignUps(db)
+      expect(stripe.deletedCustomers).toContain(customer)
+      expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, refused.bill.id))).toEqual([])
+      expect(keptAlerts(refused.bill.id)).toEqual([])
+    })
+
+    test('a completed payment Checkout keeps the bill whatever its subscriptions', async () => {
+      const { bill, owner } = await pendingSignUp()
+      await startCheckout(owner)
+      const sessionId = [...stripe.sessions.keys()].at(-1)!
+      const customer = (await billRow(bill.id)).stripe_customer_id!
+      Object.assign(stripe.sessions.get(sessionId)!, { status: 'complete', mode: 'payment', payment_status: 'paid' })
+      await age(bill.id)
+      await sweepSignUps(db)
+      expect(stripe.deletedCustomers).not.toContain(customer)
+      expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toHaveLength(1)
+      expect(keptAlerts(bill.id)).toMatchObject([
+        { data: { subscription: null, reason: 'in_stripe', customer, session: sessionId } },
+      ])
+    })
+
+    test('when Stripe cannot say what the customer bought: nothing deleted this run, the admins told', async () => {
+      const { bill, owner, ws } = await pendingSignUp()
+      await startCheckout(owner)
+      const customer = (await billRow(bill.id)).stripe_customer_id!
+      await age(bill.id)
+      // Only the subscription list fails: the open session is expired, the customer never deleted.
+      setBillingFetch((async (input, init) =>
+        new URL(String(input)).pathname === '/v1/subscriptions'
+          ? reply(500, { error: { type: 'api_error', message: 'down' } })
+          : fakeStripe(input, init)) as typeof fetch)
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        await sweepSignUps(db)
+      } finally {
+        setBillingFetch(fakeStripe)
+      }
+      expect(error.mock.calls.some(c => String(c[0]).includes(bill.id))).toBe(true)
+      expect(stripe.requests.some(r => r.method === 'DELETE')).toBe(false)
+      expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toHaveLength(1)
+      expect(await db.select().from(organization).where(eq(organization.id, ws.id))).toHaveLength(1)
+      expect(keptAlerts(bill.id).map(a => a.data)).toEqual([
+        { kind: 'signup_kept', bill: bill.id, subscription: null, reason: 'stripe_error', customer },
+      ])
+
+      // Stripe answers again: the next run deletes it.
+      await sweepSignUps(db)
+      expect(stripe.deletedCustomers).toContain(customer)
+      expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toEqual([])
+    })
+
+    test('when Stripe is down altogether (a 401, a 500): kept and the admins told', async () => {
+      for (const status of [401, 500]) {
+        const { bill, owner } = await pendingSignUp()
+        await startCheckout(owner)
+        await age(bill.id)
+        setBillingFetch((async () => reply(status, { error: { type: 'api_error', message: 'down' } })) as typeof fetch)
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+        try {
+          await sweepSignUps(db)
+        } finally {
+          setBillingFetch(fakeStripe)
+          error.mockRestore()
+        }
+        expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))).toHaveLength(1)
+        expect(keptAlerts(bill.id)).toMatchObject([{ data: { reason: 'stripe_error' } }])
+      }
+    })
+
+    test('the alerts tell the instance admins what was kept and why', async () => {
+      await sendBillingAlert(db, emailSender, {
+        kind: 'signup_kept',
+        bill: 'bill_v1',
+        subscription: 'sub_v1',
+        reason: 'in_stripe',
+        customer: 'cus_v1',
+        session: null,
+      })
+      const kept = mails.find(m => m.subject.includes('waits for Checkout'))!
+      expect(kept.text).toContain('in Stripe its customer has a running subscription or a completed Checkout')
+      for (const id of ['bill_v1', 'cus_v1', 'sub_v1']) expect(kept.text).toContain(id)
+      mails.length = 0
+      await sendBillingAlert(db, emailSender, {
+        kind: 'signup_kept',
+        bill: 'bill_v1',
+        subscription: null,
+        reason: 'stripe_error',
+        customer: 'cus_v1',
+      })
+      const failed = mails.find(m => m.subject.includes('could not ask Stripe'))!
+      expect(failed.text).toContain('Nothing was deleted')
+      expect(failed.text).toContain('cus_v1')
+    })
   })
 
   test(`card fingerprints go ${CARD_FINGERPRINT_RETENTION_MONTHS} months after their bill was canceled; others stay`, async () => {

@@ -14,6 +14,7 @@ import {
   type CheckoutCard,
   type CheckoutInput,
   type CheckoutSession,
+  type CustomerPurchases,
   type RechargeCard,
   type RechargeCharge,
   type RechargeInvoiceInput,
@@ -156,6 +157,33 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         }
       }
       return expired
+    },
+    async customerPurchases(customerId) {
+      const found: CustomerPurchases = { subscriptionId: null, checkoutSessionId: null }
+      try {
+        // Every status, filtered here, so what counts as running is decided in one place.
+        for await (const sub of stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 })) {
+          if (sub.status !== 'canceled' && sub.status !== 'incomplete_expired') {
+            found.subscriptionId = sub.id
+            break
+          }
+        }
+        for await (const session of stripe.checkout.sessions.list({
+          customer: customerId,
+          status: 'complete',
+          limit: 100,
+        })) {
+          // A subscription Checkout counts through its subscription above: once that is canceled (a refused trial),
+          // nothing is left to keep. A payment (a top-up) or a saved card is kept whatever happened since.
+          if (session.mode === 'subscription') continue
+          found.checkoutSessionId = session.id
+          break
+        }
+      } catch (error) {
+        // No answer, not "nothing": even a 404 (a key of another account) may hide a running subscription.
+        throw setupError(error) ?? error
+      }
+      return found
     },
     async deleteCustomer(customerId) {
       try {

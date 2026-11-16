@@ -16,6 +16,7 @@ import {
   type Tx,
   user,
 } from '@linedesk/db'
+import type { CustomerPurchases } from '@linedesk/billing'
 import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { billingProvider } from './billing-settings.ts'
 import type { Actor } from './context.ts'
@@ -127,8 +128,9 @@ export type SweepResult = {
 
 /**
  * Deletes sign-ups that never finished Checkout (docs/billing.md §3.1): bills still `pending_payment` after
- * `pendingDays`, with no ledger rows, no linked Stripe subscription and no confirmed Checkout (those are kept and the
- * instance admins told), their workspaces, and their owner's account when it is in no other workspace and not an
+ * `pendingDays`, with no ledger rows, no linked Stripe subscription and no confirmed Checkout, and whose customer has
+ * no running subscription or completed Checkout in Stripe itself (those are kept and the instance admins told), their
+ * workspaces, and their owner's account when it is in no other workspace and not an
  * instance admin. Also accounts the sign-up page made (an email code there, then nothing) that are in no
  * workspace after `pendingDays`, the sign-up attempts older than `pendingDays` + 2 days, and the card fingerprints of
  * bills canceled more than CARD_FINGERPRINT_RETENTION_MONTHS ago. Each bill in its own transaction, so one failure
@@ -217,14 +219,7 @@ async function sweepBill(tx: Tx, billId: string, before: string, now: string) {
     .where(eq(ledger_entries.billing_account_id, billId))
     .limit(1)
   if (entry) return null
-  // Its Stripe side goes first (security review of #961, G2): open Checkout sessions are expired, so none can be
-  // completed for a bill that is gone, and the customer is deleted (with its saved card). Any Stripe error throws
-  // and the bill is kept for the next run.
-  if (bill.stripe_customer_id) {
-    const provider = await billingProvider(tx)
-    await provider.expireOpenCheckouts(bill.stripe_customer_id)
-    await provider.deleteCustomer(bill.stripe_customer_id)
-  }
+  if (bill.stripe_customer_id && !(await stripeSideGone(tx, billId, bill.stripe_customer_id))) return null
   const workspaces = await tx
     .select({ id: organization.id, name: organization.name })
     .from(organization)
@@ -235,6 +230,49 @@ async function sweepBill(tx: Tx, billId: string, before: string, now: string) {
   await tx.delete(billing_accounts).where(eq(billing_accounts.id, billId))
   const accounts = (await deleteIdleAccount(tx, bill.owner_user_id)) ? 1 : 0
   return { workspaces: workspaces.length, accounts }
+}
+
+/**
+ * The Stripe side of a stale sign-up goes before its bill (security review of #961, G2): open Checkout sessions are
+ * expired, so none can be completed for a bill that is gone, and the customer is deleted (with its saved card). In
+ * between, Stripe itself is asked what the customer bought (security verification of #961, V-1): a Checkout completed
+ * there whose webhook was not applied yet (delayed, or the webhook down) left nothing in our database, and deleting the
+ * customer would cancel a subscription the card may already have paid. Such a bill is kept and the instance admins
+ * are told, like a linked one (N2). When Stripe cannot be asked, the bill is kept for the next run and the admins are
+ * told too. True when the customer is gone and the bill may be deleted.
+ */
+async function stripeSideGone(tx: Tx, billId: string, customer: string): Promise<boolean> {
+  let bought: CustomerPurchases
+  try {
+    const provider = await billingProvider(tx)
+    // Expired first, so no session is completed between the look below and the deletion.
+    await provider.expireOpenCheckouts(customer)
+    bought = await provider.customerPurchases(customer)
+    if (!bought.subscriptionId && !bought.checkoutSessionId) {
+      await provider.deleteCustomer(customer)
+      return true
+    }
+  } catch (e) {
+    console.error(`sign-up sweep: bill ${billId} kept, Stripe could not be asked about its customer:`, e)
+    await queueBillingAlert(tx, {
+      kind: 'signup_kept',
+      bill: billId,
+      subscription: null,
+      reason: 'stripe_error',
+      customer,
+    })
+    return false
+  }
+  console.error(`sign-up sweep: bill ${billId} waits for Checkout but its customer bought in Stripe; kept`)
+  await queueBillingAlert(tx, {
+    kind: 'signup_kept',
+    bill: billId,
+    subscription: bought.subscriptionId,
+    reason: 'in_stripe',
+    customer,
+    session: bought.checkoutSessionId,
+  })
+  return false
 }
 
 /** The account goes when it is in no workspace, owns no other bill and is not an instance admin. */

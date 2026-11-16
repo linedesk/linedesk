@@ -131,12 +131,12 @@ describe('stripe', () => {
  * by method and path, each request recorded with its form body and idempotency key.
  */
 function stripeRoutes(routes: Record<string, (body: URLSearchParams) => [number, unknown]>) {
-  const calls: { route: string; body: URLSearchParams; key: string | null }[] = []
+  const calls: { route: string; body: URLSearchParams; key: string | null; url: URL }[] = []
   const doFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input))
     const route = `${(init?.method ?? 'GET').toUpperCase()} ${url.pathname}`
     const body = new URLSearchParams(typeof init?.body === 'string' ? init.body : '')
-    calls.push({ route, body, key: header(init, 'idempotency-key') })
+    calls.push({ route, body, key: header(init, 'idempotency-key'), url })
     const answer = routes[route]
     const [status, json] = answer ? answer(body) : [404, { error: { type: 'invalid_request_error', message: route } }]
     return new Response(JSON.stringify(json), { status, headers: { 'content-type': 'application/json' } })
@@ -816,6 +816,55 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       'POST /v1/checkout/sessions/cs_a/expire',
       'POST /v1/checkout/sessions/cs_b/expire',
     ])
+  })
+
+  test("customerPurchases finds the customer's running subscription and a completed payment, as Stripe has them (V-1)", async () => {
+    const sub = (id: string, status: string) => ({ id, object: 'subscription', status })
+    const done = (id: string, mode: string) => ({ id, object: 'checkout.session', status: 'complete', mode })
+    const lists = (subs: unknown[], sessions: unknown[]) =>
+      stripeRoutes({
+        'GET /v1/subscriptions': () => [200, { object: 'list', has_more: false, data: subs }],
+        'GET /v1/checkout/sessions': () => [200, { object: 'list', has_more: false, data: sessions }],
+      })
+    const running = lists(
+      [sub('sub_gone', 'canceled'), sub('sub_expired', 'incomplete_expired'), sub('sub_run', 'active')],
+      [done('cs_trial', 'subscription'), done('cs_topup', 'payment')],
+    )
+    expect(await (await stripeWith(running.doFetch)).customerPurchases('cus_1')).toEqual({
+      subscriptionId: 'sub_run',
+      checkoutSessionId: 'cs_topup',
+    })
+    const query = running.calls.map(c => [c.route, Object.fromEntries(c.url.searchParams)])
+    expect(query).toEqual([
+      ['GET /v1/subscriptions', { customer: 'cus_1', status: 'all', limit: '100' }],
+      ['GET /v1/checkout/sessions', { customer: 'cus_1', status: 'complete', limit: '100' }],
+    ])
+    for (const status of ['trialing', 'past_due', 'unpaid', 'incomplete', 'paused']) {
+      const one = lists([sub('sub_x', status)], [])
+      expect((await (await stripeWith(one.doFetch)).customerPurchases('cus_1')).subscriptionId).toBe('sub_x')
+    }
+    // A refused trial: its Checkout completed, its subscription canceled. Nothing to keep.
+    const refused = lists([sub('sub_gone', 'canceled')], [done('cs_trial', 'subscription')])
+    expect(await (await stripeWith(refused.doFetch)).customerPurchases('cus_1')).toEqual({
+      subscriptionId: null,
+      checkoutSessionId: null,
+    })
+  })
+
+  test('customerPurchases: every error throws, a customer Stripe does not know (404) too; never "nothing"', async () => {
+    const missing = stripeRoutes({})
+    await expect((await stripeWith(missing.doFetch)).customerPurchases('cus_1')).rejects.toBeInstanceOf(
+      BillingSetupError,
+    )
+    const down = stripeRoutes({ 'GET /v1/subscriptions': () => [500, { error: { type: 'api_error' } }] })
+    await expect((await stripeWith(down.doFetch)).customerPurchases('cus_1')).rejects.toThrow()
+    const refused = stripeRoutes({
+      'GET /v1/subscriptions': () => [200, { object: 'list', has_more: false, data: [] }],
+      'GET /v1/checkout/sessions': () => [403, { error: { type: 'invalid_request_error', message: 'no permission' } }],
+    })
+    await expect((await stripeWith(refused.doFetch)).customerPurchases('cus_1')).rejects.toBeInstanceOf(
+      BillingSetupError,
+    )
   })
 
   test('deleteCustomer deletes the customer; one already gone (404) is fine, any other error throws', async () => {

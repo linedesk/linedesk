@@ -188,7 +188,17 @@ export const settingsChangedAlert =
 
 /** Billing was turned on or off (billingEnabled.set): on, businesses are charged; off, nothing is. */
 export const billingSwitchAlert =
-  ({ on, actor, account, mode }: { on: boolean; actor: AlertActor; account: string | null; mode: 'test' | 'live' | null }): AdminAlertText =>
+  ({
+    on,
+    actor,
+    account,
+    mode,
+  }: {
+    on: boolean
+    actor: AlertActor
+    account: string | null
+    mode: 'test' | 'live' | null
+  }): AdminAlertText =>
   locale => {
     const { t } = getT(locale)
     const values = { on: on ? 'yes' : 'no', actor: actorLabel(actor, locale), account: account ?? '', mode: mode ?? '' }
@@ -266,12 +276,18 @@ export const ledgerCheckAlert =
           : t('email.adminAlert.ledgerCheck.counter', { ...d }),
     ])
     return {
-      subject: t('email.adminAlert.ledgerCheck.subject', { brand: brandName(), count: guardsMissing.length + differences.length }),
+      subject: t('email.adminAlert.ledgerCheck.subject', {
+        brand: brandName(),
+        count: guardsMissing.length + differences.length,
+      }),
       blocks: [
         ...(guardsMissing.length
           ? [
               { kind: 'text', text: t('email.adminAlert.ledgerCheck.guards') } as const,
-              { kind: 'facts', rows: guardsMissing.map((g): [string, string] => [t('email.adminAlert.ledgerCheck.guard'), g]) } as const,
+              {
+                kind: 'facts',
+                rows: guardsMissing.map((g): [string, string] => [t('email.adminAlert.ledgerCheck.guard'), g]),
+              } as const,
             ]
           : []),
         ...(rows.length
@@ -284,7 +300,17 @@ export const ledgerCheckAlert =
 
 /** A call reported more seconds than its limit plus the grace, so its bill was capped (ledger.ts `postCallUsage`). */
 export const cappedCallAlert =
-  ({ bill, call, reported, billed }: { bill: string; call: string; reported: number; billed: number }): AdminAlertText =>
+  ({
+    bill,
+    call,
+    reported,
+    billed,
+  }: {
+    bill: string
+    call: string
+    reported: number
+    billed: number
+  }): AdminAlertText =>
   locale => {
     const { t } = getT(locale)
     return {
@@ -446,22 +472,44 @@ export function installTestEmail(code: string, origin = WEB_ORIGIN, locale?: Ema
 }
 
 /**
- * The daily sign-up sweep kept a bill that still waits for Checkout but has a linked Stripe subscription or a confirmed
- * Checkout (signup-handlers.ts, review of #919 N2): a customer whose bill did not leave pending_payment.
+ * The daily sign-up sweep kept a bill that still waits for Checkout (signup-handlers.ts): a linked Stripe subscription
+ * or a confirmed Checkout in our database (review of #919 N2), a running subscription or a completed Checkout that
+ * only Stripe shows yet (`in_stripe`, V-1), or Stripe could not be asked (`stripe_error`).
  */
 export const signupKeptAlert =
-  (bill: string, subscription: string | null): AdminAlertText =>
+  (kept: {
+    bill: string
+    subscription: string | null
+    reason?: 'in_stripe' | 'stripe_error'
+    customer?: string
+    session?: string | null
+  }): AdminAlertText =>
   locale => {
     const { t } = getT(locale)
+    const { bill, subscription, reason, customer, session } = kept
+    const line = (text: string) => ({ kind: 'text' as const, text })
+    const ids = [
+      line(t('email.adminAlert.signupKept.bill', { bill })),
+      ...(customer ? [line(t('email.adminAlert.signupKept.customer', { customer }))] : []),
+    ]
+    if (reason === 'stripe_error')
+      return {
+        subject: t('email.adminAlert.signupKept.stripeError.subject', { brand: brandName() }),
+        blocks: [
+          line(t('email.adminAlert.signupKept.stripeError.text')),
+          ...ids,
+          line(t('email.adminAlert.signupKept.stripeError.check')),
+        ],
+      }
+    const inStripe = reason === 'in_stripe'
     return {
       subject: t('email.adminAlert.signupKept.subject', { brand: brandName() }),
       blocks: [
-        { kind: 'text', text: t('email.adminAlert.signupKept.text') },
-        { kind: 'text', text: t('email.adminAlert.signupKept.bill', { bill }) },
-        ...(subscription
-          ? [{ kind: 'text' as const, text: t('email.adminAlert.signupKept.subscription', { subscription }) }]
-          : []),
-        { kind: 'text', text: t('email.adminAlert.signupKept.check') },
+        line(inStripe ? t('email.adminAlert.signupKept.inStripe.text') : t('email.adminAlert.signupKept.text')),
+        ...ids,
+        ...(subscription ? [line(t('email.adminAlert.signupKept.subscription', { subscription }))] : []),
+        ...(session ? [line(t('email.adminAlert.signupKept.session', { session }))] : []),
+        line(inStripe ? t('email.adminAlert.signupKept.inStripe.check') : t('email.adminAlert.signupKept.check')),
       ],
     }
   }

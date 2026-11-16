@@ -261,7 +261,20 @@ export type BillingAlertJob =
   | { kind: 'recharge_failed'; bill: string; ref: string; rechargeId: string; needsOwner: boolean }
   | { kind: 'recharge_setup'; bill: string; rechargeId: string; code: string }
   | { kind: 'signup_cap'; hour: string; cap: number }
-  | { kind: 'signup_kept'; bill: string; subscription: string | null }
+  /**
+   * The sign-up sweep kept a bill that waits for Checkout (signup-handlers.ts). Without `reason`: a subscription is
+   * linked or the Checkout confirmed in our database (N2); `in_stripe`: Stripe has a running subscription or a
+   * completed Checkout for its customer that our database does not show yet (V-1); `stripe_error`: Stripe could not be
+   * asked, so the bill waits for the next run.
+   */
+  | {
+      kind: 'signup_kept'
+      bill: string
+      subscription: string | null
+      reason?: 'in_stripe' | 'stripe_error'
+      customer?: string
+      session?: string | null
+    }
   /** The trial ends in three days (`ref`: the trial's end, docs/billing.md §3.2 step 8). */
   | { kind: 'trial_will_end'; bill: string; ref: string }
 
@@ -291,7 +304,7 @@ export async function sendBillingAlert(
           : job.kind === 'signup_cap'
             ? signupCapAlert(job.cap)
             : job.kind === 'signup_kept'
-              ? signupKeptAlert(job.bill, job.subscription)
+              ? signupKeptAlert(job)
               : billingUnusableAlert(job.reason)
     await alertInstanceAdmins(alert, sender, { wait: true })
     return { sent: 'admins' as const }

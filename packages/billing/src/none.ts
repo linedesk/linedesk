@@ -15,6 +15,7 @@ export const noneBillingProvider: BillingProvider = {
   startCheckout: off,
   checkoutSession: async () => null,
   expireOpenCheckouts: off,
+  customerPurchases: off,
   deleteCustomer: off,
   cancelSubscription: off,
   resumeSubscription: off,

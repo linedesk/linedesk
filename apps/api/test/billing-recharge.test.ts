@@ -75,6 +75,9 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     expireOpenCheckouts: async () => {
       throw new Error('not used')
     },
+    customerPurchases: async () => {
+      throw new Error('not used')
+    },
     deleteCustomer: async () => {
       throw new Error('not used')
     },
