@@ -258,7 +258,7 @@ export function registerAdminRoutes(app: Hono<Env>) {
   })
 
   // Install setup by hand (install-setup.ts): where the walkthrough is, and whether a saved change waits for a restart.
-  app.get('/v1/admin/install-setup', async c => c.json(await installSetupState(c.get('actor'))))
+  app.get('/v1/admin/install-setup', async c => c.json(await installSetupState()))
 
   // Every provider group's status (setup-checklist.ts, statusGroups), read-only: tests run through provider.test.
   app.get('/v1/admin/setup-checklist', async c => c.json(await setupChecklist(db)))

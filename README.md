@@ -155,7 +155,7 @@ Optionally close 5060 in the firewall as well, so SIP scanners do not even reach
 docker compose run --rm agent node src/setup-sip.ts --print-allowed-addresses > sip-allow.txt
 ```
 
-With your provider's firewall (e.g. a Hetzner Cloud Firewall), allow 5060 udp and tcp from these sources only. With iptables on the host, use the `DOCKER-USER` chain (Docker's published ports skip ufw's rules); the packets there already have the container's address, so match the original port. Each `-I` goes on top, so the drops come first:
+With your provider's firewall (e.g. an AWS security group or a DigitalOcean Cloud Firewall), allow 5060 udp and tcp from these sources only. With iptables on the host, use the `DOCKER-USER` chain (Docker's published ports skip ufw's rules); the packets there already have the container's address, so match the original port. Each `-I` goes on top, so the drops come first:
 
 ```sh
 for proto in udp tcp; do

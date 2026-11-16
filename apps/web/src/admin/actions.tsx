@@ -360,14 +360,7 @@ export function workspaceActions(
       typed: w.name,
     },
     run: async keepAccounts => {
-      // Both names, the same value, for this one release: an API from before the rename reads only keepUsers
-      // and would drop keepAccounts, deleting the accounts the box kept (security review of #756, F1).
-      const data = await runAdmin('workspace.delete', {
-        workspaceId: w.id,
-        name: w.name,
-        keepAccounts: !!keepAccounts,
-        keepUsers: !!keepAccounts,
-      })
+      const data = await runAdmin('workspace.delete', { workspaceId: w.id, name: w.name, keepAccounts: !!keepAccounts })
       onDeleted?.()
       await reload()
       return data

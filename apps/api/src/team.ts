@@ -300,12 +300,11 @@ export const teamHandlers: Record<string, Handler> = {
     return { rows: {}, data: { nextWorkspaceId: next?.id ?? null, accountDeleted } }
   },
 
-  'team.removeMember': async ({ tx, actor, now }, input: { memberId: string; deleteAccount?: boolean; keepAccount?: boolean }) => {
+  'team.removeMember': async ({ tx, actor, now }, input: { memberId: string; deleteAccount?: boolean }) => {
     const workspaceId = workspaceOf(actor)
     // The account stays by default; only the owner may delete it with the removal (Janik, 2026-11-15; LIN-264), read
-    // from the member row: an owner who handed the workspace over a moment ago is an admin. `keepAccount` (the field
-    // before) is still taken for one release and only ever keeps.
-    const deleteAccount = input.deleteAccount === true && input.keepAccount !== true
+    // from the member row: an owner who handed the workspace over a moment ago is an admin.
+    const deleteAccount = input.deleteAccount === true
     if (deleteAccount) {
       const owner = await lockedOwner(tx, workspaceId)
       if (!owner || owner.userId !== actor.actorId) throw new Forbidden(ONLY_OWNER_DELETES_ACCOUNTS)

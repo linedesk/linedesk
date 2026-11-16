@@ -406,7 +406,7 @@ const guides = {
 } as const satisfies Record<string, ProviderGuide>
 
 /**
- * The provider we suggest per category: a quiet "Recommended" tag on Admin › Providers, and the guide the setup MCP
+ * The provider we suggest per category: a quiet "Recommended" tag on Server admin › Providers, and the guide the setup MCP
  * and `setup.sh --check` print first.
  */
 export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
@@ -425,7 +425,7 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
 
 /**
  * The short list of a category with many providers, in this order: the recommended one first, then the others most
- * people pick. Admin › Providers and the install walkthrough show only these (and every provider that is already set
+ * people pick. Server admin › Providers and the install walkthrough show only these (and every provider that is already set
  * up, being tested or failing) until "Show more". A category with more than three providers and no entry here shows
  * its recommended one and its own-server option (SMTP, your own single sign-on), see `pinnedProvidersOf`.
  */
@@ -1128,8 +1128,7 @@ export const workspaceEnable = adminAction(
 /**
  * Deletes a workspace and everything in it (apps/api/src/workspace-delete.ts). `name` is the workspace's name as
  * typed to confirm. Members without another workspace lose their accounts too, unless `keepAccounts` (the same name
- * as in `workspace.deleteOwn`); members of other workspaces and instance admins always keep theirs. `keepUsers` is
- * the old name, still taken for one release from a tab opened before the rename; either one set to true keeps them.
+ * as in `workspace.deleteOwn`); members of other workspaces and instance admins always keep theirs.
  */
 export const workspaceDelete = adminAction(
   'workspace.delete',
@@ -1138,8 +1137,6 @@ export const workspaceDelete = adminAction(
     workspaceId: z.string().min(1),
     name: z.string().trim().min(1).max(200),
     keepAccounts: z.boolean().optional(),
-    /** @deprecated The old name of `keepAccounts`; taken for one release. */
-    keepUsers: z.boolean().optional(),
   }),
 )
 /** What `workspace.delete` did. Phone numbers: what happened at the carrier to each. */

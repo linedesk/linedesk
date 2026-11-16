@@ -152,7 +152,7 @@ describe('the first admin', () => {
     expect(state.status).toBe(403)
     expect(await state.json()).toMatchObject({ code: 'SECOND_FACTOR_REQUIRED', secondFactor: 'enrol' })
 
-    // With a passkey, and this session confirmed with it, the install setup opens and needs no passkey any more.
+    // With a passkey, and this session confirmed with it, the install setup opens (it has no passkey screen of its own).
     await db.insert(passkey).values({
       id: 'pk_first_admin',
       userId: firstId,
@@ -165,7 +165,7 @@ describe('the first admin', () => {
     await db.update(session).set({ passkeyVerifiedAt: new Date() }).where(eq(session.userId, firstId))
     const again = await appRequest('/v1/admin/install-setup', { headers })
     expect(again.status).toBe(200)
-    expect(((await again.json()) as { passkeyNeeded: boolean }).passkeyNeeded).toBe(false)
+    expect(await again.json()).not.toHaveProperty('passkeyNeeded')
   })
 
   test('later admins get no code from the setup: it works only while nobody has an account', async () => {

@@ -1364,7 +1364,7 @@ const handlers: Record<string, Handler> = {
     const call = await loadCall(tx, actor, input.callId)
     // A race in the call's own conversation (two replies at once): the call went on, nothing to keep (LIN-249).
     if (isPerCallProviderError(input.failure.message)) return { rows: {}, data: { failure: input.failure } }
-    // One failure model (LIN-111): the stage's provider is failing for the whole install too (Admin › Providers, one
+    // One failure model (LIN-111): the stage's provider is failing for the whole install too (Server admin › Providers, one
     // email per streak). A vague reason comes back refined by the provider's own test, and that is what the call keeps
     // and the agent shows on the test call.
     const recorded = await recordProviderFailure(
@@ -1679,7 +1679,7 @@ const handlers: Record<string, Handler> = {
     // An install-account number in a new country: the install's carrier profiles may call it too, once this commits
     // (Telnyx; logged, never fails the setup). Own-account numbers never widen the install's profiles.
     if (carrier_account === 'install') onCommit?.(() => syncInstallDestinations())
-    // The go-live checklist's first step ("Connect your number"), and where Admin › Onboarding sees a business stop.
+    // The go-live checklist's first step ("Connect your number"), and where Server admin › Onboarding sees a business stop.
     await recordSetupEvent(tx, workspace_id, 'number_connected', now)
     // A transfer contact on this number would now ring back into Linedesk: switched off.
     const switchedOff = await switchOffLoopingTransfers(tx, workspace_id, [e164])

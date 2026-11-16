@@ -49,7 +49,7 @@ test('an admin who is a member is not counted among the other members', () => {
   expect(deleteWorkspaceText({ ...workspace, members: 1, members_only_here: 0 }, true).option).toBeUndefined()
 })
 
-test('the delete sends keepAccounts and keepUsers with the same value, and its button is red as in Workspace settings', async () => {
+test('the delete sends keepAccounts, and its button is red as in Workspace settings', async () => {
   const sent: unknown[] = []
   vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
     sent.push(JSON.parse(String(init.body)))
@@ -59,15 +59,9 @@ test('the delete sends keepAccounts and keepUsers with the same value, and its b
     const remove = workspaceActions(workspace, async () => {}).find(a => a.id === 'delete')!
     expect(remove.danger).toBe(true)
     await remove.run(true)
-    // Both names with the same value for this release: an older API reads only keepUsers.
-    expect(sent).toEqual([{ workspaceId: 'ws-1', name: 'Brightwater Plumbing', keepAccounts: true, keepUsers: true }])
+    expect(sent).toEqual([{ workspaceId: 'ws-1', name: 'Brightwater Plumbing', keepAccounts: true }])
     await remove.run(false)
-    expect(sent[1]).toEqual({
-      workspaceId: 'ws-1',
-      name: 'Brightwater Plumbing',
-      keepAccounts: false,
-      keepUsers: false,
-    })
+    expect(sent[1]).toEqual({ workspaceId: 'ws-1', name: 'Brightwater Plumbing', keepAccounts: false })
   } finally {
     vi.unstubAllGlobals()
   }

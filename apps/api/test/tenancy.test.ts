@@ -382,7 +382,7 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     const tab = { 'x-workspace-id': home.id }
     const leaving = await addMember(home.id, 'member')
     // Their only workspace: kept (the default since LIN-264), so the account (and its session) lives on.
-    expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(leaving.userId, home.id), keepAccount: true })).status).toBe(200)
+    expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(leaving.userId, home.id) })).status).toBe(200)
     expect(await request(leaving, 'POST', '/v1/actions/call.markDone', { callId: home.call.id }, tab)).toMatchObject({
       status: 403,
       body: { code: 'workspace_access_lost' },

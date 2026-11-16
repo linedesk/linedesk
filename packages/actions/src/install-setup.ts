@@ -138,6 +138,4 @@ export type InstallSetupState = {
    */
   restart: { pending: boolean; automatic: boolean }
   emailDelivery: 'smtp' | 'log' | 'none'
-  /** This admin has no passkey and the install asks for one: email and sign-in need it, so the setup asks first. */
-  passkeyNeeded: boolean
 }

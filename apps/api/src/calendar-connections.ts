@@ -149,7 +149,7 @@ export function noteCalendarAppFailure(e: unknown) {
         }
       : {
           reason: 'auth',
-          message: `${label} refused the app's client ID or secret while using a calendar (an expired secret?). Enter a new client secret under Admin › Providers › ${label}.`,
+          message: `${label} refused the app's client ID or secret while using a calendar (an expired secret?). Enter a new client secret under Server admin › Providers › ${label}.`,
         },
     'calendar',
   )

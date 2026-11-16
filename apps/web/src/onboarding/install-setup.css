@@ -8,26 +8,6 @@
   color: var(--ink-muted);
 }
 
-/* The passkey screen before Email (PasskeyFirst): the two things to do, each with its mark. */
-.is-passkey {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 10px;
-  font-size: 14px;
-}
-.is-passkey li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-/* The admin's passkey above the server's parts (StatusList): one list to the eye, the same line between rows. */
-.is-passkey-row + .adm-health .adm-health-row:first-child {
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-}
-
 /* The parts list on its own in a card: no indent (on Server admin › Overview it sits under the headline's mark). */
 .as-card > .adm-health {
   padding-left: 0;

@@ -107,9 +107,8 @@ export type TeamLeaveData = { nextWorkspaceId: string | null; accountDeleted: bo
 export const teamRemoveMember = defineAction({
   name: 'team.removeMember',
   description:
-    'Remove a member from the workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner. Their account stays (without a workspace they wait for an invitation). Only the workspace\'s owner may set deleteAccount, with a sign-in within the last 10 minutes: when it was their only workspace their account is deleted too (never a server admin\'s) and they are emailed. keepAccount is the older field and only keeps.',
-  // keepAccount: the field before deleteAccount (removal deleted by default then), taken for one release; it only keeps.
-  input: z.object({ memberId: z.string().min(1), deleteAccount: z.boolean().optional(), keepAccount: z.boolean().optional() }),
+    'Remove a member from the workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner. Their account stays (without a workspace they wait for an invitation). Only the workspace\'s owner may set deleteAccount, with a sign-in within the last 10 minutes: when it was their only workspace their account is deleted too (never a server admin\'s) and they are emailed.',
+  input: z.object({ memberId: z.string().min(1), deleteAccount: z.boolean().optional() }),
   permission: 'team:write',
 })
 

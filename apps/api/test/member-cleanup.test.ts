@@ -316,7 +316,7 @@ describe('removal clears what the workspace kept of the member', () => {
   test('team.removeMember: cleared, and the unassigned call comes back for the remover', async () => {
     const ws = await createWorkspace('Riverbend Electric')
     const who = await memberWithRows(ws)
-    const res = await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, who), keepAccount: true })
+    const res = await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, who) })
     expect(res.status).toBe(200)
     expect(res.body.rows.calls).toEqual([expect.objectContaining({ id: ws.call.id, assignee_id: null })])
     await expectForgotten(ws, who)

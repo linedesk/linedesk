@@ -1,5 +1,5 @@
-// Server admin actions on an account name whom they were about (E4), and workspace.delete's keep option under its
-// new name, keepAccounts, with the old keepUsers still taken for one release (E14). Makes and removes instance admins,
+// Server admin actions on an account name whom they were about (E4), and workspace.delete's keep option,
+// keepAccounts (E14). Makes and removes instance admins,
 // so it has a database of its own (INSTANCE_WIDE_FILES in vitest.config.ts).
 import { REDACTED } from '@linedesk/actions'
 import { commands, user } from '@linedesk/db'
@@ -57,7 +57,7 @@ describe('account actions keep whom they were about (E4)', () => {
   )
 })
 
-describe('workspace.delete: keepAccounts, and the old keepUsers for one release (E14)', () => {
+describe('workspace.delete: keepAccounts (E14)', () => {
   /** A workspace whose owner and member are in no other workspace: their accounts go with it unless kept. */
   async function doomed(name: string) {
     const ws = await createWorkspace(name)
@@ -74,15 +74,8 @@ describe('workspace.delete: keepAccounts, and the old keepUsers for one release 
     expect(await exists(member)).toBe(true)
   })
 
-  test('keepUsers, from a tab opened before the rename, still keeps them', async () => {
-    const { ws, owner, member } = await doomed('Alder Electric')
-    const res = await remove(ws.id, 'Alder Electric', { keepUsers: true })
-    expect(res).toMatchObject({ status: 200, body: { data: { usersDeleted: [] } } })
-    expect(await exists(owner)).toBe(true)
-    expect(await exists(member)).toBe(true)
-  })
 
-  test('without either, the accounts that belong nowhere else go, as before', async () => {
+  test('without it, the accounts that belong nowhere else go, as before', async () => {
     const { ws, owner, member } = await doomed('Zeta Roofing')
     const emails = [await emailOf(owner), await emailOf(member)].sort()
     const res = await remove(ws.id, 'Zeta Roofing', {})
@@ -92,23 +85,10 @@ describe('workspace.delete: keepAccounts, and the old keepUsers for one release 
     expect(await exists(member)).toBe(false)
   })
 
-  test('when both come and disagree, keep wins: a conflict never deletes an account', async () => {
-    for (const [name, keep] of [
-      ['Cedar Hill Vet', { keepAccounts: false, keepUsers: true }],
-      ['Birch Lane Florist', { keepAccounts: true, keepUsers: false }],
-    ] as const) {
-      const { ws, owner, member } = await doomed(name)
-      const res = await remove(ws.id, name, keep)
-      expect(res).toMatchObject({ status: 200, body: { data: { usersDeleted: [] } } })
-      expect(await exists(owner)).toBe(true)
-      expect(await exists(member)).toBe(true)
-    }
-  })
-
-  test('both false, as the web sends an unticked box, deletes them as before', async () => {
+  test('keepAccounts false, as the web sends an unticked box, deletes them as before', async () => {
     const { ws, member } = await doomed('Oak Street Pharmacy')
     const email = await emailOf(member)
-    const res = await remove(ws.id, 'Oak Street Pharmacy', { keepAccounts: false, keepUsers: false })
+    const res = await remove(ws.id, 'Oak Street Pharmacy', { keepAccounts: false })
     expect(res.status).toBe(200)
     expect(res.body.data.usersDeleted).toContain(email)
   })

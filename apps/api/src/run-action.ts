@@ -257,10 +257,7 @@ export async function runAction(
   if (name === 'team.leave' && (await leaveNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown })))
     return { status: 403, body: leaveSignInRefusal }
   // So does the owner deleting a removed member's account (owner-step-up.ts; LIN-264 review F3).
-  if (
-    name === 'team.removeMember' &&
-    (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown; keepAccount?: unknown }))
-  )
+  if (name === 'team.removeMember' && (await removeNeedsFreshSignIn(db, actor, parsed.data as { deleteAccount?: unknown })))
     return { status: 403, body: removeSignInRefusal }
   // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
   if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))

@@ -8,7 +8,7 @@
 // are deleted at the provider) and the billing ledger with its sums (a bill spans workspaces; the ledger is
 // append-only). The organization row goes last; its members and invitations go with it
 // (foreign keys). Members who belong to no other workspace lose their accounts too (sessions, passkeys and
-// sign-in methods go with them), unless the admin keeps them (`keepUsers`); members of other workspaces, instance
+// sign-in methods go with them), unless the admin keeps them (`keepAccounts`); members of other workspaces, instance
 // admins and the admin deleting it always keep theirs; an owner deleting their own keeps theirs only when they ask. A kept user's session on the workspace moves to none, so
 // its next request lands on the user's next workspace, or the create-workspace page.
 //
@@ -224,7 +224,7 @@ export async function deleteAccountWithoutWorkspace(tx: Tx, userId: string): Pro
  */
 export async function deleteWorkspace(
   tx: Tx,
-  input: { workspaceId: string; name: string; keepUsers?: boolean },
+  input: { workspaceId: string; name: string; keepAccounts?: boolean },
   now: string,
   spareUserId: string | null,
   telephony?: TelephonyProvider,
@@ -270,7 +270,7 @@ export async function deleteWorkspace(
     const rows = (await tx.execute(sql`delete from ${table} where ${column} = ${workspaceId}`)).rowCount ?? 0
     if (rows) deleted[getTableName(table)] = rows
   }
-  const users = input.keepUsers ? [] : await membersOnlyHere(tx, workspaceId, spareUserId)
+  const users = input.keepAccounts ? [] : await membersOnlyHere(tx, workspaceId, spareUserId)
   // Members and invitations go with it (on delete cascade).
   await tx.delete(organization).where(eq(organization.id, workspaceId))
   await deleteAccounts(

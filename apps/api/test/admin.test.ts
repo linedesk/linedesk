@@ -1777,7 +1777,7 @@ describe('user.invite (Add user)', () => {
   })
   const spySend = (impl: () => Promise<void> = async () => {}) => vi.spyOn(emailSender, 'send').mockImplementation(impl)
   const mailsTo = (send: ReturnType<typeof spySend>, email: string) =>
-    send.mock.calls.map(([m]) => m).filter(m => m.to === email && !/^New instance admin/.test(m.subject))
+    send.mock.calls.map(([m]) => m).filter(m => m.to === email && !/^New server admin/.test(m.subject))
 
   test('a new address: account (unverified) and an invitation to the workspace with the role, in one email that names the workspace; there is no open sign-up', async () => {
     const send = spySend()
@@ -2081,7 +2081,7 @@ describe('user.invite (Add user)', () => {
     const toThem = mailsTo(send, email)
     expect(toThem).toHaveLength(1)
     expect(toThem[0]).toMatchObject({ subject: 'Your Linedesk account is ready' })
-    expect(send.mock.calls.some(([m]) => /^New instance admin/.test(m.subject))).toBe(true)
+    expect(send.mock.calls.some(([m]) => /^New server admin/.test(m.subject))).toBe(true)
     expect(toThem[0]!.text).toContain('Enter this email address')
     // No sign-in code or link. The address itself is left out: its random part can hold six digits in a row.
     expect(toThem[0]!.text.replaceAll(email, '')).not.toMatch(/\d{6}|token=/)
@@ -4118,7 +4118,7 @@ describe('second factor for instance admins (ADMIN_SECOND_FACTOR on)', () => {
       await addPasskey()
       await sessionOfAdmin({ createdAt: now, passkeyVerifiedAt: now })
       expect((await act(admin, 'instanceAdmin.grant', { userId: someone.userId })).status).toBe(200)
-      expect(sentTo(send, /^New instance admin/)).toEqual(
+      expect(sentTo(send, /^New server admin/)).toEqual(
         expect.arrayContaining([await emailOf(admin), await emailOf(operator)]),
       )
       expect((await act(admin, 'user.resetPasskeys', { userId: someone.userId })).status).toBe(200)
@@ -4863,12 +4863,12 @@ describe('workspace.delete', () => {
     expect((await db.select().from(organization).where(eq(organization.id, ws.id))).length).toBe(1)
   })
 
-  test('keepUsers keeps the accounts of members only in it; an instance admin member always keeps theirs', async () => {
+  test('keepAccounts keeps the accounts of members only in it; an instance admin member always keeps theirs', async () => {
     const ws = await createWorkspace('Keep The People')
     const res = await act(operator, 'workspace.delete', {
       workspaceId: ws.id,
       name: 'Keep The People',
-      keepUsers: true,
+      keepAccounts: true,
     })
     expect(res).toMatchObject({ status: 200, body: { data: { usersDeleted: [] } } })
     expect((await db.select().from(user).where(eq(user.id, ws.owner.userId))).length).toBe(1)

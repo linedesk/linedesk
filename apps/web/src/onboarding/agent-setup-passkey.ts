@@ -1,11 +1,5 @@
-// The admin's passkey on the setup pages by hand (InstallSetup.tsx) and the install's own steps. The agent setup page
-// has no passkey step: it is part of Server admin and opens only after the passkey check (SecondFactorPrompt.tsx).
-
-/**
- * `loading`: not known yet. `none`: no passkey step (the admin has one, or this install asks admins for none).
- * `todo` / `done`: whether the admin has one.
- */
-export type PasskeyStep = 'loading' | 'none' | 'todo' | 'done'
+// The install's own steps. The setup pages have no passkey step: they are part of Server admin and open only after
+// the passkey check (SecondFactorPrompt.tsx).
 
 /** The install's own steps (setup-mcp.ts, the provider groups): by hand, the install walkthrough does them first. */
 const INSTALL_STEPS = ['answering', 'telephony', 'email', 'call-audio']

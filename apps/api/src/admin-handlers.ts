@@ -540,17 +540,11 @@ export const adminHandlers: Record<string, Handler> = {
 
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
-  // `keepUsers` is the field's old name: a tab opened before the rename still sends it (one release). Either one
-  // saying keep keeps the accounts: a conflict between the two never deletes (security review of #756, F3).
   'workspace.delete': async ({ tx, now, actor, telephony }, input) => ({
     rows: {},
     data: await deleteWorkspaceAndTell(
       tx,
-      {
-        workspaceId: input.workspaceId,
-        name: input.name,
-        keepUsers: input.keepAccounts === true || input.keepUsers === true,
-      },
+      { workspaceId: input.workspaceId, name: input.name, keepAccounts: input.keepAccounts === true },
       now,
       actor.actorId,
       telephony,

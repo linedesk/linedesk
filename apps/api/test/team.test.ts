@@ -288,9 +288,9 @@ describe('removing', () => {
     expect(await db.select().from(member).where(eq(member.userId, kept.userId))).toEqual([])
     // Still signed in, without a workspace: the page that waits for an invitation.
     expect((await request(kept, 'GET', '/api/auth/get-session')).body).toMatchObject({ user: { id: kept.userId } })
-    // The owner without deleteAccount, and the older field keepAccount false: kept too.
+    // The owner with deleteAccount false: kept too.
     const second = await addMember(ws.id, 'admin')
-    const removed = await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, second), keepAccount: false })
+    const removed = await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, second), deleteAccount: false })
     expect(removed.body.data).toMatchObject({ accountDeleted: false })
     expect(await accountExists(second)).toBe(true)
   })
@@ -752,8 +752,7 @@ describe('deleting accounts (LIN-264)', () => {
       const ownersId = await invite(shop.owner, newEmail())
       const listed = await act(shop.owner, 'team.list', {})
       expect(listed.body.data.invitations.find((i: { invitationId: string }) => i.invitationId === openId)).toMatchObject({ invitedById: sender.userId })
-      // As the web sends it for one release (F2: both fields).
-      const removed = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: false, keepAccount: true })
+      const removed = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: false })
       expect(removed).toMatchObject({ status: 200, body: { data: { accountDeleted: false, invitationsCanceled: 1 } } })
       expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled', inviterId: sender.userId })
       expect(await gone(openId)).toEqual({ status: 'gone' })
@@ -766,7 +765,7 @@ describe('deleting accounts (LIN-264)', () => {
       const sender = await addMember(shop.id, 'admin')
       const invitee = newEmail()
       const openId = await invite(sender, invitee)
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: true, keepAccount: false })
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: true })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true, invitationsCanceled: 1 } } })
       expect(await exists(sender)).toBe(false)
       // Not re-attributed: the invitation went with the account (inviter on delete cascade), its link is gone.
@@ -799,7 +798,7 @@ describe('deleting accounts (LIN-264)', () => {
       const openId = await invite(shop.owner, newEmail())
       await signedInAgo(shop.owner, 11)
       captureJobs()
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true, keepAccount: false })
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true })
       expect(res).toMatchObject({ status: 403, body: { ok: false, error: REMOVE_SIGN_IN_AGAIN, code: 'SIGN_IN_AGAIN' } })
       expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
       expect(await exists(target)).toBe(true)
@@ -807,7 +806,7 @@ describe('deleting accounts (LIN-264)', () => {
       expect(queued).toEqual([])
     })
 
-    test('the check: only with deleteAccount, never with keepAccount, never without a session (the handler runs it again)', async () => {
+    test('the check: only with deleteAccount, never without a session (the handler runs it again)', async () => {
       const shop = await createWorkspace('Stale Remove Handler Co')
       const target = await addMember(shop.id, 'member')
       await signedInAgo(shop.owner, 11)
@@ -815,7 +814,6 @@ describe('deleting accounts (LIN-264)', () => {
       const [own] = await db.select().from(session).where(eq(session.userId, shop.owner.userId))
       const actor = { actorId: owner!.userId, workspaceId: shop.id, sessionId: own!.id } as never
       expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: true })).toBe(true)
-      expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: true, keepAccount: true })).toBe(false)
       expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: false })).toBe(false)
       expect(await removeNeedsFreshSignIn(db, { ...(actor as object), sessionId: undefined } as never, { deleteAccount: true })).toBe(true)
       expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
@@ -830,7 +828,7 @@ describe('deleting accounts (LIN-264)', () => {
       const other = await addMember(shop.id, 'member')
       const refused = await act(anAdmin, 'team.removeMember', { memberId: await memberIdOf(shop.id, other), deleteAccount: true })
       expect(refused).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS } })
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, kept), deleteAccount: false, keepAccount: true })
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, kept), deleteAccount: false })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
       expect(await exists(kept)).toBe(true)
     })
@@ -839,7 +837,7 @@ describe('deleting accounts (LIN-264)', () => {
       const shop = await createWorkspace('Fresh Remove Co')
       const gone = await addMember(shop.id, 'member')
       await signedInAgo(shop.owner, 9)
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, gone), deleteAccount: true, keepAccount: false })
+      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, gone), deleteAccount: true })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
       expect(await exists(gone)).toBe(false)
     })

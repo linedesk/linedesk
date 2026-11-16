@@ -97,7 +97,7 @@ export async function deleteOwn(
 
   const result = await deleteWorkspace(
     tx,
-    { workspaceId, name: input.name, keepUsers: input.keepAccounts },
+    { workspaceId, name: input.name, keepAccounts: input.keepAccounts },
     now,
     input.keepOwnAccount ? actor.actorId : null,
     telephony,

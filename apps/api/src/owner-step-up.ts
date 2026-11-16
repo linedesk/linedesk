@@ -108,18 +108,17 @@ export const REMOVE_SIGN_IN_AGAIN =
 export const removeSignInRefusal = { ok: false as const, error: REMOVE_SIGN_IN_AGAIN, code: SIGN_IN_AGAIN }
 
 /**
- * The owner removing someone and deleting their account (team.removeMember with deleteAccount; the older keepAccount:
- * true keeps, so nothing to check) needs the same recent sign-in as deleting their own (Janik, 2026-11-15, LIN-264
- * review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
+ * The owner removing someone and deleting their account (team.removeMember with deleteAccount) needs the same recent
+ * sign-in as deleting their own (Janik, 2026-11-15, LIN-264 review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
  * anyone else is refused by the handler (ONLY_OWNER_DELETES_ACCOUNTS), which checks both again under its lock.
  */
 export async function removeNeedsFreshSignIn(
   tx: Tx | typeof db,
   actor: Actor,
-  input: { deleteAccount?: unknown; keepAccount?: unknown },
+  input: { deleteAccount?: unknown },
   now = Date.now(),
 ): Promise<boolean> {
-  if (input.deleteAccount !== true || input.keepAccount === true || !actor.workspaceId) return false
+  if (input.deleteAccount !== true || !actor.workspaceId) return false
   const [owner] = await tx
     .select({ userId: member.userId })
     .from(member)

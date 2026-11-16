@@ -11,7 +11,7 @@
   "addedToWorkspace.note": "The link works for {days, plural, one {# day} other {# days}}. Enter this email address on the sign-in page and we send you a code.",
   "addedToWorkspace.preheader": "{inviter} added you as {role}. Sign in with this address to join.",
   "adminAlert.actor.operator": "The server operator (command line)",
-  "adminAlert.adminGranted.subject": "New instance admin on {brand}: {email}",
+  "adminAlert.adminGranted.subject": "New server admin on {brand}: {email}",
   "adminAlert.adminGranted.text": "{actor} made {email} a server admin.",
   "adminAlert.billingReconcile.count": "{count, plural, one {# event} other {# events}}",
   "adminAlert.billingReconcile.differs": "Bill {bill}: here {ours}, in Stripe {stripe}",

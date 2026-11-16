@@ -3,8 +3,8 @@
 // Providers: each step is its heading, the same group panel as Server admin › Providers (ProviderGroup, embedded: it
 // opens the provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real
 // round trip (`provider.tryOut`). Welcome and Done show the "Ready for calls" list. Where the admin got to is kept on
-// the server (`install.setProgress`), so it resumes there. An admin without a passkey adds one before Email
-// (PasskeyFirst, LIN-189): email and sign-in keys need it.
+// the server (`install.setProgress`), so it resumes there. It opens only after the passkey check of Server admin
+// (SecondFactorPrompt), so the admin has a passkey here already (LIN-248).
 import {
   groupSpec,
   type InstallSetupState,
@@ -37,18 +37,8 @@ import { TryOut } from '../admin/TryOut.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
-import { forgetEnrolmentCode, readEnrolmentCode } from '../enrolment-code.ts'
-import { passkeySupported } from '../auth.ts'
-import { addPasskey, confirmWithPasskey } from '../settings/account/account-api.ts'
-import { describeDevice } from '../settings/account/account-model.ts'
-import { Input } from '../ui/form.tsx'
-import { HelpTip, type HelpTipContent } from '../ui/HelpTip.tsx'
 import { BrandMark, Button, Note } from '../ui/kit.tsx'
-import { StatusMark } from '../ui/StatusMark.tsx'
-import { type PasskeyHere, PasskeyFirstStep, usePasskeyHere } from './AddPasskeyStep.tsx'
-import type { PasskeyStep } from './agent-setup-passkey.ts'
 import { leaveInstallSetup } from './leave-install-setup.ts'
-import { showPasskeyFirst } from './passkey-first.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
 import '../admin/admin.css'
@@ -95,11 +85,7 @@ export function InstallSetup({ onExit }: Props) {
   const [setupError, setSetupError] = useState<string | null>(null)
   const [step, setStep] = useState<InstallStep | null>(null)
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
-  // "Skip for now" on the passkey screen: Email shows, and its save asks for the passkey then (PasskeyStepUp).
-  const [passkeySkipped, setPasskeySkipped] = useState(false)
   useEffect(() => watchAdminSignIn(setSignInAgain), [])
-  // Step 1 on the welcome screen: the passkey added right there shows as done at once, then the setup is read again.
-  const [passkeyAddedHere, setPasskeyAddedHere] = useState(false)
   // Shared with Server admin: what one loads, the other shows at once.
   const adminData = useQuery(ADMIN_DATA, loadAdminData)
   const data = adminData.data ?? null
@@ -126,13 +112,6 @@ export function InstallSetup({ onExit }: Props) {
   const reloadAll = useCallback(async () => {
     await Promise.all([fetchQuery(ADMIN_DATA, loadAdminData, {}, true), loadSetup().catch(() => null)])
   }, [loadSetup])
-  const passkey = usePasskeyHere(
-    useCallback(() => {
-      setPasskeyAddedHere(true)
-      void reloadAll()
-    }, [reloadAll]),
-    reloadAll,
-  )
 
   // A saved sign-in change waits for a restart: read again until the API runs with it. Email applies at once.
   const pending = setup?.restart.pending ?? false
@@ -170,25 +149,21 @@ export function InstallSetup({ onExit }: Props) {
   const index = step ? installSteps.indexOf(step) : 0
   const partIndex = step ? partSteps.indexOf(step as PartStepId) : -1
   const groups = status.status?.groups ?? null
-  const passkeyFirst = showPasskeyFirst(step, setup, passkeySkipped)
-  const passkeyStep: PasskeyStep = passkeyAddedHere ? 'done' : setup?.passkeyNeeded ? 'todo' : 'none'
   return (
     <div className="ob is" role="main" aria-label={t('onboarding.install.label', { brand: brandName() })}>
       <div className="ob-top">
         <BrandMark />
         <b>{brandName()}</b>
         <span className="ob-count">
-          {passkeyFirst
-            ? t('onboarding.install.countStep', { step: t('onboarding.install.welcome.passkey') })
-            : !step
-              ? t('onboarding.install.count')
-              : partIndex >= 0
-                ? t('onboarding.install.countStepOf', {
-                    step: installStepLabels[step],
-                    number: partIndex + 1,
-                    total: partSteps.length,
-                  })
-                : t('onboarding.install.countStep', { step: installStepLabels[step] })}
+          {!step
+            ? t('onboarding.install.count')
+            : partIndex >= 0
+              ? t('onboarding.install.countStepOf', {
+                  step: installStepLabels[step],
+                  number: partIndex + 1,
+                  total: partSteps.length,
+                })
+              : t('onboarding.install.countStep', { step: installStepLabels[step] })}
         </span>
         <Button size="sm" variant="ghost" onClick={later} title={t('onboarding.install.laterTip')}>
           {t('onboarding.install.later')}
@@ -206,15 +181,7 @@ export function InstallSetup({ onExit }: Props) {
             skeleton={<SkeletonFields fields={2} />}
           />
         ) : step === 'welcome' ? (
-          <Welcome status={status} passkeyStep={passkeyStep} passkey={passkey} onStart={() => go('email')} />
-        ) : passkeyFirst ? (
-          <PasskeyFirst
-            onBack={() => go('welcome')}
-            onSkip={() => setPasskeySkipped(true)}
-            onDone={async () => {
-              await reloadAll()
-            }}
-          />
+          <Welcome status={status} onStart={() => go('email')} />
         ) : step === 'done' ? (
           <Done
             status={status}
@@ -309,56 +276,17 @@ function Foot({
 const groupOfStep = (status: ProviderStatusState, step: PartStepId) =>
   status.status!.groups.find(g => g.id === installStepGroups[step])!
 
-function Welcome({
-  status,
-  passkeyStep,
-  passkey,
-  onStart,
-}: {
-  status: ProviderStatusState
-  /** `none`: the admin has one already (or this install asks for none): no passkey step. */
-  passkeyStep: Exclude<PasskeyStep, 'loading'>
-  passkey: PasskeyHere
-  onStart: () => void
-}) {
+function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: () => void }) {
   const t = useT()
   useWalkKeys(onStart, null)
-  const passkeyFirst = passkeyStep !== 'none'
   return (
     <>
       <div className="ob-body">
         <h1>{t('onboarding.install.welcome.title')}</h1>
-        <p className="ob-lede">
-          {passkeyFirst ? t('onboarding.install.welcome.ledePasskey') : t('onboarding.install.welcome.lede')}
-        </p>
+        <p className="ob-lede">{t('onboarding.install.welcome.lede')}</p>
       </div>
       <HostingNote address={window.location.origin} />
-      {/* The same step 1 as the agent setup page: add the passkey right here; the parts follow. */}
-      {passkeyFirst && (
-        <section className="as-card" aria-label={t('onboarding.install.welcome.steps')}>
-          <ol className="as-steps">
-            <PasskeyFirstStep step={passkeyStep} passkey={passkey} />
-            <li className={passkeyStep === 'done' ? undefined : 'as-later'}>
-              <b>{t('onboarding.install.welcome.parts')}</b>
-              <span className="as-small">{t('onboarding.install.welcome.partsHelp')}</span>
-            </li>
-          </ol>
-        </section>
-      )}
       <section className="as-card">
-        {passkeyFirst && (
-          <div className="adm-health is-passkey-row">
-            <div className="adm-health-row">
-              <StatusMark state={passkeyStep === 'done' ? 'works' : 'missing'} />
-              <b>{t('onboarding.install.welcome.passkey')}</b>
-              <span className="help">
-                {passkeyStep === 'done'
-                  ? t('onboarding.install.passkey.added')
-                  : t('onboarding.install.passkey.notAdded')}
-              </span>
-            </div>
-          </div>
-        )}
         <StatusList groups={status.status!.groups} links={false} />
       </section>
       <Note tone="info">
@@ -367,144 +295,10 @@ function Welcome({
           {t('onboarding.install.agentButton')}
         </LinkButton>
       </Note>
-      <Foot onNext={onStart} nextLabel={t('onboarding.install.welcome.start')} nextPrimary={passkeyStep !== 'todo'} />
+      <Foot onNext={onStart} nextLabel={t('onboarding.install.welcome.start')} />
     </>
   )
 }
-
-/**
- * Before Email, for an admin without a passkey: email and sign-in keys need one. Add it (the first admin's enrolment
- * code came back with the setup and is filled in), then sign in with it once, so saving those keys just works.
- */
-function PasskeyFirst({
-  onBack,
-  onSkip,
-  onDone,
-}: {
-  onBack: () => void
-  onSkip: () => void
-  onDone: () => Promise<void>
-}) {
-  const t = useT()
-  const [code, setCode] = useState(() => readEnrolmentCode() ?? '')
-  // Filled in from the setup: the field stays hidden unless that code is missing or did not work.
-  const [askCode, setAskCode] = useState(() => !readEnrolmentCode())
-  const [added, setAdded] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const supported = passkeySupported()
-
-  const run = async (work: () => Promise<void>) => {
-    setBusy(true)
-    setError(null)
-    try {
-      await work()
-    } catch (e) {
-      setError(errorText(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-  const add = () =>
-    run(async () => {
-      if (!code.trim()) {
-        setAskCode(true)
-        throw new Error(t('onboarding.install.passkey.codeMissing'))
-      }
-      try {
-        await addPasskey(describeDevice(navigator.userAgent), code)
-      } catch (e) {
-        setAskCode(true)
-        throw e
-      }
-      forgetEnrolmentCode()
-      setAdded(true)
-    })
-  const signIn = () =>
-    run(async () => {
-      await confirmWithPasskey()
-      await onDone()
-    })
-  const primary = !supported ? onSkip : added ? () => void signIn() : () => void add()
-  useWalkKeys(busy ? null : primary, onBack)
-
-  return (
-    <>
-      <div className="ob-body">
-        <span className="as-kicker">{t('onboarding.install.passkey.kicker')}</span>
-        <h1>{t('onboarding.install.passkey.title')}</h1>
-        <p className="ob-lede">{t('onboarding.install.passkey.lede')}</p>
-      </div>
-
-      <section className="as-card">
-        <ul className="is-passkey">
-          <li>
-            <StatusMark
-              state={added ? 'works' : 'missing'}
-              label={added ? t('onboarding.install.passkey.added') : t('onboarding.install.passkey.notAdded')}
-            />
-            {t('onboarding.install.passkey.addHere')}
-          </li>
-          <li>
-            <StatusMark state="missing" label={t('onboarding.install.passkey.notYet')} />
-            {t('onboarding.install.passkey.signInOnce')}
-          </li>
-        </ul>
-        {askCode && !added && (
-          <Input
-            aria-label={t('onboarding.install.passkey.codeLabel')}
-            placeholder={t('onboarding.install.passkey.codeLabel')}
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            end={
-              <HelpTip
-                inField
-                label={t('onboarding.install.passkey.codeWhere')}
-                {...enrolmentCodeHelp(
-                  t('onboarding.install.passkey.codeHelp'),
-                  t('onboarding.install.passkey.codeAfter'),
-                )}
-              />
-            }
-          />
-        )}
-        {!supported && <Note tone="danger">{t('onboarding.install.passkey.needsHttps')}</Note>}
-        {error && <Note tone="danger">{error}</Note>}
-      </section>
-
-      <div className="ob-foot">
-        <Button variant="ghost" icon="left" onClick={onBack} title={t('onboarding.action.backTip')}>
-          {t('onboarding.action.back')}
-        </Button>
-        <div className="ob2-foot-r">
-          {supported && (
-            <Button variant="ghost" onClick={onSkip} title={t('onboarding.install.passkey.skipTip')}>
-              {t('onboarding.action.skipForNow')}
-            </Button>
-          )}
-          <Button variant="primary" shortcut={['⏎']} disabled={busy} onClick={primary}>
-            {t(
-              busy
-                ? 'onboarding.install.passkey.waiting'
-                : !supported
-                  ? 'onboarding.action.skipForNow'
-                  : added
-                    ? 'onboarding.install.passkey.signIn'
-                    : 'onboarding.install.passkey.add',
-            )}
-          </Button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/** A new enrolment code, made on the server (apps/api/src/user-passkeys.ts); the command stays as it is typed. */
-const enrolmentCodeHelp = (text: string, after: string): HelpTipContent => ({
-  text,
-  commands: [{ code: 'docker compose exec api node apps/api/src/user-passkeys.ts --enrol --email <your email>' }],
-  after,
-})
 
 /** `<b>…</b>` in a message. */
 const BOLD = { b: (chunks: ReactNode[]) => <b>{chunks}</b> }
