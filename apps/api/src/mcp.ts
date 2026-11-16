@@ -319,21 +319,14 @@ export const NOT_OVER_MCP: ReadonlySet<string> = new Set(['integration.subscribe
 
 /**
  * Not for a personal key's MCP client either, for the same reason: an assistant reading caller text could be talked
- * into them, and each hands something to a stranger. Where every future call goes (webhooks), the install's provider
- * keys (email, storage, the one OpenAI key), the workspace's carrier account, who gets in (invites, memberships, server
- * admins, passkey enrolment codes), where a number's calls go, which countries the install calls, and a calendar
- * signed in with a password stay with the person in the app, the CLI or a script (LIN-339 security review M4).
+ * into them. The install's provider keys (email, storage, the one OpenAI key), the workspace's carrier account and
+ * number setup, server admins, passkey resets and enrolment codes, and the install's system prompt stay with the person
+ * in the app, the CLI or a script (LIN-339 security review M4). Webhooks, invites, memberships, where a number's calls
+ * go, outbound countries and a calendar signed in with a password are open (Tim, 2026-11-16): every write is marked
+ * destructive, so the client asks first.
  */
 export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
-  'webhook.create',
-  'webhook.update',
   'provider.setKeys',
-  'team.invite',
-  'user.invite',
-  'membership.add',
-  'phoneNumber.update',
-  'outboundCountries.set',
-  'calendar.connectWithPassword',
   'phoneNumber.setup',
   'carrier.set',
   'provider.connectOneKey',

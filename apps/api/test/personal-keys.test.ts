@@ -407,7 +407,7 @@ describe('MCP with a personal key', () => {
       const a = (t as { annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }).annotations
       expect(a?.readOnlyHint || a?.destructiveHint, String((t as { name: string }).name)).toBe(true)
     }
-    expect([...byName.keys()].some(n => String(n).toLowerCase().includes('webhook_create'))).toBe(false)
+    expect([...byName.keys()].some(n => String(n).toLowerCase().includes('webhook_create'))).toBe(true)
     const markDone = [...byName.keys()].find(n => String(n).toLowerCase().includes('markdone'))
     expect(markDone).toBeDefined()
     const res = await mcp(ownerKey, 'tools/call', {
@@ -424,15 +424,20 @@ describe('MCP with a personal key', () => {
     const tools = await mcp(ownerKey, 'tools/list')
     const names = new Set(tools.body.result.tools.map((t: { name: string }) => t.name))
     for (const name of NOT_OVER_MCP_FOR_PERSONAL_KEYS) expect(names.has(toolName(name)), name).toBe(false)
+    for (const name of ['carrier.set', 'provider.connectOneKey', 'systemPrompt.setPart', 'systemPrompt.resetPart'])
+      expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(true)
+    // Opened by Tim (2026-11-16): webhooks, invites, memberships, number routing, outbound countries, password calendars.
     for (const name of [
+      'webhook.create',
+      'webhook.update',
       'team.invite',
       'phoneNumber.update',
-      'carrier.set',
-      'provider.connectOneKey',
-      'systemPrompt.setPart',
-      'systemPrompt.resetPart',
+      'outboundCountries.set',
+      'calendar.connectWithPassword',
     ])
-      expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(true)
+      expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(false)
+    for (const name of ['webhook.create', 'team.invite', 'phoneNumber.update', 'calendar.connectWithPassword'])
+      expect(names.has(toolName(name)), name).toBe(true)
     expect(names.has('assistant_update')).toBe(true)
     const [assistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, ws.id))
     // The assistant is fully changeable over MCP, transfer contacts included.
