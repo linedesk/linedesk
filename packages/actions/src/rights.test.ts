@@ -111,11 +111,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     // Integration subscriptions in Integrations › Zapier, like the keys.
     'integration.list',
     'integration.remove',
-    // Connected apps in Integrations › HubSpot (apps.ts): settings like the Zapier keys.
-    'app.connectStart',
-    'app.connectFinish',
-    'app.disconnect',
-    'app.pushes',
     'team.invite',
     'team.resendInvite',
     'team.revokeInvite',
