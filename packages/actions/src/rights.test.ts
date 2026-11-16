@@ -171,6 +171,10 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voiceCloning.set',
     'voicePipelinePolicy.get',
     'voicePipelinePolicy.set',
+    // The fixed parts of the assistant's system prompt, for the whole install (LIN-346).
+    'systemPrompt.get',
+    'systemPrompt.setPart',
+    'systemPrompt.resetPart',
     'afterCallTranscript.get',
     'afterCallTranscript.set',
     // Billing through Stripe on or off for the install (docs/billing.md §7).

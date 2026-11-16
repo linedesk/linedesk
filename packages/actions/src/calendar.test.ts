@@ -71,6 +71,7 @@ describe('calendar.findSlots', () => {
       'provider.tryOut',
       'records.list',
       'setupEmails.get',
+      'systemPrompt.get',
       'team.getMember',
       'team.list',
       'voice.catalog',

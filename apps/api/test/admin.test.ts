@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { actions, REDACTED, recordingKey } from '@linedesk/actions'
+import { actions, PROMPT_OVERRIDE_MAX, PROMPT_TEXTS, REDACTED, recordingKey } from '@linedesk/actions'
 import {
   admin_devices,
   api_keys,
@@ -23,6 +23,7 @@ import {
   organization,
   passkey,
   phone_numbers,
+  prompt_overrides,
   provider_settings,
   push_subscriptions,
   session,
@@ -208,6 +209,9 @@ describe('access', () => {
       'provider.tryOut',
       'setupEmails.get',
       'setupEmails.set',
+      'systemPrompt.get',
+      'systemPrompt.resetPart',
+      'systemPrompt.setPart',
       'user.disable',
       'user.enable',
       'user.impersonate',
@@ -2380,6 +2384,8 @@ describe('impersonation', () => {
       'records.list',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'setupEmails.get',
+      // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
+      'systemPrompt.get',
       // A teammate's profile and notifications as the Edit dialog shows them; changing them stays refused.
       'team.getMember',
       'team.list',
@@ -5102,6 +5108,66 @@ describe('how calls are answered: each assistant chooses, or the instance admin 
     // The assistant's own choice is kept while the admin decides, so letting workspaces choose again restores it.
     const [stored] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
     expect(stored!.voice_pipeline).toBe('three_stage')
+  })
+})
+
+describe("the system prompt: the instance admin's wording for every workspace (LIN-346)", () => {
+  const getPrompt = async () => (await act(operator, 'systemPrompt.get', {})).body.data
+  const startCall = async (ws: Workspace) =>
+    (await act(agent(), 'call.start', { from: `+1503${Math.floor(1e6 + Math.random() * 9e6)}`, to: ws.number })).body
+      .data.promptOverrides
+
+  afterAll(() => db.delete(prompt_overrides))
+
+  test('only instance admins read or change it; an edit must keep the variables of its default', async () => {
+    await db.delete(prompt_overrides)
+    expect(await getPrompt()).toEqual({ overrides: [] })
+    const ws = await createWorkspace('Prompt Rights Plumbing')
+    expect((await act(ws.owner, 'systemPrompt.get', {})).status).toBe(403)
+    expect((await act(ws.owner, 'systemPrompt.setPart', { key: 'rules.spam', text: 'Hang up.' })).status).toBe(403)
+    expect((await act(ws.owner, 'systemPrompt.resetPart', { key: 'rules.spam' })).status).toBe(403)
+    // An unknown part, an edit without the {name} of its default, an empty one, one too long.
+    for (const input of [
+      { key: 'rules.unknown', text: 'x' },
+      { key: 'role.intro', text: 'You are the assistant.' },
+      { key: 'rules.spam', text: ' \n ' },
+      { key: 'rules.spam', text: 'x'.repeat(PROMPT_OVERRIDE_MAX + 1) },
+    ])
+      expect((await act(operator, 'systemPrompt.setPart', input)).status, input.key).toBe(422)
+    expect(await db.select().from(prompt_overrides)).toEqual([])
+  })
+
+  test('the agent gets the edits at call start, cleaned; the default text and a reset go back to the default', async () => {
+    await db.delete(prompt_overrides)
+    const ws = await createWorkspace('Prompt Edit Plumbing')
+    const set = await act(operator, 'systemPrompt.setPart', { key: 'role.intro', text: ' You are {name}.\r\nBe brief.\u0007 ' })
+    expect(set.status).toBe(200)
+    expect(set.body.data.overrides).toEqual([
+      expect.objectContaining({ key: 'role.intro', text: 'You are {name}.\nBe brief.', defaultChanged: false, fits: true }),
+    ])
+    await act(operator, 'systemPrompt.setPart', { key: 'rules.spam', text: 'Spam: hang up politely.' })
+    expect(await startCall(ws)).toEqual({ 'role.intro': 'You are {name}.\nBe brief.', 'rules.spam': 'Spam: hang up politely.' })
+    // The audit log keeps who changed the prompt.
+    const logged = await db.select().from(commands).where(eq(commands.action, 'systemPrompt.setPart'))
+    expect(logged.length).toBeGreaterThanOrEqual(2)
+
+    await act(operator, 'systemPrompt.setPart', { key: 'rules.spam', text: PROMPT_TEXTS['rules.spam'].text })
+    expect((await act(operator, 'systemPrompt.resetPart', { key: 'role.intro' })).body.data).toEqual({ overrides: [] })
+    expect(await startCall(ws)).toEqual({})
+  })
+
+  test('an edit says when its default changed since, and whether it still fits', async () => {
+    await db.delete(prompt_overrides)
+    await db.insert(prompt_overrides).values([
+      { key: 'rules.spam', text: 'Hang up on spam.', default_text: 'An older default.' },
+      { key: 'role.intro', text: 'You are the assistant.', default_text: PROMPT_TEXTS['role.intro'].text },
+      { key: 'gone.part', text: 'A part no longer in the code.', default_text: 'x' },
+    ])
+    const { overrides } = await getPrompt()
+    // In the order of the prompt; a part no longer in the code is left out.
+    expect(overrides.map((o: { key: string }) => o.key)).toEqual(['role.intro', 'rules.spam'])
+    expect(overrides[0]).toMatchObject({ defaultChanged: false, fits: false })
+    expect(overrides[1]).toMatchObject({ defaultChanged: true, fits: true })
   })
 })
 

@@ -25,8 +25,9 @@ import { Overview } from './Overview.tsx'
 import { Providers } from './Providers.tsx'
 import { useProviderStatus } from './providerStatus.ts'
 import { StatusCard } from './StatusCard.tsx'
-import { adminSections, nextSection, tabSwitchesSection, useAdminPlace } from './route.ts'
+import { adminSections, nextSection, sectionIndexOfKey, sectionKey, tabSwitchesSection, useAdminPlace } from './route.ts'
 import { System } from './System.tsx'
+import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
 import { UserDetail, UsersList } from './UsersPage.tsx'
@@ -149,7 +150,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       // Enter and Space on a focused button or link belong to that control.
       const tag = document.activeElement?.tagName
       if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A')) return
-      const section = adminSections[Number(e.key) - 1]
+      const section = /^\d$/.test(e.key) ? adminSections[sectionIndexOfKey(e.key)] : undefined
       let handled = true
       if (e.key === 'Escape') place.id ? go({ section: place.section, id: null }) : onExit()
       else if (section) go({ section: section.id, id: null })
@@ -255,6 +256,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         return <BrandingSettings />
       case 'system':
         return <System />
+      case 'prompt':
+        return <SystemPrompt />
       case 'audit':
         return <AuditLog workspaces={data.workspaces} />
     }
@@ -266,7 +269,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const sections = adminSections.map((s, i) => ({
     id: s.id,
     label: t(s.label),
-    shortcut: String(i + 1),
+    shortcut: sectionKey(i),
     mark:
       s.id === 'overview' && problems.length > 0 ? (
         <StatusMark

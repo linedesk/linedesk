@@ -15,6 +15,7 @@ import {
   callStartTest,
   DEFAULT_AI_DISCLOSURE,
   ASSISTANT_CALL_DEFAULT_MINUTES,
+  type PromptOverrides,
   type UsageLevel,
   ASSISTANT_CALL_MAX_MINUTES,
   DEMO_CALL_MAX_SECONDS,
@@ -120,6 +121,8 @@ export interface CallSession {
   country?: string
   /** The workspace language: what the summary and messages for the team are written in. Missing: 'en'. */
   teamLanguage?: string
+  /** The instance admin's wording for parts of the system prompt (Server admin › System prompt); missing: the defaults. */
+  promptOverrides?: PromptOverrides
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   finish(result: CallResult): Promise<void>
   /** Stores how long the replies took (call.recordTimings), for the admin overview. */
@@ -157,6 +160,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   workspaceLanguage?: string
   /** Linedesk Cloud: the call's usage level, decided at call start (usageLevel); null on an install without billing. */
   usageLevel?: UsageLevel | null
+  /** The instance admin's wording for parts of the system prompt; missing from an older API. */
+  promptOverrides?: PromptOverrides
 }
 
 /**
@@ -453,6 +458,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     lookups: started.lookups ?? [],
     country: started.workspaceCountry ?? 'US',
     teamLanguage: started.workspaceLanguage ?? 'en',
+    promptOverrides: started.promptOverrides ?? {},
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     ...(origin.kind === 'test' && origin.realtimeModel && !billed ? { realtimeModel: origin.realtimeModel } : {}),
     ...(demo ? { demo: true } : {}),

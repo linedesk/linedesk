@@ -1214,6 +1214,18 @@ export const instance_settings = pgTable('instance_settings', {
   updated_by: text('updated_by'),
 })
 
+// The instance admin's own wording for parts of the assistant's system prompt (LIN-346; Server admin › System prompt):
+// one row per edited part, keyed like PROMPT_TEXTS in packages/actions/src/prompt-texts.ts. A part without a row reads
+// its default from the code. `default_text`: the default when the row was saved, so the admin sees when it changed.
+// Install-wide, not synced; apps/api/src/system-prompt.ts.
+export const prompt_overrides = pgTable('prompt_overrides', {
+  key: text('key').primaryKey(),
+  text: text('text').notNull(),
+  default_text: text('default_text').notNull(),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+  updated_by: text('updated_by'),
+})
+
 // Providers that are failing now (LIN-111): one row per provider of the registry while its calls fail (quota used
 // up, key rejected, model gone), from a provider test, the API's own calls or the voice agent's reports. A success
 // deletes the row. One record for every source: the voice agent's call failures (LIN-107) included. `alerted_at`: when the instance admins were emailed about this streak (once, not per call).

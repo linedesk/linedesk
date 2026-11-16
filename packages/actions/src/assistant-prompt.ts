@@ -1,19 +1,23 @@
 // How every assistant handles a call: fixed rules in its instructions, not a setting.
 
 import type { Language } from './languages.ts'
+import {
+  ASK_TIMES_TEXT,
+  defaultPromptTexts,
+  PROMPT_TEXTS,
+  type PromptTextKey,
+  type PromptTexts,
+} from './prompt-texts.ts'
 import { defaultGreetingWithAi, spokenLines } from './spoken-lines.ts'
 
 /**
  * Facts and prices: only the ones the business gave, never a guess or an estimate; always part of the prompt, after
  * what the business wants the assistant to know.
  */
-export const PRICE_RULE =
-  "Only state facts and prices the business gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say the team will get back to them with one, and take a message."
+export const PRICE_RULE = PROMPT_TEXTS['knowledge.price'].text
 
 /** What the call has: booking and transfer on or off; left out (the evaluation judges calls of any setup): both cases. */
 export type CallSetup = { booking?: boolean; transfer?: boolean }
-
-const ASK_TIMES = 'ask which day and time suit the caller, put that in the message and say the team will confirm.'
 
 /**
  * How every assistant handles a call: fixed rules, not a setting, with only the cases of this call's setup. The
@@ -25,25 +29,25 @@ const ASK_TIMES = 'ask which day and time suit the caller, put that in the messa
  * no number and sends nothing else away: something already over (a break-in yesterday) or damage to property that can't
  * wait (a burst pipe) is an urgent matter, handled by the owner's urgent rules (transfer contacts, flag_urgent).
  */
-export const EMERGENCY_RULE =
-  "Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now. If they want to stay on the call, keep helping them. Something that is already over, or damage to property that can't wait, is not a danger: treat it as urgent."
+export const EMERGENCY_RULE = PROMPT_TEXTS['rules.emergency'].text
 
-export function callRules({ booking, transfer }: CallSetup = {}): string {
+/** `pt`: the parts' texts (the instance admin's overrides at call time). */
+export function callRules({ booking, transfer }: CallSetup = {}, pt: PromptTexts = defaultPromptTexts): string {
   // With booking the booking section says how; without it, the times go into the message.
   const appointments =
     booking === undefined
-      ? `Appointments: if you can book, follow the booking steps. If not, ${ASK_TIMES}`
+      ? `Appointments: if you can book, follow the booking steps. If not, ${ASK_TIMES_TEXT}`
       : booking
         ? null
-        : `Appointments: ${ASK_TIMES}`
+        : pt('rules.appointments')
   const canTransfer = transfer !== false
   return [
-    EMERGENCY_RULE,
+    pt('rules.emergency'),
     // No tool saves the message: the summary after the call writes it from the whole call.
-    'Take a message for every request you cannot handle yourself: a callback, a visit, a quote. To take a message, get what the team needs to act on it (what the caller wants, and a callback number if there is no caller ID), then tell the caller the team will get back to them.',
+    pt('rules.message'),
     appointments,
-    `If the caller asks for a specific person: ${canTransfer ? 'put them through if a transfer contact covers it, otherwise ' : ''}take a message for that person and say they will call back.`,
-    'If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.',
+    pt(canTransfer ? 'rules.person' : 'rules.personNoTransfer'),
+    pt('rules.spam'),
   ]
     .filter(Boolean)
     .join('\n')
@@ -59,9 +63,8 @@ export const BEHAVIOURS = [
     id: 'ask_name',
     label: "Ask for the caller's name if unknown",
     on: true,
-    say: "Ask for the caller's name when you do not know it yet.",
-    sayOff:
-      "Do not ask for the caller's name unless you need it to book an appointment; a message without a name is fine.",
+    say: 'owner.askName',
+    sayOff: 'owner.askNameOff',
   },
   {
     id: 'offer_callback',
@@ -69,13 +72,13 @@ export const BEHAVIOURS = [
     on: true,
     // On: the call rules already take a message for whatever the assistant can't handle; no line of its own.
     say: null,
-    sayOff: "Don't offer a callback on your own; take a message only when the caller asks for one.",
+    sayOff: 'owner.offerCallbackOff',
   },
   {
     id: 'confirm_number',
     label: 'Confirm the callback number',
     on: false,
-    say: 'Before you tell the caller the team will get back to them, read the number the team will call back on to the caller and ask them to confirm it.',
+    say: 'owner.confirmNumber',
   },
   {
     // Not a line: whether the prompt holds the caller's earlier calls, open next steps and upcoming appointments.
@@ -102,7 +105,13 @@ export const BEHAVIOURS = [
     on: true,
     say: null,
   },
-] as const satisfies readonly { id: string; label: string; on: boolean; say: string | null; sayOff?: string }[]
+] as const satisfies readonly {
+  id: string
+  label: string
+  on: boolean
+  say: PromptTextKey | null
+  sayOff?: PromptTextKey
+}[]
 
 export type BehaviourId = (typeof BEHAVIOURS)[number]['id']
 export const BEHAVIOUR_IDS = BEHAVIOURS.map(b => b.id) as [BehaviourId, ...BehaviourId[]]
@@ -114,10 +123,13 @@ export const behaviourOn = (stored: Readonly<Record<string, boolean>> | null | u
   stored?.[id] ?? BEHAVIOURS.find(b => b.id === id)!.on
 
 /** The lines the checklist adds to the instructions, in list order; empty when none applies. */
-export function behaviourLines(stored: Readonly<Record<string, boolean>> | null | undefined): string[] {
+export function behaviourLines(
+  stored: Readonly<Record<string, boolean>> | null | undefined,
+  pt: PromptTexts = defaultPromptTexts,
+): string[] {
   return BEHAVIOURS.flatMap(b => {
-    const line = behaviourOn(stored, b.id) ? b.say : 'sayOff' in b ? b.sayOff : null
-    return line ? [line] : []
+    const key = behaviourOn(stored, b.id) ? b.say : 'sayOff' in b ? b.sayOff : null
+    return key ? [pt(key)] : []
   })
 }
 
@@ -223,23 +235,25 @@ function withLocalDisclosure(greeting: string, name: string, language: Language)
   return `${greeting.slice(0, firstEnd + 1)} ${sentence} ${greeting.slice(firstEnd + 1).trim()}`
 }
 
-/** Said in every mode: asked, the assistant always says it is an AI and never claims to be human. */
-const AI_WHEN_ASKED =
-  'Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.'
-
-/** The prompt's part about being an AI: when to mention it (the setting), and the honesty rule every mode keeps. */
-export function aiDisclosureInstructions(mode: AiDisclosure | null | undefined): string {
+/**
+ * The prompt's part about being an AI: when to mention it (the setting), and the honesty rule every mode keeps
+ * (ai.whenAsked: asked, the assistant always says it is an AI and never claims to be human).
+ */
+export function aiDisclosureInstructions(
+  mode: AiDisclosure | null | undefined,
+  pt: PromptTexts = defaultPromptTexts,
+): string {
   switch (mode ?? DEFAULT_AI_DISCLOSURE) {
     case 'never':
-      return `Do not bring up on your own that you are an AI. ${AI_WHEN_ASKED}`
+      return `${pt('ai.never')} ${pt('ai.whenAsked')}`
     case 'when_asked':
-      return AI_WHEN_ASKED
+      return pt('ai.whenAsked')
     case 'at_start':
       // The greeting said it; the model has the greeting as its first message (LIN-130).
-      return AI_WHEN_ASKED
+      return pt('ai.whenAsked')
     case 'at_start_consent':
       // The greeting asked AI_CONSENT_QUESTION; the model has it as its first message (LIN-130).
-      return `If the caller does not want to talk to an AI, don't persuade them: put them through if a transfer contact fits, else take a message with their name and reason so a person calls back. ${AI_WHEN_ASKED}`
+      return `${pt('ai.consent')} ${pt('ai.whenAsked')}`
   }
 }
 
@@ -254,16 +268,19 @@ export const COMMUNICATION_STYLE_LABELS: Record<CommunicationStyle, string> = {
   formal: 'Formal and factual',
   empathetic: 'Empathetic and warm',
 }
-const STYLE_LINES: Record<CommunicationStyle, string | null> = {
+const STYLE_LINES: Record<CommunicationStyle, PromptTextKey | null> = {
   standard: null,
-  professional: 'Tone: professional and friendly. Polite and clear, warm without being chatty.',
-  casual:
-    'Tone: casual and relaxed. Talk like a friendly local business, in everyday words, still clear and to the point.',
-  formal: 'Tone: formal and factual. Courteous and precise, no small talk and no jokes.',
-  empathetic:
-    'Tone: empathetic and warm. Acknowledge how the caller feels, especially when something went wrong, and reassure them before you move on.',
+  professional: 'tone.professional',
+  casual: 'tone.casual',
+  formal: 'tone.formal',
+  empathetic: 'tone.empathetic',
 }
 
 /** The tone line for the instructions; null for the standard tone (or an API of an older version). */
-export const communicationStyleInstructions = (style: CommunicationStyle | null | undefined): string | null =>
-  STYLE_LINES[style ?? DEFAULT_COMMUNICATION_STYLE] ?? null
+export function communicationStyleInstructions(
+  style: CommunicationStyle | null | undefined,
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
+  const key = STYLE_LINES[style ?? DEFAULT_COMMUNICATION_STYLE]
+  return key ? pt(key) : null
+}

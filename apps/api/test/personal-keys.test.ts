@@ -374,7 +374,14 @@ describe('MCP with a personal key', () => {
     const tools = await mcp(ownerKey, 'tools/list')
     const names = new Set(tools.body.result.tools.map((t: { name: string }) => t.name))
     for (const name of NOT_OVER_MCP_FOR_PERSONAL_KEYS) expect(names.has(toolName(name)), name).toBe(false)
-    for (const name of ['team.invite', 'phoneNumber.update', 'carrier.set', 'provider.connectOneKey'])
+    for (const name of [
+      'team.invite',
+      'phoneNumber.update',
+      'carrier.set',
+      'provider.connectOneKey',
+      'systemPrompt.setPart',
+      'systemPrompt.resetPart',
+    ])
       expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(true)
     expect(names.has('assistant_update')).toBe(true)
     const [assistant] = await db.select().from(assistants).where(eq(assistants.workspace_id, ws.id))

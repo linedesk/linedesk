@@ -34,10 +34,16 @@ export const adminSections = [
     description: msg('admin.sections.branding.description'),
   },
   { id: 'system', label: msg('admin.sections.system.label'), description: msg('admin.sections.system.description') },
+  { id: 'prompt', label: msg('admin.sections.prompt.label'), description: msg('admin.sections.prompt.description') },
   { id: 'audit', label: msg('admin.sections.audit.label'), description: msg('admin.sections.audit.description') },
 ] as const satisfies readonly { id: string; label: MessageKey; description: MessageKey | null }[]
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }
+
+/** The digit that opens the section at `index`: 1 to 9, then 0 for the tenth. */
+export const sectionKey = (index: number) => String((index + 1) % 10)
+/** The index of the section a digit opens: `sectionKey`'s opposite. */
+export const sectionIndexOfKey = (key: string) => (Number(key) + 9) % 10
 
 /** The section after `section` (Tab) or before it (⇧Tab), going round. */
 export function nextSection(section: AdminSection, back: boolean): AdminSection {

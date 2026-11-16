@@ -24,6 +24,7 @@ import {
   type TranscriptProviderName,
   type TryOutKind,
   type VoicePipelinePolicy,
+  type PromptTextKey,
   providers as providerRegistry,
 } from '@linedesk/actions'
 import type { AdminSecondFactor } from '../auth.ts'
@@ -284,6 +285,9 @@ type AdminInputs = {
   'voiceCloning.set': { on: boolean }
   'voicePipelinePolicy.get': Record<string, never>
   'voicePipelinePolicy.set': { policy: VoicePipelinePolicy }
+  'systemPrompt.get': Record<string, never>
+  'systemPrompt.setPart': { key: PromptTextKey; text: string }
+  'systemPrompt.resetPart': { key: PromptTextKey }
   'afterCallTranscript.get': Record<string, never>
   'afterCallTranscript.set': { provider: TranscriptProviderName | null }
   'calendarTools.get': Record<string, never>

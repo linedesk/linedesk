@@ -344,6 +344,9 @@ export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
   'instanceAdmin.grant',
   'user.resetPasskeys',
   'user.issuePasskeyEnrolment',
+  // The assistant's system prompt for every workspace of the install (LIN-346): only from a signed-in admin page.
+  'systemPrompt.setPart',
+  'systemPrompt.resetPart',
 ])
 
 /**

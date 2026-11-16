@@ -231,6 +231,10 @@ export function auditLabel(
       return t('admin.audit.voiceCloningSet')
     case 'voicePipelinePolicy.set':
       return t('admin.audit.pipelinePolicySet')
+    case 'systemPrompt.setPart':
+      return t('admin.audit.systemPromptSet', { part: String(input.key) })
+    case 'systemPrompt.resetPart':
+      return t('admin.audit.systemPromptReset', { part: String(input.key) })
     case 'afterCallTranscript.set':
       return t('admin.audit.afterCallTranscriptSet')
     case 'setupEmails.set':

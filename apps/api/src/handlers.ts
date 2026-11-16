@@ -137,6 +137,7 @@ import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-setti
 import { workspaceLocale } from './workspace-locale.ts'
 import { publicHolidayHandlers } from './public-holidays.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
+import { promptOverridesForCall, systemPromptHandlers } from './system-prompt.ts'
 import { sampleHandlers } from './sample-calls.ts'
 import { goLiveChecklistHandlers } from './go-live-checklist.ts'
 import {
@@ -591,6 +592,8 @@ async function openCall(
       workspaceCountry: locale.resolvedCountry,
       workspaceLanguage: locale.resolvedLanguage,
       usageLevel: forCall?.level ?? null,
+      // The instance admin's wording for parts of the system prompt (Server admin › System prompt; LIN-346).
+      promptOverrides: blocked ? {} : await promptOverridesForCall(tx),
     },
   }
 }
@@ -1081,6 +1084,7 @@ const handlers: Record<string, Handler> = {
   ...insightsHandlers,
   ...transferHandlers(businessHoursFor),
   ...voiceHandlers,
+  ...systemPromptHandlers,
   ...brandingHandlers,
   ...sampleHandlers,
   ...goLiveChecklistHandlers,

@@ -1,5 +1,14 @@
 import { expect, test } from 'vitest'
-import { adminHash, adminSections, nextSection, parseAdminHash, providersTarget, tabSwitchesSection } from './route.ts'
+import {
+  adminHash,
+  adminSections,
+  nextSection,
+  parseAdminHash,
+  providersTarget,
+  sectionIndexOfKey,
+  sectionKey,
+  tabSwitchesSection,
+} from './route.ts'
 
 test('admin hashes name a section and optionally a row', () => {
   expect(parseAdminHash('#admin')).toEqual({ section: 'overview', id: null })
@@ -46,4 +55,12 @@ test('section names and descriptions are message keys, so every language shows i
     if (section.description) expect(enMessages[section.description], section.id).toBeTruthy()
   }
   expect(enMessages[adminSections.find(s => s.id === 'audit')!.label]).toBe('Audit log')
+})
+
+test('digits 1 to 9, then 0, open the sections in order (LIN-346: ten sections)', () => {
+  const keys = adminSections.map((_, i) => sectionKey(i))
+  expect(new Set(keys).size).toBe(adminSections.length)
+  expect(keys.slice(0, 2)).toEqual(['1', '2'])
+  expect(sectionKey(9)).toBe('0')
+  for (const [i] of adminSections.entries()) expect(sectionIndexOfKey(sectionKey(i))).toBe(i)
 })

@@ -27,6 +27,7 @@ import * as providerHealth from './provider-health.ts'
 import * as sample from './sample.ts'
 import * as settings from './settings.ts'
 import * as star from './star.ts'
+import * as systemPrompt from './system-prompt.ts'
 import * as team from './team.ts'
 import * as transfer from './transfer.ts'
 import * as outbound from './outbound.ts'
@@ -50,6 +51,8 @@ export * from './api-keys.ts'
 export * from './personal-keys.ts'
 export * from './records.ts'
 export * from './assistant-prompt.ts'
+export * from './prompt-texts.ts'
+export * from './system-prompt.ts'
 export * from './assistant-versions.ts'
 export * from './billing.ts'
 export * from './branding.ts'
@@ -146,6 +149,9 @@ const all = [
   voices.voiceCloningSet,
   settings.voicePipelinePolicyGet,
   settings.voicePipelinePolicySet,
+  systemPrompt.systemPromptGet,
+  systemPrompt.systemPromptSetPart,
+  systemPrompt.systemPromptResetPart,
   settings.afterCallTranscriptGet,
   settings.afterCallTranscriptSet,
   branding.brandingSet,

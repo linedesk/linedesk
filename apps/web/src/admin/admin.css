@@ -1407,3 +1407,98 @@
   color: var(--ink-muted);
   flex: none;
 }
+
+/* ---- System prompt (LIN-346): the whole prompt as text; fixed text editable in place, variables as grey chips. ---- */
+.adm-prompt {
+  display: grid;
+  gap: 12px;
+}
+.adm-prompt-section {
+  gap: 2px;
+}
+.adm-prompt-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.adm-prompt-part {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid transparent;
+}
+.adm-prompt-part:hover,
+.adm-prompt-part:focus-within {
+  background: var(--surface-hover);
+}
+.adm-prompt-part.is-edited {
+  border-left-color: var(--ink);
+}
+.adm-prompt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-prompt-meta:empty {
+  display: none;
+}
+.adm-prompt-when {
+  font-style: italic;
+}
+.adm-prompt-reset {
+  margin-left: auto;
+}
+.adm-prompt-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.adm-prompt-edit {
+  border-radius: var(--radius-xs);
+  outline: 1px solid transparent;
+  cursor: text;
+}
+.adm-prompt-edit:empty {
+  display: inline-block;
+  min-width: 1ch;
+}
+.adm-prompt-edit:hover {
+  outline-color: var(--line);
+}
+.adm-prompt-edit:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.adm-prompt-var {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--line-soft);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+.adm-prompt-default {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-prompt-default summary {
+  cursor: pointer;
+}
+.adm-prompt-default .adm-prompt-text {
+  margin-top: 4px;
+  font-size: 12px;
+}
