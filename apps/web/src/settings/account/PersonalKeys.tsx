@@ -99,8 +99,9 @@ function KeyRow({ personalKey, onDone }: { personalKey: PersonalKeySummary; onDo
         </>
       }
       aside={
-        personalKey.passkey_confirmed && (
-          <Badge tone="outline" title={t('account.apiKeys.serverAdminTip')}>
+        personalKey.admin_until &&
+        Date.parse(personalKey.admin_until) > Date.now() && (
+          <Badge tone="outline" title={t('account.apiKeys.serverAdminTip', { until: day(personalKey.admin_until) })}>
             {t('account.apiKeys.serverAdmin')}
           </Badge>
         )

@@ -7,6 +7,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   PERSONAL_KEY_PREFIX,
+  personalKeyAdminUntil,
   type PersonalKeyCreated,
   type PersonalKeyListData,
   type Permission,
@@ -59,9 +60,11 @@ export async function actorForPersonalKey(
   }
   const { row, account } = found
   // Server admin as a session has it: where the install asks for the passkey check, only with it, which a key carries
-  // from the session it was made in (until revoked). Without it the key is refused as such a session is ('confirm').
+  // from the passkey sign-in it was made after, for PERSONAL_KEY_ADMIN_DAYS (security review M3). Without it the key
+  // is refused as such a session is ('confirm').
   const admin = isInstanceAdmin(account)
-  const adminConfirmed = admin && row.passkey_confirmed
+  const adminUntil = personalKeyAdminUntil(row)
+  const adminConfirmed = admin && adminUntil !== null && Date.parse(adminUntil) > Date.now()
   const adminOpen = admin && (adminConfirmed || !adminSecondFactorRequired())
   const extraPermissions: Permission[] = admin
     ? adminOpen
@@ -130,8 +133,10 @@ export const personalKeyHandlers: Record<string, Handler> = {
         name: input.name,
         prefix: key.slice(0, SHOWN_LENGTH),
         key_hash: hashKey(key),
-        // Only an instance admin's key carries the check: a passkey sign-in before becoming one gives a key nothing.
-        passkey_confirmed: actor.passkeyConfirmed === true && actor.permissions.includes('instance:admin'),
+        // Only an instance admin's key carries the check, and only a passkey sign-in: a code from the authenticator app
+        // can be phished, and the key outlives the session (security review M3). A passkey sign-in before becoming
+        // an instance admin gives a key nothing.
+        passkey_confirmed: actor.passkeySignedIn === true && actor.permissions.includes('instance:admin'),
       })
       .returning()
     const data: PersonalKeyCreated = { personalKeyId: row!.id, key, prefix: row!.prefix }
@@ -153,7 +158,7 @@ export const personalKeyHandlers: Record<string, Handler> = {
       .from(personal_keys)
       .where(eq(personal_keys.user_id, userId))
       .orderBy(desc(personal_keys.created_at))
-    const data: PersonalKeyListData = { keys: rows }
+    const data: PersonalKeyListData = { keys: rows.map(r => ({ ...r, admin_until: personalKeyAdminUntil(r) })) }
     return { rows: {}, data }
   },
 

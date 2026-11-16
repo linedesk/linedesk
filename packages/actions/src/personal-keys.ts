@@ -29,12 +29,28 @@ export const personalKeyList = defineAction({
   readOnly: true,
 })
 
+/**
+ * How long a key made after a passkey sign-in carries Server admin (LIN-339 security review M3): a key never expires,
+ * so the rights the passkey opened must, as a session's do. After that, a new key from a new passkey sign-in.
+ */
+export const PERSONAL_KEY_ADMIN_DAYS = 30
+
+/** Until when a key carries Server admin: PERSONAL_KEY_ADMIN_DAYS after it was made, if made after a passkey sign-in. */
+export function personalKeyAdminUntil(key: { passkey_confirmed: boolean; created_at: string }): string | null {
+  const made = Date.parse(key.created_at)
+  // A time that cannot be read gives no Server admin, never an error.
+  if (!key.passkey_confirmed || !Number.isFinite(made)) return null
+  return new Date(made + PERSONAL_KEY_ADMIN_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
+
 export type PersonalKeySummary = {
   id: string
   name: string
   prefix: string
-  /** Made after the passkey check: carries Server admin while its maker is an instance admin. */
+  /** Made after a passkey sign-in: carries Server admin while its maker is an instance admin, until admin_until. */
   passkey_confirmed: boolean
+  /** Until when it carries Server admin (personalKeyAdminUntil); null: never. */
+  admin_until: string | null
   created_at: string
   last_used_at: string | null
   revoked_at: string | null

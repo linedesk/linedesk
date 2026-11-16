@@ -2,7 +2,7 @@
 // its maker does now (every workspace, the role there, server admin), over /v1, MCP and records.list, never managing
 // keys and never reaching the browser's routes. Instance-wide file (vitest.config.ts): it makes a server admin.
 import { IRREVERSIBLE_ACTIONS, actions } from '@linedesk/actions'
-import { assistants, commands, member, personal_keys, user } from '@linedesk/db'
+import { assistants, commands, member, personal_keys, session, user } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { dropUnprovenAccessOf } from '../src/account-linking.ts'
@@ -225,6 +225,29 @@ describe('a key acts as its maker', () => {
     expect((await request(asKey(key), 'GET', '/v1/admin/overview')).status).toBe(403)
   })
 
+  test('only a passkey sign-in, not an authenticator code, gives an admin key Server admin', async () => {
+    const admin = await addMember(ws.id, 'admin')
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
+    try {
+      const confirmed = async (method: 'passkey' | 'authenticator') => {
+        await db
+          .update(session)
+          .set({ passkeyVerifiedAt: new Date(), secondFactorMethod: method })
+          .where(eq(session.userId, admin.userId))
+        const key = await makeKey(admin, method)
+        const [row] = await db
+          .select()
+          .from(personal_keys)
+          .where(eq(personal_keys.prefix, key.slice(0, 12)))
+        return row!.passkey_confirmed
+      }
+      expect(await confirmed('authenticator')).toBe(false)
+      expect(await confirmed('passkey')).toBe(true)
+    } finally {
+      await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
+    }
+  })
+
   test('where the passkey check is on, only a key made after it is a server admin', async () => {
     const admin = await addMember(ws.id, 'admin')
     await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
@@ -238,6 +261,17 @@ describe('a key acts as its maker', () => {
         .set({ passkey_confirmed: true })
         .where(eq(personal_keys.prefix, key.slice(0, 12)))
       expect((await request(asKey(key), 'GET', '/v1/admin/overview')).status).toBe(200)
+      // For PERSONAL_KEY_ADMIN_DAYS only (security review M3): a key made 31 days ago is no server admin any more.
+      await db
+        .update(personal_keys)
+        .set({ created_at: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString() })
+        .where(eq(personal_keys.prefix, key.slice(0, 12)))
+      expect((await request(asKey(key), 'GET', '/v1/admin/overview')).status).toBe(403)
+      // Still the person in their workspaces.
+      expect((await act(asKey(key), 'member.list', {})).status).toBe(200)
+      const listed = await act(admin, 'personalKey.list', {})
+      const row = listed.body.data.keys.find((k: { prefix: string }) => k.prefix === key.slice(0, 12))
+      expect(Date.parse(row.admin_until)).toBeLessThan(Date.now())
     } finally {
       if (before === undefined) delete process.env.ADMIN_SECOND_FACTOR
       else process.env.ADMIN_SECOND_FACTOR = before

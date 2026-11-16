@@ -9,7 +9,7 @@
   "apiKeys.revokeConfirmTip": "Click again to revoke. Tools using this key stop working right away.",
   "apiKeys.revoked": "{name} is revoked.",
   "apiKeys.serverAdmin": "Server admin",
-  "apiKeys.serverAdminTip": "Made after a passkey check: this key can also use Server admin while you are a server admin.",
+  "apiKeys.serverAdminTip": "Made after a passkey sign-in: this key can also use Server admin until {until}, while you are a server admin. Then make a new key.",
   "authenticator.add": "Set up authenticator app",
   "authenticator.addHereButtonTitle": "Create a passkey on this device for your account",
   "authenticator.addHereCancelled": "No passkey was added. Try again, or continue without one.",
