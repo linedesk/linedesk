@@ -1,0 +1,736 @@
+[
+  {
+    "name": "call.markDone",
+    "key": "call_mark_done",
+    "kind": "create",
+    "label": "Mark Call Done",
+    "noun": "Call",
+    "description": "Mark a call as done.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.markNotDone",
+    "key": "call_mark_not_done",
+    "kind": "create",
+    "label": "Move Call Back to Inbox",
+    "noun": "Call",
+    "description": "Move a done call back to the inbox.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.markRead",
+    "key": "call_mark_read",
+    "kind": "create",
+    "label": "Mark Call Read",
+    "noun": "Call",
+    "description": "Mark a call as read.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.markUnread",
+    "key": "call_mark_unread",
+    "kind": "create",
+    "label": "Mark Call Unread",
+    "noun": "Call",
+    "description": "Mark a call as unread.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.remind",
+    "key": "call_remind",
+    "kind": "create",
+    "label": "Remind Me About Call",
+    "noun": "Call",
+    "description": "Hide a call until a point in time, then bring it back.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      },
+      {
+        "key": "at",
+        "label": "Remind At",
+        "type": "datetime",
+        "required": true,
+        "helpText": "When the call comes back to the inbox."
+      },
+      {
+        "key": "label",
+        "label": "Reminder Note",
+        "type": "string",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "call.assign",
+    "key": "call_assign",
+    "kind": "create",
+    "label": "Assign Call",
+    "noun": "Call",
+    "description": "Assign a call to a member of the workspace (their userId from member.list), or unassign it with userId null. The member is notified unless notify is false.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      },
+      {
+        "key": "userId",
+        "label": "Team Member",
+        "type": "string",
+        "required": true,
+        "nullable": true,
+        "helpText": "Leave empty to unassign the call.",
+        "dynamic": "members"
+      },
+      {
+        "key": "notify",
+        "label": "Notify Them",
+        "type": "boolean",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "member.list",
+    "key": "member_list",
+    "kind": "search",
+    "label": "Find Team Members",
+    "noun": "Team Member",
+    "description": "List the members of the workspace that calls can be assigned to: their userId, name and role.",
+    "permission": "call:read",
+    "list": "members",
+    "fields": []
+  },
+  {
+    "name": "call.clearReminder",
+    "key": "call_clear_reminder",
+    "kind": "create",
+    "label": "Remove Call Reminder",
+    "noun": "Call",
+    "description": "Remove the reminder from a call.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.delete",
+    "key": "call_delete",
+    "kind": "create",
+    "label": "Delete Call",
+    "noun": "Call",
+    "description": "Delete a call.",
+    "permission": "call:write",
+    "destructive": true,
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.restore",
+    "key": "call_restore",
+    "kind": "create",
+    "label": "Restore Call",
+    "noun": "Call",
+    "description": "Restore a deleted call.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "deleted_calls"
+      }
+    ]
+  },
+  {
+    "name": "call.markSpam",
+    "key": "call_mark_spam",
+    "kind": "create",
+    "label": "Mark Call as Spam",
+    "noun": "Call",
+    "description": "File a call as spam (a sales call or robocall).",
+    "permission": "call:write",
+    "destructive": true,
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "call.markNotSpam",
+    "key": "call_mark_not_spam",
+    "kind": "create",
+    "label": "Mark Call as Not Spam",
+    "noun": "Call",
+    "description": "Take a call out of spam: it was a real caller, so it goes back to the open inbox (as a callback unless an outcome is given).",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      },
+      {
+        "key": "outcome",
+        "label": "Outcome",
+        "type": "string",
+        "required": false,
+        "choices": [
+          "booked",
+          "rescheduled",
+          "cancelled",
+          "callback",
+          "message",
+          "answered",
+          "transferred",
+          "hangup"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "call.setActionItems",
+    "key": "call_set_action_items",
+    "kind": "create",
+    "label": "Set Call Next Steps",
+    "noun": "Call",
+    "description": "Replace the next steps of a call, for example to tick one off.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      },
+      {
+        "key": "items",
+        "label": "Next Steps",
+        "type": "string",
+        "required": true,
+        "children": [
+          {
+            "key": "text",
+            "label": "Text",
+            "type": "string",
+            "required": true
+          },
+          {
+            "key": "done",
+            "label": "Done",
+            "type": "boolean",
+            "required": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "call.setUrgency",
+    "key": "call_set_urgency",
+    "kind": "create",
+    "label": "Set Call Urgency",
+    "noun": "Call",
+    "description": "Set how urgent a call is: urgent puts it at the top of the inbox; normal or low takes the flag off.",
+    "permission": "call:write",
+    "fields": [
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": true,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      },
+      {
+        "key": "urgency",
+        "label": "Urgency",
+        "type": "string",
+        "required": true,
+        "choices": [
+          "urgent",
+          "normal",
+          "low"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "call.export",
+    "key": "call_export",
+    "kind": "create",
+    "label": "Export Calls",
+    "noun": "Export",
+    "description": "The calls of a date range as CSV (or, with format table, as header and rows): time, caller, number, urgency, outcome, title, summary and next steps. Owners and admins; at most 10000 calls (`truncated` says when there were more).",
+    "permission": "call:export",
+    "fields": [
+      {
+        "key": "from",
+        "label": "From",
+        "type": "date",
+        "required": true,
+        "helpText": "First day, YYYY-MM-DD, in the business time zone."
+      },
+      {
+        "key": "to",
+        "label": "To",
+        "type": "date",
+        "required": true,
+        "helpText": "Last day, YYYY-MM-DD, in the business time zone (included)."
+      },
+      {
+        "key": "format",
+        "label": "Format",
+        "type": "string",
+        "required": false,
+        "helpText": "csv: the file as text (default); table: the same header and cells as lists, for a spreadsheet.",
+        "choices": [
+          "csv",
+          "table"
+        ],
+        "default": "csv"
+      }
+    ]
+  },
+  {
+    "name": "contact.update",
+    "key": "contact_update",
+    "kind": "create",
+    "label": "Update Contact",
+    "noun": "Contact",
+    "description": "Update a contact.",
+    "permission": "contact:write",
+    "fields": [
+      {
+        "key": "contactId",
+        "label": "Contact",
+        "type": "string",
+        "required": true,
+        "dynamic": "contacts"
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "string",
+        "required": false,
+        "nullable": true
+      },
+      {
+        "key": "company",
+        "label": "Company",
+        "type": "string",
+        "required": false,
+        "nullable": true
+      },
+      {
+        "key": "email",
+        "label": "Email",
+        "type": "string",
+        "required": false,
+        "nullable": true
+      },
+      {
+        "key": "address",
+        "label": "Address",
+        "type": "string",
+        "required": false,
+        "nullable": true
+      },
+      {
+        "key": "note",
+        "label": "Note",
+        "type": "string",
+        "required": false,
+        "nullable": true
+      }
+    ]
+  },
+  {
+    "name": "contact.block",
+    "key": "contact_block",
+    "kind": "create",
+    "label": "Block Caller",
+    "noun": "Contact",
+    "description": "Block a caller: calls from their number are not answered and are filed in Spam.",
+    "permission": "contact:write",
+    "destructive": true,
+    "fields": [
+      {
+        "key": "contactId",
+        "label": "Contact",
+        "type": "string",
+        "required": true,
+        "dynamic": "contacts"
+      }
+    ]
+  },
+  {
+    "name": "contact.unblock",
+    "key": "contact_unblock",
+    "kind": "create",
+    "label": "Unblock Caller",
+    "noun": "Contact",
+    "description": "Unblock a caller: their calls are answered again.",
+    "permission": "contact:write",
+    "fields": [
+      {
+        "key": "contactId",
+        "label": "Contact",
+        "type": "string",
+        "required": true,
+        "dynamic": "contacts"
+      }
+    ]
+  },
+  {
+    "name": "contact.create",
+    "key": "contact_create",
+    "kind": "create",
+    "label": "Create Contact",
+    "noun": "Contact",
+    "description": "Add a contact by hand: a phone number in E.164 (+15035550100), and optionally a name, company, email, address and note.",
+    "permission": "contact:write",
+    "fields": [
+      {
+        "key": "phone",
+        "label": "Phone Number",
+        "type": "string",
+        "required": true,
+        "helpText": "In international format, e.g. +15035550123.",
+        "phone": true
+      },
+      {
+        "key": "name",
+        "label": "Name",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "company",
+        "label": "Company",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "email",
+        "label": "Email",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "address",
+        "label": "Address",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "note",
+        "label": "Note",
+        "type": "text",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "contact.delete",
+    "key": "contact_delete",
+    "kind": "create",
+    "label": "Delete Contact",
+    "noun": "Contact",
+    "description": "Delete a contact. Their calls stay in the inbox, shown by number.",
+    "permission": "contact:write",
+    "destructive": true,
+    "fields": [
+      {
+        "key": "contactId",
+        "label": "Contact",
+        "type": "string",
+        "required": true,
+        "dynamic": "contacts"
+      }
+    ]
+  },
+  {
+    "name": "contact.restore",
+    "key": "contact_restore",
+    "kind": "create",
+    "label": "Restore Contact",
+    "noun": "Contact",
+    "description": "Bring back a deleted contact.",
+    "permission": "contact:write",
+    "fields": [
+      {
+        "key": "contactId",
+        "label": "Contact",
+        "type": "string",
+        "required": true,
+        "dynamic": "deleted_contacts"
+      }
+    ]
+  },
+  {
+    "name": "calendar.findSlots",
+    "key": "calendar_find_slots",
+    "kind": "search",
+    "label": "Find Free Slots",
+    "noun": "Slot",
+    "description": "Find free slots for an appointment type: working hours minus existing bookings, buffers and minimum notice.",
+    "permission": "calendar:read",
+    "list": "slots",
+    "fields": [
+      {
+        "key": "appointmentTypeId",
+        "label": "Appointment Type",
+        "type": "string",
+        "required": true,
+        "dynamic": "appointment_types"
+      },
+      {
+        "key": "from",
+        "label": "From",
+        "type": "datetime",
+        "required": false
+      },
+      {
+        "key": "to",
+        "label": "To",
+        "type": "datetime",
+        "required": false
+      },
+      {
+        "key": "fromDate",
+        "label": "From Day",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "toDate",
+        "label": "To Day",
+        "type": "date",
+        "required": false
+      },
+      {
+        "key": "calendarId",
+        "label": "Calendar",
+        "type": "string",
+        "required": false,
+        "dynamic": "calendars"
+      },
+      {
+        "key": "limit",
+        "label": "Limit",
+        "type": "integer",
+        "required": false,
+        "default": 20
+      }
+    ]
+  },
+  {
+    "name": "appointment.book",
+    "key": "appointment_book",
+    "kind": "create",
+    "label": "Book Appointment",
+    "noun": "Booking",
+    "description": "Book an appointment into one of the assistant's calendars: checks the slot is still free, writes the calendar event (caller, number, reason, address) and stores the booking, linked to the call.",
+    "permission": "calendar:write",
+    "fields": [
+      {
+        "key": "appointmentTypeId",
+        "label": "Appointment Type",
+        "type": "string",
+        "required": true,
+        "dynamic": "appointment_types"
+      },
+      {
+        "key": "calendarId",
+        "label": "Calendar",
+        "type": "string",
+        "required": true,
+        "dynamic": "calendars"
+      },
+      {
+        "key": "start",
+        "label": "Start",
+        "type": "datetime",
+        "required": true,
+        "helpText": "The start time; it must be a free slot (Find Free Slots)."
+      },
+      {
+        "key": "callerName",
+        "label": "Caller Name",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "reason",
+        "label": "Reason",
+        "type": "string",
+        "required": true
+      },
+      {
+        "key": "address",
+        "label": "Address",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "callerPhone",
+        "label": "Caller Phone",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "callerEmail",
+        "label": "Caller Email",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "callId",
+        "label": "Call",
+        "type": "string",
+        "required": false,
+        "helpText": "The Call ID, e.g. from the Call Finished trigger.",
+        "dynamic": "calls"
+      }
+    ]
+  },
+  {
+    "name": "appointment.cancel",
+    "key": "appointment_cancel",
+    "kind": "create",
+    "label": "Cancel Appointment",
+    "noun": "Booking",
+    "description": "Cancel a booking made through Linedesk: deletes its calendar event and marks it cancelled.",
+    "permission": "calendar:write",
+    "destructive": true,
+    "fields": [
+      {
+        "key": "bookingId",
+        "label": "Booking",
+        "type": "string",
+        "required": true,
+        "dynamic": "bookings"
+      }
+    ]
+  },
+  {
+    "name": "appointment.reschedule",
+    "key": "appointment_reschedule",
+    "kind": "create",
+    "label": "Reschedule Appointment",
+    "noun": "Booking",
+    "description": "Move a booking made through Linedesk to another free slot: the calendar event moves with it.",
+    "permission": "calendar:write",
+    "destructive": true,
+    "fields": [
+      {
+        "key": "bookingId",
+        "label": "Booking",
+        "type": "string",
+        "required": true,
+        "dynamic": "bookings"
+      },
+      {
+        "key": "start",
+        "label": "Start",
+        "type": "datetime",
+        "required": true,
+        "helpText": "The start time; it must be a free slot (Find Free Slots)."
+      },
+      {
+        "key": "appointmentTypeId",
+        "label": "Appointment Type",
+        "type": "string",
+        "required": false,
+        "dynamic": "appointment_types"
+      },
+      {
+        "key": "calendarId",
+        "label": "Calendar",
+        "type": "string",
+        "required": false,
+        "dynamic": "calendars"
+      }
+    ]
+  }
+]

@@ -87,8 +87,48 @@ describe('Call Finished', () => {
     assert.deepEqual(await appTester(trigger.performList, { authData }), [call])
   })
 
-  test('the sample has the fields the outputs name', () => {
-    for (const { key } of trigger.outputFields) assert.ok(key in trigger.sample, key)
+})
+
+/** A value of the sample at an output key: `caller__name` is caller.name, `next_steps[]text` each step's text. */
+function at(sample, key) {
+  const [list, item] = key.split('[]')
+  if (item) return Array.isArray(sample[list]) && sample[list].length > 0 ? sample[list][0][item] : undefined
+  return key.split('__').reduce((value, part) => (value && typeof value === 'object' && part in value ? value[part] : undefined), sample)
+}
+
+describe('every trigger', () => {
+  for (const key of ['call_started', 'during_call_lookup', 'call_finished']) {
+    const trigger = App.triggers[key].operation
+
+    test(`${key}: the sample has every output field, no two share a label`, () => {
+      for (const field of trigger.outputFields) {
+        const sampleHasIt = field.key.includes('[]') ? field.key.split('[]')[0] in trigger.sample : at(trigger.sample, field.key) !== undefined || field.key.split('__')[0] in trigger.sample
+        assert.ok(sampleHasIt, field.key)
+      }
+      const labels = trigger.outputFields.map(f => f.label)
+      assert.equal(new Set(labels).size, labels.length)
+    })
+
+    test(`${key}: subscribes its own event; delivered as sent, without Zapier's querystring`, async () => {
+      nock(BASE, auth)
+        .post('/v1/actions/integration.subscribe', { source: 'zapier', event: key, targetUrl: 'https://hooks.zapier.com/x' })
+        .reply(200, { ok: true, rows: {}, data: { subscriptionId: 'isub_2' } })
+      assert.deepEqual(await appTester(trigger.performSubscribe, { authData, targetUrl: 'https://hooks.zapier.com/x' }), {
+        subscriptionId: 'isub_2',
+      })
+      const event = { id: 'x_1', event: key }
+      assert.deepEqual(await appTester(trigger.perform, { authData, cleanedRequest: { ...event, querystring: {} } }), [event])
+    })
+  }
+
+  test('the samples of call_started and during_call_lookup come from /samples', async () => {
+    for (const key of ['call_started', 'during_call_lookup']) {
+      nock(BASE, auth)
+        .get(`/v1/integrations/samples/${key}`)
+        .query({ limit: 3 })
+        .reply(200, { ok: true, items: [{ id: 'x_1', event: key }] })
+      assert.deepEqual(await appTester(App.triggers[key].operation.performList, { authData }), [{ id: 'x_1', event: key }])
+    }
   })
 })
 
@@ -115,7 +155,7 @@ describe('contacts and calls', () => {
       authData,
       inputData: { phone: '+1 (503) 555-0188', name: ' Pat Lee ', company: '  ' },
     })
-    assert.deepEqual(created, contact)
+    assert.deepEqual(created, { action: 'contact.create', ...contact, contactId: 'ct_2' })
   })
 
   test("Mark Call Done runs call.markDone; Linedesk's refusal comes back as the error", async () => {
@@ -126,12 +166,118 @@ describe('contacts and calls', () => {
       authData,
       inputData: { call_id: 'call_1' },
     })
-    assert.deepEqual(done, { id: 'call_1', inbox_state: 'done' })
+    assert.deepEqual(done, { action: 'call.markDone', id: 'call_1', inbox_state: 'done' })
 
     nock(BASE).post('/v1/actions/call.markDone').reply(409, { ok: false, error: 'call not found' })
     await assert.rejects(
       appTester(App.creates.mark_call_done.operation.perform, { authData, inputData: { call_id: 'call_x' } }),
       /call not found/,
     )
+  })
+})
+
+describe('the API, generated from the registry', () => {
+  const generated = require('../generated/actions.json')
+
+  test('every public action is a step, but never subscribe or unsubscribe', () => {
+    const steps = { ...App.creates, ...App.searches }
+    const names = new Set(Object.values(steps).map(s => s.key))
+    assert.ok(generated.length >= 20)
+    for (const action of generated) assert.ok(names.has(action.key) || ['contact.create', 'call.markDone'].includes(action.name), action.name)
+    assert.ok(!generated.some(a => a.name.startsWith('integration.')))
+  })
+
+  test('fields: dropdowns, dates cut to a day, booleans, line items, blank left out, null to unassign', async () => {
+    nock(BASE, auth)
+      .post('/v1/actions/call.assign', { callId: 'call_1', userId: null, notify: false })
+      .reply(200, { ok: true, rows: { calls: [{ id: 'call_1', assigned_to: null }] } })
+    const assign = App.creates.call_assign.operation
+    assert.equal(assign.inputFields.find(f => f.key === 'userId').dynamic, 'option_members.id.label')
+    await appTester(assign.perform, { authData, inputData: { callId: 'call_1', userId: '', notify: 'no' } })
+
+    nock(BASE, auth)
+      .post('/v1/actions/call.setActionItems', { callId: 'call_1', items: [{ text: 'Call back', done: true }] })
+      .reply(200, { ok: true, rows: { calls: [{ id: 'call_1' }] } })
+    await appTester(App.creates.call_set_action_items.operation.perform, {
+      authData,
+      inputData: { callId: 'call_1', items: [{ text: 'Call back', done: 'true' }, { text: '' }] },
+    })
+
+    nock(BASE, auth)
+      .post('/v1/actions/call.export', { from: '2026-11-01', to: '2026-11-30' })
+      .reply(200, { ok: true, rows: {}, data: { csv: 'a,b' } })
+    const exported = await appTester(App.creates.call_export.operation.perform, {
+      authData,
+      inputData: { from: '2026-11-01T00:00:00-08:00', to: '2026-11-30T00:00:00-08:00', format: '' },
+    })
+    assert.equal(exported.csv, 'a,b')
+  })
+
+  test('Cancel Appointment picks a booking; the voice agent\'s fields are not offered', () => {
+    const keys = App.creates.appointment_cancel.operation.inputFields.map(f => f.key)
+    assert.deepEqual(keys, ['bookingId'])
+  })
+
+  test('searches hand Zapier a list with ids', async () => {
+    nock(BASE, auth)
+      .post('/v1/actions/member.list', {})
+      .reply(200, { ok: true, rows: {}, data: { members: [{ userId: 'u_1', name: 'Mike Brennan', role: 'owner' }] } })
+    assert.deepEqual(await appTester(App.searches.member_list.operation.perform, { authData, inputData: {} }), [
+      { id: 'u_1', userId: 'u_1', name: 'Mike Brennan', role: 'owner' },
+    ])
+    nock(BASE, auth)
+      .post('/v1/actions/calendar.findSlots', { appointmentTypeId: 'at_1', limit: 5 })
+      .reply(200, { ok: true, rows: {}, data: { slots: [{ start: 's', end: 'e', label: 'l' }] } })
+    const slots = await appTester(App.searches.calendar_find_slots.operation.perform, {
+      authData,
+      inputData: { appointmentTypeId: 'at_1', limit: '5' },
+    })
+    assert.deepEqual(slots, [{ id: 's', start: 's', end: 'e', label: 'l' }])
+  })
+
+  test('Find Call reads one call by id', async () => {
+    nock(BASE, auth)
+      .get('/v1/integrations/calls')
+      .query({ id: 'call_1' })
+      .reply(200, { ok: true, calls: [{ id: 'call_1' }] })
+    assert.deepEqual(await appTester(App.searches.find_call.operation.perform, { authData, inputData: { call_id: 'call_1' } }), [
+      { id: 'call_1' },
+    ])
+  })
+
+  test('dropdowns read /options and name each choice', async () => {
+    nock(BASE, auth)
+      .get('/v1/integrations/options/contacts')
+      .reply(200, { ok: true, options: [{ id: 'ct_1', name: 'Sam Taylor', company: null, phone: '+15035550123' }] })
+    const [choice] = await appTester(App.triggers.option_contacts.operation.perform, { authData })
+    assert.equal(choice.label, 'Sam Taylor · +15035550123')
+  })
+
+  test('Run Any Action lists the install\'s actions and builds the fields from its OpenAPI', async () => {
+    const openapi = {
+      paths: {
+        '/v1/actions/call.markDone': {
+          post: {
+            operationId: 'call.markDone',
+            summary: 'Mark a call as done.',
+            requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { callId: { type: 'string' } }, required: ['callId'] } } } },
+          },
+        },
+        '/v1/actions/integration.subscribe': { post: { operationId: 'integration.subscribe', requestBody: {} } },
+      },
+    }
+    nock(BASE, auth).get('/v1/openapi.json').reply(200, openapi)
+    const listed = await appTester(App.triggers.option_actions.operation.perform, { authData })
+    assert.deepEqual(listed.map(a => a.id), ['call.markDone'])
+
+    nock(BASE, auth).get('/v1/openapi.json').reply(200, openapi)
+    nock(BASE, auth)
+      .post('/v1/actions/call.markDone', { callId: 'call_1' })
+      .reply(200, { ok: true, rows: { calls: [{ id: 'call_1', inbox_state: 'done' }] } })
+    const done = await appTester(App.creates.run_action.operation.perform, {
+      authData,
+      inputData: { action: 'call.markDone', callId: 'call_1' },
+    })
+    assert.equal(done.inbox_state, 'done')
   })
 })

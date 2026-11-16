@@ -3,12 +3,13 @@
 // Keys reach /v1 (docs/api.md, GET /v1/openapi.json) with the role they were created with.
 import type {
   ApiKeyCreated,
+  IntegrationEvent,
   ApiKeyListData,
   ApiKeySummary,
   IntegrationListData,
   IntegrationSubscriptionSummary,
 } from '@linedesk/actions'
-import { msg } from '@linedesk/i18n'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { pollWhileVisible, setQueryData, useQuery } from '../cachedQuery.ts'
@@ -19,6 +20,7 @@ import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { Field, Section } from './fields.tsx'
 import { callAction, readAction } from './settings-api.ts'
+import { ZapierGuide } from './ZapierGuide.tsx'
 import './developers.css'
 import { fmt } from '../i18n/format.ts'
 
@@ -28,6 +30,13 @@ export const KEYS_POLL_MS = 15_000
 const loadKeys = () => readAction<ApiKeyListData>('apiKey.list')
 const INTEGRATIONS = 'integration.list'
 const loadIntegrations = () => readAction<IntegrationListData>('integration.list')
+
+/** A Zap's row title: the trigger it starts on. */
+const ZAP_TITLE: Record<IntegrationEvent, MessageKey> = {
+  call_started: msg('settings.developers.integrations.zapierCallStarted'),
+  during_call_lookup: msg('settings.developers.integrations.zapierDuringCallLookup'),
+  call_finished: msg('settings.developers.integrations.zapierCallFinished'),
+}
 
 type Role = ApiKeySummary['role']
 const ROLES = [
@@ -96,7 +105,7 @@ export function Developers({ canEdit, toast }: Props) {
   )
 }
 
-/** Zapier's subscriptions (integration.subscribe): one per Zap with a Linedesk trigger. Removing one stops its calls. */
+/** How to connect Zapier, then its subscriptions (integration.subscribe): one per Zap with a Linedesk trigger. Removing one stops it. */
 export function Integrations({ canEdit, toast }: Props) {
   const t = useT()
   const list = useQuery(canEdit ? INTEGRATIONS : null, loadIntegrations, { persist: true })
@@ -108,6 +117,7 @@ export function Integrations({ canEdit, toast }: Props) {
       title={t('settings.developers.integrations.title')}
       help={t('settings.developers.integrations.help')}
     >
+      <ZapierGuide toast={toast} />
       <Loading
         what={t('settings.developers.integrations.title')}
         loading={list.data === undefined}
@@ -157,7 +167,7 @@ function SubscriptionRow({
   }
   return (
     <ListRow
-      title={t('settings.developers.integrations.zapierCallFinished')}
+      title={t(ZAP_TITLE[subscription.event])}
       sub={
         <>
           {t('settings.developers.integrations.viaKey', { name: subscription.api_key_name })}{' '}

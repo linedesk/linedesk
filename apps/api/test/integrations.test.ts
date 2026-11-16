@@ -4,8 +4,8 @@
 // list and remove them. The reads for integrations: the key itself, sample calls and a contact by number.
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { actions, recordingKey } from '@linedesk/actions'
-import { api_keys, calls, commands, integration_subscriptions, webhook_deliveries } from '@linedesk/db'
+import { actions, newWebhookSecret, recordingKey } from '@linedesk/actions'
+import { api_keys, calls, commands, integration_subscriptions, webhook_deliveries, webhook_endpoints } from '@linedesk/db'
 import { and, eq, isNotNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '../src/context.ts'
@@ -33,8 +33,10 @@ async function createKey(owner: Caller, role: 'member' | 'admin' = 'member') {
   return res.body.data as { apiKeyId: string; key: string }
 }
 
-async function subscribe(key: string, path = '/hook') {
-  const res = await act(bearer(key), 'integration.subscribe', { event: 'call_finished', targetUrl: `${base}${path}` })
+type Event = 'call_finished' | 'call_started' | 'during_call_lookup'
+
+async function subscribe(key: string, path = '/hook', event: Event = 'call_finished') {
+  const res = await act(bearer(key), 'integration.subscribe', { event, targetUrl: `${base}${path}` })
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body.data.subscriptionId as string
 }
@@ -43,6 +45,25 @@ const subscriptionRow = async (id: string) =>
   (await db.select().from(integration_subscriptions).where(eq(integration_subscriptions.id, id)))[0]
 const deliveriesOf = (subscriptionId: string) =>
   db.select().from(webhook_deliveries).where(eq(webhook_deliveries.subscription_id, subscriptionId))
+
+/** A live phone call from the workspace's contact; the carrier vouched for the number unless `attestation` says otherwise. */
+async function liveCall(attestation: string | null = 'A', extra: Record<string, unknown> = {}) {
+  const started = await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number, ...(attestation ? { attestation } : {}), ...extra })
+  expect(started.status, JSON.stringify(started.body)).toBe(200)
+  return (started.body.data as { callId: string }).callId
+}
+
+/** The assistant's during-call webhook with an order-status lookup, answered by the local server. */
+async function addLookupHook() {
+  const endpointId = `whe_${crypto.randomUUID().slice(0, 12)}`
+  const created = await act(ws.owner, 'webhook.create', {
+    endpointId, assistantId: ws.assistant.id, url: `${base}/lookup`, hooks: ['during_call'], secret: newWebhookSecret(),
+  })
+  expect(created.status, JSON.stringify(created.body)).toBe(200)
+  const lookups = [{ name: 'order_status', when: 'The caller asks where their order is', fields: [{ name: 'order_number', type: 'text', description: 'The order number', required: true }] }]
+  const updated = await act(ws.owner, 'webhook.update', { endpointId, lookups })
+  expect(updated.status, JSON.stringify(updated.body)).toBe(200)
+}
 
 /** A phone call from the workspace's contact, finished with a summary and a next step. */
 async function finishedCall(asTest = false) {
@@ -70,7 +91,9 @@ beforeAll(async () => {
     req.on('data', chunk => (body += chunk))
     req.on('end', () => {
       received.push({ headers: req.headers, body })
-      res.writeHead(answer).end()
+      // The assistant's own during-call webhook answers its lookup; Zapier's hooks answer with nothing.
+      if (req.url === '/lookup') res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ answer: 'Order 1234 shipped Monday.' }))
+      else res.writeHead(answer).end()
     })
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -84,6 +107,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await db.delete(integration_subscriptions).where(eq(integration_subscriptions.workspace_id, ws.id))
+  await db.delete(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, ws.id))
   await db
     .update(calls)
     .set({ status: 'completed' })
@@ -351,4 +375,125 @@ test('a subscription delivery leaves the assistants’ webhook deliveries alone'
         ),
       ),
   ).toEqual([])
+})
+
+describe('before and during the call', () => {
+  test('an answered phone call sends call_started a few seconds later, with the caller the carrier vouched for', async () => {
+    const { key } = await createKey(ws.owner)
+    const id = await subscribe(key, '/hook', 'call_started')
+    const finished = await subscribe(key, '/finished')
+    const callId = await liveCall()
+    const [queued] = await deliveriesOf(id)
+    expect(queued).toMatchObject({ status: 'pending', event: 'call_started', payload: { call_id: callId } })
+    expect(await deliveriesOf(finished)).toHaveLength(0) // only the hook asked for
+    expect(await attemptAnyDelivery(db, queued!.id)).toBe('delivered')
+    expect(received[0]!.headers['linedesk-hook']).toBe('call_started')
+    expect(JSON.parse(received[0]!.body)).toMatchObject({
+      id: callId,
+      event: 'call_started',
+      call_id: callId,
+      workspace_id: ws.id,
+      assistant_id: ws.assistant.id,
+      from_number: ws.contact.phone,
+      to_number: ws.number,
+      caller_verified: true,
+      caller_contact_id: ws.contact.id,
+      caller: { contact_id: ws.contact.id },
+    })
+  })
+
+  test('call_started: a number the carrier did not vouch for names no contact; likely spam sends nothing', async () => {
+    const { key } = await createKey(ws.owner)
+    const id = await subscribe(key, '/hook', 'call_started')
+    const unverified = await liveCall('C')
+    const [queued] = await deliveriesOf(id)
+    expect(await attemptAnyDelivery(db, queued!.id)).toBe('delivered')
+    const body = JSON.parse(received[0]!.body)
+    expect(body).toMatchObject({ call_id: unverified, caller_verified: false, caller: null, caller_contact_id: null, from_number: ws.contact.phone })
+    await db.update(calls).set({ status: 'completed' }).where(eq(calls.id, unverified))
+    await liveCall('A', { spamLikely: true })
+    expect(await deliveriesOf(id)).toHaveLength(1)
+  })
+
+  test('each during-call lookup goes to during_call_lookup subscriptions with the values and the answer', async () => {
+    await addLookupHook()
+    const { key } = await createKey(ws.owner)
+    const id = await subscribe(key, '/hook', 'during_call_lookup')
+    const callId = await liveCall()
+    const asked = await act(agent(ws.id), 'call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1234' } })
+    expect(asked.status, JSON.stringify(asked.body)).toBe(200)
+    expect(asked.body.data).toMatchObject({ answer: 'Order 1234 shipped Monday.' })
+    const [queued] = await deliveriesOf(id)
+    expect(queued).toMatchObject({ status: 'pending', event: 'during_call_lookup' })
+    received.length = 0
+    expect(await attemptAnyDelivery(db, queued!.id)).toBe('delivered')
+    expect(received[0]!.headers['linedesk-hook']).toBe('during_call_lookup')
+    const body = JSON.parse(received[0]!.body)
+    expect(body).toMatchObject({
+      id: queued!.id,
+      event: 'during_call_lookup',
+      lookup: 'order_status',
+      call_id: callId,
+      values: { order_number: '1234' },
+      values_text: expect.stringContaining('1234'),
+      answered: true,
+      answer: 'Order 1234 shipped Monday.',
+      caller_contact_id: ws.contact.id,
+    })
+    expect(body.hook).toBeUndefined()
+    expect(body.test).toBeUndefined()
+  })
+
+  test('GET /v1/integrations/samples/:event gives the newest of each kind, in the key’s workspace only', async () => {
+    await addLookupHook()
+    const { key } = await createKey(ws.owner)
+    const callId = await liveCall()
+    await act(agent(ws.id), 'call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1234' } })
+    const started = await request(bearer(key), 'GET', '/v1/integrations/samples/call_started?limit=5')
+    expect(started.status).toBe(200)
+    expect(started.body.items[0]).toMatchObject({ event: 'call_started', call_id: callId })
+    const lookups = await request(bearer(key), 'GET', '/v1/integrations/samples/during_call_lookup')
+    expect(lookups.body.items[0]).toMatchObject({ event: 'during_call_lookup', call_id: callId, lookup: 'order_status', answer: 'Order 1234 shipped Monday.' })
+    const finished = await request(bearer(key), 'GET', '/v1/integrations/samples/call_finished')
+    expect(finished.status).toBe(200)
+    expect(finished.body.items.every((c: { event: string }) => c.event === 'call_finished')).toBe(true)
+    expect((await request(bearer(key), 'GET', '/v1/integrations/samples/call_ringing')).status).toBe(404)
+    const { key: theirs } = await createKey(other.owner)
+    const elsewhere = await request(bearer(theirs), 'GET', '/v1/integrations/samples/call_started')
+    expect(JSON.stringify(elsewhere.body)).not.toContain(callId)
+    expect((await request(ws.owner, 'GET', '/v1/integrations/samples/call_started')).status).toBe(403)
+  })
+
+  test('GET /v1/integrations/calls?id= finds one call of the key’s workspace, without a recording link', async () => {
+    const { key } = await createKey(ws.owner)
+    const callId = await finishedCall()
+    await db.update(calls).set({ recording_key: recordingKey(ws.id, callId) }).where(eq(calls.id, callId))
+    const found = await request(bearer(key), 'GET', `/v1/integrations/calls?id=${callId}`)
+    expect(found.body.calls).toMatchObject([{ id: callId, recording_url: null, summary: 'Water heater leaking.' }])
+    const { key: theirs } = await createKey(other.owner)
+    expect((await request(bearer(theirs), 'GET', `/v1/integrations/calls?id=${callId}`)).body.calls).toEqual([])
+  })
+})
+
+describe('dropdown options', () => {
+  test('GET /v1/integrations/options/:kind lists the key’s workspace only, searched, wildcards taken literally', async () => {
+    const { key } = await createKey(ws.owner)
+    const { key: theirs } = await createKey(other.owner)
+    const found = await request(bearer(key), 'GET', `/v1/integrations/options/contacts?q=${encodeURIComponent(ws.contact.name ?? '')}`)
+    expect(found.status).toBe(200)
+    expect(found.body.options.map((o: { id: string }) => o.id)).toContain(ws.contact.id)
+    const mine = await request(bearer(theirs), 'GET', '/v1/integrations/options/contacts')
+    expect(mine.body.options.map((o: { id: string }) => o.id)).not.toContain(ws.contact.id)
+    expect((await request(bearer(key), 'GET', '/v1/integrations/options/contacts?q=%25')).body.options).toEqual([])
+    const assistants = await request(bearer(key), 'GET', '/v1/integrations/options/assistants')
+    expect(assistants.body.options.map((o: { id: string }) => o.id)).toContain(ws.assistant.id)
+    const members = await request(bearer(key), 'GET', '/v1/integrations/options/members')
+    expect(members.body.options.map((o: { id: string }) => o.id)).toContain(member.userId)
+    for (const kind of ['calls', 'deleted_calls', 'deleted_contacts', 'appointment_types', 'calendars', 'bookings'])
+      expect((await request(bearer(key), 'GET', `/v1/integrations/options/${kind}`)).status, kind).toBe(200)
+    expect((await request(bearer(key), 'GET', '/v1/integrations/options/users')).status).toBe(404)
+    for (const kind of ['constructor', 'toString', '__proto__'])
+      expect((await request(bearer(key), 'GET', `/v1/integrations/options/${kind}`)).status, kind).toBe(404)
+    expect((await request(ws.owner, 'GET', '/v1/integrations/options/contacts')).status).toBe(403)
+  })
 })

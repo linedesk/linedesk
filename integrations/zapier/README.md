@@ -2,10 +2,12 @@
 
 A Zapier app (Zapier Platform CLI, `zapier-platform-core` 19) that connects a Linedesk workspace to any app on Zapier: Jobber, Housecall Pro, Clio, HubSpot, Salesforce, Google Sheets and the rest.
 
-- **Trigger, instant:** Call Finished. A REST hook: turning a Zap on subscribes Zapier's hook URL (`integration.subscribe`), turning it off ends it (`integration.unsubscribe`). Linedesk POSTs each finished phone call about 20 seconds after it ends: caller, summary, next steps, bookings, transcript, a link to the call and a 7-day recording link. Test calls and spam send nothing. Samples come from `GET /v1/integrations/calls`.
-- **Search:** Find Contact (by phone number), with Find or Create Contact.
-- **Actions:** Create Contact (`contact.create`), Mark Call Done (`call.markDone`).
-- **Connection:** the Linedesk address (default `https://app.linedesk.ai`; a self-hosted server puts its own) and a workspace API key (Workspace settings › Developers; Member is enough). The test is `GET /v1/api-key`; the connection is labelled with the workspace name.
+One app serves every Linedesk install, Cloud and self-hosted: the Linedesk address is a field of each connection. Workspace settings › Developers › Zapier shows a workspace the steps; Server admin › System › Zapier tells a self-hoster whether Zapier can reach the server (an https address on the internet, and outbound to `hooks.zapier.com`). Nothing else is set up on a server.
+
+- **Instant triggers (REST hooks):** Call Started (an answered phone call, 3 s in), During-Call Lookup (each lookup the assistant asked its during-call webhook, with the answer), Call Finished (about 20 s after the call: caller, summary, next steps, bookings, transcript, a link and a 7-day recording link). Turning a Zap on subscribes Zapier's hook URL (`integration.subscribe`), turning it off ends it (`integration.unsubscribe`). Test calls and spam send nothing. Zapier cannot answer in time, so Call Started and During-Call Lookup only notify: the greeting and lookup answers come from the assistant's webhooks (docs/webhooks.md). Samples come from `GET /v1/integrations/samples/<event>`.
+- **Every public action of the API:** one Zapier action or search per public action, generated from the registry into `generated/actions.json` (`pnpm zapier:generate` at the repo root; `lib/generated.js` builds them). Ids are dropdowns (`triggers/options.js`, `GET /v1/integrations/options/<kind>`). Run Any Action runs any public action by name with fields from `GET /v1/openapi.json`.
+- **Searches:** Find Contact (by phone number, with Find or Create Contact), Find Call (by id), Find Team Members, Find Free Slots.
+- **Connection:** the Linedesk address (default `https://app.linedesk.ai`) and a workspace API key (Workspace settings › Developers; Member is enough). The test is `GET /v1/api-key`; the connection is labelled with the workspace name.
 
 How the server side works (subscriptions, delivery, why only Zapier's host): `docs/api.md`, Integrations.
 
@@ -19,7 +21,7 @@ npm ci
 npm test          # node:test with nock: no network, no Zapier account
 ```
 
-The first test validates the app definition against Zapier's schema, as `zapier validate` does. The others run each trigger, search and action against a mocked Linedesk: subscribe and unsubscribe, the sample calls, the connection test and its label, a refused key, Find Contact, Create Contact and Mark Call Done.
+The first test validates the app definition against Zapier's schema, as `zapier validate` does. The others run the triggers, searches and actions against a mocked Linedesk: subscribe and unsubscribe for each event, the samples, the dropdowns, the connection test and its label, a refused key, Find Contact, Find Call, generated actions (field types, phone numbers, line items) and Run Any Action. CI runs them in the `check` job, with `pnpm zapier:generate --check`.
 
 The server side has its own tests: `apps/api/test/integrations.test.ts` (needs Postgres, `pnpm db:up`).
 
@@ -29,29 +31,28 @@ The app has no environment variables on Zapier (`zapier env:set` is not needed):
 
 ## Push to Zapier
 
-Needs a Zapier account with the developer platform (free). The CLI signs in with a deploy key (Zapier developer platform › Settings › Deploy Keys) read from `ZAPIER_DEPLOY_KEY`; keep the key in a password manager or the Keychain and put it into the environment only for the command, never into a file of this repo:
+Each production release that changed this folder pushes, promotes and migrates the app by itself (`.github/workflows/zapier.yml`, docs/ci.md, Zapier); its version is `1.<minor>.<patch>` of the release tag. By hand (a test version, or before the workflow is set up), with a deploy key (Zapier developer platform › Settings › Deploy Keys) from a password manager or the Keychain, put into the environment only for the command, never into a file of this repo:
 
 ```sh
-npm install -g zapier-platform-cli
 cd integrations/zapier
 export ZAPIER_DEPLOY_KEY=…   # from your secret store
-zapier register "Linedesk"   # once: creates the integration and writes .zapierapprc (ignored by git)
-#   or, when it exists already: zapier link   (pick Linedesk; writes .zapierapprc)
+npx zapier-platform-cli@19.3.0 link        # once: pick Linedesk; writes .zapierapprc (ignored by git)
 npm ci && npm test
-zapier validate
-zapier push                  # uploads this version (package.json "version")
+npm pkg set version=1.1.99   # a version that is not on Zapier yet
+npx zapier-platform-cli@19.3.0 validate
+npx zapier-platform-cli@19.3.0 push
 ```
 
-`zapier login` (browser) works instead of the deploy key. Later versions: raise `version` in `package.json`, `zapier push`, then `zapier promote <version>` and `zapier migrate <old> <new>` to move existing users.
+A pushed version is private until it is promoted (`promote <version>`); users of an older version move with `migrate <old> <new>`.
 
-Try it on staging before production: in the Zap editor, connect with the staging address and a staging API key, turn a Zap with Call Finished on, make a phone call to the staging number, and check the Zap's history. Workspace settings › Developers lists the Zap's subscription; removing it there stops the calls.
+Try it on staging before production: in the Zap editor, connect with the staging address and a staging API key, turn a Zap with a Linedesk trigger on, make a phone call to the staging number, and check the Zap's history. Workspace settings › Developers lists the Zap's subscription; removing it there stops it.
 
 ## Invite users (private app)
 
 Until the app is public, people use it by invitation:
 
-- `zapier users:add someone@example.com 1.0.0`, or
-- `zapier users:links` for a link anyone can use to join (good for a first group of customers).
+- `zapier users:add someone@example.com <version>`, or
+- `zapier users:links` for a link anyone can use to join (good for a first group of customers). The link for all versions is `ZAPIER_APP_URL` in `packages/actions/src/integrations.ts`, which the setup guide in the app opens; after the public listing, point it at the app's page.
 
 ## Public listing
 

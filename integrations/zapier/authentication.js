@@ -1,6 +1,6 @@
 // A workspace API key (Linedesk: Workspace settings › Developers), sent as a Bearer token. The test reads the key's
 // workspace, whose name labels the connection in Zapier.
-const { CLOUD_URL, get } = require('./lib.js')
+const { CLOUD_URL, get } = require('./lib/request.js')
 
 module.exports = {
   type: 'custom',

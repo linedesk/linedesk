@@ -349,7 +349,7 @@ export function exampleLookupValues(lookup: WebhookLookup): Record<string, Looku
 // --- What the requests carry (apps/api/src/webhooks.ts); published in the OpenAPI document -------
 
 const nullableText = z.string().nullable()
-const callerSchema = z
+export const callerSchema = z
   .object({
     contact_id: z.string(),
     name: nullableText,

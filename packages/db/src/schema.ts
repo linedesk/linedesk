@@ -1292,7 +1292,7 @@ export const integration_subscriptions = pgTable(
       .notNull()
       .references(() => api_keys.id, { onDelete: 'cascade' }),
     source: text('source', { enum: ['zapier'] }).notNull(),
-    event: text('event', { enum: ['call_finished'] }).notNull(),
+    event: text('event', { enum: ['call_finished', 'call_started', 'during_call_lookup'] }).notNull(),
     target_url: text('target_url').notNull(),
     /** `disabled`: by the API after too many failed deliveries (`disabled_reason`). */
     status: text('status', { enum: ['active', 'disabled'] })

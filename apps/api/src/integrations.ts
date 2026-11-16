@@ -1,21 +1,29 @@
 // Integration subscriptions (docs/api.md, Integrations): Zapier's REST hooks, made with a workspace API key.
-// `integration.subscribe` stores a URL on the integration's own host (INTEGRATION_HOSTS) for an event; when a phone
-// call is finished, `queueIntegrationDeliveries` writes a delivery row per subscription in that transaction and the
-// webhooks' job sends it CALL_END_DELAY_SEC later (same table, queue, retries and payload clearing as the after-call
-// webhook, webhooks.ts). A subscription sends only while its key works (not revoked, its creator still a member with
+// `integration.subscribe` stores a URL on the integration's own host (INTEGRATION_HOSTS) for an event. A delivery row
+// per subscription is written in the transaction of what happened, and the webhooks' job sends it (same table, queue,
+// retries and payload clearing as the after-call webhook, webhooks.ts):
+//   call_started        a phone call is answered (openCall): CALL_STARTED_DELAY_SEC later, so the call-start
+//                       webhook's caller details are in
+//   during_call_lookup  the assistant asked its during-call webhook a lookup (call.askWebhook): at once
+//   call_finished       a phone call is finished (call.finish): CALL_END_DELAY_SEC later, with the recording A subscription sends only while its key works (not revoked, its creator still a member with
 // at least the key's role, the workspace not disabled); revoking the key deletes it, a 410 answer deletes it (Zapier's
 // "unsubscribed"), and WEBHOOK_DISABLE_AFTER failed deliveries in a row switch it off.
 import {
   CALL_END_DELAY_SEC,
   INTEGRATION_SAMPLE_CALLS_MAX,
   INTEGRATION_SUBSCRIPTIONS_PER_WORKSPACE,
+  type DuringCallRequest,
   type IntegrationCall,
+  type IntegrationCallStarted,
   type IntegrationEvent,
+  type IntegrationLookup,
+  type IntegrationPayload,
   type IntegrationListData,
   type IntegrationSource,
   type IntegrationSubscribed,
   type IntegrationUnsubscribed,
   integrationCall,
+  integrationLookup,
   integrationUrlProblem,
 } from '@linedesk/actions'
 import {
@@ -29,13 +37,18 @@ import {
   webhook_deliveries,
 } from '@linedesk/db'
 import type { Call } from '@linedesk/db/types'
-import { and, desc, eq, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { queueWebhookDelivery } from './jobs.ts'
 import {
+  assistantOf,
   attemptDelivery,
   callEndPayload,
+  callerContact,
+  callerOf,
+  iso,
+  recognizedOn,
   type DeliveryOutcome,
   sendWebhook,
   urlProblem,
@@ -74,20 +87,23 @@ function workingSubscriptions(tx: Tx, where: SQL | undefined) {
     .where(and(where, keyStillWorks))
 }
 
-/** Only finished phone calls go out: test calls and spam send nothing, as with the after-call webhook. */
-const sendsCall = (call: Pick<Call, 'source' | 'outcome'>) => call.source === 'phone' && call.outcome !== 'spam'
+/** Only phone calls go out: test calls and spam send nothing, as with the after-call webhook. */
+const sendsCall = (call: Pick<Call, 'source' | 'outcome' | 'spam_likely'>) =>
+  call.source === 'phone' && call.outcome !== 'spam' && !call.spam_likely
+
+/** Seconds after a call is answered that `call_started` goes out: the call-start webhook (1 s) has answered by then. */
+export const CALL_STARTED_DELAY_SEC = 3
 
 /**
- * Queues `call_finished` for every working subscription of the call's workspace, in the transaction that finished
- * the call (call.finish). The payload is built when it is sent, like the after-call webhook's.
+ * Writes `payload` as a delivery for every working subscription of the workspace to `event`, in the transaction of
+ * what happened, and queues it `afterSec` later. A payload with only `call_id` is built when it is sent.
  */
-export async function queueIntegrationDeliveries(tx: Tx, call: Call) {
-  if (!sendsCall(call)) return
+async function queueEvent(tx: Tx, workspaceId: string, event: IntegrationEvent, payload: (id: string) => Record<string, unknown>, afterSec: number) {
   const found = await workingSubscriptions(
     tx,
     and(
-      eq(integration_subscriptions.workspace_id, call.workspace_id),
-      eq(integration_subscriptions.event, 'call_finished'),
+      eq(integration_subscriptions.workspace_id, workspaceId),
+      eq(integration_subscriptions.event, event),
       eq(integration_subscriptions.status, 'active'),
     ),
   )
@@ -95,14 +111,73 @@ export async function queueIntegrationDeliveries(tx: Tx, call: Call) {
     const id = newId('whd')
     await tx.insert(webhook_deliveries).values({
       id,
-      workspace_id: call.workspace_id,
+      workspace_id: workspaceId,
       endpoint_id: null,
       subscription_id: subscription.id,
-      event: 'call_finished',
-      payload: { event: 'call_finished', call_id: call.id },
+      event,
+      payload: payload(id),
     })
-    await queueWebhookDelivery(tx, id, CALL_END_DELAY_SEC)
+    await queueWebhookDelivery(tx, id, afterSec)
   }
+}
+
+/**
+ * Queues `call_finished` for every working subscription of the call's workspace, in the transaction that finished
+ * the call (call.finish). The payload is built when it is sent, like the after-call webhook's.
+ */
+export async function queueIntegrationDeliveries(tx: Tx, call: Call) {
+  if (!sendsCall(call)) return
+  await queueEvent(tx, call.workspace_id, 'call_finished', () => ({ event: 'call_finished', call_id: call.id }), CALL_END_DELAY_SEC)
+}
+
+/** Queues `call_started` in the transaction that opened an answered phone call (openCall). Built when it is sent. */
+export async function queueCallStarted(tx: Tx, call: Call) {
+  if (!sendsCall(call)) return
+  await queueEvent(tx, call.workspace_id, 'call_started', () => ({ event: 'call_started', call_id: call.id }), CALL_STARTED_DELAY_SEC)
+}
+
+/**
+ * Queues `during_call_lookup` after the assistant asked its during-call webhook (call.askWebhook): the request and
+ * the answer, complete. Each subscription's copy has its own id (the delivery's), so Zapier never drops one as seen.
+ */
+export async function queueLookup(tx: Tx, call: Call, request: DuringCallRequest, answer: string | null) {
+  if (!sendsCall(call)) return
+  const at = new Date().toISOString()
+  await queueEvent(tx, call.workspace_id, 'during_call_lookup', id => integrationLookup(id, request, answer, at), 0)
+}
+
+/** A phone call as `call_started` sends it; null when it is gone. */
+export async function integrationCallStartedOf(tx: Tx, workspaceId: string, callId: string): Promise<IntegrationCallStarted | null> {
+  const [call] = await tx.select().from(calls).where(and(eq(calls.id, callId), eq(calls.workspace_id, workspaceId), isNull(calls.deleted_at)))
+  if (!call) return null
+  const assistant = call.assistant_id ? await assistantOf(tx, call.assistant_id) : undefined
+  // A caller ID the carrier did not vouch for may be faked: no contact then, as with the call-start webhook.
+  const recognized = assistant ? recognizedOn(call, assistant) : false
+  const caller = recognized ? callerOf(await callerContact(tx, call)) : null
+  return {
+    id: call.id,
+    event: 'call_started',
+    call_id: call.id,
+    workspace_id: call.workspace_id,
+    assistant_id: assistant?.id ?? null,
+    assistant_name: assistant?.name ?? null,
+    from_number: call.from_number,
+    to_number: call.to_number,
+    started_at: iso(call.started_at),
+    caller,
+    caller_name: caller?.name ?? null,
+    caller_company: caller?.company ?? null,
+    caller_email: caller?.email ?? null,
+    caller_contact_id: caller?.contact_id ?? null,
+    caller_verified: recognized,
+    caller_details: (call.caller_details as IntegrationCallStarted['caller_details']) ?? null,
+  }
+}
+
+/** The payload of a delivery whose row holds only the call's id: built at its first attempt. */
+async function builtPayload(tx: Tx, event: string, workspaceId: string, callId: string, env: Env): Promise<IntegrationPayload | null> {
+  if (event === 'call_started') return integrationCallStartedOf(tx, workspaceId, callId)
+  return integrationCallOf(tx, workspaceId, callId, env)
 }
 
 /** The call as an integration gets it; null when it is gone. */
@@ -144,10 +219,9 @@ export async function attemptAnyDelivery(tx: Tx, deliveryId: string, env: Env = 
     return 'skipped'
   }
   const callId = delivery.payload?.call_id
-  const payload =
-    delivery.attempts === 0 && typeof callId === 'string'
-      ? await integrationCallOf(tx, delivery.workspace_id, callId, env)
-      : delivery.payload
+  // call_started and call_finished are queued as the call's id only; a lookup is queued complete.
+  const stub = delivery.attempts === 0 && typeof callId === 'string' && delivery.event !== 'during_call_lookup'
+  const payload = stub ? await builtPayload(tx, delivery.event, delivery.workspace_id, callId, env) : delivery.payload
   if (!payload) {
     await fail('the call was deleted', { payload: null })
     return 'skipped'
@@ -232,6 +306,45 @@ export async function sampleCalls(
     if (call) out.push({ ...call, recording_url: null, recording_expires_at: null })
   }
   return out
+}
+
+/** The newest answered phone calls as `call_started` sends them, newest first (samples for a Zap). */
+async function sampleStartedCalls(tx: Tx, workspaceId: string, limit: number): Promise<IntegrationCallStarted[]> {
+  const rows = await tx
+    .select({ id: calls.id })
+    .from(calls)
+    .where(and(eq(calls.workspace_id, workspaceId), isNull(calls.deleted_at), eq(calls.source, 'phone'), eq(calls.spam_likely, false), or(isNull(calls.outcome), ne(calls.outcome, 'spam'))))
+    .orderBy(desc(calls.started_at))
+    .limit(limit)
+  const out: IntegrationCallStarted[] = []
+  for (const row of rows) {
+    const call = await integrationCallStartedOf(tx, workspaceId, row.id)
+    if (call) out.push(call)
+  }
+  return out
+}
+
+/** The newest lookups the assistants asked their during-call webhooks, as `during_call_lookup` sends them. */
+async function sampleLookups(tx: Tx, workspaceId: string, limit: number): Promise<IntegrationLookup[]> {
+  const rows = await tx
+    .select({ id: webhook_deliveries.id, payload: webhook_deliveries.payload, created_at: webhook_deliveries.created_at })
+    .from(webhook_deliveries)
+    .where(and(eq(webhook_deliveries.workspace_id, workspaceId), eq(webhook_deliveries.event, 'during_call'), isNotNull(webhook_deliveries.payload), sql`(${webhook_deliveries.payload}->>'test') is distinct from 'true'`))
+    .orderBy(desc(webhook_deliveries.created_at))
+    .limit(limit)
+  return rows.flatMap(row => {
+    const { reply, ...request } = row.payload as DuringCallRequest & { reply?: unknown }
+    if (request.hook !== 'during_call') return []
+    return [integrationLookup(row.id, request, typeof reply === 'string' ? reply : null, iso(row.created_at))]
+  })
+}
+
+/** Samples of an event, newest first, as a subscription gets them: what Zapier shows when a Zap is set up. */
+export async function sampleEvents(tx: Tx, workspaceId: string, event: IntegrationEvent, limit: number, env: Env = process.env): Promise<IntegrationPayload[]> {
+  const n = Math.min(Math.max(1, limit), INTEGRATION_SAMPLE_CALLS_MAX)
+  if (event === 'call_started') return sampleStartedCalls(tx, workspaceId, n)
+  if (event === 'during_call_lookup') return sampleLookups(tx, workspaceId, n)
+  return sampleCalls(tx, workspaceId, n, env)
 }
 
 /** Subscriptions are an API key's: a person signed in uses Workspace settings › Developers to remove them. */

@@ -154,11 +154,14 @@ No answer within 3 s (`DURING_CALL_TIMEOUT_MS`), an error, or no `answer`: the a
 
 ## Zapier
 
-The Zapier app's "Call Finished" trigger (docs/api.md, Integrations) is not an assistant webhook: an integration subscribes a hook URL with a workspace API key (`integration_subscriptions`), and nobody sets it in the assistant's settings. Its deliveries share this page's machinery: the same `webhook_deliveries` table (with `subscription_id` instead of `endpoint_id`), queue, timeout, retries, public-address rules and 30-day payload clearing.
+The Zapier app's triggers (Call Started, During-Call Lookup, Call Finished; docs/api.md, Integrations) are not assistant webhooks: an integration subscribes a hook URL with a workspace API key (`integration_subscriptions`), and nobody sets it in the assistant's settings. Its deliveries share this page's machinery: the same `webhook_deliveries` table (with `subscription_id` instead of `endpoint_id`), queue, timeout, retries, public-address rules and 30-day payload clearing.
 
-- What is sent: the `call_end` payload without `hook`, plus `id`, `event` (`call_finished`) and flat fields (caller, next steps, noted details, first booking, transcript), for every finished phone call of the workspace, whichever assistant answered. Test calls and spam send nothing.
+- What is sent, for every phone call of the workspace, whichever assistant answered (test calls and spam send nothing):
+  - `call_started`: 3 seconds after the call is answered, the call's id, number, attestation, assistant and the matched contact (only when caller ID is trusted). Zapier cannot answer before the assistant speaks, so it only notifies; the greeting comes from the call-start webhook above.
+  - `during_call_lookup`: at once, each lookup the assistant asked its during-call webhook, with the request and the answer. Zapier cannot answer the lookup; the during-call webhook still does.
+  - `call_finished`: the `call_end` payload without `hook`, plus `id`, `event` and flat fields (caller, next steps, noted details, first booking, transcript).
 - Only to `https://hooks.zapier.com/…` (`INTEGRATION_HOSTS`). Not signed: Zapier cannot check a signature, and the hook URL itself is the secret, so the subscription list never shows it. `WEBHOOK_ALLOW_PRIVATE_URLS=true` lifts this host rule too (any URL, development only).
-- The samples Zapier loads (`GET /v1/integrations/calls`) carry no recording link (`recording_url` and `recording_expires_at` are null); only real deliveries have one.
+- The samples Zapier loads (`GET /v1/integrations/samples/<event>`, `GET /v1/integrations/calls`) carry no recording link (`recording_url` and `recording_expires_at` are null); only real deliveries have one.
 - Unsubscribe ends only the calling key's own subscriptions; the command log keeps the hook URL redacted.
 - A 410 answer means the Zap was turned off or deleted: the subscription is deleted with its deliveries, nothing is retried. 5 failed deliveries in a row switch it off (`disabled_reason`).
 - Workspace settings › Developers lists the subscriptions (key, event, last delivery, state) with Remove; revoking the key removes its subscriptions.

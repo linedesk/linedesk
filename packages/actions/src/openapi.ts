@@ -12,7 +12,13 @@ import {
   duringCallReplySchema,
   duringCallRequestSchema,
 } from './webhooks.ts'
-import { INTEGRATION_SAMPLE_CALLS_MAX, integrationCallSchema } from './integrations.ts'
+import {
+  INTEGRATION_SAMPLE_CALLS_MAX,
+  integrationCallSchema,
+  integrationCallStartedSchema,
+  integrationEvents,
+  integrationLookupSchema,
+} from './integrations.ts'
 
 type JsonSchema = Record<string, unknown>
 
@@ -97,6 +103,20 @@ function webhooks() {
         },
       },
     },
+    call_started: {
+      post: {
+        summary: "An integration's subscription (integration.subscribe): a phone call came in and the assistant answers it, a few seconds after it rang. Not signed.",
+        requestBody: body(integrationCallStartedSchema),
+        responses: { 200: { description: 'Any 2xx answer counts as delivered; 410 ends the subscription.' } },
+      },
+    },
+    during_call_lookup: {
+      post: {
+        summary: "An integration's subscription (integration.subscribe): the assistant asked one of its during-call webhook's lookups, with the answer. Not signed.",
+        requestBody: body(integrationLookupSchema),
+        responses: { 200: { description: 'Any 2xx answer counts as delivered; 410 ends the subscription.' } },
+      },
+    },
     call_end: {
       post: {
         summary: `A call ended: the whole call, about ${CALL_END_DELAY_SEC} s after it.`,
@@ -141,8 +161,11 @@ function integrationPaths() {
         operationId: 'integration.calls',
         summary: 'The newest finished phone calls (no test calls, no spam), newest first, in the shape a call_finished subscription gets.',
         tags: ['integration'],
-        parameters: [{ name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: INTEGRATION_SAMPLE_CALLS_MAX, default: 3 } }],
-        responses: { 200: { description: 'The calls.', ...list('calls', jsonSchema(integrationCallSchema)) }, ...keyOnly },
+        parameters: [
+          { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: INTEGRATION_SAMPLE_CALLS_MAX, default: 3 } },
+          { name: 'id', in: 'query', required: false, description: 'Only this call (any finished or live call of the workspace).', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'The calls, without recording links.', ...list('calls', jsonSchema(integrationCallSchema)) }, ...keyOnly },
       },
     },
     '/v1/integrations/contacts': {
@@ -165,6 +188,36 @@ function integrationPaths() {
           422: errorResponse('Not a phone number.'),
           ...keyOnly,
         },
+      },
+    },
+    '/v1/integrations/samples/{event}': {
+      get: {
+        operationId: 'integration.samples',
+        summary: 'The newest events of a kind, newest first, in the shape a subscription to it gets (samples for setting up a Zap).',
+        tags: ['integration'],
+        parameters: [
+          { name: 'event', in: 'path', required: true, schema: { enum: [...integrationEvents] } },
+          { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: INTEGRATION_SAMPLE_CALLS_MAX, default: 3 } },
+        ],
+        responses: {
+          200: {
+            description: 'The events.',
+            ...list('items', { oneOf: [jsonSchema(integrationCallSchema), jsonSchema(integrationCallStartedSchema), jsonSchema(integrationLookupSchema)] }),
+          },
+          ...keyOnly,
+        },
+      },
+    },
+    '/v1/integrations/options/{kind}': {
+      get: {
+        operationId: 'integration.options',
+        summary: 'Ids with the fields that name them, for dropdowns: calls, deleted_calls, contacts, deleted_contacts, members, assistants (call:read); appointment_types, calendars, bookings (calendar:read).',
+        tags: ['integration'],
+        parameters: [
+          { name: 'kind', in: 'path', required: true, schema: { enum: ['calls', 'deleted_calls', 'contacts', 'deleted_contacts', 'members', 'assistants', 'appointment_types', 'calendars', 'bookings'] } },
+          { name: 'q', in: 'query', required: false, description: 'Calls and contacts: only those whose name, title or number has this text.', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'At most 100, newest or by name.', ...list('options', { type: 'object', required: ['id'], properties: { id: { type: 'string' } } }) }, ...keyOnly },
       },
     },
   }

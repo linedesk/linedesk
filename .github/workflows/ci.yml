@@ -120,6 +120,12 @@ jobs:
       # The migrations journal in order: a `when` not after the one before is skipped by the migrator on installs past it
       # (packages/db/scripts/check-journal.ts; about 1 s, no database needed).
       - run: pnpm db:check-journal
+      # The Zapier app has every public action of the registry (packages/actions/scripts/zapier.ts): a new or changed
+      # one needs `pnpm zapier:generate`, so it reaches Zapier with the release (zapier.yml). Then the app's own tests
+      # (no network, no Zapier account; about 2 s).
+      - run: pnpm zapier:generate --check
+      - run: npm ci --no-audit --no-fund && npm test
+        working-directory: integrations/zapier
 
   # Self-hosting must work at every commit: the images build. (The agent image is not built here; it is large.)
   images:

@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/app.test.js"
   },
   "dependencies": {
     "zapier-platform-core": "19.3.0"

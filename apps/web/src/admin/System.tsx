@@ -1,7 +1,7 @@
 // System: LiveKit, part of the install (its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so), and
 // whether workspaces may clone voices (off until an instance admin turns it on), where outbound calls may go, and
-// whether users are emailed when an admin signs in as them (off by default).
+// whether users are emailed when an admin signs in as them (off by default), and what Zapier needs from this server.
 import {
   countryList,
   type ImpersonationEmailsData,
@@ -9,8 +9,11 @@ import {
   parseCountryList,
   phoneCountryName,
   type VoiceCloningData,
+  ZAPIER_APP_URL,
+  ZAPIER_HOOKS_HOST,
+  zapierCanReach,
 } from '@linedesk/actions'
-import { useT } from '@linedesk/i18n/react'
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Checkbox, Switch } from '../ui/controls.tsx'
@@ -21,6 +24,8 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
+import { externalLink } from '../settings/ZapierGuide.tsx'
+import { appLink } from '../ui/AppLink.tsx'
 
 const LIVEKIT = 'admin.livekit'
 
@@ -95,8 +100,7 @@ function Livekit() {
 
 const CLONING = 'admin.voiceCloning'
 const IMPERSONATION_EMAILS = 'admin.impersonationEmails'
-const loadImpersonationEmails = async () =>
-  (await runAdmin('impersonationEmails.get', {})) as ImpersonationEmailsData
+const loadImpersonationEmails = async () => (await runAdmin('impersonationEmails.get', {})) as ImpersonationEmailsData
 
 /**
  * Support access: whether a user gets one email when an admin signs in as them (Users or Workspaces, "Sign in as …"),
@@ -354,6 +358,43 @@ function OutboundCalls() {
   )
 }
 
+/**
+ * Zapier: one Linedesk app on Zapier serves every install, so a self-hosted server sets up nothing; each workspace
+ * connects it with its own key and this address. The server only has to be reachable by Zapier, and reach Zapier.
+ */
+function Zapier() {
+  const t = useT()
+  const address = window.location.origin
+  const reachable = zapierCanReach(address)
+  return (
+    <Card title={t('admin.system.zapier')} help={t('admin.system.zapierHelp')}>
+      <dl className="adm-facts">
+        <div>
+          <dt>{t('admin.system.zapierAddress')}</dt>
+          <dd>
+            <span className={cx('adm-tile-status', !reachable && 'adm-status-bad')}>
+              <StatusMark state={reachable ? 'works' : 'failing'} />
+              {reachable
+                ? t('admin.system.zapierReachable', { address })
+                : t('admin.system.zapierUnreachable', { address })}
+            </span>
+          </dd>
+        </div>
+      </dl>
+      <p className="help">
+        <T
+          k="admin.system.zapierSteps"
+          values={{
+            app: externalLink(ZAPIER_APP_URL),
+            link: appLink('#workspace/developers'),
+            host: ZAPIER_HOOKS_HOST,
+          }}
+        />
+      </p>
+    </Card>
+  )
+}
+
 export function System() {
   return (
     <>
@@ -361,6 +402,7 @@ export function System() {
       <VoiceCloning />
       <OutboundCalls />
       <ImpersonationEmails />
+      <Zapier />
     </>
   )
 }

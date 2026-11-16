@@ -71,7 +71,7 @@ import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
-import { integrationHandlers, queueIntegrationDeliveries } from './integrations.ts'
+import { integrationHandlers, queueCallStarted, queueIntegrationDeliveries, queueLookup } from './integrations.ts'
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, queueCallEnd, webhookHandlers } from './webhooks.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
@@ -354,6 +354,8 @@ async function openCall({ tx, now }: Pick<HandlerCtx, 'tx' | 'now'>, workspace_i
   // Older agents only know `blocked`: hang up without answering. It covers every call that is not answered.
   const blocked = unanswered || !!refused
   if (!again) await recordCallStarted(tx, call!, spam)
+  // Integrations (Zapier) hear of answered phone calls only: not spam, busy, over the cap or refused.
+  if (!again && !unanswered && !refused) await queueCallStarted(tx, call!)
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
   if (busy || overCap || refused) await queueCallPush(tx, id, 'finished')
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
@@ -1047,7 +1049,7 @@ const handlers: Record<string, Handler> = {
   // Read-only in the registry, like call.lookUpCaller: the request to the business's system holds no transaction open.
   'call.askWebhook': async ({ tx, actor }, input: { callId: string; lookup: string; values: Record<string, unknown> }) => {
     const call = await loadCall(tx, actor, input.callId)
-    return { rows: {}, data: await askWebhook(tx, call, input) }
+    return { rows: {}, data: await askWebhook(tx, call, input, process.env, (request, answer) => queueLookup(tx, call, request, answer)) }
   },
 
   'call.startRecording': async ({ tx, actor }, input) => {

@@ -204,10 +204,10 @@ async function activeHook(tx: Tx, assistantId: string | null, hook: WebhookHook)
 }
 
 /** `name_confirmed`: the team gave or confirmed the name (name_source "member"); a name only a caller gave proves nothing. */
-const callerOf = (contact: { id: string; name: string | null; name_source: string | null; company: string | null; email: string | null } | undefined) =>
+export const callerOf = (contact: { id: string; name: string | null; name_source: string | null; company: string | null; email: string | null } | undefined) =>
   contact ? { contact_id: contact.id, name: contact.name, name_confirmed: !!contact.name?.trim() && contact.name_source === 'member', company: contact.company, email: contact.email } : null
 
-async function callerContact(tx: Tx, call: Pick<Call, 'workspace_id' | 'contact_id'>) {
+export async function callerContact(tx: Tx, call: Pick<Call, 'workspace_id' | 'contact_id'>) {
   if (!call.contact_id) return undefined
   const [contact] = await tx.select({ id: contacts.id, name: contacts.name, name_source: contacts.name_source, company: contacts.company, email: contacts.email })
     .from(contacts).where(and(eq(contacts.id, call.contact_id), eq(contacts.workspace_id, call.workspace_id)))
@@ -215,7 +215,7 @@ async function callerContact(tx: Tx, call: Pick<Call, 'workspace_id' | 'contact_
 }
 
 /** A time as ISO 8601 (Postgres hands them over as "2026-11-12 12:43:35.917+00"). */
-const iso = (at: string) => new Date(at).toISOString()
+export const iso = (at: string) => new Date(at).toISOString()
 const isoOrNull = (at: string | null) => (at ? iso(at) : null)
 
 /** What the call-start webhook is sent. */
@@ -248,11 +248,11 @@ async function askLive<T>(tx: Tx, found: ActiveHook, request: { hook: WebhookHoo
   return kept
 }
 
-const assistantOf = async (tx: Tx, assistantId: string) =>
+export const assistantOf = async (tx: Tx, assistantId: string) =>
   (await tx.select({ id: assistants.id, name: assistants.name, behaviours: assistants.behaviours }).from(assistants).where(eq(assistants.id, assistantId)))[0]!
 
 /** Whether the call's caller ID names the caller (callerRecognized): only then is the matched contact sent or looked up. */
-const recognizedOn = (call: Call, assistant: { behaviours: Record<string, boolean> | null }) =>
+export const recognizedOn = (call: Call, assistant: { behaviours: Record<string, boolean> | null }) =>
   callerRecognized(call.source, call.caller_attestation, assistant.behaviours)
 
 /**
@@ -291,7 +291,10 @@ export function duringCallRequest(call: Call, assistant: Pick<Assistant, 'id' | 
  * the assistant filled in, and hands back the answer. Test calls ask too, so the assistant can be tried out.
  * At most DURING_CALL_MAX_PER_CALL requests per call.
  */
-export async function askWebhook(tx: Tx, call: Call, input: { lookup: string; values: Record<string, unknown> }, env: Env = process.env): Promise<CallAskWebhookData> {
+export async function askWebhook(
+  tx: Tx, call: Call, input: { lookup: string; values: Record<string, unknown> }, env: Env = process.env,
+  onAsked?: (request: DuringCallRequest, answer: string | null) => Promise<void>,
+): Promise<CallAskWebhookData> {
   const found = await activeHook(tx, call.assistant_id, 'during_call')
   const lookup = found?.endpoint.lookups.find(l => l.name === input.lookup)
   if (!found || !lookup) return { answer: null, problem: 'unavailable' }
@@ -305,6 +308,7 @@ export async function askWebhook(tx: Tx, call: Call, input: { lookup: string; va
   const recognized = recognizedOn(call, assistant)
   const request = duringCallRequest(call, assistant, recognized ? callerOf(await callerContact(tx, call)) : null, lookup.name, filled.values, recognized)
   const answer = await askLive(tx, found, request, DURING_CALL_TIMEOUT_MS, lookupAnswerFrom, env)
+  await onAsked?.(request, answer)
   return answer ? { answer, problem: null } : { answer: null, problem: 'failed' }
 }
 

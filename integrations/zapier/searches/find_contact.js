@@ -1,5 +1,5 @@
 // Search: the Linedesk contact with a phone number (GET /v1/integrations/contacts).
-const { get } = require('../lib.js')
+const { get } = require('../lib/request.js')
 
 const sample = {
   id: 'ct_sam',
