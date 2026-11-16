@@ -109,7 +109,8 @@ type Tools = Record<string, llm.AnonFunctionTool<any, any, any>>
 
 /**
  * The tools, each slow one with the say_while_waiting and say_if_slow parameters (the tool itself never gets them) and
- * cut off after `maxWaitMs`: the caller never waits longer than that for another system.
+ * cut off after `maxWaitMs`: the caller never waits longer than that for another system. While one runs the caller can't
+ * interrupt the turn: else a "hello?" during the wait cancels the tool, and the assistant never hears the answer.
  */
 export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>, maxWaitMs = TOOL_MAX_WAIT_MS): Tools {
   return Object.fromEntries(
@@ -125,6 +126,7 @@ export function withFillers(tools: Tools, started: ReturnType<typeof toolFiller>
           execute: async (args: Record<string, unknown>, opts: llm.ToolOptions) => {
             const { [FILLER_PARAM]: waiting, [STILL_PARAM]: slow, ...rest } = args ?? {}
             const text = (v: unknown) => (typeof v === 'string' ? v : null)
+            opts.ctx.disallowInterruptions()
             let running = true
             started(opts.ctx.speechHandle, () => running, { waiting: text(waiting), slow: text(slow) })
             let timer: ReturnType<typeof setTimeout> | undefined

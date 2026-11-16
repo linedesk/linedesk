@@ -18,6 +18,8 @@ import {
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 
+const runOf = () => ({ speechHandle: replyOf(), disallowInterruptions: vi.fn() })
+
 const replyOf = (words = ''): Reply => ({
   done: () => false,
   addDoneCallback: () => {},
@@ -102,10 +104,13 @@ test('withFillers: the slow tools get say_while_waiting, never pass it on, and r
   // biome-ignore lint/suspicious/noExplicitAny: test doubles of LiveKit tools
   const tools = withFillers({ lookup_order_status: lookup as any, end_call: endCall as any }, started)
   expect(tools.end_call).toBe(endCall)
-  const speechHandle = replyOf()
+  const ctx = runOf()
+  const { speechHandle } = ctx
   const args = { order: '1234', say_while_waiting: 'Let me look up order 1234.', say_if_slow: 'Still on it.' }
   // biome-ignore lint/suspicious/noExplicitAny: a minimal ToolOptions
-  await expect(tools.lookup_order_status!.execute(args, { ctx: { speechHandle } } as any)).resolves.toBe('answer')
+  await expect(tools.lookup_order_status!.execute(args, { ctx } as any)).resolves.toBe('answer')
+  // LIN-341: a "hello?" while the lookup runs must not cancel it.
+  expect(ctx.disallowInterruptions).toHaveBeenCalledOnce()
   expect(lookup.execute).toHaveBeenCalledWith({ order: '1234' }, expect.anything())
   expect(started).toHaveBeenCalledWith(speechHandle, expect.any(Function), {
     waiting: 'Let me look up order 1234.',
@@ -152,7 +157,7 @@ test('a slow tool that runs too long is cut off: the model is told it did not fi
   // biome-ignore lint/suspicious/noExplicitAny: a test double of a LiveKit tool
   const tools = withFillers({ book_appointment: book as any }, started)
   // biome-ignore lint/suspicious/noExplicitAny: a minimal ToolOptions
-  const result = tools.book_appointment!.execute({ start: '10:00' }, { ctx: { speechHandle: replyOf() } } as any)
+  const result = tools.book_appointment!.execute({ start: '10:00' }, { ctx: runOf() } as any)
   let done = false
   result.then(() => (done = true))
   await vi.advanceTimersByTimeAsync(TOOL_MAX_WAIT_MS - 1)
