@@ -48,6 +48,17 @@ describe('audit labels', () => {
       "Changed what the assistant's calls cost (voice model default to elevenlabs/eleven_v3, language model gpt-5.4-mini to gpt-5.4)",
     )
     expect(level('assistant.restoreVersion')).toMatch(/^Restored an earlier assistant version, which changed what its calls cost/)
+    const ultra = auditLabel({
+      what: 'assistant.update',
+      method: null,
+      input: {},
+      subject: null,
+      usageLevelChange: {
+        before: { voice_model: null, llm_model: null, voice_pipeline: null, realtime_model: null },
+        after: { voice_model: null, llm_model: null, voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' },
+      },
+    })
+    expect(ultra).toBe("Changed what the assistant's calls cost (pipeline default to realtime, realtime model default to gpt-realtime-2)")
   })
 
   test('branding says when Powered by Linedesk was hidden', () => {

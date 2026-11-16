@@ -1,6 +1,7 @@
 // Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (with the realtime model, one of the
 // model's own voices), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
-import { localizedDefault, mainLanguageOf, otherLanguagesOf, pipelineFor } from '@linedesk/actions'
+import { localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+import { answeringPipeline } from '../settings/levelModel.ts'
 import type { Assistant } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
@@ -68,7 +69,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   // (during an update) only says whether a realtime model is connected.
   const voiceOptions = useVoiceOptions().data
   const realtime = voiceOptions?.pipelines
-    ? pipelineFor(assistant.voice_pipeline, voiceOptions.pipelines) === 'realtime'
+    ? answeringPipeline(assistant.voice_pipeline, voiceOptions.pipelines, voiceOptions.levels?.billed) === 'realtime'
     : voiceOptions?.realtime === true
 
   function next() {

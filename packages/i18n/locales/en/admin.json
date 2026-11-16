@@ -192,6 +192,7 @@
   "audit.levelChange.default": "default",
   "audit.levelChange.languageModel": "language model {before} to {after}",
   "audit.levelChange.pipeline": "pipeline {before} to {after}",
+  "audit.levelChange.realtimeModel": "realtime model {before} to {after}",
   "audit.levelChange.voiceModel": "voice model {before} to {after}",
   "audit.loadingWhat": "The audit log",
   "audit.memberAvatarRemoved": "{known, select, yes {Removed the picture of {who}} other {Removed the picture of a member}}",

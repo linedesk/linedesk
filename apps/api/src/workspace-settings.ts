@@ -2,6 +2,7 @@
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
 import {
   type AllowPremiumData,
+  type AllowUltraData,
   type ClosedDay,
   DEFAULT_RECORDING_NOTICE,
   DEFAULT_RECORDING_RETENTION_DAYS,
@@ -19,7 +20,7 @@ import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
-import { assistantsBackToStandard, refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
+import { assistantsBackToStandard, assistantsOffUltra, refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 
@@ -64,6 +65,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       pickupMode: row?.pickup_mode ?? null,
       ...locale,
       allowPremium: row?.allow_premium ?? false,
+      allowUltra: row?.allow_ultra ?? false,
       usageLevels: await usageLevelsBilled(tx),
     }
     return { rows: {}, data }
@@ -86,6 +88,24 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_premium: input.on } })
     const moved = input.on ? [] : await assistantsBackToStandard(tx, actor.workspaceId, actor.actorId)
     const data: AllowPremiumData = { on: input.on, movedToStandard: moved.map(a => a.id) }
+    return { rows: moved.length ? { assistants: moved } : {}, data }
+  },
+
+  /**
+   * Allow Ultra (Linedesk Cloud): like Allow Premium, the owner only, as themselves in the app; audited. Off moves the
+   * workspace's assistants that answer with a realtime model back to the three stages, each with a version by the owner.
+   * Takes the locks in the same order as Allow Premium (version locks by id, settings row, assistant rows).
+   */
+  'workspace.setAllowUltra': async ({ tx, actor }, input: { on: boolean }) => {
+    if (!actor.workspaceId) throw new Reject('no workspace')
+    refuseBillingActor(actor)
+    if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
+    await tx
+      .insert(workspace_settings)
+      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, allow_ultra: input.on })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_ultra: input.on } })
+    const moved = input.on ? [] : await assistantsOffUltra(tx, actor.workspaceId, actor.actorId)
+    const data: AllowUltraData = { on: input.on, movedOffUltra: moved.map(a => a.id) }
     return { rows: moved.length ? { assistants: moved } : {}, data }
   },
 

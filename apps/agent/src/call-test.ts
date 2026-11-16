@@ -29,8 +29,10 @@ import { evaluateCall, formatCallerLatency, formatReport, greetingCheck } from '
 import { dispatcher, latencyReader, type RoomCall, startInRoom, waitForCallEnd } from './test-caller/room.ts'
 import { waitForFinishedCall } from './test-caller/wait.ts'
 import {
+  callTestCapSeconds,
   isScenario,
   parseCallTestArgs,
+  roomRefused,
   phoneRefused,
   scenarioNames,
   scenarios,
@@ -39,8 +41,6 @@ import {
 } from './test-caller/scenarios.ts'
 import { findOutboundTrunk, sipClient } from './sip-trunks.ts'
 
-/** A hard cap on a call, on top of the caller's own three minutes. */
-const MAX_CALL_SEC = 210
 /** How long to wait after hang-up for the summary and finish to land. */
 const RESULT_WAIT_MS = 90_000
 
@@ -50,7 +50,7 @@ const isPipeline = (value: string | undefined): value is VoicePipeline =>
   (VOICE_PIPELINES as readonly (string | undefined)[]).includes(value)
 
 /** The test caller in its own room, dialling the business number over Telnyx. */
-async function startByPhone({ name, room, to, persona }: Run, from: string) {
+async function startByPhone({ name, room, to, persona }: Run, from: string, maxCallSeconds: number) {
   const sip = sipClient()
   const trunkId = await findOutboundTrunk(sip)
   if (!trunkId) throw new Error('No outbound trunk "linedesk-test-caller": run setup-test-caller first.')
@@ -67,7 +67,7 @@ async function startByPhone({ name, room, to, persona }: Run, from: string) {
     fromNumber: from,
     waitUntilAnswered: true,
     ringingTimeout: 30,
-    maxCallDuration: MAX_CALL_SEC,
+    maxCallDuration: maxCallSeconds,
   })
   console.log('Answered.')
 }
@@ -99,6 +99,9 @@ async function main() {
         ? `${name} involves a transfer to an on-call phone; with --external the other install answers and would page its real on-call phone, so it is refused. Run it on that install, or without --phone.`
         : `${name} runs without a phone only (a simulated on-call person answers); --phone is refused (live transfer test: set CALL_TEST_ONCALL, see docs/architecture.md)`,
     )
+  if (mode === 'room' && roomRefused(scenarios[name]))
+    throw new Error(`${name} is a long call: run it with --phone (a test call in a room ends after a few minutes), with the assistant's call length set to cover it`)
+  const maxCallSeconds = callTestCapSeconds(scenarios[name])
   const { CALL_TEST_TO: to } = requireEnv(['CALL_TEST_TO'])
   const from = mode === 'phone' ? requireEnv(['CALL_TEST_FROM']).CALL_TEST_FROM : undefined
   const run: Run = {
@@ -113,15 +116,15 @@ async function main() {
     realtimeModel,
   }
 
-  if (from) await startByPhone(run, from)
+  if (from) await startByPhone(run, from, maxCallSeconds)
   else await startInRoom(run)
-  console.log('The conversation runs for up to three minutes; waiting for the call to finish…')
+  console.log(`The conversation runs for up to ${Math.round(maxCallSeconds / 60)} minutes; waiting for the call to finish…`)
 
   const latency = latencyReader(run.room)
   // A number of another install (--external, phone only): this install has no record of the call, so there is nothing to
   // check; what the caller heard is all there is. The call's own data is on the install that answered.
   if (from && external) {
-    await waitForCallEnd(run.room, Date.now() + MAX_CALL_SEC * 1000, latency.poll)
+    await waitForCallEnd(run.room, Date.now() + maxCallSeconds * 1000, latency.poll)
     console.log(formatCallerLatency(latency.get()))
     console.log(
       'External number: no checks here; the call, its transcript and reply times are on the install that answered.',
@@ -132,7 +135,7 @@ async function main() {
   const find = async () =>
     (await run.api.run(callFindForTest, { to, since: run.since, ...lookup })).data as CallTestFinding
   const expectRecording = args.includes('--expect-recording')
-  const finding = await waitForFinishedCall(find, Date.now() + MAX_CALL_SEC * 1000 + RESULT_WAIT_MS, latency.poll, {
+  const finding = await waitForFinishedCall(find, Date.now() + maxCallSeconds * 1000 + RESULT_WAIT_MS, latency.poll, {
     expectRecording,
   })
   // Room mode: the business agent's job starts when the call is picked up, so its own timing is pickup to greeting.

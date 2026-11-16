@@ -227,6 +227,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'workspace.deleteOwn': 'team',
   // What the workspace pays: the owner allowing Premium voices and models (Linedesk Cloud), on or off.
   'workspace.setAllowPremium': 'team',
+  'workspace.setAllowUltra': 'team',
   'invitation.accept': 'team',
   'invitation.decline': 'team',
   // An instance admin changing who is in which workspace, also their own membership.
@@ -278,10 +279,17 @@ export const TRANSFER_CHANGE_KIND: AuditKind = 'integrations'
  * after, model ids only) in the result then. Kind `team`, like Allow Premium.
  */
 export const USAGE_LEVEL_CHANGE_KIND: AuditKind = 'team'
+type AuditedLevelFields = {
+  voice_model: string | null
+  llm_model: string | null
+  voice_pipeline: string | null
+  /** Missing in entries from before Ultra. */
+  realtime_model?: string | null
+}
 /** What decides the level, before and after a change (handlers.ts, UsageLevelChange). */
 export type AuditedLevelChange = {
-  before: { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null }
-  after: { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null }
+  before: AuditedLevelFields
+  after: AuditedLevelFields
 }
 
 /** A number as the audit log keeps it: its last four digits ("…0199"); null: none. */

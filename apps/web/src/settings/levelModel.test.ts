@@ -1,6 +1,6 @@
 import type { LevelChoice, UsageLevelOptions } from '@linedesk/actions'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CHOICE, draftLevel, levelOptions, levelTag, premiumLocked, pricePerMinute } from './levelModel.ts'
+import { answeringPipeline, DEFAULT_CHOICE, draftLevel, levelOptions, levelTag, premiumLocked, pricePerMinute, ultraLocked } from './levelModel.ts'
 import { NO_LEVELS } from './voiceSwitch.fixture.ts'
 
 const flash: LevelChoice = { id: 'eleven_flash_v2_5', name: 'ElevenLabs Flash v2.5', level: 'standard', allowed: true }
@@ -58,5 +58,29 @@ describe('premiumLocked', () => {
     expect(premiumLocked(cloud)).toBe(true)
     expect(premiumLocked({ ...cloud, voiceModels: { elevenlabs: [flash, { ...v3, allowed: true }] } })).toBe(false)
     expect(premiumLocked({ ...cloud, billed: false })).toBe(false)
+  })
+})
+
+describe('Ultra', () => {
+  const realtime: LevelChoice = { id: 'gpt-realtime', name: 'GPT Realtime', level: 'ultra', allowed: false }
+  const ultra: UsageLevelOptions = { ...cloud, realtimeModels: [realtime], realtimeAllowed: false }
+
+  it('is labelled with its price, and greyed out until Allow Ultra', () => {
+    expect(levelTag('ultra', cloud)).toBe('Ultra, 20¢/min, natural realtime voice')
+    const [, off] = levelOptions([realtime], null, ultra, DEFAULT_CHOICE)
+    expect(off).toMatchObject({ disabled: true, description: 'Needs Allow Ultra' })
+    expect(ultraLocked(ultra)).toBe(true)
+    expect(ultraLocked({ ...ultra, realtimeAllowed: true })).toBe(false)
+    expect(ultraLocked({ ...ultra, billed: false })).toBe(false)
+    expect(ultraLocked({ ...ultra, realtimeModels: [] })).toBe(false) // no realtime model set up: nothing to say
+  })
+
+  it('answers on the three stages on Cloud unless the assistant picked the realtime model', () => {
+    const both = { realtime: true, three_stage: true }
+    expect(answeringPipeline(null, both, true)).toBe('three_stage')
+    expect(answeringPipeline('realtime', both, true)).toBe('realtime')
+    // Self-hosted: the install's choice, the realtime model when set up (as before).
+    expect(answeringPipeline(null, both, false)).toBe('realtime')
+    expect(answeringPipeline(null, { realtime: false, three_stage: true }, false)).toBe('three_stage')
   })
 })

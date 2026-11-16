@@ -19,7 +19,7 @@ import { Field, Section, SwitchRow } from './fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
 import { pricePerMinute } from './levelModel.ts'
 import { refreshQuery } from '../cachedQuery.ts'
-import { type AllowPremiumData, USAGE_CENTS_PER_MINUTE } from '@linedesk/actions'
+import { type AllowPremiumData, type AllowUltraData, USAGE_CENTS_PER_MINUTE } from '@linedesk/actions'
 import {
   callAction,
   patchWorkspaceSettings,
@@ -68,6 +68,7 @@ export function WorkspaceGeneral({
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
       <AllowPremium isOwner={isOwner} canEdit={canEdit} toast={toast} />
+      <AllowUltra isOwner={isOwner} canEdit={canEdit} toast={toast} />
     </Section>
   )
 }
@@ -384,6 +385,64 @@ function AllowPremium({
             : readOnly
       }
       on={settings.allowPremium}
+      onChange={on => void change(on)}
+      disabled={!isOwner || !canEdit || busy}
+    />
+  )
+}
+
+/**
+ * Linedesk Cloud: the owner allows Ultra, calls answered by a realtime model (workspace.setAllowUltra). Like Allow
+ * Premium: only on an install that bills usage, only the owner changes it. Off moves those assistants back to the three
+ * stages.
+ */
+function AllowUltra({
+  isOwner,
+  canEdit,
+  toast,
+}: {
+  isOwner: boolean
+  canEdit: boolean
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const readOnly = useReadOnlyNote()
+  const write = useWriteAction()
+  const settings = useWorkspaceSettings().data
+  const [busy, setBusy] = useState(false)
+  if (!settings?.usageLevels) return null
+  const prices = {
+    standard: pricePerMinute(USAGE_CENTS_PER_MINUTE.standard),
+    ultra: pricePerMinute(USAGE_CENTS_PER_MINUTE.ultra),
+  }
+
+  async function change(on: boolean) {
+    setBusy(true)
+    try {
+      const data = await write<AllowUltraData>('workspace.setAllowUltra', { on })
+      patchWorkspaceSettings({ allowUltra: data.on })
+      void refreshQuery('voice.options')
+      toast(
+        data.on ? t('settings.general.ultra.on') : t('settings.general.ultra.off', { count: data.movedOffUltra.length }),
+      )
+    } catch (e) {
+      toast(rejectionText('workspace.setAllowUltra', (e as Error).message))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <SwitchRow
+      title={t('settings.general.ultra.label')}
+      description={
+        !isOwner
+          ? t('settings.general.ultra.ownerOnly', prices)
+          : canEdit
+            ? t('settings.general.ultra.help', prices)
+            : readOnly
+      }
+      on={settings.allowUltra}
       onChange={on => void change(on)}
       disabled={!isOwner || !canEdit || busy}
     />

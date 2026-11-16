@@ -81,6 +81,8 @@ export type Draft = {
   voice_pipeline: VoicePipeline | null
   /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': the server's default voice. */
   realtime_voice: string
+  /** The realtime model when a realtime model answers (Ultra on Linedesk Cloud); '': the server's. */
+  realtime_model: string
 }
 
 /** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet). */
@@ -142,6 +144,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     voice_pipeline: a.voice_pipeline ?? null,
     // A row synced before the column existed has none: the server's default voice.
     realtime_voice: a.realtime_voice ?? '',
+    realtime_model: a.realtime_model ?? '',
   }
 }
 
@@ -238,14 +241,18 @@ export const withPickedVoice = (
   model: picked.provider === current.provider ? current.model : '',
 })
 
-/** The voice and language model as assistant.update takes them: no `model` for the server's, null for its model. */
-export const levelChoicesToSave = (d: Pick<Draft, 'voice' | 'llm_model'>) => ({
+/**
+ * The voice, language model and realtime model as assistant.update takes them: no `model` for the server's voice
+ * model, null for its language model or realtime model.
+ */
+export const levelChoicesToSave = (d: Pick<Draft, 'voice' | 'llm_model' | 'realtime_model'>) => ({
   voice: {
     provider: d.voice.provider,
     voice_id: d.voice.voice_id,
     ...(d.voice.model ? { model: d.voice.model } : {}),
   },
   llm_model: d.llm_model || null,
+  realtime_model: d.realtime_model || null,
 })
 
 /** What would be saved: trimmed. */

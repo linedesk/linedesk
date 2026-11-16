@@ -88,6 +88,8 @@ import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
 import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { LevelSettings } from './LevelSettings.tsx'
+import { answeringPipeline } from './levelModel.ts'
+import { UltraSettings } from './UltraSettings.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -187,9 +189,10 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
  * How the assistant's calls are answered, in Advanced: a choice only while the workspace may use both (the instance
  * admin lets workspaces choose, Server admin › Providers); else nothing, there is nothing to decide.
  */
-function PipelineSection({ draft, set, setUp }: SectionProps & { setUp: PipelinesSetUp | null }) {
+function PipelineSection({ draft, set, setUp, billed }: SectionProps & { setUp: PipelinesSetUp | null; billed: boolean }) {
   const t = useT()
-  if (!setUp?.realtime || !setUp.three_stage) return null
+  // On Linedesk Cloud the choice is Ultra or not, in General (UltraSettings).
+  if (billed || !setUp?.realtime || !setUp.three_stage) return null
   const used = pipelineFor(draft.voice_pipeline, setUp)
   return (
     <Section id="as-pipeline" title={t('settings.assistant.answering.title')}>
@@ -210,7 +213,7 @@ type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
-  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice', 'llm_model', 'realtime_voice'],
+  general: ['name', 'greeting', 'greeting_outside', 'languages', 'voice', 'llm_model', 'realtime_voice', 'realtime_model'],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
   advanced: [
@@ -770,7 +773,10 @@ function Form({
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
   // The page follows the pipeline picked here at once, before it is saved: the voice picker only for three stages.
   // An API of an older version (during an update) only says whether a realtime model is connected.
-  const realtime = setUp ? pipelineFor(draft.voice_pipeline, setUp) === 'realtime' : voiceOptions?.realtime === true
+  // On Linedesk Cloud an assistant that chose none answers on the three stages (a realtime model is Ultra).
+  const billed = voiceOptions?.levels?.billed === true
+  const answering = setUp ? answeringPipeline(draft.voice_pipeline, setUp, billed) : null
+  const realtime = answering ? answering === 'realtime' : voiceOptions?.realtime === true
   const openReview = useQuery(canEdit ? reviewListKey(assistant.id, true) : null, loadReviewList(assistant.id, true))
   const openQuestions = useRows('knowledge_questions').filter(
     q => q.assistant_id === assistant.id && q.status === 'open',
@@ -785,13 +791,20 @@ function Form({
   const changed = dirty
   const unsaved = useMemo(() => {
     const clean = [normalized(draft), normalized(saved)] as const
+    // On Linedesk Cloud the pipeline is picked in General (Ultra or not), not in Advanced.
+    const fieldsOf = (id: Exclude<SectionId, OwnSection>) =>
+      !billed
+        ? sectionFields[id]
+        : id === 'general'
+          ? [...sectionFields.general, 'voice_pipeline' as const]
+          : sectionFields[id].filter(key => key !== 'voice_pipeline')
     const marked = new Set<SectionId>(
       (Object.keys(sectionFields) as Exclude<SectionId, OwnSection>[]).filter(id =>
-        sectionFields[id].some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
+        fieldsOf(id).some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
       ),
     )
     return marked
-  }, [draft, saved])
+  }, [draft, saved, billed])
 
   const outboundCountries = useOutboundCountries()
 
@@ -897,6 +910,14 @@ function Form({
               anyCovers={voiceOptions?.anyLanguages ?? voiceOptions?.languages}
             />
             <NotAnswered setUp={setUp} />
+            {answering && (
+              <UltraSettings
+                pipeline={answering}
+                realtimeModel={draft.realtime_model}
+                onPipeline={pipeline => set('voice_pipeline', pipeline)}
+                onRealtimeModel={model => set('realtime_model', model)}
+              />
+            )}
             {realtime ? (
               <RealtimeVoiceSettings
                 voice={draft.realtime_voice}
@@ -905,7 +926,7 @@ function Form({
                 language={mainOf(draft)}
                 otherLanguages={otherLanguagesOf(draft.languages)}
                 assistantName={assistantName(draft, t)}
-                switchTo={setUp?.three_stage === true ? sectionHash(page, 'advanced') : null}
+                switchTo={!billed && setUp?.three_stage === true ? sectionHash(page, 'advanced') : null}
                 threeStageName={t(PIPELINE_TEXT.three_stage.label)}
               />
             ) : (
@@ -946,7 +967,7 @@ function Form({
           <>
             <TalkingSpeedSection draft={draft} set={set} />
             <Advanced draft={draft} set={set} />
-            <PipelineSection draft={draft} set={set} setUp={setUp} />
+            <PipelineSection draft={draft} set={set} setUp={setUp} billed={billed} />
           </>
         )}
       </fieldset>

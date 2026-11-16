@@ -38,6 +38,7 @@ export const VERSIONED_FIELDS = [
   'talking_speed_pct',
   'voice_pipeline',
   'realtime_voice',
+  'realtime_model',
 ] as const satisfies readonly (keyof Assistant)[]
 export type VersionedField = (typeof VERSIONED_FIELDS)[number]
 
@@ -171,6 +172,12 @@ export const VERSION_PARTS: readonly VersionPart[] = [
     label: 'Realtime voice',
     // A version from before the column: the server's default voice, as then.
     text: s => s.realtime_voice || 'Default voice',
+  },
+  {
+    id: 'realtime_model',
+    label: 'Realtime model',
+    // A version from before the column: the server's realtime model, as then.
+    text: s => s.realtime_model || 'Default realtime model',
   },
   {
     id: 'languages',

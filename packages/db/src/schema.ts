@@ -172,6 +172,11 @@ export const assistants = pgTable(
      * default voice (Server admin › Providers › OpenAI Realtime). `voice` is the three stages' voice; each keeps its own.
      */
     realtime_voice: text('realtime_voice').notNull().default(''),
+    /**
+     * The realtime model that answers its calls when `voice_pipeline` is realtime (REALTIME_MODEL_LEVELS in
+     * @linedesk/actions, the Ultra level on Linedesk Cloud). null: the server's realtime model.
+     */
+    realtime_model: text('realtime_model'),
     created_at: createdAt(),
     version: version(),
   },
@@ -391,6 +396,11 @@ export const workspace_settings = pgTable('workspace_settings', {
    * @linedesk/actions). Off: assistants can pick Standard ones only. Not read on an install without billing.
    */
   allow_premium: boolean('allow_premium').notNull().default(false),
+  /**
+   * Linedesk Cloud: the owner allows Ultra, assistants answered by a realtime model (20¢ a minute; usageLevel in
+   * @linedesk/actions). Off: no assistant answers with a realtime model. Not read on an install without billing.
+   */
+  allow_ultra: boolean('allow_ultra').notNull().default(false),
   /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
   recording_retention_days: integer('recording_retention_days').default(90),
   /** New-call notifications for members who have not set their own (member_notification_settings). */

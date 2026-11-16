@@ -448,7 +448,7 @@ export type AuditEntry = {
   ipAddress: string | null
 }
 /** What decides an assistant's usage level, as the audit log keeps it (null: the server's default). */
-export type LevelFields = { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null }
+export type LevelFields = { voice_model: string | null; llm_model: string | null; voice_pipeline: string | null; realtime_model?: string | null }
 /** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */
 export type AuditFilter = {
   kind?: AuditKind

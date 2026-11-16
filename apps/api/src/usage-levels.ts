@@ -1,7 +1,7 @@
 // Usage levels on Linedesk Cloud (packages/actions/src/usage-level.ts, decisions.md 2026-11-16): which voice and
 // language model a workspace's calls use, the level that makes (Standard 5¢, Premium 10¢ a minute), and the checks.
-// A call answered by a realtime model is Ultra, which needs Allow Ultra (not built yet): on Cloud it falls back to the
-// three stages.
+// A call answered by a realtime model is Ultra (20¢ a minute), which needs the owner's Allow Ultra: without it the call
+// falls back to the three stages.
 // Levels apply only while this install bills usage (billingState: billing on with usable Stripe keys); a self-hosted
 // install uses every option, with no levels and no checks.
 import {
@@ -15,6 +15,9 @@ import {
   type LlmProvider,
   pipelineChoiceUnder,
   pipelineFor,
+  REALTIME_MODEL_LEVELS,
+  realtimeModelFor,
+  realtimeModelLevel,
   type SpeakingVoice,
   USAGE_CENTS_PER_MINUTE,
   type UsageLevel,
@@ -63,12 +66,27 @@ export async function allowPremiumOf(tx: Tx, workspaceId: string, { lock = false
   return row?.on ?? false
 }
 
-/** What a workspace may use on Linedesk Cloud: own keys, Allow Premium; Allow Ultra is not built yet (false). */
+/** The owner's "Allow Ultra" (workspace_settings.allow_ultra; no row: off); `lock` as for allowPremiumOf. */
+export async function allowUltraOf(tx: Tx, workspaceId: string, { lock = false } = {}): Promise<boolean> {
+  const query = tx
+    .select({ on: workspace_settings.allow_ultra })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspaceId))
+  const [row] = lock ? await query.for('share') : await query
+  return row?.on ?? false
+}
+
+/** What a workspace may use on Linedesk Cloud: own keys, Allow Premium, Allow Ultra (one read of the settings row). */
 async function workspaceFlags(tx: Tx, workspaceId: string, { lock = false } = {}) {
+  const query = tx
+    .select({ premium: workspace_settings.allow_premium, ultra: workspace_settings.allow_ultra })
+    .from(workspace_settings)
+    .where(eq(workspace_settings.workspace_id, workspaceId))
+  const [row] = lock ? await query.for('share') : await query
   return {
     ownKeys: await workspaceOwnKeys(tx, workspaceId),
-    allowPremium: await allowPremiumOf(tx, workspaceId, { lock }),
-    allowUltra: false,
+    allowPremium: row?.premium ?? false,
+    allowUltra: row?.ultra ?? false,
   }
 }
 
@@ -165,7 +183,10 @@ export async function alertNonStandardDefaults(tx: Tx) {
 }
 
 type Choices = Pick<UsageLevelInput, 'voice' | 'model'> & { pipeline: VoicePipeline }
-type AssistantChoices = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'> & { id?: string }
+type AssistantChoices = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'> & {
+  id?: string
+  realtime_model?: string | null
+}
 
 /** The models of a "model, fallback, ..." list, or the provider's default alone. */
 const modelsOf = (list: string | null | undefined, provider: LlmProvider) => {
@@ -177,6 +198,8 @@ const firstModel = (list: string | null | undefined, provider: LlmProvider) => m
 
 /** The realtime model the install answers with (REALTIME_MODEL; the agent's default otherwise). */
 const REALTIME_DEFAULT_MODEL = 'gpt-realtime'
+/** The install's realtime model: REALTIME_MODEL, else the agent's default. */
+const installRealtimeModel = (configured: string | null | undefined) => configured?.trim() || REALTIME_DEFAULT_MODEL
 
 /**
  * What an assistant's calls use, as the agent picks it: the pipeline (the assistant's choice under the instance admin's
@@ -198,7 +221,10 @@ export async function assistantChoices(
   if (pipeline === 'realtime') {
     const realtime = await activeProvider(tx, 'realtime').catch(() => null)
     if (!realtime) return null
-    const model = { provider: realtime.provider, model: realtime.config.model?.value?.trim() || REALTIME_DEFAULT_MODEL }
+    const model = {
+      provider: realtime.provider,
+      model: realtimeModelFor(assistant.realtime_model, installRealtimeModel(realtime.config.model?.value)),
+    }
     return { voice: model, model, pipeline }
   }
   const llm = await activeProvider(tx, 'llm').catch(() => null)
@@ -248,7 +274,7 @@ export const PREMIUM_NOT_ALLOWED =
 export const OWN_KEYS_ONLY =
   'That voice or model is available only with your own provider keys: pick a Standard or Premium one'
 export const ULTRA_NOT_ALLOWED =
-  'Answering with a realtime model (Ultra) is not available in this workspace: pick speech to text, language model and voice'
+  'Ultra (answering with a realtime model) is not allowed in this workspace: the owner can turn on Allow Ultra in Settings, or pick speech to text, language model and voice'
 
 /**
  * On Linedesk Cloud: refuses an assistant's voice and model the workspace may not use (Premium without Allow
@@ -287,7 +313,7 @@ export const onStandardDefaults = <A extends Pick<Assistant, 'voice' | 'llm_mode
  * provider the call does not use is replaced by that provider's default voice, as the agent does.
  */
 function withCheckedModels<A extends AssistantChoices>(a: A, c: Choices): A {
-  if (c.pipeline === 'realtime') return a
+  if (c.pipeline === 'realtime') return { ...a, realtime_model: c.model.model }
   const voice =
     c.voice.provider === a.voice.provider
       ? { ...a.voice, model: c.voice.model }
@@ -371,6 +397,26 @@ export async function assistantsBackToStandard(tx: Tx, workspaceId: string, by: 
   return changed
 }
 
+/**
+ * Turning Allow Ultra off: every assistant of the workspace that answers with a realtime model goes back to the three
+ * stages and the install's realtime model, with a version by `by` (the owner). Returns the rows it changed.
+ */
+export async function assistantsOffUltra(tx: Tx, workspaceId: string, by: string) {
+  const rows = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspaceId)).for('update')
+  const changed = []
+  for (const row of rows) {
+    if (row.voice_pipeline !== 'realtime' && !row.realtime_model) continue
+    const [updated] = await tx
+      .update(assistants)
+      .set({ voice_pipeline: row.voice_pipeline === 'realtime' ? 'three_stage' : row.voice_pipeline, realtime_model: null })
+      .where(and(eq(assistants.id, row.id), eq(assistants.workspace_id, workspaceId)))
+      .returning()
+    await recordVersion(tx, workspaceId, row.id, { by })
+    changed.push(updated!)
+  }
+  return changed
+}
+
 /** Whether a stored language-model id is Premium at any provider. */
 const LANGUAGE_PREMIUM = (id: string) =>
   (Object.keys(llmEndpoints) as LlmProvider[]).some(provider => languageModelLevel(provider, id) === 'premium')
@@ -406,11 +452,18 @@ export async function levelOptions(tx: Tx, workspaceId: string): Promise<UsageLe
     }),
   )
   const defaultModelId = llmProvider ? installLanguageModel(llmProvider, llm?.config.model?.value, billed) : null
+  const realtime = await activeProvider(tx, 'realtime').catch(() => null)
+  const defaultRealtimeId = realtime ? installRealtimeModel(realtime.config.model?.value) : null
   return {
     ...flags,
     realtimeAllowed: levelAllowed('ultra', flags),
     standardCentsPerMinute: USAGE_CENTS_PER_MINUTE.standard,
     premiumCentsPerMinute: USAGE_CENTS_PER_MINUTE.premium,
+    ultraCentsPerMinute: USAGE_CENTS_PER_MINUTE.ultra,
+    realtimeModels: realtime ? REALTIME_MODEL_LEVELS.map(m => choice(m.model, m.name, m.level)) : [],
+    defaultRealtimeModel: defaultRealtimeId
+      ? { id: defaultRealtimeId, level: realtimeModelLevel(defaultRealtimeId) }
+      : null,
     voiceModels: Object.fromEntries(
       voices.map(v => [v.provider, voiceModelsOf(v.provider).map(m => choice(m.model, m.name, m.level))]),
     ),

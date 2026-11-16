@@ -2,7 +2,7 @@
 // Premium, the same for every workspace (partners too). A call is Premium when its voice or its language model is in
 // the Premium list; options in neither list run only on the workspace's own provider keys. With own keys there is no
 // usage fee and no restriction. Self-hosted installs (no billing) use every option, without levels. A call answered by
-// a realtime (speech-to-speech) model is Ultra, which needs Allow Ultra (not built yet: no Cloud call is Ultra so far).
+// a realtime (speech-to-speech) model is Ultra (20¢ a minute), which needs the owner's Allow Ultra.
 // The one source of truth for the lists: the voice picker, the API's checks (assistant.update, call.start) and billing.
 import { LEVEL_PRICES } from '@linedesk/db/types'
 import type { LlmProvider } from './admin.ts'
@@ -19,11 +19,12 @@ export type UsageLevel = UsageTier | 'own_keys' | 'not_allowed'
 /**
  * What a call minute costs on each level, in US cents (billed per second), from the one billing price table
  * (`LEVEL_PRICES` in packages/db/src/billing-config.ts, Linedesk Cloud's defaults). A level without a price here
- * (`not_allowed`, and Ultra until Allow Ultra exists) never runs: centsPerMinute throws for it.
+ * (`not_allowed`) never runs: centsPerMinute throws for it.
  */
 export const USAGE_CENTS_PER_MINUTE = {
   standard: LEVEL_PRICES.standard.microsPerMinute / 10_000,
   premium: LEVEL_PRICES.premium.microsPerMinute / 10_000,
+  ultra: LEVEL_PRICES.ultra.microsPerMinute / 10_000,
   own_keys: 0,
 } as const satisfies Partial<Record<UsageLevel, number>>
 
@@ -129,6 +130,15 @@ export function realtimeModelLevel(model: string): UsageTier | null {
   return REALTIME_MODEL_LEVELS.find(m => m.model === model.trim())?.level ?? null
 }
 
+/**
+ * The realtime model a call answers with: the assistant's own (`realtime_model`) when it is in the list, else the
+ * install's (REALTIME_MODEL, Server admin › Providers).
+ */
+export function realtimeModelFor(assistantModel: string | null | undefined, installModel: string) {
+  const own = assistantModel?.trim()
+  return own && realtimeModelLevel(own) ? own : installModel
+}
+
 /** The voice model's level, or null when it is in neither list. */
 export function voiceModelLevel(provider: string, model: string): UsageTier | null {
   return VOICE_MODEL_LEVELS.find(v => v.provider === provider && v.model === model.trim())?.level ?? null
@@ -156,7 +166,7 @@ export const voiceModelsOf = (provider: string) => VOICE_MODEL_LEVELS.filter(v =
  * model passes that model for both (REALTIME_PROVIDER): its level is the realtime model's. `ownKeys`: every part of
  * the call runs on the workspace's own provider keys (a call with any part on Linedesk's keys pays its level's price).
  * `allowPremium`: the owner's "Allow Premium" (workspace_settings.allow_premium); false turns a Premium call into
- * `not_allowed`. `allowUltra`: the owner's "Allow Ultra" (not built yet); anything but true turns an Ultra call into
+ * `not_allowed`. `allowUltra`: the owner's "Allow Ultra" (workspace_settings.allow_ultra); anything but true turns an Ultra call into
  * `not_allowed`. `allowPremium` left out: the level by the voice and model alone.
  */
 export type UsageLevelInput = {
@@ -243,13 +253,18 @@ export type LevelChoice = { id: string; name: string; level: UsageTier; allowed:
 export type UsageLevelOptions = {
   billed: boolean
   allowPremium: boolean
-  /** Allow Ultra: answering with a realtime model. Not built yet: false while billed. */
+  /** Allow Ultra (workspace_settings.allow_ultra): answering with a realtime model. */
   allowUltra: boolean
   /** Whether an assistant may answer with a realtime model (`voice_pipeline` realtime): levelAllowed('ultra'). */
   realtimeAllowed: boolean
   ownKeys: boolean
   premiumCentsPerMinute: number
   standardCentsPerMinute: number
+  ultraCentsPerMinute: number
+  /** The realtime models an assistant can answer with (Ultra), when a realtime model is set up; else empty. */
+  realtimeModels: LevelChoice[]
+  /** What "Default" stands for among them: the install's realtime model with its level; null without one. */
+  defaultRealtimeModel: { id: string; level: UsageTier | null } | null
   voiceModels: Record<string, LevelChoice[]>
   defaultVoiceModels: Record<string, { id: string; level: UsageTier | null }>
   llmProvider: string | null

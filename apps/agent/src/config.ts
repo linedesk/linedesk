@@ -13,6 +13,7 @@ import {
   type PipelinesSetUp,
   pipelineFor,
   REALTIME_DEFAULT_VOICE,
+  realtimeModelFor,
   realtimeVoiceFor,
   VOICE_PIPELINE_LABELS,
   type VoicePipeline,
@@ -368,6 +369,16 @@ export function resolveCallConfig(settings: ProviderSettings | null, env: Env = 
 /** The config with another realtime model (a call test comparing models); unchanged without one or without realtime. */
 export const withRealtimeModel = (config: CallConfig, model: string | undefined): CallConfig =>
   model && isRealtime(config) ? { ...config, realtime: { ...config.realtime, model } } : config
+
+/**
+ * The config with the assistant's own realtime model (`assistants.realtime_model`, Settings › Assistant › General, Ultra
+ * on Linedesk Cloud) when a realtime model answers and the model is in the list (realtimeModelFor); else the install's.
+ * The call test's `--realtime-model` (withRealtimeModel) still wins over it.
+ */
+export const withAssistantRealtimeModel = (config: CallConfig, assistantModel: string | null | undefined): CallConfig =>
+  isRealtime(config)
+    ? { ...config, realtime: { ...config.realtime, model: realtimeModelFor(assistantModel, config.realtime.model) } }
+    : config
 
 /**
  * The config with the assistant's own realtime voice (`assistants.realtime_voice`, Settings › Assistant › Voice) when

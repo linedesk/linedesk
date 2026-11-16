@@ -778,6 +778,13 @@
       "when": 1794799951254,
       "tag": "0110_billing_levels",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1794800254315,
+      "tag": "0111_ultra_level",
+      "breakpoints": true
     }
   ]
 }

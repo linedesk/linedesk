@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { DEMO_CALL_LIMIT_LINE, spokenLines } from '@linedesk/actions'
 import { announceRecording, callLimitOf, callOrigin, startCall, TEST_CALL_LIMIT_MS } from './call-session.ts'
 import { BLOCKED_LINE, BUSY_LINE, OVER_CAP_LINE, unansweredLine } from './busy-line.ts'
@@ -86,6 +86,27 @@ test('the call test may pick the pipeline for its call instead of the assistant\
   const api = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }) } as never
   expect((await startCall(api, origin)).assistant?.voice_pipeline).toBe('three_stage')
   expect((await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.voice_pipeline).toBe('realtime')
+})
+
+test('on an install that bills usage, the call test\'s pipeline and realtime model are ignored, with a warning', async () => {
+  const origin = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', pipeline: 'realtime', realtimeModel: 'gpt-realtime-2' }), {}, 'r')
+  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, voice_pipeline: 'three_stage' }
+  const api = (usageLevel: unknown) =>
+    ({ run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, usageLevel } }) }) as never
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  try {
+    const billed = await startCall(api('standard'), origin)
+    expect(billed.assistant?.voice_pipeline).toBe('three_stage')
+    expect(billed.realtimeModel).toBeUndefined()
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/call test's pipeline or realtime model is ignored \(usage level standard\)/))
+    // Self-hosted (no level): the call test picks them, as before.
+    const own = await startCall(api(null), origin)
+    expect(own.assistant?.voice_pipeline).toBe('realtime')
+    expect(own.realtimeModel).toBe('gpt-realtime-2')
+  } finally {
+    vi.restoreAllMocks()
+  }
 })
 
 test('outside business hours the call uses the outside greeting; the call test may set one', async () => {

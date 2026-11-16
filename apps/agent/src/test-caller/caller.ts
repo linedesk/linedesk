@@ -39,10 +39,10 @@ export async function runTestCaller(ctx: JobContext, { scenario: name, mode, per
     timer.unref()
     ctx.addShutdownCallback(async () => clearTimeout(timer))
   }
-  after(TEST_CALLER_LIMIT_MS, 'time limit reached')
+  const scenario: Scenario = persona ? { ...scenarios[name], persona } : scenarios[name]
+  after(scenario.longCallMs ?? TEST_CALLER_LIMIT_MS, 'time limit reached')
 
   const counterpart = await waitForCounterpart(ctx, mode === 'phone' ? CALLEE_IDENTITY : undefined)
-  const scenario: Scenario = persona ? { ...scenarios[name], persona } : scenarios[name]
   if (!scenario.persona) {
     measureLatency(ctx, counterpart, null)
     return after(scenario.silentForMs ?? SILENT_CALLER_MS, 'stayed silent')
@@ -86,4 +86,12 @@ export async function runTestCaller(ctx: JobContext, { scenario: name, mode, per
     room: ctx.room,
     inputOptions: { participantIdentity: counterpart.identity, participantKinds: ALL_PARTICIPANT_KINDS, closeOnDisconnect: true },
   })
+  for (const cue of scenario.cues ?? []) {
+    const timer = setTimeout(() => {
+      console.log(`test caller (${name}): cue at ${Math.round(cue.atMs / 1000)} s`)
+      session.generateReply({ instructions: cue.say })
+    }, cue.atMs)
+    timer.unref()
+    ctx.addShutdownCallback(async () => clearTimeout(timer))
+  }
 }

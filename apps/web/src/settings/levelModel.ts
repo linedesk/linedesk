@@ -1,7 +1,7 @@
 // The voice model and language model an assistant picks, with their level on Linedesk Cloud (voice.options `levels`,
 // packages/actions/src/usage-level.ts): Standard, or Premium at a higher price a minute. Without billing (self-hosted)
 // every choice is there, without labels. Premium choices the workspace may not use are shown, not pickable.
-import type { LevelChoice, UsageLevelOptions, UsageTier } from '@linedesk/actions'
+import { type LevelChoice, type PipelinesSetUp, pipelineFor, type UsageLevelOptions, type UsageTier, type VoicePipeline } from '@linedesk/actions'
 import type { SelectOption } from '../ui/controls.tsx'
 import { i18n } from '../i18n/index.tsx'
 
@@ -15,6 +15,7 @@ export const pricePerMinute = (cents: number) => i18n().t('settings.voice.level.
 export function levelTag(level: UsageTier | null, levels: UsageLevelOptions): string | undefined {
   if (!levels.billed || !level) return undefined
   const t = i18n().t
+  if (level === 'ultra') return t('settings.voice.ultra.realtime', { price: pricePerMinute(levels.ultraCentsPerMinute) })
   return level === 'premium'
     ? t('settings.voice.level.premiumTag', { price: pricePerMinute(levels.premiumCentsPerMinute) })
     : t('settings.voice.level.standardTag')
@@ -27,7 +28,9 @@ function choiceOption(c: LevelChoice, levels: UsageLevelOptions): SelectOption<s
     label: c.name,
     description: c.allowed
       ? levelTag(c.level, levels)
-      : t('settings.voice.level.premiumOff', { price: pricePerMinute(levels.premiumCentsPerMinute) }),
+      : c.level === 'ultra'
+        ? t('settings.voice.ultra.realtimeOff')
+        : t('settings.voice.level.premiumOff', { price: pricePerMinute(levels.premiumCentsPerMinute) }),
     ...(c.allowed ? {} : { disabled: true }),
   }
 }
@@ -69,3 +72,17 @@ export function draftLevel(
 export const premiumLocked = (levels: UsageLevelOptions) =>
   levels.billed &&
   [...Object.values(levels.voiceModels).flat(), ...levels.models].some(c => c.level === 'premium' && !c.allowed)
+
+/**
+ * How an assistant's calls are answered, as the API decides it: its choice, else on Linedesk Cloud the three stages
+ * (a realtime model only when picked: Ultra), else the realtime model when one is set up (pipelineFor).
+ */
+export const answeringPipeline = (
+  choice: VoicePipeline | null | undefined,
+  setUp: PipelinesSetUp,
+  billed: boolean | undefined,
+): VoicePipeline => pipelineFor(choice ?? (billed ? 'three_stage' : null), setUp)
+
+/** Whether Ultra is shown greyed out (realtime set up, not allowed): the hint about Allow Ultra shows then. */
+export const ultraLocked = (levels: UsageLevelOptions) =>
+  levels.billed && levels.realtimeModels.length > 0 && !levels.realtimeAllowed

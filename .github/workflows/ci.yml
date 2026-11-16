@@ -117,6 +117,9 @@ jobs:
       - run: pnpm --filter @linedesk/scrub test
       # The production deploy receiver's checks (about 1 s, docs/ci.md).
       - run: bash scripts/receive-release.test.sh
+      # The migrations journal in order: a `when` not after the one before is skipped by the migrator on installs past it
+      # (packages/db/scripts/check-journal.ts; about 1 s, no database needed).
+      - run: pnpm db:check-journal
 
   # Self-hosting must work at every commit: the images build. (The agent image is not built here; it is large.)
   images:

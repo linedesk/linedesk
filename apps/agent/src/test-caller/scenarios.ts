@@ -1,7 +1,7 @@
 // Scenarios for the call test: who the test caller plays, and what the business's call must look
 // like afterwards. English only. Add one by adding an entry.
 import { type Language, languageNames } from '@linedesk/actions'
-import type { SimulatedOnCall, TestCaller } from '../call-session.ts'
+import { type SimulatedOnCall, TEST_CALL_LIMIT_MS, type TestCaller } from '../call-session.ts'
 
 /** The day `days` from now (YYYY-MM-DD) and how call.start says it ("Wednesday, November 18 at 9:00 AM"). */
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
@@ -34,6 +34,8 @@ export interface Expectation {
   lastLine?: RegExp
   /** The summary (title and text) must match (for example "Call in Spanish."). */
   summarySays?: RegExp
+  /** Each must match the assistant's lines from `atMs` into the call on (what it still knows late in a long call). */
+  assistantSaysLate?: { atMs: number; patterns: RegExp[] }
 }
 
 /**
@@ -79,12 +81,26 @@ export interface Scenario {
   languages?: Language[]
   /** No-phone test only: the one language the business's assistant speaks on this call, instead of its own setting. */
   mainLanguage?: Language
+  /**
+   * A long call: the test caller stays on the line up to this long (instead of TEST_CALLER_LIMIT_MS) and does not say
+   * goodbye on its own after a few turns. Longer than a test call in a room may run (TEST_CALL_LIMIT_MS): --phone only,
+   * and the assistant's own call length (Settings › Assistant) must cover it.
+   */
+  longCallMs?: number
+  /** What the test caller is told to do at these times from its start, in order (the last one usually ends the call). */
+  cues?: { atMs: number; say: string }[]
 }
 
 const rules = (language: string) =>
   `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken ${language}, no lists. Give your details only when asked. When you have what you called for, or after about six of your own turns, say a short goodbye and then use the end_call tool. Never say that you are an AI or that this is a test.`
 
+/** The rules of a long call (Scenario.longCallMs): the caller keeps the conversation going until a cue ends it. */
+const longCallRules = (language: string) =>
+  `You are on a real phone call with a business's phone assistant. Wait until you are greeted, then answer like a person would on the phone: one or two short sentences per turn, plain spoken ${language}, no lists. Give your details only when asked. This is a long call: keep it going, one topic at a time, and never say goodbye or use the end_call tool until you are told to. If the assistant tries to wrap up, bring up your next topic. Never say that you are an AI or that this is a test.`
+
 const MESSAGE_OUTCOMES = ['message', 'callback']
+
+const minutes = (m: number) => m * 60_000
 
 export const scenarios = {
   'callback-message': {
@@ -311,6 +327,26 @@ export const scenarios = {
     },
     languages: ['pl'],
   },
+  // Ultra, a 25-minute call (research §8.6): the name and the reason come in the first minute and must still be known
+  // at minute 24, after the early turns were cut (REALTIME_TRUNCATION) or turned into text (realtime-history.ts). Over
+  // the phone on staging, with the assistant on Ultra and its call length at 30 minutes; costs about $5 a run.
+  'long-call-recall': {
+    persona:
+      'You are Rosalind Okafor. Right at the start, in your first or second turn, say your full name and that you are calling because your basement floor drain backs up every time it rains. After that you have many smaller questions, one at a time, and you take your time with each: whether they also do water heater flushes, how a sump pump works and whether you need one, what to do about a slow kitchen sink, low water pressure in the upstairs shower, a running toilet, a dripping outdoor spigot, frozen pipes last winter, whether they work on weekends, whether they service older homes from the 1920s, what areas they cover, how to winterize a garden hose bib, whether a water softener is worth it, and anything that comes up. Ask follow-up questions and share small details about your house (a 1925 bungalow in Sellwood, Portland).',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      assistantSaysLate: { atMs: minutes(23.5), patterns: [/\bRosalind\b|\bOkafor\b/i, /\bdrain\b|\bback(s|ing)? up\b|\bbasement\b/i] },
+      summarySays: /\b(Rosalind|Okafor)\b[\s\S]*\b(drain|basement)\b|\b(drain|basement)\b[\s\S]*\b(Rosalind|Okafor)\b/i,
+    },
+    longCallMs: minutes(26),
+    cues: [
+      {
+        atMs: minutes(24),
+        say: 'Now, in your next turn, ask the assistant: "Sorry, before we finish: can you tell me again my name and why I called in the first place?" Do not give the answer yourself.',
+      },
+      { atMs: minutes(25), say: 'Now thank them, say a short goodbye, and then use the end_call tool.' },
+    ],
+  },
 } satisfies Record<string, Scenario>
 
 export type ScenarioName = keyof typeof scenarios
@@ -324,7 +360,8 @@ export const callerLanguagesOf = (scenario: Scenario): Language[] | undefined =>
 
 export const callerInstructions = (scenario: Scenario, today = todayInWords()) => {
   const languages = callerLanguagesOf(scenario)
-  return `${rules(languages?.length ? languageNames(languages, 'or') : 'English')} Today is ${today}.\n\n${scenario.persona}`
+  const language = languages?.length ? languageNames(languages, 'or') : 'English'
+  return `${scenario.longCallMs ? longCallRules(language) : rules(language)} Today is ${today}.\n\n${scenario.persona}`
 }
 
 const todayInWords = (now = new Date()) =>
@@ -379,6 +416,12 @@ export function parseCallTestArgs(args: readonly string[]): {
   const [persona, pipeline, realtimeModel] = values.map(i => (i >= 0 ? args[i] : undefined))
   return { name, persona, pipeline, realtimeModel }
 }
+
+/** A hard cap on a call test's call, in seconds: a little over what the test caller stays on the line. */
+export const callTestCapSeconds = (scenario: Scenario) => (scenario.longCallMs ? Math.ceil(scenario.longCallMs / 1000) + 30 : 210)
+
+/** A long call runs over the phone only: a test call in a room ends at TEST_CALL_LIMIT_MS (the assistant hangs up). */
+export const roomRefused = (scenario: Scenario) => (scenario.longCallMs ?? 0) > TEST_CALL_LIMIT_MS
 
 /**
  * Transfer scenarios run without a phone only: over the phone they would page a real on-call phone.

@@ -1,5 +1,5 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
-import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, spokenLanguages, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, languageModelLevel, voiceModelLevel, type VoicePipeline, } from '@linedesk/actions'
+import { actions, type AssistantRestoreData, buyableAreaCode, behaviourOn, callerRecognized, type CallerAttestation, languageNames, spokenLanguages, unspokenLanguages, pipelineChoiceUnder, isActiveContact, setsTransferNumber, ASSISTANT_CALL_MAX_MINUTES, confirmsNumber, isE164, normalizeCallerId, recordingKey, testCallContact, type ActionDef, type ActionResult, type CallTestFinding, type CarrierNumbersData, type ReplyTiming, type VoiceFailure, VOICE_FAILURES_PER_CALL, VOICE_FAILURE_MESSAGE_MAX, isPerCallProviderError, languageModelLevel, realtimeModelLevel, voiceModelLevel, type VoicePipeline, } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {assistant_calendars, assistants, availability_exceptions, availability_rules, call_evaluations, call_events, calls, contacts, organization, phone_numbers, reply_timings, syncedTables,
   transcript_segments, workspace_members, workspace_settings, type Tx,
@@ -479,9 +479,9 @@ async function checkAssistantLanguages(
 }
 type StoredLanguages = Parameters<typeof unspokenLanguages>[0]
 
-type LevelInput = { assistantId: string; voice?: AssistantVoice; llm_model?: string | null; voice_pipeline?: VoicePipeline | null }
-/** Whether an assistant.update names what decides its calls' level: the voice, the language model or the pipeline. */
-const choosesLevel = (input: LevelInput) => input.voice !== undefined || input.llm_model !== undefined || input.voice_pipeline !== undefined
+type LevelInput = { assistantId: string; voice?: AssistantVoice; llm_model?: string | null; voice_pipeline?: VoicePipeline | null; realtime_model?: string | null }
+/** Whether an assistant.update names what decides its calls' level: the voice, the models or the pipeline. */
+const choosesLevel = (input: LevelInput) => input.voice !== undefined || input.llm_model !== undefined || input.voice_pipeline !== undefined || input.realtime_model !== undefined
 
 /**
  * The voice model and language model an assistant picks must be ones with a level (usage-level.ts) for the voice
@@ -494,6 +494,7 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
     voice: input.voice ?? stored.voice,
     llm_model: input.llm_model !== undefined ? input.llm_model : stored.llm_model,
     voice_pipeline: input.voice_pipeline !== undefined ? input.voice_pipeline : stored.voice_pipeline,
+    realtime_model: input.realtime_model !== undefined ? input.realtime_model : stored.realtime_model,
   }
   // A save that leaves them as they are (the web app sends the voice with every save) is never refused over them.
   const same =
@@ -501,7 +502,8 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
     after.voice.voice_id === stored.voice.voice_id &&
     (after.voice.model ?? '') === (stored.voice.model ?? '') &&
     after.llm_model === stored.llm_model &&
-    after.voice_pipeline === stored.voice_pipeline
+    after.voice_pipeline === stored.voice_pipeline &&
+    after.realtime_model === stored.realtime_model
   if (same) return null
   if (input.voice?.model && !voiceModelLevel(input.voice.provider, input.voice.model))
     throw new Reject(`${input.voice.model} is not a voice model of ${input.voice.provider} here: pick one of voice.options`)
@@ -510,20 +512,25 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
     if (!llm || !languageModelLevel(llm.provider, input.llm_model))
       throw new Reject(`${input.llm_model} is not a language model of this server's provider: pick one of voice.options`)
   }
+  if (input.realtime_model && !realtimeModelLevel(input.realtime_model))
+    throw new Reject(`${input.realtime_model} is not a realtime model an assistant can pick: pick one of voice.options`)
   await checkAssistantLevel(tx, workspaceId, after, { picksRealtime: picksRealtime(stored, after) })
   return usageLevelChange(stored, after)
 }
 
-/** Whether a save turns on answering with a realtime model (Ultra on Linedesk Cloud). */
-const picksRealtime = (stored: Pick<Assistant, 'voice_pipeline'>, after: Pick<Assistant, 'voice_pipeline'>) =>
-  after.voice_pipeline === 'realtime' && stored.voice_pipeline !== 'realtime'
+type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'> & { realtime_model?: string | null }
 
-type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'>
+/** Whether a save turns on answering with a realtime model, or picks another one (Ultra on Linedesk Cloud). */
+const picksRealtime = (stored: LevelFields, after: LevelFields) =>
+  after.voice_pipeline === 'realtime' &&
+  (stored.voice_pipeline !== 'realtime' || (after.realtime_model ?? null) !== (stored.realtime_model ?? null))
+
 /** What decides a call's level, as the audit log keeps it: the voice model, the language model, the pipeline. */
 const levelFieldsOf = (a: LevelFields) => ({
   voice_model: a.voice.model ? `${a.voice.provider}/${a.voice.model}` : null,
   llm_model: a.llm_model ?? null,
   voice_pipeline: a.voice_pipeline ?? null,
+  realtime_model: a.realtime_model ?? null,
 })
 /** A change of what decides the level (who doubled the bill), for the audit log: before and after; null: none. */
 export type UsageLevelChange = { before: ReturnType<typeof levelFieldsOf>; after: ReturnType<typeof levelFieldsOf> }
@@ -592,14 +599,24 @@ const handlers: Record<string, Handler> = {
       })
     for (const contact of fields.transfers ?? []) if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
     // Like assistant.update: checked only when the version changes the voice, the model or the pipeline.
-    const levelAfter = { voice: fields.voice, llm_model: fields.llm_model ?? null, voice_pipeline: fields.voice_pipeline ?? null }
+    const levelAfter = {
+      voice: fields.voice,
+      llm_model: fields.llm_model ?? null,
+      voice_pipeline: fields.voice_pipeline ?? null,
+      realtime_model: fields.realtime_model ?? null,
+    }
     const levelChange = usageLevelChange(current, levelAfter)
     if (levelChange)
       await checkAssistantLevel(tx, workspaceId, levelAfter, { picksRealtime: picksRealtime(current, levelAfter) }).catch(e => {
         throw new Reject(`Version ${input.number}'s voice or model can't be used here (${errorMessage(e)}): pick them and save instead`)
       })
     const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
-    const restored = await tx.update(assistants).set(fields).where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
+    // A version from before a level column has no key for it: the column's default (null), as the check and the audit
+    // above assume, not what the assistant has now.
+    const restored = await tx
+      .update(assistants)
+      .set({ ...fields, llm_model: levelAfter.llm_model, voice_pipeline: levelAfter.voice_pipeline, realtime_model: levelAfter.realtime_model })
+      .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId))).returning()
     await releaseUnusedClones(tx, workspaceId)
     const linked = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, input.assistantId))
     const keyOf = (c: { connection_id: string; external_id: string }) => `${c.connection_id}/${c.external_id}`

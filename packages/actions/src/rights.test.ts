@@ -216,8 +216,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'workspace.deleteOwn',
     'workspace.deletePreview',
     'team.transferOwnership',
-    // What the workspace pays (billing:manage): Allow Premium voices and models on Linedesk Cloud.
+    // What the workspace pays (billing:manage): Allow Premium voices and models, Allow Ultra on Linedesk Cloud.
     'workspace.setAllowPremium',
+    'workspace.setAllowUltra',
   ],
   impersonation: ['impersonation.stop'],
   account: ['invitation.listMine', 'invitation.accept', 'invitation.decline'],
@@ -260,13 +261,15 @@ describe('workspace rights', () => {
     }
   })
 
-  it('only the owner deletes the workspace, hands it over or decides what it pays (Allow Premium)', () => {
+  it('only the owner deletes the workspace, hands it over or decides what it pays (Allow Premium, Allow Ultra)', () => {
     expect([...expectedRights.owner].sort()).toEqual([
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',
       'workspace.setAllowPremium',
+      'workspace.setAllowUltra',
     ])
     expect(actions.get('workspace.setAllowPremium')!.permission).toBe('billing:manage')
+    expect(actions.get('workspace.setAllowUltra')!.permission).toBe('billing:manage')
   })
 })

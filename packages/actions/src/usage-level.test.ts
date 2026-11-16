@@ -1,3 +1,4 @@
+import { LEVEL_PRICES } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import {
   LANGUAGE_MODEL_LEVELS,
@@ -7,6 +8,7 @@ import {
   centsPerMinute,
   levelAllowed,
   REALTIME_MODEL_LEVELS,
+  realtimeModelFor,
   realtimeModelLevel,
   USAGE_CENTS_PER_MINUTE,
   usageLevel,
@@ -64,7 +66,7 @@ describe('usageLevel', () => {
 
 describe('the lists', () => {
   it('have the decided prices', () => {
-    expect(USAGE_CENTS_PER_MINUTE).toEqual({ standard: 5, premium: 10, own_keys: 0 })
+    expect(USAGE_CENTS_PER_MINUTE).toEqual({ standard: 5, premium: 10, ultra: 20, own_keys: 0 })
   })
 
   it('have no option twice', () => {
@@ -159,7 +161,7 @@ describe('realtime models (Ultra)', () => {
     ])
     expect(realtimeModelLevel('gpt-realtime-mini')).toBeNull()
   })
-  it('a realtime call is Ultra, which is not allowed until Allow Ultra exists', () => {
+  it('a realtime call is Ultra, which needs Allow Ultra', () => {
     expect(usageLevel({ voice: realtime, model: realtime, ownKeys: false })).toBe('not_allowed')
     expect(usageLevel({ voice: realtime, model: realtime, ownKeys: false, allowUltra: true })).toBe('ultra')
     expect(usageLevel({ voice: realtime, model: realtime, ownKeys: true })).toBe('own_keys')
@@ -177,6 +179,21 @@ describe('centsPerMinute', () => {
     expect(centsPerMinute('premium')).toBe(10)
     expect(centsPerMinute('own_keys')).toBe(0)
     expect(() => centsPerMinute('not_allowed')).toThrow(/must not run/)
-    expect(() => centsPerMinute('ultra')).toThrow(/must not run/)
+    expect(centsPerMinute('ultra')).toBe(20)
+  })
+  it('takes every paid level\'s price from the billing price table (LEVEL_PRICES)', () => {
+    for (const level of ['standard', 'premium', 'ultra'] as const)
+      expect(centsPerMinute(level) * 10_000).toBe(LEVEL_PRICES[level].microsPerMinute)
+  })
+})
+
+describe('realtimeModelFor', () => {
+  it("is the assistant's listed realtime model, else the install's", () => {
+    expect(realtimeModelFor('gpt-realtime-2', 'gpt-realtime')).toBe('gpt-realtime-2')
+    expect(realtimeModelFor(null, 'gpt-realtime')).toBe('gpt-realtime')
+    expect(realtimeModelFor(' ', 'gpt-realtime')).toBe('gpt-realtime')
+    // Not in the list (gpt-realtime-2.1 is left out on purpose): the install's.
+    expect(realtimeModelFor('gpt-realtime-2.1', 'gpt-realtime')).toBe('gpt-realtime')
+    expect(REALTIME_MODEL_LEVELS.map(m => m.model)).toEqual(['gpt-realtime', 'gpt-realtime-2'])
   })
 })

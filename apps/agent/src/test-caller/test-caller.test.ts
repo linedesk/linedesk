@@ -5,7 +5,7 @@ import { isGoodbye } from './caller.ts'
 import { waitForFinishedCall } from './wait.ts'
 import { describeMetrics } from '../turn-metrics.ts'
 import { evaluateCall, formatAgentSetup, formatCallerLatency, formatReport, greetingCheck, latencyOf, percentile } from './report.ts'
-import { callerInstructions, parseCallTestArgs, parseTestCallerMetadata, scenarioNames, scenarios } from './scenarios.ts'
+import { callerInstructions, callTestCapSeconds, parseCallTestArgs, parseTestCallerMetadata, roomRefused, scenarioNames, scenarios } from './scenarios.ts'
 
 const lines = [
   { speaker: 'agent', text: 'Thanks for calling Brightwater. This is Maya, the AI assistant. How can I help?', at_ms: 1800 },
@@ -48,7 +48,7 @@ test('every speaking caller is told to end the call, never reveal the test, and 
   expect(scenarioNames).toEqual([
     'callback-message', 'burst-pipe', 'urgent-promise', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'returning-caller', 'spoofed-cancel',
     'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence', 'silence-closing', 'silence-mid-call', 'transfer-next', 'transfer-person', 'spanish-caller', 'spanish-only',
-    'mandarin-caller', 'korean-caller', 'polish-caller',
+    'mandarin-caller', 'korean-caller', 'polish-caller', 'long-call-recall',
   ])
   expect(callerInstructions(scenarios.booking, 'Wednesday, November 11, 2026')).toContain('Today is Wednesday, November 11, 2026.')
   expect(callerInstructions(scenarios['spanish-caller'])).toContain('plain spoken Spanish')
@@ -205,4 +205,32 @@ test('greeting from pickup: the business agent\'s own timing, checked against 2.
   expect(greetingCheck(null)).toMatchObject({ ok: false, detail: 'not measured' })
   expect(formatAgentSetup(setup)).toBe('Greeting from pickup (business agent): 0.9 s (greeting cached); steps: connected 0.3 s, caller 0.3 s, session 0.9 s, greeting audio 0.9 s')
   expect(formatAgentSetup(null)).toContain('not measured')
+})
+
+test('the long call: over the phone only, the caller stays 26 minutes and is told to ask at minute 24, then to hang up', () => {
+  const long = scenarios['long-call-recall']
+  expect(roomRefused(long)).toBe(true)
+  expect(roomRefused(scenarios.booking)).toBe(false)
+  expect(callTestCapSeconds(long)).toBe(26 * 60 + 30)
+  expect(callTestCapSeconds(scenarios.booking)).toBe(210)
+  expect(long.cues.map(c => c.atMs)).toEqual([24 * 60_000, 25 * 60_000])
+  const rules = callerInstructions(long)
+  expect(rules).toContain('never say goodbye or use the end_call tool until you are told to')
+  expect(rules).not.toContain('after about six of your own turns')
+})
+
+test('the long call passes only when the assistant still says the name and the reason late in the call', () => {
+  const early = [
+    { speaker: 'agent', text: 'Brightwater Plumbing, this is Maya.', at_ms: 1500 },
+    { speaker: 'caller', text: 'Hi, Rosalind Okafor here, my basement drain backs up when it rains.', at_ms: 5000 },
+    { speaker: 'agent', text: 'Sorry to hear that, Rosalind. A backed-up basement drain is no fun.', at_ms: 9000 },
+  ]
+  const late = (text: string) => ({ speaker: 'agent', text, at_ms: 24.2 * 60_000 })
+  const call = { ...finished.call!, outcome: 'message', title: 'Rosalind Okafor: basement drain backs up', summary: 'Rosalind called about her basement floor drain.' }
+  const remembered = { ...finished, call, lines: [...early, late('You are Rosalind Okafor, and you called about your basement drain backing up.')] }
+  const forgotten = { ...finished, call, lines: [...early, late("I'm sorry, could you tell me your name again?")] }
+  const knows = (f: CallTestFinding) => evaluateCall(f, scenarios['long-call-recall']).filter(c => c.label === 'assistant still knows').map(c => c.ok)
+  expect(knows(remembered)).toEqual([true, true])
+  expect(knows(forgotten)).toEqual([false, false])
+  expect(check(remembered, 'long-call-recall', 'summary says')?.ok).toBe(true)
 })

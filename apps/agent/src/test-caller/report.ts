@@ -147,6 +147,12 @@ export function evaluateCall(finding: CallTestFinding, scenario: Scenario, { exp
     const last = lines.filter(l => l.speaker === 'agent').at(-1)?.text ?? ''
     checks.push({ ok: expect.lastLine.test(last), label: 'last line', detail: last ? `"${last}"` : 'none' })
   }
+  if (expect.assistantSaysLate) {
+    const { atMs, patterns } = expect.assistantSaysLate
+    const late = lines.filter(l => l.speaker === 'agent' && l.at_ms >= atMs).map(l => l.text).join(' ')
+    for (const pattern of patterns)
+      checks.push({ ok: pattern.test(late), label: 'assistant still knows', detail: `${pattern} from ${Math.round(atMs / 1000)} s on` })
+  }
   if (expect.summarySays) {
     const summary = `${call.title ?? ''} ${call.summary ?? ''}`
     checks.push({ ok: expect.summarySays.test(summary), label: 'summary says', detail: `${expect.summarySays} in "${summary.slice(0, 120)}"` })

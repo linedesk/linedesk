@@ -20,7 +20,7 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { announceRecording, callLimitOf, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
-import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
+import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
 import { requireLivekitEnv, workerAgentName } from './env.ts'
 import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
@@ -29,6 +29,8 @@ import { audioStream, createGreetingCache, greetingKey, synthesize } from './gre
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
+import { realtimeHistoryCompactor } from './realtime-history.ts'
+import { callNotesKeeper } from './call-notes.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
 import { END_CALL_RESULT, greetingPlayed, hangUpAfterGoodbye, hangUpAfterLine, hangUpAtCallLimit, nextReplyOf, type Reply, remindOnSilence, saidWords, skipSecondGoodbye, silencePolicyOf, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
@@ -379,7 +381,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   const flagUrgent = callFlagger(api, call, log)
   keepUrgentPromises(session, flagUrgent, call.callId)
   logTurnMetrics(session, call.callId)
-  if (realtime) logRealtimeUsage(session, call.callId, realtime.model)
+  const realtimeUsage = realtime ? logRealtimeUsage(session, call.callId, realtime.model) : null
   // A realtime model has no voice for the ready lines: it only skips the reply after a turn it already spoke in.
   skipQuietToolReplies(session, QUIET_TOOLS, lines, { readyReplies: pipeline !== null })
   session.on(voice.AgentSessionEventTypes.Close, onClose)
@@ -446,8 +448,11 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
   // Once the caller switched to another allowed language, the assistant is told to reply in it (spokenLanguageRule).
   const callAssistant = withCallLanguages(call.assistant, languages)
-  const instructionsNow = () =>
-    [buildInstructions(callAssistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country), spokenLanguageRule(callAssistant, spokenNow())]
+  // A realtime call keeps what the caller said as call notes at the end of its instructions (call-notes.ts): its early
+  // turns are cut or turned into text later (REALTIME_TRUNCATION, realtime-history.ts).
+  const notes = realtime ? callNotesKeeper(log, (): Promise<void> => agent.updateInstructions(instructionsNow())) : null
+  const instructionsNow = (): string =>
+    [buildInstructions(callAssistant, call.businessHours, call.booking, transfer?.contacts ?? [], call.caller, call.timeZone, undefined, known.details, call.lookups.length > 0, call.teamLanguage, call.country), spokenLanguageRule(callAssistant, spokenNow()), notes?.current()]
       .filter(Boolean)
       .join('\n\n')
   const instructions = instructionsNow()
@@ -467,6 +472,7 @@ async function converse(ctx: JobContext, callerJoined: Promise<RemoteParticipant
     void collect.step?.languageChanged(collect.languageRule?.()).catch(failed)
   }
   if (stages) void warmUpLlm(stages.llm, instructions)
+  if (notes && realtimeUsage) keepRealtimeHistory(session, agent, notes, realtimeUsage, call.callId)
   await session.start({
     agent,
     room: ctx.room,
@@ -508,6 +514,23 @@ function logRealtimeUsage(session: voice.AgentSession, callId: string, model: st
   const startedAt = Date.now()
   session.on(voice.AgentSessionEventTypes.MetricsCollected, ({ metrics }) => usage.add(metrics as RealtimeUsageMetrics))
   session.on(voice.AgentSessionEventTypes.Close, () => console.log(describeRealtimeUsage(callId, model, (Date.now() - startedAt) / 1000, usage.get())))
+  return usage
+}
+
+/**
+ * A long realtime call (research §8.6): the call notes are brought up to date after each line and tool (sent only when a
+ * field changed), and the earlier turns are turned into text in rare batches once the conversation is long.
+ */
+function keepRealtimeHistory(session: voice.AgentSession, agent: voice.Agent, notes: ReturnType<typeof callNotesKeeper>, usage: ReturnType<typeof realtimeUsageCounter>, callId: string) {
+  const failed = (e: unknown) => console.warn(`call ${callId}: call notes not updated: ${e instanceof Error ? e.message : String(e)}`)
+  const refresh = () => void notes.refresh().catch(failed)
+  session.on(voice.AgentSessionEventTypes.ConversationItemAdded, refresh)
+  session.on(voice.AgentSessionEventTypes.FunctionToolsExecuted, refresh)
+  const history = realtimeHistoryCompactor(agent, { log: line => console.log(`call ${callId}: ${line}`), onBatch: () => usage.addHistoryBatch() })
+  session.on(voice.AgentSessionEventTypes.MetricsCollected, ({ metrics }) => {
+    const m = metrics as RealtimeUsageMetrics
+    if (m.type === 'realtime_model_metrics' && m.inputTokens) void history.onReply(m.inputTokens)
+  })
 }
 
 /**
@@ -621,13 +644,16 @@ async function entry(ctx: JobContext) {
   // Linedesk Cloud: only fallback models of the call's level (withLevelFallbacks).
   const warn = (line: string) => console.warn(`call ${registered.callId}: ${line}`)
   const config = withRealtimeModel(
-    withAssistantRealtimeVoice(
-      withLevelFallbacks(
-        withAssistantModel(configForAssistant(readiness.config, registered.assistant?.voice_pipeline, warn), registered.assistant?.llm_model),
-        registered.usageLevel,
-        warn,
+    withAssistantRealtimeModel(
+      withAssistantRealtimeVoice(
+        withLevelFallbacks(
+          withAssistantModel(configForAssistant(readiness.config, registered.assistant?.voice_pipeline, warn), registered.assistant?.llm_model),
+          registered.usageLevel,
+          warn,
+        ),
+        registered.assistant?.realtime_voice,
       ),
-      registered.assistant?.realtime_voice,
+      registered.assistant?.realtime_model,
     ),
     registered.realtimeModel,
   )

@@ -389,7 +389,12 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const onCall = origin.kind === 'test' ? origin.onCall : undefined
   const languages = origin.kind === 'test' ? origin.languages : undefined
   const mainLanguage = origin.kind === 'test' ? origin.mainLanguage : undefined
-  const pipeline = origin.kind === 'test' ? origin.pipeline : undefined
+  // A call test may pick the pipeline or the realtime model (call-test --pipeline / --realtime-model), but not on an
+  // install that bills usage: the call's level was decided by the API for the assistant's own choice, and is its price.
+  const billed = !!started.usageLevel
+  if (billed && origin.kind === 'test' && (origin.pipeline || origin.realtimeModel))
+    console.warn(`call ${callId}: the call test's pipeline or realtime model is ignored (usage level ${started.usageLevel})`)
+  const pipeline = origin.kind === 'test' && !billed ? origin.pipeline : undefined
   const behaviours = origin.kind === 'test' ? origin.behaviours : undefined
   const own = withWorkspaceLanguage(started.assistant, started.workspaceLanguage)
   const configured =
@@ -438,7 +443,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     country: started.workspaceCountry ?? 'US',
     teamLanguage: started.workspaceLanguage ?? 'en',
     businessNumber: origin.kind === 'phone' ? origin.to : null,
-    ...(origin.kind === 'test' && origin.realtimeModel ? { realtimeModel: origin.realtimeModel } : {}),
+    ...(origin.kind === 'test' && origin.realtimeModel && !billed ? { realtimeModel: origin.realtimeModel } : {}),
     ...(demo ? { demo: true } : {}),
     ...simulatedOnCallOf(origin),
     async append(speaker, text, toolEvent) {

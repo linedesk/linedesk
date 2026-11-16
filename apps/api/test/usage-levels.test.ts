@@ -57,6 +57,9 @@ afterAll(() => {
 })
 
 const setAllow = (who: Caller, on: boolean) => act(who, 'workspace.setAllowPremium', { on })
+const setAllowUltra = (who: Caller, on: boolean) => act(who, 'workspace.setAllowUltra', { on })
+// A placeholder, never sent anywhere: the realtime model counts as set up, next to the three stages.
+const REALTIME = { OPENAI_REALTIME_API_KEY: 'placeholder' }
 /** The ALERT lines a console.error spy saw (usage-levels.ts, alert). */
 const alertLines = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map(c => String(c[0])).filter(line => line.startsWith('ALERT usage level'))
@@ -270,10 +273,7 @@ describe('self-hosted (no billing)', () => {
   })
 })
 
-describe('a realtime model on Cloud (Ultra, not allowed yet)', () => {
-  // A placeholder, never sent anywhere: the realtime model counts as set up, next to the three stages.
-  const REALTIME = { OPENAI_REALTIME_API_KEY: 'placeholder' }
-
+describe('a realtime model on Cloud without Allow Ultra', () => {
   test('not offered; the three stages are the default; saving a voice or model is never refused over it', async () => {
     await withEnv(REALTIME, async () => {
       const ws = await createWorkspace('Realtime Cloud Plumbing')
@@ -356,6 +356,198 @@ describe('a realtime model on Cloud (Ultra, not allowed yet)', () => {
         const started = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
         expect(started.usageLevel).toBeNull()
         expect(started.assistant.voice_pipeline).toBeNull()
+      })
+    } finally {
+      cloud.on = true
+    }
+  })
+})
+
+describe('Allow Ultra', () => {
+  test('off by default; the owner turns it on and off, and it is in the audit log with who did it', async () => {
+    const ws = await createWorkspace('Ultra Switch Plumbing')
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.allowUltra).toBe(false)
+    expect(await setAllowUltra(ws.owner, true)).toMatchObject({ status: 200, body: { data: { on: true, movedOffUltra: [] } } })
+    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.allowUltra).toBe(true)
+    expect((await setAllowUltra(ws.owner, false)).body.data).toMatchObject({ on: false })
+    const audit = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
+    const entries = audit.entries.filter(e => e.what === 'workspace.setAllowUltra')
+    expect(entries).toHaveLength(2)
+    for (const e of entries) expect(e.actor.id).toBe(ws.owner.userId)
+  })
+
+  test('refused for an admin, a member, an API key, a setup link and an impersonation', async () => {
+    const ws = await createWorkspace('Ultra Refusals Plumbing')
+    expect((await setAllowUltra(await addMember(ws.id, 'admin'), true)).status).toBe(403)
+    expect((await setAllowUltra(await addMember(ws.id, 'member'), true)).status).toBe(403)
+    const key = await act(ws.owner, 'apiKey.create', { name: 'billing', role: 'admin' })
+    expect((await setAllowUltra({ headers: { authorization: `Bearer ${key.body.data.key}` } }, true)).status).toBe(403)
+    const link = await act(ws.owner, 'agentSetup.createWorkspaceKey', {})
+    const setupActor = (await workspaceSetupActor(ws.owner.userId, link.body.data.keyId, ws.id, 'owner'))!
+    expect((await runAction('workspace.setAllowUltra', { on: true }, setupActor)).status).toBe(403)
+    expect(
+      (await runAction('workspace.setAllowUltra', { on: true }, { ...setupActor, permissions: ['billing:manage'] })).status,
+    ).toBe(403)
+    const operator = await signUp()
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
+    await db.update(session).set({ impersonatedBy: operator.userId }).where(eq(session.userId, ws.owner.userId))
+    try {
+      expect((await setAllowUltra(ws.owner, true)).status).toBe(403)
+    } finally {
+      await db.update(session).set({ impersonatedBy: null }).where(eq(session.userId, ws.owner.userId))
+    }
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
+    expect(row?.allow_ultra ?? false).toBe(false)
+  })
+
+  test('with Allow Ultra the assistant picks a realtime model; its calls are Ultra and answer with that model', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Calls Plumbing')
+      const update = (input: Record<string, unknown>) =>
+        act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
+      // Without Allow Ultra: a realtime model id alone is refused too.
+      expect(await update({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })).toMatchObject({
+        status: 409,
+        body: { error: ULTRA_NOT_ALLOWED },
+      })
+      await setAllowUltra(ws.owner, true)
+      const options = (await act(ws.owner, 'voice.options', {})).body.data
+      expect(options.pipelines).toEqual({ realtime: true, three_stage: true })
+      expect(options.levels).toMatchObject({
+        allowUltra: true,
+        realtimeAllowed: true,
+        ultraCentsPerMinute: 20,
+        defaultRealtimeModel: { id: 'gpt-realtime', level: 'ultra' },
+      })
+      // gpt-realtime-2.1 is left out on purpose (not in the list).
+      expect(options.levels.realtimeModels.map((m: { id: string; allowed: boolean }) => [m.id, m.allowed])).toEqual([
+        ['gpt-realtime', true],
+        ['gpt-realtime-2', true],
+      ])
+      expect((await update({ realtime_model: 'gpt-realtime-2.1' })).status).toBe(409)
+      expect((await update({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })).status).toBe(200)
+      const started = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+      expect(started.usageLevel).toBe('ultra')
+      expect(started.assistant).toMatchObject({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })
+      expect(centsPerMinute('ultra')).toBe(20)
+
+      // On the install's realtime model (none picked): Ultra too.
+      expect((await update({ realtime_model: null })).status).toBe(200)
+      const onDefault = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+      expect(onDefault).toMatchObject({ usageLevel: 'ultra', assistant: { voice_pipeline: 'realtime', realtime_model: 'gpt-realtime' } })
+    })
+  })
+
+  test('the same call-start rule: a realtime pick without Allow Ultra answers on the Standard three stages, with an ALERT', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Fallback Plumbing')
+      await setAllowUltra(ws.owner, true)
+      await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })
+      // Turned off behind the switch's back (the switch itself moves the assistants, below).
+      await db.update(workspace_settings).set({ allow_ultra: false }).where(eq(workspace_settings.workspace_id, ws.id))
+      const alerts = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        const started = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+        expect(started.usageLevel).toBe('standard')
+        expect(started.assistant).toMatchObject({ voice_pipeline: 'three_stage', llm_model: 'gpt-4.1-mini' })
+        expect(alertLines(alerts)).toEqual([expect.stringMatching(/realtime model gpt-realtime-2\): the call falls back to the Standard defaults/)])
+      } finally {
+        alerts.mockRestore()
+      }
+    })
+  })
+
+  test('turning Allow Ultra off moves the assistants back to the three stages, as a version by the owner', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Off Plumbing')
+      await setAllowUltra(ws.owner, true)
+      await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, voice_pipeline: 'realtime', realtime_model: 'gpt-realtime' })
+      const off = await setAllowUltra(ws.owner, false)
+      expect(off.body.data.movedOffUltra).toEqual([ws.assistant.id])
+      expect(await getAssistant(ws.assistant.id)).toMatchObject({ voice_pipeline: 'three_stage', realtime_model: null })
+      const versions = await db.select().from(assistant_versions).where(eq(assistant_versions.assistant_id, ws.assistant.id))
+      const latest = versions.sort((a, b) => b.number - a.number)[0]!
+      expect(latest).toMatchObject({
+        changed_by: ws.owner.userId,
+        settings: expect.objectContaining({ voice_pipeline: 'three_stage', realtime_model: null }),
+      })
+      const started = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+      expect(started.usageLevel).toBe('standard')
+    })
+  })
+
+  test('Allow Ultra off at the same moment as a save of the assistant: one waits for the other, never a 500', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Race Plumbing')
+      const update = (input: Record<string, unknown>) =>
+        act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
+      for (let run = 0; run < 8; run++) {
+        await setAllowUltra(ws.owner, true)
+        expect((await update({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime' })).status).toBe(200)
+        const save = run % 2 ? { greeting: `Hi, run ${run}.`, voice_pipeline: 'realtime' } : { realtime_model: 'gpt-realtime-2' }
+        const [saved, off] = await Promise.all([update(save), setAllowUltra(ws.owner, false)])
+        expect(off.status).toBe(200)
+        expect([200, 409]).toContain(saved.status)
+        expect(await getAssistant(ws.assistant.id)).toMatchObject({ voice_pipeline: 'three_stage', realtime_model: null })
+      }
+    })
+  })
+
+  test('restoring a version from before the realtime model column: the install\'s realtime model, in the row and the audit', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Old Version Plumbing')
+      const update = (input: Record<string, unknown>) =>
+        act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
+      await setAllowUltra(ws.owner, true)
+      expect((await update({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime', greeting: 'The old one.' })).status).toBe(200)
+      const [old] = (await db.select().from(assistant_versions).where(eq(assistant_versions.assistant_id, ws.assistant.id)))
+        .sort((a, b) => b.number - a.number)
+      // As a version saved before the column existed: no realtime_model key at all.
+      const { realtime_model: _gone, ...settings } = old!.settings as Record<string, unknown>
+      await db.update(assistant_versions).set({ settings: settings as NonNullable<typeof old>['settings'] }).where(eq(assistant_versions.id, old!.id))
+      expect((await update({ realtime_model: 'gpt-realtime-2', greeting: 'The new one.' })).status).toBe(200)
+      const restored = await act(ws.owner, 'assistant.restoreVersion', { assistantId: ws.assistant.id, number: old!.number })
+      expect(restored.status).toBe(200)
+      expect(restored.body.data.usageLevelChange).toMatchObject({ after: { voice_pipeline: 'realtime', realtime_model: null } })
+      expect(await getAssistant(ws.assistant.id)).toMatchObject({ voice_pipeline: 'realtime', realtime_model: null, greeting: 'The old one.' })
+    })
+  })
+
+  test('an admin\'s pick of a realtime model is in the audit log', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Ultra Audit Plumbing')
+      await setAllowUltra(ws.owner, true)
+      const admin = await addMember(ws.id, 'admin')
+      expect(
+        (await act(admin, 'assistant.update', { assistantId: ws.assistant.id, voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })).status,
+      ).toBe(200)
+      const audit = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
+      const change = audit.entries.find(e => e.what === 'assistant.update')
+      expect(change).toMatchObject({
+        actor: { id: admin.userId },
+        usageLevelChange: {
+          before: { voice_pipeline: null, realtime_model: null },
+          after: { voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' },
+        },
+      })
+    })
+  })
+
+  test('self-hosted: an assistant picks a realtime model without Allow Ultra, and the install-wide realtime still works', async () => {
+    cloud.on = false
+    try {
+      await withEnv(REALTIME, async () => {
+        const ws = await createWorkspace('Ultra Self Hosted Plumbing')
+        const update = (input: Record<string, unknown>) =>
+          act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
+        expect((await update({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })).status).toBe(200)
+        const started = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+        expect(started.usageLevel).toBeNull()
+        expect(started.assistant).toMatchObject({ voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' })
+        // The install's choice for all (no pipeline on the assistant) is left to the agent, as before.
+        expect((await update({ voice_pipeline: null, realtime_model: null })).status).toBe(200)
+        const install = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+        expect(install.assistant.voice_pipeline).toBeNull()
       })
     } finally {
       cloud.on = true
@@ -456,12 +648,12 @@ describe('audit, locking and limits', () => {
     expect(changes).toHaveLength(2)
     expect(changes.map(e => e.usageLevelChange)).toEqual([
       {
-        before: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4', voice_pipeline: null },
-        after: { voice_model: 'elevenlabs/eleven_v3', llm_model: null, voice_pipeline: null },
+        before: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4', voice_pipeline: null, realtime_model: null },
+        after: { voice_model: 'elevenlabs/eleven_v3', llm_model: null, voice_pipeline: null, realtime_model: null },
       },
       {
-        before: { voice_model: null, llm_model: null, voice_pipeline: null },
-        after: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4', voice_pipeline: null },
+        before: { voice_model: null, llm_model: null, voice_pipeline: null, realtime_model: null },
+        after: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4', voice_pipeline: null, realtime_model: null },
       },
     ])
     expect(changes[0]).toMatchObject({ actor: { id: ws.owner.userId }, viaSetupKey: link.body.data.keyId })

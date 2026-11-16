@@ -316,7 +316,7 @@ export const voiceHandlers: Record<string, Handler> = {
     const clones = provider ? await clonesOf(tx, actor.workspaceId, provider) : []
     const fallback = await installDefaultVoice(tx)
     // Only what this workspace may use: the one the instance admin picked for all, or both to choose from. On Linedesk
-    // Cloud a realtime model is Ultra (Allow Ultra, not built yet): not offered, its calls answer on the three stages.
+    // Cloud a realtime model is Ultra: offered only with the owner's Allow Ultra (levels.realtimeModels lists them).
     const levels = await levelOptions(tx, actor.workspaceId)
     const setUp = await pipelinesSetUp(tx)
     const pipelines = levels.realtimeAllowed

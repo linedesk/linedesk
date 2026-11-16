@@ -334,10 +334,11 @@ const levelChangeList = ({ before, after }: NonNullable<AuditEntry['usageLevelCh
       ['voice_model', msg('admin.audit.levelChange.voiceModel')],
       ['llm_model', msg('admin.audit.levelChange.languageModel')],
       ['voice_pipeline', msg('admin.audit.levelChange.pipeline')],
+      ['realtime_model', msg('admin.audit.levelChange.realtimeModel')],
     ] as const
   )
-    .filter(([field]) => before[field] !== after[field])
-    .map(([field, key]) => t(key, { before: shown(before[field]), after: shown(after[field]) }))
+    .filter(([field]) => (before[field] ?? null) !== (after[field] ?? null))
+    .map(([field, key]) => t(key, { before: shown(before[field] ?? null), after: shown(after[field] ?? null) }))
   return fmt().list(parts, { type: 'unit', style: 'short' })
 }
 

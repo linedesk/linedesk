@@ -1,7 +1,7 @@
 import { initializeLogger } from '@livekit/agents'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
-import { callLanguagesOf, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TURNS, realtimeRepliesEvent, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { callLanguagesOf, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -262,4 +262,33 @@ test("the assistant's voice model is used when its voice provider has it with a 
   // A model of another provider (the voice changed since) or one without a level is not used.
   expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'c1', model: 'eleven_v3' })).toMatchObject({ model: 'sonic-3.6' })
   expect(ttsFor({ ...tts, model: 'eleven_turbo_v2_5' }, { provider: 'elevenlabs', voice_id: 'v1', model: 'made_up' })).toMatchObject({ model: 'eleven_turbo_v2_5' })
+})
+
+test('a realtime session keeps half of a long conversation in one cut, past 4,000 tokens after the instructions', () => {
+  expect(REALTIME_TRUNCATION).toEqual({ type: 'retention_ratio', retention_ratio: 0.5, token_limits: { post_instructions: 4000 } })
+})
+
+test('the truncation is sent once when the session opens and in every full session.update after, a reconnect included', () => {
+  const sent: object[] = []
+  let builds = 0
+  const session = {
+    createSessionUpdateEvent: () => ({ type: 'session.update', session: { type: 'realtime', model: 'gpt-realtime', instructions: `v${++builds}` } }),
+    sendEvent: (event: object) => void sent.push(event),
+  }
+  sendRealtimeTruncation(session)
+  expect(sent).toEqual([{ type: 'session.update', session: { type: 'realtime', truncation: REALTIME_TRUNCATION } }])
+  // What the plugin sends on a reconnect: the full session.update it builds, now with the truncation.
+  expect(session.createSessionUpdateEvent()).toEqual({
+    type: 'session.update',
+    session: { type: 'realtime', model: 'gpt-realtime', instructions: 'v1', truncation: REALTIME_TRUNCATION },
+  })
+  expect(session.createSessionUpdateEvent().session).toMatchObject({ instructions: 'v2', truncation: REALTIME_TRUNCATION })
+})
+
+test('only a GA session.update gets the truncation; the replies switch does not undo it', () => {
+  const legacy = { type: 'session.update', session: { instructions: 'x' } }
+  expect(withRealtimeTruncation(legacy)).toBe(legacy)
+  const other = { type: 'response.create' }
+  expect(withRealtimeTruncation(other)).toBe(other)
+  expect(realtimeRepliesEvent(false).session).not.toHaveProperty('truncation')
 })

@@ -307,6 +307,38 @@ export type RealtimeEvents = {
   replies: RealtimeReplyGate
 }
 
+/**
+ * How a realtime call's conversation is cut once it is long (research §8.6). OpenAI cuts by itself at about 28.7k tokens
+ * and again a little every turn after that, and every cut re-reads the whole rest uncached. Instead: past 4,000 tokens
+ * after the instructions, keep half, in one cut, so the prompt cache breaks rarely. The facts stay in the call notes at
+ * the end of the instructions (call-notes.ts), the earlier turns as text (realtime-history.ts). LiveKit has no option for
+ * it, so the session.update the plugin builds (on open and after every reconnect) gets it added (withRealtimeTruncation).
+ */
+export const REALTIME_TRUNCATION = {
+  type: 'retention_ratio',
+  retention_ratio: 0.5,
+  token_limits: { post_instructions: 4000 },
+} as const
+
+/** A full session.update with REALTIME_TRUNCATION in it (other events go through unchanged). */
+export function withRealtimeTruncation<E extends { type?: string; session?: object }>(event: E): E {
+  if (event.type !== 'session.update' || !event.session || !('type' in event.session) || event.session.type !== 'realtime') return event
+  return { ...event, session: { ...event.session, truncation: REALTIME_TRUNCATION } }
+}
+
+/** The plugin's session, as far as the truncation needs it: the session.update it builds on open and on a reconnect. */
+type SessionUpdates = { createSessionUpdateEvent(): { type?: string; session?: object }; sendEvent(event: object): void }
+
+/**
+ * Makes the session send REALTIME_TRUNCATION: once now (the session's first session.update is already queued without
+ * it) and in every full session.update it builds later, the one after a reconnect included.
+ */
+export function sendRealtimeTruncation(session: SessionUpdates) {
+  const build = session.createSessionUpdateEvent.bind(session)
+  session.createSessionUpdateEvent = () => withRealtimeTruncation(build())
+  session.sendEvent({ type: 'session.update', session: { type: 'realtime', truncation: REALTIME_TRUNCATION } })
+}
+
 /** The realtime model, handing each session it opens to `onSession` (one per call, again after a reconnect). */
 class ObservedRealtimeModel extends openai.realtime.RealtimeModel {
   readonly #onSession?: (session: RealtimeEvents) => void
@@ -316,6 +348,7 @@ class ObservedRealtimeModel extends openai.realtime.RealtimeModel {
   }
   override session(...args: Parameters<openai.realtime.RealtimeModel['session']>) {
     const session = super.session(...args)
+    sendRealtimeTruncation(session as unknown as SessionUpdates)
     const replies = gateReplies(session as unknown as GatedSession)
     this.#onSession?.(Object.assign(session, { replies }) as unknown as RealtimeEvents)
     return session

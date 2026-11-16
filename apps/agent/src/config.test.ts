@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
+import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
 
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -212,6 +212,26 @@ test('a realtime model does not need the three stages', () => {
   if (!isRealtime(config)) throw new Error('expected a realtime config')
   expect(config.realtime).toMatchObject({ model: 'gpt-realtime', voice: 'cedar', summaryModel: 'gpt-5.4-mini' })
   expect(stagesOf(config)).toBeNull()
+})
+
+describe("withAssistantRealtimeModel: the assistant's own realtime model (Ultra)", () => {
+  const config = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt' } }, {})
+  const modelOf = (c: ReturnType<typeof resolveCallConfig>) => (isRealtime(c) ? c.realtime.model : null)
+
+  test('a listed realtime model answers; none, or one in no list, leaves the install one', () => {
+    expect(modelOf(withAssistantRealtimeModel(config, 'gpt-realtime-2'))).toBe('gpt-realtime-2')
+    expect(modelOf(withAssistantRealtimeModel(config, null))).toBe('gpt-realtime')
+    expect(modelOf(withAssistantRealtimeModel(config, 'gpt-realtime-2.1'))).toBe('gpt-realtime')
+    expect(modelOf(withAssistantRealtimeModel(config, 'gpt-realtime-mini'))).toBe('gpt-realtime')
+  })
+
+  test("the call test's model still wins; the three stages are left as they are", () => {
+    expect(modelOf(withRealtimeModel(withAssistantRealtimeModel(config, 'gpt-realtime-2'), 'gpt-realtime-mini'))).toBe(
+      'gpt-realtime-mini',
+    )
+    const stages = configForAssistant(config, 'three_stage', () => {})
+    expect(withAssistantRealtimeModel(stages, 'gpt-realtime-2')).toBe(stages)
+  })
 })
 
 describe("withAssistantRealtimeVoice: the assistant's own realtime voice", () => {

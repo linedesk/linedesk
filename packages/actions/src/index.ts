@@ -159,6 +159,7 @@ const all = [
   settings.workspaceGetSettings,
   settings.workspaceUpdateSettings,
   settings.workspaceSetAllowPremium,
+  settings.workspaceSetAllowUltra,
   settings.workspaceRename,
   settings.workspaceDeleteOwn,
   settings.workspaceDeletePreview,
