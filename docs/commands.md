@@ -43,6 +43,8 @@ Pick Local disk under Server admin › Providers › Recording storage (or set `
 
 Our test-caller agent calls the business; transcript, summary, pass/fail and latency; in room mode also the business agent's own time from pickup to the greeting, checked against 2.5 s.
 
+On staging and production, live tests use the three stages only (`--pipeline three_stage`; over the phone the test business's assistant is set to three stages). OpenAI realtime models are costly: run `--pipeline realtime` only when Tim asks for it (decision of 2026-11-16, LIN-412).
+
 `pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external]] [--pipeline realtime|three_stage] [--expect-recording]`
 
 - Default: both agents in one LiveKit room, no phone (cheap).
@@ -67,7 +69,7 @@ What calls at once cost the agent; a dev machine or test server, never productio
 
 `pnpm --filter @linedesk/agent load-test [--calls 1,5,10] [--to <business number>] [--scenario <name>] [--pipeline realtime|three_stage] [--memory 4g]`
 
-Starts a second agent container that plays the test callers (`AGENT_NAME=linedesk-load-caller`, so only the business side is measured), raises the agent's memory limit for the test and puts it back, then per level starts N test calls without a phone (`apps/agent/src/load-test/calls.ts`) while sampling the agent container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Every call is billed on both sides.
+Starts a second agent container that plays the test callers (`AGENT_NAME=linedesk-load-caller`, so only the business side is measured), raises the agent's memory limit for the test and puts it back, then per level starts N test calls without a phone (`apps/agent/src/load-test/calls.ts`) while sampling the agent container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Every call is billed on both sides. Use `--pipeline three_stage`; `realtime` only when Tim asks for it (see Call test).
 
 ## Self-host stack
 
