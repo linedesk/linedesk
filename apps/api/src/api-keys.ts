@@ -72,7 +72,7 @@ const creatorStillAllows = (keyRole: string, creatorRole: string | null, creator
  * the admin's name, and the user is emailed when impersonation emails are on.
  */
 function refuseKeyActor(actor: Actor) {
-  if (actor.apiKeyId) throw new Forbidden('API keys cannot manage API keys: do it in Workspace settings, Developers')
+  if (actor.apiKeyId) throw new Forbidden('API keys cannot manage API keys: do it in Integrations, API keys')
   if (!actor.workspaceId) throw new Reject('no workspace')
   return actor.workspaceId
 }

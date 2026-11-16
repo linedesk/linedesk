@@ -294,7 +294,7 @@ describe('delivery', () => {
   })
 })
 
-describe('in Workspace settings › Developers', () => {
+describe('on the Integrations page', () => {
   test('owners list and remove them, never seeing the URL; members cannot; another workspace cannot remove', async () => {
     const { key, apiKeyId } = await createKey(ws.owner)
     const id = await subscribe(key)
