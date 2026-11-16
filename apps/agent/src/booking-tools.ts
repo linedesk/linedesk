@@ -57,6 +57,24 @@ const SLOT_RULES =
 export const zoneRule = (timeZone: string) =>
   `All these times are in the business's time zone (${timeZone}). If the caller means another time zone, convert, and say the time in both zones; never call a time by another zone's name without converting it.`
 
+/** A local date and time without a zone, as models write a start they copied from a label ("2026-11-17T08:30:00"). */
+const LOCAL_TIME = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::00(?:\.0+)?)?$/
+
+/**
+ * Whether `given` is the instant `start`: the same instant, or, written without a zone, the same wall-clock time in
+ * `timeZone` (the zone the times were offered in). Exported for tests.
+ */
+export function sameStart(start: string, given: string, timeZone: string): boolean {
+  const local = LOCAL_TIME.exec(given)
+  if (!local) return Date.parse(start) === Date.parse(given)
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(start))
+      .map(p => [p.type, p.value]),
+  )
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}` === `${local[1]}T${local[2]}:${local[3]}`
+}
+
 const failure = (e: unknown) => (e instanceof ActionError ? e.message.replace(/^[\w.]+ failed \(\d+\): /, '') : 'the calendar did not answer')
 
 export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
@@ -70,9 +88,11 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   const offeredSlots = new Map<string, FindSlotsData['slots'][number]>()
   /** What this call booked, by start. */
   const bookedHere = new Map<string, string>()
+  /** The zone find_slots read its times in: a start the model writes without a zone is a time of that zone. */
+  let offeredZone = call.booking?.timeZone ?? 'America/New_York'
   const offeredStart = (given: string) => {
     const key = given.trim().replace(/^\[|\]$/g, '').toLowerCase()
-    const slot = offeredSlots.get(key) ?? [...offeredSlots.values()].find(s => s.start === key.toUpperCase() || Date.parse(s.start) === Date.parse(given))
+    const slot = offeredSlots.get(key) ?? [...offeredSlots.values()].find(s => s.start === key.toUpperCase() || sameStart(s.start, given.trim(), offeredZone))
     return slot?.start ?? null
   }
   const notOffered = () =>
@@ -96,6 +116,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
         appointmentTypeId: args.appointment_type_id, calendarId: calendarOf(args.calendar_id), callId, limit: SEARCH_LIMIT,
         ...(from && 'date' in from ? { fromDate: from.date } : {}), ...(to && 'date' in to ? { toDate: to.date } : {}),
       }, call)
+      offeredZone = (data as FindSlotsData).timeZone ?? offeredZone
       const offered = spreadSlots((data as FindSlotsData).slots)
       log.record('system', `Checked availability · ${typeName(args.appointment_type_id)} · ${offered.length} slot${offered.length === 1 ? '' : 's'}`, calendarFindSlots.name)
       if (!offered.length) {

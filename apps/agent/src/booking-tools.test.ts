@@ -1,7 +1,7 @@
 import type { BookingContext } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import { ActionError, type ApiClient } from './api-client.ts'
-import { bookingTools, MAX_DESCRIBE_ATTEMPTS, spreadSlots } from './booking-tools.ts'
+import { bookingTools, MAX_DESCRIBE_ATTEMPTS, sameStart, spreadSlots } from './booking-tools.ts'
 import { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
 import { buildInstructions, CHANGE_BOOKING_INSTRUCTIONS, calendarLine, typeLine } from './prompt.ts'
@@ -198,6 +198,27 @@ test('a start that find_slots never offered is not sent: the model gets the offe
   // The exact start of an offered time still works.
   await tools.book({ ...search, start: '2026-11-19T22:00:00.000Z', reason: 'r' })
   expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots', 'appointment.book'])
+})
+
+test('a start written without a zone is a time of the zone the times were offered in, not UTC', async () => {
+  const call = session()
+  const api = offering(() => ({ bookingId: 'bk_1', start: '', end: '', label: '', calendarName: 'Mike' }))
+  const tools = bookingTools(api, call, new CallLog(call))
+  await tools.findSlots(search)
+  // 17:00 UTC read as a Portland time: never offered.
+  expect(await tools.book({ ...search, start: '2026-11-17T17:00:00', reason: 'r' })).toMatch(/^That is not a time find_slots offered/)
+  // Day 17 at 17:00 UTC is 9:00 AM in Portland: the model copied the local time (three_stage, LIN-204).
+  await tools.book({ ...search, start: '2026-11-17T09:00:00', reason: 'r' })
+  expect(api.sent.at(-1)?.[1]).toMatchObject({ start: '2026-11-17T17:00:00.000Z' })
+})
+
+test('sameStart: an instant with a zone compares as an instant; one without, as the wall clock of the zone', () => {
+  const start = '2026-11-17T16:30:00.000Z'
+  expect(sameStart(start, '2026-11-17T08:30:00', 'America/Los_Angeles')).toBe(true)
+  expect(sameStart(start, '2026-11-17T08:30', 'America/Los_Angeles')).toBe(true)
+  expect(sameStart(start, '2026-11-17T16:30:00', 'America/Los_Angeles')).toBe(false)
+  expect(sameStart(start, '2026-11-17T08:30:00-08:00', 'Europe/Berlin')).toBe(true)
+  expect(sameStart(start, '2026-11-17T17:30:00', 'Europe/Berlin')).toBe(true)
 })
 
 test('an email that is not valid is asked for again, not sent: the booking would fail on it', async () => {
