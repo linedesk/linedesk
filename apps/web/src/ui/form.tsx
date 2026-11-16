@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react'
 import { dayFieldLabel } from '../time.ts'
+import { createPortal } from 'react-dom'
 import { Backdrop } from './Backdrop.tsx'
 import { type HelpContent, HelpTip, helpContent } from './HelpTip.tsx'
 import { Button, cx, Icon } from './kit.tsx'
@@ -386,7 +387,9 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
       {footer && <footer className="k-dialog-foot">{footer}</footer>}
     </>
   )
-  return (
+  // In document.body: a dialog opened from inside a page form (Settings › Assistant) must not be a form inside that
+  // form in the DOM, or the browser submits the page form itself (a reload) instead of the dialog's.
+  return createPortal(
     <Backdrop onClose={onClose}>
       <div
         ref={box}
@@ -396,8 +399,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         onKeyDown={onKey}
-        // A dialog opened from inside a page form (Settings › Assistant) is inside it in React's tree too: its submit
-        // must not reach the page's Save, nor reload the page.
+        // In React's tree the dialog is still inside the page form: its submit must not reach the page's Save.
         onSubmit={e => {
           e.preventDefault()
           e.stopPropagation()
@@ -426,6 +428,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
           content
         )}
       </div>
-    </Backdrop>
+    </Backdrop>,
+    document.body,
   )
 }
