@@ -298,7 +298,10 @@ export type Decision =
   | { ok: true; to: Candidate[]; assign: Candidate | null; reason: string | null }
   | { ok: false; problem: 'llm_failed' | 'no_llm' | 'nothing_fit' }
 
-/** Reads the model's answer: ids outside the allowed set are dropped; an assigned member also gets the email. */
+/**
+ * Reads the model's answer: ids outside the allowed set are dropped. Its "assign" is not used: on staging the model
+ * assigned every call to whoever got the email (LIN-369), so assigning waits for an explicit choice in the settings.
+ */
 export function readDecision(text: string, candidates: Candidate[]): Decision {
   let raw: unknown
   try {
@@ -310,12 +313,9 @@ export function readDecision(text: string, candidates: Candidate[]): Decision {
   if (!parsed.success) return { ok: false, problem: 'llm_failed' }
   const byRid = new Map(candidates.map(c => [c.rid, c]))
   const to = [...new Set(parsed.data.recipients)].flatMap(rid => byRid.get(rid) ?? [])
-  const assigned = parsed.data.assign ? byRid.get(parsed.data.assign) : undefined
-  const assign = assigned?.kind === 'member' ? assigned : null
-  if (assign && !to.includes(assign)) to.push(assign)
   if (!to.length) return { ok: false, problem: 'nothing_fit' }
   const reason = parsed.data.reason?.trim().slice(0, 300) || null
-  return { ok: true, to, assign, reason }
+  return { ok: true, to, assign: null, reason }
 }
 
 /** Asks the model once. `budget`: counts against ROUTINGS_PER_HOUR (the preview has its own limit). */

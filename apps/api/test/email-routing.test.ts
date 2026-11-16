@@ -224,28 +224,20 @@ describe('routing a call email', () => {
     expect(retry.sent).toEqual([])
   })
 
-  test('assigns the member the instruction says takes the call, only when nobody has it', async () => {
+  test("the model's assign is not used: the call stays unassigned", async () => {
     const ws = await createWorkspace('Assign Plumbing')
     const dave = await addMember(ws.id, 'member')
     const daveName = await nameOf(dave)
     await route(ws, `<@user:${dave.userId}> takes water heater calls.`)
     const call = await finishedCall(ws)
     const { sender, sent } = fakeSender()
-    await notifyCallFinished(db, sender, call.id, { model: async () => fakeModel({ to: [], assign: daveName }).model })
-    // Assigned, and emailed once (the assigned member gets the call email, no second "assigned to you").
-    expect((await getCall(call.id))!.assignee_id).toBe(dave.userId)
-    expect(sent.map(e => e.to)).toEqual([await emailOf(dave)])
-    const events = await db.select().from(call_events).where(eq(call_events.call_id, call.id))
-    expect(events).toMatchObject([{ kind: 'assigned', actor_id: null, assignee_id: dave.userId }])
-    expect((await getCall(call.id))!.email_route!.assigned_user_id).toBe(dave.userId)
-
-    // Already assigned to the owner: left as it is.
-    const other = await finishedCall(ws)
-    await act(ws.owner, 'call.assign', { callId: other.id, userId: ws.owner.userId })
-    await notifyCallFinished(db, fakeSender().sender, other.id, {
+    await notifyCallFinished(db, sender, call.id, {
       model: async () => fakeModel({ to: [daveName], assign: daveName }).model,
     })
-    expect((await getCall(other.id))!.assignee_id).toBe(ws.owner.userId)
+    expect(sent.map(e => e.to)).toEqual([await emailOf(dave)])
+    expect((await getCall(call.id))!.assignee_id).toBeNull()
+    expect(await db.select().from(call_events).where(eq(call_events.call_id, call.id))).toEqual([])
+    expect((await getCall(call.id))!.email_route!.assigned_user_id).toBeNull()
   })
 
   test('what was said cannot close <call>, and names are one short line', () => {
@@ -276,7 +268,7 @@ describe('routing a call email', () => {
     expect(message).toContain(`Plumbing to ${shown} (id r1).`)
   })
 
-  test('readDecision keeps only allowed ids and assigns only members', () => {
+  test('readDecision keeps only allowed ids and never assigns', () => {
     const member = {
       rid: 'r1',
       kind: 'member',
@@ -288,6 +280,9 @@ describe('routing a call email', () => {
       to: [out],
       assign: null,
       reason: 'x',
+    })
+    expect(readDecision('{"recipients":["r1"],"assign":"r1","reason":"x"}', [member, out])).toMatchObject({
+      assign: null,
     })
     expect(readDecision('{"recipients":["r7"],"assign":null}', [member, out])).toEqual({
       ok: false,
@@ -468,7 +463,7 @@ describe('preview', () => {
     const line = res.body.data.calls.find((c: { callId: string }) => c.callId === call.id)
     expect(line).toMatchObject({
       to: [{ kind: 'member', user_id: dave.userId, name: daveName }],
-      assign: { user_id: dave.userId, name: daveName },
+      assign: null,
       problem: null,
     })
     expect(requests.length).toBeGreaterThan(0)
