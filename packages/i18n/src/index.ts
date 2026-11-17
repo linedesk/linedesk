@@ -138,6 +138,12 @@ export interface Formatters {
    * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decisions.md 2026-11-16).
    */
   rate(value: number, currency: string): string
+  /**
+   * A price a minute where a sign-up decides (the trial funnel, Janik 2026-11-17): whole US cents under a dollar in
+   * English as the cent sign ("5¢", "10¢"); anything else (another currency or language, sub-cent prices, a dollar
+   * or more) as rate() ("$0.0085", "0,05 $", "€0.05").
+   */
+  centRate(value: number, currency: string): string
   /** "A, B and C" in the active language. */
   list(items: readonly string[], options?: Intl.ListFormatOptions): string
   /**
@@ -173,6 +179,10 @@ export function createFormatters(active: ActiveLocale): Formatters {
   const locale = intlLocaleOf(active)
   const dtf = (options: Intl.DateTimeFormatOptions) =>
     cached('dt', locale, options, () => new Intl.DateTimeFormat(locale, options))
+  const rate = (value: number, currency: string) => {
+    const all = { style: 'currency', currency, ...RATE_DIGITS } as const
+    return cached('cur', locale, all, () => new Intl.NumberFormat(locale, all)).format(value)
+  }
   return {
     date: (value, options = { dateStyle: 'medium' }) => dtf(options).format(value),
     time: (value, options = { hour: 'numeric', minute: '2-digit' }) => dtf(options).format(value),
@@ -185,9 +195,12 @@ export function createFormatters(active: ActiveLocale): Formatters {
       const all = { style: 'currency', currency, ...options } as const
       return cached('cur', locale, all, () => new Intl.NumberFormat(locale, all)).format(value)
     },
-    rate: (value, currency) => {
-      const all = { style: 'currency', currency, ...RATE_DIGITS } as const
-      return cached('cur', locale, all, () => new Intl.NumberFormat(locale, all)).format(value)
+    rate,
+    centRate: (value, currency) => {
+      const cents = Math.round(value * 100)
+      const wholeCents = Math.abs(value * 100 - cents) < 1e-9
+      if (currency === 'USD' && locale === 'en' && wholeCents && cents > 0 && cents < 100) return `${cents}¢`
+      return rate(value, currency)
     },
     list: (items, options = { type: 'conjunction' }) =>
       cached('lf', locale, options, () => new Intl.ListFormat(locale, options)).format(items),

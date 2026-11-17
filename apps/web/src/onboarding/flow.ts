@@ -12,7 +12,7 @@ import {
   nanpAreaCode,
   type OnboardingStep,
   type OutboundCountries,
-  onboardingSteps,
+  onboardingStepsFor,
   onCallNumberProblem,
   type PickupMode,
   type ProviderAudience,
@@ -36,7 +36,16 @@ import { type DayHours, dayRows } from '../settings/businessHoursModel.ts'
 
 type PhoneNumberMode = PhoneNumber['mode']
 
-export { type OnboardingStep, onboardingSteps }
+export type { OnboardingStep }
+
+/** The onboarding's steps once the trial runs (or off billing): every step but `activate`. */
+export const onboardingSteps = onboardingStepsFor(false)
+
+/**
+ * The steps while the workspace waits for its trial (`pending_payment`): the setup, then `activate` (the card), and no
+ * number before it (docs/billing.md §3.2).
+ */
+export const activationSteps = onboardingStepsFor(true)
 
 /** The steps' names in the active language (read on every use, so a language change shows at once). */
 export const stepLabels: Record<OnboardingStep, string> = {
@@ -51,6 +60,9 @@ export const stepLabels: Record<OnboardingStep, string> = {
   },
   get notify() {
     return i18n().t('onboarding.steps.notify')
+  },
+  get activate() {
+    return i18n().t('onboarding.steps.activate')
   },
   get phone() {
     return i18n().t('onboarding.steps.phone')
@@ -80,6 +92,27 @@ export const previousStep = (
 export function stepByStepSteps(target: 'workspace' | 'assistant', forwardingChanged: boolean): OnboardingStep[] {
   if (target === 'assistant') return ['business', 'assistant', 'notify']
   return ['business', 'assistant', 'pickup', 'notify', ...(forwardingChanged ? (['phone'] as const) : [])]
+}
+
+/** One line of the activation step's timeline: what happens on which day of the trial (day 0: today). */
+export type TimelineEntry = { kind: 'start' | 'reminder' | 'charge'; day: number; at: Date }
+
+/**
+ * The activation step's timeline (docs/billing.md §3.2): today the trial starts, a reminder email `reminderDays`
+ * before its end, the first charge when it ends. Without a trial (a refused one): the charge today, nothing else.
+ * The dates count from the first charge the server named, so they match what Checkout and the emails say.
+ */
+export function activationTimeline(
+  a: { trialDays: number | null; firstChargeAt: string | null; reminderDays: readonly number[] },
+  now: Date,
+): TimelineEntry[] {
+  if (!a.trialDays || !a.firstChargeAt) return [{ kind: 'charge', day: 0, at: now }]
+  const end = Date.parse(a.firstChargeAt)
+  const reminders = [...a.reminderDays]
+    .filter(d => d >= 1 && d < a.trialDays!)
+    .sort((x, y) => y - x)
+    .map(d => ({ kind: 'reminder' as const, day: a.trialDays! - d, at: new Date(end - d * 86_400_000) }))
+  return [{ kind: 'start', day: 0, at: now }, ...reminders, { kind: 'charge', day: a.trialDays, at: new Date(end) }]
 }
 
 /** The pick-up choices in the order shown; the first is recommended and preselected. */

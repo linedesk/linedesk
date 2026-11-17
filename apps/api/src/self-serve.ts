@@ -13,9 +13,12 @@
 import { createHash } from 'node:crypto'
 import { RADAR_RISK_LEVELS } from '@linedesk/actions'
 import {
+  calls,
+  commands,
   instance_settings,
   organization,
   SIGNUP_DEFAULTS,
+  SETUP_RULE_RANGES,
   SIGNUP_RULE_RANGES,
   type Db,
   type SignupRules,
@@ -45,7 +48,7 @@ const DAY = 24 * HOUR
 
 // --- Rules ----------------------------------------------------------------------------------------
 
-const RANGES: Record<string, readonly [number, number]> = SIGNUP_RULE_RANGES
+const RANGES: Record<string, readonly [number, number]> = { ...SIGNUP_RULE_RANGES, ...SETUP_RULE_RANGES }
 
 /** `stored` over the defaults, field by field; `problems` names what was ignored. */
 export function mergeSignupRules(stored: unknown): { rules: SignupRules; problems: string[] } {
@@ -351,17 +354,17 @@ async function alertCapOncePerHour(tx: Tx, now: number, cap: number) {
   await queueBillingAlert(tx, { kind: 'signup_cap', hour, cap })
 }
 
-// --- While pending_payment ------------------------------------------------------------------------------
+// --- While pending_payment ---------------------------------------------------------------------------------
 
-export const PENDING_PAYMENT =
-  'Finish Checkout first: numbers, test calls, invitations and integrations start once your trial is set up.'
+export const PENDING_PAYMENT = 'Start your free trial first: numbers, invitations and integrations open once it is on.'
 
 /**
- * What reaches outside or costs money, refused for every caller while the workspace waits for its first Checkout
- * (run-action.ts, before the input is read; security review F1 of #960): an anonymous sign-up must not mail
- * arbitrary addresses through invitations, call out through webhooks or spend the install's providers. The app shows
- * nothing but the waiting screen meanwhile (PendingPayment.tsx), so none of this is reachable there anyway.
- * `phoneNumber.setup`, browser test calls and agent setup links also refuse in their handlers (refusePendingPayment).
+ * What reaches outside or costs money, refused for every caller while the workspace waits for its trial to start
+ * (run-action.ts, before the input is read; security review F1 of #960): an anonymous sign-up must not mail arbitrary
+ * addresses through invitations, call out through webhooks, take a number or spend the install's providers beyond the
+ * setup allowance. The owner sets the workspace up meanwhile (the onboarding up to its `activate` step, docs/billing.md
+ * §3.2): browser test calls and business lookups run within the setup allowance of `signup.rules` (startTestCall, chargeSetupLookup).
+ * `phoneNumber.setup` and agent setup links also refuse in their handlers (refusePendingPayment).
  */
 export const REFUSED_WHILE_PENDING_PAYMENT: ReadonlySet<string> = new Set([
   // Invitation emails to any address.
@@ -372,17 +375,66 @@ export const REFUSED_WHILE_PENDING_PAYMENT: ReadonlySet<string> = new Set([
   'webhook.update',
   'webhook.test',
   'integration.subscribe',
-  // Third-party voice cloning, Places and the language model, carrier lookups: the install's money.
+  // Third-party voice cloning and carrier lookups: the install's money, not needed to set up.
   'voice.clone',
-  'business.search',
-  'business.import',
-  'knowledge.import',
   'phoneNumber.lookupLine',
-  // A number, a browser test call, an agent setup link.
+  // A number, an agent setup link.
   'phoneNumber.setup',
-  'assistant.startTestCall',
   'agentSetup.createWorkspaceKey',
 ])
+
+/**
+ * The business lookups the onboarding's first step runs (Google Places and the language model): allowed before the
+ * trial starts, but only `setupLookups` of them per workspace in all (signup.rules), on top of their hourly limits.
+ */
+export const SETUP_LOOKUPS: ReadonlySet<string> = new Set(['business.search', 'business.import', 'knowledge.import'])
+
+/** The command-log marker each lookup before the trial leaves: chargeSetupLookup counts them per workspace. */
+export const SETUP_LOOKUP_MARKER = 'setup.lookup'
+
+/**
+ * One business lookup of a workspace waiting for its trial (run-action.ts): refused once `setupLookups` are used,
+ * else counted (a marker row in the command log, one lookup at a time per workspace). Nothing for other workspaces.
+ */
+export async function chargeSetupLookup(db: Db, actor: { workspaceId: string | null; actorId: string }) {
+  if (!actor.workspaceId) return
+  const workspaceId = actor.workspaceId
+  await db.transaction(async tx => {
+    if (!(await isPendingPayment(tx, workspaceId))) return
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setup-lookup:${workspaceId}`}))`)
+    const { rules } = await storedSignupRules(tx)
+    const [used] = await tx
+      .select({ n: count() })
+      .from(commands)
+      .where(and(eq(commands.workspace_id, workspaceId), eq(commands.action, SETUP_LOOKUP_MARKER)))
+    if ((used?.n ?? 0) >= rules.setupLookups) throw Reject.t('server.api.setup.lookupsUsed')
+    await tx.insert(commands).values({
+      id: `cmd_${crypto.randomUUID().replaceAll('-', '')}`,
+      workspace_id: workspaceId,
+      actor_id: actor.actorId,
+      action: SETUP_LOOKUP_MARKER,
+      input: {},
+      result: { ok: true, rows: {} },
+    })
+  })
+}
+
+/**
+ * Before the trial starts a workspace may talk to its assistant in the browser for `setupTestMinutes` minutes in all
+ * (signup.rules): the test calls' lengths, a call still running counted up to now. Refuses another once they are used.
+ */
+export async function refuseSetupTestCall(tx: Tx, workspaceId: string, nowMs: number): Promise<void> {
+  if (!(await isPendingPayment(tx, workspaceId))) return
+  const { rules } = await storedSignupRules(tx)
+  const now = new Date(nowMs).toISOString()
+  const [used] = await tx
+    .select({
+      seconds: sql<number>`coalesce(sum(coalesce(${calls.duration_sec}, greatest(0, extract(epoch from (${now}::timestamptz - ${calls.started_at})))::int)), 0)::int`,
+    })
+    .from(calls)
+    .where(and(eq(calls.workspace_id, workspaceId), eq(calls.source, 'test')))
+  if ((used?.seconds ?? 0) >= rules.setupTestMinutes * 60) throw Reject.t('server.api.setup.testMinutesUsed')
+}
 
 /** Whether the workspace waits for its first Checkout (docs/billing.md §3.1). */
 export async function isPendingPayment(tx: Pick<Tx, 'select'>, workspaceId: string | null): Promise<boolean> {

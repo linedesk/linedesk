@@ -1,6 +1,6 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
-import { DEFAULT_AI_DISCLOSURE, greetingFor, type OnboardingStep, resumeStep } from '@linedesk/actions'
-import { assistants, workspace_settings } from '@linedesk/db'
+import { DEFAULT_AI_DISCLOSURE, greetingFor, type OnboardingStep, resumeStep, stepFor } from '@linedesk/actions'
+import { assistants, organization, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { businessLookupOn, type WebsiteImport, websiteImportFor } from './business-import.ts'
 import type { Actor } from './context.ts'
@@ -130,13 +130,18 @@ export async function businessSetupFor(
 export async function onboardingFor(actor: Actor): Promise<OnboardingState | null> {
   if (!actor.workspaceId || !actor.permissions.includes('settings:write')) return null
   const [settings] = await db
-    .select({ step: workspace_settings.onboarding_step })
-    .from(workspace_settings)
-    .where(eq(workspace_settings.workspace_id, actor.workspaceId))
-  const step = settings?.step
+    .select({ step: workspace_settings.onboarding_step, billingState: organization.billingState })
+    .from(organization)
+    .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, organization.id))
+    .where(eq(organization.id, actor.workspaceId))
+  // A sign-up whose trial has not started always has its last step ahead: the card (docs/billing.md §3.2). Nothing
+  // else of the app opens before it, also when its setup was finished or set aside (a workspace that left its partner).
+  const activating = settings?.billingState === 'pending_payment'
+  const stored = settings?.step
+  const step = activating && (!stored || stored === 'done' || stored === 'skipped') ? 'activate' : stored
   if (!step || step === 'done' || step === 'skipped') return null
-  // A step of the earlier flow resumes at the step that took its place.
-  const resumed = resumeStep(step)
+  // A step of the earlier flow resumes at the step that took its place; `activate` only while the trial waits.
+  const resumed = stepFor(resumeStep(step), activating)
   if (resumed === 'done') return null
   return {
     step: resumed,

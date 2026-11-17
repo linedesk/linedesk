@@ -871,7 +871,7 @@ async function checkoutEventJob(event: StoredEvent): Promise<EventOutcome> {
   const checkout = await import('./billing-checkout.ts')
   const result =
     event.type === 'customer.subscription.trial_will_end'
-      ? await checkout.trialWillEnd(objectId, customerId)
+      ? await checkout.trialWillEnd(objectId, customerId, now)
       : event.type === 'invoice.created'
         ? await checkout.firstRecharge(objectId, customerId, now)
         : await checkout.checkoutCompleted(objectId, customerId, now)

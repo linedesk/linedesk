@@ -226,6 +226,24 @@ function BillingPage({
 
 // ---- The plan --------------------------------------------------------------------------------------------------
 
+/**
+ * Whether the address asks for the cancel dialog (`#workspace/billing?cancel=1&ws=…`, the trial emails' "Cancel my
+ * trial"); the flag is taken out of the address, so a reload or Back does not open it again.
+ */
+export function takeCancelRequest(): boolean {
+  // Rendered without a browser (tests, server render): no link to take.
+  if (typeof window === 'undefined') return false
+  const hash = window.location.hash
+  const at = hash.indexOf('?')
+  if (at < 0) return false
+  const params = new URLSearchParams(hash.slice(at + 1))
+  if (params.get('cancel') !== '1') return false
+  params.delete('cancel')
+  const rest = params.toString()
+  window.history.replaceState(null, '', `${hash.slice(0, at)}${rest ? `?${rest}` : ''}`)
+  return true
+}
+
 function PlanCard({
   bill,
   state,
@@ -238,7 +256,8 @@ function PlanCard({
   const t = useT()
   const calls = useBillCalls()
   const format = useFormat()
-  const [cancelOpen, setCancelOpen] = useState(false)
+  // "Cancel my trial" in the trial emails links here with `cancel=1`: the cancel dialog opens at once (once).
+  const [cancelOpen, setCancelOpen] = useState(() => takeCancelRequest() && canCancel(bill))
   const [resuming, setResuming] = useState(false)
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const date = (iso: string) => format.date(new Date(iso))

@@ -30,7 +30,8 @@ type Step = 'email' | 'code' | 'details'
 
 /**
  * `signedIn`: someone is signed in already (an account the sign-up page made earlier, or an existing one): straight
- * to the details. `onDone`: the bill and workspace (or the partner) are made; the app loads it (Checkout comes next).
+ * to the details. `onDone`: the bill and workspace (or the partner) are made; the app loads it (the onboarding comes
+ * next for a business, Checkout for a partner).
  */
 export function Signup({
   signedIn,
@@ -346,9 +347,10 @@ function CodeStep({
 }
 
 /**
- * The last step. Starting the plan accepts the terms and the privacy policy shown next to the button (clickwrap, A9),
- * for a business and a partner alike; the API records the versions with the time and the session's IP address.
- * Checkout then asks for the terms again (Stripe's required checkbox).
+ * The last step. Making the account accepts the terms and the privacy policy shown next to the button (clickwrap, A9),
+ * for a business and a partner alike; the API records the versions with the time and the session's IP address. A
+ * business goes on to set up its assistant without a card and adds one at the onboarding's last step (`activate`),
+ * which shows the terms again and records them with what it charges; a partner goes to Checkout from its area.
  */
 function DetailsStep({
   interval,
@@ -417,6 +419,7 @@ function DetailsStep({
         <h1>{partner ? t('auth.signup.partnerDetailsTitle') : t('auth.signup.detailsTitle')}</h1>
         <p>{partner ? t('auth.signup.partnerDetailsText') : t('auth.signup.detailsText')}</p>
         {line && <p className="auth-hint">{line}</p>}
+        {!partner && <p className="auth-hint">{t('auth.signup.noCardYet')}</p>}
         <label>
           {t('auth.signup.yourName')}
           <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" autoFocus disabled={busy} />
@@ -438,7 +441,7 @@ function DetailsStep({
         {error && <AuthError message={error} />}
         <p className="auth-terms">
           <T
-            k="auth.signup.terms"
+            k={partner ? 'auth.signup.terms' : 'auth.signup.termsCreate'}
             values={{
               terms: chunks => <ExternalLink href={terms.termsUrl}>{chunks}</ExternalLink>,
               privacy: chunks => <ExternalLink href={terms.privacyUrl}>{chunks}</ExternalLink>,
@@ -452,7 +455,7 @@ function DetailsStep({
           aria-busy={busy || undefined}
         >
           {busy && <Spinner />}
-          {busy ? t('auth.setup.busy') : t('auth.signup.start')}
+          {busy ? t('auth.setup.busy') : partner ? t('auth.signup.start') : t('auth.signup.createAccount')}
         </button>
         <button
           type="button"

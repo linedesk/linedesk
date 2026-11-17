@@ -928,6 +928,117 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "trial-started",
+    "Your Linedesk free trial has started",
+    "Billing
+
+Your Linedesk free trial has started
+
+Nothing is charged today. Your free trial runs until December 1, 2026, and you can cancel any time before then.
+
+First charge: December 1, 2026
+Amount: $11.00 a month, plus tax where it applies
+Reminder emails: 7 days and 1 day before the first charge
+
+Auto-recharge is on, so the same invoice also adds $25.00 to your prepaid call balance.
+
+Not for you? Cancel before December 1, 2026 and you pay nothing. It takes two clicks in Settings › Billing, no call needed.
+
+Manage my plan:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+Cancel my trial:
+https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-reminder-7-days",
+    "Your Linedesk free trial ends in 7 days",
+    "Billing
+
+Your Linedesk free trial ends in 7 days
+
+Your free trial ends on December 1, 2026. Then your plan starts and your card is charged $11.00 a month (plus tax where it applies).
+
+First charge: December 1, 2026
+Amount: $11.00 a month, plus tax where it applies
+
+Auto-recharge is on, so the same invoice also adds $25.00 to your prepaid call balance.
+
+Not for you? Cancel before December 1, 2026 and you pay nothing. It takes two clicks in Settings › Billing, no call needed.
+
+Manage my plan:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+Cancel my trial:
+https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
+
+--
+
+You got this email because we promised to remind you before your free trial on desk.example.com ends.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-reminder-1-day",
+    "Your Linedesk free trial ends tomorrow",
+    "Billing
+
+Your Linedesk free trial ends tomorrow
+
+Your free trial ends on December 1, 2026. Then your plan starts and your card is charged $11.00 a month (plus tax where it applies).
+
+First charge: December 1, 2026
+Amount: $11.00 a month, plus tax where it applies
+
+Auto-recharge is on, so the same invoice also adds $25.00 to your prepaid call balance.
+
+Not for you? Cancel before December 1, 2026 and you pay nothing. It takes two clicks in Settings › Billing, no call needed.
+
+Manage my plan:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+Cancel my trial:
+https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
+
+--
+
+You got this email because we promised to remind you before your free trial on desk.example.com ends.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-setup-nudge",
+    "One step left: start your Linedesk free trial",
+    "Billing
+
+One step left: start your Linedesk free trial
+
+Maya is almost ready to answer calls for Brightwater Plumbing & Heating. Start your 14-day free trial to get your phone number and turn on real calls.
+
+Nothing is charged when you start. We email you before the first charge, and you can cancel any time before it.
+
+Start my free trial:
+https://desk.example.com/#calls?ws=ws_demo
+
+If you don't start by December 1, 2026, we delete this sign-up and what you set up.
+
+--
+
+You got this email because you signed up on desk.example.com and have not started yet. It is the only reminder we send about it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "booking-confirmation",
     "Confirmed: your repair visit with Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
     "Booking confirmed
@@ -1874,6 +1985,117 @@ Si no lo esperabas, pídele una nueva invitación al propietario del espacio de 
 --
 
 Recibes este correo porque eras miembro de Brightwater Plumbing & Heating en desk.example.com. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-started",
+    "Your Linedesk free trial has started",
+    "Facturación
+
+Your Linedesk free trial has started
+
+Nothing is charged today. Your free trial runs until 1 de diciembre de 2026, and you can cancel any time before then.
+
+First charge: 1 de diciembre de 2026
+Amount: 11,00 US$ a month, plus tax where it applies
+Reminder emails: 7 days y 1 day before the first charge
+
+La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
+
+¿No es para ti? Cancela en Configuración › Facturación antes del 1 de diciembre de 2026 y no pagas nada.
+
+Manage my plan:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+Cancel my trial:
+https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-reminder-7-days",
+    "Your Linedesk free trial ends in 7 days",
+    "Facturación
+
+Your Linedesk free trial ends in 7 days
+
+Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se cobra 11,00 US$ a month a tu tarjeta (más impuestos donde corresponda).
+
+First charge: 1 de diciembre de 2026
+Amount: 11,00 US$ a month, plus tax where it applies
+
+La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
+
+¿No es para ti? Cancela en Configuración › Facturación antes del 1 de diciembre de 2026 y no pagas nada.
+
+Manage my plan:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+Cancel my trial:
+https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
+
+--
+
+You got this email because we promised to remind you before your free trial on desk.example.com ends.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-reminder-1-day",
+    "Your Linedesk free trial ends tomorrow",
+    "Facturación
+
+Your Linedesk free trial ends tomorrow
+
+Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se cobra 11,00 US$ a month a tu tarjeta (más impuestos donde corresponda).
+
+First charge: 1 de diciembre de 2026
+Amount: 11,00 US$ a month, plus tax where it applies
+
+La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
+
+¿No es para ti? Cancela en Configuración › Facturación antes del 1 de diciembre de 2026 y no pagas nada.
+
+Manage my plan:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+Cancel my trial:
+https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
+
+--
+
+You got this email because we promised to remind you before your free trial on desk.example.com ends.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-setup-nudge",
+    "One step left: start your Linedesk free trial",
+    "Facturación
+
+One step left: start your Linedesk free trial
+
+Maya is almost ready to answer calls for Brightwater Plumbing & Heating. Start your 14-day free trial to get your phone number and turn on real calls.
+
+Nothing is charged when you start. We email you before the first charge, and you can cancel any time before it.
+
+Start my free trial:
+https://desk.example.com/#calls?ws=ws_demo
+
+If you don't start by 1 de diciembre de 2026, we delete this sign-up and what you set up.
+
+--
+
+You got this email because you signed up on desk.example.com and have not started yet. It is the only reminder we send about it.
 
 Linedesk · desk.example.com
 ",

@@ -555,7 +555,7 @@ app.get('/v1/me', async c => {
     localeOf(actor),
     // On a bill: a sign-up waiting for Checkout is told the install's trial length and the plan's price (Server
     // admin › Billing); everyone what an extra number costs a month.
-    workspace?.billingState || workspace?.partnerId ? workspaceBillFacts(workspace.id) : null,
+    workspace?.billingState || workspace?.partnerId ? workspaceBillFacts(workspace.id, actor.actorId) : null,
     // Only with the `partner` permission (a session of a partner team member, never while impersonated).
     actor.permissions.includes('partner') ? partnersOf(actor.actorId) : [],
   ])
@@ -584,6 +584,9 @@ app.get('/v1/me', async c => {
           extraNumberCents: billFacts?.extraNumberCents ?? null,
           // A white-label client on its partner's bill: no prices anywhere in the workspace (docs/white-label.md).
           partnerManaged: billFacts?.partnerManaged ?? false,
+          // While `pending_payment`, for the bill's owner: what the onboarding's last step shows before Checkout (the
+          // price, the trial, the first charge, the reminder emails, the auto-recharge, the terms); else null.
+          activation: billFacts?.activation ?? null,
         }
       : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.

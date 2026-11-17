@@ -16,8 +16,16 @@ export const TOPUP_CENTS = { min: 500, max: 50_000 } as const
 export const billingStartCheckout = defineAction({
   name: 'billing.startCheckout',
   description:
-    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial). Answers the Checkout link to open.",
-  input: z.object(billTarget),
+    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial). Answers the Checkout link to open. A business's bill (not a partner's) takes the versions of the terms and privacy policy the activation step showed next to its button (`acceptedTerms`): starting accepts them, and they are recorded before Checkout opens.",
+  input: z.object({
+    ...billTarget,
+    acceptedTerms: z
+      .object({
+        termsVersion: z.string().trim().min(1).max(40),
+        privacyVersion: z.string().trim().min(1).max(40),
+      })
+      .optional(),
+  }),
   permission: 'billing:manage',
   // The Checkout link pays this bill: in the answer only, never in the command log.
   secretResult: ['url'],

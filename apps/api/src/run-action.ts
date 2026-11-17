@@ -38,7 +38,13 @@ import { db } from './db.ts'
 import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
-import { isPendingPayment, PENDING_PAYMENT, REFUSED_WHILE_PENDING_PAYMENT } from './self-serve.ts'
+import {
+  chargeSetupLookup,
+  isPendingPayment,
+  PENDING_PAYMENT,
+  REFUSED_WHILE_PENDING_PAYMENT,
+  SETUP_LOOKUPS,
+} from './self-serve.ts'
 import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
@@ -312,6 +318,15 @@ export async function runAction(
   // A sign-up waiting for Checkout reaches nothing outside and spends nothing (self-serve.ts; security review F1).
   if (REFUSED_WHILE_PENDING_PAYMENT.has(name) && (await isPendingPayment(db, actor.workspaceId)))
     return rejection(409, PENDING_PAYMENT)
+  // Before its trial a workspace runs only `setupLookups` business lookups in all (self-serve.ts).
+  if (SETUP_LOOKUPS.has(name)) {
+    try {
+      await chargeSetupLookup(db, actor)
+    } catch (e) {
+      if (!(e instanceof Reject)) throw e
+      return { status: 409, body: rejectionBody(e, [], wordsOf(actor)) }
+    }
+  }
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) {
     const unknown = onlyUnknownFields(parsed.error)

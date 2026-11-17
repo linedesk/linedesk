@@ -23,12 +23,19 @@ export function readCheckoutPartner(search: string = window.location.search): st
   return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null
 }
 
+/** The terms and privacy policy versions the activation step showed next to its button (A9). */
+export type AcceptedTerms = { termsVersion: string; privacyVersion: string }
+
 /**
  * Starts Checkout for the bill (the trial, or the plan after a refused trial) and goes there. `partnerId`: the
- * partner's bill (its owner) instead of the workspace's.
+ * partner's bill (its owner) instead of the workspace's. `acceptedTerms`: a business's bill, from the onboarding's
+ * last step (`activate`), which records them with what it showed; a partner accepted them at sign-up.
  */
-export async function goToCheckout(partnerId?: string | null) {
-  const { url } = await callAction<CheckoutStartData>('billing.startCheckout', partnerId ? { partnerId } : {})
+export async function goToCheckout(partnerId?: string | null, acceptedTerms?: AcceptedTerms) {
+  const { url } = await callAction<CheckoutStartData>('billing.startCheckout', {
+    ...(partnerId ? { partnerId } : {}),
+    ...(acceptedTerms ? { acceptedTerms } : {}),
+  })
   window.location.assign(url)
 }
 

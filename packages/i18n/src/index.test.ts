@@ -96,6 +96,21 @@ describe('formatters', () => {
     expect(en.rate(0.05, 'USD')).not.toContain('¢')
     expect(createFormatters('de').rate(0.05, 'USD')).toMatch(/^0,05\s\$$/)
   })
+
+  it("the funnel's price a minute: whole US cents in English with the cent sign, everything else as a rate", () => {
+    const en = createFormatters('en')
+    expect(en.centRate(0.05, 'USD')).toBe('5¢')
+    expect(en.centRate(0.1, 'USD')).toBe('10¢')
+    expect(en.centRate(0.2, 'USD')).toBe('20¢')
+    // Sub-cent, a dollar or more, nothing: dollars.
+    expect(en.centRate(0.0085, 'USD')).toBe('$0.0085')
+    expect(en.centRate(1, 'USD')).toBe('$1.00')
+    expect(en.centRate(0, 'USD')).toBe('$0.00')
+    // Another currency, or another language: the rate as it was.
+    expect(en.centRate(0.05, 'EUR')).toBe('€0.05')
+    expect(createFormatters('de').centRate(0.05, 'USD')).toMatch(/^0,05\s\$$/)
+    expect(createFormatters('en-XA').centRate(0.05, 'USD')).toBe('5¢')
+  })
 })
 
 describe('pseudo-locale', () => {

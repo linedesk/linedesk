@@ -1,9 +1,17 @@
 // Where Stripe Checkout returns to (/billing/return?session_id=…, docs/billing.md §3.2 step 4): the app confirms the
-// session (`billing.confirmCheckout`) and says what came of it. The trial started: on to the setup. No trial for this
-// card (it had one, or it is prepaid): its subscription was canceled, nothing was charged, and the plan can start now.
+// session (`billing.confirmCheckout`) and says what came of it. The trial started: on to the phone number. No trial for
+// this card (it had one, or it is prepaid): its subscription was canceled and nothing was charged; a partner can start
+// the plan now, a business goes back to the onboarding's last step, which shows the plan without a trial and asks for
+// the terms next to its button again.
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
-import { type ConfirmOutcome, confirmCheckout, goToCheckout, readCheckoutPartner, readCheckoutSession } from './checkout.ts'
+import {
+  type ConfirmOutcome,
+  confirmCheckout,
+  goToCheckout,
+  readCheckoutPartner,
+  readCheckoutSession,
+} from './checkout.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 
@@ -12,11 +20,7 @@ import { AuthPage, cx, Spinner } from './ui/kit.tsx'
  * were bought from Settings › Billing, so the app goes back there. `partner`: the Checkout was a partner bill's, so
  * the app goes back to the partner area.
  */
-export function CheckoutReturn({
-  onDone,
-}: {
-  onDone: (toBilling: boolean, partner: boolean) => void | Promise<void>
-}) {
+export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partner: boolean) => void | Promise<void> }) {
   const t = useT()
   const format = useFormat()
   const [outcome, setOutcome] = useState<ConfirmOutcome | null>(null)
@@ -100,21 +104,27 @@ export function CheckoutReturn({
         <div className="auth-card">
           <h1>{t('auth.checkout.refusedTitle')}</h1>
           <p>{outcome.reason === 'prepaid' ? t('auth.checkout.refusedPrepaid') : t('auth.checkout.refusedCardUsed')}</p>
-          <p>{t('auth.checkout.refusedNothingCharged')}</p>
+          <p>{partnerId ? t('auth.checkout.refusedNothingCharged') : t('auth.checkout.refusedNothingChargedSetup')}</p>
           {startFailed && <AuthError message={t('auth.checkout.startFailed')} />}
           <button
             type="button"
             className={cx('k-btn k-btn-primary', busy && 'is-busy')}
             disabled={busy}
             aria-busy={busy || undefined}
-            onClick={() => void startPlan()}
+            onClick={() => void (partnerId ? startPlan() : leave())}
           >
             {busy && <Spinner />}
-            {busy ? t('auth.checkout.opening') : t('auth.checkout.startPlan')}
+            {!partnerId
+              ? t('auth.checkout.toActivate')
+              : busy
+                ? t('auth.checkout.opening')
+                : t('auth.checkout.startPlan')}
           </button>
-          <button type="button" className="auth-switch" disabled={busy} onClick={() => void leave()}>
-            {t('auth.checkout.notNow')}
-          </button>
+          {partnerId && (
+            <button type="button" className="auth-switch" disabled={busy} onClick={() => void leave()}>
+              {t('auth.checkout.notNow')}
+            </button>
+          )}
         </div>
       </AuthPage>
     )

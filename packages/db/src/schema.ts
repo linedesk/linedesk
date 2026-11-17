@@ -34,6 +34,7 @@ import {
   PAID_LEVELS,
   USAGE_LEVELS,
   type ActionItem,
+  type ActivationDisclosure,
   type AssistantLanguages,
   type AssistantVoice,
   type BookingField,
@@ -414,10 +415,23 @@ export const workspace_settings = pgTable(
     timezone: text('timezone').notNull(),
     /**
      * Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished.
+     * `activate`: a self-serve sign-up's last step before its trial starts (docs/billing.md §3.2).
      * `hours`, `calendar` and `test_call` are steps of the earlier flow, still read (resumeStep maps them).
      */
     onboarding_step: text('onboarding_step', {
-      enum: ['business', 'assistant', 'pickup', 'notify', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'],
+      enum: [
+        'business',
+        'assistant',
+        'pickup',
+        'notify',
+        'activate',
+        'phone',
+        'hours',
+        'calendar',
+        'test_call',
+        'done',
+        'skipped',
+      ],
     }),
     /**
      * When the assistant picks up, as chosen in onboarding: `no_answer` (calls the business doesn't answer, by
@@ -1908,6 +1922,8 @@ const ALERT_KINDS = [
   'dunning',
   'numbers_release',
   'numbers_released',
+  // The one "one step left" email to a sign-up that has not started its trial yet (docs/billing.md §3.2 step 2).
+  'activation_nudge',
 ] as const
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 
@@ -2369,7 +2385,7 @@ export const card_fingerprints = pgTable('card_fingerprints', {
  * Self-serve sign-up (docs/billing.md §3.1): one row per sign-up code sent from the sign-up page (`code`) and per
  * sign-up started (`signup`), counted for the limits per address, per IP bucket and per install. The address is kept
  * only as a SHA-256 of its lower-case form; the IP only as its limit bucket (an IPv4 address or an IPv6 /64). Rows
- * older than `pendingDays` + 2 days (9 by default) are deleted by the daily sign-up sweep.
+ * older than `pendingDays` + 2 days (16 by default) are deleted by the daily sign-up sweep.
  */
 export const signup_attempts = pgTable(
   'signup_attempts',
@@ -2389,12 +2405,16 @@ export const signup_attempts = pgTable(
 )
 
 /**
- * Who accepted which terms and privacy policy, and when (A9): one row per acceptance, written when a person starts a
- * plan on the sign-up page (`account.signUp`, `source` = `signup`). The links and versions are the install's own at
- * that moment (TERMS_URL, TERMS_VERSION, PRIVACY_URL, PRIVACY_VERSION). The IP address and browser are the ones of the
- * session that accepted (Better Auth stores them at sign-in); null when the session has none. No foreign keys: the
- * record is evidence of the contract and outlives the account, like the bill. A sign-up that never finished Checkout
- * loses its rows with its bill in the daily sign-up sweep.
+ * Who accepted which terms and privacy policy, and when (A9): one row per acceptance, written when a person makes an
+ * account on the sign-up page (`account.signUp`, `source` = `signup`) and again when the owner starts the trial or the
+ * plan at the onboarding's last step (`billing.startCheckout`, `source` = `activation`), before Checkout opens. The
+ * links and versions are the install's own at that moment (TERMS_URL, TERMS_VERSION, PRIVACY_URL, PRIVACY_VERSION).
+ * `disclosure` (activation only): what the page showed next to the button, so the consent to the automatic charge is
+ * on record with its terms (plan price and interval, trial days, the first charge's date, the reminder days and the
+ * auto-recharge). The IP address and browser are the ones of the session that accepted (Better Auth stores them at
+ * sign-in); null when the session has none. No foreign keys: the record is evidence of the contract and outlives the
+ * account, like the bill. A sign-up that never finished Checkout loses its rows with its bill in the daily sign-up
+ * sweep.
  */
 export const terms_acceptances = pgTable(
   'terms_acceptances',
@@ -2402,19 +2422,20 @@ export const terms_acceptances = pgTable(
     id: id(),
     user_id: text('user_id').notNull(),
     billing_account_id: text('billing_account_id'),
-    source: text('source', { enum: ['signup'] }).notNull(),
+    source: text('source', { enum: ['signup', 'activation'] }).notNull(),
     terms_url: text('terms_url').notNull(),
     terms_version: text('terms_version').notNull(),
     privacy_url: text('privacy_url').notNull(),
     privacy_version: text('privacy_version').notNull(),
     ip_address: text('ip_address'),
     user_agent: text('user_agent'),
+    disclosure: jsonb('disclosure').$type<ActivationDisclosure>(),
     accepted_at: ts('accepted_at').notNull().defaultNow(),
   },
   t => [
     index('terms_acceptances_user').on(t.user_id, t.accepted_at),
     index('terms_acceptances_bill').on(t.billing_account_id),
-    check('terms_acceptances_source', sql`${t.source} in ('signup')`),
+    check('terms_acceptances_source', sql`${t.source} in ('signup', 'activation')`),
   ],
 )
 

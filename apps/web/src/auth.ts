@@ -51,6 +51,24 @@ export type OnboardingState = {
   websiteImport?: WebsiteImport
 }
 
+/**
+ * What starting the trial (or the plan, after a refused trial: `trialDays` null) means, as the activation step shows
+ * it and the API records it with the accepted terms (docs/billing.md §3.2): the plan's price before tax, the first
+ * charge's date (null without a trial: today), the days before it a reminder email goes out, the auto-recharge, what
+ * the plan includes, and the terms in effect (null: the install has none, and Checkout cannot start).
+ */
+export type Activation = {
+  planCents: number
+  interval: 'month' | 'year'
+  trialDays: number | null
+  firstChargeAt: string | null
+  reminderDays: number[]
+  recharge: { amountCents: number; thresholdCents: number; capCents: number } | null
+  includedMinutes: number
+  standardMicrosPerMinute: number
+  terms: { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string } | null
+}
+
 export type Me = {
   actorId: string
   role: string
@@ -74,6 +92,11 @@ export type Me = {
     trialDays?: number | null
     plan?: { interval: 'month' | 'year'; cents: number } | null
     extraNumberCents?: number | null
+    /**
+     * While `pending_payment`, for the bill's owner: what the onboarding's last step (`activate`) shows before
+     * Checkout; null otherwise (absent from an older server).
+     */
+    activation?: Activation | null
   } | null
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
   workspaces?: { id: string; name: string; disabled?: boolean; iconUrl?: string | null }[]

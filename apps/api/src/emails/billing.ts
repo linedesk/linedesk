@@ -5,7 +5,7 @@ import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { BILLING_PATH } from './billing-lifecycle.ts'
-import { appLink, type EmailLocale, WEB_ORIGIN } from './templates.ts'
+import { appLink, type EmailLocale, emailSafeName, WEB_ORIGIN } from './templates.ts'
 
 export type BillingOwnerEmail =
   /** `invoiceUrl`: the invoice's own page, where the owner confirms the payment (3DS); null when it was voided. */
@@ -15,29 +15,52 @@ export type BillingOwnerEmail =
     | { kind: 'recharge_cap_reached'; capCents: number; rechargedCents: number; minimumCents: number }
     | { kind: 'low_balance'; balanceMicros: number }
     /**
-     * The trial ends in three days (§3.2 step 8): the plan's charge then, its date, the first recharge with it (null
-     * when auto-recharge is off) and how to cancel. `workspaceId`: the bill's oldest workspace, whose Settings ›
-     * Billing the button opens (cancel is there); null: no button.
+     * A trial reminder (§3.2 step 8), `daysBefore` the trial's end (7 and 1 by default), and the trial's confirmation
+     * when it starts (`trial_started`, with the days the reminders go out): the plan's charge then, its date, the
+     * first recharge with it (null when auto-recharge is off) and how to cancel. `workspaceId`: the bill's oldest
+     * workspace, whose Settings › Billing the buttons open (cancel is there); null: no buttons.
+     */
+    | (TrialFacts & { kind: 'trial_will_end'; daysBefore: number })
+    | (TrialFacts & { kind: 'trial_started'; reminderDays: number[] })
+    /**
+     * The one "one step left" email to a sign-up that has not started its trial (§3.2 step 2, ACTIVATION_NUDGE_DAYS
+     * after sign-up): what it set up, that nothing is charged when it starts, and the day the sign-up is deleted
+     * (`deleteOn`, the sign-up sweep). `trialDays`: null when the install gives no trial. `workspaceId`: the button's
+     * workspace; null: no button.
      */
     | {
-        kind: 'trial_will_end'
-        planCents: number
-        trialEnd: string
-        rechargeCents: number | null
+        kind: 'activation_nudge'
         workspaceId: string | null
+        workspace: string | null
+        assistant: string | null
+        trialDays: number | null
+        deleteOn: string
       }
   ) & {
     /** How far below zero calls go on (the install's rules). */
     bufferMicros: number
   }
 
+/** What both trial emails say about the trial's end. */
+type TrialFacts = {
+  planCents: number
+  interval: 'month' | 'year'
+  trialEnd: string
+  rechargeCents: number | null
+  workspaceId: string | null
+}
+
 export function billingOwnerEmail(email: BillingOwnerEmail, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
-  if (email.kind === 'trial_will_end') return trialWillEndEmail(email, origin, locale)
+  if (email.kind === 'trial_will_end' || email.kind === 'trial_started') return trialEmail(email, origin, locale)
+  if (email.kind === 'activation_nudge') return activationNudgeEmail(email, origin, locale)
   return balanceEmail(email, origin, locale)
 }
 
+/** Settings › Billing with the cancel dialog open: the reminders' one direct way to cancel (after signing in). */
+export const CANCEL_PATH = `${BILLING_PATH}?cancel=1`
+
 function balanceEmail(
-  email: Exclude<BillingOwnerEmail, { kind: 'trial_will_end' }>,
+  email: Exclude<BillingOwnerEmail, { kind: 'trial_will_end' | 'trial_started' | 'activation_nudge' }>,
   origin: string,
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -80,23 +103,56 @@ function balanceEmail(
   })
 }
 
-/** Three days before the trial ends: what is charged when, and how to cancel before (§3.2 step 8). */
-function trialWillEndEmail(
-  email: Extract<BillingOwnerEmail, { kind: 'trial_will_end' }>,
+/**
+ * The trial's emails (§3.2 step 8): its confirmation when it starts, and a reminder on each reminder day before it
+ * ends. Both say the first charge's date and amount, the first recharge with it, and how to cancel before: a button to
+ * Settings › Billing and one that opens the cancel dialog there.
+ */
+function trialEmail(
+  email: Extract<BillingOwnerEmail, { kind: 'trial_will_end' | 'trial_started' }>,
   origin: string,
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, format, locale: lang } = getT(locale)
   const usd = (cents: number) => format.currency(cents / 100, 'USD')
+  const price = usd(email.planCents)
   const values = {
     brand: brandName(),
-    plan: usd(email.planCents),
+    plan:
+      email.interval === 'year'
+        ? t('email.billing.trial.planYearly', { price })
+        : t('email.billing.trial.planMonthly', { price }),
     date: format.dateTime(new Date(email.trialEnd), { dateStyle: 'long', timeZone: 'UTC' }),
     recharge: email.rechargeCents === null ? '' : usd(email.rechargeCents),
   }
-  const subject = t('email.billing.trialWillEnd.subject', values)
+  const started = email.kind === 'trial_started'
+  const reminders =
+    started && email.reminderDays.length
+      ? new Intl.ListFormat(lang, { type: 'conjunction' }).format(
+          email.reminderDays.map(count => t('email.billing.trial.reminderDay', { count })),
+        )
+      : null
+  const subject = started
+    ? t('email.billing.trialStarted.subject', values)
+    : t('email.billing.trialWillEnd.subject', { ...values, days: email.daysBefore })
+  const lead = started ? t('email.billing.trialStarted.text', values) : t('email.billing.trialWillEnd.text', values)
   const blocks: Block[] = [
-    { kind: 'text', text: t('email.billing.trialWillEnd.text', values) },
+    { kind: 'text', text: lead },
+    {
+      kind: 'facts',
+      rows: [
+        [t('email.billing.trial.firstCharge'), values.date],
+        [t('email.billing.trial.amount'), t('email.billing.trial.amountValue', values)],
+        ...(reminders
+          ? [
+              [t('email.billing.trial.reminders'), t('email.billing.trial.remindersValue', { days: reminders })] as [
+                string,
+                string,
+              ],
+            ]
+          : []),
+      ],
+    },
     {
       kind: 'text',
       text:
@@ -106,21 +162,70 @@ function trialWillEndEmail(
     },
     { kind: 'text', text: t('email.billing.trialWillEnd.cancel', values) },
   ]
-  // The cancel link: Settings › Billing, where the plan is canceled in two clicks (the portal has no cancel).
+  // Settings › Billing, and the cancel dialog there: the plan is canceled in two clicks (the portal has no cancel).
   if (email.workspaceId)
     blocks.push({
       kind: 'button',
-      label: t('email.billing.trialWillEnd.button'),
+      label: t('email.billing.trial.manage'),
       url: appLink(origin, email.workspaceId, BILLING_PATH),
+      second: { label: t('email.billing.trial.cancel'), url: appLink(origin, email.workspaceId, CANCEL_PATH) },
     })
   return renderEmail({
     locale: lang,
     subject,
-    preheader: t('email.billing.trialWillEnd.text', values),
+    preheader: lead,
     eyebrow: t('email.billing.eyebrow'),
     heading: subject,
     blocks,
-    reason: t('email.billing.reason', { site: siteHost(origin) }),
+    reason: started
+      ? t('email.billing.reason', { site: siteHost(origin) })
+      : t('email.billing.trialWillEnd.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
+/**
+ * Day 3 of a sign-up that has not started its trial: one step is left (the activate step, with the card at Stripe
+ * Checkout). Says that nothing is charged when the trial starts and when the sign-up is deleted if it never does.
+ */
+function activationNudgeEmail(
+  email: Extract<BillingOwnerEmail, { kind: 'activation_nudge' }>,
+  origin: string,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, format, locale: lang } = getT(locale)
+  const trial = email.trialDays !== null
+  const values = {
+    brand: brandName(),
+    workspace: emailSafeName(email.workspace, t('email.fallback.yourBusiness')),
+    assistant: emailSafeName(email.assistant, t('email.fallback.assistant')),
+    days: email.trialDays ?? 0,
+    date: format.dateTime(new Date(email.deleteOn), { dateStyle: 'long', timeZone: 'UTC' }),
+  }
+  const subject = trial
+    ? t('email.billing.activationNudge.subject', values)
+    : t('email.billing.activationNudge.subjectPlan', values)
+  const lead = trial
+    ? t('email.billing.activationNudge.text', values)
+    : t('email.billing.activationNudge.textPlan', values)
+  const blocks: Block[] = [{ kind: 'text', text: lead }]
+  if (trial) blocks.push({ kind: 'text', text: t('email.billing.activationNudge.noCharge', values) })
+  // The app opens on the onboarding where the owner left it; its last step starts the trial.
+  if (email.workspaceId)
+    blocks.push({
+      kind: 'button',
+      label: trial ? t('email.billing.activationNudge.button') : t('email.billing.activationNudge.buttonPlan'),
+      url: appLink(origin, email.workspaceId, 'calls'),
+    })
+  blocks.push({ kind: 'text', text: t('email.billing.activationNudge.deleted', values) })
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: lead,
+    eyebrow: t('email.billing.eyebrow'),
+    heading: subject,
+    blocks,
+    reason: t('email.billing.activationNudge.reason', { site: siteHost(origin) }),
     origin,
   })
 }

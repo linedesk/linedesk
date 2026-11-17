@@ -21,6 +21,9 @@ import {
   type CheckoutSession,
 } from '@linedesk/billing'
 import {
+  type ActivationDisclosure,
+  type ActivationFacts,
+  type BillingRules,
   billing_accounts,
   billing_alerts,
   billing_periods,
@@ -30,18 +33,21 @@ import {
   partners,
   rechargeCapCents,
   phone_numbers,
+  planPrice,
   STRIPE_TAX_CODE,
   type Tx,
   usage_counters,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { createHash } from 'node:crypto'
-import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
-import { billingRules, isLinedeskPlan, planCatalog, rechargeLine } from './billing-rules.ts'
+import { billingRules, isLinedeskPlan, planCatalog, rechargeLine, reminderDaysFor } from './billing-rules.ts'
+import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 import { brandName, currentBranding } from './branding.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import type { Actor } from './context.ts'
@@ -95,8 +101,12 @@ export function checkoutText(
     trialDays,
     recharge,
     taxed = false,
-  }: { brand: string; trialDays: number; recharge?: CheckoutRecharge; taxed?: boolean },
+    reminderDays = [],
+  }: { brand: string; trialDays: number; recharge?: CheckoutRecharge; taxed?: boolean; reminderDays?: number[] },
 ): string {
+  // The trial's reminder emails, promised where the card is entered too (docs/billing.md §3.2).
+  if (kind === 'trial' && reminderDays.length)
+    return `${checkoutText(kind, reader, { brand, trialDays, recharge, taxed })} ${reader.t('server.api.checkout.text.reminders', { days: reminderList(reminderDays, reader) })}`
   // With Stripe Tax on, the amounts named here (the recharges charged later, off-session) are before tax.
   if (taxed)
     return `${checkoutText(kind, reader, { brand, trialDays, recharge })} ${reader.t('server.api.checkout.text.taxNote')}`
@@ -115,6 +125,12 @@ export function checkoutText(
   return kind === 'trial'
     ? reader.t('server.api.checkout.text.trial', { days: trialDays, ...values })
     : reader.t('server.api.checkout.text.plan', values)
+}
+
+/** "7 days and 1 day", in the reader's language. */
+export function reminderList(days: readonly number[], reader: Reader): string {
+  const words = days.map(count => reader.t('server.api.checkout.text.reminderDay', { count }))
+  return new Intl.ListFormat(reader.locale, { type: 'conjunction' }).format(words)
 }
 
 /** The bill's auto-recharge for Checkout's text: its own settings, the cap for the workspaces Checkout sells. */
@@ -272,16 +288,95 @@ const cancelUrl = (partnerId?: string) => (partnerId ? `${WEB_ORIGIN}/#partner` 
 
 // ---- Starting Checkout ---------------------------------------------------------------------------------------
 
-/** What a start prepared before its transaction: the session made, and the customer to store. */
-type Started = { url: string; sessionId: string; customerId: string; billId: string }
+/**
+ * What a start prepared before its transaction: the session made, and the customer to store. `accepted`: a business's
+ * bill: the terms the activation step showed and what it said next to its button, recorded in the transaction.
+ */
+type Started = {
+  url: string
+  sessionId: string
+  customerId: string
+  billId: string
+  accepted: { terms: LegalTerms; disclosure: ActivationDisclosure } | null
+}
+
+type StartInput = { partnerId?: string; acceptedTerms?: { termsVersion: string; privacyVersion: string } }
+
+/**
+ * The terms a business's owner accepts by starting the trial or the plan (A9, docs/billing.md §3.1): the ones the
+ * activation step showed, still in effect. A partner's bill accepted them at sign-up and passes none.
+ */
+function termsToAccept(bill: Bill, input: StartInput): LegalTerms | null {
+  if (bill.kind === 'partner') return null
+  const { terms } = legalTerms()
+  if (!terms) throw new Reject(CHECKOUT_UNAVAILABLE)
+  const shown = input.acceptedTerms
+  if (!shown || shown.termsVersion !== terms.termsVersion || shown.privacyVersion !== terms.privacyVersion)
+    throw Reject.t('server.api.signup.termsChanged', undefined, TERMS_CHANGED)
+  return terms
+}
+
+/**
+ * What the activation step shows next to its button (docs/billing.md §3.2), from the bill and the install's rules: the
+ * plan's price for the workspaces Checkout sells, the trial (none after a refused one), the first charge's date, the
+ * reminder days and the auto-recharge. The step reads the same through /v1/me (`activationFacts`).
+ */
+export function activationDisclosure(
+  o: { planCents: number; interval: 'month' | 'year'; trial: boolean; recharge: CheckoutRecharge },
+  rules: BillingRules,
+  now: string,
+): ActivationDisclosure {
+  const trialDays = o.trial ? rules.trialDays : null
+  return {
+    planCents: o.planCents,
+    interval: o.interval,
+    trialDays,
+    firstChargeAt: trialDays ? new Date(Date.parse(now) + trialDays * 86_400_000).toISOString() : null,
+    reminderDays: trialDays ? reminderDaysFor(rules) : [],
+    recharge: o.recharge.on
+      ? {
+          amountCents: o.recharge.amountCents,
+          thresholdCents: o.recharge.thresholdCents,
+          capCents: o.recharge.capCents,
+        }
+      : null,
+  }
+}
+
+/**
+ * The activation step's facts for a bill waiting for its trial (/v1/me, billing-page.ts): what Checkout will say and
+ * charge, from the same rules and the bill's own auto-recharge as `billing.startCheckout`. `now`: the trial would
+ * start now, so its first charge is `trialDays` from now (Stripe counts the trial from the subscription's start).
+ */
+export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, now: string): Promise<ActivationFacts> {
+  const items = await planItems(tx, bill)
+  const recharge = await checkoutRecharge(
+    bill,
+    items.reduce((n, i) => n + i.quantity, 0),
+  )
+  return {
+    ...activationDisclosure(
+      { planCents: itemsCents(items, rules), interval: bill.interval, trial: !bill.trial_refused, recharge },
+      rules,
+      now,
+    ),
+    includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
+    standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
+  }
+}
+
+/** What the plan items cost before tax at the install's prices. */
+const itemsCents = (items: { lookupKey: string; quantity: number }[], rules: BillingRules) =>
+  items.reduce((sum, i) => sum + (planPrice(i.lookupKey, rules)?.cents ?? 0) * i.quantity, 0)
 
 /**
  * `billing.startCheckout` (§3.2 step 3): the plan with a 14-day trial, or without one after a refused trial. Stripe is
  * asked before the transaction (the customer, the configuration, the session); the transaction stores the customer.
  */
-const prepareStartCheckout: Preparer = async ({ actor, now }, input: { partnerId?: string }) => {
+const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput) => {
   const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (bill.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
+  const terms = termsToAccept(bill, input)
   refuseCheckoutFlood(bill.id)
   const items = await db.transaction(tx => planItems(tx, bill))
   const provider = await billingProvider(db)
@@ -295,6 +390,10 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: { partnerId
   // ids are the ones the last catalog sync stored; nothing in Stripe is made or changed here (review of #1040, M-1).
   const rules = await billingRules(db)
   const prices = await pricesForCheckout(provider).catch(setupFailed)
+  const recharge = await checkoutRecharge(
+    bill,
+    items.reduce((n, i) => n + i.quantity, 0),
+  )
   const started = await provider
     .startCheckout({
       kind: trial ? 'trial' : 'plan',
@@ -309,10 +408,8 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: { partnerId
         brand: brandName(),
         trialDays: rules.trialDays,
         taxed: rules.automaticTax,
-        recharge: await checkoutRecharge(
-          bill,
-          items.reduce((n, i) => n + i.quantity, 0),
-        ),
+        recharge,
+        reminderDays: reminderDaysFor(rules),
       }),
       branding: checkoutBranding(),
       successUrl: returnUrl(input.partnerId),
@@ -322,7 +419,17 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: { partnerId
       expiresAt: checkoutExpiresAt(),
     })
     .catch(setupFailed)
-  return { url: started.url, sessionId: started.id, customerId, billId: bill.id } satisfies Started
+  const accepted = terms
+    ? {
+        terms,
+        disclosure: activationDisclosure(
+          { planCents: itemsCents(items, rules), interval: bill.interval, trial, recharge },
+          rules,
+          now,
+        ),
+      }
+    : null
+  return { url: started.url, sessionId: started.id, customerId, billId: bill.id, accepted } satisfies Started
 }
 
 /** Stores the bill's customer the first time (a second start finds it). */
@@ -439,6 +546,22 @@ async function dropExtraCheckout(
 }
 
 /**
+ * The bill's workspaces left the setup's last step (`activate`, the card): their onboarding goes on at the number,
+ * which may now be bought (docs/billing.md §3.2).
+ */
+async function activated(tx: Tx, billId: string) {
+  await tx
+    .update(workspace_settings)
+    .set({ onboarding_step: 'phone' })
+    .where(
+      and(
+        eq(workspace_settings.onboarding_step, 'activate'),
+        sql`${workspace_settings.workspace_id} in (select ${organization.id} from ${organization} where ${organization.billingAccountId} = ${billId})`,
+      ),
+    )
+}
+
+/**
  * Applies a completed Checkout Session to its bill (§3.2 step 4), in the caller's transaction, the bill locked. The
  * one place a bill leaves `pending_payment` (M1). Throws NotFound when the session is not this bill's.
  */
@@ -524,6 +647,10 @@ export async function confirmSession(
       .set({ billingState: workspaceState('trialing') })
       .where(eq(organization.billingAccountId, bill.id))
     await openFirstPeriod(tx, bill, now, sub.trialEnd, 'trial')
+    await activated(tx, bill.id)
+    // The trial's confirmation (the card networks' rule for trials: what was agreed, the first charge and how to
+    // cancel), once: only this transition out of pending_payment queues it.
+    await queueBillingAlert(tx, { kind: 'trial_started', bill: bill.id, ref: sub.trialEnd })
     return { status: 'trialing', heldForReview: false }
   }
 
@@ -555,6 +682,7 @@ export async function confirmSession(
     .where(eq(organization.billingAccountId, bill.id))
   const monthEnd = addMonth(start)
   await openFirstPeriod(tx, bill, start, Date.parse(end) < Date.parse(monthEnd) ? end : monthEnd, 'month')
+  await activated(tx, bill.id)
   return { status: 'active', heldForReview: held }
 }
 
@@ -849,11 +977,23 @@ export const checkoutPreparers: Record<string, Preparer> = {
 }
 
 export const checkoutHandlers: Record<string, Handler> = {
-  'billing.startCheckout': async ({ tx, actor, now, prepared }, input: { partnerId?: string }) => {
+  'billing.startCheckout': async ({ tx, actor, now, prepared }, input: StartInput) => {
     const started = prepared as Started
     const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
     if (bill.id !== started.billId) throw new Reject('the bill changed; try again')
     await storeCustomer(tx, started, now)
+    // The consent to the trial and its automatic charge, recorded before Checkout opens (A9): the terms, and what the
+    // activation step said next to its button.
+    if (started.accepted)
+      await recordAcceptance(tx, {
+        userId: actor.actorId,
+        billId: bill.id,
+        sessionId: actor.sessionId!,
+        terms: started.accepted.terms,
+        disclosure: started.accepted.disclosure,
+        now,
+        source: 'activation',
+      })
     // The URL is a bearer link: in the answer only, never in the command log (the action marks it secret).
     return { rows: {}, data: { url: started.url } }
   },
@@ -981,35 +1121,153 @@ export async function checkoutCompleted(sessionId: string, customerId: string | 
   }
 }
 
+// ---- Trial reminders ---------------------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000
+
 /**
- * `customer.subscription.trial_will_end` (§3.2 step 8, day 11): the owner is emailed once per trial what will be
- * charged on which date, with how to cancel. The subscription is fetched; a canceled or converted one gets nothing.
+ * The reminder due for a trial now: the smallest of the reminder days whose moment (the trial's end less that many
+ * days) has come, never one that fell before the trial started (`startedAt`), and none once the trial ended. Null
+ * when none is due. A run that missed the 7-day reminder and finds the 1-day one due sends only the 1-day one.
  */
-export async function trialWillEnd(subscriptionId: string, customerId: string | null) {
+export function dueReminder(
+  days: readonly number[],
+  trialEnd: string,
+  startedAt: string | null,
+  now: string,
+): number | null {
+  const end = Date.parse(trialEnd)
+  const at = Date.parse(now)
+  if (!(end > at)) return null
+  const started = startedAt ? Date.parse(startedAt) : -Infinity
+  const due = days.filter(d => end - d * DAY_MS <= at && end - d * DAY_MS >= started)
+  return due.length ? Math.min(...due) : null
+}
+
+/** Days after sign-up when a sign-up that has not started its trial gets its one "one step left" email. */
+export const ACTIVATION_NUDGE_DAYS = 3
+
+/**
+ * The "one step left" email (docs/billing.md §3.2 step 2): once per Cloud sign-up still `pending_payment`
+ * ACTIVATION_NUDGE_DAYS after it was made, sent within a day of that (a run missed for longer skips it rather than
+ * nudging late) and never once the sign-up sweep is due. Marked in `billing_alerts` in the transaction that queues it,
+ * so two runs never both send it; the job checks again when it sends (activated, swept, owner or workspace disabled:
+ * nothing). Returns the bills nudged this run. Run hourly by billing.periods.
+ */
+export async function sendActivationNudges(now: string, { billId }: { billId?: string } = {}): Promise<string[]> {
+  const { pendingDays } = await signupRules(db)
+  const at = Date.parse(now)
+  const from = new Date(at - (ACTIVATION_NUDGE_DAYS + 1) * DAY_MS).toISOString()
+  const to = new Date(at - ACTIVATION_NUDGE_DAYS * DAY_MS).toISOString()
+  const sweptBefore = new Date(at - pendingDays * DAY_MS).toISOString()
+  const bills = await db
+    .select({ id: billing_accounts.id })
+    .from(billing_accounts)
+    .where(
+      and(
+        eq(billing_accounts.status, 'pending_payment'),
+        eq(billing_accounts.kind, 'cloud'),
+        sql`${billing_accounts.created_at} > ${from}::timestamptz`,
+        sql`${billing_accounts.created_at} <= ${to}::timestamptz`,
+        sql`${billing_accounts.created_at} > ${sweptBefore}::timestamptz`,
+        billId ? eq(billing_accounts.id, billId) : undefined,
+      ),
+    )
+  const nudged: string[] = []
+  for (const bill of bills) {
+    const sent = await db.transaction(async tx => {
+      const [row] = await tx
+        .insert(billing_alerts)
+        .values({ billing_account_id: bill.id, kind: 'activation_nudge', ref: `day${ACTIVATION_NUDGE_DAYS}` })
+        .onConflictDoNothing()
+        .returning()
+      if (!row) return false
+      await queueBillingAlert(tx, { kind: 'activation_nudge', bill: bill.id, ref: row.ref })
+      return true
+    })
+    if (sent) nudged.push(bill.id)
+  }
+  return nudged
+}
+
+/**
+ * The trial reminders (docs/billing.md §3.2 step 8): every bill in its trial gets an email on each of the install's
+ * reminder days before the trial ends (7 and 1 by default), with the first charge's date and amount and a direct way to
+ * cancel. Hourly (billing-periods.ts) and on Stripe's `customer.subscription.trial_will_end` for that bill
+ * (`billId`). The subscription is fetched first (fetch-before-act): a canceled or converted trial gets nothing, nor a
+ * bill whose trial end differs from Stripe's. Once per trial and day: the `billing_alerts` row (kind `trial_will_end`,
+ * ref `<trial end>/<days>d`) is made in the transaction that queues the email. Answers the bills emailed.
+ */
+export async function sendTrialReminders(
+  now: string,
+  { billId, provider: given }: { billId?: string; provider?: BillingProvider } = {},
+): Promise<string[]> {
+  const rules = await billingRules(db)
+  const days = reminderDaysFor(rules)
+  if (!days.length) return []
+  const bills = await db
+    .select()
+    .from(billing_accounts)
+    .where(
+      and(
+        eq(billing_accounts.status, 'trialing'),
+        isNotNull(billing_accounts.stripe_subscription_id),
+        isNotNull(billing_accounts.trial_ends_at),
+        sql`${billing_accounts.trial_ends_at} > ${now}::timestamptz`,
+        sql`${billing_accounts.trial_ends_at} <= ${new Date(Date.parse(now) + Math.max(...days) * DAY_MS).toISOString()}::timestamptz`,
+        billId ? eq(billing_accounts.id, billId) : undefined,
+      ),
+    )
+  const emailed: string[] = []
+  let provider = given
+  for (const bill of bills) {
+    const due = dueReminder(days, bill.trial_ends_at!, bill.checkout_confirmed_at, now)
+    if (due === null || bill.cancel_at_period_end) continue
+    const ref = `${bill.trial_ends_at}/${due}d`
+    const [already] = await db
+      .select({ ref: billing_alerts.ref })
+      .from(billing_alerts)
+      .where(
+        and(
+          eq(billing_alerts.billing_account_id, bill.id),
+          eq(billing_alerts.kind, 'trial_will_end'),
+          eq(billing_alerts.ref, ref),
+        ),
+      )
+    if (already) continue
+    provider ??= await billingProvider(db)
+    const sub = await provider.subscription(bill.stripe_subscription_id!)
+    if (sub?.status !== 'trialing' || sub.cancelAtPeriodEnd || !sub.trialEnd) continue
+    if (sub.customerId !== bill.stripe_customer_id || Date.parse(sub.trialEnd) !== Date.parse(bill.trial_ends_at!))
+      continue
+    const sent = await db.transaction(async tx => {
+      const [row] = await tx
+        .insert(billing_alerts)
+        .values({ billing_account_id: bill.id, kind: 'trial_will_end', ref })
+        .onConflictDoNothing()
+        .returning()
+      if (!row) return false
+      await queueBillingAlert(tx, { kind: 'trial_will_end', bill: bill.id, ref: sub.trialEnd!, daysBefore: due })
+      return true
+    })
+    if (sent) emailed.push(bill.id)
+  }
+  return emailed
+}
+
+/**
+ * `customer.subscription.trial_will_end` (Stripe's, 3 days before the end by default): no email of its own; the bill's
+ * trial reminders are checked at once, so a reminder due is not left to the next hourly run.
+ */
+export async function trialWillEnd(subscriptionId: string, customerId: string | null, now: string) {
   const bill = await billOfCustomer(customerId)
   if (!bill || bill.stripe_subscription_id !== subscriptionId)
     return { outcome: 'unknown' } satisfies CheckoutEventOutcome
-  const provider = await billingProvider(db)
-  const sub = await provider.subscription(subscriptionId)
-  if (!sub) return { outcome: 'not_found' } satisfies CheckoutEventOutcome
-  if (sub.status !== 'trialing' || sub.cancelAtPeriodEnd || !sub.trialEnd || bill.status !== 'trialing')
-    return { outcome: 'applied', bill: bill.id, detail: 'no_email' } satisfies CheckoutEventOutcome
-  const trialEnd = sub.trialEnd
-  const sent = await db.transaction(async tx => {
-    // Once per trial: the alert row and the email job in one transaction.
-    const [row] = await tx
-      .insert(billing_alerts)
-      .values({ billing_account_id: bill.id, kind: 'trial_will_end', ref: trialEnd })
-      .onConflictDoNothing()
-      .returning()
-    if (!row) return false
-    await queueBillingAlert(tx, { kind: 'trial_will_end', bill: bill.id, ref: trialEnd })
-    return true
-  })
+  const emailed = await sendTrialReminders(now, { billId: bill.id })
   return {
     outcome: 'applied',
     bill: bill.id,
-    detail: sent ? 'emailed' : 'already_emailed',
+    detail: emailed.length ? 'emailed' : 'no_email',
   } satisfies CheckoutEventOutcome
 }
 

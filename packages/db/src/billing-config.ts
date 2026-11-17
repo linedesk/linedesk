@@ -105,6 +105,12 @@ export type BillingRules = {
   partnerYearlyCents: number
   /** The free trial's length in days (Checkout's `trial_period_days`). */
   trialDays: number
+  /**
+   * The days before the trial's end that the owner gets a reminder email with the date and the amount of the first
+   * charge and how to cancel (docs/billing.md §3.2): 7 (the card networks' rule for trials) and 1 (the last chance) by
+   * default. One to three different days, each 1 to 30; a day that falls before the trial started is not sent.
+   */
+  trialReminderDays: number[]
   levels: Record<PaidLevel, LevelPrice>
   /** The included allowance per workspace and period, in Standard seconds. */
   includedStandardSeconds: number
@@ -146,6 +152,7 @@ export const BILLING_DEFAULTS: BillingRules = {
   partnerMonthlyCents: 1900,
   partnerYearlyCents: 16_800,
   trialDays: 14,
+  trialReminderDays: [7, 1],
   levels: LEVEL_PRICES,
   includedStandardSeconds: 3000,
   balanceBufferMicros: BALANCE_BUFFER_MICROS,
@@ -174,7 +181,10 @@ export type SignupRules = {
   signupsPerIpDay: number
   /** Sign-up codes on the whole install in an hour; reaching it refuses more and alerts the instance admins. */
   codesPerInstallHour: number
-  /** A sign-up whose Checkout never completed is deleted after this many days (the daily sign-up sweep). */
+  /**
+   * A sign-up whose Checkout never completed is deleted after this many days (the daily sign-up sweep). Its owner is
+   * reminded once on day ACTIVATION_NUDGE_DAYS (billing-checkout.ts sendActivationNudges).
+   */
   pendingDays: number
   /** Whether the sign-up page needs a Cloudflare Turnstile check; while on and Turnstile is not set up, sign-up is closed. */
   turnstile: boolean
@@ -187,7 +197,34 @@ export type SignupRules = {
   trialNumbersPerWorkspace: number
   /** Radar risk levels of the trial's card check that hold number purchase for review. */
   reviewRiskLevels: string[]
+  /**
+   * Before the trial starts (the workspace is set up first, the card comes at the last step, docs/billing.md §3.2):
+   * the minutes of browser test calls a workspace may use, over all of them, and how many business lookups and
+   * website imports it may run (Google Places and the language model: the install's money). 0 turns either off.
+   */
+  setupTestMinutes: number
+  setupLookups: number
 }
+
+/**
+ * What the activation step showed next to its button and the owner agreed to (`terms_acceptances.disclosure`): the
+ * plan's price before tax and its interval, the trial's length, the first charge's date (null: charged today, no
+ * trial), the days before it that a reminder goes out, and the auto-recharge (null: off).
+ */
+export type ActivationDisclosure = {
+  planCents: number
+  interval: 'month' | 'year'
+  trialDays: number | null
+  firstChargeAt: string | null
+  reminderDays: number[]
+  recharge: { amountCents: number; thresholdCents: number; capCents: number } | null
+}
+
+/**
+ * What the activation step shows (/v1/me while the trial waits): the disclosure the owner agrees to, and what the plan
+ * includes (the included minutes per workspace and period, the Standard price of a minute after them, in micros).
+ */
+export type ActivationFacts = ActivationDisclosure & { includedMinutes: number; standardMicrosPerMinute: number }
 
 /**
  * How long a card's fingerprint (`card_fingerprints`, one free trial per card) is kept after its bill was canceled,
@@ -203,14 +240,23 @@ export const SIGNUP_DEFAULTS: SignupRules = {
   signupsPerIpHour: 3,
   signupsPerIpDay: 10,
   codesPerInstallHour: 200,
-  pendingDays: 7,
+  // Two weeks to set up and start the trial (Janik, 2026-11-17: the setup comes before the card, so it needs time).
+  pendingDays: 14,
   turnstile: true,
   blockedDomains: [],
   trialWorkspacesCloud: 1,
   trialWorkspacesPartner: 2,
   trialNumbersPerWorkspace: 1,
   reviewRiskLevels: ['elevated', 'highest'],
+  setupTestMinutes: 15,
+  setupLookups: 10,
 }
+
+/** The range of the setup allowances (`signup.rules`, read by mergeSignupRules; not in the admin form yet). */
+export const SETUP_RULE_RANGES = {
+  setupTestMinutes: [0, 120],
+  setupLookups: [0, 100],
+} as const satisfies Partial<Record<keyof SignupRules, readonly [number, number]>>
 
 /** The range of each whole-number sign-up rule (`signup.rules`): what the server takes and the admin page checks. */
 export const SIGNUP_RULE_RANGES = {

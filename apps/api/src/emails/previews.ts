@@ -9,6 +9,7 @@ import {
   settingsChangedAlert,
   spendingCapEmail,
 } from './alerts.ts'
+import { billingOwnerEmail } from './billing.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
   addedNoticeEmail,
@@ -47,6 +48,16 @@ import {
 } from './templates.ts'
 
 export type Preview = { name: string; email: RenderedEmail }
+
+/** A monthly trial that ends on Dec 1 with the default first recharge of $25. */
+const trial = {
+  planCents: 1100,
+  interval: 'month' as const,
+  trialEnd: '2026-12-01T17:00:00.000Z',
+  rechargeCents: 2500,
+  workspaceId: 'ws_demo',
+  bufferMicros: 0,
+}
 
 const WORKSPACE_ID = 'ws_demo'
 
@@ -437,6 +448,37 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           timeZone: 'America/Los_Angeles',
           accountDeleted: true,
           removed: true,
+        },
+        origin,
+        locale,
+      ),
+    },
+    // The trial's emails (docs/billing.md §3.2): its confirmation at activation, then the reminders 7 days and 1 day
+    // before the first charge, and the day-3 nudge to a sign-up that has not started it.
+    {
+      name: 'trial-started',
+      email: billingOwnerEmail({ ...trial, kind: 'trial_started', reminderDays: [7, 1] }, origin, locale),
+    },
+    {
+      name: 'trial-reminder-7-days',
+      email: billingOwnerEmail({ ...trial, kind: 'trial_will_end', daysBefore: 7 }, origin, locale),
+    },
+    {
+      name: 'trial-reminder-1-day',
+      email: billingOwnerEmail({ ...trial, kind: 'trial_will_end', daysBefore: 1 }, origin, locale),
+    },
+    // Before the trial: day 3 of a sign-up that has not started it (one step left).
+    {
+      name: 'trial-setup-nudge',
+      email: billingOwnerEmail(
+        {
+          kind: 'activation_nudge',
+          bufferMicros: trial.bufferMicros,
+          workspaceId: trial.workspaceId,
+          workspace: 'Brightwater Plumbing & Heating',
+          assistant: 'Maya',
+          trialDays: 14,
+          deleteOn: '2026-12-01T09:00:00Z',
         },
         origin,
         locale,

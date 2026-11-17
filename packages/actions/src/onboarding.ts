@@ -5,9 +5,31 @@ import { defineAction } from './define.ts'
  * The onboarding screens in order. `done` is the last one: reaching it finishes onboarding.
  * A new step goes in here at its place; the web app follows this list for order, progress and the step count.
  * `notify` is "Who hears about calls?": the owner's mobile for urgent calls and where call summaries go.
+ * `activate` is only for a self-serve sign-up that has not started its trial (`pending_payment`, docs/billing.md
+ * §3.2): everything is set up before, the card is added there, and the number comes after it. Every other workspace
+ * goes from `notify` straight to `phone` (stepsFor).
  */
-export const onboardingSteps = ['business', 'assistant', 'pickup', 'notify', 'phone', 'done'] as const
+export const onboardingSteps = ['business', 'assistant', 'pickup', 'notify', 'activate', 'phone', 'done'] as const
 export type OnboardingStep = (typeof onboardingSteps)[number]
+
+/**
+ * The steps a workspace goes through: while it waits for its trial (`activating`), up to `activate` and no further
+ * (no number before the card); otherwise every step but `activate`.
+ */
+export function onboardingStepsFor(activating: boolean): readonly OnboardingStep[] {
+  const end = onboardingSteps.indexOf('activate')
+  return activating ? onboardingSteps.slice(0, end + 1) : onboardingSteps.filter(s => s !== 'activate')
+}
+
+/**
+ * The step a workspace opens at: the stored one, moved to where it can be. A stored `activate` after the trial started
+ * opens the number; a step past `activate` (or none to resume) while the trial has not started opens `activate`.
+ */
+export function stepFor(stored: OnboardingStep, activating: boolean): OnboardingStep {
+  const steps = onboardingStepsFor(activating)
+  if (steps.includes(stored)) return stored
+  return activating ? 'activate' : 'phone'
+}
 /** What a workspace stores: a step, or `skipped` when the owner left onboarding early. */
 export type OnboardingProgress = OnboardingStep | 'skipped'
 

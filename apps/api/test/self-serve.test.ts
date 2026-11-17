@@ -29,10 +29,12 @@ import {
   signup_attempts,
   terms_acceptances,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, count, eq, gte } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { WEB_ORIGIN } from '../src/auth.ts'
+import { noteAgentSeen } from '../src/admin-overview.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -601,16 +603,65 @@ describe('Turnstile', () => {
 })
 
 describe('while pending_payment', () => {
-  test('no number, no browser test call, no agent setup link', async () => {
+  test('no number and no agent setup link before the trial (docs/billing.md §3.2)', async () => {
     const { who, made } = await signUpThroughPage()
     const workspaceId = made.body.data.workspace.id
     const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
     for (const [name, input] of [
       ['phoneNumber.setup', { areaCode: '503', purchase: true }],
-      ['assistant.startTestCall', {}],
       ['agentSetup.createWorkspaceKey', {}],
     ] as const)
-      expect(await act(inWs, name, input)).toMatchObject({ status: 409, body: { ok: false, error: PENDING_PAYMENT } })
+      expect(await act(inWs, name, input)).toMatchObject({
+        status: 409,
+        body: { ok: false, error: PENDING_PAYMENT },
+      })
+  })
+
+  test('browser test calls run before the trial, within the setup minutes of signup.rules', async () => {
+    vi.stubEnv('LIVEKIT_URL', 'ws://livekit.internal:7880')
+    vi.stubEnv('LIVEKIT_API_KEY', 'test-key')
+    vi.stubEnv('LIVEKIT_API_SECRET', 'test-secret-test-secret-test-secret')
+    vi.stubEnv('OPENAI_REALTIME_API_KEY', 'sk-test-realtime')
+    noteAgentSeen()
+    const { who, made } = await signUpThroughPage()
+    const workspaceId = made.body.data.workspace.id
+    const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
+    const first = await act(inWs, 'assistant.startTestCall', {})
+    expect(first.status, JSON.stringify(first.body)).toBe(200)
+    // The setup minutes used up (a running call counts up to now): no further test call until the trial starts.
+    await rules({ turnstile: false, setupTestMinutes: 0 })
+    expect(await act(inWs, 'assistant.startTestCall', {})).toMatchObject({
+      status: 409,
+      body: {
+        ok: false,
+        error: expect.stringContaining('test-call minutes for setting up'),
+      },
+    })
+  })
+
+  test('business lookups run before the trial, at most setupLookups of them per workspace', async () => {
+    await rules({ turnstile: false, setupLookups: 2 })
+    const { who, made } = await signUpThroughPage()
+    const workspaceId = made.body.data.workspace.id
+    const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
+    const search = () => act(inWs, 'business.search', { query: 'Brightwater Plumbing, Portland' })
+    expect((await search()).status).toBe(200)
+    expect((await search()).status).toBe(200)
+    expect(await search()).toMatchObject({
+      status: 409,
+      body: {
+        ok: false,
+        error: expect.stringContaining('business lookups for setting up'),
+      },
+    })
+    // A workspace that is not waiting for its trial counts nothing.
+    const other = await createWorkspace('Not on a bill')
+    expect((await act(other.owner, 'business.search', { query: 'Brightwater' })).status).toBe(200)
+    const markers = await db
+      .select({ n: count() })
+      .from(commands)
+      .where(and(eq(commands.workspace_id, other.id), eq(commands.action, 'setup.lookup')))
+    expect(markers[0]!.n).toBe(0)
   })
 
   test('no invitation emails and nothing else that reaches outside (security review F1)', async () => {
@@ -619,8 +670,14 @@ describe('while pending_payment', () => {
     const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
     const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
     try {
-      const invite = await act(inWs, 'team.invite', { email: address('victim', 'example.com'), role: 'member' })
-      expect(invite).toMatchObject({ status: 409, body: { ok: false, error: PENDING_PAYMENT } })
+      const invite = await act(inWs, 'team.invite', {
+        email: address('victim', 'example.com'),
+        role: 'member',
+      })
+      expect(invite).toMatchObject({
+        status: 409,
+        body: { ok: false, error: PENDING_PAYMENT },
+      })
       expect(send).not.toHaveBeenCalled()
     } finally {
       send.mockRestore()
@@ -632,9 +689,6 @@ describe('while pending_payment', () => {
       'webhook.test',
       'integration.subscribe',
       'voice.clone',
-      'business.search',
-      'business.import',
-      'knowledge.import',
       'phoneNumber.lookupLine',
     ])
       expect(await act(inWs, name, {}), name).toMatchObject({
@@ -642,16 +696,49 @@ describe('while pending_payment', () => {
         body: { ok: false, error: PENDING_PAYMENT },
       })
   })
+
+  test('the onboarding opens at its last step (activate) and cannot go past it before the trial', async () => {
+    const { who, made } = await signUpThroughPage()
+    const workspaceId = made.body.data.workspace.id
+    const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
+    for (const step of ['phone', 'done', 'skipped'])
+      expect(await act(inWs, 'onboarding.setStep', { step })).toMatchObject({
+        status: 409,
+        body: { ok: false, error: PENDING_PAYMENT },
+      })
+    expect((await act(inWs, 'onboarding.setStep', { step: 'notify' })).status).toBe(200)
+    const me = await request(inWs, 'GET', '/v1/me')
+    expect(me.body.onboarding.step).toBe('notify')
+    // What the activation step shows: the plan, the trial, the first charge, the reminders and the terms.
+    expect(me.body.workspace.activation).toMatchObject({
+      trialDays: 14,
+      reminderDays: [7, 1],
+      includedMinutes: 50,
+      standardMicrosPerMinute: 50_000,
+      terms: {
+        termsVersion: TERMS.TERMS_VERSION,
+        privacyVersion: TERMS.PRIVACY_VERSION,
+      },
+    })
+    const firstCharge = Date.parse(me.body.workspace.activation.firstChargeAt)
+    expect(Math.abs(firstCharge - (Date.now() + 14 * DAY))).toBeLessThan(60_000)
+    // A step past `activate` stored earlier (or none) opens `activate`.
+    await db
+      .update(workspace_settings)
+      .set({ onboarding_step: 'phone' })
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    expect((await request(inWs, 'GET', '/v1/me')).body.onboarding.step).toBe('activate')
+  })
 })
 
 describe('the daily sign-up sweep', () => {
-  test('a partner sign-up without Checkout goes after 7 days: the partner, its bill and the account', async () => {
+  test('a partner sign-up without Checkout goes after 14 days: the partner, its bill and the account', async () => {
     const { email, made } = await signUpThroughPage(address('partner'), { ...DETAILS, plan: 'partner' })
     const { billId, partner } = made.body.data
     const account = await accountOf(email)
     await db
       .update(billing_accounts)
-      .set({ created_at: new Date(Date.now() - 8 * DAY).toISOString() })
+      .set({ created_at: new Date(Date.now() - 15 * DAY).toISOString() })
       .where(eq(billing_accounts.id, billId))
     expect((await sweepSignUps(db)).bills).toBeGreaterThanOrEqual(1)
     expect(await db.select().from(partners).where(eq(partners.id, partner.id))).toEqual([])
@@ -662,20 +749,20 @@ describe('the daily sign-up sweep', () => {
     )
   })
 
-  test('deletes a sign-up without Checkout after 7 days: its workspace, bill and account', async () => {
+  test('deletes a sign-up without Checkout after 14 days: its workspace, bill and account', async () => {
     const { email, made } = await signUpThroughPage()
     const { billId, workspace } = made.body.data
     const account = await accountOf(email)
-    // Not yet: 6 days old.
+    // Not yet: 13 days old.
     await db
       .update(billing_accounts)
-      .set({ created_at: new Date(Date.now() - 6 * DAY).toISOString() })
+      .set({ created_at: new Date(Date.now() - 13 * DAY).toISOString() })
       .where(eq(billing_accounts.id, billId))
     await sweepSignUps(db)
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId))).toHaveLength(1)
     await db
       .update(billing_accounts)
-      .set({ created_at: new Date(Date.now() - 8 * DAY).toISOString() })
+      .set({ created_at: new Date(Date.now() - 15 * DAY).toISOString() })
       .where(eq(billing_accounts.id, billId))
     await db.insert(billing_balances).values({ billing_account_id: billId })
     const swept = await sweepSignUps(db)
@@ -749,7 +836,7 @@ describe('the daily sign-up sweep', () => {
     await enterCode(email, code!)
     const account = await accountOf(email)
     const kept = await signUp()
-    const old = Date.now() - 8 * DAY
+    const old = Date.now() - 15 * DAY
     await db
       .update(user)
       .set({ createdAt: new Date(old) })

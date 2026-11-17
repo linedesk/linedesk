@@ -296,6 +296,14 @@ export async function sendSetupEmailFor(
   now: string,
 ): Promise<SetupEmailResult | null> {
   if (sender.kind !== 'smtp') return null
+  // A Cloud sign-up that has not started its trial gets the one "one step left" email instead (billing-checkout.ts
+  // sendActivationNudges): the steps these emails point to (the number, forwarding) open only after the card. Not
+  // claimed, so what is due once the trial has started still goes out.
+  const [ws] = await tx
+    .select({ billingState: organization.billingState })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
+  if (ws?.billingState === 'pending_payment') return null
   const milestones = await milestonesOf(tx, workspaceId)
   const signedUpAt = milestones.get('signup')
   if (!signedUpAt) return null

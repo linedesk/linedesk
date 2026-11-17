@@ -1,7 +1,9 @@
-import { forwardingGuideById, resumeStep } from '@linedesk/actions'
+import { forwardingGuideById, resumeStep, stepFor } from '@linedesk/actions'
 import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
 import { describe, expect, it, test } from 'vitest'
 import {
+  activationSteps,
+  activationTimeline,
   EMERGENCY_NOTE,
   ALSO_PERSON,
   areaCodeIn,
@@ -31,6 +33,7 @@ import {
   mobileErrorText,
   NO_PICKUP_MEMORY,
   nextStep,
+  onboardingSteps,
   offersBuying,
   oldForwardingAfter,
   phoneOptionSetup,
@@ -611,4 +614,38 @@ test('on a bill, the price line says the first number is included and what each 
   // Off billing, a comped bill or the workspace's own carrier (null), and development mode: the carrier's line.
   expect(billedNumberNote(null, 'telnyx', 1)).toBeNull()
   expect(billedNumberNote(300, 'dev', 1)).toBeNull()
+})
+
+describe('the activation step (docs/billing.md §3.2)', () => {
+  test('before the trial the steps end at activate; once it runs, activate is gone and the number follows', () => {
+    expect(activationSteps).toEqual(['business', 'assistant', 'pickup', 'notify', 'activate'])
+    expect(onboardingSteps).toEqual(['business', 'assistant', 'pickup', 'notify', 'phone', 'done'])
+    expect(nextStep('notify', activationSteps)).toBe('activate')
+    expect(nextStep('notify', onboardingSteps)).toBe('phone')
+    expect(stepFor('phone', true)).toBe('activate')
+    expect(stepFor('notify', true)).toBe('notify')
+    expect(stepFor('activate', false)).toBe('phone')
+  })
+
+  test('the timeline: today the trial, a reminder 7 days and 1 day before, the first charge on day 14', () => {
+    const now = new Date('2026-11-17T12:00:00Z')
+    const firstChargeAt = '2026-12-01T12:00:00.000Z'
+    expect(activationTimeline({ trialDays: 14, firstChargeAt, reminderDays: [1, 7] }, now)).toEqual([
+      { kind: 'start', day: 0, at: now },
+      { kind: 'reminder', day: 7, at: new Date('2026-11-24T12:00:00Z') },
+      { kind: 'reminder', day: 13, at: new Date('2026-11-30T12:00:00Z') },
+      { kind: 'charge', day: 14, at: new Date(firstChargeAt) },
+    ])
+    // A reminder day the trial is too short for is left out.
+    expect(activationTimeline({ trialDays: 5, firstChargeAt, reminderDays: [7, 1] }, now).map(e => e.day)).toEqual([
+      0, 4, 5,
+    ])
+  })
+
+  test('without a trial (one refused before): the charge today, nothing else', () => {
+    const now = new Date('2026-11-17T12:00:00Z')
+    expect(activationTimeline({ trialDays: null, firstChargeAt: null, reminderDays: [] }, now)).toEqual([
+      { kind: 'charge', day: 0, at: now },
+    ])
+  })
 })

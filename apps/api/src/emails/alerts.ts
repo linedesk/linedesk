@@ -363,6 +363,8 @@ const SIGNUP_RULE_LABELS: Record<SignupRuleChange['field'], MessageKey> = {
   trialWorkspacesPartner: msg('email.adminAlert.signupRules.field.trialWorkspacesPartner'),
   trialNumbersPerWorkspace: msg('email.adminAlert.signupRules.field.trialNumbersPerWorkspace'),
   reviewRiskLevels: msg('email.adminAlert.signupRules.field.reviewRiskLevels'),
+  setupTestMinutes: msg('email.adminAlert.signupRules.field.setupTestMinutes'),
+  setupLookups: msg('email.adminAlert.signupRules.field.setupLookups'),
 }
 
 /** The nightly billing check found ledger guards missing or sums that do not add up (ledger.ts `checkLedger`). */

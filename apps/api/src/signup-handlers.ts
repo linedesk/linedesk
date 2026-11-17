@@ -26,7 +26,9 @@ import { billingProvider } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
-import { type LegalTerms, legalTerms } from './legal-terms.ts'
+import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
+
+export { TERMS_CHANGED }
 import { queueBillingAlert } from './jobs.ts'
 import { addToWorkspace } from './memberships.ts'
 import { refusePartner } from './partner-refusals.ts'
@@ -99,36 +101,6 @@ async function waitingSignUp(tx: Tx, userId: string): Promise<Omit<AccountSignUp
   }
 }
 
-/** The rejection code when the terms changed while the sign-up page was open: the page loads them again. */
-export const TERMS_CHANGED = 'terms_changed'
-
-/**
- * Records that this person accepted these terms and this privacy policy now (A9), with the IP address and browser of
- * the session that accepted (Better Auth keeps them on the session; null when it has none).
- */
-async function recordAcceptance(
-  tx: Tx,
-  o: { userId: string; billId: string; sessionId: string; terms: LegalTerms; now: string },
-) {
-  const [from] = await tx
-    .select({ ip: session.ipAddress, userAgent: session.userAgent })
-    .from(session)
-    .where(eq(session.id, o.sessionId))
-  await tx.insert(terms_acceptances).values({
-    id: crypto.randomUUID(),
-    user_id: o.userId,
-    billing_account_id: o.billId,
-    source: 'signup',
-    terms_url: o.terms.termsUrl,
-    terms_version: o.terms.termsVersion,
-    privacy_url: o.terms.privacyUrl,
-    privacy_version: o.terms.privacyVersion,
-    ip_address: from?.ip || null,
-    user_agent: from?.userAgent ? from.userAgent.slice(0, 512) : null,
-    accepted_at: o.now,
-  })
-}
-
 const signUp: Handler = async (ctx, input: SignUpInput) => {
   const { tx, actor, now } = ctx
   refuseSignUpActor(actor)
@@ -173,7 +145,7 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     .where(eq(organization.id, org.id))
   if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
   await addToWorkspace(tx, me, org, 'owner', now)
-  await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now })
+  await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now, source: 'signup' })
   await tx.update(session).set({ activeOrganizationId: org.id }).where(eq(session.id, actor.sessionId!))
   const data: AccountSignUpData = { billId, workspace: { id: org.id, name: org.name }, partner: null, existing: false }
   // The audit log files the entry under the new workspace, with its owner.
@@ -217,7 +189,7 @@ async function partnerSignUp(
     updated_at: now,
   })
   await tx.insert(partner_members).values({ partner_id: partnerId, user_id: me.id, role: 'owner', created_at: now })
-  await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now })
+  await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now, source: 'signup' })
   if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
   const data: AccountSignUpData = {
     billId,

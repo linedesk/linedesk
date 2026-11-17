@@ -255,3 +255,98 @@
   font-size: 13.5px;
   color: var(--ink-muted);
 }
+
+/* The activation step (ActivateStep.tsx): the plan, the trial's timeline, the reminder promise and the fine print. */
+.ob-activate-plan {
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.ob-activate-plan b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ob-activate-plan span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.ob-timeline li {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 0 0 14px;
+}
+.ob-timeline li:last-child {
+  padding-bottom: 0;
+}
+/* The line between the dots. */
+.ob-timeline li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.ob-timeline-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  border: 2px solid var(--line-control);
+  box-sizing: border-box;
+}
+.ob-timeline-start .ob-timeline-dot,
+.ob-timeline-charge .ob-timeline-dot {
+  background: var(--action);
+  border-color: var(--action);
+}
+.ob-timeline li > div {
+  display: grid;
+  line-height: 18px;
+}
+.ob-timeline-when {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.ob-timeline b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ob-timeline li > div > span:last-child {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ob-activate-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--info-soft);
+  color: var(--info);
+  font-size: 13px;
+  line-height: 18px;
+}
+.ob-activate-note .k-icon {
+  margin-top: 2px;
+}
+.ob-activate-fine {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}

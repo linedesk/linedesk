@@ -85,6 +85,12 @@ describe("a workspace owner's setup: the agent first, by hand as the alternative
     expect(due({ workspace: { id: 'ws_1', name: 'B', disabled: true } } as never)).toBe(false)
   })
 
+  it('never while the workspace waits for its trial: the setup goes by hand up to the card', () => {
+    const pending = { workspace: { id: 'ws_1', name: 'B', billingState: 'pending_payment' } } as never
+    expect(due(pending)).toBe(false)
+    expect(due(pending, { hashOpen: true })).toBe(false)
+  })
+
   it('remembers by hand per workspace in this browser, and forgets it again', () => {
     expect(ownerChoseByHand('ws_1', false)).toBe(false)
     expect(ownerChoseByHand('ws_1', true)).toBe(true)

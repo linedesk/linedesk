@@ -58,7 +58,7 @@ export function StepByStep({ target, me, onRenamed }: Props) {
   const open = (to: OnboardingStep) => {
     if (steps.includes(to)) setStep(to)
   }
-  if (unknown || step === 'done') return null
+  if (unknown || step === 'done' || step === 'activate') return null
   return (
     <Frame step={step} complete steps={steps} edit onSkip={close}>
       <SaveErrors saves={saves} step={step} steps={steps} onOpen={open} />

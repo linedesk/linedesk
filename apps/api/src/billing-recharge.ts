@@ -7,6 +7,7 @@
 // then the recharge row), and only onto an attempt that is still pending, so a webhook that settled it meanwhile wins.
 import type { BillingProvider, BillingSetupError, RechargeCharge } from '@linedesk/billing'
 import {
+  assistants,
   billing_accounts,
   billing_alerts,
   billing_balances,
@@ -21,9 +22,9 @@ import {
   type Tx,
   user,
 } from '@linedesk/db'
-import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
-import { billingRules, invoiceTax, rechargeLine, topUpLine } from './billing-rules.ts'
+import { billingRules, invoiceTax, rechargeLine, reminderDaysFor, topUpLine } from './billing-rules.ts'
 import { brandName } from './branding.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { EmailSender } from './email.ts'
@@ -34,6 +35,7 @@ import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
 import { extraNumbersOnBill, lockBalance } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { signupRules } from './self-serve.ts'
 
 type RechargeTax = (typeof RECHARGE_TAX)[number]
 
@@ -374,8 +376,14 @@ export type BillingAlertJob =
       customer?: string
       session?: string | null
     }
-  /** The trial ends in three days (`ref`: the trial's end, docs/billing.md §3.2 step 8). */
-  | { kind: 'trial_will_end'; bill: string; ref: string }
+  /**
+   * A trial reminder (`ref`: the trial's end; `daysBefore`: how many days before it, docs/billing.md §3.2 step 8), and
+   * the trial's confirmation when it starts (`ref`: the trial's end).
+   */
+  | { kind: 'trial_will_end'; bill: string; ref: string; daysBefore: number }
+  | { kind: 'trial_started'; bill: string; ref: string }
+  /** "One step left" to a sign-up that has not started its trial (billing-checkout.ts sendActivationNudges). */
+  | { kind: 'activation_nudge'; bill: string; ref: string }
 
 /**
  * Sends one billing email. The facts are read when it is sent (the cap, the balance, the amount); an owner without an
@@ -420,6 +428,7 @@ export async function sendBillingAlert(
     .leftJoin(user, eq(user.id, billing_accounts.owner_user_id))
     .where(eq(billing_accounts.id, job.bill))
   if (!bill?.email) return { sent: 'nobody' as const }
+  if (job.kind === 'activation_nudge') return sendActivationNudge(db, sender, bill.bill, bill.email)
   const rules = await billingRules(db)
   const base = { bufferMicros: rules.balanceBufferMicros }
   let content: Parameters<typeof billingOwnerEmail>[0]
@@ -441,25 +450,78 @@ export async function sendBillingAlert(
       rechargedCents: await rechargedInMonth(db, job.bill, job.ref),
       minimumCents: RECHARGE_LIMITS.amountCents.min,
     }
-  } else if (job.kind === 'trial_will_end') {
-    // The plan's charge at the end of the trial: a seat per workspace at the bill's interval (before tax).
+  } else if (job.kind === 'trial_will_end' || job.kind === 'trial_started') {
+    // The plan's charge at the end of the trial: what the subscription charges, else a seat per workspace at the
+    // bill's interval (before tax).
     const workspaces = await workspacesOf(db, job.bill)
     const price = planPrice(bill.bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly', rules)!
     const charged = await subscriptionCents(db, bill.bill.stripe_subscription_id, options.provider)
-    content = {
+    const trial = {
       ...base,
-      kind: 'trial_will_end',
       planCents: charged ?? price.cents * Math.max(1, workspaces),
+      interval: bill.bill.interval,
       trialEnd: job.ref,
       rechargeCents: bill.bill.auto_recharge ? bill.bill.recharge_amount_cents : null,
       workspaceId: await oldestWorkspace(db, job.bill),
     }
+    content =
+      job.kind === 'trial_will_end'
+        ? { ...trial, kind: 'trial_will_end', daysBefore: job.daysBefore }
+        : { ...trial, kind: 'trial_started', reminderDays: reminderDaysFor(rules) }
   } else {
     // What calls can still use (the balance less what running calls hold): the figure the alert fired on (N3).
     content = { ...base, kind: 'low_balance', balanceMicros: (bill.balance ?? 0) - (bill.reserved ?? 0) }
   }
   const locale = await localeForEmail(db, bill.email)
   await sender.send({ to: bill.email, ...billingOwnerEmail(content, undefined, locale) })
+  return { sent: 'owner' as const }
+}
+
+/**
+ * The "one step left" email, read when it is sent: nothing for a sign-up that started its trial meanwhile (or was
+ * swept), whose owner is disabled, or whose workspace is gone or disabled.
+ */
+async function sendActivationNudge(
+  db: Db,
+  sender: EmailSender,
+  bill: typeof billing_accounts.$inferSelect,
+  email: string,
+) {
+  if (bill.status !== 'pending_payment' || bill.kind !== 'cloud') return { sent: 'nobody' as const }
+  const [owner] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(eq(user.id, bill.owner_user_id), isNull(user.disabledAt)))
+  const [workspace] = await db
+    .select({ id: organization.id, name: organization.name })
+    .from(organization)
+    .where(and(eq(organization.billingAccountId, bill.id), isNull(organization.disabledAt)))
+    .orderBy(asc(organization.createdAt))
+    .limit(1)
+  if (!owner || !workspace) return { sent: 'nobody' as const }
+  const [assistant] = await db
+    .select({ name: assistants.name })
+    .from(assistants)
+    .where(eq(assistants.workspace_id, workspace.id))
+    .orderBy(asc(assistants.created_at))
+    .limit(1)
+  const rules = await billingRules(db)
+  const { pendingDays } = await signupRules(db)
+  const locale = await localeForEmail(db, email)
+  const content = billingOwnerEmail(
+    {
+      kind: 'activation_nudge',
+      bufferMicros: rules.balanceBufferMicros,
+      workspaceId: workspace.id,
+      workspace: workspace.name,
+      assistant: assistant?.name ?? null,
+      trialDays: bill.trial_refused ? null : rules.trialDays,
+      deleteOn: new Date(Date.parse(bill.created_at) + pendingDays * 86_400_000).toISOString(),
+    },
+    undefined,
+    locale,
+  )
+  await sender.send({ to: email, ...content })
   return { sent: 'owner' as const }
 }
 

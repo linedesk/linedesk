@@ -33,6 +33,7 @@ import {
   billing_balances,
   billing_invoices,
   billing_recharges,
+  type ActivationFacts,
   type BillingRules,
   EXTRA_CALLS_STEP,
   ledger_entries,
@@ -50,7 +51,7 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
-import { BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
+import { activationFacts, BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -69,6 +70,7 @@ import {
 } from './extra-calls.ts'
 import { Forbidden, type Handler, type HandlerCtx, type Preparer, Reject } from './handler-context.ts'
 import { decideRecharge, periodAt } from './ledger.ts'
+import { type LegalTerms, legalTerms } from './legal-terms.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { refuseBillingActor } from './usage-levels.ts'
@@ -465,10 +467,21 @@ export type WorkspaceBillFacts = {
    * so the plan and the extra number's price are null, and the app says no price instead of the carrier's.
    */
   partnerManaged: boolean
+  /**
+   * While `pending_payment`, for the bill's owner: what the onboarding's last step (`activate`) shows next to its
+   * button (the price, the trial, the first charge's date, the reminders, the auto-recharge); else null.
+   */
+  activation: (ActivationFacts & { terms: LegalTerms | null }) | null
 }
 
-export async function workspaceBillFacts(workspaceId: string): Promise<WorkspaceBillFacts> {
-  const none: WorkspaceBillFacts = { trialDays: null, plan: null, extraNumberCents: null, partnerManaged: false }
+export async function workspaceBillFacts(workspaceId: string, actorId?: string): Promise<WorkspaceBillFacts> {
+  const none: WorkspaceBillFacts = {
+    trialDays: null,
+    plan: null,
+    extraNumberCents: null,
+    partnerManaged: false,
+    activation: null,
+  }
   return db.transaction(async tx => {
     // A white-label client: its partner bills it, so the workspace shows none of our prices, billing in effect or not.
     const [client] = await tx
@@ -477,16 +490,13 @@ export async function workspaceBillFacts(workspaceId: string): Promise<Workspace
       .where(eq(organization.id, workspaceId))
     if (client?.partnerId) return { ...none, partnerManaged: true }
     if ((await billingState(tx)).inEffect !== 'stripe') return none
-    const [found] = await tx
-      .select({
-        status: billing_accounts.status,
-        interval: billing_accounts.interval,
-        kind: billing_accounts.kind,
-      })
+    const [row] = await tx
+      .select({ bill: billing_accounts })
       .from(organization)
       .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
       .where(eq(organization.id, workspaceId))
-    if (!found) return none
+    if (!row) return none
+    const found = row.bill
     const rules = await billingRules(tx)
     const pending = found.status === 'pending_payment'
     const price = pending
@@ -497,6 +507,14 @@ export async function workspaceBillFacts(workspaceId: string): Promise<Workspace
       plan: price ? { interval: found.interval, cents: price.cents } : null,
       extraNumberCents: found.status === 'comped' ? null : rules.extraNumberCents,
       partnerManaged: false,
+      // Only the bill's owner starts the trial, so only they are told what it charges.
+      activation:
+        pending && actorId === found.owner_user_id
+          ? {
+              ...(await activationFacts(tx as Tx, found, rules, new Date().toISOString())),
+              terms: legalTerms().terms,
+            }
+          : null,
     }
   })
 }

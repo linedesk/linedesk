@@ -10,6 +10,7 @@
 //   is unpaid (inbound calls get the fixed line, the owner is emailed) until a later run can post it, and is released
 //   after 30 days unpaid. So number months never take the balance below the buffer, and no number runs for free.
 // - The yearly renewal reminder (California's automatic renewal law): once per renewal, 15 to 45 days before it.
+// - The trial reminders: on each of the install's reminder days before a trial ends (billing-checkout.ts).
 //
 // Runs only while billing is in effect. Every write is under the bill's lock order (ledger.ts); every email is a job
 // queued in the transaction that made its `billing_alerts` row, so it goes once and only after the commit.
@@ -688,6 +689,10 @@ export type PeriodsRun = {
   numbers: Record<string, NumberMonth['kind']>
   released: string[]
   reminded: string[]
+  /** Bills whose trial reminder went out this run (billing-checkout.ts sendTrialReminders). */
+  trialReminded: string[]
+  /** Sign-ups that got their "one step left" email this run (billing-checkout.ts sendActivationNudges). */
+  activationNudged: string[]
   failed: string[]
 }
 
@@ -706,6 +711,8 @@ export async function runBillingPeriods(
     numbers: {},
     released: [],
     reminded: [],
+    trialReminded: [],
+    activationNudged: [],
     failed: [],
   }
   if ((await billingState(db)).inEffect === 'none') return { ...run, billing: 'off' }
@@ -740,6 +747,15 @@ export async function runBillingPeriods(
   const provider = options.provider ?? (await billingProvider(db))
   await step('renewal reminders', async () => {
     run.reminded = await sendRenewalReminders(provider, now)
+  })
+  await step('trial reminders', async () => {
+    // Loaded when it runs, like the webhook jobs do: billing-checkout.ts pulls in more than this job needs at start.
+    const { sendTrialReminders } = await import('./billing-checkout.ts')
+    run.trialReminded = await sendTrialReminders(now, { provider })
+  })
+  await step('activation nudges', async () => {
+    const { sendActivationNudges } = await import('./billing-checkout.ts')
+    run.activationNudged = await sendActivationNudges(now)
   })
   if (run.failed.length)
     await alertInstanceAdmins(billingPeriodsFailedAlert(run.failed)).catch(e =>

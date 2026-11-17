@@ -32,7 +32,6 @@ import { AddPasskeyPage } from './AddPasskey.tsx'
 import { ConnectAgent, isConnectAgentHash } from './integrations/ConnectAgent.tsx'
 import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
-import { PendingPayment } from './PendingPayment.tsx'
 import { CheckoutReturn } from './CheckoutReturn.tsx'
 import { isCheckoutReturnPath, readCheckoutPartner } from './checkout.ts'
 import { isSignupPath } from './signup.ts'
@@ -388,8 +387,9 @@ export function App() {
       )
       // replaceState fires no hashchange: the partner area follows the hash, so it is told.
       if (partner) window.dispatchEvent(new HashChangeEvent('hashchange'))
-      setCheckoutReturn(false)
+      // The workspace as it is now first (the trial started): never a moment of the app as it was before Checkout.
       await refresh()
+      setCheckoutReturn(false)
     }
     return <CheckoutReturn onDone={leaveReturn} />
   }
@@ -405,8 +405,6 @@ export function App() {
       </ImpersonationFrame>
     )
   }
-  // A sign-up waiting for Checkout (docs/billing.md §3.2): nothing else opens until the trial is set up.
-  if (pendingPayment) return <PendingPayment me={session.me} onDone={refresh} />
   // An instance admin by account, also before this session passed the passkey check: the setup pages are part of
   // Server admin, so they open on the passkey check (SecondFactorPrompt) until it is done.
   const instanceAdmin = isInstanceAdmin(session.me) && !session.me.impersonation
@@ -522,10 +520,13 @@ export function App() {
           ) : /* An instance admin can open Admin in the middle of onboarding (the business step links to Providers). */
           session.me.onboarding && !onboarded && !(adminHash && isInstanceAdmin(session.me)) ? (
             <Onboarding
+              // Starting the trial changes the steps (activate, then the number): the flow starts again from the server's.
+              key={session.me.workspace?.billingState ?? 'off'}
               me={session.me}
               state={session.me.onboarding}
               onDone={() => setOnboarded(true)}
               onRenamed={renamed}
+              onReload={() => void refresh()}
             />
           ) : (
             <Workspace

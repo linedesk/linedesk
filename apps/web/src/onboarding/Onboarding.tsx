@@ -5,6 +5,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from '../admin/AdminMode.tsx'
+import { ActivateStep } from './ActivateStep.tsx'
 import type { Me, OnboardingState, PhoneSetupStatus, WebsiteImport } from '../auth.ts'
 import { brandName, useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
@@ -19,6 +20,7 @@ import { AssistantStep } from './AssistantStep.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import {
+  activationSteps,
   doneState,
   mobileErrorText,
   NO_PICKUP_MEMORY,
@@ -44,6 +46,8 @@ type Props = {
   onDone: () => void
   /** The business step renamed the workspace. */
   onRenamed: (name: string) => void
+  /** Reads `me` again (the activation step: the terms changed while it was open). */
+  onReload?: () => void
 }
 
 /** An instance admin can open Admin from here (the setup checklist) and come back to the same step. */
@@ -61,7 +65,7 @@ export function Onboarding(props: Props) {
   return <OnboardingFlow {...props} />
 }
 
-function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
+function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
   const t = useT()
   const run = useRun()
   const firstUse = me.firstUse ?? 'off'
@@ -87,19 +91,22 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
   // What the pick-up step changed this session (hours it turned on, the forwarding a number had before).
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const hasNumber = useRows('phone_numbers').length > 0
+  // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it.
+  const activating = me.workspace?.billingState === 'pending_payment'
+  const steps = activating ? activationSteps : onboardingSteps
 
   function go(to: OnboardingStep) {
     setStep(to)
     void run('onboarding.setStep', { step: to })
   }
   const back = () => {
-    const to = previousStep(step)
+    const to = previousStep(step, steps)
     if (to) go(to)
   }
   // Continue saves the step again: its old refusal goes.
   const forward = () => {
     saves.leaving(step)
-    go(nextStep(step))
+    go(nextStep(step, steps))
   }
   function skip() {
     void run('onboarding.setStep', { step: 'skipped' })
@@ -109,15 +116,18 @@ function OnboardingFlow({ me, state, onDone, onRenamed }: Props) {
   return (
     <Frame
       step={step}
+      steps={steps}
       complete={step === 'done' || (step === 'phone' && hasNumber)}
-      onSkip={step === 'done' ? undefined : skip}
+      // Nothing to finish later before the trial: the app opens only once it runs.
+      onSkip={step === 'done' || activating ? undefined : skip}
     >
-      <SaveErrors saves={saves} step={step} onOpen={go} />
+      <SaveErrors saves={saves} step={step} steps={steps} onOpen={go} />
       {me.emailUnconfirmed && !confirmed && (
         <ConfirmEmail onDone={() => setConfirmed(true)} why={t('onboarding.main.confirmWhy')} />
       )}
       {isInstanceAdmin(me) && <InstanceSetupNotice />}
-      {step !== 'done' && (
+      {step === 'activate' && <ActivateStep me={me} onBack={back} onTermsChanged={() => onReload?.()} />}
+      {step !== 'done' && step !== 'activate' && (
         <StepScreen
           step={step}
           me={me}
@@ -187,7 +197,7 @@ export function useStepSaves() {
 type StepSaves = ReturnType<typeof useStepSaves>
 
 type StepScreenProps = {
-  step: Exclude<OnboardingStep, 'done'>
+  step: Exclude<OnboardingStep, 'done' | 'activate'>
   me: Me
   emailConfirmed: boolean
   phone: PhoneSetupStatus
@@ -266,6 +276,7 @@ const SAVE_ERRORS: Record<OnboardingStep, MessageKey> = {
   assistant: msg('onboarding.main.saveError.assistant'),
   pickup: msg('onboarding.main.saveError.pickup'),
   notify: msg('onboarding.main.saveError.notify'),
+  activate: msg('onboarding.main.saveError.activate'),
   phone: msg('onboarding.main.saveError.phone'),
   done: msg('onboarding.main.saveError.done'),
 }

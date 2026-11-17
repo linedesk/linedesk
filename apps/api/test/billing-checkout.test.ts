@@ -24,6 +24,7 @@ import {
   phone_numbers,
   session,
   stripe_events,
+  terms_acceptances,
   usage_counters,
   user,
 } from '@linedesk/db'
@@ -39,6 +40,8 @@ import {
   NUMBER_NEEDS_CHECKOUT,
   plainName,
   resetCheckoutLimit,
+  sendActivationNudges,
+  sendTrialReminders,
   TRIAL_NUMBER_LIMIT,
 } from '../src/billing-checkout.ts'
 import { sendBillingAlert } from '../src/billing-recharge.ts'
@@ -395,7 +398,7 @@ const checkoutsMade = () => stripe.requests.filter(r => r.method === 'POST' && r
 
 /** Starts Checkout as the owner; answers the session made at the fake Stripe. */
 async function startCheckout(owner: Caller) {
-  const res = await act(owner, 'billing.startCheckout', {})
+  const res = await act(owner, 'billing.startCheckout', ACCEPTED)
   expect(res.status).toBe(200)
   expect(res.body.data.url).toBe('https://checkout.stripe.test/c/pay')
   return checkoutsMade().at(-1)!
@@ -438,8 +441,19 @@ beforeAll(async () => {
   expect(keys.status).toBe(200)
   expect((await act(operator, 'billingEnabled.set', { on: true })).status).toBe(200)
 })
+/** The install's terms (A9): a business's owner accepts them at the activation step, which starts Checkout. */
+const TERMS = {
+  TERMS_URL: 'https://desk.example.com/terms',
+  TERMS_VERSION: '2026-11-17',
+  PRIVACY_URL: 'https://desk.example.com/privacy',
+  PRIVACY_VERSION: '2026-11-10',
+}
+/** What the activation step sends with "Start free trial": the versions it showed. */
+const ACCEPTED = { acceptedTerms: { termsVersion: TERMS.TERMS_VERSION, privacyVersion: TERMS.PRIVACY_VERSION } }
+
 beforeEach(() => {
   vi.restoreAllMocks()
+  for (const [name, value] of Object.entries(TERMS)) vi.stubEnv(name, value)
   vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as (typeof mails)[number]))
   mails.length = 0
   stripe.requests.length = 0
@@ -502,10 +516,10 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
   test('only the bill owner, signed in, and only while the bill waits for Checkout', async () => {
     const { ws, bill, owner } = await pendingSignUp()
     const admin = await addMember(ws.id, 'admin')
-    const res = await act({ headers: { ...admin.headers, 'x-workspace-id': ws.id } }, 'billing.startCheckout', {})
+    const res = await act({ headers: { ...admin.headers, 'x-workspace-id': ws.id } }, 'billing.startCheckout', ACCEPTED)
     expect(res.status).toBe(403)
     await db.update(billing_accounts).set({ status: 'comped' }).where(eq(billing_accounts.id, bill.id))
-    expect((await act(owner, 'billing.startCheckout', {})).status).toBe(409)
+    expect((await act(owner, 'billing.startCheckout', ACCEPTED)).status).toBe(409)
     expect(checkoutsMade()).toEqual([])
   })
 
@@ -514,7 +528,7 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
     for (const missing of [null, 403] as const) {
       stripe.configuration = missing
       mails.length = 0
-      const res = await act(owner, 'billing.startCheckout', {})
+      const res = await act(owner, 'billing.startCheckout', ACCEPTED)
       expect(res).toMatchObject({ status: 409, body: { ok: false, error: sayIn(CHECKOUT_UNAVAILABLE) } })
       await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
     }
@@ -1105,7 +1119,7 @@ describe('security review of #961', () => {
     const customer = (await billRow(bill.id)).stripe_customer_id!
     await db
       .update(billing_accounts)
-      .set({ created_at: new Date(Date.now() - 8 * DAY_S * 1000).toISOString() })
+      .set({ created_at: new Date(Date.now() - 15 * DAY_S * 1000).toISOString() })
       .where(eq(billing_accounts.id, bill.id))
     await sweepSignUps(db)
     expect(stripe.sessions.get(sessionId)!.status).toBe('expired')
@@ -1119,7 +1133,7 @@ describe('security review of #961', () => {
     await startCheckout(owner)
     await db
       .update(billing_accounts)
-      .set({ created_at: new Date(Date.now() - 8 * DAY_S * 1000).toISOString() })
+      .set({ created_at: new Date(Date.now() - 15 * DAY_S * 1000).toISOString() })
       .where(eq(billing_accounts.id, bill.id))
     setBillingFetch((async () => reply(500, { error: { type: 'api_error', message: 'down' } })) as typeof fetch)
     try {
@@ -1149,7 +1163,7 @@ describe('security review of #961', () => {
     const age = (billId: string) =>
       db
         .update(billing_accounts)
-        .set({ created_at: new Date(Date.now() - 8 * DAY_S * 1000).toISOString() })
+        .set({ created_at: new Date(Date.now() - 15 * DAY_S * 1000).toISOString() })
         .where(eq(billing_accounts.id, billId))
 
     test('the plan paid in Stripe, its webhook not applied yet: kept, nothing canceled, the admins told', async () => {
@@ -1358,28 +1372,111 @@ describe('security review of #961', () => {
 })
 
 describe('the trial ends (customer.subscription.trial_will_end, invoice.created)', () => {
-  test('three days before: one alert per trial, an email with the charge, the date and how to cancel', async () => {
+  test('reminders 7 days and 1 day before: once each, with the date, the amount and a direct way to cancel', async () => {
     const { bill, sub, ws } = await trialWith(rid('fp'))
-    const customer = sub.customer as string
-    const object = { id: sub.id, object: 'subscription', customer }
-    expect(await processEvent('customer.subscription.trial_will_end', object)).toMatchObject({ detail: 'emailed' })
-    expect(await processEvent('customer.subscription.trial_will_end', object)).toMatchObject({
-      detail: 'already_emailed',
-    })
+    const trialEnd = (await billRow(bill.id)).trial_ends_at!
+    const daysAhead = (days: number, hours = 1) =>
+      new Date(Date.parse(trialEnd) - days * 86_400_000 + hours * 3_600_000).toISOString()
+    const queued: Record<string, unknown>[] = []
+    setJobQueue({
+      send: async (_name: string, data: Record<string, unknown>) => {
+        queued.push(data)
+        return 'job'
+      },
+    } as unknown as Parameters<typeof setJobQueue>[0])
+    try {
+      // Ten days before the end: nothing due yet.
+      expect(await sendTrialReminders(daysAhead(10), { billId: bill.id })).toEqual([])
+      // Seven days before: the first reminder, once however often the job runs.
+      expect(await sendTrialReminders(daysAhead(7), { billId: bill.id })).toEqual([bill.id])
+      expect(await sendTrialReminders(daysAhead(6), { billId: bill.id })).toEqual([])
+      // One day before: the last one.
+      expect(await sendTrialReminders(daysAhead(1), { billId: bill.id })).toEqual([bill.id])
+      expect(await sendTrialReminders(daysAhead(0, -1), { billId: bill.id })).toEqual([])
+      // Stripe's own trial_will_end (3 days before) sends nothing more: both reminders went.
+      const object = {
+        id: sub.id,
+        object: 'subscription',
+        customer: sub.customer as string,
+      }
+      expect(await processEvent('customer.subscription.trial_will_end', object)).toMatchObject({
+        detail: 'no_email',
+      })
+    } finally {
+      setJobQueue(null)
+    }
+    expect(queued.map(d => d.daysBefore)).toEqual([7, 1])
     const alerts = await db
       .select()
       .from(billing_alerts)
       .where(and(eq(billing_alerts.billing_account_id, bill.id), eq(billing_alerts.kind, 'trial_will_end')))
-    expect(alerts).toHaveLength(1)
-    const trialEnd = (await billRow(bill.id)).trial_ends_at!
-    await sendBillingAlert(db, emailSender, { kind: 'trial_will_end', bill: bill.id, ref: trialEnd })
+    expect(alerts.map(a => a.ref).sort()).toEqual([`${trialEnd}/1d`, `${trialEnd}/7d`])
+
+    await sendBillingAlert(db, emailSender, {
+      kind: 'trial_will_end',
+      bill: bill.id,
+      ref: trialEnd,
+      daysBefore: 7,
+    })
     const mail = mails.at(-1)!
-    expect(mail.subject).toMatch(/trial ends on/)
-    expect(mail.text).toContain('$11.00')
+    expect(mail.subject).toMatch(/free trial ends in 7 days/)
+    expect(mail.text).toContain('First charge')
+    expect(mail.text).toContain('$11.00 a month, plus tax where it applies')
     expect(mail.text).toContain('adds $25.00')
-    expect(mail.text).toContain('Cancel in Settings › Billing')
-    // The cancel link: the bill's workspace's Settings › Billing.
+    expect(mail.text).toContain('you pay nothing')
+    expect(mail.text).toContain('because we promised to remind you')
+    // Manage, and Cancel: the cancel dialog of the bill's workspace's Settings › Billing.
     expect(mail.html).toContain(`#workspace/billing?ws=${encodeURIComponent(ws.id)}`)
+    expect(mail.html).toContain(`#workspace/billing?cancel=1&amp;ws=${encodeURIComponent(ws.id)}`)
+    await sendBillingAlert(db, emailSender, {
+      kind: 'trial_will_end',
+      bill: bill.id,
+      ref: trialEnd,
+      daysBefore: 1,
+    })
+    expect(mails.at(-1)!.subject).toMatch(/free trial ends tomorrow/)
+  })
+
+  test('a canceled trial gets no reminder', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    expect((await act(owner, 'billing.cancel', {})).status).toBe(200)
+    const trialEnd = (await billRow(bill.id)).trial_ends_at!
+    const at = new Date(Date.parse(trialEnd) - 7 * 86_400_000 + 3_600_000).toISOString()
+    expect(await sendTrialReminders(at, { billId: bill.id })).toEqual([])
+  })
+
+  test('the trial starts: a confirmation email with the first charge and the reminder days', async () => {
+    const queued: Record<string, unknown>[] = []
+    setJobQueue({
+      send: async (_name: string, data: Record<string, unknown>) => {
+        queued.push(data)
+        return 'job'
+      },
+    } as unknown as Parameters<typeof setJobQueue>[0])
+    let bill: Awaited<ReturnType<typeof trialWith>>['bill']
+    try {
+      ;({ bill } = await trialWith(rid('fp')))
+    } finally {
+      setJobQueue(null)
+    }
+    expect(queued.filter(d => d.kind === 'trial_started')).toEqual([
+      {
+        kind: 'trial_started',
+        bill: bill.id,
+        ref: new Date((await billRow(bill.id)).trial_ends_at!).toISOString(),
+      },
+    ])
+    const trialEnd = (await billRow(bill.id)).trial_ends_at!
+    await sendBillingAlert(db, emailSender, {
+      kind: 'trial_started',
+      bill: bill.id,
+      ref: trialEnd,
+    })
+    const mail = mails.at(-1)!
+    expect(mail.subject).toMatch(/free trial has started/)
+    expect(mail.text).toContain('Nothing is charged today')
+    expect(mail.text).toContain('7 days and 1 day')
+    expect(mail.text).toContain('Cancel my trial')
   })
 
   test('the conversion invoice gets the first recharge as an invoice item, once', async () => {
@@ -1536,6 +1633,86 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
 })
 
 // Last in the file: it moves the plan price's lookup key in the fake account to a new price.
+describe('"one step left": the day-3 email to a sign-up that has not started its trial (docs/billing.md §3.2 step 2)', () => {
+  const madeAgo = async (billId: string, days: number) =>
+    db
+      .update(billing_accounts)
+      .set({ created_at: new Date(Date.now() - days * DAY_S * 1000).toISOString() })
+      .where(eq(billing_accounts.id, billId))
+  const now = () => new Date().toISOString()
+  let queued: Record<string, unknown>[] = []
+  beforeEach(() => {
+    queued = []
+    setJobQueue({
+      send: async (_name: string, data: Record<string, unknown>) => {
+        queued.push(data)
+        return 'job'
+      },
+    } as unknown as Parameters<typeof setJobQueue>[0])
+  })
+  afterEach(() => setJobQueue(null))
+
+  test('once on day 3, however often the job runs; not before, and not late', async () => {
+    const { bill } = await pendingSignUp()
+    await madeAgo(bill.id, 2)
+    expect(await sendActivationNudges(now(), { billId: bill.id })).toEqual([])
+    await madeAgo(bill.id, 3.05)
+    expect(await sendActivationNudges(now(), { billId: bill.id })).toEqual([bill.id])
+    expect(await sendActivationNudges(now(), { billId: bill.id })).toEqual([])
+    expect(queued).toEqual([{ kind: 'activation_nudge', bill: bill.id, ref: 'day3' }])
+    // A run missed for more than a day skips it: no "one step left" a week in.
+    const { bill: later } = await pendingSignUp()
+    await madeAgo(later.id, 5)
+    expect(await sendActivationNudges(now(), { billId: later.id })).toEqual([])
+  })
+
+  test('the email: what is left, nothing charged, the button and the day the sign-up is deleted', async () => {
+    const { bill, ws } = await pendingSignUp()
+    await madeAgo(bill.id, 3.05)
+    expect(await sendBillingAlert(db, emailSender, { kind: 'activation_nudge', bill: bill.id, ref: 'day3' })).toEqual({
+      sent: 'owner',
+    })
+    const mail = mails.at(-1)!
+    expect(mail.subject).toMatch(/^One step left: start your .+ free trial$/)
+    expect(mail.text).toContain('Brightwater Plumbing & Heating')
+    expect(mail.text).toContain('Start your 14-day free trial')
+    expect(mail.text).toContain('Nothing is charged when you start')
+    expect(mail.text).toContain('Start my free trial')
+    // 14 days after sign-up (the sweep): 3 days ago plus 14.
+    const deleteOn = new Date(Date.now() + 10.95 * DAY_S * 1000).toLocaleDateString('en-US', {
+      dateStyle: 'long',
+      timeZone: 'UTC',
+    })
+    expect(mail.text).toContain(`If you don't start by ${deleteOn}`)
+    expect(mail.html).toContain(`#calls?ws=${encodeURIComponent(ws.id)}`)
+  })
+
+  test('nothing for a sign-up that started its trial, was deleted, is disabled, or is a partner', async () => {
+    // Started its trial before the job ran: not picked, and a queued email sends nothing.
+    const { bill: started } = await trialWith(rid('fp'))
+    await madeAgo(started.id, 3.05)
+    expect(await sendActivationNudges(now(), { billId: started.id })).toEqual([])
+    expect(
+      await sendBillingAlert(db, emailSender, { kind: 'activation_nudge', bill: started.id, ref: 'day3' }),
+    ).toEqual({ sent: 'nobody' })
+    // Deleted by the sweep meanwhile: no bill, nobody.
+    expect(
+      await sendBillingAlert(db, emailSender, { kind: 'activation_nudge', bill: rid('bill'), ref: 'day3' }),
+    ).toEqual({ sent: 'nobody' })
+    // The workspace disabled by a server admin.
+    const { bill: disabled, ws } = await pendingSignUp()
+    await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, ws.id))
+    expect(
+      await sendBillingAlert(db, emailSender, { kind: 'activation_nudge', bill: disabled.id, ref: 'day3' }),
+    ).toEqual({ sent: 'nobody' })
+    // A partner's sign-up has no workspace to set up first: it goes straight to Checkout.
+    const { bill: partner } = await pendingSignUp({ kind: 'partner' })
+    await madeAgo(partner.id, 3.05)
+    expect(await sendActivationNudges(now(), { billId: partner.id })).toEqual([])
+    expect(queued.filter(d => d.kind === 'activation_nudge')).toEqual([])
+  })
+})
+
 describe("the install's own prices, trial and name (docs/billing.md §7b)", () => {
   const reason = 'our own prices'
   afterAll(async () => {
@@ -1657,7 +1834,7 @@ describe('the catalog sync and Checkout (security review of #1040)', () => {
     await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY))
     stripe.catalogWritable = false
     const { owner } = await pendingSignUp()
-    const refused = await act(owner, 'billing.startCheckout', {})
+    const refused = await act(owner, 'billing.startCheckout', ACCEPTED)
     expect(refused).toMatchObject({ status: 409, body: { error: sayIn(CHECKOUT_UNAVAILABLE) } })
     await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
     expect(syncAlerts()[0]!.text).toMatch(/nobody can start a trial or a plan/)
@@ -1683,7 +1860,7 @@ describe('the catalog sync and Checkout (security review of #1040)', () => {
     const { owner } = await pendingSignUp()
     for (let i = 0; i < CHECKOUT_STARTS_PER_MINUTE; i++) await startCheckout(owner)
     const made = checkoutsMade().length
-    expect(await act(owner, 'billing.startCheckout', {})).toMatchObject({
+    expect(await act(owner, 'billing.startCheckout', ACCEPTED)).toMatchObject({
       status: 409,
       body: { error: sayIn(CHECKOUT_TOO_OFTEN) },
     })
@@ -1812,5 +1989,40 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
       expect((await act(who, 'billing.confirmCheckout', { partnerId, sessionId: 'cs_test_x' })).status).toBe(403)
     }
     expect(checkoutsMade()).toEqual([])
+  })
+})
+
+describe('the activation step accepts the terms before Checkout (A9, docs/billing.md §3.2)', () => {
+  test('recorded with what the step showed: the price, the trial, the first charge, the reminders', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const [row] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, bill.id), eq(terms_acceptances.source, 'activation')))
+    expect(row).toMatchObject({
+      terms_version: TERMS.TERMS_VERSION,
+      privacy_version: TERMS.PRIVACY_VERSION,
+      disclosure: { planCents: 1100, interval: 'month', trialDays: 14, reminderDays: [7, 1] },
+    })
+    const firstCharge = Date.parse(row!.disclosure!.firstChargeAt!)
+    expect(Math.abs(firstCharge - (Date.now() + 14 * 86_400_000))).toBeLessThan(60_000)
+    // Checkout promises the reminders too, where the card is entered.
+    const made = checkoutsMade().at(-1)!
+    expect(made.body.get('custom_text[submit][message]')).toContain(
+      'We email you 7 days and 1 day before the first charge.',
+    )
+  })
+
+  test('no terms, or other versions than in effect: no Checkout, terms_changed', async () => {
+    const { owner } = await pendingSignUp()
+    for (const input of [
+      {},
+      { acceptedTerms: { termsVersion: '2026-01-01', privacyVersion: TERMS.PRIVACY_VERSION } },
+    ]) {
+      const res = await act(owner, 'billing.startCheckout', input)
+      expect(res).toMatchObject({ status: 409, body: { ok: false, code: 'terms_changed' } })
+    }
+    expect(checkoutsMade()).toHaveLength(0)
   })
 })

@@ -32,6 +32,13 @@ const FIELDS = {
   partnerYearlyCents: planCents,
   // At least a day: the sign-up flow always starts with a trial (a bill without one starts on a paid plan).
   trialDays: count(1, 90),
+  // One to three different days before the trial's end, each 1 to 30 (the trial reminders, docs/billing.md §3.2).
+  trialReminderDays: z
+    .array(count(1, 30))
+    .min(1)
+    .max(3)
+    .refine(days => new Set(days).size === days.length, 'each day once')
+    .transform(days => [...days].sort((a, b) => b - a)),
   includedStandardSeconds: count(0, 1_000_000),
   balanceBufferMicros: count(0, 100_000_000),
   concurrentCallsBase: count(0, 1000),
@@ -264,3 +271,10 @@ export const isLinedeskPlan = (sub: BillingSubscription) =>
   sub.items.every(
     i => !!i.lookupKey && PLAN_LOOKUP_KEYS.has(i.lookupKey) && !!i.productId && PLAN_PRODUCT_IDS.has(i.productId),
   )
+
+/**
+ * The days before the trial's end a reminder goes out (the install's `trialReminderDays`), without a day that would
+ * fall before the trial started (a reminder 7 days before the end of a 5-day trial). Largest first.
+ */
+export const reminderDaysFor = (rules: Pick<BillingRules, 'trialDays' | 'trialReminderDays'>): number[] =>
+  [...new Set(rules.trialReminderDays)].filter(d => d >= 1 && d < rules.trialDays).sort((a, b) => b - a)

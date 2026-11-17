@@ -1,7 +1,7 @@
 // Setup emails (setup-emails.ts): which one is due when, each once per workspace, only owners who did not turn them
 // off, none of the "not live yet" ones once a real call came in. Turning them on for the install and the first-call
 // email are instance-wide: those tests are in admin.test.ts.
-import { calls, member, phone_numbers, setup_emails, setup_events } from '@linedesk/db'
+import { calls, member, organization, phone_numbers, setup_emails, setup_events } from '@linedesk/db'
 import { and, eq, inArray } from 'drizzle-orm'
 import { describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
@@ -102,6 +102,19 @@ describe('sending', () => {
     // PARTNER_DIRECTORY_URL (unset in tests); both cases are in templates.test.ts.
     expect(sent[1]!.text.includes('Find a partner')).toBe(!!PARTNER_DIRECTORY_URL)
     expect(await sentKinds(ws)).toEqual(['setup_day1', 'setup_day3'])
+  })
+
+  test('a Cloud sign-up before its trial gets none (it gets the one "one step left" email); after it, what is due', async () => {
+    const ws = await newWorkspace('Setup Pending Plumbing')
+    const { sender, sent } = spySender()
+    await db.update(organization).set({ billingState: 'pending_payment' }).where(eq(organization.id, ws.id))
+    await signedUpHoursAgo(ws, 80)
+    expect(await sendSetupEmailFor(db, sender, ws.id, NOW)).toBeNull()
+    expect(sent).toEqual([])
+    expect(await sentKinds(ws)).toEqual([])
+    // The trial started: day 3's email still goes out in its window.
+    await db.update(organization).set({ billingState: 'active' }).where(eq(organization.id, ws.id))
+    expect((await sendSetupEmailFor(db, sender, ws.id, NOW))?.kind).toBe('setup_day3')
   })
 
   test('a window that passed is skipped, never sent late', async () => {

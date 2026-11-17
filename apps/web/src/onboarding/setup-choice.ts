@@ -50,7 +50,9 @@ export function rememberOwnerByHand(workspaceId: string, on: boolean) {
  * Whether the owner's agent setup page shows instead of the app: for the workspace's owner (only the owner, one per
  * workspace; admins of it keep the step-by-step onboarding), signed in as themselves, with a confirmed address (making
  * the link needs one, like an API key), in a workspace that is not disabled; never for a server admin, who has the
- * install's own agent setup. It opens on #setup-agent, and on its own while onboarding is open unless they chose by hand.
+ * install's own agent setup, and never while the workspace waits for its trial (the setup link opens once it runs; the
+ * onboarding goes by hand up to the card, docs/billing.md §3.2). It opens on #setup-agent, and on its own while
+ * onboarding is open unless they chose by hand.
  */
 export function ownerAgentSetupDue(
   me: Pick<Me, 'role' | 'onboarding' | 'impersonation' | 'emailUnconfirmed' | 'workspace'>,
@@ -58,5 +60,6 @@ export function ownerAgentSetupDue(
 ): boolean {
   if (instanceAdmin || me.role !== 'owner' || me.impersonation || me.emailUnconfirmed || me.workspace?.disabled)
     return false
+  if (me.workspace?.billingState === 'pending_payment') return false
   return hashOpen || (Boolean(me.onboarding) && !byHand)
 }
