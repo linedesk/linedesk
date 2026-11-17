@@ -33,11 +33,29 @@ export type CheckoutConfirmData =
 
 export const billingStartTopUp = defineAction({
   name: 'billing.startTopUp',
-  description: 'Buy call minutes for the balance: $5 to $500 at a time, paid at Checkout. Answers the Checkout link.',
-  input: z.object({ amountCents: z.number().int().min(TOPUP_CENTS.min).max(TOPUP_CENTS.max) }),
+  description:
+    'Buy call minutes for the balance: $5 to $500 at a time. With savedCard it first answers which card on file would be charged; called again with that card as confirmCard (after the owner confirmed it is them), the card is charged at once, at most $500 in 24 hours. Without a card, over that limit, when the bank asks to confirm, or on a decline, it answers a Checkout link instead.',
+  input: z.object({
+    amountCents: z.number().int().min(TOPUP_CENTS.min).max(TOPUP_CENTS.max),
+    savedCard: z.boolean().optional(),
+    /** The card the owner was shown and confirmed (`kind: 'confirm'`); a card changed since is shown again. */
+    confirmCard: z
+      .string()
+      .regex(/^(pm|card|src)_[A-Za-z0-9]{1,250}$/)
+      .optional(),
+  }),
   permission: 'billing:manage',
   secretResult: ['url'],
 })
+/**
+ * `data` of `billing.startTopUp`: the saved card to confirm (brand and last four), a Checkout to open (`fallback`: why the saved card was not charged), the saved card
+ * charged (`credited`: the balance has it now; else it follows within a minute), or a payment still in progress.
+ */
+export type TopUpData =
+  | { kind: 'confirm'; card: { id: string; brand: string | null; last4: string | null } }
+  | { kind: 'checkout'; url: string; fallback?: 'no_card' | 'authentication_required' | 'declined' | 'daily_limit' }
+  | { kind: 'paid'; amountCents: number; credited: boolean }
+  | { kind: 'pending'; amountCents: number }
 
 export const billingCancel = defineAction({
   name: 'billing.cancel',

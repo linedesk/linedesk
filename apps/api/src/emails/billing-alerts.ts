@@ -178,6 +178,23 @@ export const catalogSyncAlert =
     }
   }
 
+/**
+ * The customer portal configuration could not be kept to the design (docs/billing.md §2.4) with the catalog sync: the
+ * key may not write it, or there is none yet. Until it is fixed, a portal that offers cancel does not open.
+ */
+export const portalSyncAlert =
+  (code: string): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.portalSync.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.portalSync.text', { code }) },
+        { kind: 'text', text: t('email.adminAlert.portalSync.check') },
+      ],
+    }
+  }
+
 /** A second Checkout completed after the bill's own (security review of #961, G1): its subscription was canceled. */
 export const checkoutExtraAlert =
   (o: { bill: string; session: string; subscription: string; paid: boolean }): AdminAlertText =>

@@ -1097,6 +1097,8 @@
   "provider.test.stripeDenied.both": "Products and Prices",
   "provider.test.stripeDenied.prices": "Prices",
   "provider.test.stripeDenied.products": "Products",
+  "provider.test.stripePortalWrite": "{line}, but the key cannot write the customer portal configuration. Billing keeps the portal to invoices and cards (no cancel) and needs that access: give the restricted key \"Write\" on Customer portal, then test again.",
+  "provider.test.stripeTermsUrl": "{line}, but the Stripe account has no Terms of Service URL. Checkout asks every customer to accept the terms and Stripe refuses it without that link, so nobody can start a trial or a plan. Add it in the Stripe Dashboard › Settings › Business › Public details (Terms of service), then test again.",
   "providerDialog.confirmDisconnect": "Delete the stored {provider} keys?",
   "providerDialog.confirmSharedKey": "{providers} {count, plural, one {uses} other {use}} the same key and stop too.",
   "providerDialog.connectedRestart": "Connected. {brand} restarts in the background to apply it (a few seconds).",

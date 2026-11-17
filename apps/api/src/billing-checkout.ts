@@ -27,23 +27,27 @@ import {
   billing_recharges,
   card_fingerprints,
   organization,
+  rechargeCapCents,
   phone_numbers,
   type Tx,
   usage_counters,
   user,
 } from '@linedesk/db'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { createHash } from 'node:crypto'
+import { and, eq, gte, isNull, ne, sql } from 'drizzle-orm'
+import { SIGN_IN_AGAIN } from './account.ts'
+import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
 import { billingRules, isLinedeskPlan, planCatalog, rechargeLine } from './billing-rules.ts'
-import { brandName } from './branding.ts'
+import { brandName, currentBranding } from './branding.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { checkoutExtraAlert, checkoutRefusedAlert, checkoutSetupAlert } from './emails/billing-alerts.ts'
 import { BILLING_PATH } from './emails/billing-lifecycle.ts'
 import { appLink, WEB_ORIGIN } from './emails/templates.ts'
-import { queueBillingAlert } from './jobs.ts'
+import { queueBillingAlert, queueRecharge } from './jobs.ts'
 import {
   Forbidden,
   type Handler,
@@ -57,6 +61,7 @@ import {
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { signupRules } from './self-serve.ts'
 import { refuseBillingActor } from './usage-levels.ts'
@@ -70,20 +75,64 @@ const checkoutExpiresAt = () => Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES
 /** "Buy minutes": the amounts the server allows, in cents before tax (docs/billing.md §2.2, L5). */
 export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
+/** The bill's auto-recharge as Checkout states it (docs/billing.md §2.2 "Off-session consent"). */
+export type CheckoutRecharge = { on: boolean; amountCents: number; thresholdCents: number; capCents: number }
+
 /**
  * What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it, with the
- * install's product name and trial length (Server admin › Branding and › Billing).
+ * install's product name and trial length (Server admin › Branding and › Billing). A plan states the bill's own
+ * auto-recharge (amount, threshold and monthly cap, from the bill and the install's rules, never written here), so the
+ * card is saved for off-session charges the owner was told about.
  */
 export function checkoutText(
   kind: 'trial' | 'plan' | 'topup',
   reader: Reader,
-  { brand, trialDays }: { brand: string; trialDays: number },
+  { brand, trialDays, recharge }: { brand: string; trialDays: number; recharge?: CheckoutRecharge },
 ): string {
-  if (kind === 'trial') return reader.t('server.api.checkout.text.trial', { days: trialDays })
-  return kind === 'plan'
-    ? reader.t('server.api.checkout.text.plan')
-    : reader.t('server.api.checkout.text.topup', { brand })
+  if (kind === 'topup') return reader.t('server.api.checkout.text.topup', { brand: plainName(brand) })
+  const money = (cents: number) =>
+    reader.format.currency(cents / 100, 'USD', { maximumFractionDigits: cents % 100 ? 2 : 0 })
+  if (!recharge?.on)
+    return kind === 'trial'
+      ? reader.t('server.api.checkout.text.trialNoRecharge', { days: trialDays })
+      : reader.t('server.api.checkout.text.planNoRecharge')
+  const values = {
+    recharge: money(recharge.amountCents),
+    threshold: money(recharge.thresholdCents),
+    cap: money(recharge.capCents),
+  }
+  return kind === 'trial'
+    ? reader.t('server.api.checkout.text.trial', { days: trialDays, ...values })
+    : reader.t('server.api.checkout.text.plan', values)
 }
+
+/** The bill's auto-recharge for Checkout's text: its own settings, the cap for the workspaces Checkout sells. */
+async function checkoutRecharge(bill: Bill, workspaces: number): Promise<CheckoutRecharge> {
+  const rules = await billingRules(db)
+  return {
+    on: bill.auto_recharge,
+    amountCents: bill.recharge_amount_cents,
+    thresholdCents: bill.recharge_threshold_cents,
+    capCents: rechargeCapCents(bill.recharge_cap_base_cents, workspaces, rules),
+  }
+}
+
+/**
+ * The install's name (and color) at the top of Checkout instead of the Stripe account's (Stripe's per-session
+ * `branding_settings`). Everything else Stripe shows (receipts, invoices, the portal) is the account's, shared by every
+ * install on that account (docs/billing.md §2.4).
+ */
+const checkoutBranding = () => ({ displayName: plainName(brandName()), buttonColor: currentBranding().color })
+
+/**
+ * The install's name as plain text for Stripe's pages: Checkout's custom text reads a little Markdown (links, bold),
+ * and the name is admin-set, so link and emphasis characters and line breaks go (security review of #1102, L-4).
+ */
+export const plainName = (name: string) =>
+  name
+    .replace(/[[\]()*_`~#<>|\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 export const BILLING_OFF: Said = { key: msg('server.api.checkout.billingOff') }
 export const NOT_THE_OWNER: Said = { key: msg('server.api.checkout.notTheOwner') }
@@ -218,7 +267,12 @@ const prepareStartCheckout: Preparer = async ({ actor, now }) => {
       submitText: checkoutText(trial ? 'trial' : 'plan', wordsOf(actor), {
         brand: brandName(),
         trialDays: rules.trialDays,
+        recharge: await checkoutRecharge(
+          bill,
+          items.reduce((n, i) => n + i.quantity, 0),
+        ),
       }),
+      branding: checkoutBranding(),
       successUrl: returnUrl(),
       cancelUrl: cancelUrl(),
       // A double click within a second makes one session; a later start makes a new one (the open one was expired).
@@ -415,8 +469,10 @@ export async function confirmSession(
         stripe_subscription_id: sub.id,
         trial_ends_at: sub.trialEnd,
         checkout_confirmed_at: now,
-        current_period_start: now,
-        current_period_end: sub.trialEnd,
+        // Stripe's own start (the subscription was made at Checkout, seconds before this confirmation): the nightly
+        // reconciliation compares the period with Stripe's and reported every new trial otherwise.
+        current_period_start: sub.currentPeriodStart ?? now,
+        current_period_end: sub.currentPeriodEnd ?? sub.trialEnd,
         ...(sub.interval ? { interval: sub.interval } : {}),
         updated_at: now,
       })
@@ -502,7 +558,168 @@ const prepareConfirm: Preparer = async ({ actor }, input: { sessionId: string })
 /** Bills that may buy minutes: in their trial or paid (also past due, so calls can go on). */
 export const BUYS_MINUTES: readonly Bill['status'][] = ['trialing', 'active', 'past_due']
 
-const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: number }) => {
+/** Why "Buy minutes" with the saved card went on to Checkout (the web app says so). */
+type SavedCardFallback = 'no_card' | 'authentication_required' | 'declined' | 'daily_limit'
+
+/**
+ * The most the saved card is charged by Buy minutes in any 24 hours, per bill (security review of #1102, M-1): one
+ * purchase at the largest amount. Beyond it the owner pays in Checkout, entering the card. A daily limit and not the
+ * monthly cap: purchases counted in the cap would stop the automatic recharges that keep calls running.
+ */
+export const SAVED_CARD_DAILY_CENTS = 50_000
+
+/** What `billing.startTopUp` answers (`TopUpData` in packages/actions). */
+type TopUpAnswer =
+  | { kind: 'confirm'; card: { id: string; brand: string | null; last4: string | null } }
+  | { kind: 'checkout'; url: string; fallback?: SavedCardFallback }
+  | { kind: 'paid'; amountCents: number; credited: boolean }
+  | { kind: 'pending'; amountCents: number }
+
+/**
+ * The attempt id of a Buy minutes command: the same for a retry of the same command (the client resends it after a
+ * lost answer), so the retry finds the purchase it made instead of charging again (security review of #1102, L-1).
+ */
+const purchaseIdOf = (billId: string, commandId: string) =>
+  `rc_${createHash('sha256').update(`${billId}:${commandId}`).digest('hex').slice(0, 20)}`
+
+/** The pending purchase or automatic recharge of the bill, if one runs: one payment at a time. */
+async function pendingPayment(billId: string) {
+  const [pending] = await db
+    .select({ id: billing_recharges.id })
+    .from(billing_recharges)
+    .where(and(eq(billing_recharges.billing_account_id, billId), eq(billing_recharges.status, 'pending')))
+  return pending ?? null
+}
+
+/** What Buy minutes charged to the saved card in the last 24 hours (canceled attempts charged nothing). */
+async function boughtToday(billId: string, now: string) {
+  const since = new Date(Date.parse(now) - 86_400_000).toISOString()
+  const [row] = await db
+    .select({ cents: sql<number>`coalesce(sum(${billing_recharges.amount_cents}), 0)::int` })
+    .from(billing_recharges)
+    .where(
+      and(
+        eq(billing_recharges.billing_account_id, billId),
+        eq(billing_recharges.manual, true),
+        ne(billing_recharges.status, 'canceled'),
+        gte(billing_recharges.created_at, since),
+      ),
+    )
+  return row?.cents ?? 0
+}
+
+/** The owner proves it is them before the card is charged, as for raising the cap (security review of #1102, M-1). */
+async function requireOwnerStepUp(actor: Actor) {
+  const stepUp = await ownerStepUpNeeded(db, actor)
+  // The web app answers both codes itself: the passkey dialog, and settings.billing.error.signInAgain.
+  if (stepUp === 'passkey')
+    // i18n-ignore: the API error body for logs and API clients; the web app opens the passkey dialog for the code
+    throw new Reject('Confirm with your passkey to pay with the saved card.', PASSKEY_STEP_UP_REQUIRED)
+  if (stepUp)
+    // i18n-ignore: the API error body for logs and API clients; the web app shows the key of the code
+    throw new Reject('Sign in again to pay with the saved card.', SIGN_IN_AGAIN)
+}
+
+type SavedCardStep = TopUpAnswer | { kind: 'fallback'; reason: SavedCardFallback }
+
+/**
+ * "Buy minutes" with the saved card (docs/billing.md §2.2), in two steps. Without `confirmCard` it only answers which
+ * card would be charged (brand and last four), and the owner confirms that card; with it, the owner's step-up is
+ * checked (a recent sign-in or the passkey, as for raising the cap) and the card a recharge charges (`rechargeCard`)
+ * is charged at once, on-session, when it is still the confirmed one, with an invoice like a recharge's (tax, receipt,
+ * refunds and disputes as for recharges). The attempt is a `billing_recharges` row marked `manual`: credited here at
+ * once (and by `invoice.paid`, through the same rules), never counted in the monthly cap of automatic recharges, and
+ * at most `SAVED_CARD_DAILY_CENTS` in 24 hours. No card, over the daily limit, 3D Secure or a decline: Checkout.
+ */
+async function buyWithSavedCard(
+  provider: BillingProvider,
+  actor: Actor,
+  bill: Bill,
+  input: { amountCents: number; confirmCard?: string },
+  ids: { commandId: string; now: string },
+): Promise<SavedCardStep> {
+  const id = purchaseIdOf(bill.id, ids.commandId)
+  const [retried] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, id))
+  if (retried) return purchaseOutcome(provider, bill, retried)
+  const card = await provider.rechargeCard(bill.stripe_customer_id!, bill.stripe_subscription_id).catch(setupFailed)
+  if (!card) return { kind: 'fallback', reason: 'no_card' }
+  if ((await boughtToday(bill.id, ids.now)) + input.amountCents > SAVED_CARD_DAILY_CENTS)
+    return { kind: 'fallback', reason: 'daily_limit' }
+  // The card shown is the card charged: a card changed since the owner saw it is shown again.
+  if (input.confirmCard !== card.id)
+    return { kind: 'confirm', card: { id: card.id, brand: card.brand ?? null, last4: card.last4 ?? null } }
+  await requireOwnerStepUp(actor)
+  const attempt = await db.transaction(async tx => {
+    await requireLedgerGuards(tx)
+    await lockBalance(tx, bill.id)
+    const [made] = await tx
+      .insert(billing_recharges)
+      .values({
+        id,
+        billing_account_id: bill.id,
+        amount_cents: input.amountCents,
+        manual: true,
+        created_at: ids.now,
+      })
+      .onConflictDoNothing()
+      .returning()
+    return made ?? null
+  })
+  // One payment at a time per bill (an automatic recharge or another purchase is running).
+  if (!attempt) throw Reject.t('server.api.checkout.paymentRunning')
+  return purchaseOutcome(provider, bill, attempt)
+}
+
+/** Charges a Buy minutes attempt (again: every step has the attempt's idempotency key) and says what came of it. */
+async function purchaseOutcome(
+  provider: BillingProvider,
+  bill: Bill,
+  attempt: typeof billing_recharges.$inferSelect,
+): Promise<SavedCardStep> {
+  const amountCents = attempt.amount_cents
+  const { chargeRecharge, rechargeGaveUp } = await import('./billing-recharge.ts')
+  let run: Awaited<ReturnType<typeof chargeRecharge>>
+  try {
+    run = await chargeRecharge(db, attempt.id, { provider })
+  } catch (error) {
+    if (error instanceof BillingSetupError) {
+      await rechargeGaveUp(db, attempt.id, { provider, setupError: error })
+      return setupFailed(error)
+    }
+    // No answer from Stripe: the recharge job tries again with the same idempotency keys, so the payment the owner
+    // confirmed is made once at most; the balance follows when it is paid.
+    console.error(`billing: Buy minutes ${attempt.id} of bill ${bill.id}: no answer from Stripe, queued`, error)
+    await db.transaction(tx => queueRecharge(tx, attempt.id))
+    return { kind: 'pending', amountCents }
+  }
+  const [now] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, attempt.id))
+  if (run.outcome === 'paid' || now?.status === 'paid') {
+    const { runAsBillingSystem } = await import('./stripe-events.ts')
+    const invoiceId = run.outcome === 'paid' ? run.invoiceId : now?.stripe_invoice_id
+    const settled = invoiceId
+      ? await runAsBillingSystem('billing.settleInvoice', { invoiceId, customerId: bill.stripe_customer_id })
+      : null
+    const credited =
+      now?.status === 'paid' || (!!settled?.body.ok && !!(settled.body.data as { credited?: unknown }).credited)
+    return { kind: 'paid', amountCents, credited }
+  }
+  if (run.outcome === 'open' || now?.status === 'pending') return { kind: 'pending', amountCents }
+  // Failed: rechargeFailed voided the invoice and canceled the attempt (no failed-recharge wait, no email).
+  return {
+    kind: 'fallback',
+    reason:
+      now?.failure_code === 'authentication_required'
+        ? 'authentication_required'
+        : now?.failure_code
+          ? 'declined'
+          : 'no_card',
+  }
+}
+
+const prepareTopUp: Preparer = async (
+  { actor, now, commandId },
+  input: { amountCents: number; savedCard?: boolean; confirmCard?: string },
+) => {
   const bill = await db.transaction(tx => ownBill(tx, actor))
   if (!BUYS_MINUTES.includes(bill.status)) throw Reject.t('server.api.checkout.minutesAfterStart')
   if (!bill.stripe_customer_id) throw Reject.t('server.api.checkout.noCustomer')
@@ -514,6 +731,14 @@ const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: numb
       max: reader => reader.format.currency(TOPUP_LIMITS.maxCents / 100, 'USD'),
     })
   const provider = await billingProvider(db)
+  let fallback: SavedCardFallback | undefined
+  if (input.savedCard) {
+    const step = await buyWithSavedCard(provider, actor, bill, input, { commandId, now })
+    if (step.kind !== 'fallback') return { billId: bill.id, answer: step }
+    fallback = step.reason
+  }
+  // A purchase still running (no answer from Stripe yet) is not paid for a second time in Checkout (review L-2).
+  if (await pendingPayment(bill.id)) throw Reject.t('server.api.checkout.paymentRunning')
   const configuration = await cardOnlyConfiguration(provider)
   const rules = await billingRules(db)
   const started = await provider
@@ -525,6 +750,7 @@ const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: numb
       catalog: planCatalog(rules, brandName()),
       amountCents: input.amountCents,
       submitText: checkoutText('topup', wordsOf(actor), { brand: brandName(), trialDays: rules.trialDays }),
+      branding: checkoutBranding(),
       successUrl: returnUrl(),
       // Bought from Settings › Billing: going back from Checkout lands there again.
       cancelUrl: appLink(WEB_ORIGIN, actor.workspaceId!, BILLING_PATH),
@@ -532,7 +758,8 @@ const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: numb
       expiresAt: checkoutExpiresAt(),
     })
     .catch(setupFailed)
-  return { url: started.url, sessionId: started.id }
+  const answer: TopUpAnswer = { kind: 'checkout', url: started.url, ...(fallback ? { fallback } : {}) }
+  return { billId: bill.id, answer }
 }
 
 /**
@@ -592,8 +819,14 @@ export const checkoutHandlers: Record<string, Handler> = {
     return { rows: {}, data: await confirmSession(tx, billId, session, provider, now) }
   },
   'billing.startTopUp': async ({ tx, actor, prepared }) => {
-    await ownBill(tx, actor)
-    return { rows: {}, data: { url: (prepared as { url: string }).url } }
+    const done = prepared as { billId: string; answer: TopUpAnswer }
+    const bill = await ownBill(tx, actor)
+    // Money that moved is never answered with an error (a retry would be a second purchase; review of #1102, L-1).
+    const charged = done.answer.kind === 'paid' || done.answer.kind === 'pending'
+    if (bill.id !== done.billId && !charged) throw new Reject('the bill changed; try again')
+    if (bill.id !== done.billId)
+      console.error(`billing: Buy minutes for bill ${done.billId} answered while the owner's bill is now ${bill.id}`)
+    return { rows: {}, data: done.answer }
   },
   'billing.cancel': applyCancel,
   'billing.resume': applyCancel,

@@ -5,6 +5,7 @@ import type { BillingProvider, StripeKeys } from './provider.ts'
 
 export { isStripeWebhookSecret, LIVE_KEYS_REFUSED, liveKeysAllowed, stripeKeyMode } from './keys.ts'
 export { noneBillingProvider } from './none.ts'
+export { STRIPE_API_VERSION } from './version.ts'
 export type {
   BillingAccountInfo,
   BillingChargeSource,
@@ -26,6 +27,8 @@ export type {
   InvoiceItemInput,
   KeyMode,
   PlanCatalog,
+  PortalDesign,
+  PortalSync,
   RechargeCard,
   RechargeCharge,
   RechargeInvoiceInput,

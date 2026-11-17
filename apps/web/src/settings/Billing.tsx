@@ -12,10 +12,10 @@ import type {
   BillingStateData,
   BillingUsageRow,
   CancelData,
-  CheckoutStartData,
   PortalData,
   RechargeCapData,
   RetryRechargeData,
+  TopUpData,
 } from '@linedesk/actions'
 import { TOPUP_CENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
@@ -462,13 +462,19 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
   )
 }
 
-/** "Buy minutes": $5, $10, $20 or another whole amount up to $500, paid at Stripe Checkout. */
+/**
+ * "Buy minutes": $5, $10, $20 or another whole amount up to $500. "Pay" first shows which saved card would be charged
+ * (brand and last four); "Charge" then charges it at once, after the owner confirms it is them (passkey or a recent
+ * sign-in, as for raising the cap). Without a saved card, over the daily limit, or when the bank wants a confirmation,
+ * the server answers a Stripe Checkout instead. "Use another card" goes to Checkout directly.
+ */
 function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: string) => void }) {
   const t = useT()
   const format = useFormat()
   const [picked, setPicked] = useState<number | 'other'>(TOP_UP_CHOICES[1])
   const [other, setOther] = useState('')
   const [busy, setBusy] = useState(false)
+  const [card, setCard] = useState<{ id: string; brand: string | null; last4: string | null } | null>(null)
   const otherCents = dollarsToCents(other, TOPUP_CENTS.min, TOPUP_CENTS.max)
   const cents = picked === 'other' ? otherCents : picked
   const limits = {
@@ -476,12 +482,43 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
     max: format.currency(centsToDollars(TOPUP_CENTS.max), 'USD', { maximumFractionDigits: 0 }),
   }
 
-  async function go() {
+  const cardName = card ? savedCardLabel(card, t) : ''
+
+  async function go(savedCard: boolean) {
     if (!cents) return
     setBusy(true)
+    const workspaceId = tabWorkspace()
+    let attempt = 0
     try {
-      const { url } = await write<CheckoutStartData>('billing.startTopUp', { amountCents: cents })
-      window.location.assign(url)
+      const input = { amountCents: cents, savedCard, ...(savedCard && card ? { confirmCard: card.id } : {}) }
+      const done =
+        savedCard && card
+          ? await withPasskeyStepUp(async () => {
+              // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
+              if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
+              return write<TopUpData>('billing.startTopUp', input)
+            }, t('settings.billing.topUp.stepUpWhat'))
+          : await write<TopUpData>('billing.startTopUp', input)
+      if (done.kind === 'confirm') {
+        // Which card is charged, before anything is: the owner confirms it with the next press.
+        setCard(done.card)
+        setBusy(false)
+        return
+      }
+      if (done.kind === 'checkout') {
+        if (done.fallback === 'declined') toast(t('settings.billing.topUp.declinedToCheckout'))
+        if (done.fallback === 'daily_limit') toast(t('settings.billing.topUp.dailyLimitToCheckout'))
+        window.location.assign(done.url)
+        return
+      }
+      const amount = format.currency(centsToDollars(done.amountCents), 'USD')
+      toast(
+        done.kind === 'paid' && done.credited
+          ? t('settings.billing.topUp.paid', { amount })
+          : t('settings.billing.topUp.processing', { amount }),
+      )
+      await reloadBill()
+      onClose()
     } catch (err) {
       toast(errorMessage(err))
       setBusy(false)
@@ -496,17 +533,30 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
       onClose={busy ? () => {} : onClose}
       onSubmit={e => {
         e.preventDefault()
-        void go()
+        void go(true)
       }}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('common.action.cancel')}
           </Button>
+          <Button
+            variant="ghost"
+            disabled={busy || !cents}
+            title={t('settings.billing.topUp.otherCardTip')}
+            onClick={() => void go(false)}
+          >
+            {t('settings.billing.topUp.otherCard')}
+          </Button>
           <Button type="submit" variant="primary" busy={busy} disabled={!cents}>
-            {cents
-              ? t('settings.billing.topUp.pay', { amount: format.currency(centsToDollars(cents), 'USD') })
-              : t('settings.billing.topUp.payNoAmount')}
+            {!cents
+              ? t('settings.billing.topUp.payNoAmount')
+              : card
+                ? t('settings.billing.topUp.charge', {
+                    amount: format.currency(centsToDollars(cents), 'USD'),
+                    card: cardName,
+                  })
+                : t('settings.billing.topUp.pay', { amount: format.currency(centsToDollars(cents), 'USD') })}
           </Button>
         </>
       }
@@ -551,8 +601,18 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
           />
         </FormField>
       )}
+      {card && <Note>{t('settings.billing.topUp.cardNote', { card: cardName })}</Note>}
     </Dialog>
   )
+}
+
+/** "Visa ending in 4242" for the saved card Buy minutes would charge (Stripe's brand code, capitalized). */
+function savedCardLabel(card: { brand: string | null; last4: string | null }, t: ReturnType<typeof useT>) {
+  if (!card.brand || !card.last4) return t('settings.billing.topUp.cardUnknown')
+  return t('settings.billing.topUp.card', {
+    brand: card.brand.charAt(0).toUpperCase() + card.brand.slice(1),
+    last4: card.last4,
+  })
 }
 
 // ---- Auto-recharge and the cap ---------------------------------------------------------------------------------

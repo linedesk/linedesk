@@ -347,7 +347,7 @@ export async function runAction(
   try {
     const prepare = preparers[name]
     const prepared = prepare
-      ? await prepare({ actor, now: new Date().toISOString(), onRollback }, parsed.data)
+      ? await prepare({ actor, now: new Date().toISOString(), onRollback, commandId }, parsed.data)
       : undefined
     const body = await db.transaction(async tx => {
       const ctx = { tx, actor, now: new Date().toISOString(), onRollback, onCommit, prepared }

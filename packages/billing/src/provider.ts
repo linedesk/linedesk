@@ -28,6 +28,12 @@ export type RechargeInvoiceInput = {
   /** The invoice an earlier try made, when it is known: it is charged instead of a new one. */
   invoiceId?: string | null
   /**
+   * The owner is in the app and confirmed this payment ("Buy minutes" with the saved card, docs/billing.md §2.2): the
+   * card is charged on-session, so a card that needs 3D Secure fails with `authentication_required` at once (the app
+   * then falls back to Checkout) instead of being tried off-session. Auto-recharges leave it out.
+   */
+  onSession?: boolean
+  /**
    * The bill's subscription. Checkout in `subscription` mode saves the card on the subscription, not as the customer's
    * invoice default; a recharge invoice stands alone, so without a customer default the subscription's card is made it
    * before the charge (see `rechargeCard`).
@@ -40,7 +46,14 @@ export type RechargeInvoiceInput = {
  * the subscription's default (what Checkout saves), which the recharge then makes the customer's default. `createdAt`
  * (ISO; null for a legacy source) tells a card added after a failed recharge from the one that failed.
  */
-export type RechargeCard = { id: string; createdAt: string | null; on: 'customer' | 'subscription' }
+export type RechargeCard = {
+  id: string
+  createdAt: string | null
+  on: 'customer' | 'subscription'
+  /** What the owner is shown before Buy minutes charges it (`visa`, `4242`); null when Stripe did not say (a legacy source). */
+  brand?: string | null
+  last4?: string | null
+}
 
 /**
  * What charging a recharge invoice came to. `paid`: the card was charged (the balance is credited by the webhook, from
@@ -78,8 +91,13 @@ export type CheckoutInput = {
   trialDays?: number
   /** `topup`: the amount before tax, in cents. */
   amountCents?: number
-  /** The text Checkout shows above its button (the trial's terms, or what the top-up is). */
+  /** The text Checkout shows above its button (the trial's terms with the auto-recharge rules, or what the top-up is). */
   submitText: string
+  /**
+   * What Checkout shows at its top for this install (Server admin › Branding): its name instead of the Stripe
+   * account's, and its color on the button. The rest (receipts, the statement descriptor, the portal) is the account's.
+   */
+  branding?: { displayName: string; buttonColor?: string | null }
   successUrl: string
   cancelUrl: string
   /** One per attempt: a retried request never makes a second session. */
@@ -178,6 +196,16 @@ export type BillingEvent = {
   /** The object's kind (`invoice`, `customer`, …). */
   objectType: string | null
   customerId: string | null
+  /**
+   * Our own ids the object carries, when it has them: `metadata.billing_account_id` (a customer, a Checkout Session,
+   * a subscription and its invoices, a top-up's payment) or `client_reference_id` (a Checkout Session), and
+   * `metadata.billing_recharge_id` (a recharge invoice). Never acted on: they only tell, without a request to Stripe,
+   * that an event of a customer this install does not know yet may still be its own (stripe-events.ts `eventOwner`).
+   */
+  billHint?: string | null
+  rechargeHint?: string | null
+  /** The API version the event was rendered in (the webhook endpoint's, or the account's default); null if not sent. */
+  apiVersion?: string | null
 }
 
 /** One line of an invoice, as fetched: its pre-tax amount and what it charges. */
@@ -291,28 +319,19 @@ export class BillingSetupError extends Error {
   }
 }
 
-/** Why a webhook request is refused: a signature that does not match any secret, or an event of the other mode. */
 /**
- * Why a webhook delivery was refused. `signature`: not from Stripe (or changed, or too old). `livemode` and
- * `api_version` come with a valid signature: Stripe sent them, but the endpoint is set up wrong (another mode, or not
- * pinned to the API version the adapter reads).
+ * Why a webhook delivery was refused. `signature`: not from Stripe (or changed, or too old). `livemode` comes with a
+ * valid signature: Stripe sent it, but the endpoint is of the other mode than the key. An event in another API version
+ * than the adapter's is not refused (docs/billing.md §5.1): processing reads only fields every version has, and
+ * fetches each object again at the pinned version.
  */
-export type WebhookRefusal = 'signature' | 'livemode' | 'api_version'
+export type WebhookRefusal = 'signature' | 'livemode'
 
 export class WebhookRefused extends Error {
   readonly reason: WebhookRefusal
-  /** For `api_version`: the version the event came in (Stripe's, safe to log). */
-  readonly apiVersion: string | null
-  constructor(reason: WebhookRefusal, apiVersion: string | null = null) {
-    super(
-      reason === 'signature'
-        ? 'webhook signature does not match'
-        : reason === 'livemode'
-          ? 'webhook event is of the other mode'
-          : 'webhook event is of another API version',
-    )
+  constructor(reason: WebhookRefusal) {
+    super(reason === 'signature' ? 'webhook signature does not match' : 'webhook event is of the other mode')
     this.reason = reason
-    this.apiVersion = apiVersion
   }
 }
 
@@ -343,6 +362,20 @@ export const WEBHOOK_EVENTS = [
 
 /** The metadata that marks the customer portal configuration the bootstrap makes (docs/billing.md §2.4). */
 export const PORTAL_METADATA = { linedesk: 'portal' } as const
+
+/**
+ * The customer portal as the design has it (docs/billing.md §2.4): invoices, cards and the customer's details; no plan
+ * changes and no cancel (those happen in the app only). `headline`: the install's name at the top of the portal (the
+ * rest of the portal's look is the Stripe account's branding, the same for every install on that account).
+ */
+export type PortalDesign = {
+  headline: string | null
+  termsUrl: string | null
+  privacyUrl: string | null
+}
+
+/** What `syncPortal` did: made, changed or found as designed. */
+export type PortalSync = { configuration: string; changed: boolean }
 
 /** The name of the card-only payment method configuration the bootstrap makes and Checkout uses (docs/billing.md §2.4). */
 export const CHECKOUT_PMC_NAME = 'Linedesk Checkout'
@@ -426,6 +459,25 @@ export type BillingProvider = {
    * written). `null`: not known (no answer).
    */
   catalogWriteAccess(): Promise<{ products: boolean | null; prices: boolean | null }>
+  /**
+   * Whether the key may write the customer portal configuration, which `syncPortal` needs (the provider test; nothing
+   * is written). `null`: not known.
+   */
+  portalWriteAccess(): Promise<boolean | null>
+  /**
+   * Whether the Stripe account has a Terms of Service URL, which a plan's Checkout needs for its terms checkbox
+   * (Dashboard › Settings › Public details; the API cannot set it). Asked by making a setup-mode Checkout Session with
+   * the terms checkbox and expiring it at once (nothing is charged or saved). `null`: not known (another refusal).
+   * `successUrl`: the install's own address (the session needs one; nobody can reach it, it is expired at once).
+   */
+  checkoutTermsReady(successUrl: string): Promise<boolean | null>
+  /**
+   * Makes the customer portal configuration (`PORTAL_METADATA`) match the design (`PortalDesign`): made when missing,
+   * its features and links set when they differ (a cancel switched on in the Dashboard is switched off again). Run
+   * with the catalog sync (Server admin › Billing saves, billing turned on). A key without the permission throws
+   * `BillingSetupError`.
+   */
+  syncPortal(design: PortalDesign): Promise<PortalSync>
   /** The session as it is now, with its subscription, card and charge; null when the service does not know it. */
   checkoutSession(id: string): Promise<CheckoutSession | null>
   /**
@@ -464,8 +516,10 @@ export type BillingProvider = {
   rechargeInvoicePage(invoiceId: string): Promise<string | null>
   /**
    * A customer portal session (docs/billing.md §2.4): the card, the billing details, invoices and receipts. Always the
-   * portal configuration the bootstrap made (found by its metadata, never an id in the code); without it no session
-   * starts and `BillingSetupError('portal_configuration_missing')` is thrown. The URL is a bearer link: never stored.
+   * portal configuration the bootstrap or the catalog sync made (found by its metadata, never an id in the code);
+   * without it no session starts and `BillingSetupError('portal_configuration_missing')` is thrown. A configuration
+   * that offers cancel or plan changes (switched on in the Dashboard) is switched back first; a key that may not do
+   * that gets no session (`BillingSetupError('portal_allows_cancel')`). The URL is a bearer link: never stored.
    */
   portalSession(input: { customerId: string; returnUrl: string }): Promise<string>
   /**

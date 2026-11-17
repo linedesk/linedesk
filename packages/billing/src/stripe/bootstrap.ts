@@ -10,7 +10,13 @@
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
 import { CHECKOUT_PMC_NAME, type KeyMode, PORTAL_METADATA, WEBHOOK_EVENTS } from '../provider.ts'
-import { findCheckoutConfiguration, STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
+import {
+  createStripeBillingProvider,
+  findCheckoutConfiguration,
+  STRIPE_API_VERSION,
+  STRIPE_TIMEOUT_MS,
+} from './index.ts'
+import { portalFits, portalParams } from './portal.ts'
 
 export { CHECKOUT_PMC_NAME } from '../provider.ts'
 
@@ -60,12 +66,16 @@ export type BootstrapResult = {
   changes: string[]
   /** Only when the endpoint was created now: Stripe shows the signing secret once. Never log it. */
   webhookSecret: string | null
+  /**
+   * Whether the account has a Terms of Service URL (Dashboard › Settings › Public details), which a plan's Checkout
+   * needs for its terms checkbox. The API cannot set it: `missing` is a step for the person running the script.
+   * `unknown`: Stripe gave another answer (or a dry run).
+   */
+  termsOfServiceUrl: 'set' | 'missing' | 'unknown'
 }
 
 export { PORTAL_METADATA } from '../provider.ts'
 export const WEBHOOK_METADATA = { linedesk: 'billing' } as const
-const CUSTOMER_UPDATES = ['email', 'address', 'name', 'tax_id'] as const
-
 export class BootstrapRefused extends Error {}
 
 const productId = (key: string) => `linedesk_${key}`
@@ -191,6 +201,13 @@ export async function bootstrapStripe(
   const paymentMethodConfiguration = await checkoutPaymentMethods(stripe, write)
   const portalConfiguration = await portal(stripe, options, write)
   const webhook = await webhookEndpoint(stripe, options, write)
+  // Checked last, through the adapter's own check (a setup session made and expired at once; not on a dry run).
+  const terms = options.dryRun
+    ? null
+    : await createStripeBillingProvider({ secretKey, webhookSecret: 'whsec_bootstrap' }, doFetch).checkoutTermsReady(
+        // The install's own address (the webhook URL's origin), never a third party's.
+        new URL(options.webhookUrl).origin,
+      )
 
   return {
     account: account.id,
@@ -203,6 +220,7 @@ export async function bootstrapStripe(
     oldWebhookEndpoints: webhook.old,
     changes,
     webhookSecret: webhook.secret,
+    termsOfServiceUrl: terms === true ? 'set' : terms === false ? 'missing' : 'unknown',
   }
 }
 
@@ -261,19 +279,9 @@ async function checkoutPaymentMethods(stripe: Stripe, write: Write) {
  * is the one it set (security review of #1007, M-2); `customer.subscription.updated` mirrors any change made elsewhere.
  */
 async function portal(stripe: Stripe, options: BootstrapOptions, write: Write) {
-  const params = {
-    business_profile: { privacy_policy_url: options.privacyUrl, terms_of_service_url: options.termsUrl },
-    // Not given: Stripe keeps what it has (security review of #866, N1).
-    ...(options.returnUrl !== undefined ? { default_return_url: options.returnUrl } : {}),
-    features: {
-      customer_update: { enabled: true, allowed_updates: [...CUSTOMER_UPDATES] },
-      invoice_history: { enabled: true },
-      payment_method_update: { enabled: true },
-      subscription_cancel: { enabled: false },
-      subscription_update: { enabled: false },
-    },
-    metadata: { ...PORTAL_METADATA },
-  }
+  // Not given: Stripe keeps the return URL it has (security review of #866, N1); the headline is the app's (its sync).
+  const wanted = { termsUrl: options.termsUrl, privacyUrl: options.privacyUrl, returnUrl: options.returnUrl }
+  const params = portalParams(wanted)
   const all = await stripe.billingPortal.configurations.list({ limit: 100 })
   const found = all.data.find(c => c.metadata?.linedesk === PORTAL_METADATA.linedesk && c.active)
   if (!found) {
@@ -282,18 +290,7 @@ async function portal(stripe: Stripe, options: BootstrapOptions, write: Write) {
     )
     return made?.id ?? null
   }
-  const f = found.features
-  const fits =
-    found.business_profile.privacy_policy_url === options.privacyUrl &&
-    found.business_profile.terms_of_service_url === options.termsUrl &&
-    (options.returnUrl === undefined || (found.default_return_url ?? '') === options.returnUrl) &&
-    f.customer_update.enabled &&
-    sameSet(f.customer_update.allowed_updates, CUSTOMER_UPDATES) &&
-    f.invoice_history.enabled &&
-    f.payment_method_update.enabled &&
-    !f.subscription_cancel.enabled &&
-    !f.subscription_update.enabled
-  if (!fits)
+  if (!portalFits(found, wanted))
     await write('update the customer portal configuration', () =>
       stripe.billingPortal.configurations.update(found.id, params),
     )

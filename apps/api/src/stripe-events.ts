@@ -22,12 +22,13 @@ import type {
 import {
   billing_accounts,
   billing_invoices,
+  billing_periods,
   billing_recharges,
   organization,
   stripe_events,
   type Tx,
 } from '@linedesk/db'
-import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { rechargeFailed } from './billing-recharge.ts'
@@ -37,7 +38,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type NotCreditedReason, rechargeNotCreditedAlert, stripeEventFailedAlert } from './emails/billing-alerts.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
-import { jobQueue } from './jobs.ts'
+import { jobQueue, queueRecharge } from './jobs.ts'
 import { lockBalance, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
@@ -65,6 +66,12 @@ export const UNKNOWN_RETRY_MS = 60 * 60_000
  */
 export const UNHANDLED_TYPE = 'unhandled: type'
 export const UNHANDLED_PLAN = 'unhandled: plan invoice'
+/**
+ * `last_error` of an event stored as processed at once because it is not this install's: its customer is none of our
+ * bills' and the object names none of our ids. A Stripe account is often shared (other integrations, other installs
+ * on one sandbox): such events used to be retried for an hour each and held the queue up for this install's own.
+ */
+export const FOREIGN_EVENT = 'skipped: not this install'
 
 /** `invoice.paid` is applied in a transaction (billing.processStripeEvent); the failures by the job (they ask Stripe). */
 const INVOICE_PAID = 'invoice.paid'
@@ -117,7 +124,33 @@ export async function queueStripeEvent(tx: Tx, eventId: string) {
   await jobQueue()?.send(STRIPE_EVENT, { eventId }, { db: fromDrizzle(tx, sql), singletonKey: eventId })
 }
 
-export type StoreOutcome = 'stored' | 'requeued' | 'duplicate'
+export type StoreOutcome = 'stored' | 'requeued' | 'duplicate' | 'foreign'
+
+type EventIds = Pick<BillingEvent, 'customerId' | 'objectId' | 'billHint' | 'rechargeHint'>
+
+/**
+ * Whose an event is, from our own database only (no request to Stripe; docs/billing.md §5.1). `ours`: the customer,
+ * the subscription or the recharge invoice is one we stored, or the object names one of our bills or recharge attempts
+ * in its metadata (a bill whose customer is stored a moment later: retried as before, L2). `foreign`: it has a
+ * customer, and nothing in it is ours. `unclear`: no customer to tell by (a dispute, a fraud warning): the job finds
+ * the bill through the charge.
+ */
+export async function eventOwner(tx: Pick<Tx, 'select'>, ids: EventIds): Promise<'ours' | 'foreign' | 'unclear'> {
+  if (ids.customerId && (await billBy(tx, 'customer', ids.customerId))) return 'ours'
+  if (ids.objectId) {
+    if (await billBy(tx, 'subscription', ids.objectId)) return 'ours'
+    if (await rechargeOfInvoice(tx, ids.objectId)) return 'ours'
+  }
+  if (ids.billHint && (await billBy(tx, 'id', ids.billHint))) return 'ours'
+  if (ids.rechargeHint) {
+    const [recharge] = await tx
+      .select({ id: billing_recharges.id })
+      .from(billing_recharges)
+      .where(eq(billing_recharges.id, ids.rechargeHint))
+    if (recharge) return 'ours'
+  }
+  return ids.customerId ? 'foreign' : 'unclear'
+}
 
 /**
  * The inbox (docs/billing.md §5.1): stores the event and queues its job in one transaction, so an event is never
@@ -125,6 +158,8 @@ export type StoreOutcome = 'stored' | 'requeued' | 'duplicate'
  * given up on (review of #865, N2: an event at the attempt cap waits for billing.reprocessEvent).
  */
 export async function storeStripeEvent(tx: Tx, event: BillingEvent, now: string): Promise<StoreOutcome> {
+  // Another install's or integration's event is kept (a redelivery stays a duplicate) but never queued.
+  const foreign = (await eventOwner(tx, event)) === 'foreign'
   const [stored] = await tx
     .insert(stripe_events)
     .values({
@@ -139,11 +174,24 @@ export async function storeStripeEvent(tx: Tx, event: BillingEvent, now: string)
         type: event.type,
         created: event.created,
         livemode: event.livemode,
-        data: { object: { id: event.objectId, object: event.objectType, customer: event.customerId } },
+        data: {
+          object: {
+            id: event.objectId,
+            object: event.objectType,
+            customer: event.customerId,
+            // Our own ids only, to tell the event's owner again when it is processed (eventOwner).
+            metadata: {
+              ...(event.billHint ? { billing_account_id: event.billHint } : {}),
+              ...(event.rechargeHint ? { billing_recharge_id: event.rechargeHint } : {}),
+            },
+          },
+        },
       },
+      ...(foreign ? { processed_at: now, last_error: FOREIGN_EVENT } : {}),
     })
     .onConflictDoNothing()
     .returning({ id: stripe_events.id })
+  if (stored && foreign) return 'foreign'
   if (stored) {
     await queueStripeEvent(tx, event.id)
     return 'stored'
@@ -160,10 +208,15 @@ export async function storeStripeEvent(tx: Tx, event: BillingEvent, now: string)
 }
 
 /** The object and customer of a stored event, read from its payload only to know what to fetch. */
-function eventSubject(payload: unknown): { objectId: string | null; customerId: string | null } {
-  const object = (payload as { data?: { object?: { id?: unknown; customer?: unknown } } })?.data?.object
+function eventSubject(payload: unknown): EventIds & { objectId: string | null; customerId: string | null } {
+  const object = (
+    payload as { data?: { object?: { id?: unknown; customer?: unknown; metadata?: Record<string, unknown> } } }
+  )?.data?.object
   const customer = object?.customer
+  const hint = (key: string) => (typeof object?.metadata?.[key] === 'string' ? (object.metadata[key] as string) : null)
   return {
+    billHint: hint('billing_account_id'),
+    rechargeHint: hint('billing_recharge_id'),
     objectId: typeof object?.id === 'string' ? object.id : null,
     customerId:
       typeof customer === 'string'
@@ -415,6 +468,60 @@ async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | 
   return 'active' as const
 }
 
+/**
+ * The trial converted (its first plan invoice is paid; docs/billing.md §3.2 step 9). When it ended before its planned
+ * end (ended early in Stripe: `trial_end=now`, or from the Dashboard), the trial period is cut where the paid plan
+ * took over and the first month opens there at once, so calls never land in a trial that is over and the bill no
+ * longer says "Trial ends" on a date still to come. The bill's `trial_ends_at` becomes the real end.
+ *
+ * The first recharge normally rides on the conversion invoice (`firstRecharge`, while Stripe keeps it a draft for an
+ * hour). An early end invoices at once (finalized, `subscription_update`), so there was no draft to add it to: then
+ * the same first recharge (the bill's recharge amount, unless auto-recharge is off) is charged now with its own
+ * invoice, as Checkout's text promised. A recharge already pending is not doubled.
+ */
+async function trialConverted(
+  tx: Tx,
+  bill: Bill,
+  subscription: BillingSubscription,
+  rechargeOnInvoice: boolean,
+  now: string,
+) {
+  const ended = subscription.trialEnd ?? subscription.currentPeriodStart
+  if (ended && bill.trial_ends_at && Date.parse(ended) < Date.parse(bill.trial_ends_at)) {
+    await tx
+      .update(billing_accounts)
+      .set({ trial_ends_at: ended, updated_at: now })
+      .where(eq(billing_accounts.id, bill.id))
+    // Never before now: calls that started in the trial since Stripe ended it stay in the trial they reserved in.
+    const cut = new Date(Math.max(Date.parse(ended), Date.parse(now))).toISOString()
+    await tx
+      .update(billing_periods)
+      .set({ ends_at: cut })
+      .where(
+        and(
+          eq(billing_periods.billing_account_id, bill.id),
+          eq(billing_periods.kind, 'trial'),
+          lt(billing_periods.starts_at, cut),
+          gt(billing_periods.ends_at, cut),
+        ),
+      )
+    const { openNextPeriods } = await import('./billing-periods.ts')
+    await openNextPeriods(tx, bill.id, now)
+  }
+  if (rechargeOnInvoice || !bill.auto_recharge) return
+  const [made] = await tx
+    .insert(billing_recharges)
+    .values({
+      id: `rc_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+      billing_account_id: bill.id,
+      amount_cents: bill.recharge_amount_cents,
+      created_at: now,
+    })
+    .onConflictDoNothing()
+    .returning({ id: billing_recharges.id })
+  if (made) await queueRecharge(tx, made.id)
+}
+
 /** The invoice in the bill's list (display only): plan invoices and recharges. */
 async function mirrorInvoice(
   tx: Tx,
@@ -504,8 +611,11 @@ async function invoicePaid(
     } else result.credited = await creditRecharge(tx, bill, recharge, checked.line, now)
   }
   const ownSubscription = !!invoice.subscriptionId && invoice.subscriptionId === bill.stripe_subscription_id
-  if (ownSubscription && invoice.customerId === bill.stripe_customer_id)
+  if (ownSubscription && invoice.customerId === bill.stripe_customer_id) {
     result.plan = await planPaid(tx, bill, subscription, now)
+    if (result.plan === 'active' && bill.status === 'trialing')
+      await trialConverted(tx, bill, subscription!, !!recharge, now)
+  }
   if (ownSubscription || recharge)
     await mirrorInvoice(tx, bill, invoice, ownSubscription ? 'subscription' : 'recharge', now)
   return result
@@ -791,6 +901,15 @@ export async function processStripeEventJob(eventId: string) {
     .where(and(eq(stripe_events.id, eventId), isNull(stripe_events.processed_at)))
     .returning()
   if (!event) return { skipped: 'processed' as const }
+  // Not this install's (stored before this check existed, or its bill was deleted since): done at once, without asking
+  // Stripe or waiting an hour for a bill that will not come.
+  if ((await eventOwner(db, eventSubject(event.payload))) === 'foreign') {
+    await db
+      .update(stripe_events)
+      .set({ processed_at: new Date().toISOString(), last_error: FOREIGN_EVENT })
+      .where(and(eq(stripe_events.id, eventId), isNull(stripe_events.processed_at)))
+    return { outcome: 'unknown' } satisfies EventOutcome
+  }
   try {
     if ((INVOICE_FAILURES as readonly string[]).includes(event.type)) return await invoiceFailedJob(event)
     if ((CARD_CHANGES as readonly string[]).includes(event.type)) return await cardChangedJob(event)

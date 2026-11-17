@@ -13,7 +13,8 @@ import { billingRules, planCatalog } from './billing-rules.ts'
 import { billingProvider, boundAccount } from './billing-settings.ts'
 import { brandName } from './branding.ts'
 import { db } from './db.ts'
-import { catalogSyncAlert } from './emails/billing-alerts.ts'
+import { readLegalLinks } from './auth-methods.ts'
+import { catalogSyncAlert, portalSyncAlert } from './emails/billing-alerts.ts'
 
 /** The instance setting with the last catalog sync that worked (JSON `StoredCatalog`). */
 export const BILLING_CATALOG_KEY = 'billing.catalog'
@@ -56,6 +57,35 @@ export async function syncedPrices(tx: Pick<Tx, 'select'>): Promise<Record<strin
 export type CatalogSync = { synced: true } | { synced: false; code: string } | { synced: 'skipped' }
 
 /**
+ * The customer portal kept to the design (docs/billing.md §2.4) with the catalog: no cancel and no plan changes, the
+ * install's name as its headline, the install's terms and privacy links when it has them. A refusal is told to the
+ * instance admins and never stops the catalog; the portal session checks the features again before it opens.
+ */
+export async function syncBillingPortal(provider: BillingProvider) {
+  try {
+    const legal = readLegalLinks(process.env)
+    const done = await provider.syncPortal({
+      headline: brandName(),
+      termsUrl: legal.terms,
+      privacyUrl: legal.privacy,
+    })
+    if (done.changed)
+      console.log(`billing: the customer portal configuration ${done.configuration} was set to the design`)
+    return { synced: true as const }
+  } catch (error) {
+    const code =
+      error instanceof BillingSetupError
+        ? error.code
+        : `stripe_${(error as { statusCode?: number }).statusCode ?? 'error'}`
+    console.error(`billing: the customer portal could not be set up (${code})`)
+    await alertInstanceAdmins(portalSyncAlert(code)).catch(e =>
+      console.error('billing: the portal sync alert could not be sent:', e),
+    )
+    return { synced: false as const, code }
+  }
+}
+
+/**
  * Makes the Stripe account sell what the settings say and stores the price ids. Skipped while billing is not in effect
  * (turning it on syncs). A refusal is told to every instance admin at once and answered, never thrown: the save that
  * triggered it stands.
@@ -79,6 +109,7 @@ export async function syncBillingCatalog(provider?: BillingProvider): Promise<Ca
       .insert(instance_settings)
       .values({ key: BILLING_CATALOG_KEY, value: JSON.stringify(value), updated_at: now, updated_by: 'billing' })
       .onConflictDoUpdate({ target: instance_settings.key, set: { value: JSON.stringify(value), updated_at: now } })
+    await syncBillingPortal(using)
     return { synced: true }
   } catch (error) {
     const code =

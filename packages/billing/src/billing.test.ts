@@ -195,7 +195,13 @@ const catalogRoutes = (): Record<string, (body: URLSearchParams) => [number, unk
   ],
 })
 /** A card as Stripe expands it (`created` in Unix seconds). */
-const card = (id: string, created = 1_800_000_000) => ({ id, object: 'payment_method', type: 'card', created })
+const card = (id: string, created = 1_800_000_000) => ({
+  id,
+  object: 'payment_method',
+  type: 'card',
+  created,
+  card: { brand: 'visa', last4: '4242' },
+})
 /** A customer as GET /v1/customers/:id answers it, with its invoice default (expanded) or none. */
 const customer = (defaultCard: unknown = null, extra: Record<string, unknown> = {}) => ({
   id: 'cus_1',
@@ -214,6 +220,29 @@ const subscription = (defaultCard: unknown, customerId = 'cus_1') => ({
 })
 
 describe('stripe recharges', () => {
+  test('Buy minutes with the saved card is paid on-session: 3D Secure fails at once (the app then offers Checkout)', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
+      'POST /v1/invoices/in_1Rc/pay': () => [
+        402,
+        { error: { type: 'card_error', code: 'invoice_payment_intent_requires_action', message: '3DS' } },
+      ],
+    })
+    expect(await (await stripeWith(doFetch)).chargeRecharge({ ...recharge, onSession: true })).toEqual({
+      status: 'failed',
+      invoiceId: 'in_1Rc',
+      failureCode: 'authentication_required',
+    })
+    expect(Object.fromEntries(calls.find(c => c.route === 'POST /v1/invoices/in_1Rc/pay')!.body)).toEqual({
+      off_session: 'false',
+    })
+  })
+
   test('one invoice with one item, automatic tax, finalized and paid, each request with its own idempotency key', async () => {
     const { doFetch, calls } = stripeRoutes({
       'POST /v1/invoices': () => [200, invoice('draft', 0)],
@@ -225,6 +254,8 @@ describe('stripe recharges', () => {
       'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
     })
     expect(await (await stripeWith(doFetch)).chargeRecharge(recharge)).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
+    // An auto-recharge is paid off-session (Stripe's default): nothing on the pay request.
+    expect(Object.fromEntries(calls.find(c => c.route === 'POST /v1/invoices/in_1Rc/pay')!.body)).toEqual({})
     expect(calls.map(c => [c.route, c.key])).toEqual([
       ['POST /v1/invoices', 'rc_abc:invoice'],
       // The texts with the install's name: plain updates, outside every idempotent request (review of #1040, L-5).
@@ -556,7 +587,13 @@ describe('stripe recharges', () => {
         },
         'sub_1',
       ),
-    ).toEqual({ id: 'pm_portal', createdAt: new Date(1_800_000_100_000).toISOString(), on: 'customer' })
+    ).toEqual({
+      id: 'pm_portal',
+      createdAt: new Date(1_800_000_100_000).toISOString(),
+      on: 'customer',
+      brand: 'visa',
+      last4: '4242',
+    })
     expect(
       await answer({ 'GET /v1/customers/cus_1': () => [200, customer(null, { default_source: 'card_legacy' })] }, null),
     ).toEqual({ id: 'card_legacy', createdAt: null, on: 'customer' })
@@ -568,7 +605,13 @@ describe('stripe recharges', () => {
         },
         'sub_1',
       ),
-    ).toEqual({ id: 'pm_checkout', createdAt: new Date(1_800_000_000_000).toISOString(), on: 'subscription' })
+    ).toEqual({
+      id: 'pm_checkout',
+      createdAt: new Date(1_800_000_000_000).toISOString(),
+      on: 'subscription',
+      brand: 'visa',
+      last4: '4242',
+    })
     // No subscription, a subscription of another customer, one without a card, or a deleted customer: none.
     expect(await answer({ 'GET /v1/customers/cus_1': () => [200, customer(null)] }, null)).toBeNull()
     expect(
@@ -875,6 +918,34 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
     expect(Object.keys(body).some(k => k.includes('setup_future_usage'))).toBe(false)
     // The synced price ids only: no product or price is read or written at Checkout (review of #1040, M-1).
     expect(calls.map(c => c.route)).toEqual(['POST /v1/checkout/sessions'])
+  })
+
+  test('the install’s name and color at the top of Checkout (branding_settings); the stated text; no logo', async () => {
+    const { doFetch, calls } = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
+    await (await stripeWith(doFetch)).startCheckout({
+      ...base,
+      kind: 'plan',
+      items: [{ lookupKey: 'ws_yearly', quantity: 1 }],
+      branding: { displayName: 'Front Desk', buttonColor: '#112233' },
+    })
+    const body = Object.fromEntries(calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
+    expect(body).toMatchObject({
+      'branding_settings[display_name]': 'Front Desk',
+      'branding_settings[button_color]': '#112233',
+      'custom_text[submit][message]': base.submitText,
+      'consent_collection[terms_of_service]': 'required',
+    })
+    expect(Object.keys(body).some(k => k.startsWith('branding_settings[logo]'))).toBe(false)
+    // A color that is not a hex color is left out, never sent for Stripe to refuse the session.
+    const odd = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
+    await (await stripeWith(odd.doFetch)).startCheckout({
+      ...base,
+      kind: 'plan',
+      items: [{ lookupKey: 'ws_yearly', quantity: 1 }],
+      branding: { displayName: 'Front Desk', buttonColor: 'red' },
+    })
+    const oddBody = Object.fromEntries(odd.calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
+    expect(oddBody['branding_settings[button_color]']).toBeUndefined()
   })
 
   test("expireOpenCheckouts expires the customer's open sessions; one completed meanwhile (400) is skipped", async () => {
@@ -1185,12 +1256,163 @@ describe('stripe customer portal (Settings › Billing, docs/billing.md §2.4)',
     has_more: false,
     url: '/v1/billing_portal/configurations',
   })
+  const DESIGN_FEATURES = {
+    customer_update: { enabled: true, allowed_updates: ['email', 'address', 'name', 'tax_id'] },
+    invoice_history: { enabled: true },
+    payment_method_update: { enabled: true },
+    subscription_cancel: { enabled: false },
+    subscription_update: { enabled: false },
+  }
   const config = (id: string, extra: Record<string, unknown> = {}) => ({
     id,
     object: 'billing_portal.configuration',
     active: true,
     metadata: { linedesk: 'portal' },
+    business_profile: { headline: null, privacy_policy_url: null, terms_of_service_url: null },
+    default_return_url: null,
+    features: DESIGN_FEATURES,
     ...extra,
+  })
+  const withCancel = { features: { ...DESIGN_FEATURES, subscription_cancel: { enabled: true } } }
+
+  test('a portal that offers cancel (switched on in the Dashboard) is switched back before the session; a key that may not: no session', async () => {
+    const fixed = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [200, configs([config('bpc_own', withCancel)])],
+      'POST /v1/billing_portal/configurations/bpc_own': () => [200, config('bpc_own')],
+      'POST /v1/billing_portal/sessions': () => [
+        200,
+        { id: 'bps_1', object: 'billing_portal.session', url: 'https://billing.stripe.com/p/session/test_1' },
+      ],
+    })
+    await (await stripeWith(fixed.doFetch)).portalSession({ customerId: 'cus_1', returnUrl: 'https://app.test/' })
+    const update = fixed.calls.find(c => c.route === 'POST /v1/billing_portal/configurations/bpc_own')!
+    expect(Object.fromEntries(update.body)).toEqual({
+      'features[subscription_cancel][enabled]': 'false',
+      'features[subscription_update][enabled]': 'false',
+    })
+    const refused = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [200, configs([config('bpc_own', withCancel)])],
+      'POST /v1/billing_portal/configurations/bpc_own': () => [
+        403,
+        { error: { type: 'invalid_request_error', message: 'restricted key' } },
+      ],
+    })
+    const error = await (await stripeWith(refused.doFetch))
+      .portalSession({ customerId: 'cus_1', returnUrl: 'https://app.test/' })
+      .catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+    expect(error.code).toBe('portal_allows_cancel')
+    expect(refused.calls.some(c => c.route === 'POST /v1/billing_portal/sessions')).toBe(false)
+  })
+
+  test('syncPortal keeps the design: cancel off, the install’s headline and links; nothing written when it fits', async () => {
+    const design = { headline: 'Front Desk', termsUrl: 'https://fd.test/terms', privacyUrl: 'https://fd.test/privacy' }
+    const drift = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [200, configs([config('bpc_own', withCancel)])],
+      'POST /v1/billing_portal/configurations/bpc_own': () => [200, config('bpc_own')],
+    })
+    expect(await (await stripeWith(drift.doFetch)).syncPortal(design)).toEqual({
+      configuration: 'bpc_own',
+      changed: true,
+    })
+    const body = Object.fromEntries(
+      drift.calls.find(c => c.route === 'POST /v1/billing_portal/configurations/bpc_own')!.body,
+    )
+    expect(body).toMatchObject({
+      'features[subscription_cancel][enabled]': 'false',
+      'features[subscription_update][enabled]': 'false',
+      'business_profile[headline]': 'Front Desk',
+      'business_profile[terms_of_service_url]': 'https://fd.test/terms',
+    })
+    const fits = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [
+        200,
+        configs([
+          config('bpc_own', {
+            business_profile: {
+              headline: 'Front Desk',
+              terms_of_service_url: 'https://fd.test/terms',
+              privacy_policy_url: 'https://fd.test/privacy',
+            },
+          }),
+        ]),
+      ],
+    })
+    expect(await (await stripeWith(fits.doFetch)).syncPortal(design)).toEqual({
+      configuration: 'bpc_own',
+      changed: false,
+    })
+    expect(fits.calls.filter(c => c.route.startsWith('POST'))).toEqual([])
+    // A Stripe account shared by installs: another install's headline and links are kept, only the features fixed.
+    const shared = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [
+        200,
+        configs([
+          config('bpc_own', {
+            ...withCancel,
+            business_profile: {
+              headline: 'Other Desk',
+              terms_of_service_url: 'https://other.test/terms',
+              privacy_policy_url: 'https://other.test/privacy',
+            },
+          }),
+        ]),
+      ],
+      'POST /v1/billing_portal/configurations/bpc_own': () => [200, config('bpc_own')],
+    })
+    expect(await (await stripeWith(shared.doFetch)).syncPortal(design)).toMatchObject({ changed: true })
+    const sharedBody = Object.fromEntries(
+      shared.calls.find(c => c.route === 'POST /v1/billing_portal/configurations/bpc_own')!.body,
+    )
+    expect(sharedBody).toMatchObject({ 'features[subscription_cancel][enabled]': 'false' })
+    expect(Object.keys(sharedBody).filter(k => k.startsWith('business_profile'))).toEqual([])
+    const denied = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [200, configs([config('bpc_own', withCancel)])],
+      'POST /v1/billing_portal/configurations/bpc_own': () => [403, { error: { type: 'invalid_request_error' } }],
+    })
+    const error = await (await stripeWith(denied.doFetch)).syncPortal(design).catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+  })
+
+  test('the provider test’s checks: terms URL (a setup session made and expired) and portal write access', async () => {
+    const noTerms = stripeRoutes({
+      'POST /v1/checkout/sessions': () => [
+        400,
+        {
+          error: {
+            type: 'invalid_request_error',
+            message: 'You cannot collect consent to your terms of service unless a URL is set in the Stripe Dashboard.',
+          },
+        },
+      ],
+    })
+    expect(await (await stripeWith(noTerms.doFetch)).checkoutTermsReady('https://app.linedesk.test')).toBe(false)
+    const ready = stripeRoutes({
+      'POST /v1/checkout/sessions': () => [200, { id: 'cs_test_probe', object: 'checkout.session' }],
+      'POST /v1/checkout/sessions/cs_test_probe/expire': () => [200, { id: 'cs_test_probe' }],
+    })
+    expect(await (await stripeWith(ready.doFetch)).checkoutTermsReady('https://app.linedesk.test')).toBe(true)
+    const made = Object.fromEntries(ready.calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
+    expect(made).toMatchObject({
+      mode: 'setup',
+      'consent_collection[terms_of_service]': 'required',
+      success_url: 'https://app.linedesk.test',
+    })
+    expect(ready.calls.some(c => c.route === 'POST /v1/checkout/sessions/cs_test_probe/expire')).toBe(true)
+    const noWrite = stripeRoutes({
+      'POST /v1/billing_portal/configurations/bpc_linedesk_permission_check': () => [
+        403,
+        { error: { type: 'invalid_request_error' } },
+      ],
+    })
+    expect(await (await stripeWith(noWrite.doFetch)).portalWriteAccess()).toBe(false)
+    const canWrite = stripeRoutes({
+      'POST /v1/billing_portal/configurations/bpc_linedesk_permission_check': () => [
+        404,
+        { error: { type: 'invalid_request_error', code: 'resource_missing' } },
+      ],
+    })
+    expect(await (await stripeWith(canWrite.doFetch)).portalWriteAccess()).toBe(true)
   })
 
   test('a session uses the configuration the bootstrap made (found by its metadata) and returns to the page', async () => {
@@ -1265,6 +1487,37 @@ describe('webhooks', () => {
   const stripeWith = (keys: Partial<StripeKeys> = {}) =>
     loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: SECRET, ...keys }, recordingFetch(200, {}).doFetch)
 
+  test('an event carries our own ids as hints (metadata, client_reference_id, a subscription invoice’s parent)', async () => {
+    const signed = (object: Record<string, unknown>) => {
+      const payload = JSON.stringify({ ...JSON.parse(body()), data: { object } })
+      return [new TextEncoder().encode(payload), sign(payload, SECRET)] as const
+    }
+    const provider = await stripeWith()
+    expect(
+      provider.webhookEvent(...signed({ id: 'cus_X', object: 'customer', metadata: { billing_account_id: 'bill_1' } })),
+    ).toMatchObject({ customerId: 'cus_X', billHint: 'bill_1', rechargeHint: null })
+    expect(
+      provider.webhookEvent(...signed({ id: 'cs_X', object: 'checkout.session', client_reference_id: 'bill_2' })),
+    ).toMatchObject({ billHint: 'bill_2' })
+    expect(
+      provider.webhookEvent(
+        ...signed({
+          id: 'in_X',
+          object: 'invoice',
+          customer: 'cus_X',
+          metadata: { billing_recharge_id: 'rc_1' },
+          parent: { subscription_details: { metadata: { billing_account_id: 'bill_3' } } },
+        }),
+      ),
+    ).toMatchObject({ billHint: 'bill_3', rechargeHint: 'rc_1' })
+    // Another integration's customer: no hints.
+    expect(provider.webhookEvent(...signed({ id: 'ch_X', object: 'charge', customer: 'cus_Z' }))).toMatchObject({
+      customerId: 'cus_Z',
+      billHint: null,
+      rechargeHint: null,
+    })
+  })
+
   test('our signature matches the SDK’s own test header, and the event reads its object and customer', async () => {
     const payload = body()
     const at = now()
@@ -1294,7 +1547,7 @@ describe('webhooks', () => {
     )
   })
 
-  test('a live event on a test key and an event of another API version are refused, and `none` refuses everything', async () => {
+  test('a live event on a test key is refused, an event of another API version is taken, `none` refuses everything', async () => {
     const live = body(true)
     try {
       ;(await stripeWith()).webhookEvent(new TextEncoder().encode(live), sign(live, SECRET))
@@ -1302,14 +1555,15 @@ describe('webhooks', () => {
     } catch (error) {
       expect(error).toMatchObject({ reason: 'livemode' })
     }
-    // Signed, but in the account's default version: the endpoint is not pinned to the adapter's.
+    // Signed, in the account's default version (`stripe listen`, an endpoint made by hand): taken, with what every
+    // version has; the objects are fetched again at the adapter's version.
     const other = body(false, '2026-10-28.endive')
-    try {
-      ;(await stripeWith()).webhookEvent(new TextEncoder().encode(other), sign(other, SECRET))
-      expect.unreachable()
-    } catch (error) {
-      expect(error).toMatchObject({ reason: 'api_version', apiVersion: '2026-10-28.endive' })
-    }
+    expect((await stripeWith()).webhookEvent(new TextEncoder().encode(other), sign(other, SECRET))).toMatchObject({
+      id: 'evt_1Test',
+      objectId: 'in_1Test',
+      customerId: 'cus_1Test',
+      apiVersion: '2026-10-28.endive',
+    })
     expect(() => noneBillingProvider.webhookEvent(new TextEncoder().encode(body()), sign(body(), SECRET))).toThrow(
       WebhookRefused,
     )

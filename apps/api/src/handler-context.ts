@@ -113,7 +113,8 @@ export type HandlerCtx = {
  * The handler gets the result as `ctx.prepared`.
  */
 export type Preparer = (
-  ctx: { actor: Actor; now: string; onRollback: (undo: Undo) => void },
+  // `commandId`: the command's id (the client's idempotency key), the same on a retry of the same command.
+  ctx: { actor: Actor; now: string; onRollback: (undo: Undo) => void; commandId: string },
   // biome-ignore lint/suspicious/noExplicitAny: the registry has validated the input against the action's schema
   input: any,
 ) => Promise<unknown>

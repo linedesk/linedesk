@@ -30,6 +30,7 @@ import {
   S3RequestError,
   s3StoreFromValues,
 } from './recording-store.ts'
+import { WEB_ORIGIN } from './emails/templates.ts'
 import { s3EndpointProblem, s3Fetch } from './s3-endpoint.ts'
 
 export const TIMEOUT_MS = 8000
@@ -588,14 +589,23 @@ export async function testStripe(
         : access.prices === false
           ? 'prices'
           : null
+    const line = (reader: Reader) =>
+      reader.t('server.api.providerTest.stripe.connected', { mode, where, account: account.id })
     if (denied)
       return warning(
         'permission',
         said('admin.provider.test.stripeCatalogWrite', {
-          line: reader => reader.t('server.api.providerTest.stripe.connected', { mode, where, account: account.id }),
+          line,
           denied: reader => reader.t(STRIPE_WRITE_DENIED[denied]),
         }),
       )
+    // Every trial and plan Checkout asks for terms consent, which Stripe refuses without the account's Terms of
+    // Service URL (stripe_terms_url_missing). The API cannot set it: the admin is told where, before an owner meets it.
+    if ((await provider.checkoutTermsReady(WEB_ORIGIN)) === false)
+      return warning('config', said('admin.provider.test.stripeTermsUrl', { line }))
+    // The catalog sync keeps the customer portal to the design (no cancel): it needs write on its configuration.
+    if ((await provider.portalWriteAccess()) === false)
+      return warning('permission', said('admin.provider.test.stripePortalWrite', { line }))
     return ok(
       said(
         mode === 'live'

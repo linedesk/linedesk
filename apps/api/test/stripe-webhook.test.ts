@@ -33,6 +33,7 @@ import {
   pruneStripeEvents,
   sweepStripeEvents,
   UNHANDLED_PLAN,
+  FOREIGN_EVENT,
   UNHANDLED_TYPE,
 } from '../src/stripe-events.ts'
 import { resetStripeWebhookLimits, STRIPE_WEBHOOK_PATH } from '../src/stripe-webhook.ts'
@@ -322,7 +323,8 @@ afterAll(() => setBillingFetch(null))
 
 describe('the route', () => {
   test('stores a signed event once and answers 200; a redelivery stores nothing new', async () => {
-    const customer = rid('cus')
+    const { bill } = await billWith()
+    const customer = bill.stripe_customer_id!
     const evt = event('customer.updated', {
       id: customer,
       object: 'customer',
@@ -340,7 +342,7 @@ describe('the route', () => {
       type: 'customer.updated',
       created: evt.created,
       livemode: false,
-      data: { object: { id: customer, object: 'customer', customer } },
+      data: { object: { id: customer, object: 'customer', customer, metadata: {} } },
     })
     // Stripe retries with a new timestamp and signature: the same event id, still one row.
     expect((await deliver(body, sign(body, SECRET, nowSec() + 5))).status).toBe(200)
@@ -375,21 +377,44 @@ describe('the route', () => {
     expect(await storedEvent(evt.id as string)).toBeUndefined()
   })
 
-  test('refuses an event in another API version than the pinned one, without blocking the sender', async () => {
-    const from = randomIp()
-    for (let i = 0; i < 21; i++) {
-      const evt = event(
-        'customer.updated',
-        { id: rid('cus'), object: 'customer' },
-        { api_version: '2026-10-28.endive' },
-      )
-      const res = await deliver(JSON.stringify(evt), undefined, from)
-      expect(res.status).toBe(400)
-      expect(await res.json()).toMatchObject({ error: 'wrong api version' })
-      expect(await storedEvent(evt.id as string)).toBeUndefined()
-    }
-    const ok = JSON.stringify(event('customer.updated', { id: rid('cus'), object: 'customer' }))
-    expect((await deliver(ok, undefined, from)).status).toBe(200)
+  test('stores an event in another API version than the pinned one: only version-proof fields are read', async () => {
+    // A Stripe account's default version moves on (the sandbox sent 2026-10-28.endive); the event's object is
+    // fetched again at the pinned version before anything is acted on, so its version does not matter.
+    const { bill } = await billWith()
+    const evt = event(
+      'customer.updated',
+      { id: bill.stripe_customer_id, object: 'customer' },
+      { api_version: '2026-10-28.endive' },
+    )
+    expect((await deliver(JSON.stringify(evt))).status).toBe(200)
+    expect(await storedEvent(evt.id as string)).toMatchObject({ processed_at: null, last_error: null })
+  })
+
+  test('another install’s event (a customer no bill has, none of our ids) is kept as processed and never queued', async () => {
+    const evt = event('invoice.paid', invoice(rid('in'), rid('cus')))
+    expect((await deliver(JSON.stringify(evt))).status).toBe(200)
+    expect(await storedEvent(evt.id as string)).toMatchObject({ last_error: FOREIGN_EVENT, attempts: 0 })
+    expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
+    expect(stripe.requests.filter(r => r.startsWith('/v1/invoices'))).toEqual([])
+    // A redelivery is a duplicate.
+    expect((await deliver(JSON.stringify(evt))).status).toBe(200)
+  })
+
+  test('an event naming one of our bills or attempts is ours, whatever its customer', async () => {
+    const { bill } = await billWith()
+    const viaBill = event('customer.created', {
+      id: rid('cus'),
+      object: 'customer',
+      metadata: { billing_account_id: bill.id },
+    })
+    const viaOther = event('customer.created', {
+      id: rid('cus'),
+      object: 'customer',
+      metadata: { billing_account_id: rid('bill') },
+    })
+    for (const evt of [viaBill, viaOther]) expect((await deliver(JSON.stringify(evt))).status).toBe(200)
+    expect(await storedEvent(viaBill.id as string)).toMatchObject({ processed_at: null })
+    expect(await storedEvent(viaOther.id as string)).toMatchObject({ last_error: FOREIGN_EVENT })
   })
 
   test('refuses a body over 512 KB before reading it', async () => {
@@ -1001,10 +1026,11 @@ describe('a new card after a failed recharge (docs/billing.md §3.4)', () => {
     expect(stripe.requests.filter(r => r.startsWith('/v1/customers'))).toEqual([])
   })
 
-  test('a customer no bill has is retried for an hour, like every event, then processed', async () => {
+  test('a customer no bill has and none of our ids: another install’s event, done at once without asking Stripe', async () => {
     expect(await deliverAndProcess(event('customer.updated', { id: rid('cus'), object: 'customer' }))).toEqual({
-      outcome: 'unknown_retry',
+      skipped: 'processed',
     })
+    expect(stripe.requests.filter(r => r.startsWith('/v1/customers'))).toEqual([])
   })
 })
 
@@ -1171,26 +1197,45 @@ describe('invoice.payment_failed and invoice.voided for a recharge (PR 4’s fai
 })
 
 describe('the processor', () => {
-  test('an event of a customer no bill has: retried for an hour without asking Stripe, then marked processed', async () => {
+  test('an event stored before its owner was known, of a customer no bill has: marked processed at once', async () => {
+    // As a release before the owner check left it: stored and queued, though no bill has its customer.
     const evt = event('invoice.paid', invoice(rid('in'), rid('cus')))
-    expect(await deliverAndProcess(evt)).toEqual({ outcome: 'unknown_retry' })
-    expect(stripe.requests.filter(r => r.startsWith('/v1/invoices'))).toEqual([])
-    expect(await storedEvent(evt.id as string)).toMatchObject({ processed_at: null, attempts: 0 })
-    await db
-      .update(stripe_events)
-      .set({ received_at: new Date(Date.now() - 61 * 60_000).toISOString() })
-      .where(eq(stripe_events.id, evt.id as string))
+    await db.insert(stripe_events).values({
+      id: evt.id as string,
+      type: 'invoice.paid',
+      livemode: false,
+      created: new Date().toISOString(),
+      received_at: new Date().toISOString(),
+      payload: evt,
+    })
     expect(await processStripeEventJob(evt.id as string)).toEqual({ outcome: 'unknown' })
+    expect(await storedEvent(evt.id as string)).toMatchObject({ last_error: FOREIGN_EVENT })
     expect((await storedEvent(evt.id as string))!.processed_at).not.toBeNull()
+    expect(stripe.requests.filter(r => r.startsWith('/v1/invoices'))).toEqual([])
+  })
+
+  test('an event without a customer and none of our ids (a dispute) is retried for an hour, then marked processed', async () => {
+    const evt = event('charge.dispute.created', { id: rid('dp'), object: 'dispute', charge: rid('ch') })
+    const first = await deliverAndProcess(evt)
+    expect(first).not.toEqual({ skipped: 'processed' })
+    expect((await storedEvent(evt.id as string))!.last_error).not.toBe(FOREIGN_EVENT)
   })
 
   test('the bill is stored after its first event came: the retry finds it and credits (review of #865, L2)', async () => {
-    // Stripe does not order events: invoice.paid may come before the event that stores the customer on the bill.
+    // Stripe does not order events: invoice.paid may come before the bill has its customer. The invoice names our
+    // bill (its subscription's metadata), so the event is ours and waits for the bill instead of being skipped as
+    // another install's.
     const customer = rid('cus')
     const invoiceId = rid('in')
-    const evt = event('invoice.paid', invoice(invoiceId, customer))
+    const { bill } = await billWith({ stripe_customer_id: null })
+    const evt = event(
+      'invoice.paid',
+      invoice(invoiceId, customer, {
+        parent: { type: 'subscription_details', subscription_details: { metadata: { billing_account_id: bill.id } } },
+      }),
+    )
     expect(await deliverAndProcess(evt)).toEqual({ outcome: 'unknown_retry' })
-    const { bill } = await billWith({ stripe_customer_id: customer })
+    await db.update(billing_accounts).set({ stripe_customer_id: customer }).where(eq(billing_accounts.id, bill.id))
     const recharge = await pendingRecharge(bill.id, invoiceId)
     stripe.invoices.set(invoiceId, invoice(invoiceId, customer, { lines: [rechargeLine(recharge.id)] }))
     paidBy(invoiceId, 2000)
@@ -1199,7 +1244,8 @@ describe('the processor', () => {
   })
 
   test('a type this release does not act on stays unprocessed with its marker; no retry, no alert (M1)', async () => {
-    const evt = event('invoice.finalized', invoice(rid('in'), rid('cus')))
+    const { bill } = await billWith()
+    const evt = event('invoice.finalized', invoice(rid('in'), bill.stripe_customer_id!))
     expect(await deliverAndProcess(evt)).toEqual({ outcome: 'unhandled', marker: UNHANDLED_TYPE })
     expect(await storedEvent(evt.id as string)).toMatchObject({
       processed_at: null,
@@ -1494,7 +1540,8 @@ describe('the nightly reconciliation', () => {
   })
 
   test('an event given up on is not retried by the nightly run, only by an admin (review of #865, N2)', async () => {
-    const evt = event('invoice.paid', invoice(rid('in'), rid('cus')))
+    const { bill } = await billWith()
+    const evt = event('invoice.paid', invoice(rid('in'), bill.stripe_customer_id!))
     expect((await deliver(JSON.stringify(evt))).status).toBe(200)
     await db
       .update(stripe_events)

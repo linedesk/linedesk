@@ -78,6 +78,9 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
       throw new Error('not used')
     },
     catalogWriteAccess: async () => ({ products: null, prices: null }),
+    portalWriteAccess: async () => null,
+    checkoutTermsReady: async () => null,
+    syncPortal: async () => ({ configuration: 'bpc_test', changed: false }),
     expireOpenCheckouts: async () => {
       throw new Error('not used')
     },

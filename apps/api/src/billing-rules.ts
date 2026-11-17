@@ -224,6 +224,10 @@ export const planCatalog = (rules: BillingRules, brand: string): PlanCatalog => 
 // i18n-ignore: the Stripe invoice line, in the Stripe account's invoice language
 export const rechargeLine = (brand: string) => `${brand} balance recharge`
 
+/** The line of "Buy minutes" paid with the saved card ("Front Desk prepaid minutes"), as the top-up product is named. */
+// i18n-ignore: the Stripe invoice line, in the Stripe account's invoice language
+export const topUpLine = (brand: string) => `${brand} prepaid minutes`
+
 /** Every plan lookup key a Linedesk subscription may have. */
 const PLAN_LOOKUP_KEYS: ReadonlySet<string> = new Set(PLAN_PRICES.map(p => p.lookupKey))
 /** The Stripe products of the plans: our own ids, which never change (unlike price ids). */

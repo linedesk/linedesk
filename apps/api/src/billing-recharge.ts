@@ -22,7 +22,7 @@ import {
 } from '@linedesk/db'
 import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
-import { billingRules, rechargeLine } from './billing-rules.ts'
+import { billingRules, rechargeLine, topUpLine } from './billing-rules.ts'
 import { brandName } from './branding.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { EmailSender } from './email.ts'
@@ -36,6 +36,9 @@ import { requireLedgerGuards } from './ledger-guards.ts'
 
 /** Stripe idempotency keys last 24 hours: an attempt older than this looks for its invoice before making one. */
 const IDEMPOTENCY_KEY_MS = 23 * 60 * 60_000
+
+/** Bill statuses in which the owner buys minutes (billing-checkout.ts `BUYS_MINUTES`; not imported: a handler module). */
+const BUYS_MINUTES = ['trialing', 'active', 'past_due'] as const
 
 /** What the recharge job did with one attempt. */
 export type RechargeRun =
@@ -51,7 +54,7 @@ export type RechargeRun =
 export async function chargeRecharge(
   db: Db,
   rechargeId: string,
-  options: { provider?: BillingProvider; now?: () => string } = {},
+  options: { provider?: BillingProvider; now?: () => string; description?: string } = {},
 ): Promise<RechargeRun> {
   const now = options.now ?? (() => new Date().toISOString())
   const found = await db.transaction(async tx => {
@@ -68,9 +71,14 @@ export async function chargeRecharge(
       ? 'billing_off'
       : !bill.stripe_customer_id
         ? 'no_customer'
-        : !['active', 'past_due'].includes(bill.status) || !bill.auto_recharge
-          ? 'bill_inactive'
-          : null
+        : // "Buy minutes" with the saved card (`manual`): the owner's purchase, also in the trial, whatever auto-recharge is.
+          attempt.manual
+          ? (BUYS_MINUTES as readonly string[]).includes(bill.status)
+            ? null
+            : 'bill_inactive'
+          : !['active', 'past_due'].includes(bill.status) || !bill.auto_recharge
+            ? 'bill_inactive'
+            : null
   if (reason) {
     await settle(db, rechargeId, { status: 'canceled', failure_code: reason }, now())
     console.error(`billing: recharge ${rechargeId} of bill ${bill.id} canceled before charging (${reason})`)
@@ -85,8 +93,10 @@ export async function chargeRecharge(
     customerId: bill.stripe_customer_id!,
     amountCents: attempt.amount_cents,
     rechargeId,
-    description: rechargeLine(brandName()),
+    description: attempt.manual ? topUpLine(brandName()) : rechargeLine(brandName()),
     invoiceId,
+    // Bought in the app just now: charged on-session, so 3D Secure fails at once and the app offers Checkout.
+    ...(attempt.manual ? { onSession: true } : {}),
     // Checkout saved the card on the subscription: the adapter makes it the customer's default when there is none (B1).
     subscriptionId: bill.stripe_subscription_id,
   })
@@ -113,6 +123,14 @@ export async function rechargeFailed(
   failureCode: string,
   now: string,
 ) {
+  const [attempt] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, rechargeId))
+  // "Buy minutes" with the saved card: the owner is in the app and goes on to Checkout. The invoice is voided, the
+  // attempt canceled; no waiting for a new card, no email, nothing that would stop auto-recharge.
+  if (attempt?.manual) {
+    await provider.stopRechargeInvoice(invoiceId, { void: true })
+    await settle(db, rechargeId, { status: 'canceled', failure_code: failureCode, stripe_invoice_id: invoiceId }, now)
+    return
+  }
   const needsOwner = failureCode === 'authentication_required'
   await provider.stopRechargeInvoice(invoiceId, { void: !needsOwner })
   await settle(
@@ -406,6 +424,7 @@ async function rechargedInMonth(db: Db, billId: string, month: string) {
       and(
         eq(billing_recharges.billing_account_id, billId),
         inArray(billing_recharges.status, ['pending', 'failed', 'paid']),
+        eq(billing_recharges.manual, false),
         gte(billing_recharges.created_at, start.toISOString()),
         lt(billing_recharges.created_at, end.toISOString()),
       ),

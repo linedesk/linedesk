@@ -538,6 +538,8 @@ describe('billing: Stripe', () => {
       'GET api.stripe.com/v1/account': [200, account],
       'POST /v1/products/': [...missing],
       'POST /v1/prices/': [...missing],
+      'POST /v1/checkout/sessions': [200, { id: 'cs_test_terms', object: 'checkout.session' }],
+      'POST /v1/billing_portal/configurations/': [...missing],
     })
     const result = await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})
     expect(result).toEqual({
@@ -545,11 +547,15 @@ describe('billing: Stripe', () => {
       status: 'ok',
       message: 'Connected, test mode (US, USD), account acct_1Made: nothing is charged',
     })
-    // Empty updates of ids no object has: a 404 with the permission, a 403 without; nothing is ever written.
+    // Empty updates of ids no object has: a 404 with the permission, a 403 without. The terms check makes a setup
+    // Checkout nobody can complete and expires it at once; nothing else is written.
     expect(fake.calls).toEqual([
       'GET https://api.stripe.com/v1/account',
       'POST https://api.stripe.com/v1/products/linedesk_permission_probe',
       'POST https://api.stripe.com/v1/prices/price_linedesk_permission_probe',
+      'POST https://api.stripe.com/v1/checkout/sessions',
+      'POST https://api.stripe.com/v1/checkout/sessions/cs_test_terms/expire',
+      'POST https://api.stripe.com/v1/billing_portal/configurations/bpc_linedesk_permission_check',
     ])
     expect(JSON.stringify(result)).not.toContain(TEST_KEY)
   })
@@ -574,6 +580,47 @@ describe('billing: Stripe', () => {
     expect((await testProvider('stripe', keys(TEST_KEY), neither.doFetch, {})).message).toMatch(
       /cannot write Products and Prices\./,
     )
+  })
+
+  test('an account without a Terms of Service URL is a warning: Stripe refuses every Checkout (billing tour G1)', async () => {
+    const fake = provider({
+      'GET api.stripe.com/v1/account': [200, account],
+      'POST /v1/products/': [...missing],
+      'POST /v1/prices/': [...missing],
+      'POST /v1/checkout/sessions': [
+        400,
+        {
+          error: {
+            type: 'invalid_request_error',
+            message:
+              'You cannot collect consent to your terms of service unless a URL is set in the Stripe Dashboard. Update your public business details to set this URL.',
+          },
+        },
+      ],
+      'POST /v1/billing_portal/configurations/': [...missing],
+    })
+    expect(await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})).toMatchObject({
+      ok: true,
+      status: 'warning',
+      reason: 'config',
+      message: expect.stringMatching(/account acct_1Made, but the Stripe account has no Terms of Service URL\./),
+    })
+  })
+
+  test('a key that may not write the customer portal is a warning (billing tour G1)', async () => {
+    const fake = provider({
+      'GET api.stripe.com/v1/account': [200, account],
+      'POST /v1/products/': [...missing],
+      'POST /v1/prices/': [...missing],
+      'POST /v1/checkout/sessions': [200, { id: 'cs_test_terms', object: 'checkout.session' }],
+      'POST /v1/billing_portal/configurations/': [...noWrite],
+    })
+    expect(await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})).toMatchObject({
+      ok: true,
+      status: 'warning',
+      reason: 'permission',
+      message: expect.stringMatching(/cannot write the customer portal configuration/),
+    })
   })
 
   test('a live key says real cards are charged', async () => {

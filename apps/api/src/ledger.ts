@@ -385,6 +385,7 @@ export async function decideRecharge(tx: Tx, billId: string, now: string): Promi
       status: billing_recharges.status,
       amount: billing_recharges.amount_cents,
       created_at: billing_recharges.created_at,
+      manual: billing_recharges.manual,
     })
     .from(billing_recharges)
     .where(
@@ -393,7 +394,8 @@ export async function decideRecharge(tx: Tx, billId: string, now: string): Promi
         inArray(billing_recharges.status, ['pending', 'failed', 'paid']),
       ),
     )
-  const thisMonth = attempts.filter(a => new Date(a.created_at) >= new Date(month))
+  // "Buy minutes" with the saved card (`manual`) is the owner's own purchase: never counted in the automatic cap.
+  const thisMonth = attempts.filter(a => !a.manual && new Date(a.created_at) >= new Date(month))
   const answer: RechargeAnswer = rechargeDecision(
     {
       status: bill.status,

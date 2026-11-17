@@ -3,6 +3,7 @@
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
 import { catalogWriteAccess, ensureCatalog, ensureProduct, productId } from './catalog.ts'
+import { findPortalConfiguration, portalAllowsPlanChanges, portalFits, portalParams } from './portal.ts'
 import {
   type BillingChargeSource,
   type BillingEvent,
@@ -16,7 +17,6 @@ import {
   type CheckoutInput,
   type CheckoutSession,
   type CustomerPurchases,
-  PORTAL_METADATA,
   type RechargeCard,
   type RechargeCharge,
   type RechargeInvoiceInput,
@@ -26,11 +26,9 @@ import {
   WebhookRefused,
 } from '../provider.ts'
 
-/**
- * The Stripe API version every request and the webhook endpoint use (docs/billing.md §5.1): the version this SDK
- * release is built for (the SDK constructor accepts only that one). Changing it is its own PR, with the SDK update and a look at Stripe's upgrade notes.
- */
-export const STRIPE_API_VERSION = '2026-05-27.dahlia' as const
+import { STRIPE_API_VERSION } from '../version.ts'
+
+export { STRIPE_API_VERSION } from '../version.ts'
 
 /** No request to Stripe waits longer; billing never sits on the call path, but admin pages should not hang. */
 export const STRIPE_TIMEOUT_MS = 8000
@@ -52,11 +50,31 @@ function missing(error: unknown) {
   return error instanceof Stripe.errors.StripeError && error.statusCode === 404
 }
 
-/** The fields of an event billing reads before it fetches anything: which object, which customer. */
+const text = (value: unknown) => (typeof value === 'string' && value ? value : null)
+const metadataOf = (value: unknown) =>
+  value && typeof value === 'object' ? (value as { metadata?: Record<string, unknown> }).metadata : undefined
+
+/**
+ * The fields of an event billing reads before it fetches anything: which object, which customer, and our own ids the
+ * object carries (only as a hint that the event may be this install's; stripe-events.ts). Read defensively, so an
+ * event in any API version gives what it has: the object itself is fetched again at the adapter's version.
+ */
 export function eventOf(event: Stripe.Event): BillingEvent {
-  const object = event.data.object as { id?: unknown; object?: unknown; customer?: unknown }
+  const object = (event.data?.object ?? {}) as {
+    id?: unknown
+    object?: unknown
+    customer?: unknown
+    client_reference_id?: unknown
+    metadata?: Record<string, unknown>
+    parent?: { subscription_details?: { metadata?: Record<string, unknown> } }
+    subscription_details?: { metadata?: Record<string, unknown> }
+  }
   const customer =
     object.object === 'customer' ? object.id : (object.customer as string | { id: string } | null | undefined)
+  // A subscription's invoice carries the subscription's metadata (where the bill id is) under `parent` since
+  // 2025-03-31.basil, under `subscription_details` before.
+  const subscriptionMetadata =
+    metadataOf(object.parent?.subscription_details) ?? metadataOf(object.subscription_details)
   return {
     id: event.id,
     type: event.type,
@@ -64,7 +82,13 @@ export function eventOf(event: Stripe.Event): BillingEvent {
     created: event.created,
     objectId: typeof object.id === 'string' ? object.id : null,
     objectType: typeof object.object === 'string' ? object.object : null,
-    customerId: typeof customer === 'string' ? customer : idOf(customer as { id: string } | null),
+    customerId: typeof customer === 'string' ? customer : idOf((customer ?? null) as { id: string } | string | null),
+    billHint:
+      text(object.metadata?.[BILL_METADATA]) ??
+      text(subscriptionMetadata?.[BILL_METADATA]) ??
+      (object.object === 'checkout.session' ? text(object.client_reference_id) : null),
+    rechargeHint: text(object.metadata?.[RECHARGE_METADATA]),
+    apiVersion: text((event as { api_version?: unknown }).api_version),
   }
 }
 
@@ -154,6 +178,69 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         },
       ),
     catalogWriteAccess: () => catalogWriteAccess(stripe),
+    async portalWriteAccess() {
+      // An empty update of a configuration that does not exist: 403 without the permission, 404 with it.
+      try {
+        await stripe.billingPortal.configurations.update(PORTAL_PROBE_ID, {})
+        return true
+      } catch (error) {
+        const status = (error as { statusCode?: number }).statusCode
+        if (status === 403 || status === 401) return false
+        if (status === 404) return true
+        return null
+      }
+    },
+    async checkoutTermsReady(successUrl) {
+      // Stripe checks the terms URL when a session asks for the terms checkbox. A setup-mode session saves nothing
+      // until someone completes it, and it is expired at once, so nobody can.
+      let id: string
+      try {
+        const session = await stripe.checkout.sessions.create({
+          mode: 'setup',
+          currency: 'usd',
+          success_url: successUrl,
+          consent_collection: { terms_of_service: 'required' },
+          expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+          metadata: { linedesk_check: 'terms_url' },
+        })
+        id = session.id
+      } catch (error) {
+        return termsUrlRefused(error) ? false : null
+      }
+      if (id)
+        await stripe.checkout.sessions.expire(id).catch(error => {
+          // Harmless (it ends by itself within 30 minutes, and its link was never handed out), but worth seeing.
+          console.warn(`billing: the terms check session ${id} could not be expired: ${(error as Error).message}`)
+        })
+      return true
+    },
+    async syncPortal(design) {
+      const wanted = { headline: design.headline, termsUrl: design.termsUrl, privacyUrl: design.privacyUrl }
+      try {
+        const found = await findPortalConfiguration(stripe)
+        if (!found) {
+          // A new configuration needs the links Stripe shows in the portal; without them it is the bootstrap's job.
+          if (!design.termsUrl || !design.privacyUrl) throw new BillingSetupError('portal_configuration_missing')
+          const made = await stripe.billingPortal.configurations.create(portalParams(wanted))
+          return { configuration: made.id, changed: true }
+        }
+        // One configuration serves every install on a Stripe account (a shared sandbox): the app only fills in a
+        // headline or link that is not set, never writes over one (another install's name and legal links stay; the
+        // bootstrap, run by a person, changes them). The features are always the design (review of #1102, L-3).
+        const profile = found.business_profile
+        const fill = {
+          headline: profile.headline ? undefined : wanted.headline,
+          termsUrl: profile.terms_of_service_url ? undefined : wanted.termsUrl,
+          privacyUrl: profile.privacy_policy_url ? undefined : wanted.privacyUrl,
+        }
+        if (portalFits(found, fill)) return { configuration: found.id, changed: false }
+        await stripe.billingPortal.configurations.update(found.id, portalParams(fill))
+        return { configuration: found.id, changed: true }
+      } catch (error) {
+        if (error instanceof BillingSetupError) throw error
+        throw setupError(error) ?? refusedSetup(error) ?? error
+      }
+    },
     checkoutSession: id => checkoutSession(stripe, id),
     async expireOpenCheckouts(customerId) {
       let expired = 0
@@ -274,9 +361,22 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       try {
         const configuration = await findPortalConfiguration(stripe)
         if (!configuration) throw new BillingSetupError('portal_configuration_missing')
+        // Cancel and plan changes stay in the app (§2.4): switched on in the Dashboard, they are switched off again
+        // before the owner sees the portal; a key that may not do that opens no portal at all.
+        if (portalAllowsPlanChanges(configuration))
+          await stripe.billingPortal.configurations
+            .update(configuration.id, {
+              features: { subscription_cancel: { enabled: false }, subscription_update: { enabled: false } },
+            })
+            .catch(error => {
+              console.error(
+                `billing: the portal offers cancel and could not be fixed (${setupError(error)?.code ?? 'error'})`,
+              )
+              throw new BillingSetupError('portal_allows_cancel')
+            })
         const session = await stripe.billingPortal.sessions.create({
           customer: customerId,
-          configuration,
+          configuration: configuration.id,
           return_url: returnUrl,
         })
         return session.url
@@ -298,9 +398,10 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       }
       if (!event) throw new WebhookRefused('signature')
       if (event.livemode !== (mode === 'live')) throw new WebhookRefused('livemode')
-      // The endpoint is pinned to the adapter's version (the bootstrap script creates it so); an event in another
-      // version means the endpoint is not, and its payload may not have the shape this code reads.
-      if (event.api_version !== STRIPE_API_VERSION) throw new WebhookRefused('api_version', event.api_version ?? null)
+      // Any API version is taken (docs/billing.md §5.1): the bootstrap pins the endpoint to STRIPE_API_VERSION, but
+      // `stripe listen`, an endpoint made by hand and the reconciliation's list come in the account's default version.
+      // eventOf reads only the event's id, type, object id, customer and our own metadata, which every version has,
+      // and processing fetches each object again through this adapter, at the pinned version.
       return eventOf(event)
     },
 
@@ -568,11 +669,19 @@ export async function findCheckoutConfiguration(
   return null
 }
 
-/** The customer portal configuration the bootstrap made (its metadata), read over every page; null: none active. */
-async function findPortalConfiguration(stripe: Stripe): Promise<string | null> {
-  for await (const config of stripe.billingPortal.configurations.list({ limit: 100 }))
-    if (config.active && config.metadata?.linedesk === PORTAL_METADATA.linedesk) return config.id
-  return null
+/** An id no portal configuration has: the write-access probe's (nothing is written). */
+const PORTAL_PROBE_ID = 'bpc_linedesk_permission_check'
+
+/**
+ * Stripe refuses the terms checkbox when the account has no Terms of Service URL (Dashboard › Settings › Public
+ * details): a 400 without its own code, told by its parameter or message (as Checkout's own mapping to
+ * `stripe_terms_url_missing` does). The checkbox is never left out to get past it.
+ */
+function termsUrlRefused(error: unknown) {
+  const e = error as { statusCode?: number; message?: unknown; param?: unknown }
+  if (e.statusCode !== 400) return false
+  const about = `${typeof e.param === 'string' ? e.param : ''} ${typeof e.message === 'string' ? e.message : ''}`
+  return /terms[ _]of[ _]service/i.test(about)
 }
 
 /** A 400 when a Checkout is made: the account is not set up for it (a price, tax, the terms URL). For the admins. */
@@ -598,7 +707,10 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
     billing_address_collection: 'required' as const,
     customer_update: { address: 'auto' as const, name: 'auto' as const },
     tax_id_collection: { enabled: true },
-    custom_text: { submit: { message: input.submitText } },
+    custom_text: {
+      submit: { message: input.submitText.slice(0, CUSTOM_TEXT_MAX) },
+    },
+    ...(input.branding ? { branding_settings: brandingOf(input.branding) } : {}),
     expires_at: input.expiresAt,
     metadata,
   }
@@ -657,6 +769,20 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
   }
   if (!session.url) throw new Error(`Checkout Session ${session.id} has no URL`)
   return { id: session.id, url: session.url }
+}
+
+/** Stripe's limit on each Checkout custom text. */
+const CUSTOM_TEXT_MAX = 1200
+
+/**
+ * Checkout's own branding per session (Stripe's `branding_settings`): the install's name at the top instead of the
+ * Stripe account's, and its color on the button when it is a hex color. The logo stays the account's: Stripe would
+ * fetch a URL at once, and an install's logo is not always reachable from the internet (a server on a private
+ * network, dev). Receipts, invoices, the statement descriptor and the portal keep the account's name (§2.4).
+ */
+function brandingOf(branding: NonNullable<CheckoutInput['branding']>) {
+  const color = branding.buttonColor && /^#[0-9a-f]{6}$/i.test(branding.buttonColor) ? branding.buttonColor : null
+  return { display_name: branding.displayName.slice(0, 100), ...(color ? { button_color: color } : {}) }
 }
 
 const cardOf = (pm: string | Stripe.PaymentMethod | null | undefined): CheckoutCard | null =>
@@ -814,7 +940,13 @@ async function rechargeCard(
   }
   if (customer.deleted) return null
   const own = customer.invoice_settings?.default_payment_method
-  if (own) return { id: idOf(own)!, createdAt: typeof own === 'string' ? null : iso(own.created), on: 'customer' }
+  if (own)
+    return {
+      id: idOf(own)!,
+      createdAt: typeof own === 'string' ? null : iso(own.created),
+      on: 'customer',
+      ...brandOfCard(own),
+    }
   // A legacy source is charged too; it has no creation time we read.
   if (customer.default_source) return { id: idOf(customer.default_source)!, createdAt: null, on: 'customer' }
   if (!subscriptionId) return null
@@ -827,7 +959,18 @@ async function rechargeCard(
   }
   const card = sub.default_payment_method
   if (!card || idOf(sub.customer) !== customerId) return null
-  return { id: idOf(card)!, createdAt: typeof card === 'string' ? null : iso(card.created), on: 'subscription' }
+  return {
+    id: idOf(card)!,
+    createdAt: typeof card === 'string' ? null : iso(card.created),
+    on: 'subscription',
+    ...brandOfCard(card),
+  }
+}
+
+/** The brand and last four digits of an expanded card payment method, for the owner's confirmation. */
+function brandOfCard(method: string | Stripe.PaymentMethod) {
+  const card = typeof method === 'string' ? null : method.card
+  return { brand: card?.brand ?? null, last4: card?.last4 ?? null }
 }
 
 /** The text of a recharge's invoice item, set apart from its idempotent create (review of #1040, L-5). */
@@ -896,7 +1039,8 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
   if (card?.on === 'subscription')
     await stripe.customers.update(input.customerId, { invoice_settings: { default_payment_method: card.id } })
   try {
-    invoice = await stripe.invoices.pay(id, {}, key('pay'))
+    // On-session: the owner just confirmed this payment in the app; 3D Secure fails at once, never later.
+    invoice = await stripe.invoices.pay(id, input.onSession ? { off_session: false } : {}, key('pay'))
   } catch (error) {
     const e = error as { statusCode?: number; code?: string; decline_code?: string }
     // 3DS first, whatever the status: the invoice stays open for the owner to confirm (recheck of #864, L1).

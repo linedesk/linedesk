@@ -30,6 +30,7 @@ import {
   RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS,
   RECHARGE_DEFAULTS,
   RECHARGE_LIMITS,
+  TOPUP_LIMITS_CENTS,
   PAID_LEVELS,
   USAGE_LEVELS,
   type ActionItem,
@@ -2222,6 +2223,11 @@ export const billing_recharges = pgTable(
     stripe_invoice_id: text('stripe_invoice_id').unique(),
     /** Stripe's decline or error code of a failed attempt (`card_declined`, `authentication_required`). */
     failure_code: text('failure_code'),
+    /**
+     * "Buy minutes" with the saved card (docs/billing.md §2.2): the owner chose the amount ($5 to $500) and confirmed
+     * it in the app. Charged and credited like a recharge, but never counted in the monthly cap of automatic ones.
+     */
+    manual: boolean('manual').notNull().default(false),
     created_at: createdAt(),
     resolved_at: ts('resolved_at'),
   },
@@ -2231,7 +2237,7 @@ export const billing_recharges = pgTable(
     check('billing_recharges_status', oneOf(t.status, RECHARGE_STATUSES)),
     check(
       'billing_recharges_amount',
-      sql`${t.amount_cents} between ${sql.raw(String(RECHARGE_LIMITS.amountCents.min))} and ${sql.raw(String(RECHARGE_LIMITS.amountCents.max))}`,
+      sql`${t.amount_cents} between (case when ${t.manual} then ${sql.raw(String(TOPUP_LIMITS_CENTS.min))} else ${sql.raw(String(RECHARGE_LIMITS.amountCents.min))} end) and ${sql.raw(String(RECHARGE_LIMITS.amountCents.max))}`,
     ),
     check('billing_recharges_resolved', sql`(${t.status} = 'pending') = (${t.resolved_at} is null)`),
   ],

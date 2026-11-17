@@ -299,7 +299,8 @@ async function billDetail(tx: Tx, billId: string): Promise<AdminBillDetail> {
     stripeCustomerId: bill.stripe_customer_id,
     stripeSubscriptionId: bill.stripe_subscription_id,
     dashboardUrl: state.mode ? `https://dashboard.stripe.com${state.mode === 'test' ? '/test' : ''}` : null,
-    trialEndsAt: bill.trial_ends_at,
+    // Only while the trial runs: a converted bill (also one whose trial ended early) shows no "Trial ends".
+    trialEndsAt: bill.status === 'trialing' ? bill.trial_ends_at : null,
     currentPeriodStart: bill.current_period_start,
     currentPeriodEnd: bill.current_period_end,
     autoRecharge: bill.auto_recharge,

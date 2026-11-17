@@ -8,7 +8,7 @@
 // webhooks from the same few addresses, so a block per address would let anyone with a Stripe account lock ours out.
 // What an unsigned request costs is kept small instead (L3): a header that is not Stripe's shape is refused before
 // anything is read, the provider (keys, switch) is cached, and checking the signature is one HMAC.
-import { type WebhookRefusal, WebhookRefused } from '@linedesk/billing'
+import { STRIPE_API_VERSION, type WebhookRefusal, WebhookRefused } from '@linedesk/billing'
 import type { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { webhookBillingProvider } from './billing-settings.ts'
@@ -19,7 +19,6 @@ import { storeStripeEvent } from './stripe-events.ts'
 const REFUSAL_ERROR: Record<WebhookRefusal, string> = {
   signature: 'bad signature',
   livemode: 'wrong mode',
-  api_version: 'wrong api version',
 }
 
 export const STRIPE_WEBHOOK_PATH = '/v1/billing/stripe/webhook'
@@ -40,10 +39,27 @@ function logRefused(reason: string, now = Date.now()) {
   refusedLog.count = 0
 }
 
+/**
+ * An event in another API version than the adapter's is taken (docs/billing.md §5.1: only version-proof fields are
+ * read, every object is fetched again at the pinned version). Noted once an hour per version, so an endpoint that is
+ * not pinned (made by hand, `stripe listen`) is visible in the log without filling it.
+ */
+const VERSION_NOTE_MS = 60 * 60_000
+const versionNotes = new Map<string, number>()
+function noteVersion(version: string | null | undefined, now = Date.now()) {
+  if (!version || version === STRIPE_API_VERSION) return
+  if (now - (versionNotes.get(version) ?? 0) < VERSION_NOTE_MS) return
+  versionNotes.set(version, now)
+  console.warn(
+    `billing: Stripe webhook events come in API version ${version}, not ${STRIPE_API_VERSION}: taken (only version-proof fields are read); pin the endpoint with the bootstrap script`,
+  )
+}
+
 /** Forgets the log throttle (tests). */
 export function resetStripeWebhookLimits() {
   refusedLog.at = 0
   refusedLog.count = 0
+  versionNotes.clear()
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: the app's variables are not this route's concern
@@ -70,11 +86,13 @@ export function registerStripeWebhookRoute(app: Hono<any>) {
         event = provider.webhookEvent(raw, signature)
       } catch (error) {
         if (!(error instanceof WebhookRefused)) throw error
-        logRefused(`${error.reason}${error.apiVersion ? ` ${error.apiVersion}` : ''}`)
+        logRefused(error.reason)
         return c.json({ ok: false, error: REFUSAL_ERROR[error.reason] }, 400)
       }
+      noteVersion(event.apiVersion)
       const outcome = await db.transaction(tx => storeStripeEvent(tx, event, new Date().toISOString()))
-      if (outcome !== 'duplicate') console.log(`billing: Stripe event ${event.id} (${event.type}) ${outcome}`)
+      if (outcome !== 'duplicate' && outcome !== 'foreign')
+        console.log(`billing: Stripe event ${event.id} (${event.type}) ${outcome}`)
       return c.json({ ok: true })
     },
   )

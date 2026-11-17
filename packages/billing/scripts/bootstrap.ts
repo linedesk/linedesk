@@ -16,6 +16,8 @@
  *   secret, shown by Stripe once when the endpoint is created, goes to `--secret-out` (default
  *   `stripe-webhook-secret.<mode>.txt` in packages/billing, git-ignored), created new with mode 0600 (an existing file
  *   or a symlink there is refused) and never printed: paste it into Server admin › Providers › Billing, then delete it.
+ * - The account's Terms of Service URL (Dashboard › Settings › Business › Public details) cannot be set through the API,
+ *   but every trial and plan Checkout asks for terms consent and fails without it: the script checks it and says so.
  * - A price whose amount changed is replaced only with `--replace-prices`. A webhook endpoint in an old API version
  *   is replaced with `--recreate-webhook` (the new one is made beside it) and deleted later with
  *   `--delete-old-webhooks`.
@@ -124,6 +126,15 @@ try {
   const { webhookSecret, changes, ...ids } = result
   console.log(`Stripe account ${ids.account} (${ids.mode})${values['dry-run'] ? ', dry run' : ''}`)
   console.log(changes.length ? changes.map(c => `  ${c}`).join('\n') : '  nothing to change')
+  // The one setting Checkout needs that the API cannot make: the terms checkbox refuses to start without it.
+  if (ids.termsOfServiceUrl === 'missing')
+    console.log(
+      'ACTION NEEDED: the Stripe account has no Terms of Service URL, and every trial and plan Checkout fails without it. Add it in the Stripe Dashboard › Settings › Business › Public details (Terms of service), then run this again.',
+    )
+  else if (ids.termsOfServiceUrl === 'unknown' && !values['dry-run'])
+    console.log(
+      'could not check the Terms of Service URL: check Dashboard › Settings › Business › Public details by hand',
+    )
   if (!values['dry-run']) {
     const out = outPath(values.out, `stripe-ids.${mode}.json`)
     refuseSymlink(out)

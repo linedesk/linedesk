@@ -125,6 +125,8 @@ async function usedThisMonthCents(tx: Reader, billId: string, now: string) {
       and(
         eq(billing_recharges.billing_account_id, billId),
         inArray(billing_recharges.status, ['pending', 'failed', 'paid']),
+        // "Buy minutes" with the saved card is the owner's own purchase, not an automatic recharge.
+        eq(billing_recharges.manual, false),
         gte(billing_recharges.created_at, monthStart(now)),
       ),
     )

@@ -14,10 +14,12 @@ import {
   billing_periods,
   billing_recharges,
   card_fingerprints,
+  commands,
   instance_settings,
   ledger_entries,
   organization,
   phone_numbers,
+  session,
   stripe_events,
   usage_counters,
   user,
@@ -32,6 +34,7 @@ import {
   CHECKOUT_UNAVAILABLE,
   NUMBER_HELD_FOR_REVIEW,
   NUMBER_NEEDS_CHECKOUT,
+  plainName,
   resetCheckoutLimit,
   TRIAL_NUMBER_LIMIT,
 } from '../src/billing-checkout.ts'
@@ -72,6 +75,8 @@ const stripe = {
   prices: [] as Json[],
   /** false: the key may only read Products and Prices (every write to them is a 403, review of #1040 M-1). */
   catalogWritable: true,
+  /** How paying an invoice ends (Buy minutes with the saved card): paid, 3D Secure asked, or declined. */
+  payOutcome: 'paid' as 'paid' | '3ds' | 'declined',
   /** Every request: method, path and the form body. */
   requests: [] as { method: string; path: string; body: URLSearchParams; idempotencyKey: string | null }[],
 }
@@ -212,7 +217,99 @@ const fakeStripe: typeof fetch = async (input, init) => {
       found.cancel_at_period_end = body.get('cancel_at_period_end') === 'true'
     return reply(200, found)
   }
+  if (kind === 'customers' && id && method === 'GET')
+    return reply(200, {
+      id,
+      object: 'customer',
+      invoice_settings: { default_payment_method: null },
+      default_source: null,
+    })
+  // A recharge invoice (Buy minutes with the saved card): made, given its item, finalized, paid or voided.
+  if (kind === 'invoices' && !id && method === 'POST') {
+    const invoiceId = rid('in')
+    stripe.invoices.set(invoiceId, {
+      id: invoiceId,
+      object: 'invoice',
+      livemode: false,
+      customer: body.get('customer'),
+      parent: null,
+      status: 'draft',
+      billing_reason: 'manual',
+      currency: 'usd',
+      total: 0,
+      total_taxes: [],
+      amount_paid: 0,
+      amount_paid_off_stripe: 0,
+      starting_balance: 0,
+      description: null,
+      metadata: { billing_recharge_id: body.get('metadata[billing_recharge_id]') },
+      lines: list([], `/v1/invoices/${invoiceId}/lines`),
+      number: 'LD-0002',
+      period_start: nowSec(),
+      period_end: nowSec(),
+    })
+    return reply(200, stripe.invoices.get(invoiceId))
+  }
+  if (kind === 'invoices' && id && sub && method === 'POST') {
+    const invoice = stripe.invoices.get(id)
+    if (!invoice) return notFound()
+    if (sub === 'finalize') invoice.status = 'open'
+    if (sub === 'void') invoice.status = 'void'
+    if (sub === 'pay') {
+      if (stripe.payOutcome === '3ds')
+        return reply(402, {
+          error: { type: 'card_error', code: 'authentication_required', message: 'Authentication required.' },
+        })
+      if (stripe.payOutcome === 'declined')
+        return reply(402, {
+          error: {
+            type: 'card_error',
+            code: 'card_declined',
+            decline_code: 'insufficient_funds',
+            message: 'Declined.',
+          },
+        })
+      Object.assign(invoice, { status: 'paid', amount_paid: invoice.total })
+      stripe.payments.set(id, [
+        {
+          id: rid('inpay'),
+          object: 'invoice_payment',
+          amount_paid: invoice.total,
+          status: 'paid',
+          payment: { type: 'payment_intent', payment_intent: rid('pi') },
+        },
+      ])
+    }
+    return reply(200, invoice)
+  }
+  if (kind === 'invoices' && id && method === 'POST' && stripe.invoices.has(id)) {
+    const invoice = stripe.invoices.get(id)!
+    if (body.has('description')) invoice.description = body.get('description')
+    return reply(200, invoice)
+  }
   if (kind === 'invoices' && id) return stripe.invoices.has(id) ? reply(200, stripe.invoices.get(id)) : notFound()
+  if (kind === 'invoiceitems' && method === 'POST' && !id && body.get('invoice')) {
+    const invoice = stripe.invoices.get(body.get('invoice')!)
+    const amount = Number(body.get('amount'))
+    if (invoice && invoice.status === 'draft')
+      Object.assign(invoice, {
+        total: amount,
+        lines: list(
+          [
+            {
+              id: rid('il'),
+              object: 'line_item',
+              amount,
+              currency: 'usd',
+              parent: { type: 'invoice_item_details', invoice_item_details: { invoice_item: rid('ii') } },
+              metadata: { billing_recharge_id: body.get('metadata[billing_recharge_id]') },
+            },
+          ],
+          `/v1/invoices/${invoice.id}/lines`,
+        ),
+      })
+    return reply(200, { id: rid('ii'), object: 'invoiceitem' })
+  }
   if (kind === 'invoiceitems' && method === 'POST') return reply(200, { id: rid('ii'), object: 'invoiceitem' })
   if (kind === 'invoice_payments')
     return reply(200, list(stripe.payments.get(url.searchParams.get('invoice') ?? '') ?? [], url.pathname))
@@ -222,7 +319,7 @@ const fakeStripe: typeof fetch = async (input, init) => {
 const card = (fingerprint: string, funding = 'credit') => ({
   id: rid('pm'),
   object: 'payment_method',
-  card: { fingerprint, funding, country: 'US' },
+  card: { fingerprint, funding, country: 'US', brand: 'visa', last4: '4242' },
 })
 
 /** A Linedesk plan subscription as Stripe has it after Checkout. */
@@ -345,6 +442,7 @@ beforeEach(() => {
   stripe.requests.length = 0
   stripe.configuration = 'pmc_own'
   stripe.catalogWritable = true
+  stripe.payOutcome = 'paid'
   resetCheckoutLimit()
 })
 afterAll(() => setBillingFetch(null))
@@ -680,6 +778,171 @@ describe('billing.startTopUp (docs/billing.md §2.2)', () => {
   test('not before the plan has started', async () => {
     const { owner } = await pendingSignUp()
     expect((await act(owner, 'billing.startTopUp', { amountCents: 2500 })).status).toBe(409)
+  })
+})
+
+describe('Buy minutes with the saved card (docs/billing.md §2.2; billing tour G1, security review of #1102)', () => {
+  const queued: { name: string; data: Record<string, unknown> }[] = []
+  beforeEach(() => {
+    queued.length = 0
+    setJobQueue({
+      send: async (name: string, data: Record<string, unknown>) => {
+        queued.push({ name, data })
+        return 'job'
+      },
+      insert: async () => [],
+    } as never)
+  })
+  afterEach(() => setJobQueue(null))
+  const attempts = (billId: string) =>
+    db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, billId))
+  const pays = () => stripe.requests.filter(r => r.method === 'POST' && r.path.endsWith('/pay'))
+  /** The first press: which card would be charged; nothing is charged yet. */
+  async function shownCard(owner: Caller, amountCents: number) {
+    const res = await act(owner, 'billing.startTopUp', { amountCents, savedCard: true })
+    expect(res.status).toBe(200)
+    expect(res.body.data).toMatchObject({ kind: 'confirm', card: { brand: 'visa', last4: '4242' } })
+    return res.body.data.card.id as string
+  }
+
+  test('first the card (brand, last four), nothing charged; confirmed: charged on-session, credited at once, once', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    const confirmCard = await shownCard(owner, 1000)
+    expect(pays()).toEqual([])
+    expect(await attempts(bill.id)).toEqual([])
+    const res = await act(owner, 'billing.startTopUp', { amountCents: 1000, savedCard: true, confirmCard })
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ kind: 'paid', amountCents: 1000, credited: true })
+    expect(checkoutsMade()).toHaveLength(1) // the trial's Checkout only
+    expect(Object.fromEntries(pays()[0]!.body)).toEqual({ off_session: 'false' })
+    // A manual attempt below the auto-recharge minimum, paid, and its credit a `recharge` entry of the attempt.
+    const [attempt] = await attempts(bill.id)
+    expect(attempt).toMatchObject({ manual: true, amount_cents: 1000, status: 'paid' })
+    const entries = await db
+      .select()
+      .from(ledger_entries)
+      .where(and(eq(ledger_entries.billing_account_id, bill.id), eq(ledger_entries.kind, 'recharge')))
+    expect(entries).toMatchObject([
+      { amount_micros: 10_000_000, source_type: 'billing_recharge', source_id: attempt!.id },
+    ])
+    // invoice.paid later credits nothing again.
+    await processEvent('invoice.paid', {
+      id: attempt!.stripe_invoice_id!,
+      object: 'invoice',
+      customer: bill.stripe_customer_id,
+    })
+    const [balance] = await db.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
+    expect(balance!.balance_micros).toBe(10_000_000)
+  })
+
+  test('a card changed since it was shown is shown again, not charged', async () => {
+    const { owner } = await trialWith(rid('fp'))
+    await shownCard(owner, 1000)
+    const res = await act(owner, 'billing.startTopUp', { amountCents: 1000, savedCard: true, confirmCard: 'pm_other' })
+    expect(res.body.data).toMatchObject({ kind: 'confirm' })
+    expect(pays()).toEqual([])
+  })
+
+  test('the owner proves it is them first: a sign-in older than 10 minutes is refused before anything is charged (M-1)', async () => {
+    const { bill, ws, owner } = await trialWith(rid('fp'))
+    const confirmCard = await shownCard(owner, 1000)
+    await db
+      .update(session)
+      .set({ createdAt: new Date(Date.now() - 11 * 60_000) })
+      .where(eq(session.userId, ws.owner.userId))
+    const res = await act(owner, 'billing.startTopUp', { amountCents: 1000, savedCard: true, confirmCard })
+    expect(res.status).toBe(409)
+    expect(res.body).toMatchObject({ code: 'SIGN_IN_AGAIN' })
+    expect(pays()).toEqual([])
+    expect(await attempts(bill.id)).toEqual([])
+  })
+
+  test('at most $500 in 24 hours on the saved card; beyond it, Checkout (M-1)', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    const confirmCard = await shownCard(owner, 40_000)
+    expect(
+      (await act(owner, 'billing.startTopUp', { amountCents: 40_000, savedCard: true, confirmCard })).body.data,
+    ).toMatchObject({ kind: 'paid' })
+    const over = await act(owner, 'billing.startTopUp', { amountCents: 20_000, savedCard: true, confirmCard })
+    expect(over.body.data).toEqual({
+      kind: 'checkout',
+      url: 'https://checkout.stripe.test/c/pay',
+      fallback: 'daily_limit',
+    })
+    expect(pays()).toHaveLength(1)
+    // A day later the card may be charged again.
+    await db
+      .update(billing_recharges)
+      .set({ created_at: new Date(Date.now() - 25 * 3_600_000).toISOString() })
+      .where(eq(billing_recharges.billing_account_id, bill.id))
+    expect(
+      (await act(owner, 'billing.startTopUp', { amountCents: 20_000, savedCard: true, confirmCard })).body.data,
+    ).toMatchObject({ kind: 'paid' })
+  })
+
+  test('the same command sent again after its answer was lost finds its purchase: never charged twice (L-1)', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    const confirmCard = await shownCard(owner, 2500)
+    const key = crypto.randomUUID()
+    const input = { amountCents: 2500, savedCard: true, confirmCard }
+    expect((await act(owner, 'billing.startTopUp', input, key)).body.data).toMatchObject({ kind: 'paid' })
+    // As if the handler's transaction had not committed: the command is not stored, so the retry runs again.
+    await db.delete(commands).where(eq(commands.id, key))
+    const again = await act(owner, 'billing.startTopUp', input, key)
+    expect(again.body.data).toEqual({ kind: 'paid', amountCents: 2500, credited: true })
+    expect(pays()).toHaveLength(1)
+    expect(await attempts(bill.id)).toHaveLength(1)
+    const [balance] = await db.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
+    expect(balance!.balance_micros).toBe(25_000_000)
+  })
+
+  test('3D Secure asked or a decline: the invoice voided, no wait and no email; the owner goes on in Checkout', async () => {
+    for (const outcome of ['3ds', 'declined'] as const) {
+      const { bill, owner } = await trialWith(rid('fp'))
+      const confirmCard = await shownCard(owner, 2500)
+      stripe.payOutcome = outcome
+      mails.length = 0
+      const res = await act(owner, 'billing.startTopUp', { amountCents: 2500, savedCard: true, confirmCard })
+      expect(res.status).toBe(200)
+      expect(res.body.data).toEqual({
+        kind: 'checkout',
+        url: 'https://checkout.stripe.test/c/pay',
+        fallback: outcome === '3ds' ? 'authentication_required' : 'declined',
+      })
+      const [attempt] = await attempts(bill.id)
+      expect(attempt).toMatchObject({ manual: true, status: 'canceled' })
+      expect(stripe.invoices.get(attempt!.stripe_invoice_id!)!.status).toBe('void')
+      expect(await billRow(bill.id)).toMatchObject({ recharge_failed_at: null })
+      expect(mails).toEqual([])
+    }
+  })
+
+  test('no saved card: Checkout at once; without savedCard: Checkout as before', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    stripe.subscriptions.get((await billRow(bill.id)).stripe_subscription_id!)!.default_payment_method = null
+    const res = await act(owner, 'billing.startTopUp', { amountCents: 2500, savedCard: true })
+    expect(res.body.data).toEqual({ kind: 'checkout', url: 'https://checkout.stripe.test/c/pay', fallback: 'no_card' })
+    expect(await attempts(bill.id)).toEqual([])
+    const other = await act(owner, 'billing.startTopUp', { amountCents: 2500 })
+    expect(other.body.data).toEqual({ kind: 'checkout', url: 'https://checkout.stripe.test/c/pay' })
+  })
+
+  test('the install name on Stripe pages is plain text: no Markdown links or emphasis (L-4)', () => {
+    expect(plainName('[Free money](https://evil.test) **now**\nDesk')).toBe('Free money https://evil.test now Desk')
+    expect(plainName('Brightwater Plumbing & Heating')).toBe('Brightwater Plumbing & Heating')
+  })
+
+  test('one payment at a time: a pending payment refuses the saved card and Checkout alike (L-2)', async () => {
+    const { bill, owner } = await trialWith(rid('fp'))
+    const confirmCard = await shownCard(owner, 2500)
+    await db
+      .insert(billing_recharges)
+      .values({ id: rid('rc'), billing_account_id: bill.id, amount_cents: 2000, created_at: new Date().toISOString() })
+    expect((await act(owner, 'billing.startTopUp', { amountCents: 2500, savedCard: true, confirmCard })).status).toBe(
+      409,
+    )
+    expect((await act(owner, 'billing.startTopUp', { amountCents: 2500 })).status).toBe(409)
+    expect(checkoutsMade()).toHaveLength(1) // the trial's Checkout only
   })
 })
 
@@ -1182,6 +1445,70 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
     expect(await processEvent('invoice.created', object)).toMatchObject({ detail: 'no_recharge' })
     expect(stripe.requests.filter(r => r.path === '/v1/invoiceitems')).toEqual([])
+  })
+
+  test('a trial ended early: the trial period cut, the first month open, the first recharge decided (billing tour G1)', async () => {
+    const queued: { name: string; data: Record<string, unknown> }[] = []
+    setJobQueue({
+      send: async (name: string, data: Record<string, unknown>) => {
+        queued.push({ name, data })
+        return 'job'
+      },
+      insert: async () => [],
+    } as never)
+    try {
+      const { bill, sub } = await trialWith(rid('fp'))
+      expect(Date.parse((await billRow(bill.id)).trial_ends_at!)).toBeGreaterThan(Date.now() + 13 * DAY_S * 1000)
+      // "Start my plan now": Stripe ends the trial and charges the plan at once; no draft hour, no invoice.created.
+      const ended = nowSec() - 60
+      const item = (sub.items as { data: Json[] }).data[0]!
+      Object.assign(item, { current_period_start: ended, current_period_end: ended + 30 * DAY_S })
+      Object.assign(sub, { status: 'active', trial_end: ended })
+      const invoiceId = rid('in')
+      stripe.invoices.set(invoiceId, {
+        id: invoiceId,
+        object: 'invoice',
+        livemode: false,
+        customer: sub.customer,
+        parent: { type: 'subscription_details', subscription_details: { subscription: sub.id } },
+        status: 'paid',
+        billing_reason: 'subscription_update',
+        currency: 'usd',
+        total: 1100,
+        total_taxes: [],
+        amount_paid: 1100,
+        amount_paid_off_stripe: 0,
+        starting_balance: 0,
+        metadata: {},
+        lines: list([], `/v1/invoices/${invoiceId}/lines`),
+        number: 'LD-0003',
+        period_start: ended,
+        period_end: ended + 30 * DAY_S,
+      })
+      await processEvent('invoice.paid', { id: invoiceId, object: 'invoice', customer: sub.customer })
+      const after = await billRow(bill.id)
+      expect(after.status).toBe('active')
+      expect(Date.parse(after.trial_ends_at!)).toBe(ended * 1000)
+      const periods = await db.select().from(billing_periods).where(eq(billing_periods.billing_account_id, bill.id))
+      const trial = periods.find(p => p.kind === 'trial')!
+      expect(Date.parse(trial.ends_at)).toBeLessThanOrEqual(Date.now())
+      expect(periods.some(p => p.kind === 'month' && Date.parse(p.ends_at) > Date.now())).toBe(true)
+      // No draft to add it to: the first recharge (the bill's amount) is charged now with its own invoice, once.
+      const recharges = await db
+        .select()
+        .from(billing_recharges)
+        .where(eq(billing_recharges.billing_account_id, bill.id))
+      expect(recharges).toMatchObject([
+        { status: 'pending', amount_cents: 2000, manual: false, stripe_invoice_id: null },
+      ])
+      expect(queued.filter(j => j.data.rechargeId === recharges[0]!.id)).toHaveLength(1)
+      await processEvent('invoice.paid', { id: invoiceId, object: 'invoice', customer: sub.customer })
+      expect(
+        await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, bill.id)),
+      ).toHaveLength(1)
+    } finally {
+      setJobQueue(null)
+    }
   })
 })
 

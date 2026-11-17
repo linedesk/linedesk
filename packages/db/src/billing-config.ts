@@ -51,6 +51,8 @@ export const RECHARGE_LIMITS = {
   thresholdCents: { min: 500, max: 10_000 },
   amountCents: { min: 2000, max: 50_000 },
 } as const
+/** "Buy minutes": what one purchase may be, in cents before tax (docs/billing.md §2.2, L5). */
+export const TOPUP_LIMITS_CENTS = { min: 500, max: 50_000 } as const
 /** A recharge lifts the balance at least this far above the threshold, so one recharge is enough (no repeats). */
 export const RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS = 500
 /** How far below zero the balance may go before new calls are refused (a failed recharge, the cap reached). */
