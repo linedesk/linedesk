@@ -391,6 +391,10 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
   return t('onboarding.flow.setupError.failed')
 }
 
+/** Whether a text from phoneSetupErrorText says the area code has no free number: the nearby codes are offered then. */
+export const isNoneFreeText = (text: string | null): boolean =>
+  text !== null && text === i18n().t('onboarding.flow.setupError.noneFree')
+
 /** How calls reach a connected number's assistant, in a few words: what the mode does, not its name. */
 export const numberModeLabel: Record<PhoneNumberMode, string> = {
   get forward_conditional() {

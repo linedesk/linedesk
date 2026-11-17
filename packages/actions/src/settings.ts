@@ -900,6 +900,14 @@ export type WorkspaceDeletePreviewData = {
 
 export const phoneNumberModes = ['forward_conditional', 'forward_all', 'new', 'ported'] as const
 
+/** Three digits of an area code a number can be bought in (AREA_CODES: US, Canada, Puerto Rico). */
+const buyableAreaCodeInput = z
+  .string()
+  .regex(/^\d{3}$/)
+  .refine(code => buyableAreaCode(code) !== undefined, {
+    message: 'not an area code a number can be bought in (US, Canada, Puerto Rico)',
+  })
+
 export const phoneNumberSetup = defineAction({
   name: 'phoneNumber.setup',
   description:
@@ -911,13 +919,7 @@ export const phoneNumberSetup = defineAction({
         .regex(/^\+[1-9]\d{6,14}$/)
         .optional(),
       /** An area code a number can be bought in (AREA_CODES: US, Canada, Puerto Rico), in the workspace's country. */
-      areaCode: z
-        .string()
-        .regex(/^\d{3}$/)
-        .refine(code => buyableAreaCode(code) !== undefined, {
-          message: 'not an area code a number can be bought in (US, Canada, Puerto Rico)',
-        })
-        .optional(),
+      areaCode: buyableAreaCodeInput.optional(),
       /** Buying is never implied: without this, a number that is not in the account is rejected. */
       purchase: z.boolean().default(false),
       /** How the business uses the number. Default: `new` for a bought number, `forward_conditional` for an attached one. */
@@ -945,6 +947,29 @@ export const phoneNumberListCarrierNumbers = defineAction({
   description:
     "List the numbers already in the workspace's carrier account (its own, else the install's) that are not set up in Linedesk yet, to pick one for `phoneNumber.setup`. One read at the carrier, free; buys nothing. Numbers in the install's account are only listed for instance admins.",
   input: z.object({}),
+  permission: 'settings:write',
+  readOnly: true,
+})
+
+/** `data` of `phoneNumber.searchNearby`. */
+export type NearbyNumbersData = {
+  /** The area code that had no free number. */
+  areaCode: string
+  /** The codes tried at the carrier, best first (nearbyAreaCodes: the overlays, then the closest). */
+  searched: string[]
+  /** Those of them with a free number now, in the same order; `sameArea`: an overlay of `areaCode`. */
+  free: { code: string; sameArea: boolean }[]
+}
+
+export const phoneNumberSearchNearby = defineAction({
+  name: 'phoneNumber.searchNearby',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "When an area code has no free number: search its overlays and the nearby area codes of the same country at the workspace's carrier (its own account, else the install's) and list those with a free number, for `phoneNumber.setup`. Searches only, free; buys nothing.",
+  input: z.object({
+    /** The area code that had no free number (AREA_CODES). */
+    areaCode: buyableAreaCodeInput,
+  }),
   permission: 'settings:write',
   readOnly: true,
 })

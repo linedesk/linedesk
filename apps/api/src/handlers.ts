@@ -25,6 +25,8 @@ import {
   type ActionResult,
   type CallTestFinding,
   type CarrierNumbersData,
+  type NearbyNumbersData,
+  nearbyAreaCodes,
   type ReplyTiming,
   type VoiceFailure,
   VOICE_FAILURES_PER_CALL,
@@ -1711,6 +1713,28 @@ const handlers: Record<string, Handler> = {
       : new Set<string>()
     const numbers = all.filter(e164 => !taken.has(e164)).sort()
     return { rows: {}, data: { numbers, more: owned.length >= CARRIER_NUMBERS_PAGE } satisfies CarrierNumbersData }
+  },
+
+  // An area code without a free number (LIN-313): its overlays and the closest codes, each searched once at the
+  // carrier (free) and kept when it has a number not set up here yet. Never buys anything.
+  'phoneNumber.searchNearby': async ({ tx, actor, telephony }, input) => {
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
+    const { provider } = await setupCarrier(tx, actor.workspaceId, telephony)
+    const candidates = nearbyAreaCodes(input.areaCode)
+    const found = await Promise.allSettled(
+      candidates.map(a => atCarrier(() => provider.searchNumbers({ country: a.country, areaCode: a.code, limit: 5 }))),
+    )
+    // One code the carrier refused is passed over; a carrier that refuses every search (a bad key) is told as such.
+    const failed = found.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+    if (failed && found.every(r => r.status === 'rejected')) throw failed.reason
+    const free: NearbyNumbersData['free'] = []
+    for (const [i, result] of found.entries()) {
+      const a = candidates[i]!
+      if (result.status === 'fulfilled' && (await firstFreeNumber(tx, result.value)))
+        free.push({ code: a.code, sameArea: a.sameArea })
+    }
+    const data: NearbyNumbersData = { areaCode: input.areaCode, searched: candidates.map(a => a.code), free }
+    return { rows: {}, data }
   },
 
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback, onCommit }, input) => {

@@ -2,7 +2,7 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { describeProviderContract } from './contract.ts'
-import { createTelnyxProvider, devProvider, installCarrierName, telephonyProviderFromEnv, TelephonyError } from './index.ts'
+import { createTelnyxProvider, devNoFreeAreaCodes, devProvider, installCarrierName, telephonyProviderFromEnv, TelephonyError } from './index.ts'
 import { telnyxLineType } from './telnyx.ts'
 
 type Call = { method: string; path: string; body?: any; auth: string }
@@ -83,6 +83,18 @@ function signedWebhook(body: object, timestamp = NOW / 1000) {
 }
 
 describeProviderContract('dev', () => devProvider)
+
+test('dev has no free number in the area codes LINEDESK_DEV_NO_FREE_AREA_CODES names, and numbers everywhere else', async () => {
+  expect(devNoFreeAreaCodes('')).toEqual([])
+  expect(devNoFreeAreaCodes(' 416, 212 ,')).toEqual(['416', '212'])
+  vi.stubEnv('LINEDESK_DEV_NO_FREE_AREA_CODES', '416')
+  try {
+    expect(await devProvider.searchNumbers({ country: 'CA', areaCode: '416', limit: 5 })).toEqual([])
+    expect(await devProvider.searchNumbers({ country: 'CA', areaCode: '647', limit: 1 })).toEqual([{ e164: '+16475550100' }])
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
 
 describe('telnyx number lookup', () => {
   test('asks Number Lookup for the carrier part and reads line type and carrier name', async () => {

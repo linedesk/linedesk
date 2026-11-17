@@ -2412,6 +2412,8 @@ describe('impersonation', () => {
       'phoneNumber.forwardingCheck',
       // One free read of the carrier account, to pick a number; buys nothing.
       'phoneNumber.listCarrierNumbers',
+      // Free searches at the carrier for nearby area codes with a free number; buys nothing.
+      'phoneNumber.searchNearby',
       'provider.confirmEmail',
       'provider.test',
       'provider.tryOut',

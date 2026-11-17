@@ -80,6 +80,7 @@ describe('calendar.findSlots', () => {
       'phoneNumber.forwardingCheck',
       'phoneNumber.listCarrierNumbers',
       'phoneNumber.lookupLine',
+      'phoneNumber.searchNearby',
       'provider.confirmEmail',
       'provider.test',
       'provider.tryOut',

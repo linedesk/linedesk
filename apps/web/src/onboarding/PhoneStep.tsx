@@ -9,6 +9,7 @@ import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
 import { CarrierNumberInput } from '../settings/CarrierNumberInput.tsx'
 import { Field } from '../settings/fields.tsx'
+import { NearbyAreaCodes } from '../settings/NearbyAreaCodes.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
@@ -28,6 +29,7 @@ import {
   firstPickup,
   formatNumber,
   forwardingOffer,
+  isNoneFreeText,
   type PhoneOption,
   phoneOptionSetup,
   offersBuying,
@@ -298,7 +300,21 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
             )}
           </>
         )}
-        {error && <Note tone="danger">{error}</Note>}
+        {error && buying && areaCode && isNoneFreeText(error) ? (
+          <NearbyAreaCodes
+            areaCode={areaCode}
+            message={error}
+            onPick={code => {
+              setAreaCode(code)
+              setProblem(null)
+              clearError()
+              // The next step is the purchase question for that code, as after the primary button.
+              setConfirming(true)
+            }}
+          />
+        ) : (
+          error && <Note tone="danger">{error}</Note>
+        )}
       </div>
       <Foot
         onBack={onBack}

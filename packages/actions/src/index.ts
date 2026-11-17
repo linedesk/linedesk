@@ -49,6 +49,7 @@ export * from './define.ts'
 export * from './words.ts'
 export * from './agent-token.ts'
 export * from './area-codes.ts'
+export * from './nearby-area-codes.ts'
 export * from './client.ts'
 export * from './input-errors.ts'
 export * from './admin.ts'
@@ -180,6 +181,7 @@ const all = [
   branding.brandingSet,
   settings.phoneNumberSetup,
   settings.phoneNumberListCarrierNumbers,
+  settings.phoneNumberSearchNearby,
   settings.phoneNumberUpdate,
   settings.phoneNumberRelease,
   forwarding.phoneNumberLookupLine,

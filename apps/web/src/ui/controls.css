@@ -305,3 +305,27 @@
   font-size: 12.5px;
   color: var(--ink-muted);
 }
+
+/* The nearby area codes with a free number, under "No number is free in that area code" (NearbyAreaCodes). */
+.ac-nearby {
+  display: grid;
+  gap: 6px;
+}
+.ac-nearby-t {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.ac-nearby-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ac-nearby-opt {
+  font-variant-numeric: tabular-nums;
+}
+.ac-nearby-tag {
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}

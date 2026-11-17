@@ -26,14 +26,15 @@ vi.mock('../store.tsx', () => ({
 }))
 
 const { PhoneStep } = await import('./PhoneStep.tsx')
+const { phoneSetupErrorText } = await import('./flow.ts')
 
 const status = { provider: 'telnyx', available: true, detail: null, canAttach: true }
-const render = () =>
+const render = (setupError: string | null = null) =>
   renderToStaticMarkup(
     <PhoneStep
       status={status}
       oldForwarding={null}
-      setupError={null}
+      setupError={setupError}
       clearError={() => {}}
       admin={false}
       onBack={() => {}}
@@ -86,6 +87,19 @@ describe('the phone step by country', () => {
     const html = render()
     expect(areaField(html)).toBe('787 · San Juan, PR')
     expect(html).toContain('About $3 a month plus call minutes, billed by Telnyx.')
+  })
+
+  test('no free number in 416: the message offers one click to search the nearby area codes (LIN-313)', () => {
+    place.country = 'CA'
+    place.businessPhone = '+14165550100'
+    const html = render(phoneSetupErrorText('no number available in area code 416'))
+    expect(html).toContain('No number is free in that area code right now. Try a nearby one.')
+    expect(html).toContain('Search nearby area codes')
+    expect(html).toContain('Looks for a free number in 437, 647, 942, 289, 365, 742, 905, and 226. Buys nothing.')
+    // Any other refusal: the message alone.
+    expect(render(phoneSetupErrorText('telnyx: POST /number_orders: Authentication failed (HTTP 401)'))).not.toContain(
+      'Search nearby area codes',
+    )
   })
 
   test('outside the buying countries: no area code field, the line says where buying works', () => {

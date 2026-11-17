@@ -22,6 +22,7 @@ import {
   firstPickup,
   firstWhoHears,
   formatNumber,
+  isNoneFreeText,
   phoneSetupErrorText,
   priceCountry,
   priceNote,
@@ -542,7 +543,9 @@ test('buying a number is offered in the US, Canada and Puerto Rico, and as befor
     phoneSetupErrorText(
       "Number +18765550100 is in Jamaica, but this workspace is in Canada: buy a number there, or change the workspace's country first.",
     ),
-  ).toBe("That number is in another country than this workspace, so it can't be bought here. Pick an area code from the list.")
+  ).toBe(
+    "That number is in another country than this workspace, so it can't be bought here. Pick an area code from the list.",
+  )
   // Carrier refusals in the server's own words (NUMBERS_NEED_DOCUMENTS, NUMBER_NOT_ACTIVATED): honest, no "try again".
   expect(
     phoneSetupErrorText("Numbers in this country can't be bought here yet: connect a number the business already has."),
@@ -586,4 +589,14 @@ test('the emergency note under "Urgent means" names the workspace country\'s num
   )
   expect(EMERGENCY_NOTE('Maya', 'AU')).toContain('call 000.')
   expect(EMERGENCY_NOTE('Maya', 'BR')).toContain('call the local emergency number.')
+})
+
+test('"no number available in area code" becomes the sentence that offers the nearby area codes (LIN-313)', () => {
+  const text = phoneSetupErrorText('no number available in area code 416')
+  expect(text).toBe('No number is free in that area code right now. Try a nearby one.')
+  expect(isNoneFreeText(text)).toBe(true)
+  expect(isNoneFreeText(phoneSetupErrorText('telnyx: POST /number_orders: Authentication failed (HTTP 401)'))).toBe(
+    false,
+  )
+  expect(isNoneFreeText(null)).toBe(false)
 })

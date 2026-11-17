@@ -516,6 +516,85 @@ describe('telephony handlers', () => {
     }))
   })
 
+  describe('nearby area codes when one has no free number (LIN-313)', () => {
+    afterEach(() => vi.restoreAllMocks())
+    const empty = (codes: string[], overrides: Partial<TelephonyProvider> = {}) =>
+      carrier([], {
+        searchNumbers: async search => (codes.includes(search.areaCode ?? '') ? [] : devProvider.searchNumbers(search)),
+        ...overrides,
+      })
+
+    test("Toronto's 416: searches its overlays first, then the codes around it, and lists those with a free number; buys nothing", () =>
+      inRollback(async tx => {
+        const account = empty(['416', '647'])
+        const search = vi.spyOn(account, 'searchNumbers')
+        // 942's only candidates are already set up here: not free for this server.
+        await tx
+          .insert(phone_numbers)
+          .values(
+            [0, 1, 2, 3, 4].map(i => ({
+              id: `pn_test_${crypto.randomUUID().slice(0, 8)}`,
+              workspace_id: WORKSPACE,
+              e164: `+194255501${String(i).padStart(2, '0')}`,
+              provider: 'dev' as const,
+              provider_ref: `ref_${i}`,
+            })),
+          )
+        const { data } = await run(tx, owner, 'phoneNumber.searchNearby', { areaCode: '416' }, account)
+        expect(data).toEqual({
+          areaCode: '416',
+          searched: ['437', '647', '942', '289', '365', '742', '905', '226'],
+          free: [
+            { code: '437', sameArea: true },
+            { code: '289', sameArea: false },
+            { code: '365', sameArea: false },
+            { code: '742', sameArea: false },
+            { code: '905', sameArea: false },
+            { code: '226', sameArea: false },
+          ],
+        })
+        expect(search).toHaveBeenCalledWith({ country: 'CA', areaCode: '437', limit: 5 })
+        expect(search).not.toHaveBeenCalledWith(expect.objectContaining({ areaCode: '416' }))
+        expect(account.buyNumber).not.toHaveBeenCalled()
+        expect(await tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))).toEqual([])
+      }))
+
+    test('a code the carrier refuses is passed over; a carrier that refuses every search says so', () =>
+      inRollback(async tx => {
+        vi.spyOn(console, 'error').mockImplementation(() => {})
+        const flaky = empty([], {
+          searchNumbers: async search => {
+            if (search.areaCode === '646')
+              throw new TelephonyError('telnyx', 'GET /available_phone_numbers: timeout', 504)
+            return devProvider.searchNumbers(search)
+          },
+        })
+        const { data } = await run(tx, owner, 'phoneNumber.searchNearby', { areaCode: '212' }, flaky)
+        expect((data as { free: { code: string }[] }).free.map(f => f.code)).toEqual([
+          '332',
+          '917',
+          '201',
+          '551',
+          '347',
+          '465',
+          '718',
+        ])
+        const down = empty([], {
+          searchNumbers: async () => {
+            throw new TelephonyError('telnyx', 'GET /available_phone_numbers: Authentication failed', 401)
+          },
+        })
+        await expect(run(tx, owner, 'phoneNumber.searchNearby', { areaCode: '212' }, down)).rejects.toThrow(
+          'Authentication failed',
+        )
+      }))
+
+    test('only an area code a number can be bought in is taken', () => {
+      expect(actions.get('phoneNumber.searchNearby')!.input.safeParse({ areaCode: '555' }).success).toBe(false)
+      expect(actions.get('phoneNumber.searchNearby')!.readOnly).toBe(true)
+    })
+  })
+
   /** A number row as phoneNumber.setup leaves it; `purchased` says whether Linedesk bought it. */
   async function numberRow(tx: Tx, e164: string, values: Partial<typeof phone_numbers.$inferInsert> = {}) {
     const [row] = await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164, provider: 'telnyx', provider_ref: `ref_${e164}`, ...values }).returning()

@@ -4,9 +4,20 @@ import type { CallStatusEvent, NumberLookup, TelephonyProvider } from './provide
 /** What `dev` says every number is: a Verizon mobile, so the carrier chips have something to preselect. */
 export const DEV_LOOKUP: Omit<NumberLookup, 'e164'> = { lineType: 'mobile', carrier: 'Verizon Wireless' }
 
+/**
+ * The area codes `dev` has no free number in (LINEDESK_DEV_NO_FREE_AREA_CODES, comma-separated; none by default), so the
+ * "no number free" message and the nearby area codes can be tried without a carrier.
+ */
+export const devNoFreeAreaCodes = (setting = process.env.LINEDESK_DEV_NO_FREE_AREA_CODES ?? ''): string[] =>
+  setting
+    .split(',')
+    .map(code => code.trim())
+    .filter(Boolean)
+
 export const devProvider: TelephonyProvider = {
   name: 'dev',
   async searchNumbers({ areaCode = '503', limit = 3 }) {
+    if (devNoFreeAreaCodes().includes(areaCode)) return []
     return Array.from({ length: limit }, (_, i) => ({ e164: `+1${areaCode}55501${String(i).padStart(2, '0')}` }))
   },
   async listNumbers() {

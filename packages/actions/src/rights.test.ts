@@ -80,6 +80,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voice.clone',
     'phoneNumber.setup',
     'phoneNumber.listCarrierNumbers',
+    'phoneNumber.searchNearby',
     'phoneNumber.update',
     'phoneNumber.release',
     'phoneNumber.lookupLine',

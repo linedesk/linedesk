@@ -24,6 +24,7 @@ import {
   type PhoneOption,
   phoneOptionSetup,
   phoneOptionText,
+  isNoneFreeText,
   phoneSetupErrorText,
   pickupNumberMode,
   priceCountry,
@@ -45,6 +46,7 @@ import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { AreaCodeInput } from './AreaCodeInput.tsx'
+import { NearbyAreaCodes } from './NearbyAreaCodes.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section } from './fields.tsx'
 import { NumberModeField } from './NumberMode.tsx'
@@ -731,7 +733,20 @@ function ConnectNumber({
           )}
         </>
       )}
-      {problem && <Note tone="danger">{problem}</Note>}
+      {problem && buying && areaCode && isNoneFreeText(problem) ? (
+        <NearbyAreaCodes
+          areaCode={areaCode}
+          message={problem}
+          onPick={code => {
+            setAreaCode(code)
+            setProblem(null)
+            // The next step is the purchase question for that code, as after the primary button.
+            setConfirming(true)
+          }}
+        />
+      ) : (
+        problem && <Note tone="danger">{problem}</Note>
+      )}
       {!confirming && (
         <div className="st-connect-foot">
           {onCancel && (
