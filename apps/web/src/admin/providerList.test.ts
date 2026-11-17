@@ -63,12 +63,12 @@ test('providers that are set up, being tested or failing are always shown', () =
 })
 
 test('three or fewer: every provider, recommended first, nothing to fold', () => {
-  const stt = providersIn('stt')
-  expect(stt).toHaveLength(3)
-  const list = visibleProviders(stt, { pinned: pinnedProvidersOf('stt'), keep: none, expanded: false })
-  expect(list.shown[0]).toBe('deepgram')
+  const tts = providersIn('tts')
+  expect(tts.length).toBeLessThanOrEqual(3)
+  const list = visibleProviders(tts, { pinned: pinnedProvidersOf('tts'), keep: none, expanded: false })
+  expect(list.shown[0]).toBe('elevenlabs')
   expect(list).toMatchObject({ hidden: 0, foldable: false })
-  expect([...list.shown].sort()).toEqual([...stt].sort())
+  expect([...list.shown].sort()).toEqual([...tts].sort())
 })
 
 test('a group has one list per category, Answering four; call audio none', () => {
@@ -80,7 +80,7 @@ test('a group has one list per category, Answering four; call audio none', () =>
 test('"Show all providers" opens the lists that fold something away, and reads "Show fewer" once all are open', () => {
   const lists = [...listsOfGroup('email'), ...listsOfGroup('answering')]
   const foldable = foldableLists(lists, none, new Set())
-  expect(foldable).toEqual(['email/email', 'answering/llm'])
+  expect(foldable).toEqual(['email/email', 'answering/stt', 'answering/llm'])
   expect(allOpen(foldable, new Set())).toBe(false)
   expect(allOpen(foldable, new Set(['email/email']))).toBe(false)
   expect(allOpen(foldable, new Set(foldable))).toBe(true)
@@ -134,6 +134,8 @@ test('arrow keys, Home and End move between the two Answering tabs; other keys d
 test("the calendar apps' list never folds: the one-click switches above it point to its Calendly and Cal.com apps", () => {
   const calendar = ['google', 'microsoft', 'calendly', 'calcom'] as const
   expect(pinnedOfList('sign_in', calendar)).toEqual(calendar)
-  expect(visibleProviders(calendar, { pinned: pinnedOfList('sign_in', calendar), keep: () => false, expanded: false })).toMatchObject({ hidden: 0 })
+  expect(
+    visibleProviders(calendar, { pinned: pinnedOfList('sign_in', calendar), keep: () => false, expanded: false }),
+  ).toMatchObject({ hidden: 0 })
   expect(pinnedOfList('sign_in', providersIn('sign_in'))).toEqual(pinnedProvidersOf('sign_in'))
 })
