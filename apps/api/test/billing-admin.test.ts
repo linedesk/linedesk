@@ -13,6 +13,7 @@ import type {
   SeatQuantityInput,
 } from '@linedesk/billing'
 import {
+  assistant_versions,
   billing_accounts,
   billing_balances,
   billing_periods,
@@ -30,7 +31,7 @@ import {
   stripe_events,
   user,
 } from '@linedesk/db'
-import { desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import {
   billingAdminHandlers,
@@ -47,7 +48,18 @@ import { emailSender } from '../src/email.ts'
 import { lockBalance, reserveCall } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { STRIPE_EVENT_ATTEMPTS, stripeEventHandlers, UNHANDLED_TYPE } from '../src/stripe-events.ts'
-import { act, addMember, createWorkspace, FROM, randomIp, type User, type Workspace } from './helpers.ts'
+import {
+  act,
+  addMember,
+  createWorkspace,
+  FROM,
+  KEPT_PREMIUM_AND_ULTRA,
+  premiumAndUltraOf,
+  randomIp,
+  type User,
+  type Workspace,
+  withPremiumAndUltra,
+} from './helpers.ts'
 
 const rid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const day = 86_400_000
@@ -1157,6 +1169,121 @@ describe('moving a workspace', () => {
         })
       ).status,
     ).toBe(409)
+  })
+})
+
+describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', () => {
+  const SWITCHED_OFF = {
+    allowPremium: false,
+    allowUltra: false,
+    llmModel: null,
+    pipeline: 'three_stage',
+    realtimeModel: null,
+  }
+  const move = (workspaceId: string, toBillingAccountId: string) =>
+    act(operator, 'billing.moveWorkspace', { workspaceId, toBillingAccountId, reason, requestId: rid('req') })
+
+  test("moved onto someone else's bill: both off, the assistant back on Standard and off Ultra, as a version", async () => {
+    const from = await billWith({ stripe_customer_id: null })
+    const to = await billWith({ stripe_customer_id: null })
+    await withPremiumAndUltra(from.ws)
+    const moved = await move(from.ws.id, to.billId)
+    expect(moved.status).toBe(200)
+    expect(moved.body.data.payerReset).toEqual({
+      workspaceIds: [from.ws.id],
+      movedToStandard: [from.ws.assistant.id],
+      movedOffUltra: [from.ws.assistant.id],
+    })
+    const now = await premiumAndUltraOf(from.ws)
+    expect(now).toMatchObject(SWITCHED_OFF)
+    expect(now.voiceModel).not.toBe('eleven_v3')
+    const versions = await db
+      .select()
+      .from(assistant_versions)
+      .where(
+        and(
+          eq(assistant_versions.assistant_id, from.ws.assistant.id),
+          eq(assistant_versions.changed_by, operator.userId),
+        ),
+      )
+    expect(versions.length).toBeGreaterThan(0)
+    // In the audit log with the command.
+    expect((await lastCommand('billing.moveWorkspace'))?.result).toMatchObject({
+      data: { payerReset: { workspaceIds: [from.ws.id] } },
+    })
+  })
+
+  test('moved onto another bill of the same owner: both kept', async () => {
+    const from = await billWith({ stripe_customer_id: null })
+    const to = await billWith({ stripe_customer_id: null })
+    await db
+      .update(billing_accounts)
+      .set({ owner_user_id: from.ws.owner.userId })
+      .where(eq(billing_accounts.id, to.billId))
+    await withPremiumAndUltra(from.ws)
+    const moved = await move(from.ws.id, to.billId)
+    expect(moved.status).toBe(200)
+    expect(moved.body.data.payerReset).toEqual({ workspaceIds: [], movedToStandard: [], movedOffUltra: [] })
+    expect(await premiumAndUltraOf(from.ws)).toEqual(KEPT_PREMIUM_AND_ULTRA)
+  })
+
+  test("switching Allow Premium on while a move onto someone else's bill commits is refused (review of #1050)", async () => {
+    const from = await billWith({ stripe_customer_id: null })
+    const to = await billWith({ stripe_customer_id: null })
+    let moved!: () => void
+    const updated = new Promise<void>(resolve => {
+      moved = resolve
+    })
+    let release!: () => void
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    // A move that has changed the workspace's bill and not committed yet.
+    let movePid = 0
+    const move = db.transaction(async tx => {
+      movePid = (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]?.pid as number
+      await tx.update(organization).set({ billingAccountId: to.billId }).where(eq(organization.id, from.ws.id))
+      moved()
+      await gate
+    })
+    await updated
+    const switchOn = act(from.ws.owner, 'workspace.setAllowPremium', { on: true })
+    const probe = createDb(process.env.DATABASE_URL!, { max: 1 })
+    try {
+      // Only the backends the move blocks: the switch, waiting on the workspace row the move holds.
+      const blockedByMove = async () =>
+        (
+          await probe.db.execute(
+            sql`select count(*)::int as n from pg_stat_activity where ${movePid}::int = any(pg_blocking_pids(pid))`,
+          )
+        ).rows[0]?.n as number
+      for (let i = 0; i < 200 && (await blockedByMove()) < 1; i++) await new Promise(r => setTimeout(r, 25))
+      expect(await blockedByMove()).toBe(1)
+    } finally {
+      release()
+      await move
+      await probe.pool.end()
+    }
+    // It then sees the workspace on another bill: refused, never read as "no bill" or as the old bill.
+    expect((await switchOn).status).toBe(403)
+    expect((await premiumAndUltraOf(from.ws)).allowPremium).toBe(false)
+  })
+
+  test("an instance admin's transfer switches both off on every workspace of the bill", async () => {
+    const { billId, ws } = await billWith({ stripe_customer_id: null })
+    const second = await createWorkspace('Brightwater North')
+    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, second.id))
+    await withPremiumAndUltra(ws)
+    await withPremiumAndUltra(second)
+    const teammate = await addMember(ws.id, 'admin')
+    const done = await act(operator, 'billing.transferOwner', {
+      billingAccountId: billId,
+      userId: teammate.userId,
+      reason,
+    })
+    expect(done.status).toBe(200)
+    expect([...done.body.data.payerReset.workspaceIds].sort()).toEqual([ws.id, second.id].sort())
+    for (const w of [ws, second]) expect(await premiumAndUltraOf(w)).toMatchObject(SWITCHED_OFF)
   })
 })
 

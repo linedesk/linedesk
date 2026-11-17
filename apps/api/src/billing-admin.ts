@@ -55,6 +55,7 @@ import {
   mergeBillingRules,
   minMicrosPerMinute,
 } from './billing-rules.ts'
+import { workspacesOnBill } from './billing-owner.ts'
 import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db, ownCommitDb } from './db.ts'
@@ -64,6 +65,7 @@ import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import { SELF_SERVE_KEY } from './self-serve.ts'
 import { STRIPE_EVENT_ATTEMPTS } from './stripe-events.ts'
+import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 
 // The instance setting that opens sign-up to anyone (docs/billing.md §3.1): self-serve.ts, which reads it.
 export { SELF_SERVE_KEY } from './self-serve.ts'
@@ -792,6 +794,8 @@ async function moveWorkspace(
   if (!seen) throw new Reject('no workspace with this id')
   if (!seen.bill) throw new Reject('This workspace is on no bill; moving is between bills.')
   if (seen.bill === input.toBillingAccountId) throw new Reject('The workspace is on this bill already.')
+  // Before the balance locks: the version locks a new payer's reset may need (LIN-438, lockForPayerChange).
+  await lockForPayerChange(tx, [seen.id])
   // Both balance rows, in id order (the lock order of every bill path; two moves never deadlock).
   for (const id of [seen.bill, input.toBillingAccountId].sort()) await lockBalance(tx, id)
   // Read again under the locks (security review of #919, L3): a move that ran meanwhile changed it, and this one would
@@ -820,8 +824,14 @@ async function moveWorkspace(
     .update(organization)
     .set({ billingAccountId: to.id, billingState: mirroredState(to.status) })
     .where(eq(organization.id, workspace.id))
+  // Someone else pays from now on: Allow Premium and Allow Ultra were the old payer's choice (LIN-438). The same
+  // owner keeps them.
+  const { reset: payerReset } =
+    from.owner_user_id === to.owner_user_id
+      ? { reset: { workspaceIds: [], movedToStandard: [], movedOffUltra: [] } }
+      : await billPayerChanged(tx, [workspace.id], actor.actorId)
   if (provider) onCommit!(() => moveSeats(provider, from, to, input.requestId))
-  return { from: from.id, to: to.id }
+  return { from: from.id, to: to.id, payerReset }
 }
 
 /**
@@ -940,6 +950,8 @@ export const billingAdminHandlers: Record<string, Handler> = {
 
   'billing.transferOwner': async ({ tx, actor, now }, input: { billingAccountId: string; userId: string }) => {
     refuseMoneyChange(actor)
+    // Before the balance lock: the version locks of the reset below (LIN-438, lockForPayerChange).
+    await lockForPayerChange(tx, await workspacesOnBill(tx, input.billingAccountId))
     await lockBalance(tx, input.billingAccountId)
     const bill = await billOrReject(tx, input.billingAccountId)
     if (bill.owner_user_id === input.userId) throw new Reject('This user owns the bill already.')
@@ -954,7 +966,9 @@ export const billingAdminHandlers: Record<string, Handler> = {
       .update(billing_accounts)
       .set({ owner_user_id: input.userId, updated_at: now })
       .where(eq(billing_accounts.id, bill.id))
-    return { rows: {}, data: { previous: bill.owner_user_id, owner: input.userId } }
+    // The new owner did not choose Allow Premium or Allow Ultra on any of the bill's workspaces (LIN-438).
+    const { reset } = await billPayerChanged(tx, await workspacesOnBill(tx, bill.id), actor.actorId)
+    return { rows: {}, data: { previous: bill.owner_user_id, owner: input.userId, payerReset: reset } }
   },
 
   'billing.reviewHold': async (

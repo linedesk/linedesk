@@ -31,9 +31,11 @@ import {
   agent,
   asServerAdmin,
   createWorkspace,
+  premiumAndUltraOf,
   randomNumber,
   type User,
   type Workspace,
+  withPremiumAndUltra,
 } from './helpers.ts'
 
 const cloud = vi.hoisted(() => ({ on: true }))
@@ -501,6 +503,40 @@ describe('bill ownership (docs/billing.md §8)', () => {
       (await act(b.ws.owner, 'team.transferOwnership', { memberId: await memberIdOf(b.ws.id, next) })).status,
     ).toBe(200)
     expect((await billNow(b.billId)).owner_user_id).toBe(next.userId)
+  })
+
+  const SWITCHED_OFF = {
+    allowPremium: false,
+    allowUltra: false,
+    llmModel: null,
+    pipeline: 'three_stage',
+    realtimeModel: null,
+  }
+
+  test('the new bill owner of a hand-over gets Allow Premium and Allow Ultra off on every workspace (LIN-438)', async () => {
+    const b = await billed()
+    const second = await createWorkspace('Brightwater North')
+    await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, second.id))
+    await withPremiumAndUltra(b.ws)
+    await withPremiumAndUltra(second)
+    const next = await addMember(b.ws.id, 'admin')
+    const done = await act(b.ws.owner, 'billing.handOver', { userId: next.userId })
+    expect(done.status).toBe(200)
+    expect([...done.body.data.payerReset.workspaceIds].sort()).toEqual([b.ws.id, second.id].sort())
+    // The app gets its own workspace's assistant back at once, never another workspace's.
+    expect(done.body.rows.assistants.map((a: { id: string }) => a.id)).toEqual([b.ws.assistant.id])
+    for (const w of [b.ws, second]) expect(await premiumAndUltraOf(w)).toMatchObject(SWITCHED_OFF)
+  })
+
+  test('handing over the only workspace moves the bill and switches Allow Premium and Allow Ultra off (LIN-438)', async () => {
+    const b = await billed()
+    await withPremiumAndUltra(b.ws)
+    const next = await addMember(b.ws.id, 'admin')
+    const done = await act(b.ws.owner, 'team.transferOwnership', { memberId: await memberIdOf(b.ws.id, next) })
+    expect(done.status).toBe(200)
+    expect(done.body.data.payerReset.workspaceIds).toEqual([b.ws.id])
+    expect((await billNow(b.billId)).owner_user_id).toBe(next.userId)
+    expect(await premiumAndUltraOf(b.ws)).toMatchObject(SWITCHED_OFF)
   })
 
   test('the new bill owner is a member of one of its workspaces with a confirmed address', async () => {

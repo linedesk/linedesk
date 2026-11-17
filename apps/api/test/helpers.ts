@@ -1,6 +1,6 @@
 // Test fixtures: real sessions through Better Auth (accounts written directly: there is no open sign-up), workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { account as accounts, assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, user as users, webhook_endpoints } from '@linedesk/db'
+import { account as accounts, assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, user as users, webhook_endpoints, workspace_settings } from '@linedesk/db'
 import { hashPassword } from 'better-auth/crypto'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
@@ -184,3 +184,47 @@ export const getContact = async (id: string) => (await db.select().from(contacts
 export const getAssistantCalendar = async (id: string) => (await db.select().from(assistant_calendars).where(eq(assistant_calendars.id, id)))[0]
 export const getWebhookEndpoint = async (id: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, id)))[0]
 export const getAssistant = async (id: string) => (await db.select().from(assistants).where(eq(assistants.id, id)))[0]
+
+/**
+ * Allow Premium and Allow Ultra on, and the workspace's assistant on a Premium voice and model and answering with a
+ * realtime model (Ultra): what a bill owner chose, written directly (LIN-438 tests).
+ */
+export async function withPremiumAndUltra(ws: Workspace) {
+  await db
+    .insert(workspace_settings)
+    .values({ workspace_id: ws.id, timezone: 'America/Los_Angeles', allow_premium: true, allow_ultra: true })
+    .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_premium: true, allow_ultra: true } })
+  await db
+    .update(assistants)
+    .set({
+      voice: { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9', model: 'eleven_v3' },
+      llm_model: 'gpt-4.1',
+      voice_pipeline: 'realtime',
+      realtime_model: 'gpt-realtime',
+    })
+    .where(eq(assistants.id, ws.assistant.id))
+}
+
+/** The workspace's Allow Premium and Allow Ultra, and its assistant's Premium and Ultra choices, as stored now. */
+export async function premiumAndUltraOf(ws: Workspace) {
+  const [flags] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
+  const [assistant] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
+  return {
+    allowPremium: flags?.allow_premium ?? false,
+    allowUltra: flags?.allow_ultra ?? false,
+    voiceModel: assistant!.voice.model ?? null,
+    llmModel: assistant!.llm_model,
+    pipeline: assistant!.voice_pipeline,
+    realtimeModel: assistant!.realtime_model,
+  }
+}
+
+/** What withPremiumAndUltra set, kept. */
+export const KEPT_PREMIUM_AND_ULTRA = {
+  allowPremium: true,
+  allowUltra: true,
+  voiceModel: 'eleven_v3',
+  llmModel: 'gpt-4.1',
+  pipeline: 'realtime',
+  realtimeModel: 'gpt-realtime',
+}

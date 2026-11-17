@@ -5,6 +5,7 @@
 // Levels apply only while this install bills usage (billingState: billing on with usable Stripe keys); a self-hosted
 // install uses every option, with no levels and no checks.
 import {
+  type BillPayerReset,
   DEFAULT_VOICE_MODELS,
   type LevelChoice,
   languageModelFor,
@@ -32,8 +33,8 @@ import {
 } from '@linedesk/actions'
 import { assistants, type PaidLevel, type Tx, workspace_settings } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
-import { and, eq } from 'drizzle-orm'
-import { recordVersion } from './assistant-versions.ts'
+import { and, eq, inArray, or } from 'drizzle-orm'
+import { lockAssistantVersionsOf, recordVersion } from './assistant-versions.ts'
 import { billingState } from './billing-settings.ts'
 import { brandName } from './branding.ts'
 import type { Actor } from './context.ts'
@@ -455,6 +456,75 @@ export async function assistantsOffUltra(tx: Tx, workspaceId: string, by: string
     changed.push(updated!)
   }
   return changed
+}
+
+/** The workspaces of `workspaceIds` with Allow Premium or Allow Ultra on, by id. */
+async function workspacesAllowingMore(tx: Tx, workspaceIds: string[]) {
+  if (!workspaceIds.length) return []
+  const rows = await tx
+    .select({ id: workspace_settings.workspace_id })
+    .from(workspace_settings)
+    .where(
+      and(
+        inArray(workspace_settings.workspace_id, workspaceIds),
+        or(eq(workspace_settings.allow_premium, true), eq(workspace_settings.allow_ultra, true)),
+      ),
+    )
+  return rows.map(r => r.id).sort()
+}
+
+/**
+ * Before a change that may give these workspaces another bill owner, and before the bill's balance lock: the version
+ * locks of all their assistants (billPayerChanged may change them), in the order of `call.start` (a version lock,
+ * then the balance), so the two never deadlock. All of them, whatever the switches say now: a switch turned on before
+ * the change takes its locks is then locked already too (independent review of #1050).
+ */
+export async function lockForPayerChange(tx: Tx, workspaceIds: string[]) {
+  for (const id of [...new Set(workspaceIds)].sort()) await lockAssistantVersionsOf(tx, id)
+}
+
+/**
+ * A bill owner changed to another person (LIN-438: `billing.moveWorkspace` to a bill of someone else,
+ * `billing.transferOwner`, `billing.handOver`, `team.transferOwnership` moving the bill): Allow Premium and Allow Ultra
+ * were the old payer's choice, so they go off in each of these workspaces, and their assistants back to Standard and off
+ * Ultra (as turning each off would), with a version by `by`. Call in the same transaction, after the bill's balance
+ * lock and the change itself: a switch turned on meanwhile waited for that change (refuseUnlessBillOwner locks the
+ * bill) and was refused, or committed before it and is seen here. Per workspace the lock order of Allow Premium:
+ * its assistants' version locks (taken before the balance lock by `lockForPayerChange`, as `call.start` takes a version
+ * lock before the balance), then the settings row, then the assistant rows. Returns what it changed.
+ */
+export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: string) {
+  const reset: BillPayerReset = { workspaceIds: [], movedToStandard: [], movedOffUltra: [] }
+  const rows: Assistant[] = []
+  for (const workspaceId of await workspacesAllowingMore(tx, workspaceIds)) {
+    // Taken already by lockForPayerChange (then this waits for nothing). Not yet only for a workspace moved onto the
+    // bill between that and the balance lock (billing.handOver, billing.transferOwner): then taken here, after the
+    // balance. A call starting on it at that moment could deadlock with this; Postgres ends one of the two (an error,
+    // tried again), and nothing is left half done.
+    await lockAssistantVersionsOf(tx, workspaceId)
+    const [flags] = await tx
+      .select({ premium: workspace_settings.allow_premium, ultra: workspace_settings.allow_ultra })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+      .for('update')
+    if (!flags?.premium && !flags?.ultra) continue
+    await tx
+      .update(workspace_settings)
+      .set({ allow_premium: false, allow_ultra: false })
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    const toStandard = flags.premium ? await assistantsBackToStandard(tx, workspaceId, by) : []
+    const offUltra = flags.ultra ? await assistantsOffUltra(tx, workspaceId, by) : []
+    reset.workspaceIds.push(workspaceId)
+    reset.movedToStandard.push(...toStandard.map(a => a.id))
+    reset.movedOffUltra.push(...offUltra.map(a => a.id))
+    // One row per assistant, as it is now (both helpers may have changed it).
+    for (const row of [...toStandard, ...offUltra]) {
+      const at = rows.findIndex(r => r.id === row.id)
+      if (at >= 0) rows[at] = row
+      else rows.push(row)
+    }
+  }
+  return { reset, rows }
 }
 
 /** Whether a stored language-model id is Premium at any provider. */

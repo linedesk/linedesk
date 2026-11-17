@@ -165,4 +165,18 @@ export const billingHandOver = defineAction({
 })
 
 /** `data` of `billing.handOver`. An instance admin names another owner with #919's `billing.transferOwner`. */
-export type BillingOwnerData = { billId: string; ownerUserId: string; previousOwnerUserId: string }
+export type BillingOwnerData = {
+  billId: string
+  ownerUserId: string
+  previousOwnerUserId: string
+  /** What the new owner did not choose and was switched off (LIN-438). */
+  payerReset: BillPayerReset
+}
+
+/**
+ * A workspace got another bill owner (`billing.handOver`, `billing.transferOwner`, `billing.moveWorkspace` to a bill
+ * of someone else, `team.transferOwnership` moving the bill; LIN-438): Allow Premium and Allow Ultra were the old
+ * payer's choice and are switched off. The workspaces that had one on, and the assistants moved back to Standard or off
+ * Ultra.
+ */
+export type BillPayerReset = { workspaceIds: string[]; movedToStandard: string[]; movedOffUltra: string[] }
