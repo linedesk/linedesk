@@ -907,7 +907,6 @@
   "phone.manage.forwarding": "Renvoi d'appels",
   "phone.manage.forwardingAllTip": "Configurez-le une fois sur le téléphone ou le système téléphonique de votre entreprise. Ensuite, chaque appel va à votre assistant.",
   "phone.manage.forwardingConditionalTip": "Configurez-le une fois sur le téléphone ou le système téléphonique de votre entreprise. Ensuite, les appels que vous ne prenez pas, ou ne pouvez pas prendre parce que vous êtes déjà en ligne, vont à votre assistant.",
-  "phone.manage.mode": "Utilisation",
   "phone.release.busy": "Libération…",
   "phone.release.button": "Libérer le numéro",
   "phone.release.confirmLabel": "Saisissez le numéro pour confirmer",

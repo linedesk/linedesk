@@ -907,7 +907,6 @@
   "phone.manage.forwarding": "Encaminhamento",
   "phone.manage.forwardingAllTip": "Configure uma vez no telefone ou sistema de telefonia da sua empresa. A partir daí, todas as chamadas vão para seu assistente.",
   "phone.manage.forwardingConditionalTip": "Configure uma vez no telefone ou sistema de telefonia da sua empresa. A partir daí, as chamadas que você não atende, ou não pode atender por estar em outra ligação, vão para seu assistente.",
-  "phone.manage.mode": "Como é usado",
   "phone.release.busy": "Liberando…",
   "phone.release.button": "Liberar número",
   "phone.release.confirmLabel": "Digite o número para confirmar",

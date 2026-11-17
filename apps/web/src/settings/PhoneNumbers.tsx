@@ -3,8 +3,6 @@
 // choices and words (keep my number, a new number; a number already in the carrier account behind a quiet link).
 // Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
-
-type PhoneNumberMode = PhoneNumber['mode']
 import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
@@ -31,12 +29,12 @@ import {
   priceCountry,
   priceNote,
 } from '../onboarding/flow.ts'
-import { confirmsNumber, countryOfNumber, phoneFromValue, phoneNumberModes } from '@linedesk/actions'
+import { confirmsNumber, countryOfNumber, phoneFromValue } from '@linedesk/actions'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
-import { RadioCard, Select, type SelectOption } from '../ui/controls.tsx'
+import { RadioCard, Select } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
 import { AppLink } from '../ui/AppLink.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
@@ -49,14 +47,11 @@ import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { AreaCodeInput } from './AreaCodeInput.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section } from './fields.tsx'
+import { NumberModeField } from './NumberMode.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
-
-// A function, not a constant: the labels are read in the language shown now, not the one at import.
-const modeOptions = (): SelectOption<PhoneNumberMode>[] =>
-  phoneNumberModes.map(mode => ({ value: mode, label: numberModeLabel[mode] }))
 
 type Props = {
   canEdit: boolean
@@ -328,23 +323,17 @@ export function ManageNumber({ number, assistants, canEdit, release = false, onC
               </div>
             </Field>
           )}
-          <Field id="pn-mode" label={t('settings.phone.manage.mode')}>
-            <div>
-              <Select
-                id="pn-mode"
-                value={number.mode}
-                label={t('settings.phone.manage.mode')}
-                disabled={!canEdit}
-                options={modeOptions()}
-                onChange={mode =>
-                  void run('phoneNumber.update', {
-                    phoneNumberId: number.id,
-                    mode,
-                  })
-                }
-              />
-            </div>
-          </Field>
+          <NumberModeField
+            mode={number.mode}
+            name={who?.name ?? t('common.assistant.unnamed')}
+            disabled={!canEdit}
+            onChange={mode =>
+              void run('phoneNumber.update', {
+                phoneNumberId: number.id,
+                mode,
+              })
+            }
+          />
           {forwards && (
             <CheckWhenEditing
               number={number}

@@ -907,7 +907,6 @@
   "phone.manage.forwarding": "転送",
   "phone.manage.forwardingAllTip": "ビジネス用電話または電話システムで一度設定してください。以後、すべての通話がアシスタントに届きます。",
   "phone.manage.forwardingConditionalTip": "ビジネス用電話または電話システムで一度設定してください。以後、出られなかった通話や通話中で受けられなかった通話がアシスタントに届きます。",
-  "phone.manage.mode": "使い方",
   "phone.release.busy": "解約中…",
   "phone.release.button": "番号を解約",
   "phone.release.confirmLabel": "確認のため番号を入力してください",

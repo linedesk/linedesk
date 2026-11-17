@@ -391,19 +391,19 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
   return t('onboarding.flow.setupError.failed')
 }
 
-/** How the business uses a connected number, in a few words. */
+/** How calls reach a connected number's assistant, in a few words: what the mode does, not its name. */
 export const numberModeLabel: Record<PhoneNumberMode, string> = {
   get forward_conditional() {
-    return i18n().t('onboarding.flow.numberMode.forwardConditional')
+    return i18n().t('onboarding.flow.callsReach.forwardConditional')
   },
   get forward_all() {
-    return i18n().t('onboarding.flow.numberMode.forwardAll')
+    return i18n().t('onboarding.flow.callsReach.forwardAll')
   },
   get new() {
-    return i18n().t('onboarding.flow.numberMode.new', { brand: brandName() })
+    return i18n().t('onboarding.flow.callsReach.new')
   },
   get ported() {
-    return i18n().t('onboarding.flow.numberMode.ported', { brand: brandName() })
+    return i18n().t('onboarding.flow.callsReach.ported', { brand: brandName() })
   },
 }
 

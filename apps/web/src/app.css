@@ -1451,6 +1451,21 @@ a.k-btn {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* The "?" next to "How calls reach <assistant>": every mode with its explanation (settings/NumberMode.tsx). */
+.pn-mode-help {
+  display: grid;
+  gap: 8px;
+}
+.pn-mode-help-item {
+  display: grid;
+  gap: 2px;
+}
+.pn-mode-help-item b {
+  font-weight: 600;
+}
+.pn-mode-help-note {
+  opacity: 0.75;
+}
 .pn-release {
   color: var(--danger);
 }
