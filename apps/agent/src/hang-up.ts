@@ -62,7 +62,8 @@ export type Reply = {
  * Once `reply` has played (or was cut off). Not `waitForPlayout()`: LiveKit refuses that from inside the tool that owns
  * the reply, which end_call is.
  */
-export const playedOut = (reply: Reply) => new Promise<void>(resolve => (reply.done() ? resolve() : reply.addDoneCallback(() => resolve())))
+export const playedOut = (reply: Reply) =>
+  new Promise<void>(resolve => (reply.done() ? resolve() : reply.addDoneCallback(() => resolve())))
 
 /** The assistant's words in `reply`. */
 export const wordsOf = (reply: Reply) =>
@@ -82,7 +83,13 @@ const REQUEST =
   /^(?:(?:so|okay|ok|alright|great|sure|perfect),?\s+)?(?:please\s+)?(?:(?:briefly|quickly|just)\s+)?(?:tell me|let me know|go ahead|describe|share|spell|give me|say)\b|\b(?:please|kindly)\s+(?:(?:briefly|quickly|just)\s+)?(?:tell|let me know|go ahead|describe|share|spell|give|say|leave)\b|\b(?:sagen sie|erz[aä]hlen sie|nennen sie|dites[- ]moi|d[ií]game|cu[eé]nteme|mi dica|me diga)\b/i
 
 /** The last sentence of `text`. */
-const lastSentence = (text: string) => text.trim().split(/(?<=[.?!。？！؟])\s*/).filter(s => s.trim()).at(-1)?.trim() ?? ''
+const lastSentence = (text: string) =>
+  text
+    .trim()
+    .split(/(?<=[.?!。？！؟])\s*/)
+    .filter(s => s.trim())
+    .at(-1)
+    ?.trim() ?? ''
 
 /**
  * Whether the assistant's words ask the caller something, so the call must go on: the last sentence is a question (in
@@ -134,7 +141,9 @@ export async function hangUpWithGoodbye({
   setTimeout(once, maxMs).unref?.()
   stopListening()
   if (!GOODBYE.test(words))
-    await sayGoodbye().catch(e => console.warn(`could not say the goodbye line: ${e instanceof Error ? e.message : String(e)}`))
+    await sayGoodbye().catch(e =>
+      console.warn(`could not say the goodbye line: ${e instanceof Error ? e.message : String(e)}`),
+    )
   setTimeout(once, AFTER_SPEECH_MS).unref?.()
   return true
 }
@@ -199,7 +208,13 @@ export const STILL_THERE_LINE = 'Are you still there?'
  * An assistant's silence settings (assistants.silence_*), with the defaults for anything missing. `reminder`: the
  * owner's own line, null for the default ("Are you still there?" in the language spoken at that moment).
  */
-export type SilencePolicy = { firstGapS: number; reminders: number; hangUpS: number; reminder: string | null; closing: string }
+export type SilencePolicy = {
+  firstGapS: number
+  reminders: number
+  hangUpS: number
+  reminder: string | null
+  closing: string
+}
 export function silencePolicyOf(
   assistant: {
     silence_first_gap_s?: number | null
@@ -220,16 +235,22 @@ export function silencePolicyOf(
 
 /**
  * Seconds of silence at each step: a reminder every `firstGapS`, `reminders` times, then the closing line at `hangUpS`
- * (5, 10, 15 by default). A hang-up time that is not after the last reminder (an older API sends none) becomes one
+ * (8, 16, 24 by default). A hang-up time that is not after the last reminder (an older API sends none) becomes one
  * gap after it.
  */
-export function silenceSchedule({ firstGapS, reminders, hangUpS }: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>): number[] {
+export function silenceSchedule({
+  firstGapS,
+  reminders,
+  hangUpS,
+}: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>): number[] {
   const asks = Array.from({ length: reminders }, (_, i) => firstGapS * (i + 1))
   const last = asks.at(-1) ?? firstGapS
   return [...asks, hangUpS > last ? hangUpS : last + firstGapS]
 }
 
-type UserStates = { on(event: voice.AgentSessionEventTypes.UserStateChanged, listener: (ev: { newState: string }) => void): unknown }
+type UserStates = {
+  on(event: voice.AgentSessionEventTypes.UserStateChanged, listener: (ev: { newState: string }) => void): unknown
+}
 
 type SilenceOptions = {
   /** Asks the caller whether they are still there (the assistant's reminder line, else STILL_THERE_LINE). */
@@ -256,7 +277,11 @@ type SilenceOptions = {
  * the call: a caller who hangs up during the silence must not get a reminder or a closing line (and a "Hung up after
  * silence" event later than the end) afterwards.
  */
-export function remindOnSilence(session: UserStates, policy: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>, { remind, close, transferred, onHold = () => false, greeted }: SilenceOptions) {
+export function remindOnSilence(
+  session: UserStates,
+  policy: Pick<SilencePolicy, 'firstGapS' | 'reminders' | 'hangUpS'>,
+  { remind, close, transferred, onHold = () => false, greeted }: SilenceOptions,
+) {
   const at = silenceSchedule(policy)
   let counting = !greeted
   let away = false
@@ -341,7 +366,8 @@ export function greetingPlayed(session: AgentStates, maxMs = GREETING_PLAYOUT_MA
 }
 
 /** The assistant's goodbye at ASSISTANT_CALL_MAX_MINUTES. */
-export const CALL_LIMIT_LINE = "I'm sorry, we've reached the time limit for this call. I've noted everything, and someone will get back to you. Goodbye!"
+export const CALL_LIMIT_LINE =
+  "I'm sorry, we've reached the time limit for this call. I've noted everything, and someone will get back to you. Goodbye!"
 /** The goodbye when a test call from the web app reaches its limit. */
 export const TEST_CALL_LIMIT_LINE = "This test call has reached its time limit, so I'll end it now. Goodbye!"
 /** Longest wait for a fixed line (CALL_LIMIT_LINE, the closing line) to be spoken, from the start of its synthesis. */
@@ -350,7 +376,9 @@ export const LINE_PLAYOUT_MAX_MS = 15_000
 /** Calls `hangUp` once `playout` is done (or failed), at the latest after `maxMs`. */
 export function hangUpAfterLine(playout: Promise<unknown>, hangUp: () => void, maxMs = LINE_PLAYOUT_MAX_MS) {
   const cap = new Promise(resolve => setTimeout(resolve, maxMs).unref?.())
-  void Promise.race([playout, cap]).catch(() => {}).then(hangUp)
+  void Promise.race([playout, cap])
+    .catch(() => {})
+    .then(hangUp)
 }
 
 /**
@@ -406,7 +434,9 @@ export const ROOM_DELETE_RETRY_MS = 1000
 
 /** LiveKit's answer for a room that is gone already (the caller hung up first): nothing left to end. */
 const roomGone = (e: unknown) =>
-  !!e && typeof e === 'object' && ((e as { status?: unknown }).status === 404 || (e as { code?: unknown }).code === 'not_found')
+  !!e &&
+  typeof e === 'object' &&
+  ((e as { status?: unknown }).status === 404 || (e as { code?: unknown }).code === 'not_found')
 
 /**
  * Ends the call for everyone by deleting its room. A failed delete (LiveKit's server API timing out on a busy network)
@@ -433,7 +463,9 @@ export async function endRoom({
       return 'deleted'
     } catch (e) {
       if (roomGone(e)) return 'deleted'
-      console.warn(`could not end the call's room (try ${attempt} of ${attempts}): ${e instanceof Error ? e.message : String(e)}`)
+      console.warn(
+        `could not end the call's room (try ${attempt} of ${attempts}): ${e instanceof Error ? e.message : String(e)}`,
+      )
       if (attempt < attempts) await wait(retryMs * 2 ** (attempt - 1))
     }
   }
@@ -445,7 +477,10 @@ export async function endRoom({
  * Says goodbye and ends the call after `maxMs` (`goodbye` does both), unless it was put through to a person by then:
  * the limit is about what the assistant costs, and the trunk's CALL_MAX_MINUTES still ends that call. Returns the cancel.
  */
-export function hangUpAtCallLimit(maxMs: number, { goodbye, transferred }: { goodbye: () => void; transferred: () => boolean }) {
+export function hangUpAtCallLimit(
+  maxMs: number,
+  { goodbye, transferred }: { goodbye: () => void; transferred: () => boolean },
+) {
   const timer = setTimeout(() => {
     if (!transferred()) goodbye()
   }, maxMs)

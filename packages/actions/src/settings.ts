@@ -181,14 +181,14 @@ export const INSTRUCTIONS_MAX = 20_000
 /**
  * Silence on the line: after a quiet gap the assistant asks "Are you still there?", again after the same gap, for the
  * number of reminders; at the hang-up time it says the closing line and hangs up. Never during a transfer.
- * The defaults ask at 5 and 10 seconds of silence and hang up at 15.
+ * The defaults ask at 8 and 16 seconds of silence and hang up at 24 (5 s cut in on callers who were still thinking).
  */
-export const SILENCE_FIRST_GAP_DEFAULT_S = 5
+export const SILENCE_FIRST_GAP_DEFAULT_S = 8
 export const SILENCE_FIRST_GAP_MIN_S = 4
 export const SILENCE_FIRST_GAP_MAX_S = 30
 export const SILENCE_REMINDERS_DEFAULT = 2
 export const SILENCE_REMINDERS_MAX = 4
-export const SILENCE_HANG_UP_DEFAULT_S = 15
+export const SILENCE_HANG_UP_DEFAULT_S = 24
 export const SILENCE_HANG_UP_MAX_S = 120
 export const SILENCE_CLOSING_MAX = 200
 export const DEFAULT_SILENCE_CLOSING =

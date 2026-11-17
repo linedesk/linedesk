@@ -17,7 +17,7 @@ import {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Transcript lines and tool results of one call; writes each line through the API as it happens. */
-/** How long the same words from the same speaker count as a repeat of one line (realtime reports some lines twice); shorter than the "Are you still there?" reminders (5 s apart). */
+/** How long the same words from the same speaker count as a repeat of one line (realtime reports some lines twice); shorter than the "Are you still there?" reminders (8 s apart by default). */
 export const REPEAT_WINDOW_MS = 4000
 
 /**

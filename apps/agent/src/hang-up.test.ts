@@ -2,7 +2,29 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { DEFAULT_SILENCE_CLOSING, DEMO_CALL_MAX_SECONDS, spokenLines } from '@linedesk/actions'
 import { voice } from '@livekit/agents'
 import { EventEmitter } from 'node:events'
-import { asksAnythingElse, asksCaller, closingFlow, endRoom, greetingPlayed, ROOM_DELETE_ATTEMPTS, ROOM_DELETE_RETRY_MS, ROOM_DELETE_TIMEOUT_MS, hangUpWithGoodbye, lastLineOfCall, LINE_PLAYOUT_MAX_MS, skipEndCallReplies, hangUpAfterLine, hangUpAtCallLimit, remindOnSilence, type Reply, silencePolicyOf, silenceSchedule, announcesHangUp, withoutEndCall, writesEndCall } from './hang-up.ts'
+import {
+  asksAnythingElse,
+  asksCaller,
+  closingFlow,
+  endRoom,
+  greetingPlayed,
+  ROOM_DELETE_ATTEMPTS,
+  ROOM_DELETE_RETRY_MS,
+  ROOM_DELETE_TIMEOUT_MS,
+  hangUpWithGoodbye,
+  lastLineOfCall,
+  LINE_PLAYOUT_MAX_MS,
+  skipEndCallReplies,
+  hangUpAfterLine,
+  hangUpAtCallLimit,
+  remindOnSilence,
+  type Reply,
+  silencePolicyOf,
+  silenceSchedule,
+  announcesHangUp,
+  withoutEndCall,
+  writesEndCall,
+} from './hang-up.ts'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -16,7 +38,14 @@ function reply(words = '') {
     finished = true
     for (const callback of callbacks) callback()
   }
-  return { play, reply: { done: () => finished, addDoneCallback: c => void callbacks.push(c), chatItems: words ? [item] : [] } as Reply }
+  return {
+    play,
+    reply: {
+      done: () => finished,
+      addDoneCallback: c => void callbacks.push(c),
+      chatItems: words ? [item] : [],
+    } as Reply,
+  }
 }
 
 test('end_call: the goodbye line is said, and the call ends shortly after it has played, not during it', async () => {
@@ -116,7 +145,9 @@ test('asksAnythingElse: the fixed line in every language, or the model asking it
   expect(asksAnythingElse(spokenLines('en').anythingElse)).toBe(true)
   expect(asksAnythingElse(spokenLines('de').anythingElse)).toBe(true)
   expect(asksAnythingElse(spokenLines('zh').anythingElse)).toBe(true)
-  expect(asksAnythingElse("Got it, someone will call you back today. Is there anything else I can help with?")).toBe(true)
+  expect(asksAnythingElse('Got it, someone will call you back today. Is there anything else I can help with?')).toBe(
+    true,
+  )
   expect(asksAnythingElse('Kann ich sonst noch etwas für Sie tun?')).toBe(true)
   expect(asksAnythingElse('What is the address?')).toBe(false)
   expect(asksAnythingElse('Anything else? No? Then goodbye!')).toBe(false)
@@ -152,13 +183,30 @@ test('closingFlow: the fixed question counts once it is said, also when its word
 
 function userStates() {
   const listeners: ((ev: { newState: string }) => void)[] = []
-  const session = { on: (event: string, listener: (ev: { newState: string }) => void) => event === voice.AgentSessionEventTypes.UserStateChanged && listeners.push(listener) }
+  const session = {
+    on: (event: string, listener: (ev: { newState: string }) => void) =>
+      event === voice.AgentSessionEventTypes.UserStateChanged && listeners.push(listener),
+  }
   return { session: session as never, emit: (newState: string) => listeners.forEach(l => l({ newState })) }
 }
 
-test('silence settings: defaults on (every 5 s, 2 reminders, hang-up at 15 s, the default closing), each from the assistant when set', () => {
-  expect(silencePolicyOf(null)).toEqual({ firstGapS: 5, reminders: 2, hangUpS: 15, reminder: null, closing: DEFAULT_SILENCE_CLOSING })
-  expect(silencePolicyOf({ silence_first_gap_s: 8, silence_reminders: 0, silence_hang_up_s: 30, silence_reminder: ' Hallo? ', silence_closing: '  Bye now.  ' })).toEqual({ firstGapS: 8, reminders: 0, hangUpS: 30, reminder: 'Hallo?', closing: 'Bye now.' })
+test('silence settings: defaults on (every 8 s, 2 reminders, hang-up at 24 s, the default closing), each from the assistant when set', () => {
+  expect(silencePolicyOf(null)).toEqual({
+    firstGapS: 8,
+    reminders: 2,
+    hangUpS: 24,
+    reminder: null,
+    closing: DEFAULT_SILENCE_CLOSING,
+  })
+  expect(
+    silencePolicyOf({
+      silence_first_gap_s: 8,
+      silence_reminders: 0,
+      silence_hang_up_s: 30,
+      silence_reminder: ' Hallo? ',
+      silence_closing: '  Bye now.  ',
+    }),
+  ).toEqual({ firstGapS: 8, reminders: 0, hangUpS: 30, reminder: 'Hallo?', closing: 'Bye now.' })
   expect(silencePolicyOf({ silence_reminder: '  ' }).reminder).toBeNull()
   expect(silencePolicyOf({ silence_closing: ' ' }).closing).toBe(DEFAULT_SILENCE_CLOSING)
   // Asks at 5 and 10 s of silence, the closing line at 15 s.
@@ -353,7 +401,12 @@ test('a caller who speaks before the greeting has played is not away when it end
   const remind = vi.fn()
   const close = vi.fn()
   let played!: () => void
-  remindOnSilence(session, policy, { remind, close, transferred: () => false, greeted: new Promise<void>(resolve => (played = resolve)) })
+  remindOnSilence(session, policy, {
+    remind,
+    close,
+    transferred: () => false,
+    greeted: new Promise<void>(resolve => (played = resolve)),
+  })
   emit('away')
   emit('speaking') // "Hello?"
   emit('listening')
@@ -370,7 +423,11 @@ function agentStates() {
     on: (_: string, listener: (ev: { oldState: string }) => void) => listeners.add(listener),
     off: (_: string, listener: (ev: { oldState: string }) => void) => listeners.delete(listener),
   }
-  return { session: session as never, emit: (oldState: string) => [...listeners].forEach(l => l({ oldState })), listeners }
+  return {
+    session: session as never,
+    emit: (oldState: string) => [...listeners].forEach(l => l({ oldState })),
+    listeners,
+  }
 }
 
 test('the greeting has played once the first speech ended, or at the latest after the cap', async () => {
@@ -419,14 +476,16 @@ test('the hang-up line counts as the hang-up; a question or a negation does not'
     'Perfecto, voy a colgar ahora. ¡Adiós!',
     'Alles klar, ich lege jetzt auf. Auf Wiederhören!',
     'Très bien, je vais raccrocher. Au revoir !',
-  ]) expect(announcesHangUp(said), said).toBe(true)
+  ])
+    expect(announcesHangUp(said), said).toBe(true)
   for (const said of [
-    'Please don\'t hang up, I will check that for you.',
+    "Please don't hang up, I will check that for you.",
     'Shall I hang up now?',
     'Please don’t hang up yet, I’ll check.',
-    'I won\'t hang up until we have your address.',
+    "I won't hang up until we have your address.",
     'Is there anything else I can help with?',
-  ]) expect(announcesHangUp(said), said).toBe(false)
+  ])
+    expect(announcesHangUp(said), said).toBe(false)
 })
 
 /**
@@ -480,7 +539,12 @@ test('the last line hangs up when it has played, not at the cap', async () => {
   vi.setSystemTime(0)
   const audio = speechQueue(6000)
   let hungUpAt = -1
-  const lastLine = lastLineOfCall({ stopSpeaking: audio.stopSpeaking, stopListening: () => {}, say: audio.say, hangUp: () => (hungUpAt = Date.now()) })
+  const lastLine = lastLineOfCall({
+    stopSpeaking: audio.stopSpeaking,
+    stopListening: () => {},
+    say: audio.say,
+    hangUp: () => (hungUpAt = Date.now()),
+  })
   audio.reply(13_000)
   lastLine('Goodbye!')
   await vi.advanceTimersByTimeAsync(LINE_PLAYOUT_MAX_MS + 1000)
@@ -501,9 +565,13 @@ test('the closing line and the time limit together: only the first is said, the 
 test('a last line that cannot be said, or a session that cannot be interrupted, still ends the call', async () => {
   const hangUp = vi.fn()
   const lastLine = lastLineOfCall({
-    stopSpeaking: () => { throw new Error('AgentSession is not running') },
+    stopSpeaking: () => {
+      throw new Error('AgentSession is not running')
+    },
     stopListening: () => {},
-    say: () => { throw new Error('AgentSession is closing') },
+    say: () => {
+      throw new Error('AgentSession is closing')
+    },
     hangUp,
   })
   lastLine('Goodbye!')
@@ -511,7 +579,9 @@ test('a last line that cannot be said, or a session that cannot be interrupted, 
   expect(hangUp).toHaveBeenCalledOnce()
 
   const stuck = vi.fn()
-  lastLineOfCall({ stopSpeaking: () => {}, stopListening: () => {}, say: () => new Promise(() => {}), hangUp: stuck })('Goodbye!')
+  lastLineOfCall({ stopSpeaking: () => {}, stopListening: () => {}, say: () => new Promise(() => {}), hangUp: stuck })(
+    'Goodbye!',
+  )
   await vi.advanceTimersByTimeAsync(LINE_PLAYOUT_MAX_MS - 1)
   expect(stuck).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1)
@@ -519,7 +589,10 @@ test('a last line that cannot be said, or a session that cannot be interrupted, 
 })
 
 test('ending the room: a failed delete is tried again, so the call does not go on after the closing line (pt-1)', async () => {
-  const deleteRoom = vi.fn().mockRejectedValueOnce(new Error('The operation was aborted due to timeout')).mockResolvedValueOnce(undefined)
+  const deleteRoom = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('The operation was aborted due to timeout'))
+    .mockResolvedValueOnce(undefined)
   const leave = vi.fn()
   const ended = endRoom({ deleteRoom, leave })
   await vi.advanceTimersByTimeAsync(ROOM_DELETE_RETRY_MS)
@@ -539,7 +612,9 @@ test('ending the room: when every delete fails the agent leaves the call itself'
 })
 
 test('ending the room: a room that is gone already (the caller hung up) is not tried again', async () => {
-  const deleteRoom = vi.fn().mockRejectedValue(Object.assign(new Error('requested room does not exist'), { status: 404, code: 'not_found' }))
+  const deleteRoom = vi
+    .fn()
+    .mockRejectedValue(Object.assign(new Error('requested room does not exist'), { status: 404, code: 'not_found' }))
   const leave = vi.fn()
   await expect(endRoom({ deleteRoom, leave })).resolves.toBe('deleted')
   expect(deleteRoom).toHaveBeenCalledOnce()
@@ -549,6 +624,7 @@ test('ending the room: a room that is gone already (the caller hung up) is not t
 test('a demo call still ends by the stale-call sweep backstop: limit, last line at its cap, every room delete timing out', () => {
   // apps/api demo-rooms.ts: DEMO_ROOM_MAX_MS = (DEMO_CALL_MAX_SECONDS + 30) * 1000; DEMO_BUDGET_SECONDS counts it plus one sweep.
   const demoRoomMaxMs = (DEMO_CALL_MAX_SECONDS + 30) * 1000
-  const deleting = ROOM_DELETE_ATTEMPTS * ROOM_DELETE_TIMEOUT_MS + ROOM_DELETE_RETRY_MS * (2 ** (ROOM_DELETE_ATTEMPTS - 1) - 1)
+  const deleting =
+    ROOM_DELETE_ATTEMPTS * ROOM_DELETE_TIMEOUT_MS + ROOM_DELETE_RETRY_MS * (2 ** (ROOM_DELETE_ATTEMPTS - 1) - 1)
   expect(DEMO_CALL_MAX_SECONDS * 1000 + LINE_PLAYOUT_MAX_MS + deleting).toBeLessThanOrEqual(demoRoomMaxMs)
 })

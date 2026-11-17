@@ -145,9 +145,9 @@ export const assistants = pgTable(
      * assistant asks whether the caller is still there, again every `silence_first_gap_s` seconds, `silence_reminders`
      * times; at `silence_hang_up_s` seconds of silence it says `silence_closing` (null: the default line) and hangs up.
      */
-    silence_first_gap_s: integer('silence_first_gap_s').notNull().default(5),
+    silence_first_gap_s: integer('silence_first_gap_s').notNull().default(8),
     silence_reminders: integer('silence_reminders').notNull().default(2),
-    silence_hang_up_s: integer('silence_hang_up_s').notNull().default(15),
+    silence_hang_up_s: integer('silence_hang_up_s').notNull().default(24),
     /** The longest the assistant stays on a call, in minutes (at most ASSISTANT_CALL_MAX_MINUTES); then it says goodbye and hangs up. */
     max_call_minutes: integer('max_call_minutes').notNull().default(20),
     silence_closing: text('silence_closing'),
