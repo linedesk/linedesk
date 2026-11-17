@@ -105,6 +105,8 @@ export type UsageRow = {
   month: string
   calls: number
   minutes: number
+  /** What the month's calls and phone numbers took from the prepaid balance, in micros; null without billing entries. */
+  charged_micros: number | null
 }
 
 export type ProviderField = {
@@ -360,6 +362,7 @@ type AdminInputs = {
   'billing.reviewHold': { billingAccountId: string; decision: 'approve' | 'deny'; reason: string }
   'billingRules.set': { rules: Record<string, unknown>; reason: string }
   'signup.setSelfServe': { on: boolean; reason: string }
+  'signup.setRules': { rules: Record<string, unknown>; reason: string }
 }
 
 /**
@@ -411,6 +414,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'billing.reviewHold': msg('admin.stepUp.what.billingMoney'),
   'billingRules.set': msg('admin.stepUp.what.billingRules'),
   'signup.setSelfServe': msg('admin.stepUp.what.selfServe'),
+  'signup.setRules': msg('admin.stepUp.what.signupRules'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {

@@ -176,6 +176,20 @@ export const SIGNUP_DEFAULTS: SignupRules = {
   reviewRiskLevels: ['elevated', 'highest'],
 }
 
+/** The range of each whole-number sign-up rule (`signup.rules`): what the server takes and the admin page checks. */
+export const SIGNUP_RULE_RANGES = {
+  codesPerAddressHour: [1, 100],
+  codesPerAddressDay: [1, 1000],
+  signupsPerIpHour: [1, 1000],
+  signupsPerIpDay: [1, 10_000],
+  codesPerInstallHour: [1, 100_000],
+  pendingDays: [1, 90],
+  trialWorkspacesCloud: [1, 100],
+  trialWorkspacesPartner: [1, 100],
+  trialNumbersPerWorkspace: [0, 100],
+} as const satisfies Partial<Record<keyof SignupRules, readonly [number, number]>>
+export type SignupCountRule = keyof typeof SIGNUP_RULE_RANGES
+
 /** The countries a business can sign up from (decision 12): US, Canada, Puerto Rico. */
 export const SIGNUP_COUNTRIES = ['US', 'CA', 'PR'] as const
 export type SignupCountry = (typeof SIGNUP_COUNTRIES)[number]

@@ -485,7 +485,6 @@
   "bills.review.denyTitle": "Recusar a fatura de {owner}",
   "bills.review.description": "Faturas retidas para revisão e períodos de teste iniciados nos últimos 7 dias.",
   "bills.review.empty": "Nada aguardando revisão.",
-  "bills.review.radarPending": "O risco do Radar e os dados do cartão ainda não são registrados no cadastro: confira o pagamento no Stripe Dashboard antes de aprovar.",
   "bills.review.title": "Revisão",
   "bills.rules.confirmText": "As novas regras valem para as chamadas a partir de agora. Todos os administradores do servidor recebem um e-mail.",
   "bills.rules.confirmTitle": "Alterar as regras de cobrança",

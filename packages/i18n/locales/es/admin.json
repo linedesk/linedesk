@@ -485,7 +485,6 @@
   "bills.review.denyTitle": "Rechazar la factura de {owner}",
   "bills.review.description": "Facturas retenidas para revisión y pruebas gratuitas iniciadas en los últimos 7 días.",
   "bills.review.empty": "Nada espera revisión.",
-  "bills.review.radarPending": "El riesgo de Radar y los datos de la tarjeta todavía no se guardan con un registro: revisa el pago en el Stripe Dashboard antes de aprobar.",
   "bills.review.title": "Revisión",
   "bills.rules.confirmText": "Las reglas nuevas se aplican a las llamadas a partir de ahora. Se envía un correo a cada administrador del servidor.",
   "bills.rules.confirmTitle": "Cambiar las reglas de facturación",

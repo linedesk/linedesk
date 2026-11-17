@@ -485,7 +485,6 @@
   "bills.review.denyTitle": "Refuser la facture de {owner}",
   "bills.review.description": "Les factures bloquées pour vérification, et les essais commencés au cours des 7 derniers jours.",
   "bills.review.empty": "Rien n'attend de vérification.",
-  "bills.review.radarPending": "Le risque Radar et les détails de la carte ne sont pas encore enregistrés lors d'une inscription : vérifiez le paiement dans le Stripe Dashboard avant d'approuver.",
   "bills.review.title": "Vérification",
   "bills.rules.confirmText": "Les nouvelles règles s'appliquent aux appels à partir de maintenant. Chaque administrateur du serveur reçoit un e-mail.",
   "bills.rules.confirmTitle": "Modifier les règles de facturation",

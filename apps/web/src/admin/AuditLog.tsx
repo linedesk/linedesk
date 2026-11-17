@@ -71,6 +71,7 @@ const REASONED = new Set([
   'billing.reviewHold',
   'billingRules.set',
   'signup.setSelfServe',
+  'signup.setRules',
   'billing.reprocessEvent',
 ])
 
@@ -289,6 +290,10 @@ export function auditLabel(
       return t('admin.audit.billingRulesSet')
     case 'signup.setSelfServe':
       return t('admin.audit.selfServeSet', { on: input.on === true ? 'yes' : 'no' })
+    case 'signup.setRules':
+      return t('admin.audit.signupRulesSet')
+    case 'billing.startTopUp':
+      return t('admin.audit.billing.startTopUp', { amount: usd(Number(input.amountCents) / 100) })
     case 'calendar.connectFinish': {
       const calendar = calendarNames[String(input.provider)]
       return t('admin.audit.calendarConnected', { calendar: calendar ?? '', known: known(calendar) })
@@ -376,6 +381,20 @@ const plainLabels: Record<string, MessageKey> = {
   'appointment.book': msg('admin.audit.appointment.book'),
   'appointment.cancel': msg('admin.audit.appointment.cancel'),
   'appointment.reschedule': msg('admin.audit.appointment.reschedule'),
+  // Sign-up and the bill's own actions (apps/api/src/audit.ts): what the owner did, never the raw action name.
+  'account.signUp': msg('admin.audit.billing.signUp'),
+  'billing.startCheckout': msg('admin.audit.billing.startCheckout'),
+  'billing.confirmCheckout': msg('admin.audit.billing.confirmCheckout'),
+  'billing.cancel': msg('admin.audit.billing.cancel'),
+  'billing.resume': msg('admin.audit.billing.resume'),
+  'billing.setAutoRecharge': msg('admin.audit.billing.setAutoRecharge'),
+  'billing.setRechargeCap': msg('admin.audit.billing.setRechargeCap'),
+  'billing.openPortal': msg('admin.audit.billing.openPortal'),
+  'billing.retryRecharge': msg('admin.audit.billing.retryRecharge'),
+  'billing.recordPortOut': msg('admin.audit.billing.recordPortOut'),
+  'billing.handOver': msg('admin.audit.billing.handOver'),
+  'billing.portOutInfo': msg('admin.audit.billing.portOutInfo'),
+  'billing.reprocessEvent': msg('admin.audit.billing.reprocessEvent'),
 }
 
 const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Microsoft' }

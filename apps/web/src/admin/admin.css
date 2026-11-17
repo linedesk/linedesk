@@ -1613,6 +1613,26 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* The sign-up limits: the Radar levels that hold a bill for review, as a group of checkboxes. */
+.adm-checks {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.adm-checks legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.adm-checks .k-field-desc {
+  margin: 0;
+}
 .adm-refundable {
   margin: 0;
   padding-left: 18px;

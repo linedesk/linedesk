@@ -485,7 +485,6 @@
   "bills.review.denyTitle": "{owner}の請求を拒否",
   "bills.review.description": "審査のため保留中の請求と、過去7日間に開始されたトライアル。",
   "bills.review.empty": "審査待ちのものはありません。",
-  "bills.review.radarPending": "Radarのリスクとカードの詳細は、まだ登録時に記録されません。承認する前にStripe Dashboardで支払いを確認してください。",
   "bills.review.title": "審査",
   "bills.rules.confirmText": "新しいルールは今後の通話に適用されます。すべてのサーバー管理者にメールが届きます。",
   "bills.rules.confirmTitle": "請求ルールを変更",

@@ -11,10 +11,12 @@
 // `pending_payment`; Checkout (PR 8) moves them on. A sign-up that never finishes Checkout is deleted after
 // `pendingDays` by the daily sign-up sweep.
 import { createHash } from 'node:crypto'
+import { RADAR_RISK_LEVELS } from '@linedesk/actions'
 import {
   instance_settings,
   organization,
   SIGNUP_DEFAULTS,
+  SIGNUP_RULE_RANGES,
   type Db,
   type SignupRules,
   signup_attempts,
@@ -42,17 +44,7 @@ const DAY = 24 * HOUR
 
 // --- Rules ----------------------------------------------------------------------------------------
 
-const RANGES: Record<string, [number, number]> = {
-  codesPerAddressHour: [1, 100],
-  codesPerAddressDay: [1, 1000],
-  signupsPerIpHour: [1, 1000],
-  signupsPerIpDay: [1, 10_000],
-  codesPerInstallHour: [1, 100_000],
-  pendingDays: [1, 90],
-  trialWorkspacesCloud: [1, 100],
-  trialWorkspacesPartner: [1, 100],
-  trialNumbersPerWorkspace: [0, 100],
-}
+const RANGES: Record<string, readonly [number, number]> = SIGNUP_RULE_RANGES
 
 /** `stored` over the defaults, field by field; `problems` names what was ignored. */
 export function mergeSignupRules(stored: unknown): { rules: SignupRules; problems: string[] } {
@@ -77,20 +69,55 @@ export function mergeSignupRules(stored: unknown): { rules: SignupRules; problem
 const stringList = (value: unknown, max: number) =>
   Array.isArray(value) && value.length <= max && value.every(v => typeof v === 'string' && v.length <= 253)
 
-/** The sign-up rules in effect on this install. */
-export async function signupRules(tx: Pick<Tx, 'select'>): Promise<SignupRules> {
+/** A domain an install may block: letters, digits, dots and hyphens, with a dot (`example.com`). */
+const DOMAIN = /^(?=.{3,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/
+
+/**
+ * The fields of a change of `signup.rules` (Server admin › Billing, `signup.setRules`) that are out of range, of the
+ * wrong type or unknown; null (back to the default) is always fine. Stricter than `mergeSignupRules`, which reads what
+ * is stored: a blocked domain must look like one and a risk level must be one of Radar's.
+ */
+export function signupRulesProblems(change: Record<string, unknown>): string[] {
+  const problems: string[] = []
+  for (const [key, value] of Object.entries(change)) {
+    if (value === null) {
+      if (!(key in SIGNUP_DEFAULTS)) problems.push(key)
+      continue
+    }
+    if (mergeSignupRules({ [key]: value }).problems.length) problems.push(key)
+    else if (key === 'blockedDomains' && !(value as string[]).every(d => DOMAIN.test(d.trim().toLowerCase())))
+      problems.push(key)
+    else if (
+      key === 'reviewRiskLevels' &&
+      !(value as string[]).every(l => (RADAR_RISK_LEVELS as readonly string[]).includes(l))
+    )
+      problems.push(key)
+  }
+  return problems
+}
+
+/** What `signup.rules` stores (null: nothing, or not a JSON object) and the rules in effect over the defaults. */
+export async function storedSignupRules(
+  tx: Pick<Tx, 'select'>,
+): Promise<{ stored: Record<string, unknown> | null; rules: SignupRules; problems: string[] }> {
   const [row] = await tx
     .select({ value: instance_settings.value })
     .from(instance_settings)
     .where(eq(instance_settings.key, SIGNUP_RULES_KEY))
-  if (!row) return mergeSignupRules(undefined).rules
+  if (!row) return { stored: null, ...mergeSignupRules(undefined) }
   let stored: unknown
   try {
     stored = JSON.parse(row.value)
   } catch {
     stored = null
   }
-  const { rules, problems } = mergeSignupRules(stored)
+  const isObject = typeof stored === 'object' && stored !== null && !Array.isArray(stored)
+  return { stored: isObject ? (stored as Record<string, unknown>) : null, ...mergeSignupRules(stored) }
+}
+
+/** The sign-up rules in effect on this install. */
+export async function signupRules(tx: Pick<Tx, 'select'>): Promise<SignupRules> {
+  const { rules, problems } = await storedSignupRules(tx)
   if (problems.length)
     console.error(`sign-up rules: ignored ${problems.join(', ')} of ${SIGNUP_RULES_KEY}; using the defaults there`)
   return rules

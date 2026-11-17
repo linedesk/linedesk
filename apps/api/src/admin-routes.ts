@@ -112,16 +112,36 @@ const listWorkspaceMembers = async (tx: Tx, workspaceId: string) => ({
   ),
 })
 
+/**
+ * Calls, answered seconds and what was charged per workspace and calendar month (UTC). Charged: what calls and phone
+ * numbers took from the prepaid balance (`ledger_entries` usage and number, in micros); null for a month without
+ * entries (billing off, or nothing billed).
+ */
 const listUsage = (tx: Tx, months: number) =>
   rows(
     tx,
     sql`
-  select c.workspace_id, o.name as workspace_name, to_char(c.started_at at time zone 'utc', 'YYYY-MM') as month,
-    count(*)::int as calls, coalesce(sum(c.duration_sec), 0)::int as seconds
-  from calls c left join organization o on o.id = c.workspace_id
-  where c.source not in ('sample', 'simulated')
-    and c.started_at >= (date_trunc('month', now() at time zone 'utc') - make_interval(months => ${months - 1})) at time zone 'utc'
-  group by 1, 2, 3 order by 3 desc, 2, 1`,
+  with since as (
+    select (date_trunc('month', now() at time zone 'utc') - make_interval(months => ${months - 1})) at time zone 'utc' as at
+  ), c as (
+    select c.workspace_id, to_char(c.started_at at time zone 'utc', 'YYYY-MM') as month,
+      count(*)::int as calls, coalesce(sum(c.duration_sec), 0)::int as seconds
+    from calls c, since
+    where c.source not in ('sample', 'simulated') and c.started_at >= since.at
+    group by 1, 2
+  ), l as (
+    select l.workspace_id, to_char(l.created_at at time zone 'utc', 'YYYY-MM') as month,
+      (-sum(l.amount_micros))::bigint as charged_micros
+    from ledger_entries l, since
+    where l.kind in ('usage', 'number') and l.workspace_id is not null and l.created_at >= since.at
+    group by 1, 2
+  )
+  select coalesce(c.workspace_id, l.workspace_id) as workspace_id, o.name as workspace_name,
+    coalesce(c.month, l.month) as month, coalesce(c.calls, 0) as calls, coalesce(c.seconds, 0) as seconds,
+    l.charged_micros
+  from c full join l on l.workspace_id = c.workspace_id and l.month = c.month
+    left join organization o on o.id = coalesce(c.workspace_id, l.workspace_id)
+  order by 3 desc, 2, 1`,
   )
 
 export function registerAdminRoutes(app: Hono<Env>) {
@@ -165,10 +185,14 @@ export function registerAdminRoutes(app: Hono<Env>) {
     })
   })
 
-  // Calls and answered minutes per workspace and calendar month (UTC), newest month first.
+  // Calls, answered minutes and the dollars charged per workspace and calendar month (UTC), newest month first.
   app.get('/v1/admin/usage', async c => {
     const months = Math.min(24, Math.max(1, Number(c.req.query('months')) || 6))
-    const usage = (await listUsage(db, months)).map(({ seconds, ...u }) => ({ ...u, minutes: minutes(seconds) }))
+    const usage = (await listUsage(db, months)).map(({ seconds, charged_micros, ...u }) => ({
+      ...u,
+      minutes: minutes(seconds),
+      charged_micros: charged_micros === null ? null : Number(charged_micros),
+    }))
     return c.json({ months, usage })
   })
 

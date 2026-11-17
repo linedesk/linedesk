@@ -1,12 +1,13 @@
 import { useT } from '@linedesk/i18n/react'
 import type { AdminWorkspace, UsageRow } from './api.ts'
+import { usdOfMicros } from './billingModel.ts'
 import { formatMinutes, monthLabel, recentMonths, sortRows, usageByWorkspace } from './model.ts'
 import { EMPTY, SortTh, useSort } from './parts.tsx'
 
 type Column = 'name' | 'month'
 type Props = { workspaces: AdminWorkspace[]; usage: UsageRow[]; months: number }
 
-/** Answered minutes and calls per workspace and calendar month (UTC). */
+/** Answered minutes, calls and, with billing, the dollars charged per workspace and calendar month (UTC). */
 export function Usage({ workspaces, usage, months }: Props) {
   const t = useT()
   const { sort, toggle } = useSort<Column>({ key: 'month', dir: 'desc' })
@@ -14,6 +15,7 @@ export function Usage({ workspaces, usage, months }: Props) {
   const grid = usageByWorkspace(usage)
   const current = (w: AdminWorkspace) => grid.get(w.id)?.get(columns[0]!)?.minutes ?? 0
   const rows = sortRows(workspaces, sort.key === 'name' ? w => w.name : current, sort.dir)
+  const billed = usage.some(u => u.charged_micros !== null)
 
   return (
     <div className="adm-card">
@@ -51,6 +53,11 @@ export function Usage({ workspaces, usage, months }: Props) {
                     <td key={month} className="adm-num" data-label={monthLabel(month)}>
                       {cell ? formatMinutes(cell.minutes) : EMPTY}
                       {cell ? <span className="adm-sub">{t('admin.usage.calls', { count: cell.calls })}</span> : null}
+                      {cell && cell.chargedMicros !== null ? (
+                        <span className="adm-sub">
+                          {t('admin.usage.charged', { amount: usdOfMicros(cell.chargedMicros) })}
+                        </span>
+                      ) : null}
                     </td>
                   )
                 })}
@@ -59,6 +66,7 @@ export function Usage({ workspaces, usage, months }: Props) {
           </tbody>
         </table>
       </div>
+      {billed && <p className="adm-notice">{t('admin.usage.chargedNote')}</p>}
     </div>
   )
 }

@@ -225,6 +225,7 @@ describe('access', () => {
       'setupEmails.get',
       'setupEmails.set',
       'signup.getSelfServe',
+      'signup.setRules',
       'signup.setSelfServe',
       'systemPrompt.get',
       'systemPrompt.resetPart',
@@ -1138,6 +1139,8 @@ describe('workspaces', () => {
       month: new Date().toISOString().slice(0, 7),
       calls: 1,
       minutes: 2.5,
+      // No billing entries: no dollars, rather than $0.00.
+      charged_micros: null,
     })
   })
 

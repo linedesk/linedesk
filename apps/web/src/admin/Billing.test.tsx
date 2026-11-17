@@ -1,6 +1,7 @@
 // Server admin › Billing: a bill's page shows what was paid from the ledger's money (never seconds), links its
 // invoices to the Stripe Dashboard, and offers only the actions that can run.
-import type { AdminBillDetail } from '@linedesk/actions'
+import type { AdminBillDetail, SelfServeData } from '@linedesk/actions'
+import { SIGNUP_DEFAULTS } from '@linedesk/db/types'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 
@@ -24,6 +25,7 @@ const bill: AdminBillDetail = {
   balanceMicros: 12_500_000,
   reservedMicros: 0,
   heldForReviewAt: null,
+  cardRiskLevel: 'elevated',
   createdAt: '2026-11-01T10:00:00.000Z',
   stripeCustomerId: 'cus_1',
   stripeSubscriptionId: 'sub_1',
@@ -77,6 +79,9 @@ test("a bill's page: paid from the ledger, invoices in the Stripe Dashboard, onl
   // Nothing paid is left to refund, and nobody else to give the bill to: both say why.
   expect(html).toContain('No payment has anything left to refund.')
   expect(html).toContain('No other member to give it to.')
+  // Radar's risk of the trial's card check is shown, not only stored.
+  expect(html).toContain('Radar risk')
+  expect(html).toContain('Elevated')
 })
 
 test('without Stripe in effect a refund says it needs Stripe, and the bill links nowhere outside', () => {
@@ -85,4 +90,49 @@ test('without Stripe in effect a refund says it needs Stripe, and the bill links
   expect(html).toContain('Refunds need billing through Stripe.')
   expect(html).not.toContain('dashboard.stripe.com')
   expect(html).toContain('LD-0001')
+})
+
+const selfServe = (over: Partial<SelfServeData>): SelfServeData => ({
+  on: true,
+  billingInEffect: true,
+  open: true,
+  closedBecause: null,
+  turnstileReady: true,
+  rules: SIGNUP_DEFAULTS,
+  defaults: SIGNUP_DEFAULTS,
+  problems: [],
+  ...over,
+})
+const renderList = () =>
+  renderToStaticMarkup(<Billing id={null} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} />)
+
+test('sign-up switched on without Turnstile keys says plainly that it is closed, and why', () => {
+  data['admin.billing.selfServe'] = selfServe({
+    open: false,
+    closedBecause: 'bot_check_missing',
+    turnstileReady: false,
+  })
+  const html = renderList()
+  expect(html).toContain('Closed')
+  expect(html).toContain('Sign-up is switched on but closed: the bot check (Cloudflare Turnstile) has no keys.')
+  expect(html).toContain('href="#admin/providers"')
+  expect(html).toContain('Turnstile has no keys yet')
+})
+
+test('open sign-up says so, and its limits are editable with plain labels', () => {
+  data['admin.billing.selfServe'] = selfServe({})
+  const html = renderList()
+  expect(html).toContain('Open')
+  expect(html).toContain('Anyone can sign up and start a trial now.')
+  expect(html).not.toContain('switched on but closed')
+  expect(html).toContain('Sign-up limits')
+  expect(html).toContain('Sign-up codes per email address, per hour')
+  expect(html).toContain('Blocked email domains')
+  expect(html).toContain('Hold for review at Radar risk')
+})
+
+test('the bills list filters by status', () => {
+  data['admin.billing.bills'] = [{ ...bill, status: 'trialing' }]
+  const html = renderList()
+  expect(html).toContain('Show bills')
 })

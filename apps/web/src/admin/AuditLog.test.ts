@@ -154,6 +154,12 @@ const AUDITED_ACTION_NAMES = [
   'app.updateSettings', 'phoneNumber.setup',
   'phoneNumber.release', 'agentSetup.createKey', 'agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey',
   'agentSetup.revoke', 'agentSetup.endOwnAccess', 'agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace',
+  'billingEnabled.set', 'billing.reprocessEvent', 'billing.credit', 'billing.refund', 'billing.adminSetStatus',
+  'billing.setCap', 'billing.setConcurrency', 'billing.moveWorkspace', 'billing.transferOwner', 'billing.reviewHold',
+  'billingRules.set', 'signup.setSelfServe', 'signup.setRules', 'account.signUp', 'billing.startCheckout',
+  'billing.confirmCheckout', 'billing.startTopUp', 'billing.cancel', 'billing.resume', 'billing.setAutoRecharge',
+  'billing.setRechargeCap', 'billing.openPortal', 'billing.retryRecharge', 'billing.recordPortOut', 'billing.handOver',
+  'billing.portOutInfo',
 ]
 
 describe('Server admin › Billing', () => {
@@ -168,12 +174,16 @@ describe('Server admin › Billing', () => {
     )
     expect(label('billing.reviewHold', { decision: 'deny' })).toBe('Denied a bill held for review')
     expect(label('signup.setSelfServe', { on: true })).toBe('Turned self-serve sign-up on')
+    expect(label('signup.setRules', { rules: { turnstile: false } })).toBe('Changed the sign-up limits')
+    expect(label('billing.confirmCheckout', { sessionId: 'cs_test_1' })).toBe('Came back from Stripe Checkout')
+    expect(label('billing.startTopUp', { amountCents: 2000 })).toBe('Opened Checkout to buy $20 of minutes')
   })
 })
 
 describe('every audited action reads as words', () => {
   test.each(AUDITED_ACTION_NAMES)('%s has a label', what => {
-    expect(label(what)).not.toBe(what)
+    // Words, never the raw action name ("Ran billing.confirmCheckout").
+    expect(label(what)).not.toContain(what)
     expect(label(what, { name: 'Brightwater Plumbing & Heating' }, 'mike@example.com')).not.toBe(what)
   })
 

@@ -207,6 +207,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billing.reviewHold': 'admin',
   'billingRules.set': 'admin',
   'signup.setSelfServe': 'admin',
+  'signup.setRules': 'admin',
   // Self-serve sign-up (docs/billing.md §3.1): every sign-up.
   'account.signUp': 'account',
   // The bill's Checkout, top-ups and its plan cancelled or resumed (docs/billing.md §3.2, §8): the owner's decisions.

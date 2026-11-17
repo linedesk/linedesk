@@ -135,7 +135,7 @@
   "packages/actions/src/assistant-prompt.ts": 19,
   "packages/actions/src/assistant-versions.ts": 44,
   "packages/actions/src/authenticator.ts": 4,
-  "packages/actions/src/billing-admin.ts": 18,
+  "packages/actions/src/billing-admin.ts": 17,
   "packages/actions/src/billing-checkout.ts": 5,
   "packages/actions/src/billing.ts": 10,
   "packages/actions/src/branding.ts": 5,

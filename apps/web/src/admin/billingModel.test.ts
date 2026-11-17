@@ -1,7 +1,10 @@
 // Server admin › Billing: dollars typed by the admin, the reason rule and the rules editor's form.
 import { expect, test } from 'vitest'
-import { BILLING_DEFAULTS } from '@linedesk/db/types'
+import type { AdminBillRow } from '@linedesk/actions'
+import { BILLING_DEFAULTS, SIGNUP_DEFAULTS } from '@linedesk/db/types'
 import {
+  domainList,
+  filterBills,
   parseCount,
   parseDollars,
   planFloorText,
@@ -9,6 +12,9 @@ import {
   reasonProblem,
   rulesForm,
   rulesFromForm,
+  signupDirty,
+  signupForm,
+  signupFromForm,
 } from './billingModel.ts'
 
 /** Every field at its default: sent as null, so the server resets it (it merges over the stored rules). */
@@ -107,4 +113,89 @@ test('the plan fees show the server floor: a month, and 12 of it a year (securit
   expect(planFloorText('workspaceMonthlyCents', 250)).toBe('At least $2.50 on this server')
   expect(planFloorText('partnerYearlyCents', 250)).toBe('At least $30.00 on this server, and at most 12 monthly fees')
   expect(planFloorText('trialDays', 250)).toBeUndefined()
+})
+
+test('included minutes and the longest transfer are typed in minutes and stored in seconds', () => {
+  const form = rulesForm(BILLING_DEFAULTS)
+  expect(form.includedStandardSeconds).toBe('50')
+  expect(form.billedTransferCapSeconds).toBe('10')
+  const parsed = rulesFromForm(
+    { ...form, includedStandardSeconds: '60', billedTransferCapSeconds: '7.5' },
+    BILLING_DEFAULTS,
+  )
+  expect(parsed).toMatchObject({ rules: { includedStandardSeconds: 3600, billedTransferCapSeconds: 450 } })
+  // A fraction of a second is not a whole number of seconds.
+  expect(rulesFromForm({ ...form, includedStandardSeconds: '0.001' }, BILLING_DEFAULTS).problems).toEqual([
+    'includedStandardSeconds',
+  ])
+})
+
+const row = (over: Partial<AdminBillRow>): AdminBillRow => ({
+  id: 'b',
+  kind: 'cloud',
+  status: 'active',
+  interval: 'month',
+  owner: { id: 'u', email: null, name: null },
+  workspaces: [],
+  balanceMicros: 0,
+  reservedMicros: 0,
+  heldForReviewAt: null,
+  cardRiskLevel: null,
+  createdAt: '2026-11-01T00:00:00.000Z',
+  ...over,
+})
+
+test('the bills list filters by status, or by a hold for review', () => {
+  const bills = [
+    row({ id: 'a', status: 'trialing' }),
+    row({ id: 'b', status: 'active', heldForReviewAt: '2026-11-02T00:00:00.000Z' }),
+    row({ id: 'c', status: 'past_due' }),
+  ]
+  expect(filterBills(bills, 'all').map(b => b.id)).toEqual(['a', 'b', 'c'])
+  expect(filterBills(bills, 'trialing').map(b => b.id)).toEqual(['a'])
+  expect(filterBills(bills, 'held').map(b => b.id)).toEqual(['b'])
+  expect(filterBills(bills, 'canceled')).toEqual([])
+})
+
+test('the sign-up limits: defaults go back as null, changes as values, numbers out of range are problems', () => {
+  const form = signupForm(SIGNUP_DEFAULTS)
+  expect(signupDirty(form, form)).toBe(false)
+  expect(signupFromForm(form, SIGNUP_DEFAULTS)).toEqual({
+    rules: {
+      codesPerAddressHour: null,
+      codesPerAddressDay: null,
+      signupsPerIpHour: null,
+      signupsPerIpDay: null,
+      codesPerInstallHour: null,
+      pendingDays: null,
+      trialWorkspacesCloud: null,
+      trialWorkspacesPartner: null,
+      trialNumbersPerWorkspace: null,
+      turnstile: null,
+      blockedDomains: null,
+      reviewRiskLevels: null,
+    },
+    problems: [],
+  })
+  const changed = {
+    ...form,
+    counts: { ...form.counts, pendingDays: '3' },
+    turnstile: false,
+    blockedDomains: 'Spam.Example\nspam.example, other.example ',
+    reviewRiskLevels: ['highest'],
+  }
+  expect(signupDirty(changed, form)).toBe(true)
+  expect(signupFromForm(changed, SIGNUP_DEFAULTS)).toMatchObject({
+    rules: {
+      pendingDays: 3,
+      turnstile: false,
+      blockedDomains: ['spam.example', 'other.example'],
+      reviewRiskLevels: ['highest'],
+    },
+  })
+  const bad = { ...form, counts: { ...form.counts, pendingDays: '91', codesPerAddressHour: '1.5' } }
+  expect(signupFromForm(bad, SIGNUP_DEFAULTS).problems).toEqual(['codesPerAddressHour', 'pendingDays'])
+  // The order of the risk levels is no change.
+  expect(signupDirty({ ...form, reviewRiskLevels: ['highest', 'elevated'] }, form)).toBe(false)
+  expect(domainList(' a.example ,, b.example\n')).toEqual(['a.example', 'b.example'])
 })

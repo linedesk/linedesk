@@ -301,6 +301,7 @@ const all = [
   billingAdmin.billingReviewHold,
   billingAdmin.billingRulesSet,
   billingAdmin.signupSetSelfServe,
+  billingAdmin.signupSetRules,
   billing.billingState,
   billing.billingPortOutInfo,
   billing.billingRecordPortOut,

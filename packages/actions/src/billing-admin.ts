@@ -3,7 +3,7 @@
 // only. Every write that moves money or changes what a bill may spend also needs the admin signed in as themselves
 // with their passkey (no setup link, API key, personal key or impersonation), carries a reason for the audit log, and the ones that
 // ask Stripe carry a request id, the idempotency key of every Stripe request it makes.
-import type { BillingRules } from '@linedesk/db/types'
+import type { BillingRules, SignupRules } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -70,7 +70,9 @@ export const billingRulesGet = defineAction({
 
 export const signupGetSelfServe = defineAction({
   name: 'signup.getSelfServe',
-  description: 'Whether anyone may sign up and start a trial on their own (needs billing in effect).',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Whether anyone may sign up and start a trial on their own, whether sign-up is actually open now (and why not), and the sign-up limits (`signup.rules`) over the defaults.',
   input: z.object({}),
   permission: 'instance:admin',
   readOnly: true,
@@ -183,6 +185,15 @@ export const signupSetSelfServe = defineAction({
   permission: 'instance:admin',
 })
 
+export const signupSetRules = defineAction({
+  name: 'signup.setRules',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Set the install's sign-up limits (`signup.rules`, docs/billing.md §3.1): codes per address and IP, the install's hourly cap, days a sign-up may wait for Checkout, the Turnstile check, blocked domains, trial workspaces and numbers, and the Radar risk levels that hold a bill for review. Every field is checked; anything out of range refuses the whole change. Merged over the stored rules: a field left out keeps its value, null resets it to its default. Every instance admin is emailed.",
+  input: z.object({ rules: z.record(z.string(), z.unknown()), reason }),
+  permission: 'instance:admin',
+})
+
 // ---- What the reads answer (`data`) ----
 
 export type AdminBillStatus =
@@ -204,6 +215,8 @@ export type AdminBillRow = {
   balanceMicros: number
   reservedMicros: number
   heldForReviewAt: string | null
+  /** Stripe Radar's risk level of the trial's card check (`normal`, `elevated`, `highest`, …); null before the check. */
+  cardRiskLevel: string | null
   createdAt: string
 }
 
@@ -300,6 +313,8 @@ export type AdminReviewRow = {
   workspaces: number
   createdAt: string
   heldForReviewAt: string | null
+  /** Stripe Radar's risk level of the trial's card check; null before the check. */
+  cardRiskLevel: string | null
 }
 
 export type BillingRulesData = {
@@ -319,4 +334,25 @@ export type BillingRulesData = {
 /** billingRules.set's refusal code when a plan fee is below the floor or a yearly fee above 12 monthly ones. */
 export const PLAN_PRICE_FLOOR = 'plan_price_floor'
 
-export type SelfServeData = { on: boolean; billingInEffect: boolean }
+/** Stripe Radar's risk levels of a card check (Charge.outcome.risk_level). */
+export const RADAR_RISK_LEVELS = ['normal', 'elevated', 'highest', 'not_assessed', 'unknown'] as const
+export type RadarRiskLevel = (typeof RADAR_RISK_LEVELS)[number]
+
+/** Why sign-up is closed while it is switched on, or off (null: open). */
+export type SignupClosedBecause = 'switched_off' | 'billing_not_in_effect' | 'bot_check_missing'
+
+export type SelfServeData = {
+  /** The switch (`signup.selfServe`). */
+  on: boolean
+  billingInEffect: boolean
+  /** Whether a new person can sign up right now: the switch is on and nothing it needs is missing. */
+  open: boolean
+  closedBecause: SignupClosedBecause | null
+  /** Whether the Turnstile keys are set up (Server admin › Providers › Billing). */
+  turnstileReady: boolean
+  /** The sign-up limits in effect: the stored `signup.rules` over the defaults. */
+  rules: SignupRules
+  defaults: SignupRules
+  /** Stored fields that are ignored (out of range or unknown): they keep their default. */
+  problems: string[]
+}

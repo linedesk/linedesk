@@ -40,10 +40,11 @@ test('the usage grid covers the last months in UTC, across a year boundary', () 
   expect(recentMonths(1, new Date('2026-03-31T23:30:00Z'))).toEqual(['2026-03'])
   expect(monthLabel('2026-11')).toBe('Nov 2026')
   const grid = usageByWorkspace([
-    { workspace_id: 'a', workspace_name: 'A', month: '2026-11', calls: 3, minutes: 12.5 },
-    { workspace_id: 'a', workspace_name: 'A', month: '2026-10', calls: 1, minutes: 2 },
+    { workspace_id: 'a', workspace_name: 'A', month: '2026-11', calls: 3, minutes: 12.5, charged_micros: 625_000 },
+    { workspace_id: 'a', workspace_name: 'A', month: '2026-10', calls: 1, minutes: 2, charged_micros: null },
   ])
-  expect(grid.get('a')?.get('2026-11')).toEqual({ calls: 3, minutes: 12.5 })
+  expect(grid.get('a')?.get('2026-11')).toEqual({ calls: 3, minutes: 12.5, chargedMicros: 625_000 })
+  expect(grid.get('a')?.get('2026-10')).toEqual({ calls: 1, minutes: 2, chargedMicros: null })
   expect(grid.get('b')).toBeUndefined()
   expect(formatMinutes(12.5)).toBe('12.5 min')
   expect(formatMinutes(1234)).toBe('1,234 min')

@@ -30,6 +30,7 @@ import { PLAN_PRICE_FLOOR } from '@linedesk/actions'
 import type { BillingInvoice, BillingProvider, InvoiceRefund } from '@linedesk/billing'
 import {
   BILLING_DEFAULTS,
+  SIGNUP_DEFAULTS,
   billing_accounts,
   billing_balances,
   billing_invoices,
@@ -66,11 +67,18 @@ import { workspacesOnBill } from './billing-owner.ts'
 import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db, ownCommitDb } from './db.ts'
-import { type AlertActor, billingRulesAlert, selfServeAlert } from './emails/alerts.ts'
+import { type AlertActor, billingRulesAlert, selfServeAlert, signupRulesAlert } from './emails/alerts.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
-import { SELF_SERVE_KEY } from './self-serve.ts'
+import {
+  SELF_SERVE_KEY,
+  SIGNUP_RULES_KEY,
+  selfServeState,
+  signupRulesProblems,
+  storedSignupRules,
+  turnstileKeys,
+} from './self-serve.ts'
 import { STRIPE_EVENT_ATTEMPTS } from './stripe-events.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 
@@ -162,6 +170,7 @@ async function billRows(tx: Tx, ids?: string[]): Promise<AdminBillRow[]> {
     balanceMicros: exact(balance),
     reservedMicros: exact(reserved),
     heldForReviewAt: bill.held_for_review_at,
+    cardRiskLevel: bill.card_risk_level,
     createdAt: bill.created_at,
   }))
 }
@@ -437,6 +446,7 @@ async function reviewList(tx: Tx): Promise<{ held: AdminReviewRow[]; newTrials: 
     workspaces: counts.find(c => c.bill === bill.id)?.n ?? 0,
     createdAt: bill.created_at,
     heldForReviewAt: bill.held_for_review_at,
+    cardRiskLevel: bill.card_risk_level,
   })
   return {
     held: rows.filter(r => r.bill.held_for_review_at).map(toRow),
@@ -464,9 +474,20 @@ async function rulesData(tx: Tx): Promise<BillingRulesData> {
   }
 }
 
+/** The switch, whether sign-up is open now and why not (self-serve.ts `selfServeState`), and the sign-up limits. */
 async function selfServe(tx: Tx): Promise<SelfServeData> {
-  const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, SELF_SERVE_KEY))
-  return { on: row?.value === 'on', billingInEffect: (await billingState(tx)).inEffect === 'stripe' }
+  const state = await selfServeState(tx)
+  const { problems } = await storedSignupRules(tx)
+  return {
+    on: state.on,
+    billingInEffect: (await billingState(tx)).inEffect === 'stripe',
+    open: state.open,
+    closedBecause: state.closedBecause,
+    turnstileReady: !!(await turnstileKeys(tx)),
+    rules: state.rules,
+    defaults: SIGNUP_DEFAULTS,
+    problems,
+  }
 }
 
 async function writeSetting(tx: Tx, key: string, value: string, actor: Actor, now: string) {
@@ -1047,5 +1068,31 @@ export const billingAdminHandlers: Record<string, Handler> = {
         alertInstanceAdmins(selfServeAlert({ actor: await alertActor(actor), on: input.on, reason: input.reason })),
       )
     return { rows: {}, data: await selfServe(tx) }
+  },
+
+  'signup.setRules': async (
+    { tx, actor, now, onCommit },
+    input: { rules: Record<string, unknown>; reason: string },
+  ) => {
+    // Looser limits or no bot check open the install to abuse: the same check as the money actions.
+    refuseMoneyChange(actor)
+    const problems = signupRulesProblems(input.rules)
+    if (problems.length) throw Reject.t('server.api.signupRules.invalid', { fields: problems.join(', ') })
+    const change = { ...input.rules }
+    if (Array.isArray(change.blockedDomains))
+      change.blockedDomains = [...new Set((change.blockedDomains as string[]).map(d => d.trim().toLowerCase()))]
+    // Merged over the stored row: a field left out keeps its value, null resets it to the default.
+    const before = (await storedSignupRules(tx)).stored ?? {}
+    const next = mergeStoredRules(before, change)
+    await writeSetting(tx, SIGNUP_RULES_KEY, JSON.stringify(next), actor, now)
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(next)])].sort()
+    const changed = keys.filter(k => JSON.stringify(before[k]) !== JSON.stringify(next[k]))
+    if (changed.length)
+      onCommit?.(async () =>
+        alertInstanceAdmins(
+          signupRulesAlert({ actor: await alertActor(actor), fields: changed, reason: input.reason }),
+        ),
+      )
+    return { rows: {}, data: { ...(await selfServe(tx)), changed } }
   },
 }

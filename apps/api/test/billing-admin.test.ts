@@ -15,6 +15,7 @@ import type {
 import { PLAN_PRICE_FLOOR } from '@linedesk/actions'
 import {
   BILLING_DEFAULTS,
+  SIGNUP_DEFAULTS,
   assistant_versions,
   billing_accounts,
   billing_balances,
@@ -58,6 +59,7 @@ import {
   KEPT_PREMIUM_AND_ULTRA,
   premiumAndUltraOf,
   randomIp,
+  request,
   type User,
   type Workspace,
   withPremiumAndUltra,
@@ -290,6 +292,7 @@ describe('who may', () => {
       ['billing.reviewHold', { billingAccountId: billId, decision: 'approve', reason }],
       ['billingRules.set', { rules: {}, reason }],
       ['signup.setSelfServe', { on: false, reason }],
+      ['signup.setRules', { rules: { turnstile: false }, reason }],
     ]
     for (const [name, input] of writes) {
       const answer = await act(ws.owner, name, input)
@@ -321,6 +324,7 @@ describe('who may', () => {
       ['billing.reviewHold', { billingAccountId: billId, decision: 'approve', reason }],
       ['billingRules.set', { rules: {}, reason }],
       ['signup.setSelfServe', { on: true, reason }],
+      ['signup.setRules', { rules: { turnstile: false }, reason }],
       ['billing.reprocessEvent', { eventId: rid('evt'), reason }],
     ]
     const handlers = { ...billingAdminHandlers, ...stripeEventHandlers }
@@ -378,6 +382,7 @@ describe('who may', () => {
       ['billing.transferOwner', { billingAccountId: billId, userId: operator.userId, reason }],
       ['billingRules.set', { rules: { includedStandardSeconds: 1_000_000 }, reason }],
       ['signup.setSelfServe', { on: true, reason }],
+      ['signup.setRules', { rules: { turnstile: false }, reason }],
       ['billing.reprocessEvent', { eventId: rid('evt'), reason }],
     ]
     for (const [name, input] of writes) expect((await act(asKey, name, input)).status, name).toBe(403)
@@ -1016,9 +1021,18 @@ describe('status, cap, concurrency, owner and review', () => {
   })
 
   test('review: approve lifts the hold, deny suspends; listed while held', async () => {
-    const held = await billWith({ held_for_review_at: new Date().toISOString(), status: 'trialing' })
+    const held = await billWith({
+      held_for_review_at: new Date().toISOString(),
+      status: 'trialing',
+      card_risk_level: 'elevated',
+    })
     const list = await act(operator, 'billing.adminReview', {})
-    expect(list.body.data.held.map((r: { billId: string }) => r.billId)).toContain(held.billId)
+    // Radar's risk of the card check is shown with the hold, on the list and the bill.
+    expect(list.body.data.held).toContainEqual(
+      expect.objectContaining({ billId: held.billId, cardRiskLevel: 'elevated' }),
+    )
+    const detail = await act(operator, 'billing.adminBill', { billingAccountId: held.billId })
+    expect(detail.body.data.cardRiskLevel).toBe('elevated')
     expect(
       (await act(operator, 'billing.reviewHold', { billingAccountId: held.billId, decision: 'approve', reason }))
         .status,
@@ -1466,7 +1480,15 @@ describe('the billing rules editor', () => {
 
 describe('self-serve sign-up', () => {
   test('off by default; on only with billing in effect; audited and emailed', async () => {
-    expect((await act(operator, 'signup.getSelfServe', {})).body.data).toEqual({ on: false, billingInEffect: false })
+    expect((await act(operator, 'signup.getSelfServe', {})).body.data).toMatchObject({
+      on: false,
+      billingInEffect: false,
+      open: false,
+      closedBecause: 'switched_off',
+      rules: SIGNUP_DEFAULTS,
+      defaults: SIGNUP_DEFAULTS,
+      problems: [],
+    })
     const refused = await act(operator, 'signup.setSelfServe', { on: true, reason })
     expect(refused.status).toBe(409)
     expect(await db.select().from(instance_settings).where(eq(instance_settings.key, SELF_SERVE_KEY))).toEqual([])
@@ -1490,10 +1512,90 @@ describe('self-serve sign-up', () => {
     const mails = mailbox()
     const on = await act(operator, 'signup.setSelfServe', { on: true, reason })
     expect(on.status).toBe(200)
-    expect(on.body.data).toEqual({ on: true, billingInEffect: true })
+    // Switched on, but closed until Turnstile has keys: the page says so instead of showing only the switch.
+    expect(on.body.data).toMatchObject({
+      on: true,
+      billingInEffect: true,
+      open: false,
+      closedBecause: 'bot_check_missing',
+      turnstileReady: false,
+    })
     await vi.waitFor(() => expect(mails.some(m => m.subject === 'Self-serve sign-up was turned on')).toBe(true))
     expect((await lastCommand('signup.setSelfServe'))?.input).toMatchObject({ on: true, reason })
+    // Without the bot check it is open.
+    const rules = await act(operator, 'signup.setRules', { rules: { turnstile: false }, reason })
+    expect(rules.status).toBe(200)
+    expect(rules.body.data).toMatchObject({ on: true, open: true, closedBecause: null, changed: ['turnstile'] })
+    expect((await act(operator, 'signup.setRules', { rules: { turnstile: null }, reason })).status).toBe(200)
     expect((await act(operator, 'signup.setSelfServe', { on: false, reason })).body.data.on).toBe(false)
+  })
+
+  test('the sign-up limits: checked, merged over the stored ones, null resets, audited and emailed', async () => {
+    const mails = mailbox()
+    const set = (rules: Record<string, unknown>) => act(operator, 'signup.setRules', { rules, reason })
+    const saved = await set({
+      pendingDays: 3,
+      blockedDomains: [' Spam.Example ', 'spam.example'],
+      reviewRiskLevels: ['highest'],
+    })
+    expect(saved.status).toBe(200)
+    expect(saved.body.data.rules).toMatchObject({
+      pendingDays: 3,
+      blockedDomains: ['spam.example'],
+      reviewRiskLevels: ['highest'],
+      codesPerAddressHour: SIGNUP_DEFAULTS.codesPerAddressHour,
+    })
+    await vi.waitFor(() => expect(mails.some(m => m.subject === 'The sign-up rules were changed')).toBe(true))
+    expect((await lastCommand('signup.setRules'))?.input).toMatchObject({ reason })
+    // A field left out keeps its value; null resets one.
+    expect((await set({ codesPerAddressHour: 5 })).body.data.rules).toMatchObject({
+      pendingDays: 3,
+      codesPerAddressHour: 5,
+    })
+    expect((await set({ pendingDays: null })).body.data.rules.pendingDays).toBe(SIGNUP_DEFAULTS.pendingDays)
+    // Out of range, not a domain, not a Radar level or unknown: nothing is changed.
+    for (const rules of [
+      { pendingDays: 91 },
+      { codesPerAddressHour: 1.5 },
+      { blockedDomains: ['not a domain'] },
+      { reviewRiskLevels: ['scary'] },
+      { turnstile: 'yes' },
+      { somethingElse: 1 },
+    ]) {
+      const refused = await set({ ...rules, trialWorkspacesCloud: 7 })
+      expect(refused.status, JSON.stringify(rules)).toBe(409)
+    }
+    expect((await act(operator, 'signup.getSelfServe', {})).body.data.rules).toMatchObject({
+      codesPerAddressHour: 5,
+      trialWorkspacesCloud: SIGNUP_DEFAULTS.trialWorkspacesCloud,
+    })
+    // Every field back to its default.
+    const reset = Object.fromEntries(Object.keys(SIGNUP_DEFAULTS).map(k => [k, null]))
+    expect((await set(reset)).body.data.rules).toEqual(SIGNUP_DEFAULTS)
+  })
+})
+
+// Server admin › Usage: besides minutes and calls, the dollars the month's calls and numbers took from the balance.
+test('the usage page shows what was charged per workspace and month', async () => {
+  const { ws, billId, periodId } = await billWith()
+  await db.insert(ledger_entries).values({
+    id: rid('le'),
+    billing_account_id: billId,
+    period_id: periodId,
+    workspace_id: ws.id,
+    kind: 'usage',
+    amount_micros: -1_250_000,
+    seconds: 1500,
+    included_seconds: 0,
+    billable_seconds: 1500,
+    price_basis: 'standard',
+    source_type: 'call',
+    source_id: ws.call.id,
+  })
+  const { usage } = (await request(operator, 'GET', '/v1/admin/usage')).body
+  expect(usage.find((u: { workspace_id: string }) => u.workspace_id === ws.id)).toMatchObject({
+    month: new Date().toISOString().slice(0, 7),
+    charged_micros: 1_250_000,
   })
 })
 

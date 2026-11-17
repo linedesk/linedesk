@@ -138,6 +138,7 @@
   "api.providerTest.twilio.trial": "Twilio trial account: calls play a trial message and reach only verified numbers. Upgrade it in the Twilio Console.",
   "api.providerTest.twilio.unknownSid": "Twilio does not know this account SID (HTTP 404). Copy it from the Twilio Console.",
   "api.providerTest.twilio.usedUp": "Twilio balance is used up ({amount}). Add funds in the Twilio Console.",
+  "api.signupRules.invalid": "These sign-up rules are out of range or unknown: {fields}. Nothing was changed.",
   "api.typeNumberToConfirm": "type the number {number} to confirm",
   "api.versionLanguagesGone": "Version {number}'s languages can't be used any more ({error}): pick the languages and save instead",
   "api.versionVoiceGone": "Version {number}'s voice can't be used any more ({error}): pick a voice and save instead",

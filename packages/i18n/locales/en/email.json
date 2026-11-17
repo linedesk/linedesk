@@ -135,6 +135,8 @@
   "adminAlert.signupKept.subject": "A sign-up on {brand} waits for Checkout but has a Stripe subscription",
   "adminAlert.signupKept.subscription": "Stripe subscription: {subscription}",
   "adminAlert.signupKept.text": "The daily sign-up sweep did not delete this bill: it still waits for Checkout, but a Stripe subscription is linked to it or its Checkout was confirmed. It is kept until someone looks.",
+  "adminAlert.signupRules.subject": "The sign-up rules were changed",
+  "adminAlert.signupRules.text": "{actor} changed this install's sign-up rules (Server admin › Billing): {fields}. Reason given: {reason}",
   "adminAlert.someBrowserOnOs": "A browser on {os}",
   "adminAlert.stripeEventFailed.error": "Last error",
   "adminAlert.stripeEventFailed.event": "Event",

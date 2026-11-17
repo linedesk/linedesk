@@ -244,6 +244,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billingRules.set',
     'signup.getSelfServe',
     'signup.setSelfServe',
+    'signup.setRules',
     'billing.credit',
     'billing.adminSetStatus',
     'billing.refund',

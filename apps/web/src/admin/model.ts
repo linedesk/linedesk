@@ -33,13 +33,14 @@ export function recentMonths(count: number, now = new Date()): string[] {
 export const monthLabel = (month: string) =>
   fmt().dateTime(new Date(`${month}-01T00:00:00Z`), { month: 'short', year: 'numeric', timeZone: 'UTC' })
 
-export type UsageCell = { calls: number; minutes: number }
+/** `chargedMicros`: what the month's calls and numbers took from the prepaid balance; null without billing entries. */
+export type UsageCell = { calls: number; minutes: number; chargedMicros: number | null }
 /** Usage per workspace: month → cell. */
 export function usageByWorkspace(usage: readonly UsageRow[]): Map<string, Map<string, UsageCell>> {
   const grid = new Map<string, Map<string, UsageCell>>()
-  for (const { workspace_id, month, calls, minutes } of usage) {
+  for (const { workspace_id, month, calls, minutes, charged_micros } of usage) {
     if (!grid.has(workspace_id)) grid.set(workspace_id, new Map())
-    grid.get(workspace_id)!.set(month, { calls, minutes })
+    grid.get(workspace_id)!.set(month, { calls, minutes, chargedMicros: charged_micros ?? null })
   }
   return grid
 }

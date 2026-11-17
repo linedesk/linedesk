@@ -10,16 +10,18 @@ import type {
   AdminStripeEvent,
   BillingEventFilter,
   BillingRulesData,
+  RadarRiskLevel,
   SelfServeData,
 } from '@linedesk/actions'
-import { PLAN_PRICE_FLOOR } from '@linedesk/actions'
+import { PLAN_PRICE_FLOOR, RADAR_RISK_LEVELS } from '@linedesk/actions'
+import { SIGNUP_RULE_RANGES, type SignupCountRule } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { useT } from '@linedesk/i18n/react'
+import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 import { fmt } from '../i18n/format.ts'
 import { AppLink } from '../ui/AppLink.tsx'
-import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
+import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, Input, Textarea } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
@@ -27,7 +29,9 @@ import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { ActionBar, type AdminAction } from './actions.tsx'
 import { runAdmin } from './api.ts'
 import {
+  type BillFilter,
   changedFields,
+  filterBills,
   newRequestId,
   parseCount,
   parseDollars,
@@ -39,6 +43,11 @@ import {
   reasonProblem,
   rulesForm,
   rulesFromForm,
+  SIGNUP_COUNT_FIELDS,
+  type SignupForm,
+  signupDirty,
+  signupForm,
+  signupFromForm,
   usdOfCents,
   usdOfMicros,
 } from './billingModel.ts'
@@ -87,6 +96,23 @@ function StatusBadge({ status }: { status: AdminBillStatus }) {
   return <Badge tone={tone}>{t(STATUS[status])}</Badge>
 }
 
+const RISK: Record<RadarRiskLevel, MessageKey> = {
+  normal: msg('admin.bills.risk.normal'),
+  elevated: msg('admin.bills.risk.elevated'),
+  highest: msg('admin.bills.risk.highest'),
+  not_assessed: msg('admin.bills.risk.notAssessed'),
+  unknown: msg('admin.bills.risk.unknown'),
+}
+
+/** Stripe Radar's risk level of the trial's card check; a level Radar adds later shows as it comes. */
+function RiskBadge({ level }: { level: string | null }) {
+  const t = useT()
+  if (!level) return <span className="adm-muted">{t('admin.bills.risk.none')}</span>
+  const key = RISK[level as RadarRiskLevel]
+  const tone = level === 'highest' ? 'danger' : level === 'elevated' ? 'outline' : 'neutral'
+  return <Badge tone={tone}>{key ? t(key) : level}</Badge>
+}
+
 const ownerText = (t: Translate, owner: { email: string | null; name: string | null }) =>
   owner.email ?? owner.name ?? t('admin.bills.noOwner')
 
@@ -115,6 +141,7 @@ export function Billing({ id, onOpen, notify, keysRef }: Props) {
       <ReviewCard onOpen={onOpen} notify={notify} />
       <EventsCard notify={notify} />
       <SelfServeCard notify={notify} />
+      <SignupRulesCard notify={notify} />
       <RulesCard notify={notify} />
     </>
   )
@@ -167,10 +194,34 @@ const billColumns = (t: Translate): Column<AdminBillRow>[] => [
   },
 ]
 
+const BILL_FILTERS: BillFilter[] = [
+  'all',
+  'held',
+  'pending_payment',
+  'trialing',
+  'active',
+  'past_due',
+  'suspended',
+  'comped',
+  'canceled',
+]
+
 function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef: { current: ListKeys | null } }) {
   const t = useT()
   const query = useQuery(BILLS, loadBills)
   const columns = useMemo(() => billColumns(t), [t])
+  const [filter, setFilter] = useState<BillFilter>('all')
+  const shown = useMemo(() => filterBills(query.data ?? [], filter), [query.data, filter])
+  const filters: SelectOption<BillFilter>[] = BILL_FILTERS.map(value => ({
+    value,
+    label:
+      value === 'all'
+        ? t('admin.bills.filter.all')
+        : value === 'held'
+          ? t('admin.bills.filter.held')
+          : t(STATUS[value]),
+    description: query.data ? fmt().number(filterBills(query.data, value).length) : undefined,
+  }))
   if (!query.data)
     return (
       <div className="adm-card adm-listcard">
@@ -185,7 +236,18 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
     )
   return (
     <AdminList
-      rows={query.data}
+      rows={shown}
+      tools={
+        <div className="adm-list-tools">
+          <Select
+            value={filter}
+            options={filters}
+            onChange={setFilter}
+            label={t('admin.bills.filter.label')}
+            size="sm"
+          />
+        </div>
+      }
       rowId={b => b.id}
       columns={columns}
       initialSort={{ key: 'created', dir: 'desc' }}
@@ -196,7 +258,7 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       label={t('admin.bills.what')}
       onOpen={b => onOpen(b.id)}
       keysRef={keysRef}
-      empty={t('admin.bills.empty')}
+      empty={filter === 'all' ? t('admin.bills.empty') : t('admin.bills.filter.empty')}
     />
   )
 }
@@ -228,6 +290,7 @@ function ReviewCard({ onOpen, notify }: { onOpen: (id: string) => void; notify: 
                 <tr>
                   <th scope="col">{t('admin.bills.column.owner')}</th>
                   <th scope="col">{t('admin.bills.column.status')}</th>
+                  <th scope="col">{t('admin.bills.review.column.risk')}</th>
                   <th scope="col">{t('admin.bills.review.column.since')}</th>
                   <th scope="col">
                     <span className="sr-only">{t('admin.bills.column.actions')}</span>
@@ -249,6 +312,9 @@ function ReviewCard({ onOpen, notify }: { onOpen: (id: string) => void; notify: 
                       ) : (
                         <StatusBadge status={row.status} />
                       )}
+                    </td>
+                    <td data-label={t('admin.bills.review.column.risk')}>
+                      <RiskBadge level={row.cardRiskLevel} />
                     </td>
                     <td data-label={t('admin.bills.review.column.since')}>
                       {when(row.heldForReviewAt ?? row.createdAt)}
@@ -281,8 +347,7 @@ function ReviewCard({ onOpen, notify }: { onOpen: (id: string) => void; notify: 
         ) : (
           <p className="adm-notice">{t('admin.bills.review.empty')}</p>
         )}
-        {/* The sign-up checks (docs/billing.md §5) do not record Radar's risk or the card's details here yet. */}
-        <Note tone="info">{t('admin.bills.review.radarPending')}</Note>
+        {rows.length > 0 && <p className="adm-notice">{t('admin.bills.review.radarHelp')}</p>}
       </Loading>
       {deciding && (
         <ReasonDialog
@@ -472,20 +537,37 @@ function EventsCard({ notify }: { notify: Notify }) {
 
 // ---- Self-serve sign-up ----
 
+/**
+ * The switch and whether sign-up is really open: switched on is not open while something it needs is missing (billing
+ * through Stripe, or the Turnstile keys while the bot check is on), and the card says so plainly.
+ */
 function SelfServeCard({ notify }: { notify: Notify }) {
   const t = useT()
   const query = useQuery(SELF_SERVE, loadSelfServe)
   const [asking, setAsking] = useState<boolean | null>(null)
   const data = query.data
+  const link = { link: (chunks: ReactNode[]) => <AppLink to="#admin/providers">{chunks}</AppLink> }
   return (
-    <Card title={t('admin.bills.selfServe.title')} className="adm-detail">
+    <Card
+      title={t('admin.bills.selfServe.title')}
+      actions={
+        data && (
+          <Badge tone={data.open ? 'ok' : data.on ? 'danger' : 'neutral'} dot={data.open}>
+            {t(data.open ? 'admin.bills.selfServe.state.open' : 'admin.bills.selfServe.state.closed')}
+          </Badge>
+        )
+      }
+      className="adm-detail"
+    >
       <div className="swrow">
         <div>
           <b>{t('admin.bills.selfServe.switch')}</b>
           <span className="help">
             {data && !data.billingInEffect && !data.on
               ? t('admin.bills.selfServe.needsBilling')
-              : t('admin.bills.selfServe.help')}
+              : data?.open
+                ? t('admin.bills.selfServe.openNow')
+                : t('admin.bills.selfServe.help')}
           </span>
         </div>
         <Loading
@@ -504,6 +586,16 @@ function SelfServeCard({ notify }: { notify: Notify }) {
           />
         </Loading>
       </div>
+      {data?.on && data.closedBecause === 'bot_check_missing' && (
+        <Note tone="danger">
+          <T k="admin.bills.selfServe.closed.botCheck" values={link} />
+        </Note>
+      )}
+      {data?.on && data.closedBecause === 'billing_not_in_effect' && (
+        <Note tone="danger">
+          <T k="admin.bills.selfServe.closed.billing" values={link} />
+        </Note>
+      )}
       {asking !== null && (
         <ReasonDialog
           title={t(asking ? 'admin.bills.selfServe.onTitle' : 'admin.bills.selfServe.offTitle')}
@@ -522,23 +614,271 @@ function SelfServeCard({ notify }: { notify: Notify }) {
   )
 }
 
+// ---- Sign-up limits ----
+
+const SIGNUP_LABELS: Record<SignupCountRule, [MessageKey, MessageKey]> = {
+  codesPerAddressHour: [
+    msg('admin.bills.signupRules.field.codesPerAddressHour'),
+    msg('admin.bills.signupRules.field.codesPerAddressHour.help'),
+  ],
+  codesPerAddressDay: [
+    msg('admin.bills.signupRules.field.codesPerAddressDay'),
+    msg('admin.bills.signupRules.field.codesPerAddressDay.help'),
+  ],
+  signupsPerIpHour: [
+    msg('admin.bills.signupRules.field.signupsPerIpHour'),
+    msg('admin.bills.signupRules.field.signupsPerIpHour.help'),
+  ],
+  signupsPerIpDay: [
+    msg('admin.bills.signupRules.field.signupsPerIpDay'),
+    msg('admin.bills.signupRules.field.signupsPerIpDay.help'),
+  ],
+  codesPerInstallHour: [
+    msg('admin.bills.signupRules.field.codesPerInstallHour'),
+    msg('admin.bills.signupRules.field.codesPerInstallHour.help'),
+  ],
+  pendingDays: [
+    msg('admin.bills.signupRules.field.pendingDays'),
+    msg('admin.bills.signupRules.field.pendingDays.help'),
+  ],
+  trialWorkspacesCloud: [
+    msg('admin.bills.signupRules.field.trialWorkspacesCloud'),
+    msg('admin.bills.signupRules.field.trialWorkspacesCloud.help'),
+  ],
+  trialWorkspacesPartner: [
+    msg('admin.bills.signupRules.field.trialWorkspacesPartner'),
+    msg('admin.bills.signupRules.field.trialWorkspacesPartner.help'),
+  ],
+  trialNumbersPerWorkspace: [
+    msg('admin.bills.signupRules.field.trialNumbersPerWorkspace'),
+    msg('admin.bills.signupRules.field.trialNumbersPerWorkspace.help'),
+  ],
+}
+
+/** The install's sign-up limits (`signup.rules`): until now only the database could change them. */
+function SignupRulesCard({ notify }: { notify: Notify }) {
+  const t = useT()
+  const query = useQuery(SELF_SERVE, loadSelfServe)
+  const data = query.data
+  const saved = useMemo(() => (data ? signupForm(data.rules) : null), [data])
+  const [form, setForm] = useState<SignupForm | null>(saved)
+  const [problems, setProblems] = useState<string[]>([])
+  const [asking, setAsking] = useState<Record<string, unknown> | null>(null)
+  useEffect(() => {
+    if (saved) setForm(saved)
+  }, [saved])
+  const dirty = !!form && !!saved && signupDirty(form, saved)
+
+  function save(e: FormEvent) {
+    e.preventDefault()
+    if (!data || !form) return
+    const parsed = signupFromForm(form, data.defaults)
+    setProblems(parsed.problems)
+    if ('rules' in parsed) setAsking(parsed.rules)
+  }
+  const setCount = (field: SignupCountRule, value: string) =>
+    setForm(f => f && { ...f, counts: { ...f.counts, [field]: value } })
+  const toggleLevel = (level: string, on: boolean) =>
+    setForm(
+      f =>
+        f && {
+          ...f,
+          reviewRiskLevels: on
+            ? [...f.reviewRiskLevels.filter(l => l !== level), level]
+            : f.reviewRiskLevels.filter(l => l !== level),
+        },
+    )
+  return (
+    <Card
+      title={t('admin.bills.signupRules.title')}
+      description={t('admin.bills.signupRules.description')}
+      className="adm-detail"
+    >
+      <Loading
+        what={t('admin.bills.signupRules.title')}
+        loading={!data || !form}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonRows rows={4} columns={2} />}
+      >
+        {data && form && (
+          <form onSubmit={save} className="adm-rules">
+            {data.problems.length > 0 && (
+              <Note tone="warning">{t('admin.bills.signupRules.ignored', { fields: data.problems.join(', ') })}</Note>
+            )}
+            <div className="swrow">
+              <div>
+                <b>{t('admin.bills.signupRules.turnstile')}</b>
+                <span className="help">
+                  {t('admin.bills.signupRules.turnstile.help')}
+                  {form.turnstile && !data.turnstileReady && <> {t('admin.bills.signupRules.turnstile.missingKeys')}</>}
+                </span>
+              </div>
+              <Switch
+                on={form.turnstile}
+                onChange={on => setForm(f => f && { ...f, turnstile: on })}
+                label={t('admin.bills.signupRules.turnstile')}
+              />
+            </div>
+            {SIGNUP_COUNT_FIELDS.map(field => {
+              const [min, max] = SIGNUP_RULE_RANGES[field]
+              const [label, help] = SIGNUP_LABELS[field]
+              const id = `adm-signup-${field}`
+              return (
+                <FormField
+                  key={field}
+                  id={id}
+                  label={t(label)}
+                  aside={t('admin.bills.rules.default', { value: String(data.defaults[field]) })}
+                  description={t(help)}
+                  error={problems.includes(field) ? t('admin.bills.signupRules.notInRange', { min, max }) : null}
+                >
+                  <Input
+                    id={id}
+                    inputMode="numeric"
+                    size="sm"
+                    value={form.counts[field]}
+                    invalid={problems.includes(field)}
+                    onChange={e => setCount(field, e.target.value)}
+                  />
+                </FormField>
+              )
+            })}
+            <FormField
+              id="adm-signup-domains"
+              label={t('admin.bills.signupRules.blockedDomains')}
+              description={t('admin.bills.signupRules.blockedDomains.help')}
+            >
+              <Textarea
+                id="adm-signup-domains"
+                rows={3}
+                value={form.blockedDomains}
+                placeholder={t('admin.bills.signupRules.blockedDomains.placeholder')}
+                onChange={e => setForm(f => f && { ...f, blockedDomains: e.target.value })}
+              />
+            </FormField>
+            <fieldset className="adm-checks">
+              <legend>{t('admin.bills.signupRules.reviewRiskLevels')}</legend>
+              <p className="k-field-desc">{t('admin.bills.signupRules.reviewRiskLevels.help')}</p>
+              {RADAR_RISK_LEVELS.filter(level => level !== 'normal').map(level => (
+                <Checkbox
+                  key={level}
+                  checked={form.reviewRiskLevels.includes(level)}
+                  onChange={on => toggleLevel(level, on)}
+                >
+                  {t(RISK[level])}
+                </Checkbox>
+              ))}
+            </fieldset>
+            <div className="adm-actbar">
+              <Button type="submit" variant="primary" disabled={!dirty}>
+                {t('admin.bills.signupRules.save')}
+              </Button>
+              <Button
+                disabled={!dirty}
+                onClick={() => {
+                  setProblems([])
+                  if (saved) setForm(saved)
+                }}
+              >
+                {t('common.action.cancel')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Loading>
+      {asking && (
+        <ReasonDialog
+          title={t('admin.bills.signupRules.confirmTitle')}
+          description={t('admin.bills.signupRules.confirmText')}
+          submit={t('admin.bills.signupRules.save')}
+          run={async reason => {
+            const next = (await runAdmin('signup.setRules', { rules: asking, reason })) as unknown as SelfServeData
+            setQueryData<SelfServeData | undefined>(SELF_SERVE, next)
+            return t('admin.bills.signupRules.saved')
+          }}
+          notify={notify}
+          onClose={() => setAsking(null)}
+        />
+      )}
+    </Card>
+  )
+}
+
 // ---- Billing rules ----
 
-const RULE_LABELS: Record<RuleField, MessageKey> = {
-  workspaceMonthlyCents: msg('admin.bills.rules.field.workspaceMonthlyCents'),
-  workspaceYearlyCents: msg('admin.bills.rules.field.workspaceYearlyCents'),
-  partnerMonthlyCents: msg('admin.bills.rules.field.partnerMonthlyCents'),
-  partnerYearlyCents: msg('admin.bills.rules.field.partnerYearlyCents'),
-  trialDays: msg('admin.bills.rules.field.trialDays'),
-  includedStandardSeconds: msg('admin.bills.rules.field.includedStandardSeconds'),
-  balanceBufferMicros: msg('admin.bills.rules.field.balanceBufferMicros'),
-  trialConcurrentCalls: msg('admin.bills.rules.field.trialConcurrentCalls'),
-  concurrentCallsBase: msg('admin.bills.rules.field.concurrentCallsBase'),
-  concurrentCallsPerWorkspace: msg('admin.bills.rules.field.concurrentCallsPerWorkspace'),
-  billedTransferCapSeconds: msg('admin.bills.rules.field.billedTransferCapSeconds'),
-  callLimitGraceSeconds: msg('admin.bills.rules.field.callLimitGraceSeconds'),
-  extraNumberCents: msg('admin.bills.rules.field.extraNumberCents'),
-  rechargeCapPerWorkspaceCents: msg('admin.bills.rules.field.rechargeCapPerWorkspaceCents'),
+/** Each rule's plain label and the line under it that says what it does. */
+const RULE_LABELS: Record<RuleField, [MessageKey, MessageKey]> = {
+  workspaceMonthlyCents: [
+    msg('admin.bills.rules.field.workspaceMonthlyCents'),
+    msg('admin.bills.rules.field.workspaceMonthlyCents.help'),
+  ],
+  workspaceYearlyCents: [
+    msg('admin.bills.rules.field.workspaceYearlyCents'),
+    msg('admin.bills.rules.field.workspaceYearlyCents.help'),
+  ],
+  partnerMonthlyCents: [
+    msg('admin.bills.rules.field.partnerMonthlyCents'),
+    msg('admin.bills.rules.field.partnerMonthlyCents.help'),
+  ],
+  partnerYearlyCents: [
+    msg('admin.bills.rules.field.partnerYearlyCents'),
+    msg('admin.bills.rules.field.partnerYearlyCents.help'),
+  ],
+  trialDays: [msg('admin.bills.rules.field.trialDays'), msg('admin.bills.rules.field.trialDays.help')],
+  includedStandardSeconds: [
+    msg('admin.bills.rules.field.includedStandardSeconds'),
+    msg('admin.bills.rules.field.includedStandardSeconds.help'),
+  ],
+  balanceBufferMicros: [
+    msg('admin.bills.rules.field.balanceBufferMicros'),
+    msg('admin.bills.rules.field.balanceBufferMicros.help'),
+  ],
+  trialConcurrentCalls: [
+    msg('admin.bills.rules.field.trialConcurrentCalls'),
+    msg('admin.bills.rules.field.trialConcurrentCalls.help'),
+  ],
+  concurrentCallsBase: [
+    msg('admin.bills.rules.field.concurrentCallsBase'),
+    msg('admin.bills.rules.field.concurrentCallsBase.help'),
+  ],
+  concurrentCallsPerWorkspace: [
+    msg('admin.bills.rules.field.concurrentCallsPerWorkspace'),
+    msg('admin.bills.rules.field.concurrentCallsPerWorkspace.help'),
+  ],
+  billedTransferCapSeconds: [
+    msg('admin.bills.rules.field.billedTransferCapSeconds'),
+    msg('admin.bills.rules.field.billedTransferCapSeconds.help'),
+  ],
+  callLimitGraceSeconds: [
+    msg('admin.bills.rules.field.callLimitGraceSeconds'),
+    msg('admin.bills.rules.field.callLimitGraceSeconds.help'),
+  ],
+  extraNumberCents: [
+    msg('admin.bills.rules.field.extraNumberCents'),
+    msg('admin.bills.rules.field.extraNumberCents.help'),
+  ],
+  rechargeCapPerWorkspaceCents: [
+    msg('admin.bills.rules.field.rechargeCapPerWorkspaceCents'),
+    msg('admin.bills.rules.field.rechargeCapPerWorkspaceCents.help'),
+  ],
+}
+/** A rule's help, then the server's limit for it when there is one. */
+const joined = (help: string, limit?: string): ReactNode =>
+  limit ? (
+    <>
+      {help}
+      <br />
+      {limit}
+    </>
+  ) : (
+    help
+  )
+
+const LEVEL_NAMES: Record<string, MessageKey> = {
+  standard: msg('admin.bills.rules.levelName.standard'),
+  premium: msg('admin.bills.rules.levelName.premium'),
+  ultra: msg('admin.bills.rules.levelName.ultra'),
 }
 
 function RulesCard({ notify }: { notify: Notify }) {
@@ -562,7 +902,7 @@ function RulesCard({ notify }: { notify: Notify }) {
     setProblems(parsed.problems)
     if ('rules' in parsed) setAsking(parsed.rules)
   }
-  const field = (key: string, label: string, aside?: string, defaultText?: string) => (
+  const field = (key: string, label: string, aside?: ReactNode, defaultText?: string) => (
     <FormField
       key={key}
       id={`adm-rule-${key}`}
@@ -595,20 +935,32 @@ function RulesCard({ notify }: { notify: Notify }) {
             {data.problems.length > 0 && (
               <Note tone="warning">{t('admin.bills.rules.ignored', { fields: data.problems.join(', ') })}</Note>
             )}
-            {Object.entries(data.defaults.levels).map(([level, fallback]) => (
-              <div key={level} className="adm-rules-row">
-                {field(
-                  `levels.${level}.price`,
-                  t('admin.bills.rules.levelPrice', { level }),
-                  data.minMicrosPerMinute > 0
-                    ? t('admin.bills.rules.minPrice', { amount: rateOfMicros(data.minMicrosPerMinute) })
-                    : undefined,
-                  rateOfMicros(fallback.microsPerMinute),
-                )}
-                {field(`levels.${level}.factor`, t('admin.bills.rules.levelFactor', { level }))}
-              </div>
-            ))}
-            {RULE_FIELDS.map(([key]) => field(key, t(RULE_LABELS[key]), planFloorText(key, data.minPlanCents)))}
+            {Object.entries(data.defaults.levels).map(([level, fallback]) => {
+              const name = LEVEL_NAMES[level] ? t(LEVEL_NAMES[level]) : level
+              return (
+                <div key={level} className="adm-rules-row">
+                  {field(
+                    `levels.${level}.price`,
+                    t('admin.bills.rules.levelPrice', { level: name }),
+                    joined(
+                      t('admin.bills.rules.levelPrice.help', { level: name }),
+                      data.minMicrosPerMinute > 0
+                        ? t('admin.bills.rules.minPrice', { amount: rateOfMicros(data.minMicrosPerMinute) })
+                        : undefined,
+                    ),
+                    rateOfMicros(fallback.microsPerMinute),
+                  )}
+                  {field(
+                    `levels.${level}.factor`,
+                    t('admin.bills.rules.levelFactor', { level: name }),
+                    t('admin.bills.rules.levelFactor.help', { level: name }),
+                  )}
+                </div>
+              )
+            })}
+            {RULE_FIELDS.map(([key]) =>
+              field(key, t(RULE_LABELS[key][0]), joined(t(RULE_LABELS[key][1]), planFloorText(key, data.minPlanCents))),
+            )}
             <div className="adm-actbar">
               <Button type="submit" variant="primary" disabled={!dirty}>
                 {t('admin.bills.rules.save')}
@@ -794,6 +1146,10 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
             {bill.heldForReviewAt && (
               <span className="adm-sub">{t('admin.bills.heldSince', { when: when(bill.heldForReviewAt) })}</span>
             )}
+          </Fact>
+          <Fact label={t('admin.bills.fact.risk')}>
+            <RiskBadge level={bill.cardRiskLevel} />
+            <span className="adm-sub">{t('admin.bills.fact.riskHelp')}</span>
           </Fact>
           <Fact label={t('admin.bills.fact.plan')}>
             {t(bill.kind === 'partner' ? 'admin.bills.kind.partner' : 'admin.bills.kind.cloud')}

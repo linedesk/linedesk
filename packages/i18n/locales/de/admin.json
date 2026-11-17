@@ -485,7 +485,6 @@
   "bills.review.denyTitle": "Abrechnung von {owner} ablehnen",
   "bills.review.description": "Abrechnungen, die zur Prüfung zurückgehalten werden, und Testphasen, die in den letzten 7 Tagen begonnen haben.",
   "bills.review.empty": "Nichts wartet auf Prüfung.",
-  "bills.review.radarPending": "Das Risiko von Radar und die Kartendaten werden bei einer Registrierung noch nicht gespeichert: Prüf die Zahlung im Stripe Dashboard, bevor du freigibst.",
   "bills.review.title": "Prüfung",
   "bills.rules.confirmText": "Die neuen Regeln gelten ab jetzt für Anrufe. Jeder Server-Admin bekommt eine E-Mail.",
   "bills.rules.confirmTitle": "Abrechnungsregeln ändern",

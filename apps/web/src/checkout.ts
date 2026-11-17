@@ -22,8 +22,28 @@ export async function goToCheckout() {
 
 export type ConfirmOutcome = CheckoutConfirmData | { status: 'not_found' } | { status: 'failed' }
 
-/** Confirms the finished Checkout; a session that is not this bill's answers `not_found`, like an unknown one. */
-export async function confirmCheckout(sessionId: string): Promise<ConfirmOutcome> {
+/**
+ * The confirmation asked for each session in this page: the return page asks once, however often it mounts (React's
+ * StrictMode runs its effect twice), so the server runs and audits `billing.confirmCheckout` once per return.
+ */
+const confirming = new Map<string, Promise<ConfirmOutcome>>()
+
+/**
+ * Confirms the finished Checkout; a session that is not this bill's answers `not_found`, like an unknown one. Asked
+ * once per session id; a failure is not kept, so a later try asks again.
+ */
+export function confirmCheckout(sessionId: string): Promise<ConfirmOutcome> {
+  const asked = confirming.get(sessionId)
+  if (asked) return asked
+  const answer = askConfirm(sessionId).then(outcome => {
+    if (outcome.status === 'failed') confirming.delete(sessionId)
+    return outcome
+  })
+  confirming.set(sessionId, answer)
+  return answer
+}
+
+async function askConfirm(sessionId: string): Promise<ConfirmOutcome> {
   try {
     return await callAction<CheckoutConfirmData>('billing.confirmCheckout', { sessionId })
   } catch (error) {

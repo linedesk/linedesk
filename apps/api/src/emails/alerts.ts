@@ -245,6 +245,21 @@ export const selfServeAlert =
     }
   }
 
+/** The install's sign-up limits changed (Server admin › Billing, `signup.rules`): every instance admin hears which. */
+export const signupRulesAlert =
+  ({ actor, fields, reason }: { actor: AlertActor; fields: string[]; reason: string }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const values = { actor: actorLabel(actor, locale), fields: fields.join(', '), reason }
+    return {
+      subject: t('email.adminAlert.signupRules.subject'),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.signupRules.text', values) },
+        { kind: 'text', text: t('email.adminAlert.checkBilling') },
+      ],
+    }
+  }
+
 /** The nightly billing check found ledger guards missing or sums that do not add up (ledger.ts `checkLedger`). */
 export const ledgerCheckAlert =
   ({
