@@ -14,7 +14,14 @@ import {
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
-import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
+import {
+  availability_exceptions,
+  availability_rules,
+  billing_accounts,
+  organization,
+  type Tx,
+  workspace_settings,
+} from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -45,8 +52,8 @@ const DEFAULT_TIME_ZONE = 'America/New_York'
 
 /**
  * Who switches Allow Premium or Allow Ultra (security review of #1109, M-1): never in a disabled workspace (read only);
- * on, only the bill's owner (or the workspace's owner where there is no bill); off, the workspace's owner or the bill's
- * owner. In a white-label client (docs/white-label.md, LIN-440) its partner's owner decides, both ways, and the client's
+ * on, only the bill's owner (or the workspace's owner where there is no bill), also where the bill's owner is only an
+ * admin or a member (run-action.ts lets them ask; LIN-440); off, the workspace's owner or the bill's owner. In a white-label client (docs/white-label.md, LIN-440) its partner's owner decides, both ways, and the client's
  * own owner never does: the partner pays and sets what its client may use. Anyone else holding billing:manage here
  * gets 403.
  */
@@ -60,11 +67,40 @@ async function refuseAllowSwitch(tx: Tx, actor: Actor, on: boolean) {
     : []
   if (org?.partnerId) {
     if (!(await isPartnerOwner(tx, org.partnerId, actor.actorId))) throw new Forbidden(PARTNER_DECIDES_LEVELS)
+    // A client without a bill: only as its owner, as before LIN-440 let admins and members ask (review of #1140, L-1).
+    if (!org.bill && actor.role !== 'owner') throw new Forbidden(PARTNER_DECIDES_LEVELS)
     // On the partner bill, its owner is the partner's owner: checked (and the bill locked) as for every bill.
     if (org.bill) await refuseUnlessBillOwner(tx, actor)
     return
   }
   if (on || actor.role !== 'owner') await refuseUnlessBillOwner(tx, actor)
+}
+
+/**
+ * What the caller may do with Allow Premium and Allow Ultra here, as refuseAllowSwitch decides it (read without locks,
+ * for the settings page: the switch is disabled for anyone it would refuse; LIN-440).
+ */
+async function allowSwitchOf(tx: Tx, actor: Actor): Promise<{ on: boolean; off: boolean }> {
+  const none = { on: false, off: false }
+  if (!actor.workspaceId || actor.workspaceDisabled) return none
+  if (actor.impersonation || actor.apiKeyId || actor.personalKeyId || actor.setupKeyId) return none
+  const [org] = await tx
+    .select({
+      partnerId: organization.partnerId,
+      billId: organization.billingAccountId,
+      billOwner: billing_accounts.owner_user_id,
+    })
+    .from(organization)
+    .leftJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
+    .where(eq(organization.id, actor.workspaceId))
+  // A bill id without its bill: refused by the handler (refuseUnlessBillOwner), so nobody here.
+  if (!org || (org.billId && !org.billOwner)) return none
+  const ownsBill = org.billId ? org.billOwner === actor.actorId : actor.role === 'owner'
+  if (org.partnerId) {
+    const may = ownsBill && (await isPartnerOwner(tx, org.partnerId, actor.actorId))
+    return { on: may, off: may }
+  }
+  return { on: ownsBill, off: ownsBill || actor.role === 'owner' }
 }
 
 /**
@@ -131,6 +167,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...locale,
       allowPremium: row?.allow_premium ?? false,
       allowUltra: row?.allow_ultra ?? false,
+      allowSwitch: await allowSwitchOf(tx, actor),
       usageLevels: await usageLevelsBilled(tx),
       // A white-label client's people see minutes, never our prices (docs/white-label.md; review of #1109, L-2).
       ...(partnerManaged ? { partnerManaged } : { usageCentsPerMinute: await levelCentsPerMinute(tx) }),

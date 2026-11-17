@@ -266,6 +266,20 @@ function partnerBillCall(def: ActionDef, actor: Actor, rawInput: unknown): boole
   return typeof partnerId === 'string' && !!shape && 'partnerId' in shape
 }
 
+/**
+ * Allow Premium or Allow Ultra asked by a member of the workspace without billing:manage (LIN-440): the bill's owner
+ * may switch them where they are only an admin or a member, since the bill pays for them. Only a person signed in as
+ * themselves in a workspace; the handler (refuseAllowSwitch) lets through only the bill's owner, or the workspace's
+ * owner switching off, and refuses everyone else as before.
+ */
+const BILL_OWNER_SWITCHES = new Set(['workspace.setAllowPremium', 'workspace.setAllowUltra'])
+function billOwnerSwitchCall(def: ActionDef, actor: Actor): boolean {
+  // A disabled workspace is read only: refused here with 403, as before, not by the handler.
+  if (!BILL_OWNER_SWITCHES.has(def.name) || !actor.workspaceId || actor.workspaceDisabled) return false
+  if (actor.role !== 'admin' && actor.role !== 'member') return false
+  return !actor.impersonation && !actor.apiKeyId && !actor.personalKeyId && !actor.setupKeyId
+}
+
 export async function runAction(
   name: string,
   rawInput: unknown,
@@ -280,7 +294,9 @@ export async function runAction(
   const allowed =
     actor.role === 'agent' && def.agent
       ? actor.permissions.includes('agent')
-      : actor.permissions.includes(def.permission) || partnerBillCall(def, actor, rawInput)
+      : actor.permissions.includes(def.permission) ||
+        partnerBillCall(def, actor, rawInput) ||
+        billOwnerSwitchCall(def, actor)
   if (!allowed) return forbidden(`missing permission ${def.permission}`)
   // A workspace owner's setup key (agent-setup.ts): its own workspace only, never the server's or another workspace's,
   // whatever the actor says otherwise; outside one, only ending its own link.

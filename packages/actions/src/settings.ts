@@ -554,6 +554,11 @@ export type WorkspaceSettingsData = {
   allowPremium: boolean
   /** On a server that bills usage: the owner allows Ultra, calls answered by a realtime model (workspace.setAllowUltra). */
   allowUltra: boolean
+  /**
+   * What the caller may do with Allow Premium and Allow Ultra (LIN-440): `on`, the bill's owner (the workspace's owner
+   * where there is no bill), also as an admin or member; `off`, also the workspace's owner. Missing from an older API.
+   */
+  allowSwitch?: { on: boolean; off: boolean }
   /** This install bills usage: voices and models have a level, and Allow Premium applies. */
   usageLevels: boolean
   /** The install's price of a call minute per level, in US cents (Server admin › Billing); absent from an older server. */
@@ -759,7 +764,7 @@ export const workspaceUpdateSettings = defineAction({
 export const workspaceSetAllowPremium = defineAction({
   name: 'workspace.setAllowPremium',
   description:
-    "Allow Premium voices and models (on a server that bills usage: the Premium price a minute instead of the Standard one) for this workspace's assistants, or not. Off (the default): assistants pick Standard ones only, and turning it off moves assistants on Premium back to the server's default voice model and language model. Only the owner.",
+    "Allow Premium voices and models (on a server that bills usage: the Premium price a minute instead of the Standard one) for this workspace's assistants, or not. Off (the default): assistants pick Standard ones only, and turning it off moves assistants on Premium back to the server's default voice model and language model. On: only the person who pays the bill (the owner where there is no bill), also as an admin or member; off: also the owner.",
   input: z.object({ on: z.boolean() }),
   permission: 'billing:manage',
 })
@@ -769,7 +774,7 @@ export type AllowPremiumData = { on: boolean; movedToStandard: string[] }
 export const workspaceSetAllowUltra = defineAction({
   name: 'workspace.setAllowUltra',
   description:
-    "Allow Ultra (on a server that bills usage: the Ultra price a minute; calls answered by a realtime model in its natural voice) for this workspace's assistants, or not. Off (the default): no assistant answers with a realtime model, and turning it off moves assistants on Ultra back to the three stages and the server's realtime model. Only the owner.",
+    "Allow Ultra (on a server that bills usage: the Ultra price a minute; calls answered by a realtime model in its natural voice) for this workspace's assistants, or not. Off (the default): no assistant answers with a realtime model, and turning it off moves assistants on Ultra back to the three stages and the server's realtime model. On: only the person who pays the bill (the owner where there is no bill), also as an admin or member; off: also the owner.",
   input: z.object({ on: z.boolean() }),
   permission: 'billing:manage',
 })

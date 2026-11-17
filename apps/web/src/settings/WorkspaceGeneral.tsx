@@ -282,6 +282,9 @@ function AllowPremium({
   const cents = settings.usageCentsPerMinute ?? USAGE_CENTS_PER_MINUTE
   const prices = { standard: pricePerMinute(cents.standard), premium: pricePerMinute(cents.premium) }
 
+  // Who may switch it, from the server (LIN-440: the bill's owner, also as an admin or member); an older API: the owner.
+  const may = mayChange(settings.allowSwitch, settings.allowPremium, isOwner && canEdit)
+
   async function change(on: boolean) {
     setBusy(true)
     try {
@@ -307,15 +310,18 @@ function AllowPremium({
         // A white-label client: its partner decides, and its people see no prices (docs/white-label.md).
         settings.partnerManaged
           ? t('settings.general.premium.partner')
-          : !isOwner
-            ? t('settings.general.premium.ownerOnly', prices)
-            : canEdit
-              ? t('settings.general.premium.help', prices)
-              : readOnly
+          : may
+            ? t('settings.general.premium.help', prices)
+            : isOwner && !canEdit
+              ? readOnly
+              : settings.allowSwitch
+                ? t('settings.general.premium.billOwnerOnly', prices)
+                : t('settings.general.premium.ownerOnly', prices)
       }
       on={settings.allowPremium}
       onChange={on => void change(on)}
-      disabled={settings.partnerManaged || !isOwner || !canEdit || busy}
+      disabled={settings.partnerManaged || !may || busy}
+      tip={settings.partnerManaged || may ? undefined : t('settings.general.allowSwitchTip')}
     />
   )
 }
@@ -343,6 +349,9 @@ function AllowUltra({
   const cents = settings.usageCentsPerMinute ?? USAGE_CENTS_PER_MINUTE
   const prices = { standard: pricePerMinute(cents.standard), ultra: pricePerMinute(cents.ultra) }
 
+  // Who may switch it, from the server (LIN-440: the bill's owner, also as an admin or member); an older API: the owner.
+  const may = mayChange(settings.allowSwitch, settings.allowUltra, isOwner && canEdit)
+
   async function change(on: boolean) {
     setBusy(true)
     try {
@@ -368,15 +377,24 @@ function AllowUltra({
         // A white-label client: its partner decides, and its people see no prices (docs/white-label.md).
         settings.partnerManaged
           ? t('settings.general.ultra.partner')
-          : !isOwner
-            ? t('settings.general.ultra.ownerOnly', prices)
-            : canEdit
-              ? t('settings.general.ultra.help', prices)
-              : readOnly
+          : may
+            ? t('settings.general.ultra.help', prices)
+            : isOwner && !canEdit
+              ? readOnly
+              : settings.allowSwitch
+                ? t('settings.general.ultra.billOwnerOnly', prices)
+                : t('settings.general.ultra.ownerOnly', prices)
       }
       on={settings.allowUltra}
       onChange={on => void change(on)}
-      disabled={settings.partnerManaged || !isOwner || !canEdit || busy}
+      disabled={settings.partnerManaged || !may || busy}
+      tip={settings.partnerManaged || may ? undefined : t('settings.general.allowSwitchTip')}
     />
   )
+}
+
+/** Whether the caller may flip an Allow switch now: on needs `allowSwitch.on`, off `allowSwitch.off`. */
+function mayChange(allowSwitch: { on: boolean; off: boolean } | undefined, isOn: boolean, fallback: boolean) {
+  if (!allowSwitch) return fallback
+  return isOn ? allowSwitch.off : allowSwitch.on
 }

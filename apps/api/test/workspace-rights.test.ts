@@ -30,7 +30,11 @@ const workspaceActions = [...actions.values()]
 
 const callerOf = (role: (typeof WORKSPACE_ROLES)[number]) => (role === 'owner' ? ws.owner : role === 'admin' ? admin : member)
 
-const cases = workspaceActions.flatMap(a => WORKSPACE_ROLES.map(role => ({ ...a, role, allowed: roleMeets(role, a.right) })))
+// Allow Premium and Allow Ultra: an admin or a member may be the bill's owner, so the handler decides (LIN-440).
+const BILL_OWNER_SWITCHES = new Set(['workspace.setAllowPremium', 'workspace.setAllowUltra'])
+const cases = workspaceActions.flatMap(a =>
+  WORKSPACE_ROLES.map(role => ({ ...a, role, allowed: roleMeets(role, a.right) || BILL_OWNER_SWITCHES.has(a.name) })),
+)
 
 describe('every workspace action, by role', () => {
   test('the registry has workspace actions for every role', () => {

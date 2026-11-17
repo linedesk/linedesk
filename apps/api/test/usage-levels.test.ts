@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
 import { listAudit } from '../src/audit.ts'
+import { auth } from '../src/auth.ts'
 import { db } from '../src/db.ts'
 import { runAction } from '../src/run-action.ts'
 import { allowPremiumOf, PREMIUM_NOT_ALLOWED, ULTRA_NOT_ALLOWED } from '../src/usage-levels.ts'
@@ -20,6 +21,7 @@ import {
   createWorkspace,
   getAssistant,
   randomNumber,
+  request,
   signUp,
 } from './helpers.ts'
 
@@ -141,7 +143,9 @@ describe('Allow Premium', () => {
     const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
     expect(row!.allow_premium).toBe(false)
     const audit = await listAudit(db, { workspaceId: ws.id, limit: 50 })
-    expect(audit.entries.filter(e => e.what === 'workspace.setAllowPremium')).toEqual([])
+    // The admin and the member reach the handler (the bill owner may switch as either, LIN-440): refused, and logged so.
+    const tried = audit.entries.filter(e => e.what === 'workspace.setAllowPremium')
+    expect(tried.map(e => e.refused)).toEqual([true, true])
   })
 })
 
@@ -177,6 +181,44 @@ describe('Allow Premium and Allow Ultra on a bill another person owns (LIN-399)'
     await db.update(billing_accounts).set({ owner_user_id: w2.owner.userId }).where(eq(billing_accounts.id, billId))
     expect((await setAllow(w2.owner, true)).status).toBe(200)
     expect((await setAllowUltra(w2.owner, true)).status).toBe(200)
+  })
+
+  test('the bill owner switches them where they are only an admin or a member; other members never (LIN-440)', async () => {
+    // Bill owner B pays for W2, which X owns; B is a member of W2, so is an admin A (not paying).
+    const w1 = await createWorkspace('Payer Plumbing')
+    const w2 = await createWorkspace('Paid For Drains')
+    const billId = `bill_${crypto.randomUUID()}`
+    await db.insert(billing_accounts).values({ id: billId, kind: 'cloud', owner_user_id: w1.owner.userId, status: 'active' })
+    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, w2.id))
+    const payer = w1.owner
+    await auth.api.addMember({ body: { userId: payer.userId, organizationId: w2.id, role: 'member' } })
+    expect((await request(payer, 'POST', '/api/auth/organization/set-active', { organizationId: w2.id })).status).toBe(200)
+    const other = await addMember(w2.id, 'admin')
+    const switchOf = async (who: Caller) => (await act(who, 'workspace.getSettings', {})).body.data.allowSwitch
+
+    expect(await switchOf(payer)).toEqual({ on: true, off: true })
+    expect(await switchOf(other)).toEqual({ on: false, off: false })
+    expect(await switchOf(w2.owner)).toEqual({ on: false, off: true })
+
+    expect((await setAllow(other, true)).status).toBe(403)
+    expect((await setAllowUltra(other, true)).status).toBe(403)
+    expect((await setAllow(other, false)).status).toBe(403)
+    expect((await setAllow(payer, true)).status).toBe(200)
+    expect((await setAllowUltra(payer, true)).status).toBe(200)
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, w2.id))
+    expect(row).toMatchObject({ allow_premium: true, allow_ultra: true })
+    expect((await setAllow(payer, false)).status).toBe(200)
+
+    // A workspace without a bill: an admin is refused as before, and the page says so.
+    const w3 = await createWorkspace('Unbilled Heating')
+    const admin = await addMember(w3.id, 'admin')
+    expect(await switchOf(admin)).toEqual({ on: false, off: false })
+    expect(await switchOf(w3.owner)).toEqual({ on: true, off: true })
+    expect((await setAllow(admin, true)).status).toBe(403)
+
+    // An API key never switches them (refuseBillingActor), also now that a member may ask.
+    const key = await act(w3.owner, 'apiKey.create', { name: 'billing', role: 'admin' })
+    expect((await setAllow({ headers: { authorization: `Bearer ${key.body.data.key}` } }, true)).status).toBe(403)
   })
 })
 
