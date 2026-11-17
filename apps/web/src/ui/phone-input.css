@@ -79,11 +79,13 @@
   justify-content: flex-start;
   gap: 8px;
 }
+/* The country's name shows in full: the list is as wide as the field, and a long name ("British Indian Ocean
+   Territory" in a narrow field) wraps onto a second line, never an ellipsis. */
 .k-phone-opt-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .k-phone-opt-code {
   flex: none;

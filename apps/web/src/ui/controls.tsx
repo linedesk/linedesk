@@ -173,10 +173,20 @@ export function SelectOptionBody({ option, selected }: { option: SelectOption<st
         <span className="k-select-opt-l">{option.label}</span>
         {option.description && <small>{option.description}</small>}
       </span>
-      <span className="k-select-opt-check" aria-hidden="true">
-        {selected && <Icon name="check" size={14} />}
-      </span>
+      <OptionCheck selected={selected} />
     </>
+  )
+}
+
+/**
+ * The check mark's column of an option in an open list (Select and the searchable pickers): on every option, empty
+ * when not picked, so a label never shifts and the picked one is not narrower than the rest.
+ */
+export function OptionCheck({ selected }: { selected: boolean }) {
+  return (
+    <span className="k-select-opt-check" aria-hidden="true">
+      {selected && <Icon name="check" size={14} />}
+    </span>
   )
 }
 

@@ -237,8 +237,8 @@
   display: grid;
   gap: 1px;
 }
-/* The other lists that use these option styles (the searchable pickers): a label at its natural width, and on a
-   narrow screen the end of a long one gives way to an ellipsis. Select's labels wrap instead (.k-select-opt-l). */
+/* A label without .k-select-opt-l: at its natural width, and on a narrow screen the end of a long one gives way to an
+   ellipsis. Select's and the searchable pickers' labels wrap instead (.k-select-opt-l). */
 .k-select-opt-t > span {
   max-width: calc(100vw - 80px);
   overflow: hidden;
@@ -249,8 +249,9 @@
   color: var(--ink-muted);
   white-space: normal;
 }
-/* A Select's label shows in full: the list is as wide as its longest label (useAnchoredList, natural), and where
-   the window stops it ("Your number forwards calls you miss" at 375 px) the label wraps onto a second line. */
+/* A label shows in full. Select: the list is as wide as its longest label (useAnchoredList, natural), and where the
+   window stops it ("Your number forwards calls you miss" at 375 px) the label wraps onto a second line. The searchable
+   pickers (SearchSelect, time zone) keep their width while the search narrows the list; a long label wraps in it. */
 .k-select-opt-t > .k-select-opt-l {
   max-width: none;
   overflow: visible;

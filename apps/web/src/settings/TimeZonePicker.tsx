@@ -3,6 +3,7 @@
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAnchoredList } from '../ui/floating.ts'
+import { OptionCheck, type SelectOption } from '../ui/controls.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
 import {
   browserTimeZone,
@@ -26,6 +27,32 @@ function useNow(everyMs = 30_000) {
 
 /** Shows at most this many zones at once; the search narrows the rest. */
 const SHOWN_MAX = 120
+
+/**
+ * One zone in the open list: its name in full (a long one wraps onto a second line within the list, never an
+ * ellipsis), its GMT offset and time now, and the check mark column.
+ */
+export function TimeZoneOptionBody({
+  option,
+  selected,
+  now,
+}: {
+  option: SelectOption<string>
+  selected: boolean
+  now: number
+}) {
+  return (
+    <>
+      <span className="k-select-opt-t">
+        <span className="k-select-opt-l">{option.label}</span>
+      </span>
+      <span className="tz-meta">
+        {gmtOffset(option.value, now)} · {clockIn(option.value, now)}
+      </span>
+      <OptionCheck selected={selected} />
+    </>
+  )
+}
 
 type Props = { value: string; onChange: (zone: string) => void; disabled?: boolean; id?: string }
 
@@ -153,13 +180,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
                 onMouseEnter={() => setActive(i)}
                 onClick={() => pick(o.value)}
               >
-                <span className="k-select-opt-t">
-                  <span>{o.label}</span>
-                </span>
-                <span className="tz-meta">
-                  {gmtOffset(o.value, now)} · {clockIn(o.value, now)}
-                </span>
-                {o.value === value && <Icon name="check" size={14} />}
+                <TimeZoneOptionBody option={o} selected={o.value === value} now={now} />
               </div>
             ))}
             {!matches.length && <div className="tz-empty">{t('settings.timeZone.noMatch', { query })}</div>}

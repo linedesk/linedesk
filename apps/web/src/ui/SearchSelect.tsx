@@ -2,6 +2,7 @@
 // keys move, Enter picks, Esc closes; the search owns its keys, so none reaches the app's shortcuts.
 import { useT } from '@linedesk/i18n/react'
 import { Fragment, type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { OptionCheck } from './controls.tsx'
 import { useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './search-select.css'
@@ -48,6 +49,23 @@ export function searchOptions(options: readonly SearchOption[], query: string): 
     .map(({ group: _group, ...o }) => o)
     .filter(o => rank(o) >= 0)
     .sort((a, b) => rank(a) - rank(b))
+}
+
+/**
+ * What one option of an open SearchSelect shows: its flag, the label in full (a long one wraps onto a second line
+ * within the list, never an ellipsis), its code and the check mark column.
+ */
+export function SearchOptionBody({ option, selected }: { option: SearchOption; selected: boolean }) {
+  return (
+    <>
+      <span className="k-select-opt-t">
+        {option.icon && <span className="k-ssel-icon">{option.icon}</span>}
+        <span className="k-select-opt-l">{option.label}</span>
+      </span>
+      {option.meta && <span className="k-ssel-meta">{option.meta}</span>}
+      <OptionCheck selected={selected} />
+    </>
+  )
 }
 
 export function SearchSelect({
@@ -178,12 +196,7 @@ export function SearchSelect({
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(o.value)}
                 >
-                  <span className="k-select-opt-t">
-                    {o.icon && <span className="k-ssel-icon">{o.icon}</span>}
-                    <span>{o.label}</span>
-                  </span>
-                  {o.meta && <span className="k-ssel-meta">{o.meta}</span>}
-                  {o.value === value && <Icon name="check" size={14} />}
+                  <SearchOptionBody option={o} selected={o.value === value} />
                 </div>
               </Fragment>
             ))}

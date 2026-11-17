@@ -986,10 +986,11 @@ a.as-chip:hover {
   overflow-y: auto;
   padding: 0 4px 4px;
 }
+/* The zone's name shows in full; a long one ("Eucla · Australian Central Western Standard Time" at 375 px) wraps onto a second line
+   within the list (.k-select-opt-l), next to its offset and time. */
 .tz-options .k-select-opt-t {
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .tz-empty {
   padding: 8px;

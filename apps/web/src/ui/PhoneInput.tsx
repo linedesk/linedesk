@@ -18,7 +18,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { optionGroups } from './controls.tsx'
+import { OptionCheck, optionGroups } from './controls.tsx'
 import { useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import {
@@ -195,6 +195,23 @@ type PickerProps = {
  * The country of the number: a button with the flag and calling code; its list opens with a search. Arrow keys
  * move, Enter picks, Esc closes; typing a letter or digit on the button opens the list searching for it.
  */
+/**
+ * One country in the open list: flag, the name in full (a long one wraps onto a second line within the field's
+ * width, never an ellipsis), its calling code and the check mark column.
+ */
+export function PhoneCountryOptionBody({ option, selected }: { option: PhoneCountryOption; selected: boolean }) {
+  return (
+    <>
+      <span className="k-phone-flag" aria-hidden="true">
+        {option.flag}
+      </span>
+      <span className="k-phone-opt-name">{option.name}</span>
+      <span className="k-phone-opt-code">+{option.callingCode}</span>
+      <OptionCheck selected={selected} />
+    </>
+  )
+}
+
 function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -338,12 +355,7 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
                     onMouseEnter={() => setActive(i)}
                     onClick={() => pick(o)}
                   >
-                    <span className="k-phone-flag" aria-hidden="true">
-                      {o.flag}
-                    </span>
-                    <span className="k-phone-opt-name">{o.name}</span>
-                    <span className="k-phone-opt-code">+{o.callingCode}</span>
-                    {o.value === country && <Icon name="check" size={14} />}
+                    <PhoneCountryOptionBody option={o} selected={o.value === country} />
                   </div>
                 )
               })
