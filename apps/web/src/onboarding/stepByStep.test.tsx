@@ -36,7 +36,9 @@ vi.mock('../workspaceLocale.ts', () => ({
 }))
 vi.mock('../settings/TestCall.tsx', () => ({
   useTestCall: () => ({ blockedReason: null, start: () => {} }),
-  TestCallButton: ({ variant }: { variant: string }) => <button type="button" className={`test-call-${variant}`} />,
+  TestCallButton: ({ variant = 'secondary' }: { variant?: string }) => (
+    <button type="button" className={`test-call-${variant}`} />
+  ),
 }))
 vi.mock('../settings/TestCallPanel.tsx', () => ({ TestCallPanel: () => null }))
 vi.mock('../settings/VoiceSettings.tsx', () => ({
