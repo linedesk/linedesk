@@ -2,15 +2,11 @@
 // about which call, people named with @ (members and confirmed outside addresses). After a call a language model
 // picks the recipients among the people named (apps/api/src/email-routing.ts). The text is part of the assistant's
 // draft and saved with the page; the editor shows `@Name` and keeps tokens in the draft (callEmailsModel.ts).
-// Next to it the instruction tried on the assistant's last calls (assistant.previewEmailRouting), and the list of
-// outside addresses with their confirmation state (emailRouting.get, emailRecipient.*).
+// Below it the list of outside addresses with their confirmation state (emailRouting.get, emailRecipient.*).
 import {
-  assigneeOf,
   EMAIL_ROUTING_CODES,
   EMAIL_ROUTING_MAX,
   type EmailRoutingData,
-  type EmailRoutingPreview,
-  type EmailRoutingPreviewCall,
   type OutsideRecipient,
   type OutsideRecipientStatus,
   OUTSIDE_CONFIRMS_PER_DAY,
@@ -25,7 +21,6 @@ import { type KeyboardEvent, useEffect, useId, useLayoutEffect, useMemo, useRef,
 import { type Query, setQueryData, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { memberAvatar, memberLabel, useMembers } from '../team/members.ts'
-import { parseTs, timeLabel } from '../time.ts'
 import { Avatar, Badge, Button, cx, Icon, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
@@ -46,17 +41,13 @@ import { MissingProviderNote } from './MissingProviderNote.tsx'
 import { callAction, readAction } from './settings-api.ts'
 import './call-emails.css'
 
-/** How long after the last keystroke the instruction is tried on the last calls. */
-const PREVIEW_AFTER_MS = 2500
 const ROUTING_KEY = 'emailRouting.get'
 const loadRouting = () => readAction<EmailRoutingData>(ROUTING_KEY)
-const CHECK_KEY = '⌘↵'
 
 /** Revert a change from a toast's Undo (Workspace's undo stack, also Z). */
 export type Undoable = (label: string, key: string, revert: () => void) => void
 
 type Props = {
-  assistantId: string
   /** The assistant's name as the page says it. */
   name: string
   value: string
@@ -82,17 +73,7 @@ function errorText(err: unknown): string {
     : (err as Error).message
 }
 
-export function CallEmails({
-  assistantId,
-  name,
-  value,
-  onChange,
-  assign,
-  onAssignChange,
-  canEdit,
-  toast,
-  undoable,
-}: Props) {
+export function CallEmails({ name, value, onChange, assign, onAssignChange, canEdit, toast, undoable }: Props) {
   const t = useT()
   const format = useFormat()
   const members = useMembers()
@@ -122,7 +103,6 @@ export function CallEmails({
   const mentionedMembers = mentioned.filter(p => p.kind === 'user')
   // Only members still named: what would be saved.
   const assigned = assign.filter(id => mentionedMembers.some(p => p.id === id))
-  const preview = usePreview(assistantId, value, canEdit)
   const outsideNamed = mentioned.filter(p => p.kind === 'email')
   const emailsOff = mentioned.filter(p => p.kind === 'user' && p.emailOn === false)
   const tooLong = value.length > EMAIL_ROUTING_MAX
@@ -143,76 +123,72 @@ export function CallEmails({
 
   return (
     <>
-      <div className={cx('ce-grid', !canEdit && 'is-single')}>
-        <Section
-          id="as-emails"
-          title={t('settings.assistant.emails.who.title')}
-          description={t('settings.assistant.emails.who.description', { name })}
-          help={t('settings.assistant.emails.who.help', { name })}
+      <Section
+        id="as-emails"
+        title={t('settings.assistant.emails.who.title')}
+        description={t('settings.assistant.emails.who.description', { name })}
+        help={t('settings.assistant.emails.who.help', { name })}
+      >
+        <Field
+          id="as-emails-text"
+          label={t('settings.assistant.emails.who.label')}
+          error={tooLong ? t('settings.assistant.emails.who.tooLong', { max: EMAIL_ROUTING_MAX }) : null}
         >
-          <Field
-            id="as-emails-text"
-            label={t('settings.assistant.emails.who.label')}
-            error={tooLong ? t('settings.assistant.emails.who.tooLong', { max: EMAIL_ROUTING_MAX }) : null}
+          <Loading
+            what={t('settings.assistant.emails.who.load')}
+            loading={membersState === 'loading'}
+            error={membersState === 'slow'}
+            skeleton={<Skeleton width="100%" height={112} />}
           >
-            <Loading
-              what={t('settings.assistant.emails.who.load')}
-              loading={membersState === 'loading'}
-              error={membersState === 'slow'}
-              skeleton={<Skeleton width="100%" height={112} />}
-            >
-              <MentionEditor
-                id="as-emails-text"
-                value={value}
-                onChange={onChange}
-                people={people}
-                disabled={!canEdit}
-                onAdd={canEdit ? addOutside : undefined}
-                onCheck={preview.checkNow}
-                placeholder={t('settings.assistant.emails.who.placeholder')}
-              />
-            </Loading>
-          </Field>
-          {routesEmails(value) ? (
-            mentioned.length ? (
-              <>
-                <MayEmail name={name} people={mentioned} recipients={data?.recipients} />
-                {mentionedMembers.length > 0 && (
-                  <AssignChoice
-                    name={name}
-                    people={mentionedMembers}
-                    assigned={assigned}
-                    disabled={!canEdit}
-                    onChange={onAssignChange}
-                  />
-                )}
-              </>
-            ) : (
-              <p className="help">{t('settings.assistant.emails.who.nobodyNamed')}</p>
-            )
+            <MentionEditor
+              id="as-emails-text"
+              value={value}
+              onChange={onChange}
+              people={people}
+              disabled={!canEdit}
+              onAdd={canEdit ? addOutside : undefined}
+              placeholder={t('settings.assistant.emails.who.placeholder')}
+            />
+          </Loading>
+        </Field>
+        {routesEmails(value) ? (
+          mentioned.length ? (
+            <>
+              <MayEmail name={name} people={mentioned} recipients={data?.recipients} />
+              {mentionedMembers.length > 0 && (
+                <AssignChoice
+                  name={name}
+                  people={mentionedMembers}
+                  assigned={assigned}
+                  disabled={!canEdit}
+                  onChange={onAssignChange}
+                />
+              )}
+            </>
           ) : (
-            <p className="help">{t('settings.assistant.emails.who.empty')}</p>
-          )}
-          {emailsOff.length > 0 && (
-            <p className="help">
-              {t('settings.assistant.emails.who.emailsOff', {
-                count: emailsOff.length,
-                names: format.list(emailsOff.map(p => p.label)),
-              })}
-            </p>
-          )}
-          {outsideNamed.length > 0 && (
-            <Note tone="warning" title={t('settings.assistant.emails.outsideNote.title')}>
-              {t('settings.assistant.emails.outsideNote.text', {
-                count: outsideNamed.length,
-                emails: format.list(outsideNamed.map(p => p.label)),
-              })}
-            </Note>
-          )}
-          {data && !data.llm && routesEmails(value) && <MissingProviderNote kind="emailRouting" />}
-        </Section>
-        {canEdit && <PreviewCard preview={preview} name={name} assign={assigned} />}
-      </div>
+            <p className="help">{t('settings.assistant.emails.who.nobodyNamed')}</p>
+          )
+        ) : (
+          <p className="help">{t('settings.assistant.emails.who.empty')}</p>
+        )}
+        {emailsOff.length > 0 && (
+          <p className="help">
+            {t('settings.assistant.emails.who.emailsOff', {
+              count: emailsOff.length,
+              names: format.list(emailsOff.map(p => p.label)),
+            })}
+          </p>
+        )}
+        {outsideNamed.length > 0 && (
+          <Note tone="warning" title={t('settings.assistant.emails.outsideNote.title')}>
+            {t('settings.assistant.emails.outsideNote.text', {
+              count: outsideNamed.length,
+              emails: format.list(outsideNamed.map(p => p.label)),
+            })}
+          </Note>
+        )}
+        {data && !data.llm && routesEmails(value) && <MissingProviderNote kind="emailRouting" />}
+      </Section>
       {canEdit && <OutsideList routing={routing} toast={toast} undoable={undoable} />}
     </>
   )
@@ -321,7 +297,7 @@ type EditorOption = { kind: 'person'; person: MentionPerson } | { kind: 'add'; e
 /**
  * A text area with a highlight layer behind it (same font, padding and wrapping) that marks mentions: members as quiet
  * grey chips, outside addresses dashed. Typing @ opens the people to pick (↑↓, Enter or Tab, Esc); an address that is
- * not on the list can be added from there. ⌘↵ tries the text on the last calls now.
+ * not on the list can be added from there.
  */
 function MentionEditor({
   id,
@@ -330,7 +306,6 @@ function MentionEditor({
   people,
   disabled,
   onAdd,
-  onCheck,
   placeholder,
 }: {
   id: string
@@ -339,7 +314,6 @@ function MentionEditor({
   people: MentionPerson[]
   disabled: boolean
   onAdd?: (email: string) => Promise<boolean>
-  onCheck: () => void
   placeholder: string
 }) {
   const t = useT()
@@ -407,12 +381,6 @@ function MentionEditor({
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      // ⌘↵ tries the text on the last calls; ⌘S still saves the page.
-      e.preventDefault()
-      e.stopPropagation()
-      return onCheck()
-    }
     if (!shown) return
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
@@ -517,147 +485,6 @@ function OptionLabel({ option }: { option: EditorOption }) {
   )
 }
 
-type Preview = {
-  /** The text the shown result is for. */
-  checked: string
-  data: EmailRoutingPreview | undefined
-  error: string | null
-  /** A result for an earlier text is shown while the new one loads. */
-  stale: boolean
-  checkNow: () => void
-}
-
-/**
- * The instruction tried on the last calls: when the page opens, PREVIEW_AFTER_MS after the text stops changing, and
- * at once on ⌘↵. Each text is asked once (the server allows about 30 an hour per workspace).
- */
-function usePreview(assistantId: string, text: string, enabled: boolean): Preview {
-  const [checked, setChecked] = useState(text)
-  useEffect(() => {
-    if (text === checked) return
-    const timer = setTimeout(() => setChecked(text), PREVIEW_AFTER_MS)
-    return () => clearTimeout(timer)
-  }, [text, checked])
-  const key = enabled && routesEmails(checked) ? `emailRouting.preview:${assistantId}:${checked}` : null
-  const query = useQuery<EmailRoutingPreview>(
-    key,
-    async () => {
-      try {
-        return await callAction<EmailRoutingPreview>('assistant.previewEmailRouting', { assistantId, text: checked })
-      } catch (err) {
-        throw new Error(errorText(err))
-      }
-    },
-    { freshMs: 10 * 60_000 },
-  )
-  const last = useRef<EmailRoutingPreview | undefined>(undefined)
-  if (query.data) last.current = query.data
-  return {
-    checked,
-    data: query.data ?? last.current,
-    error: query.error,
-    stale: !query.data && !!last.current,
-    checkNow: () => (text === checked ? void query.reload() : setChecked(text)),
-  }
-}
-
-const PROBLEM_TEXT: Record<NonNullable<EmailRoutingPreviewCall['problem']>, MessageKey> = {
-  no_llm: msg('settings.assistant.emails.preview.problem.no_llm'),
-  llm_failed: msg('settings.assistant.emails.preview.problem.llm_failed'),
-  nothing_fit: msg('settings.assistant.emails.preview.problem.nothing_fit'),
-}
-
-/** "On your last calls": per call who it would go to, whom it would assign and why. */
-function PreviewCard({ preview, name, assign }: { preview: Preview; name: string; assign: string[] }) {
-  const t = useT()
-  const routes = routesEmails(preview.checked)
-  return (
-    <Section
-      id="as-emails-preview"
-      title={t('settings.assistant.emails.preview.title')}
-      description={t('settings.assistant.emails.preview.description')}
-      actions={
-        routes && (
-          <Button
-            size="sm"
-            variant="ghost"
-            title={t('common.withKey', { label: t('settings.assistant.emails.preview.checkTitle'), key: CHECK_KEY })}
-            onClick={preview.checkNow}
-          >
-            {t('settings.assistant.emails.preview.check')}
-          </Button>
-        )
-      }
-    >
-      {!routes ? (
-        <p className="help">{t('settings.assistant.emails.preview.empty')}</p>
-      ) : preview.error ? (
-        <Note tone="warning" title={t('settings.assistant.emails.preview.failed')}>
-          {preview.error}
-        </Note>
-      ) : (
-        <Loading
-          what={t('settings.assistant.emails.preview.load')}
-          loading={!preview.data}
-          skeleton={<PreviewSkeleton />}
-        >
-          {preview.data && !preview.data.calls.length ? (
-            <ListEmpty>{t('settings.assistant.emails.preview.noCalls', { name })}</ListEmpty>
-          ) : (
-            <ul className={cx('ce-calls', preview.stale && 'is-stale')} aria-busy={preview.stale || undefined}>
-              {preview.data?.calls.map(c => (
-                <PreviewLine
-                  key={c.callId}
-                  call={c}
-                  name={name}
-                  assignee={assigneeOf(
-                    preview.checked,
-                    assign,
-                    c.to.flatMap(r => (r.kind === 'member' ? [r.user_id] : [])),
-                  )}
-                />
-              ))}
-            </ul>
-          )}
-        </Loading>
-      )}
-    </Section>
-  )
-}
-
-/**
- * One call of the preview. Who gets it assigned is worked out here from the Assign choice on the page (the same rule
- * the server uses), so a new choice shows at once and asks the model nothing.
- */
-function PreviewLine({
-  call,
-  name,
-  assignee,
-}: {
-  call: EmailRoutingPreviewCall
-  name: string
-  assignee: string | null
-}) {
-  const t = useT()
-  const assigned = call.to.find(r => r.kind === 'member' && r.user_id === assignee)
-  return (
-    <li className="ce-call">
-      <div className="ce-call-head">
-        <b>{call.title?.trim() || t('settings.assistant.emails.preview.untitled')}</b>
-        <span className="mono">{timeLabel(parseTs(call.started_at))}</span>
-      </div>
-      {/* A fallback line lists who would really get it (every member with call emails on), then the reason below. */}
-      <RecipientChips to={call.to} />
-      {!call.to.length && <p className="help">{t('settings.assistant.emails.preview.nobody')}</p>}
-      {call.reason && <p className="ce-call-reason">{call.reason}</p>}
-      {assigned?.kind === 'member' && (
-        <p className="help">{t('settings.assistant.emails.preview.assigns', { member: assigned.name, name })}</p>
-      )}
-      {call.problem && <p className="help">{t(PROBLEM_TEXT[call.problem])}</p>}
-    </li>
-  )
-}
-
 /** The people a call email went (or would go) to: members with their picture, outside addresses dashed. */
 export function RecipientChips({ to }: { to: EmailRouteRecipient[] }) {
   const members = useMembers()
@@ -675,21 +502,6 @@ export function RecipientChips({ to }: { to: EmailRouteRecipient[] }) {
         ),
       )}
     </div>
-  )
-}
-
-/** The preview's rows while the first answer loads: a title, a chip and a reason per call. */
-function PreviewSkeleton() {
-  return (
-    <ul className="ce-calls" aria-hidden="true">
-      {[150, 190, 130].map(w => (
-        <li key={w} className="ce-call">
-          <Skeleton shape="text" width={w} />
-          <Skeleton width={84} height={22} />
-          <Skeleton shape="text" width={w + 60} />
-        </li>
-      ))}
-    </ul>
   )
 }
 

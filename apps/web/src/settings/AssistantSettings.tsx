@@ -1011,7 +1011,6 @@ function Form({
         )}
         {current === 'emails' && (
           <CallEmails
-            assistantId={assistant.id}
             name={assistantName(draft, t)}
             value={draft.email_routing}
             onChange={text => set('email_routing', text)}
