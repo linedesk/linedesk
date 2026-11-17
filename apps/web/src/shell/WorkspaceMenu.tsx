@@ -7,7 +7,7 @@
 import type { MyInvitation } from '@linedesk/actions'
 import { useEffect, useRef } from 'react'
 import { auth, fetchAuthMethods, type LegalLinks } from '../auth.ts'
-import { setWorkspaceFavicon } from '../brand.ts'
+import { setWorkspaceFavicon, useBrand } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { memberAvatar, useMember } from '../team/members.ts'
 import { useAnchoredList } from '../ui/floating.ts'
@@ -79,10 +79,15 @@ export function YouRowSkeleton({ lines, reserved }: { lines: 1 | 2; reserved: bo
   )
 }
 
-/** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
+/**
+ * This install's terms, privacy and support links: the last known ones at once, none that are not set. In a white-label
+ * partner's client workspace the partner's instead (brand.ts), never the install's.
+ */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
 export function useLegalLinks(): LegalLinks | null {
-  return useQuery('auth-methods', loadAuthMethods, { persist: true }).data?.links ?? null
+  const partner = useBrand().partner
+  const install = useQuery('auth-methods', loadAuthMethods, { persist: true }).data?.links ?? null
+  return partner ? { terms: partner.terms, privacy: partner.privacy, supportEmail: partner.supportEmail } : install
 }
 
 type Props = {

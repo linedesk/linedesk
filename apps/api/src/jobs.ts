@@ -42,6 +42,7 @@ import { localeForEmail } from './email-locale.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { ledgerCheckAlert, stuckRechargesAlert } from './emails/alerts.ts'
 import { checkLedger } from './ledger.ts'
+import { withWorkspaceBrand } from './partner-brand.ts'
 import {
   type BillingAlertJob,
   chargeRecharge,
@@ -53,6 +54,7 @@ import { createReconcileQueue, runReconcileJob } from './billing-reconcile.ts'
 import { createStripeEventQueues, runStripeEventJobs } from './stripe-events.ts'
 import { createBillingPeriodQueues, runBillingPeriodJobs } from './billing-periods.ts'
 import { createBillingLifecycleQueues, runBillingLifecycleJobs } from './billing-lifecycle.ts'
+import { type EmailBrand, withEmailBrand } from './email-brand.ts'
 
 type Env = Record<string, string | undefined>
 
@@ -192,7 +194,8 @@ async function runJobs(instance: PgBoss, env: Env) {
     return result
   })
   await instance.work<SpendingAlert>(SPENDING_CAP_ALERT, async ([job]) => {
-    const result = await sendSpendingAlert(db, emailSender, job!.data)
+    // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
+    const result = await withWorkspaceBrand(job!.data.workspaceId, () => sendSpendingAlert(db, emailSender, job!.data))
     if (result.failed && !result.sent) throw new Error(`no spending cap email could be sent (${result.failed} failed)`)
     return result
   })
@@ -205,9 +208,12 @@ async function runJobs(instance: PgBoss, env: Env) {
     runSeatSync(job!.data, { last: job!.retryCount >= PARTNER_SEAT_SYNC_RETRIES }),
   )
   await instance.work<WorkspaceDeletedJob>(WORKSPACE_DELETED_EMAIL, async ([job]) => {
-    const { to, ...content } = job!.data
+    const { to, brand, ...content } = job!.data
     // The account may be gone with the workspace: then English.
-    await emailSender.send({ to, ...workspaceDeletedEmail(content, undefined, await localeForEmail(db, to)) })
+    const locale = await localeForEmail(db, to)
+    await withEmailBrand(brand ?? null, () =>
+      emailSender.send({ to, ...workspaceDeletedEmail(content, undefined, locale) }),
+    )
   })
   await instance.work<{ bookingId: string }>(BOOKING_CONFIRM, async ([job]) =>
     sendBookingConfirmation(db, emailSender, job!.data.bookingId),
@@ -600,19 +606,26 @@ export async function queueForwardingCheck(tx: Tx, checkId: string) {
   await boss?.send(FORWARDING_CHECK, { checkId }, { db: fromDrizzle(tx, sql) })
 }
 
-/** One member's "your workspace was deleted" email: the address and what it says (already email-safe). */
-export type WorkspaceDeletedJob = WorkspaceDeletedEmail & { to: string }
+/**
+ * One member's "your workspace was deleted" email: the address and what it says (already email-safe), and the brand
+ * of the workspace's emails, read before the workspace went (a white-label partner's, partner-brand.ts).
+ */
+export type WorkspaceDeletedJob = WorkspaceDeletedEmail & { to: string; brand?: EmailBrand | null }
 
 /**
  * Queues the emails about a deleted workspace in the delete's transaction: they go only if it commits, and outlive
  * the workspace (their data names no workspace, so dropping its queued jobs leaves them). Without a queue (tests)
  * nothing is sent.
  */
-export async function queueWorkspaceDeletedEmails(tx: Tx, emails: WorkspaceDeletedJob[]) {
+export async function queueWorkspaceDeletedEmails(
+  tx: Tx,
+  emails: WorkspaceDeletedJob[],
+  brand: EmailBrand | null = null,
+) {
   if (emails.length)
     await boss?.insert(
       WORKSPACE_DELETED_EMAIL,
-      emails.map(data => ({ data })),
+      emails.map(data => ({ data: { ...data, brand } })),
       { db: fromDrizzle(tx, sql) },
     )
 }

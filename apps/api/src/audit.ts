@@ -337,6 +337,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partner.setClientUsageLimit': 'partners',
   'partner.setClientAllow': 'partners',
   'workspace.removePartner': 'partners',
+  'partnerBrand.set': 'partners',
+  'partnerBrand.setProtectedNames': 'partners',
+  'partnerBrand.approve': 'partners',
+  'partnerBrand.reset': 'partners',
 }
 
 /**

@@ -5,11 +5,11 @@
 import type { ProviderFailureReason } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
-import { brandName } from '../branding.ts'
+import { emailBrandName, emailOrigin } from '../email-brand.ts'
 import type { LedgerDifference } from '../ledger.ts'
 import type { SignupRuleChange } from '../self-serve.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
-import { type EmailLocale, WEB_ORIGIN } from './templates.ts'
+import type { EmailLocale } from './templates.ts'
 
 /** An alert's own content; the frame (eyebrow, button, footer) is added by adminAlertEmail. */
 export type AdminAlert = { subject: string; blocks: Block[] }
@@ -27,7 +27,7 @@ export function actorLabel(actor: AlertActor, locale: EmailLocale): string {
 }
 
 /** An alert to every server admin: its subject is the heading, its first paragraph the preheader. */
-export function adminAlertEmail(alert: AdminAlert, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function adminAlertEmail(alert: AdminAlert, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const first = alert.blocks.find(block => block.kind === 'text')
   return renderEmail({
@@ -91,7 +91,7 @@ export const adminSignInAlert =
         ? t('email.adminAlert.someBrowserOnOs', { os: s.browser.os })
         : s.userAgent || unknown
     return {
-      subject: t('email.adminAlert.signIn.subject', { brand: brandName(), who: s.who }),
+      subject: t('email.adminAlert.signIn.subject', { brand: emailBrandName(), who: s.who }),
       blocks: [
         {
           kind: 'text',
@@ -121,7 +121,7 @@ export const providerFailureAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.providerFailure.subject', { provider, brand: brandName(), reason }),
+      subject: t('email.adminAlert.providerFailure.subject', { provider, brand: emailBrandName(), reason }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.providerFailure.text', { provider }) },
         ...(message
@@ -139,10 +139,60 @@ export const adminGrantedAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.adminGranted.subject', { brand: brandName(), email }),
+      subject: t('email.adminAlert.adminGranted.subject', { brand: emailBrandName(), email }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.adminGranted.text', { actor: actorLabel(actor, locale), email }) },
         { kind: 'text', text: t('email.adminAlert.checkUsers') },
+      ],
+    }
+  }
+
+/**
+ * A white-label partner changed its brand (partner-brand.ts) and the change waits for review: clients and their emails
+ * keep the approved version until an instance admin approves it (security review of #1111, M-2). Every field a person
+ * should look at is in the email: the name, the logo (a link to the image), the support email and the links.
+ */
+export type PartnerBrandChange = {
+  /** The partner's own company name. */
+  partner: string
+  /** The new product name its clients would see. */
+  name: string
+  /** The product name approved now, or null when none is. */
+  approvedName: string | null
+  /** The new logo's address, or null without a logo. */
+  logoUrl: string | null
+  supportEmail: string | null
+  termsUrl: string | null
+  privacyUrl: string | null
+  /** #rrggbb, or null for the default: not reviewed, shown so the whole look is in one place. */
+  color: string | null
+  /** Server admin › Partners, where the change is approved or the brand reset. */
+  reviewUrl: string
+}
+
+export const partnerBrandChangedAlert =
+  (change: PartnerBrandChange): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const none = t('email.adminAlert.partnerBrand.none')
+    return {
+      subject: t('email.adminAlert.partnerBrand.subject', { brand: emailBrandName(), partner: change.partner }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.partnerBrand.text', { partner: change.partner }) },
+        {
+          kind: 'facts',
+          rows: [
+            [t('email.adminAlert.partnerBrand.name'), change.name],
+            [t('email.adminAlert.partnerBrand.approvedName'), change.approvedName ?? none],
+            [t('email.adminAlert.partnerBrand.logo'), change.logoUrl ?? none],
+            [t('email.adminAlert.partnerBrand.supportEmail'), change.supportEmail ?? none],
+            [t('email.adminAlert.partnerBrand.terms'), change.termsUrl ?? none],
+            [t('email.adminAlert.partnerBrand.privacy'), change.privacyUrl ?? none],
+            [t('email.adminAlert.partnerBrand.color'), change.color ?? none],
+          ],
+        },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.partnerBrand.check') },
+        { kind: 'button', label: t('email.adminAlert.partnerBrand.review'), url: change.reviewUrl },
       ],
     }
   }
@@ -331,7 +381,7 @@ export const ledgerCheckAlert =
     const { t } = getT(locale)
     if (failed)
       return {
-        subject: t('email.adminAlert.ledgerCheck.failedSubject', { brand: brandName() }),
+        subject: t('email.adminAlert.ledgerCheck.failedSubject', { brand: emailBrandName() }),
         blocks: [
           { kind: 'text', text: t('email.adminAlert.ledgerCheck.failed') },
           { kind: 'text', tone: 'muted', text: t('email.adminAlert.ledgerCheck.nightly') },
@@ -347,7 +397,7 @@ export const ledgerCheckAlert =
     ])
     return {
       subject: t('email.adminAlert.ledgerCheck.subject', {
-        brand: brandName(),
+        brand: emailBrandName(),
         count: guardsMissing.length + differences.length,
       }),
       blocks: [
@@ -384,7 +434,7 @@ export const cappedCallAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.cappedCall.subject', { brand: brandName() }),
+      subject: t('email.adminAlert.cappedCall.subject', { brand: emailBrandName() }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.cappedCall.text', { reported, billed }) },
         {
@@ -408,7 +458,7 @@ export const billingUnusableAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.billingUnusable.subject', { brand: brandName() }),
+      subject: t('email.adminAlert.billingUnusable.subject', { brand: emailBrandName() }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.billingUnusable.text', { reason }) },
         { kind: 'text', text: t('email.adminAlert.billingUnusable.fix') },
@@ -422,7 +472,7 @@ export const stuckRechargesAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.stuckRecharges.subject', { brand: brandName(), count: stuck.length }),
+      subject: t('email.adminAlert.stuckRecharges.subject', { brand: emailBrandName(), count: stuck.length }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.stuckRecharges.text') },
         {
@@ -446,7 +496,7 @@ export const extraCallsSyncAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.extraCallsSync.subject', { brand: brandName() }),
+      subject: t('email.adminAlert.extraCallsSync.subject', { brand: emailBrandName() }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.extraCallsSync.text', { bill }) },
         { kind: 'text', text: t('email.adminAlert.extraCallsSync.fix') },
@@ -460,7 +510,7 @@ export const seatsSyncAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.seatsSync.subject', { brand: brandName() }),
+      subject: t('email.adminAlert.seatsSync.subject', { brand: emailBrandName() }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.seatsSync.text', { bill }) },
         { kind: 'text', text: t('email.adminAlert.seatsSync.fix') },
@@ -474,7 +524,7 @@ export const passkeysResetAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.passkeysReset.subject', { brand: brandName(), email }),
+      subject: t('email.adminAlert.passkeysReset.subject', { brand: emailBrandName(), email }),
       blocks: [
         {
           kind: 'text',
@@ -492,7 +542,7 @@ export const enrolmentIssuedAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.enrolmentIssued.subject', { brand: brandName(), email }),
+      subject: t('email.adminAlert.enrolmentIssued.subject', { brand: emailBrandName(), email }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.enrolmentIssued.text', { actor: actorLabel(actor, locale), email }) },
         { kind: 'text', text: t('email.adminAlert.checkAudit') },
@@ -514,7 +564,7 @@ export type SpendingCapEmail = {
 /** A workspace used 80 % of its monthly spending cap, or reached it; the same email for owners and instance admins. */
 export function spendingCapEmail(
   { workspace, level, capUsd, spentUsd }: SpendingCapEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, format, locale: lang } = getT(locale)
@@ -564,7 +614,7 @@ export type UsageLimitEmail = {
  */
 export function usageLimitEmail(
   { workspace, level, limitUsd, usedUsd }: UsageLimitEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, format, locale: lang } = getT(locale)
@@ -602,9 +652,9 @@ export function usageLimitEmail(
 export const TEST_EMAIL_MINUTES = 10
 
 /** The setup's email test (Server admin › Setup): a code that proves the email arrived. */
-export function installTestEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function installTestEmail(code: string, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   const site = siteHost(origin)
   return renderEmail({
     locale: lang,
@@ -644,7 +694,7 @@ export const signupKeptAlert =
     ]
     if (reason === 'stripe_error')
       return {
-        subject: t('email.adminAlert.signupKept.stripeError.subject', { brand: brandName() }),
+        subject: t('email.adminAlert.signupKept.stripeError.subject', { brand: emailBrandName() }),
         blocks: [
           line(t('email.adminAlert.signupKept.stripeError.text')),
           ...ids,
@@ -653,7 +703,7 @@ export const signupKeptAlert =
       }
     const inStripe = reason === 'in_stripe'
     return {
-      subject: t('email.adminAlert.signupKept.subject', { brand: brandName() }),
+      subject: t('email.adminAlert.signupKept.subject', { brand: emailBrandName() }),
       blocks: [
         line(inStripe ? t('email.adminAlert.signupKept.inStripe.text') : t('email.adminAlert.signupKept.text')),
         ...ids,
@@ -670,7 +720,7 @@ export const signupCapAlert =
   locale => {
     const { t } = getT(locale)
     return {
-      subject: t('email.adminAlert.signupCap.subject', { brand: brandName() }),
+      subject: t('email.adminAlert.signupCap.subject', { brand: emailBrandName() }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.signupCap.text', { cap }) },
         { kind: 'text', text: t('email.adminAlert.signupCap.check') },

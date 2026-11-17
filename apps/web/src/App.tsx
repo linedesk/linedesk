@@ -39,7 +39,7 @@ import { isSignupPath } from './signup.ts'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { setProviderAudience } from './providerAudience.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
-import { brandName } from './brand.ts'
+import { brandName, loadBrand } from './brand.ts'
 import { useMemberLocale } from './i18n/user.ts'
 import { useT } from '@linedesk/i18n/react'
 import { isPartnerHash, partnerInviteToken } from './partner/partner-api.ts'
@@ -278,6 +278,18 @@ export function App() {
       window.removeEventListener('online', now)
     }
   }, [waiting, showAnswer])
+
+  // The brand follows the open workspace: a white-label partner's client sees the partner's (brand.ts), and signing
+  // out or switching to a workspace of no partner brings the install's back.
+  const brandScope =
+    session.state === 'ready'
+      ? `ws:${session.me.workspace?.id ?? ''}`
+      : session.state === 'loading'
+        ? null
+        : session.state
+  useEffect(() => {
+    if (brandScope) void loadBrand()
+  }, [brandScope])
 
   // The member's language (Account › Preferences); everything below re-renders when the active one changes.
   useMemberLocale(session.state === 'ready' || session.state === 'needsWorkspace' ? session.me : null)

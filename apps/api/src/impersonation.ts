@@ -8,11 +8,13 @@ import { and, asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
+import { withEmailBrand } from './email-brand.ts'
 import { localeForUserId } from './email-locale.ts'
 import { impersonationStartedEmail } from './emails/templates.ts'
 import { EMAILS_SETTING, emailConnected, impersonationEmailsOn, impersonationNoticesGoOut } from './impersonation-emails.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { emailBrandOf } from './partner-brand.ts'
 
 export const IMPERSONATION_SEC = IMPERSONATION_MINUTES * 60
 
@@ -61,12 +63,18 @@ export const impersonationHandlers: Record<string, Handler> = {
     if (notified) {
       const [admin] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actor.actorId))
       const locale = await localeForUserId(tx, target.id)
-      const email = impersonationStartedEmail(
-        { admin: { name: admin?.name ?? '', email: admin?.email ?? '' }, reason: input.reason, at: now, workspace: first?.name ?? null, minutes: IMPERSONATION_MINUTES },
-        undefined,
-        locale,
+      // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
+      const brand = first?.workspaceId ? await emailBrandOf(first.workspaceId, tx).catch(() => null) : null
+      onCommit?.(async () =>
+        withEmailBrand(brand, () => {
+          const email = impersonationStartedEmail(
+            { admin: { name: admin?.name ?? '', email: admin?.email ?? '' }, reason: input.reason, at: now, workspace: first?.name ?? null, minutes: IMPERSONATION_MINUTES },
+            undefined,
+            locale,
+          )
+          sendNotice({ to: target.email, ...email }, 'impersonation email')
+        }),
       )
-      onCommit?.(async () => sendNotice({ to: target.email, ...email }, 'impersonation email'))
     }
     const data: UserImpersonateData = {
       sessionId: created.id,

@@ -11,6 +11,8 @@ import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
+import { PartnerBrands } from './PartnerBrands.tsx'
+import { ProtectedNames } from './ProtectedNames.tsx'
 import { day, EMPTY } from './parts.tsx'
 
 const PARTNERS = 'admin.partners'
@@ -225,6 +227,8 @@ export function Partners({ notify }: { notify: Notify }) {
           </Button>
         </form>
       </Card>
+      <PartnerBrands notify={notify} />
+      <ProtectedNames notify={notify} />
     </>
   )
 }

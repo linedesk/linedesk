@@ -38,6 +38,7 @@ import { invitedByPartnerTeam } from './partner-invited.ts'
 import { revokeMemberSetupKeys, revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
+import { emailBrandOf, withWorkspaceBrand } from './partner-brand.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
@@ -128,11 +129,19 @@ export async function sendInvitation(
     url: invitationLink(invite.id),
     days: INVITATION_DAYS,
   }
-  const email = addedAs
-    ? addedToWorkspaceEmail({ ...content, role: addedAs }, undefined, locale)
-    : invitationEmail(content, undefined, locale)
   try {
-    await emailSender.send({ to: invite.email, ...email })
+    // With the workspace's brand: a white-label partner's client is invited under the partner's name (partner-brand.ts).
+    await withWorkspaceBrand(
+      invite.organizationId,
+      () =>
+        emailSender.send({
+          to: invite.email,
+          ...(addedAs
+            ? addedToWorkspaceEmail({ ...content, role: addedAs }, undefined, locale)
+            : invitationEmail(content, undefined, locale)),
+        }),
+      tx,
+    )
   } catch (err) {
     console.error('invitation email failed', err)
     throw new Reject('could not send the invitation email; try again in a moment')
@@ -205,18 +214,22 @@ export async function queueRemovedEmail(
     .select({ timezone: workspace_settings.timezone })
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, workspaceId))
-  await queueWorkspaceDeletedEmails(tx, [
-    {
-      to,
-      workspace: emailSafeName(ws?.name, '') || null,
-      by: by.name,
-      byRole: by.role,
-      at: now,
-      timeZone: settings?.timezone ?? null,
-      accountDeleted: true,
-      removed: true,
-    },
-  ])
+  await queueWorkspaceDeletedEmails(
+    tx,
+    [
+      {
+        to,
+        workspace: emailSafeName(ws?.name, '') || null,
+        by: by.name,
+        byRole: by.role,
+        at: now,
+        timeZone: settings?.timezone ?? null,
+        accountDeleted: true,
+        removed: true,
+      },
+    ],
+    await emailBrandOf(workspaceId, tx),
+  )
 }
 
 /**

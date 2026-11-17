@@ -49,6 +49,7 @@ import {
 } from './emails/templates.ts'
 import { forwardingVerifiedFor } from './go-live-checklist.ts'
 import type { Handler } from './handler-context.ts'
+import { withWorkspaceBrand } from './partner-brand.ts'
 import { HANDLED } from './setup-events.ts'
 import { setupUnsubscribeUrl, unsubscribeHeaders } from './setup-unsubscribe.ts'
 
@@ -239,7 +240,19 @@ const errorKind = (e: unknown) =>
 /** One setup email for one recipient: their unsubscribe link and their language. */
 type Render = (unsubscribeUrl: string | null, locale: UiLocale) => RenderedEmail
 
-async function sendAll(
+/** Every recipient's email, with the workspace's brand (a white-label partner's for its client, partner-brand.ts). */
+function sendAll(
+  tx: Tx,
+  sender: EmailSender,
+  to: { email: string; userId: string }[],
+  render: Render,
+  workspaceId: string,
+  locales: Map<string, UiLocale>,
+) {
+  return withWorkspaceBrand(workspaceId, () => sendEach(sender, to, render, workspaceId, locales), tx)
+}
+
+async function sendEach(
   sender: EmailSender,
   to: { email: string; userId: string }[],
   render: Render,
@@ -314,7 +327,7 @@ export async function sendSetupEmailFor(
     tx,
     recipients.map(r => r.userId),
   )
-  const result = await sendAll(sender, recipients, email, workspaceId, locales)
+  const result = await sendAll(tx, sender, recipients, email, workspaceId, locales)
   if (result.failed && !result.sent)
     await tx.delete(setup_emails).where(and(eq(setup_emails.workspace_id, workspaceId), eq(setup_emails.kind, kind)))
   return { kind, ...result }

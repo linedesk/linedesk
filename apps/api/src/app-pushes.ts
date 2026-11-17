@@ -31,13 +31,14 @@ import {
 } from '@linedesk/db'
 import { and, desc, eq, gt, inArray, lt, ne, or, sql } from 'drizzle-orm'
 import { type AppServices, appAccess, appServicesOf, errorMessage, lockConnection } from './app-connections.ts'
-import { WEB_ORIGIN } from './auth.ts'
 import { db } from './db.ts'
+import { withEmailBrand } from './email-brand.ts'
 import { appPushText } from './emails/app-push-text.ts'
 import type { Handler } from './handler-context.ts'
 import { Reject } from './handler-context.ts'
 import { sendsCall } from './integrations.ts'
 import { queueAppPush } from './jobs.ts'
+import { appOrigin, emailBrandOf } from './partner-brand.ts'
 import { callerContact, iso } from './webhooks.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 
@@ -101,7 +102,12 @@ async function finishedCall(
   const callerNumber = (call.direction === 'in' ? call.from_number : call.to_number) ?? ''
   const businessNumber = (call.direction === 'in' ? call.to_number : call.from_number) ?? null
   const { resolvedLanguage } = await workspaceLocale(tx, connection.workspace_id)
-  const text = appPushText(resolvedLanguage, contact?.name || callerNumber, call.started_at)
+  // With the workspace's brand ("Open in <partner product>" for a white-label partner's client, partner-brand.ts).
+  const brand = await emailBrandOf(connection.workspace_id, tx).catch(() => null)
+  const text = withEmailBrand(brand, () =>
+    appPushText(resolvedLanguage, contact?.name || callerNumber, call.started_at),
+  )
+  const origin = await appOrigin(connection.workspace_id, tx)
   const durationSec =
     call.duration_sec ??
     (call.ended_at ? Math.max(0, Math.round((Date.parse(call.ended_at) - Date.parse(call.started_at)) / 1000)) : 0)
@@ -115,7 +121,7 @@ async function finishedCall(
     title: call.title?.trim() || text.fallbackTitle,
     summary: call.summary ?? '',
     nextSteps: (call.action_items ?? []).map(item => item.text),
-    callUrl: new URL(`/#call/${call.id}`, WEB_ORIGIN).toString(),
+    callUrl: new URL(`/#call/${call.id}`, origin).toString(),
     caller: {
       name: contact?.name ?? null,
       email: contact?.email ?? null,

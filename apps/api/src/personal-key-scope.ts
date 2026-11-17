@@ -86,6 +86,8 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['partnerMember.remove', BROWSER],
   ['partnerInvitation.view', BROWSER],
   ['partnerInvitation.accept', BROWSER],
+  ['partnerBrand.get', BROWSER],
+  ['partnerBrand.set', BROWSER],
   ['workspace.createForClient', BROWSER],
   ['workspace.inviteClientOwner', BROWSER],
   ['partner.releaseClient', BROWSER],

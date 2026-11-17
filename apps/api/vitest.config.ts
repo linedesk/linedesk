@@ -57,6 +57,8 @@ const INSTANCE_WIDE_FILES = [
   'test/mcp-oauth.test.ts',
   // Every action and key read route for each role, a server admin among them (LIN-339).
   'test/every-action.test.ts',
+  // Makes an instance admin, switches billing on and sets the protected names (instance_settings).
+  'test/partner-brand.test.ts',
   'test/workspace-create-cli.test.ts',
   'test/install-setup.test.ts',
   'test/provider-health-check.test.ts',

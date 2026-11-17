@@ -27,8 +27,9 @@ import { ClientTable } from './ClientTable.tsx'
 import { InvitedPicker } from './InvitedPicker.tsx'
 import { loadClients, loadPartner, PARTNER_CLIENTS_QUERY, PARTNER_QUERY, partnerErrorText } from './partner-api.ts'
 import '../admin/admin.css'
+import { PartnerBrand } from './PartnerBrand.tsx'
 
-type Section = 'clients' | 'team' | 'billing'
+type Section = 'clients' | 'team' | 'brand' | 'billing'
 
 /** Bill states in which client workspaces can be added (the plan runs: trial, paid, or comped). */
 const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
@@ -63,6 +64,7 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
   const sections: PageSection<Section>[] = [
     { id: 'clients', label: t('team.partner.clients.title') },
     { id: 'team', label: t('team.partner.team.title') },
+    { id: 'brand', label: t('team.partner.brand.title') },
     ...(billMine ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
   ]
   const current = useSection('partner', sections)
@@ -120,6 +122,8 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
             {data &&
               (current === 'billing' && billMine ? (
                 <Billing toast={text => toaster.show(text)} partnerId={data.partner.id} />
+              ) : current === 'brand' ? (
+                <PartnerBrand partnerId={data.partner.id} partnerName={data.partner.name} />
               ) : current === 'team' ? (
                 <Team data={data} frozen={status === 'suspended'} />
               ) : (

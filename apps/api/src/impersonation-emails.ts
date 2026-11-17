@@ -3,8 +3,10 @@
 import { instance_settings, organization, type Tx, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { emailSender, sendNotice } from './email.ts'
+import { withEmailBrand } from './email-brand.ts'
 import { localeForUserId } from './email-locale.ts'
 import { impersonationApiKeyEmail } from './emails/templates.ts'
+import { emailBrandOf } from './partner-brand.ts'
 
 export const EMAILS_SETTING = 'impersonation_emails'
 
@@ -37,18 +39,24 @@ export async function queueApiKeyNotice(
   const [admin] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, notice.adminId))
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, notice.workspaceId))
   const locale = await localeForUserId(tx, notice.userId)
-  const email = impersonationApiKeyEmail(
-    {
-      admin: { name: admin?.name ?? '', email: admin?.email ?? '' },
-      keyName: notice.keyName,
-      prefix: notice.prefix,
-      role: notice.role,
-      at: notice.at,
-      workspace: ws?.name ?? null,
-    },
-    undefined,
-    locale,
+  // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
+  const brand = await emailBrandOf(notice.workspaceId, tx).catch(() => null)
+  onCommit(async () =>
+    withEmailBrand(brand, () => {
+      const email = impersonationApiKeyEmail(
+        {
+          admin: { name: admin?.name ?? '', email: admin?.email ?? '' },
+          keyName: notice.keyName,
+          prefix: notice.prefix,
+          role: notice.role,
+          at: notice.at,
+          workspace: ws?.name ?? null,
+        },
+        undefined,
+        locale,
+      )
+      sendNotice({ to: target.email, ...email }, 'impersonation API key email')
+    }),
   )
-  onCommit(async () => sendNotice({ to: target.email, ...email }, 'impersonation API key email'))
   return true
 }

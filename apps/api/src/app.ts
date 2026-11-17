@@ -63,6 +63,7 @@ import {
   accessLost,
   accountRefusal,
   clientOutdated,
+  resolveActor,
   resolveCaller,
   tooManyInvalidAgentTokens,
   WORKSPACE_HEADER,
@@ -91,6 +92,7 @@ import { voiceReady } from './provider-settings.ts'
 import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from './recording-route.ts'
 import { previewLanguage, servePreview } from './voices.ts'
 import { runAction, runnableBy } from './run-action.ts'
+import { brandingForActor, partnerLogoFor } from './partner-brand.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
 /** Electric refuses shape requests without it (docker-compose.yml); only the API has it. */
@@ -157,10 +159,16 @@ app.get('/v1/health', c => {
   return c.json(body, status)
 })
 
-// Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in.
-app.get('/v1/branding', c => {
-  c.header('cache-control', 'no-cache')
-  return c.json(currentBranding())
+// Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in. A
+// signed-in session whose active workspace is a white-label partner's client gets the partner's brand instead
+// (partner-brand.ts, S4); the web app asks again after switching workspace. Only the session cookie counts here, never
+// an API key, so nothing about keys is learnt or counted on this public route.
+app.get('/v1/branding', async c => {
+  c.header('cache-control', 'private, no-cache')
+  c.header('vary', 'cookie')
+  const session = c.req.header('cookie') && !c.req.header('authorization')
+  const actor = session ? await resolveActor(c.req.raw.headers, clientIpOf(c)).catch(() => null) : null
+  return c.json((await brandingForActor(actor).catch(() => null)) ?? currentBranding())
 })
 app.get('/v1/branding/manifest.webmanifest', c => {
   c.header('cache-control', 'no-cache')
@@ -174,6 +182,23 @@ app.get('/v1/branding/logo.png', async c => {
   c.header('content-type', 'image/png')
   c.header('cache-control', 'public, max-age=31536000, immutable')
   return c.body(new Uint8Array(logo))
+})
+
+// A white-label partner's logo (partner-brand.ts). A PNG checked like the install's (decodeLogo), never anything a
+// browser would run. The approved one is public, its address changes with every new logo; a draft only for the
+// partner's team and the instance admins, never cached.
+app.get('/v1/branding/partners/:partnerId/logo.png', async c => {
+  const found = await partnerLogoFor(c.req.param('partnerId'), c.req.query('v'), async () =>
+    c.req.header('cookie')
+      ? ((await auth.api.getSession({ headers: c.req.raw.headers }))?.user.id ?? null)
+      : null,
+  )
+  if (!found) return c.json({ ok: false, error: 'no logo' }, 404)
+  c.header('content-type', 'image/png')
+  c.header('x-content-type-options', 'nosniff')
+  c.header('content-security-policy', "default-src 'none'")
+  c.header('cache-control', found.approved ? 'public, max-age=31536000, immutable' : 'private, no-store')
+  return c.body(new Uint8Array(found.logo))
 })
 
 // Public, only while nobody has an account: the setup code from the server log makes the first admin (setup.ts).

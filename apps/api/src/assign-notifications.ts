@@ -17,6 +17,7 @@ import { getT, localeForUser } from '@linedesk/i18n/server'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
 import { assignedCallEmail, emailSafeName } from './emails/templates.ts'
+import { withWorkspaceBrand } from './partner-brand.ts'
 import { notifyAssignedPush, type PushResult, type PushSender } from './push.ts'
 
 export type AssignNotifyResult = {
@@ -78,6 +79,16 @@ export async function notifyAssigned(
 ): Promise<AssignNotifyResult> {
   const standing = await standingAssignment(tx, eventId)
   if (!standing) return { email: null, push: null, skipped: 'changed' }
+  // With the workspace's brand: a white-label partner's client hears from the partner (partner-brand.ts).
+  return withWorkspaceBrand(standing.call.workspace_id, () => notifyStanding(tx, emails, pushes, standing), tx)
+}
+
+async function notifyStanding(
+  tx: Tx,
+  emails: EmailSender,
+  pushes: PushSender,
+  standing: NonNullable<Awaited<ReturnType<typeof standingAssignment>>>,
+): Promise<AssignNotifyResult> {
   const { event, call, assigneeId } = standing
   if (event.actor_id === assigneeId) return { email: null, push: null, skipped: 'self' }
   const assignee = await assigneeOf(tx, call.workspace_id, assigneeId)

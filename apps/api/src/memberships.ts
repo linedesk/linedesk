@@ -41,6 +41,7 @@ import {
 } from './team.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
 import { localeForEmail, localeForUserId } from './email-locale.ts'
+import { withWorkspaceBrand } from './partner-brand.ts'
 
 const DAY_MS = 86_400_000
 const newMemberId = () => crypto.randomUUID().replaceAll('-', '')
@@ -372,6 +373,18 @@ async function sendNotice(to: string, email: { subject: string; html: string; te
  * after-commit hook, and a notice about a change that then rolls back is harmless.
  */
 export async function noticeAddedByAdmin(
+  tx: Tx,
+  actor: Actor,
+  person: { email: string; name?: string | null },
+  workspace: { id: string; name: string },
+  role: string,
+  how: 'added' | 'invited',
+) {
+  // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
+  await withWorkspaceBrand(workspace.id, () => sendAddedNotices(tx, actor, person, workspace, role, how), tx)
+}
+
+async function sendAddedNotices(
   tx: Tx,
   actor: Actor,
   person: { email: string; name?: string | null },

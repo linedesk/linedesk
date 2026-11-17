@@ -10,6 +10,7 @@ import { adminSecondFactorRequired, localOnlyInstall } from './admin-second-fact
 import { signInMethod } from './audit.ts'
 import { db } from './db.ts'
 import { type EmailSender, emailSender, sendNotice } from './email.ts'
+import { withoutEmailBrand } from './email-brand.ts'
 import { localeForEmail } from './email-locale.ts'
 import { type AdminAlertText, adminAlertEmail, adminSignInAlert, type BrowserGuess } from './emails/alerts.ts'
 import { instanceAdminEmails, isInstanceAdmin } from './instance-admin.ts'
@@ -21,11 +22,16 @@ import { takeSetupSignIn } from './setup.ts'
  * (a job, so its retries can help): then it resolves once every email went out and throws when one did not. Without
  * email set up: skipped with one log line (no stack, nothing to retry).
  */
-export async function alertInstanceAdmins(
+export function alertInstanceAdmins(
   alert: AdminAlertText,
   sender: EmailSender = emailSender,
-  { wait = false }: { wait?: boolean } = {},
-) {
+  options: { wait?: boolean } = {},
+): Promise<void> {
+  // The install's alert to its own admins: never in a partner's brand, wherever it was started (email-brand.ts).
+  return withoutEmailBrand(() => sendAlert(alert, sender, options))
+}
+
+async function sendAlert(alert: AdminAlertText, sender: EmailSender, { wait = false }: { wait?: boolean }) {
   if (sender.kind === 'none') {
     console.log(`Admin alert not sent (email is not set up): ${alert(SOURCE).subject}`)
     return

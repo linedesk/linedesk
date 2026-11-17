@@ -2,12 +2,13 @@
 // them into an HTML part and a plain-text part that say the same thing. Templates never write HTML,
 // so every string they pass is escaped here. Table-based with inline styles for Outlook and Gmail,
 // a <style> block only for dark mode and narrow screens. No fonts or tracking: the Linedesk mark is
-// drawn with table cells; the only image is a logo a server admin set (branding.ts). With the install's
-// own name or logo, the footer ends in a quiet "Powered by Linedesk" unless the admin hid it.
+// drawn with table cells; the only image is a logo a server admin set (branding.ts), or a white-label partner's
+// (email-brand.ts: a client workspace's emails carry its partner's brand). With the install's own name or logo, the
+// footer ends in a quiet "Powered by Linedesk" unless the admin hid it; never with a partner's brand.
 
 import { DEFAULT_PRODUCT_NAME, poweredByUrl, readableOn, showsPoweredBy } from '@linedesk/actions'
 import { getT } from '@linedesk/i18n/server'
-import { brandName, currentBranding } from '../branding.ts'
+import { emailBranding, emailBrandName } from '../email-brand.ts'
 
 export type Block =
   | { kind: 'text'; text: string; tone?: 'muted' }
@@ -108,7 +109,7 @@ function blockHtml(block: Block): string {
     case 'button': {
       const url = escapeHtml(checkedUrl(block.url))
       // The install's primary color (branding.ts) in light and dark mode; without one, ink that turns light in dark mode.
-      const { color } = currentBranding()
+      const { color } = emailBranding()
       const [fill, text, cls] = color ? [color, readableOn(color), ''] : [INK, PAPER, 'ld-btn']
       const primary = `<td class="${cls}" align="center" bgcolor="${fill}" style="border-radius:8px;background:${fill};"><a class="${cls && 'ld-btn-text'}" href="${url}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:${FONT};font-size:15px;font-weight:600;line-height:1.2;color:${text};text-decoration:none;border-radius:8px;">${escapeHtml(block.label)}</a></td>`
       const call = block.call
@@ -158,7 +159,7 @@ function headerHtml({ business, origin }: EmailContent): string {
   if (business) {
     return `<span class="ld-ink" style="font-size:16px;font-weight:600;color:${INK};">${escapeHtml(business)}</span>`
   }
-  const brand = currentBranding()
+  const brand = emailBranding()
   if (brand.logoUrl) {
     const logo = `<img src="${escapeHtml(new URL(brand.logoUrl, origin).href)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border:0;border-radius:6px;">`
     return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle">${logo}</td><td valign="middle" class="ld-ink" style="padding-left:10px;font-size:16px;font-weight:600;color:${INK};">${escapeHtml(brand.name)}</td></tr></table>`
@@ -203,7 +204,7 @@ function eyebrowHtml(content: EmailContent): string {
 }
 
 const sentByLine = ({ business, locale }: EmailContent) =>
-  business ? getT(locale).t('email.layout.sentFor', { business, brand: brandName() }) : brandName()
+  business ? getT(locale).t('email.layout.sentFor', { business, brand: emailBrandName() }) : emailBrandName()
 const poweredByWords = (locale: string) => getT(locale).t('email.layout.poweredBy', { name: DEFAULT_PRODUCT_NAME })
 
 function footerHtml(content: EmailContent): string {
@@ -211,7 +212,7 @@ function footerHtml(content: EmailContent): string {
     ? ` <a href="${escapeHtml(checkedUrl(content.settings.url))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${escapeHtml(content.settings.label)}</a>`
     : ''
   const sentBy = sentByLine(content)
-  const poweredBy = showsPoweredBy(currentBranding())
+  const poweredBy = showsPoweredBy(emailBranding())
     ? `<p style="margin:10px 0 0;">${escapeHtml(poweredByWords(content.locale)).replace(DEFAULT_PRODUCT_NAME, `<a href="${escapeHtml(poweredByUrl('email'))}" target="_blank" style="color:${MUTED};text-decoration:underline;">${DEFAULT_PRODUCT_NAME}</a>`)}</p>`
     : ''
   return `<p style="margin:0 0 6px;">${escapeHtml(content.reason)}${settings}</p><p style="margin:0;">${escapeHtml(sentBy)} &middot; ${escapeHtml(siteHost(content.origin))}</p>${poweredBy}`
@@ -281,7 +282,7 @@ function renderText(content: EmailContent): string {
     '--',
     `${content.reason}${settings}`,
     `${sentBy} · ${siteHost(content.origin)}`,
-    ...(showsPoweredBy(currentBranding()) ? [`${poweredByWords(content.locale)}: ${poweredByUrl('email')}`] : []),
+    ...(showsPoweredBy(emailBranding()) ? [`${poweredByWords(content.locale)}: ${poweredByUrl('email')}`] : []),
   ]
   return `${parts.join('\n\n')}\n`
 }

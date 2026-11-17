@@ -946,6 +946,13 @@
       "when": 1794907936283,
       "tag": "0135_partner_client_usage_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1794911083344,
+      "tag": "0136_partner_branding",
+      "breakpoints": true
     }
   ]
 }

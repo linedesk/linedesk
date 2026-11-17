@@ -2,12 +2,12 @@
 // link back to the call, the title when the call has none, and for Slack's message the caller and number labels, the
 // urgent flag and when the call was. In the workspace's language, like the summary.
 import { getT } from '@linedesk/i18n/server'
-import { brandName } from '../branding.ts'
+import { emailBrandName } from '../email-brand.ts'
 import type { EmailLocale } from './templates.ts'
 
 export function appPushText(locale: EmailLocale, caller: string, startedAt?: string | Date) {
   const { t, format } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return {
     nextSteps: t('email.appPush.nextSteps'),
     openCall: t('email.appPush.openCall', { brand }),

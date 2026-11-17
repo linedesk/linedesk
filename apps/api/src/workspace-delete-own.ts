@@ -17,6 +17,7 @@ import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
 import { seatsFollowDelete } from './partner-billing.ts'
+import { emailBrandOf } from './partner-brand.ts'
 import { deleteWorkspace, membersOnlyHere } from './workspace-delete.ts'
 
 export const ONLY_OWNER = 'Only an owner can delete this workspace.'
@@ -96,6 +97,8 @@ export async function deleteOwn(
     .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.organizationId, workspaceId), ne(member.userId, actor.actorId)))
 
+  // Read before the workspace goes: a white-label partner's client hears it under the partner's name.
+  const brand = await emailBrandOf(workspaceId, tx)
   await seatsFollowDelete(tx, onCommit, workspaceId)
   const result = await deleteWorkspace(
     tx,
@@ -119,6 +122,7 @@ export async function deleteOwn(
   await queueWorkspaceDeletedEmails(
     tx,
     others.map(o => ({ to: o.email, ...content, accountDeleted: deleted.has(o.email) })),
+    brand,
   )
 
   const [next] = ownGoes

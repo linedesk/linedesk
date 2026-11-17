@@ -1,0 +1,72 @@
+/* Server admin › Partners › Brands (PartnerBrands.tsx): each partner's brand, the change to review next to what clients see now. */
+.apb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.apb-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.apb-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.apb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.apb-versions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.apb-version {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+.apb-version-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.apb-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.apb-facts dt {
+  color: var(--ink-muted);
+}
+.apb-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+.apb-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.apb-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+.apb-link {
+  overflow-wrap: anywhere;
+}

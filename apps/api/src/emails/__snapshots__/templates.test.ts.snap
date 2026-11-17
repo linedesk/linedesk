@@ -512,6 +512,138 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "outside-confirm",
+    "Brightwater Plumbing & Heating wants to email you about calls",
+    "Brightwater Plumbing & Heating wants to email you about calls
+
+Mike Brennan from Brightwater Plumbing & Heating wants to email you about some of the phone calls their assistant answers. Each email has a summary and the full transcript of the call. Confirm to start getting them.
+
+Confirm:
+https://desk.example.com/email-recipient/confirm?t=preview
+
+The link works for 7 days. If you do not want these emails, ignore this one: nothing is sent until you confirm. Every call email has a link to stop them.
+
+--
+
+Someone at Brightwater Plumbing & Heating entered office@example.com. Don't email me again: https://desk.example.com/email-recipient/stop?t=preview
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "added-notice",
+    "You were added to Brightwater Plumbing & Heating on desk.example.com",
+    "You were added to Brightwater Plumbing & Heating
+
+Ann Lee added you to Brightwater Plumbing & Heating on desk.example.com as a member.
+
+Open Brightwater Plumbing & Heating:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+You got this email because a server admin of desk.example.com added you. If you didn't expect it, tell the workspace's owner.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "member-added-by-admin",
+    "Ann Lee added Sam Patel to Brightwater Plumbing & Heating",
+    "Team notice
+
+Sam Patel was added to Brightwater Plumbing & Heating
+
+Ann Lee added Sam Patel to Brightwater Plumbing & Heating as a member.
+
+If you didn't expect this, check the team and remove them there.
+
+Open the team:
+https://desk.example.com/#workspace/team?ws=ws_demo
+
+--
+
+You got this email because you own Brightwater Plumbing & Heating, and a server admin of desk.example.com changed its team. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "assigned-call",
+    "Mike Brennan assigned you a call: Water heater leaking in the basement",
+    "Assigned to you by Mike Brennan
+
+Water heater leaking in the basement
+
+Caller: Sarah Chen
+Number: +1 503 555 0142
+
+Sarah noticed water pooling under the water heater this morning. It is a 12-year-old 50 gallon gas tank. She turned off the cold-water supply but the floor is still wet and she is worried about the drywall.
+
+Open the call:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+--
+
+You got this email because a teammate in Brightwater Plumbing & Heating assigned you a call. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "authenticator-added",
+    "An authenticator app was added to your Linedesk account",
+    "Security notice
+
+An authenticator app was added
+
+An authenticator app was added to your Linedesk account at desk.example.com. It opens Server admin like your passkey. If this was you, there is nothing to do.
+
+If it wasn't you, ask another server admin of your Linedesk to reset your passkeys (Server admin › Users, your name, Reset passkeys): that also removes the authenticator app. Then sign in and add your own again.
+
+Review sign-in & security:
+https://desk.example.com/#account/security
+
+--
+
+You got this email because the sign-in methods of your account changed. We always send it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-partner-brand",
+    "Partner brand to review on Linedesk: Cascade IT Partners",
+    "Admin alert
+
+Partner brand to review on Linedesk: Cascade IT Partners
+
+The white-label partner Cascade IT Partners changed the brand its clients see in the app and in emails. Until a server admin approves the change, its clients and their emails keep the approved version.
+
+Product name: Cascade Desk
+Approved now: Cascade Phones
+Logo: https://desk.example.com/v1/branding/partners/ptn_demo/logo.png?v=3f9a2c1d
+Support email: help@cascade-it.example
+Terms link: https://cascade-it.example/terms
+Privacy link: https://cascade-it.example/privacy
+Color: #0f766e
+
+Check that the name, logo, support email and links are the partner's own and borrow no one else's. Server admin › Partners approves the change or removes the brand.
+
+Review the brand:
+https://desk.example.com/#admin/partners
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "welcome",
     "Your Linedesk account is ready",
     "Welcome, Sam Patel
@@ -1326,6 +1458,138 @@ El enlace funciona durante 7 días. Ingresa esta dirección en la página de ini
 --
 
 Recibes este correo porque un administrador del servidor de desk.example.com agregó esta dirección. Si no lo esperabas, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "outside-confirm",
+    "Brightwater Plumbing & Heating quiere enviarte correos sobre llamadas",
+    "Brightwater Plumbing & Heating quiere enviarte correos sobre llamadas
+
+Mike Brennan de Brightwater Plumbing & Heating quiere enviarte correos sobre algunas de las llamadas telefónicas que contesta su asistente. Cada correo incluye un resumen y la transcripción completa de la llamada. Confirma para empezar a recibirlos.
+
+Confirmar:
+https://desk.example.com/email-recipient/confirm?t=preview
+
+El enlace funciona durante 7 días. Si no quieres estos correos, ignora este: no se envía nada hasta que confirmes. Cada correo de llamada tiene un enlace para dejar de recibirlos.
+
+--
+
+Alguien de Brightwater Plumbing & Heating ingresó office@example.com. No me envíen más correos: https://desk.example.com/email-recipient/stop?t=preview
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "added-notice",
+    "Te agregaron a Brightwater Plumbing & Heating en desk.example.com",
+    "Te agregaron a Brightwater Plumbing & Heating
+
+Ann Lee te agregó a Brightwater Plumbing & Heating en desk.example.com como miembro.
+
+Abrir Brightwater Plumbing & Heating:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+Recibes este correo porque un administrador del servidor de desk.example.com te agregó. Si no lo esperabas, avísale al propietario del espacio de trabajo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "member-added-by-admin",
+    "Ann Lee agregó a Sam Patel a Brightwater Plumbing & Heating",
+    "Aviso del equipo
+
+Se agregó a Sam Patel a Brightwater Plumbing & Heating
+
+Ann Lee agregó a Sam Patel a Brightwater Plumbing & Heating como miembro.
+
+Si no lo esperabas, revisa el equipo y quita a esa persona desde allí.
+
+Abrir el equipo:
+https://desk.example.com/#workspace/team?ws=ws_demo
+
+--
+
+Recibes este correo porque eres propietario de Brightwater Plumbing & Heating y un administrador del servidor de desk.example.com cambió su equipo. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "assigned-call",
+    "Mike Brennan te asignó una llamada: Water heater leaking in the basement",
+    "Mike Brennan te la asignó
+
+Water heater leaking in the basement
+
+Quien llama: Sarah Chen
+Número: +1 503 555 0142
+
+Sarah noticed water pooling under the water heater this morning. It is a 12-year-old 50 gallon gas tank. She turned off the cold-water supply but the floor is still wet and she is worried about the drywall.
+
+Abrir la llamada:
+https://desk.example.com/#call/call_demo_01?ws=ws_demo
+
+--
+
+Recibes este correo porque un compañero de Brightwater Plumbing & Heating te asignó una llamada. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "authenticator-added",
+    "Se agregó una app de autenticación a tu cuenta de Linedesk",
+    "Aviso de seguridad
+
+Se agregó una app de autenticación
+
+Se agregó una app de autenticación a tu cuenta de Linedesk en desk.example.com. Abre Administración del servidor igual que tu llave de acceso. Si fuiste tú, no tienes que hacer nada.
+
+Si no fuiste tú, pídele a otro administrador del servidor de tu Linedesk que restablezca tus llaves de acceso (Administración del servidor › Usuarios, tu nombre, Restablecer llaves de acceso): eso también quita la app de autenticación. Luego inicia sesión y vuelve a agregar las tuyas.
+
+Revisar inicio de sesión y seguridad:
+https://desk.example.com/#account/security
+
+--
+
+Recibes este correo porque cambiaron los métodos de inicio de sesión de tu cuenta. Siempre lo enviamos.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-partner-brand",
+    "Partner brand to review on Linedesk: Cascade IT Partners",
+    "Alerta de administración
+
+Partner brand to review on Linedesk: Cascade IT Partners
+
+The white-label partner Cascade IT Partners changed the brand its clients see in the app and in emails. Until a server admin approves the change, its clients and their emails keep the approved version.
+
+Product name: Cascade Desk
+Approved now: Cascade Phones
+Logo: https://desk.example.com/v1/branding/partners/ptn_demo/logo.png?v=3f9a2c1d
+Support email: help@cascade-it.example
+Terms link: https://cascade-it.example/terms
+Privacy link: https://cascade-it.example/privacy
+Color: #0f766e
+
+Check that the name, logo, support email and links are the partner's own and borrow no one else's. Server admin › Partners approves the change or removes the brand.
+
+Review the brand:
+https://desk.example.com/#admin/partners
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
 
 Linedesk · desk.example.com
 ",

@@ -2578,3 +2578,58 @@ export const partner_invitations = pgTable(
     check('partner_invitations_role', oneOf(t.role, PARTNER_ROLES)),
   ],
 )
+
+/**
+ * A white-label partner's brand (slice S4, docs/white-label.md): what its clients see instead of the install's in the
+ * app and, once the partner is approved and its bill has a paid subscription invoice, in emails. The same shape as the
+ * install's branding (instance_settings `branding`). The logo is a PNG checked like the install's (decodeLogo), base64,
+ * served at /v1/branding/partners/<id>/logo.png?v=<logo_version>. Not synced to browsers.
+ *
+ * Two versions (security review of #1111, M-2): the partner's draft (`name` … `privacy_url`, `revision`) and the one an
+ * instance admin approved (`approved_*`, `approved_revision`). Clients and emails get only the approved one; the partner
+ * team sees its draft. A change of name, logo, support email or links makes a new revision that waits for review; the
+ * color is not reviewed and applies at once.
+ */
+export const partner_branding = pgTable(
+  'partner_branding',
+  {
+    partner_id: text('partner_id')
+      .primaryKey()
+      .references(() => partners.id, { onDelete: 'cascade' }),
+    /** The product name the partner's clients see (1 to 40 characters, brandingInput's rules, no protected name). */
+    name: text('name').notNull(),
+    /** #rrggbb, or null for the default. */
+    color: text('color'),
+    /** The PNG, base64; null without a logo. */
+    logo: text('logo'),
+    /** Changes with every new logo, so its address can be cached for good. */
+    logo_version: text('logo_version'),
+    /** Reply-To of the partner's workspace emails, and "Contact support" in the app. */
+    support_email: text('support_email'),
+    terms_url: text('terms_url'),
+    privacy_url: text('privacy_url'),
+    /** Goes up with every change of a reviewed field (name, logo, support email, links). */
+    revision: integer('revision').notNull().default(1),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+    /** The user id that saved it last; no foreign key, so the row outlives the account. */
+    updated_by: text('updated_by').notNull(),
+    /** The revision an instance admin approved, or null while none is: then clients and emails get the install's. */
+    approved_revision: integer('approved_revision'),
+    approved_name: text('approved_name'),
+    approved_logo: text('approved_logo'),
+    approved_logo_version: text('approved_logo_version'),
+    approved_support_email: text('approved_support_email'),
+    approved_terms_url: text('approved_terms_url'),
+    approved_privacy_url: text('approved_privacy_url'),
+    approved_at: ts('approved_at'),
+    /** The instance admin who approved it; no foreign key, like `updated_by`. */
+    approved_by: text('approved_by'),
+  },
+  t => [
+    check('partner_branding_color', sql`${t.color} is null or ${t.color} ~ '^#[0-9a-f]{6}$'`),
+    check(
+      'partner_branding_approved',
+      sql`(${t.approved_revision} is null) = (${t.approved_name} is null) and (${t.approved_revision} is null) = (${t.approved_at} is null)`,
+    ),
+  ],
+)

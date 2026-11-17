@@ -18,6 +18,7 @@ import { starPromptAllowed } from './branding.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, type Handler } from './handler-context.ts'
+import { hasPartner } from './partner-brand.ts'
 import { createRateLimiter } from './rate-limit.ts'
 
 /** Whether GitHub granted starring: `public_repo` or the wider `repo` (scopes are comma or space separated). */
@@ -51,6 +52,8 @@ async function onboardingDone(workspaceId: string): Promise<boolean> {
 /** For `/v1/me`: the prompt while it is due for this member, else null. */
 export async function starPromptFor(actor: Actor): Promise<StarPrompt | null> {
   if (!starPromptAllowed() || !actor.workspaceId || !answersForThemselves(actor)) return null
+  // A white-label partner's client never hears of Linedesk (docs/white-label.md, S4).
+  if (await hasPartner(actor.workspaceId)) return null
   if (await answered(actor.actorId)) return null
   if (!(await onboardingDone(actor.workspaceId))) return null
   return { repo: STAR_REPO, github: await hasGitHubSignIn(actor.actorId) }

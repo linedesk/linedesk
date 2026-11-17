@@ -50,6 +50,7 @@ import { type Handler, Reject } from './handler-context.ts'
 import { addressBucket, clientIpOf } from './client-ip.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { hasSecretsKey, signWithSecretsKey } from './secrets.ts'
+import { appOrigin, withWorkspaceBrand } from './partner-brand.ts'
 
 export const OUTSIDE_CONFIRM_PATH = '/api/email-recipients/confirm'
 export const OUTSIDE_STOP_PATH = '/api/email-recipients/stop'
@@ -153,20 +154,29 @@ async function sendConfirmation(
   const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, actorId))
   const locale = await invitationLocale(tx, row.workspace_id, actorId)
   const { t } = getT(locale)
-  const email = outsideConfirmEmail(
-    {
-      inviter: emailSafeName(inviter?.name, t('email.fallback.teammate')),
-      workspace: emailSafeName(ws?.name, t('email.fallback.team')),
-      email: row.email,
-      url: `${WEB_ORIGIN}${OUTSIDE_CONFIRM_PATH}?t=${token}`,
-      days: OUTSIDE_CONFIRM_DAYS,
-      stopUrl: outsideStopUrl(row.id),
-    },
-    undefined,
-    locale,
-  )
+  const origin = await appOrigin(row.workspace_id, tx)
   try {
-    await emailSender.send({ to: row.email, ...email })
+    // With the workspace's brand: a white-label partner's client asks under the partner's name (partner-brand.ts).
+    await withWorkspaceBrand(
+      row.workspace_id,
+      () =>
+        emailSender.send({
+          to: row.email,
+          ...outsideConfirmEmail(
+            {
+              inviter: emailSafeName(inviter?.name, t('email.fallback.teammate')),
+              workspace: emailSafeName(ws?.name, t('email.fallback.team')),
+              email: row.email,
+              url: `${origin}${OUTSIDE_CONFIRM_PATH}?t=${token}`,
+              days: OUTSIDE_CONFIRM_DAYS,
+              stopUrl: outsideStopUrl(row.id),
+            },
+            undefined,
+            locale,
+          ),
+        }),
+      tx,
+    )
   } catch (err) {
     console.error('confirmation email to an outside address failed', err instanceof Error ? err.message : err)
     throw refuse('send_failed')

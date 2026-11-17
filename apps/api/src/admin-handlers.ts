@@ -80,6 +80,7 @@ import type { AuditSubject } from './audit.ts'
 import { refuseNonStandardDefault } from './usage-levels.ts'
 import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
 import { localeForUserId } from './email-locale.ts'
+import { emailBrandOf } from './partner-brand.ts'
 
 /** A missing or wrong SECRETS_KEY is the operator's to fix: show the reason instead of a server error. */
 /** OpenAI's language model and transcription can use the OpenAI key stored for the realtime model. */
@@ -325,6 +326,8 @@ async function deleteWorkspaceAndTell(
     .select({ name: organization.name })
     .from(organization)
     .where(eq(organization.id, input.workspaceId))
+  // Read before the workspace goes: a white-label partner's client hears it under the partner's name.
+  const brand = await emailBrandOf(input.workspaceId, tx)
   const content = {
     workspace: emailSafeName(workspace?.name, '') || null,
     by: null,
@@ -339,6 +342,7 @@ async function deleteWorkspaceAndTell(
     await queueWorkspaceDeletedEmails(
       tx,
       members.map(m => ({ to: m.email, ...content, accountDeleted: deleted.has(m.email) })),
+      brand,
     )
   })
 }

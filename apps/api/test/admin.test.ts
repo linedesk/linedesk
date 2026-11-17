@@ -221,6 +221,11 @@ describe('access', () => {
       'partner.create',
       'partner.setClientLimit',
       'partner.suspend',
+      'partnerBrand.approve',
+      'partnerBrand.protectedNames',
+      'partnerBrand.reset',
+      'partnerBrand.reviews',
+      'partnerBrand.setProtectedNames',
       'provider.clearKeys',
       'provider.confirmEmail',
       'provider.connectOneKey',
@@ -2426,6 +2431,11 @@ describe('impersonation', () => {
       'partner.get',
       // Read-only and `partner`, which an impersonation never has (context.ts): aggregates of the partner's clients.
       'partner.listClients',
+      // Read-only and `partner`, as above: a partner's brand stays the partner's (partner-brand.ts).
+      'partnerBrand.get',
+      // Read-only and instance:admin, as above (Server admin › Partners › Protected names).
+      'partnerBrand.protectedNames',
+      'partnerBrand.reviews',
       // Read-only and account:own, which an impersonation never has.
       'partnerInvitation.view',
       // Read-only and account:own, which an impersonation never has; the handler refuses an impersonation as well.

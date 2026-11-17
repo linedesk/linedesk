@@ -8,7 +8,7 @@
 // workspace's language). Who gets which language: docs/translations.md, "Levels".
 import { isE164, type SetupStep, setupStepPath } from '@linedesk/actions'
 import { getT } from '@linedesk/i18n/server'
-import { brandName } from '../branding.ts'
+import { emailBrandName, emailOrigin, partnerEmailBrand } from '../email-brand.ts'
 import { type Block, defuseLinks, type EmailContent, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 
 /** The recipient's language: a UI language, or null/undefined for English. */
@@ -59,7 +59,7 @@ export const SIGN_IN_CODE_MINUTES = 10
 
 /** The muted line under every code: once, how long, and that nobody asks for it. */
 const codeNote = (locale: EmailLocale) =>
-  getT(locale).t('email.code.note', { minutes: SIGN_IN_CODE_MINUTES, brand: brandName() })
+  getT(locale).t('email.code.note', { minutes: SIGN_IN_CODE_MINUTES, brand: emailBrandName() })
 
 /**
  * The code in the subject and the body. With `link` (the code was asked for in a browser, sign-in-link.ts), a button
@@ -67,10 +67,15 @@ const codeNote = (locale: EmailLocale) =>
  * site the email names, which asks to Continue and works only in the browser that asked for the code: a copied or
  * phished link signs nobody in.
  */
-export function signInCodeEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale, link?: string): RenderedEmail {
+export function signInCodeEmail(
+  code: string,
+  origin = emailOrigin(),
+  locale?: EmailLocale,
+  link?: string,
+): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   const blocks: Block[] = link
     ? [
         { kind: 'text', text: t('email.signInCode.linkText', { brand, site }) },
@@ -98,11 +103,11 @@ export function signInCodeEmail(code: string, origin = WEB_ORIGIN, locale?: Emai
 export function confirmationCodeEmail(
   code: string,
   site: string,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.confirmationCode.subject', { code, brand }),
@@ -122,10 +127,10 @@ export function confirmationCodeEmail(
  * The code that sets a new password ("Forgot password?" on the sign-in page). Like the sign-in code:
  * the code in the subject and the body, and no link.
  */
-export function passwordResetCodeEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function passwordResetCodeEmail(code: string, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.passwordReset.subject', { code, brand }),
@@ -146,11 +151,11 @@ export type InvitationEmail = { inviter: string; workspace: string; email: strin
 /** `inviter` and `workspace` are already email-safe (emailSafeName). */
 export function invitationEmail(
   { inviter, workspace, email, url, days }: InvitationEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   const site = siteHost(origin)
   return renderEmail({
     locale: lang,
@@ -184,11 +189,11 @@ export type PartnerInvitationEmail = {
  */
 export function partnerInvitationEmail(
   { inviter, partner, email, url, days, role }: PartnerInvitationEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   const site = siteHost(origin)
   return renderEmail({
     locale: lang,
@@ -229,7 +234,7 @@ export type OutsideConfirmEmail = {
  */
 export function outsideConfirmEmail(
   { inviter, workspace, email, url, days, stopUrl }: OutsideConfirmEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
@@ -260,7 +265,7 @@ const roleInSentence = (role: string, locale: EmailLocale) =>
  */
 export function addedToWorkspaceEmail(
   { inviter, workspace, email, url, days, role }: InvitationEmail & { role: string },
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
@@ -288,7 +293,7 @@ export function addedToWorkspaceEmail(
  */
 export function addedNoticeEmail(
   { admin, workspace, workspaceId, role }: { admin: string; workspace: string; workspaceId: string; role: string },
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
@@ -326,7 +331,7 @@ export function memberAddedByAdminEmail(
     role,
     pending,
   }: { admin: string; who: string; workspace: string; workspaceId: string; role: string; pending: boolean },
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
@@ -393,13 +398,13 @@ export type WorkspaceDeletedEmail = {
 
 export function workspaceDeletedEmail(
   content: WorkspaceDeletedEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { accountDeleted, removed = false } = content
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   const workspace = content.workspace || t('email.fallback.yourWorkspace')
   const by =
     content.by ||
@@ -451,12 +456,12 @@ export function workspaceDeletedEmail(
 /** No code in it: codes expire in 10 minutes, a welcome may be read later. The sign-in page sends one. */
 export function welcomeEmail(
   { name, email }: { name: string | null; email: string },
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.welcome.subject', { brand }),
@@ -477,11 +482,11 @@ export function welcomeEmail(
 
 export function passkeyChangedEmail(
   change: 'added' | 'removed',
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.passkeyChanged.subject', { change, brand }),
@@ -505,11 +510,11 @@ export function passkeyChangedEmail(
 export function personalKeyCreatedEmail(
   name: string,
   prefix: string,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.personalKeyCreated.subject', { brand }),
@@ -532,11 +537,11 @@ export function personalKeyCreatedEmail(
 /** An instance admin's authenticator app was added or removed (authenticator.ts). */
 export function authenticatorChangedEmail(
   change: 'added' | 'removed',
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.authenticatorChanged.subject', { change, brand }),
@@ -557,9 +562,9 @@ export function authenticatorChangedEmail(
 }
 
 /** After a password reset by emailed code: every session of the account was ended. */
-export function passwordChangedEmail(origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function passwordChangedEmail(origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.passwordChanged.subject', { brand }),
@@ -583,10 +588,10 @@ export function passwordChangedEmail(origin = WEB_ORIGIN, locale?: EmailLocale):
  * The code that moves an account to a new address (Account settings › Profile › Change), sent to the
  * new address: proving it is the change. Like the other codes: in the subject and the body, no link.
  */
-export function emailChangeCodeEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function emailChangeCodeEmail(code: string, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.emailChangeCode.subject', { code, brand }),
@@ -607,10 +612,14 @@ export function emailChangeCodeEmail(code: string, origin = WEB_ORIGIN, locale?:
  * current address proves the person asking still has it, so a stolen password alone can't move the
  * account. No link, as the other codes.
  */
-export function emailChangeConfirmCurrentEmail(code: string, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function emailChangeConfirmCurrentEmail(
+  code: string,
+  origin = emailOrigin(),
+  locale?: EmailLocale,
+): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.emailChangeConfirm.subject', { code, brand }),
@@ -630,10 +639,10 @@ export function emailChangeConfirmCurrentEmail(code: string, origin = WEB_ORIGIN
  * Sent instead of the code when the new address already has an account (or is reserved for a
  * server admin): only the mailbox's owner learns that it cannot be used, never the person asking.
  */
-export function emailChangeRefusedEmail(origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function emailChangeRefusedEmail(origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.emailChangeRefused.subject', { brand }),
@@ -649,10 +658,10 @@ export function emailChangeRefusedEmail(origin = WEB_ORIGIN, locale?: EmailLocal
 }
 
 /** To the old address once an account moved to a new one: the only place the real owner can still be told. */
-export function emailChangedEmail(newEmail: string, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function emailChangedEmail(newEmail: string, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
-  const brand = brandName()
+  const brand = emailBrandName()
   const shown = defuseLinks(newEmail)
   return renderEmail({
     locale: lang,
@@ -673,9 +682,9 @@ export function emailChangedEmail(newEmail: string, origin = WEB_ORIGIN, locale?
 }
 
 /** When a server admin resets someone's passkeys (also with none to remove, for a server admin). */
-export function passkeysResetEmail(removed: number, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function passkeysResetEmail(removed: number, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   const kind = removed > 0 ? 'removed' : 'issued'
   return renderEmail({
     locale: lang,
@@ -700,11 +709,11 @@ export function passkeysResetEmail(removed: number, origin = WEB_ORIGIN, locale?
  */
 export function passkeyEnrolmentIssuedEmail(
   issuedBy: string,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   return renderEmail({
     locale: lang,
     subject: t('email.passkeysReset.subject', { kind: 'issued', brand }),
@@ -740,11 +749,11 @@ export type ImpersonationStartedEmail = {
  */
 export function impersonationStartedEmail(
   { admin, reason, at, workspace, minutes }: ImpersonationStartedEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang, format } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   const site = siteHost(origin)
   const by = emailSafeName(admin.name, defuseLinks(admin.email))
   const when = `${format.dateTime(new Date(at), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`
@@ -800,11 +809,11 @@ export type ImpersonationApiKeyEmail = {
  */
 export function impersonationApiKeyEmail(
   { admin, keyName, prefix, role, at, workspace }: ImpersonationApiKeyEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang, format } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   const site = siteHost(origin)
   const by = emailSafeName(admin.name, defuseLinks(admin.email))
   const when = `${format.dateTime(new Date(at), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`
@@ -903,7 +912,7 @@ export type OutsideCallEmail = { stopUrl: string }
 /** One finished call: what it was about, who called, the summary, next steps, the booking and a link. */
 export const callEmail = (
   call: CallEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
   outside?: OutsideCallEmail,
 ): RenderedEmail => renderEmail(callContent(call, origin, locale, outside))
@@ -980,8 +989,8 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale, outsi
       kind: 'text',
       tone: 'muted',
       text: transcript.lines.length
-        ? t('email.call.recordingOnly', { brand: brandName() })
-        : t('email.call.recording', { brand: brandName() }),
+        ? t('email.call.recordingOnly', { brand: emailBrandName() })
+        : t('email.call.recording', { brand: emailBrandName() }),
     })
   const from = callerName ?? number
   return {
@@ -1020,7 +1029,7 @@ export type AssignedCallEmail = {
 }
 
 /** A teammate assigned the recipient a call: who did, the caller, the summary and a link. */
-export function assignedCallEmail(a: AssignedCallEmail, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function assignedCallEmail(a: AssignedCallEmail, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const number = formatNumber(a.fromNumber)
   const callerName = a.callerName ? defuseLinks(a.callerName) : null
@@ -1065,7 +1074,7 @@ export type BookingConfirmation = {
  */
 export function bookingConfirmationEmail(
   b: BookingConfirmation,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
@@ -1151,7 +1160,7 @@ const setupFooter = (
 /** The one next step, plain. */
 function nextStep({ assistantName: assistant, number, takesAllCalls, step }: SetupEmail, locale: EmailLocale): string {
   const { t } = getT(locale)
-  const brand = brandName()
+  const brand = emailBrandName()
   if (step === 'number') return t('email.setup.stepNumber', { assistant, brand })
   // Calls from the business's own phones are the owner trying it out and never count as real calls.
   // A teammate whose phone takes transferred calls counts as the business's own too, so: a friend's.
@@ -1166,7 +1175,7 @@ function nextStep({ assistantName: assistant, number, takesAllCalls, step }: Set
 /** A few hours after the owner joined, while no real call has reached the assistant yet: what is left. */
 export function setupDay0Email(
   s: SetupEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   unsubscribeUrl?: string | null,
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -1193,7 +1202,7 @@ export function setupDay0Email(
 export function setupNudgeEmail(
   day: 1 | 3,
   s: SetupEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   unsubscribeUrl?: string | null,
   partnerDirectory: string | null = PARTNER_DIRECTORY_URL,
   locale?: EmailLocale,
@@ -1204,9 +1213,10 @@ export function setupNudgeEmail(
     { kind: 'text', text: nextStep(s, locale) },
     setupButton(s, origin, locale),
   ]
-  if (day === 3 && partnerDirectory) {
+  // A white-label partner's client already has its partner: no directory of other partners (S4).
+  if (day === 3 && partnerDirectory && !partnerEmailBrand()) {
     blocks.push(
-      { kind: 'text', text: t('email.setup.partner', { brand: brandName(), workspace: s.workspace }) },
+      { kind: 'text', text: t('email.setup.partner', { brand: emailBrandName(), workspace: s.workspace }) },
       { kind: 'button', label: t('email.setup.findPartner'), url: partnerDirectory },
     )
   }
@@ -1225,7 +1235,7 @@ export function setupNudgeEmail(
 }
 
 /** The first real call: the call email, as a moment. Sent instead of the usual one to members who get call emails. */
-export function firstCallEmail(call: CallEmail, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
+export function firstCallEmail(call: CallEmail, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
   const { t } = getT(locale)
   const content = callContent(call, origin, locale)
   const callerName = call.callerName ? defuseLinks(call.callerName) : null
@@ -1263,7 +1273,7 @@ export type WeekSummaryEmail = {
 /** A week after the owner joined, for a business that is live: what its assistant did. */
 export function weekSummaryEmail(
   w: WeekSummaryEmail,
-  origin = WEB_ORIGIN,
+  origin = emailOrigin(),
   unsubscribeUrl?: string | null,
   locale?: EmailLocale,
 ): RenderedEmail {

@@ -270,6 +270,13 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partner.approve',
     'partner.suspend',
     'partner.setClientLimit',
+    // Server admin › Partners › Protected names (docs/white-label.md, S4).
+    'partnerBrand.protectedNames',
+    'partnerBrand.setProtectedNames',
+    // Server admin › Partners › Brands: a partner's brand reaches clients and emails once approved (security review of #1111, M-2).
+    'partnerBrand.reviews',
+    'partnerBrand.approve',
+    'partnerBrand.reset',
   ],
   owner: [
     'workspace.deleteOwn',
@@ -330,6 +337,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partner.listClients',
     'partner.setClientUsageLimit',
     'partner.setClientAllow',
+    // Partner › Brand (S4): read by the team, changed by the owner only (the handler checks).
+    'partnerBrand.get',
+    'partnerBrand.set',
   ],
 }
 

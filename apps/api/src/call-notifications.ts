@@ -32,6 +32,7 @@ import { workspaceLocale } from './workspace-locale.ts'
 import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
 import { SOURCE, type UiLocale } from '@linedesk/i18n'
 import { getT, localeForUser } from '@linedesk/i18n/server'
+import { withWorkspaceBrand } from './partner-brand.ts'
 
 export { formatNumber } from './emails/templates.ts'
 
@@ -94,13 +95,21 @@ async function recipientsOf(tx: Tx, workspaceId: string, route: EmailRoute, fall
 
 export type NotifyResult = { sent: number; failed: number; skipped?: 'missing' | 'test' | 'spam' | 'unfinished' }
 
-/** Sends the emails for one finished call. A failed address does not stop the others. */
+/**
+ * Sends the emails for one finished call. A failed address does not stop the others. With the workspace's brand: a
+ * white-label partner's client gets them under the partner's name (partner-brand.ts).
+ */
 export async function notifyCallFinished(
   tx: Tx,
   sender: EmailSender,
   callId: string,
   deps: NotifyDeps = {},
 ): Promise<NotifyResult> {
+  const [found] = await tx.select({ workspaceId: calls.workspace_id }).from(calls).where(eq(calls.id, callId))
+  return withWorkspaceBrand(found?.workspaceId, () => sendCallEmails(tx, sender, callId, deps), tx)
+}
+
+async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps: NotifyDeps): Promise<NotifyResult> {
   const [call] = await tx.select().from(calls).where(eq(calls.id, callId))
   if (!call || call.deleted_at) return { sent: 0, failed: 0, skipped: 'missing' }
   if (call.status !== 'completed') return { sent: 0, failed: 0, skipped: 'unfinished' }

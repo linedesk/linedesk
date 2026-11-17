@@ -2,7 +2,7 @@
 // message is printed to the server log instead (development); otherwise nothing can be sent. A change applies at once.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
-import { brandName } from './branding.ts'
+import { emailBrandName, emailReplyTo, partnerEmailBrand } from './email-brand.ts'
 
 export interface Email {
   to: string
@@ -12,6 +12,8 @@ export interface Email {
   html?: string
   /** Extra headers, e.g. List-Unsubscribe on setup emails. */
   headers?: Record<string, string>
+  /** Where replies go; left out: the brand's (a partner's support email inside withEmailBrand), else none. */
+  replyTo?: string
 }
 export interface EmailSender {
   kind: 'smtp' | 'log' | 'none'
@@ -70,12 +72,24 @@ function sendError(e: unknown, host: string): Error {
 
 /**
  * The From line: EMAIL_FROM as set when it names a sender ("Desk <desk@example.com>"); a bare address, or none,
- * gets the install's product name (branding.ts), read at send time so a rename shows in the next email.
+ * gets the install's product name (branding.ts), read at send time so a rename shows in the next email. Inside a
+ * partner's email brand (email-brand.ts) the partner's product name replaces any name EMAIL_FROM gives: the address
+ * stays the install's until the partner has its own sender domain (S6).
  */
 export function senderLine(configured: string | undefined): string {
   const value = configured?.trim()
+  if (partnerEmailBrand()) {
+    const address = value?.match(/<([^<>]+)>\s*$/)?.[1]?.trim() || value || 'no-reply@localhost'
+    return `"${emailBrandName().replace(/["\\<>]/g, '')}" <${address}>`
+  }
   if (value?.includes('<')) return value
-  return `${brandName().replace(/["<>]/g, '')} <${value || 'no-reply@localhost'}>`
+  return `${emailBrandName().replace(/["<>]/g, '')} <${value || 'no-reply@localhost'}>`
+}
+
+/** From and Reply-To of an email sent now: the brand's (email-brand.ts) unless the email names its own Reply-To. */
+export function envelopeOf(email: Pick<Email, 'replyTo'>, configuredFrom: string | undefined) {
+  const replyTo = email.replyTo ?? emailReplyTo()
+  return { from: senderLine(configuredFrom), ...(replyTo ? { replyTo } : {}) }
 }
 
 /** How each sent or failed email ended, for the provider failure record (provider-failures.ts). */
@@ -98,7 +112,11 @@ function smtpSender(url: string, configuredFrom: string | undefined, timeouts: S
     kind: 'smtp',
     send: async email => {
       try {
-        await withDeadline(transport.sendMail({ from: senderLine(configuredFrom), ...email }), timeouts.sendMs, host)
+        await withDeadline(
+          transport.sendMail({ ...email, ...envelopeOf(email, configuredFrom) }),
+          timeouts.sendMs,
+          host,
+        )
         emailResultListener?.({ ok: true })
       } catch (e) {
         emailResultListener?.({ ok: false, error: e })

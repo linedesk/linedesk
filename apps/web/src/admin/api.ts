@@ -370,6 +370,11 @@ type AdminInputs = {
   'partner.approve': { partnerId: string }
   'partner.suspend': { partnerId: string }
   'partner.setClientLimit': { limit: number }
+  'partnerBrand.protectedNames': Record<string, never>
+  'partnerBrand.setProtectedNames': { names: string[] | null }
+  'partnerBrand.reviews': Record<string, never>
+  'partnerBrand.approve': { partnerId: string; revision: number; contentHash: string; reason: string }
+  'partnerBrand.reset': { partnerId: string; reason: string }
 }
 
 /**
@@ -426,6 +431,9 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'partner.approve': msg('admin.stepUp.what.partner'),
   'partner.suspend': msg('admin.stepUp.what.partner'),
   'partner.setClientLimit': msg('admin.stepUp.what.partnerLimit'),
+  'partnerBrand.setProtectedNames': msg('admin.stepUp.what.protectedNames'),
+  'partnerBrand.approve': msg('admin.stepUp.what.partnerBrand'),
+  'partnerBrand.reset': msg('admin.stepUp.what.partnerBrand'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {

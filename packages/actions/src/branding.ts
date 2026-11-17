@@ -19,10 +19,12 @@ const hexColor = z
 
 /**
  * Characters a product name never has: control characters (newlines, tabs, escapes), line and paragraph separators,
- * and the bidi overrides that reorder text. The name goes into emails, the app and the Stripe products and invoice
- * lines (security review of #1040, I-2).
+ * format characters (the bidi overrides that reorder text, the soft hyphen, zero-width spaces and joiners) and every
+ * other character that renders as nothing. The name goes into emails, the app and the Stripe products and invoice
+ * lines (security review of #1040, I-2); an invisible character would also split a protected name so the check
+ * misses it ("Cha\u00ADse" shows as Chase; security review of #1111, M-1).
  */
-export const NAME_CONTROL_CHARACTERS = /[\p{Cc}\u2028\u2029\u202A-\u202E\u2066-\u2069]/u
+export const NAME_CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}\u2028\u2029]/u
 
 export const brandingInput = z.object({
   name: z
@@ -64,6 +66,19 @@ export type Branding = {
   starCount: number | null
   /** The admin's switch; whether the line shows at all is showsPoweredBy(). */
   poweredBy: boolean
+  /**
+   * Set when this is a white-label partner's brand (a client workspace, docs/white-label.md, S4): its support email,
+   * terms and privacy links replace the install's, and no "Powered by" line shows. Absent: the install's branding.
+   */
+  partner?: PartnerBrandLinks | null
+}
+
+/** A partner brand's links, shown to its clients instead of the install's (null: none set). */
+export type PartnerBrandLinks = {
+  id: string
+  supportEmail: string | null
+  terms: string | null
+  privacy: string | null
 }
 
 export const DEFAULT_BRANDING: Branding = {
@@ -81,10 +96,11 @@ export const poweredByUrl = (medium: 'email' | 'sign-in') =>
 
 /**
  * Whether emails and the sign-in page show "Powered by Linedesk": only with the install's own name or logo (the
- * default branding already shows Linedesk) and while the admin keeps the switch on.
+ * default branding already shows Linedesk) and while the admin keeps the switch on. Never for a partner's brand: its
+ * clients see no Linedesk (S4).
  */
-export const showsPoweredBy = (b: Pick<Branding, 'name' | 'logoUrl' | 'poweredBy'>) =>
-  b.poweredBy && (b.name !== DEFAULT_PRODUCT_NAME || b.logoUrl !== null)
+export const showsPoweredBy = (b: Pick<Branding, 'name' | 'logoUrl' | 'poweredBy' | 'partner'>) =>
+  !b.partner && b.poweredBy && (b.name !== DEFAULT_PRODUCT_NAME || b.logoUrl !== null)
 
 /** Near-white text on a dark color, near-black on a light one (WCAG relative luminance), for a #rrggbb color. */
 export function readableOn(hex: string): string {

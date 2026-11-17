@@ -28,7 +28,7 @@ const DEFAULT_COLOR = '#1c1917'
 const HEX = /^#[0-9a-fA-F]{6}$/
 
 /** The color as typed: empty is the default (null), a #rrggbb color is used, anything else is not valid (undefined). */
-const parsedColor = (text: string): string | null | undefined =>
+export const parsedColor = (text: string): string | null | undefined =>
   text === '' ? null : HEX.test(text) ? text.toLowerCase() : undefined
 
 type Draft = {
@@ -60,7 +60,7 @@ const isDirty = (d: Draft, b: Branding) =>
  * Any image the browser can show, drawn centred on a transparent square of at most LOGO_SIZE pixels and
  * saved as PNG: the server only ever stores and serves a plain PNG, never an SVG that could carry script.
  */
-async function logoAsPng(file: File): Promise<string> {
+export async function logoAsPng(file: File): Promise<string> {
   const url = URL.createObjectURL(file)
   try {
     const image = new Image()
@@ -149,7 +149,7 @@ function LogoField({
   )
 }
 
-function ColorField({ text, onChange }: { text: string; onChange: (text: string) => void }) {
+export function ColorField({ text, onChange }: { text: string; onChange: (text: string) => void }) {
   const t = useT()
   const color = parsedColor(text)
   return (

@@ -15,6 +15,7 @@ import { callerLocale } from './email-locale.ts'
 import type { EmailSender } from './email.ts'
 import { bookingConfirmationEmail, emailSafeName, slotInZone } from './emails/templates.ts'
 import { getT } from '@linedesk/i18n/server'
+import { withWorkspaceBrand } from './partner-brand.ts'
 
 /** The number the caller can ring to change the booking: the business's own, which forwards to the assistant. */
 async function businessNumber(tx: Tx, callId: string | null): Promise<string | null> {
@@ -50,20 +51,30 @@ export async function sendBookingConfirmation(
   // Only the frame is translated: the business, its appointment type and the address stay as they were written.
   const locale = await callerLocale(tx, booking.workspace_id, booking.call_id)
   const { t } = getT(locale)
-  await sender.send({
-    to: booking.caller_email,
-    ...bookingConfirmationEmail(
-      {
-        business: emailSafeName(workspace?.name, t('email.fallback.business')),
-        what: emailSafeName(type?.name, t('email.fallback.appointment')).toLowerCase(),
-        when: slotInZone(booking.start_at, settings?.timezone ?? DEFAULT_TIME_ZONE, locale),
-        minutes: type?.duration_min ?? null,
-        address: booking.address,
-        phone: await businessNumber(tx, booking.call_id),
-      },
-      undefined,
-      locale,
-    ),
-  })
+  const phone = await businessNumber(tx, booking.call_id)
+  const to = booking.caller_email
+  // The footer names the product that sent it: a white-label partner's for its clients (partner-brand.ts), with no
+  // Reply-To to the partner's support (a caller answers the business, not the partner).
+  await withWorkspaceBrand(
+    booking.workspace_id,
+    () =>
+      sender.send({
+        to,
+        ...bookingConfirmationEmail(
+          {
+            business: emailSafeName(workspace?.name, t('email.fallback.business')),
+            what: emailSafeName(type?.name, t('email.fallback.appointment')).toLowerCase(),
+            when: slotInZone(booking.start_at, settings?.timezone ?? DEFAULT_TIME_ZONE, locale),
+            minutes: type?.duration_min ?? null,
+            address: booking.address,
+            phone,
+          },
+          undefined,
+          locale,
+        ),
+      }),
+    tx,
+    { toCallers: true },
+  )
   return 'sent'
 }
