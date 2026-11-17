@@ -1,4 +1,5 @@
 import { initializeLogger } from '@livekit/agents'
+import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
 import { callLanguagesOf, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
@@ -325,4 +326,14 @@ test('only a GA session.update gets the truncation; the replies switch does not 
   const other = { type: 'response.create' }
   expect(withRealtimeTruncation(other)).toBe(other)
   expect(realtimeRepliesEvent(false).session).not.toHaveProperty('truncation')
+})
+
+test("no pipeline uses LiveKit's local end-of-turn model, and the SDK patch that skips its process is applied", async () => {
+  // The model needs a VAD: the three stages have none (a realtime model detects turns on the server), so the worker
+  // turns local inference off (env.ts, turnOffLocalInference).
+  const stages = await configFromEnv({ DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' })
+  expect(createPipeline(stages).vad).toBeNull()
+  // patches/@livekit__agents@*.patch: without it the worker starts the inference process anyway.
+  const sdkWorker = readFileSync(new URL('worker.js', import.meta.resolve('@livekit/agents')), 'utf8')
+  expect(sdkWorker).toContain('process.env.LIVEKIT_AGENTS_LOCAL_EOT')
 })

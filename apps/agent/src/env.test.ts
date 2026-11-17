@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { EMERGENCY_RULE } from '@linedesk/actions'
 import { expect, test } from 'vitest'
-import { DEV_LIVEKIT_SECRET, requireEnv, requireLivekitEnv } from './env.ts'
+import { DEV_LIVEKIT_SECRET, requireEnv, requireLivekitEnv, turnOffLocalInference } from './env.ts'
 import { buildInstructions } from './prompt.ts'
 
 test('requireEnv names every missing variable', () => {
@@ -91,4 +91,10 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   expect(prompt).not.toMatch(/\brecord(ed|ing)\b/i) // no recording notice unless it is turned on
   // take_message's own rule (once per call) is in its description now; the prompt points to the collection tools.
   expect(buildInstructions(null)).toContain('Get details with the collection tools')
+})
+
+test('the worker turns off local inference for itself and its call processes', () => {
+  const env: Record<string, string | undefined> = {}
+  turnOffLocalInference(env)
+  expect(env).toEqual({ LIVEKIT_AGENTS_LOCAL_EOT: '0', LIVEKIT_AGENTS_PRELOAD_LOCAL_INFERENCE: '0' })
 })

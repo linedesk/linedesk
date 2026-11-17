@@ -42,6 +42,9 @@
       "ignoreGhsas": [
         "GHSA-gcqx-w48m-w2h4"
       ]
+    },
+    "patchedDependencies": {
+      "@livekit/agents@1.10.0": "patches/@livekit__agents@1.10.0.patch"
     }
   }
 }

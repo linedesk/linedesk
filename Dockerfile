@@ -12,11 +12,12 @@ ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
 
-# Only the package manifests and the lockfile, so the install layers below are reused
-# until a dependency changes (and new workspace packages need no Dockerfile edit).
+# Only the package manifests, the lockfile and our patches of dependencies (patches/, applied by
+# pnpm install), so the install layers below are reused until a dependency changes (and new
+# workspace packages need no Dockerfile edit).
 FROM base AS manifests
 COPY . .
-RUN find . -type f ! -name package.json ! -name pnpm-lock.yaml ! -name pnpm-workspace.yaml -delete
+RUN find . -type f ! -name package.json ! -name pnpm-lock.yaml ! -name pnpm-workspace.yaml ! -path './patches/*' -delete
 
 # --- api: production dependencies only ---
 FROM base AS api-build

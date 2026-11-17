@@ -20,7 +20,7 @@ import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
 import { announceRecording, callLimitOf, callOrigin, parseTestMetadata, startCall, type CallSession } from './call-session.ts'
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
-import { livekitHttpUrl, requireLivekitEnv, workerAgentName } from './env.ts'
+import { livekitHttpUrl, requireLivekitEnv, turnOffLocalInference, workerAgentName } from './env.ts'
 import { describeLoadPolicy, describeProcessWait, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { type CallLanguages, callLanguagesOf, callVoicesOf, createPipeline, withCallLanguages, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
@@ -772,6 +772,8 @@ async function main() {
   const options = new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: workerAgentName(), numIdleProcesses, loadThreshold: load.threshold, initializeProcessTimeout, drainTimeout })
   // The SDK's own measure (its default loadFunc), with the overload warning and the cap LiveKit needs (worker-load.ts).
   options.loadFunc = reportedLoad(options.loadFunc, load, line => console.warn(line))
+  // No local end-of-turn model and no process for it: no call uses it (env.ts).
+  turnOffLocalInference()
   cli.runApp(options)
 }
 

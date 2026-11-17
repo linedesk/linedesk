@@ -1,0 +1,28 @@
+diff --git a/dist/worker.cjs b/dist/worker.cjs
+index 360da761381211c8012e6d5f636977e46d99b4fd..09e43576e4e287d0ec92981aa36002ed2e4c2171 100644
+--- a/dist/worker.cjs
++++ b/dist/worker.cjs
+@@ -68,6 +68,8 @@ let localEotRunnerRegistered = false;
+ function _maybeRegisterLocalEotRunner() {
+   if (localEotRunnerRegistered) return;
+   localEotRunnerRegistered = true;
++  // Linedesk patch (LIN-226): see worker.js.
++  if (["0", "false", "no", "off"].includes((process.env.LIVEKIT_AGENTS_LOCAL_EOT ?? "").trim().toLowerCase())) return;
+   if (import_inference_runner.InferenceRunner.registeredRunners[import_runner.EOT_INFERENCE_METHOD]) return;
+   if ((0, import_warmup._getLocalInferenceModule)() === void 0) {
+     (0, import_log.log)().warn(
+diff --git a/dist/worker.js b/dist/worker.js
+index 42a8d366bd62383546dec6842e5d380629119e4a..47b07c820de5acb5518ea6d4f1989e328410e21b 100644
+--- a/dist/worker.js
++++ b/dist/worker.js
+@@ -48,6 +48,10 @@ let localEotRunnerRegistered = false;
+ function _maybeRegisterLocalEotRunner() {
+   if (localEotRunnerRegistered) return;
+   localEotRunnerRegistered = true;
++  // Linedesk patch (LIN-226): LIVEKIT_AGENTS_LOCAL_EOT=0 registers no local end-of-turn runner, so no inference
++  // process is started (~350-500 MB). Only the audio TurnDetector with a VAD uses it; Linedesk's pipelines do not.
++  // On upgrade: check that this function still exists and is the only place that registers the runner.
++  if (["0", "false", "no", "off"].includes((process.env.LIVEKIT_AGENTS_LOCAL_EOT ?? "").trim().toLowerCase())) return;
+   if (InferenceRunner.registeredRunners[EOT_INFERENCE_METHOD]) return;
+   if (_getLocalInferenceModule() === void 0) {
+     log().warn(
