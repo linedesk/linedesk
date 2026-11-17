@@ -32,7 +32,6 @@ describe('calendar.findSlots', () => {
       'afterCallTranscript.get',
       'apiKey.list',
       'app.pushes',
-      'assistant.previewEmailRouting',
       'assistant.startTestCall',
       'assistant.version',
       'assistant.versions',

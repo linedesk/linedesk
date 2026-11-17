@@ -73,7 +73,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'emailRecipient.resend',
     'emailRecipient.remove',
     'emailRecipient.restore',
-    'assistant.previewEmailRouting',
     'assistant.create',
     'assistant.delete',
     'assistant.versions',

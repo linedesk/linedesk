@@ -165,7 +165,6 @@ const all = [
   emailRouting.emailRecipientResend,
   emailRouting.emailRecipientRemove,
   emailRouting.emailRecipientRestore,
-  emailRouting.assistantPreviewEmailRouting,
   settings.assistantCreate,
   settings.assistantDelete,
   assistantVersions.assistantVersions,

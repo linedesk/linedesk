@@ -1,28 +1,58 @@
-// Call email routing (docs/architecture.md, Notifications): each assistant has one plain-language instruction that
-// says who gets the email about which call (`assistants.email_routing`, saved with assistant.update). People are
-// mentioned in it as `<@user:USER_ID>` (a member) or `<@email:ADDRESS>` (an outside address, email_recipients);
-// after the call a language model picks recipients only from the people mentioned (apps/api/src/email-routing.ts).
+// Call email routing (docs/architecture.md, Notifications; LIN-470): each assistant has a short rule list
+// (`assistants.email_rules`, saved with assistant.update). `always`: members who get every call email. Each rule has the
+// calls it is about in plain words (`when`), its members (`to`) and whom it assigns (`assign`, one of `to`).
+// After the call a language model only says which rules fit (apps/api/src/email-routing.ts); the code picks the
+// recipients and the assignee. Outside addresses (email_recipients) stay in the API but the page no longer offers them.
 import { z } from 'zod'
-import type { EmailRouteRecipient } from '@linedesk/db/types'
+import type { EmailRules } from '@linedesk/db/types'
 import { defineAction } from './define.ts'
 
-/** The longest instruction (characters, mentions as stored). */
-export const EMAIL_ROUTING_MAX = 4000
-/** The most members an assistant assigns routed calls to (assistants.email_assign). */
-export const EMAIL_ASSIGN_MAX = 50
-/** Members to assign a routed call to: user ids, each once. */
-export const emailAssignInput = z.array(z.string().min(1).max(200)).max(EMAIL_ASSIGN_MAX)
+/** The most rules an assistant keeps. */
+export const EMAIL_RULES_MAX = 20
+/** The longest `when` (the calls a rule is about, in plain words; never empty). */
+export const EMAIL_RULE_WHEN_MAX = 300
+/** The most members one rule emails. */
+export const EMAIL_RULE_TO_MAX = 20
+/** The most members who get every call email. */
+export const EMAIL_ALWAYS_MAX = 50
 
-/**
- * Whom a routed call is assigned to: the first member, in the instruction's order, who is in `assign` and gets the
- * email. null: nobody. The settings choose `assign`, never the model.
- */
-export function assigneeOf(instruction: string, assign: readonly string[], to: readonly string[]): string | null {
-  if (!assign.length) return null
-  for (const m of parseMentions(instruction))
-    if (m.kind === 'user' && assign.includes(m.id) && to.includes(m.id)) return m.id
-  return null
+/** No rules and nobody always: every member with call emails on gets every call email. */
+export const NO_EMAIL_RULES: EmailRules = { always: [], rules: [] }
+
+const unique = (ids: readonly string[]) => [...new Set(ids)]
+
+/** The rules as saved: members each once, and a rule's assignee only when it is one of its members (else null). */
+export function normalizeEmailRules(r: EmailRules): EmailRules {
+  return {
+    always: unique(r.always),
+    rules: r.rules.map(rule => {
+      const to = unique(rule.to)
+      return { ...rule, to, assign: rule.assign && to.includes(rule.assign) ? rule.assign : null }
+    }),
+  }
 }
+
+/** Whether an assistant routes its call emails: it has rules or members who always get them. */
+export const routesEmails = (r: EmailRules | null | undefined) => !!r && (r.always.length > 0 || r.rules.length > 0)
+
+const memberId = z.string().min(1).max(200)
+
+/** One rule as assistant.update takes it. */
+export const emailRuleInput = z.object({
+  id: z.string().min(1).max(64),
+  when: z.string().trim().min(1).max(EMAIL_RULE_WHEN_MAX),
+  to: z.array(memberId).max(EMAIL_RULE_TO_MAX),
+  assign: memberId.nullable(),
+})
+
+/** assistant.update's `email_rules`, normalized (normalizeEmailRules). */
+export const emailRulesInput = z
+  .object({
+    always: z.array(memberId).max(EMAIL_ALWAYS_MAX),
+    rules: z.array(emailRuleInput).max(EMAIL_RULES_MAX),
+  })
+  .transform(normalizeEmailRules)
+
 /** Outside addresses a workspace may keep (removed ones do not count). */
 export const OUTSIDE_RECIPIENTS_MAX = 20
 /** How long the link in the confirmation email works. */
@@ -34,30 +64,6 @@ export const OUTSIDE_CONFIRM_DAYS = 7
 export const OUTSIDE_STOP_COOLDOWN_DAYS = 30
 /** Confirmation emails per workspace in 24 hours (addresses sent one, removed ones too; counted in the database). */
 export const OUTSIDE_CONFIRMS_PER_DAY = 20
-
-/** A mention as stored in the instruction. */
-export const MENTION_PATTERN = /<@(user|email):([^>\s]+)>/g
-
-export type Mention = { kind: 'user'; id: string } | { kind: 'email'; email: string }
-
-/** The mentions of an instruction, in order, each once. */
-export function parseMentions(text: string | null | undefined): Mention[] {
-  const seen = new Set<string>()
-  const out: Mention[] = []
-  for (const m of (text ?? '').matchAll(MENTION_PATTERN)) {
-    const key = `${m[1]}:${m[2]!.toLowerCase()}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(m[1] === 'user' ? { kind: 'user', id: m[2]! } : { kind: 'email', email: m[2]!.toLowerCase() })
-  }
-  return out
-}
-
-export const userMention = (userId: string) => `<@user:${userId}>`
-export const emailMention = (email: string) => `<@email:${email.toLowerCase()}>`
-
-/** An instruction that routes: it has text besides blanks. null or '': every member with call emails on. */
-export const routesEmails = (text: string | null | undefined) => !!text?.trim()
 
 export type OutsideRecipientStatus = 'waiting' | 'confirmed' | 'stopped' | 'expired'
 
@@ -74,7 +80,7 @@ export type OutsideRecipient = {
 
 export type EmailRoutingMember = { userId: string; name: string; email: string; emailOn: boolean }
 
-/** What the Call emails section reads (emailRouting.get). */
+/** What the Call emails section reads (emailRouting.get): members, and whether rules can be matched. */
 export type EmailRoutingData = {
   members: EmailRoutingMember[]
   recipients: OutsideRecipient[]
@@ -82,24 +88,8 @@ export type EmailRoutingData = {
   llm: boolean
 }
 
-/** One call of the preview (assistant.previewEmailRouting). */
-export type EmailRoutingPreviewCall = {
-  callId: string
-  title: string | null
-  started_at: string
-  to: EmailRouteRecipient[]
-  /** The member it would assign the call to; null: nobody. */
-  assign: { user_id: string; name: string } | null
-  reason: string | null
-  /** Set when the call would go to the fallback (the members with call emails on). */
-  problem: 'llm_failed' | 'no_llm' | 'nothing_fit' | null
-}
-
-export type EmailRoutingPreview = { calls: EmailRoutingPreviewCall[] }
-
-/** Rejection codes the page words (assistant.previewEmailRouting, emailRecipient.*). */
+/** Rejection codes of emailRecipient.* (the API's own English for API clients). */
 export const EMAIL_ROUTING_CODES = [
-  'preview_limit',
   'recipients_full',
   'recipient_exists',
   'resend_limit',
@@ -117,7 +107,7 @@ export const emailRoutingGet = defineAction({
   name: 'emailRouting.get',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Read what the call email instruction may name: the workspace's members (with whether their call emails are on), its outside addresses (waiting for confirmation, confirmed, stopped or expired) and whether a language model is set up.",
+    "Read what call email rules may name: the workspace's members (with whether their call emails are on), its outside addresses (waiting for confirmation, confirmed, stopped or expired) and whether a language model is set up (rules need one).",
   input: z.object({}),
   permission: 'settings:write',
   readOnly: true,
@@ -128,7 +118,7 @@ const outsideEmail = z.string().trim().toLowerCase().pipe(z.email().max(254))
 export const emailRecipientAdd = defineAction({
   name: 'emailRecipient.add',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
-  description: `Add an email address outside the team that call email instructions may name. It gets a confirmation email; only after it confirms (within ${OUTSIDE_CONFIRM_DAYS} days) does it get call emails, each with a link to stop them. At most ${OUTSIDE_RECIPIENTS_MAX} per workspace and ${OUTSIDE_CONFIRMS_PER_DAY} confirmation emails a day. An address that stopped the emails can be added again ${OUTSIDE_STOP_COOLDOWN_DAYS} days after it stopped.`,
+  description: `Add an email address outside the team for call emails. Call email rules (assistant.update, email_rules) name members only, so it gets none from them for now. It gets a confirmation email; only after it confirms (within ${OUTSIDE_CONFIRM_DAYS} days) does it get call emails, each with a link to stop them. At most ${OUTSIDE_RECIPIENTS_MAX} per workspace and ${OUTSIDE_CONFIRMS_PER_DAY} confirmation emails a day. An address that stopped the emails can be added again ${OUTSIDE_STOP_COOLDOWN_DAYS} days after it stopped.`,
   input: z.object({ email: outsideEmail, label: z.string().trim().max(80).nullable().optional() }),
   permission: 'settings:write',
 })
@@ -155,18 +145,4 @@ export const emailRecipientRestore = defineAction({
   description: 'Undo emailRecipient.remove. The address keeps its state (confirmed, waiting or stopped).',
   input: z.object({ id: z.string().min(1) }),
   permission: 'settings:write',
-})
-
-export const assistantPreviewEmailRouting = defineAction({
-  name: 'assistant.previewEmailRouting',
-  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
-  description:
-    "Try a call email instruction on the assistant's last 5 finished calls: who each would go to, whom it would assign and why. `assign`: the members calls are assigned to (as assistant.update's `email_assign`; missing: the saved ones). Sends and saves nothing. About 30 previews an hour per workspace.",
-  input: z.object({
-    assistantId: z.string().min(1),
-    text: z.string().max(EMAIL_ROUTING_MAX),
-    assign: emailAssignInput.optional(),
-  }),
-  permission: 'settings:write',
-  readOnly: true,
 })

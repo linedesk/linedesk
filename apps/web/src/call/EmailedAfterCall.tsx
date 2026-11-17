@@ -1,14 +1,14 @@
-// "Emailed after the call" in the call view's side panel (LIN-369): who got the email about this call (calls.email_route),
-// the reason the assistant's call email instruction gave, whom it assigned the call to, or why it went to everyone with
-// call emails on instead. Links to the assistant's Call emails section to change it.
+// "Emailed after the call" in the call view's side panel (LIN-369, LIN-470): one quiet line with who got the email
+// about this call (calls.email_route), what the call email rules that fit are about and whom it assigned the call to; a "?" shows the
+// language model's reason. In fallback mode, why it went to everyone with call emails on. Links to the assistant's
+// Call emails section to change it. Names are the ones stored with the route, so a former member keeps theirs.
 import type { Call, EmailRoute } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { useT } from '@linedesk/i18n/react'
-import { useAssistants } from '../store.tsx'
+import { useFormat, useT } from '@linedesk/i18n/react'
 import { memberLabel, useMember } from '../team/members.ts'
 import { parseTs, timeLabel } from '../time.ts'
 import { AppLink } from '../ui/AppLink.tsx'
-import { RecipientChips } from '../settings/CallEmails.tsx'
+import { HelpTip } from '../ui/HelpTip.tsx'
 import '../settings/call-emails.css'
 
 const FALLBACK_TEXT: Record<NonNullable<EmailRoute['problem']>, MessageKey> = {
@@ -19,24 +19,30 @@ const FALLBACK_TEXT: Record<NonNullable<EmailRoute['problem']>, MessageKey> = {
 
 export function EmailedAfterCall({ call }: { call: Call }) {
   const t = useT()
+  const format = useFormat()
   const route = call.email_route
-  const assistant = useAssistants().find(a => a.id === call.assistant_id)
   const assignee = useMember(route?.assigned_user_id ?? null)
   if (!route) return null
-  const assistantName = assistant?.name.trim() || t('call.emailed.theAssistant')
+  const names = route.to.map(r => (r.kind === 'member' ? r.name : r.email))
+  const topics = route.mode === 'routed' ? (route.rules ?? []) : []
+  const parts = [
+    t('call.emailed.to', { names: format.list(names) }),
+    ...(topics.length ? [t('call.emailed.about', { topics: format.list(topics) })] : []),
+    ...(route.assigned_user_id ? [t('call.emailed.assignedTo', { member: memberLabel(assignee) })] : []),
+  ]
   return (
     <div className="side-sec ce-sent">
       <div className="ce-sent-head">
         <h2>{t('call.emailed.title')}</h2>
         <span className="mono">{timeLabel(parseTs(route.at))}</span>
       </div>
-      <RecipientChips to={route.to} />
-      {!route.to.length && <span className="help">{t('call.emailed.nobody')}</span>}
-      {route.mode === 'routed' && route.reason && <blockquote className="ce-quote">{route.reason}</blockquote>}
-      {route.assigned_user_id && (
-        <span className="help">
-          {t('call.emailed.assigned', { member: memberLabel(assignee), assistant: assistantName })}
-        </span>
+      {route.to.length ? (
+        <p className="ce-sent-line">
+          {parts.join(' · ')}
+          {route.mode === 'routed' && route.reason && <HelpTip label={t('call.emailed.why')} text={route.reason} />}
+        </p>
+      ) : (
+        <span className="help">{t('call.emailed.nobody')}</span>
       )}
       {route.mode === 'fallback' && (
         <span className="help">

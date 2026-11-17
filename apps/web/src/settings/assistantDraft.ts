@@ -38,12 +38,13 @@ import {
   type Language,
   languageCodes,
   mainLanguageOf,
-  parseMentions,
+  NO_EMAIL_RULES,
+  normalizeEmailRules,
   swapDefault,
   type VoicePipeline,
   isBriefed,
 } from '@linedesk/actions'
-import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
+import type { Assistant, BusinessProfile, EmailRules, TransferContact } from '@linedesk/db/types'
 import { languageInSentence } from '@linedesk/i18n'
 import { i18n } from '../i18n/index.tsx'
 import { formatNumber, outboundE164, renameInGreeting } from '../onboarding/flow.ts'
@@ -60,10 +61,8 @@ export type Draft = {
   greeting_outside: string
   /** Warm transfer: who callers are put through to, and when, in order. */
   transfers: TransferDraft[]
-  /** Who gets the email after a call, in the owner's words with mentions (`<@user:ID>`, `<@email:ADDRESS>`); empty: everyone with call emails on. */
-  email_routing: string
-  /** Members mentioned in `email_routing` who get the call assigned too (user ids); the first in the instruction's order wins. */
-  email_assign: string[]
+  /** Who gets the email after a call: members who always get it and the rules (LIN-470); empty: everyone with call emails on. */
+  email_rules: EmailRules
   /** The voice: provider and voice id (empty: the provider's default), and its voice model ('': the server's). */
   voice: { provider: string; voice_id: string; model: string }
   /** The language model of live turns ('': the server's default). */
@@ -136,8 +135,8 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     instructions: p.instructions?.trim() ? p.instructions : foldProfile(p),
     greeting_outside: local(a.greeting_outside ?? ''),
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
-    email_routing: a.email_routing ?? '',
-    email_assign: a.email_assign ?? [],
+    // A row synced before the column existed has none: no rules.
+    email_rules: a.email_rules ?? NO_EMAIL_RULES,
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id, model: a.voice.model ?? '' },
     llm_model: a.llm_model ?? '',
     website: p.website ?? '',
@@ -278,9 +277,11 @@ export const normalized = (d: Draft): Draft => ({
   greeting: d.greeting.trim(),
   instructions: d.instructions.trim(),
   greeting_outside: d.greeting_outside.trim(),
-  email_routing: d.email_routing.trim(),
-  // Only members the instruction still names: a removed mention takes its Assign with it.
-  email_assign: d.email_assign.filter(id => parseMentions(d.email_routing).some(m => m.kind === 'user' && m.id === id)),
+  // Trimmed, and a rule's assignee only while they are one of its members (as the server saves it).
+  email_rules: normalizeEmailRules({
+    always: d.email_rules.always,
+    rules: d.email_rules.rules.map(r => ({ ...r, when: r.when.trim() })),
+  }),
   transfers: d.transfers.map(c =>
     transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) }),
   ),

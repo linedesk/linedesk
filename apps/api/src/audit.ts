@@ -2,9 +2,9 @@
 // the command log (`commands`: admin actions, team and role changes, provider keys, impersonation),
 // and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
 // sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
-import { parseMentions, REDACTED } from '@linedesk/actions'
+import { REDACTED } from '@linedesk/actions'
 import { auth_events, type Db, type Tx, user } from '@linedesk/db'
-import type { TransferContact } from '@linedesk/db/types'
+import type { EmailRules, TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from './db.ts'
@@ -169,8 +169,10 @@ export function maskAuditInput(input: unknown): unknown {
       const contact = (c ?? {}) as Partial<TransferContact>
       return { id: contact.id, name: contact.name, number: maskedNumber(contact.number) }
     })
-  // The call email instruction (assistant.update): never its text; data.emailRoutingChanges names who it added and removed.
+  // The call email instruction of older entries and the call email rules (assistant.update): never their text (they
+  // say who gets which call); data.emailRoutingChanges names who was added and removed.
   if (typeof masked.email_routing === 'string') masked.email_routing = REDACTED
+  if (masked.email_rules && typeof masked.email_rules === 'object') masked.email_rules = REDACTED
   // Stored redacted since 2026-11-11 (the action lists it as sensitive); older entries hold it in clear.
   if (typeof masked.invitationId === 'string' && masked.invitationId !== REDACTED)
     masked.invitationId = `${masked.invitationId.slice(0, 6)}…`
@@ -435,44 +437,48 @@ export function transferChanges(before: TransferContact[], after: TransferContac
 }
 
 /**
- * A change of an assistant's call email instruction (assistant.update, `email_routing`): who it now mentions and no
- * longer mentions, never the text (it says who gets which call). Audited like transfer contacts (kind `integrations`):
- * it decides where call summaries and transcripts are emailed, also outside the team. Null when the text did not change.
+ * A change of an assistant's call email rules (assistant.update, `email_rules`): which members now get emails by them
+ * (always or by a rule) and which no longer do, never the rules' text. Audited like transfer contacts (kind
+ * `integrations`): it decides where call summaries and transcripts are emailed. Null when the rules did not change.
+ * Entries from before LIN-470 may name an outside address (the instruction could).
  */
 export type AuditedMention = { kind: 'member'; id: string; name: string | null } | { kind: 'outside'; email: string }
 export type EmailRoutingChanges = { added: AuditedMention[]; removed: AuditedMention[] }
 
-const mentionKey = (m: ReturnType<typeof parseMentions>[number]) => (m.kind === 'user' ? `u:${m.id}` : `e:${m.email}`)
+/** The members the rules email: always, then each rule's, each once. */
+const rulesMembers = (r: EmailRules | null | undefined) => [
+  ...new Set([...(r?.always ?? []), ...(r?.rules ?? []).flatMap(rule => rule.to)]),
+]
+/** The rules in one key order (jsonb stores its keys in its own order). */
+const rulesKey = (r: EmailRules | null | undefined) =>
+  JSON.stringify([r?.always ?? [], (r?.rules ?? []).map(({ id, when, to, assign }) => [id, when, to, assign ?? null])])
+const sameRules = (before: EmailRules | null | undefined, after: EmailRules | null | undefined) =>
+  rulesKey(before) === rulesKey(after)
 
-/** Who an instruction change added and removed (`names`: member names by user id), or null when it did not change. */
+/** Who a rules change added and removed (`names`: member names by user id), or null when it did not change. */
 export function emailRoutingChanges(
-  before: string | null | undefined,
-  after: string | null | undefined,
+  before: EmailRules | null | undefined,
+  after: EmailRules | null | undefined,
   names: ReadonlyMap<string, string>,
 ): EmailRoutingChanges | null {
-  if ((before ?? '') === (after ?? '')) return null
-  const was = parseMentions(before)
-  const now = parseMentions(after)
-  const wasKeys = new Set(was.map(mentionKey))
-  const nowKeys = new Set(now.map(mentionKey))
-  const audited = (m: (typeof was)[number]): AuditedMention =>
-    m.kind === 'user'
-      ? { kind: 'member', id: m.id, name: names.get(m.id) ?? null }
-      : { kind: 'outside', email: m.email }
+  if (sameRules(before, after)) return null
+  const was = rulesMembers(before)
+  const now = rulesMembers(after)
+  const audited = (id: string): AuditedMention => ({ kind: 'member', id, name: names.get(id) ?? null })
   return {
-    added: now.filter(m => !wasKeys.has(mentionKey(m))).map(audited),
-    removed: was.filter(m => !nowKeys.has(mentionKey(m))).map(audited),
+    added: now.filter(id => !was.includes(id)).map(audited),
+    removed: was.filter(id => !now.includes(id)).map(audited),
   }
 }
 
-/** emailRoutingChanges with the names of the members it mentions, read from the database. */
+/** emailRoutingChanges with the names of the members, read from the database. */
 export async function emailRoutingChangesIn(
   tx: Tx,
-  before: string | null | undefined,
-  after: string | null | undefined,
+  before: EmailRules | null | undefined,
+  after: EmailRules | null | undefined,
 ): Promise<EmailRoutingChanges | null> {
-  if ((before ?? '') === (after ?? '')) return null
-  const ids = [...parseMentions(before), ...parseMentions(after)].flatMap(m => (m.kind === 'user' ? [m.id] : []))
+  if (sameRules(before, after)) return null
+  const ids = [...new Set([...rulesMembers(before), ...rulesMembers(after)])]
   const rows = ids.length
     ? await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids))
     : []
@@ -503,8 +509,8 @@ const transferChangeActions = sql.join(
  * it down to "[omitted]"), or one refused whose input had transfers.
  */
 const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'transferChanges') = 'object' or (c.rejected and c.input ? 'transfers')))`
-/** SQL: an assistant.update of `c` that changed the call email instruction, or one refused whose input had it. */
-const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_typeof(c.result->'data'->'emailRoutingChanges') = 'object' or (c.rejected and c.input ? 'email_routing')))`
+/** SQL: an assistant.update of `c` that changed the call email rules (or, before LIN-470, the instruction), or one refused whose input had them. */
+const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_typeof(c.result->'data'->'emailRoutingChanges') = 'object' or (c.rejected and (c.input ? 'email_rules' or c.input ? 'email_routing'))))`
 /** SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object). */
 const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object')`
 

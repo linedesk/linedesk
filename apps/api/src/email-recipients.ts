@@ -1,6 +1,7 @@
 // Outside addresses for call emails (email routing, email_recipients): an owner or admin adds one, it gets a
 // confirmation email, and only after it confirms does a call email ever go to it; every call email to it carries a
-// one-click link to stop them (and the List-Unsubscribe headers). Also the Call emails section's read and its preview.
+// one-click link to stop them (and the List-Unsubscribe headers). Also the Call emails section's read (emailRouting.get).
+// Since LIN-470 the page offers no outside addresses (rules name members only); the actions stay for now.
 //
 // The confirm and stop links are public routes outside the action registry, like setup-unsubscribe.ts: the person who
 // clicks has no session. Both are scanner-safe: GET shows a page with a button, only POST acts, and both are limited per
@@ -15,34 +16,21 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import {
   type EmailRoutingCode,
   type EmailRoutingData,
-  type EmailRoutingPreview,
   OUTSIDE_CONFIRM_DAYS,
   OUTSIDE_CONFIRMS_PER_DAY,
   OUTSIDE_RECIPIENTS_MAX,
   OUTSIDE_STOP_COOLDOWN_DAYS,
   type OutsideRecipient,
   type OutsideRecipientStatus,
-  parseMentions,
 } from '@linedesk/actions'
-import {
-  calls,
-  contacts,
-  email_recipients,
-  member,
-  organization,
-  transcript_segments,
-  type Tx,
-  user,
-} from '@linedesk/db'
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
+import { email_recipients, member, organization, type Tx, user } from '@linedesk/db'
+import { and, asc, count, eq, gt, isNotNull, isNull, or } from 'drizzle-orm'
 import type { Env, Hono } from 'hono'
 import { getT, localeForUser } from '@linedesk/i18n/server'
-import { assistantIn } from './assistants.ts'
-import { asMemberRoute, emailRecipients } from './call-notifications.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { invitationLocale } from './email-locale.ts'
-import { decideForCall, membersById, previewLine, routingLanguage } from './email-routing.ts'
+import { membersById } from './email-routing.ts'
 import { outsideBusyPage, outsideConfirmPage, outsideStopPage } from './emails/pages.ts'
 import { emailSafeName, outsideConfirmEmail, WEB_ORIGIN } from './emails/templates.ts'
 import { type EvaluationModel, evaluationModel } from './evaluations.ts'
@@ -55,11 +43,6 @@ import { appOrigin, withWorkspaceBrand } from './partner-brand.ts'
 export const OUTSIDE_CONFIRM_PATH = '/api/email-recipients/confirm'
 export const OUTSIDE_STOP_PATH = '/api/email-recipients/stop'
 const STOP_PURPOSE = 'email-recipient-stop'
-/** Previews per workspace and hour (each asks the model up to 5 times). */
-export const PREVIEWS_PER_HOUR = 30
-const PREVIEW_CALLS = 5
-
-const allowPreview = createRateLimiter({ max: PREVIEWS_PER_HOUR, windowMs: 3_600_000 })
 // Confirmation emails: per workspace, and per address (the same answer whichever workspace asks).
 const allowConfirmFor = createRateLimiter({ max: 30, windowMs: 3_600_000 })
 const allowConfirmTo = createRateLimiter({ max: 3, windowMs: 3_600_000 })
@@ -198,7 +181,6 @@ const REFUSALS: Record<EmailRoutingCode, string> = {
   recipient_exists: 'this address is on the list already',
   recipient_confirmed: 'this address has confirmed already',
   recipients_full: `at most ${OUTSIDE_RECIPIENTS_MAX} outside addresses per workspace`,
-  preview_limit: `at most ${PREVIEWS_PER_HOUR} previews an hour; try again later`,
   not_found: 'not found',
   no_workspace: 'no workspace',
 }
@@ -216,7 +198,7 @@ async function recipientIn(tx: Tx, workspaceId: string, id: string) {
   return row
 }
 
-/** Lets tests hand in a language model for the preview. */
+/** Lets tests hand in a language model (emailRouting.get says whether one is set up). */
 export const previewDeps: { model: (tx: Tx) => Promise<EvaluationModel | null> } = {
   model: tx => evaluationModel(tx),
 }
@@ -326,87 +308,6 @@ export const emailRecipientHandlers: Record<string, Handler> = {
       .where(eq(email_recipients.id, row.id))
       .returning()
     return { rows: {}, data: { recipient: toOutside(restored!) } }
-  },
-
-  'assistant.previewEmailRouting': async (
-    { tx, actor },
-    input: { assistantId: string; text: string; assign?: string[] },
-  ) => {
-    if (!actor.workspaceId) throw refuse('no_workspace')
-    const workspaceId = actor.workspaceId
-    const assistant = await assistantIn(tx, workspaceId, input.assistantId)
-    if (!assistant) throw refuse('not_found')
-    const recent = await tx
-      .select()
-      .from(calls)
-      .where(
-        and(
-          eq(calls.workspace_id, workspaceId),
-          eq(calls.assistant_id, assistant.id),
-          eq(calls.status, 'completed'),
-          isNull(calls.deleted_at),
-          ne(calls.source, 'test'),
-          or(isNull(calls.outcome), ne(calls.outcome, 'spam')),
-        ),
-      )
-      .orderBy(desc(calls.started_at))
-      .limit(PREVIEW_CALLS)
-    const preview: EmailRoutingPreview = { calls: [] }
-    // A call that falls back goes to every member with call emails on: the line names them.
-    const fallbackTo = recent.length ? (await emailRecipients(tx, workspaceId)).map(asMemberRoute) : []
-    // Nothing to try it on, or no instruction (every member with call emails on gets every call): no request.
-    if (!recent.length || !parseMentions(input.text).length || !input.text.trim()) {
-      preview.calls = recent.map(c => previewLine(c, { ok: false, problem: 'nothing_fit' }, fallbackTo))
-      return { rows: {}, data: preview }
-    }
-    if (!allowPreview(workspaceId)) throw refuse('preview_limit')
-    const model = await previewDeps.model(tx).catch(() => null)
-    const language = await routingLanguage(tx, workspaceId)
-    const ids = recent.map(c => c.id)
-    const contactIds = recent.flatMap(c => (c.contact_id ? [c.contact_id] : []))
-    const [segments, people] = await Promise.all([
-      tx
-        .select({
-          call_id: transcript_segments.call_id,
-          speaker: transcript_segments.speaker,
-          text: transcript_segments.text,
-        })
-        .from(transcript_segments)
-        .where(
-          and(
-            inArray(transcript_segments.call_id, ids),
-            inArray(transcript_segments.speaker, ['caller', 'agent']),
-            isNull(transcript_segments.tool_event),
-          ),
-        )
-        .orderBy(asc(transcript_segments.at_ms), asc(transcript_segments.id)),
-      contactIds.length
-        ? tx.select({ id: contacts.id, name: contacts.name }).from(contacts).where(inArray(contacts.id, contactIds))
-        : Promise.resolve([] as { id: string; name: string | null }[]),
-    ])
-    preview.calls = await Promise.all(
-      recent.map(async c => {
-        const { decision } = await decideForCall(
-          tx,
-          workspaceId,
-          input.text,
-          {
-            title: c.title,
-            urgent: c.urgency === 'urgent',
-            caller: people.find(p => p.id === c.contact_id)?.name ?? c.from_number,
-            summary: c.summary,
-            fields: c.fields,
-            assistantName: assistant.name,
-            transcript: segments.filter(s => s.call_id === c.id),
-          },
-          model,
-          input.assign ?? assistant.email_assign,
-          { preview: true, budget: false, language },
-        )
-        return previewLine(c, decision, fallbackTo)
-      }),
-    )
-    return { rows: {}, data: preview }
   },
 }
 

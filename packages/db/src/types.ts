@@ -55,15 +55,27 @@ export type LookupField = { name: string; type: LookupFieldType; description: st
 export type WebhookLookup = { name: string; when: string; fields: LookupField[] }
 /** What the call-start webhook answered: flat names and short values (CALLER_DETAILS_* in @linedesk/actions). */
 export type CallerDetails = Record<string, string | number | boolean>
+/**
+ * One rule of an assistant's call emails (assistants.email_rules, LIN-470): `name` ("Water heaters & boilers"), `when`
+ * (the calls it is about, in plain words), `to` (member user ids who get the email) and `assign` (one of `to` who gets
+ * the call assigned, or null). A language model only matches the topics; the code picks recipients and assignee.
+ */
+export type EmailRule = { id: string; when: string; to: string[]; assign: string | null }
+/** An assistant's call emails: `always` (member user ids who get every call email) and the rules, in order. */
+export type EmailRules = { always: string[]; rules: EmailRule[] }
 /** One recipient of a call email (EmailRoute.to): a workspace member, or a confirmed outside address. */
 export type EmailRouteRecipient = { kind: 'member'; user_id: string; name: string } | { kind: 'outside'; email: string }
 /**
  * Who got the email about a finished call and why (call-notifications.ts, email routing). `routed`: the assistant's
- * call email instruction picked `to`; `fallback`: it could not (`problem`), so the members with call emails on got it.
+ * call email rules picked `to` (`rules`: the topics (`when`) of the rules that fit, as they were then; older calls: an
+ * instruction picked it and there are none); `fallback`: they could not (`problem`), so the members with call emails
+ * on got it.
  */
 export type EmailRoute = {
   mode: 'routed' | 'fallback'
   to: EmailRouteRecipient[]
+  /** The topics (`when`) of the rules that fit the call, in list order; [] when none fit and it went to `always` only. */
+  rules?: string[]
   /** One short sentence in the workspace's language from the language model; null in fallback mode. */
   reason: string | null
   /** The member the routing assigned the call to; null: it assigned nobody. */

@@ -2459,8 +2459,7 @@ describe('impersonation', () => {
       'call.remind',
       'carrier.get',
       'carrier.transferTrunk',
-      // Call email routing (LIN-369): the section's read. Its preview (assistant.previewEmailRouting) is refused: it
-      // sends the last calls to the language model.
+      // Call emails (LIN-470): the section's read.
       'emailRouting.get',
       // The questions of How <assistant> did, a read; marking an evaluation done or open stays refused.
       'evaluation.listQuestions',

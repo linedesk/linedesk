@@ -1045,9 +1045,9 @@ const handlers: Record<string, Handler> = {
       if (isActiveContact(contact))
         await checkOnCallNotLinedesk(ctx.tx, ctx.actor.workspaceId, contact.number!, contact.name)
     const before = input.transfers ? await assistantTransfers(ctx.tx, ctx.actor.workspaceId, input.assistantId) : null
-    const routingBefore =
-      input.email_routing !== undefined
-        ? ((await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.email_routing ?? null)
+    const rulesBefore =
+      input.email_rules !== undefined
+        ? ((await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.email_rules ?? null)
         : undefined
     // The voice and model it will answer with: models of the lists only, and on Linedesk Cloud of a level it may use.
     const levelChange = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor.workspaceId, input) : null
@@ -1057,9 +1057,9 @@ const handlers: Record<string, Handler> = {
     // A change of the numbers calls are put through to is in the audit log (audit.ts, TRANSFER_CHANGE_ACTIONS).
     const changes = before && transferChanges(before, input.transfers as TransferContact[])
     // So is a change of the voice model, language model or pipeline (audit.ts, usageLevelChange): what the calls cost.
-    // And a change of the call email instruction (audit.ts, emailRoutingChanges): who it added and removed, no text.
+    // And a change of the call email rules (audit.ts, emailRoutingChanges): who they added and removed, no text.
     const routingChanges =
-      routingBefore !== undefined ? await emailRoutingChangesIn(ctx.tx, routingBefore, input.email_routing) : null
+      rulesBefore !== undefined ? await emailRoutingChangesIn(ctx.tx, rulesBefore, input.email_rules) : null
     if (!changes && !levelChange && !routingChanges) return result
     return {
       ...result,

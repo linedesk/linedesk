@@ -31,6 +31,8 @@ type Props = {
   disabled?: boolean
   /** Shown while the value is none of the options (nothing picked yet). */
   empty?: string
+  /** The open list's least width in pixels (default 260), for options with a long meta (an email address). */
+  listWidth?: number
 }
 
 const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -78,6 +80,7 @@ export function SearchSelect({
   id,
   disabled,
   empty,
+  listWidth = 260,
 }: Props) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -90,7 +93,7 @@ export function SearchSelect({
   const matches = useMemo(() => (open ? search(options, query) : []), [open, options, query, search])
   const current = options.find(o => o.value === value)
 
-  useAnchoredList(open, button, list, { minWidth: 260 })
+  useAnchoredList(open, button, list, { minWidth: listWidth })
   useEffect(() => {
     if (!open) return
     const outside = (e: MouseEvent) => {
@@ -161,7 +164,9 @@ export function SearchSelect({
         }}
       >
         {current?.icon && <span className="k-ssel-icon">{current.icon}</span>}
-        <span className={cx('k-ssel-label', !current && empty && 'k-ssel-empty')}>{current?.label ?? (empty || value)}</span>
+        <span className={cx('k-ssel-label', !current && empty && 'k-ssel-empty')}>
+          {current?.label ?? (empty || value)}
+        </span>
         <Icon name="down" size={14} />
       </button>
       {open && (

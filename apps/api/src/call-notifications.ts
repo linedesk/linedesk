@@ -1,9 +1,9 @@
 // Emails about finished calls: one per call to every member who wants it (their own setting, else
 // the workspace default). Sent by a pg-boss job after `call.finish` committed (jobs.ts), so a slow
 // mail server never holds up the agent. Test calls and spam send nothing.
-// An assistant with a call email instruction (assistants.email_routing) routes them instead (email-routing.ts): a
-// language model picks recipients among the people it mentions; the decision is stored in calls.email_route before
-// anything is sent, so a retry sends to the same people and never asks the model again.
+// An assistant with call email rules (assistants.email_rules) routes them instead (email-routing.ts): a language model
+// says which rules fit, the code picks the members; the decision is stored in calls.email_route before anything is
+// sent, so a retry sends to the same people and never asks the model again.
 import { DEFAULT_NOTIFICATIONS, routesEmails } from '@linedesk/actions'
 import {
   appointment_types,
@@ -23,7 +23,7 @@ import type { EmailRoute, EmailRouteRecipient } from '@linedesk/db/types'
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
 import { uiLocaleOf } from './email-locale.ts'
-import { assignByRouting, decideForCall, membersById, routeOf, sendableOutside } from './email-routing.ts'
+import { assignByRouting, membersById, routeCall, sendableOutside } from './email-routing.ts'
 import { type CallEmail, callEmail, emailSafeName, firstCallEmail, slotInZone } from './emails/templates.ts'
 import { type EvaluationModel, evaluationModel } from './evaluations.ts'
 import { outsideStopUrl } from './email-recipients.ts'
@@ -118,7 +118,7 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
   const [contact] = call.contact_id ? await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)) : []
   // The assistant that answered; an older call (or a deleted assistant): the workspace's first.
   const [assistant] = await tx
-    .select({ name: assistants.name, email_routing: assistants.email_routing, email_assign: assistants.email_assign })
+    .select({ name: assistants.name, email_rules: assistants.email_rules })
     .from(assistants)
     .where(eq(assistants.workspace_id, call.workspace_id))
     .orderBy(sql`${assistants.id} = ${call.assistant_id ?? ''} desc`, asc(assistants.created_at))
@@ -177,29 +177,30 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
     workspace: emailSafeName(workspace?.name, getT(locale).t('email.fallback.workspace')),
   })
   const everyone = await emailRecipients(tx, call.workspace_id)
-  // Routed by the assistant's instruction: decided once per call, stored before anything is sent.
+  // Routed by the assistant's rules: decided once per call, stored before anything is sent.
   let route = call.email_route
-  if (!route && routesEmails(assistant?.email_routing)) {
-    const model = await (deps.model ?? ((t: Tx) => evaluationModel(t)))(tx).catch(() => null)
-    const { decision } = await decideForCall(
+  if (!route && assistant && routesEmails(assistant.email_rules)) {
+    const model = assistant.email_rules.rules.length
+      ? await (deps.model ?? ((t: Tx) => evaluationModel(t)))(tx).catch(() => null)
+      : null
+    const now = new Date().toISOString()
+    const decided = await routeCall(
       tx,
       call.workspace_id,
-      assistant!.email_routing!,
+      assistant.email_rules,
       {
         title: call.title,
         urgent: call.urgency === 'urgent',
         caller: contact?.name ?? call.from_number,
         summary: call.summary,
         fields: call.fields,
-        // i18n-ignore: a name in the call as the language model reads it, not shown in the app
-        assistantName: assistant?.name ?? 'Assistant',
+        assistantName: assistant.name,
         transcript,
       },
       model,
-      assistant!.email_assign,
+      everyone.map(asMemberRoute),
+      now,
     )
-    const now = new Date().toISOString()
-    const decided = routeOf(decision, everyone.map(asMemberRoute), now)
     const [stored] = await tx
       .update(calls)
       .set({ email_route: decided })

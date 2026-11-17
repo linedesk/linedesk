@@ -2,6 +2,7 @@ import type { Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { rolePermissions } from './define.ts'
 import { storedSnapshot } from './assistant-versions.ts'
+import { EMAIL_ALWAYS_MAX, EMAIL_RULE_TO_MAX, EMAIL_RULE_WHEN_MAX, EMAIL_RULES_MAX } from './email-routing.ts'
 import { applyLocally, type LocalTables } from './index.ts'
 import { currencyDigits, fromMinorUnits, jobValueCurrencies, rescaleMinorUnits, toMinorUnits } from './insights.ts'
 import {
@@ -37,13 +38,69 @@ import {
 } from './voices.ts'
 
 describe('assistant.update', () => {
+  it('takes call email rules: normalized, within the limits, owners and admins only (LIN-470)', () => {
+    const rule = (over: object = {}) => ({
+      id: 'r1',
+      when: ' Calls about water heaters or boilers ',
+      to: ['u1', 'u2', 'u1'],
+      assign: 'u2',
+      ...over,
+    })
+    const parse = (email_rules: unknown) => assistantUpdate.input.parse({ assistantId: 'as1', email_rules }).email_rules
+    expect(parse({ always: ['u3', 'u3'], rules: [rule()] })).toEqual({
+      always: ['u3'],
+      rules: [
+        {
+          id: 'r1',
+          when: 'Calls about water heaters or boilers',
+          to: ['u1', 'u2'],
+          assign: 'u2',
+        },
+      ],
+    })
+    // An assignee who is not one of the rule's members is dropped, not refused.
+    expect(parse({ always: [], rules: [rule({ assign: 'u9' })] })!.rules[0]!.assign).toBeNull()
+    const assistants = new Map([['as1', { id: 'as1', email_rules: { always: [], rules: [] } }]])
+    applyLocally(
+      { assistants } as unknown as LocalTables,
+      assistantUpdate,
+      assistantUpdate.input.parse({ assistantId: 'as1', email_rules: { always: ['u3'], rules: [rule()] } }),
+      '2026-11-17T00:00:00Z',
+    )
+    expect(assistants.get('as1')).toMatchObject({
+      email_rules: {
+        always: ['u3'],
+        rules: [{ when: 'Calls about water heaters or boilers', to: ['u1', 'u2'], assign: 'u2' }],
+      },
+    })
+    // Limits: `when` (not blank, at most EMAIL_RULE_WHEN_MAX), members per rule, always and the number of rules.
+    for (const bad of [
+      { always: [], rules: [rule({ when: '   ' })] },
+      { always: [], rules: [rule({ when: 'x'.repeat(EMAIL_RULE_WHEN_MAX + 1) })] },
+      {
+        always: [],
+        rules: [rule({ to: Array.from({ length: EMAIL_RULE_TO_MAX + 1 }, (_, i) => `u${i}`), assign: null })],
+      },
+      { always: Array.from({ length: EMAIL_ALWAYS_MAX + 1 }, (_, i) => `u${i}`), rules: [] },
+      { always: [], rules: Array.from({ length: EMAIL_RULES_MAX + 1 }, (_, i) => rule({ id: `r${i}` })) },
+      { rules: [] },
+    ])
+      expect(() => parse(bad)).toThrow()
+    expect(assistantUpdate.permission).toBe('settings:write')
+    expect(rolePermissions.member).not.toContain('settings:write')
+  })
+
   it('keeps the free-text instructions the voice agent reads', () => {
     const input = assistantUpdate.input.parse({ assistantId: 'as1', business_profile: { instructions: 'Hours: 24/7' } })
     expect(input.business_profile).toEqual({ instructions: 'Hours: 24/7' })
   })
 
   it('accepts a keypad menu from an older web app and drops it (the feature is gone)', () => {
-    const old = { assistantId: 'as1', name: 'Maya', keypad_menu: { options: [{ key: '1', label: 'emergencies', action: 'transfer' }] } }
+    const old = {
+      assistantId: 'as1',
+      name: 'Maya',
+      keypad_menu: { options: [{ key: '1', label: 'emergencies', action: 'transfer' }] },
+    }
     const input = assistantUpdate.input.parse(old)
     expect(input).not.toHaveProperty('keypad_menu')
     const assistants = new Map([['as1', { id: 'as1', name: 'Max' }]])
@@ -54,7 +111,12 @@ describe('assistant.update', () => {
   it('takes any talking speed from 80 to 120 percent and keeps the old three speeds in step', () => {
     const assistants = new Map([['as1', { id: 'as1' }]])
     const update = (fields: object) =>
-      applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, assistantUpdate.input.parse({ assistantId: 'as1', ...fields }), '2026-11-12T00:00:00Z')
+      applyLocally(
+        { assistants } as unknown as LocalTables,
+        assistantUpdate,
+        assistantUpdate.input.parse({ assistantId: 'as1', ...fields }),
+        '2026-11-12T00:00:00Z',
+      )
     update({ talking_speed_pct: 93 })
     expect(assistants.get('as1')).toMatchObject({ talking_speed_pct: 93, talking_speed: 'slow' })
     update({ talking_speed_pct: 103 })
@@ -62,7 +124,8 @@ describe('assistant.update', () => {
     // A web app of the release before sends only the old speed.
     update({ talking_speed: 'fast' })
     expect(assistants.get('as1')).toMatchObject({ talking_speed_pct: 110, talking_speed: 'fast' })
-    for (const pct of [79, 121, 100.5]) expect(() => assistantUpdate.input.parse({ assistantId: 'as1', talking_speed_pct: pct })).toThrow()
+    for (const pct of [79, 121, 100.5])
+      expect(() => assistantUpdate.input.parse({ assistantId: 'as1', talking_speed_pct: pct })).toThrow()
   })
 
   it("takes the assistant's realtime voice: one of the realtime model's voices, or '' for the server's default", () => {
@@ -78,7 +141,9 @@ describe('assistant.update', () => {
 
   it('a version from before realtime voices restores without touching the realtime voice', () => {
     expect(storedSnapshot({ name: 'Maya', calendars: [] })).not.toHaveProperty('realtime_voice')
-    expect(storedSnapshot({ name: 'Maya', realtime_voice: 'ash', calendars: [] })).toMatchObject({ realtime_voice: 'ash' })
+    expect(storedSnapshot({ name: 'Maya', realtime_voice: 'ash', calendars: [] })).toMatchObject({
+      realtime_voice: 'ash',
+    })
   })
 
   it('says the talking speed in a few words', () => {
@@ -95,7 +160,12 @@ describe('assistant.update', () => {
   it('sets how calls are answered, and back to the install default with null', () => {
     const assistants = new Map([['as1', { id: 'as1', voice_pipeline: null }]])
     const update = (fields: object) =>
-      applyLocally({ assistants } as unknown as LocalTables, assistantUpdate, assistantUpdate.input.parse({ assistantId: 'as1', ...fields }), '2026-11-13T00:00:00Z')
+      applyLocally(
+        { assistants } as unknown as LocalTables,
+        assistantUpdate,
+        assistantUpdate.input.parse({ assistantId: 'as1', ...fields }),
+        '2026-11-13T00:00:00Z',
+      )
     update({ voice_pipeline: 'three_stage' })
     expect(assistants.get('as1')).toMatchObject({ voice_pipeline: 'three_stage' })
     update({ name: 'Maya' }) // another field leaves it alone
@@ -271,17 +341,27 @@ describe('contact.merge', () => {
     expect(contactMerge.permission).toBe('contact:write')
     expect(rolePermissions.member).toContain('contact:write')
     expect(contactMerge.patch).toBeUndefined()
-    expect(contactMerge.input.parse({ keepId: 'a', mergeId: 'b', name: ' Sam ', email: null })).toEqual({ keepId: 'a', mergeId: 'b', name: 'Sam', email: null })
+    expect(contactMerge.input.parse({ keepId: 'a', mergeId: 'b', name: ' Sam ', email: null })).toEqual({
+      keepId: 'a',
+      mergeId: 'b',
+      name: 'Sam',
+      email: null,
+    })
   })
 })
 
 describe('contact.import', () => {
   it('is for anyone who edits contacts, takes E.164 numbers and at most CONTACT_IMPORT_MAX_ROWS rows', () => {
     expect(contactImport.permission).toBe('contact:write')
-    expect(contactImport.input.safeParse({ rows: [{ phone: '+15035550142', name: ' Sam ' }] }).data).toEqual({ rows: [{ phone: '+15035550142', name: 'Sam' }] })
+    expect(contactImport.input.safeParse({ rows: [{ phone: '+15035550142', name: ' Sam ' }] }).data).toEqual({
+      rows: [{ phone: '+15035550142', name: 'Sam' }],
+    })
     expect(contactImport.input.safeParse({ rows: [{ phone: '5035550142' }] }).success).toBe(false)
     expect(contactImport.input.safeParse({ rows: [] }).success).toBe(false)
-    expect(contactImport.input.safeParse({ rows: Array(CONTACT_IMPORT_MAX_ROWS + 1).fill({ phone: '+15035550142' }) }).success).toBe(false)
+    expect(
+      contactImport.input.safeParse({ rows: Array(CONTACT_IMPORT_MAX_ROWS + 1).fill({ phone: '+15035550142' }) })
+        .success,
+    ).toBe(false)
   })
 })
 
@@ -290,7 +370,18 @@ describe('workspaceName', () => {
     expect(workspaceName.parse('  Brightwater Plumbing & Heating  ')).toBe('Brightwater Plumbing & Heating')
     expect(workspaceName.parse('Café Dentistry, Portland')).toBe('Café Dentistry, Portland')
     expect(workspaceNameProblem('x'.repeat(80))).toBeNull()
-    const bad = ['', '   ', 'x'.repeat(81), 'Two\nlines', 'Nul\u0000', 'C1\u0085', 'Rtl \u202Egnirts', 'Isolate \u2067x', 'Mark\u200F', 42]
+    const bad = [
+      '',
+      '   ',
+      'x'.repeat(81),
+      'Two\nlines',
+      'Nul\u0000',
+      'C1\u0085',
+      'Rtl \u202Egnirts',
+      'Isolate \u2067x',
+      'Mark\u200F',
+      42,
+    ]
     for (const name of bad) expect(workspaceNameProblem(name), JSON.stringify(name)).not.toBeNull()
   })
 })
@@ -331,7 +422,10 @@ describe('workspace.deleteOwn and workspace.deletePreview', () => {
   it('takes the typed name and whether the owner keeps their account, nothing else', async () => {
     const { workspaceDeleteOwn } = await import('./settings.ts')
     expect(workspaceDeleteOwn.input.parse({ name: ' Brightwater ' })).toEqual({ name: 'Brightwater' })
-    expect(workspaceDeleteOwn.input.parse({ name: 'B', keepOwnAccount: true })).toEqual({ name: 'B', keepOwnAccount: true })
+    expect(workspaceDeleteOwn.input.parse({ name: 'B', keepOwnAccount: true })).toEqual({
+      name: 'B',
+      keepOwnAccount: true,
+    })
     expect(workspaceDeleteOwn.input.safeParse({ name: '  ' }).success).toBe(false)
     expect(workspaceDeleteOwn.input.safeParse({}).success).toBe(false)
   })
@@ -369,7 +463,18 @@ describe('the instance policy for how calls are answered', () => {
 
 describe('realtime voices', () => {
   it('are the ten voices OpenAI lists for the Realtime API, marin and cedar (recommended) first', () => {
-    expect([...REALTIME_VOICE_IDS].sort()).toEqual(['alloy', 'ash', 'ballad', 'cedar', 'coral', 'echo', 'marin', 'sage', 'shimmer', 'verse'])
+    expect([...REALTIME_VOICE_IDS].sort()).toEqual([
+      'alloy',
+      'ash',
+      'ballad',
+      'cedar',
+      'coral',
+      'echo',
+      'marin',
+      'sage',
+      'shimmer',
+      'verse',
+    ])
     expect(REALTIME_VOICE_IDS.slice(0, 2)).toEqual(RECOMMENDED_REALTIME_VOICES)
     expect(realtimeVoices.filter(v => v.recommended).map(v => v.id)).toEqual(['marin', 'cedar'])
     // OpenAI gives no gender or accent, only that the voices are optimized for English.

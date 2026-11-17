@@ -50,7 +50,8 @@ describe('audit labels', () => {
       'Changed who gets call emails (added Dave and rosa@lakeside-books.example, removed Mike)',
     )
     expect(routing({ added: [], removed: [] })).toBe('Changed who gets call emails')
-    // A refused change has no result: its input had the instruction (redacted).
+    // A refused change has no result: its input had the rules (redacted), or the instruction of before LIN-470.
+    expect(label('assistant.update', { email_rules: '[redacted]' })).toBe('Changed who gets call emails')
     expect(label('assistant.update', { email_routing: '[redacted]' })).toBe('Changed who gets call emails')
   })
 
@@ -69,7 +70,9 @@ describe('audit labels', () => {
     expect(level('assistant.update')).toBe(
       "Changed what the assistant's calls cost (voice model default to elevenlabs/eleven_v3, language model gpt-5.4-mini to gpt-5.4)",
     )
-    expect(level('assistant.restoreVersion')).toMatch(/^Restored an earlier assistant version, which changed what its calls cost/)
+    expect(level('assistant.restoreVersion')).toMatch(
+      /^Restored an earlier assistant version, which changed what its calls cost/,
+    )
     const ultra = auditLabel({
       what: 'assistant.update',
       method: null,
@@ -80,7 +83,9 @@ describe('audit labels', () => {
         after: { voice_model: null, llm_model: null, voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' },
       },
     })
-    expect(ultra).toBe("Changed what the assistant's calls cost (pipeline default to realtime, realtime model default to gpt-realtime-2)")
+    expect(ultra).toBe(
+      "Changed what the assistant's calls cost (pipeline default to realtime, realtime model default to gpt-realtime-2)",
+    )
   })
 
   test('branding says when Powered by Linedesk was hidden', () => {
@@ -152,24 +157,101 @@ describe('audit labels', () => {
 
 // A copy of the keys of AUDITED_ACTIONS (apps/api/src/audit.ts): add a new audited action here and give it a label.
 const AUDITED_ACTION_NAMES = [
-  'provider.setKeys', 'provider.clearKeys', 'provider.setActive', 'provider.connectOneKey', 'carrier.set',
-  'carrier.provisionTransferTrunk', 'voiceCloning.set', 'voicePipelinePolicy.set', 'systemPrompt.setPart', 'systemPrompt.resetPart', 'afterCallTranscript.set', 'setupEmails.set', 'user.invite',
-  'user.disable', 'user.enable', 'workspace.disable', 'workspace.enable', 'workspace.delete', 'workspace.purge', 'data.purgeDeleted', 'call.erase', 'workspace.setSpendingCap',
-  'instanceAdmin.grant', 'instanceAdmin.revoke', 'user.resetPasskeys', 'user.issuePasskeyEnrolment', 'branding.set',
-  'user.impersonate', 'impersonation.stop', 'impersonationEmails.set', 'team.invite', 'team.resendInvite', 'team.revokeInvite', 'team.setRole',
-  'team.transferOwnership', 'team.removeMember', 'team.leave', 'team.updateMemberProfile', 'team.setMemberAvatar',
-  'team.removeMemberAvatar', 'team.updateMemberNotifications', 'workspace.deleteOwn', 'invitation.accept',
-  'invitation.decline', 'membership.add', 'workspace.create', 'membership.setRole', 'membership.remove',
-  'invitation.revoke', 'invitation.resend', 'apiKey.create', 'apiKey.revoke', 'webhook.create', 'webhook.update',
-  'webhook.delete', 'webhook.test', 'calendar.connectFinish', 'calendar.disconnect', 'app.connectFinish', 'app.disconnect',
-  'app.updateSettings', 'phoneNumber.setup',
-  'phoneNumber.release', 'agentSetup.createKey', 'agentSetup.confirmPasskey', 'agentSetup.withdrawPasskey',
-  'agentSetup.revoke', 'agentSetup.endOwnAccess', 'agentSetup.createWorkspaceKey', 'agentSetup.revokeWorkspace',
-  'billingEnabled.set', 'billing.reprocessEvent', 'billing.credit', 'billing.refund', 'billing.adminSetStatus',
-  'billing.setCap', 'billing.setConcurrency', 'billing.moveWorkspace', 'billing.transferOwner', 'billing.reviewHold',
-  'billingRules.set', 'signup.setSelfServe', 'signup.setRules', 'account.signUp', 'billing.startCheckout',
-  'billing.confirmCheckout', 'billing.startTopUp', 'billing.cancel', 'billing.resume', 'billing.setAutoRecharge',
-  'billing.setRechargeCap', 'billing.openPortal', 'billing.retryRecharge', 'billing.recordPortOut', 'billing.handOver',
+  'provider.setKeys',
+  'provider.clearKeys',
+  'provider.setActive',
+  'provider.connectOneKey',
+  'carrier.set',
+  'carrier.provisionTransferTrunk',
+  'voiceCloning.set',
+  'voicePipelinePolicy.set',
+  'systemPrompt.setPart',
+  'systemPrompt.resetPart',
+  'afterCallTranscript.set',
+  'setupEmails.set',
+  'user.invite',
+  'user.disable',
+  'user.enable',
+  'workspace.disable',
+  'workspace.enable',
+  'workspace.delete',
+  'workspace.purge',
+  'data.purgeDeleted',
+  'call.erase',
+  'workspace.setSpendingCap',
+  'instanceAdmin.grant',
+  'instanceAdmin.revoke',
+  'user.resetPasskeys',
+  'user.issuePasskeyEnrolment',
+  'branding.set',
+  'user.impersonate',
+  'impersonation.stop',
+  'impersonationEmails.set',
+  'team.invite',
+  'team.resendInvite',
+  'team.revokeInvite',
+  'team.setRole',
+  'team.transferOwnership',
+  'team.removeMember',
+  'team.leave',
+  'team.updateMemberProfile',
+  'team.setMemberAvatar',
+  'team.removeMemberAvatar',
+  'team.updateMemberNotifications',
+  'workspace.deleteOwn',
+  'invitation.accept',
+  'invitation.decline',
+  'membership.add',
+  'workspace.create',
+  'membership.setRole',
+  'membership.remove',
+  'invitation.revoke',
+  'invitation.resend',
+  'apiKey.create',
+  'apiKey.revoke',
+  'webhook.create',
+  'webhook.update',
+  'webhook.delete',
+  'webhook.test',
+  'calendar.connectFinish',
+  'calendar.disconnect',
+  'app.connectFinish',
+  'app.disconnect',
+  'app.updateSettings',
+  'phoneNumber.setup',
+  'phoneNumber.release',
+  'agentSetup.createKey',
+  'agentSetup.confirmPasskey',
+  'agentSetup.withdrawPasskey',
+  'agentSetup.revoke',
+  'agentSetup.endOwnAccess',
+  'agentSetup.createWorkspaceKey',
+  'agentSetup.revokeWorkspace',
+  'billingEnabled.set',
+  'billing.reprocessEvent',
+  'billing.credit',
+  'billing.refund',
+  'billing.adminSetStatus',
+  'billing.setCap',
+  'billing.setConcurrency',
+  'billing.moveWorkspace',
+  'billing.transferOwner',
+  'billing.reviewHold',
+  'billingRules.set',
+  'signup.setSelfServe',
+  'signup.setRules',
+  'account.signUp',
+  'billing.startCheckout',
+  'billing.confirmCheckout',
+  'billing.startTopUp',
+  'billing.cancel',
+  'billing.resume',
+  'billing.setAutoRecharge',
+  'billing.setRechargeCap',
+  'billing.openPortal',
+  'billing.retryRecharge',
+  'billing.recordPortOut',
+  'billing.handOver',
   'billing.portOutInfo',
 ]
 
@@ -246,7 +328,14 @@ test('an invitation passed to the owner names the invited address (LIN-264)', ()
     "Invitation to new@example.com passed to the workspace owner: its sender's account was deleted",
   )
   // The owner it passed to, while that account exists (review F4).
-  expect(auditLabel({ what: 'invitation_reassigned', method: 'new@example.com', input: null, subject: { email: 'mike@example.com' } })).toBe(
+  expect(
+    auditLabel({
+      what: 'invitation_reassigned',
+      method: 'new@example.com',
+      input: null,
+      subject: { email: 'mike@example.com' },
+    }),
+  ).toBe(
     "Invitation to new@example.com passed to the workspace owner mike@example.com: its sender's account was deleted",
   )
 })
@@ -292,7 +381,9 @@ describe('signing in as a user', () => {
     expect(auditReason({ what: 'billing.refund', input: { amountCents: 500, reason: 'Duplicate charge' } })).toBe(
       'Reason: Duplicate charge',
     )
-    expect(label('impersonationEmails.set', { on: true })).toBe('Turned on emails to users when an admin signs in as them')
+    expect(label('impersonationEmails.set', { on: true })).toBe(
+      'Turned on emails to users when an admin signs in as them',
+    )
   })
 })
 
@@ -301,15 +392,50 @@ describe('what setup links, support access and its API keys did', () => {
   // writes of support access (impersonation-guard.ts IMPERSONATION_ALLOWED_WRITES, READS_LOGGED_WHEN_IMPERSONATED); the
   // public actions an API key made during support access can run.
   const canAppear = [
-    'provider.setKeys', 'provider.setActive', 'provider.connectOneKey', 'provider.clearKeys', 'install.setProgress',
-    'workspace.rename', 'workspace.setIcon', 'workspace.removeIcon', 'assistant.update', 'workspace.updateSettings',
-    'businessHours.set', 'notifications.update', 'phoneNumber.setup', 'phoneNumber.update', 'phoneNumber.checkForwarding',
-    'onboarding.setStep', 'workspace.create', 'agentSetup.endOwnAccess',
-    'impersonation.stop', 'apiKey.create', 'apiKey.revoke', 'call.export',
-    'call.markDone', 'call.markNotDone', 'call.markRead', 'call.markUnread', 'call.remind', 'call.assign',
-    'call.clearReminder', 'call.delete', 'call.restore', 'call.markSpam', 'call.markNotSpam', 'call.setActionItems',
-    'call.setUrgency', 'contact.update', 'contact.block', 'contact.unblock', 'contact.create', 'contact.delete',
-    'contact.restore', 'appointment.book', 'appointment.cancel', 'appointment.reschedule',
+    'provider.setKeys',
+    'provider.setActive',
+    'provider.connectOneKey',
+    'provider.clearKeys',
+    'install.setProgress',
+    'workspace.rename',
+    'workspace.setIcon',
+    'workspace.removeIcon',
+    'assistant.update',
+    'workspace.updateSettings',
+    'businessHours.set',
+    'notifications.update',
+    'phoneNumber.setup',
+    'phoneNumber.update',
+    'phoneNumber.checkForwarding',
+    'onboarding.setStep',
+    'workspace.create',
+    'agentSetup.endOwnAccess',
+    'impersonation.stop',
+    'apiKey.create',
+    'apiKey.revoke',
+    'call.export',
+    'call.markDone',
+    'call.markNotDone',
+    'call.markRead',
+    'call.markUnread',
+    'call.remind',
+    'call.assign',
+    'call.clearReminder',
+    'call.delete',
+    'call.restore',
+    'call.markSpam',
+    'call.markNotSpam',
+    'call.setActionItems',
+    'call.setUrgency',
+    'contact.update',
+    'contact.block',
+    'contact.unblock',
+    'contact.create',
+    'contact.delete',
+    'contact.restore',
+    'appointment.book',
+    'appointment.cancel',
+    'appointment.reschedule',
   ]
 
   test('each has a sentence of its own, never the action id', () => {
@@ -329,9 +455,15 @@ describe('what setup links, support access and its API keys did', () => {
   })
 
   test('a revoked API key is named, like a created one', () => {
-    expect(auditLabel({ what: 'apiKey.revoke', method: null, input: { apiKeyId: 'k1' }, subject: null, apiKeyName: 'Zapier' })).toBe(
-      'Revoked API key “Zapier”',
-    )
+    expect(
+      auditLabel({
+        what: 'apiKey.revoke',
+        method: null,
+        input: { apiKeyId: 'k1' },
+        subject: null,
+        apiKeyName: 'Zapier',
+      }),
+    ).toBe('Revoked API key “Zapier”')
     expect(label('apiKey.revoke', { apiKeyId: 'k1' })).toBe('Revoked an API key')
   })
 

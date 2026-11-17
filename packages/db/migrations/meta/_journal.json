@@ -1023,6 +1023,13 @@
       "when": 1794957280834,
       "tag": "0146_webhook_url_host",
       "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1794958507206,
+      "tag": "0147_email_rules",
+      "breakpoints": true
     }
   ]
 }

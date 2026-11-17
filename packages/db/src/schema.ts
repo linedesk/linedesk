@@ -45,6 +45,7 @@ import {
   type CallerDetails,
   type CallVoiceFailure,
   type EmailRoute,
+  type EmailRules,
   type Closure,
   type HolidayCalendar,
   type ToolEvent,
@@ -185,16 +186,22 @@ export const assistants = pgTable(
      */
     realtime_model: text('realtime_model'),
     /**
-     * Who gets the email about each finished call, in plain language (call-notifications.ts, email routing). Mentions
-     * are stored as `<@user:USER_ID>` and `<@email:ADDRESS>`. null or '': every member with call emails on.
+     * No longer read (LIN-470: email_rules). Was: who gets the email about each finished call, in plain language, with
+     * mentions stored as `<@user:USER_ID>` and `<@email:ADDRESS>`. Kept until a later release drops it.
      */
     email_routing: text('email_routing'),
     /**
-     * Members a routed call is also assigned to (Settings › Assistant › Call emails, "Assign"): the first of them, in the
-     * instruction's order, who gets the call's email, while nobody has the call. Chosen in the settings, never by the
-     * model.
+     * No longer read (LIN-470: email_rules). Was: members a routed call is also assigned to. Kept until a later
+     * release drops it.
      */
     email_assign: jsonb('email_assign').$type<string[]>().notNull().default([]),
+    /**
+     * Who gets the email about each finished call (LIN-470, replaces email_routing and email_assign, which are no longer
+     * read): `always` members get every one; each rule names the calls it is about, its members and whom it assigns.
+     * A language model matches the rules after the call (apps/api/src/email-routing.ts). No rules and no always:
+     * every member with call emails on.
+     */
+    email_rules: jsonb('email_rules').$type<EmailRules>().notNull().default({ always: [], rules: [] }),
     created_at: createdAt(),
     version: version(),
   },

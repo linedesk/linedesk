@@ -31,7 +31,6 @@ import {
   type Language,
   answeredQuestionLine,
   otherLanguagesOf,
-  EMAIL_ROUTING_MAX,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
@@ -103,7 +102,7 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
 import { Webhooks } from './Webhooks.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
-import { CallEmails, type Undoable } from './CallEmails.tsx'
+import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
 
 type SectionId =
   | 'general'
@@ -237,7 +236,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   ],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
-  emails: ['email_routing', 'email_assign'],
+  emails: ['email_rules'],
   advanced: [
     'talking_speed_pct',
     'silence_first_gap_s',
@@ -776,7 +775,7 @@ function Advanced({ draft, set }: SectionProps) {
 
 /** `isInstanceAdmin`: the member runs the server (a test call nobody answers says what to fix there). */
 /** `agentChange`: "Change with an AI agent" on top of General (owners and admins, AgentChange.tsx). */
-/** `undoable`: a toast with Undo for a change the page undoes itself (removing an outside address in Call emails). */
+/** `undoable`: a toast with Undo for a change the page undoes itself (removing a call email rule). */
 type Props = {
   canEdit: boolean
   toast: (text: string) => void
@@ -813,6 +812,7 @@ function Form({
   const testCall = useTestCall(canEdit, assistant, isInstanceAdmin)
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
+  const [emailSaveTried, setEmailSaveTried] = useState(false)
   const workspaceLanguage = useWorkspaceLanguage()
   const savedJson = JSON.stringify(draftOf(assistant, workspaceLanguage))
   const saved = useMemo(() => JSON.parse(savedJson) as Draft, [savedJson])
@@ -882,7 +882,11 @@ function Form({
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (languagesProblem(draft)) return goTo('general', 'as-languages-mode')
-    if (draft.email_routing.length > EMAIL_ROUTING_MAX) return goTo('emails', 'as-emails-text')
+    const noTopic = draft.email_rules.rules.findIndex(r => !r.when.trim())
+    if (noTopic >= 0) {
+      setEmailSaveTried(true)
+      return goTo('emails', emailRuleWhenId(noTopic))
+    }
     const problem = draftProblem(draft, outboundCountries)
     if (problem) return toast(problem)
     if (dirty) {
@@ -912,11 +916,8 @@ function Form({
         talking_speed_pct: clean.talking_speed_pct,
         voice_pipeline: clean.voice_pipeline,
         // Only when changed: an API of the release before does not know it.
-        ...(clean.email_routing !== normalized(saved).email_routing
-          ? { email_routing: clean.email_routing || null }
-          : {}),
-        ...(JSON.stringify(clean.email_assign) !== JSON.stringify(normalized(saved).email_assign)
-          ? { email_assign: clean.email_assign }
+        ...(JSON.stringify(clean.email_rules) !== JSON.stringify(normalized(saved).email_rules)
+          ? { email_rules: clean.email_rules }
           : {}),
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
@@ -1037,13 +1038,11 @@ function Form({
         {current === 'emails' && (
           <CallEmails
             name={assistantName(draft, t)}
-            value={draft.email_routing}
-            onChange={text => set('email_routing', text)}
-            assign={draft.email_assign}
-            onAssignChange={ids => set('email_assign', ids)}
+            rules={draft.email_rules}
+            onChange={update => setDraft(d => ({ ...d, email_rules: update(d.email_rules) }))}
             canEdit={canEdit}
-            toast={toast}
             undoable={undoable}
+            showErrors={emailSaveTried}
           />
         )}
         {current === 'advanced' && (

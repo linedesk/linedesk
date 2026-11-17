@@ -95,7 +95,7 @@ const prunedResultSql = sql`jsonb_strip_nulls(jsonb_build_object('ok', ${command
 
 /**
  * A change of transfer contacts keeps its `data.transferChanges` (ids, names, last four digits: audit.ts), a change
- * of the usage level its `data.usageLevelChange` (model ids), and a change of the call email instruction its
+ * of the usage level its `data.usageLevelChange` (model ids), and a change of the call email rules (or the older instruction) its
  * `data.emailRoutingChanges` (who it added and removed), which the audit log shows; everything else of its result and
  * input goes down to ids like any command's.
  */

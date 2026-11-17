@@ -375,9 +375,11 @@ export function auditLabel(
       if (e.usageLevelChange)
         return t('admin.audit.usageLevelChanged', { changes: levelChangeList(e.usageLevelChange) })
       if (e.emailRoutingChanges) return emailRoutingLabel(e.emailRoutingChanges)
-      // A refused change (no result): its input had the contacts, or the call email instruction.
+      // A refused change (no result): its input had the contacts, or the call email rules.
       if (Array.isArray(input.transfers)) return t('admin.audit.transferContactsEdited')
-      return 'email_routing' in input ? t('admin.audit.emailRoutingEdited') : t('admin.audit.assistantChanged')
+      return 'email_rules' in input || 'email_routing' in input
+        ? t('admin.audit.emailRoutingEdited')
+        : t('admin.audit.assistantChanged')
     case 'workspace.updateSettings':
       // Listed for the recording notice (audit.ts, RECORDING_NOTICE_CHANGE_KIND); the text itself shows within 90 days.
       if (input.recordingNoticeOn === false) return t('admin.audit.recordingNoticeOff')
