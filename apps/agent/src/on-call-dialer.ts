@@ -213,6 +213,11 @@ function firstAudioTrack(room: Room): Promise<RemoteTrack> {
   })
 }
 
+/**
+ * Quiet that ends the briefing: longer than a pause between its sentences on a phone line (LIN-263: 1.2 s split it,
+ * and the yes came before the question).
+ */
+const BRIEFING_QUIET_MS = 2000
 /** How long the on-call person waits after saying yes for the next line ("Connecting you now.", or the briefing again). */
 const NEXT_LINE_MS = 8000
 /** Speech at least this long after the yes is the briefing again ("Connecting you now." is about a second). */
@@ -245,7 +250,7 @@ export async function actOnCall(
   const heard = (new AudioStream(await firstAudioTrack(room), 16_000, 1) as unknown as AsyncIterable<AudioFrame>)[
     Symbol.asyncIterator
   ]()
-  const briefingMs = await untilTheyStopTalking(heard) // the briefing
+  const briefingMs = await untilTheyStopTalking(heard, BRIEFING_QUIET_MS) // the briefing
   log(`heard ${briefingMs} ms of speech, then quiet (${at()})`)
   if (answer === 'decline') {
     await room.localParticipant!.publishDtmf(2, '2')
