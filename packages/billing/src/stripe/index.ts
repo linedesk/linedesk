@@ -405,19 +405,28 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
     },
     async stopRechargeInvoice(invoiceId, options) {
       const invoice = await stripe.invoices.retrieve(invoiceId)
+      // Paid already (Stripe's own collection, before the give-up): nothing to stop; the caller credits it (V-1).
+      if (invoice.status === 'paid') return 'paid'
       // A draft (finalizing was refused) would be finalized and charged on its own an hour later: deleted, or kept
       // as a draft with automatic collection off.
       if (invoice.status === 'draft') {
         if (options.void) await stripe.invoices.del(invoiceId)
         else if (invoice.auto_advance !== false) await stripe.invoices.update(invoiceId, { auto_advance: false })
-        return
+        return 'stopped'
       }
-      if (invoice.status === 'open' && invoice.auto_advance !== false)
-        await stripe.invoices.update(invoiceId, { auto_advance: false })
-      // An uncollectible invoice stays payable by the customer: voided too, or a hand credit and a later payment
-      // would charge twice for one credit (security re-review of #919, R4).
-      if (options.void && (invoice.status === 'open' || invoice.status === 'uncollectible'))
-        await stripe.invoices.voidInvoice(invoiceId)
+      try {
+        if (invoice.status === 'open' && invoice.auto_advance !== false)
+          await stripe.invoices.update(invoiceId, { auto_advance: false })
+        // An uncollectible invoice stays payable by the customer: voided too, or a hand credit and a later payment
+        // would charge twice for one credit (security re-review of #919, R4).
+        if (options.void && (invoice.status === 'open' || invoice.status === 'uncollectible'))
+          await stripe.invoices.voidInvoice(invoiceId)
+      } catch (error) {
+        // Paid between the read and the void (Stripe refuses to void a paid invoice): paid, not a failure.
+        if ((await stripe.invoices.retrieve(invoiceId)).status === 'paid') return 'paid'
+        throw error
+      }
+      return 'stopped'
     },
     async rechargeInvoicePage(invoiceId) {
       return (await stripe.invoices.retrieve(invoiceId)).hosted_invoice_url ?? null

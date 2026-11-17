@@ -189,7 +189,10 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     account: async () => null,
     chargeRecharge: () => Promise.reject(new Error('not used')),
     findRechargeInvoice: async () => null,
-    stopRechargeInvoice: async (invoiceId, options) => void stopped.push({ invoiceId, void: options.void }),
+    stopRechargeInvoice: async (invoiceId, options) => {
+      stopped.push({ invoiceId, void: options.void })
+      return 'stopped'
+    },
     rechargeInvoicePage: async () => null,
     // Settings › Billing's portal (PR 9) is not used here.
     portalSession: () => Promise.reject(new Error('not used')),

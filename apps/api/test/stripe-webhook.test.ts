@@ -5,6 +5,7 @@
 // trusts the payload's amounts; failures are retried and alerted; the nightly reconciliation stores missed events,
 // settles stuck recharges and reports drift. Instance-wide (Stripe keys, the billing switch): its own database.
 import { createHmac } from 'node:crypto'
+import { BillingSetupError } from '@linedesk/billing'
 import {
   billing_accounts,
   billing_alerts,
@@ -14,6 +15,7 @@ import {
   billing_periods,
   billing_recharges,
   commands,
+  instance_settings,
   ledger_entries,
   organization,
   provider_settings,
@@ -23,6 +25,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { reconcileBilling } from '../src/billing-reconcile.ts'
+import { rechargeGaveUp, rechargeSetupAlertKey } from '../src/billing-recharge.ts'
 import { forgetWebhookBillingProvider, setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -1193,6 +1196,94 @@ describe('invoice.payment_failed and invoice.voided for a recharge (PR 4’s fai
     expect((await db.select().from(billing_accounts).where(eq(billing_accounts.id, other.bill.id)))[0]!.status).toBe(
       'active',
     )
+  })
+})
+
+describe('the recharge job gives up, but Stripe had already paid the invoice (review #1110, V-1)', () => {
+  const attempt = async (id: string) =>
+    (await db.select().from(billing_recharges).where(eq(billing_recharges.id, id)))[0]!
+  const billOf = async (id: string) => (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!
+  /** A pending attempt whose invoice Stripe's own collection paid; its invoice.paid not processed yet. */
+  async function paidBehindTheJob() {
+    const { bill } = await billWith()
+    const invoiceId = rid('in')
+    const recharge = await pendingRecharge(bill.id, invoiceId)
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        metadata: { billing_recharge_id: recharge.id },
+        lines: [rechargeLine(recharge.id)],
+      }),
+    )
+    paidBy(invoiceId, 2000)
+    return { bill, invoiceId, recharge }
+  }
+  /** The webhook that comes after the give-up: it credits nothing a second time. */
+  async function webhookAfter(bill: typeof billing_accounts.$inferSelect, invoiceId: string) {
+    expect(await deliverAndProcess(event('invoice.paid', invoice(invoiceId, bill.stripe_customer_id!)))).toMatchObject({
+      credited: { posted: false },
+    })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+  }
+
+  test('the normal give-up credits the attempt once, voids nothing and emails nobody that it failed', async () => {
+    const { bill, invoiceId, recharge } = await paidBehindTheJob()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await rechargeGaveUp(db, recharge.id)
+    expect(await attempt(recharge.id)).toMatchObject({ status: 'paid', stripe_invoice_id: invoiceId })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    expect(await rechargeEntries(recharge.id)).toHaveLength(1)
+    expect(stripe.requests).not.toContain(`/v1/invoices/${invoiceId}/void`)
+    expect((await billOf(bill.id)).recharge_failed_at).toBeNull()
+    expect(await db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, bill.id))).toEqual([])
+    expect(mails.some(m => /recharge|failed|not credited/i.test(m.subject))).toBe(false)
+    await webhookAfter(bill, invoiceId)
+    expect(await rechargeEntries(recharge.id)).toHaveLength(1)
+  })
+
+  test('the setup give-up credits it too: not canceled, no setup alert', async () => {
+    const { bill, invoiceId, recharge } = await paidBehindTheJob()
+    const code = `stripe_stripe_tax_inactive_${rid('t')}`
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await rechargeGaveUp(db, recharge.id, { setupError: new BillingSetupError(code) })
+    expect(await attempt(recharge.id)).toMatchObject({ status: 'paid' })
+    expect(await balanceOf(bill.id)).toBe(20_000_000)
+    expect(stripe.requests).not.toContain(`/v1/invoices/${invoiceId}/void`)
+    expect((await billOf(bill.id)).recharge_failed_at).toBeNull()
+    // The once-a-day setup alert was not armed: nothing failed.
+    expect(
+      await db
+        .select()
+        .from(instance_settings)
+        .where(eq(instance_settings.key, rechargeSetupAlertKey(code))),
+    ).toEqual([])
+    await webhookAfter(bill, invoiceId)
+    expect(await rechargeEntries(recharge.id)).toHaveLength(1)
+  })
+
+  test('a paid invoice that does not pass the credit checks is not credited, and not canceled as failed either', async () => {
+    const { bill } = await billWith()
+    const invoiceId = rid('in')
+    const recharge = await pendingRecharge(bill.id, invoiceId)
+    // Paid out of band (marked paid in the Dashboard): no money came through Stripe, so nothing is credited.
+    stripe.invoices.set(
+      invoiceId,
+      invoice(invoiceId, bill.stripe_customer_id!, {
+        amount_paid: 0,
+        amount_paid_off_stripe: 2000,
+        lines: [rechargeLine(recharge.id)],
+      }),
+    )
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await rechargeGaveUp(db, recharge.id)
+    expect(await balanceOf(bill.id)).toBe(0)
+    expect(await rechargeEntries(recharge.id)).toEqual([])
+    expect((await billOf(bill.id)).recharge_failed_at).toBeNull()
+    expect(
+      (await db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, bill.id))).filter(
+        a => a.kind === 'recharge_failed',
+      ),
+    ).toEqual([])
   })
 })
 

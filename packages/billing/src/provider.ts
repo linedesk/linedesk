@@ -52,6 +52,9 @@ export type RechargeInvoiceInput = {
   onInvoice?: (invoiceId: string) => Promise<void>
 }
 
+/** What `stopRechargeInvoice` found: the invoice was already paid, or it is stopped now. */
+export type RechargeInvoiceStop = 'paid' | 'stopped'
+
 /**
  * The card an auto-recharge charges (docs/billing.md §2.2): the customer's invoice default (what the portal sets), else
  * the subscription's default (what Checkout saves), which the recharge then makes the customer's default. `createdAt`
@@ -588,9 +591,11 @@ export type BillingProvider = {
   findRechargeInvoice(rechargeId: string): Promise<string | null>
   /**
    * A failed recharge is never charged later behind the owner's back (docs/billing.md §3.4): automatic collection
-   * off, so the payment service's retries skip it, and with `void` the invoice is voided too.
+   * off, so the payment service's retries skip it, and with `void` the invoice is voided too. `paid`: the invoice was
+   * paid already (the payment service's own collection got there first), so nothing was stopped and the caller credits
+   * it instead of giving the attempt up (security review of #1110, V-1); `stopped` otherwise.
    */
-  stopRechargeInvoice(invoiceId: string, options: { void: boolean }): Promise<void>
+  stopRechargeInvoice(invoiceId: string, options: { void: boolean }): Promise<RechargeInvoiceStop>
   /** The invoice's own page, where the customer pays it or confirms the payment (a bearer link: never stored). */
   rechargeInvoicePage(invoiceId: string): Promise<string | null>
   /**

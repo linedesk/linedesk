@@ -676,6 +676,34 @@ describe('stripe recharges', () => {
     ])
   })
 
+  test('an invoice already paid is reported as paid and left alone; one paid between the read and the void too (review #1110, V-1)', async () => {
+    const paid = stripeRoutes({ 'GET /v1/invoices/in_1Rc': () => [200, invoice('paid')] })
+    expect(await (await stripeWith(paid.doFetch)).stopRechargeInvoice('in_1Rc', { void: true })).toBe('paid')
+    expect(paid.calls.map(c => c.route)).toEqual(['GET /v1/invoices/in_1Rc'])
+    // Open when read, paid by Stripe's own collection before the void: the void is refused, the invoice read again.
+    let reads = 0
+    const raced = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice(reads++ === 0 ? 'open' : 'paid', 2000, { auto_advance: false })],
+      'POST /v1/invoices/in_1Rc/void': () => [
+        400,
+        { error: { type: 'invalid_request_error', message: 'You can only void open or uncollectible invoices.' } },
+      ],
+    })
+    expect(await (await stripeWith(raced.doFetch)).stopRechargeInvoice('in_1Rc', { void: true })).toBe('paid')
+    // Still open after the refusal: a real failure, thrown.
+    const refused = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open', 2000, { auto_advance: false })],
+      'POST /v1/invoices/in_1Rc/void': () => [400, { error: { type: 'invalid_request_error', message: 'No.' } }],
+    })
+    await expect((await stripeWith(refused.doFetch)).stopRechargeInvoice('in_1Rc', { void: true })).rejects.toThrow()
+    // Stopped: an open invoice voided.
+    const open = stripeRoutes({
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open', 2000, { auto_advance: false })],
+      'POST /v1/invoices/in_1Rc/void': () => [200, invoice('void')],
+    })
+    expect(await (await stripeWith(open.doFetch)).stopRechargeInvoice('in_1Rc', { void: true })).toBe('stopped')
+  })
+
   test('a failed draft is deleted, or kept with collection off when it is not voided', async () => {
     const { doFetch, calls } = stripeRoutes({
       'GET /v1/invoices/in_1Rc': () => [200, invoice('draft', 2000, { auto_advance: true })],

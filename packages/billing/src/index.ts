@@ -33,6 +33,7 @@ export type {
   RechargeCard,
   RechargeCharge,
   RechargeInvoiceInput,
+  RechargeInvoiceStop,
   RefundBlocker,
   ExtraCallsAnswer,
   ExtraCallsQuantityInput,

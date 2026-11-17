@@ -55,6 +55,7 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     },
     stopRechargeInvoice: async (id, options) => {
       calls.push({ method: 'stopRechargeInvoice', args: [id, options] })
+      return 'stopped'
     },
     rechargeInvoicePage: async id => `https://invoice.stripe.com/i/${id}`,
     // Settings › Billing's portal (PR 9) is not used here.

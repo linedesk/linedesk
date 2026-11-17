@@ -167,12 +167,16 @@ export async function rechargeFailed(
   // "Buy minutes" with the saved card: the owner is in the app and goes on to Checkout. The invoice is voided, the
   // attempt canceled; no waiting for a new card, no email, nothing that would stop auto-recharge.
   if (attempt?.manual) {
-    if (invoiceId) await provider.stopRechargeInvoice(invoiceId, { void: true })
+    if (invoiceId && (await provider.stopRechargeInvoice(invoiceId, { void: true })) === 'paid')
+      return creditPaidInvoice(db, rechargeId, invoiceId)
     await settle(db, rechargeId, { status: 'canceled', failure_code: failureCode, ...invoiceSet }, now)
     return
   }
   const needsOwner = failureCode === 'authentication_required' && !!invoiceId
-  if (invoiceId) await provider.stopRechargeInvoice(invoiceId, { void: !needsOwner })
+  // Paid meanwhile (Stripe's own collection got there before the give-up, its invoice.paid not processed yet):
+  // credited now, never canceled, and no failed-recharge email (security review of #1110, V-1).
+  if (invoiceId && (await provider.stopRechargeInvoice(invoiceId, { void: !needsOwner })) === 'paid')
+    return creditPaidInvoice(db, rechargeId, invoiceId)
   // Without an invoice (Stripe refused it at create, L-3) the alert is keyed by the attempt: one email per attempt.
   const ref = invoiceId ?? rechargeId
   await settle(
@@ -219,6 +223,27 @@ export async function rechargeGaveUp(
   console.error(`billing: recharge ${rechargeId} gave up after the job's last retry`)
 }
 
+/**
+ * A give-up found the attempt's invoice already paid in Stripe (its automatic collection paid it, the `invoice.paid`
+ * webhook not processed yet): it is settled like that webhook (`billing.settleInvoice`, the same checks and the same
+ * ledger source key), so the attempt is credited exactly once whichever comes first, and nothing is canceled or
+ * emailed as failed (security review of #1110, V-1). Not credited (a check failed): the attempt stays as the settle
+ * left it and the admins get its not-credited alert. A refusal to run is thrown: the attempt stays pending and the
+ * stuck-recharge alert names it.
+ */
+async function creditPaidInvoice(db: Db, rechargeId: string, invoiceId: string) {
+  const [row] = await db
+    .select({ customer: billing_accounts.stripe_customer_id })
+    .from(billing_recharges)
+    .innerJoin(billing_accounts, eq(billing_accounts.id, billing_recharges.billing_account_id))
+    .where(eq(billing_recharges.id, rechargeId))
+  // Loaded when it runs: stripe-events.ts imports this file.
+  const { runAsBillingSystem } = await import('./stripe-events.ts')
+  const settled = await runAsBillingSystem('billing.settleInvoice', { invoiceId, customerId: row?.customer ?? null })
+  if (!settled.body.ok) throw new Error(`billing: paid invoice ${invoiceId} of recharge ${rechargeId} not settled`)
+  console.warn(`billing: recharge ${rechargeId}: invoice ${invoiceId} was paid before the give-up; settled as paid`)
+}
+
 /** How often the setup alert goes out per install and error code (recheck of #865, L-B). */
 export const RECHARGE_SETUP_ALERT_MS = 24 * 60 * 60_000
 /** The instance setting that remembers when the setup alert for a code last went out. */
@@ -227,8 +252,9 @@ export const rechargeSetupAlertKey = (code: string) => `billing.rechargeSetupAle
 /**
  * The last try failed on our own setup (recheck of #864, L2: a 401, 403 or 404 from Stripe, or an account-side 400):
  * not the owner's card, so no `recharge_failed_at` and no owner email. The attempt is canceled (a later decision may try
- * again once the setup is fixed), its invoice (stored, else looked up) is voided or deleted when that still works, and the instance admins are emailed: once per install and
- * error code in 24 hours, not once per bill (a broken key fails every bill's recharge the same way).
+ * again once the setup is fixed), its invoice (stored, else looked up) is voided or deleted when that still works, and
+ * the instance admins are emailed: once per install and error code in 24 hours, not once per bill (a broken key fails
+ * every bill's recharge the same way). An invoice found paid is credited instead (V-1).
  */
 async function setupGaveUp(
   db: Db,
@@ -248,10 +274,14 @@ async function setupGaveUp(
         console.error(`billing: the invoice of recharge ${attempt.id} could not be looked up:`, e)
         return null
       })
-    if (invoiceId)
-      await provider
-        .stopRechargeInvoice(invoiceId, { void: true })
-        .catch(e => console.error(`billing: invoice ${invoiceId} could not be stopped:`, e))
+    if (invoiceId) {
+      const stopped = await provider.stopRechargeInvoice(invoiceId, { void: true }).catch(e => {
+        console.error(`billing: invoice ${invoiceId} could not be stopped:`, e)
+        return null
+      })
+      // Paid meanwhile: credited, not canceled, and nothing failed for the admins to hear of (V-1).
+      if (stopped === 'paid') return creditPaidInvoice(db, attempt.id, invoiceId)
+    }
   }
   await settle(db, attempt.id, { status: 'canceled', failure_code: code }, now, async (tx, billId) => {
     const before = new Date(Date.parse(now) - RECHARGE_SETUP_ALERT_MS).toISOString()
