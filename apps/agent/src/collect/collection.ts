@@ -20,6 +20,14 @@ export type StepReply = { say: string; outcome?: CollectOutcome }
 /** What decline and wrong_* say before the caller said anything in the step: the step's question comes first. */
 export const ASK_FIRST = 'Ask the caller first.'
 
+/**
+ * What hand_back says before the caller answered the step's question: ask first, and leave the open question to the
+ * assistant. With only ASK_FIRST, a step that started right after the caller asked the assistant something (the
+ * earliest slot, the name on an appointment) told the caller it cannot check, look up or book anything (LIN-363 calls).
+ */
+export const handBackFirst = (label: string) =>
+  `Not yet: ask for the ${label} first. The assistant answers the caller's question after this step: do not answer it and never say you cannot check or look something up. Say you will come to it in a moment.`
+
 export class Collection<Args extends Record<string, unknown>, T> {
   private pending: { value: T } | null = null
   private lastHeard: string | null = null
@@ -120,7 +128,7 @@ export class Collection<Args extends Record<string, unknown>, T> {
    */
   handBack(question: string): StepReply {
     if (this.outcome) return { say: 'This step is over.' }
-    if (!this.callerHadTurn) return { say: ASK_FIRST }
+    if (!this.callerHadTurn) return { say: handBackFirst(this.collector.label) }
     return this.finish({ status: 'question', label: this.collector.label, question, partial: this.pending ? this.collector.display(this.pending.value) : this.lastHeard })
   }
 

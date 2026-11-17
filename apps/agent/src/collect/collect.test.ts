@@ -2,7 +2,7 @@ import { llm } from '@livekit/agents'
 import { describe, expect, it, test, vi } from 'vitest'
 import { nudgeIfQuiet, saidMeanwhile, stepFacts, syncCallerSilence } from './collect-tools.ts'
 import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
-import { ASK_FIRST, Collection, describeOutcome, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
+import { Collection, describeOutcome, handBackFirst, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import {
   addressCollector,
   emailCollector,
@@ -202,7 +202,7 @@ describe('a question during a step (LIN-103)', () => {
   it('hands the question back to the assistant with what was heard so far', () => {
     const step = new Collection(phoneCollector('callback number'))
     // Before the caller said anything in the step there is nothing to hand back: words from earlier in the call.
-    expect(step.handBack('Can the owner call me back?')).toEqual({ say: ASK_FIRST })
+    expect(step.handBack('Can the owner call me back?')).toEqual({ say: handBackFirst('callback number') })
     step.heardCaller()
     step.record({ phone_number: '503 555' })
     const reply = step.handBack('Which date is Wednesday next week?')

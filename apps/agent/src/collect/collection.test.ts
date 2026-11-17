@@ -2,7 +2,7 @@
 // it started, with no caller line in between, and the assistant went on without a callback number).
 import { expect, test } from 'vitest'
 import { phoneStep } from './collect-tools.ts'
-import { ASK_FIRST, Collection, describeOutcome, MAX_ATTEMPTS, noCallerIdRule, TEST_CALL_NO_NUMBER } from './collection.ts'
+import { ASK_FIRST, Collection, describeOutcome, handBackFirst, MAX_ATTEMPTS, noCallerIdRule, TEST_CALL_NO_NUMBER } from './collection.ts'
 import { emailCollector, nameCollector, nameCollectorFor, phoneCollector } from './collectors.ts'
 
 test('decline before any caller turn in the step is refused: "Ask the caller first."', () => {
@@ -80,7 +80,7 @@ test('a declined callback number on a test call: noted as test call, no caller I
 test('on realtime (turns not counted) the step counts as heard once its question has played', () => {
   const step = new Collection(phoneCollector())
   step.uncountedTurns()
-  expect(step.handBack('Can the owner call me back?')).toEqual({ say: ASK_FIRST })
+  expect(step.handBack('Can the owner call me back?')).toEqual({ say: handBackFirst('callback number') })
   expect(step.decline('no')).toEqual({ say: ASK_FIRST })
   step.askedQuestion()
   expect(step.handBack('Are you open on Saturday?').outcome).toMatchObject({ status: 'question', question: 'Are you open on Saturday?' })
