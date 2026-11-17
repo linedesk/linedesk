@@ -1424,19 +1424,19 @@ Linedesk · desk.example.com
   ],
   [
     "partner-invitation",
-    "Join Cascade IT Partners on Linedesk",
-    "Join Cascade IT Partners on Linedesk
+    "Únete a Cascade IT Partners en Linedesk",
+    "Únete a Cascade IT Partners en Linedesk
 
-Mike Brennan invited you to the team of Cascade IT Partners on Linedesk at desk.example.com. As an admin of the team you manage the workspaces Cascade IT Partners runs for its clients.
+Mike Brennan te invitó al equipo de Cascade IT Partners en Linedesk, en desk.example.com. Como administrador del equipo, gestionas los espacios de trabajo que Cascade IT Partners lleva para sus clientes.
 
-Join the partner team:
+Unirse al equipo del partner:
 https://desk.example.com/#partner-invite=preview
 
-The link works for 7 days. Sign in with this address (sam@example.com): enter it on the sign-in page and we email you a code.
+El enlace funciona durante 7 días. Inicia sesión con esta dirección (sam@example.com): ingrésala en la página de inicio de sesión y te enviaremos un código por correo.
 
 --
 
-You got this email because someone invited this address to a partner team. If you didn't expect it, you can ignore it.
+Recibes este correo porque alguien invitó a esta dirección al equipo de un partner. Si no lo esperabas, puedes ignorarlo.
 
 Linedesk · desk.example.com
 ",
@@ -1564,24 +1564,24 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert-partner-brand",
-    "Partner brand to review on Linedesk: Cascade IT Partners",
+    "Marca de partner por revisar en Linedesk: Cascade IT Partners",
     "Alerta de administración
 
-Partner brand to review on Linedesk: Cascade IT Partners
+Marca de partner por revisar en Linedesk: Cascade IT Partners
 
-The white-label partner Cascade IT Partners changed the brand its clients see in the app and in emails. Until a server admin approves the change, its clients and their emails keep the approved version.
+El partner de marca blanca Cascade IT Partners cambió la marca que sus clientes ven en la app y en los correos. Hasta que un administrador del servidor apruebe el cambio, sus clientes y sus correos mantienen la versión aprobada.
 
-Product name: Cascade Desk
-Approved now: Cascade Phones
-Logo: https://desk.example.com/v1/branding/partners/ptn_demo/logo.png?v=3f9a2c1d
-Support email: help@cascade-it.example
-Terms link: https://cascade-it.example/terms
-Privacy link: https://cascade-it.example/privacy
+Nombre del producto: Cascade Desk
+Aprobado ahora: Cascade Phones
+Logotipo: https://desk.example.com/v1/branding/partners/ptn_demo/logo.png?v=3f9a2c1d
+Correo de soporte: help@cascade-it.example
+Enlace de términos: https://cascade-it.example/terms
+Enlace de privacidad: https://cascade-it.example/privacy
 Color: #0f766e
 
-Check that the name, logo, support email and links are the partner's own and borrow no one else's. Server admin › Partners approves the change or removes the brand.
+Comprueba que el nombre, el logotipo, el correo de soporte y los enlaces sean propios del partner y no tomen nada de nadie más. En Administración del servidor › Partners apruebas el cambio o quitas la marca.
 
-Review the brand:
+Revisar la marca:
 https://desk.example.com/#admin/partners
 
 Abrir el registro de auditoría:
