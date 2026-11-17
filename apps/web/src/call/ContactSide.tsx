@@ -1,7 +1,7 @@
 import type { Call, Contact } from '@linedesk/db/types'
 import { callTitle, formatPhone, isTestCall, testCallLabel } from '../inbox-model.ts'
 import { useContact, useRows, useRun } from '../store.tsx'
-import { parseTs, shortDuration, timeLabel } from '../time.ts'
+import { parseTs, callDuration, timeLabel } from '../time.ts'
 import { Avatar, Badge, Button, Icon } from '../ui/kit.tsx'
 import { EditableFact } from './EditableFact.tsx'
 import { EmailedAfterCall } from './EmailedAfterCall.tsx'
@@ -134,7 +134,7 @@ export function SideCalls({ calls, onOpen }: { calls: Call[]; onOpen: (call: Cal
       <span className="sc-sub">
         {t('call.contact.sideCall', {
           direction: c.direction === 'out' ? t('call.contact.outbound') : t('call.contact.inbound'),
-          length: c.status === 'live' ? t('call.contact.live') : c.duration_sec ? shortDuration(c.duration_sec) : '—',
+          length: c.status === 'live' ? t('call.contact.live') : c.duration_sec ? callDuration(c.duration_sec) : '—',
         })}
       </span>
     </button>

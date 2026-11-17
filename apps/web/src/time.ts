@@ -43,19 +43,25 @@ export function timeLabel(date: Date, now = new Date()): string {
   return monthDay(date)
 }
 
-/** "1m 20s" for lists. */
-export function shortDuration(seconds: number): string {
-  return i18n().format.duration(seconds, 'narrow')
-}
+/**
+ * A call's length has two formats, one per kind of place (LIN-434):
+ * - `listDuration`, "02:08", in dense lists of calls (the inbox, a contact's calls on the Contacts page);
+ * - `callDuration`, "2 min, 8 sec", everywhere else (the call header, the contact panel, the test call).
+ */
 
-/** "01:20" for the inbox's duration column: as short in every language ("1 Min., 20 Sek." would wrap there). */
+/** "02:08" for the duration column of a list of calls: as short in every language ("2 Min., 8 Sek." would wrap there). */
 export function listDuration(seconds: number): string {
   return i18n().format.duration(seconds, 'digital')
 }
 
-/** "1 min, 20 sec" for the call header. */
-export function longDuration(seconds: number): string {
+/** "2 min, 8 sec": a call's length outside the dense lists. */
+export function callDuration(seconds: number): string {
   return i18n().format.duration(seconds, 'short')
+}
+
+/** "1m 20s" for compact setting values that are not a call's length (ring time, appointment length). */
+export function shortDuration(seconds: number): string {
+  return i18n().format.duration(seconds, 'narrow')
 }
 
 /** "01:20" for clocks and transcript times. */

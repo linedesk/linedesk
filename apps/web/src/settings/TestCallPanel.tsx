@@ -10,7 +10,7 @@ import { SummaryCard } from '../call/SummaryCard.tsx'
 import { Transcript } from '../call/Transcript.tsx'
 import { useFollowLive } from '../call/useFollowLive.ts'
 import { callHash } from '../shell/useRoute.ts'
-import { clock, longDuration, parseTs } from '../time.ts'
+import { clock, callDuration, parseTs } from '../time.ts'
 import { Button, Note } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { AudioSink, type TestCallSession } from './TestCall.tsx'
@@ -33,7 +33,7 @@ function Status({ session }: { session: TestCallSession }) {
   if (call?.duration_sec)
     return (
       <span className="tcp-sub">
-        {t('settings.testCall.status.endedAfter', { duration: longDuration(call.duration_sec) })}
+        {t('settings.testCall.status.endedAfter', { duration: callDuration(call.duration_sec) })}
       </span>
     )
   return <span className="tcp-sub">{t('settings.testCall.status.ended')}</span>

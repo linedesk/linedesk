@@ -14,7 +14,7 @@ import {
 } from '../inbox-model.ts'
 import { useCallAssistantName, useContact } from '../store.tsx'
 import { firstName, memberAvatar, memberLabel, useMember } from '../team/members.ts'
-import { clock, dateTimeLabel, longDuration, parseTs, whenLabel } from '../time.ts'
+import { clock, dateTimeLabel, callDuration, parseTs, whenLabel } from '../time.ts'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { registerContactPanel } from './contactPanel.ts'
@@ -268,7 +268,7 @@ function Header({ call, segments, repeatCount, contactOpen, onOpenContact }: Hea
           ) : (
             <>
               <span>{dateTimeLabel(started)}</span>
-              <span>{call.duration_sec ? longDuration(call.duration_sec) : '—'}</span>
+              <span>{call.duration_sec ? callDuration(call.duration_sec) : '—'}</span>
             </>
           )}
           <span>{answeredByLabel(call, segments, assistant)}</span>

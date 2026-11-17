@@ -7,7 +7,7 @@ import {
   formatDate,
   listDuration,
   listTime,
-  longDuration,
+  callDuration,
   parseTs,
   shortDuration,
   untilLabel,
@@ -29,15 +29,19 @@ describe('time labels', () => {
     expect(listTime(new Date(2025, 10, 12, 9, 2), now)).toBe('Nov 12, 2025')
   })
   it('formats durations', () => {
-    expect(longDuration(152)).toBe('2 min, 32 sec')
-    expect(longDuration(120)).toBe('2 min')
-    expect(longDuration(9)).toBe('9 sec')
+    expect(callDuration(152)).toBe('2 min, 32 sec')
+    expect(callDuration(120)).toBe('2 min')
+    expect(callDuration(9)).toBe('9 sec')
     expect(shortDuration(96)).toBe('1m 36s')
     expect(shortDuration(60)).toBe('1m')
     expect(clock(65)).toBe('01:05')
     expect(listDuration(181)).toBe('03:01')
     expect(listDuration(48)).toBe('00:48')
     expect(listDuration(3781)).toBe('1:03:01')
+  })
+  it('shows one call length in one format per kind of place (LIN-434)', () => {
+    expect(listDuration(128)).toBe('02:08')
+    expect(callDuration(128)).toBe('2 min, 8 sec')
   })
   it('parses Postgres and ISO timestamps to the same instant', () => {
     expect(parseTs('2026-11-10 12:00:00+00').getTime()).toBe(parseTs('2026-11-10T12:00:00.000Z').getTime())

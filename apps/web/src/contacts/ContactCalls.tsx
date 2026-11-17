@@ -8,7 +8,7 @@ import { type KeyboardEvent, useState } from 'react'
 import { callTitle, tabOf } from '../inbox-model.ts'
 import { type Change, doneChange, notDoneChange, unreadChange } from '../inbox/changes.ts'
 import { RowAction, Status } from '../inbox/Row.tsx'
-import { parseTs, shortDuration, timeLabel } from '../time.ts'
+import { parseTs, listDuration, timeLabel } from '../time.ts'
 import { cx } from '../ui/kit.tsx'
 import { useT } from '@linedesk/i18n/react'
 
@@ -89,7 +89,7 @@ function CallItem({ call, onOpen, onChange }: { call: Call; onOpen: Props['onOpe
         </span>
         {call.summary && <span className="ct-call-sum">{call.summary}</span>}
       </span>
-      <span className="ct-call-dur">{live || !call.duration_sec ? '' : shortDuration(call.duration_sec)}</span>
+      <span className="ct-call-dur">{live || !call.duration_sec ? '' : listDuration(call.duration_sec)}</span>
       <span className="ct-call-acts">
         <RowAction
           title={
