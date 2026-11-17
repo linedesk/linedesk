@@ -76,3 +76,18 @@ export function reportedLoad<W>(
     return policy.refuses ? load : Math.min(load, MAX_REPORTED_LOAD)
   }
 }
+
+/**
+ * How long a call waited for a job process, from the SDK's timestamps (JobContext.info), for the call's setup log.
+ * The SDK keeps AGENT_IDLE_PROCESSES processes warm and starts new ones one at a time, so in a burst of more calls than
+ * that each further call waits for one more process to load (seconds on a busy voice core, LIN-465).
+ */
+export function describeProcessWait(info: {
+  receivedAt?: number
+  launchedAt?: number
+  launchedWarm?: boolean
+}): string | null {
+  if (info.receivedAt === undefined || info.launchedAt === undefined) return null
+  const waited = Math.max(0, Math.round(info.launchedAt - info.receivedAt))
+  return info.launchedWarm ? `warm process after ${waited} ms` : `no warm process: waited ${waited} ms for a new one`
+}

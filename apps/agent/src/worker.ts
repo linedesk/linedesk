@@ -21,7 +21,7 @@ import { announceRecording, callLimitOf, callOrigin, parseTestMetadata, startCal
 import { earlyOrigin, livekitParticipants } from './early-origin.ts'
 import { type AgentConfig, type CallConfig, configForAssistant, createConfigLoader, isRealtime, parseProviderSettings, SETTINGS_TTL_MS, stagesOf, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
 import { livekitHttpUrl, requireLivekitEnv, workerAgentName } from './env.ts'
-import { describeLoadPolicy, loadPolicy, reportedLoad } from './worker-load.ts'
+import { describeLoadPolicy, describeProcessWait, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import { type CallLanguages, callLanguagesOf, callVoicesOf, createPipeline, withCallLanguages, createRealtimePipeline, createTts, greetingVoice, type LineVoice, lineVoiceOf, realtimeLine, spokeWithBackup, ttsFor, realtimeRepliesEvent, type RealtimeEvents, summaryLlm, transferSpeechOf, talkingSpeedOf, warmUpLlm, REALTIME_TURNS } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
@@ -527,7 +527,7 @@ function transferFrom(ctx: JobContext, api: ApiClient, call: CallSession, config
 
 /** Times from the job's start to each setup step, logged once per call with the wall-clock start. */
 type SetupTimer = ReturnType<typeof setupTimer>
-function setupTimer(startedAt = Date.now()) {
+function setupTimer(processWait: string | null, startedAt = Date.now()) {
   const steps: Record<string, number> = {}
   let detail = ''
   return {
@@ -540,7 +540,8 @@ function setupTimer(startedAt = Date.now()) {
     /** Logs the timings and publishes them on the agent's participant, where the call test reads them. */
     log(callId: string, room?: JobContext['room']) {
       const marks = Object.entries(steps).map(([step, ms]) => `${step} +${ms} ms`)
-      console.log(`setup ${callId}: job started ${new Date(startedAt).toISOString()}, ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`)
+      const wait = processWait ? ` (${processWait})` : ''
+      console.log(`setup ${callId}: job started ${new Date(startedAt).toISOString()}${wait}, ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`)
       const setup: AgentSetup = { steps, greeting: detail }
       void room?.localParticipant?.setAttributes({ [SETUP_ATTRIBUTE]: JSON.stringify(setup) }).catch(() => {})
     },
@@ -548,7 +549,7 @@ function setupTimer(startedAt = Date.now()) {
 }
 
 async function entry(ctx: JobContext) {
-  const setup = setupTimer()
+  const setup = setupTimer(describeProcessWait(ctx.info))
   // A room the call-test command dialled out of: this agent plays the caller, not the business.
   const testCaller = parseTestCallerMetadata(ctx.job.metadata)
   if (testCaller) {
@@ -750,8 +751,10 @@ async function main() {
   // The API counts the agent as running by its last settings read (Server admin › Overview, the test call's check):
   // read them on a timer too, not only when a call comes, so a test call is not refused after the API restarts.
   setInterval(() => void loadAgentConfig().catch(() => {}), SETTINGS_TTL_MS + 1000).unref()
-  // Processes kept warm for the next call. Three by default: a call takes one, and a phone call test two
-  // (the test caller and the business), while the next one starts (a new process needs ~2 s of CPU).
+  // Processes kept warm for the next call: a call takes one, and a phone call test two (the test caller and the
+  // business), while the next one starts (a new process needs ~2 s of CPU). The SDK loads new processes one at a time,
+  // so calls beyond the warm ones that start together are answered one after another, seconds apart (LIN-465).
+  // docker-compose.yml sets 1 unless the install's .env says otherwise; 3 is the default outside compose.
   const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || 3
   // How long a new process may take to load the agent. Under a running call on a small box this takes
   // well over the library's 10 s, and a process that times out is killed and started again in a loop.
@@ -761,6 +764,7 @@ async function main() {
   // on for installs with more than one worker; docker-compose.yml gives LiveKit's agents.target_load the same value.
   const load = loadPolicy(process.env.AGENT_LOAD_THRESHOLD)
   console.log(describeLoadPolicy(load))
+  console.log(`Processes kept warm for the next calls: ${numIdleProcesses} (AGENT_IDLE_PROCESSES). In a burst of more calls, each further call waits for a new process to load.`)
   // On SIGTERM (an update) the worker takes no new calls and finishes the ones it has. A call put through to a
   // person lasts up to CALL_MAX_MINUTES, longer than the library's 60 minutes; the container's
   // stop_grace_period (LINEDESK_AGENT_DRAIN) is a little longer again, so this limit is the one that applies.

@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest'
 import {
   DEFAULT_LOAD_THRESHOLD,
   describeLoadPolicy,
+  describeProcessWait,
   loadPolicy,
   MAX_REPORTED_LOAD,
   reportedLoad,
@@ -98,4 +99,23 @@ test("LiveKit's target_load has the agent's default and follows AGENT_LOAD_THRES
   expect(compose).toContain(`target_load: \${AGENT_LOAD_THRESHOLD:-${DEFAULT_LOAD_THRESHOLD}}`)
   // The agent gets the same variable, empty when unset (its own default then applies).
   expect(compose).toContain('AGENT_LOAD_THRESHOLD: ${AGENT_LOAD_THRESHOLD:-}')
+})
+
+describe('describeProcessWait', () => {
+  test('a warm process: the short hand-over', () => {
+    expect(describeProcessWait({ receivedAt: 1_000, launchedAt: 1_004, launchedWarm: true })).toBe(
+      'warm process after 4 ms',
+    )
+  })
+
+  test('no warm process: the call waited for a new one to load', () => {
+    expect(describeProcessWait({ receivedAt: 1_000, launchedAt: 6_120, launchedWarm: false })).toBe(
+      'no warm process: waited 5120 ms for a new one',
+    )
+  })
+
+  test('without the SDK timestamps: nothing to say', () => {
+    expect(describeProcessWait({})).toBeNull()
+    expect(describeProcessWait({ receivedAt: 1_000 })).toBeNull()
+  })
 })
