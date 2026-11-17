@@ -1324,6 +1324,7 @@
   "testCall.unmuteTip": "Unmute your microphone",
   "testCall.voiceDown": "{name} can't take calls yet: the voice service isn't set up. Ask your server admin.",
   "testCall.voiceDownOperator": "{name} can't take calls yet: the voice service isn't set up. Set it up under Server admin › Providers.",
+  "testCall.voiceDownOperatorLink": "{name} can't take calls yet: the voice service isn't set up. Set it up under <link>Server admin › Providers</link>.",
   "testCall.wait.answer": "Waiting for {name} to answer…",
   "testCall.wait.assistant": "Connecting to {name}…",
   "testCall.wait.microphone": "Connecting your microphone…",

@@ -3,7 +3,7 @@
 import { localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import { answeringPipeline } from '../settings/levelModel.ts'
 import type { Assistant } from '@linedesk/db/types'
-import { useT } from '@linedesk/i18n/react'
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { ASSISTANT_NAME_MAX, staleGreetingName } from '../settings/assistantDraft.ts'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
@@ -13,6 +13,7 @@ import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
+import { appLink } from '../ui/AppLink.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys, useStepMode } from './Frame.tsx'
@@ -167,7 +168,16 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         <div className="ob-talk">
           {/* The same button and panel as Assistant settings; the click saves first. */}
           <TestCallButton session={session} variant={edit ? 'secondary' : 'primary'} onStart={() => void talk()} />
-          <span className="ob2-note">{session.blockedReason ?? t('onboarding.assistant.talkHint')}</span>
+          <span className="ob2-note">
+            {session.voiceFixable ? (
+              <T
+                k="settings.testCall.voiceDownOperatorLink"
+                values={{ name: session.name, link: appLink('#admin/providers/answering') }}
+              />
+            ) : (
+              (session.blockedReason ?? t('onboarding.assistant.talkHint'))
+            )}
+          </span>
         </div>
         {/* No Open in inbox here: the inbox would end onboarding before the number is connected. */}
         <TestCallPanel session={session} onOpenCall={null} onStart={() => void talk()} />

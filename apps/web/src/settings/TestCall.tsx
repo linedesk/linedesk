@@ -251,6 +251,8 @@ export function useTestCall(canStart: boolean, assistant?: { id: string; name: s
       : voiceDown
         ? t(operator ? 'settings.testCall.voiceDownOperator' : 'settings.testCall.voiceDown', { name })
         : null,
+    /** Start is off only because the voice service isn't set up, and this viewer can set it up: a line may link there. */
+    voiceFixable: canStart && voiceDown && operator,
     start: () => void start(),
     stop: async () => {
       attempt.current++
