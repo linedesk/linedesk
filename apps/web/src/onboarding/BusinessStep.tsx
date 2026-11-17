@@ -20,6 +20,8 @@ import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
+import { TimeZoneSelect } from '../settings/BusinessHours.tsx'
+import { timeZoneLabel } from '../settings/timeZones.ts'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
@@ -38,6 +40,9 @@ import {
   profileSave,
   providerProblem,
   renameBusiness,
+  shownTimeZone,
+  timeZoneToSave,
+  zoneForCountry,
   savedProposal,
   sourcesLine,
   switchTemplate,
@@ -459,17 +464,29 @@ function ReviewProfile({
   const [pickedCountry, setPickedCountry] = useState<string | null>(null)
   const [changingCountry, setChangingCountry] = useState(false)
   const country = pickedCountry ?? phoneCountry
+  // The time zone: the workspace's (set when it was made, from its country), the listing's when Google has one, until
+  // the owner picks one (Change) or picks another country (the zone then follows it, zoneForCountry).
+  const savedZone = settings?.timeZone ?? null
+  const [pickedZone, setPickedZone] = useState<string | null>(null)
+  const [changingZone, setChangingZone] = useState(false)
+  const zone = shownTimeZone(pickedZone, draft, savedZone)
+  function pickCountry(next: string) {
+    setPickedCountry(next)
+    const followed = zoneForCountry(next, zone)
+    if (followed && followed !== zone) setPickedZone(followed)
+  }
   const problem = draftProblem(draft)
   const problems = draftProblems(draft)
   const set = (change: Partial<ProfileDraft>) => setDraft(d => ({ ...d, ...change }))
 
   function save() {
     if (problem) return
-    const { assistant: changes, hours, timeZone, rename } = profileSave(draft, assistant.business_profile, businessName)
+    const { assistant: changes, hours, rename } = profileSave(draft, assistant.business_profile, businessName)
     void run('assistant.update', { assistantId: assistant.id, ...changes })
     // Saved as set only what the owner picked: a country left as shown stays Automatic, so a number connected later
     // (or the business phone) still decides it.
-    const locale = localeToSave(pickedCountry, settings?.country ?? null)
+    // The time zone shown is saved when it is not the workspace's already (picked, the listing's, or the country's).
+    const locale = { ...localeToSave(pickedCountry, settings?.country ?? null), ...timeZoneToSave(zone, savedZone) }
     if (Object.keys(locale).length) {
       void run('workspace.updateSettings', locale)
       patchWorkspaceSettings({
@@ -486,8 +503,7 @@ function ReviewProfile({
     // next steps' choice ("Only when we're closed").
     if (hours) {
       void run('businessHours.set', { hours })
-      if (timeZone) void run('workspace.updateSettings', { timeZone })
-      patchWorkspaceSettings({ businessHours: hours, ...(timeZone ? { timeZone } : {}) })
+      patchWorkspaceSettings({ businessHours: hours })
     }
     onNext()
   }
@@ -572,7 +588,7 @@ function ReviewProfile({
             tip={t('settings.general.country.tip')}
           >
             {changingCountry ? (
-              <CountrySelect id="ob-biz-country" value={country} onChange={setPickedCountry} />
+              <CountrySelect id="ob-biz-country" value={country} onChange={pickCountry} />
             ) : (
               <span className="ob-biz-country">
                 <span id="ob-biz-country">
@@ -589,6 +605,29 @@ function ReviewProfile({
               </span>
             )}
           </Field>
+          {zone && (
+            <Field
+              id="ob-biz-zone"
+              label={t('settings.general.timeZone.label')}
+              tip={t('settings.general.timeZone.tip')}
+            >
+              {changingZone ? (
+                <TimeZoneSelect id="ob-biz-zone" value={zone} onChange={setPickedZone} />
+              ) : (
+                <span className="ob-biz-country">
+                  <span id="ob-biz-zone">{timeZoneLabel(zone)}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title={t('onboarding.business.field.timeZoneChangeTip')}
+                    onClick={() => setChangingZone(true)}
+                  >
+                    {t('onboarding.business.field.timeZoneChange')}
+                  </Button>
+                </span>
+              )}
+            </Field>
+          )}
         </div>
         {!!draft.hours?.length && (
           <div className="ob-biz-hours">

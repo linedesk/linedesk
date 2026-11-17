@@ -9,13 +9,7 @@
 // what call summaries and messages for the team are written in.
 import { z } from 'zod'
 import { type Language, LANGUAGES, languageCodes } from './languages.ts'
-import {
-  countryOfNumber,
-  isPhoneCountry,
-  localeRegion,
-  phoneCountryCodes,
-  phoneCountryName,
-} from './phone-input.ts'
+import { countryOfNumber, isPhoneCountry, localeRegion, phoneCountryCodes, phoneCountryName } from './phone-input.ts'
 import type { JobValueCurrency } from './insights.ts'
 import { TIME_ZONES_BY_COUNTRY } from './time-zone-countries.ts'
 
@@ -50,6 +44,106 @@ export function countryOfTimeZone(timeZone: string | null | undefined): string |
   )
   const country = zoneCountries.get(timeZone.trim())
   return country && isPhoneCountry(country) ? country : null
+}
+
+/**
+ * The main time zone of each country with more than one in the tz database (old link names count): the zone where
+ * most of its people and businesses are (US: Eastern, Canada: Toronto, Australia: Sydney, Brazil: São Paulo, Russia:
+ * Moscow). A country with one zone has that one. Used when a workspace's country and time zone do not match
+ * (workspaceTimeZoneFor, decisions.md 2026-11-17, LIN-433).
+ */
+export const MAIN_TIME_ZONES: Readonly<Record<string, string>> = {
+  AQ: 'Antarctica/McMurdo',
+  AR: 'America/Argentina/Buenos_Aires',
+  AS: 'Pacific/Pago_Pago',
+  AU: 'Australia/Sydney',
+  BD: 'Asia/Dhaka',
+  BE: 'Europe/Brussels',
+  BR: 'America/Sao_Paulo',
+  BT: 'Asia/Thimphu',
+  CA: 'America/Toronto',
+  CD: 'Africa/Kinshasa',
+  CI: 'Africa/Abidjan',
+  CL: 'America/Santiago',
+  CN: 'Asia/Shanghai',
+  CU: 'America/Havana',
+  CY: 'Asia/Nicosia',
+  DE: 'Europe/Berlin',
+  EC: 'America/Guayaquil',
+  EG: 'Africa/Cairo',
+  ES: 'Europe/Madrid',
+  FM: 'Pacific/Pohnpei',
+  FO: 'Atlantic/Faroe',
+  GB: 'Europe/London',
+  GL: 'America/Nuuk',
+  GR: 'Europe/Athens',
+  HK: 'Asia/Hong_Kong',
+  ID: 'Asia/Jakarta',
+  IE: 'Europe/Dublin',
+  IL: 'Asia/Jerusalem',
+  IN: 'Asia/Kolkata',
+  IR: 'Asia/Tehran',
+  JM: 'America/Jamaica',
+  JP: 'Asia/Tokyo',
+  KE: 'Africa/Nairobi',
+  KI: 'Pacific/Tarawa',
+  KR: 'Asia/Seoul',
+  KZ: 'Asia/Almaty',
+  LY: 'Africa/Tripoli',
+  MD: 'Europe/Chisinau',
+  MH: 'Pacific/Majuro',
+  MM: 'Asia/Yangon',
+  MN: 'Asia/Ulaanbaatar',
+  MO: 'Asia/Macau',
+  MX: 'America/Mexico_City',
+  MY: 'Asia/Kuala_Lumpur',
+  NP: 'Asia/Kathmandu',
+  NZ: 'Pacific/Auckland',
+  PA: 'America/Panama',
+  PF: 'Pacific/Tahiti',
+  PG: 'Pacific/Port_Moresby',
+  PL: 'Europe/Warsaw',
+  PR: 'America/Puerto_Rico',
+  PS: 'Asia/Gaza',
+  PT: 'Europe/Lisbon',
+  RU: 'Europe/Moscow',
+  SB: 'Pacific/Guadalcanal',
+  SG: 'Asia/Singapore',
+  TM: 'Asia/Ashgabat',
+  TR: 'Europe/Istanbul',
+  TW: 'Asia/Taipei',
+  UA: 'Europe/Kyiv',
+  UM: 'Pacific/Wake',
+  US: 'America/New_York',
+  UZ: 'Asia/Tashkent',
+  VN: 'Asia/Ho_Chi_Minh',
+}
+
+const zonesOf = (country: string): string[] => TIME_ZONES_BY_COUNTRY[country.trim().toUpperCase()]?.split(' ') ?? []
+
+/** The main time zone of a country (MAIN_TIME_ZONES, else its one zone); null for a code the tz database lacks. */
+export function mainTimeZoneOf(country: string | null | undefined): string | null {
+  if (!country) return null
+  const code = country.trim().toUpperCase()
+  const zones = zonesOf(code)
+  return MAIN_TIME_ZONES[code] ?? (zones.length === 1 ? zones[0]! : null)
+}
+
+/** Whether an IANA time zone is one of a country's ("America/Chicago" in US: yes; "Europe/Berlin" in US: no). */
+export const timeZoneInCountry = (timeZone: string | null | undefined, country: string | null | undefined): boolean =>
+  !!timeZone && !!country && zonesOf(country).includes(timeZone.trim())
+
+/**
+ * The time zone a workspace in `country` gets from `timeZone` (the browser's, or the one it has): kept when it is in
+ * that country, else the country's main zone (decisions.md 2026-11-17, LIN-433: a US business set up from a browser in
+ * Berlin gets US Eastern, not Berlin). Without a country, or one without a known zone, `timeZone` as given.
+ */
+export function workspaceTimeZoneFor(
+  country: string | null | undefined,
+  timeZone: string | null | undefined,
+): string | null {
+  if (timeZoneInCountry(timeZone, country)) return timeZone!.trim()
+  return mainTimeZoneOf(country) ?? timeZone ?? null
 }
 
 /**

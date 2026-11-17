@@ -3,6 +3,7 @@ import { mainLanguageOf, otherLanguagesOf } from './languages.ts'
 import { phoneFromDigits, phoneGroups } from './phone-input.ts'
 import { callRules, EMERGENCY_RULE, fixedRules } from './assistant-prompt.ts'
 import { workspaceUpdateSettings } from './settings.ts'
+import { TIME_ZONES_BY_COUNTRY } from './time-zone-countries.ts'
 import {
   automaticCountryLabel,
   COUNTRY_LANGUAGES,
@@ -13,10 +14,14 @@ import {
   currencyOfCountry,
   emergencyNumberOf,
   isVoiceLanguage,
+  MAIN_TIME_ZONES,
+  mainTimeZoneOf,
   resolveWorkspaceCountry,
   resolveWorkspaceLanguage,
+  timeZoneInCountry,
   voiceLanguageOf,
   workspaceCountryOf,
+  workspaceTimeZoneFor,
 } from './workspace-locale.ts'
 import { jobValueCurrencies } from './insights.ts'
 
@@ -312,5 +317,47 @@ describe('countryNamed', () => {
       expect(countryNamed(source)).toBe(true)
     for (const source of ['sign_up_location', 'time_zone', 'browser_language', 'default'] as const)
       expect(countryNamed(source)).toBe(false)
+  })
+})
+
+describe('the time zone of a new workspace (LIN-433)', () => {
+  test('every country with more than one zone has a main zone, and it is one of its own', () => {
+    for (const [country, zones] of Object.entries(TIME_ZONES_BY_COUNTRY)) {
+      const list = zones.split(' ')
+      if (list.length > 1) expect(MAIN_TIME_ZONES[country], country).toBeDefined()
+      expect(list, country).toContain(mainTimeZoneOf(country))
+    }
+    for (const country of Object.keys(MAIN_TIME_ZONES)) expect(TIME_ZONES_BY_COUNTRY[country], country).toBeDefined()
+  })
+
+  test('the main zones read as the place most businesses are', () => {
+    expect(mainTimeZoneOf('US')).toBe('America/New_York')
+    expect(mainTimeZoneOf('ca')).toBe('America/Toronto')
+    expect(mainTimeZoneOf('AU')).toBe('Australia/Sydney')
+    expect(mainTimeZoneOf('DE')).toBe('Europe/Berlin')
+    expect(mainTimeZoneOf('CH')).toBe('Europe/Zurich')
+    expect(mainTimeZoneOf('XX')).toBeNull()
+    expect(mainTimeZoneOf(null)).toBeNull()
+  })
+
+  test('a zone counts for its country, old link names too', () => {
+    expect(timeZoneInCountry('America/Chicago', 'US')).toBe(true)
+    expect(timeZoneInCountry('US/Pacific', 'us')).toBe(true)
+    expect(timeZoneInCountry('Europe/Berlin', 'US')).toBe(false)
+    expect(timeZoneInCountry(null, 'US')).toBe(false)
+    expect(timeZoneInCountry('Europe/Berlin', null)).toBe(false)
+  })
+
+  test("the browser's zone when it is in the country, else the country's main zone", () => {
+    expect(workspaceTimeZoneFor('US', 'Europe/Berlin')).toBe('America/New_York')
+    expect(workspaceTimeZoneFor('US', 'America/Denver')).toBe('America/Denver')
+    expect(workspaceTimeZoneFor('DE', 'America/Chicago')).toBe('Europe/Berlin')
+    expect(workspaceTimeZoneFor('CA', 'America/Vancouver')).toBe('America/Vancouver')
+    expect(workspaceTimeZoneFor('AU', 'UTC')).toBe('Australia/Sydney')
+    expect(workspaceTimeZoneFor('US', null)).toBe('America/New_York')
+    // No country, or one the tz database does not know: the zone as given.
+    expect(workspaceTimeZoneFor(null, 'Europe/Berlin')).toBe('Europe/Berlin')
+    expect(workspaceTimeZoneFor('XX', 'Europe/Berlin')).toBe('Europe/Berlin')
+    expect(workspaceTimeZoneFor(null, null)).toBeNull()
   })
 })

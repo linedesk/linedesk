@@ -11,10 +11,13 @@ import {
   providerProblem,
   renameBusiness,
   savedProposal,
+  shownTimeZone,
   sourcesLine,
   switchTemplate,
   templateUseCases,
+  timeZoneToSave,
   websiteChoice,
+  zoneForCountry,
 } from './business.ts'
 
 const proposal = (over: Partial<BusinessImportData> = {}): BusinessImportData => ({
@@ -179,14 +182,12 @@ describe('saving', () => {
     })
     expect(result.assistant.business_profile.instructions).toContain('Common calls:')
     expect(result.hours).toEqual([{ weekday: 1, start: '07:00', end: '18:00' }])
-    expect(result.timeZone).toBe('America/Los_Angeles')
 
     expect(result.rename).toBeNull()
 
     // Without "Use these hours", Google's hours stay out of the profile too.
     const without = profileSave({ ...draftFrom(proposal()), useHours: false }, saved, 'Brightwater Plumbing & Heating')
     expect(without.hours).toBeNull()
-    expect(without.timeZone).toBeNull()
     expect(without.assistant.business_profile).not.toHaveProperty('hours')
   })
 
@@ -242,5 +243,27 @@ test('a provider the step could not use says what happened and, for admins, wher
     text: 'Reading your website needs a language model.',
     adminFix: 'onboarding.business.problem.fixSetOneUp',
     group: 'answering',
+  })
+})
+
+describe('the time zone in step 1 (LIN-433)', () => {
+  test("shown: the owner's pick, else the listing's, else the workspace's", () => {
+    expect(shownTimeZone('America/Denver', { timeZone: 'America/Chicago' }, 'Europe/Berlin')).toBe('America/Denver')
+    expect(shownTimeZone(null, { timeZone: 'America/Chicago' }, 'Europe/Berlin')).toBe('America/Chicago')
+    expect(shownTimeZone(null, { timeZone: null }, 'Europe/Berlin')).toBe('Europe/Berlin')
+    expect(shownTimeZone(null, { timeZone: null }, null)).toBeNull()
+  })
+
+  test("another country: the zone stays when it is in it, else the country's main zone", () => {
+    expect(zoneForCountry('US', 'Europe/Berlin')).toBe('America/New_York')
+    expect(zoneForCountry('US', 'America/Los_Angeles')).toBe('America/Los_Angeles')
+    expect(zoneForCountry('DE', 'America/Los_Angeles')).toBe('Europe/Berlin')
+    expect(zoneForCountry('GB', null)).toBe('Europe/London')
+  })
+
+  test('saved only when it is not the workspace zone already', () => {
+    expect(timeZoneToSave('America/New_York', 'Europe/Berlin')).toEqual({ timeZone: 'America/New_York' })
+    expect(timeZoneToSave('Europe/Berlin', 'Europe/Berlin')).toEqual({})
+    expect(timeZoneToSave(null, 'Europe/Berlin')).toEqual({})
   })
 })

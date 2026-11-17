@@ -8,6 +8,8 @@
 // Country: required, prefilled from the country hint (countryHint.ts). Saved as the workspace's country only when
 // picked; left as prefilled it stays Automatic on that hint, so a number connected later still decides it. For another
 // owner the prefill is this browser's own hint (time zone, language), never the admin's sign-up location.
+// Time zone: this browser's is sent; workspace.create keeps it when it is in that country (picked, else the hint), else
+// uses the country's main zone (LIN-433). Onboarding step 1 shows it with a Change.
 import type { WorkspaceCreateData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { useMemo, useState } from 'react'

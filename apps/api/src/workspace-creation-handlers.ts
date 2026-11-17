@@ -2,7 +2,7 @@
 // makes a workspace for a business and gives it its one owner, or makes one of their own (the app's New workspace,
 // POST /v1/workspaces in app.ts, and the setup MCP's workspace_create). Who may create workspaces at all:
 // workspace-creation.ts.
-import { type CountryHint, countryHintOf, type WorkspaceCreateData } from '@linedesk/actions'
+import { type CountryHint, countryHintOf, type WorkspaceCreateData, workspaceTimeZoneFor } from '@linedesk/actions'
 import { agent_setup_keys, assistants, organization, session, user, workspace_settings } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -48,6 +48,7 @@ export function creationHint(input: Pick<CreateInput, 'timeZone' | 'countryHint'
 /**
  * The workspace with its assistant and settings. The country only as picked (left as prefilled it stays Automatic,
  * so a number connected later still decides it), and the country hint (creationHint): only a code and its source.
+ * The time zone follows the country.
  */
 export async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInput, forOther = false) {
   const { name } = input
@@ -57,8 +58,11 @@ export async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInpu
     .values({ id, name, slug: slugOf(name), createdAt: new Date(now) })
     .returning({ id: organization.id, name: organization.name })
   await tx.insert(assistants).values(newAssistant(org!.id, name))
-  const settings = newWorkspaceSettings(org!.id, input.timeZone)
   const hint = creationHint(input, forOther)
+  // The time zone sent (the browser's) when it is in the country (as picked, else as hinted), else that country's main
+  // zone (decisions.md 2026-11-17, LIN-433: a US business set up from a browser in Berlin gets US Eastern).
+  const timeZone = workspaceTimeZoneFor(input.country ?? hint?.country, input.timeZone) ?? undefined
+  const settings = newWorkspaceSettings(org!.id, timeZone)
   await tx.insert(workspace_settings).values({
     ...settings,
     country: input.country ?? null,

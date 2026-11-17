@@ -12,6 +12,7 @@ import {
   INSTRUCTIONS_MAX,
   phoneNumberProblem,
   workspaceNameProblem,
+  workspaceTimeZoneFor,
 } from '@linedesk/actions'
 import type { BusinessProfile } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -61,6 +62,7 @@ export type ProfileDraft = {
   useHours: boolean
   hours: BusinessHoursSpan[] | null
   hoursText: string[]
+  /** The listing's time zone (Google): what the step shows as the time zone until the owner changes it. */
   timeZone: string | null
 }
 
@@ -210,7 +212,7 @@ export function draftProblem(draft: ProfileDraft): string | null {
   return Object.values(draftProblems(draft))[0] ?? null
 }
 
-/** What saving writes: the assistant's greeting and profile; the hours and their zone only when the owner kept them. */
+/** What saving writes: the assistant's greeting and profile; Google's hours only when the owner kept them. */
 export function profileSave(
   draft: ProfileDraft,
   saved: BusinessProfile,
@@ -219,7 +221,6 @@ export function profileSave(
   /** The greeting only when there is one: the next step asks for it, this one only names the business in it. */
   assistant: { greeting?: string; business_profile: BusinessProfile }
   hours: BusinessHoursSpan[] | null
-  timeZone: string | null
   /** The new workspace name when the owner changed the business name; null when it stays. */
   rename: string | null
 } {
@@ -245,7 +246,6 @@ export function profileSave(
   return {
     assistant: { ...(draft.greeting.trim() ? { greeting: draft.greeting.trim() } : {}), business_profile },
     hours: keepHours ? draft.hours : null,
-    timeZone: keepHours ? draft.timeZone : null,
     rename: name && name !== workspaceName.trim() ? name : null,
   }
 }
@@ -299,3 +299,21 @@ export function sourcesLine(pages: BusinessImportData['pages'], fromGoogle: bool
     host,
   })
 }
+
+/**
+ * The time zone the step shows: the one the owner picked (Change), else the listing's (Google), else the workspace's.
+ * Null while the workspace settings load and nothing else says.
+ */
+export const shownTimeZone = (picked: string | null, draft: Pick<ProfileDraft, 'timeZone'>, saved: string | null) =>
+  picked ?? draft.timeZone ?? saved
+
+/**
+ * Another country picked: the time zone shown stays when it is in that country, else it becomes the country's main
+ * zone (decisions.md 2026-11-17, LIN-433).
+ */
+export const zoneForCountry = (country: string, shown: string | null): string | null =>
+  workspaceTimeZoneFor(country, shown)
+
+/** What the step saves of the time zone: the one shown, when it is not the workspace's already. */
+export const timeZoneToSave = (shown: string | null, saved: string | null): { timeZone?: string } =>
+  shown && shown !== saved ? { timeZone: shown } : {}

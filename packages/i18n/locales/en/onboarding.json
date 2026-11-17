@@ -123,6 +123,8 @@
   "business.field.phone": "Phone",
   "business.field.services": "Services",
   "business.field.servicesHelp": "One per line, with prices if you want callers to hear them.",
+  "business.field.timeZoneChange": "Change",
+  "business.field.timeZoneChangeTip": "Pick another time zone",
   "business.field.website": "Website",
   "business.field.websitePlaceholder": "yourbusiness.com",
   "business.find.help": "Search for your listing on Google, or paste your website.",

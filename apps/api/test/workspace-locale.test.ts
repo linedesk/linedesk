@@ -197,7 +197,11 @@ describe('the country at sign-up: set in New workspace, with a hint of where it 
       return row!
     }
     // The setup MCP or the command line without a time zone: nothing known, so no hint (not "US, from the time zone").
-    expect(await rowOf({})).toMatchObject({ timezone: 'America/New_York', country_hint: null, country_hint_source: null })
+    expect(await rowOf({})).toMatchObject({
+      timezone: 'America/New_York',
+      country_hint: null,
+      country_hint_source: null,
+    })
     expect(await rowOf({ timeZone: 'Europe/Madrid' })).toMatchObject({
       country_hint: 'ES',
       country_hint_source: 'time_zone',
@@ -242,6 +246,42 @@ describe('the country at sign-up: set in New workspace, with a hint of where it 
     await expect(set({ country_hint: 'de' })).rejects.toThrow()
     await expect(set({ country_hint_source: 'guess' })).rejects.toThrow()
     await set({ country_hint: 'DE', country_hint_source: 'time_zone' })
+  })
+})
+
+describe('the time zone of a new workspace follows its country (LIN-433)', () => {
+  test("the browser's zone when it is in the country, else the country's main zone", async () => {
+    // A US business set up from a browser in Berlin: US Eastern, not Berlin.
+    const picked = await created({ country: 'US', timeZone: 'Europe/Berlin', locale: 'de-DE' })
+    expect(picked.row).toMatchObject({ country: 'US', timezone: 'America/New_York' })
+    const kept = await created({ country: 'US', timeZone: 'America/Chicago' })
+    expect(kept.row.timezone).toBe('America/Chicago')
+    // Left as prefilled (the sign-up location): the hint's country decides; the hint itself is unchanged.
+    const hinted = await created({ timeZone: 'Europe/Berlin' }, { [COUNTRY_HEADER]: 'CA' })
+    expect(hinted.row).toMatchObject({
+      country: null,
+      country_hint: 'CA',
+      country_hint_source: 'sign_up_location',
+      timezone: 'America/Toronto',
+    })
+  })
+
+  test('for another owner: the country the admin picked or prefilled', async () => {
+    const admin = await signUp()
+    const made = await asServerAdmin(admin, () =>
+      act(admin, 'workspace.create', {
+        name: `Zone ${crypto.randomUUID().slice(0, 8)}`,
+        timeZone: 'Europe/Berlin',
+        countryHint: { country: 'AU', source: 'browser_language' },
+        owner: { email: `zone-${crypto.randomUUID().slice(0, 8)}@example.com`, name: 'Dana Ruiz' },
+      }),
+    )
+    expect(made.status).toBe(200)
+    const [row] = await db
+      .select()
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, made.body.data.workspace.id))
+    expect(row).toMatchObject({ country_hint: 'AU', timezone: 'Australia/Sydney' })
   })
 })
 
