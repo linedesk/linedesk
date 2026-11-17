@@ -1,12 +1,13 @@
-// For an instance admin on a fresh install: onboarding says which provider groups a call needs are still missing or
-// failing (GET /v1/admin/setup-checklist, the same status as Server admin › Providers) and links to Server admin ›
-// Providers.
+// For an instance admin on a fresh install: onboarding says which provider groups a call needs are still missing (a
+// quiet line) or failing (a warning), from GET /v1/admin/setup-checklist (the same status as Server admin › Providers),
+// and links to Server admin › Providers.
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { AppLink, appLink, LinkButton } from '../ui/AppLink.tsx'
 import { useEffect, useState } from 'react'
 import { loadSetupChecklist } from '../admin/api.ts'
 import type { Me } from '../auth.ts'
 import { useQuery } from '../cachedQuery.ts'
+import { Note } from '../ui/kit.tsx'
 
 /** Cache key of the server's group status (onboarding's notice). */
 const SETUP_STATUS = 'admin.setupStatus'
@@ -59,13 +60,25 @@ export function InstanceSetupNotice() {
     .map(g => g.label.toLowerCase())
   const failing = data.groups.filter(g => g.state === 'failing').map(g => g.label.toLowerCase())
   if (!missing.length && !failing.length) return null
-  return (
-    <p className="ob-instance" role="note">
+  const text = (
+    <>
       {missing.length > 0 &&
         `${t('onboarding.instance.missing', { groups: format.list(missing, { type: 'disjunction' }) })} `}
       {failing.length > 0 &&
         `${t('onboarding.instance.failing', { groups: capitalize(format.list(failing)), count: failing.length })} `}
       {link}
+    </>
+  )
+  // Something that worked is failing now: a problem to act on, so a warning. Not set up yet: the quiet line.
+  if (failing.length)
+    return (
+      <Note tone="warning" className="ob-instance-note">
+        {text}
+      </Note>
+    )
+  return (
+    <p className="ob-instance" role="note">
+      {text}
     </p>
   )
 }

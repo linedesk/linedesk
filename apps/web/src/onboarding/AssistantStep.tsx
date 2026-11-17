@@ -16,7 +16,7 @@ import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { appLink } from '../ui/AppLink.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { Foot, useStepKeys, useStepMode } from './Frame.tsx'
+import { Foot, useStepKeys } from './Frame.tsx'
 import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
 
 /**
@@ -99,7 +99,6 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   }
   useStepKeys({ onEnter: next, onEscape: back })
   // Again from the settings, Continue (Done) is the one primary action here; the test call stands beside it.
-  const { edit } = useStepMode()
 
   return (
     <>
@@ -167,7 +166,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
         )}
         <div className="ob-talk">
           {/* The same button and panel as Assistant settings; the click saves first. */}
-          <TestCallButton session={session} variant={edit ? 'secondary' : 'primary'} onStart={() => void talk()} />
+          {/* Secondary: Continue is the step's one primary button (design-principles.md). */}
+          <TestCallButton session={session} onStart={() => void talk()} />
           <span className="ob2-note">
             {session.voiceFixable ? (
               <T

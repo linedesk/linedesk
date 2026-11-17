@@ -99,6 +99,9 @@
 .ob-instance a {
   color: var(--ink);
 }
+.ob-instance-note {
+  margin: 0 0 16px;
+}
 /* Find your business: the search field with its button, the listings, and the review's two-column fields. */
 .ob-biz-search {
   display: flex;
@@ -238,7 +241,6 @@
 .ob-biz-country {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   min-height: var(--control-h-lg);
 }
