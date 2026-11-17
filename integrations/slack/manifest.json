@@ -5,6 +5,12 @@
     "long_description": "Linedesk is the AI receptionist for your business: it answers your phone, summarizes each call, books appointments and hands over to a person. This app posts every finished call to one Slack channel, so your team sees who called, what they needed and what to do next, without opening another tool. Each message shows the caller, the number, a short summary, the next steps, when the call happened, and a button that opens the call in Linedesk. Urgent calls are marked. When you add the app, Slack asks which channel to post to. You can disconnect at any time in Linedesk under Integrations, Slack.",
     "background_color": "#111111"
   },
+  "features": {
+    "bot_user": {
+      "display_name": "Linedesk",
+      "always_online": false
+    }
+  },
   "oauth_config": {
     "redirect_urls": [
       "https://app.linedesk.ai/v1/apps/callback/slack",
