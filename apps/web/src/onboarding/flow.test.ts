@@ -365,6 +365,8 @@ test('who hears: "put through" in a new workspace: one contact for urgent calls 
     ring_seconds: 25,
     if_no_answer: 'message',
     enabled: true,
+    // The owner's own mobile is announced too, like every new contact; Settings › Transfers turns it off.
+    briefing: true,
   })
   // Back on the step: its own contact shows with its choice, and saving it unchanged changes nothing.
   expect(firstWhoHears(saved)).toEqual({ urgent: 'transfer', mobile: '+1 503 555 0142', condition: 'Flooding' })

@@ -1,7 +1,7 @@
 // The assistant's transfer_call tool: puts the caller through to the transfer contact whose condition
 // fits (warm transfer, transfer-call.ts), tries the next one when the contact says so, and records how
 // each try went with call.transfer.
-import { type CallTransferData, callTakeMessage, callTransfer, type SpokenLines, type TransferResult } from '@linedesk/actions'
+import { type CallTransferData, callTakeMessage, callTransfer, isBriefed, type SpokenLines, type TransferResult } from '@linedesk/actions'
 import { llm, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -301,7 +301,7 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
             callerId: started.start.callerId ?? undefined,
             maxCallSeconds: started.start.maxMinutes ? started.start.maxMinutes * 60 : undefined,
           },
-          briefing,
+          isBriefed(contact) ? briefing : null,
           left,
           {
             onBridgeEnded: () => void ctx.deleteRoom().catch(() => {}),

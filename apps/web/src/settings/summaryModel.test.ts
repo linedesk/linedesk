@@ -98,6 +98,7 @@ const contact = (name: string, more: Partial<TransferDraft> = {}): TransferDraft
   ring_seconds: 20,
   if_no_answer: 'next',
   enabled: true,
+  briefing: true,
   ...more,
 })
 const transfers = { name: 'Maya', transfers: [], hoursOn: true, vacationOn: false }

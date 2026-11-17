@@ -55,3 +55,16 @@ test('recording on: no note, the controls work as before', () => {
   // A member still reads them only.
   expect(disabledControls(render(true, false))).toBe(3)
 })
+
+test('the caller privacy notice template follows the recording settings and can be copied by anyone', () => {
+  settings.data = { ...settings.data, recordingRetentionDays: 30 }
+  const on = render(true, false)
+  expect(on).toContain('Caller privacy notice')
+  // What it is for, at the top of the card.
+  expect(on).toContain('A text for your website or call notes that tells callers how their data is handled; in the EU the business must give this information.')
+  expect(on).toContain('Copy text')
+  expect(on).toContain('delete the recordings after 30 days.')
+  // Recording off on the server: the template says no audio is kept.
+  expect(render(false)).toContain('We do not keep audio recordings of calls.')
+  settings.data = { ...settings.data, recordingRetentionDays: 0 }
+})

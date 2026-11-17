@@ -2072,6 +2072,27 @@ button.k-link {
 .st-notice > :first-child {
   flex: 1;
 }
+/* Settings, Recordings: the caller privacy notice template, as it will be pasted (paragraphs, wrapped). */
+.st-privacy-fill {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.st-privacy-text {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+}
 
 /* How <assistant> did on this call (owners and admins): a quiet card under the summary, the score in words, at most
    three issues, the questions it could not answer and Done. */

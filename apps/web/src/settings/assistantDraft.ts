@@ -40,6 +40,7 @@ import {
   parseMentions,
   swapDefault,
   type VoicePipeline,
+  isBriefed,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, TransferContact } from '@linedesk/db/types'
 import { languageInSentence } from '@linedesk/i18n'
@@ -93,8 +94,8 @@ export type Draft = {
   realtime_model: string
 }
 
-/** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet). */
-export type TransferDraft = Omit<TransferContact, 'number'> & { number: string }
+/** A transfer contact as edited: the number as typed (saved as E.164, empty: none yet), and the briefing always set (missing: on). */
+export type TransferDraft = Omit<TransferContact, 'number' | 'briefing'> & { number: string; briefing: boolean }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${value.trim()}` : null)
@@ -293,7 +294,7 @@ export const normalized = (d: Draft): Draft => ({
 })
 
 /** The contact with its fields in one fixed order: Postgres keeps jsonb keys in its own order, and drafts compare as JSON. */
-const transferDraftOf = (c: TransferDraft): TransferDraft => ({
+const transferDraftOf = (c: Omit<TransferDraft, 'briefing'> & { briefing?: boolean }): TransferDraft => ({
   id: c.id,
   name: c.name,
   number: c.number,
@@ -302,6 +303,7 @@ const transferDraftOf = (c: TransferDraft): TransferDraft => ({
   ring_seconds: c.ring_seconds,
   if_no_answer: c.if_no_answer,
   enabled: c.enabled,
+  briefing: isBriefed(c),
 })
 
 const wholeIn = (typed: string, min: number, max: number) =>
@@ -487,7 +489,7 @@ export function newTransferContact(list: readonly TransferDraft[], preset: Trans
   const taken = new Set(list.map(c => c.name.trim().toLowerCase()))
   let name = base.name
   for (let i = 2; name && taken.has(name.toLowerCase()); i++) name = `${base.name} ${i}`
-  return { id: `tc_${n}`, number: '', ring_seconds: RING_SECONDS_DEFAULT, enabled: true, ...base, name }
+  return { id: `tc_${n}`, number: '', ring_seconds: RING_SECONDS_DEFAULT, enabled: true, briefing: true, ...base, name }
 }
 
 export const canAddTransfer = (d: Pick<Draft, 'transfers'>) => d.transfers.length < TRANSFER_CONTACTS_MAX

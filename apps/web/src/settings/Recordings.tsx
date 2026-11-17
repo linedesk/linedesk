@@ -1,7 +1,8 @@
 // Settings, Recordings: how long call recordings are kept, and the notice the assistant says after the
 // greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
 // and summary stay. With recording off on the server (no recording store) both stay as saved but greyed out: nothing
-// is recorded and the assistant does not say the notice, until recording is turned on.
+// is recorded and the assistant does not say the notice, until recording is turned on. Below it, a caller privacy notice
+// template the business can copy (callerPrivacyNotice.ts).
 import { useReadOnlyNote } from './readOnly.ts'
 import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
@@ -14,6 +15,8 @@ import { Button, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Field, Section, SkeletonSwitchRows, SwitchRow, TextInput } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
+import { brandName } from '../brand.ts'
+import { callerPrivacyNotice, type NoticeRecording } from './callerPrivacyNotice.ts'
 
 type Days = (typeof recordingRetentionChoices)[number]
 type Choice = `${Days}` | 'forever'
@@ -85,54 +88,89 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
   }
 
   return (
-    <Section
-      id="st-recordings"
-      title={t('settings.recordings.title')}
-      help={recordingOn ? t('settings.recordings.help') : t('settings.recordings.helpOff')}
-    >
-      {settings.data && !recordingOn && <RecordingOffNote />}
-      <Loading
-        what={t('settings.recordings.loadWhat')}
-        loading={days === undefined}
-        error={error}
-        onRetry={() => void settings.reload()}
-        skeleton={
-          <>
-            <Field label={t('settings.recordings.keepFor')}>
-              <Skeleton shape="field" width={260} />
-            </Field>
-            <SkeletonSwitchRows rows={1} />
-          </>
-        }
+    <>
+      <Section
+        id="st-recordings"
+        title={t('settings.recordings.title')}
+        help={recordingOn ? t('settings.recordings.help') : t('settings.recordings.helpOff')}
       >
-        {days !== undefined && (
-          <Field
-            id="st-retention"
-            label={t('settings.recordings.keepFor')}
-            help={canEdit || !recordingOn ? undefined : readOnly}
-          >
-            <div>
-              <Select
-                id="st-retention"
-                value={choiceOf(days)}
-                options={retentionOptions(t)}
-                onChange={change}
-                label={t('settings.recordings.keepFor')}
-                disabled={!editable}
-              />
-            </div>
-          </Field>
-        )}
-        {settings.data && (
-          <RecordingNotice
-            on={settings.data.recordingNoticeOn}
-            saved={settings.data.recordingNotice}
-            canEdit={editable}
-            inEffect={recordingOn}
-            toast={toast}
-          />
-        )}
-      </Loading>
+        {settings.data && !recordingOn && <RecordingOffNote />}
+        <Loading
+          what={t('settings.recordings.loadWhat')}
+          loading={days === undefined}
+          error={error}
+          onRetry={() => void settings.reload()}
+          skeleton={
+            <>
+              <Field label={t('settings.recordings.keepFor')}>
+                <Skeleton shape="field" width={260} />
+              </Field>
+              <SkeletonSwitchRows rows={1} />
+            </>
+          }
+        >
+          {days !== undefined && (
+            <Field
+              id="st-retention"
+              label={t('settings.recordings.keepFor')}
+              help={canEdit || !recordingOn ? undefined : readOnly}
+            >
+              <div>
+                <Select
+                  id="st-retention"
+                  value={choiceOf(days)}
+                  options={retentionOptions(t)}
+                  onChange={change}
+                  label={t('settings.recordings.keepFor')}
+                  disabled={!editable}
+                />
+              </div>
+            </Field>
+          )}
+          {settings.data && (
+            <RecordingNotice
+              on={settings.data.recordingNoticeOn}
+              saved={settings.data.recordingNotice}
+              canEdit={editable}
+              inEffect={recordingOn}
+              toast={toast}
+            />
+          )}
+        </Loading>
+      </Section>
+      {settings.data && days !== undefined && (
+        <CallerPrivacyNotice recording={{ on: recordingOn, days }} toast={toast} />
+      )}
+    </>
+  )
+}
+
+/**
+ * A privacy notice template for callers that the business copies to its website (A11): the business is the controller
+ * and must inform callers (GDPR Art. 13/14, CCPA). Shown to everyone who can open the page; copying changes nothing.
+ */
+function CallerPrivacyNotice({ recording, toast }: { recording: NoticeRecording; toast: (text: string) => void }) {
+  const t = useT()
+  const text = callerPrivacyNotice(recording, brandName())
+  const copy = () =>
+    navigator.clipboard.writeText(text).then(
+      () => toast(t('settings.privacyNotice.copied')),
+      () => toast(t('settings.privacyNotice.copyFailed')),
+    )
+  return (
+    <Section
+      id="st-privacy-notice"
+      title={t('settings.privacyNotice.title')}
+      description={t('settings.privacyNotice.description')}
+      help={t('settings.privacyNotice.help')}
+      actions={
+        <Button size="sm" onClick={() => void copy()}>
+          {t('settings.privacyNotice.copy')}
+        </Button>
+      }
+    >
+      <p className="st-privacy-fill">{t('settings.privacyNotice.fill')}</p>
+      <pre className="st-privacy-text">{text}</pre>
     </Section>
   )
 }

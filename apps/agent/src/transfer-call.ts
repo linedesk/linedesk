@@ -2,6 +2,8 @@
 // separate consult room, where a small voice session briefs them and waits for yes/no (voice or keys
 // 1/2). On yes the agent bridges the two rooms' audio itself and stays silent; otherwise the consult
 // room is closed (which hangs up the on-call phone) and the assistant goes back to the caller.
+// A contact with the briefing off (TransferContact.briefing) is bridged as soon as the phone is answered:
+// no voice session, nothing said to them, no way to decline.
 // Why a bridge and not LiveKit's moveParticipant or SIP REFER: docs/decisions.md (warm transfer).
 import { type llm, voice } from '@livekit/agents'
 import { type RemoteParticipant, type RemoteTrack, Room, RoomEvent, TrackKind } from '@livekit/rtc-node'
@@ -230,13 +232,14 @@ function waitForAudio(room: Room, identity: string, timeoutMs = 10_000): Promise
 }
 
 /**
- * Runs one warm transfer. `briefing` is what the on-call person hears. `signal` aborts when the caller
- * hangs up. `onBridgeEnded` runs when a connected call ends on the on-call side (they hung up).
- * Cleans up after itself except for a connected bridge, which `addCleanup` registers for shutdown.
+ * Runs one warm transfer. `briefing` is what the on-call person hears; null: none, the caller is put through as soon as
+ * the phone is answered. `signal` aborts when the caller hangs up. `onBridgeEnded` runs when a connected call ends on
+ * the on-call side (they hung up). Cleans up after itself except for a connected bridge, which `addCleanup` registers
+ * for shutdown.
  */
 export async function warmTransfer(
   setup: TransferSetup,
-  briefing: string,
+  briefing: string | null,
   signal: AbortSignal,
   hooks: {
     onBridgeEnded: () => void
@@ -264,9 +267,29 @@ export async function warmTransfer(
   let farewell: string | null = null
   // Whatever happens to this job, the on-call leg ends with it: registered before anything is dialled.
   hooks.addCleanup(() => closeConsult(consult))
+  /** Puts the caller through: stops the ringback and forwards both rooms' audio; the bridge ends the call when the on-call person hangs up. */
+  const bridge = async (room: Room, at: () => string) => {
+    await stopRingback()
+    const onCallTrack = await waitForAudio(room, ON_CALL_IDENTITY)
+    const callerTrack = await waitForAudio(callerRoom, callerIdentity)
+    const stopToCaller = await forwardAudio(onCallTrack, callerRoom, 'on-call')
+    const stopToOnCall = await forwardAudio(callerTrack, room, 'caller')
+    const end = async () => {
+      await stopToCaller()
+      await stopToOnCall()
+      await closeConsult(room)
+    }
+    room.on(RoomEvent.ParticipantDisconnected, participant => {
+      if (participant.identity === ON_CALL_IDENTITY) hooks.onBridgeEnded()
+    })
+    hooks.addCleanup(end)
+    console.log(`transfer ${consultName}: put through (${at()})`)
+    connected = true
+    return { result: 'connected' } as const
+  }
   try {
-    const tts = setup.consult.tts()
-    const lines = prerenderConsultLines(tts, briefing) // while it rings
+    const tts = briefing === null ? null : setup.consult.tts()
+    const lines = tts && briefing !== null ? prerenderConsultLines(tts, briefing) : null // while it rings
     consult = await joinConsultRoom(livekit, consultName)
     await setup.dialer.dial({
       room: consultName,
@@ -275,8 +298,26 @@ export async function warmTransfer(
       ringSeconds: setup.ringSeconds,
       from: setup.callerId,
       maxCallSeconds: setup.maxCallSeconds,
+      briefed: briefing !== null,
     })
     if (signal.aborted) return { result: 'not_answered' }
+
+    if (briefing === null || !tts || !lines) {
+      // No briefing: whoever answered the phone is put through at once (a voicemail that answers gets the caller too).
+      const answeredAt = Date.now()
+      const at = () => `${((Date.now() - answeredAt) / 1000).toFixed(1)} s after the answer`
+      // Fail closed: a recording that cannot be stopped means no bridge; the on-call leg is hung up, nothing is said.
+      try {
+        await hooks.onConnecting?.()
+      } catch (e) {
+        console.warn(
+          `not putting the call through, the recording could not be stopped: ${e instanceof Error ? e.message : String(e)}`,
+        )
+        return { result: 'failed' }
+      }
+      console.log(`transfer ${consultName}: answered, no briefing, recording stopped (${at()})`)
+      return await bridge(consult, at)
+    }
 
     const agent = new ConsultAgent({ instructions: 'You brief the person about a call to put through.' })
     session = new voice.AgentSession({
@@ -325,24 +366,7 @@ export async function warmTransfer(
     console.log(`transfer ${consultName}: connecting line played (${at()})`)
     await session.close()
     session = null
-    await stopRingback()
-    const onCallTrack = await waitForAudio(consult, ON_CALL_IDENTITY)
-    const callerTrack = await waitForAudio(callerRoom, callerIdentity)
-    const stopToCaller = await forwardAudio(onCallTrack, callerRoom, 'on-call')
-    const stopToOnCall = await forwardAudio(callerTrack, consult, 'caller')
-    const bridged = consult
-    const end = async () => {
-      await stopToCaller()
-      await stopToOnCall()
-      await closeConsult(bridged)
-    }
-    bridged.on(RoomEvent.ParticipantDisconnected, participant => {
-      if (participant.identity === ON_CALL_IDENTITY) hooks.onBridgeEnded()
-    })
-    hooks.addCleanup(end)
-    console.log(`transfer ${consultName}: put through (${at()})`)
-    connected = true
-    return { result: 'connected' }
+    return await bridge(consult, at)
   } catch (e) {
     if (e instanceof NotAnsweredError || signal.aborted) return { result: 'not_answered' }
     console.warn(`warm transfer failed: ${e instanceof Error ? e.message : String(e)}`)

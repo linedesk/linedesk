@@ -702,6 +702,7 @@ export function whoHearsTransfers(
         ring_seconds: RING_SECONDS_DEFAULT,
         if_no_answer: 'message',
         enabled: true,
+        briefing: true,
       }
   if (own) {
     const same =

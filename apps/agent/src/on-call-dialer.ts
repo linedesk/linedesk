@@ -24,7 +24,8 @@ import { RING_SECONDS } from './transfer.ts'
 /**
  * `ringSeconds`: how long the phone rings (the contact's ring time; RING_SECONDS when not given). `from`: the caller ID
  * for this dial (the API's pick), else the dialer's own. `maxCallSeconds`: the longest the leg may last (the API's limit),
- * never more than MAX_TRANSFER_SEC.
+ * never more than MAX_TRANSFER_SEC. `briefed`: false when the person hears no briefing and is put through at once
+ * (the contact's briefing is off); a phone is dialled the same way either way.
  */
 export type DialRequest = {
   room: string
@@ -33,6 +34,7 @@ export type DialRequest = {
   ringSeconds?: number
   from?: string
   maxCallSeconds?: number
+  briefed?: boolean
 }
 
 /** Puts the on-call person into the consult room; resolves once they answered, rejects when nobody did. */
@@ -133,7 +135,9 @@ async function untilTheyStopTalking(stream: AsyncIterator<AudioFrame>, quietMs =
 /**
  * A simulated on-call person for the no-phone call test: joins the consult room as the participant
  * the transfer waits for, listens to the briefing and answers by voice ("yes") or with key 2. After
- * taking the call it says a few words to the caller and hangs up, which ends the call.
+ * taking the call it says a few words to the caller and hangs up, which ends the call. Without a briefing
+ * (`briefed` false) there is nothing to decline: one who would decline lets it ring out instead, one who
+ * accepts says their few words once put through.
  */
 export function simulatedDialer(
   answer: SimulatedAnswer,
@@ -142,8 +146,8 @@ export function simulatedDialer(
   greeting = GREETING_LINE,
 ): OnCallDialer {
   return {
-    async dial({ room: roomName, identity, signal, ringSeconds = RING_SECONDS }) {
-      if (answer === 'no-answer') {
+    async dial({ room: roomName, identity, signal, ringSeconds = RING_SECONDS, briefed = true }) {
+      if (answer === 'no-answer' || (answer === 'decline' && !briefed)) {
         await sleep(ringSeconds * 1000, signal)
         throw new NotAnsweredError('the simulated on-call phone rang out')
       }
@@ -158,11 +162,19 @@ export function simulatedDialer(
         throw new NotAnsweredError('cancelled while dialling')
       }
       const source = await publishVoice(room, lines)
-      void actOnCall(room, source, answer, lines, { hangUp: () => room.disconnect() }).catch(e =>
+      const act = briefed ? actOnCall(room, source, answer, lines, { hangUp: () => room.disconnect() }) : greetOnly(room, source, lines)
+      void act.catch(e =>
         console.warn(`simulated on-call person: ${e instanceof Error ? e.message : String(e)}`),
       )
     },
   }
+}
+
+/** Put through without a briefing: once the bridge is up, says the greeting and hangs up. */
+async function greetOnly(room: Room, source: AudioSource, [, greeting]: GreetingAudio[]) {
+  await sleep(BRIDGE_SETTLE_MS)
+  await speak(source, greeting!)
+  await room.disconnect()
 }
 
 const ACCEPT_LINE = 'Yes, put them through.'

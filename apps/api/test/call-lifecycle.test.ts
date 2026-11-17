@@ -1,5 +1,6 @@
 // What the voice agent writes during a call: start, transcript, finish.
 import { readFileSync } from 'node:fs'
+import { isBriefed } from '@linedesk/actions'
 import { assistants, calls, contacts, phone_numbers, transcript_segments } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { and, asc, eq, sql } from 'drizzle-orm'
@@ -276,6 +277,26 @@ test('assistant.update stores the transfer contacts in order; an invalid or Line
   expect(forwarding).toMatchObject({ status: 409, body: { error: expect.stringContaining('forwards its calls to Linedesk') } })
   const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
   expect(started.body.data.assistant).toMatchObject({ transfers: list })
+})
+
+test('assistant.update keeps each contact\'s briefing switch: on unless sent as false, anything else refused', async () => {
+  const assistantId = ws.assistant.id
+  const sent = [contact(), contact({ id: 'owner', name: 'Owner', number: '+15035550187', briefing: false })]
+  const ok = await act(ws.owner, 'assistant.update', { assistantId, transfers: sent })
+  expect(ok.status).toBe(200)
+  const [row] = await db.select().from(assistants).where(eq(assistants.id, assistantId))
+  // Not sent: stored as it came (on, isBriefed); off is kept as off.
+  expect(row?.transfers.map(c => [c.id, isBriefed(c)])).toEqual([['oncall', true], ['owner', false]])
+  expect(row?.transfers[1]).toMatchObject({ briefing: false })
+  // The agent gets it with the call.
+  const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  expect(started.body.data.assistant.transfers).toMatchObject([{ id: 'oncall' }, { id: 'owner', briefing: false }])
+  const on = await act(ws.owner, 'assistant.update', { assistantId, transfers: [contact({ briefing: true })] })
+  expect(on.status).toBe(200)
+  const [saved] = await db.select().from(assistants).where(eq(assistants.id, assistantId))
+  expect(saved?.transfers).toMatchObject([{ id: 'oncall', briefing: true }])
+  const bad = await act(ws.owner, 'assistant.update', { assistantId, transfers: [contact({ briefing: 'off' })] })
+  expect(bad.status).toBe(422)
 })
 
 test('a new assistant starts with one inactive contact for callers who ask for a person; a copy does not take the numbers', async () => {

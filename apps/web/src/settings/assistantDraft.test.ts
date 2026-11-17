@@ -85,7 +85,7 @@ it('a renamed assistant whose greeting still says the old name is noticed', () =
 })
 
 describe('transfer contacts', () => {
-  const mike = { id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: false, ring_seconds: 25, if_no_answer: 'message' as const, enabled: true }
+  const mike = { id: 'oncall', name: 'Mike', number: '+15035550199', condition: 'Urgent: a burst pipe', hours_only: false, ring_seconds: 25, if_no_answer: 'message' as const, enabled: true, briefing: true }
   const withList = (transfers: ReturnType<typeof draftOf>['transfers']) => ({ ...draftOf(assistant()), transfers })
   it('shows saved numbers formatted and saves what was typed as E.164, empty as none', () => {
     const saved = draftOf(assistant({ transfers: [mike, { ...mike, id: 'person', name: 'Owner', number: null }] }))
@@ -99,6 +99,17 @@ describe('transfer contacts', () => {
   it('the order of a contact\'s fields (Postgres keeps jsonb keys in its own) is no change', () => {
     const reordered = Object.fromEntries(Object.entries(mike).reverse()) as typeof mike
     expect(isDirty(draftOf(assistant({ transfers: [reordered] })), draftOf(assistant({ transfers: [mike] })))).toBe(false)
+  })
+  it('keeps each contact\'s briefing switch: missing is on, off is saved as off', () => {
+    const { briefing: _missing, ...unset } = mike
+    const draft = draftOf(assistant({ transfers: [unset, { ...mike, id: 'owner', name: 'Owner', briefing: false }] }))
+    expect(draft.transfers.map(c => c.briefing)).toEqual([true, false])
+    expect(transfersToSave(draft).map(c => c.briefing)).toEqual([true, false])
+    // A contact saved without the field is no change against the same contact with it on.
+    expect(isDirty(draftOf(assistant({ transfers: [unset] })), draftOf(assistant({ transfers: [mike] })))).toBe(false)
+  })
+  it('a new contact is announced by default', () => {
+    expect(newTransferContact([], 'blank').briefing).toBe(true)
   })
   it('an assistant from before the list has none', () => {
     expect(draftOf(assistant()).transfers).toEqual([])

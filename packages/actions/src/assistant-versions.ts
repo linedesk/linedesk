@@ -145,6 +145,7 @@ export const VERSION_PARTS: readonly VersionPart[] = [
             c.hours_only && 'only while open',
             `rings ${c.ring_seconds} s`,
             `if no answer: ${NO_ANSWER[c.if_no_answer] ?? c.if_no_answer}`,
+            c.briefing === false && 'no briefing',
             !c.enabled && 'off',
           ]
             .filter(Boolean)

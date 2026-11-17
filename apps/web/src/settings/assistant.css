@@ -558,6 +558,18 @@ a.as-chip:hover {
 .tc-grid-then {
   grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
 }
+/* Under the name and number: the person must have agreed to the calls (one muted line, no checkbox). */
+.tc-briefing {
+  display: grid;
+  gap: 2px;
+  margin-top: -6px;
+}
+.tc-consent {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
 .ta.tc-cond-input {
   box-sizing: border-box;
   min-height: 0;

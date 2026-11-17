@@ -4,6 +4,7 @@ import {
   assistantUpdate,
   callTransfer,
   isActiveContact,
+  isBriefed,
   onCallNumberProblem,
   setsTransferNumber,
   TRANSFER_CONTACTS_MAX,
@@ -78,6 +79,22 @@ test('assistant.update takes the list of transfer contacts and validates each nu
   expect(update(Array.from({ length: TRANSFER_CONTACTS_MAX + 1 }, (_, i) => contact({ id: `c${i}`, name: `C${i}` })))).toBe(false)
   // The old single on-call number is gone from the input.
   expect(Object.keys(assistantUpdate.input.shape)).not.toContain('transfer_number')
+})
+
+test('a transfer contact\'s briefing: on unless switched off; only true or false', () => {
+  const parse = (over: Record<string, unknown>) => assistantUpdate.input.safeParse({ assistantId: 'as_1', transfers: [contact(over)] })
+  const briefingOf = (over: Record<string, unknown>) => {
+    const parsed = parse(over)
+    return parsed.success ? isBriefed(parsed.data.transfers![0]!) : 'refused'
+  }
+  expect(briefingOf({})).toBe(true) // not given: announced, as before
+  expect(briefingOf({ briefing: true })).toBe(true)
+  expect(briefingOf({ briefing: false })).toBe(false)
+  expect(briefingOf({ briefing: 'no' })).toBe('refused')
+  expect(briefingOf({ briefing: null })).toBe('refused')
+  expect(isBriefed({})).toBe(true)
+  expect(isBriefed({ briefing: true })).toBe(true)
+  expect(isBriefed({ briefing: false })).toBe(false)
 })
 
 test('which assistant.update inputs let calls be put through to a number', () => {

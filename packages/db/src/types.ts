@@ -100,6 +100,12 @@ export type TransferContact = {
   if_no_answer: TransferFallback
   /** Switched off: kept in the list, never dialled. */
   enabled: boolean
+  /**
+   * When the person picks up, an AI voice first tells them who is calling and about what, and they take the call or
+   * not (key 1/2 or yes/no). false: the caller is put straight through as soon as the phone is answered, with no
+   * briefing and no way to decline. Missing: on (isBriefed in @linedesk/actions).
+   */
+  briefing?: boolean
 }
 /** A new assistant's list: one inactive contact for callers who ask for a person, until a number is set. */
 export const DEFAULT_TRANSFERS: TransferContact[] = [

@@ -35,6 +35,8 @@ export const transferContact = z.object({
   // "message_urgent" (removed) from an older web app or a saved version is a plain message now.
   if_no_answer: z.enum([...transferFallbacks, 'message_urgent']).transform(v => (v === 'message_urgent' ? 'message' : v)),
   enabled: z.boolean(),
+  /** false: put straight through when the phone is answered, no AI-voice briefing; missing: on (isBriefed). */
+  briefing: z.boolean().optional(),
 }) satisfies z.ZodType<TransferContact>
 
 /** The whole ordered list; ids and names (which the assistant picks by) are unique. */
@@ -52,6 +54,9 @@ export const transferContacts = z
       seen.name.add(name)
     })
   })
+
+/** Whether the person hears the AI-voice briefing (and can decline) before the caller is put through; missing: yes. */
+export const isBriefed = (c: Pick<TransferContact, 'briefing'>) => c.briefing !== false
 
 /** Whether a contact can be dialled at all: switched on and has a number. */
 export const isActiveContact = (c: Pick<TransferContact, 'enabled' | 'number'>) => c.enabled && !!c.number

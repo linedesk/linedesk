@@ -9,6 +9,7 @@ import { useT } from '@linedesk/i18n/react'
 import { useRef, useState } from 'react'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Input, Textarea } from '../ui/form.tsx'
+import { HelpTip } from '../ui/HelpTip.tsx'
 import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { Button, cx } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
@@ -145,7 +146,7 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
   )
 }
 
-type RowProps = {
+export type RowProps = {
   contact: TransferDraft
   index: number
   count: number
@@ -165,13 +166,14 @@ type RowProps = {
   onRemove: () => void
 }
 
-/** The muted line under a contact's name: ring time, fallback, hours. */
+/** The muted line under a contact's name: ring time, fallback, hours, and "put straight through" without a briefing. */
 function summaryOf(c: TransferDraft, hoursOn: boolean): string {
-  return i18n().t('settings.transfer.summary', {
+  const summary = i18n().t('settings.transfer.summary', {
     duration: shortDuration(c.ring_seconds),
     fallback: c.if_no_answer,
     hoursOnly: hoursOn && c.hours_only ? 'yes' : 'no',
   })
+  return c.briefing ? summary : i18n().t('settings.transfer.summaryDirect', { summary })
 }
 
 /** Grows the condition box with its text, from two lines up to the CSS max-height. */
@@ -181,7 +183,7 @@ function grow(el: HTMLTextAreaElement | null) {
   el.style.height = `${el.scrollHeight + 2}px`
 }
 
-function ContactRow(props: RowProps) {
+export function ContactRow(props: RowProps) {
   const {
     contact: c,
     index,
@@ -256,6 +258,17 @@ function ContactRow(props: RowProps) {
                 invalid={!!error('number')}
               />
             </Field>
+          </div>
+          <div className="tc-briefing">
+            <span className="bh-with">
+              <Checkbox checked={c.briefing} onChange={on => onChange({ briefing: on })}>
+                {t('settings.transfer.briefing')}
+              </Checkbox>
+              <HelpTip label={t('settings.transfer.briefingTipLabel')} text={t('settings.transfer.briefingTip')} />
+            </span>
+            {/* TCPA: with the briefing a transfer is an outbound call that opens with an AI voice, so the person must have
+                agreed (terms, A10). Without it nothing artificial is said to them: no hint, only what changes. */}
+            <p className="tc-consent">{t(c.briefing ? 'settings.transfer.consent' : 'settings.transfer.briefingOff')}</p>
           </div>
           <Field id={id('condition')} label={t('settings.transfer.condition')} error={error('condition')}>
             <Textarea
