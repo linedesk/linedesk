@@ -43,7 +43,9 @@ describe('assistant.create and assistant.delete', () => {
     const created = await getAssistant(body.data.assistantId)
     expect(created).toMatchObject({ workspace_id: ws.id, name: 'Ava' })
     expect(created!.name).not.toBe(ws.assistant.name)
-    expect(created!.greeting).toBe('Thanks for calling Brightwater Plumbing & Heating. This is Ava. How can I help?')
+    expect(created!.greeting).toBe(
+      'Thanks for calling Brightwater Plumbing & Heating. This is Ava, the AI assistant. How can I help?',
+    )
   })
 
   test('a copy keeps greeting and instructions, under a new name', async () => {

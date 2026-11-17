@@ -68,3 +68,31 @@ test('the caller privacy notice template follows the recording settings and can 
   expect(render(false)).toContain('We do not keep audio recordings of calls.')
   settings.data = { ...settings.data, recordingRetentionDays: 0 }
 })
+
+test('law hints by setting and country: only notes, every control stays usable (A4, A5)', () => {
+  const eu = "In the EU and the UK, recording a call usually needs the caller's consent"
+  const long = 'Privacy laws such as the GDPR'
+  const noticeOff = 'Calls are recorded and transcribed without telling callers.'
+  const at = (data: Record<string, unknown>) => {
+    settings.data = { ...settings.data, recordingNoticeOn: true, ...data }
+    return render(true).replaceAll('&#x27;', "'")
+  }
+  // The US, 90 days, notice on: nothing.
+  let html = at({ resolvedCountry: 'US', recordingRetentionDays: 90 })
+  for (const hint of [eu, long, noticeOff]) expect(html).not.toContain(hint)
+  // Germany: the consent hint; kept forever: the retention hint too.
+  expect(at({ resolvedCountry: 'DE', recordingRetentionDays: 90 })).toContain(eu)
+  html = at({ resolvedCountry: 'DE', recordingRetentionDays: null })
+  expect(html).toContain(eu)
+  expect(html).toContain(long)
+  expect(at({ resolvedCountry: 'US', recordingRetentionDays: 365 })).toContain(long)
+  // Don't keep: nothing is recorded, so no hint.
+  html = at({ resolvedCountry: 'DE', recordingRetentionDays: 0, recordingNoticeOn: false })
+  for (const hint of [eu, long, noticeOff]) expect(html).not.toContain(hint)
+  // The notice off while calls are recorded: a warning, worded by country.
+  html = at({ resolvedCountry: 'US', recordingRetentionDays: 30, recordingNoticeOn: false })
+  expect(html).toContain(`${noticeOff} In many US states, such as California, callers must be told first.`)
+  html = at({ resolvedCountry: 'FR', recordingRetentionDays: 30, recordingNoticeOn: false })
+  expect(html).toContain(`${noticeOff} In the EU and the UK, callers must be told`)
+  expect(disabledControls(html)).toBe(0)
+})

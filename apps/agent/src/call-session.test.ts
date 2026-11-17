@@ -199,12 +199,12 @@ test('the recording notice from call.start is said right after the greeting, als
       }),
     }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
-  const notice = 'This call may be recorded.'
+  const notice = 'This call may be recorded and transcribed.'
   const opening = async (recordingNotice: unknown, hours: unknown = null, canRecord = true) =>
     announceRecording(await startCall(api(recordingNotice, hours), phone), canRecord).assistant?.greeting
-  expect(await opening(notice)).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(await opening(notice)).toBe('Hello, this is Maya. This call may be recorded and transcribed.')
   expect(await opening(notice, { openNow: false, summary: 'Closed now.' })).toBe(
-    'We are closed. This call may be recorded.',
+    'We are closed. This call may be recorded and transcribed.',
   )
   for (const off of [null, undefined, '  ']) expect(await opening(off)).toBe(row.greeting)
 })
@@ -215,12 +215,12 @@ test('the notice comes right after the greeting, before its closing question, so
     greeting: 'Thanks for calling Brightwater Plumbing & Heating. This is Maya. How can I help?',
     business_profile: {},
   } as never
-  expect(withRecordingNotice(maya, 'This call may be recorded.')?.greeting).toBe(
-    'Thanks for calling Brightwater Plumbing & Heating. This is Maya. This call may be recorded. How can I help?',
+  expect(withRecordingNotice(maya, 'This call may be recorded and transcribed.')?.greeting).toBe(
+    'Thanks for calling Brightwater Plumbing & Heating. This is Maya. This call may be recorded and transcribed. How can I help?',
   )
   const question = { id: 'as_1', greeting: 'How can I help?', business_profile: {} } as never
-  expect(withRecordingNotice(question, 'This call may be recorded.')?.greeting).toBe(
-    'How can I help? This call may be recorded.',
+  expect(withRecordingNotice(question, 'This call may be recorded and transcribed.')?.greeting).toBe(
+    'How can I help? This call may be recorded and transcribed.',
   )
 })
 
@@ -235,7 +235,7 @@ test('no recording store on this server: the notice is not said, though the work
           assistant: row,
           contact: {},
           businessHours: hours,
-          recordingNotice: 'This call may be recorded.',
+          recordingNotice: 'This call may be recorded and transcribed.',
         },
       }),
     }) as never
@@ -243,14 +243,16 @@ test('no recording store on this server: the notice is not said, though the work
   const started = await startCall(api(), phone)
   // Registered without it: the worker adds it only once it knows it records.
   expect(started.assistant?.greeting).toBe('Hello, this is Maya.')
-  expect(started.recordingNotice).toBe('This call may be recorded.')
+  expect(started.recordingNotice).toBe('This call may be recorded and transcribed.')
   expect(announceRecording(started, false).assistant?.greeting).toBe('Hello, this is Maya.')
   expect(
     announceRecording(await startCall(api({ openNow: false, summary: 'Closed now.' }), phone), false).assistant
       ?.greeting,
   ).toBe('We are closed.')
   // Turned on later: the saved notice applies from the next call.
-  expect(announceRecording(started, true).assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(announceRecording(started, true).assistant?.greeting).toBe(
+    'Hello, this is Maya. This call may be recorded and transcribed.',
+  )
 })
 
 test('a call that is not recorded does not say the notice: the assistant does not record, or the workspace keeps no recordings', async () => {
@@ -263,7 +265,7 @@ test('a call that is not recorded does not say the notice: the assistant does no
           workspaceId: 'ws_1',
           assistant,
           contact: {},
-          recordingNotice: 'This call may be recorded.',
+          recordingNotice: 'This call may be recorded and transcribed.',
           ...(keepRecording === undefined ? {} : { keepRecording }),
         },
       }),
@@ -273,8 +275,10 @@ test('a call that is not recorded does not say the notice: the assistant does no
     announceRecording(await startCall(api(assistant, keepRecording), phone), true).assistant?.greeting
   expect(await opening({ ...row, record_calls: false })).toBe('Hello, this is Maya.')
   expect(await opening(row, false)).toBe('Hello, this is Maya.')
-  expect(await opening({ ...row, record_calls: true }, true)).toBe('Hello, this is Maya. This call may be recorded.')
-  expect(await opening(row)).toBe('Hello, this is Maya. This call may be recorded.') // an older API sends neither
+  expect(await opening({ ...row, record_calls: true }, true)).toBe(
+    'Hello, this is Maya. This call may be recorded and transcribed.',
+  )
+  expect(await opening(row)).toBe('Hello, this is Maya. This call may be recorded and transcribed.') // an older API sends neither
 })
 
 test('an assistant without a greeting opens with the fallback greeting before the notice, in its main language', async () => {
@@ -286,7 +290,7 @@ test('an assistant without a greeting opens with the fallback greeting before th
           workspaceId: 'ws_1',
           assistant,
           contact: {},
-          recordingNotice: 'This call may be recorded.',
+          recordingNotice: 'This call may be recorded and transcribed.',
         },
       }),
     }) as never
@@ -294,7 +298,7 @@ test('an assistant without a greeting opens with the fallback greeting before th
   const opening = async (assistant: unknown) =>
     announceRecording(await startCall(api(assistant), phone), true).assistant?.greeting
   expect(await opening({ id: 'as_1', greeting: '', business_profile: {} })).toBe(
-    'Thanks for calling. This call may be recorded. How can I help?',
+    'Thanks for calling. This call may be recorded and transcribed. How can I help?',
   )
   const es = await opening({
     id: 'as_1',
@@ -302,7 +306,7 @@ test('an assistant without a greeting opens with the fallback greeting before th
     business_profile: {},
     languages: { main: 'es', mode: 'english', allowed: [] },
   })
-  expect(es).toMatch(/ Esta llamada puede ser grabada\. \S[^.]*\?$/)
+  expect(es).toMatch(/ Esta llamada puede ser grabada y transcrita\. \S[^.]*\?$/)
   expect(es!.startsWith('Esta llamada')).toBe(false)
 })
 
@@ -316,7 +320,7 @@ test("the default notice is said in the call's main language: the assistant's ow
           workspaceId: 'ws_1',
           assistant,
           contact: {},
-          recordingNotice: 'This call may be recorded.',
+          recordingNotice: 'This call may be recorded and transcribed.',
           workspaceLanguage,
         },
       }),
@@ -325,10 +329,12 @@ test("the default notice is said in the call's main language: the assistant's ow
   const opening = async (assistant: unknown, workspaceLanguage?: string) =>
     announceRecording(await startCall(api(assistant, workspaceLanguage), phone), true).assistant?.greeting
   expect(await opening({ ...row, languages: { main: 'es', mode: 'english', allowed: [] } })).toBe(
-    'Hello, this is Maya. Esta llamada puede ser grabada.',
+    'Hello, this is Maya. Esta llamada puede ser grabada y transcrita.',
   )
-  expect(await opening(row, 'de')).toBe('Hello, this is Maya. Dieser Anruf wird möglicherweise aufgezeichnet.')
-  expect(await opening(row, 'en')).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(await opening(row, 'de')).toBe(
+    'Hello, this is Maya. Dieser Anruf wird möglicherweise aufgezeichnet und transkribiert.',
+  )
+  expect(await opening(row, 'en')).toBe('Hello, this is Maya. This call may be recorded and transcribed.')
   // The owner's own sentence is said as written, in every language.
   const own = 'Calls are recorded for training.'
   const ownApi = {
@@ -439,14 +445,14 @@ test('a returning phone caller hears the usual greeting; their history reaches t
           assistant,
           contact,
           callerHistory: history,
-          recordingNotice: 'This call may be recorded.',
+          recordingNotice: 'This call may be recorded and transcribed.',
         },
       }),
     }) as never
   const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
   const linda = { id: 'ct_1', name: 'Linda Park', name_source: 'member', note: null, phone: phone.from }
   const known = announceRecording(await startCall(api(row, linda, callerHistory), phone), true)
-  expect(known.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(known.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded and transcribed.')
   expect(known.caller).toEqual({
     name: 'Linda Park',
     note: null,
@@ -465,7 +471,7 @@ test('a returning phone caller hears the usual greeting; their history reaches t
     await startCall(api({ ...row, greeting_known_caller: 'Welcome back, {first_name}!' }, linda, callerHistory), phone),
     true,
   )
-  expect(older.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded.')
+  expect(older.assistant?.greeting).toBe('Hello, this is Maya. This call may be recorded and transcribed.')
   const withheld = await startCall(api(row, null, null), { ...phone, from: 'anonymous' })
   expect(withheld.caller).toBeNull()
 })

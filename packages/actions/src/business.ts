@@ -3,6 +3,7 @@
 // edits. Nothing here saves anything: the step saves the reviewed profile with assistant.update (and businessHours.set
 // once the owner confirms the hours). The industry templates are data: a few default use cases per trade.
 import { z } from 'zod'
+import { DEFAULT_AI_DISCLOSURE, greetingWithDisclosure } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
 import type { BusinessHoursSpan } from './settings.ts'
 
@@ -33,7 +34,8 @@ export type BusinessTemplate = {
  * smell) are not in them: every prompt tells the caller to contact the emergency services already (EMERGENCY_RULE). Whether an urgent call is put
  * through is up to Settings › Transfers, so the line only says to mark it urgent.
  */
-const urgent = (when: string, take: string) => `When a caller ${when}, treat it as urgent: take ${take} and mark the message urgent.`
+const urgent = (when: string, take: string) =>
+  `When a caller ${when}, treat it as urgent: take ${take} and mark the message urgent.`
 
 export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   plumbing_hvac: {
@@ -143,9 +145,16 @@ export function templateFor(business: {
   return ids.find(id => businessTemplates[id].nameWords?.test(name)) ?? null
 }
 
-/** The greeting with the business's name, in the shape a new workspace starts with (apps/api/src/onboarding.ts). */
+/**
+ * The greeting with the business's name, in the shape a new workspace starts with (apps/api/src/onboarding.ts): with
+ * the AI note of the default disclosure mode ("This is Maya, the AI assistant."), as the settings write it.
+ */
 export const greetingFor = (business: string, assistant: string) =>
-  `Thanks for calling ${business.trim()}. This is ${assistant.trim()}. How can I help?`
+  greetingWithDisclosure(
+    `Thanks for calling ${business.trim()}. This is ${assistant.trim()}. How can I help?`,
+    assistant.trim(),
+    DEFAULT_AI_DISCLOSURE,
+  )
 
 // --- Actions --------------------------------------------------------------------------------
 

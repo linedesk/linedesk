@@ -13,6 +13,17 @@ const transfers = (what: string, changes: { added?: string[]; changed?: string[]
   })
 
 describe('audit labels', () => {
+  test('a change of the recording notice says what changed (A4)', () => {
+    expect(label('workspace.updateSettings', { recordingNoticeOn: false })).toBe(
+      'Turned off the recording notice callers hear',
+    )
+    expect(label('workspace.updateSettings', { recordingNoticeOn: true })).toBe(
+      'Turned on the recording notice callers hear',
+    )
+    expect(label('workspace.updateSettings', { recordingNotice: '[omitted]' })).toBe(
+      'Changed the recording notice callers hear',
+    )
+  })
   test('changes of transfer contacts say whom; the countries say which', () => {
     expect(transfers('assistant.update', { added: ['Sarah', 'Ana'], removed: ['Mike'] })).toBe(
       'Changed the transfer contacts (added Sarah and Ana, removed Mike)',

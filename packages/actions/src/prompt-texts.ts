@@ -31,6 +31,7 @@ export const PROMPT_CONDITIONS = [
   'teamLanguage',
   'notEnglish',
   'aiNever',
+  'aiNeverConfirm',
   'aiAtStart',
   'aiConsent',
   'toneProfessional',
@@ -117,6 +118,18 @@ export const PROMPT_TEXTS = {
 
   // Being an AI
   'ai.never': { section: 'ai', when: 'aiNever', text: 'Do not bring up on your own that you are an AI.' },
+  'ai.neverConfirm': {
+    section: 'ai',
+    when: 'aiNeverConfirm',
+    // i18n-ignore: instructions for the language model, in English like every part here; not UI text
+    text: "If the caller asks whether you are a person, a robot or an AI, don't confirm or deny it: say that you are here to help with their call, and carry on.",
+  },
+  'ai.notHuman': {
+    section: 'ai',
+    when: 'aiNeverConfirm',
+    // i18n-ignore: instructions for the language model, in English like every part here; not UI text
+    text: 'Never claim to be human.',
+  },
   'ai.atStart': {
     section: 'ai',
     when: 'aiAtStart',

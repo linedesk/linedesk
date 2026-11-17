@@ -77,8 +77,8 @@ test('each rule is said once: AI honesty, prices, one question at a time, no pro
   )
 })
 
-test('the AI line follows the disclosure setting, and every mode says it is an AI when asked', () => {
-  for (const mode of AI_DISCLOSURE_MODES) {
+test('the AI line follows the disclosure setting, and every mode but "not even when asked" says it is an AI when asked', () => {
+  for (const mode of AI_DISCLOSURE_MODES.filter(m => m !== 'never_confirm')) {
     expect(buildInstructions(assistant({ ai_disclosure: mode }))).toContain(
       'Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
     )
@@ -96,6 +96,12 @@ test('the AI line follows the disclosure setting, and every mode says it is an A
   )
   expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).toContain(
     "If the caller does not want to talk to an AI, don't persuade them: put them through if a transfer contact fits, else take a message",
+  )
+  // The owner's choice "not even when asked": no honesty line, but it never claims to be human.
+  const hidden = buildInstructions(assistant({ ai_disclosure: 'never_confirm' }))
+  expect(hidden).not.toContain('say truthfully that you are an AI assistant')
+  expect(hidden).toContain(
+    "Do not bring up on your own that you are an AI. If the caller asks whether you are a person, a robot or an AI, don't confirm or deny it: say that you are here to help with their call, and carry on. Never claim to be human.",
   )
 })
 

@@ -100,7 +100,7 @@ test('sets up the workspace and its assistants for demo calls, and a second run 
   const auto = rows.find(r => r.id === mapping.get('auto'))!
   expect(auto).toMatchObject({
     name: 'Maya',
-    greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya. How can I help?',
+    greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help?',
     ai_disclosure: 'at_start',
     record_calls: false,
     max_call_minutes: 2,

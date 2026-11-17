@@ -45,6 +45,7 @@ const CONDITIONS: Record<PromptCondition, MessageKey> = {
   teamLanguage: msg('admin.prompt.when.teamLanguage'),
   notEnglish: msg('admin.prompt.when.notEnglish'),
   aiNever: msg('admin.prompt.when.aiNever'),
+  aiNeverConfirm: msg('admin.prompt.when.aiNeverConfirm'),
   aiAtStart: msg('admin.prompt.when.aiAtStart'),
   aiConsent: msg('admin.prompt.when.aiConsent'),
   toneProfessional: msg('admin.prompt.when.toneProfessional'),

@@ -5,7 +5,7 @@ import { assistant_calendars, assistants, organization, phone_numbers, type Tx }
 import { recordVersion } from './assistant-versions.ts'
 import { releaseUnusedClones } from './voices.ts'
 import { type Assistant, DEFAULT_TRANSFERS } from '@linedesk/db/types'
-import { DEFAULT_AI_DISCLOSURE, forwardsCalls } from '@linedesk/actions'
+import { DEFAULT_AI_DISCLOSURE, forwardsCalls, greetingFor } from '@linedesk/actions'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -17,8 +17,8 @@ const newId = () => `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
  */
 const NAMES = ['Maya', 'Ava', 'Nora', 'Ivy', 'Zoe', 'Ruby', 'Lily', 'Emma', 'Clara', 'Grace']
 
-export const greetingFor = (businessName: string, name: string) =>
-  `Thanks for calling ${businessName}. This is ${name}. How can I help?`
+/** A new assistant's greeting, with the AI note of the default disclosure mode (greetingFor in @linedesk/actions). */
+export { greetingFor }
 
 /** The workspace's assistants, oldest first: the first is the default. */
 export const workspaceAssistants = (tx: Tx, workspaceId: string) =>

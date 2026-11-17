@@ -98,9 +98,11 @@ export const assistants = pgTable(
     name: text('name').notNull().default('Maya'),
     greeting: text('greeting').notNull().default(''),
     /** Whether and when the assistant mentions it is an AI (AI_DISCLOSURE_MODES in @linedesk/actions). */
-    ai_disclosure: text('ai_disclosure', { enum: ['never', 'when_asked', 'at_start', 'at_start_consent'] })
+    ai_disclosure: text('ai_disclosure', {
+      enum: ['never_confirm', 'never', 'when_asked', 'at_start', 'at_start_consent'],
+    })
       .notNull()
-      .default('when_asked'),
+      .default('at_start'),
     /** The tone it uses (COMMUNICATION_STYLES in @linedesk/actions); `standard` adds nothing to the instructions. */
     communication_style: text('communication_style', {
       enum: ['standard', 'professional', 'casual', 'formal', 'empathetic'],

@@ -1,5 +1,5 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
-import { DEFAULT_AI_DISCLOSURE, type OnboardingStep, resumeStep } from '@linedesk/actions'
+import { DEFAULT_AI_DISCLOSURE, greetingFor, type OnboardingStep, resumeStep } from '@linedesk/actions'
 import { assistants, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { businessLookupOn, type WebsiteImport, websiteImportFor } from './business-import.ts'
@@ -80,7 +80,7 @@ export const newWorkspaceSettings = (workspaceId: string, timeZone: unknown) => 
 export const newAssistant = (workspaceId: string, businessName: string) => ({
   id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
   workspace_id: workspaceId,
-  greeting: `Thanks for calling ${businessName}. This is Maya. How can I help?`,
+  greeting: greetingFor(businessName, 'Maya'),
   ai_disclosure: DEFAULT_AI_DISCLOSURE,
 })
 

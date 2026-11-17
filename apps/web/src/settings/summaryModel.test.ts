@@ -184,3 +184,20 @@ test('rules: another tone, AI at the start, every switch off', () => {
   )
   expect(s.needsYou).toBeNull()
 })
+
+test('rules: the AI disclosure modes that do not say it on their own', () => {
+  const off = {
+    ask_name: false,
+    offer_callback: false,
+    confirm_number: false,
+    caller_history: false,
+    ask_booking_name: false,
+    verified_caller_only: false,
+  }
+  expect(all(rulesSummary({ name: 'Maya', style: 'standard', disclosure: 'never_confirm', behaviours: off }))).toContain(
+    'never says it is an AI, not even when asked',
+  )
+  expect(all(rulesSummary({ name: 'Maya', style: 'standard', disclosure: 'never', behaviours: off }))).toContain(
+    "doesn't bring up that it is an AI",
+  )
+})

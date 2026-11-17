@@ -1,5 +1,6 @@
 // How every assistant handles a call: fixed rules in its instructions, not a setting.
 
+import { inEeaOrUk } from './eea.ts'
 import type { Language } from './languages.ts'
 import {
   ASK_TIMES_TEXT,
@@ -136,13 +137,16 @@ export function behaviourLines(
 }
 
 /**
- * Whether and when the assistant mentions it is an AI (`assistants.ai_disclosure`). Whatever the mode, it
- * never claims to be human and answers truthfully when asked (part of every mode's line in the prompt).
+ * Whether and when the assistant mentions it is an AI (`assistants.ai_disclosure`). In every mode it never claims to
+ * be human. Asked, it says truthfully that it is an AI, except in `never_confirm`: there it neither confirms nor denies
+ * it (the owner's choice, for personal use or demos; the settings warn about the law, legal review 2026-11-17).
  */
-export const AI_DISCLOSURE_MODES = ['never', 'when_asked', 'at_start', 'at_start_consent'] as const
+export const AI_DISCLOSURE_MODES = ['never_confirm', 'never', 'when_asked', 'at_start', 'at_start_consent'] as const
 export type AiDisclosure = (typeof AI_DISCLOSURE_MODES)[number]
-export const DEFAULT_AI_DISCLOSURE: AiDisclosure = 'when_asked'
+/** New assistants say at the start that they are an AI (legal review 2026-11-17, A1: Maine and the EU require it). */
+export const DEFAULT_AI_DISCLOSURE: AiDisclosure = 'at_start'
 export const AI_DISCLOSURE_LABELS: Record<AiDisclosure, string> = {
+  never_confirm: 'Never, not even when asked',
   never: "Don't mention",
   when_asked: 'Only when asked',
   at_start: 'At the start of the call',
@@ -150,6 +154,21 @@ export const AI_DISCLOSURE_LABELS: Record<AiDisclosure, string> = {
 }
 /** The modes whose greeting says it is an AI. */
 export const disclosesAtStart = (mode: AiDisclosure) => mode === 'at_start' || mode === 'at_start_consent'
+
+/**
+ * How risky a mode is under the law where the workspace is, for the warning next to the setting (the owner keeps full
+ * control; nothing is refused). `strong`: the assistant does not say it is an AI even when asked. `law`: it does not
+ * say it on its own, which the EU (AI Act Art. 50(1)) and some US states (Maine) require. `eu`: the workspace is in
+ * the EEA or the UK.
+ */
+export function aiDisclosureRisk(
+  mode: AiDisclosure | null | undefined,
+  country: string | null | undefined,
+): { level: 'none' | 'law' | 'strong'; eu: boolean } {
+  const m = mode ?? DEFAULT_AI_DISCLOSURE
+  const level = m === 'never_confirm' ? 'strong' : disclosesAtStart(m) ? 'none' : 'law'
+  return { level, eu: inEeaOrUk(country) }
+}
 
 const DISCLOSURE = /,?\s*(?:the|an|your|a)\s+(?:virtual|AI)\s+assistant\b/i
 export const disclosesAi = (greeting: string) => DISCLOSURE.test(greeting)
@@ -161,7 +180,7 @@ export function withDisclosure(greeting: string, name: string, language: Languag
   const who = name.trim() || 'the assistant'
   const named = new RegExp(`(\\bthis is ${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')
   if (named.test(greeting)) return greeting.replace(named, '$1, the AI assistant')
-  const sentence = `This is ${who}, the AI assistant.`
+  const sentence = spokenLines('en').aiSentence(who)
   const firstEnd = greeting.search(/[.!?]\s/)
   if (firstEnd < 0) return greeting.trim() ? `${greeting.trim()} ${sentence}` : sentence
   return `${greeting.slice(0, firstEnd + 1)} ${sentence}${greeting.slice(firstEnd + 1)}`
@@ -251,14 +270,17 @@ function withLocalDisclosure(greeting: string, name: string, language: Language)
 }
 
 /**
- * The prompt's part about being an AI: when to mention it (the setting), and the honesty rule every mode keeps
- * (ai.whenAsked: asked, the assistant always says it is an AI and never claims to be human).
+ * The prompt's part about being an AI: when to mention it (the setting), and the honesty rule (ai.whenAsked: asked,
+ * the assistant says it is an AI and never claims to be human). In `never_confirm` the honesty rule is replaced: asked,
+ * it neither confirms nor denies it (ai.neverConfirm), and it still never claims to be human (ai.notHuman).
  */
 export function aiDisclosureInstructions(
   mode: AiDisclosure | null | undefined,
   pt: PromptTexts = defaultPromptTexts,
 ): string {
   switch (mode ?? DEFAULT_AI_DISCLOSURE) {
+    case 'never_confirm':
+      return `${pt('ai.never')} ${pt('ai.neverConfirm')} ${pt('ai.notHuman')}`
     case 'never':
       return `${pt('ai.never')} ${pt('ai.whenAsked')}`
     case 'when_asked':

@@ -101,7 +101,7 @@ describe('the review draft', () => {
     expect(draftFrom(p).useCases).toBe('')
     const chosen = switchTemplate(draftFrom(p), 'dental_medical')
     expect(chosen.useCases.split('\n')).toEqual([...businessTemplates.dental_medical.useCases])
-    expect(p.greeting).toBe('Thanks for calling Lakeside Dental. This is Ava. How can I help?')
+    expect(p.greeting).toBe('Thanks for calling Lakeside Dental. This is Ava, the AI assistant. How can I help?')
   })
 
   test('renaming the business renames it in the greeting', () => {

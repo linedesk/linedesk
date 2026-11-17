@@ -504,6 +504,15 @@ const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_type
 const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object')`
 
 /**
+ * A change of the recording notice (workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned
+ * off or on, or its text changed (legal review 2026-11-17, A4: callers in all-party-consent states must be told).
+ * Read from the input, whose keys and booleans the 90-day prune keeps (command-log.ts), so the entry stays listed.
+ * Kind `team`, like the owner's other decisions about the workspace.
+ */
+export const RECORDING_NOTICE_CHANGE_KIND: AuditKind = 'team'
+const recordingNoticeChangeSql = sql`(c.action = 'workspace.updateSettings' and (c.input ? 'recordingNoticeOn' or c.input ? 'recordingNotice'))`
+
+/**
  * Whom a team or membership change was about, put in the action's result (`data.subject`) by its
  * handler, since a removed member's row is gone afterwards. The audit log shows the address and
  * lists the entry under the workspace changed, which for an instance admin is not their own;
@@ -619,6 +628,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
   const withSetupKey = !f.kind || f.kind === 'integrations'
   const withTransferChanges = !f.kind || f.kind === TRANSFER_CHANGE_KIND
   const withLevelChanges = !f.kind || f.kind === USAGE_LEVEL_CHANGE_KIND
+  const withNoticeChanges = !f.kind || f.kind === RECORDING_NOTICE_CHANGE_KIND
   const listed = kindActions.length
     ? sql`c.action in (${sql.join(
         kindActions.map(a => sql`${a}`),
@@ -626,7 +636,12 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
       )})`
     : sql`false`
   const commandRows =
-    kindActions.length || withImpersonated || withSetupKey || withTransferChanges || withLevelChanges
+    kindActions.length ||
+    withImpersonated ||
+    withSetupKey ||
+    withTransferChanges ||
+    withLevelChanges ||
+    withNoticeChanges
       ? sql`select c.id, c.created_at as at, c.action as what, null::text as method, c.actor_id, null::text as email_then,
         c.impersonated_by, c.setup_key_id,
         case when c.result->'data'->'subject' ? 'workspaceId' then c.result->'data'->'subject'->>'workspaceId'
@@ -637,12 +652,13 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         case when c.action = 'signup.setRules' then c.result->'data'->'ruleChanges' end as rule_changes,
         case when c.action in ('partner.releaseClient', 'workspace.removePartner')
           then c.result->'data'->'removedPeople' end as removed_people,
+        ${recordingNoticeChangeSql} as notice_change,
         case when c.action = 'apiKey.revoke' then (select k.name from api_keys k
           where k.id = c.input->>'apiKeyId' and k.workspace_id = c.workspace_id) end as api_key_name,
         c.rejected as refused, null::text as ip_address, 'command' as source
         from commands c where ${listed}${withImpersonated ? sql` or c.impersonated_by is not null` : sql``}${
           withSetupKey ? sql` or c.setup_key_id is not null` : sql``
-        }${withTransferChanges ? sql` or ${transferChangeSql} or ${emailRoutingChangeSql}` : sql``}${withLevelChanges ? sql` or ${usageLevelChangeSql}` : sql``}`
+        }${withTransferChanges ? sql` or ${transferChangeSql} or ${emailRoutingChangeSql}` : sql``}${withLevelChanges ? sql` or ${usageLevelChangeSql}` : sql``}${withNoticeChanges ? sql` or ${recordingNoticeChangeSql}` : sql``}`
       : null
   const eventRows = kindEvents.length
     ? sql`select e.id, e.created_at as at, e.event as what, e.method, e.user_id as actor_id, e.email as email_then,
@@ -650,7 +666,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         (select s.email from "user" s where s.id = e.subject_id) as subject_email, null::jsonb as transfer_changes, false as transfer_change,
         null::jsonb as email_routing_changes, false as routing_change,
         null::jsonb as usage_level_change, false as level_change, null::jsonb as rule_changes,
-        null::jsonb as removed_people,
+        null::jsonb as removed_people, false as notice_change,
         null::text as api_key_name, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
@@ -699,9 +715,11 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
               ? TRANSFER_CHANGE_KIND
               : r.level_change
                 ? USAGE_LEVEL_CHANGE_KIND
-                : r.setup_key_id
-                  ? 'integrations'
-                  : 'impersonation'))
+                : r.notice_change
+                  ? RECORDING_NOTICE_CHANGE_KIND
+                  : r.setup_key_id
+                    ? 'integrations'
+                    : 'impersonation'))
           : AUTH_EVENT_KIND[r.what as AuthEventName],
       what: r.what,
       method: r.method,

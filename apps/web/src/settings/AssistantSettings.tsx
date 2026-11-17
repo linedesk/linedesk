@@ -10,8 +10,9 @@ import {
   pipelineFor,
   type VoiceOptionsData,
   type VoicePipeline,
-  AI_DISCLOSURE_MODES,
   type AiDisclosure,
+  AI_DISCLOSURE_MODES,
+  aiDisclosureRisk,
   BEHAVIOURS,
   type BehaviourId,
   type CommunicationStyle,
@@ -42,7 +43,7 @@ import { useAssistants, useRows, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Checkbox, Select, type SelectOption } from '../ui/controls.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
 import {
@@ -467,6 +468,7 @@ const BEHAVIOUR_LABELS: Record<BehaviourId, MessageKey> = {
   verified_caller_only: msg('settings.assistant.behaviour.verifiedCallerOnly'),
 }
 const DISCLOSURE_LABELS: Record<AiDisclosure, MessageKey> = {
+  never_confirm: msg('settings.assistant.disclosure.neverConfirm'),
   never: msg('settings.assistant.disclosure.never'),
   when_asked: msg('settings.assistant.disclosure.whenAsked'),
   at_start: msg('settings.assistant.disclosure.atStart'),
@@ -483,10 +485,13 @@ const STYLE_LABELS: Record<CommunicationStyle, MessageKey> = {
 /**
  * AI disclosure, the first row of the checklist. Picking a mode that says it at the start writes the note (and in
  * the consent mode the consent question) into the greeting, where the owner can edit it; the call says the greeting
- * as saved. The other modes take them out.
+ * as saved. The other modes take them out. Every mode can be picked anywhere (the owner decides: personal use, demos);
+ * a mode that may break the law where the workspace is gets a hint, and "not even when asked" a warning
+ * (aiDisclosureRisk; legal review 2026-11-17, A2).
  */
-function AiDisclosureRow({ draft, set }: SectionProps) {
+export function AiDisclosureRow({ draft, set }: SectionProps) {
   const t = useT()
+  const risk = aiDisclosureRisk(draft.ai_disclosure, useWorkspaceSettings().data?.resolvedCountry)
   function pick(mode: AiDisclosure) {
     const language = mainOf(draft)
     const plain = withoutConsentQuestion(draft.greeting, language)
@@ -500,17 +505,33 @@ function AiDisclosureRow({ draft, set }: SectionProps) {
           : withoutDisclosure(plain, draft.name, language),
     )
   }
+  const name = nameInSentence(draft, t)
   const heard = disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim() ? draft.greeting.trim() : null
+  const lawHint =
+    risk.level === 'law'
+      ? risk.eu
+        ? t('settings.assistant.disclosure.lawEu')
+        : t('settings.assistant.disclosure.lawUs')
+      : null
   return (
-    <SelectRow
-      id="as-ai-disclosure"
-      title={t('settings.assistant.disclosure.title')}
-      description={t('settings.assistant.disclosure.description', { name: nameInSentence(draft, t) })}
-      note={heard && t('settings.assistant.disclosure.heard', { greeting: heard })}
-      value={draft.ai_disclosure}
-      options={AI_DISCLOSURE_MODES.map(mode => ({ value: mode, label: t(DISCLOSURE_LABELS[mode]) }))}
-      onChange={pick}
-    />
+    <>
+      <SelectRow
+        id="as-ai-disclosure"
+        title={t('settings.assistant.disclosure.title')}
+        description={t('settings.assistant.disclosure.description', { name })}
+        note={heard ? t('settings.assistant.disclosure.heard', { greeting: heard }) : lawHint}
+        value={draft.ai_disclosure}
+        options={AI_DISCLOSURE_MODES.map(mode => ({ value: mode, label: t(DISCLOSURE_LABELS[mode]) }))}
+        onChange={pick}
+      />
+      {risk.level === 'strong' && (
+        <Note tone="warning">
+          {risk.eu
+            ? t('settings.assistant.disclosure.neverConfirmWarningEu', { name: assistantName(draft, t) })
+            : t('settings.assistant.disclosure.neverConfirmWarning', { name: assistantName(draft, t) })}
+        </Note>
+      )}
+    </>
   )
 }
 

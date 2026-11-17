@@ -4,13 +4,14 @@
 // is recorded and the assistant does not say the notice, until recording is turned on. Below it, a caller privacy notice
 // template the business can copy (callerPrivacyNotice.ts).
 import { useReadOnlyNote } from './readOnly.ts'
-import { RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
+import { inEeaOrUk, RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { providerAudience } from '../providerAudience.ts'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
+import { Dialog } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Field, Section, SkeletonSwitchRows, SwitchRow, TextInput } from './fields.tsx'
@@ -61,6 +62,9 @@ export function RecordingOffNote() {
   )
 }
 
+/** A retention longer than this (or forever) gets the hint to keep recordings only as long as they are needed. */
+const LONG_RETENTION_DAYS = 90
+
 export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
   const t = useT()
   const readOnly = useReadOnlyNote()
@@ -71,6 +75,13 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
   const error = settings.data ? null : settings.error
   // Recording off on the server: the saved choices are shown but cannot change, they apply once it is on.
   const editable = canEdit && recordingOn
+  // The law hints (legal review 2026-11-17, A4, A5): only warnings, the owner decides. By the workspace's country.
+  const eu = inEeaOrUk(settings.data?.resolvedCountry)
+  const recorded = recordingOn && days !== undefined && days !== RECORDINGS_NOT_KEPT
+  const lawHints = [
+    recorded && eu ? t('settings.recordings.lawConsentEu') : null,
+    recorded && (days === null || days > LONG_RETENTION_DAYS) ? t('settings.recordings.lawLongRetention') : null,
+  ].filter(Boolean)
 
   function change(choice: Choice) {
     const next = daysOf(choice)
@@ -113,7 +124,7 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
             <Field
               id="st-retention"
               label={t('settings.recordings.keepFor')}
-              help={canEdit || !recordingOn ? undefined : readOnly}
+              help={canEdit || !recordingOn ? lawHints.join(' ') || undefined : readOnly}
             >
               <div>
                 <Select
@@ -133,6 +144,8 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
               saved={settings.data.recordingNotice}
               canEdit={editable}
               inEffect={recordingOn}
+              recorded={recorded}
+              eu={eu}
               toast={toast}
             />
           )}
@@ -175,14 +188,27 @@ function CallerPrivacyNotice({ recording, toast }: { recording: NoticeRecording;
   )
 }
 
-/** `inEffect` false: recording is off on the server, so the assistant does not say it (greyed out, kept as saved). */
-type NoticeProps = { on: boolean; saved: string; canEdit: boolean; inEffect: boolean; toast: (text: string) => void }
+/**
+ * `inEffect` false: recording is off on the server, so the assistant does not say it (greyed out, kept as saved).
+ * `recorded`: calls are recorded (on the server and kept), so a notice turned off gets a warning; `eu`: the workspace
+ * is in the EEA or the UK, for its wording.
+ */
+type NoticeProps = {
+  on: boolean
+  saved: string
+  canEdit: boolean
+  inEffect: boolean
+  recorded: boolean
+  eu: boolean
+  toast: (text: string) => void
+}
 
 /** The switch and the sentence the assistant says right after the greeting. */
-function RecordingNotice({ on, saved, canEdit, inEffect, toast }: NoticeProps) {
+function RecordingNotice({ on, saved, canEdit, inEffect, recorded, eu, toast }: NoticeProps) {
   const t = useT()
   const run = useRun()
   const [draft, setDraft] = useState(saved)
+  const [confirmOff, setConfirmOff] = useState(false)
   const text = draft.trim()
   const problem = !text
     ? t('settings.recordings.noticeEmpty')
@@ -190,7 +216,13 @@ function RecordingNotice({ on, saved, canEdit, inEffect, toast }: NoticeProps) {
       ? t('settings.recordings.noticeTooLong', { max: RECORDING_NOTICE_MAX })
       : null
 
+  // Turning it off asks first, with a short legal hint (A4); the change is in the audit log (audit.ts).
   function toggle(next: boolean) {
+    if (!next) return setConfirmOff(true)
+    apply(next)
+  }
+
+  function apply(next: boolean) {
     patchWorkspaceSettings({ recordingNoticeOn: next })
     void run('workspace.updateSettings', { recordingNoticeOn: next })
     toast(next ? t('settings.recordings.noticeOn') : t('settings.recordings.noticeOff'))
@@ -214,6 +246,35 @@ function RecordingNotice({ on, saved, canEdit, inEffect, toast }: NoticeProps) {
         disabled={!canEdit}
         dimmed={!inEffect}
       />
+      {!on && recorded && (
+        <Note tone="warning">
+          {eu ? t('settings.recordings.noticeOffWarningEu') : t('settings.recordings.noticeOffWarning')}
+        </Note>
+      )}
+      {confirmOff && (
+        <Dialog
+          title={t('settings.recordings.noticeOffTitle')}
+          description={t('settings.recordings.noticeOffHint')}
+          size="sm"
+          onClose={() => setConfirmOff(false)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setConfirmOff(false)}>
+                {t('common.action.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setConfirmOff(false)
+                  apply(false)
+                }}
+              >
+                {t('settings.recordings.noticeOffConfirm')}
+              </Button>
+            </>
+          }
+        />
+      )}
       {on && (
         <Field id="st-notice" label={t('settings.recordings.noticeLabel')} error={problem}>
           <form

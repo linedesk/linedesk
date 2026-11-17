@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ALTER COLUMN "ai_disclosure" SET DEFAULT 'at_start';
