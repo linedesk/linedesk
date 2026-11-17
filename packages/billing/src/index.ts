@@ -33,6 +33,8 @@ export type {
   RechargeCharge,
   RechargeInvoiceInput,
   RefundBlocker,
+  ExtraCallsAnswer,
+  ExtraCallsQuantityInput,
   SeatQuantityInput,
   StripeKeys,
   WebhookRefusal,

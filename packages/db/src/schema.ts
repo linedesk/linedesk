@@ -1964,6 +1964,13 @@ export const billing_accounts = pgTable(
     suspended_from: text('suspended_from', { enum: SUSPENDED_FROM }),
     /** Calls at once an instance admin set for this bill (Server admin › Billing); null: the rules' cap (§4.4). */
     concurrent_calls_cap: integer('concurrent_calls_cap'),
+    /**
+     * Extra calls at once already paid for this subscription period (LIN-450, security review of #1103, M-1): the
+     * highest extra-calls quantity of the bill until `extra_calls_paid_until` (the period end it was paid for). Going
+     * back up to it in the same period is not charged again; a new period starts from what the renewal charged.
+     */
+    extra_calls_paid: integer('extra_calls_paid').notNull().default(0),
+    extra_calls_paid_until: ts('extra_calls_paid_until'),
     canceled_at: ts('canceled_at'),
     /** The failed plan invoice is the first after the trial: 3 days of grace instead of 7 (decision 9). */
     past_due_first_payment: boolean('past_due_first_payment').notNull().default(false),
@@ -1991,6 +1998,7 @@ export const billing_accounts = pgTable(
       'billing_accounts_suspended_from',
       sql`${t.suspended_from} is null or ${oneOf(t.suspended_from, SUSPENDED_FROM)}`,
     ),
+    check('billing_accounts_extra_calls_paid', sql`${t.extra_calls_paid} >= 0`),
     check(
       'billing_accounts_concurrent_calls_cap',
       sql`${t.concurrent_calls_cap} is null or ${t.concurrent_calls_cap} between 1 and ${sql.raw(String(CONCURRENT_CALLS_CAP_MAX))}`,

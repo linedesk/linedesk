@@ -108,6 +108,15 @@ async function workspacesOnBill(tx: Tx, billId: string): Promise<number> {
   return row?.n ?? 0
 }
 
+/** The extra calls at once of each workspace on the bill (LIN-450): the call gate's cap is their limits' sum. */
+export async function extraCallsOnBill(tx: Pick<Tx, 'select'>, billId: string): Promise<number[]> {
+  const rows = await tx
+    .select({ extra: organization.extraCalls })
+    .from(organization)
+    .where(eq(organization.billingAccountId, billId))
+  return rows.map(r => r.extra)
+}
+
 /** Numbers bought on our carrier account beyond the one each workspace includes. */
 export async function extraNumbersOnBill(tx: Tx, billId: string): Promise<number> {
   const rows = await tx
@@ -245,7 +254,7 @@ export async function reserveCall(tx: Tx, input: ReserveInput): Promise<ReserveA
       balanceMicros: balance.balance_micros,
       reservedMicros: balance.reserved_micros,
       running: running?.n ?? 0,
-      workspaces: await workspacesOnBill(tx, input.billId),
+      extraCalls: await extraCallsOnBill(tx, input.billId),
       concurrencyCap: bill.concurrent_calls_cap,
     },
     reservedMicros,

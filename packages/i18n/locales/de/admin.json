@@ -498,7 +498,6 @@
   "bills.rules.field.extraNumberCents": "Zusätzliche Telefonnummer pro Monat, in Dollar",
   "bills.rules.field.includedStandardSeconds": "Inklusive Standard-Sekunden pro Workspace und Zeitraum",
   "bills.rules.field.rechargeCapPerWorkspaceCents": "Zusätzliches Aufladelimit pro Workspace, in Dollar",
-  "bills.rules.field.trialConcurrentCalls": "Gleichzeitige Anrufe in der Testphase",
   "bills.rules.ignored": "Gespeicherte Werte außerhalb des Bereichs werden ignoriert und nutzen ihren Standard: {fields}.",
   "bills.rules.levelFactor": "{level}: Inklusivsekunden pro Sekunde",
   "bills.rules.levelPrice": "{level}: Dollar pro Minute",

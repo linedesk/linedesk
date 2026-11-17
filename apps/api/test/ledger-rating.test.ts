@@ -11,16 +11,19 @@ import {
   concurrentCallCap,
   INCLUDED_STANDARD_SECONDS,
   LEVEL_PRICES,
+  maxExtraCalls,
   PAID_LEVELS,
   type PaidLevel,
+  planPrice,
   RECHARGE_LIMITS,
   rateCall,
   rechargeCapCents,
   rechargeDecision,
   usageMicros,
+  workspaceCallLimit,
 } from '@linedesk/db'
 import { describe, expect, test } from 'vitest'
-import { mergeBillingRules } from '../src/billing-rules.ts'
+import { isLinedeskPlan, mergeBillingRules } from '../src/billing-rules.ts'
 
 /** A small seeded generator, so a failing property shows the same case on every run. */
 function random(seed: number) {
@@ -234,19 +237,68 @@ describe('the cap on billed seconds (review M2)', () => {
 })
 
 describe('the call gate', () => {
-  const bill = { status: 'active', balanceMicros: 0, reservedMicros: 0, running: 0, workspaces: 1 }
+  const bill = { status: 'active', balanceMicros: 0, reservedMicros: 0, running: 0, extraCalls: [0] }
 
   test('a bill out of service is refused', () => {
     for (const status of ['pending_payment', 'suspended', 'canceled'])
       expect(callGate({ ...bill, status }, 0)).toEqual({ allow: false, reason: 'billing_inactive' })
   })
 
-  test('the concurrency cap: 2 in the trial, else 2 + 2 per workspace', () => {
-    expect(concurrentCallCap(true, 3)).toBe(2)
-    expect(concurrentCallCap(false, 3)).toBe(8)
-    expect(callGate({ ...bill, status: 'trialing', running: 2 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
-    expect(callGate({ ...bill, running: 3 }, 0)).toEqual({ allow: true })
-    expect(callGate({ ...bill, running: 4 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
+  test('the concurrency cap (LIN-450): 5 per workspace, in the trial too, plus the extra calls bought, at most 50 each', () => {
+    expect(concurrentCallCap([])).toBe(5)
+    expect(concurrentCallCap([0, 0, 0])).toBe(15)
+    expect(concurrentCallCap([10, 0])).toBe(20)
+    expect(concurrentCallCap([45])).toBe(50)
+    // Never above the most per workspace, however much is stored (an admin lowered the most since).
+    expect(concurrentCallCap([100])).toBe(50)
+    expect(workspaceCallLimit(0)).toBe(5)
+    expect(workspaceCallLimit(5)).toBe(10)
+    expect(maxExtraCalls()).toBe(45)
+    expect(maxExtraCalls({ ...BILLING_DEFAULTS, concurrentCallsMaxPerWorkspace: 22 })).toBe(15)
+    expect(maxExtraCalls({ ...BILLING_DEFAULTS, concurrentCallsMaxPerWorkspace: 3 })).toBe(0)
+    expect(callGate({ ...bill, status: 'trialing', running: 4 }, 0)).toEqual({ allow: true })
+    expect(callGate({ ...bill, status: 'trialing', running: 5 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
+    expect(callGate({ ...bill, running: 4 }, 0)).toEqual({ allow: true })
+    expect(callGate({ ...bill, running: 5 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
+    // The trial: at most `trialConcurrentCalls` over all the bill's workspaces (review of #1103, L-4); paid bills sum.
+    expect(callGate({ ...bill, status: 'trialing', extraCalls: [0, 0, 0], running: 5 }, 0)).toEqual({
+      allow: false,
+      reason: 'too_many_calls',
+    })
+    expect(callGate({ ...bill, extraCalls: [0, 0, 0], running: 14 }, 0)).toEqual({ allow: true })
+    expect(
+      callGate({ ...bill, status: 'trialing', extraCalls: [0, 0], running: 7 }, 0, {
+        ...BILLING_DEFAULTS,
+        trialConcurrentCalls: 8,
+      }),
+    ).toEqual({ allow: true })
+    expect(callGate({ ...bill, extraCalls: [5], running: 9 }, 0)).toEqual({ allow: true })
+    expect(callGate({ ...bill, extraCalls: [5], running: 10 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
+    // An instance admin's cap for the bill comes first.
+    expect(callGate({ ...bill, extraCalls: [5], running: 3, concurrencyCap: 3 }, 0)).toEqual({
+      allow: false,
+      reason: 'too_many_calls',
+    })
+  })
+
+  test('a subscription of extra calls alone is no plan; on top of a seat it is (review of #1103, L-5)', () => {
+    const sub = (items: { lookupKey: string; productId: string }[]) =>
+      ({ items: items.map(i => ({ ...i, quantity: 1 })) }) as unknown as Parameters<typeof isLinedeskPlan>[0]
+    const seat = { lookupKey: 'ws_monthly', productId: 'linedesk_workspace' }
+    const extra = { lookupKey: 'extra_calls_monthly', productId: 'linedesk_extra_calls' }
+    expect(isLinedeskPlan(sub([seat]))).toBe(true)
+    expect(isLinedeskPlan(sub([seat, extra]))).toBe(true)
+    expect(isLinedeskPlan(sub([extra]))).toBe(false)
+    // A seat price known by its product, without our lookup key (an older price), is still a seat.
+    expect(isLinedeskPlan(sub([{ lookupKey: 'extra_calls_monthly', productId: 'linedesk_workspace' }]))).toBe(true)
+    expect(isLinedeskPlan(sub([]))).toBe(false)
+  })
+
+  test('the extra calls are a Stripe price like the plan: $1 a month per call, $12 a year, from the rules', () => {
+    expect(planPrice('extra_calls_monthly')).toMatchObject({ product: 'extra_calls', cents: 100, interval: 'month' })
+    expect(planPrice('extra_calls_yearly')).toMatchObject({ product: 'extra_calls', cents: 1200, interval: 'year' })
+    const rules = { ...BILLING_DEFAULTS, extraCallCents: 150 }
+    expect(planPrice('extra_calls_yearly', rules)?.cents).toBe(1800)
   })
 
   test('the balance may go to −$5 after the trial, to 0 in it', () => {
@@ -261,7 +313,7 @@ describe('the call gate', () => {
 
   test('a comped bill checks only the cap', () => {
     expect(callGate({ ...bill, status: 'comped', balanceMicros: -100_000_000 }, 10_000_000)).toEqual({ allow: true })
-    expect(callGate({ ...bill, status: 'comped', running: 4 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
+    expect(callGate({ ...bill, status: 'comped', running: 5 }, 0)).toEqual({ allow: false, reason: 'too_many_calls' })
   })
 })
 
@@ -331,7 +383,7 @@ describe("an install's own rules (docs/billing.md §7a)", () => {
   test('a stored field in range replaces the default; one out of range, or unknown, is ignored and named', () => {
     const { rules, problems } = mergeBillingRules({
       includedStandardSeconds: 0,
-      trialConcurrentCalls: 5,
+      extraCallCents: 200,
       balanceBufferMicros: -1,
       levels: {
         standard: { microsPerMinute: 30_000, allowanceFactor: null },
@@ -342,7 +394,7 @@ describe("an install's own rules (docs/billing.md §7a)", () => {
     })
     expect(rules).toMatchObject({
       includedStandardSeconds: 0,
-      trialConcurrentCalls: 5,
+      extraCallCents: 200,
       balanceBufferMicros: BILLING_DEFAULTS.balanceBufferMicros,
     })
     expect(rules.levels.standard).toEqual({ microsPerMinute: 30_000, allowanceFactor: null })
@@ -371,8 +423,8 @@ describe("an install's own rules (docs/billing.md §7a)", () => {
       priceMicros: 300_000,
     })
     expect(callReservation('standard', 1200, 600, rules)).toEqual({ heldSeconds: 600, reservedMicros: 300_000 })
-    expect(concurrentCallCap(false, 2, rules)).toBe(3)
-    const bill = { status: 'active', balanceMicros: 0, reservedMicros: 0, running: 0, workspaces: 1 }
+    expect(concurrentCallCap([0, 0], rules)).toBe(3)
+    const bill = { status: 'active', balanceMicros: 0, reservedMicros: 0, running: 0, extraCalls: [0] }
     expect(callGate(bill, 1, rules)).toEqual({ allow: false, reason: 'no_balance' })
   })
 })

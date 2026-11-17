@@ -815,6 +815,84 @@ describe('stripe refunds and seats (Server admin › Billing, PR 13)', () => {
     expect(calls).toHaveLength(3)
   })
 
+  test('extra calls (LIN-450): added at the synced price, changed, removed at 0; the same quantity asks nothing', async () => {
+    let quantity: number | null = null
+    let refuse = false
+    const sub = () => ({
+      id: 'sub_1',
+      object: 'subscription',
+      items: list([
+        { id: 'si_seat', object: 'subscription_item', quantity: 1, price: { lookup_key: 'ws_monthly' } },
+        ...(quantity === null
+          ? []
+          : [{ id: 'si_xc', object: 'subscription_item', quantity, price: { lookup_key: 'extra_calls_monthly' } }]),
+      ]),
+    })
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/subscriptions/sub_1': () => [200, sub()],
+      'POST /v1/subscriptions/sub_1': body => {
+        if (refuse && body.get('payment_behavior'))
+          return [402, { error: { type: 'card_error', code: 'card_declined', message: 'Your card was declined.' } }]
+        const q = body.get('items[0][quantity]')
+        quantity = body.get('items[0][deleted]') ? null : q ? Number(q) : quantity
+        return [200, sub()]
+      },
+    })
+    const stripe = await stripeWith(doFetch)
+    const input = {
+      subscriptionId: 'sub_1',
+      priceId: 'price_xc',
+      quantity: 5,
+      paidUpTo: 0,
+      charge: true,
+      idempotencyKey: 'xc_1',
+    }
+    // Nothing paid yet: charged now, and only once the card paid.
+    expect(await stripe.setExtraCallsQuantity(input)).toBe('updated')
+    expect(calls[1]!.key).toBe('xc_1:paid')
+    expect(Object.fromEntries(calls[1]!.body)).toMatchObject({
+      'items[0][price]': 'price_xc',
+      'items[0][quantity]': '5',
+      proration_behavior: 'always_invoice',
+      payment_behavior: 'error_if_incomplete',
+    })
+    expect(await stripe.setExtraCallsQuantity(input)).toBe('unchanged')
+    // Fewer: never refunded; the item stays at 0.
+    expect(await stripe.setExtraCallsQuantity({ ...input, quantity: 0, idempotencyKey: 'xc_2' })).toBe('updated')
+    expect(Object.fromEntries(calls.at(-1)!.body)).toMatchObject({
+      'items[0][id]': 'si_xc',
+      'items[0][quantity]': '0',
+      proration_behavior: 'none',
+    })
+    // Back up to the 5 paid this period: free; above it, only the rest is charged.
+    const before = calls.length
+    expect(await stripe.setExtraCallsQuantity({ ...input, quantity: 10, paidUpTo: 5, idempotencyKey: 'xc_3' })).toBe(
+      'updated',
+    )
+    const [free, paid] = calls.slice(before + 1).map(c => Object.fromEntries(c.body))
+    expect(free).toMatchObject({ 'items[0][id]': 'si_xc', 'items[0][quantity]': '5', proration_behavior: 'none' })
+    expect(free!.payment_behavior).toBeUndefined()
+    expect(paid).toMatchObject({
+      'items[0][id]': 'si_xc',
+      'items[0][quantity]': '10',
+      proration_behavior: 'always_invoice',
+    })
+    expect(quantity).toBe(10)
+    // A refused card: payment_failed, and the free step is undone.
+    expect(await stripe.setExtraCallsQuantity({ ...input, quantity: 0, idempotencyKey: 'xc_4' })).toBe('updated')
+    refuse = true
+    expect(await stripe.setExtraCallsQuantity({ ...input, quantity: 15, paidUpTo: 5, idempotencyKey: 'xc_5' })).toBe(
+      'payment_failed',
+    )
+    expect(quantity).toBe(0)
+    // charge: false never charges, even when it grows.
+    refuse = false
+    expect(await stripe.setExtraCallsQuantity({ ...input, quantity: 5, charge: false, idempotencyKey: 'xc_6' })).toBe(
+      'updated',
+    )
+    expect(Object.fromEntries(calls.at(-1)!.body)).toMatchObject({ proration_behavior: 'none' })
+  })
+
   test('none refuses them without a network call', async () => {
     await expect(noneBillingProvider.refundInvoice(refund)).rejects.toThrow('billing is off')
     await expect(

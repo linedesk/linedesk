@@ -333,15 +333,38 @@ describe('the gate in call.start', () => {
     expect(await reservationOf(other.call.id)).toBeUndefined()
   })
 
-  test('the trial allows 2 calls at once per bill; the third is refused as too_many_calls', async () => {
-    const b = await billed('trialing')
+  test('the trial allows 5 calls at once per workspace (LIN-450); the sixth caller hears the busy line', async () => {
+    // Money for the calls beyond the included allowance (each reserves its whole 20 minutes).
+    const b = await billed('trialing', { creditMicros: 10_000_000 })
+    // A new workspace has one live (sample) call already: four more fill its 5 lines.
+    for (let i = 0; i < 4; i++) expect((await start(b.ws)).blocked, `call ${i + 2}`).toBe(false)
+    expect(await start(b.ws)).toMatchObject({ blocked: true, busy: true })
+  })
+
+  test('a trial bill takes at most 5 calls at once over all its workspaces (review of #1103, L-4)', async () => {
+    const b = await billed('trialing', { creditMicros: 10_000_000 })
+    const second = await createWorkspace('Second')
+    await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, second.id))
+    // 3 + 2: no workspace reaches its own 5 lines, the bill reaches the trial's 5.
+    for (const ws of [b.ws, b.ws, b.ws, second, second]) expect((await start(ws)).blocked).toBe(false)
+    expect(await start(second)).toMatchObject({ blocked: true, refused: 'too_many_calls' })
+  })
+
+  test("the bill's cap counts every workspace on it: an instance admin's cap of 2 refuses the third as too_many_calls", async () => {
+    // Comped: only the cap decides.
+    const b = await billed('comped')
+    const [second, third] = [await createWorkspace('Second'), await createWorkspace('Third')]
+    for (const ws of [second, third])
+      await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, ws.id))
+    await db.update(billing_accounts).set({ concurrent_calls_cap: 2 }).where(eq(billing_accounts.id, b.billId))
+    // One call per workspace, so no single workspace reaches its own lines; the bill's cap refuses the third.
     expect((await start(b.ws)).blocked).toBe(false)
-    expect((await start(b.ws)).blocked).toBe(false)
-    expect(await start(b.ws)).toMatchObject({ blocked: true, refused: 'too_many_calls' })
+    expect((await start(second)).blocked).toBe(false)
+    expect(await start(third)).toMatchObject({ blocked: true, refused: 'too_many_calls' })
   })
 
   test('parallel call.starts never take the balance below the buffer and never pass the cap', async () => {
-    // Three workspaces on the bill: a cap of 8 calls at once. The balance is −$1.50; each call reserves $1 for 20
+    // Three workspaces on the bill: a cap of 15 calls at once. The balance is −$1.50; each call reserves $1 for 20
     // Standard minutes, so 3 fit above −$5 and the other 2 are refused.
     const b = await billed('active', { allowanceUsed: true })
     await credit(b.billId, b.periodId, -1_500_000)

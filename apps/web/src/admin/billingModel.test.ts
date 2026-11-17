@@ -67,16 +67,18 @@ test('only what differs from the defaults is stored (the rest reset), in the uni
   const form = {
     ...rulesForm(BILLING_DEFAULTS),
     'levels.premium.price': '0.12',
-    trialConcurrentCalls: '3',
+    concurrentCallsPerWorkspace: '10',
     balanceBufferMicros: '2.5',
     extraNumberCents: '4.50',
+    extraCallCents: '1.50',
   }
   expect(rulesFromForm(form, BILLING_DEFAULTS)).toEqual({
     rules: {
       ...RESETS,
-      trialConcurrentCalls: 3,
+      concurrentCallsPerWorkspace: 10,
       balanceBufferMicros: 2_500_000,
       extraNumberCents: 450,
+      extraCallCents: 150,
       levels: { ...RESETS.levels, premium: { microsPerMinute: 120_000, allowanceFactor: 2 } },
     },
     problems: [],
@@ -84,9 +86,9 @@ test('only what differs from the defaults is stored (the rest reset), in the uni
 })
 
 test('a field that is not a number in its unit is named, and nothing is sent', () => {
-  const form = { ...rulesForm(BILLING_DEFAULTS), trialConcurrentCalls: '2.5', 'levels.standard.price': 'cheap' }
+  const form = { ...rulesForm(BILLING_DEFAULTS), concurrentCallsPerWorkspace: '2.5', 'levels.standard.price': 'cheap' }
   expect(rulesFromForm(form, BILLING_DEFAULTS)).toEqual({
-    problems: ['trialConcurrentCalls', 'levels.standard.price'],
+    problems: ['concurrentCallsPerWorkspace', 'levels.standard.price'],
   })
 })
 

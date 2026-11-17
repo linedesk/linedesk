@@ -291,6 +291,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.overview',
     'billing.setAutoRecharge',
     'billing.setRechargeCap',
+    'billing.setExtraCalls',
     'billing.openPortal',
     'billing.retryRecharge',
   ],
@@ -372,6 +373,7 @@ describe('workspace rights', () => {
       'billing.resume',
       'billing.retryRecharge',
       'billing.setAutoRecharge',
+      'billing.setExtraCalls',
       'billing.setRechargeCap',
       'billing.startCheckout',
       'billing.startTopUp',
@@ -393,6 +395,7 @@ describe('workspace rights', () => {
       'billing.overview',
       'billing.setAutoRecharge',
       'billing.setRechargeCap',
+      'billing.setExtraCalls',
       'billing.openPortal',
       'billing.retryRecharge',
     ])

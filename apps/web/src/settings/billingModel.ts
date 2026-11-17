@@ -1,7 +1,7 @@
 // Settings › Billing (Billing.tsx): what the page decides from the bill, without React, so it can be tested. Money
 // arrives in cents (prices, recharges) or micro-dollars (the balance, usage); the page shows dollars through
 // useFormat().currency.
-import type { BillingOverviewBill, BillingStateBill, BillingUsageRow } from '@linedesk/actions'
+import type { BillingCalls, BillingOverviewBill, BillingStateBill, BillingUsageRow } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 
 export const centsToDollars = (cents: number) => cents / 100
@@ -196,11 +196,51 @@ export function refusalKey(code: string | undefined): MessageKey | null {
       return msg('settings.billing.error.autoRechargeOff')
     case 'billing_invoice_page_unavailable':
       return msg('settings.billing.error.invoicePageUnavailable')
+    case 'billing_extra_calls_paid_plan':
+      return msg('settings.billing.error.extraCallsPaidPlan')
+    case 'billing_extra_calls_above_max':
+      return msg('settings.billing.error.extraCallsAboveMax')
+    case 'billing_workspace_not_on_bill':
+      return msg('settings.billing.error.notOnBill')
+    case 'billing_extra_calls_canceling':
+      return msg('settings.billing.error.extraCallsCanceling')
+    case 'billing_extra_calls_payment_failed':
+      return msg('settings.billing.error.extraCallsPaymentFailed')
+    case 'billing_extra_calls_too_often':
+      return msg('settings.billing.error.extraCallsTooOften')
+    case 'billing_extra_calls_renewing':
+      return msg('settings.billing.error.extraCallsRenewing')
     case 'SIGN_IN_AGAIN':
       return msg('settings.billing.error.signInAgain')
     default:
       return null
   }
+}
+
+/**
+ * The extra calls a workspace can pick (LIN-450): none, then every step up to the most per workspace; the workspace's
+ * own number too when it is not one of them (an admin lowered the most since).
+ */
+export function extraCallChoices(calls: Pick<BillingCalls, 'step' | 'maxExtra'>, current = 0): number[] {
+  const choices: number[] = []
+  for (let extra = 0; extra <= calls.maxExtra; extra += calls.step) choices.push(extra)
+  if (!choices.includes(current)) choices.push(current)
+  return choices.sort((a, b) => a - b)
+}
+
+/**
+ * A raise that costs nothing now: the bill's new total of extra calls stays within what this billing period already
+ * paid for (lowering is never refunded, so going back up to it is free).
+ */
+export function freeExtraCalls(
+  calls: Pick<BillingCalls, 'paidExtra' | 'workspaces'>,
+  change: { workspaceId: string; to: number },
+): boolean {
+  const total = calls.workspaces.reduce(
+    (sum, w) => sum + (w.workspaceId === change.workspaceId ? change.to : w.extraCalls),
+    0,
+  )
+  return total <= calls.paidExtra
 }
 
 /**

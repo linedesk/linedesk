@@ -8,6 +8,7 @@
 import type {
   BillingInvoice,
   BillingProvider,
+  ExtraCallsQuantityInput,
   InvoiceRefund,
   InvoiceRefundInput,
   SeatQuantityInput,
@@ -65,6 +66,16 @@ import {
   withPremiumAndUltra,
 } from './helpers.ts'
 
+/** Price ids a test pretends the catalog sync stored; null reads the real stored ones. */
+const catalog = vi.hoisted(() => ({ prices: null as Record<string, string> | null }))
+vi.mock('../src/billing-catalog.ts', async original => {
+  const real = await original<typeof import('../src/billing-catalog.ts')>()
+  return {
+    ...real,
+    syncedPrices: async (tx: Parameters<typeof real.syncedPrices>[0]) => catalog.prices ?? real.syncedPrices(tx),
+  }
+})
+
 const rid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const day = 86_400_000
 const envBefore = { ...process.env }
@@ -89,6 +100,7 @@ afterEach(async () => {
   setBillingFetch(null)
   await db.delete(instance_settings)
   await db.delete(provider_settings)
+  catalog.prices = null
 })
 afterAll(() => {
   process.env = { ...envBefore }
@@ -169,6 +181,7 @@ async function paidRecharge(billId: string, periodId: string, cents = 2000) {
 function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = [], seatFails: string[] = []) {
   const refunds: InvoiceRefundInput[] = []
   const seats: SeatQuantityInput[] = []
+  const extraCalls: ExtraCallsQuantityInput[] = []
   const stopped: { invoiceId: string; void: boolean }[] = []
   const notes = new Map<string, InvoiceRefund & { invoiceId: string }>()
   const provider: BillingProvider = {
@@ -247,8 +260,12 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
       if (seatFails.includes(input.subscriptionId)) throw new Error('Stripe: this subscription is canceled')
       return 'updated'
     },
+    setExtraCallsQuantity: async input => {
+      extraCalls.push(input)
+      return 'updated'
+    },
   }
-  return { provider, refunds, seats, stopped, notes }
+  return { provider, refunds, seats, extraCalls, stopped, notes }
 }
 
 function paidInvoice(id: string, customerId: string, rechargeId: string, cents = 2000): BillingInvoice {
@@ -1115,6 +1132,63 @@ describe('moving a workspace', () => {
         idempotencyKey: `move_${requestId}_${to.billId}`,
       },
     ])
+  })
+
+  test('extra calls at the same time follow the workspace (LIN-450); onto a comped bill (no subscription) they stay behind', async () => {
+    catalog.prices = { extra_calls_monthly: 'price_xc_month', extra_calls_yearly: 'price_xc_year' }
+    const from = await billWith({ stripe_subscription_id: rid('sub'), interval: 'month' })
+    const to = await billWith({ stripe_subscription_id: rid('sub'), interval: 'year' })
+    await db.update(organization).set({ extraCalls: 10 }).where(eq(organization.id, from.ws.id))
+    const stripe = fakeStripe(new Map())
+    setBillingAdminProvider(stripe.provider)
+    const requestId = rid('req')
+    const input = { workspaceId: from.ws.id, toBillingAccountId: to.billId, reason, requestId }
+    expect((await act(operator, 'billing.moveWorkspace', input)).status).toBe(200)
+    // Each bill under its own lock, as summed then: the source is never refunded, the target pays for the growth.
+    expect(stripe.extraCalls).toEqual([
+      {
+        subscriptionId: (await billRow(from.billId)).stripe_subscription_id,
+        priceId: 'price_xc_month',
+        quantity: 0,
+        paidUpTo: 0,
+        charge: false,
+        idempotencyKey: `move_extra_calls_${requestId}:${from.billId}`,
+      },
+      {
+        subscriptionId: (await billRow(to.billId)).stripe_subscription_id,
+        priceId: 'price_xc_year',
+        quantity: 10,
+        paidUpTo: 0,
+        charge: true,
+        idempotencyKey: `move_extra_calls_${requestId}:${to.billId}`,
+      },
+    ])
+    expect(await billRow(to.billId)).toMatchObject({ extra_calls_paid: 10 })
+    const comped = await billWith({ status: 'comped', stripe_subscription_id: null })
+    const back = { workspaceId: from.ws.id, toBillingAccountId: comped.billId, reason, requestId: rid('req') }
+    expect((await act(operator, 'billing.moveWorkspace', back)).status).toBe(200)
+    const [org] = await db.select().from(organization).where(eq(organization.id, from.ws.id))
+    expect(org?.extraCalls).toBe(0)
+    expect(stripe.extraCalls.at(-1)).toMatchObject({ quantity: 0, charge: false })
+  })
+
+  test('extra calls Stripe could not take after a move: logged and the admins are told (review of #1103, L-3)', async () => {
+    const from = await billWith({ stripe_subscription_id: rid('sub'), interval: 'month' })
+    const to = await billWith({ stripe_subscription_id: rid('sub'), interval: 'month' })
+    await db.update(organization).set({ extraCalls: 5 }).where(eq(organization.id, from.ws.id))
+    const stripe = fakeStripe(new Map())
+    stripe.provider.setExtraCallsQuantity = async () => 'payment_failed'
+    setBillingAdminProvider(stripe.provider)
+    catalog.prices = { extra_calls_monthly: 'price_xc_month', extra_calls_yearly: 'price_xc_year' }
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const input = { workspaceId: from.ws.id, toBillingAccountId: to.billId, reason, requestId: rid('req') }
+    expect((await act(operator, 'billing.moveWorkspace', input)).status).toBe(200)
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining(`ALERT billing extra calls: bill ${to.billId}`),
+      expect.anything(),
+    )
+    // The target paid nothing, so nothing counts as paid.
+    expect(await billRow(to.billId)).toMatchObject({ extra_calls_paid: 0 })
   })
 
   test('seats change only after the move committed: a refused seat change never leaves a charge for no move (M2)', async () => {

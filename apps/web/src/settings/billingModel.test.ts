@@ -7,6 +7,8 @@ import {
   canResume,
   daysLeft,
   dollarsToCents,
+  extraCallChoices,
+  freeExtraCalls,
   paysCharges,
   outcomeUnknown,
   purchaseKeys,
@@ -71,6 +73,15 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   balanceMicros: 40_000_000,
   availableMicros: 40_000_000,
   autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
+  calls: {
+    includedPerWorkspace: 5,
+    extraCallCents: 100,
+    step: 5,
+    maxExtra: 45,
+    canAdd: true,
+    paidExtra: 0,
+    workspaces: [{ workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 }],
+  },
   cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 0, ownerMaxBaseCents: 100_000 },
   rechargeFailure: null,
   rechargePending: null,
@@ -185,6 +196,32 @@ test('cancel: a yearly plan paid in the last 14 days is refunded on request unti
   // Monthly plans and the trial (nothing was charged) say nothing about it.
   expect(yearlyRefundLine(bill({ interval: 'month' }), fmt, now)).toBeNull()
   expect(yearlyRefundLine(bill({ interval: 'year', status: 'trialing' }), fmt, now)).toBeNull()
+})
+
+test('extra calls at the same time: none, then steps of 5 up to the most; a number off the steps stays pickable', () => {
+  expect(extraCallChoices({ step: 5, maxExtra: 15 })).toEqual([0, 5, 10, 15])
+  expect(extraCallChoices({ step: 5, maxExtra: 0 })).toEqual([0])
+  // An admin lowered the most per workspace since the owner bought 20.
+  expect(extraCallChoices({ step: 5, maxExtra: 10 }, 20)).toEqual([0, 5, 10, 20])
+  expect(refusalKey('billing_extra_calls_paid_plan')).toBe('settings.billing.error.extraCallsPaidPlan')
+  expect(refusalKey('billing_extra_calls_above_max')).toBe('settings.billing.error.extraCallsAboveMax')
+  expect(refusalKey('billing_extra_calls_payment_failed')).toBe('settings.billing.error.extraCallsPaymentFailed')
+  expect(refusalKey('billing_extra_calls_canceling')).toBe('settings.billing.error.extraCallsCanceling')
+  expect(refusalKey('billing_extra_calls_too_often')).toBe('settings.billing.error.extraCallsTooOften')
+  expect(refusalKey('billing_extra_calls_renewing')).toBe('settings.billing.error.extraCallsRenewing')
+})
+
+test('a raise up to what this period already paid for costs nothing now (review of #1103, M-1)', () => {
+  const calls = {
+    paidExtra: 20,
+    workspaces: [
+      { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 },
+      { workspaceId: 'ws_2', name: 'Brightwater North', extraCalls: 10, limit: 15 },
+    ],
+  }
+  expect(freeExtraCalls(calls, { workspaceId: 'ws_1', to: 10 })).toBe(true)
+  expect(freeExtraCalls(calls, { workspaceId: 'ws_1', to: 15 })).toBe(false)
+  expect(freeExtraCalls({ ...calls, paidExtra: 0 }, { workspaceId: 'ws_1', to: 5 })).toBe(false)
 })
 
 test('Buy minutes keeps one command id per purchase while its outcome is unknown, never longer (review of #1102, L-1)', () => {

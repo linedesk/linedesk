@@ -23,6 +23,7 @@ import {
   organization,
   stripe_events,
   type Tx,
+  EXTRA_CALLS_LOOKUP_PREFIX,
 } from '@linedesk/db'
 import { and, eq, gte, isNotNull, isNull, like, lt, not, or, sql } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
@@ -31,7 +32,7 @@ import { settlePendingRefunds } from './billing-admin.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import { db } from './db.ts'
 import { billingReconcileAlert, type ReconcileFinding } from './emails/billing-alerts.ts'
-import { lockBalance } from './ledger.ts'
+import { extraCallsOnBill, lockBalance } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import {
   failRechargeInvoice,
@@ -62,6 +63,9 @@ const EXPECTED_STATUS: Partial<Record<(typeof billing_accounts.$inferSelect)['st
 /** The seat items of a subscription: the workspace prices (`ws_…`). */
 const seats = (sub: BillingSubscription) =>
   sub.items.filter(i => i.lookupKey?.startsWith('ws_')).reduce((sum, i) => sum + i.quantity, 0)
+/** The extra calls at once a subscription charges (LIN-450): its extra-calls item's quantity. */
+const extraCallsBilled = (sub: BillingSubscription) =>
+  sub.items.filter(i => i.lookupKey?.startsWith(EXTRA_CALLS_LOOKUP_PREFIX)).reduce((sum, i) => sum + i.quantity, 0)
 
 const sameTime = (a: string | null, b: string | null) =>
   (a === null && b === null) || (a !== null && b !== null && new Date(a).getTime() === new Date(b).getTime())
@@ -162,6 +166,14 @@ async function billsAgainstStripe(provider: BillingProvider): Promise<ReconcileF
       .where(eq(organization.billingAccountId, bill.id))
     if ((workspaces?.n ?? 0) !== seats(sub))
       findings.push({ kind: 'quantity', bill: bill.id, ours: String(workspaces?.n ?? 0), stripe: String(seats(sub)) })
+    const extraCalls = (await extraCallsOnBill(db, bill.id)).reduce((sum, n) => sum + n, 0)
+    if (extraCalls !== extraCallsBilled(sub))
+      findings.push({
+        kind: 'quantity',
+        bill: bill.id,
+        ours: `extra calls ${extraCalls}`,
+        stripe: `extra calls ${extraCallsBilled(sub)}`,
+      })
     // Auto-recharge charges what the recharge itself charges: the customer's invoice default, else the subscription's
     // card (which the recharge then makes the default). Not the subscription's card alone: Checkout leaves the
     // customer's default empty, and this check said "fine" while every recharge failed (billing review of 16.11., B2).

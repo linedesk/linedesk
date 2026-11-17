@@ -8,28 +8,35 @@
 //   alone (tenancy, §8).
 // - `billing.setAutoRecharge`, `billing.setRechargeCap` (raising it needs the owner step-up, §8), `billing.openPortal`
 //   (the Stripe customer portal: card, details, invoices) and `billing.retryRecharge` (Retry after a failed recharge,
-//   at most 3 attempts in 24 hours, §3.4). The owner, signed in as themselves in the app (`ownBill` refuses API keys,
+//   at most 3 attempts in 24 hours, §3.4), `billing.setExtraCalls` (extra calls at the same time per workspace,
+//   LIN-450; billed as the subscription's extra-calls item). The owner, signed in as themselves in the app (`ownBill` refuses API keys,
 //   personal keys, setup links and impersonation), under the bill's lock order (its balance row first).
 //
 // Refusals carry a `code` the page words itself (BILLING_PAGE_CODES); the English message is for logs and the API.
 import type {
   AutoRechargeData,
+  BillingCalls,
   BillingInvoiceRow,
   BillingOverviewBill,
   BillingOverviewData,
   BillingUsageRow,
   BillingWorkspaceUsageData,
+  ExtraCallsData,
   PortalData,
   RechargeCapData,
   RetryRechargeData,
 } from '@linedesk/actions'
 import { RECHARGE_RETRIES_PER_DAY } from '@linedesk/actions'
+import { BillingSetupError } from '@linedesk/billing'
 import {
   billing_accounts,
   billing_balances,
   billing_invoices,
   billing_recharges,
+  type BillingRules,
+  EXTRA_CALLS_STEP,
   ledger_entries,
+  maxExtraCalls,
   organization,
   planPrice,
   RECHARGE_CAP_SELF_SERVE_MAX_CENTS,
@@ -37,10 +44,12 @@ import {
   rechargeCapCents,
   type Tx,
   usage_counters,
+  workspaceCallLimit,
 } from '@linedesk/db'
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
+import { syncBillingCatalog } from './billing-catalog.ts'
 import { BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -49,9 +58,18 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { appLink, WEB_ORIGIN } from './emails/templates.ts'
 import { BILLING_PATH } from './emails/billing-lifecycle.ts'
+import {
+  extraCallsPriceId,
+  lockExtraCalls,
+  paidAfter,
+  paidExtraCalls,
+  periodEnded,
+  syncExtraCallsItem,
+} from './extra-calls.ts'
 import { Forbidden, type Handler, type HandlerCtx, type Preparer, Reject } from './handler-context.ts'
 import { decideRecharge, periodAt } from './ledger.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
+import { createRateLimiter } from './rate-limit.ts'
 import { refuseBillingActor } from './usage-levels.ts'
 
 type Bill = typeof billing_accounts.$inferSelect
@@ -66,6 +84,13 @@ export const BILLING_PAGE_CODES = {
   noCustomer: 'billing_no_customer',
   autoRechargeOff: 'billing_auto_recharge_off',
   invoicePageUnavailable: 'billing_invoice_page_unavailable',
+  extraCallsPaidPlan: 'billing_extra_calls_paid_plan',
+  extraCallsAboveMax: 'billing_extra_calls_above_max',
+  notOnBill: 'billing_workspace_not_on_bill',
+  extraCallsCanceling: 'billing_extra_calls_canceling',
+  extraCallsPaymentFailed: 'billing_extra_calls_payment_failed',
+  extraCallsTooOften: 'billing_extra_calls_too_often',
+  extraCallsRenewing: 'billing_extra_calls_renewing',
 } as const
 type BillingPageCode = keyof typeof BILLING_PAGE_CODES
 
@@ -79,6 +104,14 @@ const REFUSALS: Record<BillingPageCode, string> = {
   noCustomer: 'This bill has no Stripe customer yet.',
   autoRechargeOff: 'Auto-recharge is off. Turn it on to try the card again, or buy minutes.',
   invoicePageUnavailable: 'The invoice page is not available right now. Try again in a few minutes.',
+  extraCallsPaidPlan: 'More calls at the same time can be added once the plan is paid (after the trial).',
+  extraCallsAboveMax:
+    'That is more calls at the same time than a workspace can have here. Ask the server admins for more.',
+  notOnBill: 'This workspace is not on your bill.',
+  extraCallsCanceling: 'The plan ends at the end of this period: more calls at the same time cannot be added now.',
+  extraCallsPaymentFailed: 'The card was refused, so no calls were added. Update the card and try again.',
+  extraCallsTooOften: 'Calls at the same time were changed many times in the last hour. Try again later.',
+  extraCallsRenewing: 'The plan is renewing right now. Try again in a few minutes.',
 }
 const refuse = (code: BillingPageCode) => new Reject(REFUSALS[code], BILLING_PAGE_CODES[code])
 
@@ -110,7 +143,7 @@ const monthStart = (now: string) => `${now.slice(0, 7)}-01T00:00:00.000Z`
 
 async function workspacesOf(tx: Reader, billId: string) {
   return tx
-    .select({ id: organization.id, name: organization.name })
+    .select({ id: organization.id, name: organization.name, extraCalls: organization.extraCalls })
     .from(organization)
     .where(eq(organization.billingAccountId, billId))
     .orderBy(organization.name)
@@ -377,6 +410,7 @@ async function overview({
     canBuyMinutes: !!bill.stripe_customer_id && BUYS_MINUTES.includes(bill.status),
     hasPortal: !!bill.stripe_customer_id,
     period: period ? { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind } : null,
+    calls: callsOf(bill, workspaces, rules, now),
     usage: period ? await periodUsage(tx, bill.id, period.id, workspaces, rules.includedStandardSeconds) : [],
     invoices: invoices.map(
       (i): BillingInvoiceRow => ({
@@ -474,6 +508,147 @@ async function workspaceUsage({
       },
     },
   }
+}
+
+// ---- Calls at the same time (LIN-450) ---------------------------------------------------------------------------
+
+/** More extra calls only on a paid plan: never in the trial (free) or while a payment is open. */
+const ADDS_CALLS: readonly Bill['status'][] = ['active']
+
+function callsOf(
+  bill: Bill,
+  workspaces: { id: string; name: string; extraCalls: number }[],
+  rules: BillingRules,
+  now: string,
+): BillingCalls {
+  return {
+    includedPerWorkspace: rules.concurrentCallsPerWorkspace,
+    extraCallCents: rules.extraCallCents,
+    step: EXTRA_CALLS_STEP,
+    maxExtra: maxExtraCalls(rules),
+    canAdd: ADDS_CALLS.includes(bill.status) && !!bill.stripe_subscription_id && !bill.cancel_at_period_end,
+    paidExtra: paidExtraCalls(
+      bill,
+      workspaces.reduce((sum, w) => sum + w.extraCalls, 0),
+      now,
+    ),
+    workspaces: workspaces.map(w => ({
+      workspaceId: w.id,
+      name: w.name,
+      extraCalls: w.extraCalls,
+      limit: bill.concurrent_calls_cap ?? workspaceCallLimit(w.extraCalls, rules),
+    })),
+  }
+}
+
+/**
+ * How often one bill's extra calls may change an hour (security review of #1103, M-1): every change asks Stripe, and a
+ * raise charges the card. Per API process, like the other in-memory limits.
+ */
+export const EXTRA_CALLS_CHANGES_PER_HOUR = 10
+let allowExtraCallsChange = createRateLimiter({ max: EXTRA_CALLS_CHANGES_PER_HOUR, windowMs: 3_600_000 })
+/** Forgets every bill's changes (tests). */
+export function resetExtraCallsLimit() {
+  allowExtraCallsChange = createRateLimiter({ max: EXTRA_CALLS_CHANGES_PER_HOUR, windowMs: 3_600_000 })
+}
+
+/**
+ * The extra-calls price of the bill's interval, as the last catalog sync stored it. Missing (a catalog synced before
+ * the extra-calls prices existed), the sync runs on its own, never under this change's lock (security review of #1103,
+ * L-2), and the owner is told to try again later; the admins hear of it if the sync fails.
+ */
+async function extraCallsPrice(tx: Tx, interval: 'month' | 'year') {
+  const found = await extraCallsPriceId(tx, interval)
+  if (found) return found
+  void syncBillingCatalog().catch(e => console.error('billing: the catalog sync for extra calls failed:', e))
+  return setupFailed(new BillingSetupError('stripe_catalog_not_synced'))
+}
+
+/**
+ * `billing.setExtraCalls`: the owner sets one workspace's extra calls; the subscription's extra-calls item becomes the
+ * sum over the bill's workspaces (docs/billing.md §2.1c). Under the bill's extra-calls lock, never the balance lock the
+ * call gate waits on (security review of #1103, L-2).
+ *
+ * - More: an active plan that does not end at the period end, a recent sign-in or passkey, at most
+ *   `EXTRA_CALLS_CHANGES_PER_HOUR` changes. Up to what the bill already paid this period it is free; above it, Stripe
+ *   charges at once and the calls are granted only once the card paid (M-1, L-1). Asked inside the transaction: a
+ *   refusal changes nothing here; a commit that fails after Stripe raised it leaves the customer paid but not granted,
+ *   and the retry finds Stripe at the new quantity and only stores it.
+ * - Fewer: stored first, at once and without a refund; Stripe follows after the commit, so a failed commit never leaves
+ *   Stripe charging less than the app grants.
+ */
+async function setExtraCalls(
+  { tx, actor, now, onCommit }: HandlerCtx,
+  input: { workspaceId: string; extraCalls: number },
+): Promise<{ rows: Record<string, never>; data: ExtraCallsData }> {
+  const owned = await ownBill(tx, actor)
+  await lockExtraCalls(tx, owned.id)
+  const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, owned.id))
+  if (!bill || !CHANGES_RECHARGE.includes(bill.status)) throw refuse('notRunning')
+  const rules = await billingRules(tx)
+  const workspaces = await workspacesOf(tx, bill.id)
+  const workspace = workspaces.find(w => w.id === input.workspaceId)
+  if (!workspace) throw refuse('notOnBill')
+  const limit = (extra: number) => bill.concurrent_calls_cap ?? workspaceCallLimit(extra, rules)
+  const done = { workspaceId: workspace.id, extraCalls: input.extraCalls, limit: limit(input.extraCalls) }
+  if (input.extraCalls === workspace.extraCalls) return { rows: {}, data: done }
+  const raising = input.extraCalls > workspace.extraCalls
+  if (raising) {
+    if (input.extraCalls > maxExtraCalls(rules)) throw refuse('extraCallsAboveMax')
+    if (!ADDS_CALLS.includes(bill.status) || !bill.stripe_subscription_id) throw refuse('extraCallsPaidPlan')
+    if (bill.cancel_at_period_end) throw refuse('extraCallsCanceling')
+    // Until the renewal reached us, what this period paid is not known (security review of #1103, V-1).
+    if (periodEnded(bill, now)) throw refuse('extraCallsRenewing')
+    // More calls charge the card without the owner at hand next time: they confirm it is them first (§8).
+    const stepUp = await ownerStepUpNeeded(tx, actor)
+    if (stepUp === 'passkey')
+      // i18n-ignore: the API error body for logs and API clients; the web app opens the passkey dialog for the code
+      throw new Reject('Confirm with your passkey to add calls at the same time.', PASSKEY_STEP_UP_REQUIRED)
+    if (stepUp)
+      // i18n-ignore: the API error body for logs and API clients; the web app shows the key of the code
+      throw new Reject('Sign in again to add calls at the same time.', SIGN_IN_AGAIN)
+  }
+  if (!allowExtraCallsChange(bill.id)) throw refuse('extraCallsTooOften')
+  const before = workspaces.reduce((sum, w) => sum + w.extraCalls, 0)
+  const total = before - workspace.extraCalls + input.extraCalls
+  // The same change from the same state (a retried command) has the same key; any committed change moves updated_at.
+  const key = `extra_calls:${bill.id}:${bill.updated_at}:${before}:${total}`
+  if (raising) {
+    const provider = await billingProvider(tx)
+    const priceId = await extraCallsPrice(tx, bill.interval)
+    const paid = paidExtraCalls(bill, before, now)
+    const answer = await provider
+      .setExtraCallsQuantity({
+        subscriptionId: bill.stripe_subscription_id!,
+        priceId,
+        quantity: total,
+        paidUpTo: paid,
+        charge: true,
+        idempotencyKey: key,
+      })
+      .catch(setupFailed)
+    if (answer === 'payment_failed') throw refuse('extraCallsPaymentFailed')
+    await tx
+      .update(billing_accounts)
+      .set({ ...paidAfter(bill, paid, total), updated_at: now })
+      .where(eq(billing_accounts.id, bill.id))
+  } else {
+    // What was paid stays paid for the rest of the period: going back up to it is free (M-1).
+    await tx
+      .update(billing_accounts)
+      .set({ ...paidAfter(bill, paidExtraCalls(bill, before, now), 0), updated_at: now })
+      .where(eq(billing_accounts.id, bill.id))
+    if (bill.stripe_subscription_id) {
+      if (!onCommit) throw new Error('billing.setExtraCalls changes Stripe after the commit: no onCommit given')
+      const provider = await billingProvider(tx)
+      onCommit(() => syncExtraCallsItem(provider, bill.id, { charge: false, key }))
+    }
+  }
+  await tx
+    .update(organization)
+    .set({ extraCalls: input.extraCalls })
+    .where(and(eq(organization.id, workspace.id), eq(organization.billingAccountId, bill.id)))
+  return { rows: {}, data: done }
 }
 
 // ---- Auto-recharge and the cap ---------------------------------------------------------------------------------
@@ -637,6 +812,7 @@ export const billingPageHandlers: Record<string, Handler> = {
   'billing.overview': overview,
   'billing.setAutoRecharge': setAutoRecharge,
   'billing.setRechargeCap': setRechargeCap,
+  'billing.setExtraCalls': setExtraCalls,
   'billing.openPortal': openPortal,
   'billing.retryRecharge': retryRecharge,
   'billing.workspaceUsage': workspaceUsage,

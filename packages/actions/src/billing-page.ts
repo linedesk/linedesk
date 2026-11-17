@@ -2,7 +2,7 @@
 // Cancel, resume and "Buy minutes" are billing-checkout.ts; the status and its dates are `billing.state`. Only the owner
 // of the bill (the handlers check it is the bill's owner, not only the workspace's), signed in to the app: never an API
 // key, a personal key, a setup link or an impersonation, for the overview (its invoice links) as for the writes.
-import { RECHARGE_CAP_SELF_SERVE_MAX_CENTS, RECHARGE_LIMITS } from '@linedesk/db/types'
+import { EXTRA_CALLS_STEP, RECHARGE_CAP_SELF_SERVE_MAX_CENTS, RECHARGE_LIMITS } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -81,6 +81,7 @@ export type BillingOverviewBill = {
   canBuyMinutes: boolean
   hasPortal: boolean
   period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
+  calls: BillingCalls
   usage: BillingUsageRow[]
   invoices: BillingInvoiceRow[]
 }
@@ -100,6 +101,26 @@ export type BillingWorkspaceUsageData = {
     period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
     row: BillingUsageRow | null
   } | null
+}
+
+/**
+ * Calls at the same time (LIN-450): each workspace has `includedPerWorkspace` included, and its owner buys more in
+ * steps of `step`, up to `maxExtra` extra per workspace, at `extraCallCents` a month per extra call (a yearly plan pays
+ * 12 times it a year). `canAdd`: more can be bought now (a paid plan, not the trial or an unpaid one); fewer can be
+ * set whenever the plan runs.
+ */
+export type BillingCalls = {
+  includedPerWorkspace: number
+  extraCallCents: number
+  step: number
+  maxExtra: number
+  canAdd: boolean
+  /**
+   * The extra calls over all the bill's workspaces already paid for this billing period: going back up to it is not
+   * charged again (lowering is never refunded).
+   */
+  paidExtra: number
+  workspaces: { workspaceId: string; name: string; extraCalls: number; limit: number }[]
 }
 
 /** Auto-recharge as the owner sets it (docs/billing.md §2.2, §4.3): the amount lifts the balance clear of the threshold. */
@@ -137,6 +158,20 @@ export const billingSetRechargeCap = defineAction({
 })
 /** `data` of `billing.setRechargeCap`. */
 export type RechargeCapData = { baseCents: number; effectiveCents: number; recharging: boolean }
+
+export const billingSetExtraCalls = defineAction({
+  name: 'billing.setExtraCalls',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Set how many extra calls at the same time a workspace on the bill has, on top of the included ones: a multiple of 5, up to the install's most per workspace. Billed on the plan's subscription: more is charged at once (prorated), fewer takes effect at once with no refund. More needs a paid plan (not the trial). Only the bill owner.",
+  input: z.object({
+    workspaceId: z.string().min(1),
+    extraCalls: z.number().int().min(0).max(1000).multipleOf(EXTRA_CALLS_STEP),
+  }),
+  permission: 'billing:manage',
+})
+/** `data` of `billing.setExtraCalls`: what is stored now, and the workspace's calls at once with it. */
+export type ExtraCallsData = { workspaceId: string; extraCalls: number; limit: number }
 
 export const billingOpenPortal = defineAction({
   name: 'billing.openPortal',

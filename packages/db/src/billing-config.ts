@@ -21,8 +21,12 @@ export const PLAN_PRICES = [
   { lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' },
   { lookupKey: 'partner_monthly', product: 'partner', cents: 1900, interval: 'month' },
   { lookupKey: 'partner_yearly', product: 'partner', cents: 16_800, interval: 'year' },
+  // Extra calls at once (LIN-450): $1 a month per extra call, sold in steps of `EXTRA_CALLS_STEP`; the yearly price is
+  // 12 monthly ones (a subscription's items share one interval), so yearly and monthly plans pay the same.
+  { lookupKey: 'extra_calls_monthly', product: 'extra_calls', cents: 100, interval: 'month' },
+  { lookupKey: 'extra_calls_yearly', product: 'extra_calls', cents: 1200, interval: 'year' },
 ] as const satisfies readonly PlanPrice[]
-export type PlanProduct = 'workspace' | 'partner' | 'balance_recharge' | 'balance_topup'
+export type PlanProduct = 'workspace' | 'partner' | 'extra_calls' | 'balance_recharge' | 'balance_topup'
 export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number; interval: 'month' | 'year' }
 /**
  * The Stripe products by their names on invoices and receipts, with the install's product name (Server admin ›
@@ -32,11 +36,20 @@ export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number
 export const planProducts = (brand: string): Record<PlanProduct, string> => ({
   workspace: `${brand} workspace`,
   partner: `${brand} Partner`,
+  extra_calls: `${brand} extra calls at the same time`,
   balance_recharge: 'Balance recharge',
   balance_topup: 'Prepaid minutes',
 })
 /** Stripe Tax code of every product and the account default: SaaS, business use (docs/billing.md §5.2). */
 export const STRIPE_TAX_CODE = 'txcd_10103001'
+
+/**
+ * Extra calls at once are bought in steps of this many per workspace (LIN-450): the add-on's Stripe quantity is the
+ * bill's extra calls, always a multiple of it. A database CHECK on `organization.extra_calls` uses it.
+ */
+export const EXTRA_CALLS_STEP = 5
+/** The extra-calls prices' lookup keys start so (`extra_calls_monthly`, `extra_calls_yearly`). */
+export const EXTRA_CALLS_LOOKUP_PREFIX = 'extra_calls_'
 
 /** A bill's default monthly recharge cap base ($50): auto-recharges stop for the calendar month at the cap. */
 export const RECHARGE_CAP_BASE_CENTS = 5000
@@ -93,11 +106,18 @@ export type BillingRules = {
   includedStandardSeconds: number
   /** How far below zero the balance may go before new calls are refused, after the trial; in the trial it is 0. */
   balanceBufferMicros: number
-  /** Calls a bill may have running at once in the trial. */
-  trialConcurrentCalls: number
-  /** After the trial: this many calls at once, plus `concurrentCallsPerWorkspace` for each workspace on the bill. */
+  /**
+   * Calls at once (LIN-450): each workspace has `concurrentCallsPerWorkspace` included (in the trial too) plus the
+   * extra calls its owner bought, at most `concurrentCallsMaxPerWorkspace` in all; a bill may run the sum of its
+   * workspaces' limits plus `concurrentCallsBase`. In the trial a bill runs at most `trialConcurrentCalls` in all, however
+   * many workspaces it has (security review of #1103, L-4: toll fraud on a fresh trial number).
+   */
   concurrentCallsBase: number
+  trialConcurrentCalls: number
   concurrentCallsPerWorkspace: number
+  concurrentCallsMaxPerWorkspace: number
+  /** The monthly price of one extra call at once, in cents (sold in steps of `EXTRA_CALLS_STEP`; yearly 12 times it). */
+  extraCallCents: number
   /** On a billed workspace a transfer leg lasts at most this long, and so does the time a call stays bridged. */
   billedTransferCapSeconds: number
   /** The stale sweep ends a billed call this long after its limit. */
@@ -118,9 +138,11 @@ export const BILLING_DEFAULTS: BillingRules = {
   levels: LEVEL_PRICES,
   includedStandardSeconds: 3000,
   balanceBufferMicros: BALANCE_BUFFER_MICROS,
-  trialConcurrentCalls: 2,
-  concurrentCallsBase: 2,
-  concurrentCallsPerWorkspace: 2,
+  concurrentCallsBase: 0,
+  trialConcurrentCalls: 5,
+  concurrentCallsPerWorkspace: 5,
+  concurrentCallsMaxPerWorkspace: 50,
+  extraCallCents: 100,
   billedTransferCapSeconds: 600,
   callLimitGraceSeconds: 60,
   extraNumberCents: 300,
@@ -196,20 +218,22 @@ export type SignupCountRule = keyof typeof SIGNUP_RULE_RANGES
 export const SIGNUP_COUNTRIES = ['US', 'CA', 'PR'] as const
 export type SignupCountry = (typeof SIGNUP_COUNTRIES)[number]
 
-/** Which rule holds each plan price's amount. */
-const PLAN_PRICE_RULE = {
-  ws_monthly: 'workspaceMonthlyCents',
-  ws_yearly: 'workspaceYearlyCents',
-  partner_monthly: 'partnerMonthlyCents',
-  partner_yearly: 'partnerYearlyCents',
-} as const satisfies Record<(typeof PLAN_PRICES)[number]['lookupKey'], keyof BillingRules>
+/** Each plan price's amount under the install's rules. */
+const PLAN_PRICE_CENTS = {
+  ws_monthly: r => r.workspaceMonthlyCents,
+  ws_yearly: r => r.workspaceYearlyCents,
+  partner_monthly: r => r.partnerMonthlyCents,
+  partner_yearly: r => r.partnerYearlyCents,
+  extra_calls_monthly: r => r.extraCallCents,
+  extra_calls_yearly: r => 12 * r.extraCallCents,
+} as const satisfies Record<(typeof PLAN_PRICES)[number]['lookupKey'], (rules: BillingRules) => number>
 
 /**
  * The plan prices in effect on this install: `PLAN_PRICES` with the amounts of the install's rules. A changed amount
  * applies to new Checkouts; a running subscription keeps the Stripe price it was started on (docs/billing.md §7b).
  */
 export const planPrices = (rules: BillingRules = BILLING_DEFAULTS): PlanPrice[] =>
-  PLAN_PRICES.map(p => ({ ...p, cents: rules[PLAN_PRICE_RULE[p.lookupKey]] }))
+  PLAN_PRICES.map(p => ({ ...p, cents: PLAN_PRICE_CENTS[p.lookupKey](rules) }))
 
 /** The price in effect for a lookup key (`ws_monthly`, …), or null for one that is not a plan price. */
 export const planPrice = (lookupKey: string, rules: BillingRules = BILLING_DEFAULTS): PlanPrice | null =>
@@ -237,15 +261,31 @@ export function rechargeCapCents(
 export const allowanceFactor = (level: PaidLevel, rules: BillingRules = BILLING_DEFAULTS): number =>
   rules.levels[level].allowanceFactor ?? 0
 
-/** The calls a bill may have running at once. */
-export function concurrentCallCap(
-  trialing: boolean,
-  workspaces: number,
-  rules: BillingRules = BILLING_DEFAULTS,
-): number {
-  return trialing
-    ? rules.trialConcurrentCalls
-    : rules.concurrentCallsBase + rules.concurrentCallsPerWorkspace * Math.max(1, workspaces)
+/** The calls one workspace may have running at once: those included plus the extra ones bought, at most the rules' most. */
+export const workspaceCallLimit = (extraCalls: number, rules: BillingRules = BILLING_DEFAULTS): number =>
+  Math.min(
+    Math.max(rules.concurrentCallsPerWorkspace, rules.concurrentCallsMaxPerWorkspace),
+    rules.concurrentCallsPerWorkspace + Math.max(0, extraCalls),
+  )
+
+/**
+ * The most extra calls one workspace may buy: up to the rules' most per workspace, in whole steps. 0 when the
+ * included calls already reach it.
+ */
+export const maxExtraCalls = (rules: BillingRules = BILLING_DEFAULTS): number =>
+  Math.max(
+    0,
+    Math.floor((rules.concurrentCallsMaxPerWorkspace - rules.concurrentCallsPerWorkspace) / EXTRA_CALLS_STEP) *
+      EXTRA_CALLS_STEP,
+  )
+
+/**
+ * The calls a bill may have running at once: the base plus each workspace's limit (`workspaceCallLimit`). `extraCalls`
+ * is each workspace's extra calls (an empty list counts one workspace without any, as a bill always has one).
+ */
+export function concurrentCallCap(extraCalls: readonly number[], rules: BillingRules = BILLING_DEFAULTS): number {
+  const each = extraCalls.length ? extraCalls : [0]
+  return rules.concurrentCallsBase + each.reduce((sum, extra) => sum + workspaceCallLimit(extra, rules), 0)
 }
 
 /**
@@ -348,7 +388,8 @@ export type GateBill = {
   reservedMicros: number
   /** Calls of the bill running now (its reservation rows). */
   running: number
-  workspaces: number
+  /** The extra calls at once of each workspace on the bill (`organization.extra_calls`). */
+  extraCalls: readonly number[]
   /** Calls at once an instance admin set for this bill (Server admin › Billing); null or absent: the rules' cap. */
   concurrencyCap?: number | null
 }
@@ -356,7 +397,8 @@ export type GateReason = 'billing_inactive' | 'too_many_calls' | 'no_balance'
 export type GateAnswer = { allow: true } | { allow: false; reason: GateReason }
 
 /**
- * "Can this call start?" (docs/billing.md §4.4): the bill is in service, below its concurrency cap, and the balance
+ * "Can this call start?" (docs/billing.md §4.4): the bill is in service, below its concurrency cap (an instance admin's
+ * cap, else the rules' cap, in the trial at most `trialConcurrentCalls`), and the balance
  * less every running call's reservation and this one's stays at or above −buffer (0 in the trial). A comped bill
  * pays nothing, so only the cap applies.
  */
@@ -364,7 +406,8 @@ export function callGate(bill: GateBill, needMicros: number, rules: BillingRules
   if (!['trialing', 'active', 'past_due', 'comped'].includes(bill.status))
     return { allow: false, reason: 'billing_inactive' }
   const trialing = bill.status === 'trialing'
-  if (bill.running >= (bill.concurrencyCap ?? concurrentCallCap(trialing, bill.workspaces, rules)))
+  const ruled = concurrentCallCap(bill.extraCalls, rules)
+  if (bill.running >= (bill.concurrencyCap ?? (trialing ? Math.min(ruled, rules.trialConcurrentCalls) : ruled)))
     return { allow: false, reason: 'too_many_calls' }
   if (bill.status === 'comped') return { allow: true }
   const buffer = trialing ? 0 : rules.balanceBufferMicros

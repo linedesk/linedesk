@@ -21,7 +21,7 @@ const bill: AdminBillDetail = {
   status: 'comped',
   interval: 'month',
   owner: { id: 'u1', email: 'mike@brightwater.example', name: 'Mike Brennan' },
-  workspaces: [{ id: 'ws1', name: 'Brightwater Plumbing & Heating' }],
+  workspaces: [{ id: 'ws1', name: 'Brightwater Plumbing & Heating', extraCalls: 10 }],
   balanceMicros: 12_500_000,
   reservedMicros: 0,
   heldForReviewAt: null,
@@ -72,6 +72,9 @@ test("a bill's page: paid from the ledger, invoices in the Stripe Dashboard, onl
   expect(html).toContain('href="https://dashboard.stripe.com/test/invoices/in_1"')
   expect(html).toContain('href="https://dashboard.stripe.com/test/customers/cus_1"')
   expect(html).toContain('href="#admin/workspaces/ws1"')
+  // The extra calls at the same time the owner bought (LIN-450): on the bill and per workspace.
+  expect(html).toContain('10 extra calls bought')
+  expect(html).toContain('+10')
   // Comped: Resume and Suspend, no Comp again.
   expect(html).toContain('Resume…')
   expect(html).toContain('Suspend…')

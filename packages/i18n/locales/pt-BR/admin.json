@@ -498,7 +498,6 @@
   "bills.rules.field.extraNumberCents": "Número de telefone extra por mês, em dólares",
   "bills.rules.field.includedStandardSeconds": "Segundos Standard incluídos por espaço de trabalho e período",
   "bills.rules.field.rechargeCapPerWorkspaceCents": "Limite de recarga a mais por espaço de trabalho, em dólares",
-  "bills.rules.field.trialConcurrentCalls": "Chamadas simultâneas no período de teste",
   "bills.rules.ignored": "Valores armazenados fora do intervalo são ignorados e usam o padrão: {fields}.",
   "bills.rules.levelFactor": "{level}: segundos incluídos por segundo",
   "bills.rules.levelPrice": "{level}: dólares por minuto",

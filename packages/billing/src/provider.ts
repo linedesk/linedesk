@@ -414,6 +414,26 @@ export type SeatQuantityInput = {
   idempotencyKey: string
 }
 
+/**
+ * The extra-calls item of a subscription (LIN-450): `quantity` extra calls at once over the bill's workspaces, at
+ * `priceId` (the synced `extra_calls_monthly` or `extra_calls_yearly`, matching the plan's interval). An item already
+ * there keeps its price, and stays at quantity 0 instead of being removed (a raise later is prorated against it).
+ *
+ * Money (security review of #1103, M-1, L-1): shrinking is never refunded (`none`). Growing up to `paidUpTo` (what the
+ * bill already paid for this period) is not charged again (`none`); growing above it is invoiced and paid at once
+ * (`always_invoice`, `error_if_incomplete`), so the quantity changes only once the card paid. A refused card answers
+ * `payment_failed` and leaves the item as it was. `charge: false` never charges (a lowering, a move's source).
+ */
+export type ExtraCallsQuantityInput = {
+  subscriptionId: string
+  priceId: string
+  quantity: number
+  paidUpTo: number
+  charge: boolean
+  idempotencyKey: string
+}
+export type ExtraCallsAnswer = 'updated' | 'unchanged' | 'payment_failed'
+
 /** Stripe's default: a signature older than five minutes is refused (replays). */
 export const WEBHOOK_TOLERANCE_SECONDS = 300
 
@@ -553,6 +573,8 @@ export type BillingProvider = {
   checkoutInvoice(sessionId: string): Promise<string | null>
   /** Sets the seat item's quantity; `no_seat_item` when the subscription has none (a seat price is `ws_…`). */
   setSeatQuantity(input: SeatQuantityInput): Promise<'updated' | 'unchanged' | 'no_seat_item'>
+  /** Sets the extra-calls item's quantity (see `ExtraCallsQuantityInput`): adds it, changes it, or removes it at 0. */
+  setExtraCallsQuantity(input: ExtraCallsQuantityInput): Promise<ExtraCallsAnswer>
   /** The dispute as it is now, with what its charge paid for; null when the service does not know it. */
   dispute(id: string): Promise<BillingDispute | null>
   /** The early fraud warning as it is now, with what its charge paid for; null when the service does not know it. */

@@ -840,10 +840,6 @@ const RULE_LABELS: Record<RuleField, [MessageKey, MessageKey]> = {
     msg('admin.bills.rules.field.balanceBufferMicros'),
     msg('admin.bills.rules.field.balanceBufferMicros.help'),
   ],
-  trialConcurrentCalls: [
-    msg('admin.bills.rules.field.trialConcurrentCalls'),
-    msg('admin.bills.rules.field.trialConcurrentCalls.help'),
-  ],
   concurrentCallsBase: [
     msg('admin.bills.rules.field.concurrentCallsBase'),
     msg('admin.bills.rules.field.concurrentCallsBase.help'),
@@ -851,6 +847,15 @@ const RULE_LABELS: Record<RuleField, [MessageKey, MessageKey]> = {
   concurrentCallsPerWorkspace: [
     msg('admin.bills.rules.field.concurrentCallsPerWorkspace'),
     msg('admin.bills.rules.field.concurrentCallsPerWorkspace.help'),
+  ],
+  concurrentCallsMaxPerWorkspace: [
+    msg('admin.bills.rules.field.concurrentCallsMaxPerWorkspace'),
+    msg('admin.bills.rules.field.concurrentCallsMaxPerWorkspace.help'),
+  ],
+  extraCallCents: [msg('admin.bills.rules.field.extraCallCents'), msg('admin.bills.rules.field.extraCallCents.help')],
+  trialConcurrentCalls: [
+    msg('admin.bills.rules.field.trialConcurrentCalls'),
+    msg('admin.bills.rules.field.trialConcurrentCalls.help'),
   ],
   billedTransferCapSeconds: [
     msg('admin.bills.rules.field.billedTransferCapSeconds'),
@@ -1129,6 +1134,8 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
     },
   ]
   const stripe = (path: string) => (bill.dashboardUrl ? `${bill.dashboardUrl}/${path}` : null)
+  // The extra calls at the same time the owner bought (LIN-450), over the bill's workspaces.
+  const extraCalls = bill.workspaces.reduce((sum, w) => sum + w.extraCalls, 0)
   const done = async (text: string) => {
     await refreshBill(id)
     return text
@@ -1205,6 +1212,9 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
             {bill.concurrentCallsCap === null
               ? t('admin.bills.fact.concurrencyRules', { count: bill.rulesConcurrentCalls })
               : t('admin.bills.fact.concurrencySet', { count: bill.concurrentCallsCap })}
+            {extraCalls > 0 && (
+              <span className="adm-sub">{t('admin.bills.fact.concurrencyExtra', { count: extraCalls })}</span>
+            )}
           </Fact>
           <Fact label={t('admin.bills.fact.stripe')}>
             {bill.stripeCustomerId && stripe(`customers/${bill.stripeCustomerId}`) ? (
@@ -1246,6 +1256,9 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
                   <th scope="col" className="adm-num">
                     {t('admin.bills.usage.paid')}
                   </th>
+                  <th scope="col" className="adm-num">
+                    {t('admin.bills.usage.extraCalls')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1261,6 +1274,9 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
                       </td>
                       <td className="adm-num" data-label={t('admin.bills.usage.paid')}>
                         {usdOfMicros(used?.paidMicros ?? 0)}
+                      </td>
+                      <td className="adm-num" data-label={t('admin.bills.usage.extraCalls')}>
+                        {w.extraCalls ? t('admin.bills.usage.extraCallsValue', { count: w.extraCalls }) : EMPTY}
                       </td>
                     </tr>
                   )

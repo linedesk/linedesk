@@ -498,7 +498,6 @@
   "bills.rules.field.extraNumberCents": "追加の電話番号の月額（ドル）",
   "bills.rules.field.includedStandardSeconds": "ワークスペースごと・期間ごとのStandardの付属秒数",
   "bills.rules.field.rechargeCapPerWorkspaceCents": "ワークスペースごとに追加されるチャージ上限（ドル）",
-  "bills.rules.field.trialConcurrentCalls": "トライアル中の同時通話数",
   "bills.rules.ignored": "範囲外の保存値は無視され、既定値が使われます：{fields}。",
   "bills.rules.levelFactor": "{level}：1秒あたりの付属秒数",
   "bills.rules.levelPrice": "{level}：1分あたりのドル",

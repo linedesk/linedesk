@@ -211,7 +211,8 @@ export type AdminBillRow = {
   status: AdminBillStatus
   interval: 'month' | 'year'
   owner: { id: string; email: string | null; name: string | null }
-  workspaces: { id: string; name: string }[]
+  /** `extraCalls`: the extra calls at the same time the bill owner bought for the workspace (LIN-450). */
+  workspaces: { id: string; name: string; extraCalls: number }[]
   balanceMicros: number
   reservedMicros: number
   heldForReviewAt: string | null
@@ -259,7 +260,7 @@ export type AdminBillDetail = AdminBillRow & {
   rechargeCapBaseCents: number
   rechargeCapCents: number
   concurrentCallsCap: number | null
-  /** The cap the rules give without an override. */
+  /** The cap the rules give without an override: the included calls of every workspace plus the extra calls bought. */
   rulesConcurrentCalls: number
   suspendReason: string | null
   rechargeFailedAt: string | null

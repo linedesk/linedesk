@@ -12,7 +12,7 @@ import { appLink, type EmailLocale, WEB_ORIGIN } from './templates.ts'
 export const BILLING_PATH = 'workspace/billing'
 
 /** One line of what a yearly renewal charges: a plan item (seats or the partner base) with its price per unit. */
-export type RenewalLine = { item: 'seats' | 'partner'; quantity: number; unitCents: number }
+export type RenewalLine = { item: 'seats' | 'partner' | 'extraCalls'; quantity: number; unitCents: number }
 
 export type LifecycleEmail =
   | { kind: 'number_unpaid'; e164: string; priceCents: number; releaseAt: string }

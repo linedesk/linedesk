@@ -330,6 +330,7 @@ const all = [
   billingPage.billingOverview,
   billingPage.billingSetAutoRecharge,
   billingPage.billingSetRechargeCap,
+  billingPage.billingSetExtraCalls,
   billingPage.billingOpenPortal,
   billingPage.billingRetryRecharge,
   billingPage.billingWorkspaceUsage,

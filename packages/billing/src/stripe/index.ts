@@ -1,5 +1,6 @@
 // The Stripe adapter: the only place that imports the Stripe SDK. Loaded with a dynamic import (../index.ts), so an
 // install without Stripe never loads it.
+import { EXTRA_CALLS_LOOKUP_PREFIX } from '@linedesk/db/types'
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
 import { catalogWriteAccess, ensureCatalog, ensureProduct, productId } from './catalog.ts'
@@ -546,6 +547,59 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
           { items: [{ id: seat.id, quantity: input.quantity }], proration_behavior: input.prorationBehavior },
           { idempotencyKey: input.idempotencyKey },
         )
+        return 'updated'
+      } catch (error) {
+        throw setupError(error) ?? error
+      }
+    },
+
+    async setExtraCallsQuantity(input) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(input.subscriptionId)
+        const item = sub.items.data.find(i =>
+          (i.price.lookup_key ?? i.price.metadata?.linedesk ?? '').startsWith(EXTRA_CALLS_LOOKUP_PREFIX),
+        )
+        const current = item?.quantity ?? 0
+        if (current === input.quantity) return 'unchanged'
+        // The item stays at 0 instead of being removed: Stripe prorates a later raise of a kept item against what it
+        // charged before, while a new item after a free re-add would be charged in full (checked in the sandbox).
+        const items = (itemId: string | undefined, quantity: number): Stripe.SubscriptionUpdateParams.Item[] =>
+          !itemId ? [{ price: input.priceId, quantity }] : [{ id: itemId, quantity }]
+        const update = (quantity: number, itemId: string | undefined, charged: boolean, step: string) =>
+          stripe.subscriptions.update(
+            input.subscriptionId,
+            charged
+              ? {
+                  items: items(itemId, quantity),
+                  proration_behavior: 'always_invoice',
+                  payment_behavior: 'error_if_incomplete',
+                }
+              : { items: items(itemId, quantity), proration_behavior: 'none' },
+            { idempotencyKey: `${input.idempotencyKey}:${step}` },
+          )
+        const itemOf = (s: Stripe.Subscription) =>
+          s.items.data.find(i =>
+            (i.price.lookup_key ?? i.price.metadata?.linedesk ?? '').startsWith(EXTRA_CALLS_LOOKUP_PREFIX),
+          )?.id
+        // Fewer, or never charged: no refund, no charge.
+        if (input.quantity < current || !input.charge) {
+          await update(input.quantity, item?.id, false, 'set')
+          return 'updated'
+        }
+        // More: free up to what this period already paid for, then the rest charged now.
+        const free = Math.min(input.quantity, Math.max(current, input.paidUpTo))
+        let itemId = item?.id
+        if (free > current) itemId = itemOf(await update(free, itemId, false, 'free'))
+        if (input.quantity === free) return 'updated'
+        try {
+          await update(input.quantity, itemId, true, 'paid')
+        } catch (error) {
+          const e = error as { statusCode?: number }
+          if (e.statusCode !== 402) throw error
+          // The card was refused: back to what was there, so nothing unpaid stays on the subscription.
+          if (free > current) await update(current, itemId, false, 'undo')
+          return 'payment_failed'
+        }
         return 'updated'
       } catch (error) {
         throw setupError(error) ?? error

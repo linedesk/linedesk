@@ -12,6 +12,7 @@ import type {
   BillingStateData,
   BillingUsageRow,
   CancelData,
+  ExtraCallsData,
   PortalData,
   RechargeCapData,
   RetryRechargeData,
@@ -42,6 +43,8 @@ import {
   centsToDollars,
   changesRecharge,
   dollarsToCents,
+  extraCallChoices,
+  freeExtraCalls,
   microsToDollars,
   paysCharges,
   planLine,
@@ -178,6 +181,7 @@ function BillingPage({
   return (
     <>
       <PlanCard bill={bill} state={state} toast={toast} />
+      {pays && <CallsCard bill={bill} toast={toast} />}
       {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} toast={toast} />}
       {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />
@@ -357,6 +361,202 @@ export function CancelDialog({
       }}
       onClose={onClose}
     />
+  )
+}
+
+// ---- Calls at the same time (LIN-450) ---------------------------------------------------------------------------
+
+type CallsChange = { workspaceId: string; name: string; from: number; to: number }
+
+/**
+ * Calls at the same time per workspace: the included ones, and more in steps of 5 at a price a month, picked from a
+ * list. Every change is confirmed in a dialog that says what it costs (more is charged now, fewer is not refunded).
+ */
+function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+  const t = useT()
+  const format = useFormat()
+  const [asking, setAsking] = useState<CallsChange | null>(null)
+  const calls = bill.calls
+  const price = (extra: number) => format.currency(centsToDollars(extra * calls.extraCallCents), 'USD')
+  const editable = changesRecharge(bill)
+  const several = calls.workspaces.length > 1
+  if (!calls.workspaces.length) return null
+  return (
+    <Section
+      id="billing-calls"
+      title={t('settings.billing.calls.title')}
+      description={t('settings.billing.calls.description', {
+        count: calls.includedPerWorkspace,
+        step: calls.step,
+        price: price(calls.step),
+      })}
+    >
+      {calls.workspaces.map(w => (
+        <div className="swrow" key={w.workspaceId}>
+          <div>
+            <b>{several ? w.name : t('settings.billing.calls.rowTitle')}</b>
+            <span className="help">
+              {w.extraCalls
+                ? t('settings.billing.calls.rowExtra', { count: w.limit, price: price(w.extraCalls) })
+                : t('settings.billing.calls.rowIncluded', { count: w.limit })}
+            </span>
+          </div>
+          <Select
+            id={`billing-calls-${w.workspaceId}`}
+            size="sm"
+            align="end"
+            value={String(w.extraCalls)}
+            disabled={!editable}
+            label={several ? t('settings.billing.calls.labelFor', { name: w.name }) : t('settings.billing.calls.label')}
+            options={extraCallChoices(calls, w.extraCalls).map(extra => ({
+              value: String(extra),
+              label: t('settings.billing.calls.option', { count: calls.includedPerWorkspace + extra }),
+              description:
+                extra === 0
+                  ? t('settings.billing.calls.optionIncluded')
+                  : t('settings.billing.calls.optionPrice', { price: price(extra) }),
+              disabled: extra > w.extraCalls && !calls.canAdd,
+            }))}
+            onChange={v => setAsking({ workspaceId: w.workspaceId, name: w.name, from: w.extraCalls, to: Number(v) })}
+          />
+        </div>
+      ))}
+      {!calls.canAdd && editable && <span className="help">{t('settings.billing.calls.afterTrial')}</span>}
+      {asking && (
+        <CallsDialog
+          change={asking}
+          free={freeExtraCalls(calls, asking)}
+          included={calls.includedPerWorkspace}
+          price={price}
+          onClose={() => setAsking(null)}
+          toast={toast}
+        />
+      )}
+    </Section>
+  )
+}
+
+/** Confirms a change of a workspace's extra calls: what it costs now and from the next bill. */
+function CallsDialog({
+  change,
+  free,
+  included,
+  price,
+  onClose,
+  toast,
+}: {
+  change: CallsChange
+  /** No charge now: going back up to what this billing period already paid for. */
+  free: boolean
+  included: number
+  price: (extra: number) => string
+  onClose: () => void
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [signIn, setSignIn] = useState(false)
+  const more = change.to > change.from
+  const count = included + change.to
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    const workspaceId = tabWorkspace()
+    let attempt = 0
+    try {
+      // More calls charge the card: the owner confirms it is them first (a passkey, or a recent sign-in).
+      const done = await withPasskeyStepUp(async () => {
+        // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
+        if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
+        return write<ExtraCallsData>('billing.setExtraCalls', {
+          workspaceId: change.workspaceId,
+          extraCalls: change.to,
+        })
+      }, t('settings.billing.calls.stepUpWhat'))
+      setQueryData<BillingOverviewData | undefined>(OVERVIEW, d =>
+        d?.bill
+          ? {
+              ...d,
+              bill: {
+                ...d.bill,
+                calls: {
+                  ...d.bill.calls,
+                  workspaces: d.bill.calls.workspaces.map(w =>
+                    w.workspaceId === done.workspaceId ? { ...w, extraCalls: done.extraCalls, limit: done.limit } : w,
+                  ),
+                },
+              },
+            }
+          : d,
+      )
+      toast(t('settings.billing.calls.saved', { count: done.limit }))
+      void reloadBill()
+      onClose()
+    } catch (err) {
+      if ((err as { code?: string }).code === 'SIGN_IN_AGAIN') setSignIn(true)
+      setError(errorMessage(err))
+      setBusy(false)
+    }
+  }
+
+  function signInFirst() {
+    window.history.replaceState(null, '', `#workspace/billing${workspaceQuery()}`)
+    void signInAgain()
+  }
+
+  return (
+    <Dialog
+      title={more ? t('settings.billing.calls.addTitle') : t('settings.billing.calls.removeTitle')}
+      size="sm"
+      onClose={busy ? () => {} : onClose}
+      onSubmit={e => {
+        e.preventDefault()
+        void save()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" busy={busy}>
+            {!more
+              ? t('settings.billing.calls.removeButton')
+              : free
+                ? t('settings.billing.calls.addFreeButton')
+                : t('settings.billing.calls.addButton', { price: price(change.to - change.from) })}
+          </Button>
+        </>
+      }
+    >
+      <p>
+        {change.to === 0
+          ? t('settings.billing.calls.textIncluded', { name: change.name, count })
+          : t('settings.billing.calls.text', { name: change.name, count, price: price(change.to) })}
+      </p>
+      <p className="help">
+        {!more
+          ? t('settings.billing.calls.removeNote')
+          : free
+            ? t('settings.billing.calls.addFreeNote')
+            : t('settings.billing.calls.addNote')}
+      </p>
+      {error && !signIn && <Note tone="danger">{error}</Note>}
+      {signIn && (
+        <Note
+          tone="warning"
+          title={t('settings.billing.cap.signInTitle')}
+          action={
+            <Button size="sm" title={t('settings.billing.cap.signInTip')} onClick={signInFirst}>
+              {t('settings.billing.cap.signIn')}
+            </Button>
+          }
+        >
+          {t('settings.billing.calls.signInText')}
+        </Note>
+      )}
+    </Dialog>
   )
 }
 

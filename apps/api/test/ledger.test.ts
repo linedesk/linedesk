@@ -299,9 +299,10 @@ describe('a call from the gate to its usage entry', () => {
       allow: false,
       reason: 'no_balance',
     })
-    const trial = await billFor('trialing')
-    await reserve(trial, (await newCall(trial.ws.id)).id)
-    await reserve(trial, (await newCall(trial.ws.id)).id)
+    // The trial: at most 5 calls at once per bill (LIN-450, review of #1103 L-4), money for those past the allowance.
+    const trial = await billFor('trialing', 10_000_000)
+    for (let i = 0; i < 5; i++)
+      expect(await reserve(trial, (await newCall(trial.ws.id)).id), `call ${i + 1}`).toMatchObject({ allow: true })
     expect(await reserve(trial, (await newCall(trial.ws.id)).id)).toMatchObject({
       allow: false,
       reason: 'too_many_calls',

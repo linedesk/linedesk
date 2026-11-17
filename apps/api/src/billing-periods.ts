@@ -28,6 +28,7 @@ import {
   type Tx,
   usage_counters,
   user,
+  EXTRA_CALLS_LOOKUP_PREFIX,
 } from '@linedesk/db'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
@@ -544,13 +545,17 @@ export async function renewalReminderDays(tx: Pick<Tx, 'select'>): Promise<numbe
   return RENEWAL_REMINDER_DAYS.default
 }
 
-/** What the renewal charges, from the subscription's items: the seats and the partner base, at their own prices. */
+/** What the renewal charges, from the subscription's items: the seats, the partner base and the extra calls, at their own prices. */
 function renewalLines(items: { lookupKey: string | null; quantity: number; unitAmountCents?: number | null }[]) {
   return items
     .filter(i => i.unitAmountCents != null && i.quantity > 0)
     .map(
       (i): RenewalLine => ({
-        item: i.lookupKey?.startsWith('partner_') ? 'partner' : 'seats',
+        item: i.lookupKey?.startsWith('partner_')
+          ? 'partner'
+          : i.lookupKey?.startsWith(EXTRA_CALLS_LOOKUP_PREFIX)
+            ? 'extraCalls'
+            : 'seats',
         quantity: i.quantity,
         unitCents: i.unitAmountCents!,
       }),

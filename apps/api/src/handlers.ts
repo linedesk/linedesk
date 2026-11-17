@@ -43,6 +43,7 @@ import {
   assistants,
   availability_exceptions,
   availability_rules,
+  billing_accounts,
   call_evaluations,
   call_events,
   call_reservations,
@@ -56,6 +57,7 @@ import {
   workspace_members,
   workspace_settings,
   type Tx,
+  workspaceCallLimit,
 } from '@linedesk/db'
 import type { ActionItem, Assistant, AssistantVoice, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
 import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
@@ -64,6 +66,7 @@ import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
 import { billingAdminHandlers } from './billing-admin.ts'
+import { billingRules } from './billing-rules.ts'
 import { billingOwnerHandlers } from './billing-owner.ts'
 import { billingPageHandlers, billingPagePreparers } from './billing-page.ts'
 import { stripeEventHandlers, stripeEventPreparers } from './stripe-events.ts'
@@ -472,7 +475,8 @@ async function openCall(
   // A simulated call (the call simulator) costs nothing and holds no line: no cap, no live-call limit.
   const cap = source === 'phone' && !spam && !again ? await spendingCap(tx, workspace_id, now) : null
   const overCap = !!cap?.reached
-  const busy = source === 'phone' && !spam && !overCap && !again && (await atLiveCallLimit(tx, workspace_id, now))
+  const busyAt = source === 'phone' && !spam && !overCap && !again ? await atLiveCallLimit(tx, workspace_id, now) : null
+  const busy = busyAt !== null
   // The fixed line and nothing else so far: spam, busy, over the admin's cap. Billing may refuse the call below too.
   const unanswered = spam || busy || overCap
   // The owner calling from their own phone to try it out: kept on the call, so it never counts as a real caller.
@@ -521,7 +525,13 @@ async function openCall(
           spam_likely: source === 'phone' && spamLikely === true,
           assistant_id: assistant?.id ?? null,
           assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
-          ...(spam ? blockedCall(now, t) : overCap ? overCapCall(now, t) : busy ? busyCall(now, t) : {}),
+          ...(spam
+            ? blockedCall(now, t)
+            : overCap
+              ? overCapCall(now, t)
+              : busyAt !== null
+                ? busyCall(now, t, busyAt)
+                : {}),
         })
         .returning()
   // Refused by billing (no balance, too many calls on the bill, the plan not active, billing switched on but not
@@ -682,9 +692,9 @@ export function keptUrgent(
 }
 
 /**
- * Calls a workspace's assistant answers at the same time. One more is not answered: filed as missed, so the team
- * calls back, and the agent hangs up. Every call costs speech and model minutes; nobody can run up a bill
- * with many lines at once.
+ * Calls the assistant of a workspace that is on no bill (self-host) answers at the same time. One more is not answered:
+ * filed as missed, so the team calls back, and the agent hangs up. Every call costs speech and model minutes; nobody
+ * can run up a bill with many lines at once. A billed workspace follows the billing rules instead (`liveCallLimit`).
  */
 export const LIVE_CALLS_PER_WORKSPACE = liveCallsPerWorkspace()
 
@@ -703,8 +713,30 @@ export function liveCallsPerWorkspace(env: { LIVE_CALLS_PER_WORKSPACE?: string }
  */
 const LIVE_CALL_MAX_MS = (ASSISTANT_CALL_MAX_MINUTES + 5) * 60_000
 
-/** Whether the workspace has as many phone calls in progress as its assistant answers at once (test calls have their own limits). */
-async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
+/**
+ * The phone calls a workspace's assistant answers at once (LIN-450). On a bill: an instance admin's cap for the bill
+ * (Server admin › Billing, `billing.setConcurrency`), else the billing rules' included calls plus the extra calls its
+ * owner bought (Settings › Billing). On no bill: LIVE_CALLS_PER_WORKSPACE plus any extra calls.
+ */
+export async function liveCallLimit(tx: Tx, workspace_id: string): Promise<number> {
+  const [row] = await tx
+    .select({
+      extra: organization.extraCalls,
+      bill: organization.billingAccountId,
+      cap: billing_accounts.concurrent_calls_cap,
+    })
+    .from(organization)
+    .leftJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
+    .where(eq(organization.id, workspace_id))
+  if (!row?.bill) return LIVE_CALLS_PER_WORKSPACE + (row?.extra ?? 0)
+  return row.cap ?? workspaceCallLimit(row.extra, await billingRules(tx))
+}
+
+/**
+ * The workspace's limit when it has as many phone calls in progress as its assistant answers at once, else null (test
+ * calls have their own limits).
+ */
+async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string): Promise<number | null> {
   // Two calls arriving at once cannot both see room for one more.
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`live-calls:${workspace_id}`}))`)
   const [row] = await tx
@@ -718,20 +750,21 @@ async function atLiveCallLimit(tx: Tx, workspace_id: string, now: string) {
         gt(calls.started_at, new Date(Date.parse(now) - LIVE_CALL_MAX_MS).toISOString()),
       ),
     )
-  return (row?.live ?? 0) >= LIVE_CALLS_PER_WORKSPACE
+  const limit = await liveCallLimit(tx, workspace_id)
+  return (row?.live ?? 0) >= limit ? limit : null
 }
 
 /**
  * A call over the workspace's limit of calls at once: filed as missed, unread, with a callback. The agent tells the
  * caller the lines are busy and hangs up (BUSY_LINE in apps/agent).
  */
-const busyCall = (now: string, t: TeamT) => ({
+const busyCall = (now: string, t: TeamT, limit: number) => ({
   status: 'completed' as const,
   ended_at: now,
   duration_sec: 0,
   outcome: 'hangup' as const,
   title: t('call.autoSummary.missed.title'),
-  summary: t('call.autoSummary.missed.busy', { count: LIVE_CALLS_PER_WORKSPACE }),
+  summary: t('call.autoSummary.missed.busy', { count: limit }),
   action_items: [{ text: t('call.autoSummary.missed.callBack') }],
 })
 

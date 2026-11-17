@@ -34,9 +34,11 @@ const FIELDS = {
   trialDays: count(1, 90),
   includedStandardSeconds: count(0, 1_000_000),
   balanceBufferMicros: count(0, 100_000_000),
+  concurrentCallsBase: count(0, 1000),
   trialConcurrentCalls: count(1, 1000),
-  concurrentCallsBase: count(1, 1000),
-  concurrentCallsPerWorkspace: count(0, 1000),
+  concurrentCallsPerWorkspace: count(1, 1000),
+  concurrentCallsMaxPerWorkspace: count(1, 1000),
+  extraCallCents: count(1, 100_000),
   billedTransferCapSeconds: count(60, 7200),
   callLimitGraceSeconds: count(0, 3600),
   extraNumberCents: count(0, 100_000),
@@ -156,6 +158,7 @@ export const PLAN_RULE_FIELDS: ReadonlySet<string> = new Set([
   'workspaceYearlyCents',
   'partnerMonthlyCents',
   'partnerYearlyCents',
+  'extraCallCents',
 ])
 
 /**
@@ -230,16 +233,29 @@ export const topUpLine = (brand: string) => `${brand} prepaid minutes`
 
 /** Every plan lookup key a Linedesk subscription may have. */
 const PLAN_LOOKUP_KEYS: ReadonlySet<string> = new Set(PLAN_PRICES.map(p => p.lookupKey))
+/** The lookup keys of the seats (a workspace or partner plan), without the extra calls sold on top of them. */
+const SEAT_LOOKUP_KEYS: ReadonlySet<string> = new Set(
+  PLAN_PRICES.filter(p => p.product !== 'extra_calls').map(p => p.lookupKey),
+)
+/** The Stripe products of the seats: a seat is known by its product too, whatever its lookup key. */
+const SEAT_PRODUCT_IDS: ReadonlySet<string> = new Set(['linedesk_workspace', 'linedesk_partner'])
 /** The Stripe products of the plans: our own ids, which never change (unlike price ids). */
-const PLAN_PRODUCT_IDS: ReadonlySet<string> = new Set(['linedesk_workspace', 'linedesk_partner'])
+const PLAN_PRODUCT_IDS: ReadonlySet<string> = new Set([
+  'linedesk_workspace',
+  'linedesk_partner',
+  'linedesk_extra_calls',
+])
 
 /**
- * A subscription of only our plan prices: every item has a plan lookup key (or its `metadata.linedesk`) **and** its
+ * A subscription of only our plan prices, with at least one seat: every item has a plan lookup key (or its `metadata.linedesk`) **and** its
  * price belongs to one of our plan products. Lookup keys are generic (`ws_monthly`): in a Stripe account shared with
  * another integration, its prices may carry the same ones (security review of #1040, L-1).
  */
 export const isLinedeskPlan = (sub: BillingSubscription) =>
-  sub.items.length > 0 &&
+  // At least one seat: extra calls are only ever sold on top of a plan (security review of #1103, L-5).
+  sub.items.some(
+    i => (!!i.lookupKey && SEAT_LOOKUP_KEYS.has(i.lookupKey)) || (!!i.productId && SEAT_PRODUCT_IDS.has(i.productId)),
+  ) &&
   sub.items.every(
     i => !!i.lookupKey && PLAN_LOOKUP_KEYS.has(i.lookupKey) && !!i.productId && PLAN_PRODUCT_IDS.has(i.productId),
   )

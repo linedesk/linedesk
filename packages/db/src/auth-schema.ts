@@ -122,6 +122,9 @@ export const organization = pgTable(
     billingAccountId: text("billing_account_id"),
     // The bill's state mirrored for a fast read on the call path; null while unbilled.
     billingState: text("billing_state", { enum: ["pending_payment", "active", "suspended"] }),
+    // Not Better Auth's: the extra calls at once the bill owner bought for this workspace (LIN-450), on top of the
+    // included ones; a multiple of EXTRA_CALLS_STEP (5), billed as the bill's extra-calls item in Stripe.
+    extraCalls: integer("extra_calls").notNull().default(0),
     // Not Better Auth's: the white-label partner that runs this workspace for its client (partners.id,
     // docs/white-label.md); null: no partner. Its foreign key is in migration 0131 (partners lives in schema.ts).
     partnerId: text("partner_id"),
@@ -134,6 +137,7 @@ export const organization = pgTable(
       "organization_billing_state",
       sql`${table.billingState} is null or ${table.billingState} in ('pending_payment', 'active', 'suspended')`,
     ),
+    check("organization_extra_calls", sql`${table.extraCalls} between 0 and 1000 and ${table.extraCalls} % 5 = 0`),
   ],
 );
 

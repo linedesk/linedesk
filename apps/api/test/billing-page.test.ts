@@ -15,10 +15,16 @@ import {
   session,
   usage_counters,
 } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { PASSKEY_STEP_UP_REQUIRED } from '../src/admin-step-up.ts'
-import { BILLING_PAGE_CODES, billingPageHandlers } from '../src/billing-page.ts'
+import {
+  BILLING_PAGE_CODES,
+  billingPageHandlers,
+  EXTRA_CALLS_CHANGES_PER_HOUR,
+  resetExtraCallsLimit,
+} from '../src/billing-page.ts'
+import { liveCallLimit } from '../src/handlers.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import type { HandlerCtx } from '../src/handler-context.ts'
@@ -38,6 +44,29 @@ const cloud = vi.hoisted(() => ({
   /** What each subscription charges a seat, as Stripe has it (by subscription id); one not here is not known. */
   seats: new Map<string, { lookupKey: string; cents: number }>(),
   subscriptionReads: 0,
+  /**
+   * The extra-calls quantities Stripe was asked to set; `refuseExtraCalls`: Stripe answers an error; `cardRefused`: the
+   * card is declined for the charged part.
+   */
+  extraCalls: [] as {
+    subscriptionId: string
+    priceId: string
+    quantity: number
+    paidUpTo: number
+    charge: boolean
+    idempotencyKey: string
+  }[],
+  refuseExtraCalls: false,
+  cardRefused: false,
+  /** Runs while Stripe "answers" an extra-calls change. */
+  onExtraCalls: null as null | (() => Promise<void>),
+  /** The price ids the last catalog sync stored. */
+  prices: { extra_calls_monthly: 'price_xc_month', extra_calls_yearly: 'price_xc_year' } as Record<string, string>,
+}))
+vi.mock('../src/billing-catalog.ts', async original => ({
+  ...(await original<typeof import('../src/billing-catalog.ts')>()),
+  syncedPrices: async () => cloud.prices,
+  syncBillingCatalog: async () => ({ synced: 'skipped' }),
 }))
 vi.mock('../src/billing-settings.ts', async original => {
   const real = await original<typeof import('../src/billing-settings.ts')>()
@@ -57,6 +86,13 @@ vi.mock('../src/billing-settings.ts', async original => {
           { lookupKey: seat.lookupKey, quantity: 1, unitAmountCents: seat.cents, productId: 'linedesk_workspace' },
         ],
       }
+    },
+    setExtraCallsQuantity: async (input: (typeof cloud.extraCalls)[number]) => {
+      await cloud.onExtraCalls?.()
+      if (cloud.refuseExtraCalls) throw new Error('Stripe: this subscription is canceled')
+      if (cloud.cardRefused && input.charge && input.quantity > input.paidUpTo) return 'payment_failed'
+      cloud.extraCalls.push(input)
+      return 'updated'
     },
     rechargeInvoicePage: async (id: string) => {
       cloud.invoicePages.push(id)
@@ -80,6 +116,10 @@ beforeEach(() => {
   cloud.invoicePages.length = 0
   cloud.onInvoicePage = null
   cloud.noInvoicePage = false
+  cloud.extraCalls.length = 0
+  cloud.refuseExtraCalls = false
+  cloud.cardRefused = false
+  resetExtraCallsLimit()
   setJobQueue({
     send: async (name: string, data: Record<string, unknown>) => {
       queued.push({ name, data })
@@ -791,5 +831,181 @@ describe('billing.workspaceUsage', () => {
     expect(await read(unbilled.owner)).toEqual({ usage: null })
     cloud.on = false
     expect(await read(b.owner)).toEqual({ usage: null })
+  })
+})
+
+describe('billing.setExtraCalls (LIN-450)', () => {
+  const extraOf = async (workspaceId: string) =>
+    (await db.select().from(organization).where(eq(organization.id, workspaceId)))[0]!.extraCalls
+  const limitOf = (workspaceId: string) => db.transaction(tx => liveCallLimit(tx, workspaceId))
+  const set = (who: Caller, workspaceId: string, extraCalls: number) =>
+    act(who, 'billing.setExtraCalls', { workspaceId, extraCalls })
+
+  test('the owner buys 5 more: Stripe charges the sum now, the call gate lets 10 in; fewer at once, never refunded', async () => {
+    const b = await billed()
+    expect(await limitOf(b.ws.id)).toBe(5)
+    expect((await overview(b.owner)).bill.calls).toMatchObject({
+      includedPerWorkspace: 5,
+      extraCallCents: 100,
+      step: 5,
+      maxExtra: 45,
+      canAdd: true,
+      paidExtra: 0,
+      workspaces: [{ workspaceId: b.ws.id, extraCalls: 0, limit: 5 }],
+    })
+    const res = await set(b.owner, b.ws.id, 5)
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ workspaceId: b.ws.id, extraCalls: 5, limit: 10 })
+    expect(cloud.extraCalls).toEqual([
+      expect.objectContaining({
+        subscriptionId: (await billNow(b.billId)).stripe_subscription_id,
+        priceId: 'price_xc_month',
+        quantity: 5,
+        paidUpTo: 0,
+        charge: true,
+      }),
+    ])
+    expect(await extraOf(b.ws.id)).toBe(5)
+    expect(await limitOf(b.ws.id)).toBe(10)
+    expect(await billNow(b.billId)).toMatchObject({ extra_calls_paid: 5 })
+    // Fewer: stored at once, Stripe follows after the commit and is never charged or refunded.
+    expect((await set(b.owner, b.ws.id, 0)).status).toBe(200)
+    expect(cloud.extraCalls[1]).toMatchObject({ quantity: 0, charge: false })
+    expect(await limitOf(b.ws.id)).toBe(5)
+  })
+
+  test('lowering then raising again in the same period is not charged twice (review of #1103, M-1)', async () => {
+    const b = await billed()
+    expect((await set(b.owner, b.ws.id, 20)).status).toBe(200)
+    expect((await set(b.owner, b.ws.id, 0)).status).toBe(200)
+    expect((await overview(b.owner)).bill.calls.paidExtra).toBe(20)
+    // Back up: Stripe is told 20 are paid, so only what is above them is charged.
+    expect((await set(b.owner, b.ws.id, 25)).status).toBe(200)
+    expect(cloud.extraCalls.at(-1)).toMatchObject({ quantity: 25, paidUpTo: 20, charge: true })
+    expect(await billNow(b.billId)).toMatchObject({ extra_calls_paid: 25 })
+    // A new period (the renewal moved the period end and charged what was on the bill) starts from that.
+    expect((await set(b.owner, b.ws.id, 10)).status).toBe(200)
+    await db
+      .update(billing_accounts)
+      .set({ current_period_end: at(Date.now() + 50 * DAY) })
+      .where(eq(billing_accounts.id, b.billId))
+    expect((await set(b.owner, b.ws.id, 15)).status).toBe(200)
+    expect(cloud.extraCalls.at(-1)).toMatchObject({ quantity: 15, paidUpTo: 10 })
+  })
+
+  test('while the renewal has not reached us, nothing counts as paid and raises wait (review of #1103, V-1)', async () => {
+    const b = await billed()
+    expect((await set(b.owner, b.ws.id, 20)).status).toBe(200)
+    expect((await set(b.owner, b.ws.id, 0)).status).toBe(200)
+    // Stripe started the new period (and renewed the item at 0); our period end is still the old one.
+    await db
+      .update(billing_accounts)
+      .set({ current_period_end: at(Date.now() - 60_000) })
+      .where(eq(billing_accounts.id, b.billId))
+    const raise = await set(b.owner, b.ws.id, 20)
+    expect(raise.body.code).toBe(BILLING_PAGE_CODES.extraCallsRenewing)
+    expect(await extraOf(b.ws.id)).toBe(0)
+    expect((await overview(b.owner)).bill.calls.paidExtra).toBe(0)
+    // Lowering still works.
+    await db.update(organization).set({ extraCalls: 10 }).where(eq(organization.id, b.ws.id))
+    expect((await set(b.owner, b.ws.id, 5)).status).toBe(200)
+    // Once invoice.paid moved the period end, raises work again and start from what the renewal charged.
+    await db
+      .update(billing_accounts)
+      .set({ current_period_end: at(Date.now() + 30 * DAY) })
+      .where(eq(billing_accounts.id, b.billId))
+    expect((await set(b.owner, b.ws.id, 20)).status).toBe(200)
+    expect(cloud.extraCalls.at(-1)).toMatchObject({ quantity: 20, paidUpTo: 5, charge: true })
+  })
+
+  test('a refused card adds nothing; a plan that ends at the period end adds nothing (review of #1103, L-1)', async () => {
+    const b = await billed()
+    cloud.cardRefused = true
+    const refused = await set(b.owner, b.ws.id, 5)
+    expect(refused.body.code).toBe(BILLING_PAGE_CODES.extraCallsPaymentFailed)
+    expect(await extraOf(b.ws.id)).toBe(0)
+    expect(await billNow(b.billId)).toMatchObject({ extra_calls_paid: 0 })
+    cloud.cardRefused = false
+    await db.update(billing_accounts).set({ cancel_at_period_end: true }).where(eq(billing_accounts.id, b.billId))
+    expect((await set(b.owner, b.ws.id, 5)).body.code).toBe(BILLING_PAGE_CODES.extraCallsCanceling)
+    expect((await overview(b.owner)).bill.calls.canAdd).toBe(false)
+    expect(cloud.extraCalls).toEqual([])
+  })
+
+  test('raising needs a recent sign-in; lowering does not; changes are limited per hour (review of #1103, M-1)', async () => {
+    const b = await billed({}, 1000)
+    await db.update(organization).set({ extraCalls: 10 }).where(eq(organization.id, b.ws.id))
+    await ageSession(b.ws.owner.userId)
+    expect(await set(b.owner, b.ws.id, 15)).toMatchObject({ status: 409, body: { code: 'SIGN_IN_AGAIN' } })
+    expect((await set(b.owner, b.ws.id, 5)).status).toBe(200)
+    await db.update(session).set({ createdAt: new Date() }).where(eq(session.userId, b.ws.owner.userId))
+    for (let i = 1; i < EXTRA_CALLS_CHANGES_PER_HOUR; i++)
+      expect((await set(b.owner, b.ws.id, i % 2 ? 10 : 5)).status, `change ${i + 1}`).toBe(200)
+    expect((await set(b.owner, b.ws.id, 15)).body.code).toBe(BILLING_PAGE_CODES.extraCallsTooOften)
+  })
+
+  test('a yearly bill pays at its price; a second workspace on the bill adds to the same item', async () => {
+    const b = await billed({ interval: 'year' })
+    const second = await createWorkspace('Brightwater North')
+    await db
+      .update(organization)
+      .set({ billingAccountId: b.billId, billingState: 'active', extraCalls: 10 })
+      .where(eq(organization.id, second.id))
+    expect((await set(b.owner, b.ws.id, 5)).status).toBe(200)
+    // The 10 already on the bill were paid when they were bought.
+    expect(cloud.extraCalls[0]).toMatchObject({ priceId: 'price_xc_year', quantity: 15, paidUpTo: 10, charge: true })
+  })
+
+  test('refused: more in the trial, above the most per workspace, off steps of 5, another bill, not the bill owner', async () => {
+    const trial = await billed({ status: 'trialing' })
+    const inTrial = await set(trial.owner, trial.ws.id, 5)
+    expect(inTrial.body.code).toBe(BILLING_PAGE_CODES.extraCallsPaidPlan)
+    expect((await overview(trial.owner)).bill.calls.canAdd).toBe(false)
+    const b = await billed()
+    const tooMany = await set(b.owner, b.ws.id, 50)
+    expect(tooMany.body.code).toBe(BILLING_PAGE_CODES.extraCallsAboveMax)
+    expect((await set(b.owner, b.ws.id, 7)).status).toBe(422)
+    const other = await billed()
+    const foreign = await set(b.owner, other.ws.id, 5)
+    expect(foreign.body.code).toBe(BILLING_PAGE_CODES.notOnBill)
+    const member = await addMember(b.ws.id, 'admin')
+    expect((await set(member, b.ws.id, 5)).status).toBe(403)
+    expect(cloud.extraCalls).toEqual([])
+    expect(await extraOf(b.ws.id)).toBe(0)
+  })
+
+  test('Stripe refuses a raise: nothing changes here', async () => {
+    const b = await billed()
+    cloud.refuseExtraCalls = true
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await set(b.owner, b.ws.id, 5)
+    expect(res.status).toBeGreaterThanOrEqual(400)
+    expect(await extraOf(b.ws.id)).toBe(0)
+  })
+
+  test('the bill is not locked while Stripe answers: a call can reserve meanwhile (review of #1103, L-2)', async () => {
+    const b = await billed()
+    let reserved = false
+    const answer = cloud.onExtraCalls
+    cloud.onExtraCalls = async () => {
+      // Another connection takes the bill's balance lock, as a starting call does; it would wait on the old lock.
+      await db.transaction(async tx => {
+        await tx.execute(sql`set local lock_timeout = '2s'`)
+        await lockBalance(tx, b.billId)
+        reserved = true
+      })
+    }
+    try {
+      expect((await set(b.owner, b.ws.id, 5)).status).toBe(200)
+    } finally {
+      cloud.onExtraCalls = answer
+    }
+    expect(reserved).toBe(true)
+  })
+
+  test("an instance admin's cap for the bill is the workspace's limit too", async () => {
+    const b = await billed({ concurrent_calls_cap: 12 })
+    expect(await limitOf(b.ws.id)).toBe(12)
+    expect((await overview(b.owner)).bill.calls.workspaces[0].limit).toBe(12)
   })
 })

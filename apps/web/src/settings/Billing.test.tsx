@@ -43,6 +43,15 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   balanceMicros: 12_340_000,
   availableMicros: 12_340_000,
   autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
+  calls: {
+    includedPerWorkspace: 5,
+    extraCallCents: 100,
+    step: 5,
+    maxExtra: 45,
+    canAdd: true,
+    paidExtra: 0,
+    workspaces: [{ workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 }],
+  },
   cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 2000, ownerMaxBaseCents: 100_000 },
   rechargeFailure: null,
   rechargePending: null,
@@ -267,4 +276,40 @@ test('the cancel dialog: the yearly refund within 14 days and the balance refund
   const monthly = renderToStaticMarkup(<CancelDialog bill={bill()} onClose={() => {}} toast={() => {}} />)
   expect(monthly).not.toContain('refunded if you ask by')
   expect(monthly).toContain('Your unused balance of $12.34')
+})
+
+test('calls at the same time: 5 included per workspace, 5 more for $5 a month, no extra primary button', () => {
+  const html = render({ billingOn: true, bill: bill() })
+  expect(html).toContain('Calls at the same time')
+  expect(html).toContain('5 calls at the same time are included in each workspace; 5 more cost $5.00 a month.')
+  expect(html).toContain('Up to 5 calls at the same time, included in your plan')
+  // A custom list, never the browser's select.
+  expect(html).not.toContain('<select')
+  expect(primaries(html)).toBe(1)
+  const bought = bill({
+    calls: {
+      ...bill().calls,
+      workspaces: [{ workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 10, limit: 15 }],
+    },
+  })
+  expect(render({ billingOn: true, bill: bought })).toContain(
+    'Up to 15 calls at the same time, $10.00 a month for the extra ones',
+  )
+})
+
+test('calls at the same time in the trial: more only once the plan is paid; several workspaces by name', () => {
+  const trial = bill({
+    status: 'trialing',
+    calls: {
+      ...bill().calls,
+      canAdd: false,
+      workspaces: [
+        { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 },
+        { workspaceId: 'ws_2', name: 'Brightwater North', extraCalls: 0, limit: 5 },
+      ],
+    },
+  })
+  const html = render({ billingOn: true, bill: trial })
+  expect(html).toContain('More calls at the same time can be added once your plan is paid, after the trial.')
+  expect(html).toContain('Brightwater North')
 })

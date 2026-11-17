@@ -95,7 +95,7 @@ Capacity check against production, run on staging (the callers on staging, produ
 
 `pnpm --filter @linedesk/agent load-test --remote --to <prod number 1>,<prod number 2>,<prod number 3>,<prod number 4> --calls 1,5,10,20 --caller-memory 6g --caller-cpuset <cores>`
 
-- A workspace answers at most 5 phone calls at once (`LIVE_CALLS_PER_WORKSPACE`); the others hear the busy line, which counts as answered here (a short `durationMs`). For 20 real calls give 4 or more numbers of different workspaces.
+- A workspace answers at most 5 phone calls at once (`LIVE_CALLS_PER_WORKSPACE` on a workspace without a bill; on a billed one Server admin › Billing › Calls at once for its bill, or extra calls under Settings › Billing); the others hear the busy line, which counts as answered here (a short `durationMs`). For 20 real calls give 4 or more numbers of different workspaces.
 - Production's test workspaces must have their assistant on the three stages (Settings › Assistant › Answered by).
 - Cost: every call is billed on both sides (speech, model and voice on staging for the caller, on production for the assistant: about a cent a minute per side) plus Telnyx for both legs (staging's outbound, production's inbound). 1+5+10+20 calls of up to 3.5 minutes are 36 calls.
 - The test-caller trunk places all calls from the one `CALL_TEST_FROM` number: Telnyx's channel limit of the staging account must allow 20 at once.

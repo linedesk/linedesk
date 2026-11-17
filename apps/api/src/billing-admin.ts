@@ -68,6 +68,7 @@ import { billingProvider, billingState, refuseMoneyChange } from './billing-sett
 import type { Actor } from './context.ts'
 import { db, ownCommitDb } from './db.ts'
 import { type AlertActor, billingRulesAlert, selfServeAlert, signupRulesAlert } from './emails/alerts.ts'
+import { syncExtraCallsItem } from './extra-calls.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
@@ -153,7 +154,12 @@ async function billRows(tx: Tx, ids?: string[]): Promise<AdminBillRow[]> {
     .orderBy(desc(billing_accounts.created_at))
   const workspaces = bills.length
     ? await tx
-        .select({ id: organization.id, name: organization.name, bill: organization.billingAccountId })
+        .select({
+          id: organization.id,
+          name: organization.name,
+          bill: organization.billingAccountId,
+          extraCalls: organization.extraCalls,
+        })
         .from(organization)
         .where(
           inArray(
@@ -168,7 +174,9 @@ async function billRows(tx: Tx, ids?: string[]): Promise<AdminBillRow[]> {
     status: bill.status,
     interval: bill.interval,
     owner: { id: bill.owner_user_id, email, name },
-    workspaces: workspaces.filter(w => w.bill === bill.id).map(w => ({ id: w.id, name: w.name })),
+    workspaces: workspaces
+      .filter(w => w.bill === bill.id)
+      .map(w => ({ id: w.id, name: w.name, extraCalls: w.extraCalls })),
     balanceMicros: exact(balance),
     reservedMicros: exact(reserved),
     heldForReviewAt: bill.held_for_review_at,
@@ -309,7 +317,10 @@ async function billDetail(tx: Tx, billId: string): Promise<AdminBillDetail> {
     rechargeCapBaseCents: bill.recharge_cap_base_cents,
     rechargeCapCents: rechargeCapCents(bill.recharge_cap_base_cents, workspaceIds.length, rules),
     concurrentCallsCap: bill.concurrent_calls_cap,
-    rulesConcurrentCalls: concurrentCallCap(bill.status === 'trialing', workspaceIds.length, rules),
+    rulesConcurrentCalls: concurrentCallCap(
+      row!.workspaces.map(w => w.extraCalls),
+      rules,
+    ),
     suspendReason: bill.suspend_reason,
     rechargeFailedAt: bill.recharge_failed_at,
     usage: usage.map(u => ({
@@ -801,15 +812,20 @@ async function followSeats(provider: BillingProvider, bill: Bill, grows: boolean
   })
 }
 
-async function moveSeats(provider: BillingProvider, from: Bill, to: Bill, requestId: string) {
+async function moveSeats(provider: BillingProvider, from: Bill, to: Bill, requestId: string, extraCalls: boolean) {
   // The source shrinks first: a target charged while the source still counts the workspace is what M2 was about.
   for (const [bill, grows] of [
     [from, false],
     [to, true],
-  ] as const)
+  ] as const) {
     await followSeats(provider, bill, grows, requestId).catch(e =>
       console.error(`ALERT billing seats: bill ${bill.id} not updated after a move (${requestId})`, e),
     )
+    // Extra calls at the same time follow the workspace too (LIN-450): under each bill's own lock, the sum as it is
+    // then (security review of #1103, L-3); the target pays above what it already paid this period, the source is not
+    // refunded. A failure is emailed to the admins.
+    if (extraCalls) await syncExtraCallsItem(provider, bill.id, { charge: grows, key: `move_extra_calls_${requestId}` })
+  }
 }
 
 async function moveWorkspace(
@@ -833,7 +849,7 @@ async function moveWorkspace(
   // Read again under the locks (security review of #919, L3): a move that ran meanwhile changed it, and this one would
   // act on a bill the workspace already left.
   const [workspace] = await tx
-    .select({ id: organization.id, bill: organization.billingAccountId })
+    .select({ id: organization.id, bill: organization.billingAccountId, extraCalls: organization.extraCalls })
     .from(organization)
     .where(eq(organization.id, input.workspaceId))
     .for('update')
@@ -863,7 +879,13 @@ async function moveWorkspace(
   if (provider && !onCommit) throw new Error('billing.moveWorkspace changes seats after the commit: no onCommit given')
   await tx
     .update(organization)
-    .set({ billingAccountId: to.id, billingState: mirroredState(to.status) })
+    // Extra calls are bought on a paid plan: onto a bill without a subscription (trial, comped) the workspace leaves
+    // them behind (LIN-450).
+    .set({
+      billingAccountId: to.id,
+      billingState: mirroredState(to.status),
+      ...(to.stripe_subscription_id ? {} : { extraCalls: 0 }),
+    })
     .where(eq(organization.id, workspace.id))
   // Someone else pays from now on: Allow Premium and Allow Ultra were the old payer's choice (LIN-438). The same
   // owner keeps them.
@@ -871,7 +893,7 @@ async function moveWorkspace(
     from.owner_user_id === to.owner_user_id
       ? { reset: { workspaceIds: [], movedToStandard: [], movedOffUltra: [] } }
       : await billPayerChanged(tx, [workspace.id], actor.actorId)
-  if (provider) onCommit!(() => moveSeats(provider, from, to, input.requestId))
+  if (provider) onCommit!(() => moveSeats(provider, from, to, input.requestId, workspace.extraCalls > 0))
   return { from: from.id, to: to.id, payerReset }
 }
 

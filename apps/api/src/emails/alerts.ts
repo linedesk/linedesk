@@ -437,6 +437,23 @@ export const stuckRechargesAlert =
     }
   }
 
+/**
+ * A bill's extra calls at the same time could not be set in Stripe after a change (extra-calls.ts
+ * `syncExtraCallsItem`): Stripe charges for another number of extra calls than the app grants.
+ */
+export const extraCallsSyncAlert =
+  (bill: string): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.extraCallsSync.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.extraCallsSync.text', { bill }) },
+        { kind: 'text', text: t('email.adminAlert.extraCallsSync.fix') },
+      ],
+    }
+  }
+
 /** Every passkey of an account was removed (user.resetPasskeys). */
 export const passkeysResetAlert =
   (actor: AlertActor, email: string, removed: number, isAdmin: boolean): AdminAlertText =>
