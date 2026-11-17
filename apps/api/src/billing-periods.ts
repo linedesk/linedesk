@@ -29,6 +29,7 @@ import {
   type Tx,
   usage_counters,
   user,
+  workspace_settings,
   EXTRA_CALLS_LOOKUP_PREFIX,
 } from '@linedesk/db'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
@@ -42,7 +43,15 @@ import { db } from './db.ts'
 import type { EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
 import { billingPeriodsFailedAlert } from './emails/billing-alerts.ts'
-import { billingLifecycleEmail, type LifecycleEmail, type RenewalLine } from './emails/billing-lifecycle.ts'
+import {
+  billingLifecycleEmail,
+  type LifecycleEmail,
+  type ManagerChangedEmail,
+  managerChangedEmail,
+  type ManagerChangedView,
+  type RenewalLine,
+} from './emails/billing-lifecycle.ts'
+import { emailSafeName } from './emails/templates.ts'
 import { jobQueue } from './jobs.ts'
 import { decideRecharge, lockBalance, periodAt, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
@@ -631,10 +640,15 @@ export async function sendRenewalReminders(provider: BillingProvider, now: strin
  * `workspace`: the email is about this workspace (a port-out of its number): it links there, and its owner gets it
  * too when that is someone else than the bill owner.
  */
-export type LifecycleEmailJob = { bill: string; email: LifecycleEmail; workspace?: string }
+export type LifecycleEmailJob = { bill: string; email: LifecycleEmail | ManagerChangedEmail; workspace?: string }
 
 /** Queues one owner email in the caller's transaction: it goes only if that commits. Without a queue (tests) nothing. */
-export async function queueLifecycleEmail(tx: Tx, bill: string, email: LifecycleEmail, workspace?: string) {
+export async function queueLifecycleEmail(
+  tx: Tx,
+  bill: string,
+  email: LifecycleEmail | ManagerChangedEmail,
+  workspace?: string,
+) {
   const job: LifecycleEmailJob = workspace ? { bill, email, workspace } : { bill, email }
   await jobQueue()?.send(BILLING_LIFECYCLE_EMAIL, job, {
     db: fromDrizzle(tx, sql),
@@ -673,11 +687,38 @@ export async function sendLifecycleEmail(sender: EmailSender, job: LifecycleEmai
     if (workspaceOwner?.email) to.add(workspaceOwner.email)
   }
   if (!to.size) return { sent: 'nobody' as const }
+  const { email } = job
+  const view = email.kind === 'manager_changed' ? await managerChangedView(email, workspace.id) : null
   for (const address of to) {
     const locale = await localeForEmail(db, address)
-    await sender.send({ to: address, ...billingLifecycleEmail(job.email, workspace.id, undefined, locale) })
+    const rendered =
+      email.kind === 'manager_changed'
+        ? managerChangedEmail(view!, workspace.id, undefined, locale)
+        : billingLifecycleEmail(email, workspace.id, undefined, locale)
+    await sender.send({ to: address, ...rendered })
   }
   return { sent: to.size > 1 ? ('owners' as const) : ('owner' as const) }
+}
+
+/**
+ * Who changed the bill and where, read when the note is sent (the job carries ids only): their name and address, the
+ * workspace's name and time zone.
+ */
+async function managerChangedView(email: ManagerChangedEmail, workspaceId: string): Promise<ManagerChangedView> {
+  const { kind: _kind, actorId, ...change } = email
+  const [actor] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actorId))
+  const [workspace] = await db
+    .select({ name: organization.name, timezone: workspace_settings.timezone })
+    .from(organization)
+    .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, organization.id))
+    .where(eq(organization.id, workspaceId))
+  return {
+    ...change,
+    name: emailSafeName(actor?.name, '') || null,
+    email: actor?.email ?? null,
+    workspace: emailSafeName(workspace?.name, '') || null,
+    timeZone: workspace?.timezone ?? null,
+  }
 }
 
 // ---- The job ----

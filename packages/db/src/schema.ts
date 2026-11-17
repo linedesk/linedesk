@@ -1933,6 +1933,9 @@ const ALERT_KINDS = [
   // A caller of one of the bill's workspaces heard a busy line because all its calls at the same time were in use
   // (LIN-450, docs/billing.md §2.1c): once per workspace and day (`ref`: `<workspace id>:<YYYY-MM-DD>`, its time zone).
   'busy_line',
+  // A new card put on a bill in a Stripe portal someone else than its owner opened (bill-manager.ts): the owner's
+  // email, once per card (ref `card:<payment method id>`).
+  'manager_change',
 ] as const
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 

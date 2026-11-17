@@ -34,6 +34,7 @@ import { todayIn } from '../src/public-holidays.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import type { HandlerCtx } from '../src/handler-context.ts'
+import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { BILLING_RECHARGE, setJobQueue } from '../src/jobs.ts'
 import { lockBalance, postEntry } from '../src/ledger.ts'
 import { runAction } from '../src/run-action.ts'
@@ -1074,6 +1075,37 @@ describe('billing.setExtraCalls (LIN-450)', () => {
     const b = await billed({ concurrent_calls_cap: 12 })
     expect(await limitOf(b.ws.id)).toBe(12)
     expect((await overview(b.owner)).bill.calls.workspaces[0].limit).toBe(12)
+  })
+
+  test("a workspace admin's change: one email to the bill owner per change; the owner's own changes send none", async () => {
+    const b = await billed()
+    const notes = () => queued.filter(j => j.name === BILLING_LIFECYCLE_EMAIL).map(j => j.data)
+    expect((await set(b.owner, b.ws.id, 5)).status).toBe(200)
+    expect(notes()).toEqual([])
+    const admin = await addMember(b.ws.id, 'admin')
+    const key = crypto.randomUUID()
+    const raise = () => act(admin, 'billing.setExtraCalls', { workspaceId: b.ws.id, extraCalls: 10 }, key)
+    expect((await raise()).status).toBe(200)
+    // A retry of the same command is answered from the command log: no second charge, no second email.
+    expect((await raise()).status).toBe(200)
+    // The same number again changes nothing: no email.
+    expect((await set(admin, b.ws.id, 10)).status).toBe(200)
+    expect(notes()).toEqual([
+      {
+        bill: b.billId,
+        email: {
+          kind: 'manager_changed',
+          change: 'extraCalls',
+          actorId: admin.userId,
+          at: expect.any(String),
+          from: 5,
+          to: 10,
+        },
+      },
+    ])
+    const member = await addMember(b.ws.id, 'member')
+    expect((await set(member, b.ws.id, 0)).status).toBe(403)
+    expect(notes()).toHaveLength(1)
   })
 })
 

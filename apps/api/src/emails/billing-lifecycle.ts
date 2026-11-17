@@ -1,12 +1,13 @@
 // The bill owner's emails about the bill's life (docs/billing.md §3.3, §3.4, §4.2): an extra number whose month could
 // not be paid, the yearly renewal reminder, dunning (suspended, the reminders, canceled, numbers released) and a
 // port-out request. Each is sent once per occasion (a `billing_alerts`
-// row made in the transaction that queued it; billing-periods.ts, billing-lifecycle.ts). Every word comes from
-// packages/i18n/locales/en/email.json.
+// row made in the transaction that queued it; billing-periods.ts, billing-lifecycle.ts). Also the note that someone
+// else who manages the bill (an owner or admin of its only workspace, bill-manager.ts) changed it. Every word comes
+// from packages/i18n/locales/en/email.json.
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
-import { appLink, type EmailLocale, WEB_ORIGIN } from './templates.ts'
+import { appLink, deletedWhen, type EmailLocale, WEB_ORIGIN } from './templates.ts'
 
 /** Settings › Billing in the web app (built by the billing UI PR): where the owner pays, cancels and sees the bill. */
 export const BILLING_PATH = 'workspace/billing'
@@ -133,6 +134,87 @@ export function billingLifecycleEmail(
     preheader: blocks[0]?.kind === 'text' ? blocks[0].text : subject,
     eyebrow: t('email.billing.eyebrow'),
     ...(urgent ? { urgent } : {}),
+    heading: subject,
+    blocks,
+    reason: t('email.billing.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
+/**
+ * What someone who manages the bill but does not own it did (bill-manager.ts, decision of 2026-11-17): the plan
+ * canceled or resumed, the extra calls at the same time changed, or a new card made the one the bill is charged to.
+ */
+export type ManagerChange =
+  | { change: 'cancel'; endsAt: string | null }
+  | { change: 'resume' }
+  | { change: 'extraCalls'; from: number; to: number }
+  | { change: 'paymentMethod'; card: { brand: string | null; last4: string | null } | null }
+
+/** The bill owner's note about a change by someone else who manages the bill, as the job queues it. */
+export type ManagerChangedEmail = { kind: 'manager_changed'; actorId: string; at: string } & ManagerChange
+
+/** The note as rendered: who (name and address), on which workspace, when in the workspace's time zone. */
+export type ManagerChangedView = ManagerChange & {
+  /** Who: their name ("Mike Brennan") and address; both null when the account is gone. */
+  name: string | null
+  email: string | null
+  workspace: string | null
+  at: string
+  timeZone: string | null
+}
+
+export function managerChangedEmail(
+  view: ManagerChangedView,
+  workspaceId: string,
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, format, locale: lang } = getT(locale)
+  const who = view.name || view.email || t('email.fallback.workspaceAdmin')
+  const by = view.name && view.email ? `${view.name} (${view.email})` : who
+  const workspace = view.workspace || t('email.fallback.workspace')
+  const values = { who, by, workspace, when: deletedWhen(view.at, view.timeZone, locale) }
+  // i18n-dynamic: email.billing.managerChanged.subject.*
+  const subject = t(`email.billing.managerChanged.subject.${view.change}`, values)
+  const blocks: Block[] = [{ kind: 'text', text: t('email.billing.managerChanged.text', values) }]
+  if (view.change === 'cancel')
+    blocks.push({
+      kind: 'text',
+      text: view.endsAt
+        ? t('email.billing.managerChanged.cancel', {
+            date: format.dateTime(new Date(view.endsAt), { dateStyle: 'long', timeZone: 'UTC' }),
+          })
+        : t('email.billing.managerChanged.cancelNoDate'),
+    })
+  else if (view.change === 'resume') blocks.push({ kind: 'text', text: t('email.billing.managerChanged.resume') })
+  else if (view.change === 'extraCalls')
+    blocks.push({
+      kind: 'text',
+      text: t('email.billing.managerChanged.extraCalls', { from: String(view.from), to: String(view.to) }),
+    })
+  else
+    blocks.push({
+      kind: 'text',
+      text:
+        view.card?.last4 && view.card.brand
+          ? t('email.billing.managerChanged.card', {
+              brand: view.card.brand.charAt(0).toUpperCase() + view.card.brand.slice(1),
+              last4: view.card.last4,
+            })
+          : t('email.billing.managerChanged.cardUnknown'),
+    })
+  blocks.push({ kind: 'text', tone: 'muted', text: t('email.billing.managerChanged.notExpected', values) })
+  blocks.push({
+    kind: 'button',
+    label: t('email.billing.managerChanged.button'),
+    url: appLink(origin, workspaceId, BILLING_PATH),
+  })
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: blocks[0]?.kind === 'text' ? blocks[0].text : subject,
+    eyebrow: t('email.billing.eyebrow'),
     heading: subject,
     blocks,
     reason: t('email.billing.reason', { site: siteHost(origin) }),

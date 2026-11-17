@@ -23,12 +23,14 @@ import {
   user,
 } from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { reconcileBilling } from '../src/billing-reconcile.ts'
+import { BILLING_LIFECYCLE_EMAIL, type LifecycleEmailJob, sendLifecycleEmail } from '../src/billing-periods.ts'
 import { rechargeGaveUp, rechargeSetupAlertKey } from '../src/billing-recharge.ts'
 import { forgetWebhookBillingProvider, setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
+import { setJobQueue } from '../src/jobs.ts'
 import { decideRecharge, postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import {
@@ -40,7 +42,7 @@ import {
   UNHANDLED_TYPE,
 } from '../src/stripe-events.ts'
 import { resetStripeWebhookLimits, STRIPE_WEBHOOK_PATH } from '../src/stripe-webhook.ts'
-import { act, appRequest, createWorkspace, FROM, randomIp, type User } from './helpers.ts'
+import { act, addMember, appRequest, createWorkspace, FROM, randomIp, type User } from './helpers.ts'
 
 /** Made-up keys, put together at run time so the secret scan never sees a key-shaped string in the repo. */
 const madeUp = (...parts: string[]) => parts.join('_')
@@ -1034,6 +1036,114 @@ describe('a new card after a failed recharge (docs/billing.md §3.4)', () => {
       skipped: 'processed',
     })
     expect(stripe.requests.filter(r => r.startsWith('/v1/customers'))).toEqual([])
+  })
+})
+
+describe('a new card put on the bill by a workspace admin in the portal (decision of 2026-11-17)', () => {
+  const queued: { name: string; data: Record<string, unknown> }[] = []
+  beforeEach(() => {
+    queued.length = 0
+    setJobQueue({
+      send: async (name: string, data: Record<string, unknown>) => {
+        queued.push({ name, data })
+        return 'job'
+      },
+      insert: async () => [],
+    } as never)
+  })
+  afterEach(() => setJobQueue(null))
+  const notes = () => queued.filter(j => j.name === BILLING_LIFECYCLE_EMAIL)
+
+  /** A bill of one workspace with an admin; its customer's invoice default is a Visa made at `cardMade` (Unix s). */
+  async function adminAndCard(cardMade: number) {
+    const { ws, bill } = await billWith()
+    const admin = await addMember(ws.id, 'admin')
+    await db.update(user).set({ name: 'Dana Lee' }).where(eq(user.id, admin.userId))
+    const cardId = rid('pm')
+    stripe.customers.set(bill.stripe_customer_id!, {
+      id: bill.stripe_customer_id,
+      object: 'customer',
+      default_source: null,
+      invoice_settings: {
+        default_payment_method: {
+          id: cardId,
+          object: 'payment_method',
+          type: 'card',
+          created: cardMade,
+          card: { brand: 'visa', last4: '4242' },
+        },
+      },
+    })
+    return { ws, bill, admin, cardId }
+  }
+  /** `who` opened the Stripe portal `minutesAgo` minutes ago, as the command log keeps it. */
+  const openedPortal = (workspaceId: string, who: string, minutesAgo: number) =>
+    db.insert(commands).values({
+      id: rid('cmd'),
+      workspace_id: workspaceId,
+      actor_id: who,
+      action: 'billing.openPortal',
+      input: {},
+      result: { ok: true },
+      created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+    })
+  const cardEvents = (customer: string) => [
+    event('payment_method.attached', { id: rid('pm'), object: 'payment_method', customer }),
+    event('customer.updated', { id: customer, object: 'customer' }),
+  ]
+
+  test('the owner gets one email for the card, whatever events the change sends; to the owner alone', async () => {
+    const { ws, bill, admin, cardId } = await adminAndCard(nowSec())
+    await openedPortal(ws.id, admin.userId, 5)
+    for (const evt of cardEvents(bill.stripe_customer_id!)) await deliverAndProcess(evt)
+    // The same change again (Stripe sends another event for it): still one email.
+    await deliverAndProcess(event('customer.updated', { id: bill.stripe_customer_id, object: 'customer' }))
+    expect(notes()).toHaveLength(1)
+    expect(notes()[0]!.data).toMatchObject({
+      bill: bill.id,
+      email: { kind: 'manager_changed', change: 'paymentMethod', actorId: admin.userId },
+    })
+    expect(notes()[0]!.data.workspace).toBeUndefined()
+    const alerts = await db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, bill.id))
+    expect(alerts).toMatchObject([{ kind: 'manager_change', ref: `card:${cardId}` }])
+    // Sent to the bill owner only: not to the admin who made the change.
+    const sent: { to: string; subject: string; text: string }[] = []
+    const sender = { send: async (m: { to: string; subject: string; text: string }) => void sent.push(m) }
+    await sendLifecycleEmail(sender as never, notes()[0]!.data as LifecycleEmailJob)
+    const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
+    const [adminRow] = await db.select().from(user).where(eq(user.id, admin.userId))
+    expect(sent.map(m => m.to)).toEqual([owner!.email])
+    expect(sent[0]!.subject).toBe('Dana Lee changed the card for Brightwater Plumbing & Heating')
+    expect(sent[0]!.text).toContain(`Dana Lee (${adminRow!.email}) manages the bill of Brightwater Plumbing & Heating`)
+    expect(sent[0]!.text).toContain('From now on the bill is charged to the Visa card ending in 4242.')
+    expect(sent[0]!.text).toContain(`#workspace/billing?ws=${ws.id}`)
+  })
+
+  test('nothing when the owner opened the portal last, the card is older than the portal, or the portal is long gone', async () => {
+    const own = await adminAndCard(nowSec())
+    await openedPortal(own.ws.id, own.admin.userId, 30)
+    await openedPortal(own.ws.id, own.ws.owner.userId, 5)
+    for (const evt of cardEvents(own.bill.stripe_customer_id!)) await deliverAndProcess(evt)
+    // An address change in the admin's portal: the card was there before.
+    const old = await adminAndCard(nowSec() - 86_400)
+    await openedPortal(old.ws.id, old.admin.userId, 5)
+    for (const evt of cardEvents(old.bill.stripe_customer_id!)) await deliverAndProcess(evt)
+    // A portal the admin opened two hours before the card was made.
+    const late = await adminAndCard(nowSec())
+    await openedPortal(late.ws.id, late.admin.userId, 120)
+    for (const evt of cardEvents(late.bill.stripe_customer_id!)) await deliverAndProcess(evt)
+    expect(notes()).toEqual([])
+  })
+
+  test('a bill without a portal opened by someone else asks Stripe nothing for it', async () => {
+    const { ws, bill } = await adminAndCard(nowSec())
+    await openedPortal(ws.id, ws.owner.userId, 5)
+    stripe.requests.length = 0
+    expect(
+      await deliverAndProcess(event('customer.updated', { id: bill.stripe_customer_id, object: 'customer' })),
+    ).toEqual({ outcome: 'applied', bill: bill.id })
+    expect(stripe.requests.filter(r => r.startsWith('/v1/customers'))).toEqual([])
+    expect(notes()).toEqual([])
   })
 })
 

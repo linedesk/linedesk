@@ -47,7 +47,7 @@ import {
 import { createHash } from 'node:crypto'
 import { and, asc, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
-import { managesBill } from './bill-manager.ts'
+import { managesBill, tellBillOwner } from './bill-manager.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
@@ -1118,17 +1118,32 @@ const prepareCancel =
       ? await provider.resumeSubscription(bill.stripe_subscription_id)
       : await provider.cancelSubscription(bill.stripe_subscription_id, { now: false })
     if (!sub) throw Reject.t('server.api.checkout.planGone')
-    return { billId: bill.id, cancelAtPeriodEnd: sub.cancelAtPeriodEnd, endsAt: sub.trialEnd ?? sub.currentPeriodEnd }
+    return {
+      billId: bill.id,
+      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      endsAt: sub.trialEnd ?? sub.currentPeriodEnd,
+      wasCanceling: bill.cancel_at_period_end,
+    }
   }
 
 const applyCancel: Handler = async ({ tx, actor, now, prepared }, input: { partnerId?: string }) => {
-  const done = prepared as { billId: string; cancelAtPeriodEnd: boolean; endsAt: string | null }
+  const done = prepared as { billId: string; cancelAtPeriodEnd: boolean; endsAt: string | null; wasCanceling: boolean }
   const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
   if (bill.id !== done.billId) throw new Reject('the bill changed; try again')
   await tx
     .update(billing_accounts)
     .set({ cancel_at_period_end: done.cancelAtPeriodEnd, updated_at: now })
     .where(eq(billing_accounts.id, bill.id))
+  // Someone else who manages the bill canceled or resumed it: its owner hears of it, once. Compared with the bill as
+  // it was before Stripe was asked, so a webhook that mirrored the change meanwhile does not hide it.
+  if (done.cancelAtPeriodEnd !== done.wasCanceling)
+    await tellBillOwner(
+      tx,
+      actor,
+      bill,
+      done.cancelAtPeriodEnd ? { change: 'cancel', endsAt: done.endsAt } : { change: 'resume' },
+      now,
+    )
   return { rows: {}, data: { cancelAtPeriodEnd: done.cancelAtPeriodEnd, endsAt: done.endsAt } }
 }
 

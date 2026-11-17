@@ -1062,6 +1062,52 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "bill-changed-by-admin-cancel",
+    "Dana Lee canceled the plan for Brightwater Plumbing & Heating",
+    "Billing
+
+Dana Lee canceled the plan for Brightwater Plumbing & Heating
+
+Dana Lee (dana@brightwater.example) manages the bill of Brightwater Plumbing & Heating with you and made this change on November 14, 2026 at 9:05 AM PST. You pay this bill, so we let you know.
+
+The plan ends on December 1, 2026. Until then calls are answered as before, and the plan can be resumed in Settings › Billing.
+
+Not what you expected? Check Settings › Billing and talk to Dana Lee.
+
+Open Settings › Billing:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "bill-changed-by-admin-card",
+    "Dana Lee changed the card for Brightwater Plumbing & Heating",
+    "Billing
+
+Dana Lee changed the card for Brightwater Plumbing & Heating
+
+Dana Lee (dana@brightwater.example) manages the bill of Brightwater Plumbing & Heating with you and made this change on November 14, 2026 at 9:05 AM PST. You pay this bill, so we let you know.
+
+From now on the bill is charged to the Visa card ending in 4242.
+
+Not what you expected? Check Settings › Billing and talk to Dana Lee.
+
+Open Settings › Billing:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "booking-confirmation",
     "Confirmed: your repair visit with Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
     "Booking confirmed
@@ -2138,6 +2184,52 @@ Add 5 more lines for 5 US$ a month:
 https://desk.example.com/#workspace/billing?addCalls=1&ws=ws_demo
 
 We send this at most once a day per workspace.
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "bill-changed-by-admin-cancel",
+    "Dana Lee canceled the plan for Brightwater Plumbing & Heating",
+    "Facturación
+
+Dana Lee canceled the plan for Brightwater Plumbing & Heating
+
+Dana Lee (dana@brightwater.example) manages the bill of Brightwater Plumbing & Heating with you and made this change on 14 de noviembre de 2026, 9:05 GMT-8. You pay this bill, so we let you know.
+
+The plan ends on 1 de diciembre de 2026. Until then calls are answered as before, and the plan can be resumed in Settings › Billing.
+
+Not what you expected? Check Settings › Billing and talk to Dana Lee.
+
+Open Settings › Billing:
+https://desk.example.com/#workspace/billing?ws=ws_demo
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "bill-changed-by-admin-card",
+    "Dana Lee changed the card for Brightwater Plumbing & Heating",
+    "Facturación
+
+Dana Lee changed the card for Brightwater Plumbing & Heating
+
+Dana Lee (dana@brightwater.example) manages the bill of Brightwater Plumbing & Heating with you and made this change on 14 de noviembre de 2026, 9:05 GMT-8. You pay this bill, so we let you know.
+
+From now on the bill is charged to the Visa card ending in 4242.
+
+Not what you expected? Check Settings › Billing and talk to Dana Lee.
+
+Open Settings › Billing:
+https://desk.example.com/#workspace/billing?ws=ws_demo
 
 --
 

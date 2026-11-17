@@ -1002,6 +1002,13 @@
       "when": 1794947095523,
       "tag": "0143_busy_line_alert",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1794955767390,
+      "tag": "0144_manager_change",
+      "breakpoints": true
     }
   ]
 }

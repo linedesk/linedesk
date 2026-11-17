@@ -10,6 +10,7 @@ import {
   spendingCapEmail,
 } from './alerts.ts'
 import { billingOwnerEmail } from './billing.ts'
+import { managerChangedEmail } from './billing-lifecycle.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
   addedNoticeEmail,
@@ -60,6 +61,16 @@ const trial = {
 }
 
 const WORKSPACE_ID = 'ws_demo'
+
+// Who changed the bill (a workspace admin), where and when.
+// i18n-ignore: demo data (a teammate's and the business's names as people wrote them), never translated
+const managerChange = {
+  name: 'Dana Lee',
+  email: 'dana@brightwater.example',
+  workspace: 'Brightwater Plumbing & Heating',
+  at: '2026-11-14T17:05:00Z',
+  timeZone: 'America/Los_Angeles',
+}
 
 /** The partner block of day 3 shows in the previews whether or not this install has a partner directory. */
 const partners = PARTNER_DIRECTORY_URL ?? 'https://linedesk.ai/partners'
@@ -501,6 +512,25 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           stepCents: 500,
           partnerBill: false,
         },
+        origin,
+        locale,
+      ),
+    },
+    // A workspace admin who manages the bill changed it: its owner hears of it (bill-manager.ts).
+    {
+      name: 'bill-changed-by-admin-cancel',
+      email: managerChangedEmail(
+        { ...managerChange, change: 'cancel', endsAt: '2026-12-01T09:00:00Z' },
+        trial.workspaceId,
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'bill-changed-by-admin-card',
+      email: managerChangedEmail(
+        { ...managerChange, change: 'paymentMethod', card: { brand: 'visa', last4: '4242' } },
+        trial.workspaceId,
         origin,
         locale,
       ),

@@ -31,6 +31,7 @@ import {
 import { and, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
+import { tellOwnerOfCardChange } from './bill-manager.ts'
 import { rechargeFailed } from './billing-recharge.ts'
 import { isLinedeskPlan } from './billing-rules.ts'
 import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
@@ -801,6 +802,8 @@ async function cardChangedJob(event: StoredEvent): Promise<EventOutcome> {
   const { customerId } = eventSubject(event.payload)
   const bill = await billBy(db, 'customer', customerId)
   if (!bill) return done({ outcome: retryUnknown(event.received_at, now) ? 'unknown_retry' : 'unknown' })
+  // A new card put on the bill in a portal someone else than its owner opened: the owner hears of it, once per card.
+  await tellOwnerOfCardChange(bill, now)
   const failedAt = bill.recharge_failed_at
   if (!failedAt) return done({ outcome: 'applied', bill: bill.id })
   const provider = await billingProvider(db)

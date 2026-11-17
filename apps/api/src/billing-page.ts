@@ -51,7 +51,7 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
-import { managesBill } from './bill-manager.ts'
+import { managesBill, tellBillOwner } from './bill-manager.ts'
 import { activationFacts, BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
@@ -738,6 +738,7 @@ async function setExtraCalls(
     .update(organization)
     .set({ extraCalls: input.extraCalls })
     .where(and(eq(organization.id, workspace.id), eq(organization.billingAccountId, bill.id)))
+  await tellBillOwner(tx, actor, bill, { change: 'extraCalls', from: workspace.extraCalls, to: input.extraCalls }, now)
   return { rows: {}, data: done }
 }
 

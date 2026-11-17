@@ -46,6 +46,7 @@ import {
   sendTrialReminders,
   TRIAL_NUMBER_LIMIT,
 } from '../src/billing-checkout.ts'
+import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
@@ -774,6 +775,57 @@ describe('billing.cancel and billing.resume (docs/billing.md §3.2 step 10)', ()
     // Canceled for good: nothing to cancel any more.
     await db.update(billing_accounts).set({ status: 'canceled' }).where(eq(billing_accounts.id, bill.id))
     expect((await act(owner, 'billing.cancel', {})).status).toBe(409)
+  })
+})
+
+describe("an admin's cancel or resume: the bill owner gets one email (decision of 2026-11-17)", () => {
+  const queued: { name: string; data: Record<string, unknown> }[] = []
+  beforeEach(() => {
+    queued.length = 0
+    setJobQueue({
+      send: async (name: string, data: Record<string, unknown>) => {
+        queued.push({ name, data })
+        return 'job'
+      },
+      insert: async () => [],
+    } as never)
+  })
+  afterEach(() => setJobQueue(null))
+  const notes = () => queued.filter(j => j.name === BILLING_LIFECYCLE_EMAIL).map(j => j.data)
+
+  test('an admin cancels, then resumes: one email each, to the owner; a retried command sends no second one', async () => {
+    const { bill, ws, sub } = await trialWith(rid('fp'))
+    const admin = await addMember(ws.id, 'admin')
+    const key = crypto.randomUUID()
+    expect((await act(admin, 'billing.cancel', {}, key)).body.data).toMatchObject({ cancelAtPeriodEnd: true })
+    // The same command again (a retry): answered from the command log, nothing sent twice.
+    expect((await act(admin, 'billing.cancel', {}, key)).status).toBe(200)
+    // Canceling what is already canceled changes nothing: no email either.
+    expect((await act(admin, 'billing.cancel', {})).status).toBe(200)
+    expect(notes()).toEqual([
+      {
+        bill: bill.id,
+        email: {
+          kind: 'manager_changed',
+          change: 'cancel',
+          actorId: admin.userId,
+          at: expect.any(String),
+          endsAt: new Date((sub.trial_end as number) * 1000).toISOString(),
+        },
+      },
+    ])
+    expect((await act(admin, 'billing.resume', {})).status).toBe(200)
+    expect(notes()).toHaveLength(2)
+    expect(notes()[1]).toMatchObject({ bill: bill.id, email: { change: 'resume', actorId: admin.userId } })
+  })
+
+  test("the owner's own cancel and resume send nothing; a member is refused as before", async () => {
+    const { ws, owner } = await trialWith(rid('fp'))
+    expect((await act(owner, 'billing.cancel', {})).status).toBe(200)
+    expect((await act(owner, 'billing.resume', {})).status).toBe(200)
+    const member = await addMember(ws.id, 'member')
+    expect((await act(member, 'billing.cancel', {})).status).toBe(403)
+    expect(notes()).toEqual([])
   })
 })
 
