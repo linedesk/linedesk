@@ -23,6 +23,7 @@ import {
   type RechargeInvoiceInput,
   type RefundBlocker,
   type StripeKeys,
+  STRIPE_TERMS_URL_MISSING,
   WEBHOOK_TOLERANCE_SECONDS,
   WebhookRefused,
 } from '../provider.ts'
@@ -820,7 +821,10 @@ function termsUrlRefused(error: unknown) {
 /** A 400 when a Checkout is made: the account is not set up for it (a price, tax, the terms URL). For the admins. */
 function refusedSetup(error: unknown): BillingSetupError | null {
   const e = error as { statusCode?: number; code?: string }
-  return e.statusCode === 400 ? new BillingSetupError(`stripe_${e.code ?? 400}`) : null
+  if (e.statusCode !== 400) return null
+  // Named on its own (A9): the admins are told exactly which Dashboard setting is missing.
+  if (termsUrlRefused(error)) return new BillingSetupError(STRIPE_TERMS_URL_MISSING)
+  return new BillingSetupError(`stripe_${e.code ?? 400}`)
 }
 
 /**

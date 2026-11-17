@@ -27,6 +27,7 @@ import {
   partner_members,
   partners,
   signup_attempts,
+  terms_acceptances,
   user,
 } from '@linedesk/db'
 import { and, count, eq, gte } from 'drizzle-orm'
@@ -45,7 +46,7 @@ import {
   setTurnstileFetch,
   TURNSTILE_VERIFY_URL,
 } from '../src/self-serve.ts'
-import { COUNTRY_NOT_YET, sweepSignUps } from '../src/signup-handlers.ts'
+import { COUNTRY_NOT_YET, sweepSignUps, TERMS_CHANGED } from '../src/signup-handlers.ts'
 import { EMAIL_CODE_SIGN_IN_PATH, mayCreateUser, refuseClosedSignUp } from '../src/signup-gate.ts'
 
 const billing = vi.hoisted(() => ({ inEffect: true }))
@@ -79,7 +80,15 @@ const rules = (r: Record<string, unknown>) => setting(SIGNUP_RULES_KEY, JSON.str
 
 /** The jobs queued in a transaction (a fake queue: nothing runs). */
 let queued: { name: string; data: Record<string, unknown> }[] = []
+/** The install's terms and privacy policy (A9): self-serve sign-up stays closed without them. */
+const TERMS = {
+  TERMS_URL: 'https://desk.example.com/terms',
+  TERMS_VERSION: '2026-11-17',
+  PRIVACY_URL: 'https://desk.example.com/privacy',
+  PRIVACY_VERSION: '2026-11-10',
+}
 beforeEach(async () => {
+  for (const [name, value] of Object.entries(TERMS)) vi.stubEnv(name, value)
   billing.inEffect = true
   await setting(SELF_SERVE_KEY, 'on')
   // The bot check has its own tests below; the rest run without it.
@@ -94,6 +103,7 @@ beforeEach(async () => {
   } as never)
 })
 afterEach(() => {
+  vi.unstubAllEnvs()
   setJobQueue(null)
   setTurnstileFetch(null)
 })
@@ -135,6 +145,7 @@ const DETAILS = {
   country: 'US',
   plan: 'cloud',
   interval: 'year',
+  acceptedTerms: { termsVersion: TERMS.TERMS_VERSION, privacyVersion: TERMS.PRIVACY_VERSION },
 }
 
 /** The whole page: a code, signed in, account.signUp. */
@@ -166,7 +177,7 @@ describe('closed unless switched on and billing is in effect', () => {
     expect(await askCode(address('nobilling'))).toMatchObject({ status: 404, code: null })
   })
 
-  test("open: the config says so and names the sign-up countries and the plan at the install's prices", async () => {
+  test("open: the config names the sign-up countries, the plan at the install's prices and the terms to show", async () => {
     expect((await request(anonymous, 'GET', '/v1/signup/config')).body).toMatchObject({
       open: true,
       countries: ['US', 'CA', 'PR'],
@@ -174,7 +185,30 @@ describe('closed unless switched on and billing is in effect', () => {
       plan: { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 },
       // The partner plan (docs/white-label.md): its base fee, and the client workspaces its trial takes.
       partnerPlan: { monthlyCents: 1900, yearlyCents: 16_800, trialDays: 14, trialClients: 2 },
+      terms: {
+        termsUrl: TERMS.TERMS_URL,
+        termsVersion: TERMS.TERMS_VERSION,
+        privacyUrl: TERMS.PRIVACY_URL,
+        privacyVersion: TERMS.PRIVACY_VERSION,
+      },
     })
+  })
+
+  test('switched on but a terms link or version missing: closed, fail closed (A9)', async () => {
+    for (const name of Object.keys(TERMS)) {
+      vi.stubEnv(name, '')
+      expect(await db.transaction(tx => selfServeState(tx))).toMatchObject({
+        on: true,
+        open: false,
+        closedBecause: 'terms_missing',
+      })
+      expect((await request(anonymous, 'GET', '/v1/signup/config')).body).toMatchObject({ open: false, terms: null })
+      expect(await askCode(address('noterms'))).toMatchObject({ status: 404, code: null })
+      vi.stubEnv(name, TERMS[name as keyof typeof TERMS])
+    }
+    // A version that is not a short label counts as missing.
+    vi.stubEnv('TERMS_VERSION', 'see the website')
+    expect((await db.transaction(tx => selfServeState(tx))).closedBecause).toBe('terms_missing')
   })
 
   test('the normal sign-in page still sends no code to an unknown address while sign-up is open', async () => {
@@ -267,6 +301,48 @@ describe('account.signUp', () => {
       .from(commands)
       .where(and(eq(commands.action, 'account.signUp'), eq(commands.actor_id, account!.id)))
     expect(logged?.result).toMatchObject({ data: { subject: { workspaceId: workspace.id } } })
+    // The acceptance of the terms and privacy policy (A9): who, which bill, which texts, when, from where.
+    const accepted = await db.select().from(terms_acceptances).where(eq(terms_acceptances.user_id, account!.id))
+    expect(accepted).toHaveLength(1)
+    expect(accepted[0]).toMatchObject({
+      billing_account_id: billId,
+      source: 'signup',
+      terms_url: TERMS.TERMS_URL,
+      terms_version: TERMS.TERMS_VERSION,
+      privacy_url: TERMS.PRIVACY_URL,
+      privacy_version: TERMS.PRIVACY_VERSION,
+    })
+    expect(accepted[0]!.ip_address).toMatch(/\d/)
+    expect(Date.now() - Date.parse(accepted[0]!.accepted_at)).toBeLessThan(60_000)
+  })
+
+  test('terms changed while the page was open: refused with terms_changed, nothing is made or recorded', async () => {
+    const stale = { ...DETAILS, acceptedTerms: { termsVersion: '2026-01-01', privacyVersion: TERMS.PRIVACY_VERSION } }
+    const { email, made } = await signUpThroughPage(address('stale'), stale)
+    expect(made).toMatchObject({ status: 409, body: { ok: false, code: TERMS_CHANGED } })
+    const account = await accountOf(email)
+    expect(await db.select().from(billing_accounts).where(eq(billing_accounts.owner_user_id, account!.id))).toEqual([])
+    expect(await db.select().from(terms_acceptances).where(eq(terms_acceptances.user_id, account!.id))).toEqual([])
+  })
+
+  test('a partner sign-up: stale terms are refused, and without terms in the environment it is closed (A9)', async () => {
+    const PARTNER = { ...DETAILS, businessName: 'Stale Agency', plan: 'partner' }
+    const stale = { ...PARTNER, acceptedTerms: { termsVersion: TERMS.TERMS_VERSION, privacyVersion: '2026-01-01' } }
+    const { email, who, made } = await signUpThroughPage(address('stalepartner'), stale)
+    expect(made).toMatchObject({ status: 409, body: { ok: false, code: TERMS_CHANGED } })
+    const account = await accountOf(email)
+    vi.stubEnv('PRIVACY_URL', '')
+    expect((await request(who, 'POST', '/v1/signup', PARTNER)).status).toBe(403)
+    vi.stubEnv('PRIVACY_URL', TERMS.PRIVACY_URL)
+    expect(await db.select().from(billing_accounts).where(eq(billing_accounts.owner_user_id, account!.id))).toEqual([])
+    expect(await db.select().from(partner_members).where(eq(partner_members.user_id, account!.id))).toEqual([])
+    expect(await db.select().from(terms_acceptances).where(eq(terms_acceptances.user_id, account!.id))).toEqual([])
+  })
+
+  test('without the accepted terms: refused as input', async () => {
+    const { acceptedTerms: _, ...without } = DETAILS
+    const { made } = await signUpThroughPage(address('noaccept'), without)
+    expect(made.status).toBe(422)
   })
 
   test('one waiting sign-up per account: asked again, it answers the one there is', async () => {
@@ -305,6 +381,15 @@ describe('account.signUp', () => {
       { user_id: account!.id, role: 'owner' },
     ])
     expect(await db.select().from(member).where(eq(member.userId, account!.id))).toEqual([])
+    // The partner accepted the terms and the privacy policy too (A9), on its partner bill.
+    expect(await db.select().from(terms_acceptances).where(eq(terms_acceptances.user_id, account!.id))).toMatchObject([
+      {
+        billing_account_id: billId,
+        source: 'signup',
+        terms_version: TERMS.TERMS_VERSION,
+        privacy_version: TERMS.PRIVACY_VERSION,
+      },
+    ])
     // The app opens the partner area: /v1/me lists the partner.
     expect((await request(who, 'GET', '/v1/me')).body.partners).toMatchObject([{ id: partner.id, role: 'owner' }])
     // Asked again: the one waiting sign-up, not a second partner.
@@ -572,6 +657,9 @@ describe('the daily sign-up sweep', () => {
     expect(await db.select().from(partners).where(eq(partners.id, partner.id))).toEqual([])
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId))).toEqual([])
     expect(await db.select().from(user).where(eq(user.id, account!.id))).toEqual([])
+    expect(await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, billId))).toEqual(
+      [],
+    )
   })
 
   test('deletes a sign-up without Checkout after 7 days: its workspace, bill and account', async () => {
@@ -595,6 +683,10 @@ describe('the daily sign-up sweep', () => {
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId))).toEqual([])
     expect(await db.select().from(organization).where(eq(organization.id, workspace.id))).toEqual([])
     expect(await db.select().from(user).where(eq(user.id, account!.id))).toEqual([])
+    // Never a customer: the terms acceptance goes with the bill (A9).
+    expect(await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, billId))).toEqual(
+      [],
+    )
   })
 
   test('the owner keeps their account when they are in another workspace; a bill that converted is never touched', async () => {

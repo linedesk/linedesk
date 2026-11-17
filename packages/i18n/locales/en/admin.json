@@ -613,6 +613,8 @@
   "bills.selfServe.state.closed": "Closed",
   "bills.selfServe.state.open": "Open",
   "bills.selfServe.switch": "Self-serve sign-up",
+  "bills.selfServe.termsMissing": "Sign-up needs your terms and privacy policy first: set {vars} in the server's environment and restart it.",
+  "bills.selfServe.termsMissingOn": "Sign-up is switched on but closed: set {vars} in the server's environment and restart it. Nobody can start a plan without terms to accept.",
   "bills.selfServe.title": "Sign-up",
   "bills.selfServe.turnedOff": "Self-serve sign-up is off",
   "bills.selfServe.turnedOn": "Self-serve sign-up is on",

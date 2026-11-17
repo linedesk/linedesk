@@ -586,8 +586,8 @@ function SelfServeCard({ notify }: { notify: Notify }) {
             on={data?.on ?? false}
             onChange={setAsking}
             label={t('admin.bills.selfServe.switch')}
-            // Off always works; on needs billing through Stripe in effect.
-            disabled={!data || (!data.on && !data.billingInEffect)}
+            // Off always works; on needs billing through Stripe in effect and the terms set (A9).
+            disabled={!data || (!data.on && (!data.billingInEffect || data.termsMissing.length > 0))}
           />
         </Loading>
       </div>
@@ -599,6 +599,13 @@ function SelfServeCard({ notify }: { notify: Notify }) {
       {data?.on && data.closedBecause === 'billing_not_in_effect' && (
         <Note tone="danger">
           <T k="admin.bills.selfServe.closed.billing" values={link} />
+        </Note>
+      )}
+      {data && data.termsMissing.length > 0 && (
+        <Note tone={data.on ? 'danger' : 'warning'}>
+          {t(data.on ? 'admin.bills.selfServe.termsMissingOn' : 'admin.bills.selfServe.termsMissing', {
+            vars: data.termsMissing.join(', '),
+          })}
         </Note>
       )}
       {asking !== null && (

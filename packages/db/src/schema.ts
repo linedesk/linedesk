@@ -2378,6 +2378,36 @@ export const signup_attempts = pgTable(
   ],
 )
 
+/**
+ * Who accepted which terms and privacy policy, and when (A9): one row per acceptance, written when a person starts a
+ * plan on the sign-up page (`account.signUp`, `source` = `signup`). The links and versions are the install's own at
+ * that moment (TERMS_URL, TERMS_VERSION, PRIVACY_URL, PRIVACY_VERSION). The IP address and browser are the ones of the
+ * session that accepted (Better Auth stores them at sign-in); null when the session has none. No foreign keys: the
+ * record is evidence of the contract and outlives the account, like the bill. A sign-up that never finished Checkout
+ * loses its rows with its bill in the daily sign-up sweep.
+ */
+export const terms_acceptances = pgTable(
+  'terms_acceptances',
+  {
+    id: id(),
+    user_id: text('user_id').notNull(),
+    billing_account_id: text('billing_account_id'),
+    source: text('source', { enum: ['signup'] }).notNull(),
+    terms_url: text('terms_url').notNull(),
+    terms_version: text('terms_version').notNull(),
+    privacy_url: text('privacy_url').notNull(),
+    privacy_version: text('privacy_version').notNull(),
+    ip_address: text('ip_address'),
+    user_agent: text('user_agent'),
+    accepted_at: ts('accepted_at').notNull().defaultNow(),
+  },
+  t => [
+    index('terms_acceptances_user').on(t.user_id, t.accepted_at),
+    index('terms_acceptances_bill').on(t.billing_account_id),
+    check('terms_acceptances_source', sql`${t.source} in ('signup')`),
+  ],
+)
+
 /** A mirror of the bill's Stripe invoices (plan fees, recharges, top-ups), for display. */
 export const billing_invoices = pgTable(
   'billing_invoices',

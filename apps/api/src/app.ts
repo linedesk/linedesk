@@ -39,6 +39,7 @@ import { registerStripeWebhookRoute } from './stripe-webhook.ts'
 import { registerTestLookupRoute } from './test-lookup.ts'
 import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
 import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
+import { legalTerms } from './legal-terms.ts'
 import { fromSignupPage } from './signup-gate.ts'
 import { partnersOf } from './partners.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
@@ -310,11 +311,13 @@ app.post('/v1/workspaces', async c => {
 const SIGNUP_HOSTNAMES = TRUSTED_ORIGINS.map(origin => new URL(origin).hostname.toLowerCase())
 
 // Self-serve sign-up on an install that bills its workspaces (self-serve.ts, docs/billing.md §3.1). Public: whether it is open and the
-// Turnstile site key for the page. Nothing else (no counts, no reason it is closed).
+// Turnstile site key for the page, and the terms and privacy policy (links and versions) the page shows next to its
+// button (A9). Nothing else (no counts, no reason it is closed).
 app.get('/v1/signup/config', async c => {
   const state = await db.transaction(tx => selfServeState(tx))
   const siteKey =
     state.open && state.rules.turnstile ? ((await db.transaction(tx => turnstileKeys(tx)))?.siteKey ?? null) : null
+  const terms = state.open ? legalTerms().terms : null
   c.header('cache-control', 'no-store')
   // The plan the page signs up for, at the install's prices (Server admin › Billing): public, like a pricing page.
   const rules = state.open ? await billingRules(db) : null
@@ -337,6 +340,7 @@ app.get('/v1/signup/config', async c => {
     countries: SIGNUP_COUNTRIES,
     plan,
     partnerPlan,
+    terms,
   })
 })
 

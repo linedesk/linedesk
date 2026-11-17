@@ -104,6 +104,7 @@ const selfServe = (over: Partial<SelfServeData>): SelfServeData => ({
   rules: SIGNUP_DEFAULTS,
   defaults: SIGNUP_DEFAULTS,
   problems: [],
+  termsMissing: [],
   ...over,
 })
 const renderList = () =>
@@ -123,6 +124,17 @@ test('sign-up switched on without Turnstile keys says plainly that it is closed,
   // Adding the keys is the fix; the page never points to switching the bot check off.
   expect(html).not.toContain('turn the bot check off')
   expect(html).not.toContain('The bot check is off.')
+})
+
+test('sign-up switched on without the terms in the environment is closed and names the variables (A9)', () => {
+  data['admin.billing.selfServe'] = selfServe({
+    open: false,
+    closedBecause: 'terms_missing',
+    termsMissing: ['TERMS_VERSION', 'PRIVACY_URL'],
+  })
+  const html = renderList()
+  expect(html).toContain('Closed')
+  expect(html).toContain('Sign-up is switched on but closed: set TERMS_VERSION, PRIVACY_URL in the server')
 })
 
 test('with the bot check off, the sign-up limits warn that only the limits protect the server', () => {

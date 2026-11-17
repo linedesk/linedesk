@@ -9,11 +9,14 @@ export { SIGNUP_COUNTRIES }
 export type SignupPlan = { monthlyCents: number; yearlyCents: number; trialDays: number }
 /** The partner plan (docs/white-label.md): its base fee, and in the free trial at most `trialClients` client workspaces. */
 export type PartnerSignupPlan = SignupPlan & { trialClients: number }
+/** The terms and privacy policy the details step shows next to its button, and records as accepted (A9). */
+export type SignupTerms = { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string }
 export type SignupConfig = {
   open: boolean
   turnstileSiteKey: string | null
   plan: SignupPlan | null
   partnerPlan: PartnerSignupPlan | null
+  terms: SignupTerms | null
 }
 export type CodeRefusal = 'closed' | 'invalid_email' | 'blocked_domain' | 'bot_check' | 'too_many' | 'busy'
 
@@ -37,12 +40,16 @@ export async function loadSignupConfig(): Promise<SignupConfig | 'unreachable'> 
       turnstileSiteKey?: string | null
       plan?: SignupPlan | null
       partnerPlan?: PartnerSignupPlan | null
+      terms?: SignupTerms | null
     }
+    const terms = body.terms ?? null
     return {
-      open: body.open === true,
+      // Open without terms cannot happen (the API closes sign-up then); the page treats it as closed.
+      open: body.open === true && terms !== null,
       turnstileSiteKey: body.turnstileSiteKey ?? null,
       plan: readPlan(body.plan),
       partnerPlan: readPartnerPlan(body.partnerPlan),
+      terms,
     }
   } catch {
     return 'unreachable'
@@ -127,6 +134,7 @@ export type SignUpInput = {
   plan: 'cloud' | 'partner'
   interval: 'year' | 'month'
   timeZone?: string
+  acceptedTerms: { termsVersion: string; privacyVersion: string }
 }
 
 /**
@@ -137,7 +145,7 @@ export async function signUpBusiness(
   input: SignUpInput,
 ): Promise<
   | { ok: true; workspaceId: string | null; partnerId: string | null }
-  | { ok: false; notYet: boolean; closed: boolean; partnerOwned?: boolean }
+  | { ok: false; notYet: boolean; closed: boolean; termsChanged: boolean; partnerOwned?: boolean }
 > {
   try {
     const res = await fetch('/v1/signup', {
@@ -154,10 +162,13 @@ export async function signUpBusiness(
     const workspaceId = body?.data?.workspace?.id ?? null
     const partnerId = body?.data?.partner?.id ?? null
     if (res.ok && body?.ok && (workspaceId || partnerId)) return { ok: true, workspaceId, partnerId }
-    if (body?.code === 'already_partner') return { ok: false, notYet: false, closed: false, partnerOwned: true }
-    // 409: the country is not served yet; 403: closed meanwhile.
-    return { ok: false, notYet: res.status === 409 && !body?.code, closed: res.status === 403 }
+    if (body?.code === 'already_partner')
+      return { ok: false, notYet: false, closed: false, termsChanged: false, partnerOwned: true }
+    // 409 with `terms_changed`: the terms changed while the page was open (A9); 409 without a code: the country is not
+    // served yet; 403: closed meanwhile.
+    const termsChanged = res.status === 409 && body?.code === 'terms_changed'
+    return { ok: false, notYet: res.status === 409 && !body?.code, closed: res.status === 403, termsChanged }
   } catch {
-    return { ok: false, notYet: false, closed: false }
+    return { ok: false, notYet: false, closed: false, termsChanged: false }
   }
 }

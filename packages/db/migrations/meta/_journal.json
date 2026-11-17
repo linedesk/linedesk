@@ -960,6 +960,13 @@
       "when": 1794912049111,
       "tag": "0137_command_input_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1794923183714,
+      "tag": "0138_terms_acceptances",
+      "breakpoints": true
     }
   ]
 }

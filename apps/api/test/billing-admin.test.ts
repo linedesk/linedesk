@@ -1595,7 +1595,9 @@ describe('the billing rules editor', () => {
 })
 
 describe('self-serve sign-up', () => {
-  test('off by default; on only with billing in effect; audited and emailed', async () => {
+  test('off by default; on only with billing in effect and the terms set; audited and emailed', async () => {
+    for (const name of ['TERMS_URL', 'TERMS_VERSION', 'PRIVACY_URL', 'PRIVACY_VERSION']) vi.stubEnv(name, '')
+    const allMissing = ['TERMS_URL', 'TERMS_VERSION', 'PRIVACY_URL', 'PRIVACY_VERSION']
     expect((await act(operator, 'signup.getSelfServe', {})).body.data).toMatchObject({
       on: false,
       billingInEffect: false,
@@ -1604,6 +1606,7 @@ describe('self-serve sign-up', () => {
       rules: SIGNUP_DEFAULTS,
       defaults: SIGNUP_DEFAULTS,
       problems: [],
+      termsMissing: allMissing,
     })
     const refused = await act(operator, 'signup.setSelfServe', { on: true, reason })
     expect(refused.status).toBe(409)
@@ -1625,6 +1628,14 @@ describe('self-serve sign-up', () => {
       ).status,
     ).toBe(200)
     expect((await act(operator, 'billingEnabled.set', { on: true })).status).toBe(200)
+    // No terms in the environment (A9): refused, and the answer names what to set.
+    const noTerms = await act(operator, 'signup.setSelfServe', { on: true, reason })
+    expect(noTerms.status).toBe(409)
+    expect(noTerms.body.error).toContain('TERMS_URL, TERMS_VERSION, PRIVACY_URL, PRIVACY_VERSION')
+    vi.stubEnv('TERMS_URL', 'https://desk.example.com/terms')
+    vi.stubEnv('TERMS_VERSION', '2026-11-17')
+    vi.stubEnv('PRIVACY_URL', 'https://desk.example.com/privacy')
+    vi.stubEnv('PRIVACY_VERSION', '2026-11-17')
     const mails = mailbox()
     const on = await act(operator, 'signup.setSelfServe', { on: true, reason })
     expect(on.status).toBe(200)
@@ -1635,6 +1646,7 @@ describe('self-serve sign-up', () => {
       open: false,
       closedBecause: 'bot_check_missing',
       turnstileReady: false,
+      termsMissing: [],
     })
     await vi.waitFor(() => expect(mails.some(m => m.subject === 'Self-serve sign-up was turned on')).toBe(true))
     expect((await lastCommand('signup.setSelfServe'))?.input).toMatchObject({ on: true, reason })
@@ -1665,6 +1677,7 @@ describe('self-serve sign-up', () => {
     ])
     expect((await act(operator, 'signup.setRules', { rules: { turnstile: null }, reason })).status).toBe(200)
     expect((await act(operator, 'signup.setSelfServe', { on: false, reason })).body.data.on).toBe(false)
+    vi.unstubAllEnvs()
   })
 
   test('the sign-up limits: checked, merged over the stored ones, null resets, audited and emailed', async () => {

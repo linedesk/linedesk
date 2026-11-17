@@ -73,6 +73,7 @@ import { syncExtraCallsItem } from './extra-calls.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { legalTerms } from './legal-terms.ts'
 import {
   SELF_SERVE_KEY,
   SIGNUP_RULES_KEY,
@@ -503,6 +504,7 @@ async function selfServe(tx: Tx): Promise<SelfServeData> {
     rules: state.rules,
     defaults: SIGNUP_DEFAULTS,
     problems,
+    termsMissing: [...legalTerms().missing],
   }
 }
 
@@ -1117,6 +1119,9 @@ export const billingAdminHandlers: Record<string, Handler> = {
       throw new Reject(
         'Self-serve sign-up needs billing through Stripe in effect (Server admin › Providers › Billing).',
       )
+    // No contract without terms (A9): the links and versions come from the environment, never from this page.
+    if (input.on && before.termsMissing.length)
+      throw Reject.t('server.api.signup.termsMissing', { vars: before.termsMissing.join(', ') })
     await writeSetting(tx, SELF_SERVE_KEY, input.on ? 'on' : 'off', actor, now)
     if (before.on !== input.on)
       onCommit?.(async () =>

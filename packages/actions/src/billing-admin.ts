@@ -357,7 +357,7 @@ export const RADAR_RISK_LEVELS = ['normal', 'elevated', 'highest', 'not_assessed
 export type RadarRiskLevel = (typeof RADAR_RISK_LEVELS)[number]
 
 /** Why sign-up is closed while it is switched on, or off (null: open). */
-export type SignupClosedBecause = 'switched_off' | 'billing_not_in_effect' | 'bot_check_missing'
+export type SignupClosedBecause = 'switched_off' | 'billing_not_in_effect' | 'terms_missing' | 'bot_check_missing'
 
 export type SelfServeData = {
   /** The switch (`signup.selfServe`). */
@@ -373,4 +373,9 @@ export type SelfServeData = {
   defaults: SignupRules
   /** Stored fields that are ignored (out of range or unknown): they keep their default. */
   problems: string[]
+  /**
+   * The environment variables still unset (TERMS_URL, TERMS_VERSION, PRIVACY_URL, PRIVACY_VERSION, A9); sign-up stays
+   * closed (`terms_missing`), even when switched on, until they are set.
+   */
+  termsMissing: string[]
 }

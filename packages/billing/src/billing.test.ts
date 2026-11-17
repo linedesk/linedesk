@@ -9,6 +9,7 @@ import {
   liveKeysAllowed,
   loadBillingProvider,
   noneBillingProvider,
+  STRIPE_TERMS_URL_MISSING,
   type StripeKeys,
   stripeKeyMode,
   WEBHOOK_EVENTS,
@@ -1452,6 +1453,27 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       .startCheckout({ ...base, kind: 'topup', amountCents: 500 })
       .catch(e => e)
     expect(second).toBeInstanceOf(BillingSetupError)
+    expect(second.code).toBe('stripe_parameter_invalid')
+  })
+
+  test('Checkout refused for a missing terms of service URL names that setting (A9)', async () => {
+    const noTerms = stripeRoutes({
+      ...catalogRoutes(),
+      'POST /v1/checkout/sessions': () => [
+        400,
+        {
+          error: {
+            type: 'invalid_request_error',
+            message: 'You cannot collect consent to your terms of service unless a URL is set in the Stripe Dashboard.',
+          },
+        },
+      ],
+    })
+    const error = await (await stripeWith(noTerms.doFetch))
+      .startCheckout({ ...base, kind: 'plan', items: [{ lookupKey: 'ws_yearly', quantity: 1 }] })
+      .catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+    expect(error.code).toBe(STRIPE_TERMS_URL_MISSING)
   })
 
   test('a session reads the trial card’s fingerprint and funding; a plan’s charge gives Radar’s risk level', async () => {

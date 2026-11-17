@@ -46,6 +46,7 @@ export type {
 export {
   BillingSetupError,
   CHECKOUT_PMC_NAME,
+  STRIPE_TERMS_URL_MISSING,
   WEBHOOK_EVENTS,
   WEBHOOK_TOLERANCE_SECONDS,
   WebhookRefused,

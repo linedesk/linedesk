@@ -25,6 +25,7 @@ import {
 import { and, count, eq, gte, sql } from 'drizzle-orm'
 import { billingState } from './billing-settings.ts'
 import { isBlockedDomain } from './disposable-domains.ts'
+import { legalTerms } from './legal-terms.ts'
 import { Reject } from './handler-context.ts'
 import { queueBillingAlert } from './jobs.ts'
 import { createRateLimiter } from './rate-limit.ts'
@@ -149,13 +150,14 @@ export async function turnstileKeys(tx: Tx): Promise<{ siteKey: string; secretKe
 export type SelfServeState = {
   on: boolean
   open: boolean
-  closedBecause: 'switched_off' | 'billing_not_in_effect' | 'bot_check_missing' | null
+  closedBecause: 'switched_off' | 'billing_not_in_effect' | 'terms_missing' | 'bot_check_missing' | null
   rules: SignupRules
 }
 
 /**
  * Whether self-serve sign-up is switched on and open now: billing in effect through Stripe (docs/billing.md §3.1,
- * decision 1) and, while the rules ask for it, Turnstile set up. Checked by every step, never only by the page.
+ * decision 1), the terms and privacy policy with their versions set (legal-terms.ts, A9: nobody starts a plan without
+ * terms to accept) and, while the rules ask for it, Turnstile set up. Checked by every step, never only by the page.
  */
 export async function selfServeState(tx: Tx): Promise<SelfServeState> {
   const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, SELF_SERVE_KEY))
@@ -164,6 +166,7 @@ export async function selfServeState(tx: Tx): Promise<SelfServeState> {
   const closed = (closedBecause: SelfServeState['closedBecause']) => ({ on, open: false, closedBecause, rules })
   if (!on) return closed('switched_off')
   if ((await billingState(tx)).inEffect !== 'stripe') return closed('billing_not_in_effect')
+  if (!legalTerms().terms) return closed('terms_missing')
   if (rules.turnstile && !(await turnstileKeys(tx))) return closed('bot_check_missing')
   return { on, open: true, closedBecause: null, rules }
 }

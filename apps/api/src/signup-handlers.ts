@@ -16,6 +16,7 @@ import {
   SIGNUP_COUNTRIES,
   session,
   signup_attempts,
+  terms_acceptances,
   type Tx,
   user,
 } from '@linedesk/db'
@@ -25,6 +26,7 @@ import { billingProvider } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { type LegalTerms, legalTerms } from './legal-terms.ts'
 import { queueBillingAlert } from './jobs.ts'
 import { addToWorkspace } from './memberships.ts'
 import { refusePartner } from './partner-refusals.ts'
@@ -60,6 +62,7 @@ type SignUpInput = {
   plan: 'cloud' | 'partner'
   interval: 'year' | 'month'
   timeZone?: string
+  acceptedTerms: { termsVersion: string; privacyVersion: string }
 }
 
 /**
@@ -96,6 +99,36 @@ async function waitingSignUp(tx: Tx, userId: string): Promise<Omit<AccountSignUp
   }
 }
 
+/** The rejection code when the terms changed while the sign-up page was open: the page loads them again. */
+export const TERMS_CHANGED = 'terms_changed'
+
+/**
+ * Records that this person accepted these terms and this privacy policy now (A9), with the IP address and browser of
+ * the session that accepted (Better Auth keeps them on the session; null when it has none).
+ */
+async function recordAcceptance(
+  tx: Tx,
+  o: { userId: string; billId: string; sessionId: string; terms: LegalTerms; now: string },
+) {
+  const [from] = await tx
+    .select({ ip: session.ipAddress, userAgent: session.userAgent })
+    .from(session)
+    .where(eq(session.id, o.sessionId))
+  await tx.insert(terms_acceptances).values({
+    id: crypto.randomUUID(),
+    user_id: o.userId,
+    billing_account_id: o.billId,
+    source: 'signup',
+    terms_url: o.terms.termsUrl,
+    terms_version: o.terms.termsVersion,
+    privacy_url: o.terms.privacyUrl,
+    privacy_version: o.terms.privacyVersion,
+    ip_address: from?.ip || null,
+    user_agent: from?.userAgent ? from.userAgent.slice(0, 512) : null,
+    accepted_at: o.now,
+  })
+}
+
 const signUp: Handler = async (ctx, input: SignUpInput) => {
   const { tx, actor, now } = ctx
   refuseSignUpActor(actor)
@@ -110,7 +143,15 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: waiting.workspace?.id ?? null } } }
   }
   if (!(SIGNUP_COUNTRIES as readonly string[]).includes(input.country)) throw new Reject(COUNTRY_NOT_YET)
-  if (input.plan === 'partner') return partnerSignUp(ctx, me, input)
+  // The terms the page showed must still be the ones in effect (A9): changed while the page was open, it reloads them.
+  const { terms } = legalTerms()
+  if (!terms) throw new Forbidden(SIGNUP_CLOSED)
+  if (
+    input.acceptedTerms.termsVersion !== terms.termsVersion ||
+    input.acceptedTerms.privacyVersion !== terms.privacyVersion
+  )
+    throw Reject.t('server.api.signup.termsChanged', undefined, TERMS_CHANGED)
+  if (input.plan === 'partner') return partnerSignUp(ctx, me, input, terms)
   const billId = crypto.randomUUID()
   await tx.insert(billing_accounts).values({
     id: billId,
@@ -132,6 +173,7 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     .where(eq(organization.id, org.id))
   if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
   await addToWorkspace(tx, me, org, 'owner', now)
+  await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now })
   await tx.update(session).set({ activeOrganizationId: org.id }).where(eq(session.id, actor.sessionId!))
   const data: AccountSignUpData = { billId, workspace: { id: org.id, name: org.name }, partner: null, existing: false }
   // The audit log files the entry under the new workspace, with its owner.
@@ -147,8 +189,9 @@ async function partnerSignUp(
   ctx: Parameters<Handler>[0],
   me: typeof user.$inferSelect,
   input: SignUpInput,
+  terms: LegalTerms,
 ): Promise<{ rows: Record<string, never>; data: AccountSignUpData & { subject: unknown } }> {
-  const { tx, now } = ctx
+  const { tx, actor, now } = ctx
   const [owning] = await tx
     .select({ id: partner_members.partner_id })
     .from(partner_members)
@@ -174,6 +217,7 @@ async function partnerSignUp(
     updated_at: now,
   })
   await tx.insert(partner_members).values({ partner_id: partnerId, user_id: me.id, role: 'owner', created_at: now })
+  await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now })
   if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
   const data: AccountSignUpData = {
     billId,
@@ -306,6 +350,8 @@ async function sweepBill(tx: Tx, billId: string, before: string, now: string) {
   // A partner sign-up that never finished: the partner goes with its bill (its team and invitations with it).
   await tx.delete(partners).where(eq(partners.billing_account_id, billId))
   await tx.delete(billing_balances).where(eq(billing_balances.billing_account_id, billId))
+  // Never a customer: the acceptance goes with the bill (A9).
+  await tx.delete(terms_acceptances).where(eq(terms_acceptances.billing_account_id, billId))
   await tx.delete(billing_accounts).where(eq(billing_accounts.id, billId))
   const accounts = (await deleteIdleAccount(tx, bill.owner_user_id)) ? 1 : 0
   return { workspaces: workspaces.length, accounts }

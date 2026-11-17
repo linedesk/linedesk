@@ -3,7 +3,7 @@
 // a white-label partner account with its partner bill, no workspace; the app opens the partner area next. The API decides everything (open or not,
 // the address, the bot check, the limits, the countries); this page only asks and says what came back. Only the plan
 // and the interval travel in the address, never personal data.
-import { useT } from '@linedesk/i18n/react'
+import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { signInWithCode } from './auth.ts'
 import { browserPlace, useCountryHint } from './countryHint.ts'
@@ -16,10 +16,12 @@ import {
   loadSignupConfig,
   readSignupParams,
   type SignupConfig,
+  type SignupTerms,
   signUpBusiness,
   SIGNUP_COUNTRIES,
   signupPlanLine,
 } from './signup.ts'
+import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 import { loadTurnstile } from './turnstile.ts'
@@ -80,7 +82,14 @@ export function Signup({
   if (step === 'code')
     return <CodeStep email={email} config={config} onDone={() => setStep('details')} onBack={() => setStep('email')} />
   return (
-    <DetailsStep interval={params.interval} partner={partner} line={line || null} onDone={() => onDone(partner)} />
+    <DetailsStep
+      interval={params.interval}
+      partner={partner}
+      line={line || null}
+      terms={config.terms!}
+      onTermsChanged={() => void loadSignupConfig().then(setConfig)}
+      onDone={() => onDone(partner)}
+    />
   )
 }
 
@@ -336,16 +345,25 @@ function CodeStep({
   )
 }
 
+/**
+ * The last step. Starting the plan accepts the terms and the privacy policy shown next to the button (clickwrap, A9),
+ * for a business and a partner alike; the API records the versions with the time and the session's IP address.
+ * Checkout then asks for the terms again (Stripe's required checkbox).
+ */
 function DetailsStep({
   interval,
   partner,
   line,
+  terms,
+  onTermsChanged,
   onDone,
 }: {
   interval: 'year' | 'month'
   /** Plan `partner`: the partner's company, not a business that answers calls. */
   partner: boolean
   line: string | null
+  terms: SignupTerms
+  onTermsChanged: () => void
   onDone: () => void | Promise<void>
 }) {
   const t = useT()
@@ -374,17 +392,22 @@ function DetailsStep({
       plan: partner ? 'partner' : 'cloud',
       interval,
       timeZone: browserPlace().timeZone ?? undefined,
+      acceptedTerms: { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion },
     })
     if (answer.ok) return onDone()
     setBusy(false)
+    // Changed while the page was open: the new links are loaded, and the person reads them and continues again.
+    if (answer.termsChanged) onTermsChanged()
     setError(
-      answer.partnerOwned
-        ? t('auth.signup.partnerOwned')
-        : answer.notYet
-          ? t('auth.signup.notYetText')
-          : answer.closed
-            ? t('auth.signup.closedText')
-            : t('auth.signup.failed'),
+      answer.termsChanged
+        ? t('auth.signup.termsChanged')
+        : answer.partnerOwned
+          ? t('auth.signup.partnerOwned')
+          : answer.notYet
+            ? t('auth.signup.notYetText')
+            : answer.closed
+              ? t('auth.signup.closedText')
+              : t('auth.signup.failed'),
     )
   }
 
@@ -413,6 +436,15 @@ function DetailsStep({
           {notServed && <span className="auth-hint">{t('auth.signup.notYetText')}</span>}
         </div>
         {error && <AuthError message={error} />}
+        <p className="auth-terms">
+          <T
+            k="auth.signup.terms"
+            values={{
+              terms: chunks => <ExternalLink href={terms.termsUrl}>{chunks}</ExternalLink>,
+              privacy: chunks => <ExternalLink href={terms.privacyUrl}>{chunks}</ExternalLink>,
+            }}
+          />
+        </p>
         <button
           type="submit"
           className={cx('k-btn k-btn-primary', busy && 'is-busy')}

@@ -15,7 +15,7 @@ export const SIGNUP_INTERVALS = ['year', 'month'] as const
 export const accountSignUp = defineAction({
   name: 'account.signUp',
   description:
-    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name, the business's name and its country (US, CA or PR). One waiting sign-up per account: asked again, it answers the one there is.",
+    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name, the business's name and its country (US, CA or PR), and the versions of the terms and privacy policy the sign-up page showed (you accept them by starting). One waiting sign-up per account: asked again, it answers the one there is.",
   input: z.object({
     name: z.string().trim().min(1).max(80),
     businessName: workspaceName,
@@ -28,6 +28,14 @@ export const accountSignUp = defineAction({
     plan: z.enum(SIGNUP_PLANS),
     interval: z.enum(SIGNUP_INTERVALS),
     timeZone: z.string().max(64).optional(),
+    /**
+     * The terms and privacy policy versions the page showed next to its button (GET /v1/signup/config): starting the
+     * plan accepts them (A9). The server records them only when they are still the ones in effect.
+     */
+    acceptedTerms: z.object({
+      termsVersion: z.string().trim().min(1).max(40),
+      privacyVersion: z.string().trim().min(1).max(40),
+    }),
   }),
   permission: 'account:signUp',
 })
