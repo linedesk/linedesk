@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { ActionError, type ApiClient } from './api-client.ts'
 import type { CallSession } from './call-session.ts'
 import { sipDialer, transferLegSeconds } from './on-call-dialer.ts'
+import { audioMs } from './transfer-call.ts'
 import { startTransfer } from './transfer-tool.ts'
 
 const call = { callId: 'call_1', workspaceId: 'ws_1' } as unknown as CallSession
@@ -73,4 +74,9 @@ describe('sipDialer', () => {
     expect(transferLegSeconds(10_000_000)).toBe(120 * 60)
     expect(transferLegSeconds(5)).toBe(60)
   })
+})
+
+test('audioMs: how long a pre-rendered line plays', () => {
+  expect(audioMs({ sampleRate: 24_000, channels: 1, samples: new Int16Array(48_000) })).toBe(2000)
+  expect(audioMs({ sampleRate: 16_000, channels: 2, samples: new Int16Array(64_000) })).toBe(2000)
 })

@@ -89,6 +89,33 @@ async function joinConsultRoom({ url, apiKey, apiSecret }: Livekit, name: string
  * Only what comes after the briefing has played counts: a voicemail greeting talking over it, or a
  * key pressed before the question, is no answer. The briefing cannot be interrupted.
  */
+/** How long a pre-rendered line plays, in ms. */
+export const audioMs = ({ sampleRate, channels, samples }: GreetingAudio) => (samples.length / channels / sampleRate) * 1000
+
+/** Margin after a pre-rendered briefing's own length before answers count: the last words reach the phone. */
+const PLAYED_MARGIN_MS = 500
+
+/**
+ * Resolves once `audio` has played since the session started speaking (its length plus PLAYED_MARGIN_MS). On a phone
+ * leg waitForPlayout can resolve many seconds after the audio ended (LIN-263: 15 s), and a yes in that gap would not count.
+ */
+function playedByLength(session: voice.AgentSession, audio: GreetingAudio): { played: Promise<void>; stop: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onState: (event: { newState: string }) => void = () => {}
+  const played = new Promise<void>(resolve => {
+    onState = ({ newState }) => {
+      if (newState !== 'speaking' || timer) return
+      timer = setTimeout(resolve, audioMs(audio) + PLAYED_MARGIN_MS)
+    }
+    session.on(voice.AgentSessionEventTypes.AgentStateChanged, onState)
+  })
+  const stop = () => {
+    clearTimeout(timer)
+    session.off(voice.AgentSessionEventTypes.AgentStateChanged, onState)
+  }
+  return { played, stop }
+}
+
 async function decide(
   session: voice.AgentSession,
   agent: ConsultAgent,
@@ -123,11 +150,15 @@ async function decide(
   room.on(RoomEvent.DtmfReceived, onDigit)
   room.on(RoomEvent.ParticipantDisconnected, onLeft)
   signal.addEventListener('abort', () => settle(null), { once: true })
+  let byLength: ReturnType<typeof playedByLength> | null = null
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       asked = false
+      byLength?.stop()
+      byLength = briefingAudio ? playedByLength(session, briefingAudio) : null
       const speech = sayLine(session, briefing, briefingAudio, { allowInterruptions: false })
-      const timeout = speech.waitForPlayout().then(() => {
+      const played = Promise.race([speech.waitForPlayout(), ...(byLength ? [byLength.played] : [])])
+      const timeout = played.then(() => {
         console.log(`transfer ${room.name}: briefing ${attempt + 1} played${briefingAudio ? '' : ' live'} (${at()})`)
         asked = true
         return new Promise<null>(resolve => setTimeout(() => resolve(null), DECISION_MS))
@@ -138,6 +169,7 @@ async function decide(
     }
     return null
   } finally {
+    byLength?.stop()
     room.off(RoomEvent.DtmfReceived, onDigit)
     room.off(RoomEvent.ParticipantDisconnected, onLeft)
   }
