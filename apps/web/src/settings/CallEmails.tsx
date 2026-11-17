@@ -5,6 +5,7 @@
 // Next to it the instruction tried on the assistant's last calls (assistant.previewEmailRouting), and the list of
 // outside addresses with their confirmation state (emailRouting.get, emailRecipient.*).
 import {
+  assigneeOf,
   EMAIL_ROUTING_CODES,
   EMAIL_ROUTING_MAX,
   type EmailRoutingData,
@@ -25,7 +26,7 @@ import { type Query, setQueryData, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { memberAvatar, memberLabel, useMembers } from '../team/members.ts'
 import { parseTs, timeLabel } from '../time.ts'
-import { Avatar, Badge, Button, cx, Note } from '../ui/kit.tsx'
+import { Avatar, Badge, Button, cx, Icon, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
 import {
@@ -60,6 +61,9 @@ type Props = {
   name: string
   value: string
   onChange: (value: string) => void
+  /** Members who get the call assigned too, when it is emailed to them (user ids). */
+  assign: string[]
+  onAssignChange: (ids: string[]) => void
   canEdit: boolean
   toast: (text: string) => void
   undoable?: Undoable
@@ -78,7 +82,17 @@ function errorText(err: unknown): string {
     : (err as Error).message
 }
 
-export function CallEmails({ assistantId, name, value, onChange, canEdit, toast, undoable }: Props) {
+export function CallEmails({
+  assistantId,
+  name,
+  value,
+  onChange,
+  assign,
+  onAssignChange,
+  canEdit,
+  toast,
+  undoable,
+}: Props) {
   const t = useT()
   const format = useFormat()
   const members = useMembers()
@@ -104,8 +118,11 @@ export function CallEmails({ assistantId, name, value, onChange, canEdit, toast,
       ),
     [members, data, value],
   )
-  const preview = usePreview(assistantId, value, canEdit)
   const mentioned = mentionedPeople(value, people)
+  const mentionedMembers = mentioned.filter(p => p.kind === 'user')
+  // Only members still named: what would be saved.
+  const assigned = assign.filter(id => mentionedMembers.some(p => p.id === id))
+  const preview = usePreview(assistantId, value, canEdit)
   const outsideNamed = mentioned.filter(p => p.kind === 'email')
   const emailsOff = mentioned.filter(p => p.kind === 'user' && p.emailOn === false)
   const tooLong = value.length > EMAIL_ROUTING_MAX
@@ -158,7 +175,18 @@ export function CallEmails({ assistantId, name, value, onChange, canEdit, toast,
           </Field>
           {routesEmails(value) ? (
             mentioned.length ? (
-              <MayEmail name={name} people={mentioned} recipients={data?.recipients} />
+              <>
+                <MayEmail name={name} people={mentioned} recipients={data?.recipients} />
+                {mentionedMembers.length > 0 && (
+                  <AssignChoice
+                    name={name}
+                    people={mentionedMembers}
+                    assigned={assigned}
+                    disabled={!canEdit}
+                    onChange={onAssignChange}
+                  />
+                )}
+              </>
             ) : (
               <p className="help">{t('settings.assistant.emails.who.nobodyNamed')}</p>
             )
@@ -183,7 +211,7 @@ export function CallEmails({ assistantId, name, value, onChange, canEdit, toast,
           )}
           {data && !data.llm && routesEmails(value) && <MissingProviderNote kind="emailRouting" />}
         </Section>
-        {canEdit && <PreviewCard preview={preview} name={name} />}
+        {canEdit && <PreviewCard preview={preview} name={name} assign={assigned} />}
       </div>
       {canEdit && <OutsideList routing={routing} toast={toast} undoable={undoable} />}
     </>
@@ -218,6 +246,54 @@ function MayEmail({
           <OutsideChip key={p.email} email={p.email} status={recipients?.find(r => r.email === p.email)?.status} />
         ),
       )}
+    </div>
+  )
+}
+
+/**
+ * "Also assign the call to:": a toggle per member the instruction names. The code assigns, never the model: the first
+ * of them in the instruction's order that gets the email, while nobody has the call yet.
+ */
+function AssignChoice({
+  name,
+  people,
+  assigned,
+  disabled,
+  onChange,
+}: {
+  name: string
+  people: MentionPerson[]
+  assigned: string[]
+  disabled: boolean
+  onChange: (ids: string[]) => void
+}) {
+  const t = useT()
+  return (
+    <div className="ce-assign">
+      <div className="ce-may">
+        <span className="ce-may-label">{t('settings.assistant.emails.assign.label')}</span>
+        {people.map(p => {
+          if (p.kind !== 'user') return null
+          const on = assigned.includes(p.id)
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className="ce-toggle"
+              aria-pressed={on}
+              disabled={disabled}
+              title={t(on ? 'settings.assistant.emails.assign.off' : 'settings.assistant.emails.assign.on', {
+                member: p.label,
+              })}
+              onClick={() => onChange(on ? assigned.filter(id => id !== p.id) : [...assigned, p.id])}
+            >
+              {on && <Icon name="check" size={12} />}
+              {p.label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="help">{t('settings.assistant.emails.assign.help', { name })}</p>
     </div>
   )
 }
@@ -492,7 +568,7 @@ const PROBLEM_TEXT: Record<NonNullable<EmailRoutingPreviewCall['problem']>, Mess
 }
 
 /** "On your last calls": per call who it would go to, whom it would assign and why. */
-function PreviewCard({ preview, name }: { preview: Preview; name: string }) {
+function PreviewCard({ preview, name, assign }: { preview: Preview; name: string; assign: string[] }) {
   const t = useT()
   const routes = routesEmails(preview.checked)
   return (
@@ -530,7 +606,16 @@ function PreviewCard({ preview, name }: { preview: Preview; name: string }) {
           ) : (
             <ul className={cx('ce-calls', preview.stale && 'is-stale')} aria-busy={preview.stale || undefined}>
               {preview.data?.calls.map(c => (
-                <PreviewLine key={c.callId} call={c} name={name} />
+                <PreviewLine
+                  key={c.callId}
+                  call={c}
+                  name={name}
+                  assignee={assigneeOf(
+                    preview.checked,
+                    assign,
+                    c.to.flatMap(r => (r.kind === 'member' ? [r.user_id] : [])),
+                  )}
+                />
               ))}
             </ul>
           )}
@@ -540,8 +625,21 @@ function PreviewCard({ preview, name }: { preview: Preview; name: string }) {
   )
 }
 
-function PreviewLine({ call, name }: { call: EmailRoutingPreviewCall; name: string }) {
+/**
+ * One call of the preview. Who gets it assigned is worked out here from the Assign choice on the page (the same rule
+ * the server uses), so a new choice shows at once and asks the model nothing.
+ */
+function PreviewLine({
+  call,
+  name,
+  assignee,
+}: {
+  call: EmailRoutingPreviewCall
+  name: string
+  assignee: string | null
+}) {
   const t = useT()
+  const assigned = call.to.find(r => r.kind === 'member' && r.user_id === assignee)
   return (
     <li className="ce-call">
       <div className="ce-call-head">
@@ -552,8 +650,8 @@ function PreviewLine({ call, name }: { call: EmailRoutingPreviewCall; name: stri
       <RecipientChips to={call.to} />
       {!call.to.length && <p className="help">{t('settings.assistant.emails.preview.nobody')}</p>}
       {call.reason && <p className="ce-call-reason">{call.reason}</p>}
-      {call.assign && (
-        <p className="help">{t('settings.assistant.emails.preview.assigns', { member: call.assign.name, name })}</p>
+      {assigned?.kind === 'member' && (
+        <p className="help">{t('settings.assistant.emails.preview.assigns', { member: assigned.name, name })}</p>
       )}
       {call.problem && <p className="help">{t(PROBLEM_TEXT[call.problem])}</p>}
     </li>

@@ -236,7 +236,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   ],
   rules: ['ai_disclosure', 'communication_style', 'behaviours'],
   transfers: ['transfers'],
-  emails: ['email_routing'],
+  emails: ['email_routing', 'email_assign'],
   advanced: [
     'talking_speed_pct',
     'silence_first_gap_s',
@@ -894,6 +894,9 @@ function Form({
         ...(clean.email_routing !== normalized(saved).email_routing
           ? { email_routing: clean.email_routing || null }
           : {}),
+        ...(JSON.stringify(clean.email_assign) !== JSON.stringify(normalized(saved).email_assign)
+          ? { email_assign: clean.email_assign }
+          : {}),
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
@@ -1012,6 +1015,8 @@ function Form({
             name={assistantName(draft, t)}
             value={draft.email_routing}
             onChange={text => set('email_routing', text)}
+            assign={draft.email_assign}
+            onAssignChange={ids => set('email_assign', ids)}
             canEdit={canEdit}
             toast={toast}
             undoable={undoable}

@@ -8,6 +8,21 @@ import { defineAction } from './define.ts'
 
 /** The longest instruction (characters, mentions as stored). */
 export const EMAIL_ROUTING_MAX = 4000
+/** The most members an assistant assigns routed calls to (assistants.email_assign). */
+export const EMAIL_ASSIGN_MAX = 50
+/** Members to assign a routed call to: user ids, each once. */
+export const emailAssignInput = z.array(z.string().min(1).max(200)).max(EMAIL_ASSIGN_MAX)
+
+/**
+ * Whom a routed call is assigned to: the first member, in the instruction's order, who is in `assign` and gets the
+ * email. null: nobody. The settings choose `assign`, never the model.
+ */
+export function assigneeOf(instruction: string, assign: readonly string[], to: readonly string[]): string | null {
+  if (!assign.length) return null
+  for (const m of parseMentions(instruction))
+    if (m.kind === 'user' && assign.includes(m.id) && to.includes(m.id)) return m.id
+  return null
+}
 /** Outside addresses a workspace may keep (removed ones do not count). */
 export const OUTSIDE_RECIPIENTS_MAX = 20
 /** How long the link in the confirmation email works. */
@@ -146,8 +161,12 @@ export const assistantPreviewEmailRouting = defineAction({
   name: 'assistant.previewEmailRouting',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Try a call email instruction on the assistant's last 5 finished calls: who each would go to, whom it would assign and why. Sends and saves nothing. About 30 previews an hour per workspace.",
-  input: z.object({ assistantId: z.string().min(1), text: z.string().max(EMAIL_ROUTING_MAX) }),
+    "Try a call email instruction on the assistant's last 5 finished calls: who each would go to, whom it would assign and why. `assign`: the members calls are assigned to (as assistant.update's `email_assign`; missing: the saved ones). Sends and saves nothing. About 30 previews an hour per workspace.",
+  input: z.object({
+    assistantId: z.string().min(1),
+    text: z.string().max(EMAIL_ROUTING_MAX),
+    assign: emailAssignInput.optional(),
+  }),
   permission: 'settings:write',
   readOnly: true,
 })

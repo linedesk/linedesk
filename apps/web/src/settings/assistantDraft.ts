@@ -37,6 +37,7 @@ import {
   type Language,
   languageCodes,
   mainLanguageOf,
+  parseMentions,
   swapDefault,
   type VoicePipeline,
 } from '@linedesk/actions'
@@ -59,6 +60,8 @@ export type Draft = {
   transfers: TransferDraft[]
   /** Who gets the email after a call, in the owner's words with mentions (`<@user:ID>`, `<@email:ADDRESS>`); empty: everyone with call emails on. */
   email_routing: string
+  /** Members mentioned in `email_routing` who get the call assigned too (user ids); the first in the instruction's order wins. */
+  email_assign: string[]
   /** The voice: provider and voice id (empty: the provider's default), and its voice model ('': the server's). */
   voice: { provider: string; voice_id: string; model: string }
   /** The language model of live turns ('': the server's default). */
@@ -132,6 +135,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     greeting_outside: local(a.greeting_outside ?? ''),
     transfers: (a.transfers ?? []).map(c => transferDraftOf({ ...c, number: c.number ? formatNumber(c.number) : '' })),
     email_routing: a.email_routing ?? '',
+    email_assign: a.email_assign ?? [],
     voice: { provider: a.voice.provider, voice_id: a.voice.voice_id, model: a.voice.model ?? '' },
     llm_model: a.llm_model ?? '',
     website: p.website ?? '',
@@ -271,6 +275,8 @@ export const normalized = (d: Draft): Draft => ({
   instructions: d.instructions.trim(),
   greeting_outside: d.greeting_outside.trim(),
   email_routing: d.email_routing.trim(),
+  // Only members the instruction still names: a removed mention takes its Assign with it.
+  email_assign: d.email_assign.filter(id => parseMentions(d.email_routing).some(m => m.kind === 'user' && m.id === id)),
   transfers: d.transfers.map(c =>
     transferDraftOf({ ...c, name: c.name.trim(), condition: c.condition.trim(), number: normalizedNumber(c.number) }),
   ),

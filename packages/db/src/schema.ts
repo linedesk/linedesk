@@ -183,6 +183,12 @@ export const assistants = pgTable(
      * are stored as `<@user:USER_ID>` and `<@email:ADDRESS>`. null or '': every member with call emails on.
      */
     email_routing: text('email_routing'),
+    /**
+     * Members a routed call is also assigned to (Settings › Assistant › Call emails, "Assign"): the first of them, in the
+     * instruction's order, who gets the call's email, while nobody has the call. Chosen in the settings, never by the
+     * model.
+     */
+    email_assign: jsonb('email_assign').$type<string[]>().notNull().default([]),
     created_at: createdAt(),
     version: version(),
   },

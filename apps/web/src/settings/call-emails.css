@@ -121,6 +121,44 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ce-assign {
+  display: grid;
+  gap: 4px;
+}
+.ce-assign .help {
+  margin: 0;
+}
+/* An Assign toggle: quiet outline when off, black when on (design principles: black primary). */
+.ce-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ce-toggle[aria-pressed="false"]:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.ce-toggle[aria-pressed="true"] {
+  color: var(--surface);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.ce-toggle:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.ce-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 .ce-chip-outside {
   padding: 0 8px;
   background: transparent;

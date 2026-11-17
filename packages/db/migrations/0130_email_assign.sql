@@ -1,0 +1,1 @@
+ALTER TABLE "assistants" ADD COLUMN "email_assign" jsonb DEFAULT '[]'::jsonb NOT NULL;

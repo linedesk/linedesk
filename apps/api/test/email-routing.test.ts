@@ -8,7 +8,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { notifyCallFinished } from '../src/call-notifications.ts'
 import { db } from '../src/db.ts'
 import { type Email, type EmailSender, emailSender } from '../src/email.ts'
-import { actions, OUTSIDE_CONFIRMS_PER_DAY, OUTSIDE_STOP_COOLDOWN_DAYS } from '@linedesk/actions'
+import { actions, assigneeOf, OUTSIDE_CONFIRMS_PER_DAY, OUTSIDE_STOP_COOLDOWN_DAYS } from '@linedesk/actions'
 import {
   OUTSIDE_CONFIRM_PATH,
   OUTSIDE_PAGE_REQUESTS_PER_MINUTE,
@@ -93,8 +93,12 @@ async function finishedCall(ws: Workspace) {
   return (await getCall(body.data.callId))!
 }
 
-async function route(ws: Workspace, text: string) {
-  const res = await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, email_routing: text })
+async function route(ws: Workspace, text: string, assign?: string[]) {
+  const res = await act(ws.owner, 'assistant.update', {
+    assistantId: ws.assistant.id,
+    email_routing: text,
+    ...(assign ? { email_assign: assign } : {}),
+  })
   if (res.status !== 200) throw new Error(`instruction not saved: ${JSON.stringify(res.body)}`)
 }
 
@@ -238,6 +242,46 @@ describe('routing a call email', () => {
     expect((await getCall(call.id))!.assignee_id).toBeNull()
     expect(await db.select().from(call_events).where(eq(call_events.call_id, call.id))).toEqual([])
     expect((await getCall(call.id))!.email_route!.assigned_user_id).toBeNull()
+  })
+
+  test('Assign from the settings: the first picked member, in the instruction order, who gets the email', async () => {
+    const ws = await createWorkspace('Assign Choice Plumbing')
+    const dave = await addMember(ws.id, 'member')
+    const sarah = await addMember(ws.id, 'member')
+    // Two names the fake model can tell apart.
+    const [daveName, sarahName] = ['Dave Ortiz', 'Sarah Lee']
+    await db.update(user).set({ name: daveName }).where(eq(user.id, dave.userId))
+    await db.update(user).set({ name: sarahName }).where(eq(user.id, sarah.userId))
+    // Both picked, both get the email: Sarah is named first, so she gets it. The model's answer has no say.
+    await route(ws, `Leaks go to <@user:${sarah.userId}> and <@user:${dave.userId}>.`, [dave.userId, sarah.userId])
+    const call = await finishedCall(ws)
+    const { sender } = fakeSender()
+    await notifyCallFinished(db, sender, call.id, {
+      model: async () => fakeModel({ to: [daveName, sarahName], assign: daveName }).model,
+    })
+    expect((await getCall(call.id))!.assignee_id).toBe(sarah.userId)
+    expect((await getCall(call.id))!.email_route!.assigned_user_id).toBe(sarah.userId)
+    const events = await db.select().from(call_events).where(eq(call_events.call_id, call.id))
+    expect(events.map(e => [e.kind, e.assignee_id, e.actor_id])).toEqual([['assigned', sarah.userId, null]])
+    // Only someone who gets the email: Sarah is picked, but this call goes to Dave alone.
+    const second = await finishedCall(ws)
+    await notifyCallFinished(db, sender, second.id, { model: async () => fakeModel({ to: [daveName] }).model })
+    expect((await getCall(second.id))!.assignee_id).toBe(dave.userId)
+    // Never over someone who has the call already.
+    await route(ws, `Leaks go to <@user:${sarah.userId}>.`, [sarah.userId])
+    const third = await finishedCall(ws)
+    await db.update(calls).set({ assignee_id: dave.userId }).where(eq(calls.id, third.id))
+    await notifyCallFinished(db, sender, third.id, { model: async () => fakeModel({ to: [sarahName] }).model })
+    expect((await getCall(third.id))!.assignee_id).toBe(dave.userId)
+  })
+
+  test('assigneeOf: picked, named and emailed, first in the instruction', () => {
+    const text = 'Leaks to <@user:b>, then <@user:a>, and <@email:x@y.example>.'
+    expect(assigneeOf(text, [], ['a', 'b'])).toBeNull()
+    expect(assigneeOf(text, ['a', 'b'], ['a', 'b'])).toBe('b')
+    expect(assigneeOf(text, ['a', 'b'], ['a'])).toBe('a')
+    expect(assigneeOf(text, ['c'], ['a', 'b', 'c'])).toBeNull()
+    expect(assigneeOf(text, ['x@y.example'], ['x@y.example'])).toBeNull()
   })
 
   test('what was said cannot close <call>, and names are one short line', () => {
@@ -486,6 +530,35 @@ describe('preview', () => {
           .where(and(eq(calls.id, call.id)))
       )[0]!.assignee_id,
     ).toBeNull()
+  })
+
+  test('the preview assigns from the saved choice, or from `assign` when given', async () => {
+    const ws = await createWorkspace('Preview Assign Plumbing')
+    const dave = await addMember(ws.id, 'member')
+    const daveName = await nameOf(dave)
+    const call = await finishedCall(ws)
+    vi.spyOn(previewDeps, 'model').mockResolvedValue(fakeModel({ to: [daveName] }).model)
+    const text = `Water heater calls go to <@user:${dave.userId}>.`
+    await route(ws, text, [dave.userId])
+    const lineOf = async (input: object) => {
+      const res = await act(ws.owner, 'assistant.previewEmailRouting', { assistantId: ws.assistant.id, text, ...input })
+      expect(res.status).toBe(200)
+      return res.body.data.calls.find((c: { callId: string }) => c.callId === call.id)
+    }
+    expect((await lineOf({})).assign).toEqual({ user_id: dave.userId, name: daveName })
+    expect((await lineOf({ assign: [] })).assign).toBeNull()
+    expect((await getCall(call.id))!.assignee_id).toBeNull()
+  })
+
+  test('assistant.update saves the Assign choice; members may not', async () => {
+    const ws = await createWorkspace('Save Assign Plumbing')
+    const member = await addMember(ws.id, 'member')
+    const res = await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, email_assign: [member.userId] })
+    expect(res.status).toBe(200)
+    expect(res.body.rows.assistants[0].email_assign).toEqual([member.userId])
+    expect((await act(member, 'assistant.update', { assistantId: ws.assistant.id, email_assign: [] })).status).toBe(403)
+    const cleared = await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, email_assign: [] })
+    expect(cleared.body.rows.assistants[0].email_assign).toEqual([])
   })
 
   test('refused while an instance admin is signed in as the user: it sends calls to the language model', () => {

@@ -318,7 +318,10 @@ export const emailRecipientHandlers: Record<string, Handler> = {
     return { rows: {}, data: { recipient: toOutside(restored!) } }
   },
 
-  'assistant.previewEmailRouting': async ({ tx, actor }, input: { assistantId: string; text: string }) => {
+  'assistant.previewEmailRouting': async (
+    { tx, actor },
+    input: { assistantId: string; text: string; assign?: string[] },
+  ) => {
     if (!actor.workspaceId) throw refuse('no_workspace')
     const workspaceId = actor.workspaceId
     const assistant = await assistantIn(tx, workspaceId, input.assistantId)
@@ -387,6 +390,7 @@ export const emailRecipientHandlers: Record<string, Handler> = {
             transcript: segments.filter(s => s.call_id === c.id),
           },
           model,
+          input.assign ?? assistant.email_assign,
           { preview: true, budget: false, language },
         )
         return previewLine(c, decision, fallbackTo)

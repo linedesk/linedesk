@@ -109,7 +109,7 @@ export async function notifyCallFinished(
   const [contact] = call.contact_id ? await tx.select().from(contacts).where(eq(contacts.id, call.contact_id)) : []
   // The assistant that answered; an older call (or a deleted assistant): the workspace's first.
   const [assistant] = await tx
-    .select({ name: assistants.name, email_routing: assistants.email_routing })
+    .select({ name: assistants.name, email_routing: assistants.email_routing, email_assign: assistants.email_assign })
     .from(assistants)
     .where(eq(assistants.workspace_id, call.workspace_id))
     .orderBy(sql`${assistants.id} = ${call.assistant_id ?? ''} desc`, asc(assistants.created_at))
@@ -187,6 +187,7 @@ export async function notifyCallFinished(
         transcript,
       },
       model,
+      assistant!.email_assign,
     )
     const now = new Date().toISOString()
     const decided = routeOf(decision, everyone.map(asMemberRoute), now)
