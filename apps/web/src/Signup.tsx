@@ -19,7 +19,6 @@ import {
   type SignupTerms,
   signUpBusiness,
   SIGNUP_COUNTRIES,
-  signupPlanLine,
 } from './signup.ts'
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
@@ -66,14 +65,10 @@ export function Signup({
       </AuthPage>
     )
   if (!config.open) return <Closed />
-  const line = partner
-    ? config.partnerPlan && signupPlanLine(config.partnerPlan, params.interval, true)
-    : config.plan && signupPlanLine(config.plan, params.interval)
   if (step === 'email')
     return (
       <EmailStep
         config={config}
-        line={line || null}
         onSent={address => {
           setEmail(address)
           setStep('code')
@@ -86,7 +81,6 @@ export function Signup({
     <DetailsStep
       interval={params.interval}
       partner={partner}
-      line={line || null}
       terms={config.terms!}
       onTermsChanged={() => void loadSignupConfig().then(setConfig)}
       onDone={() => onDone(partner)}
@@ -179,16 +173,7 @@ function useTurnstile(siteKey: string | null) {
   return { box, token, failed, reset: () => reset.current() }
 }
 
-function EmailStep({
-  config,
-  line,
-  onSent,
-}: {
-  config: SignupConfig
-  /** The plan picked in the address, in words. */
-  line: string | null
-  onSent: (email: string) => void
-}) {
+function EmailStep({ config, onSent }: { config: SignupConfig; onSent: (email: string) => void }) {
   const t = useT()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -215,7 +200,6 @@ function EmailStep({
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{t('auth.signup.title')}</h1>
-        {line && <p className="auth-hint">{line}</p>}
         <p>{t('auth.signup.intro')}</p>
         <div className="auth-form">
           <input
@@ -355,7 +339,6 @@ function CodeStep({
 function DetailsStep({
   interval,
   partner,
-  line,
   terms,
   onTermsChanged,
   onDone,
@@ -363,7 +346,6 @@ function DetailsStep({
   interval: 'year' | 'month'
   /** Plan `partner`: the partner's company, not a business that answers calls. */
   partner: boolean
-  line: string | null
   terms: SignupTerms
   onTermsChanged: () => void
   onDone: () => void | Promise<void>
@@ -418,8 +400,6 @@ function DetailsStep({
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{partner ? t('auth.signup.partnerDetailsTitle') : t('auth.signup.detailsTitle')}</h1>
         <p>{partner ? t('auth.signup.partnerDetailsText') : t('auth.signup.detailsText')}</p>
-        {line && <p className="auth-hint">{line}</p>}
-        {!partner && <p className="auth-hint">{t('auth.signup.noCardYet')}</p>}
         <label>
           {t('auth.signup.yourName')}
           <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" autoFocus disabled={busy} />

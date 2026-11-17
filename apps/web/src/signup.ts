@@ -1,7 +1,6 @@
 // The sign-up page's requests (apps/api/src/self-serve.ts and app.ts): whether sign-up is open, the email code with
 // its checks, and account.signUp. What the page reads from its address: the plan and the interval, nothing else.
 import { SIGNUP_COUNTRIES } from '@linedesk/db/types'
-import { i18n } from './i18n/index.tsx'
 
 export { SIGNUP_COUNTRIES }
 
@@ -68,40 +67,6 @@ function readPartnerPlan(plan: PartnerSignupPlan | null | undefined): PartnerSig
   return base && plan && Number.isInteger(plan.trialClients) && plan.trialClients >= 0
     ? { ...base, trialClients: plan.trialClients }
     : null
-}
-
-/**
- * The plan's price at an interval in words: "$108 per workspace, billed yearly ($9 a month)", "$11 per workspace,
- * billed monthly". Whole dollars without cents.
- */
-export function planWords(interval: 'year' | 'month', cents: number): string {
-  const { t, format } = i18n()
-  const usd = (c: number) => format.currency(c / 100, 'USD', { minimumFractionDigits: c % 100 ? 2 : 0 })
-  return interval === 'year'
-    ? t('auth.plan.yearly', { price: usd(cents), monthly: usd(Math.round(cents / 12)) })
-    : t('auth.plan.monthly', { price: usd(cents) })
-}
-
-/**
- * The partner plan's base fee in words: "$168 a year for the partner account ($14 a month), plus each client
- * workspace at the workspace price", "$19 a month for the partner account, plus …".
- */
-export function partnerPlanWords(interval: 'year' | 'month', cents: number): string {
-  const { t, format } = i18n()
-  const usd = (c: number) => format.currency(c / 100, 'USD', { minimumFractionDigits: c % 100 ? 2 : 0 })
-  return interval === 'year'
-    ? t('auth.plan.partnerYearly', { price: usd(cents), monthly: usd(Math.round(cents / 12)) })
-    : t('auth.plan.partnerMonthly', { price: usd(cents) })
-}
-
-/** The sign-up page's line about the plan picked in the address: the trial, then the price at that interval. */
-export function signupPlanLine(plan: SignupPlan, interval: 'year' | 'month', partner = false): string {
-  const { t } = i18n()
-  const cents = interval === 'year' ? plan.yearlyCents : plan.monthlyCents
-  const words = partner ? partnerPlanWords(interval, cents) : planWords(interval, cents)
-  return plan.trialDays > 0
-    ? t('auth.signup.plan', { days: plan.trialDays, plan: words })
-    : t('auth.signup.planNoTrial', { plan: words })
 }
 
 const REFUSALS: readonly CodeRefusal[] = ['closed', 'invalid_email', 'blocked_domain', 'bot_check', 'too_many', 'busy']

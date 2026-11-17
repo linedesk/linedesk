@@ -121,7 +121,6 @@ export function CreateWorkspace({
       <div className="auth-field">
         <label htmlFor="create-ws-country">{t('settings.general.country.label')}</label>
         <CountrySelect id="create-ws-country" value={country} onChange={setPicked} disabled={busy} />
-        <span className="auth-hint">{t('shell.newWorkspace.countryHelp')}</span>
       </div>
       {error && <Note tone="danger">{error}</Note>}
       <button

@@ -1,23 +1,9 @@
-// The sign-up page's helpers (signup.ts): the plan line from the install's prices in /v1/signup/config (never written
-// into the page), and the terms the details step shows and sends back as accepted (A9).
-import { afterEach, describe, expect, it, test, vi } from 'vitest'
-import { loadSignupConfig, planWords, type SignUpInput, signUpBusiness, signupPlanLine } from './signup.ts'
+// The sign-up page's helpers (signup.ts): the config from /v1/signup/config, and the terms the details step shows and
+// sends back as accepted (A9).
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { loadSignupConfig, type SignUpInput, signUpBusiness } from './signup.ts'
 
 const plan = { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 }
-
-test('the plan in words: the price per workspace and how it is billed', () => {
-  expect(planWords('year', 10_800)).toBe('$108 per workspace, billed yearly ($9 a month)')
-  expect(planWords('month', 1100)).toBe('$11 per workspace, billed monthly')
-  expect(planWords('month', 1250)).toBe('$12.50 per workspace, billed monthly')
-})
-
-test('the sign-up line: the trial, then the plan at the interval picked', () => {
-  expect(signupPlanLine(plan, 'year')).toBe('14-day free trial, then $108 per workspace, billed yearly ($9 a month).')
-  expect(signupPlanLine(plan, 'month')).toBe('14-day free trial, then $11 per workspace, billed monthly.')
-  expect(signupPlanLine({ ...plan, monthlyCents: 1500, trialDays: 0 }, 'month')).toBe(
-    'Plan: $15 per workspace, billed monthly.',
-  )
-})
 
 afterEach(() => vi.unstubAllGlobals())
 
