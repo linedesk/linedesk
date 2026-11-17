@@ -36,6 +36,7 @@ const SECTIONS: Record<PromptSection, MessageKey> = {
   owner: msg('admin.prompt.section.owner'),
   tools: msg('admin.prompt.section.tools'),
   call: msg('admin.prompt.section.call'),
+  fixed: msg('admin.prompt.section.fixed'),
 }
 
 const CONDITIONS: Record<PromptCondition, MessageKey> = {
@@ -46,6 +47,7 @@ const CONDITIONS: Record<PromptCondition, MessageKey> = {
   notEnglish: msg('admin.prompt.when.notEnglish'),
   aiNever: msg('admin.prompt.when.aiNever'),
   aiNeverConfirm: msg('admin.prompt.when.aiNeverConfirm'),
+  aiTellsWhenAsked: msg('admin.prompt.when.aiTellsWhenAsked'),
   aiAtStart: msg('admin.prompt.when.aiAtStart'),
   aiConsent: msg('admin.prompt.when.aiConsent'),
   toneProfessional: msg('admin.prompt.when.toneProfessional'),

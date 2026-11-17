@@ -4,6 +4,7 @@ import {
   aiDisclosureInstructions,
   aiDisclosureRisk,
   DEFAULT_AI_DISCLOSURE,
+  fixedRules,
 } from './assistant-prompt.ts'
 import { greetingFor } from './business.ts'
 import { EEA_UK_COUNTRIES, inEeaOrUk } from './eea.ts'
@@ -35,14 +36,16 @@ describe('AI disclosure (A1, A2)', () => {
     expect(aiDisclosureRisk('at_start_consent', 'US')).toEqual({ level: 'none', eu: false })
     expect(aiDisclosureRisk(null, 'NO')).toEqual({ level: 'none', eu: true })
   })
-  test('"never, not even when asked" neither confirms nor denies, and never claims to be human', () => {
+  test('"never, not even when asked" neither confirms nor denies, and never claims to be human (a fixed rule, A3)', () => {
     const text = aiDisclosureInstructions('never_confirm')
     expect(text).toBe(
-      "Do not bring up on your own that you are an AI. If the caller asks whether you are a person, a robot or an AI, don't confirm or deny it: say that you are here to help with their call, and carry on. Never claim to be human.",
+      "Do not bring up on your own that you are an AI. If the caller asks whether you are a person, a robot or an AI, don't confirm or deny it: say that you are here to help with their call, and carry on.",
     )
-    expect(text).not.toContain('say truthfully')
+    expect(fixedRules('never_confirm').split('\n')[0]).toBe('Never claim to be human.')
     for (const mode of AI_DISCLOSURE_MODES.filter(m => m !== 'never_confirm'))
-      expect(aiDisclosureInstructions(mode)).toContain('say truthfully that you are an AI assistant. Never claim to be human.')
+      expect(fixedRules(mode).split('\n')[0]).toBe(
+        'Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant. Never claim to be human.',
+      )
   })
 })
 

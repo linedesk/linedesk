@@ -25,14 +25,28 @@ export type CallSetup = { booking?: boolean; transfer?: boolean }
  * caller's name, callback number, prices and promises have their own parts of the prompt and are not repeated here.
  */
 /**
- * The one fixed safety rule, the same for every business and country. It starts with the urgent case: a problem that
+ * The one fixed safety rule, the same for every business and country, in the fixed rules (fixedRules). It starts with the urgent case: a problem that
  * can't wait (a burst pipe) is for the team, handled by the owner's urgent rules (transfer contacts, flag_urgent); before
  * it said so, gpt-4.1-mini sent such callers to the emergency services when no one could be put through (LIN-353), and
  * until it said not to mention them, it added "call the emergency services if anyone is in danger" (LIN-444). Only when
  * the caller says a person is in danger right now, the caller hears to contact the emergency services, and the assistant
  * keeps helping if they stay on the call. It names no number.
  */
-export const EMERGENCY_RULE = PROMPT_TEXTS['rules.emergency'].text
+export const EMERGENCY_RULE = PROMPT_TEXTS['fixed.emergency'].text
+
+/** Asked, the assistant says it is an AI and never claims to be human: every AI disclosure mode but never_confirm. */
+export const HONESTY_RULE = PROMPT_TEXTS['fixed.honesty'].text
+
+/**
+ * The promises the owner's text cannot change (A3): honesty about being an AI and the emergency rule. The prompt puts
+ * them last, under fixed.heading, after the owner's text and everything about the call, so a later instruction cannot
+ * undo them. The AI disclosure setting picks the honesty rule: with never_confirm ("Never, not even when asked", the
+ * owner's choice) only "Never claim to be human." (fixed.notHuman), else the full rule (fixed.honesty).
+ */
+export function fixedRules(mode?: AiDisclosure | null, pt: PromptTexts = defaultPromptTexts): string {
+  const honesty = mode === 'never_confirm' ? pt('fixed.notHuman') : pt('fixed.honesty')
+  return [honesty, pt('fixed.emergency')].join('\n')
+}
 
 /** `pt`: the parts' texts (the instance admin's overrides at call time). */
 export function callRules({ booking, transfer }: CallSetup = {}, pt: PromptTexts = defaultPromptTexts): string {
@@ -45,7 +59,6 @@ export function callRules({ booking, transfer }: CallSetup = {}, pt: PromptTexts
         : pt('rules.appointments')
   const canTransfer = transfer !== false
   return [
-    pt('rules.emergency'),
     // No tool saves the message: the summary after the call writes it from the whole call.
     pt('rules.message'),
     appointments,
@@ -270,26 +283,27 @@ function withLocalDisclosure(greeting: string, name: string, language: Language)
 }
 
 /**
- * The prompt's part about being an AI: when to mention it (the setting), and the honesty rule (ai.whenAsked: asked,
- * the assistant says it is an AI and never claims to be human). In `never_confirm` the honesty rule is replaced: asked,
- * it neither confirms nor denies it (ai.neverConfirm), and it still never claims to be human (ai.notHuman).
+ * The prompt's part about being an AI: when to mention it on its own (the setting); null for "only when asked". Asked,
+ * it says it is an AI: that is a fixed rule (fixed.honesty), last in the prompt. In `never_confirm` the owner chose
+ * otherwise: asked, it neither confirms nor denies it (ai.neverConfirm here), and the fixed rule is only that it never
+ * claims to be human (fixed.notHuman; fixedRules).
  */
 export function aiDisclosureInstructions(
   mode: AiDisclosure | null | undefined,
   pt: PromptTexts = defaultPromptTexts,
-): string {
+): string | null {
   switch (mode ?? DEFAULT_AI_DISCLOSURE) {
     case 'never_confirm':
-      return `${pt('ai.never')} ${pt('ai.neverConfirm')} ${pt('ai.notHuman')}`
+      return `${pt('ai.never')} ${pt('ai.neverConfirm')}`
     case 'never':
-      return `${pt('ai.never')} ${pt('ai.whenAsked')}`
+      return pt('ai.never')
     case 'when_asked':
-      return pt('ai.whenAsked')
+      return null
     case 'at_start':
       // The greeting is the owner's own text, said as written: the model says it next if the greeting did not.
-      return `${pt('ai.atStart')} ${pt('ai.whenAsked')}`
+      return pt('ai.atStart')
     case 'at_start_consent':
-      return `${pt('ai.atStartConsent')} ${pt('ai.consent')} ${pt('ai.whenAsked')}`
+      return `${pt('ai.atStartConsent')} ${pt('ai.consent')}`
   }
 }
 

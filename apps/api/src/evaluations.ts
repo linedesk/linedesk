@@ -6,6 +6,7 @@
 import {
   type CallEvaluation,
   callRules,
+  fixedRules,
   type LlmProvider,
   type ProviderName,
   providerSpec,
@@ -260,8 +261,9 @@ export async function evaluateCall(
   const prompt = evaluationPrompt({
     summary: call.summary,
     instructions: assistant?.business_profile?.instructions ?? '',
-    // The rules of every setup (booking and transfer either way): the call's own setup is not kept.
-    callRules: `${callRules()}\n${PRICE_RULE}`,
+    // The rules of every setup (booking and transfer either way): the call's own setup is not kept. The honesty rule
+    // follows the assistant's AI disclosure, so a "Never, not even when asked" answer is not marked as an issue.
+    callRules: `${fixedRules(assistant?.ai_disclosure)}\n${callRules()}\n${PRICE_RULE}`,
     transcript,
   })
   const { score, issues, unanswered } = parseEvaluation(await model.complete(SYSTEM, prompt))

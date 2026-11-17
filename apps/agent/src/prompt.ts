@@ -1,5 +1,5 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallerHistory, callRules, defaultPromptTexts, fenceData, isE164, type Language, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PROMPT_TEXTS, type PromptOverrides, type PromptTexts, promptTexts, workspaceLanguageName } from '@linedesk/actions'
+import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallerHistory, callRules, defaultPromptTexts, fenceData, fixedRules, isE164, type Language, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PROMPT_TEXTS, type PromptOverrides, type PromptTexts, promptTexts, workspaceLanguageName } from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 import { displayNumber } from './transfer.ts'
@@ -28,9 +28,9 @@ export function behavioursInstructions(assistant: Assistant | null, pt: PromptTe
 }
 
 /**
- * The system prompt. Fixed parts: how to speak on a phone line, honesty about being an AI, what the
- * assistant can do, how to handle calls (callRules) and how to use its tools. Editable by the owner: what
- * the business wants it to know (instructions).
+ * The system prompt. Fixed parts: how to speak on a phone line, what the assistant can do, how to handle calls
+ * (callRules) and how to use its tools. Editable by the owner: what the business wants it to know (instructions).
+ * Last come the fixed rules (fixedRules: honesty about being an AI, the emergency rule), which nothing before them changes.
  */
 /**
  * Outside business hours an assistant greets with its outside greeting, where it has one. What it knows
@@ -393,7 +393,7 @@ export function buildInstructions(
     // Right after who the assistant is: a later place let off-topic requests through (LLM tests, 2026-11-16).
     `${pt('role.intro', { name })}\n${pt('role.scope')}`,
     languageInstructions(assistant, teamLanguage, pt),
-    // When to mention being an AI is the owner's setting; answering truthfully when asked is part of every mode.
+    // When to mention being an AI on its own is the owner's setting; answering truthfully when asked is a fixed rule (last).
     aiDisclosureInstructions(assistant?.ai_disclosure, pt),
     communicationStyleInstructions(assistant?.communication_style, pt),
     // A contact held while the office is closed: the assistant must not say it cannot transfer calls.
@@ -411,8 +411,8 @@ export function buildInstructions(
     pt('tools.noFalseClaims'),
     pt('tools.private'),
     pt('tools.endCall'),
-    // Everything that differs per call comes last, together: the part before it stays the same from call to call,
-    // so the provider's prompt cache can reuse it.
+    // Everything that differs per call comes together, before only the fixed rules: the part before it stays the same
+    // from call to call, so the provider's prompt cache can reuse it.
     pt('call.heading'),
     clock,
     hoursContext(hours, !!booking, pt),
@@ -421,6 +421,8 @@ export function buildInstructions(
     callerNotesInstructions(caller, pt),
     callerDetailsInstructions(callerDetails, pt),
     callerHistoryInstructions(caller, behaviourOn(assistant?.behaviours, 'caller_history'), pt),
+    // Last, after everything the owner wrote and everything about this call, so none of it can change them (A3).
+    pt('fixed.heading', { rules: fixedRules(assistant?.ai_disclosure, pt) }),
   ]
     .filter(Boolean)
     .join('\n\n')

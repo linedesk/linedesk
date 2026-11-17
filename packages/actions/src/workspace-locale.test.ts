@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { mainLanguageOf, otherLanguagesOf } from './languages.ts'
 import { phoneFromDigits, phoneGroups } from './phone-input.ts'
-import { callRules, EMERGENCY_RULE } from './assistant-prompt.ts'
+import { callRules, EMERGENCY_RULE, fixedRules } from './assistant-prompt.ts'
 import { workspaceUpdateSettings } from './settings.ts'
 import {
   automaticCountryLabel,
@@ -299,8 +299,10 @@ describe('the emergency number of the workspace country', () => {
     expect(EMERGENCY_RULE).toBe(
       "A problem that can't wait, even serious damage to property, is urgent: it is for the team, so do not mention the emergency services. Only if the caller says a person is in danger right now (someone hurt, a fire, a break-in happening, a gas smell), tell them to contact the emergency services now, and keep helping them if they stay on the call.",
     )
-    expect(callRules()).toContain(EMERGENCY_RULE)
-    expect(callRules()).not.toMatch(/911|hang up/)
+    // A fixed rule (A3), not one of the call rules the owner's text wins over.
+    expect(fixedRules()).toContain(EMERGENCY_RULE)
+    expect(callRules()).not.toContain(EMERGENCY_RULE)
+    expect(fixedRules()).not.toMatch(/911|hang up/)
   })
 })
 
