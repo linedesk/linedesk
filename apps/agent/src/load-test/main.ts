@@ -28,11 +28,15 @@ import { callsArgs, type LoadTestOptions, parseLoadTestArgs } from './args.ts'
 import type { CallResult } from './calls.ts'
 import {
   abortReasons,
+  type CallerLoad,
+  callerOverload,
   type CallsSummary,
+  formatCallerLoad,
   formatCallsSummaries,
   formatSummaries,
   type LevelSummary,
   parseDockerStats,
+  parsePressureTotal,
   parseRss,
   type Sample,
   summarizeCalls,
@@ -178,6 +182,55 @@ async function keepCallerLogs() {
   console.log(`Caller worker log: ${file}`)
 }
 
+/** The container's stall totals (µs, cgroup v2 PSI) for CPU and memory; null where the kernel has none. */
+async function pressure(container: string) {
+  const text = await docker(
+    'exec',
+    container,
+    'sh',
+    '-c',
+    'cat /sys/fs/cgroup/cpu.pressure; echo ---; cat /sys/fs/cgroup/memory.pressure',
+  ).catch(() => '')
+  const [cpu = '', memory = ''] = text.split('---')
+  return { at: Date.now(), cpu: parsePressureTotal(cpu), memory: parsePressureTotal(memory) }
+}
+
+/**
+ * Watches the callers' own container while a level runs; the returned function stops and tells what it took. A caller
+ * short of CPU or memory speaks late or not at all, which looks like a slow or silent business (LIN-276).
+ */
+async function watchCaller(): Promise<() => Promise<CallerLoad>> {
+  const [limits, cores, oomBefore, before] = await Promise.all([
+    limitsOf(CALLER_CONTAINER),
+    docker('exec', CALLER_CONTAINER, 'nproc').then(Number, () => 0),
+    oomKillCount(CALLER_CONTAINER),
+    pressure(CALLER_CONTAINER),
+  ])
+  const watch = sampler(CALLER_CONTAINER)
+  return async () => {
+    const samples = await watch.stop()
+    const [after, oomAfter] = await Promise.all([pressure(CALLER_CONTAINER), oomKillCount(CALLER_CONTAINER)])
+    const stallPct = (from: number | null, to: number | null) =>
+      from === null || to === null ? null : (100 * (to - from)) / ((after.at - before.at) * 1000)
+    return {
+      peakCpu: Math.max(0, ...samples.map(s => s.cpuCores)),
+      cores,
+      peakMb: Math.max(0, ...samples.map(s => s.memMb)),
+      limitMb: Number(limits.memory) / 2 ** 20,
+      cpuStallPct: stallPct(before.cpu, after.cpu),
+      memStallPct: stallPct(before.memory, after.memory),
+      oomKills: oomAfter - oomBefore,
+    }
+  }
+}
+
+/** One level's calls, with the callers' container watched while they run. */
+async function startWatchedCalls(args: string[]) {
+  const stopWatching = await watchCaller()
+  const results = await startCalls(args)
+  return { results, callerLoad: await stopWatching() }
+}
+
 /** Starts one level's calls in the caller container and reads back one result per call. */
 async function startCalls(args: string[]): Promise<CallResult[]> {
   const { stdout } = await exec(
@@ -209,13 +262,13 @@ async function runMeasuredLevel(calls: number, container: string, args: string[]
   const oomBefore = await oomKillCount(container)
   const baseline = await sample(container)
   const watch = sampler(container)
-  const results = await startCalls(args)
+  const { results, callerLoad } = await startWatchedCalls(args)
   const during = await watch.stop()
   printResults(calls, results)
   await sleep(SETTLE_MS)
   const after = await sample(container)
   const level = summarizeLevel(calls, results, baseline, during, after, (await oomKillCount(container)) - oomBefore)
-  return { results, level }
+  return { results, level, callerLoad }
 }
 
 /** The local business agent's limits before the test, to put back. */
@@ -299,19 +352,27 @@ async function main() {
       console.log(`\n${calls} call(s) at once…`)
       const args = callsArgs(o, calls, `${run}-${n}`, CALLER_AGENT)
       let results: CallResult[]
+      let callerLoad: CallerLoad
       if (before) {
         const measured = await runMeasuredLevel(calls, o.container, args)
         levels.push(measured.level)
-        results = measured.results
+        ;({ results, callerLoad } = measured)
       } else {
-        results = await startCalls(args)
+        ;({ results, callerLoad } = await startWatchedCalls(args))
         printResults(calls, results)
       }
       const summary = summarizeCalls(calls, results)
       callsSummaries.push(summary)
       console.log(formatCallsSummaries([summary]))
       for (const failure of summary.failures) console.log(`  ${failure}`)
-      const reasons = abortReasons(summary)
+      console.log(formatCallerLoad(callerLoad))
+      // An overloaded caller makes the business look slow or silent: the level says nothing about the business then.
+      const overload = callerOverload(callerLoad)
+      if (overload.length)
+        console.log(
+          `The callers were overloaded, so this level's numbers are not the business's: ${overload.join('; ')}. Give them more cores (--caller-cpuset) or memory (--caller-memory).`,
+        )
+      const reasons = [...abortReasons(summary), ...overload]
       if (!reasons.length) continue
       process.exitCode = 1
       if (n === o.levels.length - 1) console.log(`The last level failed: ${reasons.join('; ')}`)

@@ -170,3 +170,47 @@ export function formatCallsSummaries(rows: CallsSummary[]): string {
   )
   return [head, `|${'---|'.repeat(6)}`, ...lines].join('\n')
 }
+
+/** The `some … total=<µs>` figure of a cgroup v2 pressure file (cpu.pressure, memory.pressure); null without one. */
+export function parsePressureTotal(text: string): number | null {
+  const total = /^some .*\btotal=(\d+)/m.exec(text)?.[1]
+  return total === undefined ? null : Number(total)
+}
+
+/** How hard the test callers' own container worked in one level: if it was short of CPU or memory, the callers were. */
+export type CallerLoad = {
+  peakCpu: number
+  /** The cores it may use. */
+  cores: number
+  peakMb: number
+  limitMb: number
+  /** Share of the level's time some caller process waited for a CPU (cgroup cpu.pressure); null without PSI. */
+  cpuStallPct: number | null
+  /** The same for memory (reclaim, swap-in). */
+  memStallPct: number | null
+  oomKills: number
+}
+
+/** Above these the callers were short of CPU or memory: they speak late or not at all, and the business looks slow. */
+export const CALLER_MAX_CPU_STALL_PCT = 20
+export const CALLER_MAX_MEM_STALL_PCT = 5
+export const CALLER_MAX_MEM_PCT = 90
+
+/** Why the callers' numbers of a level cannot be trusted; empty: the callers had what they needed. */
+export function callerOverload(l: CallerLoad): string[] {
+  const reasons: string[] = []
+  if (l.cpuStallPct !== null && l.cpuStallPct > CALLER_MAX_CPU_STALL_PCT)
+    reasons.push(`the callers waited for a CPU ${l.cpuStallPct.toFixed(0)} % of the time`)
+  if (l.memStallPct !== null && l.memStallPct > CALLER_MAX_MEM_STALL_PCT)
+    reasons.push(`the callers waited for memory ${l.memStallPct.toFixed(0)} % of the time`)
+  if (l.limitMb > 0 && l.peakMb > (CALLER_MAX_MEM_PCT / 100) * l.limitMb)
+    reasons.push(`the callers used ${mb(l.peakMb)} of their ${mb(l.limitMb)}`)
+  if (l.oomKills) reasons.push(`${l.oomKills} caller process(es) killed for memory`)
+  return reasons
+}
+
+const pct = (v: number | null) => (v === null ? '–' : `${v.toFixed(0)} %`)
+
+export function formatCallerLoad(l: CallerLoad): string {
+  return `Callers' container: CPU peak ${l.peakCpu.toFixed(2)} of ${l.cores} cores, waited for CPU ${pct(l.cpuStallPct)}, memory peak ${mb(l.peakMb)} of ${mb(l.limitMb)}, waited for memory ${pct(l.memStallPct)}, OOM kills ${l.oomKills}`
+}

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { CallResult } from './calls.ts'
 import {
   abortReasons,
+  callerOverload,
+  formatCallerLoad,
+  parsePressureTotal,
   parseDockerStats,
   parseRss,
   percentile,
@@ -144,5 +147,25 @@ describe('load test summary', () => {
       phoneCall(19, { answered: false, dialFailed: true, error: 'dial: x' }),
     ]
     expect(abortReasons(summarizeCalls(20, results))).toEqual(['1 call(s) could not be dialled'])
+  })
+
+  it('reads the stall total of a cgroup pressure file', () => {
+    expect(
+      parsePressureTotal('some avg10=8.67 avg60=16.24 avg300=5.28 total=17807725\nfull avg10=6.59 total=12750722\n'),
+    ).toBe(17807725)
+    expect(parsePressureTotal('')).toBeNull()
+  })
+
+  it('tells when the callers were short of CPU or memory', () => {
+    const fine = { peakCpu: 1.2, cores: 4, peakMb: 1500, limitMb: 4096, cpuStallPct: 3, memStallPct: 0, oomKills: 0 }
+    expect(callerOverload(fine)).toEqual([])
+    expect(callerOverload({ ...fine, cpuStallPct: null, memStallPct: null })).toEqual([])
+    expect(callerOverload({ ...fine, cpuStallPct: 45, memStallPct: 9, peakMb: 3900, oomKills: 1 })).toEqual([
+      'the callers waited for a CPU 45 % of the time',
+      'the callers waited for memory 9 % of the time',
+      'the callers used 3900 MB of their 4096 MB',
+      '1 caller process(es) killed for memory',
+    ])
+    expect(formatCallerLoad(fine)).toContain('CPU peak 1.20 of 4 cores, waited for CPU 3 %')
   })
 })

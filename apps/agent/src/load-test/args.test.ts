@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { callsArgs, parseLoadTestArgs } from './args.ts'
+import { callsArgs, defaultCallerMemory, parseLoadTestArgs } from './args.ts'
 import { numberFor, parseCallsArgs, roomPrefix, startDelayMs } from './calls.ts'
 
 describe('load test command line', () => {
@@ -13,7 +13,7 @@ describe('load test command line', () => {
       to: [],
       container: 'linedesk-agent-1',
       memory: '4g',
-      callerMemory: '3g',
+      callerMemory: '6g',
       abort: true,
     })
   })
@@ -105,5 +105,13 @@ describe('load test calls', () => {
     const room = `${roomPrefix('ab12cd34-1')}7`
     expect(room.startsWith(roomPrefix('ab12cd34'))).toBe(true)
     expect(room.startsWith(roomPrefix('ab12cd3'))).toBe(false)
+  })
+
+  it('gives the callers memory for the biggest level when --caller-memory is not given', () => {
+    expect(defaultCallerMemory(1)).toBe('3g')
+    expect(defaultCallerMemory(5)).toBe('4g')
+    expect(defaultCallerMemory(20)).toBe('11g')
+    expect(parseLoadTestArgs(['--calls', '1,20']).callerMemory).toBe('11g')
+    expect(parseLoadTestArgs(['--calls', '1,20', '--caller-memory', '8g']).callerMemory).toBe('8g')
   })
 })

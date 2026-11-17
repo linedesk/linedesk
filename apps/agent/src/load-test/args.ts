@@ -30,6 +30,12 @@ const E164 = /^\+[1-9]\d{6,14}$/
 /** Flags that change the local business agent, which --remote leaves alone. */
 const LOCAL_ONLY = ['--container', '--memory', '--cpuset'] as const
 
+/**
+ * The callers' memory when --caller-memory is not given: at the biggest level the caller worker holds one process per
+ * call plus as many warm ones again (about 250 MB each), plus the worker itself.
+ */
+export const defaultCallerMemory = (biggestLevel: number) => `${Math.max(3, Math.ceil(0.5 * biggestLevel + 1))}g`
+
 export function parseLoadTestArgs(args: readonly string[]): LoadTestOptions {
   const value = (name: string) => {
     const at = args.indexOf(name)
@@ -74,7 +80,7 @@ export function parseLoadTestArgs(args: readonly string[]): LoadTestOptions {
     container: value('--container') ?? 'linedesk-agent-1',
     memory: value('--memory') ?? '4g',
     cpuset: value('--cpuset'),
-    callerMemory: value('--caller-memory') ?? '3g',
+    callerMemory: value('--caller-memory') ?? defaultCallerMemory(Math.max(...levels)),
     callerCpuset: value('--caller-cpuset'),
     project: value('--project') ?? 'linedesk',
     abort: !args.includes('--no-abort'),
