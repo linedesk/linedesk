@@ -10,7 +10,7 @@ import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
-import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from '../settings/VoiceSettings.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { appLink } from '../ui/AppLink.tsx'
@@ -141,29 +141,31 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
             </span>
           )}
         </Field>
-        {realtime ? (
-          <RealtimeVoiceSettings
-            voice={draft.realtime_voice ?? ''}
-            onPick={realtime_voice => setDraft(d => ({ ...d, realtime_voice }))}
-            canEdit
-            language={main}
-            otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
-            assistantName={name || assistant.name}
-            switchTo={null}
-            threeStageName=""
-          />
-        ) : (
-          <VoiceSettings
-            assistantId={assistant.id}
-            voice={draft.voice}
-            onPick={voice => setDraft(d => ({ ...d, voice }))}
-            canEdit
-            toast={setMessage}
-            language={main}
-            otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
-            assistantName={name || assistant.name}
-          />
-        )}
+        <VoiceLoading>
+          {realtime ? (
+            <RealtimeVoiceSettings
+              voice={draft.realtime_voice ?? ''}
+              onPick={realtime_voice => setDraft(d => ({ ...d, realtime_voice }))}
+              canEdit
+              language={main}
+              otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
+              assistantName={name || assistant.name}
+              switchTo={null}
+              threeStageName=""
+            />
+          ) : (
+            <VoiceSettings
+              assistantId={assistant.id}
+              voice={draft.voice}
+              onPick={voice => setDraft(d => ({ ...d, voice }))}
+              canEdit
+              toast={setMessage}
+              language={main}
+              otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
+              assistantName={name || assistant.name}
+            />
+          )}
+        </VoiceLoading>
         <div className="ob-talk">
           {/* The same button and panel as Assistant settings; the click saves first. */}
           {/* Secondary: Continue is the step's one primary button (design-principles.md). */}

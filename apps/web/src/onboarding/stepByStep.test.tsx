@@ -3,6 +3,7 @@
 // in edit mode (Close, Done, one primary button), the steps filled in from the saved rows, a save going to the
 // assistant the settings were opened for, and where Continue and Back lead (back to the settings at either end).
 import type { Assistant } from '@linedesk/db/types'
+import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -45,6 +46,7 @@ vi.mock('../settings/VoiceSettings.tsx', () => ({
   useVoiceOptions: () => ({ data: null }),
   VoiceSettings: () => null,
   RealtimeVoiceSettings: () => null,
+  VoiceLoading: ({ children }: { children: ReactNode }) => children,
 }))
 vi.mock('../shell/useCallNotifications.ts', () => ({
   useNotificationQuery: () => ({ data: null }),

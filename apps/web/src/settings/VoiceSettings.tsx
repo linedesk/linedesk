@@ -17,7 +17,7 @@ import {
 } from '@linedesk/actions'
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { adminLink, appLink } from '../ui/AppLink.tsx'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Checkbox, Select } from '../ui/controls.tsx'
@@ -64,6 +64,12 @@ const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
 export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
 /** How many voices More voices shows at first, and adds per "Show more". */
 const PAGE = 30
+/**
+ * The Voice card's skeleton is the realtime card's shape (default voice, one more, More voices, a line of help): what a
+ * new assistant shows where a realtime model is set up. The voice providers' card lists as many rows as the provider
+ * has suggested voices; it can't be known before the options come.
+ */
+const VOICE_SKELETON_ROWS = 2
 
 type PreviewFailure = { key: string; message: string }
 
@@ -825,6 +831,68 @@ export function VoiceSettings({
         )}
       </details>
       {options?.canClone && <CloneVoice assistantId={assistantId} toast={toast} disabled={!canEdit} />}
+    </Section>
+  )
+}
+
+/** Suggested voice rows while the voice options load: the rows' own classes, so the same heights (VoiceRow). */
+function VoiceRowsSkeleton({ rows }: { rows: number }) {
+  return (
+    <div className="vp-list" aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
+        <div key={i} className="vp-row">
+          <span className="vp-pick">
+            <Skeleton width={16} height={16} className="sk-round" />
+            <span className="vp-text">
+              <span className="vp-name">
+                <Skeleton shape="text" width={90 + ((i * 37) % 50)} />
+              </span>
+              <span className="vp-desc">
+                <Skeleton shape="text" width={180 + ((i * 53) % 90)} />
+              </span>
+            </span>
+          </span>
+          <Skeleton width={30} height={30} className="sk-round" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The Voice card until the voice options are read (voice.options). They decide which card comes, the realtime
+ * model's voices or the voice providers' (and which rows it lists): until then the card shows its words that don't
+ * need the data and grey rows, never a default voice that changes when the data comes (design-principles.md, 15).
+ */
+export function VoiceLoading({ children }: { children: ReactNode }) {
+  const t = useT()
+  const { data, error, reload } = useVoiceOptions()
+  if (data) return children
+  return (
+    <Section id="as-voice" title={t('settings.voice.title')}>
+      <Loading
+        what={t('settings.voice.loadWhat')}
+        loading
+        error={error}
+        onRetry={() => void reload()}
+        className="vp-loading"
+        skeleton={
+          <>
+            <div className="vp-group-label">{t('settings.voice.suggested')}</div>
+            <VoiceRowsSkeleton rows={VOICE_SKELETON_ROWS} />
+            <div className="vp-more">
+              <span className="vp-more-sk">
+                <Skeleton width={14} height={14} />
+                <Skeleton shape="text" width={76} />
+              </span>
+            </div>
+            <p className="help">
+              <Skeleton shape="text" width={440} />
+            </p>
+          </>
+        }
+      />
     </Section>
   )
 }

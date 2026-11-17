@@ -42,7 +42,7 @@
   white-space: nowrap;
 }
 .as-name:hover,
-.as-name[aria-expanded='true'] {
+.as-name[aria-expanded="true"] {
   background: var(--surface-hover);
 }
 .as-name:focus-visible {
@@ -330,7 +330,13 @@ a.as-chip:hover {
     transform: scaleY(0.7);
   }
 }
-.vp-more > summary {
+/* The Voice card while the voice options load (VoiceLoading): the card's own gaps between its parts. */
+.vp-loading {
+  display: grid;
+  gap: 12px;
+}
+.vp-more > summary,
+.vp-more-sk {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -913,7 +919,7 @@ a.as-chip:hover {
   display: grid;
   gap: 4px;
 }
-.as-speed input[type='range'] {
+.as-speed input[type="range"] {
   width: 100%;
   margin: 0;
   accent-color: var(--ink);

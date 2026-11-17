@@ -93,7 +93,7 @@ import { useQuery } from '../cachedQuery.ts'
 import { LevelSettings } from './LevelSettings.tsx'
 import { answeringPipeline } from './levelModel.ts'
 import { UltraSettings } from './UltraSettings.tsx'
-import { RealtimeVoiceSettings, useVoiceOptions, VoiceSettings } from './VoiceSettings.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from './VoiceSettings.tsx'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
@@ -979,37 +979,39 @@ function Form({
                 onRealtimeModel={model => set('realtime_model', model)}
               />
             )}
-            {realtime ? (
-              <RealtimeVoiceSettings
-                voice={draft.realtime_voice}
-                onPick={v => set('realtime_voice', v)}
-                canEdit={canEdit}
-                language={mainOf(draft)}
-                otherLanguages={otherLanguagesOf(draft.languages)}
-                assistantName={assistantName(draft, t)}
-                switchTo={!billed && setUp?.three_stage === true ? sectionHash(page, 'advanced') : null}
-                threeStageName={t(PIPELINE_TEXT.three_stage.label)}
-              />
-            ) : (
-              <>
-                <VoiceSettings
-                  assistantId={assistant.id}
-                  voice={draft.voice}
-                  onPick={v => set('voice', withPickedVoice(v, draft.voice))}
+            <VoiceLoading>
+              {realtime ? (
+                <RealtimeVoiceSettings
+                  voice={draft.realtime_voice}
+                  onPick={v => set('realtime_voice', v)}
                   canEdit={canEdit}
-                  toast={toast}
                   language={mainOf(draft)}
                   otherLanguages={otherLanguagesOf(draft.languages)}
                   assistantName={assistantName(draft, t)}
+                  switchTo={!billed && setUp?.three_stage === true ? sectionHash(page, 'advanced') : null}
+                  threeStageName={t(PIPELINE_TEXT.three_stage.label)}
                 />
-                <LevelSettings
-                  voice={draft.voice}
-                  llmModel={draft.llm_model}
-                  onVoiceModel={model => set('voice', { ...draft.voice, model })}
-                  onModel={model => set('llm_model', model)}
-                />
-              </>
-            )}
+              ) : (
+                <>
+                  <VoiceSettings
+                    assistantId={assistant.id}
+                    voice={draft.voice}
+                    onPick={v => set('voice', withPickedVoice(v, draft.voice))}
+                    canEdit={canEdit}
+                    toast={toast}
+                    language={mainOf(draft)}
+                    otherLanguages={otherLanguagesOf(draft.languages)}
+                    assistantName={assistantName(draft, t)}
+                  />
+                  <LevelSettings
+                    voice={draft.voice}
+                    llmModel={draft.llm_model}
+                    onVoiceModel={model => set('voice', { ...draft.voice, model })}
+                    onModel={model => set('llm_model', model)}
+                  />
+                </>
+              )}
+            </VoiceLoading>
           </>
         )}
         {current === 'rules' && (
