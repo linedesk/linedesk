@@ -161,6 +161,25 @@ export function typeaheadIndex(labels: readonly string[], typed: string, from: n
   return -1
 }
 
+/**
+ * What one option of an open Select shows: the label in full (a long one wraps onto a second line, never an
+ * ellipsis), its description under it, and the check mark column. Every option keeps that column, empty when not
+ * picked, so the text never shifts and the picked one is not narrower than the rest.
+ */
+export function SelectOptionBody({ option, selected }: { option: SelectOption<string>; selected: boolean }) {
+  return (
+    <>
+      <span className="k-select-opt-t">
+        <span className="k-select-opt-l">{option.label}</span>
+        {option.description && <small>{option.description}</small>}
+      </span>
+      <span className="k-select-opt-check" aria-hidden="true">
+        {selected && <Icon name="check" size={14} />}
+      </span>
+    </>
+  )
+}
+
 /** A button that opens a list. Arrow keys move, typing jumps to a label, Enter or Space picks, Esc closes. */
 export function Select<T extends string>({
   value,
@@ -181,7 +200,7 @@ export function Select<T extends string>({
   const listId = useId()
   const current = options.find(o => o.value === value)
   const typed = useRef({ text: '', at: 0 })
-  useAnchoredList(open, button, list, { minWidth: 240, align })
+  useAnchoredList(open, button, list, { minWidth: 240, align, natural: true })
 
   useEffect(() => {
     if (!open) return
@@ -295,11 +314,7 @@ export function Select<T extends string>({
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(o)}
                 >
-                  <span className="k-select-opt-t">
-                    <span>{o.label}</span>
-                    {o.description && <small>{o.description}</small>}
-                  </span>
-                  {o.value === value && <Icon name="check" size={14} />}
+                  <SelectOptionBody option={o} selected={o.value === value} />
                 </div>
               )
             })

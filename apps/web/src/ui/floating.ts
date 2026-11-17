@@ -72,7 +72,14 @@ export function placeList({
   return { side, ...vertical, left, width, maxHeight: maxH }
 }
 
-type Options = Pick<PlaceInput, 'match' | 'minWidth' | 'align' | 'gap'>
+type Options = Pick<PlaceInput, 'match' | 'minWidth' | 'align' | 'gap'> & {
+  /**
+   * Without `match`: the list is as wide as its widest option on one line (descriptions left out), within the window.
+   * Its options wrap only where the window stops it (Select). Mark what must not wrap while measuring with CSS on
+   * `[data-measuring]`; without it, the width comes from scrollWidth, which misses text that is clipped.
+   */
+  natural?: boolean
+}
 
 const supportsPopover = () => typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype
 
@@ -117,17 +124,37 @@ export function useAnchoredList(
     place.current = () => {
       const a = anchor.current
       if (!a || !el.isConnected) return
-      const { match, minWidth } = opts.current
+      const { match, minWidth, natural } = opts.current
       const r = a.getBoundingClientRect()
-      // The least width first: text that wraps wraps there, and what does not (a long label) shows in scrollWidth.
-      const least = match ? r.width : Math.max(r.width, minWidth ?? 0)
-      Object.assign(el.style, { width: `${least}px`, minWidth: '0px', maxWidth: 'none' })
+      const viewport = { width: document.documentElement.clientWidth, height: window.innerHeight }
+      let listWidth: number
+      if (natural && !match) {
+        // Every option on one line: the width the list needs so that none wraps or is cut.
+        el.dataset.measuring = ''
+        Object.assign(el.style, { width: 'max-content', minWidth: '0px', maxWidth: 'none' })
+        listWidth = Math.ceil(el.getBoundingClientRect().width)
+        delete el.dataset.measuring
+        const widthFor = (w: number) =>
+          placeList({ ...opts.current, anchor: r, viewport, contentHeight: 0, listWidth: w }).width
+        el.style.width = `${widthFor(listWidth)}px`
+        // A scrollbar that takes room (not the overlay kind) would make the widest option wrap: add its width.
+        const bar = el.offsetWidth - el.clientWidth
+        if (bar > 0) {
+          listWidth += bar
+          el.style.width = `${widthFor(listWidth)}px`
+        }
+      } else {
+        // The least width first: text that wraps wraps there, and what does not (a long label) shows in scrollWidth.
+        const least = match ? r.width : Math.max(r.width, minWidth ?? 0)
+        Object.assign(el.style, { width: `${least}px`, minWidth: '0px', maxWidth: 'none' })
+        listWidth = el.scrollWidth
+      }
       const p = placeList({
         ...opts.current,
         anchor: r,
-        viewport: { width: document.documentElement.clientWidth, height: window.innerHeight },
+        viewport,
         contentHeight: el.scrollHeight,
-        listWidth: el.scrollWidth,
+        listWidth,
         maxHeight: limit,
       })
       Object.assign(el.style, {
