@@ -14,6 +14,8 @@
   "command.clearReminder": "Erinnerung entfernen",
   "command.clearSelection": "Auswahl aufheben",
   "command.deleteCall": "Anruf löschen",
+  "command.deleteChoose": "Löschen…",
+  "command.deleteChooseHint": "30 Tage wiederherstellbar oder sofort endgültig.",
   "command.goTo": "Gehe zu",
   "command.goToAccountSettings": "Gehe zu Kontoeinstellungen",
   "command.goToAssignedToMe": "Gehe zu Mir zugewiesen",

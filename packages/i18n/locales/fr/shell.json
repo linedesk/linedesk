@@ -14,6 +14,8 @@
   "command.clearReminder": "Supprimer le rappel",
   "command.clearSelection": "Désélectionner",
   "command.deleteCall": "Supprimer l'appel",
+  "command.deleteChoose": "Supprimer…",
+  "command.deleteChooseHint": "Restaurable pendant 30 jours, ou définitivement maintenant.",
   "command.goTo": "Aller à",
   "command.goToAccountSettings": "Aller aux réglages du compte",
   "command.goToAssignedToMe": "Aller à Attribués à moi",

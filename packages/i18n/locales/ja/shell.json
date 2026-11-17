@@ -14,6 +14,8 @@
   "command.clearReminder": "リマインダーを解除",
   "command.clearSelection": "選択を解除",
   "command.deleteCall": "通話を削除",
+  "command.deleteChoose": "削除…",
+  "command.deleteChooseHint": "30日間は復元できます。今すぐ完全に削除することもできます。",
   "command.goTo": "移動",
   "command.goToAccountSettings": "アカウント設定へ移動",
   "command.goToAssignedToMe": "自分に割り当てへ移動",

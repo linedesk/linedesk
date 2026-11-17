@@ -14,6 +14,8 @@
   "command.clearReminder": "Remover lembrete",
   "command.clearSelection": "Limpar seleção",
   "command.deleteCall": "Excluir chamada",
+  "command.deleteChoose": "Excluir…",
+  "command.deleteChooseHint": "Pode ser restaurada por 30 dias ou excluída permanentemente agora.",
   "command.goTo": "Ir para",
   "command.goToAccountSettings": "Ir para Configurações da conta",
   "command.goToAssignedToMe": "Ir para Atribuídas a mim",
