@@ -43,6 +43,9 @@ await (await import('./ledger-guards.ts'))
 await (await import('./usage-levels.ts'))
   .alertNonStandardDefaults(db)
   .catch(error => console.error('could not check the default models against the usage levels:', error))
+// White-label partners' own addresses (request-host.ts, S5): loaded now and every 30 s.
+const { watchHosts } = await import('./request-host.ts')
+watchHosts()
 const { app } = await import('./app.ts')
 // Every email's result goes into the provider failure record (provider-failures.ts).
 const { watchEmailFailures } = await import('./provider-failures.ts')

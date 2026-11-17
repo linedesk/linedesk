@@ -28,6 +28,7 @@ import { disabledWorkspaceText, StoreProvider, useRun } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
 import { BootScreen } from './ui/BootScreen.tsx'
+import { AppLink } from './ui/AppLink.tsx'
 import { AddPasskeyPage } from './AddPasskey.tsx'
 import { ConnectAgent, isConnectAgentHash } from './integrations/ConnectAgent.tsx'
 import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
@@ -52,6 +53,20 @@ function Unreachable() {
     <div className="boot" role="status">
       <b>{t('shell.unreachable.title', { brand: brandName() })}</b>
       <span>{t('shell.unreachable.text')}</span>
+    </div>
+  )
+}
+
+/**
+ * On an address the server does not answer for (a white-label partner's address that is not live, or any other name
+ * pointed at it): one quiet line, and the way to the install's own address when the server named it.
+ */
+function HostNotSetUp({ mainOrigin }: { mainOrigin: string | null }) {
+  const t = useT()
+  return (
+    <div className="boot" role="status">
+      <b>{t('shell.hostNotSetUp.title')}</b>
+      {mainOrigin && <AppLink to={mainOrigin}>{t('shell.hostNotSetUp.link')}</AppLink>}
     </div>
   )
 }
@@ -294,6 +309,7 @@ export function App() {
   useMemberLocale(session.state === 'ready' || session.state === 'needsWorkspace' ? session.me : null)
   const t = useT()
 
+  if (session.state === 'hostNotSetUp') return <HostNotSetUp mainOrigin={session.mainOrigin} />
   if (signInLink) {
     const signedIn = async () => {
       // The account may have changed (another one was signed in here): the page loads fresh for the new one.

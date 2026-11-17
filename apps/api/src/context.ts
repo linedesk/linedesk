@@ -97,6 +97,11 @@ export interface Actor {
    * voice agent.
    */
   locale?: UiLocale
+  /**
+   * The request came in on this white-label partner's own address (request-host.ts, S5), set by app.ts's guard: what
+   * belongs to the install's own address is refused (run-action.ts), and the session has no Server admin or partner area.
+   */
+  partnerHost?: { partnerId: string; domainId: string; hostname: string }
 }
 
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date }

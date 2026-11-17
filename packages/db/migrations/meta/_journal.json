@@ -1030,6 +1030,13 @@
       "when": 1794958507206,
       "tag": "0147_email_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1794959327761,
+      "tag": "0148_partner_domains",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,11 @@ export type Session =
   /** `offline`: opened from what this device remembers, while the server is unreachable. */
   | { state: 'ready'; me: Me; offline: boolean }
   | { state: 'unreachable' }
+  /**
+   * The API answered 421: this address is not set up (a white-label partner's address that is not live, or any other
+   * name pointed at the server). `mainOrigin`: the install's own address, to link to; null when it did not say.
+   */
+  | { state: 'hostNotSetUp'; mainOrigin: string | null }
 
 const LAST_ME = 'linedesk-last-me'
 const CHANGING_KEY = 'linedesk.sessionChanging'
@@ -264,10 +269,27 @@ export function sameSession(shown: Session, next: Session): boolean {
   )
 }
 
+/** The API's answer on an address that is not set up (apps/api/src/request-host.ts). */
+const HOST_NOT_SET_UP = 421
+
+/** The install's own origin from a 421 answer, only when it is an http(s) origin. */
+export async function mainOriginOf(res: Response): Promise<string | null> {
+  const body = (await res.json().catch(() => null)) as { mainOrigin?: unknown } | null
+  if (typeof body?.mainOrigin !== 'string') return null
+  try {
+    const url = new URL(body.mainOrigin)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
 export async function loadSession(): Promise<Session> {
   const asked = deviceState()
   try {
     const res = await reach('/v1/me', { credentials: 'include' })
+    // Before anything is remembered or forgotten: on an address that is not set up, nothing here is this server's.
+    if (res.status === HOST_NOT_SET_UP) return { state: 'hostNotSetUp', mainOrigin: await mainOriginOf(res) }
     // Signed out, switched or another answer remembered while this one was on its way: it must not undo that.
     const current = deviceState() === asked
     if (current) sessionChanged()

@@ -2734,3 +2734,56 @@ export const partner_branding = pgTable(
     ),
   ],
 )
+
+export const PARTNER_DOMAIN_STATUSES = ['pending', 'verifying', 'active', 'failed', 'stopped', 'removed'] as const
+export type PartnerDomainStatus = (typeof PARTNER_DOMAIN_STATUSES)[number]
+export const PARTNER_DOMAIN_FAILURES = ['cname_missing', 'txt_missing', 'cert_failed', 'moved', 'probe_failed'] as const
+
+/**
+ * A white-label partner's own address (slice S5, docs/white-label.md), e.g. `app.theiragency.com`, served through
+ * Cloudflare for SaaS. Only an `active` row of a partner that is not suspended is a host the API answers on
+ * (apps/api/src/request-host.ts); every other status is a host it refuses (421). Rows are never deleted while the
+ * partner exists: removal sets `removed`, so the same hostname can be claimed again with a fresh `challenge_token`.
+ * Not synced to browsers.
+ */
+export const partner_domains = pgTable(
+  'partner_domains',
+  {
+    id: id(),
+    partner_id: text('partner_id')
+      .notNull()
+      .references(() => partners.id, { onDelete: 'cascade' }),
+    /** Lower-case, no port, no trailing dot. */
+    hostname: text('hostname').notNull(),
+    status: text('status', { enum: PARTNER_DOMAIN_STATUSES }).notNull().default('pending'),
+    /** 32 random bytes, hex: the value of the TXT record `_linedesk.<hostname>` we ask for. Not a secret. */
+    challenge_token: text('challenge_token').notNull(),
+    /** Cloudflare's custom hostname id, once created (only after our own TXT matched). */
+    provider_id: text('provider_id'),
+    /** Extra records Cloudflare asks for (its ownership TXT when the name is held in another Cloudflare account). */
+    provider_records: jsonb('provider_records'),
+    /** The last `{ status, ssl_status, errors }` as Cloudflare said it. */
+    provider_status: jsonb('provider_status'),
+    last_checked_at: ts('last_checked_at'),
+    /** Checks stop (`stopped`) after this. */
+    checks_until: ts('checks_until'),
+    active_at: ts('active_at'),
+    failed_at: ts('failed_at'),
+    failure: text('failure', { enum: PARTNER_DOMAIN_FAILURES }),
+    created_at: createdAt(),
+    /** The user id that added it; no foreign key, so the row outlives the account. */
+    created_by: text('created_by').notNull(),
+    removed_at: ts('removed_at'),
+    removed_by: text('removed_by'),
+    removed_reason: text('removed_reason'),
+  },
+  t => [
+    uniqueIndex('partner_domains_hostname').on(t.hostname).where(sql`${t.status} <> 'removed'`),
+    uniqueIndex('partner_domains_one_per_partner').on(t.partner_id).where(sql`${t.status} <> 'removed'`),
+    check('partner_domains_status', oneOf(t.status, PARTNER_DOMAIN_STATUSES)),
+    check('partner_domains_failure', sql`${t.failure} is null or ${oneOf(t.failure, PARTNER_DOMAIN_FAILURES)}`),
+    // What resolveHost compares against: lower-case, no port, no trailing dot, no spaces.
+    check('partner_domains_hostname', sql`${t.hostname} ~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'`),
+    check('partner_domains_removed', sql`(${t.status} = 'removed') = (${t.removed_at} is not null)`),
+  ],
+)

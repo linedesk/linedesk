@@ -7,7 +7,7 @@
 import { isAPIError } from 'better-auth/api'
 import type { Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { auth, TRUSTED_ORIGINS } from './auth.ts'
+import { auth, trustedOrigins } from './auth.ts'
 import { addressBucket, CLIENT_IP_HEADER, clientIpOf } from './client-ip.ts'
 import type { Actor } from './context.ts'
 import { createRateLimiter } from './rate-limit.ts'
@@ -36,8 +36,11 @@ function authHeaders(c: Context): Headers {
   return headers
 }
 
-/** Only from the app's own pages (csrf.ts already refuses a cookie-signed one from elsewhere; this needs no cookie). */
-const fromApp = (c: Context) => TRUSTED_ORIGINS.includes(c.req.header('origin') ?? '')
+/**
+ * Only from the app's own pages (csrf.ts already refuses a cookie-signed one from elsewhere; this needs no cookie): the
+ * install's origins, or the request's own partner address while it is live (S5).
+ */
+const fromApp = (c: Context) => trustedOrigins(c).includes(c.req.header('origin') ?? '')
 
 export function registerSignInLinkRoutes(app: Hono<Env>) {
   app.use('/v1/sign-in-link/*', bodyLimit({ maxSize: MAX_BODY_BYTES, onError: c => c.json({ ok: false }, 413) }))

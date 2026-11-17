@@ -91,6 +91,8 @@ const INSTANCE_WIDE_FILES = [
   'test/partners.test.ts',
   // The daily purges look at every workspace: deleted calls and canceled bills of other files must not be there.
   'test/data-purge.test.ts',
+  // Writes white-label partner addresses: from the first one on, every request's host is checked (request-host.ts).
+  'test/request-host.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

@@ -35,6 +35,8 @@ export function appRequest(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   const address = headers.get(FROM) ?? '127.0.0.1'
   headers.delete(FROM)
+  // A browser always sends the address it asked (request-host.ts): the app's own, unless a test names another.
+  if (!headers.has('host')) headers.set('host', new URL(ORIGIN).host)
   return app.request(path, { ...init, headers }, { incoming: { socket: { remoteAddress: address, remotePort: 0, remoteFamily: 'IPv4' } } })
 }
 

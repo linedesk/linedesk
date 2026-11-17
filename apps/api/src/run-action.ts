@@ -46,6 +46,7 @@ import {
   SETUP_LOOKUPS,
 } from './self-serve.ts'
 import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { MAIN_HOST_ONLY, mainHostOnlyAction } from './request-host.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
 
@@ -246,6 +247,7 @@ async function runRead(def: ActionDef, input: unknown, actor: Actor): Promise<Ru
  * lists (the CLI) and what MCP offers. runAction checks the same and more.
  */
 export function runnableBy(def: ActionDef, actor: Actor): boolean {
+  if (actor.partnerHost && mainHostOnlyAction(def, undefined)) return false
   if (secondFactorRefusal(actor, def.permission) || adminPasskeyRefusal(actor, def.permission)) return false
   const allowed =
     actor.role === 'agent' && def.agent
@@ -294,6 +296,13 @@ export async function runAction(
 ): Promise<RunResult> {
   const def = actions.get(name)
   if (!def) return rejection(404, `unknown action ${name}`)
+  // On a white-label partner's address (request-host.ts, S5): what belongs to the install's own address is not there,
+  // whoever asks (also before the permission check, so the answer says nothing about the caller's rights).
+  if (actor.partnerHost && mainHostOnlyAction(def, rawInput))
+    return {
+      status: 404,
+      body: { ok: false, error: `unknown action ${name}`, code: MAIN_HOST_ONLY } as ActionRejection,
+    }
   // Server admin needs the passkey check, for every instance-admin action (admin-second-factor.ts).
   const refusal = secondFactorRefusal(actor, def.permission) ?? adminPasskeyRefusal(actor, def.permission)
   if (refusal) return { status: 403, body: refusal }

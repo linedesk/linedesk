@@ -121,6 +121,8 @@
   "help.row.withCallsSelectedEHU": "With calls selected, {keys} act on all of them",
   "help.row.workspaceSettings": "Workspace settings",
   "help.title": "Keyboard shortcuts",
+  "hostNotSetUp.link": "Go to the sign-in page",
+  "hostNotSetUp.title": "This address is not set up.",
   "impersonation.by": "by {name}",
   "impersonation.ending": "ending",
   "impersonation.minutesLeft": "{minutes, plural, one {# minute left} other {# minutes left}}",

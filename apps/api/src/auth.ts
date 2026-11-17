@@ -18,6 +18,7 @@ import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { rememberKnownBrowser } from './known-browser.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
+import { requestHostOf, trustedOriginsFor } from './request-host.ts'
 import {
   guardPasskeyChanges,
   notifyPasskeyChange,
@@ -89,6 +90,14 @@ function devOrigins(): string[] {
 }
 
 export const TRUSTED_ORIGINS: readonly string[] = [...new Set([normaliseOrigin(WEB_ORIGIN), ...devOrigins()])]
+
+/**
+ * The origins whose pages may use the session cookie on this request (Better Auth, csrf.ts, the sign-in link page):
+ * TRUSTED_ORIGINS, plus the request's own white-label partner address while it is live (request-host.ts, S5), as the
+ * host middleware resolved it for this request (its Hono context, or the Request handed to Better Auth). Read for every
+ * request, so an address that fails or is removed is out within 30 s on every process.
+ */
+export const trustedOrigins = (request: object): string[] => trustedOriginsFor(TRUSTED_ORIGINS, requestHostOf(request))
 
 /** Where the browser asks for a passkey challenge, and how often one address may (per minute). */
 export const PASSKEY_CHALLENGE_PATH = '/passkey/generate-authenticate-options'
@@ -239,7 +248,8 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
-  trustedOrigins: [...TRUSTED_ORIGINS],
+  // Per request (request-host.ts): Better Auth calls it once without a request at start, which gives the install's own.
+  trustedOrigins: request => (request ? trustedOrigins(request) : [...TRUSTED_ORIGINS]),
   // A failed provider sign-in that names no page of its own (expired or unknown state) goes to the
   // app's sign-in screen, which explains `?error=` in plain words, never to Better Auth's error page.
   onAPIError: { errorURL: WEB_ORIGIN },

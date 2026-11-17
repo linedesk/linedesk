@@ -55,7 +55,7 @@ import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
-import { auth, TRUSTED_ORIGINS, WEB_ORIGIN } from './auth.ts'
+import { auth, TRUSTED_ORIGINS, trustedOrigins, WEB_ORIGIN } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { appCallback } from './app-callback.ts'
@@ -95,6 +95,20 @@ import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from '
 import { previewLanguage, servePreview } from './voices.ts'
 import { runAction, runnableBy } from './run-action.ts'
 import { brandingForActor, partnerLogoFor } from './partner-brand.ts'
+import {
+  freshHosts,
+  hostsLoaded,
+  isMainHost,
+  MAIN_HOST_ONLY,
+  mainHostOnlyPath,
+  normaliseHost,
+  probedDomain,
+  rememberRequestHost,
+  requestHostOf,
+  resolveRequestHost,
+  validProbeNonce,
+  withoutMainOnlyPermissions,
+} from './request-host.ts'
 
 const ELECTRIC_URL = process.env.ELECTRIC_URL ?? 'http://localhost:3001'
 /** Electric refuses shape requests without it (docker-compose.yml); only the API has it. */
@@ -135,14 +149,62 @@ app.onError((err, c) => {
 })
 
 app.get('/healthz', c => c.json({ ok: true }))
-app.on(['GET', 'POST'], '/api/auth/*', c => auth.handler(withClientIp(c)))
+
+// Which address the request came in on (request-host.ts, white-label S5), before every other route: an address that
+// is neither the install's own nor a live partner address gets 421 (the web app shows "This address is not set up");
+// on a partner's address, what belongs to the install's own address is 404. The internal entry (the voice agent) is
+// never checked. An install that never had a partner address answers every host as before. The answer is resolved once
+// here and kept for the whole request (rememberRequestHost): every later check reads it, never the map again.
+app.use('*', async (c, next) => {
+  const header = (name: string) => c.req.header(name)
+  if (header('x-linedesk-entry') === 'internal' || isMainHost(normaliseHost(header('host')))) {
+    rememberRequestHost(c, { kind: 'main' })
+    return next()
+  }
+  await freshHosts()
+  // The probe of S5's address check answers for an address that is not live yet too (request-host.ts probedDomain).
+  if (c.req.path === '/v1/health/host' && c.req.method === 'GET') return next()
+  // No map yet (the database did not answer): a host that is not the install's own cannot be told apart.
+  if (!hostsLoaded()) return c.json({ ok: false, error: 'try again shortly', code: 'host_check_unavailable' }, 503)
+  const host = resolveRequestHost(header)
+  rememberRequestHost(c, host)
+  if (host.kind === 'unknown') {
+    c.header('cache-control', 'no-store')
+    // The install's own address, for the page's one link there (the web app's first entry is WEB_ORIGIN).
+    return c.json({ ok: false, error: 'unknown_host', code: 'unknown_host', mainOrigin: TRUSTED_ORIGINS[0] }, 421)
+  }
+  if (host.kind === 'partner' && mainHostOnlyPath(c.req.path))
+    return c.json({ ok: false, error: MAIN_HOST_ONLY, code: MAIN_HOST_ONLY }, 404)
+  await next()
+})
+
+// Public: the answer of S5's address check (`GET https://<address>/v1/health/host?nonce=<fresh random>`), on a
+// partner's address that is not removed: its id and an HMAC of the id and the checker's nonce only this install can
+// make, so an answer saved once and served from another server never passes (security review of #1172, M-1).
+app.get('/v1/health/host', c => {
+  c.header('cache-control', 'no-store')
+  const nonce = c.req.query('nonce')
+  if (!validProbeNonce(nonce)) return c.json({ ok: false, error: 'nonce' }, 400)
+  const probed = c.req.header('x-linedesk-entry') === 'internal' ? null : probedDomain(c.req.header('host'), nonce)
+  if (!probed) return c.json({ ok: false, error: 'not found' }, 404)
+  return c.json({ ok: true, domainId: probed.domainId, proof: probed.proof })
+})
+app.on(['GET', 'POST'], '/api/auth/*', c => {
+  const request = withClientIp(c)
+  // Better Auth reads the trusted origins from this Request (auth.ts): the host the middleware resolved for it.
+  rememberRequestHost(request, requestHostOf(c))
+  return auth.handler(request)
+})
 // Public: one-click unsubscribe from setup emails, by a signed token instead of a session (setup-unsubscribe.ts).
 registerSetupUnsubscribeRoutes(app)
 // Public: confirming and stopping call emails to an address outside the team, by token (email-recipients.ts).
 registerEmailRecipientRoutes(app)
 
 // Before every /v1 route: a write signed in by the cookie only from the web app, as JSON (csrf.ts).
-app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
+app.use(
+  '/v1/*',
+  refuseCrossSite(c => trustedOrigins(c)),
+)
 
 // Public: Stripe's webhook, checked by its signature, 404 while billing is off (stripe-webhook.ts).
 registerStripeWebhookRoute(app)
@@ -506,7 +568,21 @@ app.use('/v1/*', async (c, next) => {
     clientOutdated(actor, { method: c.req.method, path: c.req.path, header: name => c.req.header(name) }) ??
     (await workspaceRefusal(actor, requested))
   if (refusal) return c.json(refusal, 403)
-  c.set('actor', actor)
+  // On a white-label partner's address (request-host.ts): never Server admin, the partner area or sign-up, and every
+  // action of theirs is refused (run-action.ts). The host as the middleware resolved it for this request; anything
+  // but the install's own or a partner's (none should get here) is refused, never let through unstripped.
+  const host = requestHostOf(c)
+  if (host.kind === 'unknown') return c.json({ ok: false, error: 'unknown_host', code: 'unknown_host' }, 421)
+  c.set(
+    'actor',
+    host.kind === 'partner'
+      ? {
+          ...actor,
+          permissions: withoutMainOnlyPermissions(actor.permissions),
+          partnerHost: { partnerId: host.partnerId, domainId: host.domainId, hostname: host.hostname },
+        }
+      : actor,
+  )
   await next()
   // Whether the workspace is disabled, on every answer: an open tab notices a disable or enable at its next request.
   if (actor.workspaceId) {
