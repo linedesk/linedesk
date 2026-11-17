@@ -30,7 +30,8 @@ import { type Email, emailSender } from '../src/email.ts'
 import type { BillingProvider, SeatQuantityInput } from '@linedesk/billing'
 import { lockExtraCalls } from '../src/extra-calls.ts'
 import { postEntry } from '../src/ledger.ts'
-import { seatProration, syncSeats, syncSeatsRetrying } from '../src/partner-billing.ts'
+import { PARTNER_SEAT_SYNC, setJobQueue } from '../src/jobs.ts'
+import { runSeatSync, seatProration, syncSeats } from '../src/partner-billing.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import {
   act,
@@ -1369,6 +1370,91 @@ describe('Partner › Clients (S3)', () => {
     await holder
     expect(await release).toMatchObject({ status: 200 })
   })
+
+  test("a hand-over during a release: the owner never leaves, and the bill is the new owner's or none (#1113, N-1)", async () => {
+    const p = await billedPartner('Racing Partner', 'active', true)
+    const c = await createClient(p, 'Racing Client')
+    const first = await giveOwner(p, c)
+    const next = await invitedBy(p.owner, c)
+    const nextId = (await partnerMembership(c, next.userId))!.id
+    const firstId = (await partnerMembership(c, first.userId))!.id
+    let letGo!: () => void
+    let held!: () => void
+    const isHeld = new Promise<void>(resolve => {
+      held = resolve
+    })
+    // A hand-over to someone the team invited, as team.transferOwnership does it: the owner row locked first.
+    const handOver = db.transaction(async tx => {
+      await tx
+        .select()
+        .from(member)
+        .where(and(eq(member.organizationId, c), eq(member.role, 'owner')))
+        .for('update')
+      await tx.update(member).set({ role: 'admin' }).where(eq(member.id, firstId))
+      await tx.update(member).set({ role: 'owner' }).where(eq(member.id, nextId))
+      held()
+      await new Promise<void>(resolve => {
+        letGo = resolve
+      })
+    })
+    await isHeld
+    const release = act(p.owner, 'partner.releaseClient', {
+      partnerId: p.id,
+      workspaceId: c,
+      confirmName: 'Racing Client',
+      removeMemberIds: [nextId],
+    })
+    // The release waits on the owner row, before it reads who the team invited.
+    await vi.waitFor(
+      async () => {
+        const waiting = await db.execute(
+          `select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`,
+        )
+        expect((waiting.rows[0] as { n: number }).n).toBeGreaterThan(0)
+      },
+      { timeout: 5000 },
+    )
+    letGo()
+    await handOver
+    expect(await release).toMatchObject({ status: 409, body: { code: 'member_not_invited' } })
+    expect(await partnerMembership(c, next.userId)).toMatchObject({ role: 'owner' })
+    expect(await orgRow(c)).toMatchObject({ partnerId: p.id, billingAccountId: p.billId })
+    const bills = await db
+      .select()
+      .from(billing_accounts)
+      .where(and(eq(billing_accounts.kind, 'cloud'), eq(billing_accounts.owner_user_id, first.userId)))
+    expect(bills).toEqual([])
+    // Released now, the bill is the new owner's, and they stay.
+    expect(
+      await act(p.owner, 'partner.releaseClient', { partnerId: p.id, workspaceId: c, confirmName: 'Racing Client' }),
+    ).toMatchObject({ status: 200 })
+    const [moved] = await db
+      .select({ owner: billing_accounts.owner_user_id })
+      .from(billing_accounts)
+      .innerJoin(organization, eq(organization.billingAccountId, billing_accounts.id))
+      .where(eq(organization.id, c))
+    expect(moved).toEqual({ owner: next.userId })
+    expect(await partnerMembership(c, next.userId)).toMatchObject({ role: 'owner' })
+  })
+
+  test('creating a client again with the same key gives the first client back, never a second one (#1113, L-3)', async () => {
+    const p = await billedPartner('Retrying Partner', 'active', true)
+    const key = `create_${rid('k')}`
+    const input = { partnerId: p.id, name: 'Retried Client' }
+    const one = await act(p.owner, 'workspace.createForClient', input, key)
+    const two = await act(p.owner, 'workspace.createForClient', input, key)
+    expect(one).toMatchObject({ status: 200 })
+    expect(two).toMatchObject({ status: 200 })
+    expect(two.body.data.workspace.id).toBe(one.body.data.workspace.id)
+    const made = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(and(eq(organization.partnerId, p.id), eq(organization.name, 'Retried Client')))
+    expect(made).toHaveLength(1)
+    // The key stays the sender's: someone else, also another member of the partner, gets no result with it.
+    const other = await addPartnerAdmin(p)
+    expect(await act(other, 'workspace.createForClient', input, key)).toMatchObject({ status: 409 })
+  })
 })
 
 describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
@@ -1456,7 +1542,7 @@ describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
     expect(stripe.asked[1]).toMatchObject({ quantity: 3, prorationBehavior: 'none' })
   })
 
-  test('a failed sync is tried again, and after the last try the instance admins get an email', async () => {
+  test('a failed sync throws so the job runner tries again; after its last try the instance admins get an email', async () => {
     const p = await billedPartner('Flaky Seats', 'active', true)
     await createClient(p, 'Flaky Client')
     await db
@@ -1466,12 +1552,14 @@ describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
     try {
+      const job = { billId: p.billId, key: 'create_a', extraCalls: false }
       const once = fakeSeats(0, 1)
-      expect(await syncSeatsRetrying(p.billId, 'create_a', { provider: once.provider, waits: [0, 1] })).toBe(true)
+      await expect(runSeatSync(job, { last: false, provider: once.provider })).rejects.toThrow('Stripe is down')
+      await runSeatSync(job, { last: false, provider: once.provider })
       expect(once.asked).toHaveLength(1)
       const before = sent.length
       const down = fakeSeats(0, 5)
-      expect(await syncSeatsRetrying(p.billId, 'create_b', { provider: down.provider, waits: [0, 1, 1] })).toBe(false)
+      await runSeatSync({ ...job, key: 'create_b' }, { last: true, provider: down.provider })
       expect(down.asked).toEqual([])
       const to = await emailOf(admin)
       await vi.waitFor(() => expect(sent.slice(before).find(e => e.to === to)?.subject).toContain('Partner seats on'))
@@ -1479,5 +1567,25 @@ describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
       await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
       error.mockRestore()
     }
+  })
+
+  test('with a job queue the seat sync is a job queued with the change, never a Stripe call in the request (#1113, L-3)', async () => {
+    const p = await billedPartner('Queued Seats', 'active', true)
+    await createClient(p, 'Queued One')
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, p.billId))
+    const queued: { name: string; data: unknown }[] = []
+    setJobQueue({ send: async (name: string, data: unknown) => void queued.push({ name, data }) } as never)
+    let ws: string
+    try {
+      ws = await createClient(p, 'Queued Two')
+    } finally {
+      setJobQueue(null)
+    }
+    expect(queued.filter(j => j.name === PARTNER_SEAT_SYNC)).toEqual([
+      { name: PARTNER_SEAT_SYNC, data: { billId: p.billId, key: `client_${ws}`, extraCalls: false } },
+    ])
   })
 })

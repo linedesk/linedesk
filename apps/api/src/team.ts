@@ -264,7 +264,7 @@ function guardOwner(target: { role: string }) {
  * The workspace's owner row, locked: two transfers at the same moment cannot both succeed, and an owner who handed
  * the workspace over a moment ago no longer counts as one (read here, never from the session's role).
  */
-async function lockedOwner(tx: Tx, workspaceId: string) {
+export async function lockedOwner(tx: Tx, workspaceId: string) {
   const [owner] = await tx
     .select()
     .from(member)

@@ -30,6 +30,7 @@ import {
 } from './provider-health-check.ts'
 import { syncDerivedDays, workspacesWithDerivedDays } from './public-holidays.ts'
 import { recordingStoreCache } from './recording-store.ts'
+import { runSeatSync, type SeatSyncJob } from './partner-billing.ts'
 import { sendUsageLimitAlert, type UsageLimitAlert } from './usage-limit.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
@@ -140,6 +141,10 @@ const DEMO_CALL_CLEANUP_CRON = '27 * * * *'
 export const SPENDING_CAP_ALERT = 'spending.capAlert'
 /** The email to a partner's team when a client workspace reaches 80 % or 100 % of its monthly usage limit. */
 export const USAGE_LIMIT_ALERT = 'usage.limitAlert'
+/** A partner bill's seats set in Stripe after a client joined or left (partner-billing.ts seatsFollow). */
+export const PARTNER_SEAT_SYNC = 'partner.seatSync'
+/** Tries after the first: about 30 s, 1, 2, 4 and 8 minutes later (backoff), then the admins are emailed. */
+export const PARTNER_SEAT_SYNC_RETRIES = 5
 /** Every 15 minutes: the setup emails due to new workspaces (setup-emails.ts), when the install sends them. */
 /** The email to a member that their workspace was deleted by its owner (workspace.deleteOwn). */
 export const WORKSPACE_DELETED_EMAIL = 'workspace.deletedEmail'
@@ -196,6 +201,9 @@ async function runJobs(instance: PgBoss, env: Env) {
     if (result.failed && !result.sent) throw new Error(`no usage limit email could be sent (${result.failed} failed)`)
     return result
   })
+  await instance.work<SeatSyncJob>(PARTNER_SEAT_SYNC, async ([job]) =>
+    runSeatSync(job!.data, { last: job!.retryCount >= PARTNER_SEAT_SYNC_RETRIES }),
+  )
   await instance.work<WorkspaceDeletedJob>(WORKSPACE_DELETED_EMAIL, async ([job]) => {
     const { to, ...content } = job!.data
     // The account may be gone with the workspace: then English.
@@ -418,6 +426,12 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(CALL_ASSIGNED, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
   await instance.createQueue(SPENDING_CAP_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(USAGE_LIMIT_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  await instance.createQueue(PARTNER_SEAT_SYNC, {
+    retryLimit: PARTNER_SEAT_SYNC_RETRIES,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  })
   await instance.createQueue(WORKSPACE_DELETED_EMAIL, { retryLimit: 6, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
@@ -521,6 +535,16 @@ export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob) {
 /** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueSpendingCapAlert(tx: Tx, alert: SpendingAlert) {
   await boss?.send(SPENDING_CAP_ALERT, alert, { db: fromDrizzle(tx, sql) })
+}
+
+/**
+ * Queues a partner bill's seat sync in the caller's transaction (partner-billing.ts seatsFollow). False without a
+ * queue (tests, scripts): the caller runs it after the commit then.
+ */
+export async function queueSeatSync(tx: Tx, job: SeatSyncJob): Promise<boolean> {
+  if (!boss) return false
+  await boss.send(PARTNER_SEAT_SYNC, job, { db: fromDrizzle(tx, sql) })
+  return true
 }
 
 /** Queues a usage-limit email in the caller's transaction. Without a queue (tests) nothing is sent. */

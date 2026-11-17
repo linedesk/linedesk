@@ -329,8 +329,11 @@ export async function runAction(
 
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))
   if (seen) {
-    // A command id belongs to the workspace and action that used it first; nobody else gets its result.
-    if (seen.workspace_id !== actor.workspaceId || seen.action !== name)
+    // A command id belongs to the workspace and action that used it first; nobody else gets its result. One sent in
+    // no workspace is its sender's alone: a partner's first client puts them in a workspace, and their retry of it
+    // gets that client back, never a second one (security review of #1113, L-3).
+    const sameSender = seen.workspace_id === null && seen.actor_id === actor.actorId
+    if ((seen.workspace_id !== actor.workspaceId && !sameSender) || seen.action !== name)
       return rejection(409, 'idempotency key was used for another command')
     // Rows are read again by id (command-log.ts).
     const body = (await replayedResult(db, seen.workspace_id, seen.result)) as RunResult['body']

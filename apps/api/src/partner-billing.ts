@@ -16,6 +16,7 @@ import { seatsSyncAlert } from './emails/alerts.ts'
 import { syncExtraCallsItem } from './extra-calls.ts'
 import { WEB_ORIGIN } from './emails/templates.ts'
 import { Forbidden, Reject, type Said } from './handler-context.ts'
+import { queueSeatSync } from './jobs.ts'
 import { lockBalance } from './ledger.ts'
 import { refusePartner } from './partner-refusals.ts'
 import { signupRules } from './self-serve.ts'
@@ -92,25 +93,27 @@ export function mirroredState(status: Bill['status']): 'pending_payment' | 'acti
 }
 
 /**
- * Seats follow the client workspaces (docs/billing.md §2.1), after the change committed (`onCommit`), so Stripe never
- * charges for a client that was not made: the subscription's seat quantity is set to the workspaces on the bill now
- * (syncSeats). A raise is prorated (yearly: paid now; monthly: on the next invoice), a drop is not refunded, decided by
- * the change Stripe sees, not by the event that started the sync. A failure is tried again a few times and then emailed
- * to the instance admins; the nightly reconciliation reports the bill's seats (`quantity`) until the next change.
- * `extraCalls`: a client leaving had extra calls at the same time, so the bill's extra-calls item drops to the sum left
- * too (no refund; security review of #1109, M-2).
+ * Seats follow the client workspaces (docs/billing.md §2.1): the subscription's seat quantity is set to the workspaces
+ * on the bill now (syncSeats), never inside the request (security review of #1113, L-3). A `partner.seatSync` job is
+ * queued in the caller's transaction, so it runs only once the change committed and survives a restart; Stripe being
+ * down holds neither the request nor a database connection of it. The job is tried again with backoff and, after its
+ * last try, emailed to the instance admins; the nightly reconciliation reports the bill's seats until the next change.
+ * A raise is prorated (yearly: paid now; monthly: on the next invoice), a drop is not refunded, decided by the change
+ * Stripe sees, not by the event that started the sync. `extraCalls`: a client leaving had extra calls at the same
+ * time, so the bill's extra-calls item drops to the sum left too (no refund; security review of #1109, M-2).
+ * Without a job queue (tests, a script) the sync runs once after the commit instead.
  */
-export function seatsFollow(
+export async function seatsFollow(
+  tx: Tx,
   onCommit: ((work: () => Promise<void>) => void) | undefined,
   billId: string,
   key: string,
   { extraCalls = false }: { extraCalls?: boolean } = {},
 ) {
+  const job: SeatSyncJob = { billId, key, extraCalls }
+  if (await queueSeatSync(tx, job)) return
   if (!onCommit) throw new Error('partner seats change after the commit: no onCommit given')
-  onCommit(async () => {
-    await syncSeatsRetrying(billId, key)
-    if (extraCalls) await extraCallsFollow(billId, key)
-  })
+  onCommit(() => runSeatSync(job, { last: true }))
 }
 
 /** The bill's extra-calls item to the sum left, never charged (syncExtraCallsItem alerts the admins on a failure). */
@@ -118,33 +121,25 @@ async function extraCallsFollow(billId: string, key: string) {
   await syncExtraCallsItem(await billingProvider(db), billId, { charge: false, key: `extra_calls_${key}` })
 }
 
-/** The waits before each try of a seat sync: at once, then twice more a little later (a Stripe blip passes). */
-export const SEAT_SYNC_WAITS_MS = [0, 2_000, 10_000]
+/** A `partner.seatSync` job: the bill whose seats follow, what changed (for Stripe's idempotency key). */
+export type SeatSyncJob = { billId: string; key: string; extraCalls: boolean }
 
 /**
- * syncSeats, tried again after SEAT_SYNC_WAITS_MS when it fails; after the last failure the instance admins get an
- * email (security review of #1109, L-1), as for the extra-calls item. Returns whether the seats were set.
+ * One try of a seat sync job. A failure throws, so the job runner tries again later, except on the `last` try: then
+ * the instance admins get an email (security review of #1109, L-1) and the job ends. The extra-calls item follows once
+ * the seats are set, or on the last try whatever happened to them.
  */
-export async function syncSeatsRetrying(
-  billId: string,
-  key: string,
-  { provider, waits = SEAT_SYNC_WAITS_MS }: { provider?: BillingProvider; waits?: readonly number[] } = {},
-): Promise<boolean> {
-  let failure: unknown = null
-  for (const wait of waits) {
-    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait))
-    try {
-      await syncSeats(billId, key, provider)
-      return true
-    } catch (error) {
-      failure = error
-    }
+export async function runSeatSync(job: SeatSyncJob, { last, provider }: { last: boolean; provider?: BillingProvider }) {
+  try {
+    await syncSeats(job.billId, job.key, provider)
+  } catch (error) {
+    if (!last) throw error
+    console.error(`ALERT billing seats: partner bill ${job.billId} not updated after ${job.key}`, error)
+    await alertInstanceAdmins(seatsSyncAlert(job.billId)).catch(e =>
+      console.error('billing: the seats alert could not be sent:', e),
+    )
   }
-  console.error(`ALERT billing seats: partner bill ${billId} not updated after ${key}`, failure)
-  await alertInstanceAdmins(seatsSyncAlert(billId)).catch(e =>
-    console.error('billing: the seats alert could not be sent:', e),
-  )
-  return false
+  if (job.extraCalls) await extraCallsFollow(job.billId, job.key)
 }
 
 /** The seat items' lookup keys start with it (`ws_monthly`, `ws_yearly`; SEAT_LOOKUP_PREFIX in the Stripe adapter). */
@@ -214,7 +209,7 @@ export async function seatsFollowDelete(
   if (!row) return
   const key = `delete_${workspaceId}`
   const extraCalls = row.extraCalls > 0 && !!row.subscription
-  if (row.kind === 'partner') seatsFollow(onCommit, row.bill, key, { extraCalls })
+  if (row.kind === 'partner') await seatsFollow(tx, onCommit, row.bill, key, { extraCalls })
   else if (extraCalls) {
     if (!onCommit) throw new Error('extra calls change after the commit: no onCommit given')
     onCommit(() => extraCallsFollow(row.bill, key))

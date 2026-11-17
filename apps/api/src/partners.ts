@@ -45,7 +45,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { getT } from '@linedesk/i18n/server'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
@@ -67,7 +67,7 @@ import {
 } from './partner-refusals.ts'
 import { signupRules } from './self-serve.ts'
 import { createRateLimiter } from './rate-limit.ts'
-import { cancelSentInvitations } from './team.ts'
+import { cancelSentInvitations, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
@@ -522,7 +522,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
     .where(eq(organization.id, org.id))
   await syncPartnerMemberships(tx, partner.id, now)
   if (input.ownerEmail) await inviteOwner(ctx, partner.id, org, input.ownerEmail)
-  if (bill) seatsFollow(ctx.onCommit, bill.id, `client_${org.id}`)
+  if (bill) await seatsFollow(ctx.tx, ctx.onCommit, bill.id, `client_${org.id}`)
   return {
     rows: {},
     // The audit log files the entry under the new workspace.
@@ -582,10 +582,17 @@ function refuseUnconfirmed(name: string, typed: string) {
 async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: string, removeMemberIds: string[]) {
   const { tx, actor, now } = ctx
   const [seen] = await tx
-    .select({ bill: organization.billingAccountId })
+    .select({ bill: organization.billingAccountId, partner: organization.partnerId })
     .from(organization)
     .where(eq(organization.id, workspaceId))
-  if (seen?.bill) {
+  if (!seen || seen.partner !== partnerId) throw refusePartner('client_not_found')
+  // The owner row first, as team.transferOwnership takes it (before the payer and balance locks, so the two never wait
+  // on each other): a hand-over at the same moment either committed before, and the new owner is read here, or waits
+  // for this release (security review of #1113, N-1). The bill below is the owner's, and the owner never leaves.
+  // A transfer that committed while this waited took the row's owner role away: read again, to see the new owner.
+  const owner = (await lockedOwner(tx, workspaceId)) ?? (await lockedOwner(tx, workspaceId))
+  if (!owner) throw refusePartner('client_no_owner')
+  if (seen.bill) {
     // The extra calls leave with the workspace: no extra-calls change on the bill meanwhile (setExtraCalls takes it).
     // Taken first (security review of #1109, L-6): a setExtraCalls asking Stripe under this lock then holds up only
     // this release, never with the partner bill's balance locked, which the call gate of every client waits on.
@@ -595,17 +602,13 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
   }
   const [org] = await tx.select().from(organization).where(eq(organization.id, workspaceId)).for('update')
   if (!org || org.partnerId !== partnerId) throw refusePartner('client_not_found')
-  if ((org.billingAccountId ?? null) !== (seen?.bill ?? null)) throw refusePartner('client_not_found')
-  const [owner] = await tx
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, org.id), eq(member.role, 'owner')))
-  if (!owner) throw refusePartner('client_no_owner')
-  // Who of the people the team invited leaves too: only those the person named, each checked (review of #1113, M-1).
+  if ((org.billingAccountId ?? null) !== (seen.bill ?? null)) throw refusePartner('client_not_found')
+  // Who of the people the team invited leaves too: only those the person named, each checked (review of #1113, M-1),
+  // read with the owner locked, so a hand-over cannot make one of them the owner meanwhile.
   const invitable = await invitedByPartnerTeam(tx, org.id, partnerId)
   const leaving = [...new Set(removeMemberIds)].map(id => {
     const found = invitable.find(m => m.memberId === id)
-    if (!found) throw refusePartner('member_not_invited')
+    if (!found || found.memberId === owner.id) throw refusePartner('member_not_invited')
     return found
   })
   let billId: string | null = null
@@ -634,14 +637,19 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
       .set({ billingAccountId: billId, billingState: 'pending_payment', extraCalls: 0 })
       .where(eq(organization.id, org.id))
     await billPayerChanged(tx, [org.id], actor.actorId)
-    seatsFollow(ctx.onCommit, org.billingAccountId, `release_${org.id}`, {
+    await seatsFollow(tx, ctx.onCommit, org.billingAccountId, `release_${org.id}`, {
       extraCalls: org.extraCalls > 0 && !!from?.stripe_subscription_id,
     })
   }
   // The people the team let in that the person chose leave with it, with what the workspace keeps of a member (L-4).
   let invitedCanceled = 0
   for (const m of leaving) {
-    await tx.delete(member).where(eq(member.id, m.memberId))
+    // Never the owner, whatever the list said: the workspace keeps its owner and the bill above stays theirs.
+    const gone = await tx
+      .delete(member)
+      .where(and(eq(member.id, m.memberId), ne(member.role, 'owner')))
+      .returning({ id: member.id })
+    if (!gone.length) throw refusePartner('member_not_invited')
     await forgetMember(tx, org.id, m.userId, now)
     invitedCanceled += await cancelSentInvitations(tx, org.id, m.userId)
   }

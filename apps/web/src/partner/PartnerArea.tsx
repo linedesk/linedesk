@@ -9,6 +9,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
 import { signOutAndForget } from '../localData.ts'
 import { Billing } from '../settings/Billing.tsx'
+import { purchaseKeys } from '../settings/billingModel.ts'
 import { callAction } from '../settings/settings-api.ts'
 import { Toast } from '../shell/Toast.tsx'
 import { useToast } from '../shell/useToast.ts'
@@ -212,6 +213,9 @@ function Clients({
   const [inviting, setInviting] = useState<PartnerClient | null>(null)
   const [releasing, setReleasing] = useState<PartnerClient | null>(null)
   const [settings, setSettings] = useState<PartnerClientRow | null>(null)
+  // One key per client asked for: a retry after no answer (a timeout, a dropped connection) gets the client made the
+  // first time back, never a second one (security review of #1113, L-3).
+  const [keys] = useState(() => purchaseKeys())
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -220,11 +224,15 @@ function Clients({
     setProblem(null)
     try {
       const email = ownerEmail.trim()
-      const res = await callAction<{ workspace: { id: string; name: string } }>('workspace.createForClient', {
+      const input = {
         partnerId: data.partner.id,
         name: name.trim(),
         ...(owner && email ? { ownerEmail: email } : {}),
+      }
+      const res = await callAction<{ workspace: { id: string; name: string } }>('workspace.createForClient', input, {
+        idempotencyKey: keys.keyFor(JSON.stringify(input)),
       })
+      keys.settle()
       setCreated(res.workspace.name)
       setName('')
       setOwnerEmail('')
@@ -251,6 +259,7 @@ function Clients({
       }
       await Promise.all([reloadPartner(data.partner.id), refreshWorkspaces()])
     } catch (err) {
+      keys.settle(err)
       setProblem(partnerErrorText(err))
     } finally {
       setBusy(false)
