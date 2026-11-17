@@ -18,9 +18,11 @@ export const GOODBYE_MAX_MS = 20_000
 /**
  * What end_call returns. The first call asks the caller whether there is anything else (the fixed line, closingFlow);
  * the next one, right after the caller answered it, says the goodbye line and hangs up. The model says nothing after
- * either: its reply to the tool is skipped (skipEndCallReplies).
+ * either: its reply to the tool is skipped (skipEndCallReplies). The last sentence of END_CALL_ASKED (LIN-480): after
+ * "anything else?" the model offered to take a message again, as if none was taken.
  */
-export const END_CALL_ASKED = 'The caller was asked whether there is anything else. Wait for their answer.'
+export const END_CALL_ASKED =
+  "The caller was asked whether there is anything else. Wait for their answer. Everything said in this call goes to the owner, so don't offer to take a message again."
 export const END_CALL_ENDS = 'The goodbye is said and the call ends. Say nothing.'
 
 /**
