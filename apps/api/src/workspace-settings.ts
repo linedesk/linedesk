@@ -29,6 +29,7 @@ import { isPartnerOwner, PARTNER_DECIDES_LEVELS } from './partner-refusals.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
+import { managesBill } from './bill-manager.ts'
 import { refuseUnlessBillOwner } from './billing-owner.ts'
 import {
   assistantsBackToStandard,
@@ -52,7 +53,8 @@ const DEFAULT_TIME_ZONE = 'America/New_York'
 
 /**
  * Who switches Allow Premium or Allow Ultra (security review of #1109, M-1): never in a disabled workspace (read only);
- * on, only the bill's owner (or the workspace's owner where there is no bill), also where the bill's owner is only an
+ * on, only who manages the bill (its owner, or an owner or admin of the only workspace it pays for: managesBill; the
+ * workspace's owner where there is no bill), also where the bill's owner is only an
  * admin or a member (run-action.ts lets them ask; LIN-440); off, the workspace's owner or the bill's owner. In a white-label client (docs/white-label.md, LIN-440) its partner's owner decides, both ways, and the client's
  * own owner never does: the partner pays and sets what its client may use. Anyone else holding billing:manage here
  * gets 403.
@@ -89,13 +91,19 @@ async function allowSwitchOf(tx: Tx, actor: Actor): Promise<{ on: boolean; off: 
       partnerId: organization.partnerId,
       billId: organization.billingAccountId,
       billOwner: billing_accounts.owner_user_id,
+      billKind: billing_accounts.kind,
     })
     .from(organization)
     .leftJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
     .where(eq(organization.id, actor.workspaceId))
   // A bill id without its bill: refused by the handler (refuseUnlessBillOwner), so nobody here.
   if (!org || (org.billId && !org.billOwner)) return none
-  const ownsBill = org.billId ? org.billOwner === actor.actorId : actor.role === 'owner'
+  // Who manages the bill (managesBill: its owner, or an owner or admin of its only workspace); without a bill, the
+  // workspace's owner.
+  const ownsBill =
+    org.billId && org.billOwner && org.billKind
+      ? await managesBill(tx, actor, { id: org.billId, owner_user_id: org.billOwner, kind: org.billKind })
+      : actor.role === 'owner'
   if (org.partnerId) {
     const may = ownsBill && (await isPartnerOwner(tx, org.partnerId, actor.actorId))
     return { on: may, off: may }

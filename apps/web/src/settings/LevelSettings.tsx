@@ -1,5 +1,6 @@
 // Settings › Assistant › General: the voice model and the language model the assistant's calls use. On Linedesk Cloud
-// each has a level (Standard or Premium, levelModel.ts); a Premium one needs the owner's Allow Premium.
+// each has a level (Standard or Premium, levelModel.ts); a Premium one needs Allow Premium (Workspace settings ›
+// Billing). Premium choices the workspace may not use are shown greyed out, with one note under the pickers.
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { sectionHash } from '../ui/SettingsLayout.tsx'
@@ -8,17 +9,19 @@ import { Section, SelectRow } from './fields.tsx'
 import { draftLevel, levelOptions, levelTag, premiumLocked, pricePerMinute } from './levelModel.ts'
 import { useVoiceOptions } from './VoiceSettings.tsx'
 
-/** Where the owner allows Premium (Workspace settings › General). */
-export const ALLOW_PREMIUM_LINK = sectionHash('workspace', 'general')
+/** Where Premium and Ultra are allowed (Workspace settings › Billing, owners and admins). */
+export const ALLOW_PREMIUM_LINK = sectionHash('workspace', 'billing')
 
 type Props = {
   voice: Draft['voice']
   llmModel: string
   onVoiceModel: (model: string) => void
   onModel: (model: string) => void
+  /** Owners and admins (they have Billing, where Premium is allowed): the note links there; members are told to ask. */
+  canManageBilling: boolean
 }
 
-export function LevelSettings({ voice, llmModel, onVoiceModel, onModel }: Props) {
+export function LevelSettings({ voice, llmModel, onVoiceModel, onModel, canManageBilling }: Props) {
   const t = useT()
   const { data: options } = useVoiceOptions()
   const levels = options?.levels
@@ -60,22 +63,26 @@ export function LevelSettings({ voice, llmModel, onVoiceModel, onModel }: Props)
           onChange={onModel}
         />
       )}
-      {levels.billed && !levels.partnerManaged && level && (
-        <p className="help" role="status">
-          {level === 'premium'
-            ? t('settings.voice.level.premiumNote', prices)
-            : t('settings.voice.level.standardNote', { level: levelTag('standard', levels), price: prices.standard })}
-        </p>
-      )}
-      {premiumLocked(levels) && (
-        <p className="help">
-          {levels.partnerManaged ? (
-            t('settings.voice.level.allowHintPartner')
-          ) : (
-            <T k="settings.voice.level.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
-          )}
-        </p>
-      )}
+      <div className="st-notes">
+        {levels.billed && !levels.partnerManaged && level && (
+          <p className="help" role="status">
+            {level === 'premium'
+              ? t('settings.voice.level.premiumNote', prices)
+              : t('settings.voice.level.standardNote', { level: levelTag('standard', levels), price: prices.standard })}
+          </p>
+        )}
+        {premiumLocked(levels) && (
+          <p className="help">
+            {levels.partnerManaged ? (
+              t('settings.voice.level.allowHintPartner')
+            ) : canManageBilling ? (
+              <T k="settings.voice.level.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
+            ) : (
+              t('settings.voice.level.allowHintAsk')
+            )}
+          </p>
+        )}
+      </div>
     </Section>
   )
 }

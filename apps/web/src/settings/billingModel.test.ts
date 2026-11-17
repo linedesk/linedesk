@@ -17,6 +17,7 @@ import {
   trialRechargeInput,
   usageLine,
   yearlyRefundLine,
+  workspaceBillingView,
 } from './billingModel.ts'
 
 test('typed dollars: whole amounts in range only', () => {
@@ -311,4 +312,24 @@ test('"Keep calls answered" sends the recharge amount on the card shown, as the 
     savedCard: true,
     trialRecharge: true,
   })
+})
+
+test('Workspace settings › Billing: owners and admins with or without a bill on Cloud, members never, off billing never', () => {
+  const owner = ['settings:write', 'billing:manage']
+  const member = ['call:read']
+  const on = (workspace: Record<string, unknown>, permissions: string[]) =>
+    workspaceBillingView({ permissions, workspace: { id: 'ws_1', name: 'B', ...workspace } })
+  // On a bill: the bill's page for owners and admins (the server answers who manages it), nothing for members.
+  expect(on({ billingState: 'active', billingOn: true }, owner)).toBe('owner')
+  expect(on({ billingState: 'active', billingOn: true }, ['settings:write'])).toBe('usage')
+  expect(on({ billingState: 'active', billingOn: true }, member)).toBeNull()
+  // No bill on an install that bills: "not on a bill" for owners and admins.
+  expect(on({ billingState: null, billingOn: true }, owner)).toBe('none')
+  expect(on({ billingState: null, billingOn: true }, member)).toBeNull()
+  // A white-label client without a bill: its partner handles it, no section.
+  expect(on({ billingState: null, billingOn: true, partnerManaged: true }, owner)).toBeNull()
+  // Self-hosted (billing off), or an older server that does not say: no section.
+  expect(on({ billingState: null, billingOn: false }, owner)).toBeNull()
+  expect(on({ billingState: null }, owner)).toBeNull()
+  expect(workspaceBillingView({ permissions: owner, workspace: null })).toBeNull()
 })

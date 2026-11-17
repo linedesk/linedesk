@@ -9,6 +9,7 @@ import type {
   TrialMinutesPrompt,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
+import type { Me } from '../auth.ts'
 
 export const centsToDollars = (cents: number) => cents / 100
 export const microsToDollars = (micros: number) => micros / 1_000_000
@@ -343,4 +344,19 @@ export function trialRechargeInput(prompt: Pick<TrialMinutesPrompt, 'amountCents
     trialRecharge: true,
     ...(card ? { confirmCard: card.id } : {}),
   }
+}
+
+/**
+ * Workspace settings › Billing (docs/billing.md §8): the bill's page for owners and admins (`owner`; the server says
+ * whether they manage this bill, else they read this workspace's usage), the usage alone for anyone else with
+ * settings:write (`usage`), and on an install that bills without a bill for this workspace, the "not on a bill" view
+ * (`none`) for owners and admins. Off billing, and for members, no section. A white-label client without a bill: none.
+ */
+export function workspaceBillingView(me: Pick<Me, 'permissions' | 'workspace'>): 'owner' | 'usage' | 'none' | null {
+  const workspace = me.workspace
+  if (!workspace) return null
+  const manages = me.permissions.includes('billing:manage')
+  if (!workspace.billingState) return workspace.billingOn && !workspace.partnerManaged && manages ? 'none' : null
+  if (manages) return 'owner'
+  return me.permissions.includes('settings:write') ? 'usage' : null
 }

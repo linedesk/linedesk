@@ -162,6 +162,28 @@ const expectedRights: Record<Right, readonly string[]> = {
     'knowledgeQuestion.dismiss',
     'business.search',
     'business.import',
+    // What the workspace pays (billing:manage, owners and admins since 2026-11-17): the handlers let through only who
+    // manages the bill (managesBill: its owner, or an owner or admin of the only workspace it pays for). Allow Premium
+    // voices and models, Allow Ultra on Linedesk Cloud.
+    'workspace.setAllowPremium',
+    'workspace.setAllowUltra',
+    // The bill's Checkout, Buy minutes, cancel and resume (docs/billing.md §3.2).
+    'billing.startCheckout',
+    'billing.confirmCheckout',
+    'billing.startTopUp',
+    'billing.cancel',
+    'billing.resume',
+    // The banner; port-out and hand-over stay with the bill's owner (the handlers check it).
+    'billing.state',
+    'billing.portOutInfo',
+    'billing.handOver',
+    // Settings › Billing (PR 9): the bill's page.
+    'billing.overview',
+    'billing.setAutoRecharge',
+    'billing.setRechargeCap',
+    'billing.setExtraCalls',
+    'billing.openPortal',
+    'billing.retryRecharge',
   ],
   agent: [
     'call.start',
@@ -285,26 +307,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'team.transferOwnership',
     // Removing the workspace's white-label partner (docs/white-label.md): the owner takes over what it pays.
     'workspace.removePartner',
-    // What the workspace pays (billing:manage): Allow Premium voices and models, Allow Ultra on Linedesk Cloud.
-    'workspace.setAllowPremium',
-    'workspace.setAllowUltra',
-    // The bill's Checkout, Buy minutes, cancel and resume (docs/billing.md §3.2; the handler also wants the bill's owner).
-    'billing.startCheckout',
-    'billing.confirmCheckout',
-    'billing.startTopUp',
-    'billing.cancel',
-    'billing.resume',
-    // The bill owner (the handlers check it is the bill's owner, not only the workspace's): the banner, port-out, hand-over.
-    'billing.state',
-    'billing.portOutInfo',
-    'billing.handOver',
-    // Settings › Billing (PR 9): the bill owner's page.
-    'billing.overview',
-    'billing.setAutoRecharge',
-    'billing.setRechargeCap',
-    'billing.setExtraCalls',
-    'billing.openPortal',
-    'billing.retryRecharge',
   ],
   impersonation: ['impersonation.stop'],
   // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
@@ -381,29 +383,18 @@ describe('workspace rights', () => {
     }
   })
 
-  it('only the owner deletes the workspace, hands it over or decides what it pays (Allow Premium, Allow Ultra)', () => {
+  it('only the owner deletes the workspace or hands it over', () => {
     expect([...expectedRights.owner].sort()).toEqual([
-      'billing.cancel',
-      'billing.confirmCheckout',
-      'billing.handOver',
-      'billing.openPortal',
-      'billing.overview',
-      'billing.portOutInfo',
-      'billing.resume',
-      'billing.retryRecharge',
-      'billing.setAutoRecharge',
-      'billing.setExtraCalls',
-      'billing.setRechargeCap',
-      'billing.startCheckout',
-      'billing.startTopUp',
-      'billing.state',
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',
       'workspace.removePartner',
-      'workspace.setAllowPremium',
-      'workspace.setAllowUltra',
     ])
+  })
+
+  it('owners and admins decide what the workspace pays (billing:manage), members never', () => {
+    expect(rolePermissions.admin).toContain('billing:manage')
+    expect(rolePermissions.member).not.toContain('billing:manage')
     expect(actions.get('workspace.setAllowPremium')!.permission).toBe('billing:manage')
     expect(actions.get('workspace.setAllowUltra')!.permission).toBe('billing:manage')
     for (const name of [

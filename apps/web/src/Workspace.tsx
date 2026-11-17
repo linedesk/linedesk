@@ -7,6 +7,7 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { PasskeyStepUpHost } from './admin/PasskeyStepUp.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { isInstanceAdmin, type Me, passkeySupported } from './auth.ts'
+import { workspaceBillingView } from './settings/billingModel.ts'
 import { PasskeyCard } from './AddPasskey.tsx'
 import { passkeyAsk, pausedAt } from './passkey-ask.ts'
 import { CallView } from './call/CallView.tsx'
@@ -177,14 +178,10 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   // The same rule as the screen without a workspace: only server admins create workspaces.
   const canCreateWorkspace = mayCreateWorkspace(me)
   // On a bill (Linedesk Cloud) and allowed to manage it: Workspace settings › Billing and the billing line above pages.
+  // billing:manage is the owner's and the admins' (decision of 2026-11-17); the server answers only who manages the
+  // bill (its owner, or an owner or admin of the only workspace it pays for), anyone else gets the usage view.
   const billingOwner = !!me.workspace?.billingState && me.permissions.includes('billing:manage')
-  // Workspace settings › Billing: the bill owner's page, or this workspace's usage alone for its admins (docs/billing.md
-  // §8, workspace admins see usage only).
-  const billingView = billingOwner
-    ? ('owner' as const)
-    : me.workspace?.billingState && me.permissions.includes('settings:write')
-      ? ('usage' as const)
-      : null
+  const billingView = workspaceBillingView(me)
   const [newWorkspace, setNewWorkspace] = useState(false)
   // Members without a passkey: a quiet card asks for one (passkey-ask.ts), not at the same time as the star prompt.
   const [passkeyCardClosed, setPasskeyCardClosed] = useState(false)

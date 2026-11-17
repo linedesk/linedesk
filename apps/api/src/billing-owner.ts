@@ -42,6 +42,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import { billingRules } from './billing-rules.ts'
+import { managesBill } from './bill-manager.ts'
 import { lockBalance, periodAt, trialSecondsUsed } from './ledger.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { partnerBillOf } from './partner-billing.ts'
@@ -101,7 +102,7 @@ export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
     .where(eq(organization.id, actor.workspaceId))
   const [bill] = seen?.bill
     ? await tx
-        .select({ owner: billing_accounts.owner_user_id })
+        .select({ owner_user_id: billing_accounts.owner_user_id, kind: billing_accounts.kind })
         .from(billing_accounts)
         .where(eq(billing_accounts.id, seen.bill))
         .for('share')
@@ -117,8 +118,9 @@ export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
     if (notOwner) throw new Forbidden(NOT_BILL_OWNER)
     return
   }
-  // A bill id without its bill is refused, never read as "no bill".
-  if (!bill || bill.owner !== actor.actorId) throw new Forbidden(NOT_BILL_OWNER)
+  // A bill id without its bill is refused, never read as "no bill". Its owner, or an owner or admin of the only
+  // workspace it pays for (managesBill, decision of 2026-11-17).
+  if (!bill || !(await managesBill(tx, actor, { id: workspace.bill, ...bill }))) throw new Forbidden(NOT_BILL_OWNER)
 }
 
 /** `billing.state`: the banner's data, for the bill owner only. */
@@ -135,7 +137,7 @@ async function billingState(
           .where(eq(billing_accounts.id, await partnerBillOf(tx, actor, input.partnerId)))
       )[0] ?? null)
     : await billOfWorkspace(tx, actor.workspaceId)
-  if (!bill || bill.owner_user_id !== actor.actorId) return { rows: {}, data: { bill: null } }
+  if (!bill || !(await managesBill(tx, actor, bill))) return { rows: {}, data: { bill: null } }
   // Through the number's workspace and the bill it is on now, never the row's bill: a workspace moved to another bill
   // takes its numbers with it (security review of #879, L3).
   const unpaid = await tx

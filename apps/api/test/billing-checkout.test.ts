@@ -516,10 +516,14 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
     expect(stripe.requests.filter(r => r.path === '/v1/customers')).toHaveLength(1)
   })
 
-  test('only the bill owner, signed in, and only while the bill waits for Checkout', async () => {
+  test('never a member, signed in, and only while the bill waits for Checkout', async () => {
     const { ws, bill, owner } = await pendingSignUp()
-    const admin = await addMember(ws.id, 'admin')
-    const res = await act({ headers: { ...admin.headers, 'x-workspace-id': ws.id } }, 'billing.startCheckout', ACCEPTED)
+    const member = await addMember(ws.id, 'member')
+    const res = await act(
+      { headers: { ...member.headers, 'x-workspace-id': ws.id } },
+      'billing.startCheckout',
+      ACCEPTED,
+    )
     expect(res.status).toBe(403)
     await db.update(billing_accounts).set({ status: 'comped' }).where(eq(billing_accounts.id, bill.id))
     expect((await act(owner, 'billing.startCheckout', ACCEPTED)).status).toBe(409)
@@ -2176,11 +2180,33 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     ).toHaveLength(1)
   })
 
-  test('only the bill owner, after confirming it is them; only in the trial, for the amount shown', async () => {
+  test('an admin of the only workspace presses it too, after the same step-up as the owner (decision of 2026-11-17)', async () => {
+    const t = await trialUsed(2500)
+    const admin = await addMember(t.ws.id, 'admin')
+    const asAdmin = { headers: { ...admin.headers, 'x-workspace-id': t.ws.id } }
+    const card = (await state(asAdmin)).trialMinutes.card.id
+    await db
+      .update(session)
+      .set({ createdAt: new Date(Date.now() - 11 * 60_000) })
+      .where(eq(session.userId, admin.userId))
+    expect((await tap(asAdmin, card)).body).toMatchObject({ code: 'SIGN_IN_AGAIN' })
+    expect((await billRow(t.bill.id)).trial_recharge_at).toBeNull()
+    await db.update(session).set({ createdAt: new Date() }).where(eq(session.userId, admin.userId))
+    expect((await tap(asAdmin, card)).body.data).toMatchObject({ kind: 'paid', credited: true })
+    expect((await billRow(t.bill.id)).trial_recharge_at).not.toBeNull()
+  })
+
+  test('only who manages the bill, after confirming it is them; only in the trial, for the amount shown', async () => {
     const t = await trialUsed(2500)
     const card = (await state(t.owner)).trialMinutes.card.id
+    const member = await addMember(t.ws.id, 'member')
+    expect((await tap({ headers: { ...member.headers, 'x-workspace-id': t.ws.id } }, card)).status).toBe(403)
+    // A second workspace on the bill: its admins no longer manage it.
     const admin = await addMember(t.ws.id, 'admin')
+    const second = await createWorkspace('Brightwater North')
+    await db.update(organization).set({ billingAccountId: t.bill.id }).where(eq(organization.id, second.id))
     expect((await tap({ headers: { ...admin.headers, 'x-workspace-id': t.ws.id } }, card)).status).toBe(403)
+    await db.update(organization).set({ billingAccountId: null }).where(eq(organization.id, second.id))
     expect((await tap(t.owner, card, 3000)).status).toBe(409)
     await db
       .update(session)

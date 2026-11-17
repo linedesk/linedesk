@@ -49,6 +49,7 @@ import { setsUpByHand } from './install-setup.ts'
 import { authMethods, currentAuthMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { billingRules } from './billing-rules.ts'
+import { billingState } from './billing-settings.ts'
 import { workspaceBillFacts } from './billing-page.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
@@ -552,6 +553,7 @@ app.get('/v1/me', async c => {
     locale,
     billFacts,
     partners,
+    billingOn,
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
@@ -572,6 +574,14 @@ app.get('/v1/me', async c => {
     workspace?.billingState || workspace?.partnerId ? workspaceBillFacts(workspace.id, actor.actorId) : null,
     // Only with the `partner` permission (a session of a partner team member, never while impersonated).
     actor.permissions.includes('partner') ? partnersOf(actor.actorId) : [],
+    // Whether this install bills its workspaces (Linedesk Cloud): a workspace on a bill says so already; one without
+    // a bill shows its owners and admins Settings › Billing with "not on a bill" (decision of 2026-11-17).
+    workspace && !workspace.billingState
+      ? billingState(db).then(
+          b => b.inEffect === 'stripe',
+          () => false,
+        )
+      : !!workspace?.billingState,
   ])
   return c.json({
     actorId: actor.actorId,
@@ -589,6 +599,8 @@ app.get('/v1/me', async c => {
           iconUrl: iconUrlOf(workspace.id, workspace.iconVersion),
           // On a bill: `pending_payment` until Checkout, then `active` or `suspended`; null off billing.
           billingState: workspace.billingState ?? null,
+          // This install bills its workspaces (Linedesk Cloud), whether or not this one is on a bill yet.
+          billingOn,
           // While `pending_payment`: the free trial's length in days and the plan's price at the bill's interval, as
           // the install set them; else null.
           trialDays: billFacts?.trialDays ?? null,

@@ -51,6 +51,7 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
+import { managesBill } from './bill-manager.ts'
 import { activationFacts, BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
@@ -368,7 +369,8 @@ async function overview(
         .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
         .where(eq(organization.id, actor.workspaceId!))
   const bill = found?.bill
-  if (!bill || bill.owner_user_id !== actor.actorId) return none
+  // Its owner, or an owner or admin of the only workspace it pays for (managesBill); anyone else: the usage view.
+  if (!bill || !(await managesBill(tx as Tx, actor, bill))) return none
 
   const rules = await billingRules(tx as Tx)
   const workspaces = await workspacesOf(tx, bill.id)

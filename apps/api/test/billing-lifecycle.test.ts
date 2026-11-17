@@ -317,7 +317,7 @@ describe('dunning, day by day', () => {
 })
 
 describe('what the owner sees (billing.state)', () => {
-  test('the bill owner gets the banner data; an admin of the workspace gets nothing', async () => {
+  test('the bill owner and the admins of its only workspace get the banner data; members and other workspaces nothing', async () => {
     const failedAt = Date.now() - 2 * DAY
     const b = await billed({ status: 'past_due', past_due_since: at(failedAt) })
     const state = (await act(b.ws.owner, 'billing.state', {})).body.data
@@ -331,11 +331,13 @@ describe('what the owner sees (billing.state)', () => {
       unpaidNumbers: [],
     })
     const admin = await addMember(b.ws.id, 'admin')
-    expect((await act(admin, 'billing.state', {})).status).toBe(403)
-    // A workspace owner who does not own the bill: null.
+    expect((await act(admin, 'billing.state', {})).body.data.bill).toMatchObject({ status: 'past_due' })
+    expect((await act(await addMember(b.ws.id, 'member'), 'billing.state', {})).status).toBe(403)
+    // A second workspace on the bill: its owner, who does not own the bill, gets null, and so do the admins now.
     const other = await createWorkspace('Brightwater North')
     await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, other.id))
     expect((await act(other.owner, 'billing.state', {})).body.data).toEqual({ bill: null })
+    expect((await act(admin, 'billing.state', {})).body.data).toEqual({ bill: null })
   })
 
   test("a workspace moved to another bill: its unpaid number shows on the new bill's banner, not the old one's", async () => {

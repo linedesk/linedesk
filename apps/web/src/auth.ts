@@ -89,6 +89,13 @@ export type Me = {
     disabled?: boolean
     iconUrl?: string | null
     billingState?: 'pending_payment' | 'active' | 'suspended' | null
+    /**
+     * This install bills its workspaces (Linedesk Cloud), whether or not this one is on a bill yet; absent from an
+     * older server (then only `billingState` tells).
+     */
+    billingOn?: boolean
+    /** A white-label client on its partner's bill: no prices anywhere in the workspace (absent from an older server). */
+    partnerManaged?: boolean
     trialDays?: number | null
     plan?: { interval: 'month' | 'year'; cents: number } | null
     extraNumberCents?: number | null

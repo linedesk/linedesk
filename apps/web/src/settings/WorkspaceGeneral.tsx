@@ -11,11 +11,8 @@ import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
-import { Field, Section, SwitchRow } from './fields.tsx'
+import { Field, Section } from './fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
-import { pricePerMinute } from './levelModel.ts'
-import { refreshQuery } from '../cachedQuery.ts'
-import { type AllowPremiumData, type AllowUltraData, USAGE_CENTS_PER_MINUTE } from '@linedesk/actions'
 import {
   callAction,
   patchWorkspaceSettings,
@@ -44,11 +41,10 @@ type Props = {
 export function WorkspaceGeneral({
   canEdit,
   agentChange = false,
-  isOwner = false,
   name,
   onRenamed,
   toast,
-}: Props & { agentChange?: boolean; isOwner?: boolean }) {
+}: Props & { agentChange?: boolean }) {
   const t = useT()
   const readOnly = useReadOnlyNote()
   return (
@@ -59,8 +55,6 @@ export function WorkspaceGeneral({
       <Country canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
-      <AllowPremium isOwner={isOwner} canEdit={canEdit} toast={toast} />
-      <AllowUltra isOwner={isOwner} canEdit={canEdit} toast={toast} />
     </Section>
   )
 }
@@ -258,143 +252,4 @@ function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => 
       </Loading>
     </Field>
   )
-}
-
-/**
- * Linedesk Cloud: the owner allows Premium voices and models for the workspace's assistants (workspace.setAllowPremium).
- * Only on an install that bills usage; only the owner changes it. Off moves assistants on Premium back to Standard.
- */
-function AllowPremium({
-  isOwner,
-  canEdit,
-  toast,
-}: {
-  isOwner: boolean
-  canEdit: boolean
-  toast: (text: string) => void
-}) {
-  const t = useT()
-  const readOnly = useReadOnlyNote()
-  const write = useWriteAction()
-  const settings = useWorkspaceSettings().data
-  const [busy, setBusy] = useState(false)
-  if (!settings?.usageLevels) return null
-  const cents = settings.usageCentsPerMinute ?? USAGE_CENTS_PER_MINUTE
-  const prices = { standard: pricePerMinute(cents.standard), premium: pricePerMinute(cents.premium) }
-
-  // Who may switch it, from the server (LIN-440: the bill's owner, also as an admin or member); an older API: the owner.
-  const may = mayChange(settings.allowSwitch, settings.allowPremium, isOwner && canEdit)
-
-  async function change(on: boolean) {
-    setBusy(true)
-    try {
-      const data = await write<AllowPremiumData>('workspace.setAllowPremium', { on })
-      patchWorkspaceSettings({ allowPremium: data.on })
-      void refreshQuery('voice.options')
-      toast(
-        data.on
-          ? t('settings.general.premium.on')
-          : t('settings.general.premium.off', { count: data.movedToStandard.length }),
-      )
-    } catch (e) {
-      toast(rejectionText('workspace.setAllowPremium', (e as Error).message))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <SwitchRow
-      title={t('settings.general.premium.label')}
-      description={
-        // A white-label client: its partner decides, and its people see no prices (docs/white-label.md).
-        settings.partnerManaged
-          ? t('settings.general.premium.partner')
-          : may
-            ? t('settings.general.premium.help', prices)
-            : isOwner && !canEdit
-              ? readOnly
-              : settings.allowSwitch
-                ? t('settings.general.premium.billOwnerOnly', prices)
-                : t('settings.general.premium.ownerOnly', prices)
-      }
-      on={settings.allowPremium}
-      onChange={on => void change(on)}
-      disabled={settings.partnerManaged || !may || busy}
-      tip={settings.partnerManaged || may ? undefined : t('settings.general.allowSwitchTip')}
-    />
-  )
-}
-
-/**
- * Linedesk Cloud: the owner allows Ultra, calls answered by a realtime model (workspace.setAllowUltra). Like Allow
- * Premium: only on an install that bills usage, only the owner changes it. Off moves those assistants back to the three
- * stages.
- */
-function AllowUltra({
-  isOwner,
-  canEdit,
-  toast,
-}: {
-  isOwner: boolean
-  canEdit: boolean
-  toast: (text: string) => void
-}) {
-  const t = useT()
-  const readOnly = useReadOnlyNote()
-  const write = useWriteAction()
-  const settings = useWorkspaceSettings().data
-  const [busy, setBusy] = useState(false)
-  if (!settings?.usageLevels) return null
-  const cents = settings.usageCentsPerMinute ?? USAGE_CENTS_PER_MINUTE
-  const prices = { standard: pricePerMinute(cents.standard), ultra: pricePerMinute(cents.ultra) }
-
-  // Who may switch it, from the server (LIN-440: the bill's owner, also as an admin or member); an older API: the owner.
-  const may = mayChange(settings.allowSwitch, settings.allowUltra, isOwner && canEdit)
-
-  async function change(on: boolean) {
-    setBusy(true)
-    try {
-      const data = await write<AllowUltraData>('workspace.setAllowUltra', { on })
-      patchWorkspaceSettings({ allowUltra: data.on })
-      void refreshQuery('voice.options')
-      toast(
-        data.on
-          ? t('settings.general.ultra.on')
-          : t('settings.general.ultra.off', { count: data.movedOffUltra.length }),
-      )
-    } catch (e) {
-      toast(rejectionText('workspace.setAllowUltra', (e as Error).message))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <SwitchRow
-      title={t('settings.general.ultra.label')}
-      description={
-        // A white-label client: its partner decides, and its people see no prices (docs/white-label.md).
-        settings.partnerManaged
-          ? t('settings.general.ultra.partner')
-          : may
-            ? t('settings.general.ultra.help', prices)
-            : isOwner && !canEdit
-              ? readOnly
-              : settings.allowSwitch
-                ? t('settings.general.ultra.billOwnerOnly', prices)
-                : t('settings.general.ultra.ownerOnly', prices)
-      }
-      on={settings.allowUltra}
-      onChange={on => void change(on)}
-      disabled={settings.partnerManaged || !may || busy}
-      tip={settings.partnerManaged || may ? undefined : t('settings.general.allowSwitchTip')}
-    />
-  )
-}
-
-/** Whether the caller may flip an Allow switch now: on needs `allowSwitch.on`, off `allowSwitch.off`. */
-function mayChange(allowSwitch: { on: boolean; off: boolean } | undefined, isOn: boolean, fallback: boolean) {
-  if (!allowSwitch) return fallback
-  return isOn ? allowSwitch.off : allowSwitch.on
 }

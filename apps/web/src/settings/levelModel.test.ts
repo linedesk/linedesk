@@ -1,6 +1,15 @@
 import type { LevelChoice, UsageLevelOptions } from '@linedesk/actions'
 import { describe, expect, it } from 'vitest'
-import { answeringPipeline, DEFAULT_CHOICE, draftLevel, levelOptions, levelTag, premiumLocked, pricePerMinute, ultraLocked } from './levelModel.ts'
+import {
+  answeringPipeline,
+  DEFAULT_CHOICE,
+  draftLevel,
+  levelOptions,
+  levelTag,
+  premiumLocked,
+  pricePerMinute,
+  ultraLocked,
+} from './levelModel.ts'
 import { NO_LEVELS } from './voiceSwitch.fixture.ts'
 
 const flash: LevelChoice = { id: 'eleven_flash_v2_5', name: 'ElevenLabs Flash v2.5', level: 'standard', allowed: true }
@@ -32,7 +41,7 @@ describe('levelOptions', () => {
     const options = levelOptions([flash, v3], cloud.defaultVoiceModels.elevenlabs, cloud, DEFAULT_CHOICE)
     expect(options.map(o => o.value)).toEqual([DEFAULT_CHOICE, 'eleven_flash_v2_5', 'eleven_v3'])
     expect(options[0]).toMatchObject({ label: 'Default (ElevenLabs Flash v2.5)', description: 'Standard' })
-    expect(options[2]).toMatchObject({ disabled: true, description: 'Premium, $0.10/min. Needs Allow Premium' })
+    expect(options[2]).toMatchObject({ disabled: true, description: 'Premium, $0.10/min. Off' })
     const allowed = levelOptions([flash, { ...v3, allowed: true }], null, cloud, '')
     expect(allowed[2]).toMatchObject({ description: 'Premium, $0.10/min' })
     expect(allowed[2]).not.toHaveProperty('disabled')
@@ -71,7 +80,7 @@ describe('Ultra', () => {
   it('is labelled with its price, and greyed out until Allow Ultra', () => {
     expect(levelTag('ultra', cloud)).toBe('Ultra, $0.20/min, natural realtime voice')
     const [, off] = levelOptions([realtime], null, ultra, DEFAULT_CHOICE)
-    expect(off).toMatchObject({ disabled: true, description: 'Needs Allow Ultra' })
+    expect(off).toMatchObject({ disabled: true, description: 'Off for this workspace' })
     expect(ultraLocked(ultra)).toBe(true)
     expect(ultraLocked({ ...ultra, realtimeAllowed: true })).toBe(false)
     expect(ultraLocked({ ...ultra, billed: false })).toBe(false)

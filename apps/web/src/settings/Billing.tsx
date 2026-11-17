@@ -1,10 +1,12 @@
-// Workspace settings › Billing (docs/billing.md §8, §11 PR 9): the bill owner's page on Linedesk Cloud. The plan and
+// Workspace settings › Billing (docs/billing.md §8, §11 PR 9): the bill's page on Linedesk Cloud. The plan and
 // its state in plain words (trial countdown, past due, suspended and why, canceled), the balance with "Buy minutes"
 // (Stripe Checkout), a failed recharge with Retry, auto-recharge and the monthly cap (raising it confirms it is them),
 // this period's usage per workspace and level, the latest invoices with Stripe's pages, the Stripe portal for the card
-// and every invoice, and cancel in two clicks (US click-to-cancel). Shown only while the workspace is on a bill
-// (`me.workspace.billingState`). Anyone else with the section (the workspace's owners and admins) reads that someone
-// else pays and sees this workspace's usage, read-only (`billing.workspaceUsage`, docs/billing.md §8).
+// and every invoice, and cancel in two clicks (US click-to-cancel), and Voices and models (Allow Premium, Allow Ultra;
+// PaidLevels). For whoever manages the bill: its owner, or an owner or admin of the only workspace it pays for (decision
+// of 2026-11-17). Other owners and admins (a bill of several workspaces, a partner's) read that someone else pays and
+// see this workspace's usage, read-only (`billing.workspaceUsage`, docs/billing.md §8). On an install that bills, a
+// workspace on no bill shows its owners and admins one line that says so.
 import type {
   AutoRechargeData,
   BillingInvoiceRow,
@@ -59,6 +61,7 @@ import {
   yearlyRefundLine,
 } from './billingModel.ts'
 import { Section, SwitchRow } from './fields.tsx'
+import { PaidLevels } from './PaidLevels.tsx'
 import { loadOverview, loadState, loadWorkspaceUsage, OVERVIEW, STATE, WORKSPACE_USAGE } from './billingQueries.ts'
 import { callAction } from './settings-api.ts'
 import { useLegalLinks } from '../shell/WorkspaceMenu.tsx'
@@ -113,22 +116,52 @@ function useBillCalls() {
   }, [partnerId])
 }
 
+/** What the Voices and models card needs (PaidLevels): only in Workspace settings, never for a partner bill. */
+type LevelsAccess = { canEdit: boolean; isOwner: boolean }
+
 /**
- * `owner`: may manage billing (`billing:manage`, the workspace's owner); everyone else gets the usage view alone.
+ * `view` (workspaceBillingView): `owner`, the bill's page for owners and admins (the server answers only who manages
+ * the bill; anyone else reads this workspace's usage); `usage`, the usage alone; `none`, an install that bills with no
+ * bill for this workspace. `levels`: the Voices and models card (Allow Premium, Allow Ultra) in Workspace settings.
  * `partnerId`: the partner bill instead of the workspace's (its owner, in Partner › Billing).
  */
-type Props = { toast: (text: string) => void; owner?: boolean; partnerId?: string }
+type Props = {
+  toast: (text: string) => void
+  view?: 'owner' | 'usage' | 'none'
+  levels?: LevelsAccess
+  partnerId?: string
+}
 
-export function Billing({ toast, owner = true, partnerId }: Props) {
-  if (!owner) return <NotPaying />
+export function Billing({ toast, view = 'owner', levels, partnerId }: Props) {
+  if (view === 'none') return <NoBill levels={levels} toast={toast} />
+  if (view === 'usage') return <NotPaying levels={levels} toast={toast} />
   return (
     <BillPartner.Provider value={partnerId ?? null}>
-      <OwnerBilling toast={toast} />
+      <OwnerBilling toast={toast} levels={partnerId ? undefined : levels} />
     </BillPartner.Provider>
   )
 }
 
-function OwnerBilling({ toast }: { toast: (text: string) => void }) {
+/**
+ * An install that bills, and this workspace on no bill (decision of 2026-11-17): one calm line on top, then Voices and
+ * models as the server allows them (without a bill only the workspace's owner switches them).
+ */
+function NoBill({ levels, toast }: { levels?: LevelsAccess | undefined; toast: (text: string) => void }) {
+  const t = useT()
+  return (
+    <>
+      <Section id="billing-none" title={t('settings.billing.plan.title')}>
+        <div className="billing-plan">
+          <b>{t('settings.billing.noBill.title')}</b>
+          <span className="help">{t('settings.billing.noBill.text')}</span>
+        </div>
+      </Section>
+      {levels && <PaidLevels {...levels} onBill={false} toast={toast} />}
+    </>
+  )
+}
+
+function OwnerBilling({ toast, levels }: { toast: (text: string) => void; levels?: LevelsAccess | undefined }) {
   const t = useT()
   const calls = useBillCalls()
   const overview = useQuery(calls.overview, calls.loadOverview)
@@ -144,24 +177,25 @@ function OwnerBilling({ toast }: { toast: (text: string) => void }) {
     >
       {data && !data.bill ? (
         data.billingOn ? (
-          <NotPaying />
+          <NotPaying levels={levels} toast={toast} />
         ) : (
           <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
             <span className="help">{t('settings.billing.off')}</span>
           </Section>
         )
       ) : (
-        data?.bill && <BillingPage bill={data.bill} state={state.data?.bill ?? null} toast={toast} />
+        data?.bill && <BillingPage bill={data.bill} state={state.data?.bill ?? null} levels={levels} toast={toast} />
       )}
     </Loading>
   )
 }
 
 /**
- * For the workspace's owners and admins who do not pay (docs/billing.md §8: workspace admins see usage only): who
- * handles billing, and this workspace's usage this period. No plan, balance, invoices or payment controls.
+ * For the workspace's owners and admins who do not manage its bill (docs/billing.md §8: a bill of several workspaces,
+ * or a partner's): who handles billing, and this workspace's usage this period. No plan, balance, invoices or payment
+ * controls; Voices and models shows what is allowed, switched by whoever the server lets (PaidLevels).
  */
-function NotPaying() {
+function NotPaying({ levels, toast }: { levels?: LevelsAccess | undefined; toast: (text: string) => void }) {
   const t = useT()
   const format = useFormat()
   const read = useQuery(WORKSPACE_USAGE, loadWorkspaceUsage)
@@ -198,6 +232,7 @@ function NotPaying() {
           </Section>
         )}
       </Loading>
+      {levels && <PaidLevels {...levels} onBill toast={toast} />}
     </>
   )
 }
@@ -205,10 +240,12 @@ function NotPaying() {
 function BillingPage({
   bill,
   state,
+  levels,
   toast,
 }: {
   bill: BillingOverviewBill
   state: BillingStateData['bill']
+  levels?: LevelsAccess | undefined
   toast: (text: string) => void
 }) {
   // A comped bill pays nothing: no balance to top up (unless one is left from before) and no auto-recharge.
@@ -218,6 +255,7 @@ function BillingPage({
     <>
       <PlanCard bill={bill} state={state} toPay={toPay} toast={toast} />
       {pays && <CallsCard bill={bill} toast={toast} />}
+      {levels && <PaidLevels {...levels} onBill toast={toast} />}
       {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} payFirst={toPay.length > 0} toast={toast} />}
       {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />

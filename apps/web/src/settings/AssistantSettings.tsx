@@ -977,6 +977,7 @@ function Form({
                 realtimeModel={draft.realtime_model}
                 onPipeline={pipeline => set('voice_pipeline', pipeline)}
                 onRealtimeModel={model => set('realtime_model', model)}
+                canManageBilling={canEdit}
               />
             )}
             <VoiceLoading>
@@ -1008,6 +1009,7 @@ function Form({
                     llmModel={draft.llm_model}
                     onVoiceModel={model => set('voice', { ...draft.voice, model })}
                     onModel={model => set('llm_model', model)}
+                    canManageBilling={canEdit}
                   />
                 </>
               )}

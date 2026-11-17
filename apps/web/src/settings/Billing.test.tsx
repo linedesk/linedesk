@@ -1,6 +1,7 @@
 // Workspace settings › Billing (Billing.tsx, docs/billing.md §11 PR 9): what the bill owner sees for each state of the
 // bill. The trial with its countdown, the plan and its one primary button, a failed recharge with Retry (then the
-// primary), past due and suspended in plain words, cancel and resume, and the page for someone who does not pay.
+// primary), past due and suspended in plain words, cancel and resume, the page for someone who does not manage the
+// bill, the workspace on no bill, and Voices and models (Allow Premium, Allow Ultra) inside Billing.
 import type { BillingOverviewBill, BillingOverviewData, BillingStateBill } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, onTestFinished, test, vi } from 'vitest'
@@ -27,7 +28,23 @@ vi.mock('../cachedQuery.ts', () => ({
   refreshQuery: async () => {},
   setQueryData: () => {},
 }))
-vi.mock('./settings-api.ts', () => ({ readAction: vi.fn(), callAction: vi.fn() }))
+// Voices and models (PaidLevels) reads the workspace's settings: Allow Premium on, Ultra off, both switchable.
+const levelSettings = vi.hoisted(() => ({
+  data: {
+    usageLevels: true,
+    allowPremium: true,
+    allowUltra: false,
+    allowSwitch: { on: true, off: true },
+    usageCentsPerMinute: { standard: 10, premium: 20, ultra: 40 },
+  } as Record<string, unknown> | undefined,
+}))
+vi.mock('./settings-api.ts', () => ({
+  readAction: vi.fn(),
+  callAction: vi.fn(),
+  useWorkspaceSettings: () => ({ data: levelSettings.data }),
+  useWriteAction: () => vi.fn(),
+  patchWorkspaceSettings: vi.fn(),
+}))
 
 const { Billing, CancelDialog } = await import('./Billing.tsx')
 
@@ -326,7 +343,7 @@ test('no pay links in a running plan, nor for someone who does not pay for the w
   queries.overview = { billingOn: true, bill: bill({ status: 'suspended', invoices: [invoice('in_a')] }) }
   queries.state = { bill: paused }
   queries.usage = { usage: null }
-  const notOwner = renderToStaticMarkup(<Billing toast={() => {}} owner={false} />)
+  const notOwner = renderToStaticMarkup(<Billing toast={() => {}} view="usage" />)
   expect(notOwner).not.toContain('Pay $11.00 invoice')
   expect(notOwner).not.toContain('invoice.stripe.com')
 })
@@ -339,7 +356,7 @@ test('canceled at the period end: the end date and Keep my plan instead of Cance
 })
 
 test('someone who does not pay for the workspace, or billing off: nothing about the bill', () => {
-  expect(render({ billingOn: true, bill: null })).toContain('handled by the person who pays for it')
+  expect(render({ billingOn: true, bill: null })).toContain('The person who pays this bill handles the plan')
   const off = render({ billingOn: false, bill: null })
   expect(off).toContain('Billing is off on this server.')
   expect(off).not.toContain('Buy minutes')
@@ -380,8 +397,8 @@ test('a workspace admin: the usage of this workspace, read-only, and no payment 
       row: { ...bill().usage[0]!, name: 'Brightwater Plumbing & Heating' },
     },
   }
-  const html = renderToStaticMarkup(<Billing toast={() => {}} owner={false} />)
-  expect(html).toContain('handled by the person who pays for it')
+  const html = renderToStaticMarkup(<Billing toast={() => {}} view="usage" />)
+  expect(html).toContain('The person who pays this bill handles the plan')
   expect(html).toContain('Usage this period')
   expect(html).toContain('20 of 50 included minutes used')
   expect(html).not.toContain('Buy minutes')
@@ -464,4 +481,47 @@ test('calls at the same time in the trial: more only once the plan is paid; seve
   const html = render({ billingOn: true, bill: trial })
   expect(html).toContain('More calls at the same time can be added once your plan is paid, after the trial.')
   expect(html).toContain('Brightwater North')
+})
+
+test('Voices and models sits in Billing: Allow Premium and Allow Ultra with their prices, for who manages the bill', () => {
+  queries.overview = { billingOn: true, bill: bill() }
+  queries.state = { bill: state() }
+  const html = renderToStaticMarkup(<Billing toast={() => {}} levels={{ canEdit: true, isOwner: false }} />)
+  expect(html).toContain('Voices and models')
+  expect(html).toContain('Allow Premium voices and models')
+  expect(html).toContain('Allow Ultra')
+  expect(html).not.toContain('only the person who pays it can allow')
+})
+
+test('a bill of several workspaces: the admin reads why the switches are not theirs', () => {
+  levelSettings.data = { ...levelSettings.data, allowSwitch: { on: false, off: false } }
+  onTestFinished(() => {
+    levelSettings.data = { ...levelSettings.data, allowSwitch: { on: true, off: true } }
+  })
+  queries.usage = { usage: { period: bill().period, row: null } }
+  const html = renderToStaticMarkup(
+    <Billing toast={() => {}} view="usage" levels={{ canEdit: true, isOwner: false }} />,
+  )
+  expect(html).toContain('This bill pays for several workspaces, so only the person who pays it can allow them.')
+})
+
+test('no bill on an install that bills: one calm line, no plan, no payment controls', () => {
+  const html = renderToStaticMarkup(<Billing toast={() => {}} view="none" />)
+  expect(html).toContain('This workspace is not on a bill.')
+  expect(html).toContain('Its calls are not charged.')
+  expect(html).not.toContain('Buy minutes')
+  expect(html).not.toContain('Cancel plan')
+  expect(html).not.toContain('Voices and models')
+  expect(primaries(html)).toBe(0)
+})
+
+test('no bill: the switches say that only the workspace owner allows them then', () => {
+  levelSettings.data = { ...levelSettings.data, allowSwitch: { on: false, off: false } }
+  onTestFinished(() => {
+    levelSettings.data = { ...levelSettings.data, allowSwitch: { on: true, off: true } }
+  })
+  const html = renderToStaticMarkup(<Billing toast={() => {}} view="none" levels={{ canEdit: true, isOwner: false }} />)
+  expect(html).toContain('This workspace is not on a bill.')
+  expect(html).toContain('While the workspace is not on a bill, only its owner can allow them.')
+  expect(html).not.toContain('a minute')
 })

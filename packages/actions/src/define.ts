@@ -24,9 +24,11 @@ import type { z } from 'zod'
  * only: it cannot be undone. Not an action's permission; the call.delete handler checks it.
  */
 /**
- * `billing:manage`: what the bill owner decides because it changes what the workspace pays (Allow Premium; later the
- * plan, recharges and the cap, docs/billing.md). The workspace owner only; never an API key, a setup link or an
- * impersonation (the handlers refuse those too: refuseBillingActor in apps/api).
+ * `billing:manage`: what changes what the workspace pays (the plan, payment method, recharges and the cap, Allow
+ * Premium and Allow Ultra; docs/billing.md §8). Owners and admins hold it (decision of 2026-11-17); the handlers let
+ * through only who manages the bill: its owner, or an owner or admin of the only workspace it pays for (managesBill in
+ * apps/api), never on a partner bill or a bill of several workspaces they do not own. Never an API key, a setup link or
+ * an impersonation (the handlers refuse those too: refuseBillingActor in apps/api).
  */
 /**
  * `billing:system`: the Stripe webhook's processor and the billing jobs (docs/billing.md §5.1, §8). No role, no API key,
@@ -99,6 +101,7 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     'calendar:write',
     'team:read',
     'team:write',
+    'billing:manage',
     'invitation:respond',
   ],
   member: [

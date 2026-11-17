@@ -1,6 +1,6 @@
 // Settings › Assistant › General on Linedesk Cloud: whether the assistant's calls are answered by a realtime model
 // (Ultra, levelModel.ts) or by speech to text, a language model and a voice (Standard or Premium), and which realtime
-// model. Ultra needs the owner's Allow Ultra; without it the choice is shown, not pickable. Self-hosted installs pick
+// model. Ultra needs Allow Ultra (Workspace settings › Billing); without it the choice is shown greyed out. Self-hosted installs pick
 // the pipeline in Advanced instead (PipelineSection).
 import type { VoicePipeline } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
@@ -16,9 +16,11 @@ type Props = {
   realtimeModel: string
   onPipeline: (pipeline: VoicePipeline) => void
   onRealtimeModel: (model: string) => void
+  /** Owners and admins (they have Billing, where Ultra is allowed): the note links there; members are told to ask. */
+  canManageBilling: boolean
 }
 
-export function UltraSettings({ pipeline, realtimeModel, onPipeline, onRealtimeModel }: Props) {
+export function UltraSettings({ pipeline, realtimeModel, onPipeline, onRealtimeModel, canManageBilling }: Props) {
   const t = useT()
   const levels = useVoiceOptions().data?.levels
   // Only on Cloud, and only when a realtime model is set up to answer.
@@ -64,8 +66,10 @@ export function UltraSettings({ pipeline, realtimeModel, onPipeline, onRealtimeM
         <p className="help">
           {levels.partnerManaged ? (
             t('settings.voice.ultra.allowHintPartner')
-          ) : (
+          ) : canManageBilling ? (
             <T k="settings.voice.ultra.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
+          ) : (
+            t('settings.voice.ultra.allowHintAsk')
           )}
         </p>
       )}

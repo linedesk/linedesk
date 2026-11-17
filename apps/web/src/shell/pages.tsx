@@ -26,7 +26,7 @@ export type PageProps = {
    * Workspace settings › Billing (Linedesk Cloud): `owner` for the person who manages the bill, `usage` for the
    * workspace's admins (this workspace's usage, read-only), null off billing and for members.
    */
-  billing: 'owner' | 'usage' | null
+  billing: 'owner' | 'usage' | 'none' | null
   /** On a bill: what each number beyond the included one costs a month (from the balance); null otherwise. */
   extraNumberCents: number | null
   userId: string

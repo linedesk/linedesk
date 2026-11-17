@@ -44,6 +44,7 @@ import {
 import { createHash } from 'node:crypto'
 import { and, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
+import { managesBill } from './bill-manager.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
@@ -173,7 +174,8 @@ type Bill = typeof billing_accounts.$inferSelect
 // ---- Whose bill ----------------------------------------------------------------------------------------------
 
 /**
- * The bill of the actor's workspace, owned by the actor; billing must be in effect. Locked when asked. With
+ * The bill of the actor's workspace, managed by the actor (its owner, or an owner or admin of the only workspace it
+ * pays for: managesBill); billing must be in effect. Locked when asked. With
  * `partnerId`: the bill of that white-label partner instead, managed from the partner area (also with no workspace),
  * only by the partner's owner who owns the bill (partnerBillOf, docs/white-label.md).
  */
@@ -190,7 +192,7 @@ export async function ownBill(
   if (lock) await lockBalance(tx, billId)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
   if (!bill) throw Reject.t('server.api.checkout.noBill')
-  if (bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_THE_OWNER)
+  if (!(await managesBill(tx, actor, bill))) throw new Forbidden(NOT_THE_OWNER)
   return bill
 }
 
@@ -1157,10 +1159,11 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
     const rules = await signupRules(tx)
     return numbers >= rules.trialNumbersPerWorkspace ? TRIAL_NUMBER_LIMIT : null
   }
-  // After the trial a number past the included one debits the bill each month (PR 10): the bill's owner only (M3),
-  // and only with balance for its first month.
+  // After the trial a number past the included one debits the bill each month (PR 10): only someone who manages the
+  // bill (M3; its owner, or an owner or admin of its only workspace: managesBill), and only with balance for its first
+  // month.
   if (numbers < 1) return null
-  if (bill.owner_user_id !== actor.actorId) return NUMBER_OWNER_ONLY
+  if (!(await managesBill(tx, actor, bill))) return NUMBER_OWNER_ONLY
   const rules = await billingRules(tx)
   const balance = await lockBalance(tx, bill.id)
   if (balance.balance_micros - balance.reserved_micros < rules.extraNumberCents * 10_000)

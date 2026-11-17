@@ -1,4 +1,5 @@
-// Settings › Billing (src/billing-page.ts; docs/billing.md §8, §11 PR 9): the bill owner's overview (plan, balance,
+// Settings › Billing (src/billing-page.ts; docs/billing.md §8, §11 PR 9): the overview of who manages the bill (its
+// owner, or an owner or admin of its only workspace: managesBill) (plan, balance,
 // auto-recharge, cap, usage per workspace and level, a failed recharge, invoices), read through the bill only; the
 // owner's changes to auto-recharge and the cap (raising it needs the owner step-up and stays at most $1,000 in
 // effect); the Stripe portal; Retry after a failed recharge (3 attempts in 24 hours, a 3D Secure payment confirmed on
@@ -204,6 +205,18 @@ async function usage(
   })
 }
 
+/**
+ * The bill pays for a second workspace too, and someone else (an admin of `b.ws`) owns it: neither the workspace's
+ * owner nor its admins manage it any more (managesBill: a bill of several workspaces is its owner's alone).
+ */
+async function shareBill(b: Billed) {
+  const second = await createWorkspace('Brightwater North')
+  await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, second.id))
+  const payer = await addMember(b.ws.id, 'admin')
+  await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, b.billId))
+  return { second, payer }
+}
+
 const billNow = async (id: string) => (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!
 const overview = async (who: Caller) => {
   const res = await act(who, 'billing.overview', {})
@@ -320,15 +333,39 @@ describe('billing.overview', () => {
     expect(data.bill.usage.map((u: { workspaceId: string }) => u.workspaceId)).toEqual([mine.ws.id])
   })
 
-  test('nobody but the bill owner: an admin is refused, a workspace owner who does not pay gets no bill', async () => {
+  test('the bill of one workspace: its admins see it like its owner; members are refused (decision of 2026-11-17)', async () => {
     const b = await billed()
     const admin = await addMember(b.ws.id, 'admin')
-    expect(
-      (await act({ headers: { ...admin.headers, 'x-workspace-id': b.ws.id } }, 'billing.overview', {})).status,
-    ).toBe(403)
-    // The bill is someone else's (handed over): the workspace owner sees none of it.
+    const member = await addMember(b.ws.id, 'member')
+    expect((await overview(admin)).bill.status).toBe('active')
+    expect((await act(member, 'billing.overview', {})).status).toBe(403)
+    // Handed over to the admin: the workspace's owner still manages it, its only workspace is theirs.
     await db.update(billing_accounts).set({ owner_user_id: admin.userId }).where(eq(billing_accounts.id, b.billId))
+    expect((await overview(b.owner)).bill.status).toBe('active')
+  })
+
+  test("a partner's bill stays the partner's: the client workspace's owner and admins never manage it", async () => {
+    const b = await billed({ kind: 'partner' })
+    const payer = await addMember(b.ws.id, 'admin')
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, b.billId))
+    const admin = await addMember(b.ws.id, 'admin')
+    expect(await overview(admin)).toEqual({ billingOn: true, bill: null })
     expect(await overview(b.owner)).toEqual({ billingOn: true, bill: null })
+    expect((await act(admin, 'billing.openPortal', {})).status).toBe(403)
+    expect((await act(b.owner, 'billing.setRechargeCap', { baseCents: 3000 })).status).toBe(403)
+  })
+
+  test('a bill of several workspaces: only its owner; an admin or owner of one of them who does not pay gets no bill', async () => {
+    const b = await billed()
+    const admin = await addMember(b.ws.id, 'admin')
+    const { second, payer } = await shareBill(b)
+    expect(await overview(admin)).toEqual({ billingOn: true, bill: null })
+    expect(await overview(b.owner)).toEqual({ billingOn: true, bill: null })
+    expect(await overview(second.owner)).toEqual({ billingOn: true, bill: null })
+    expect((await overview(payer)).bill.workspaces).toBe(2)
+    // Nor its banner.
+    expect((await act(admin, 'billing.state', {})).body.data).toEqual({ bill: null })
+    expect((await act(payer, 'billing.state', {})).body.data.bill).not.toBeNull()
   })
 
   test('never to an impersonation, an API key, a personal key or a setup link: the invoice links work without a login (review of #1007, M-1)', async () => {
@@ -424,12 +461,19 @@ describe('billing.setAutoRecharge', () => {
     expect((await billNow(b.billId)).auto_recharge).toBe(false)
   })
 
-  test('only the bill owner', async () => {
+  test('an admin of the only workspace changes it; on a bill of several workspaces only its owner', async () => {
     const b = await billed()
     const admin = await addMember(b.ws.id, 'admin')
-    await db.update(billing_accounts).set({ owner_user_id: admin.userId }).where(eq(billing_accounts.id, b.billId))
-    const res = await act(b.owner, 'billing.setAutoRecharge', { on: false, thresholdCents: 500, amountCents: 2000 })
-    expect(res.status).toBe(403)
+    const off = { on: false, thresholdCents: 500, amountCents: 2000 }
+    expect((await act(admin, 'billing.setAutoRecharge', off)).status).toBe(200)
+    expect((await billNow(b.billId)).auto_recharge).toBe(false)
+    expect((await act(await addMember(b.ws.id, 'member'), 'billing.setAutoRecharge', off)).status).toBe(403)
+    const { payer } = await shareBill(b)
+    const on = { ...off, on: true }
+    expect((await act(b.owner, 'billing.setAutoRecharge', on)).status).toBe(403)
+    expect((await act(admin, 'billing.setAutoRecharge', on)).status).toBe(403)
+    expect((await billNow(b.billId)).auto_recharge).toBe(false)
+    expect((await act(payer, 'billing.setAutoRecharge', on)).status).toBe(200)
   })
 })
 
@@ -478,10 +522,21 @@ describe('billing.setRechargeCap', () => {
     }
   })
 
-  test('only the bill owner, and not while suspended', async () => {
+  test('an admin raising it needs the same step-up as the owner (decision of 2026-11-17)', async () => {
     const b = await billed()
     const admin = await addMember(b.ws.id, 'admin')
-    await db.update(billing_accounts).set({ owner_user_id: admin.userId }).where(eq(billing_accounts.id, b.billId))
+    await ageSession(admin.userId)
+    expect((await act(admin, 'billing.setRechargeCap', { baseCents: 3000 })).status).toBe(200)
+    const raise = await act(admin, 'billing.setRechargeCap', { baseCents: 20_000 })
+    expect(raise).toMatchObject({ status: 409, body: { code: 'SIGN_IN_AGAIN' } })
+    expect((await billNow(b.billId)).recharge_cap_base_cents).toBe(3000)
+    await db.update(session).set({ createdAt: new Date() }).where(eq(session.userId, admin.userId))
+    expect((await act(admin, 'billing.setRechargeCap', { baseCents: 20_000 })).status).toBe(200)
+  })
+
+  test('only who manages the bill, and not while suspended', async () => {
+    const b = await billed()
+    await shareBill(b)
     expect((await act(b.owner, 'billing.setRechargeCap', { baseCents: 3000 })).status).toBe(403)
     const held = await billed({ status: 'suspended', suspend_reason: 'dispute' })
     const res = await act(held.owner, 'billing.setRechargeCap', { baseCents: 3000 })
@@ -511,12 +566,17 @@ describe('billing.openPortal', () => {
     ])
   })
 
-  test('only the bill owner: nobody else gets a portal session for the bill', async () => {
+  test('only who manages the bill: an admin of its only workspace, never on a shared bill or a member', async () => {
     const b = await billed()
     const admin = await addMember(b.ws.id, 'admin')
-    await db.update(billing_accounts).set({ owner_user_id: admin.userId }).where(eq(billing_accounts.id, b.billId))
-    expect((await act(b.owner, 'billing.openPortal', {})).status).toBe(403)
+    expect((await act(await addMember(b.ws.id, 'member'), 'billing.openPortal', {})).status).toBe(403)
     expect(cloud.portal).toEqual([])
+    expect((await act(admin, 'billing.openPortal', {})).status).toBe(200)
+    expect(cloud.portal).toHaveLength(1)
+    await shareBill(b)
+    expect((await act(b.owner, 'billing.openPortal', {})).status).toBe(403)
+    expect((await act(admin, 'billing.openPortal', {})).status).toBe(403)
+    expect(cloud.portal).toHaveLength(1)
   })
 
   test('no Stripe customer yet: no portal', async () => {
@@ -597,11 +657,10 @@ describe('billing.retryRecharge (docs/billing.md §3.4)', () => {
     expect(res).toMatchObject({ status: 409, body: { code: BILLING_PAGE_CODES.noFailure } })
   })
 
-  test('only the bill owner', async () => {
+  test('only who manages the bill', async () => {
     const b = await billed({}, 100)
     await failedRecharge(b, 'canceled')
-    const admin = await addMember(b.ws.id, 'admin')
-    await db.update(billing_accounts).set({ owner_user_id: admin.userId }).where(eq(billing_accounts.id, b.billId))
+    await shareBill(b)
     expect((await act(b.owner, 'billing.retryRecharge', {})).status).toBe(403)
     expect((await billNow(b.billId)).recharge_failed_at).not.toBeNull()
     expect(rechargesQueued()).toEqual([])
@@ -969,8 +1028,10 @@ describe('billing.setExtraCalls (LIN-450)', () => {
     const other = await billed()
     const foreign = await set(b.owner, other.ws.id, 5)
     expect(foreign.body.code).toBe(BILLING_PAGE_CODES.notOnBill)
-    const member = await addMember(b.ws.id, 'admin')
+    const member = await addMember(b.ws.id, 'member')
     expect((await set(member, b.ws.id, 5)).status).toBe(403)
+    await shareBill(b)
+    expect((await set(b.owner, b.ws.id, 5)).status).toBe(403)
     expect(cloud.extraCalls).toEqual([])
     expect(await extraOf(b.ws.id)).toBe(0)
   })

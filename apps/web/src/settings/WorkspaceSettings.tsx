@@ -1,6 +1,6 @@
 // Workspace settings: everything about the workspace that is not the assistant, one section at a time
-// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, billing (Linedesk Cloud: the
-// owner, while the workspace is on a bill) and leaving it.
+// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, billing (Linedesk Cloud: owners
+// and admins, with or without a bill) and leaving it.
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
 // webhooks in the assistant's settings; API keys and Zapier in Integrations (old #settings, #team and
 // #workspace/developers links are rewritten, shell/useRoute.ts).
@@ -24,7 +24,7 @@ const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordin
 
 /**
  * Which sections this person sees. Members can't export calls (call:export): that section is not shown, and during
- * support access the export is refused too. Billing only on a billed workspace, for its owner (`billing`).
+ * support access the export is refused too. Billing only on an install that bills, for owners and admins (`billing`).
  */
 export function shownSectionIds(canEdit: boolean, billing = false): SectionId[] {
   return SECTION_IDS.filter(id => (id !== 'export' || canEdit) && (id !== 'billing' || billing))
@@ -65,11 +65,12 @@ type Props = {
   phoneSetup: PhoneSetupStatus | null
   isInstanceAdmin: boolean
   /**
-   * The workspace is on a bill (Linedesk Cloud, `me.workspace.billingState`): the Billing section, the whole page for
-   * the person who may manage billing (`owner`, `billing:manage`), this workspace's usage alone for admins (`usage`).
-   * Off billing and for members it is not there at all.
+   * Linedesk Cloud (workspaceBillingView): the Billing section. On a bill, the bill's page for owners and admins
+   * (`owner`, `billing:manage`; the server shows this workspace's usage alone to whoever does not manage the bill) or
+   * the usage alone (`usage`); without a bill, "not on a bill" for owners and admins (`none`). Off billing and for
+   * members it is not there at all.
    */
-  billing?: 'owner' | 'usage' | null
+  billing?: 'owner' | 'usage' | 'none' | null
   /** On a bill: what each extra number costs a month, said where a number is added; null otherwise. */
   extraNumberCents?: number | null
   workspaceName: string
@@ -114,7 +115,6 @@ export function WorkspaceSettings({
           <WorkspaceGeneral
             canEdit={canEdit}
             agentChange={agentChange}
-            isOwner={role === 'owner'}
             name={workspaceName}
             onRenamed={onRenamed}
             toast={toast}
@@ -131,7 +131,9 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'billing' && <Billing toast={toast} owner={billing === 'owner'} />}
+        {current === 'billing' && billing && (
+          <Billing toast={toast} view={billing} levels={{ canEdit, isOwner: role === 'owner' }} />
+        )}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>
