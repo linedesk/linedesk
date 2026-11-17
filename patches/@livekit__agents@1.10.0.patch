@@ -1,3 +1,70 @@
+diff --git a/dist/ipc/proc_pool.cjs b/dist/ipc/proc_pool.cjs
+index a9472fec9e254b0ea4f7e6d52cbd68f2b8d02c66..024b4d1bf70cde70005718c95a55deb86bcab620 100644
+--- a/dist/ipc/proc_pool.cjs
++++ b/dist/ipc/proc_pool.cjs
+@@ -26,6 +26,17 @@ var import_throws = require("@livekit/throws-transformer/throws");
+ var import_utils = require("../utils.cjs");
+ var import_job_proc_executor = require("./job_proc_executor.cjs");
+ var import_job_trace = require("./job_trace.cjs");
++var import_node_os = require("node:os");
++var import_cpu = require("../cpu.cjs");
++// Linedesk patch (LIN-226): see proc_pool.js.
++function maxConcurrentInits() {
++  let cpus = import_node_os.availableParallelism();
++  try {
++    cpus = Math.min(cpus, Math.ceil((0, import_cpu.getCpuMonitor)().cpuCount()));
++  } catch {
++  }
++  return Math.max(1, Math.min(4, cpus));
++}
+ class ProcPool {
+   agent;
+   initializeTimeout;
+@@ -36,7 +47,7 @@ class ProcPool {
+   started = false;
+   closed = false;
+   controller = new AbortController();
+-  initMutex = new import_mutex.Mutex();
++  initMutex = new import_mutex.MultiMutex(maxConcurrentInits());
+   procMutex;
+   // Keep each lock token paired with its warmed process so MultiMutex slots are always released correctly.
+   warmedProcQueue = new import_utils.Queue();
+diff --git a/dist/ipc/proc_pool.js b/dist/ipc/proc_pool.js
+index b395941db61248002ab9ee014ac64ee891db42b6..b597913f63a7c7e9b96f5e628960f57d40a67ac7 100644
+--- a/dist/ipc/proc_pool.js
++++ b/dist/ipc/proc_pool.js
+@@ -1,8 +1,22 @@
++import os from "node:os";
+ import { MultiMutex, Mutex } from "@livekit/mutex";
+ import { ThrowsPromise } from "@livekit/throws-transformer/throws";
+ import { Queue } from "../utils.js";
+ import { JobProcExecutor } from "./job_proc_executor.js";
+ import { monotonicUs } from "./job_trace.js";
++import { getCpuMonitor } from "../cpu.js";
++// Linedesk patch (LIN-226): start up to min(4, CPUs) warm processes at once, as the Python SDK does
++// (MAX_CONCURRENT_INITIALIZATIONS); 1.10 starts them one at a time, so after a burst of calls the next callers
++// wait for each process in turn. os.availableParallelism() counts only the CPUs the container may use (cpuset).
++// On upgrade: drop this hunk if the SDK starts warm processes in parallel itself.
++function maxConcurrentInits() {
++  let cpus = os.availableParallelism();
++  try {
++    cpus = Math.min(cpus, Math.ceil(getCpuMonitor().cpuCount()));
++  } catch {
++  }
++  return Math.max(1, Math.min(4, cpus));
++}
+ class ProcPool {
+   agent;
+   initializeTimeout;
+@@ -13,7 +27,7 @@ class ProcPool {
+   started = false;
+   closed = false;
+   controller = new AbortController();
+-  initMutex = new Mutex();
++  initMutex = new MultiMutex(maxConcurrentInits());
+   procMutex;
+   // Keep each lock token paired with its warmed process so MultiMutex slots are always released correctly.
+   warmedProcQueue = new Queue();
 diff --git a/dist/worker.cjs b/dist/worker.cjs
 index 360da761381211c8012e6d5f636977e46d99b4fd..09e43576e4e287d0ec92981aa36002ed2e4c2171 100644
 --- a/dist/worker.cjs

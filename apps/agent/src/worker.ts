@@ -752,8 +752,8 @@ async function main() {
   // read them on a timer too, not only when a call comes, so a test call is not refused after the API restarts.
   setInterval(() => void loadAgentConfig().catch(() => {}), SETTINGS_TTL_MS + 1000).unref()
   // Processes kept warm for the next call: a call takes one, and a phone call test two (the test caller and the
-  // business), while the next one starts (a new process needs ~2 s of CPU). The SDK loads new processes one at a time,
-  // so calls beyond the warm ones that start together are answered one after another, seconds apart (LIN-465).
+  // business), while the next one starts (a new process needs ~2 s of CPU). The SDK loads up to one new process per CPU at
+  // once (at most four; our patch, LIN-226), so calls beyond the warm ones that start together wait for those (LIN-465).
   // docker-compose.yml sets 1 unless the install's .env says otherwise; 3 is the default outside compose.
   const numIdleProcesses = Number(process.env.AGENT_IDLE_PROCESSES) || 3
   // How long a new process may take to load the agent. Under a running call on a small box this takes

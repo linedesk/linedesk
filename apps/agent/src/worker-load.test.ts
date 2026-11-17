@@ -119,3 +119,13 @@ describe('describeProcessWait', () => {
     expect(describeProcessWait({ receivedAt: 1_000 })).toBeNull()
   })
 })
+
+test('the SDK starts warm processes in parallel, up to four (LIN-226)', async () => {
+  // patches/@livekit__agents@*.patch: without it the SDK starts one at a time, and calls in a burst wait in turn.
+  const { ProcPool } = await import(new URL('ipc/proc_pool.js', import.meta.resolve('@livekit/agents')).href)
+  const pool = new ProcPool({ agent: 'unused', numIdleProcesses: 2 })
+  // Only the SDK's MultiMutex has a limit; its plain Mutex (one at a time) has none.
+  const limit = pool.initMutex._limit
+  expect(limit).toBeGreaterThanOrEqual(1)
+  expect(limit).toBeLessThanOrEqual(4)
+})
