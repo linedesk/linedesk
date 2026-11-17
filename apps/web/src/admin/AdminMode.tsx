@@ -23,6 +23,7 @@ import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Onboarding } from './Onboarding.tsx'
 import { Overview } from './Overview.tsx'
+import { Partners } from './Partners.tsx'
 import { Providers } from './Providers.tsx'
 import { useProviderStatus } from './providerStatus.ts'
 import { useAdminData } from './useAdminData.ts'
@@ -203,6 +204,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'branding') return <BrandingSettings />
     if (place.section === 'system') return <System />
     if (place.section === 'prompt') return <SystemPrompt />
+    if (place.section === 'partners') return <Partners notify={notify} />
     // Providers needs both parts; every other page only the lists, which come back first.
     const ready = place.section === 'providers' ? data : lists
     if (!ready)

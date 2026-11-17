@@ -27,6 +27,7 @@ const kinds: { value: AuditKind | 'all'; label: MessageKey }[] = [
   { value: 'team', label: msg('admin.audit.kind.team') },
   { value: 'keys', label: msg('admin.audit.kind.keys') },
   { value: 'integrations', label: msg('admin.audit.kind.integrations') },
+  { value: 'partners', label: msg('admin.audit.kind.partners') },
   { value: 'impersonation', label: msg('admin.audit.kind.impersonation') },
 ]
 
@@ -249,6 +250,26 @@ export function auditLabel(
       return t('admin.audit.ownershipTransferred', who)
     case 'workspace.deleteOwn':
       return t('admin.audit.workspaceDeletedByOwner', name)
+    case 'partner.create':
+      return t('admin.audit.partnerCreated', { ...name, ...who })
+    case 'partner.approve':
+      return t('admin.audit.partnerApproved')
+    case 'partner.suspend':
+      return t('admin.audit.partnerSuspended')
+    case 'partner.update':
+      return t('admin.audit.partnerRenamed', name)
+    case 'partner.setClientLimit':
+      return t('admin.audit.partnerClientLimit', { count: Number(input.limit) })
+    case 'partnerMember.invite':
+      return t('admin.audit.partnerInvite', who)
+    case 'partnerMember.revokeInvite':
+      return t('admin.audit.partnerInviteRevoked', who)
+    case 'partnerMember.remove':
+      return t('admin.audit.partnerMemberRemoved', who)
+    case 'partnerInvitation.accept':
+      return t('admin.audit.partnerJoined')
+    case 'workspace.createForClient':
+      return t('admin.audit.clientWorkspaceCreated', name)
     case 'workspace.create':
       return t('admin.audit.workspaceCreated', { ...name, ...who })
     case 'voiceCloning.set':

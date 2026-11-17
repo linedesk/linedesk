@@ -8,10 +8,10 @@ import {
   type Permission,
   type Role,
 } from '@linedesk/actions'
-import { member, organization, passkey, user } from '@linedesk/db'
+import { member, organization, partner_invitations, partner_members, passkey, user } from '@linedesk/db'
 import type { UiLocale } from '@linedesk/i18n'
 import { localeForUser } from '@linedesk/i18n/server'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { isCallToken, verifyCallToken } from './agent-token.ts'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
 import { actorForPersonalKey, isPersonalKey } from './personal-keys.ts'
@@ -233,6 +233,10 @@ export async function resolveCaller(
         ? ['setupLink:end', 'secondFactor:own']
         : ['instance:admin', 'setupLink:end', 'secondFactor:own']
       : []
+  // On a white-label partner's team (docs/white-label.md): the partner area, also before any client workspace exists;
+  // or invited to one, so a new account can open the invitation link and join. Only signed in as themselves: never
+  // while impersonated, never with a key. Each partner action checks the caller is on that partner's team.
+  if (!impersonation && (await partnerCaller(account.id, account.email))) extraPermissions.push('partner')
   const extra = {
     sessionId: session.session.id,
     locale: localeForUser(account, headers.get('accept-language')),
@@ -257,6 +261,29 @@ export async function resolveCaller(
     extra,
   )
   return actor ? { actor } : { missing: 'no_workspace' }
+}
+
+/** On a partner team, or holding an open invitation to one for their address. */
+async function partnerCaller(userId: string, email: string): Promise<boolean> {
+  const [onTeam] = await db
+    .select({ id: partner_members.partner_id })
+    .from(partner_members)
+    .where(eq(partner_members.user_id, userId))
+    .limit(1)
+  if (onTeam) return true
+  const [invited] = await db
+    .select({ id: partner_invitations.id })
+    .from(partner_invitations)
+    .where(
+      and(
+        eq(partner_invitations.email, email.toLowerCase()),
+        isNull(partner_invitations.accepted_at),
+        isNull(partner_invitations.canceled_at),
+        gt(partner_invitations.expires_at, new Date().toISOString()),
+      ),
+    )
+    .limit(1)
+  return !!invited
 }
 
 /**

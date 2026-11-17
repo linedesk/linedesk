@@ -215,6 +215,11 @@ describe('access', () => {
       'membership.setRole',
       'outboundCountries.get',
       'outboundCountries.set',
+      'partner.adminList',
+      'partner.approve',
+      'partner.create',
+      'partner.setClientLimit',
+      'partner.suspend',
       'provider.clearKeys',
       'provider.confirmEmail',
       'provider.connectOneKey',
@@ -2413,6 +2418,12 @@ describe('impersonation', () => {
       'outbound.countries',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'outboundCountries.get',
+      // Read-only and instance:admin, as above (Server admin › Partners).
+      'partner.adminList',
+      // Read-only and `partner`, which an impersonation never has (context.ts): the partner area stays the partner's.
+      'partner.get',
+      // Read-only and account:own, which an impersonation never has.
+      'partnerInvitation.view',
       // Read-only and account:own, which an impersonation never has; the handler refuses an impersonation as well.
       'personalKey.list',
       'phoneNumber.forwardingCheck',

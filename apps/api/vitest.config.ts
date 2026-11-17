@@ -85,6 +85,8 @@ const INSTANCE_WIDE_FILES = [
   'test/self-serve.test.ts',
   // Re-encrypts every stored secret of the install (rolled back, but it reads them all).
   'test/rotate-secrets-key.test.ts',
+  // Makes server admins and switches billing on (white-label partners, LIN-452).
+  'test/partners.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

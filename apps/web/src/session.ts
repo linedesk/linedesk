@@ -72,6 +72,8 @@ function sessionChanged() {
 
 /** The cache key of the member's workspace list (WorkspaceSwitcher). */
 export const WORKSPACES_QUERY = 'workspaces'
+/** The cache key of the partners the person is on the team of (partner/partner-api.ts). */
+export const PARTNERS_QUERY = 'partners.mine'
 
 /**
  * Cached reads belong to this member in this workspace; the workspace list came along with /v1/me.
@@ -81,6 +83,7 @@ function primeQueries(me: Me) {
   setTabWorkspace(me.workspace?.id ?? null, me.actorId)
   setQueryScope(`${me.actorId}/${me.workspace?.id ?? ''}`)
   if (me.workspaces) setQueryData(WORKSPACES_QUERY, me.workspaces, { persist: true })
+  setQueryData(PARTNERS_QUERY, me.partners ?? [])
 }
 
 /**

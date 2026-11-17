@@ -198,6 +198,7 @@ import { integrationHandlers, queueCallStarted, queueLookup } from './integratio
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, webhookHandlers } from './webhooks.ts'
 import { refusePendingPayment } from './self-serve.ts'
 import { selfServeHandlers } from './signup-handlers.ts'
+import { partnerHandlers } from './partners.ts'
 import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './billing-checkout.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
@@ -1143,6 +1144,7 @@ const handlers: Record<string, Handler> = {
   ...stripeEventHandlers,
   ...billingOwnerHandlers,
   ...selfServeHandlers,
+  ...partnerHandlers,
   ...checkoutHandlers,
   ...billingPageHandlers,
   ...starHandlers,

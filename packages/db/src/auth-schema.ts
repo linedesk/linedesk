@@ -122,10 +122,14 @@ export const organization = pgTable(
     billingAccountId: text("billing_account_id"),
     // The bill's state mirrored for a fast read on the call path; null while unbilled.
     billingState: text("billing_state", { enum: ["pending_payment", "active", "suspended"] }),
+    // Not Better Auth's: the white-label partner that runs this workspace for its client (partners.id,
+    // docs/white-label.md); null: no partner. Its foreign key is in migration 0131 (partners lives in schema.ts).
+    partnerId: text("partner_id"),
   },
   (table) => [
     uniqueIndex("organization_slug_uidx").on(table.slug),
     index("organization_billing_account_idx").on(table.billingAccountId),
+    index("organization_partner_idx").on(table.partnerId),
     check(
       "organization_billing_state",
       sql`${table.billingState} is null or ${table.billingState} in ('pending_payment', 'active', 'suspended')`,
@@ -145,9 +149,16 @@ export const member = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     role: text("role").default("member").notNull(),
     createdAt: timestamp("created_at").notNull(),
+    // Not Better Auth's: set on a membership that exists because the user is on this partner's team (partners.id,
+    // docs/white-label.md). Such a membership is always `admin`, added and removed with the partner team; its foreign
+    // key is in migration 0131.
+    partnerId: text("partner_id"),
   },
   (table) => [
     index("member_organizationId_idx").on(table.organizationId),
+    index("member_partner_idx").on(table.partnerId),
+    // A partner admin is never the owner of a client workspace (the owner is the client).
+    check("member_partner_admin", sql`${table.partnerId} is null or ${table.role} = 'admin'`),
     index("member_userId_idx").on(table.userId),
     // One membership per user and workspace: concurrent accepts and adds cannot make two.
     uniqueIndex("member_organization_user_uidx").on(table.organizationId, table.userId),

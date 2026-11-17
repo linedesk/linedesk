@@ -167,6 +167,50 @@ export function invitationEmail(
   })
 }
 
+/** `inviter` and `partner` are already email-safe (emailSafeName). `role`: owner (an instance admin invited) or admin. */
+export type PartnerInvitationEmail = {
+  inviter: string
+  partner: string
+  email: string
+  url: string
+  days: number
+  role: 'owner' | 'admin'
+}
+
+/**
+ * An invitation to a white-label partner's team (docs/white-label.md): the partner's first owner (invited by an
+ * instance admin when the partner was made) or an admin the owner invited. The link opens the app, which asks the
+ * person to sign in with this address and then to join.
+ */
+export function partnerInvitationEmail(
+  { inviter, partner, email, url, days, role }: PartnerInvitationEmail,
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const brand = brandName()
+  const site = siteHost(origin)
+  return renderEmail({
+    locale: lang,
+    subject: t('email.partnerInvitation.subject', { partner, brand }),
+    preheader: t('email.partnerInvitation.preheader', { inviter, days }),
+    heading: t('email.partnerInvitation.subject', { partner, brand }),
+    blocks: [
+      {
+        kind: 'text',
+        text:
+          role === 'owner'
+            ? t('email.partnerInvitation.textOwner', { inviter, partner, brand, site })
+            : t('email.partnerInvitation.textAdmin', { inviter, partner, brand, site }),
+      },
+      { kind: 'button', label: t('email.partnerInvitation.button'), url },
+      { kind: 'text', tone: 'muted', text: t('email.partnerInvitation.note', { days, email }) },
+    ],
+    reason: t('email.partnerInvitation.reason'),
+    origin,
+  })
+}
+
 export type OutsideConfirmEmail = {
   /** Email-safe (emailSafeName). */
   inviter: string

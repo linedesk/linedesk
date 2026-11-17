@@ -4,7 +4,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, inferAdditionalFields, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
-import type { FirstUse, OnboardingStep, StarPrompt } from '@linedesk/actions'
+import type { FirstUse, MyPartner, OnboardingStep, StarPrompt } from '@linedesk/actions'
 
 import type { Impersonation } from './impersonation.ts'
 import { authErrorMessage, noAccountText } from './sign-in-code.ts'
@@ -111,6 +111,8 @@ export type Me = {
   starPrompt?: StarPrompt | null
   /** An instance admin who chose to set up this install by hand: no agent setup page first (absent for others). */
   setupByHand?: boolean
+  /** The white-label partners whose team the person is on (the partner area, `#partner`); absent from an older server. */
+  partners?: MyPartner[]
 }
 
 /**

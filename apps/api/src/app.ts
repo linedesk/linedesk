@@ -40,6 +40,7 @@ import { registerTestLookupRoute } from './test-lookup.ts'
 import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
 import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
 import { fromSignupPage } from './signup-gate.ts'
+import { partnersOf } from './partners.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
 import { mcpCors, registerOAuthRoutes } from './oauth.ts'
@@ -487,6 +488,7 @@ app.get('/v1/me', async c => {
     setupByHand,
     locale,
     billFacts,
+    partners,
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
@@ -505,6 +507,8 @@ app.get('/v1/me', async c => {
     // On a bill: a sign-up waiting for Checkout is told the install's trial length and the plan's price (Server
     // admin › Billing); everyone what an extra number costs a month.
     workspace?.billingState ? workspaceBillFacts(workspace.id) : null,
+    // Only with the `partner` permission (a session of a partner team member, never while impersonated).
+    actor.permissions.includes('partner') ? partnersOf(actor.actorId) : [],
   ])
   return c.json({
     actorId: actor.actorId,
@@ -560,6 +564,8 @@ app.get('/v1/me', async c => {
     starPrompt,
     // An instance admin who chose to set up this install by hand: no agent setup page first (install-setup.ts).
     setupByHand,
+    // The white-label partners whose team the person is on (partners.ts): the partner area and its menu entry.
+    partners,
     // The member's UI language (user-locale.ts): `locale` null is Automatic. Signed in as someone else, the admin's
     // own browser decides (null), so they can read what they see.
     ...locale,

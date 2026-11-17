@@ -34,6 +34,12 @@ import type { z } from 'zod'
  * signed in as themselves (never an API key, a setup link, the agent or an impersonation).
  */
 /**
+ * `partner`: a member of a white-label partner's team (docs/white-label.md). It belongs to no role: the API adds it to a
+ * session of a person on any partner team (context.ts), never to a key, a setup link or the agent. Which partner and
+ * which partner role is checked by every partner handler against `partner_members` (apps/api/src/partners.ts), so a
+ * member of one partner reaches nothing of another.
+ */
+/**
  * `workspace:own`: what only the workspace's one owner does: delete the workspace and hand it over to someone else
  * (workspace rights, docs/architecture.md). Never part of an API key's permissions (api-keys.ts).
  */
@@ -58,6 +64,7 @@ export type Permission =
   | 'invitation:respond'
   | 'account:own'
   | 'account:signUp'
+  | 'partner'
 export type Role = 'owner' | 'admin' | 'member' | 'agent'
 
 export const rolePermissions: Record<Role, readonly Permission[]> = {

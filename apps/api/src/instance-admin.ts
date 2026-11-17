@@ -49,7 +49,10 @@ export async function enabledInstanceAdmins(): Promise<{ id: string; email: stri
 
 /** The addresses of every enabled instance admin: who is told about admin sign-ins and changes (admin-alerts.ts). */
 export async function instanceAdminEmails(): Promise<string[]> {
-  const admins = await db.select({ email: user.email }).from(user).where(and(isInstanceAdminSql(), isNull(user.disabledAt)))
+  const admins = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(and(isInstanceAdminSql(), isNull(user.disabledAt)))
   return admins.map(admin => admin.email)
 }
 
@@ -117,7 +120,8 @@ export const instanceAdminHooks = {
     create: {
       before: async (session: { userId: string; impersonatedBy?: string | null }, ctx?: unknown) => {
         const [account] = await db.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, session.userId))
-        if (account?.disabledAt) throw new APIError('FORBIDDEN', { code: 'ACCOUNT_DISABLED', message: 'This account is disabled.' })
+        if (account?.disabledAt)
+          throw new APIError('FORBIDDEN', { code: 'ACCOUNT_DISABLED', message: 'This account is disabled.' })
         // An admin signing in as the user is not the user signing in.
         if (!session.impersonatedBy)
           await db.update(user).set({ lastSignInAt: new Date() }).where(eq(user.id, session.userId))
@@ -169,11 +173,15 @@ export async function joinOrUndo(created: { id: string; email: string }) {
   const { joinInvitedWorkspaces } = await import('./memberships.ts')
   const { deleteAccountWithoutWorkspace } = await import('./workspace-delete.ts')
   const { maySignUpWithCode } = await import('./self-serve.ts')
+  const { partnerInvitationFor } = await import('./partners.ts')
   // Each step is in the audit log, in the same transaction as the step: the joins, or the account removed again.
   const undo = async (tx: Tx) => {
     // Made by the sign-up page (self-serve.ts): it stays without a workspace until account.signUp makes one; the
     // daily sign-up sweep removes it when that never happens.
     if (await maySignUpWithCode(tx, created.email)) return false
+    // Invited to a white-label partner's team (signup-gate.ts): it joins on the invitation page, signed in. The sign-up
+    // sweep removes it when the invitation ends unused (signup-handlers.ts; security review of #1100, M-1).
+    if (await partnerInvitationFor(tx, created.email)) return false
     const gone = await deleteAccountWithoutWorkspace(tx, created.id)
     if (gone) await insertAuthEvent(tx, { event: 'sign_up_undone', userId: created.id, email: created.email })
     return gone
@@ -182,7 +190,12 @@ export async function joinOrUndo(created: { id: string; email: string }) {
   try {
     undone = await db.transaction(async tx => {
       for (const workspaceId of await joinInvitedWorkspaces(tx, created))
-        await insertAuthEvent(tx, { event: 'invitation_accepted', userId: created.id, workspaceId, method: 'invitation' })
+        await insertAuthEvent(tx, {
+          event: 'invitation_accepted',
+          userId: created.id,
+          workspaceId,
+          method: 'invitation',
+        })
       return undo(tx)
     })
   } catch (err) {

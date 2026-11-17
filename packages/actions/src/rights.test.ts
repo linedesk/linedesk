@@ -263,6 +263,12 @@ const expectedRights: Record<Right, readonly string[]> = {
     'membership.remove',
     'invitation.revoke',
     'invitation.resend',
+    // Server admin › Partners (docs/white-label.md).
+    'partner.adminList',
+    'partner.create',
+    'partner.approve',
+    'partner.suspend',
+    'partner.setClientLimit',
   ],
   owner: [
     'workspace.deleteOwn',
@@ -303,6 +309,18 @@ const expectedRights: Record<Right, readonly string[]> = {
     'personalKey.list',
     'personalKey.revoke',
     'account.signUp',
+    // A partner team invitation (docs/white-label.md): its link, for the address it was sent to.
+    'partnerInvitation.view',
+    'partnerInvitation.accept',
+  ],
+  // A white-label partner's team (docs/white-label.md): the handlers check the caller is on the named partner's team.
+  partner: [
+    'partner.get',
+    'partner.update',
+    'partnerMember.invite',
+    'partnerMember.revokeInvite',
+    'partnerMember.remove',
+    'workspace.createForClient',
   ],
 }
 

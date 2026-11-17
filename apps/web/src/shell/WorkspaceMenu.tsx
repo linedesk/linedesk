@@ -19,6 +19,7 @@ import { useMenu } from './useMenu.ts'
 import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
 import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 import { useT } from '@linedesk/i18n/react'
+import { useMyPartners } from '../partner/partner-api.ts'
 
 export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'terms' | 'privacy' | 'sign-out'
 
@@ -149,6 +150,8 @@ export function WorkspaceMenu({
   const list = useRef<HTMLDivElement>(null)
   useAnchoredList(menu.open, menu.trigger, list, { minWidth: 240 })
   const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
+  // The white-label partners whose team this person is on: their partner area (docs/white-label.md).
+  const partners = useMyPartners()
   const links = useLegalLinks()
   const user = auth.useSession().data?.user
   const userName = user?.name ?? ''
@@ -209,6 +212,15 @@ export function WorkspaceMenu({
               toast(m)
             }}
           />
+          {partners.map(p => (
+            <Item
+              key={p.id}
+              label={t('shell.workspaceMenu.partner', { partner: p.name })}
+              icon="users"
+              onClick={menu.choose(() => (window.location.hash = '#partner'))}
+            />
+          ))}
+          {partners.length > 0 && <hr />}
           {items.includes('new') && onNewWorkspace && (
             <>
               <Item label={t('shell.workspaceMenu.newWorkspace')} icon="plus" onClick={menu.choose(onNewWorkspace)} />

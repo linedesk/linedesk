@@ -8,9 +8,18 @@ import { type Permission, type Role, rolePermissions } from './define.ts'
  * Who may run an action: the lowest workspace role whose permissions include it, or what else grants it: `agent`
  * (the voice agent's token), `server-admin` (instance:admin, a property of the user), `impersonation` (a session an
  * instance admin started as someone else), `account` (every signed-in person, also without a workspace), `system` (the
- * API's own billing jobs, never a person).
+ * API's own billing jobs, never a person), `partner` (a member of a white-label partner's team, checked per partner).
  */
-export type Right = 'member' | 'admin' | 'owner' | 'agent' | 'server-admin' | 'impersonation' | 'account' | 'system'
+export type Right =
+  | 'member'
+  | 'admin'
+  | 'owner'
+  | 'agent'
+  | 'server-admin'
+  | 'impersonation'
+  | 'account'
+  | 'system'
+  | 'partner'
 
 const workspaceRoles = ['member', 'admin', 'owner'] as const satisfies readonly Role[]
 
@@ -33,6 +42,8 @@ export function rightOf(permission: Permission): Right {
   if (permission === 'account:signUp') return 'account'
   // The Stripe webhook's processor and the billing jobs: nobody signed in holds it (docs/billing.md §8).
   if (permission === 'billing:system') return 'system'
+  // A white-label partner's team (context.ts gives it to its members' sessions; partners.ts checks which partner).
+  if (permission === 'partner') return 'partner'
   const role = workspaceRoles.find(r => rolePermissions[r].includes(permission))
   if (!role) throw new Error(`no role has ${permission}`)
   return role

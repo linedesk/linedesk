@@ -12,6 +12,7 @@ import { insertAuthEvent, invitationSubject, memberSubject } from './audit.ts'
 import { billOnWorkspaceHandOver } from './billing-owner.ts'
 import type { Actor } from './context.ts'
 import { emailSender } from './email.ts'
+import { refuseAdminFromPartner, refusePartnerMembership } from './partner-refusals.ts'
 import { invitationLocale } from './email-locale.ts'
 import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -349,6 +350,7 @@ export const teamHandlers: Record<string, Handler> = {
   'team.invite': async ({ tx, actor, now }, input: { email: string; role: string }) => {
     const workspaceId = workspaceOf(actor)
     await lockInviter(tx, workspaceId, actor.actorId)
+    await refuseAdminFromPartner(tx, workspaceId, actor.actorId, input.role)
     const [already] = await tx
       .select({ id: member.id })
       .from(member)
@@ -389,8 +391,10 @@ export const teamHandlers: Record<string, Handler> = {
     const workspaceId = workspaceOf(actor)
     const target = await loadMember(tx, workspaceId, input.memberId)
     guardOwner(target)
+    refusePartnerMembership(target)
     // Never owner here (the input allows admin and member): that is team.transferOwnership.
     if (input.role !== 'admin' && input.role !== 'member') throw new Reject('a role change gives admin or member')
+    await refuseAdminFromPartner(tx, workspaceId, actor.actorId, input.role)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     // Their workspace setup links act with the role they were made with: another role ends them for good.
     if (target.role !== input.role) await revokeMemberSetupKeys(tx, workspaceId, target.userId, 'role_changed')
@@ -407,6 +411,8 @@ export const teamHandlers: Record<string, Handler> = {
     if (!owner || owner.userId !== actor.actorId) throw new Forbidden('only the owner can hand the workspace over')
     const target = await loadMember(tx, workspaceId, input.memberId)
     if (target.id === owner.id) throw new Reject('you are the owner already')
+    // A partner's admin is never the owner of a client workspace (member_partner_admin in the database too).
+    refusePartnerMembership(target)
     const [account] = await tx
       .select({ emailVerified: user.emailVerified, disabledAt: user.disabledAt, email: user.email })
       .from(user)
@@ -435,6 +441,8 @@ export const teamHandlers: Record<string, Handler> = {
       .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
       .for('update')
     if (!me) throw new Reject('member not found')
+    // A partner's admin leaves its client workspaces only by leaving the partner team.
+    refusePartnerMembership(me)
     if (me.role === 'owner')
       throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
     await tx.delete(member).where(eq(member.id, me.id))
@@ -471,6 +479,7 @@ export const teamHandlers: Record<string, Handler> = {
     }
     const target = await loadMember(tx, workspaceId, input.memberId)
     guardOwner(target)
+    refusePartnerMembership(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     const forgotten = await forgetMember(tx, target.organizationId, target.userId, now)

@@ -10,6 +10,8 @@ import {
   ledger_entries,
   member,
   organization,
+  partner_invitations,
+  partner_members,
   SIGNUP_COUNTRIES,
   session,
   signup_attempts,
@@ -275,12 +277,18 @@ async function stripeSideGone(tx: Tx, billId: string, customer: string): Promise
   return false
 }
 
-/** The account goes when it is in no workspace, owns no other bill and is not an instance admin. */
+/** The account goes when it is in no workspace and no partner team, owns no other bill and is not an instance admin. */
 async function deleteIdleAccount(tx: Tx, userId: string): Promise<boolean> {
   const [account] = await tx.select().from(user).where(eq(user.id, userId)).for('update')
   if (!account || isInstanceAdmin(account)) return false
   const [inWorkspace] = await tx.select({ id: member.id }).from(member).where(eq(member.userId, userId)).limit(1)
   if (inWorkspace) return false
+  const [onPartnerTeam] = await tx
+    .select({ id: partner_members.partner_id })
+    .from(partner_members)
+    .where(eq(partner_members.user_id, userId))
+    .limit(1)
+  if (onPartnerTeam) return false
   const [otherBill] = await tx
     .select({ id: billing_accounts.id })
     .from(billing_accounts)
@@ -292,7 +300,8 @@ async function deleteIdleAccount(tx: Tx, userId: string): Promise<boolean> {
 }
 
 /**
- * Accounts the sign-up page made that never signed up: created within SIGNUP_CODE_WINDOW_MS after a code was asked
+ * Accounts made by an email code that were never used: by the sign-up page, or for a partner invitation that ended
+ * unused (withdrawn or expired). Accounts the sign-up page made that never signed up: created within SIGNUP_CODE_WINDOW_MS after a code was asked
  * for there, older than `before`, in no workspace and owning no bill. Other accounts without a workspace are left alone.
  */
 async function sweepCodeOnlyAccounts(tx: Tx, before: string): Promise<number> {
@@ -307,6 +316,23 @@ async function sweepCodeOnlyAccounts(tx: Tx, before: string): Promise<number> {
     .select({ hash: signup_attempts.email_hash, at: signup_attempts.created_at })
     .from(signup_attempts)
     .where(and(eq(signup_attempts.kind, 'code'), inArray(signup_attempts.email_hash, hashes)))
+  // Made for a white-label partner invitation (instance-admin.ts, joinOrUndo) whose invitation ended unused: in no
+  // workspace and on no partner team, like an account the sign-up page made and nobody used (security review of #1100).
+  const partnerInvites = await tx
+    .select({
+      email: partner_invitations.email,
+      createdAt: partner_invitations.created_at,
+      acceptedAt: partner_invitations.accepted_at,
+      canceledAt: partner_invitations.canceled_at,
+      expiresAt: partner_invitations.expires_at,
+    })
+    .from(partner_invitations)
+    .where(
+      inArray(
+        partner_invitations.email,
+        candidates.map(c => c.email.toLowerCase()),
+      ),
+    )
   let deleted = 0
   for (const c of candidates) {
     const made = c.createdAt.getTime()
@@ -315,7 +341,13 @@ async function sweepCodeOnlyAccounts(tx: Tx, before: string): Promise<number> {
       const at = Date.parse(a.at)
       return a.hash === hash && at <= made && made - at <= SIGNUP_CODE_WINDOW_MS
     })
-    if (bySignupPage && (await deleteIdleAccount(tx, c.id))) deleted++
+    const byPartnerInvitation = partnerInvites.some(
+      i => i.email === c.email.toLowerCase() && Date.parse(i.createdAt) <= made,
+    )
+    const stillInvited = partnerInvites.some(
+      i => i.email === c.email.toLowerCase() && !i.acceptedAt && !i.canceledAt && Date.parse(i.expiresAt) > Date.now(),
+    )
+    if ((bySignupPage || (byPartnerInvitation && !stillInvited)) && (await deleteIdleAccount(tx, c.id))) deleted++
   }
   return deleted
 }

@@ -38,6 +38,7 @@ import * as systemPrompt from './system-prompt.ts'
 import * as team from './team.ts'
 import * as transfer from './transfer.ts'
 import * as outbound from './outbound.ts'
+import * as partner from './partner.ts'
 import * as voiceFailure from './voice-failure.ts'
 import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
@@ -101,6 +102,7 @@ export * from './star.ts'
 export * from './team.ts'
 export * from './transfer.ts'
 export * from './outbound.ts'
+export * from './partner.ts'
 export * from './voice-failure.ts'
 export * from './voices.ts'
 export * from './usage-level.ts'
@@ -307,6 +309,19 @@ const all = [
   billing.billingRecordPortOut,
   billing.billingHandOver,
   signup.accountSignUp,
+  partner.partnerGet,
+  partner.partnerUpdate,
+  partner.partnerMemberInvite,
+  partner.partnerMemberRevokeInvite,
+  partner.partnerMemberRemove,
+  partner.partnerInvitationView,
+  partner.partnerInvitationAccept,
+  partner.workspaceCreateForClient,
+  partner.partnerAdminList,
+  partner.partnerCreate,
+  partner.partnerApprove,
+  partner.partnerSuspend,
+  partner.partnerSetClientLimit,
   billingCheckout.billingStartCheckout,
   billingCheckout.billingConfirmCheckout,
   billingCheckout.billingStartTopUp,

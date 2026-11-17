@@ -363,6 +363,12 @@ type AdminInputs = {
   'billingRules.set': { rules: Record<string, unknown>; reason: string }
   'signup.setSelfServe': { on: boolean; reason: string }
   'signup.setRules': { rules: Record<string, unknown>; reason: string }
+  // Server admin › Partners (Partners.tsx, docs/white-label.md).
+  'partner.adminList': Record<string, never>
+  'partner.create': { name: string; ownerEmail: string }
+  'partner.approve': { partnerId: string }
+  'partner.suspend': { partnerId: string }
+  'partner.setClientLimit': { limit: number }
 }
 
 /**
@@ -415,6 +421,10 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'billingRules.set': msg('admin.stepUp.what.billingRules'),
   'signup.setSelfServe': msg('admin.stepUp.what.selfServe'),
   'signup.setRules': msg('admin.stepUp.what.signupRules'),
+  'partner.create': msg('admin.stepUp.what.partner'),
+  'partner.approve': msg('admin.stepUp.what.partner'),
+  'partner.suspend': msg('admin.stepUp.what.partner'),
+  'partner.setClientLimit': msg('admin.stepUp.what.partnerLimit'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {
@@ -483,7 +493,15 @@ export type PipelineLatency = {
 }
 export const loadLatency = () => get<{ days: number; pipelines: PipelineLatency[] }>('/v1/admin/latency')
 
-export type AuditKind = 'sign_in' | 'account' | 'admin' | 'team' | 'impersonation' | 'keys' | 'integrations'
+export type AuditKind =
+  | 'sign_in'
+  | 'account'
+  | 'admin'
+  | 'team'
+  | 'impersonation'
+  | 'keys'
+  | 'integrations'
+  | 'partners'
 /** One entry of GET /v1/admin/audit (apps/api/src/audit.ts). */
 export type AuditEntry = {
   id: string

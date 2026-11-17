@@ -3,6 +3,7 @@
 // joins the workspace in one step: joinInvitedWorkspaces), or a server admin (user.invite, workspace.create,
 // user:create). Every way Better Auth creates a user (password sign-up, first email-code sign-in, first SSO sign-in)
 // passes its `user.create` hook, so the gate sits there. Existing users sign in as before.
+// A partner team invitation (partners.ts) lets its address in like a workspace invitation.
 // One more way in on Linedesk Cloud (docs/billing.md §3.1, decision 1): self-serve sign-up, only while billing runs
 // through Stripe and an instance admin opened it, and only for an address that asked for a code on the sign-up page.
 import { invitation, organization, type Tx, user } from '@linedesk/db'
@@ -44,6 +45,10 @@ export async function mayCreateUser(
     )
     .limit(1)
   if (invited) return true
+  // A white-label partner's team invitation (docs/white-label.md): its owner or an admin joins with a new account.
+  // Loaded here like self-serve.ts: partners.ts reaches workspace creation, which must not load while auth.ts does.
+  const { partnerInvitationFor } = await import('./partners.ts')
+  if (await partnerInvitationFor(tx, email)) return true
   if (!selfServe) return false
   // Loaded here: self-serve.ts reaches billing and the job queue, which must not load while auth.ts does.
   const { maySignUpWithCode } = await import('./self-serve.ts')

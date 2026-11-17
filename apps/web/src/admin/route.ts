@@ -38,6 +38,12 @@ export const adminSections = [
   { id: 'audit', label: msg('admin.sections.audit.label'), description: msg('admin.sections.audit.description') },
   // Last, so the sections before it keep their number keys. It is the eleventh, so it has none (sectionKey).
   { id: 'billing', label: msg('admin.sections.billing.label'), description: msg('admin.sections.billing.description') },
+  // White-label partners (docs/white-label.md): after Billing, so no section's number key moves (none of its own).
+  {
+    id: 'partners',
+    label: msg('admin.sections.partners.label'),
+    description: msg('admin.sections.partners.description'),
+  },
 ] as const satisfies readonly { id: string; label: MessageKey; description: MessageKey | null }[]
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }

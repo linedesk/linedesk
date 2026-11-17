@@ -2449,3 +2449,100 @@ export const billing_disputes = pgTable(
     check('billing_disputes_kind', oneOf(t.kind, DISPUTE_KINDS)),
   ],
 )
+
+// --- White-label partners (docs/white-label.md) -------------------------------------------------------------------
+
+/** A partner's state: `pending` until an instance admin approves it, `suspended` cuts its access to client workspaces. */
+export const PARTNER_STATUSES = ['pending', 'approved', 'suspended'] as const
+/** A partner team role: one owner (decides the team and the company name) and any number of admins. */
+export const PARTNER_ROLES = ['owner', 'admin'] as const
+/** How long a partner team invitation link works. */
+export const PARTNER_INVITATION_DAYS = 7
+
+/**
+ * A white-label partner in the shared install: an agency or MSP that runs workspaces for its clients. Its own row, not
+ * a workspace, so nothing that lists, bills or deletes workspaces can mistake it for one. Client workspaces point to it
+ * (`organization.partner_id`); its team is `partner_members`. Not synced to browsers; read through partner actions.
+ */
+export const partners = pgTable(
+  'partners',
+  {
+    id: id(),
+    /** The partner's own company name (Server admin, the partner area, later invoices). */
+    name: text('name').notNull(),
+    status: text('status', { enum: PARTNER_STATUSES }).notNull().default('pending'),
+    /**
+     * The partner bill (`billing_accounts.kind = 'partner'`), made by the partner sign-up (S2). Null where billing is
+     * off (dev, self-host) or for a partner an instance admin created by hand.
+     */
+    billing_account_id: text('billing_account_id')
+      .unique()
+      .references(() => billing_accounts.id),
+    /** The user id (or `cli`) that created it; no foreign key, so the row outlives the account. */
+    created_by: text('created_by').notNull(),
+    approved_at: ts('approved_at'),
+    approved_by: text('approved_by'),
+    suspended_at: ts('suspended_at'),
+    created_at: createdAt(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    check('partners_status', oneOf(t.status, PARTNER_STATUSES)),
+    check('partners_suspended', sql`(${t.status} = 'suspended') = (${t.suspended_at} is not null)`),
+  ],
+)
+
+/**
+ * The partner's team. Each member is an `admin` member of every client workspace of the partner (`member.partner_id`
+ * marks those memberships; apps/api/src/partners.ts keeps them in step). Exactly one owner per partner.
+ */
+export const partner_members = pgTable(
+  'partner_members',
+  {
+    partner_id: text('partner_id')
+      .notNull()
+      .references(() => partners.id, { onDelete: 'cascade' }),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: PARTNER_ROLES }).notNull(),
+    created_at: createdAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.partner_id, t.user_id] }),
+    index('partner_members_user').on(t.user_id),
+    uniqueIndex('partner_members_one_owner').on(t.partner_id).where(sql`${t.role} = 'owner'`),
+    check('partner_members_role', oneOf(t.role, PARTNER_ROLES)),
+  ],
+)
+
+/**
+ * An invitation to a partner team, sent by email. Only the hash of the link's token is kept. `owner`: the partner's
+ * first owner, invited by an instance admin when the partner was created; the owner invites `admin`s.
+ */
+export const partner_invitations = pgTable(
+  'partner_invitations',
+  {
+    id: id(),
+    partner_id: text('partner_id')
+      .notNull()
+      .references(() => partners.id, { onDelete: 'cascade' }),
+    /** Lowercased. */
+    email: text('email').notNull(),
+    role: text('role', { enum: PARTNER_ROLES }).notNull(),
+    /** sha256 of the link's token (never the token). */
+    token_hash: text('token_hash').notNull(),
+    /** The user id (or `cli`) that sent it. */
+    invited_by: text('invited_by').notNull(),
+    expires_at: ts('expires_at').notNull(),
+    accepted_at: ts('accepted_at'),
+    canceled_at: ts('canceled_at'),
+    created_at: createdAt(),
+  },
+  t => [
+    uniqueIndex('partner_invitations_token').on(t.token_hash),
+    index('partner_invitations_partner').on(t.partner_id),
+    index('partner_invitations_email').on(t.email),
+    check('partner_invitations_role', oneOf(t.role, PARTNER_ROLES)),
+  ],
+)

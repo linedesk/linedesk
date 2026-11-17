@@ -25,6 +25,7 @@ import { revokeKeysOfMember } from './api-keys.ts'
 import { revokeMemberSetupKeys } from './passkey-enrolment.ts'
 import { dropWorkspacePush } from './push.ts'
 import { emailSender } from './email.ts'
+import { refusePartnerMembership } from './partner-refusals.ts'
 import type { UiLocale } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { type AlertActor, actorLabel } from './emails/alerts.ts'
@@ -498,6 +499,8 @@ export const membershipHandlers: Record<string, Handler> = {
 
   'membership.setRole': async ({ tx }, input: { memberId: string; role: string }) => {
     const target = await loadMember(tx, input.memberId)
+    // A partner's admin is changed on the partner (Server admin › Partners), not in one client workspace.
+    refusePartnerMembership(target)
     // Owner and admin manage the team and where calls go: only for a confirmed address (see inviteToWorkspace).
     if (input.role !== 'member') {
       const [account] = await tx
@@ -533,6 +536,7 @@ export const membershipHandlers: Record<string, Handler> = {
   'membership.remove': async ({ tx, now }, input: { memberId: string; keepAccount?: boolean }) => {
     const target = await loadMember(tx, input.memberId)
     keepTheOwner(target)
+    refusePartnerMembership(target)
     const subject = await memberSubject(tx, target.userId, target.organizationId)
     await tx.delete(member).where(eq(member.id, target.id))
     // The unassigned calls are not returned: the server admin is not in the workspace and does not see its calls.

@@ -27,6 +27,7 @@ import {
   invitation,
   member,
   organization,
+  partner_members,
   phone_numbers,
   session,
   star_prompts,
@@ -155,7 +156,8 @@ async function releaseAtCarrier(number: PhoneNumberRow, provider: TelephonyProvi
 }
 
 /**
- * The members whose only workspace this is: their accounts go with it. Never an instance admin (the column or
+ * The members whose only workspace this is: their accounts go with it. Never someone on a white-label partner's team
+ * (the team is their place without a workspace; security review of #1100, M-3). Never an instance admin (the column or
  * INSTANCE_ADMIN_EMAILS: the same `isInstanceAdmin` as everywhere), never `spareUserId` (the admin deleting it; the
  * owner deleting their own when they keep their account; null spares nobody else).
  */
@@ -164,6 +166,7 @@ export async function membersOnlyHere(tx: Tx, workspaceId: string, spareUserId: 
     select u.id, u.email, u.instance_admin, u.email_verified from member m join "user" u on u.id = m.user_id
     where m.organization_id = ${workspaceId} and u.id is distinct from ${spareUserId}
       and not exists (select 1 from member other where other.user_id = m.user_id and other.organization_id <> ${workspaceId})
+      and not exists (select 1 from partner_members pm where pm.user_id = m.user_id)
     order by u.email`)
   const rows = result.rows as { id: string; email: string; instance_admin: boolean; email_verified: boolean }[]
   return rows
@@ -218,14 +221,21 @@ export async function deleteAccounts(tx: Tx, ids: string[]) {
 
 /**
  * After a member was removed from a workspace: their account goes too when it is in no workspace any more (no account
- * without a workspace unless someone keeps it), except a server admin's, who runs the server without one. Whether it
- * went.
+ * without a workspace unless someone keeps it), except a server admin's, who runs the server without one, and that of
+ * someone on a partner team. Whether it went.
  */
 export async function deleteAccountWithoutWorkspace(tx: Tx, userId: string): Promise<boolean> {
   const [account] = await tx.select().from(user).where(eq(user.id, userId)).for('update')
   if (!account || isInstanceAdmin(account)) return false
   const [still] = await tx.select({ id: member.id }).from(member).where(eq(member.userId, userId)).limit(1)
   if (still) return false
+  // On a white-label partner's team: the partner area is their place without a workspace (security review of #1100, M-3).
+  const [onPartnerTeam] = await tx
+    .select({ id: partner_members.partner_id })
+    .from(partner_members)
+    .where(eq(partner_members.user_id, userId))
+    .limit(1)
+  if (onPartnerTeam) return false
   await deleteAccounts(tx, [userId])
   return true
 }

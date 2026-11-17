@@ -75,6 +75,7 @@
   "api.notAMember": "that user is not a member of this workspace",
   "api.numberAlreadySetUp": "{number} is already set up",
   "api.numberNotSetUp": "{number} is not set up in any workspace",
+  "api.partner.noAdminFromPartner": "A partner's team adds the client's staff as members only, for now. Admins come with the client's owner.",
   "api.phoneNumberNotFound": "phone number not found",
   "api.providerTest.answered": "{provider} answered HTTP {status}",
   "api.providerTest.cartesia.noVoice": "The voice {voice} is not available to this Cartesia key. Pick another or clear the field.",

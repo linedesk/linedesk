@@ -34,9 +34,10 @@ test('Providers: a group scrolls, a provider opens its dialog, old category and 
 
 test('Tab and Shift-Tab go round the sections', () => {
   expect(nextSection('overview', false)).toBe('workspaces')
-  expect(nextSection('overview', true)).toBe('billing')
+  expect(nextSection('overview', true)).toBe('partners')
   expect(nextSection('audit', false)).toBe('billing')
-  expect(nextSection('billing', false)).toBe('overview')
+  expect(nextSection('billing', false)).toBe('partners')
+  expect(nextSection('partners', false)).toBe('overview')
 })
 
 test('Tab switches sections only from the page body, never from a control', () => {

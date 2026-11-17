@@ -173,7 +173,16 @@ export function maskAuditInput(input: unknown): unknown {
 }
 
 /** Which part of the log a row belongs to, for the filter. */
-export const AUDIT_KINDS = ['sign_in', 'account', 'admin', 'team', 'impersonation', 'keys', 'integrations'] as const
+export const AUDIT_KINDS = [
+  'sign_in',
+  'account',
+  'admin',
+  'team',
+  'impersonation',
+  'keys',
+  'integrations',
+  'partners',
+] as const
 export type AuditKind = (typeof AUDIT_KINDS)[number]
 
 /** Command-log actions that belong in the audit log, by kind. Everyday actions (calls, contacts) do not. */
@@ -310,6 +319,18 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   // A workspace owner's setup link for their one workspace, and ending it.
   'agentSetup.createWorkspaceKey': 'integrations',
   'agentSetup.revokeWorkspace': 'integrations',
+  // White-label partners (docs/white-label.md): made, approved and suspended by an instance admin; their team, and the
+  // client workspaces they create (filed under that workspace).
+  'partner.create': 'partners',
+  'partner.approve': 'partners',
+  'partner.suspend': 'partners',
+  'partner.setClientLimit': 'partners',
+  'partner.update': 'partners',
+  'partnerMember.invite': 'partners',
+  'partnerMember.revokeInvite': 'partners',
+  'partnerMember.remove': 'partners',
+  'partnerInvitation.accept': 'partners',
+  'workspace.createForClient': 'partners',
 }
 
 /**

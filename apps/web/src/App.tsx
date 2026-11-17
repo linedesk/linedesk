@@ -42,6 +42,9 @@ import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-
 import { brandName } from './brand.ts'
 import { useMemberLocale } from './i18n/user.ts'
 import { useT } from '@linedesk/i18n/react'
+import { isPartnerHash, partnerInviteToken } from './partner/partner-api.ts'
+import { PartnerArea } from './partner/PartnerArea.tsx'
+import { PartnerInvite } from './partner/PartnerInvite.tsx'
 
 /** Shown when the server is unreachable and this device has nothing to open offline. It retries on its own. */
 function Unreachable() {
@@ -85,6 +88,8 @@ function useHashIs(hash: string | ((hash: string) => boolean)): boolean {
   }, [matches])
   return on
 }
+
+const isPartnerInviteHash = (hash: string) => partnerInviteToken(hash) !== null
 
 /** Whether the address is in Admin (#admin…), followed as it changes. */
 function useAdminHash(): boolean {
@@ -141,6 +146,9 @@ export function App() {
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An MCP client's OAuth sign-in (#connect-agent?…, ConnectAgent.tsx): its consent page comes before the app.
   const connectAgentHash = useHashIs(isConnectAgentHash)
+  // A white-label partner's area (#partner, docs/white-label.md) and its team invitation link (#partner-invite=…).
+  const partnerHash = useHashIs(isPartnerHash)
+  const partnerInviteHash = useHashIs(isPartnerInviteHash)
   // Workspace or Assistant settings › "Change with an AI agent" (#change-with-agent/…, agentChange.ts).
   const changeTarget = useChangeWithAgent()
   // Workspace or Assistant settings › "Step by step": the setup steps again (#step-by-step/…, onboarding/StepByStep.tsx).
@@ -341,6 +349,19 @@ export function App() {
         line={t('shell.boot.opening', { name: target.kind === 'switch' ? target.workspace.name : brandName() })}
       />
     )
+  // A partner team invitation link, once signed in (a new address signs up with an email code on the sign-in page).
+  const partnerToken = partnerInviteHash ? partnerInviteToken(window.location.hash) : null
+  if (partnerToken && sessionMe && !sessionMe.impersonation) {
+    const leavePartnerInvite = (joined: boolean) => {
+      window.location.hash = joined ? '#partner' : ''
+      void refresh()
+    }
+    return <PartnerInvite token={partnerToken} onDone={leavePartnerInvite} />
+  }
+  // The partner area needs no workspace; with one, Back (Esc) returns to it.
+  const myPartner = sessionMe?.partners?.[0]
+  if (partnerHash && myPartner && session.state === 'ready')
+    return <PartnerArea partner={myPartner} onExit={() => (window.location.hash = '')} />
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>

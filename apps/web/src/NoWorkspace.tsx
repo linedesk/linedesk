@@ -15,6 +15,7 @@ import { AdminStart } from './onboarding/AdminStart.tsx'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
+import { PartnerArea } from './partner/PartnerArea.tsx'
 import { signOutAndForget } from './localData.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
 import { AuthPage } from './ui/kit.tsx'
@@ -29,7 +30,11 @@ type InvitationRow = { id: string; organizationName?: string; role: string; stat
 export function pendingInvitations(rows: InvitationRow[], now = new Date()): PendingInvitation[] {
   return rows
     .filter(r => r.status === 'pending' && new Date(r.expiresAt).getTime() > now.getTime())
-    .map(r => ({ id: r.id, workspaceName: r.organizationName || i18n().t('auth.noWorkspace.aWorkspace'), role: r.role }))
+    .map(r => ({
+      id: r.id,
+      workspaceName: r.organizationName || i18n().t('auth.noWorkspace.aWorkspace'),
+      role: r.role,
+    }))
 }
 
 async function loadInvitations(): Promise<PendingInvitation[]> {
@@ -70,6 +75,10 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   // Account settings need no workspace (an admin without one manages sign-in methods there). Being signed in is
   // enough: `me` is null for someone in no workspace who is no instance admin, and they have an account all the same.
   if (hash.startsWith('#account')) return <AccountPage onBack={leave} />
+  // On a white-label partner's team: the partner area is their place until they open a client workspace.
+  const partner = me?.partners?.[0]
+  if (partner && !hash.startsWith('#admin') && !me?.impersonation)
+    return <PartnerArea partner={partner} onSignedOut={onDone} onFirstWorkspace={onDone} />
   if (me && admin && hash.startsWith('#admin')) {
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return <AdminMode currentUserId={me.actorId} onExit={leave} />
@@ -200,7 +209,10 @@ function InvitationList({ invitations, onOpen }: { invitations: PendingInvitatio
       {invitations.map(i => (
         <div key={i.id} className="auth-invite">
           <span>
-            <T k="auth.noWorkspace.invited" values={{ workspace: i.workspaceName, role: roleLabel(i.role), b: chunks => <b>{chunks}</b> }} />
+            <T
+              k="auth.noWorkspace.invited"
+              values={{ workspace: i.workspaceName, role: roleLabel(i.role), b: chunks => <b>{chunks}</b> }}
+            />
           </span>
           <button
             type="button"
@@ -241,11 +253,7 @@ function NoWorkspaceYet({
                 : t('auth.lost.noAccess', { workspace: lostWorkspace })
             : t('auth.noWorkspace.waiting')}
         </h1>
-        <p>
-          {hasInvitations
-            ? t('auth.noWorkspace.joinOrAsk')
-            : t('auth.noWorkspace.ask')}
-        </p>
+        <p>{hasInvitations ? t('auth.noWorkspace.joinOrAsk') : t('auth.noWorkspace.ask')}</p>
         {children}
         <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>
           {t('auth.differentAccount')}
