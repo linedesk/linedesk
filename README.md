@@ -17,6 +17,18 @@ Status: in development, before the first public release. Phone and calendar firs
 
 Demo data is fictional (Brightwater Plumbing & Heating, Portland; assistant "Maya").
 
+## Connect your AI tool (MCP)
+
+Linedesk has a remote MCP server, so Claude, ChatGPT, Cursor and other MCP clients can work with your workspace: read
+calls and their summaries, find contacts, see and change bookings, and change your assistant's settings.
+
+- **Address:** `https://app.linedesk.ai/mcp` (Streamable HTTP). On your own install: `https://<your-address>/mcp`.
+- **Sign-in:** OAuth 2.1. Add the address as a custom connector in your AI tool, sign in with your Linedesk account
+  and pick the workspace. No API key to copy. The connector acts with your role in that workspace.
+- **Tools:** every action of the app (the same registry the web app uses), plus `calls_list`, `calls_get`,
+  `contacts_search`, `workspaces_list` and `api_get`. Each tool says whether it only reads or also changes data.
+- **Listed in:** the official MCP registry as `ai.linedesk/linedesk`.
+
 ## Languages
 
 Linedesk speaks English, Español, Português (Brasil), Français, Deutsch and 日本語. Translations are made by AI and improved by people. See a bad translation? Fix it in a pull request or open a [Translation improvement](https://github.com/linedesk/linedesk/issues/new?template=translation_improvement.yml) issue. Missing your language? [Ask for it](https://github.com/linedesk/linedesk/issues/new?template=language_request.yml). How it works: [docs/translations.md](docs/translations.md).
