@@ -63,7 +63,8 @@ export function chatJson(
       body: JSON.stringify({
         model,
         response_format: { type: 'json_object' },
-        max_tokens: maxTokens,
+        // OpenAI's own API wants max_completion_tokens (its gpt-5 models refuse max_tokens).
+        ...(/^https:\/\/api\.openai\.com\//.test(baseUrl) ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },

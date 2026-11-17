@@ -181,8 +181,11 @@ test('ElevenLabs Scribe and OpenAI transcription detect the end of a turn, like 
 // Seen on the test server: with little OpenRouter credit left, every reply without a cap failed with 402 ("You requested
 // up to 65536 tokens, but can only afford 16174"), the caller heard nothing after the greeting.
 test('every conversation request is capped, with OpenRouter fallbacks as `models`', () => {
-  expect(replyRequestFields('live/fast', [])).toEqual({ max_tokens: REPLY_MAX_TOKENS })
-  expect(replyRequestFields('live/fast', ['live/backup'])).toEqual({ max_tokens: REPLY_MAX_TOKENS, models: ['live/fast', 'live/backup'] })
+  const openrouter = 'https://openrouter.ai/api/v1'
+  expect(replyRequestFields('live/fast', [], openrouter)).toEqual({ max_tokens: REPLY_MAX_TOKENS })
+  expect(replyRequestFields('live/fast', ['live/backup'], openrouter)).toEqual({ max_tokens: REPLY_MAX_TOKENS, models: ['live/fast', 'live/backup'] })
+  // OpenAI's own API: gpt-5 models refuse max_tokens.
+  expect(replyRequestFields('gpt-5.4', [], 'https://api.openai.com/v1')).toEqual({ max_completion_tokens: REPLY_MAX_TOKENS })
 })
 
 test('Flux stays for calls in its 10 languages; any other language takes Nova-3 multi with Deepgram hints', () => {

@@ -260,13 +260,20 @@ export const talkingSpeedOf = (assistant: TalkingSpeedFields | null | undefined)
 /** OpenRouter's `models`: the model first, then the ones it tries when that one fails. */
 const modelsField = (model: string, fallbacks: string[]) => (fallbacks.length ? { models: [model, ...fallbacks] } : {})
 
+/**
+ * A cap on the answer's tokens. OpenAI's own API wants `max_completion_tokens` (its gpt-5 models refuse `max_tokens`
+ * with a 400); OpenRouter and the other OpenAI-compatible APIs take `max_tokens`.
+ */
+export const tokenCap = (baseUrl: string, n: number) =>
+  /^https:\/\/api\.openai\.com\//.test(baseUrl) ? { max_completion_tokens: n } : { max_tokens: n }
+
 /** What every conversation request carries on top of the plugin's own fields: the reply cap, and OpenRouter fallbacks. */
-export const replyRequestFields = (model: string, fallbacks: string[]) => ({ max_tokens: REPLY_MAX_TOKENS, ...modelsField(model, fallbacks) })
+export const replyRequestFields = (model: string, fallbacks: string[], baseUrl: string) => ({ ...tokenCap(baseUrl, REPLY_MAX_TOKENS), ...modelsField(model, fallbacks) })
 
 /** The conversation LLM: every request carries replyRequestFields. */
 function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
   const options = { apiKey, baseURL: baseUrl, model }
-  const extra = replyRequestFields(model, fallbacks)
+  const extra = replyRequestFields(model, fallbacks, baseUrl)
   return new (class extends openai.LLM {
     override chat(args: Parameters<openai.LLM['chat']>[0]) {
       return super.chat({ ...args, extraKwargs: { ...args.extraKwargs, ...extra } })
@@ -507,7 +514,7 @@ export function chatJson({ apiKey, baseUrl, model, fallbacks = [] }: ChatModel, 
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model, ...modelsField(model, fallbacks), response_format: { type: 'json_object' }, max_tokens: SUMMARY_MAX_TOKENS,
+        model, ...modelsField(model, fallbacks), response_format: { type: 'json_object' }, ...tokenCap(baseUrl, SUMMARY_MAX_TOKENS),
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       }),
       signal: AbortSignal.timeout(timeoutMs),
@@ -540,7 +547,7 @@ export async function warmUpLlm({ apiKey, baseUrl, model }: ChatModel, instructi
     const res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'system', content: instructions }, { role: 'user', content: 'Hello?' }] }),
+      body: JSON.stringify({ model, ...tokenCap(baseUrl, 1), messages: [{ role: 'system', content: instructions }, { role: 'user', content: 'Hello?' }] }),
       signal: AbortSignal.timeout(WARM_UP_TIMEOUT_MS),
     })
     await res.body?.cancel()

@@ -12,7 +12,7 @@ import { CASES, CATEGORIES, type Case, neededPasses } from './cases.ts'
 import { describeCheck, globalProblems, runCheck } from './checks.ts'
 import { runCall, type Transcript } from './conversation.ts'
 import { judge, transcriptText } from './judge.ts'
-import { costOf, createModel, type ModelConfig, type UsageTotals } from './model.ts'
+import { costOf, createModel, type ModelConfig, PROVIDERS, type UsageTotals } from './model.ts'
 
 const HELP = `pnpm --filter @linedesk/agent llm-test [options]
 
@@ -21,6 +21,8 @@ const HELP = `pnpm --filter @linedesk/agent llm-test [options]
   --runs <n>             runs per case (default 3)
   --concurrency <n>      calls at the same time (default 6)
   --model <id>           the assistant's model (default: the install's LLM)
+  --provider <name>      send the assistant's requests to ${Object.keys(PROVIDERS).join(', ')} (key from its env
+                         variable, for example OPENROUTER_API_KEY); the judge and the caller stay on the install
   --judge-model <id>     the judge's and the simulated caller's model (default: gpt-4.1 on OpenAI, else --model)
   --no-judge             only the deterministic checks
   --list                 list the cases and exit
@@ -69,6 +71,22 @@ async function installModel(): Promise<ModelConfig & { provider: string }> {
   } finally {
     await pool.end()
   }
+}
+
+/** The assistant on another provider (--provider): its key comes only from the env, never from an argument. */
+function providerModel(name: string, model: string | undefined): ModelConfig {
+  const provider = PROVIDERS[name]
+  if (!provider) throw new Error(`unknown --provider ${name}: ${Object.keys(PROVIDERS).join(', ')}`)
+  if (!model) throw new Error('--provider needs --model')
+  const apiKey = process.env[provider.keyEnv]
+  if (!apiKey) throw new Error(`${provider.keyEnv} is not set`)
+  return { baseUrl: provider.baseUrl, apiKey, model, fallbacks: [] }
+}
+
+/** Median and 90th percentile of the assistant's reply times. */
+function replyTimes(ms: number[]) {
+  const sorted = [...ms].sort((a, b) => a - b)
+  return { median: sorted[Math.floor(sorted.length / 2)] ?? 0, p90: sorted[Math.floor(sorted.length * 0.9)] ?? 0 }
 }
 
 async function pool<T>(items: (() => Promise<T>)[], limit: number): Promise<T[]> {
@@ -132,6 +150,7 @@ async function main() {
       runs: { type: 'string', default: '3' },
       concurrency: { type: 'string', default: '6' },
       model: { type: 'string' },
+      provider: { type: 'string' },
       'judge-model': { type: 'string' },
       'no-judge': { type: 'boolean', default: false },
       list: { type: 'boolean', default: false },
@@ -155,12 +174,10 @@ async function main() {
   if (!cases.length) throw new Error('no case matches --case / --category')
   const runs = Math.max(1, Number(values.runs) || 3)
   const install = await installModel()
-  const assistantConfig: ModelConfig = {
-    ...install,
-    model: values.model ?? install.model,
-    fallbacks: values.model ? [] : install.fallbacks,
-  }
-  const judgeModelId = values['judge-model'] ?? (install.provider === 'openai' ? 'gpt-4.1' : assistantConfig.model)
+  const assistantConfig: ModelConfig = values.provider
+    ? providerModel(values.provider, values.model)
+    : { ...install, model: values.model ?? install.model, fallbacks: values.model ? [] : install.fallbacks }
+  const judgeModelId = values['judge-model'] ?? (install.provider === 'openai' ? 'gpt-4.1' : install.model)
   const usage: UsageTotals = {}
   const model = createModel(assistantConfig, usage)
   const judgeModel = createModel({ ...install, model: judgeModelId, fallbacks: [] }, usage)
@@ -221,7 +238,9 @@ async function main() {
     commit,
     model: assistantConfig.model,
     judgeModel: judgeModelId,
+    provider: values.provider ?? install.provider,
     runs,
+    replyMs: replyTimes(usage[assistantConfig.model]?.replyMs ?? []),
     usage,
     costUsd: cost === null ? 'unknown (a model without a price)' : Number(cost.toFixed(3)),
   }
@@ -251,6 +270,7 @@ async function main() {
       `FAIL ${r.case.id} (${r.passes}/${runs}, needs ${r.needed}): ${r.runs.find(x => !x.pass)?.reasons[0] ?? ''}`,
     )
   console.log(`Cost: ${cost === null ? 'unknown' : `$${cost.toFixed(2)}`}`)
+  console.log(`Assistant reply time: median ${meta.replyMs.median} ms, p90 ${meta.replyMs.p90} ms (whole reply)`)
 
   const dir = join(import.meta.dirname, '..', '..', 'llm-test-results', meta.date.replace(/[:.]/g, '-'))
   mkdirSync(dir, { recursive: true })
