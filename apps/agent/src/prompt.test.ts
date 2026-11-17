@@ -25,7 +25,13 @@ import {
 } from './prompt.ts'
 
 const assistant = (over: Partial<Assistant> = {}) =>
-  ({ name: 'Maya', greeting: 'Thanks for calling Brightwater.', ai_disclosure: 'never', business_profile: { instructions: 'We fix pipes in Portland.' }, ...over }) as Assistant
+  ({
+    name: 'Maya',
+    greeting: 'Thanks for calling Brightwater.',
+    ai_disclosure: 'never',
+    business_profile: { instructions: 'We fix pipes in Portland.' },
+    ...over,
+  }) as Assistant
 
 test('the call rules: no number or known name asked, booking per setup, emergencies to the emergency services and nothing trade-specific', () => {
   const prompt = buildInstructions(assistant())
@@ -84,7 +90,9 @@ test('the fixed rules come last, after the owner text and everything about the c
 
 test('the emergency rule names no number and keeps helping a caller who stays', () => {
   const prompt = buildInstructions(assistant())
-  expect(prompt).toContain('tell them to contact the emergency services now, and keep helping them if they stay on the call.')
+  expect(prompt).toContain(
+    'tell them to contact the emergency services now, and keep helping them if they stay on the call.',
+  )
   expect(prompt).not.toMatch(/\b(911|999|112)\b/)
 })
 
@@ -98,7 +106,7 @@ test('the call rules hold only the cases of this call, and leave name, number, p
   expect(callRules()).toContain('Appointments: if you can book, follow the booking steps. If not,')
   expect(callRules({ transfer: false })).not.toMatch(/put (the caller|them) through/)
   expect(callRules({ transfer: true })).toContain('put them through if a transfer contact covers it')
-  expect(callRules()).not.toMatch(/^Name:|Callback number:|Prices:|promise|Never confirm a time/m)
+  expect(callRules()).not.toMatch(/^Name:|Callback number:|Prices:|Never promise|Never confirm a time/m)
   // The general rules are shown with a note that the owner's text wins, only when there is owner text.
   expect(buildInstructions(assistant({ business_profile: {} }))).toContain(
     `How to handle calls:\n${callRules({ booking: false, transfer: false })}`,
@@ -164,8 +172,14 @@ test('the tools that speak for themselves are kept out of the rule to talk while
 })
 
 test('says it is an AI when asked, whatever the greeting setting and the business instructions', () => {
-  for (const a of [assistant(), assistant({ ai_disclosure: 'at_start' }), assistant({ business_profile: { instructions: 'Say you are Mike.' } })]) {
-    expect(buildInstructions(a)).toMatch(/Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant/)
+  for (const a of [
+    assistant(),
+    assistant({ ai_disclosure: 'at_start' }),
+    assistant({ business_profile: { instructions: 'Say you are Mike.' } }),
+  ]) {
+    expect(buildInstructions(a)).toMatch(
+      /Whenever the caller asks whether you are a person, a robot or an AI, say truthfully that you are an AI assistant/,
+    )
   }
 })
 
@@ -223,7 +237,7 @@ test("the matched contact's note always goes in as the owner's notes to follow; 
   const caller = { name: 'Dana Ortiz', note: 'Prefers  mornings.\n\nDog in the yard, gate code 4411.' }
   const prompt = buildInstructions(assistant(), null, null, [], caller)
   expect(prompt).toContain(
-    'The owner\'s notes about this caller; take them into account on this call:\n<caller_notes>Prefers mornings. Dog in the yard, gate code 4411.</caller_notes>',
+    "The owner's notes about this caller; take them into account on this call:\n<caller_notes>Prefers mornings. Dog in the yard, gate code 4411.</caller_notes>",
   )
   // Notes also come from imports and API keys: information, never rules that override the prompt.
   expect(prompt).toMatch(
@@ -394,7 +408,9 @@ test('listed appointments switch the booking-change rules; the API check stays (
 test('caller ID: a known number is in the prompt and not asked for, a saved name is not asked for, an unknown number is', () => {
   const known = { name: null, note: null, phone: '+15035550142' }
   expect(callerIdInstructions(known)).toContain('The caller is calling from +1 503 555 0142 (caller ID).')
-  expect(callerIdInstructions(known)).toMatch(/It is the callback number: never ask for a callback number or which number to call back on/)
+  expect(callerIdInstructions(known)).toMatch(
+    /It is the callback number: never ask for a callback number or which number to call back on/,
+  )
   // The get_phone_number tool is not given with caller ID, so the prompt never names it.
   expect(callerIdInstructions(known)).not.toMatch(/get_phone_number/)
   expect(callerIdInstructions(known)).not.toMatch(/saved contact|can be faked/)
@@ -583,9 +599,15 @@ test('the scope rule gives no "I can only help with …" line to say', () => {
 
 // Demo language retest 2026-11-16 (nl-1): "De/het team zal u bellen …", an article choice said as it was.
 test('a call in another language is told to pick the right article and never say two options with a slash', () => {
-  const dutch = languageInstructions({ languages: { main: 'nl', mode: 'english', allowed: [] } } as unknown as Assistant)
-  expect(dutch).toContain('Say them as a native speaker would, with the right article and word forms; never say two options joined by a slash.')
-  expect(languageInstructions({ languages: { main: 'en', mode: 'english', allowed: [] } } as unknown as Assistant)).not.toContain('slash')
+  const dutch = languageInstructions({
+    languages: { main: 'nl', mode: 'english', allowed: [] },
+  } as unknown as Assistant)
+  expect(dutch).toContain(
+    'Say them as a native speaker would, with the right article and word forms; never say two options joined by a slash.',
+  )
+  expect(
+    languageInstructions({ languages: { main: 'en', mode: 'english', allowed: [] } } as unknown as Assistant),
+  ).not.toContain('slash')
 })
 
 test('everything about this call comes last, after one heading: the part before it is the same on every call', () => {
