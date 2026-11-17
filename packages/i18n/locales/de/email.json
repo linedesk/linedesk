@@ -104,7 +104,7 @@
   "adminAlert.partnerBrand.review": "Marke prüfen",
   "adminAlert.partnerBrand.subject": "Partner-Marke auf {brand} zu prüfen: {partner}",
   "adminAlert.partnerBrand.supportEmail": "Support-E-Mail",
-  "adminAlert.partnerBrand.terms": "Link zu den Bedingungen",
+  "adminAlert.partnerBrand.terms": "Link zu den Nutzungsbedingungen",
   "adminAlert.partnerBrand.text": "Der White-Label-Partner {partner} hat die Marke geändert, die seine Kunden in der App und in E-Mails sehen. Bis ein Server-Admin die Änderung freigibt, behalten seine Kunden und ihre E-Mails die freigegebene Version.",
   "adminAlert.passkeysReset.admin": "Die Person ist Server-Admin und hat einen neuen Registrierungscode für ihren ersten Passkey bekommen.",
   "adminAlert.passkeysReset.subject": "Passkeys auf {brand} zurückgesetzt: {email}",

@@ -12592,7 +12592,7 @@
     },
     "email.adminAlert.partnerBrand.terms": {
       "by": "ai",
-      "out": "c4e55af8057a728ef3b38ca597e661eeeee506c15948f8d7c96b5e0db6e027c9",
+      "out": "e20de14ea75f41d51152a7a1969f9c601f6c70918de087d1cdf3e8ede1b185f2",
       "src": "4c29099f0aafcaca5328465fe9e7d5d42ac2d590061dc194e309cc8a77ead01f"
     },
     "email.adminAlert.partnerBrand.text": {
@@ -20092,7 +20092,7 @@
     },
     "settings.assistant.disclosure.lawEu": {
       "by": "ai",
-      "out": "6b4566706ad9f746fcc5184b060b90a9d322b0eaa71d9183638719e6de004aa2",
+      "out": "5f92a7bff81e9602cfc017bd6e657a0025a4a129be5f1187c9f2bfdbf6f5b7f5",
       "src": "35c23a17fa56a25de0a896aa1658d3e0adf826c4735f92a8feb5981fadc434e0"
     },
     "settings.assistant.disclosure.lawUs": {
@@ -20117,7 +20117,7 @@
     },
     "settings.assistant.disclosure.neverConfirmWarningEu": {
       "by": "ai",
-      "out": "97cde603270c737a0f010062adc2328b398be8da844d43659212bbbd0c770c45",
+      "out": "147d9d03ad9138f3f05a4bb449c5ce79adde3e6079af674d163e37ccf596ab45",
       "src": "1e0ba5fdd0d242c2a2e206b216a09be496cbe36c40f60a514ffb9a692c97b96f"
     },
     "settings.assistant.disclosure.title": {
@@ -25902,7 +25902,7 @@
     },
     "settings.privacyNotice.text.processor": {
       "by": "ai",
-      "out": "11dfe85714c165c140c9e3ad60e60951d85d39db9c7d68ed3dfbff2808bebc37",
+      "out": "92cc4c3d5c8274b679e0ab58be44249c1cfd09625de935d47190bb122b7bc5dd",
       "src": "e01e5cff71cf41856f4cf4c4099ed4f12ffa324f44b8c5b3ae344e29e07c9e6f"
     },
     "settings.privacyNotice.text.recording": {
@@ -25917,27 +25917,27 @@
     },
     "settings.privacyNotice.text.rights": {
       "by": "ai",
-      "out": "ae2306cf6dad19f95088ddce54fdd5973f5902b684e0e1a0bfd6d0350a7a55fd",
+      "out": "3c03c4f1b08d4b5a54291a02fbf259c078b67e6484ab466ef04541a417b4ba05",
       "src": "758e9a2da7741668730e2a225884760bf4d181e34b62f9a5f5bc498b68d13d00"
     },
     "settings.privacyNotice.text.title": {
       "by": "ai",
-      "out": "c584f78b51b64768bd440101df8ca1023ec1ec4a74683823515d59d0dfbcaddd",
+      "out": "0e1d87b9d642d27dfa18bf6bf9585f80052cae4af9147e235d4937759ca31e17",
       "src": "b83cb6e01b507e0182154750497e71a50af88651984a96fee7415d14662fd54e"
     },
     "settings.privacyNotice.text.what": {
       "by": "ai",
-      "out": "b959fbb4c9dc2b058568509f198e53252069c28873e95dd13ca3f72afe927955",
+      "out": "a1c970e1c332fcb285323e8d4b06acfb51ffb8bec9046e123c37fd17b02ced5c",
       "src": "a3cd52c5dbe212dc908bf404c874949c2e7770a0078abffae69b3e3e189d18a6"
     },
     "settings.privacyNotice.text.who": {
       "by": "ai",
-      "out": "42f24b82f7fccbaeffe8f3e0c723855a4a1b9462c9416aae0028cad0a964de5b",
+      "out": "f48ab594f1ce463176992b33eaeb9911b5ef59af31b72cdae915d6bf988db3f9",
       "src": "600b795feef9aed371cee16b20ef61d3a83ac9629298955b3524c05a9c63332d"
     },
     "settings.privacyNotice.text.why": {
       "by": "ai",
-      "out": "808de8ce6abbcd1e5ddd86bbf1d3072b2f3792e7692fb77878c11a9b90da338a",
+      "out": "1ec66927e709a474ed2a0dcbf2c9bf0499e3305cb4f4833b84a9c69e1d5a1c4b",
       "src": "18d766db5ad74f1c5a99532120e0cac9f0f2757cb834ae3371f1d350e1dbcfea"
     },
     "settings.privacyNotice.title": {
@@ -30072,7 +30072,7 @@
     },
     "team.partner.brand.termsUrl": {
       "by": "ai",
-      "out": "c4e55af8057a728ef3b38ca597e661eeeee506c15948f8d7c96b5e0db6e027c9",
+      "out": "e20de14ea75f41d51152a7a1969f9c601f6c70918de087d1cdf3e8ede1b185f2",
       "src": "4c29099f0aafcaca5328465fe9e7d5d42ac2d590061dc194e309cc8a77ead01f"
     },
     "team.partner.brand.title": {
@@ -56814,7 +56814,7 @@
     },
     "settings.privacyNotice.text.rights": {
       "by": "ai",
-      "out": "740b0c8aa4612dc044aea2c5907ed1bcdd0aa23c7862c9731c755e4b2d169bb0",
+      "out": "f4c4620eafecd0844404034a925dc1a1e12459919475002de6956cb66a680b25",
       "src": "758e9a2da7741668730e2a225884760bf4d181e34b62f9a5f5bc498b68d13d00"
     },
     "settings.privacyNotice.text.title": {
@@ -87711,7 +87711,7 @@
     },
     "settings.privacyNotice.text.rights": {
       "by": "ai",
-      "out": "bc1ee764a339439cbc2625b3c2a87304377f6f285d11dc7eda1022a3c5c17cf5",
+      "out": "d3b00fe368af4c244dd836f28aff3439536603903ae4c5377c46a2c6deb4e530",
       "src": "758e9a2da7741668730e2a225884760bf4d181e34b62f9a5f5bc498b68d13d00"
     },
     "settings.privacyNotice.text.title": {
@@ -118608,7 +118608,7 @@
     },
     "settings.privacyNotice.text.rights": {
       "by": "ai",
-      "out": "3acc219a96a99731717d5dd071c284a81d77562380cc9d28259ca0a3b3ce2c7f",
+      "out": "82982f4cbd73650adc8eb603caa5ebf3899ba80a1d518378d61b39a7dae0be8c",
       "src": "758e9a2da7741668730e2a225884760bf4d181e34b62f9a5f5bc498b68d13d00"
     },
     "settings.privacyNotice.text.title": {
@@ -149480,7 +149480,7 @@
     },
     "settings.privacyNotice.help": {
       "by": "ai",
-      "out": "ac327b9f95acf6d4b8743e83ee8478fecbff2eb155f2a7c0811a25656e10cc5d",
+      "out": "6339b7a770768fcbd55a53f7be0bdbda88eab38fd88622d73930349d63a51dcb",
       "src": "211b8a1728e2c92cd03e9a2b45a4ec8194bab940412862e49e8a9ec363ab0690"
     },
     "settings.privacyNotice.text.contact": {
@@ -149505,7 +149505,7 @@
     },
     "settings.privacyNotice.text.rights": {
       "by": "ai",
-      "out": "3a7dd199d085e62ffc0746701932ec616df4f272e00142ecf2d25dd29164194a",
+      "out": "0b8c748ec49958c29726526a933f9253a3f04750a61849dd7cfba7aa0de88f46",
       "src": "758e9a2da7741668730e2a225884760bf4d181e34b62f9a5f5bc498b68d13d00"
     },
     "settings.privacyNotice.text.title": {
@@ -149525,7 +149525,7 @@
     },
     "settings.privacyNotice.text.why": {
       "by": "ai",
-      "out": "8b75036ad5c0873d335b2b9fc1e56355a41d8c91679eea7553c8bdab0fdcb70d",
+      "out": "3daf37752835e2cc22e06b5a61ef870aaf80f680342a3574a629f18e383723f2",
       "src": "18d766db5ad74f1c5a99532120e0cac9f0f2757cb834ae3371f1d350e1dbcfea"
     },
     "settings.privacyNotice.title": {
@@ -149595,7 +149595,7 @@
     },
     "settings.recordings.lawLongRetention": {
       "by": "ai",
-      "out": "b16004a687021028e4ec3e881f486751ca2ed3e9f86c07b979f9a56e9a3bf11f",
+      "out": "93407db114a0409c9c52c53c9971584210cb5392e88f132240cef98a638985d0",
       "src": "f49af980bd34007884742199f9a528017a1ecf4b82a9f313e7e3a71c75d941db"
     },
     "settings.recordings.loadWhat": {
