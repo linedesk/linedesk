@@ -141,6 +141,10 @@ describe('statusOf', () => {
     expect(statusOf('slack', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'notConnected' })
     expect(statusOf('slack', { ...NOTHING, apps: { slack: 'connected' } })).toEqual({ kind: 'connected' })
     expect(statusOf('slack', { ...NOTHING, apps: { slack: 'needs_attention' } })).toEqual({ kind: 'needsAttention' })
+    expect(statusOf('jobber', NOTHING)).toEqual({ kind: 'notConnected' })
+    expect(statusOf('jobber', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'notConnected' })
+    expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'connected' } })).toEqual({ kind: 'connected' })
+    expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'needs_attention' } })).toEqual({ kind: 'needsAttention' })
   })
 
   it('says in progress for what is being built, whatever the facts', () => {
@@ -270,5 +274,12 @@ describe('What Linedesk does (app switches, LIN-367)', () => {
   it('a skipped call says why', () => {
     expect(appPushErrorKey('calls_off')).toBe('settings.integrations.app.pushError.callsOff')
     expect(appPushErrorKey('no_contact')).toBe('settings.integrations.app.pushError.noContact')
+  })
+
+  it('Jobber says client where the others say contact', () => {
+    expect(appPushErrorKey('no_contact', 'jobber')).toBe('settings.integrations.app.jobber.pushError.noContact')
+    expect(appPushErrorKey('not_found', 'jobber')).toBe('settings.integrations.app.jobber.pushError.notFound')
+    expect(appPushErrorKey('no_contact', 'hubspot')).toBe('settings.integrations.app.pushError.noContact')
+    expect(appPushErrorKey('auth', 'jobber')).toBe('settings.integrations.app.pushError.auth')
   })
 })

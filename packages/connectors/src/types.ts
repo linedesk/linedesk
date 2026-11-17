@@ -3,10 +3,10 @@
  * (docs/crm-sync.md). Every app has an OAuth side and a connector that does the work; vendor HTTP lives
  * only in the app's own file.
  */
-export const APP_IDS = ['hubspot', 'slack'] as const
+export const APP_IDS = ['hubspot', 'slack', 'jobber'] as const
 export type AppId = (typeof APP_IDS)[number]
 
-export const APP_LABEL: Record<AppId, string> = { hubspot: 'HubSpot', slack: 'Slack' }
+export const APP_LABEL: Record<AppId, string> = { hubspot: 'HubSpot', slack: 'Slack', jobber: 'Jobber' }
 
 export const isAppId = (value: string): value is AppId => (APP_IDS as readonly string[]).includes(value)
 
@@ -26,7 +26,7 @@ export type OAuthTokens = {
 
 export type OAuthClient = { clientId: string; clientSecret: string }
 
-/** The account a grant belongs to, as the app names it (a HubSpot portal, a Slack workspace). */
+/** The account a grant belongs to, as the app names it (a HubSpot portal, a Slack workspace, a Jobber account). */
 export type AppAccount = { id: string; name: string }
 
 /** The OAuth side of an app: consent URL, code exchange, refresh, revoke, and whose account it is. */

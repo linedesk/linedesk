@@ -7,7 +7,7 @@
   "apps/api/src/after-call-transcript.ts": 10,
   "apps/api/src/agent-setup.ts": 14,
   "apps/api/src/api-keys.ts": 2,
-  "apps/api/src/app-connections.ts": 13,
+  "apps/api/src/app-connections.ts": 11,
   "apps/api/src/app-pushes.ts": 1,
   "apps/api/src/app.ts": 4,
   "apps/api/src/assistant-versions.ts": 4,

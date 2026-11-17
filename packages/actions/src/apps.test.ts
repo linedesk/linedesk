@@ -33,6 +33,10 @@ describe('app.updateSettings (LIN-367)', () => {
     expect(local.app_connections.get('appc_2')).toMatchObject({ provider: 'slack', settings })
   })
 
+  it('Jobber has the CRM switches: a note on the client, new callers as clients, empty fields (LIN-304)', () => {
+    expect(APP_SETTINGS.jobber).toEqual(['log_calls', 'create_contacts', 'fill_fields'])
+  })
+
   it('takes only known switches, each true or false', () => {
     const parse = (settings: unknown) => appUpdateSettings.input.safeParse({ id: 'appc_1', settings }).success
     expect(parse({ create_contacts: false })).toBe(true)

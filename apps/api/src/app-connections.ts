@@ -1,6 +1,7 @@
 // Connected apps of a workspace (docs/crm-sync.md): connecting by OAuth (a state bound to the member and workspace,
-// used once), tokens encrypted with SECRETS_KEY and refreshed when they run out (HubSpot's last 30 minutes; Slack's
-// bot token does not run out, and its incoming webhook URL is stored encrypted beside it), and
+// used once), tokens encrypted with SECRETS_KEY and refreshed when they run out (HubSpot's last 30 minutes, Jobber's
+// 60 with a new refresh token on every refresh; Slack's bot token does not run out, and its incoming webhook URL is
+// stored encrypted beside it), and
 // disconnecting with revocation. Sending finished calls to them is app-pushes.ts. Each app's HTTP is in
 // @linedesk/connectors; its OAuth app (client ID and secret) is the install's, under Server admin › Providers.
 import { randomBytes } from 'node:crypto'
@@ -68,6 +69,7 @@ const NO_SECRETS_KEY =
 
 /** A rejection the page words by its code (AppConnectError); the message is for the API and the command log. */
 const rejectApp = (code: AppConnectError, message: string) => new Reject(message, code)
+const IMPERSONATING = 'Not possible while signed in as another user.'
 
 /**
  * Serialises everything that changes a connection's grant or uses it: a push's claim and bookkeeping, a token
@@ -75,6 +77,10 @@ const rejectApp = (code: AppConnectError, message: string) => new Reject(message
  */
 export const lockConnection = (tx: Tx, connectionId: string) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`app:${connectionId}`}))`)
+
+/** Connect and disconnect of one account of an app, one at a time: the "shared" check below sees the other's row. */
+const lockAccount = (tx: Tx, app: AppId, accountId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`app-account:${app}:${accountId}`}))`)
 
 /** A started connect is good for this long: enough to sign in and consent. */
 const STATE_TTL_MS = 10 * 60_000
@@ -84,6 +90,8 @@ const REFRESH_MARGIN_MS = 60_000
 const REQUIRED_SCOPES: Record<AppId, readonly string[]> = {
   hubspot: ['crm.objects.contacts.read', 'crm.objects.contacts.write'],
   slack: ['incoming-webhook'],
+  // Jobber sets scopes on the app (Developer Center); checked only when its token answer names them.
+  jobber: ['read_clients', 'write_clients'],
 }
 /** An access token that does not run out (Slack without token rotation) is stored with this expiry. */
 const NEVER = '9999-12-31T00:00:00.000Z'
@@ -265,7 +273,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
   'app.connectStart': async ({ tx, actor, now, ...ctx }, input: { app: AppId }) => {
     const workspace_id = workspaceOf(actor)
     // An app connected while signed in as someone else would put the admin's account into the user's workspace.
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     const oauth = await oauthOrReject(tx, ctx, input.app)
     if (!hasSecretsKey()) throw rejectApp('no_secrets_key', NO_SECRETS_KEY)
     const state = randomBytes(32).toString('base64url')
@@ -286,7 +294,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
     input: { app: AppId; state: string; code: string },
   ) => {
     const workspace_id = workspaceOf(actor)
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     // The state is single use and only good for the member who started the connect, in that workspace.
     const [started] = await tx.delete(app_oauth_states).where(eq(app_oauth_states.id, input.state)).returning()
     if (
@@ -313,12 +321,14 @@ export const appConnectionHandlers: Record<string, Handler> = {
     // The lasting grant: the refresh token; an app without one (Slack) has an access token that does not run out.
     const grant = tokens.refreshToken ?? (oauth.grantPerAccount ? tokens.accessToken : null)
     // A grant one per account that another connection already uses is that connection's too: never withdrawn here.
+    if (oauth.grantPerAccount && tokens.account) await lockAccount(tx, input.app, tokens.account.id)
     const shared =
       oauth.grantPerAccount && tokens.account
         ? await accountShared(tx, input.app, tokens.account.id, null)
         : false
-    // Whatever goes wrong from here, the grant just made is withdrawn again.
-    if (grant && !shared)
+    // Whatever goes wrong from here, the grant just made is withdrawn again. A grant one per account whose account
+    // is not known yet (the account read failed) stays: withdrawing it could cut another workspace on that account.
+    if (grant && !shared && (tokens.account || !oauth.grantPerAccount))
       onRollback?.(async () =>
         (await oauth.revoke(grant).catch(() => false))
           ? 'the new access was revoked'
@@ -386,7 +396,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
     input: { id: string; settings: Partial<Record<AppSettingId, boolean>> },
   ) => {
     const workspace_id = workspaceOf(actor)
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     const [existing] = await tx
       .select({ provider: app_connections.provider })
       .from(app_connections)
@@ -407,9 +417,13 @@ export const appConnectionHandlers: Record<string, Handler> = {
   // Deleted here first; the app is asked once that has committed. An app that cannot be reached does not keep the
   // connection: the tokens are gone either way, and the result says whether the grant was withdrawn.
   'app.disconnect': async ({ tx, actor, onCommit, ...ctx }, input: { app: AppId }) => {
+    // It changes the account at the app too (Jobber, Slack: the app is removed there).
+    if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     const workspace_id = workspaceOf(actor)
     const existing = await connectionOf(tx, workspace_id, input.app)
     if (!existing) throw rejectApp('not_connected', `${APP_LABEL[input.app]} is not connected`)
+    // The account first, then the connection: the order connect takes them in.
+    await lockAccount(tx, input.app, existing.account_id)
     // Not while a push is being bookkept or a refreshed token saved: those would then find nothing, as they should.
     await lockConnection(tx, existing.id)
     // Read before the delete: the tokens, links and pushes go with the connection (foreign key cascade).

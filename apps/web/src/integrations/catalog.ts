@@ -1,9 +1,9 @@
 // Integrations (#integrations): the catalog of everything Linedesk connects to, by category, without React. Only what
 // works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
 // calendar providers this install offers, API keys, the REST API and the MCP server. Each opens its detail view here
-// (`#integrations/<id>`) or the place where it is set up. HubSpot and Slack are connected apps (OAuth,
-// docs/crm-sync.md): their detail view connects them. The ones being built (Jobber, ServiceTitan) show as "In
-// progress" and open nothing. Phone carriers are not here: they are Server admin's (provider keys).
+// (`#integrations/<id>`) or the place where it is set up. HubSpot, Slack and Jobber are connected apps (OAuth,
+// docs/crm-sync.md): their detail view connects them. The one being built (ServiceTitan) shows as "In progress" and
+// opens nothing. Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -30,11 +30,11 @@ export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
 }
 
 /** Integrations with a detail view on this page; every other card opens the place where it is set up. */
-export const DETAIL_IDS = ['zapier', 'hubspot', 'slack', 'api-keys', 'rest-api', 'mcp'] as const
+export const DETAIL_IDS = ['zapier', 'hubspot', 'slack', 'jobber', 'api-keys', 'rest-api', 'mcp'] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
 
 /** Being built: shown as "In progress", they open nothing yet. */
-export const IN_PROGRESS_IDS = ['jobber', 'servicetitan'] as const
+export const IN_PROGRESS_IDS = ['servicetitan'] as const
 export type InProgressId = (typeof IN_PROGRESS_IDS)[number]
 
 export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId | InProgressId
@@ -138,7 +138,7 @@ export const CATALOG: readonly Integration[] = [
     id: 'jobber',
     category: 'crm',
     mark: { kind: 'monogram', text: 'J', color: '#7DB00E' },
-    opens: null,
+    opens: detail('jobber'),
     keywords: 'field service jobs clients requests home service',
   },
   {
@@ -281,7 +281,8 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
     case 'mcp':
       return { kind: 'ready' }
     case 'hubspot':
-    case 'slack': {
+    case 'slack':
+    case 'jobber': {
       if (facts.apps === undefined) return { kind: 'loading' }
       const state = facts.apps[id]
       return state === 'connected'
@@ -384,7 +385,17 @@ export const appSettingsWith = (
   >
 
 /** The text (with `{name}`) for why a call did not go to a connected app; an unknown code is `internal`'s. */
-export const appPushErrorKey = (code: string): MessageKey => PUSH_ERROR[code as AppErrorCode] ?? PUSH_ERROR.internal
+/** Codes whose words differ per app: Jobber calls a contact a client. */
+const APP_PUSH_ERROR: Partial<Record<ConnectableApp, Partial<Record<AppErrorCode, MessageKey>>>> = {
+  jobber: {
+    not_found: msg('settings.integrations.app.jobber.pushError.notFound'),
+    no_caller_id: msg('settings.integrations.app.jobber.pushError.noCallerId'),
+    no_contact: msg('settings.integrations.app.jobber.pushError.noContact'),
+  },
+}
+
+export const appPushErrorKey = (code: string, app?: ConnectableApp): MessageKey =>
+  (app && APP_PUSH_ERROR[app]?.[code as AppErrorCode]) ?? PUSH_ERROR[code as AppErrorCode] ?? PUSH_ERROR.internal
 
 /** The MCP server and REST API addresses of this install. */
 export const mcpAddress = (origin: string) => `${origin}/mcp`

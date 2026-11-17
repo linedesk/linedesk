@@ -1,4 +1,5 @@
 import { createHubSpotConnector, createHubSpotOAuth } from './hubspot.ts'
+import { createJobberConnector, createJobberOAuth } from './jobber.ts'
 import { createSlackConnector, createSlackOAuth } from './slack.ts'
 import type { AppConnector, AppId, AppOAuth, OAuthClient } from './types.ts'
 
@@ -10,6 +11,7 @@ import type { AppConnector, AppId, AppOAuth, OAuthClient } from './types.ts'
 const APPS: Record<AppId, { oauth: (client: OAuthClient) => AppOAuth; connector: () => AppConnector }> = {
   hubspot: { oauth: client => createHubSpotOAuth(client), connector: () => createHubSpotConnector() },
   slack: { oauth: client => createSlackOAuth(client), connector: () => createSlackConnector() },
+  jobber: { oauth: client => createJobberOAuth(client), connector: () => createJobberConnector() },
 }
 
 export const appOAuth = (id: AppId, client: OAuthClient): AppOAuth => APPS[id].oauth(client)

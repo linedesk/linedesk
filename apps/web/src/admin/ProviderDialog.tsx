@@ -9,6 +9,9 @@ import {
   type ProviderPreset,
   type ProviderTestData,
   providerCategoryLabel,
+  providerFieldLabel,
+  providerGuide,
+  providerHelp,
   providerSpec,
   providers as providerSpecs,
   restartCategories,
@@ -82,7 +85,7 @@ type Props = {
 
 type Phase = 'idle' | 'saving' | 'testing' | 'confirm-disconnect' | 'disconnecting'
 
-const helpOf = (provider: ProviderStatus) => (providerSpecs[provider.provider] as { help?: string }).help ?? null
+const helpOf = (provider: ProviderStatus) => providerHelp(provider.provider, i18n())
 
 const presetsOf = (provider: ProviderStatus) =>
   ((providerSpecs[provider.provider] as { presets?: readonly ProviderPreset[] }).presets ?? []) as ProviderPreset[]
@@ -412,7 +415,8 @@ export function ProviderDialog(props: Props) {
 /** How to get a key for this provider: the registry's steps, the page, what it costs. Open until it works. */
 function KeyGuide({ provider, open }: { provider: ProviderStatus; open: boolean }) {
   const t = useT()
-  const { guide, label } = providerSpec(provider.provider)
+  const { label } = providerSpec(provider.provider)
+  const guide = providerGuide(provider.provider, i18n())
   return (
     <details className="adm-guide" open={open}>
       <summary>{t('admin.providerDialog.howToGetKey')}</summary>
@@ -548,6 +552,7 @@ function ProviderInput(props: InputProps) {
   const t = useT()
   const { id, provider, field, value, error, disabled, autoFocus, keysUrl, onChange } = props
   const keysLabel = props.keysLabel ?? t('admin.providerDialog.getKey')
+  const label = providerFieldLabel(provider.provider, field.field, i18n())
   const fromServer = field.source === 'env' && <ServerSet />
   const getKey = keysUrl && (
     <a
@@ -571,14 +576,14 @@ function ProviderInput(props: InputProps) {
     const on = (value || field.value || 'true') !== 'false'
     return (
       <div className="adm-switch-field">
-        <label htmlFor={id}>{field.label}</label>
+        <label htmlFor={id}>{label}</label>
         {fromServer}
-        <Switch on={on} label={field.label} disabled={disabled} onChange={next => onChange(String(next))} />
+        <Switch on={on} label={label} disabled={disabled} onChange={next => onChange(String(next))} />
       </div>
     )
   }
   return (
-    <FormField id={id} label={field.label} aside={aside} error={error}>
+    <FormField id={id} label={label} aside={aside} error={error}>
       {field.secret ? (
         <SecretInput
           id={id}

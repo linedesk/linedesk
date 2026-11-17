@@ -764,6 +764,7 @@ describe('provider keys', () => {
       'stripe',
       'hubspot',
       'slack',
+      'jobber',
       'turnstile',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'

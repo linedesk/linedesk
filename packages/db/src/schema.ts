@@ -730,10 +730,10 @@ export const app_connections = pgTable(
     id: id(),
     workspace_id: workspaceId(),
     /** The app (connectableApps in @linedesk/actions, APP_IDS in @linedesk/connectors). */
-    provider: text('provider', { enum: ['hubspot', 'slack'] }).notNull(),
+    provider: text('provider', { enum: ['hubspot', 'slack', 'jobber'] }).notNull(),
     /**
-     * The account at the app (a HubSpot portal id, a Slack workspace id) and its name for the page (the portal's
-     * domain, the Slack workspace's name).
+     * The account at the app (a HubSpot portal id, a Slack workspace id, a Jobber account id) and its name for the page
+     * (the portal's domain, the Slack workspace's name, the Jobber account's name).
      */
     account_id: text('account_id').notNull(),
     account_name: text('account_name').notNull(),
@@ -782,7 +782,7 @@ export const app_oauth_states = pgTable('app_oauth_states', {
   id: id(),
   workspace_id: workspaceId(),
   user_id: text('user_id').notNull(),
-  provider: text('provider', { enum: ['hubspot', 'slack'] }).notNull(),
+  provider: text('provider', { enum: ['hubspot', 'slack', 'jobber'] }).notNull(),
   expires_at: ts('expires_at').notNull(),
   created_at: createdAt(),
 })

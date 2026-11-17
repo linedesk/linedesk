@@ -7,6 +7,7 @@ import {
   categoryNames,
   moneyCategories,
   type Language,
+  providerFieldLabel,
   providerNames,
   providerSpec,
   providersIn,
@@ -406,7 +407,7 @@ export async function providerStatus(tx: Tx, env: Env = serverEnv()) {
       const fromEnv = env[spec.env]
       const base = {
         field,
-        label: spec.label,
+        label: providerFieldLabel(provider, field),
         secret: spec.secret,
         hint: ('hint' in spec ? spec.hint : undefined) ?? null,
       }

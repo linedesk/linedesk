@@ -51,6 +51,8 @@ import {
   providerGroupIds,
   groupText,
   providerGroups,
+  providerGuide,
+  providerHelp,
   providerSpec,
   REALTIME_VOICE_IDS,
   recommendedProviders,
@@ -396,7 +398,8 @@ const moneyGroups = new Set<string>(
 
 /** How to set up one provider: its guide from the registry, written for an agent. */
 const guideLines = (provider: ProviderName) => {
-  const { label, category, guide } = providerSpec(provider)
+  const { label, category } = providerSpec(provider)
+  const guide = providerGuide(provider)
   // After-call transcription is selected only by its own action (provider.setActive refuses it): optionalSteps says how.
   // Connected apps are all in use once set up: nothing to pick.
   const pick =
@@ -582,7 +585,8 @@ function redirectUris(provider: ProviderName): string[] {
   if (provider === 'github') return [`${app}/api/auth/callback/github`]
   if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
   if (provider === 'calendly' || provider === 'calcom') return [`${app}/v1/calendar/callback/${provider}`]
-  if (provider === 'hubspot' || provider === 'slack') return [`${app}/v1/apps/callback/${provider}`]
+  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber')
+    return [`${app}/v1/apps/callback/${provider}`]
   return []
 }
 
@@ -1006,7 +1010,7 @@ function registerTools(server: McpServer, actor: Actor) {
                 set: Boolean(f.source),
                 hint: fieldSpec(f.field)?.hint ?? null,
               })),
-              help: spec.help ?? null,
+              help: providerHelp(p.provider),
               ...(spec.category === 'sign_in' || spec.category === 'apps' ? { redirect_uris: redirectUris(p.provider) } : {}),
             }
           })

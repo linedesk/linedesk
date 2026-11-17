@@ -7,8 +7,8 @@ import {
   providerConnectOneKey,
   providerGroups,
   providerLine,
+  providerGuide,
   providerNames,
-  providerSpec,
   providersIn,
   providersOfGroup,
   readiness,
@@ -79,7 +79,7 @@ describe('groups', () => {
 
   test('every provider has a guide with steps and a cost; each recommended provider is of its category', () => {
     for (const p of providerNames) {
-      const { guide } = providerSpec(p)
+      const guide = providerGuide(p)
       expect(guide.steps.length, p).toBeGreaterThan(1)
       expect(guide.cost, p).toBeTruthy()
       if (guide.url) expect(guide.url, p).toMatch(/^https:\/\//)

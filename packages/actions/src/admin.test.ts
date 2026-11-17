@@ -90,7 +90,7 @@ test('every provider has a category, and the first of each category is the defau
     ['transcript', ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript']],
     ['business', ['google_places']],
     ['billing', ['stripe']],
-    ['apps', ['hubspot', 'slack']],
+    ['apps', ['hubspot', 'slack', 'jobber']],
     ['bot_check', ['turnstile']],
   ])
   // Sign-in apps are all in use at once: nothing to pick.

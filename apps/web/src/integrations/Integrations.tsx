@@ -1,5 +1,5 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
-// key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /api-keys, /rest-api, /mcp) or
+// key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /api-keys, /rest-api, /mcp) or
 // the place where it is set up (the assistant's webhooks and booking); one being built shows "In progress". The catalog itself
 // is catalog.ts; API keys and Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -336,6 +336,7 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       {id === 'zapier' && <ZapierSubscriptions canEdit={canManageKeys} toast={toast} />}
       {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
       {id === 'slack' && <ConnectedApp key="slack" app="slack" canEdit={canManageKeys} toast={toast} />}
+      {id === 'jobber' && <ConnectedApp key="jobber" app="jobber" canEdit={canManageKeys} toast={toast} />}
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}
       {id === 'mcp' && <Mcp toast={toast} />}

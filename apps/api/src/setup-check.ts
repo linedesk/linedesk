@@ -10,6 +10,7 @@ import {
   oneKey,
   oneKeyIn,
   type ProviderGuide,
+  providerGuide,
   providerSpec,
   providersOfGroup,
   recommendedProviders,
@@ -44,7 +45,7 @@ function guideOf(group: GroupStatus): { label: string | null; guide: ProviderGui
   if (group.id === 'call-audio') return { label: null, guide: callAudioGuideIn() }
   const category = providerSpec(providersOfGroup(group.id)[0]!).category
   const recommended = group.id === 'answering' ? recommendedProviders.stt : recommendedProviders[category]
-  return { label: providerSpec(recommended).label, guide: providerSpec(recommended).guide }
+  return { label: providerSpec(recommended).label, guide: providerGuide(recommended) }
 }
 
 function print(group: GroupStatus) {

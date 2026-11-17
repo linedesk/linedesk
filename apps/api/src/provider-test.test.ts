@@ -621,3 +621,34 @@ describe('apps: Slack', () => {
     expect(fake.calls).toEqual(['POST https://slack.com/api/oauth.v2.exchange'])
   })
 })
+
+describe('apps: Jobber', () => {
+  const keys = config({ client_id: 'jobber-client', client_secret: 'jobber-secret' })
+  const text = (status: number, body: string) => () =>
+    new Response(body, { status, headers: { 'content-type': 'text/plain' } })
+
+  test('a client ID or secret Jobber does not know fails (its answer to any client it does not know)', async () => {
+    const fake = provider({
+      'POST /api/oauth/token': text(401, 'The provided client id and secret do not match an existing application'),
+    })
+    const result = await testProvider('jobber', keys, fake.doFetch)
+    expect(result).toMatchObject({ ok: false, status: 'error', reason: 'auth' })
+    expect(result.message).toBe('Jobber rejected the client ID or secret')
+    expect(fake.calls).toEqual(['POST https://api.getjobber.com/api/oauth/token'])
+    const sent = new URLSearchParams(String(fake.requests[0]!.init.body))
+    expect(sent.get('grant_type')).toBe('refresh_token')
+    expect(sent.get('client_id')).toBe('jobber-client')
+  })
+
+  test('a known client passes: Jobber refused only the made-up refresh token', async () => {
+    const fake = provider({ 'POST /api/oauth/token': text(401, 'The provided refresh token is not valid.') })
+    expect(await testProvider('jobber', keys, fake.doFetch)).toMatchObject({ ok: true, status: 'ok' })
+  })
+
+  test('an answer that proves nothing is a warning, Jobber down is an error', async () => {
+    const odd = provider({ 'POST /api/oauth/token': text(403, '<html>blocked</html>') })
+    expect(await testProvider('jobber', keys, odd.doFetch)).toMatchObject({ ok: true, status: 'warning' })
+    const down = provider({ 'POST /api/oauth/token': text(503, 'unavailable') })
+    expect(await testProvider('jobber', keys, down.doFetch)).toMatchObject({ ok: false, reason: 'network' })
+  })
+})

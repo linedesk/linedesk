@@ -78,10 +78,11 @@ export const categoryNames = Object.keys(providerCategoryKeys) as [ProviderCateg
  * `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a
  * connection. `hint` says what an empty field means (shown in the empty input). `switch` fields hold
  * "true" or "false" and show as a checkbox. `phone` fields hold a phone number and show as the phone field
- * (country picker, value in E.164).
+ * (country picker, value in E.164). The label is English written here (`label`), or a key in admin.json (`labelKey`,
+ * the newer providers) read in the reader's words where it is shown (providerFieldLabel; docs/translations.md,
+ * "Server-side text").
  */
-type ProviderField = {
-  label: string
+type ProviderField = ({ label: string } | { labelKey: MessageKey }) & {
   env: string
   secret: boolean
   optional?: true
@@ -96,13 +97,16 @@ export type ProviderPreset = { label: string; values: Record<string, string>; he
  * ("about", list prices, no promises). Shown in the provider's dialog, the setup MCP and `scripts/setup.sh --check`.
  */
 export type ProviderGuide = { url: string | null; steps: readonly string[]; cost: string }
-/** `help` is shown on the provider's card. */
+/** A guide whose words are keys in admin.json (the newer providers): providerGuide renders it for the reader. */
+type ProviderGuideKeys = { url: string | null; stepKeys: readonly MessageKey[]; costKey: MessageKey }
+/** `help` (or `helpKey`, a key in admin.json) is shown on the provider's card. */
 type ProviderSpec = {
   label: string
   category: ProviderCategory
   fields: Record<string, ProviderField>
-  guide: ProviderGuide
+  guide: ProviderGuide | ProviderGuideKeys
   help?: string
+  helpKey?: MessageKey
   presets?: readonly ProviderPreset[]
 }
 
@@ -114,7 +118,7 @@ const openAiSteps = (rest: string) => [
 const llmPaste = 'Paste it here. Empty model fields use the defaults.'
 const voicePaste = 'Paste it here. Leave the voice empty for the default; each assistant can pick its own.'
 
-/** Every provider's guide (ProviderGuide), keyed like `providers` below. */
+/** Every provider's guide (ProviderGuide, or ProviderGuideKeys for the newer ones), keyed like `providers` below. */
 const guides = {
   telnyx: {
     url: 'https://portal.telnyx.com/',
@@ -430,6 +434,15 @@ const guides = {
     ],
     cost: 'Free. Each business connects its own Slack, on any Slack plan.',
   },
+  jobber: {
+    url: 'https://developer.getjobber.com/',
+    stepKeys: [
+      msg('admin.provider.guide.jobber.step1'),
+      msg('admin.provider.guide.jobber.step2'),
+      msg('admin.provider.guide.jobber.step3'),
+    ],
+    costKey: msg('admin.provider.guide.jobber.cost'),
+  },
   turnstile: {
     url: 'https://dash.cloudflare.com/?to=/:account/turnstile',
     steps: [
@@ -439,7 +452,7 @@ const guides = {
     ],
     cost: 'Free.',
   },
-} as const satisfies Record<string, ProviderGuide>
+} as const satisfies Record<string, ProviderGuide | ProviderGuideKeys>
 
 /**
  * The provider we suggest per category: a quiet "Recommended" tag on Server admin › Providers, and the guide the setup MCP
@@ -1013,6 +1026,16 @@ export const providers = {
     },
     help: 'A Slack app with the redirect URL below and the incoming-webhook scope. Businesses then connect their Slack under Integrations, pick a channel, and every finished phone call is posted there. Slack checks the client secret only when a business connects.',
   },
+  jobber: {
+    label: 'Jobber',
+    category: 'apps',
+    guide: guides.jobber,
+    fields: {
+      client_id: { labelKey: msg('admin.provider.field.clientId'), env: 'JOBBER_CLIENT_ID', secret: false },
+      client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'JOBBER_CLIENT_SECRET', secret: true },
+    },
+    helpKey: msg('admin.provider.help.jobber'),
+  },
   // Self-serve sign-up's bot check (Linedesk Cloud, docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
   // and the server checks its answer with the secret before a sign-up code goes out.
   turnstile: {
@@ -1030,6 +1053,23 @@ export const providers = {
 export type ProviderName = keyof typeof providers
 export const providerNames = Object.keys(providers) as [ProviderName, ...ProviderName[]]
 export const providerSpec = (name: ProviderName): ProviderSpec => providers[name]
+/** A provider's key guide in the reader's words (English for the setup MCP and the CLI). */
+export function providerGuide(name: ProviderName, words: Words = english): ProviderGuide {
+  const guide = providerSpec(name).guide
+  if (!('stepKeys' in guide)) return guide
+  return { url: guide.url, steps: guide.stepKeys.map(key => words.t(key)), cost: words.t(guide.costKey) }
+}
+/** The text on a provider's card, in the reader's words; null when it has none. */
+export function providerHelp(name: ProviderName, words: Words = english): string | null {
+  const spec = providerSpec(name)
+  return spec.helpKey ? words.t(spec.helpKey) : (spec.help ?? null)
+}
+/** A field's label in the reader's words (`field` is one of the provider's). */
+export function providerFieldLabel(name: ProviderName, field: string, words: Words = english): string {
+  const spec = providerSpec(name).fields[field]
+  if (!spec) return field
+  return 'labelKey' in spec ? words.t(spec.labelKey) : spec.label
+}
 export const providersIn = (category: ProviderCategory) =>
   providerNames.filter(name => providers[name].category === category)
 

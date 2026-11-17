@@ -268,6 +268,9 @@ describe('connecting HubSpot', () => {
       await expect(run(tx, impersonated, services, 'app.connectStart', { app: 'hubspot' })).rejects.toThrow(
         /another user/,
       )
+      await expect(run(tx, impersonated, services, 'app.disconnect', { app: 'hubspot' })).rejects.toThrow(
+        /another user/,
+      )
     })
   })
 

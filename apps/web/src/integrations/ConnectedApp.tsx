@@ -1,4 +1,4 @@
-// Integrations › HubSpot and Slack (connected apps, docs/crm-sync.md): connect the app with its consent page, see
+// Integrations › HubSpot, Slack and Jobber (connected apps, docs/crm-sync.md): connect the app with its consent page, see
 // which account (Slack: which channel in which workspace) it is and whether calls still go through, the last calls sent, and disconnect. The connection is a
 // synced row (app_connections); connecting is an OAuth round trip, so the page names the table to read again on
 // return (refreshOnReturn), and the callback's result comes back in the hash (`?app=connected` or `?app=error`).
@@ -36,7 +36,7 @@ type Props = {
 
 const pushesKey = (app: ConnectableApp) => `app.pushes.${app}`
 
-/** The texts that differ per app: HubSpot is a CRM (contacts), Slack posts to a channel. */
+/** The texts that differ per app: HubSpot is a CRM (contacts), Slack posts to a channel, Jobber has clients. */
 type AppText = { help: MessageKey; notConnected: MessageKey; disconnectConfirmTip: MessageKey; scope: MessageKey }
 const APP_TEXT: Record<ConnectableApp, AppText> = {
   hubspot: {
@@ -50,6 +50,12 @@ const APP_TEXT: Record<ConnectableApp, AppText> = {
     notConnected: msg('settings.integrations.app.slack.notConnected'),
     disconnectConfirmTip: msg('settings.integrations.app.slack.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.slack.scope'),
+  },
+  jobber: {
+    help: msg('settings.integrations.app.jobber.help'),
+    notConnected: msg('settings.integrations.app.jobber.notConnected'),
+    disconnectConfirmTip: msg('settings.integrations.app.jobber.disconnectConfirmTip'),
+    scope: msg('settings.integrations.app.jobber.scope'),
   },
 }
 
@@ -170,7 +176,7 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
 
   const sub = attention
     ? connection.error_code
-      ? t(appPushErrorKey(connection.error_code), { name })
+      ? t(appPushErrorKey(connection.error_code, app), { name })
       : t('settings.integrations.app.attentionFallback', { name })
     : connection.last_push_at
       ? t('settings.integrations.app.lastSent', {
@@ -261,13 +267,33 @@ const SETTING_TEXT: Record<AppSettingId, { title: MessageKey; help: MessageKey; 
   },
 }
 
-/** A switch whose words differ per app: Slack posts the call to a channel instead of logging it on a contact. */
+/**
+ * A switch whose words differ per app: Slack posts the call to a channel instead of logging it on a contact; Jobber
+ * adds it as a note on the client.
+ */
 const APP_SETTING_TEXT: Partial<Record<ConnectableApp, Partial<typeof SETTING_TEXT>>> = {
   slack: {
     log_calls: {
       title: msg('settings.integrations.app.settings.postCalls'),
       help: msg('settings.integrations.app.settings.postCallsHelp'),
       tip: msg('settings.integrations.app.settings.postCallsTip'),
+    },
+  },
+  jobber: {
+    log_calls: {
+      title: msg('settings.integrations.app.jobber.settings.logCalls'),
+      help: msg('settings.integrations.app.jobber.settings.logCallsHelp'),
+      tip: msg('settings.integrations.app.settings.logCallsTip'),
+    },
+    create_contacts: {
+      title: msg('settings.integrations.app.jobber.settings.createContacts'),
+      help: msg('settings.integrations.app.jobber.settings.createContactsHelp'),
+      tip: msg('settings.integrations.app.settings.createContactsTip'),
+    },
+    fill_fields: {
+      title: msg('settings.integrations.app.jobber.settings.fillFields'),
+      help: msg('settings.integrations.app.jobber.settings.fillFieldsHelp'),
+      tip: msg('settings.integrations.app.jobber.settings.fillFieldsTip'),
     },
   },
 }
@@ -372,7 +398,7 @@ function Pushes({ app }: { app: ConnectableApp }) {
                     p.status !== 'done' && p.error
                       ? t('settings.integrations.app.pushes.withError', {
                           when,
-                          error: t(appPushErrorKey(p.error), { name: t(nameKey(app)) }),
+                          error: t(appPushErrorKey(p.error, app), { name: t(nameKey(app)) }),
                         })
                       : when
                   }

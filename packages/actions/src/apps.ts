@@ -6,7 +6,7 @@ import { defineAction } from './define.ts'
  * Connected apps (docs/crm-sync.md): business tools a workspace connects by OAuth, so every finished
  * phone call goes to them. Same list as APP_IDS in @linedesk/connectors (the API checks they match).
  */
-export const connectableApps = ['hubspot', 'slack'] as const
+export const connectableApps = ['hubspot', 'slack', 'jobber'] as const
 export type ConnectableApp = (typeof connectableApps)[number]
 const app = z.enum(connectableApps)
 
@@ -34,7 +34,7 @@ export const isAppConnectError = (value: unknown): value is AppConnectError =>
 export const appConnectStart = defineAction({
   name: 'app.connectStart',
   description:
-    "Start connecting an app (HubSpot, Slack) to the workspace. Returns the URL of the app's consent page; Slack's lets the member pick the channel calls are posted to.",
+    "Start connecting an app (HubSpot, Slack, Jobber) to the workspace. Returns the URL of the app's consent page; Slack's lets the member pick the channel calls are posted to.",
   input: z.object({ app }),
   permission: 'settings:write',
 })
@@ -63,6 +63,7 @@ export type AppDisconnectData = { revoked: boolean }
 
 /**
  * What Linedesk does in a connected app: switches a member turns on or off per connection (Integrations › HubSpot).
+ * For Jobber a contact is a client, and a call is logged as a note on it.
  * On by default (except those in OFF_BY_DEFAULT), so a connection behaves as before they existed; a connection stores
  * only those changed.
  * - log_calls: every finished phone call goes to the app (Slack: is posted to the channel). Off: no call is sent
@@ -81,6 +82,7 @@ export type AppSettingId = (typeof appSettingIds)[number]
 export const APP_SETTINGS: Record<ConnectableApp, readonly AppSettingId[]> = {
   hubspot: ['log_calls', 'create_contacts', 'fill_fields'],
   slack: ['log_calls', 'only_urgent'],
+  jobber: ['log_calls', 'create_contacts', 'fill_fields'],
 }
 
 /** Switches that are off until a member turns them on. */

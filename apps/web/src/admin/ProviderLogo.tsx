@@ -178,6 +178,12 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.slack'),
     keysUrl: 'https://api.slack.com/apps',
   },
+  // Simple Icons has no Jobber mark (logos.ts): a neutral icon, like the monogram on Integrations.
+  jobber: {
+    mark: { icon: 'users' },
+    blurb: msg('admin.provider.blurb.jobber'),
+    keysUrl: 'https://developer.getjobber.com/',
+  },
   github: {
     mark: { brand: 'github' },
     blurb: msg('admin.provider.blurb.github'),
@@ -197,7 +203,8 @@ export function redirectUris(provider: ProviderName, origin: string): string[] {
   // Calendly allows exactly one redirect URI per app: the calendar one.
   if (provider === 'calendly' || provider === 'calcom') return [`${origin}/v1/calendar/callback/${provider}`]
   if (provider === 'oidc') return [`${origin}/api/auth/oauth2/callback/oidc`]
-  if (provider === 'hubspot' || provider === 'slack') return [`${origin}/v1/apps/callback/${provider}`]
+  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber')
+    return [`${origin}/v1/apps/callback/${provider}`]
   return []
 }
 

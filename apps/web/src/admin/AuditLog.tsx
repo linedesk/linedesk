@@ -383,6 +383,7 @@ const calendarNames: Record<string, string> = { google: 'Google', microsoft: 'Mi
 const appNameKeys: Record<string, MessageKey> = {
   hubspot: msg('settings.integrations.card.hubspot.name'),
   slack: msg('settings.integrations.card.slack.name'),
+  jobber: msg('settings.integrations.card.jobber.name'),
 }
 const appName = (app: unknown) => {
   const key = appNameKeys[String(app)]

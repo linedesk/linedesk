@@ -11,9 +11,11 @@ import {
   type ProviderName,
   type ProviderTestData,
   providerDefaultVoices,
+  providerFieldLabel,
   providerSpec,
   type RecordingStoreName,
 } from '@linedesk/actions'
+import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
 import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
 import { smtpCheck } from './email.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
@@ -483,6 +485,33 @@ const slack: Check = async (values, http) => {
   )
 }
 
+// Jobber has no app token and no introspection, but its token endpoint checks the client ID and secret before the
+// grant: a made-up refresh token from an unknown client or with a wrong secret gets HTTP 401 "The provided client id
+// and secret do not match an existing application" (checked live 2026-11-17). Any other refusal of the made-up token
+// comes from past that check. Free, nothing is changed at Jobber (the token does not exist).
+const JOBBER_TOKEN_URL = `${JOBBER_API}/api/oauth/token`
+
+const jobber: Check = async (values, http) => {
+  const res = await http.send(JOBBER_TOKEN_URL, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: 'linedesk-connection-test',
+      client_id: values.client_id!.trim(),
+      client_secret: values.client_secret!.trim(),
+    }),
+  })
+  const body = await res.text().catch(() => '')
+  const { label } = providerSpec('jobber')
+  if (JOBBER_CLIENT_REFUSED.test(body)) return error('auth', `${label} ${OAUTH_CLIENT_REJECTED}`)
+  if (res.status === 429 || res.status >= 500) return error('network', `${label} answered HTTP ${res.status}`)
+  // Past the client check: Jobber refused only the made-up refresh token.
+  if (res.status === 400 || res.status === 401) return ok()
+  // Any other answer proves nothing about the client ID and secret: a wrong one shows at the first connect.
+  return warning('unknown', `${label} answered HTTP ${res.status}`)
+}
+
 type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService | 'stripe'>
 /** How to test each provider of the registry (packages/actions/src/admin.ts) that answers over HTTP. */
 const checks: Record<HttpProvider, Check> = {
@@ -502,6 +531,7 @@ const checks: Record<HttpProvider, Check> = {
   cartesia,
   google_places: googlePlaces,
   slack,
+  jobber,
   openai_transcript: openaiTranscript,
   deepgram_transcript: deepgram,
   assemblyai,
@@ -852,7 +882,8 @@ export async function testProvider(
     Object.entries(config).flatMap(([field, entry]) => (entry ? [[field, entry.value]] : [])),
   )
   const missing = missingFields(provider, config)
-  if (missing.length) return error('config', `Not set: ${missing.map(field => fields[field]!.label).join(', ')}`)
+  if (missing.length)
+    return error('config', `Not set: ${missing.map(field => providerFieldLabel(provider, field)).join(', ')}`)
   if (isRecordingStore(provider)) return testRecordingStore(provider, values, doFetch, env)
   if (provider === 'smtp') return testSmtp(values.url!, values.from)
   if (isMailService(provider)) {

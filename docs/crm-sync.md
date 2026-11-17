@@ -61,6 +61,19 @@ Slack is a connected app on the same base, but not a CRM: every finished phone c
 - Switches: `log_calls` ("Post every call", on) and `only_urgent` ("Only urgent calls", off by default, `OFF_BY_DEFAULT`). Only urgent is checked when the push is sent, after the summary set the urgency; a call not sent ends `skipped`/`not_urgent`.
 - Disconnect: deletes the tokens and the webhook, then `apps.uninstall` with the bot token after the commit, best effort.
 
+## Jobber (LIN-304)
+
+Jobber is a CRM on the same base as HubSpot: every finished phone call finds or adds the caller's Jobber client and adds the call as a note on it.
+
+- Server admin › Providers › Jobber (apps group): client ID and secret (secret encrypted, sensitive), a key guide, and `integrations/jobber/README.md` for the app in Jobber's Developer Center (scopes Clients read and write, refresh token rotation on). Redirect URL: `<origin>/v1/apps/callback/jobber`. Linedesk talks only to `api.getjobber.com`.
+- The provider test is free: a refresh with a made-up token. Jobber answers a wrong client ID or secret with HTTP 401 "The provided client id and secret do not match an existing application" (checked live, 2026-11-17), so a wrong pair fails. A known client gets 400 or 401 for the made-up token and passes; any other answer is a warning.
+- Connect: OAuth 2 authorization code; Jobber sets the scopes on the app, not in the consent URL. No PKCE (optional at Jobber; the code exchange is server-side with the secret, the `state` single use and bound to the member). Access tokens are JWTs that last 60 minutes; with rotation on, every refresh returns a new refresh token, which is stored in place of the old one (`app_credentials`, encrypted, slot `app.<id>.jobber.refresh`). The token answer names no scopes, so the scope check runs only if Jobber ever reports them; a missing scope then shows on the first push as `auth`. The connection's account is Jobber's `account { id name }`.
+- One Jobber account, one app connection (`grantPerAccount`): `appDisconnect` removes the app from the whole account, so disconnecting or connecting another account never runs it while another Linedesk connection uses that account.
+- GraphQL at `/api/graphql` with `X-JOBBER-GRAPHQL-VERSION` (`2026-09-25`). Find: `clients(searchTerm:)` with the national digits, the national form and E.164 in turn (Jobber keeps numbers as typed and its search is fuzzy), a hit counts only if one of its numbers has the caller's national number; then the email, matched exactly. Create: `clientCreate` with name, company, phone and email; a caller with no name gets the number as first name (Jobber needs a name), which counts as empty, so a later call fills it. Fill: `clientEdit` with only the empty fields (`phonesToAdd`, `emailsToAdd`). Log: `clientCreateNote` with plain text: the title (and "Urgent"), the summary, the next steps and a link to the call; words from `email.json` (`appPush.*`).
+- Errors: HTTP 401 after one refresh, 403, an access or scope error, and a refused refresh (`invalid_grant`) are `auth` (Needs attention). Throttling (`THROTTLED` with HTTP 200, or HTTP 429) is `rate_limited`, retried after the wait Jobber's cost bucket needs (or `Retry-After`). 5xx and network are `unavailable`. `userErrors` and other GraphQL errors are `invalid`; a linked client that is gone is searched for again and the new one linked.
+- Switches: the HubSpot three, worded for clients: `log_calls` ("Add every call as a note on the client"), `create_contacts` ("Add new callers as clients"), `fill_fields`, all on.
+- Risk of rotation: if Jobber rotates the refresh token but saving the new one fails, the stored token no longer works and the connection needs to be connected again (Needs attention says so).
+
 ## Open questions
 
 - Is HubSpot really first for US trades, or Jobber / Housecall Pro? Ask the first ten customers before building.
