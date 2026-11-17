@@ -3,7 +3,7 @@
   "type": "app",
   "config": {
     "name": "Linedesk",
-    "description": "Linedesk answers your business phone. After each call it finds or creates the caller's contact and logs the call with its summary.",
+    "description": "Linedesk is an AI assistant that answers your business phone. After every call, it finds or creates the caller's HubSpot contact and logs the call on that contact with a summary, next steps, duration and a link to the call.",
     "logo": "/app/app-logo.png",
     "distribution": "marketplace",
     "auth": {
@@ -12,15 +12,24 @@
         "https://staging.example.com/v1/apps/callback/hubspot",
         "https://app.linedesk.ai/v1/apps/callback/hubspot"
       ],
-      "requiredScopes": ["oauth", "crm.objects.contacts.read", "crm.objects.contacts.write"],
+      "requiredScopes": [
+        "oauth",
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write"
+      ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []
     },
-    "permittedUrls": { "fetch": [], "iframe": [], "img": [] },
+    "permittedUrls": {
+      "fetch": [],
+      "iframe": [],
+      "img": []
+    },
     "support": {
       "supportEmail": "support@linedesk.ai",
-      "documentationUrl": "https://linedesk.ai",
-      "supportUrl": "https://linedesk.ai"
-    }
+      "documentationUrl": "https://linedesk.ai/contact",
+      "supportUrl": "https://linedesk.ai/contact"
+    },
+    "isUserLevel": false
   }
 }

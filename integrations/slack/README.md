@@ -10,7 +10,8 @@ when a business connects, Slack asks which channel to post to, and Linedesk post
   the icon).
 - Client ID and secret: Basic Information › App Credentials. They go into Server admin › Providers › Slack (never
   into this repo). Slack checks the secret only when a business connects; the provider test checks the client ID.
-- Workspaces other than the app's own: Manage Distribution › Activate Public Distribution.
+- Workspaces other than the app's own: Manage Distribution › Activate Public Distribution. Full setup for production and the
+  Slack Marketplace: [PUBLISHING.md](PUBLISHING.md).
 - Keep token rotation off: the bot token then does not run out, and Linedesk stores it only to uninstall the app on
   disconnect.
 - A new install origin needs its redirect URL `<origin>/v1/apps/callback/slack` in `oauth_config.redirect_urls`.

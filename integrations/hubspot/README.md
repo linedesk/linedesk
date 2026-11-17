@@ -9,3 +9,4 @@ project uploaded with the HubSpot CLI; this folder is that project.
 - Client ID and secret: HubSpot › Development › Projects › linedesk › Linedesk › Auth. They go into Server admin ›
   Providers (never into this repo).
 - A new install origin needs its redirect URL `<origin>/v1/apps/callback/hubspot` in `redirectUrls`.
+- Publishing: see `PUBLISHING.md` (create the production app, Marketplace listing draft, review checklist, gaps).
