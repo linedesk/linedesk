@@ -12,6 +12,7 @@
   "autoSummary.missed.billing.no_balance": "Ninguém atendeu esta chamada: o saldo pré-pago acabou. Retorne a ligação.",
   "autoSummary.missed.billing.number_unpaid": "Ninguém atendeu esta chamada: o mês atual do número pelo qual ela chegou não está pago. Retorne a ligação.",
   "autoSummary.missed.billing.too_many_calls": "Ninguém atendeu esta chamada: a fatura já tinha tantas chamadas simultâneas em andamento quanto permite. Retorne a ligação.",
+  "autoSummary.missed.billing.usage_limit": "Ninguém atendeu esta chamada: o espaço de trabalho atingiu o limite de uso mensal. Retorne a ligação para quem ligou.",
   "autoSummary.missed.busy": "Ninguém atendeu esta chamada: havia {count} outras chamadas em andamento. Retorne a ligação.",
   "autoSummary.missed.callBack": "Retornar ligação",
   "autoSummary.missed.notReady": "Ninguém atendeu esta chamada: o assistente ainda não estava atendendo chamadas. Retorne a ligação.",

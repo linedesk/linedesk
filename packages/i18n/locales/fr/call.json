@@ -12,6 +12,7 @@
   "autoSummary.missed.billing.no_balance": "Personne n'a pris cet appel : le solde prépayé est épuisé. Rappelez l'appelant.",
   "autoSummary.missed.billing.number_unpaid": "Personne n'a pris cet appel : le mois en cours du numéro sur lequel il est arrivé n'est pas payé. Rappelez l'appelant.",
   "autoSummary.missed.billing.too_many_calls": "Personne n'a pris cet appel : la facture avait déjà autant d'appels simultanés en cours qu'elle en autorise. Rappelez l'appelant.",
+  "autoSummary.missed.billing.usage_limit": "Personne n'a répondu à cet appel : l'espace de travail a atteint sa limite d'utilisation mensuelle. Rappelez l'appelant.",
   "autoSummary.missed.busy": "Personne n'a pris cet appel : {count} autres appels étaient en cours. Rappelez l'appelant.",
   "autoSummary.missed.callBack": "Rappeler",
   "autoSummary.missed.notReady": "Personne n'a pris cet appel : l'assistant ne prenait pas encore d'appels. Rappelez l'appelant.",

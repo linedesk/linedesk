@@ -284,6 +284,7 @@
   "workspaceMenu.invitationsTip": "{workspace} : {count, plural, one {une invitation} many {# invitations} other {# invitations}} à rejoindre",
   "workspaceMenu.label": "{workspace} et votre compte",
   "workspaceMenu.newWorkspace": "Nouvel espace de travail…",
+  "workspaceMenu.partner": "Partenaire : {partner}",
   "workspaceMenu.signedInAs": "Connecté en tant que {who}",
   "workspaceMenu.tip": "{workspace} : changer d'espace de travail, votre compte, se déconnecter",
   "workspaceMenu.yourAccount": "Votre compte"

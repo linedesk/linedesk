@@ -284,6 +284,7 @@
   "workspaceMenu.invitationsTip": "{workspace}：参加の招待が{count, plural, other {#件}}あります",
   "workspaceMenu.label": "{workspace}とアカウント",
   "workspaceMenu.newWorkspace": "新しいワークスペース…",
+  "workspaceMenu.partner": "パートナー：{partner}",
   "workspaceMenu.signedInAs": "{who}としてサインイン中",
   "workspaceMenu.tip": "{workspace}：ワークスペースの切り替え、アカウント、サインアウト",
   "workspaceMenu.yourAccount": "アカウント"
