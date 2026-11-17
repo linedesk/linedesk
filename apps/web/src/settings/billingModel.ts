@@ -203,6 +203,35 @@ export function refusalKey(code: string | undefined): MessageKey | null {
   }
 }
 
+/**
+ * Whether a failed call may still have done its work: no answer reached us (network) or the server failed (5xx). A
+ * refusal (4xx) is a definite answer, stored under its command id (security review of #1102, L-1).
+ */
+export const outcomeUnknown = (err: unknown) => {
+  const status = (err as { status?: number } | null)?.status
+  return status === undefined || status >= 500
+}
+
+/**
+ * One idempotency key per purchase with the saved card (security review of #1102, L-1): pressing "Charge" again after
+ * a lost answer or a server error sends the same command, so the server finds the purchase it may have made instead
+ * of charging again. A definite answer (paid, a refusal, Checkout) ends the purchase: the next press is a new one, as
+ * is another amount or card (`what`).
+ */
+export function purchaseKeys(newKey: () => string = () => crypto.randomUUID()) {
+  let held: { key: string; what: string } | null = null
+  return {
+    keyFor(what: string) {
+      if (held?.what !== what) held = { key: newKey(), what }
+      return held.key
+    },
+    /** After the call: `err` undefined for an answer; the key is kept only when the outcome is unknown. */
+    settle(err?: unknown) {
+      if (err === undefined || !outcomeUnknown(err)) held = null
+    },
+  }
+}
+
 /** Threshold and amount choices of auto-recharge (cents), within the server's limits and its $5 gap. */
 export const THRESHOLD_CHOICES = [500, 1000, 2000, 5000, 10_000] as const
 export const AMOUNT_CHOICES = [2000, 3000, 5000, 10_000, 20_000, 50_000] as const

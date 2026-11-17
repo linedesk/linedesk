@@ -20,12 +20,20 @@ export async function readAction<T>(name: string, input: object = {}): Promise<T
   return body.data as T
 }
 
-/** Runs an action directly and returns its whole result; the rejection's text comes back as the error. */
-async function runDirect(name: string, input: object): Promise<ActionResult> {
+/**
+ * Runs an action directly and returns its whole result; the rejection's text comes back as the error, with the HTTP
+ * `status` (none: no answer reached us). `idempotencyKey`: the command's id; a new one per call unless the caller
+ * sends the same command again after its answer was lost (Buy minutes: the server then finds the purchase it made).
+ */
+async function runDirect(
+  name: string,
+  input: object,
+  idempotencyKey: string = crypto.randomUUID(),
+): Promise<ActionResult> {
   const res = await fetch(`/v1/actions/${name}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { ...workspaceHeaders(), 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+    headers: { ...workspaceHeaders(), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
     body: JSON.stringify(input),
   }).catch(() => null)
   const body = (await res?.json().catch(() => null)) as
@@ -37,6 +45,7 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
   if (!res?.ok || !body?.ok)
     throw Object.assign(new Error((body && !body.ok && body.error) || i18n().t('errors.unreachable')), {
       code: body && !body.ok && 'code' in body ? body.code : undefined,
+      status: res?.status,
       authenticator: body && !body.ok && 'authenticator' in body ? body.authenticator === true : undefined,
     })
   return body
@@ -47,8 +56,12 @@ async function runDirect(name: string, input: object): Promise<ActionResult> {
  * (the calendar consent URL, the calendars of an account, a test send). Use useWriteAction for
  * actions that write synced rows.
  */
-export async function callAction<T>(name: string, input: object = {}): Promise<T> {
-  return (await runDirect(name, input)).data as T
+export async function callAction<T>(
+  name: string,
+  input: object = {},
+  options: { idempotencyKey?: string } = {},
+): Promise<T> {
+  return (await runDirect(name, input, options.idempotencyKey)).data as T
 }
 
 /**

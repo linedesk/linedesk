@@ -45,6 +45,7 @@ import {
   microsToDollars,
   paysCharges,
   planLine,
+  purchaseKeys,
   refusalKey,
   stateNote,
   statusBadge,
@@ -68,12 +69,15 @@ function errorMessage(err: unknown): string {
 }
 
 /** Runs a billing write; a passkey step-up refusal becomes StepUpRequired, so withPasskeyStepUp can ask for it. */
-async function write<T>(name: string, input: object = {}): Promise<T> {
+async function write<T>(name: string, input: object = {}, options: { idempotencyKey?: string } = {}): Promise<T> {
   try {
-    return await callAction<T>(name, input)
+    return await callAction<T>(name, input, options)
   } catch (err) {
     if ((err as { code?: string }).code === PASSKEY_STEP_UP_REQUIRED)
-      throw new StepUpRequired((err as Error).message, 'confirm')
+      // The status goes along: a refusal is a definite answer, so a purchase's next try gets a new command id.
+      throw Object.assign(new StepUpRequired((err as Error).message, 'confirm'), {
+        status: (err as { status?: number }).status,
+      })
     throw err
   }
 }
@@ -475,6 +479,8 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
   const [other, setOther] = useState('')
   const [busy, setBusy] = useState(false)
   const [card, setCard] = useState<{ id: string; brand: string | null; last4: string | null } | null>(null)
+  // The charge's command id, kept across presses while its outcome is unknown (never charged twice).
+  const [keys] = useState(() => purchaseKeys())
   const otherCents = dollarsToCents(other, TOPUP_CENTS.min, TOPUP_CENTS.max)
   const cents = picked === 'other' ? otherCents : picked
   const limits = {
@@ -496,7 +502,15 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
           ? await withPasskeyStepUp(async () => {
               // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
               if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
-              return write<TopUpData>('billing.startTopUp', input)
+              const idempotencyKey = keys.keyFor(`${cents}:${card.id}`)
+              try {
+                const answer = await write<TopUpData>('billing.startTopUp', input, { idempotencyKey })
+                keys.settle()
+                return answer
+              } catch (err) {
+                keys.settle(err)
+                throw err
+              }
             }, t('settings.billing.topUp.stepUpWhat'))
           : await write<TopUpData>('billing.startTopUp', input)
       if (done.kind === 'confirm') {

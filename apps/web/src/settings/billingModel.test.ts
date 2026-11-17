@@ -8,6 +8,8 @@ import {
   daysLeft,
   dollarsToCents,
   paysCharges,
+  outcomeUnknown,
+  purchaseKeys,
   refusalKey,
   statusBadge,
   usageLine,
@@ -183,4 +185,27 @@ test('cancel: a yearly plan paid in the last 14 days is refunded on request unti
   // Monthly plans and the trial (nothing was charged) say nothing about it.
   expect(yearlyRefundLine(bill({ interval: 'month' }), fmt, now)).toBeNull()
   expect(yearlyRefundLine(bill({ interval: 'year', status: 'trialing' }), fmt, now)).toBeNull()
+})
+
+test('Buy minutes keeps one command id per purchase while its outcome is unknown, never longer (review of #1102, L-1)', () => {
+  let n = 0
+  const keys = purchaseKeys(() => `key_${++n}`)
+  const first = keys.keyFor('2500:pm_1')
+  // No answer (network) or a server error: the next press sends the same command, so the server finds the purchase.
+  keys.settle(Object.assign(new Error('unreachable'), { status: undefined }))
+  expect(keys.keyFor('2500:pm_1')).toBe(first)
+  keys.settle(Object.assign(new Error('server error'), { status: 500 }))
+  expect(keys.keyFor('2500:pm_1')).toBe(first)
+  // Another amount or card is another purchase.
+  expect(keys.keyFor('1000:pm_1')).not.toBe(first)
+  // A definite answer ends it: paid, or a refusal (a step-up asked, a payment running).
+  const second = keys.keyFor('1000:pm_1')
+  keys.settle()
+  expect(keys.keyFor('1000:pm_1')).not.toBe(second)
+  const third = keys.keyFor('1000:pm_1')
+  keys.settle(Object.assign(new Error('refused'), { status: 409 }))
+  expect(keys.keyFor('1000:pm_1')).not.toBe(third)
+  expect(outcomeUnknown({ status: 403 })).toBe(false)
+  expect(outcomeUnknown({ status: 502 })).toBe(true)
+  expect(outcomeUnknown(new Error('no status'))).toBe(true)
 })
