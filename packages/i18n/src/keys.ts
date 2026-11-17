@@ -13,6 +13,7 @@ import errors from '../locales/en/errors.json' with { type: 'json' }
 import inbox from '../locales/en/inbox.json' with { type: 'json' }
 import insights from '../locales/en/insights.json' with { type: 'json' }
 import onboarding from '../locales/en/onboarding.json' with { type: 'json' }
+import server from '../locales/en/server.json' with { type: 'json' }
 import settings from '../locales/en/settings.json' with { type: 'json' }
 import shell from '../locales/en/shell.json' with { type: 'json' }
 import team from '../locales/en/team.json' with { type: 'json' }
@@ -32,6 +33,7 @@ export type MessageKey =
   | Keys<'inbox', typeof inbox>
   | Keys<'insights', typeof insights>
   | Keys<'onboarding', typeof onboarding>
+  | Keys<'server', typeof server>
   | Keys<'settings', typeof settings>
   | Keys<'shell', typeof shell>
   | Keys<'team', typeof team>
@@ -49,6 +51,7 @@ export const EN_CATALOGS: Record<string, Record<string, string>> = {
   inbox,
   insights,
   onboarding,
+  server,
   settings,
   shell,
   team,

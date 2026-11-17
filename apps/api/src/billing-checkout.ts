@@ -42,7 +42,17 @@ import { db } from './db.ts'
 import { checkoutExtraAlert, checkoutRefusedAlert, checkoutSetupAlert } from './emails/billing-alerts.ts'
 import { WEB_ORIGIN } from './emails/templates.ts'
 import { queueBillingAlert } from './jobs.ts'
-import { Forbidden, type Handler, NotFound, type Preparer, Reject } from './handler-context.ts'
+import {
+  Forbidden,
+  type Handler,
+  NotFound,
+  type Preparer,
+  Reject,
+  type Reader,
+  type Said,
+  wordsOf,
+} from './handler-context.ts'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import { signupRules } from './self-serve.ts'
@@ -59,18 +69,17 @@ const checkoutExpiresAt = () => Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES
 /** "Buy minutes": the amounts the server allows, in cents before tax (docs/billing.md §2.2, L5). */
 export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
-/** What Checkout shows above its button. Stripe shows it as written (English, like the rest of our Stripe texts). */
-export const CHECKOUT_TEXT = {
-  trial: `Your ${TRIAL_DAYS}-day free trial starts today. Cancel before it ends and you pay nothing. After the trial your plan renews, and your call balance is recharged automatically when it runs low.`,
-  plan: 'Your plan starts today. Your call balance is recharged automatically when it runs low.',
-  topup: 'Prepaid call minutes for your Linedesk balance.',
-} as const
+/** What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it. */
+export function checkoutText(kind: 'trial' | 'plan' | 'topup', reader: Reader): string {
+  if (kind === 'trial') return reader.t('server.api.checkout.text.trial', { days: TRIAL_DAYS })
+  return kind === 'plan' ? reader.t('server.api.checkout.text.plan') : reader.t('server.api.checkout.text.topup')
+}
 
-export const BILLING_OFF = 'Billing is not on for this server.'
-export const NOT_THE_OWNER = 'Only the owner of the bill can do this.'
-export const CHECKOUT_UNAVAILABLE = 'Checkout is not available right now. The server admins were told; try again later.'
+export const BILLING_OFF: Said = { key: msg('server.api.checkout.billingOff') }
+export const NOT_THE_OWNER: Said = { key: msg('server.api.checkout.notTheOwner') }
+export const CHECKOUT_UNAVAILABLE: Said = { key: msg('server.api.checkout.unavailable') }
 /** A session that is not the caller's, or not known: the same answer (no probing other bills' sessions). */
-export const NO_SUCH_CHECKOUT = 'checkout session not found'
+export const NO_SUCH_CHECKOUT: Said = { key: msg('server.api.checkout.notFound') }
 
 type Bill = typeof billing_accounts.$inferSelect
 
@@ -80,15 +89,15 @@ type Bill = typeof billing_accounts.$inferSelect
 async function ownBill(tx: Tx, actor: Actor, { lock = false } = {}): Promise<Bill> {
   refuseBillingActor(actor)
   if ((await billingState(tx)).inEffect !== 'stripe') throw new Reject(BILLING_OFF)
-  if (!actor.workspaceId) throw new Reject('no workspace')
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   const [org] = await tx
     .select({ bill: organization.billingAccountId })
     .from(organization)
     .where(eq(organization.id, actor.workspaceId))
-  if (!org?.bill) throw new Reject('this workspace is not on a bill')
+  if (!org?.bill) throw Reject.t('server.api.checkout.noBill')
   if (lock) await lockBalance(tx, org.bill)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, org.bill))
-  if (!bill) throw new Reject('this workspace is not on a bill')
+  if (!bill) throw Reject.t('server.api.checkout.noBill')
   if (bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_THE_OWNER)
   return bill
 }
@@ -96,7 +105,7 @@ async function ownBill(tx: Tx, actor: Actor, { lock = false } = {}): Promise<Bil
 /** The plan's Stripe prices for a bill (docs/billing.md §2.1): a seat per workspace, at the bill's interval. */
 async function planItems(tx: Tx, bill: Bill) {
   // The partner plan is not open yet (LIN-322): its sign-up says "not yet", and Checkout refuses it too.
-  if (bill.kind !== 'cloud') throw new Reject('The partner plan is not available yet.')
+  if (bill.kind !== 'cloud') throw Reject.t('server.api.checkout.partnerNotYet')
   const [row] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(organization)
@@ -136,7 +145,7 @@ async function customerOf(provider: BillingProvider, bill: Bill) {
     .select({ email: user.email, name: user.name })
     .from(user)
     .where(eq(user.id, bill.owner_user_id))
-  if (!owner) throw new Reject('the owner of this bill has no account')
+  if (!owner) throw Reject.t('server.api.checkout.ownerNoAccount')
   const [org] = await db
     .select({ name: organization.name })
     .from(organization)
@@ -161,7 +170,7 @@ type Started = { url: string; sessionId: string; customerId: string; billId: str
  */
 const prepareStartCheckout: Preparer = async ({ actor, now }) => {
   const bill = await db.transaction(tx => ownBill(tx, actor))
-  if (bill.status !== 'pending_payment') throw new Reject('This bill has finished Checkout.')
+  if (bill.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
   const items = await db.transaction(tx => planItems(tx, bill))
   const provider = await billingProvider(db)
   const configuration = await cardOnlyConfiguration(provider)
@@ -178,7 +187,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }) => {
       paymentMethodConfiguration: configuration,
       items,
       ...(trial ? { trialDays: TRIAL_DAYS } : {}),
-      submitText: trial ? CHECKOUT_TEXT.trial : CHECKOUT_TEXT.plan,
+      submitText: checkoutText(trial ? 'trial' : 'plan', wordsOf(actor)),
       successUrl: returnUrl(),
       cancelUrl: cancelUrl(),
       // A double click within a second makes one session; a later start makes a new one (the open one was expired).
@@ -324,7 +333,7 @@ export async function confirmSession(
   )
     throw new NotFound(NO_SUCH_CHECKOUT)
   if (session.mode === 'payment') return creditTopUp(tx, bill, session, now)
-  if (session.status !== 'complete') throw new Reject('Checkout is not finished yet.')
+  if (session.status !== 'complete') throw Reject.t('server.api.checkout.notFinished')
   const sub = session.subscription
   // The session's own subscription, when Stripe made one for this bill's customer and it still runs.
   const own = sub && sub.customerId === bill.stripe_customer_id && RUNNING.includes(sub.status) ? sub : null
@@ -336,22 +345,22 @@ export async function confirmSession(
     return bill.status === 'trialing' || bill.status === 'active'
       ? { status: bill.status, heldForReview: !!bill.held_for_review_at }
       : (() => {
-          throw new Reject('This bill is not waiting for Checkout.')
+          throw Reject.t('server.api.checkout.notWaiting')
         })()
   }
   // A refusal after Stripe made a subscription ends that subscription at once, so it never converts and charges
   // (security review of #961, G5); the webhook's refusal tells the admins (checkoutCompleted).
-  const refuse = async (message: string): Promise<never> => {
+  const refuse = async (key: MessageKey): Promise<never> => {
     if (own) await provider.cancelSubscription(own.id, { now: true })
-    throw new Reject(message)
+    throw Reject.t(key)
   }
   if (!sub || sub.customerId !== bill.stripe_customer_id || !isLinedeskPlan(sub))
-    return refuse('This Checkout has no Linedesk plan.')
+    return refuse(msg('server.api.checkout.noPlan'))
   // A bill never changes its subscription here: one linked since (by invoice.paid) must be this one.
   if (bill.stripe_subscription_id && bill.stripe_subscription_id !== sub.id)
-    return refuse('This bill has another subscription. Ask the server admins.')
+    return refuse(msg('server.api.checkout.otherSubscription'))
   const fingerprint = session.card?.fingerprint
-  if (!fingerprint) return refuse('Checkout saved no card.')
+  if (!fingerprint) return refuse(msg('server.api.checkout.noCard'))
 
   if (sub.status === 'trialing') {
     // The checks run on every confirmation while the bill is pending_payment, whoever linked the subscription (M1).
@@ -367,7 +376,7 @@ export async function confirmSession(
         .where(eq(billing_accounts.id, bill.id))
       return { status: 'trial_refused', reason: refusal }
     }
-    if (!sub.trialEnd) return refuse('This trial has no end date.')
+    if (!sub.trialEnd) return refuse(msg('server.api.checkout.trialNoEnd'))
     await tx
       .update(billing_accounts)
       .set({
@@ -389,7 +398,7 @@ export async function confirmSession(
     return { status: 'trialing', heldForReview: false }
   }
 
-  if (sub.status !== 'active') throw new Reject('This Checkout is not paid yet.')
+  if (sub.status !== 'active') throw Reject.t('server.api.checkout.notPaid')
   // A plan paid now (after a refused trial): no trial is used, the card is remembered. Radar's risk level of the charge
   // holds number purchase for review (§3.2 step 5).
   await rememberCard(tx, fingerprint, bill.id)
@@ -428,14 +437,14 @@ async function creditTopUp(tx: Tx, bill: Bill, session: CheckoutSession, now: st
   if (session.kind !== 'topup') throw new NotFound(NO_SUCH_CHECKOUT)
   const cents = session.amountSubtotalCents ?? 0
   if (session.status !== 'complete' || session.paymentStatus !== 'paid' || !session.charged)
-    throw new Reject('This payment is not finished yet.')
+    throw Reject.t('server.api.checkout.paymentNotFinished')
   if (session.currency !== 'usd' || cents < TOPUP_LIMITS.minCents || cents > TOPUP_LIMITS.maxCents)
-    throw new Reject('This payment cannot be credited. Ask the server admins.')
+    throw Reject.t('server.api.checkout.paymentNotCredited')
   await requireLedgerGuards(tx)
   // The period that contains now, else the bill's latest (as recharges are credited): a top-up after the trial's
   // period ended, before the next one is opened, is still credited (security review of #961, G3).
   const period = await periodForMoney(tx, bill.id, now)
-  if (!period) throw new Reject('This bill has no billing period yet.')
+  if (!period) throw Reject.t('server.api.checkout.noPeriod')
   const { posted } = await postEntry(tx, {
     billing_account_id: bill.id,
     period_id: period.id,
@@ -464,11 +473,14 @@ const BUYS_MINUTES: readonly Bill['status'][] = ['trialing', 'active', 'past_due
 
 const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: number }) => {
   const bill = await db.transaction(tx => ownBill(tx, actor))
-  if (!BUYS_MINUTES.includes(bill.status)) throw new Reject('Minutes can be bought once the plan has started.')
-  if (!bill.stripe_customer_id) throw new Reject('This bill has no Stripe customer yet.')
+  if (!BUYS_MINUTES.includes(bill.status)) throw Reject.t('server.api.checkout.minutesAfterStart')
+  if (!bill.stripe_customer_id) throw Reject.t('server.api.checkout.noCustomer')
   // Built on the server only (L5): the amount is checked here, and Stripe gets our product and this amount.
   if (input.amountCents < TOPUP_LIMITS.minCents || input.amountCents > TOPUP_LIMITS.maxCents)
-    throw new Reject('Buy between $5 and $500 at a time.')
+    throw Reject.t('server.api.checkout.topupRange', {
+      min: reader => reader.format.currency(TOPUP_LIMITS.minCents / 100, 'USD'),
+      max: reader => reader.format.currency(TOPUP_LIMITS.maxCents / 100, 'USD'),
+    })
   const provider = await billingProvider(db)
   const configuration = await cardOnlyConfiguration(provider)
   const started = await provider
@@ -478,7 +490,7 @@ const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: numb
       customerId: bill.stripe_customer_id,
       paymentMethodConfiguration: configuration,
       amountCents: input.amountCents,
-      submitText: CHECKOUT_TEXT.topup,
+      submitText: checkoutText('topup', wordsOf(actor)),
       successUrl: returnUrl(),
       cancelUrl: cancelUrl(),
       idempotencyKey: `${bill.id}:topup:${input.amountCents}:${now.slice(0, 19)}`,
@@ -494,12 +506,12 @@ const prepareCancel =
   async ({ actor }) => {
     const bill = await db.transaction(tx => ownBill(tx, actor))
     if (!bill.stripe_subscription_id || !['trialing', 'active', 'past_due'].includes(bill.status))
-      throw new Reject('This bill has no running plan.')
+      throw Reject.t('server.api.checkout.noRunningPlan')
     const provider = await billingProvider(db)
     const sub = resume
       ? await provider.resumeSubscription(bill.stripe_subscription_id)
       : await provider.cancelSubscription(bill.stripe_subscription_id, { now: false })
-    if (!sub) throw new Reject('Stripe no longer has this plan. Ask the server admins.')
+    if (!sub) throw Reject.t('server.api.checkout.planGone')
     return { billId: bill.id, cancelAtPeriodEnd: sub.cancelAtPeriodEnd, endsAt: sub.trialEnd ?? sub.currentPeriodEnd }
   }
 
@@ -551,19 +563,18 @@ export const checkoutHandlers: Record<string, Handler> = {
 /** Bill states in which a number may be bought (§3.2 step 6). */
 const BUYS_NUMBERS: readonly Bill['status'][] = ['trialing', 'active']
 
-export const NUMBER_NEEDS_CHECKOUT = 'Finish Checkout first: then you can get your number.'
-export const NUMBER_HELD_FOR_REVIEW =
-  'Getting a number is on hold while we check your card. We will email you; this usually takes less than a day.'
-export const TRIAL_NUMBER_LIMIT = 'Your trial includes one number. You can add more once your plan has started.'
-export const NUMBER_BILL_INACTIVE = 'Your plan is not active. Pay the open invoice to get numbers again.'
-export const NUMBER_OWNER_ONLY = 'Only the owner of the bill can add a number that costs extra.'
+export const NUMBER_NEEDS_CHECKOUT: Said = { key: msg('server.api.checkout.number.needsCheckout') }
+export const NUMBER_HELD_FOR_REVIEW: Said = { key: msg('server.api.checkout.number.heldForReview') }
+export const TRIAL_NUMBER_LIMIT: Said = { key: msg('server.api.checkout.number.trialLimit') }
+export const NUMBER_BILL_INACTIVE: Said = { key: msg('server.api.checkout.number.billInactive') }
+export const NUMBER_OWNER_ONLY: Said = { key: msg('server.api.checkout.number.ownerOnly') }
 
 /**
  * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
  * purchase limits. Only for workspaces on a bill while billing runs through Stripe; a number on the workspace's own
  * carrier account is not limited by billing. Instance admins buy regardless (they provision by hand).
  */
-export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: string): Promise<string | null> {
+export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: string): Promise<Said | null> {
   if (actor.permissions.includes('instance:admin')) return null
   const [org] = await tx
     .select({ bill: organization.billingAccountId })
@@ -598,7 +609,10 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
   const rules = await billingRules(tx)
   const balance = await lockBalance(tx, bill.id)
   if (balance.balance_micros - balance.reserved_micros < rules.extraNumberCents * 10_000)
-    return `An extra number costs $${(rules.extraNumberCents / 100).toFixed(2)} a month from your balance. Buy minutes first.`
+    return {
+      key: msg('server.api.checkout.number.extraCost'),
+      params: { amount: reader => reader.format.currency(rules.extraNumberCents / 100, 'USD') },
+    }
   return null
 }
 

@@ -13,6 +13,7 @@ import {
   claimForwardingCheck,
   clearLineLookups,
   DEV_CHECK_NUMBER,
+  detailText,
   type DialOutcome,
   devDialer,
   failureStatus,
@@ -80,8 +81,11 @@ const ownCaller = () => checkable('206')
 const arrive = (from: string, to: string) =>
   db.transaction(tx => claimForwardingCheck(tx, { from, to, now: new Date().toISOString() }))
 
-const checkRow = async (id: string) =>
-  (await db.select().from(forwarding_checks).where(eq(forwarding_checks.id, id)))[0]!
+/** A check's row, its detail as the business reads it in English (stored as a key: detailText). */
+const checkRow = async (id: string) => {
+  const row = (await db.select().from(forwarding_checks).where(eq(forwarding_checks.id, id)))[0]!
+  return { ...row, detail: detailText(row.detail) }
+}
 const events = async (workspaceId: string) =>
   (await db.select().from(setup_events).where(eq(setup_events.workspace_id, workspaceId))).map(e => e.event)
 const callsFrom = async (workspaceId: string, from: string) =>

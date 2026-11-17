@@ -19,6 +19,8 @@ import {
   FORWARDING_RING_SECONDS,
   forwardingGuideForCarrier,
   phoneCountry,
+  english,
+  FORWARDING_REFUSED,
   type ForwardingCheckView,
   isCheckableBusinessNumber,
   outboundNumberProblem,
@@ -48,7 +50,8 @@ import {
 import { and, count, desc, eq, gt, gte, isNull, or, sql } from 'drizzle-orm'
 import { CHECK_TRUNK_NAME } from './carrier-profile-names.ts'
 import { db } from './db.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { type Handler, type Reader, Reject, type Said, sayIn, wordsOf } from './handler-context.ts'
+import { enMessages, type MessageKey, msg } from '@linedesk/i18n'
 import { deleteLivekitRoom, findSipCallerRoom } from './livekit-status.ts'
 import { installTelephony, telephonyProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
@@ -99,7 +102,27 @@ const allowLookup = createRateLimiter({ max: LINE_LOOKUPS_PER_10_MIN, windowMs: 
 
 const FORWARDING_MODES = new Set(['forward_conditional', 'forward_all'])
 
-export function checkView(check: Check, nowMs = Date.now()): ForwardingCheckView {
+/** A refusal written for the business, in the caller's language; the web app shows it as it is (FORWARDING_REFUSED). */
+const refused = (key: MessageKey, params?: Said['params']) => Reject.t(key, params, FORWARDING_REFUSED)
+
+/** A check's outcome as stored in its row: the text as a key and params, written in each reader's language (detailText). */
+const storedDetail = (key: MessageKey, params?: Record<string, string>) =>
+  JSON.stringify({ key, params } satisfies Said)
+
+/** A stored detail in a reader's words; one stored as text (before keys) as it is. */
+export function detailText(detail: string | null, reader?: Reader): string | null {
+  if (!detail?.startsWith('{')) return detail
+  try {
+    const said = JSON.parse(detail) as Said
+    if (typeof said?.key === 'string' && said.key in enMessages) return sayIn(said, reader)
+  } catch {
+    // Text that only starts with a brace: as it is.
+  }
+  return detail
+}
+
+/** `reader`: whoever reads it (wordsOf); English when not given. */
+export function checkView(check: Check, nowMs = Date.now(), reader?: Reader): ForwardingCheckView {
   const age = nowMs - Date.parse(check.started_at)
   // Not dialled in time (the job refuses it from then on), or dialled and never finished.
   const stale = check.status === 'dialing' && ((!check.dialed_at && age > MAX_QUEUE_MS + 10_000) || age > STALE_MS)
@@ -112,7 +135,9 @@ export function checkView(check: Check, nowMs = Date.now()): ForwardingCheckView
     phoneNumberId: check.phone_number_id,
     businessNumber: check.business_number,
     status: stale ? 'not_checked' : check.status,
-    detail: stale ? 'The check did not finish. Try again.' : check.detail,
+    detail: stale
+      ? sayIn({ key: msg('server.api.forwardingCheck.didNotFinish') }, reader)
+      : detailText(check.detail, reader),
     ringSeconds,
     simulated: check.simulated,
     startedAt: check.started_at,
@@ -220,8 +245,13 @@ export async function claimForwardingCheck(
       finished_at: call.now,
       detail:
         reached?.workspaceId === from.workspace_id
-          ? `Your phone forwards to ${displayNumber(call.to)}, not to ${displayNumber(from.linedesk_number)}.`
-          : `Your phone forwards to another number, not to ${displayNumber(from.linedesk_number)}.`,
+          ? storedDetail(msg('server.api.forwardingCheck.forwardsTo'), {
+              number: displayNumber(call.to),
+              linedesk: displayNumber(from.linedesk_number),
+            })
+          : storedDetail(msg('server.api.forwardingCheck.forwardsElsewhere'), {
+              linedesk: displayNumber(from.linedesk_number),
+            }),
     })
     .where(eq(forwarding_checks.id, from.id))
     .returning()
@@ -617,7 +647,7 @@ export async function runForwardingCheck(checkId: string, deps: RunDeps = {}): P
   if (check?.status !== 'dialing') return check?.status ?? 'not_checked'
   // Queued too long (jobs were down, the API restarted): the owner was already told it did not run.
   if (Date.now() - Date.parse(check.started_at) > MAX_QUEUE_MS) {
-    await finish(checkId, 'not_checked', 'The check did not start in time. Try again.')
+    await finish(checkId, 'not_checked', storedDetail(msg('server.api.forwardingCheck.notStartedInTime')))
     return 'not_checked'
   }
   let line: CheckLine
@@ -629,11 +659,7 @@ export async function runForwardingCheck(checkId: string, deps: RunDeps = {}): P
   if ('unavailable' in line) {
     // The reason is for whoever runs the server (carrier and LiveKit errors, setting names): logged, not shown.
     console.warn(`forwarding check ${checkId}: no check line: ${line.unavailable}`)
-    await finish(
-      checkId,
-      'not_checked',
-      'Could not check: forwarding checks are not available on this server right now.',
-    )
+    await finish(checkId, 'not_checked', storedDetail(msg('server.api.forwardingCheck.notAvailable')))
     return 'not_checked'
   }
   // Never the install calling itself: not the check number, not any Linedesk number (the action refused both too).
@@ -642,7 +668,7 @@ export async function runForwardingCheck(checkId: string, deps: RunDeps = {}): P
     .from(phone_numbers)
     .where(eq(phone_numbers.e164, check.business_number))
   if (own || check.business_number === line.callerNumber) {
-    await finish(checkId, 'not_checked', 'Could not check: that is one of this server’s own numbers.')
+    await finish(checkId, 'not_checked', storedDetail(msg('server.api.forwardingCheck.ownNumber')))
     return 'not_checked'
   }
   // Setting up the line can take a while: past MAX_QUEUE_MS the owner already sees "did not finish", so never dial then.
@@ -660,7 +686,9 @@ export async function runForwardingCheck(checkId: string, deps: RunDeps = {}): P
     .returning()
   if (!dialing) {
     // Too late, or another run took it (a job retried by hand), or it ended meanwhile.
-    await finish(checkId, 'not_checked', 'The check did not start in time. Try again.', { onlyUndialled: true })
+    await finish(checkId, 'not_checked', storedDetail(msg('server.api.forwardingCheck.notStartedInTime')), {
+      onlyUndialled: true,
+    })
     return (await loadCheck(checkId))?.status ?? 'not_checked'
   }
   const status = async (fallback: ForwardingCheckStatus) => (await loadCheck(checkId))?.status ?? fallback
@@ -692,20 +720,24 @@ export async function runForwardingCheck(checkId: string, deps: RunDeps = {}): P
         })
         .catch(() => false)
       if (reached)
-        await finish(checkId, 'no_assistant', 'The call reached Linedesk, but the assistant did not pick it up.', {
+        await finish(checkId, 'no_assistant', storedDetail(msg('server.api.forwardingCheck.noAssistant')), {
           arrived_at: new Date().toISOString(),
         })
-      else await finish(checkId, 'answered', 'The call was answered before it was forwarded.')
+      else await finish(checkId, 'answered', storedDetail(msg('server.api.forwardingCheck.answeredFirst')))
       return status(reached ? 'no_assistant' : 'answered')
     }
     const result = failureStatus(first)
     // LiveKit's and the carrier's own words stay in the log; the business sees the result and our text.
     console.warn(`forwarding check ${checkId}: ${first.sipStatus ?? ''} ${first.message}`.trim().slice(0, 500))
-    await finish(checkId, result ?? 'not_checked', result ? null : 'Could not check: the call could not be placed.')
+    await finish(
+      checkId,
+      result ?? 'not_checked',
+      result ? null : storedDetail(msg('server.api.forwardingCheck.notPlaced')),
+    )
     return status('not_checked')
   } catch (e) {
     console.warn(`forwarding check ${checkId} failed: ${e instanceof Error ? e.message : String(e)}`)
-    await finish(checkId, 'not_checked', 'Could not check: the call could not be placed.')
+    await finish(checkId, 'not_checked', storedDetail(msg('server.api.forwardingCheck.notPlaced')))
     return 'not_checked'
   } finally {
     done = true
@@ -717,11 +749,13 @@ export async function runForwardingCheck(checkId: string, deps: RunDeps = {}): P
 
 type Queue = (tx: Tx, checkId: string) => Promise<void>
 
-/** When a limit counted over the last 24 hours frees up again, from the oldest check it counted. */
-export function tryAgain(oldestMs: number, nowMs: number): string {
-  const hours = Math.ceil((oldestMs + 24 * 3600_000 - nowMs) / 3600_000)
-  return hours <= 1 ? 'Try again in about an hour.' : `Try again in about ${hours} hours.`
-}
+/** In how many hours (at least one) a limit counted over the last 24 hours frees up again, from the oldest check it counted. */
+const hoursUntilFree = (oldestMs: number, nowMs: number) =>
+  Math.max(1, Math.ceil((oldestMs + 24 * 3600_000 - nowMs) / 3600_000))
+
+/** When that is, as a sentence in a reader's words (English by default). */
+export const tryAgain = (oldestMs: number, nowMs: number, reader?: Reader): string =>
+  sayIn({ key: msg('server.api.forwardingCheck.tryAgain'), params: { hours: hoursUntilFree(oldestMs, nowMs) } }, reader)
 
 /** Checks on the whole install in a day: `FORWARDING_CHECKS_PER_DAY`, else the default. */
 export function installCheckCap(env: Env = process.env): number {
@@ -767,9 +801,9 @@ async function reserveLookup(workspaceId: string, e164: string, nowMs: number) {
       .from(line_lookups)
       .where(gte(line_lookups.looked_up_at, dayAgo))
     if ((counts?.workspace ?? 0) >= LINE_LOOKUPS_PER_WORKSPACE_DAY)
-      throw new Reject('Too many lookups today. Pick your carrier from the list instead.')
+      throw refused(msg('server.api.forwardingCheck.tooManyLookupsToday'))
     if ((counts?.install ?? 0) >= LINE_LOOKUPS_PER_INSTALL_DAY)
-      throw new Reject('Lookups are paused on this server for now. Pick your carrier from the list instead.')
+      throw refused(msg('server.api.forwardingCheck.lookupsPaused'))
     await tx.insert(line_lookups).values({
       id: `llk_${crypto.randomUUID().replaceAll('-', '')}`,
       workspace_id: workspaceId,
@@ -787,12 +821,12 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
   return {
     // Read-only in the registry: runs outside a transaction, so the request to the carrier holds none open.
     'phoneNumber.lookupLine': async ({ tx, actor, telephony, now }, input: { number: string }) => {
-      if (!actor.workspaceId) throw new Reject('no workspace')
+      if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
       const nowMs = Date.parse(now)
       const key = `${actor.workspaceId}:${input.number}`
       const cached = cachedLookup(key, nowMs)
       if (cached) return { rows: {}, data: cached }
-      if (!allowLookup(actor.workspaceId)) throw new Reject('Too many lookups. Try again in a few minutes.')
+      if (!allowLookup(actor.workspaceId)) throw refused(msg('server.api.forwardingCheck.tooManyLookups'))
       await reserveLookup(actor.workspaceId, input.number, nowMs)
       const provider = telephony ?? (await telephonyForWorkspace(tx, actor.workspaceId)).provider
       try {
@@ -810,7 +844,7 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
       } catch (e) {
         if (!(e instanceof TelephonyError)) throw e
         console.warn(`line lookup failed: ${e.message}`)
-        throw new Reject('The line could not be looked up. Try again later.')
+        throw refused(msg('server.api.forwardingCheck.lookupFailed'))
       }
     },
 
@@ -818,16 +852,15 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
       { tx, actor, now },
       input: { phoneNumberId: string; businessNumber?: string },
     ) => {
-      if (!actor.workspaceId) throw new Reject('no workspace')
-      if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
+      if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
+      if (actor.workspaceDisabled) throw new Reject(english.t('server.api.workspaceDisabled'))
       const workspaceId = actor.workspaceId
       const [number] = await tx
         .select()
         .from(phone_numbers)
         .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, workspaceId)))
-      if (!number) throw new Reject('phone number not found')
-      if (!FORWARDING_MODES.has(number.mode))
-        throw new Reject('only a number your business phone forwards to can be checked')
+      if (!number) throw new Reject(english.t('server.api.phoneNumberNotFound'))
+      if (!FORWARDING_MODES.has(number.mode)) throw new Reject(english.t('server.api.forwardingCheck.onlyForwarded'))
       const [lastChecked] =
         input.businessNumber || number.forwarded_from
           ? []
@@ -840,10 +873,9 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
               .orderBy(desc(forwarding_checks.started_at))
               .limit(1)
       const businessNumber = input.businessNumber ?? number.forwarded_from ?? lastChecked?.businessNumber
-      if (!businessNumber) throw new Reject('Enter your business number first.')
+      if (!businessNumber) throw refused(msg('server.api.forwardingCheck.enterNumber'))
       // The saved number is checked like a typed one: it may come from before these rules.
-      if (!isCheckableBusinessNumber(businessNumber))
-        throw new Reject('Enter your business landline or mobile (no toll-free, premium-rate or service numbers).')
+      if (!isCheckableBusinessNumber(businessNumber)) throw refused(msg('server.api.forwardingCheck.enterLandline'))
       // The destination policy, like a transfer. The check line is the install's, so the install's own ceiling: the
       // countries of the install-account numbers plus the install's list, never a workspace's own-account countries.
       // A workspace whose numbers are all in its own account can check a line in those countries (its business is
@@ -856,14 +888,14 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
         .select({ e164: phone_numbers.e164 })
         .from(phone_numbers)
         .where(eq(phone_numbers.e164, businessNumber))
-      if (taken) throw new Reject('That is a Linedesk number. Enter the number your callers dial today.')
+      if (taken) throw refused(msg('server.api.forwardingCheck.linedeskNumber'))
       if (businessNumber === (await configuredCheckNumber(tx)))
-        throw new Reject('That is the number Linedesk checks from. Enter the number your callers dial today.')
+        throw refused(msg('server.api.forwardingCheck.checkNumber'))
       const [workspace] = await tx
         .select({ disabledAt: organization.disabledAt })
         .from(organization)
         .where(eq(organization.id, workspaceId))
-      if (workspace?.disabledAt) throw new Reject('this workspace is disabled')
+      if (workspace?.disabledAt) throw new Reject(english.t('server.api.workspaceDisabled'))
       // One lock for the whole install: the limits count across workspaces, and two starts never both slip under them.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${START_LOCK}))`)
       const nowMs = Date.parse(now)
@@ -889,15 +921,15 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
         c.dialedAt !== null || (c.status === 'dialing' && nowMs - Date.parse(c.startedAt) <= MAX_QUEUE_MS + 10_000)
       const ours = today.filter(c => c.workspaceId === workspaceId)
       if (ours.some(c => c.status === 'dialing' && nowMs - Date.parse(c.startedAt) <= STALE_MS))
-        throw new Reject('A check is already running. Wait for its result.')
+        throw refused(msg('server.api.forwardingCheck.alreadyRunning'))
       const lastHour = ours.filter(c => Date.parse(c.startedAt) >= nowMs - 3600_000).length
       if (lastHour >= FORWARDING_CHECKS_PER_HOUR || ours.length >= FORWARDING_CHECKS_PER_DAY)
-        throw new Reject('Too many checks for now. Try again later, or call your number from another phone.')
+        throw refused(msg('server.api.forwardingCheck.tooManyChecks'))
       const lastByNumber = new Map(ours.map(c => [c.businessNumber, c.startedAt]))
       if (!lastByNumber.has(businessNumber) && lastByNumber.size >= FORWARDING_NUMBERS_PER_WORKSPACE_DAY)
-        throw new Reject(
-          `You checked two different numbers today. ${tryAgain(Math.min(...[...lastByNumber.values()].map(Date.parse)), nowMs)}`,
-        )
+        throw refused(msg('server.api.forwardingCheck.twoNumbers'), {
+          tryAgain: reader => tryAgain(Math.min(...[...lastByNumber.values()].map(Date.parse)), nowMs, reader),
+        })
       // Calls to one business number in a day. The workspace it forwards to (forwarded_from) and the first workspace
       // to call it today each have their own quota; every other workspace shares one. So nobody can call a stranger's
       // number more than a few times a day, and nobody can use up the quota of the number's own business.
@@ -909,9 +941,9 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
           ? toNumber.filter(c => c.workspaceId === workspaceId)
           : toNumber.filter(c => c.workspaceId !== first)
       if (pool.length >= FORWARDING_CHECKS_PER_NUMBER_DAY)
-        throw new Reject(
-          `That number was checked several times today. ${tryAgain(Date.parse(pool[0]!.startedAt), nowMs)}`,
-        )
+        throw refused(msg('server.api.forwardingCheck.severalTimes'), {
+          tryAgain: reader => tryAgain(Date.parse(pool[0]!.startedAt), nowMs, reader),
+        })
       const [installToday] = await tx
         .select({ n: count(), oldest: sql<string | null>`min(${forwarding_checks.started_at})` })
         .from(forwarding_checks)
@@ -922,9 +954,9 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
           ),
         )
       if ((installToday?.n ?? 0) >= installCheckCap(env))
-        throw new Reject(
-          `Forwarding checks are paused on this server for now. ${tryAgain(Date.parse(installToday?.oldest ?? now), nowMs)}`,
-        )
+        throw refused(msg('server.api.forwardingCheck.paused'), {
+          tryAgain: reader => tryAgain(Date.parse(installToday?.oldest ?? now), nowMs, reader),
+        })
       const [check] = await tx
         .insert(forwarding_checks)
         .values({
@@ -938,11 +970,11 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
         })
         .returning()
       await queue(tx, check!.id)
-      return { rows: {}, data: checkView(check!, nowMs) }
+      return { rows: {}, data: checkView(check!, nowMs, wordsOf(actor)) }
     },
 
     'phoneNumber.forwardingCheck': async ({ tx, actor, now }, input: { phoneNumberId: string }) => {
-      if (!actor.workspaceId) throw new Reject('no workspace')
+      if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
       const [check] = await tx
         .select()
         .from(forwarding_checks)
@@ -956,7 +988,8 @@ export function forwardingCheckHandlers(queue: Queue, env: Env = process.env): R
         .limit(1)
       // Whether "Check forwarding" can run here (and is simulated), so the web app never offers one that cannot.
       const { available, simulated } = await forwardingCheckAvailability(tx, env)
-      return { rows: {}, data: { check: check ? checkView(check, Date.parse(now)) : null, available, simulated } }
+      const view = check ? checkView(check, Date.parse(now), wordsOf(actor)) : null
+      return { rows: {}, data: { check: view, available, simulated } }
     },
   }
 }

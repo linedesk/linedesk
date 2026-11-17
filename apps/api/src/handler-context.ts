@@ -1,6 +1,8 @@
 // What every server handler gets and how it says no. Its own file so that handler modules can
 // share it without importing each other.
 import type { ActionResult } from '@linedesk/actions'
+import { type MessageKey, type MessageValues, SOURCE, type Translator } from '@linedesk/i18n'
+import { getT } from '@linedesk/i18n/server'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { TelephonyProvider } from '@linedesk/telephony'
@@ -10,16 +12,57 @@ import type { Actor } from './context.ts'
 import type { RecordingStore } from './recording-store.ts'
 
 /**
+ * Text for people as a key and its params (docs/translations.md, "Server-side text"): written in the reader's language
+ * when it is sent, in English for logs, the command log and alerts.
+ */
+export type Said = { key: MessageKey; params?: SaidParams }
+/** A param is a value, or words written when the reader is known (a list of language names in their language). */
+export type SaidParams = Record<string, MessageValues[string] | ((reader: Reader) => string)>
+/** The words of one reader: `getT(locale)`. */
+export type Reader = Pick<Translator, 't' | 'format' | 'locale'>
+
+/** A key and its params, written when the reader is known: `said('server.api.providerTest.connected')`. */
+export const said = (key: MessageKey, params?: SaidParams): Said => (params ? { key, params } : { key })
+
+/** A said text in a reader's words (English by default). */
+export function sayIn(said: Said, reader: Reader = getT(SOURCE)): string {
+  const params = said.params
+    ? Object.fromEntries(
+        Object.entries(said.params).map(([name, value]) => [name, typeof value === 'function' ? value(reader) : value]),
+      )
+    : undefined
+  return reader.t(said.key, params)
+}
+
+/**
+ * The words of whoever asks: a member's own language in the web app (their choice, else what Automatic resolved to,
+ * else the browser's), an API client's Accept-Language, else English (the voice agent, the CLI).
+ */
+export const wordsOf = (actor: Pick<Actor, 'locale'> | null | undefined): Reader => getT(actor?.locale ?? SOURCE)
+
+/**
  * A business-rule rejection: the command is final, clients must not retry it. Answered 409 (a conflict with the data's state).
- * `code`: a fixed code the page words itself (i18n) instead of showing the message, sent with the rejection.
+ * `code`: a fixed code the page words itself (i18n) instead of showing the message, sent with the rejection. Clients
+ * match the code, never the message. A rejection made with `Reject.t(key, params)` (or a `Said`) answers in the
+ * caller's language (rejectionText); `message` is its English, for logs and the command log.
  */
 export class Reject extends Error {
   readonly code: string | undefined
-  constructor(message?: string, code?: string) {
-    super(message)
+  readonly said: Said | undefined
+  constructor(message?: string | Said, code?: string) {
+    super(typeof message === 'object' ? sayIn(message) : message)
+    this.said = typeof message === 'object' ? message : undefined
     this.code = code
   }
+
+  /** A rejection written for people, from the catalogs: `throw Reject.t('server.api.noWorkspace')`. */
+  static t<T extends typeof Reject>(this: T, key: MessageKey, params?: SaidParams, code?: string): InstanceType<T> {
+    return new this({ key, params }, code) as InstanceType<T>
+  }
 }
+
+/** A rejection's text in these words: its key in that language, else its message as it was written. */
+export const rejectionText = (e: Reject, reader: Reader) => (e.said ? sayIn(e.said, reader) : e.message)
 
 /** What a synced table's row is called in an error: `call not found`, not `calls row not found`. */
 const ROW_NOUN: Record<string, string> = { assistant_calendars: 'calendar', webhook_endpoints: 'webhook' }

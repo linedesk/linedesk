@@ -9,6 +9,8 @@ import {
   type Role,
 } from '@linedesk/actions'
 import { member, organization, passkey, user } from '@linedesk/db'
+import type { UiLocale } from '@linedesk/i18n'
+import { localeForUser } from '@linedesk/i18n/server'
 import { and, asc, eq } from 'drizzle-orm'
 import { isCallToken, verifyCallToken } from './agent-token.ts'
 import { actorForApiKey, isApiKey } from './api-keys.ts'
@@ -79,6 +81,12 @@ export interface Actor {
   passkeySignedIn?: true
   /** The member's address (or an API key's creator's) is not confirmed yet: no sensitive actions (run-action.ts). */
   emailUnverified?: true
+  /**
+   * The language refusals and messages are written in (wordsOf, handler-context.ts): a member's in the web app (their
+   * choice, else Automatic's, else the browser's), the Accept-Language of an API key's request; none (English) for the
+   * voice agent.
+   */
+  locale?: UiLocale
 }
 
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
@@ -179,13 +187,15 @@ export async function resolveCaller(
   const authorization = headers.get('authorization')
   const bearer = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : undefined
   if (bearer) {
+    // An API client asks for a language with Accept-Language only; without one it gets English.
+    const locale = localeForUser(null, headers.get('accept-language'))
     if (isApiKey(bearer)) {
       const actor = await actorForApiKey(bearer, clientIp)
-      return actor ? { actor } : signedOut
+      return actor ? { actor: { ...actor, locale } } : signedOut
     }
     if (isPersonalKey(bearer)) {
       const actor = await actorForPersonalKey(bearer, clientIp, headers.get(WORKSPACE_HEADER))
-      return actor ? { actor } : signedOut
+      return actor ? { actor: { ...actor, locale } } : signedOut
     }
     // The agent reaches the API through the internal listener only; anywhere else its tokens (install-wide
     // and per call) count for nothing. Checked before either token, so a call token never works through the public site.
@@ -225,6 +235,7 @@ export async function resolveCaller(
       : []
   const extra = {
     sessionId: session.session.id,
+    locale: localeForUser(account, headers.get('accept-language')),
     sessionExpiresAt: new Date(session.session.expiresAt),
     ...(!impersonation && passkeyConfirmed(session.session.passkeyVerifiedAt)
       ? { passkeyConfirmed: true as const }

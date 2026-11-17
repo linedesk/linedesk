@@ -21,6 +21,7 @@ import { smtpCheck } from './email.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
 import { type ProviderProblem, problemOfError, problemOfResponse } from './provider-errors.ts'
 import type { ProviderConfig } from './provider-settings.ts'
+import { type Reader, type Said, said, sayIn } from './handler-context.ts'
 import {
   createFileRecordingStore,
   RecordingConfigError,
@@ -39,15 +40,43 @@ const LOW_SHARE = 0.05
 
 type Values = Record<string, string>
 
-const ok = (message = 'Connected'): ProviderTestData => ({ ok: true, status: 'ok', message })
-const warning = (reason: ProviderFailureReason, message: string): ProviderTestData => ({
+/**
+ * A test's result with its text as a key (`said`), for the reader's language (testAnswer); `message` is its English,
+ * which is stored, logged and sent to the admins. Text from a provider or another module has no key.
+ */
+export type Tested = ProviderTestData & { said?: Said }
+/** A problem in our own words: its key and its English. */
+type SaidProblem = ProviderProblem & { said?: Said }
+const problem = (reason: ProviderFailureReason, text: Said): SaidProblem => ({
+  reason,
+  message: sayIn(text),
+  said: text,
+})
+
+const ok = (text: Said = said('server.api.providerTest.connected')): Tested => ({
+  ok: true,
+  status: 'ok',
+  message: sayIn(text),
+  said: text,
+})
+const warning = (reason: ProviderFailureReason, text: Said): Tested => ({
   ok: true,
   status: 'warning',
   reason,
-  message,
+  message: sayIn(text),
+  said: text,
 })
-const failed = (problem: ProviderProblem): ProviderTestData => ({ ok: false, status: 'error', ...problem })
-const error = (reason: ProviderFailureReason, message: string) => failed({ reason, message })
+const failed = (p: SaidProblem): Tested => ({ ok: false, status: 'error', ...p })
+const error = (reason: ProviderFailureReason, text: string | Said) =>
+  failed(typeof text === 'string' ? { reason, message: text } : problem(reason, text))
+
+/** A result as the reader gets it: the text in their language, without the key. */
+export function testAnswer({ said: text, ...result }: Tested, reader?: Reader): ProviderTestData {
+  return text && reader ? { ...result, message: sayIn(text, reader) } : result
+}
+
+/** A number in the reader's words ("1,234" in English, "1.234" in German). */
+const count = (n: number) => (reader: Reader) => reader.format.number(n)
 
 /** A number from a provider's JSON (Telnyx and Twilio send amounts as strings); null when there is none. */
 const num = (value: unknown): number | null => {
@@ -79,7 +108,7 @@ function httpFor(provider: ProviderName, doFetch: typeof fetch, free = false) {
   return { send, json, free }
 }
 type Http = ReturnType<typeof httpFor>
-type Check = (values: Values, http: Http) => Promise<ProviderTestData>
+type Check = (values: Values, http: Http) => Promise<Tested>
 
 // --- Telephony ----------------------------------------------------------------------------------
 
@@ -92,17 +121,9 @@ const telnyx: Check = async (values, http) => {
   const available = num(data.available_credit) ?? num(data.balance)
   if (available === null) return ok()
   const amount = money(available, data.currency)
-  if (available <= 0)
-    return error(
-      'quota',
-      `Telnyx balance is used up (${amount}): calls and numbers stop. Add funds in the Telnyx portal, Billing.`,
-    )
-  if (available < LOW_BALANCE)
-    return warning(
-      'quota',
-      `Telnyx balance is low (${amount}). Add funds in the Telnyx portal, Billing, before calls stop.`,
-    )
-  return ok(`Connected, balance ${amount}`)
+  if (available <= 0) return error('quota', said('server.api.providerTest.telnyx.usedUp', { amount }))
+  if (available < LOW_BALANCE) return warning('quota', said('server.api.providerTest.telnyx.low', { amount }))
+  return ok(said('server.api.providerTest.connectedBalance', { amount }))
 }
 
 const twilio: Check = async (values, http) => {
@@ -111,32 +132,30 @@ const twilio: Check = async (values, http) => {
   const account = await http.json(`${base}.json`, { headers })
   if (!account.ok)
     return account.status === 404
-      ? error('not_found', 'Twilio does not know this account SID (HTTP 404). Copy it from the Twilio Console.')
+      ? error('not_found', said('server.api.providerTest.twilio.unknownSid'))
       : failed(account.problem)
-  if (account.body.status === 'suspended')
-    return error(
-      'quota',
-      'Twilio suspended the account (unpaid balance or a review): calls stop. Resolve it in the Twilio Console.',
-    )
-  if (account.body.status === 'closed') return error('auth', 'This Twilio account is closed. Use an active account.')
+  if (account.body.status === 'suspended') return error('quota', said('server.api.providerTest.twilio.suspended'))
+  if (account.body.status === 'closed') return error('auth', said('server.api.providerTest.twilio.closed'))
   const balance = await http.json(`${base}/Balance.json`, { headers })
   const amount = balance.ok ? num(balance.body.balance) : null
   if (amount !== null && amount <= 0)
     return error(
       'quota',
-      `Twilio balance is used up (${money(amount, balance.ok && balance.body.currency)}). Add funds in the Twilio Console.`,
+      said('server.api.providerTest.twilio.usedUp', { amount: money(amount, balance.ok && balance.body.currency) }),
     )
-  if (account.body.type === 'Trial')
-    return warning(
-      'config',
-      'Twilio trial account: calls play a trial message and reach only verified numbers. Upgrade it in the Twilio Console.',
-    )
+  if (account.body.type === 'Trial') return warning('config', said('server.api.providerTest.twilio.trial'))
   if (amount !== null && amount < LOW_BALANCE)
     return warning(
       'quota',
-      `Twilio balance is low (${money(amount, balance.ok && balance.body.currency)}). Add funds in the Twilio Console.`,
+      said('server.api.providerTest.twilio.low', { amount: money(amount, balance.ok && balance.body.currency) }),
     )
-  return ok(amount !== null ? `Connected, balance ${money(amount, balance.ok && balance.body.currency)}` : 'Connected')
+  return amount !== null
+    ? ok(
+        said('server.api.providerTest.connectedBalance', {
+          amount: money(amount, balance.ok && balance.body.currency),
+        }),
+      )
+    : ok()
 }
 
 // --- Speech to text -----------------------------------------------------------------------------
@@ -146,18 +165,14 @@ const deepgram: Check = async (values, http) => {
   const projects = await http.json('https://api.deepgram.com/v1/projects', { headers })
   if (!projects.ok) return failed(projects.problem)
   const project = (projects.body.projects as Json[] | undefined)?.[0]?.project_id
-  if (typeof project !== 'string')
-    return error(
-      'permission',
-      'The Deepgram key sees no project. Create the key inside a project in the Deepgram console.',
-    )
+  if (typeof project !== 'string') return error('permission', said('server.api.providerTest.deepgram.noProject'))
   if (values.model) {
     const models = await http.json('https://api.deepgram.com/v1/models', { headers })
     const names = models.ok
       ? ((models.body.stt ?? []) as Json[]).flatMap(m => [m.canonical_name, m.name, m.architecture])
       : []
     if (models.ok && names.length && !names.includes(values.model))
-      return error('not_found', `Deepgram has no model "${values.model}". Clear the model field for the default.`)
+      return error('not_found', said('server.api.providerTest.deepgram.noModel', { model: values.model }))
   }
   // A key with the Member role may not read balances: then the balance is not checked.
   const balances = await http.json(`https://api.deepgram.com/v1/projects/${encodeURIComponent(project)}/balances`, {
@@ -166,18 +181,14 @@ const deepgram: Check = async (values, http) => {
   const amounts = balances.ok ? ((balances.body.balances ?? []) as Json[]).map(b => num(b.amount) ?? 0) : []
   if (!amounts.length) return ok()
   const total = amounts.reduce((a, b) => a + b, 0)
-  if (total <= 0)
-    return warning(
-      'quota',
-      'Deepgram shows no credit left. Without a payment method on the account, speech recognition stops: add one in the Deepgram console, Billing.',
-    )
+  if (total <= 0) return warning('quota', said('server.api.providerTest.deepgram.noCredit'))
   return total < LOW_BALANCE
-    ? warning('quota', `Deepgram credit is low (${money(total)}). Add credit in the Deepgram console, Billing.`)
-    : ok(`Connected, credit ${money(total)}`)
+    ? warning('quota', said('server.api.providerTest.deepgram.low', { amount: money(total) }))
+    : ok(said('server.api.providerTest.connectedCredit', { amount: money(total) }))
 }
 
 /** ElevenLabs quota: error when used up and the plan cannot go over, warning when little is left. null: unreadable. */
-async function elevenLabsQuota(values: Values, http: Http): Promise<ProviderTestData | null> {
+async function elevenLabsQuota(values: Values, http: Http): Promise<Tested | null> {
   const answer = await http.json('https://api.elevenlabs.io/v1/user/subscription', {
     headers: { 'xi-api-key': values.api_key! },
   })
@@ -187,28 +198,25 @@ async function elevenLabsQuota(values: Values, http: Http): Promise<ProviderTest
   const canExtend =
     answer.body.can_extend_character_limit === true && answer.body.allowed_to_extend_character_limit === true
   const reset = num(answer.body.next_character_count_reset_unix)
-  const resetText = reset ? `; it resets on ${new Date(reset * 1000).toISOString().slice(0, 10)}` : ''
-  if (answer.body.status === 'past_due')
-    return warning(
-      'quota',
-      'The ElevenLabs payment is past due: pay it in ElevenLabs, Subscription, before the voice stops.',
-    )
+  // When the quota resets, as a date ("none" when ElevenLabs does not say).
+  const resets = reset ? new Date(reset * 1000).toISOString().slice(0, 10) : 'none'
+  if (answer.body.status === 'past_due') return warning('quota', said('server.api.providerTest.elevenlabs.pastDue'))
   if (used === null || limit === null || limit <= 0) return ok()
   if (used >= limit && !canExtend)
     return error(
       'quota',
-      `ElevenLabs quota used up (${used.toLocaleString('en-US')} of ${limit.toLocaleString('en-US')} credits${resetText}): the assistant cannot speak. Upgrade the plan or turn on usage-based billing in ElevenLabs.`,
+      said('server.api.providerTest.elevenlabs.usedUp', { used: count(used), limit: count(limit), resets }),
     )
   if ((limit - used) / limit < LOW_SHARE && !canExtend)
     return warning(
       'quota',
-      `ElevenLabs quota almost used up (${(limit - used).toLocaleString('en-US')} credits left${resetText}). Upgrade the plan in ElevenLabs.`,
+      said('server.api.providerTest.elevenlabs.almostUsedUp', { left: count(limit - used), resets }),
     )
   return ok()
 }
 
 const elevenLabsStt: Check = async (values, http) =>
-  (await elevenLabsQuota(values, http)) ?? ok('Connected (the key may not read the quota)')
+  (await elevenLabsQuota(values, http)) ?? ok(said('server.api.providerTest.connectedNoQuota'))
 
 /** A WAV of a fifth of a second of silence: what the transcription test sends. */
 export function silentWav(seconds = 0.2, rate = 16000): Uint8Array<ArrayBuffer> {
@@ -320,22 +328,17 @@ const openrouter: Check = async (values, http) => {
   const key = await http.json('https://openrouter.ai/api/v1/key', { headers })
   if (!key.ok) return failed(key.problem)
   const remaining = num(key.body.data?.limit_remaining)
-  if (remaining !== null && remaining <= 0)
-    return error('quota', "The OpenRouter key's credit limit is reached. Raise it in OpenRouter, Settings, API Keys.")
+  if (remaining !== null && remaining <= 0) return error('quota', said('server.api.providerTest.openrouter.keyLimit'))
   const credits = await http.json('https://openrouter.ai/api/v1/credits', { headers })
   const left = credits.ok
     ? (num(credits.body.data?.total_credits) ?? 0) - (num(credits.body.data?.total_usage) ?? 0)
     : null
-  if (left !== null && left <= 0)
-    return error(
-      'quota',
-      'OpenRouter credits are used up: the assistant cannot answer. Buy credits in OpenRouter, Settings, Credits.',
-    )
+  if (left !== null && left <= 0) return error('quota', said('server.api.providerTest.openrouter.usedUp'))
   const models = await llm('openrouter')(values, http)
   if (!models.ok) return models
   if (left !== null && left < 1)
-    return warning('quota', `OpenRouter credit is low (${money(left)}). Buy credits in OpenRouter, Settings, Credits.`)
-  return ok(left !== null ? `Connected, credit ${money(left)}` : 'Connected')
+    return warning('quota', said('server.api.providerTest.openrouter.low', { amount: money(left) }))
+  return left !== null ? ok(said('server.api.providerTest.connectedCredit', { amount: money(left) })) : ok()
 }
 
 /** The realtime model must exist for the key; the summary goes to the chat API with the same key (and quota). */
@@ -370,17 +373,14 @@ const elevenlabs: Check = async (values, http) => {
     const found = await http.json(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voice)}`, { headers })
     if (!found.ok && found.problem.reason !== 'permission')
       return found.status === 400 || found.status === 404
-        ? error(
-            'not_found',
-            `The default voice ${voice} is not in this ElevenLabs account. Pick another or clear the field.`,
-          )
+        ? error('not_found', said('server.api.providerTest.elevenlabs.noVoice', { voice }))
         : failed(found.problem)
   }
   if (values.model) {
     const models = await http.json('https://api.elevenlabs.io/v1/models', { headers })
     const ids = models.ok && Array.isArray(models.body) ? (models.body as Json[]).map(m => m.model_id) : []
     if (ids.length && !ids.includes(values.model))
-      return error('not_found', `ElevenLabs has no model "${values.model}". Clear the model field for the default.`)
+      return error('not_found', said('server.api.providerTest.elevenlabs.noModel', { model: values.model }))
   }
   // The quota could not be read with this key: one character of speech shows whether it can speak (not in the free check).
   if (!quota && !http.free) {
@@ -394,7 +394,7 @@ const elevenlabs: Check = async (values, http) => {
     )
     if (!res.ok) return failed(await problemOfResponse('elevenlabs', res, 'speaking'))
     if (!(await res.arrayBuffer()).byteLength)
-      return error('unknown', 'ElevenLabs returned no audio for a test sentence.')
+      return error('unknown', said('server.api.providerTest.elevenlabs.noAudio'))
   }
   return quota ?? ok()
 }
@@ -406,7 +406,7 @@ const cartesia: Check = async (values, http) => {
   const found = await http.json(`https://api.cartesia.ai/voices/${encodeURIComponent(voice)}`, { headers })
   if (!found.ok)
     return found.problem.reason === 'not_found'
-      ? error('not_found', `The voice ${voice} is not available to this Cartesia key. Pick another or clear the field.`)
+      ? error('not_found', said('server.api.providerTest.cartesia.noVoice', { voice }))
       : failed(found.problem)
   // Cartesia does not tell the credit left: one character of speech shows whether it can speak (402 when used up).
   // The free check stops at the voice: the key works.
@@ -447,12 +447,9 @@ const turnstile: Check = async (values, http) => {
   if (!answer.ok) return failed(answer.problem)
   const codes = Array.isArray(answer.body['error-codes']) ? (answer.body['error-codes'] as unknown[]).map(String) : []
   if (codes.includes('invalid-input-secret') || codes.includes('missing-input-secret'))
-    return error(
-      'auth',
-      'Cloudflare does not know this secret key. Copy it again from Turnstile, your widget, Settings.',
-    )
+    return error('auth', said('server.api.providerTest.turnstile.unknownSecret'))
   if (!/^0x[\w-]{10,}$/.test(values.site_key ?? ''))
-    return error('config', 'The site key does not look like a Turnstile site key (0x…).')
+    return error('config', said('server.api.providerTest.turnstile.siteKey'))
   return ok()
 }
 
@@ -466,23 +463,20 @@ const turnstile: Check = async (values, http) => {
 const slack: Check = async (values, http) => {
   const clientId = values.client_id!.trim()
   const secret = values.client_secret!.trim()
-  if (!/^\d+\.\d+$/.test(clientId))
-    return error('auth', 'This is not a Slack client ID (digits, a dot, digits): copy it from Basic Information › App Credentials.')
-  if (!/^[0-9a-f]{32}$/i.test(secret))
-    return error('auth', 'This is not a Slack client secret (32 letters and digits): copy it from Basic Information › App Credentials.')
+  if (!/^\d+\.\d+$/.test(clientId)) return error('auth', said('server.api.providerTest.slack.clientIdForm'))
+  if (!/^[0-9a-f]{32}$/i.test(secret)) return error('auth', said('server.api.providerTest.slack.secretForm'))
   const answer = await http.json('https://slack.com/api/oauth.v2.exchange', {
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: clientId, client_secret: secret, token: 'xoxb-linedesk-connection-test' }),
   })
   if (!answer.ok) return failed(answer.problem)
-  if (answer.body.error === 'invalid_client_id') return error('auth', 'Slack does not know this client ID')
-  if (answer.body.error === 'bad_client_secret') return error('auth', 'Slack rejected the client secret')
-  if (answer.body.error === 'ratelimited') return error('network', 'Slack asked to slow down: try again in a minute')
-  return warning(
-    'unknown',
-    'Slack knows the client ID. Slack checks the client secret only when a business connects: if it is wrong, connecting fails and Slack shows as failing here.',
-  )
+  if (answer.body.error === 'invalid_client_id')
+    return error('auth', said('server.api.providerTest.slack.unknownClientId'))
+  if (answer.body.error === 'bad_client_secret')
+    return error('auth', said('server.api.providerTest.slack.secretRejected'))
+  if (answer.body.error === 'ratelimited') return error('network', said('server.api.providerTest.slack.rateLimited'))
+  return warning('unknown', said('server.api.providerTest.slack.secretAtConnect'))
 }
 
 // Jobber has no app token and no introspection, but its token endpoint checks the client ID and secret before the
@@ -505,11 +499,12 @@ const jobber: Check = async (values, http) => {
   const body = await res.text().catch(() => '')
   const { label } = providerSpec('jobber')
   if (JOBBER_CLIENT_REFUSED.test(body)) return error('auth', `${label} ${OAUTH_CLIENT_REJECTED}`)
-  if (res.status === 429 || res.status >= 500) return error('network', `${label} answered HTTP ${res.status}`)
+  if (res.status === 429 || res.status >= 500)
+    return error('network', said('server.api.providerTest.answered', { provider: label, status: res.status }))
   // Past the client check: Jobber refused only the made-up refresh token.
   if (res.status === 400 || res.status === 401) return ok()
   // Any other answer proves nothing about the client ID and secret: a wrong one shows at the first connect.
-  return warning('unknown', `${label} answered HTTP ${res.status}`)
+  return warning('unknown', said('server.api.providerTest.answered', { provider: label, status: res.status }))
 }
 
 type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService | 'stripe'>
@@ -545,52 +540,50 @@ const checks: Record<HttpProvider, Check> = {
 // (BILLING_LIVE_KEYS=1, production only; packages/billing/src/keys.ts).
 
 /** What a failed Stripe request means. Stripe's own text is not passed on (it can quote part of the key). */
-function stripeProblem(e: unknown): ProviderProblem {
+function stripeProblem(e: unknown): SaidProblem {
   const status = typeof e === 'object' && e && 'statusCode' in e ? Number(e.statusCode) : undefined
   const type = typeof e === 'object' && e && 'type' in e ? String(e.type) : ''
   if (type === 'StripeAuthenticationError' || status === 401)
-    return {
-      reason: 'auth',
-      message:
-        'Stripe rejected the secret key (HTTP 401). Copy it again from the Stripe Dashboard, Developers, API keys.',
-    }
+    return problem('auth', said('server.api.providerTest.stripe.keyRejected'))
   if (type === 'StripePermissionError' || status === 403)
-    return {
-      reason: 'permission',
-      message: 'The restricted key may not read the account (HTTP 403). Give it the permissions in docs/billing.md §7.',
-    }
+    return problem('permission', said('server.api.providerTest.stripe.permission'))
   if (type === 'StripeRateLimitError' || status === 429)
-    return { reason: 'network', message: 'Stripe is rate limiting this key (HTTP 429). Test again in a minute.' }
-  if (type === 'StripeConnectionError')
-    return {
-      reason: 'network',
-      message: "Could not reach Stripe. Check the server's connection and status.stripe.com.",
-    }
-  return {
-    reason: status && status >= 500 ? 'network' : 'unknown',
-    message: `Stripe answered ${status ? `HTTP ${status}` : 'with an error'}.`,
-  }
+    return problem('network', said('server.api.providerTest.stripe.rateLimited'))
+  if (type === 'StripeConnectionError') return problem('network', said('server.api.providerTest.stripe.unreachable'))
+  return problem(
+    status && status >= 500 ? 'network' : 'unknown',
+    said('server.api.providerTest.stripe.answered', { status: status ? String(status) : 'none' }),
+  )
 }
 
 export async function testStripe(
   values: Values,
   doFetch: typeof fetch,
   env: Record<string, string | undefined>,
-): Promise<ProviderTestData> {
+): Promise<Tested> {
   const secretKey = values.secret_key!
   const mode = stripeKeyMode(secretKey)
-  if (!mode) return error('config', 'The secret key is not a Stripe secret key (sk_…) or restricted key (rk_…).')
+  if (!mode) return error('config', said('server.api.providerTest.stripe.notAKey'))
   if (mode === 'live' && !liveKeysAllowed(env)) return error('config', LIVE_KEYS_REFUSED)
   try {
     const provider = await loadBillingProvider({ secretKey, webhookSecret: values.webhook_secret! }, doFetch)
     const account = await provider.account()
-    if (!account) return error('config', 'Not set up')
-    const where = [account.country, account.defaultCurrency?.toUpperCase()].filter(Boolean).join(', ')
-    const line = `Connected, ${mode} mode${where ? ` (${where})` : ''}, account ${account.id}`
-    return ok(mode === 'live' ? `${line}: real cards are charged` : `${line}: nothing is charged`)
+    if (!account) return error('config', said('server.api.providerTest.notSetUp'))
+    const where = [account.country, account.defaultCurrency?.toUpperCase()].filter(Boolean).join(', ') || 'none'
+    return ok(
+      said(
+        mode === 'live'
+          ? 'server.api.providerTest.stripe.connectedLive'
+          : 'server.api.providerTest.stripe.connectedTest',
+        {
+          where,
+          account: account.id,
+        },
+      ),
+    )
   } catch (e) {
     if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError'))
-      return error('timeout', `Stripe did not answer within ${TIMEOUT_MS / 1000} seconds`)
+      return error('timeout', said('server.api.providerTest.stripe.timeout', { seconds: TIMEOUT_MS / 1000 }))
     return failed(stripeProblem(e))
   }
 }
@@ -602,11 +595,7 @@ export async function testStripe(
  * timeout, a refused login), never the server's own text beyond a status code: the SMTP URL may
  * point anywhere, and its password must not come back.
  */
-async function testSmtp(
-  url: string,
-  from: string | undefined,
-  loginHint = 'the user and password in the SMTP URL',
-): Promise<ProviderTestData> {
+async function testSmtp(url: string, from: string | undefined, login: 'url' | 'key' = 'url'): Promise<Tested> {
   const result = await smtpCheck(url, from)
   if (result.ok) return ok()
   const password = (() => {
@@ -620,12 +609,15 @@ async function testSmtp(
     .filter(Boolean)
     .reduce((t, secret) => t.replaceAll(secret, '[redacted]'), result.message)
   if (/\b(535|534|530|EAUTH)\b/.test(scrubbed))
-    return error('auth', `The mail server refused the login: check ${loginHint}`)
+    return error(
+      'auth',
+      said(login === 'url' ? 'server.api.providerTest.smtp.loginRefused' : 'server.api.providerTest.smtp.keyRefused'),
+    )
   return error(
     'network',
     scrubbed.startsWith('Could not send email: ')
       ? scrubbed.slice(0, MAX_MESSAGE) // our own text: which host did not answer
-      : 'The mail server did not accept the connection: check host, port and TLS (smtps:// for port 465, smtp:// for 587)',
+      : said('server.api.providerTest.smtp.notAccepted'),
   )
 }
 
@@ -633,7 +625,7 @@ async function testSmtp(
 export const fromDomain = (from: string | undefined) => /@([^\s>]+)>?\s*$/.exec(from ?? '')?.[1]?.toLowerCase() ?? null
 
 /** Resend sends only from verified domains. A key with sending access only cannot list them: then not checked. */
-async function resendDomain(values: Values, doFetch: typeof fetch): Promise<ProviderTestData | null> {
+async function resendDomain(values: Values, doFetch: typeof fetch): Promise<Tested | null> {
   const domain = fromDomain(values.from)
   if (!domain) return null
   const answer = await httpFor('resend', doFetch).json('https://api.resend.com/domains', {
@@ -641,12 +633,11 @@ async function resendDomain(values: Values, doFetch: typeof fetch): Promise<Prov
   })
   if (!answer.ok) return null
   const listed = ((answer.body.data ?? []) as Json[]).find(d => String(d.name).toLowerCase() === domain)
-  if (!listed)
-    return error('config', `${domain} is not a domain in Resend: add and verify it under Domains, or change From.`)
+  if (!listed) return error('config', said('server.api.providerTest.resend.notADomain', { domain }))
   if (listed.status !== 'verified')
     return error(
       'config',
-      `${domain} is not verified in Resend yet (${String(listed.status).slice(0, 30)}): finish the DNS records under Domains.`,
+      said('server.api.providerTest.resend.notVerified', { domain, status: String(listed.status).slice(0, 30) }),
     )
   return null
 }
@@ -737,7 +728,7 @@ const pastClientCheck = (provider: OAuthApp, res: Response, answer: OAuthAnswer)
  * An OAuth app is checked with one token request that the provider refuses for a wrong client (oauthProbe). Missing
  * scopes or a disabled calendar API show only when a member connects: then the calendar records the failure.
  */
-async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof fetch): Promise<ProviderTestData> {
+async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof fetch): Promise<Tested> {
   const { label } = providerSpec(provider)
   try {
     const res = await doFetch(await tokenEndpoint(provider, values, doFetch), {
@@ -757,24 +748,21 @@ async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof 
     const answer = (await res.json().catch(() => ({}))) as OAuthAnswer
     // Microsoft names an expired secret in the description (AADSTS7000222).
     if (typeof answer.error_description === 'string' && answer.error_description.includes('AADSTS7000222'))
-      return error(
-        'auth',
-        `The ${label} client secret has expired: make a new one in Microsoft Entra and enter it here.`,
-      )
+      return error('auth', said('server.api.providerTest.oauth.secretExpired', { provider: label }))
     if (refusedClient(provider, res, answer)) return error('auth', `${label} ${OAUTH_CLIENT_REJECTED}`)
     const aadsts = aadstsCodes(answer)
     // A tenant Microsoft does not know (AADSTS90002), or not a tenant ID or domain (AADSTS900023).
     if (aadsts.includes(90002) || aadsts.includes(900023))
       return error(
         'config',
-        `${label} does not know the tenant ${(values.tenant_id || 'common').slice(0, 80)}: check the tenant ID.`,
+        said('server.api.providerTest.oauth.unknownTenant', {
+          provider: label,
+          tenant: (values.tenant_id || 'common').slice(0, 80),
+        }),
       )
     // Microsoft answers an unknown client ID with AADSTS53003 too, so this cannot tell the two apart.
     if (aadsts.includes(53003))
-      return error(
-        'permission',
-        `${label} refused the app (AADSTS53003): check the client ID, or a Conditional Access policy that blocks the app.`,
-      )
+      return error('permission', said('server.api.providerTest.oauth.conditionalAccess', { provider: label }))
     if (asksForAppToken(provider)) {
       if (pastClientCheck(provider, res, answer)) return ok()
     } else if (['invalid_grant', 'bad_verification_code', 'redirect_uri_mismatch'].includes(String(answer.error)))
@@ -789,10 +777,13 @@ async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof 
     )
   } catch (e) {
     if (e instanceof Error && e.name === 'TimeoutError')
-      return error('timeout', `${label} did not answer within ${TIMEOUT_MS / 1000} seconds`)
+      return error('timeout', said('server.api.providerTest.timeout', { provider: label, seconds: TIMEOUT_MS / 1000 }))
     return error(
       'network',
-      `Could not reach ${label}: ${errorText(e)}`.replaceAll(values.client_secret!, '[redacted]').slice(0, MAX_MESSAGE),
+      said('server.api.providerTest.oauth.unreachable', {
+        provider: label,
+        error: errorText(e).replaceAll(values.client_secret!, '[redacted]').slice(0, MAX_MESSAGE),
+      }),
     )
   }
 }
@@ -807,19 +798,19 @@ export const errorText = (e: unknown) => {
 // --- Recording storage --------------------------------------------------------------------------
 
 /** What an S3 failure means for the operator. Fixed texts: S3's own messages can quote the key ID. */
-export function s3Problem(e: S3RequestError): ProviderProblem {
-  if (e.code === 'NoSuchBucket') return { reason: 'not_found', message: 'Bucket not found' }
+export function s3Problem(e: S3RequestError): SaidProblem {
+  if (e.code === 'NoSuchBucket') return problem('not_found', said('server.api.providerTest.s3.noBucket'))
   if (e.code === 'AccessDenied' || e.code === 'AllAccessDisabled')
-    return {
-      reason: 'permission',
-      message: `The keys may not ${e.step} in the bucket (HTTP ${e.status}): give them read, write and delete on it`,
-    }
-  if (e.code === 'QuotaExceeded' || e.status === 507)
-    return { reason: 'quota', message: 'The storage is full or over its quota' }
-  if (e.status === 401 || e.status === 403) return { reason: 'auth', message: `Keys rejected (HTTP ${e.status})` }
+    return problem('permission', said('server.api.providerTest.s3.denied', { step: e.step, status: e.status }))
+  if (e.code === 'QuotaExceeded' || e.status === 507) return problem('quota', said('server.api.providerTest.s3.full'))
+  if (e.status === 401 || e.status === 403)
+    return problem('auth', said('server.api.providerTest.s3.keysRejected', { status: e.status }))
   if ([301, 307].includes(e.status) || e.code === 'PermanentRedirect' || e.code === 'AuthorizationHeaderMalformed')
-    return { reason: 'config', message: 'Wrong region or endpoint' }
-  return { reason: e.status >= 500 ? 'network' : 'unknown', message: `Storage answered HTTP ${e.status}` }
+    return problem('config', said('server.api.providerTest.s3.region'))
+  return problem(
+    e.status >= 500 ? 'network' : 'unknown',
+    said('server.api.providerTest.s3.answered', { status: e.status }),
+  )
 }
 
 /**
@@ -831,7 +822,7 @@ async function testRecordingStore(
   values: Values,
   doFetch: typeof fetch,
   env: Record<string, string | undefined>,
-): Promise<ProviderTestData> {
+): Promise<Tested> {
   const secrets = [values.secret_access_key, values.access_key_id].filter((v): v is string => !!v && v.length >= 4)
   const scrub = (text: string) =>
     secrets.reduce((t, value) => t.replaceAll(value, '[redacted]'), text).slice(0, MAX_MESSAGE)
@@ -852,8 +843,8 @@ async function testRecordingStore(
     if (e instanceof RecordingConfigError) return error('config', scrub(e.message))
     if (e instanceof S3RequestError) return failed(s3Problem(e))
     if (e instanceof Error && e.name === 'TimeoutError')
-      return error('timeout', `No answer within ${TIMEOUT_MS / 1000} seconds`)
-    return error('network', scrub(`Could not reach the storage: ${errorText(e)}`))
+      return error('timeout', said('server.api.providerTest.s3.timeout', { seconds: TIMEOUT_MS / 1000 }))
+    return error('network', said('server.api.providerTest.s3.unreachable', { error: scrub(errorText(e)) }))
   }
 }
 
@@ -875,21 +866,37 @@ export async function testProvider(
   config: ProviderConfig,
   doFetch: typeof fetch = fetch,
   env: Record<string, string | undefined> = process.env,
-  { free = false }: { free?: boolean } = {},
+  options: { free?: boolean } = {},
 ): Promise<ProviderTestData> {
+  return testAnswer(await testProviderSaid(provider, config, doFetch, env, options))
+}
+
+/** testProvider with the result's key (Tested.said), for an answer in the reader's language (testAnswer). */
+export async function testProviderSaid(
+  provider: ProviderName,
+  config: ProviderConfig,
+  doFetch: typeof fetch = fetch,
+  env: Record<string, string | undefined> = process.env,
+  { free = false }: { free?: boolean } = {},
+): Promise<Tested> {
   const { label, fields } = providerSpec(provider)
   const values: Values = Object.fromEntries(
     Object.entries(config).flatMap(([field, entry]) => (entry ? [[field, entry.value]] : [])),
   )
   const missing = missingFields(provider, config)
   if (missing.length)
-    return error('config', `Not set: ${missing.map(field => providerFieldLabel(provider, field)).join(', ')}`)
+    return error(
+      'config',
+      said('server.api.providerTest.notSet', {
+        fields: missing.map(field => providerFieldLabel(provider, field)).join(', '),
+      }),
+    )
   if (isRecordingStore(provider)) return testRecordingStore(provider, values, doFetch, env)
   if (provider === 'smtp') return testSmtp(values.url!, values.from)
   if (isMailService(provider)) {
     const smtp = smtpOf(provider, values)
-    if (!smtp) return error('config', 'Not set up')
-    const login = await testSmtp(smtp.url, smtp.from, 'the key or password')
+    if (!smtp) return error('config', said('server.api.providerTest.notSetUp'))
+    const login = await testSmtp(smtp.url, smtp.from, 'key')
     if (!login.ok || provider !== 'resend') return login
     return (await resendDomain(values, doFetch).catch(() => null)) ?? login
   }
@@ -905,10 +912,22 @@ export async function testProvider(
       .slice(0, MAX_MESSAGE)
   try {
     const result = await checks[provider](values, httpFor(provider, doFetch, free))
-    return { ...result, message: scrub(result.message) }
+    // The params of a said text are scrubbed too: a model or voice field is never a secret, but nothing slips through.
+    const text = result.said && {
+      ...result.said,
+      ...(result.said.params && {
+        params: Object.fromEntries(
+          Object.entries(result.said.params).map(([name, value]) => [
+            name,
+            typeof value === 'string' ? scrub(value) : value,
+          ]),
+        ),
+      }),
+    }
+    return { ...result, message: scrub(result.message), ...(text && { said: text }) }
   } catch (e) {
     if (e instanceof Error && e.name === 'TimeoutError')
-      return error('timeout', `${label} did not answer within ${TIMEOUT_MS / 1000} seconds`)
+      return error('timeout', said('server.api.providerTest.timeout', { provider: label, seconds: TIMEOUT_MS / 1000 }))
     const { reason, message } = problemOfError(provider, e)
     return error(reason, scrub(`${message.replace(/\.$/, '')} (${errorText(e)})`))
   }

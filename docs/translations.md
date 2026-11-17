@@ -181,10 +181,27 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   `i18n()`, the API passes `getT(locale)` of the person reading (`localeForUserId`), and the setup MCP and the CLI pass
   nothing, so they get the same keys in English. A label map is `Record<Id, MessageKey>`, never English strings, and
   is read when the screen renders, never at import (a module-level list built from `t()` freezes the first language).
+- Refusals and messages the API writes itself (LIN-385): keys in the `server` namespace (`locales/en/server.json`,
+  `server.api.*` for this part; the other parts take their own prefix, such as `server.forwardingGuides.*`). The API
+  writes them in the caller's language (`wordsOf(actor)`: a member's language in the web app, else Automatic's,
+  else the browser's; an API key's request by its `Accept-Language`; the voice agent and the CLI in English):
+  - a refusal: `throw Reject.t('server.api.noWorkspace', params)` (or `Forbidden.t`, `NotFound.t`). The answer's
+    `error` is in the caller's language, its `code` never changes (clients match the code, not the text), and the
+    command log, logs and admin alerts keep the English (`e.message`). A refusal the web app words itself by matching
+    its English (`phoneSetupErrorText`, `releaseErrorText`, the forwarding check's internal reasons) stays English
+    (`english.t(key)`); one it shows as it is gets a code instead (`FORWARDING_REFUSED`).
+  - text stored and read later (a forwarding check's `detail`): the key and params are stored (`said()`), and written
+    when it is read, in that reader's language (`detailText`).
+  - a provider test (`provider.test`): the result keeps its key (`Tested.said`); the admin who asked reads it in their
+    language (`testAnswer`), what is stored, recorded and emailed is English.
+  - a param that is words (a list of languages, an amount) is a function of the reader (`SaidParams`), written in the
+    same language as the sentence. `said(key, params)` is a key use for `pnpm i18n:check`, like `t()` and `msg()`.
+  - the web app never loads `server.json` (its glob leaves it out): only the API writes these texts.
 - Done: provider status and health (Server admin › Providers, the overview and the install walkthrough), LiveKit and
   service health, provider and voice failures, phone-number checks and country names, the onboarding business
-  templates and install steps. Left, in `server-text-baseline.json`: the providers' setup guides and costs
-  (`admin.ts`), carrier forwarding guides, refusals (`Reject` and API error bodies) and the rest of the API.
+  templates and install steps; the refusals of `handlers.ts`, Checkout and the forwarding check, and the provider
+  tests (`provider-test.ts`). Left, in `server-text-baseline.json`: the providers' setup guides and costs
+  (`admin.ts`), carrier forwarding guides, the other refusals and the rest of the API.
 
 ## Emails and notifications
 
@@ -218,7 +235,8 @@ English body).
 | Notifications to members (new call, assigned call, setup emails, admin alerts) | Each recipient's own. The call summary inside is in the workspace's language, as it is written once per call |
 | Booking confirmations to callers | The assistant's main language, else the workspace's, if Linedesk has it, else English |
 | What the assistant says, summaries, titles, next steps | The workspace's language (assistant settings), not the member's |
-| API errors, the setup MCP, the CLI, logs, docs | English only |
+| API errors | The caller's: a member's language in the web app (as above), an API key's request by its `Accept-Language`, else English. Error codes are the same in every language |
+| The setup MCP, the CLI, logs, docs | English only |
 
 ## Request or add a language
 

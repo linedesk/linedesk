@@ -34,6 +34,7 @@ import type { z } from 'zod'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
+import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
 import { isPendingPayment, PENDING_PAYMENT, REFUSED_WHILE_PENDING_PAYMENT } from './self-serve.ts'
@@ -51,9 +52,10 @@ const forbidden = (error: string): RunResult => ({ status: 403, body: { ok: fals
 /** A handler's rejection: 403 when the caller may not do it, 404 for what is not theirs, 409 for the data's state. */
 const statusOf = (body: ActionRejection): RunResult['status'] =>
   body.code === 'forbidden' ? 403 : body.code === 'not_found' ? 404 : 409
-const rejectionBody = (e: Reject, notes: string[] = []): ActionRejection => ({
+/** `words`: the caller's language (wordsOf); the command log keeps the English. */
+const rejectionBody = (e: Reject, notes: string[] = [], words?: Reader): ActionRejection => ({
   ok: false,
-  error: [e.message, ...notes].join('; '),
+  error: [words ? rejectionText(e, words) : e.message, ...notes].join('; '),
   ...(e instanceof Forbidden
     ? { code: 'forbidden' as const }
     : e instanceof NotFound
@@ -227,7 +229,7 @@ async function runRead(def: ActionDef, input: unknown, actor: Actor): Promise<Ru
     }
   } catch (e) {
     if (!(e instanceof Reject)) throw e
-    const body = rejectionBody(e)
+    const body = rejectionBody(e, [], wordsOf(actor))
     return { status: statusOf(body), body }
   }
 }
@@ -363,11 +365,12 @@ export async function runAction(
       if (undone.length) console.error(`${name} failed after it had side effects: ${undone.join('; ')}`)
       throw e // unexpected: 500, the client retries
     }
-    const body = rejectionBody(e, undone)
+    const logged = rejectionBody(e, undone)
     await db
       .insert(commands)
-      .values({ ...record, result: body, rejected: true })
+      .values({ ...record, result: logged, rejected: true })
       .onConflictDoNothing()
+    const body = rejectionBody(e, undone, wordsOf(actor))
     return { status: statusOf(body), body }
   }
 }

@@ -1,5 +1,6 @@
 // What the user reads when the server refuses an action: a plain sentence, never an action id.
 import { phoneSetupErrorText } from '../onboarding/flow.ts'
+import { FORWARDING_REFUSED } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { i18n } from '../i18n/index.tsx'
 
@@ -62,15 +63,20 @@ export function rejectionReason(error: string): string {
   return sentence(t)
 }
 
-export function rejectionText(action: string, error: string): string {
+export function rejectionText(action: string, error: string, code?: string): string {
   if (action === 'phoneNumber.setup') return phoneSetupErrorText(error)
-  if (action in forwardingFallback) return forwardingCheckErrorText(action, error)
+  if (action in forwardingFallback) return forwardingCheckErrorText(action, error, code)
   const couldNot = i18n().t((verbs[action] ?? 'errors.couldNot.default') as MessageKey)
   return `${couldNot} ${rejectionReason(error)}`.trim()
 }
 
+/** The code a refusal came with (runDirect puts it on the error), else undefined. */
+export const codeOf = (e: unknown): string | undefined =>
+  typeof (e as { code?: unknown } | null)?.code === 'string' ? (e as { code: string }).code : undefined
+
 // The forwarding check (phoneNumber.checkForwarding, phoneNumber.lookupLine): the server's sentences written for the
-// owner (limits, a number it cannot call) pass as they are; its internal reasons get words; anything else the fallback.
+// owner (limits, a number it cannot call) pass as they are: in the reader's language with FORWARDING_REFUSED, else
+// the English ones of the number policy; its internal reasons get words; anything else the fallback.
 const forwardingFallback: Record<string, MessageKey> = {
   'phoneNumber.checkForwarding': msg('errors.forwarding.checkFailed'),
   'phoneNumber.lookupLine': msg('errors.forwarding.lookupFailed'),
@@ -83,8 +89,9 @@ const forwardingReasons: [RegExp, MessageKey][] = [
   [/only a number your business phone forwards to/i, msg('errors.forwarding.notForwarded')],
 ]
 
-function forwardingCheckErrorText(action: string, error: string): string {
+function forwardingCheckErrorText(action: string, error: string, code?: string): string {
   const t = error.trim()
+  if (code === FORWARDING_REFUSED && t) return t
   // The app's own offline line (errors.unreachable, in the reader's language: retry.ts, settings-api.ts) as it is, only
   // that exact sentence; the browser's raw network failure becomes it.
   if (forwardingWritten.test(t) || t === i18n().t('errors.unreachable')) return t

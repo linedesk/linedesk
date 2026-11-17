@@ -39,6 +39,12 @@ const businessNumber = z
     if (problem) ctx.addIssue({ code: 'custom', message: problem })
   })
 
+/**
+ * The code of a forwarding check's or lookup's refusal written for the business (a limit, a number it cannot check),
+ * in the caller's language: the web app shows its message as it is. Other refusals of the two actions get its own words.
+ */
+export const FORWARDING_REFUSED = 'forwarding_refused'
+
 /** One check as the web app shows it. `ringSeconds`: how long the business phone rang before the call arrived. */
 export type ForwardingCheckView = {
   id: string

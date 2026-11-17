@@ -13,7 +13,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { Field } from '../settings/fields.tsx'
 import { refreshGoLiveChecklist } from '../inbox/GoLiveChecklist.tsx'
-import { rejectionText } from '../shell/rejections.ts'
+import { codeOf, rejectionText } from '../shell/rejections.ts'
 import { useAssistantName, useRun } from '../store.tsx'
 import { Button, cx, Icon, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
@@ -169,7 +169,7 @@ export function ForwardingCheck({
         // Nothing from a failed lookup: no line, no carrier picked. The owner picks it from the list.
         setLine(null)
         setFound(null)
-        setLookupNote(rejectionText('phoneNumber.lookupLine', e instanceof Error ? e.message : String(e)))
+        setLookupNote(rejectionText('phoneNumber.lookupLine', e instanceof Error ? e.message : String(e), codeOf(e)))
         return
       }
     }
@@ -200,7 +200,7 @@ export function ForwardingCheck({
         await write<ForwardingCheckView>('phoneNumber.checkForwarding', { phoneNumberId: number.id, businessNumber }),
       )
     } catch (e) {
-      setProblem(rejectionText('phoneNumber.checkForwarding', e instanceof Error ? e.message : String(e)))
+      setProblem(rejectionText('phoneNumber.checkForwarding', e instanceof Error ? e.message : String(e), codeOf(e)))
     } finally {
       setStarting(false)
     }

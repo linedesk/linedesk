@@ -33,6 +33,7 @@ import {
 import { sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
+import { sayIn } from '../src/handler-context.ts'
 import { emailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
@@ -347,7 +348,7 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
       stripe.configuration = missing
       mails.length = 0
       const res = await act(owner, 'billing.startCheckout', {})
-      expect(res).toMatchObject({ status: 409, body: { ok: false, error: CHECKOUT_UNAVAILABLE } })
+      expect(res).toMatchObject({ status: 409, body: { ok: false, error: sayIn(CHECKOUT_UNAVAILABLE) } })
       await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
     }
     expect(checkoutsMade()).toEqual([])
@@ -549,7 +550,7 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
     await db.update(billing_accounts).set({ status: 'trialing' }).where(eq(billing_accounts.id, bill.id))
     await db.update(organization).set({ billingState: 'active' }).where(eq(organization.id, ws.id))
     const res = await act(owner, 'phoneNumber.setup', { areaCode: '503', purchase: true })
-    expect(res).toMatchObject({ status: 409, body: { ok: false, error: NUMBER_NEEDS_CHECKOUT } })
+    expect(res).toMatchObject({ status: 409, body: { ok: false, error: sayIn(NUMBER_NEEDS_CHECKOUT) } })
   })
 })
 

@@ -17,9 +17,15 @@ import {
 
 type I18n = ReturnType<typeof createI18n>
 
-// English is in the bundle; every other language is its own chunk, loaded when needed.
+// English is in the bundle; every other language is its own chunk, loaded when needed. The server's own texts
+// (server.json: refusals, checks, Checkout) are written by the API in the reader's language, never by the web app.
 const catalogs = import.meta.glob<Record<string, string>>(
-  ['../../../../packages/i18n/locales/*/*.json', '!../../../../packages/i18n/locales/en/*.json', '!**/_*.json'],
+  [
+    '../../../../packages/i18n/locales/*/*.json',
+    '!../../../../packages/i18n/locales/en/*.json',
+    '!**/_*.json',
+    '!**/server.json',
+  ],
   { import: 'default' },
 )
 

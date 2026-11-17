@@ -40,6 +40,7 @@ export const NAMESPACES = [
   'inbox',
   'insights',
   'onboarding',
+  'server',
   'settings',
   'shell',
   'team',

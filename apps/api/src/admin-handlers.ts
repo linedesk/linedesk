@@ -23,7 +23,7 @@ import { createEmailSender, type EmailSender, emailSender, emailSettingsOf, send
 import { emailSafeName, passkeyEnrolmentIssuedEmail, welcomeEmail } from './emails/templates.ts'
 import { db } from './db.ts'
 import { and, eq, ne, or, sql } from 'drizzle-orm'
-import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, type HandlerCtx, Reject, wordsOf } from './handler-context.ts'
 import { SOURCE } from '@linedesk/i18n'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import {
@@ -66,7 +66,7 @@ import {
   refuseMoneyKeysChange,
   refuseStripeKeysWhileOn,
 } from './billing-settings.ts'
-import { missingFields, testProvider } from './provider-test.ts'
+import { missingFields, testAnswer, testProvider, testProviderSaid } from './provider-test.ts'
 import { recentTest, rememberTest } from './setup-checklist.ts'
 import { s3EndpointProblem } from './s3-endpoint.ts'
 import { dropUserPush } from './push.ts'
@@ -397,12 +397,14 @@ export const adminHandlers: Record<string, Handler> = {
     return { rows: {}, data: { active: (await providerStatus(tx)).active } }
   },
 
-  'provider.test': async ({ tx }, input) => {
+  'provider.test': async ({ tx, actor }, input) => {
     const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
     // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
     const recent = await recentTest(tx, input.provider, config)
     if (recent) return { rows: {}, data: recent }
-    const result = await testProvider(input.provider, config, fetch, process.env, { free: input.free ?? false })
+    const tested = await testProviderSaid(input.provider, config, fetch, process.env, { free: input.free ?? false })
+    // Stored, recorded and alerted in English; the admin who asked reads it in their language.
+    const result = testAnswer(tested)
     await rememberTest(tx, input.provider, config, result)
     // A provider that is set up: its test counts like a call (a pass clears its failure, an error records one,
     // without the email: the admin sees it). One that is not set up is not failing, only missing.
@@ -415,7 +417,7 @@ export const adminHandlers: Record<string, Handler> = {
           'test',
         )
     }
-    return { rows: {}, data: result }
+    return { rows: {}, data: testAnswer(tested, wordsOf(actor)) }
   },
 
   'provider.connectOneKey': async ({ tx, actor, now }, input) => {

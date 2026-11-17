@@ -9,7 +9,7 @@ import {
   behaviourOn,
   callerRecognized,
   type CallerAttestation,
-  languageNames,
+  english,
   spokenLanguages,
   unspokenLanguages,
   pipelineChoiceUnder,
@@ -115,9 +115,11 @@ import {
   type Preparer,
   Forbidden,
   NotFound,
+  type Reader,
   Reject,
   type Undo,
 } from './handler-context.ts'
+import { languageInSentence } from '@linedesk/i18n'
 import { activeProvider, installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
 import { assistantForCall, assistantVoiceOf, checkAssistantLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
@@ -207,7 +209,7 @@ async function runPatch(
   input: unknown,
 ): Promise<Omit<ActionResult, 'ok'>> {
   const patch = def.patch!
-  if (!actor.workspaceId) throw new Reject('no workspace')
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   const table = syncedTables[patch.table]
   const scope = and(eq(table.id, patch.id(input)), eq(table.workspace_id, actor.workspaceId))
   const values = patch.set(input, now)
@@ -237,7 +239,7 @@ async function loadCall(tx: Tx, actor: Actor, callId: string) {
     .select()
     .from(calls)
     .where(and(eq(calls.id, callId), eq(calls.workspace_id, actor.workspaceId)))
-  if (!call) throw new Reject('call not found')
+  if (!call) throw Reject.t('server.api.callNotFound')
   return call
 }
 
@@ -450,8 +452,8 @@ async function openCall(
     .from(organization)
     .where(eq(organization.id, workspace_id))
   // A phone number always has its workspace; a test call names it, so it has to exist.
-  if (!workspace && source === 'test') throw new Reject('no such workspace')
-  if (workspace?.disabledAt) throw new Reject(`the workspace of ${label} is disabled`)
+  if (!workspace && source === 'test') throw Reject.t('server.api.noSuchWorkspace')
+  if (workspace?.disabledAt) throw Reject.t('server.api.workspaceOfDisabled', { label })
   // A withheld or malformed caller ID ("anonymous", "restricted") names nobody: no contact (all such
   // callers would share one), so no bookings to change and nothing to block.
   const contact = source === 'test' || isE164(from) ? await callerContact(tx, workspace_id, from, source) : null
@@ -819,7 +821,7 @@ async function checkAssistantLanguages(
   change: { voice?: AssistantVoice; voice_pipeline?: VoicePipeline | null } = {},
 ) {
   const stored = await assistantIn(tx, workspaceId, assistantId)
-  if (!stored) throw new Reject('no such assistant')
+  if (!stored) throw Reject.t('server.api.noSuchAssistant')
   const voice = change.voice ?? stored.voice
   const voiceChanged =
     voice.provider !== stored.voice.provider ||
@@ -834,11 +836,11 @@ async function checkAssistantLanguages(
   const spoken = callVoice ? spokenLanguages([callVoice]) : await installLanguages(tx)
   const missing = unspokenLanguages(languages, spoken).filter(code => !kept.includes(code))
   if (!missing.length) return
-  throw new Reject(
-    callVoice
-      ? `The assistant's voice (${callVoice.model || callVoice.provider}) can't speak ${languageNames(missing)}: pick another language or voice`
-      : `The voice providers set up can't speak ${languageNames(missing)}: pick another language`,
-  )
+  // The languages by their names in the reader's language ("Spanisch und Französisch" in German).
+  const names = (reader: Reader) => reader.format.list(missing.map(code => languageInSentence(code, reader.locale)))
+  throw callVoice
+    ? Reject.t('server.api.voiceCantSpeak', { voice: callVoice.model || callVoice.provider, languages: names })
+    : Reject.t('server.api.voicesCantSpeak', { languages: names })
 }
 type StoredLanguages = Parameters<typeof unspokenLanguages>[0]
 
@@ -862,7 +864,7 @@ const choosesLevel = (input: LevelInput) =>
  */
 async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelInput): Promise<UsageLevelChange | null> {
   const stored = await assistantIn(tx, workspaceId, input.assistantId)
-  if (!stored) throw new Reject('no such assistant')
+  if (!stored) throw Reject.t('server.api.noSuchAssistant')
   const after = {
     voice: input.voice ?? stored.voice,
     llm_model: input.llm_model !== undefined ? input.llm_model : stored.llm_model,
@@ -962,7 +964,7 @@ export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) 
 const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
   'assistant.update': async (ctx, given) => {
-    if (!ctx.actor.workspaceId) throw new Reject('no workspace')
+    if (!ctx.actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     // The version lock first (withVersion took it already; taking it again does not wait), as Allow Premium and Allow
     // Ultra off take it before they move the assistants: everything read below is what the save writes over.
     await lockAssistantVersion(ctx.tx, given.assistantId)
@@ -1013,7 +1015,7 @@ const handlers: Record<string, Handler> = {
   // An earlier version back, as a new version: the same checks as assistant.update. Its calendars are matched to the
   // linked ones; one no longer linked is named in the result, one linked since is switched off.
   'assistant.restoreVersion': async ({ tx, actor }, input: { assistantId: string; number: number }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const workspaceId = actor.workspaceId
     // The version lock first, as every save and Allow Premium off take it: what is read below cannot change before the
     // restore writes (a switch-off waits, or has moved the assistant already and the level check sees it).
@@ -1021,21 +1023,16 @@ const handlers: Record<string, Handler> = {
     const current = (await assistantIn(tx, workspaceId, input.assistantId))!
     const { settings } = await versionOf(tx, workspaceId, input.assistantId, input.number)
     const { calendars: kept, ...fields } = settings
-    if (actor.emailUnverified && setsTransferNumber(fields))
-      throw new Forbidden('Confirm your email first: this version puts calls through to a number')
+    if (actor.emailUnverified && setsTransferNumber(fields)) throw Forbidden.t('server.api.confirmEmailForTransfer')
     await checkAssistantVoice(tx, workspaceId, fields.voice).catch(e => {
-      throw new Reject(
-        `Version ${input.number}'s voice can't be used any more (${errorMessage(e)}): pick a voice and save instead`,
-      )
+      throw Reject.t('server.api.versionVoiceGone', { number: input.number, error: errorMessage(e) })
     })
     if (fields.languages)
       await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages, {
         voice: fields.voice,
         voice_pipeline: fields.voice_pipeline ?? null,
       }).catch(e => {
-        throw new Reject(
-          `Version ${input.number}'s languages can't be used any more (${errorMessage(e)}): pick the languages and save instead`,
-        )
+        throw Reject.t('server.api.versionLanguagesGone', { number: input.number, error: errorMessage(e) })
       })
     for (const contact of fields.transfers ?? [])
       if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
@@ -1052,9 +1049,7 @@ const handlers: Record<string, Handler> = {
       await checkAssistantLevel(tx, workspaceId, levelAfter, {
         picksRealtime: picksRealtime(current, levelAfter),
       }).catch(e => {
-        throw new Reject(
-          `Version ${input.number}'s voice or model can't be used here (${errorMessage(e)}): pick them and save instead`,
-        )
+        throw Reject.t('server.api.versionVoiceOrModelGone', { number: input.number, error: errorMessage(e) })
       })
     const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
     // A version from before a level column has no key for it: the column's default (null), as the check and the audit
@@ -1192,13 +1187,13 @@ const handlers: Record<string, Handler> = {
   },
 
   'contact.create': async ({ tx, actor }, input) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const [existing] = await tx
       .select()
       .from(contacts)
       .where(and(eq(contacts.workspace_id, actor.workspaceId), eq(contacts.phone, input.phone)))
     if (existing && (!existing.deleted_at || existing.merged_into))
-      throw new Reject(`${input.phone} is already a contact`)
+      throw Reject.t('server.api.alreadyContact', { phone: input.phone })
     const fields = {
       name: input.name ?? null,
       name_source: input.name ? ('member' as const) : null,
@@ -1230,7 +1225,7 @@ const handlers: Record<string, Handler> = {
   'call.start': async ({ tx, now }, input) => {
     const to = normalizeCallerId(input.to, { nationalUs: true })
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, to))
-    if (!number) throw new Reject(`no workspace for number ${input.to}`)
+    if (!number) throw Reject.t('server.api.noWorkspaceForNumber', { number: input.to })
     const assistant = await assistantForNumber(tx, number.workspace_id, number.assistant_id)
     const from = normalizeCallerId(input.from, { nationalUs: number.e164.startsWith('+1') })
     // Our own forwarding check arriving: not answered, not filed, never a real call (forwarding-check.ts).
@@ -1258,7 +1253,7 @@ const handlers: Record<string, Handler> = {
       .select({ id: organization.id })
       .from(organization)
       .where(eq(organization.id, actor.workspaceId))
-    if (!workspace) throw new Reject('no such workspace')
+    if (!workspace) throw Reject.t('server.api.noSuchWorkspace')
     const assistant = await assistantIn(tx, actor.workspaceId, input.assistantId)
     // A room is one test call: the browser's join token outlives the room, and rejoining would open a new call.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`test-room:${input.room}`}))`)
@@ -1283,7 +1278,7 @@ const handlers: Record<string, Handler> = {
 
   'call.findForTest': async ({ tx, now, calendars }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
-    if (!number) throw new Reject(`${input.to} is not set up in any workspace`)
+    if (!number) throw Reject.t('server.api.numberNotSetUp', { number: input.to })
     // A phone call comes in on the number; a no-phone test call is found by its room.
     const which = input.room
       ? eq(calls.room, input.room)
@@ -1340,7 +1335,7 @@ const handlers: Record<string, Handler> = {
   },
 
   'assistant.startTestCall': async ({ tx, actor }, input) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     // Only an assistant of the caller's own workspace goes into the signed dispatch.
     const assistant = input.assistantId ? await assistantIn(tx, actor.workspaceId, input.assistantId) : null
     return { rows: {}, data: await startTestCall(tx, actor, assistant?.id) }
@@ -1350,8 +1345,8 @@ const handlers: Record<string, Handler> = {
   // Each change is recorded in the call's activity (call_events) and, when someone else assigned it,
   // the assignee is told (assign-notifications.ts).
   'call.assign': async ({ tx, actor, now }, input: { callId: string; userId: string | null; notify?: boolean }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
-    if (actor.role === 'agent') throw new Forbidden('the assistant cannot assign calls')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
+    if (actor.role === 'agent') throw Forbidden.t('server.api.assistantCannotAssign')
     // Same answer as the patch it stands in for: a call of another workspace is not found.
     const [call] = await tx
       .select()
@@ -1363,8 +1358,8 @@ const handlers: Record<string, Handler> = {
         .select({ disabled: workspace_members.disabled })
         .from(workspace_members)
         .where(and(eq(workspace_members.workspace_id, call.workspace_id), eq(workspace_members.user_id, input.userId)))
-      if (!assignee) throw new Reject('that user is not a member of this workspace')
-      if (assignee.disabled) throw new Reject("that member's account is disabled")
+      if (!assignee) throw Reject.t('server.api.notAMember')
+      if (assignee.disabled) throw Reject.t('server.api.memberDisabled')
     }
     if (call.assignee_id === input.userId) return { rows: { calls: [call] } }
     const actorId = actor.apiKeyId ? null : actor.actorId
@@ -1387,7 +1382,7 @@ const handlers: Record<string, Handler> = {
 
   // The members calls can be assigned to (API keys and MCP clients look up a userId here).
   'member.list': async ({ tx, actor }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const rows = await tx
       .select({ userId: workspace_members.user_id, name: workspace_members.name, role: workspace_members.role })
       .from(workspace_members)
@@ -1556,7 +1551,7 @@ const handlers: Record<string, Handler> = {
   'call.finalize': async ({ tx, actor }, input) => {
     await lockCall(tx, input.callId)
     const call = await loadCall(tx, actor, input.callId)
-    if (call.status !== 'completed') throw new Reject('the call has not finished')
+    if (call.status !== 'completed') throw Reject.t('server.api.callNotFinished')
     if (!call.awaiting_transcript_until) return { rows: {} }
     // A title or summary the team changed while the news was held stays.
     const unchanged = (stored: string | null, sent: string | undefined) => sent === undefined || stored === sent
@@ -1631,11 +1626,11 @@ const handlers: Record<string, Handler> = {
     const call = await loadCall(tx, actor, input.callId)
     // One start at a time per call, so a retry finds the egress the first one started (recording-egress.ts).
     const [locked] = await tx.select({ status: calls.status }).from(calls).where(eq(calls.id, call.id)).for('update')
-    if (locked?.status !== 'live') throw new Reject('the call has ended')
+    if (locked?.status !== 'live') throw Reject.t('server.api.callEnded')
     const assistant = call.assistant_id
       ? await assistantIn(tx, call.workspace_id, call.assistant_id).catch(() => null)
       : null
-    if (assistant?.record_calls === false) throw new Reject("the call's assistant does not record calls")
+    if (assistant?.record_calls === false) throw Reject.t('server.api.callNotRecorded')
     const egressId = await startS3Recording(tx, call.room ?? call.id, recordingKey(call.workspace_id, call.id))
     return { rows: {}, data: { egressId } }
   },
@@ -1679,7 +1674,7 @@ const handlers: Record<string, Handler> = {
   },
 
   'onboarding.setStep': async ({ tx, actor, now }, input) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     await tx
       .insert(workspace_settings)
       .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, onboarding_step: input.step })
@@ -1689,14 +1684,14 @@ const handlers: Record<string, Handler> = {
   },
 
   'onboarding.recordEvent': async ({ tx, actor, now }, input) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     await recordSetupEvent(tx, actor.workspaceId, input.event, now)
     return { rows: {} }
   },
 
   // The numbers to pick from for "Use a number you have": one free read of the carrier account, never a purchase.
   'phoneNumber.listCarrierNumbers': async ({ tx, actor, telephony }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const { provider, account } = await setupCarrier(tx, actor.workspaceId, telephony)
     // Same rule as attaching (phoneNumber.setup): the install's account is shared, only instance admins see it.
     if (account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
@@ -1716,7 +1711,7 @@ const handlers: Record<string, Handler> = {
   },
 
   'phoneNumber.setup': async ({ tx, actor, now, telephony, onRollback, onCommit }, input) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const workspace_id = actor.workspaceId
     // Never waits long for a lock while it holds a connection: a burst of setups must not fill the pool.
     await tx.execute(sql`set local lock_timeout = '5s'`)
@@ -1729,7 +1724,7 @@ const handlers: Record<string, Handler> = {
       throw new Reject('phone setup is not configured: LIVEKIT_SIP_ENDPOINT is not set')
 
     // Everything that can refuse is checked before the carrier is asked anything, and before anything is bought.
-    if (actor.workspaceDisabled) throw new Reject('this workspace is disabled')
+    if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
     // No number before Checkout (docs/billing.md §3.1).
     await refusePendingPayment(tx, workspace_id)
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
@@ -1765,9 +1760,9 @@ const handlers: Record<string, Handler> = {
         tx,
         await atCarrier(() => provider.searchNumbers({ country: searchCountry, areaCode: input.areaCode, limit: 5 })),
       ))
-    if (!e164) throw new Reject(`no number available in area code ${input.areaCode}`)
+    if (!e164) throw new Reject(english.t('server.api.noNumberInAreaCode', { areaCode: input.areaCode }))
     const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
-    if (taken) throw new Reject(`${e164} is already set up`)
+    if (taken) throw new Reject(english.t('server.api.numberAlreadySetUp', { number: e164 }))
 
     const existing = await atCarrier(() => provider.findNumber(e164))
     if (!existing && !input.purchase) {
@@ -1848,13 +1843,14 @@ const handlers: Record<string, Handler> = {
   // attached one is taken off Linedesk's routing there (its other settings at the carrier stay).
   // The carrier is asked last, right before the commit: if it refuses, nothing changes here.
   'phoneNumber.release': async ({ tx, actor, telephony, onCommit }, input) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const [number] = await tx
       .select()
       .from(phone_numbers)
       .where(and(eq(phone_numbers.id, input.phoneNumberId), eq(phone_numbers.workspace_id, actor.workspaceId)))
-    if (!number) throw new Reject('phone number not found')
-    if (!confirmsNumber(input.confirm, number.e164)) throw new Reject(`type the number ${number.e164} to confirm`)
+    if (!number) throw Reject.t('server.api.phoneNumberNotFound')
+    if (!confirmsNumber(input.confirm, number.e164))
+      throw new Reject(english.t('server.api.typeNumberToConfirm', { number: number.e164 }))
     await lockWorkspaceCarrier(tx, actor.workspaceId)
     await tx.delete(phone_numbers).where(eq(phone_numbers.id, number.id))
     const owned = number.provider_ref ? { e164: number.e164, providerRef: number.provider_ref } : null

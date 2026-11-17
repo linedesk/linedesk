@@ -74,7 +74,8 @@ function literalValues(node: Node): string[] | null {
   return null
 }
 
-const KEY_CALLS = new Set(['t', 'msg'])
+/** Calls whose first argument is a message key: `t()`, `msg()`, and `said()` (a key and params the API writes later). */
+const KEY_CALLS = new Set(['t', 'msg', 'said'])
 
 export interface KeyUse {
   key: string
@@ -92,10 +93,10 @@ export interface KeyScan {
 
 const lineOf = (source: string, offset: number) => source.slice(0, offset).split('\n').length
 
-/** `t('…')`, `x.t('…')`, `msg('…')` and `<T k="…">` in one file. */
+/** `t('…')`, `x.t('…')`, `msg('…')`, `said('…')` and `<T k="…">` in one file. */
 export function scanKeys(file: string, source: string): KeyScan {
   const out: KeyScan = { used: [], dynamic: [], undeclared: [] }
-  if (!/\bt\(|\.t\(|\bmsg\(|<T\b|i18n-dynamic/.test(source)) return out
+  if (!/\bt\(|\.t\(|\bmsg\(|\bsaid\(|<T\b|i18n-dynamic/.test(source)) return out
   const { program, comments } = parse(file, source)
   for (const comment of comments) {
     const match = /i18n-dynamic:\s*(.+)/.exec(comment.value)

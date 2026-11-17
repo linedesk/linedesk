@@ -113,14 +113,16 @@ describe('key scan', () => {
     const c = msg('shell.nav.inbox')
     const d = <T k="call.summary" values={{}} />
     const e = t(\`errors.\${code}\`)
+    const f = said('server.api.noWorkspace', { x })
   `
-  it('finds keys in t(), x.t(), msg(), <T k> and choices', () => {
+  it('finds keys in t(), x.t(), msg(), said(), <T k> and choices', () => {
     const scan = scanKeys('a.tsx', source)
     expect(scan.used.map(u => u.key).sort()).toEqual([
       'call.summary',
       'inbox.one',
       'inbox.title',
       'inbox.two',
+      'server.api.noWorkspace',
       'shell.nav.inbox',
     ])
     expect(scan.dynamic).toEqual([{ prefix: 'errors.', file: 'a.tsx' }])
