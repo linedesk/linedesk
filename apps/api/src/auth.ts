@@ -36,8 +36,8 @@ import {
   sameAnswerForRefusedCodes,
   sendPasswordResetCode,
 } from './password-reset.ts'
-import { maySendSignInCode } from './signup-gate.ts'
-import { browserNonceFor, createSignInLink, linkOrigin, signInLinkUrl } from './sign-in-link.ts'
+import { maySendSignInCode, signupPageLinkPath } from './signup-gate.ts'
+import { createSignInLink, linkOrigin, signInLinkUrl } from './sign-in-link.ts'
 import { starOnGrantHooks } from './star-prompt.ts'
 import { personNameHooks } from './team-member-edit.ts'
 import { userLocaleFields, userLocaleHooks } from './user-locale.ts'
@@ -215,15 +215,15 @@ async function sendSignInCode({ email, otp, type }: { email: string; otp: string
   }
   if (type === 'forget-password') return sendPasswordResetCode(email, otp, locale)
   if (type !== 'sign-in') return
-  // Before the account check: every address gets the browser cookie alike (sign-in-link.ts).
-  const browser = browserNonceFor(ctx)
   // Closed sign-up: no code to an address that cannot sign in.
   if (!(await maySendSignInCode(db, email))) return
   // The email's button and "sign-in page at <site>" name the origin the code was asked from, when it is one of ours.
   const origin = linkOrigin(originOf(ctx), TRUSTED_ORIGINS, normaliseOrigin(WEB_ORIGIN))
+  // The button goes on where the flow is: the sign-up page for its own code, else the app (sign-in-link.ts).
+  const linkPath = signupPageLinkPath() ?? '/'
   // Not awaited: waiting for SMTP (or storing the link) only for real accounts would tell anyone which addresses have one.
   void (async () => {
-    const link = browser ? signInLinkUrl(origin, await createSignInLink(email, otp, browser)) : undefined
+    const link = signInLinkUrl(origin, await createSignInLink(email, otp), linkPath)
     await emailSender.send({ to: email, ...signInCodeEmail(otp, origin, locale, link) })
   })().catch(err => console.error('sign-in email failed', err))
 }

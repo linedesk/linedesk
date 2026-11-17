@@ -40,7 +40,7 @@ import { registerTestLookupRoute } from './test-lookup.ts'
 import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
 import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
 import { legalTerms } from './legal-terms.ts'
-import { fromSignupPage } from './signup-gate.ts'
+import { fromSignupPage, signupLinkPath } from './signup-gate.ts'
 import { partnersOf } from './partners.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
@@ -148,10 +148,22 @@ registerStripeWebhookRoute(app)
 // Public: Jobber's webhook (APP_DISCONNECT), checked by its signature, 404 while Jobber is not set up (jobber-webhook.ts).
 registerJobberWebhookRoute(app)
 
-// Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
-app.get('/v1/auth-methods', async c =>
-  c.json({ ...currentAuthMethods(), errorReporting: browserErrorReporting(), setupNeeded: await setupNeeded(db) }),
-)
+// Public: the sign-in screen asks which methods this install offers, whether it still needs its first admin, and
+// whether self-serve sign-up is open (self-serve.ts `selfServeState`: the same check every sign-up step runs), so it
+// can link to the sign-up page. Only that yes or no: never why it is closed, nor the rules.
+app.get('/v1/auth-methods', async c => {
+  // A failed read must not take the sign-in page down: it then shows the invitation line, as when closed.
+  const selfServeSignup = await db
+    .transaction(tx => selfServeState(tx))
+    .then(state => state.open)
+    .catch(() => false)
+  return c.json({
+    ...currentAuthMethods(),
+    errorReporting: browserErrorReporting(),
+    setupNeeded: await setupNeeded(db),
+    selfServeSignup,
+  })
+})
 
 // Public: for uptime checks from outside, whether the voice agent is there to answer calls (admin-overview.ts).
 app.get('/v1/health', c => {
@@ -349,8 +361,8 @@ app.get('/v1/signup/config', async c => {
 // Auth's sign-in code; entering it signs in, and creates the account (signup-gate.ts) only after this attempt.
 app.post('/v1/signup/code', async c => {
   const body = await c.req
-    .json<{ email?: unknown; token?: unknown }>()
-    .catch(() => ({ email: undefined, token: undefined }))
+    .json<{ email?: unknown; token?: unknown; plan?: unknown; interval?: unknown }>()
+    .catch(() => ({ email: undefined, token: undefined, plan: undefined, interval: undefined }))
   if (typeof body.email !== 'string') return c.json({ ok: false, code: 'invalid_email' }, 422)
   const email = body.email.trim().toLowerCase()
   const ip = clientIpOf(c)
@@ -369,8 +381,10 @@ app.post('/v1/signup/code', async c => {
   }
   // Committed above, so the sign-in code's own check (signup-gate.ts maySendSignInCode) sees the attempt; only this
   // route sends a code to an address that has no account yet (fromSignupPage, security review F4 of #960).
-  await fromSignupPage(() =>
-    auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' }, headers: clientIpHeaders(c) }),
+  // The email's button opens the sign-up page with the same plan, so Continue goes on to the details in any browser.
+  await fromSignupPage(
+    () => auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' }, headers: clientIpHeaders(c) }),
+    signupLinkPath(body.plan, body.interval),
   )
   return c.json({ ok: true })
 })

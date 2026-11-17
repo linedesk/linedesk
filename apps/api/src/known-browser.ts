@@ -5,8 +5,6 @@
 //   BETTER_AUTH_SECRET: nobody can make one, change its account or extend it. A cookie only counts for the account it
 //   names, and only for that account's current address (checked in sign-in-limits.ts).
 // - 90 days from the last sign-in; every sign-in (and session refresh) in that browser issues a new one.
-// - Not the `sign_in_browser` cookie (sign-in-link.ts): that one is a random value every visitor gets by asking for a
-//   code, for any address, and proves no sign-in.
 // - httpOnly, `__Host-` on https (Secure, Path=/, no Domain), SameSite=Lax. A cookie planted on plain http is still
 //   only a valid one, which helps only for its own account.
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
@@ -22,7 +20,7 @@ const MAX_LENGTH = 512
 
 type Env = Record<string, string | undefined>
 
-/** The cookie: `__Host-known_browser` on https, `known_browser` on http (as `browserCookie` in sign-in-link.ts). */
+/** The cookie: `__Host-known_browser` on https (no subdomain can set it), `known_browser` on http. */
 export function knownBrowserCookie(secure: boolean) {
   return {
     name: secure ? '__Host-known_browser' : 'known_browser',

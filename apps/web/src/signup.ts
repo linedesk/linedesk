@@ -106,17 +106,21 @@ export function signupPlanLine(plan: SignupPlan, interval: 'year' | 'month', par
 
 const REFUSALS: readonly CodeRefusal[] = ['closed', 'invalid_email', 'blocked_domain', 'bot_check', 'too_many', 'busy']
 
-/** Asks for an email code; the answer never says whether the address has an account. */
+/**
+ * Asks for an email code; the answer never says whether the address has an account. The plan and interval go along so
+ * the email's button opens this page with the same plan, in whichever browser opens it (apps/api/src/sign-in-link.ts).
+ */
 export async function askSignupCode(
   email: string,
   token: string,
+  { plan, interval }: { plan: string; interval: 'year' | 'month' } = readSignupParams(),
 ): Promise<{ ok: true } | { ok: false; reason: CodeRefusal | 'unreachable' }> {
   try {
     const res = await fetch('/v1/signup/code', {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, token }),
+      body: JSON.stringify({ email, token, plan, interval }),
     })
     if (res.ok) return { ok: true }
     const body = (await res.json().catch(() => null)) as { code?: string } | null

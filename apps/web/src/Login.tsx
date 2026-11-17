@@ -1,10 +1,11 @@
 // Sign-in. Shows what this install offers (GET /v1/auth-methods): the passkey first where the install and the browser
 // can use one, with "Use an email code instead" (a code sent by email) below it; without passkeys the email form comes
-// first. Then the sign-in providers, and a password under "Show other options". There is no open sign-up: an
-// unknown address is told to ask for an invitation; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
+// first. Then the sign-in providers, and a password under "Show other options". New accounts come from the sign-up page
+// while self-serve sign-up is open (the footer links there), else from an invitation: an unknown address is told to ask
+// for one; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
-import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, normalizeCode, NO_CODE_HINT_AFTER_S, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, noAccountText, normalizeCode, NO_CODE_HINT_AFTER_S, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -28,6 +29,18 @@ type Result = { error: { message?: string; code?: string; status?: number } | nu
 /** Keeps trying while the server is unreachable (a restart), so the page recovers by itself. */
 const loadAuthMethods = () => fetchAuthMethods()
 
+/** The sign-up page (Signup.tsx); the language this browser chose carries over, it is kept in the browser. */
+const SIGNUP_PATH = '/signup'
+
+/**
+ * Where someone told "No account for this email" can go instead, while self-serve sign-up is open: the sign-up page.
+ * The error itself stays the same for every unknown address (no account enumeration).
+ */
+export function signupLinkFor(message: string | null, selfServeSignup: boolean | undefined) {
+  if (!selfServeSignup || !message || message !== noAccountText()) return undefined
+  return { href: SIGNUP_PATH, label: i18n().t('auth.error.signupClosedStartTrial') }
+}
+
 const fail = (res: Result) => {
   if (res.error) throw res.error
 }
@@ -38,8 +51,8 @@ export type Reauth = { title: string; why: string; onBack: () => void }
 
 /**
  * `onDone` resolves once the app has loaded the account, so the form keeps its busy state until the app replaces it.
- * With `reauth`, the same methods sign a signed-in member in again. There is no sign-up: accounts come from an
- * invitation, the first-run setup or a server admin (apps/api/src/signup-gate.ts).
+ * With `reauth`, the same methods sign a signed-in member in again. Accounts come from the sign-up page while self-serve
+ * sign-up is open, an invitation, the first-run setup or a server admin (apps/api/src/signup-gate.ts).
  */
 export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?: Reauth }) {
   const t = useT()
@@ -174,7 +187,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 
   if (step === 'code') {
-    return <CodeStep email={form.email} supportEmail={methods.links.supportEmail} onDone={onDone} onDifferentEmail={() => go('start')} />
+    return <CodeStep email={form.email} supportEmail={methods.links.supportEmail} selfServeSignup={methods.selfServeSignup} onDone={onDone} onDifferentEmail={() => go('start')} />
   }
 
   if (step === 'reset') {
@@ -182,7 +195,8 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   }
 
   const title = reauth ? reauth.title : t('auth.signInTo', { brand: brandName() })
-  const errorLine = error && <AuthError message={error} />
+  const signupLink = reauth ? undefined : signupLinkFor(error, methods.selfServeSignup)
+  const errorLine = error && <AuthError message={error} link={signupLink} />
   // Without email codes the password is the main form, not one of the other options.
   const passwordFirst = methods.password && !methods.emailCode
   const intro = reauth && <p>{reauth.why}</p>
@@ -224,7 +238,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     lostHere && elsewhere ? (
       <AuthError id={id} message={providerElsewhereMessage(elsewhere.host)} link={{ href: elsewhere.href, label: t('auth.openHost', { host: elsewhere.host }) }} />
     ) : (
-      error && <AuthError id={id} message={error} />
+      error && <AuthError id={id} message={error} link={signupLink} />
     )
   const withPasskey = methods.passkey && passkeySupported()
   const passkeyButton = withPasskey && (
@@ -361,13 +375,18 @@ function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }:
   )
 }
 
-/** Who can get an account (an invitation: there is no sign-up), then Terms · Privacy · Help, each only when set. */
-function AuthFooter({ methods }: { methods: AuthMethods }) {
+/**
+ * Who can get an account: the sign-up page while self-serve sign-up is open on this install (`selfServeSignup`), else an
+ * invitation from a workspace admin. Then Terms · Privacy · Help, each only when set.
+ */
+export function AuthFooter({ methods }: { methods: AuthMethods }) {
   const t = useT()
   return (
     <footer className="auth-footer">
       <p className="auth-note">
-        {t('auth.noAccount')}
+        {methods.selfServeSignup
+          ? <T k="auth.noAccountSignup" values={{ a: chunks => <a className="k-link" href={SIGNUP_PATH}>{chunks}</a> }} />
+          : t('auth.noAccount')}
         {methods.links.supportEmail && (
           <>
             {' '}
@@ -433,12 +452,14 @@ type CodeStepProps = {
   supportEmail?: string | null
   /** Signing in from an invitation: the address may sign in, so the page says the code was sent and does not send them to ask for an invitation. */
   invited?: boolean
+  /** Self-serve sign-up is open (GET /v1/auth-methods): "No account for this email" links to the sign-up page. */
+  selfServeSignup?: boolean
   onDone: () => Promise<void>
   onDifferentEmail: () => void
 }
 
 /** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
-export function CodeStep({ email, supportEmail, invited = false, onDone, onDifferentEmail }: CodeStepProps) {
+export function CodeStep({ email, supportEmail, invited = false, selfServeSignup = false, onDone, onDifferentEmail }: CodeStepProps) {
   const t = useT()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -502,7 +523,7 @@ export function CodeStep({ email, supportEmail, invited = false, onDone, onDiffe
           onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
-        {error && <AuthError message={error} id="code-error" />}
+        {error && <AuthError message={error} id="code-error" link={signupLinkFor(error, selfServeSignup)} />}
         <button type="submit" className={cx('k-btn k-btn-primary', (busy || signedIn) && 'is-busy')}
           disabled={busy || code.length < CODE_LENGTH} aria-busy={busy || signedIn || undefined}>
           {(busy || signedIn) && <Spinner />}

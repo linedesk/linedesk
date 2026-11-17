@@ -62,10 +62,9 @@ const codeNote = (locale: EmailLocale) =>
   getT(locale).t('email.code.note', { minutes: SIGN_IN_CODE_MINUTES, brand: emailBrandName() })
 
 /**
- * The code in the subject and the body. With `link` (the code was asked for in a browser, sign-in-link.ts), a button
- * signs in with one click first and the code is the way for any other browser or device. The button only opens the
- * site the email names, which asks to Continue and works only in the browser that asked for the code: a copied or
- * phished link signs nobody in.
+ * The code in the subject and the body. With `link` (sign-in-link.ts), a button first and the code below it, both
+ * working in any browser or device. The button only opens the site the email names, which shows the address and signs
+ * in only on Continue, in the browser that clicks: a mail scanner that follows the link signs nobody in.
  */
 export function signInCodeEmail(
   code: string,

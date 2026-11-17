@@ -16,6 +16,11 @@ export type AuthMethods = {
   signInOrigin?: string | null
   /** Nobody has an account yet: the sign-in page asks for the setup code from the server log (setup.ts). */
   setupNeeded?: boolean
+  /**
+   * Self-serve sign-up is open to the public now (apps/api/src/self-serve.ts `selfServeState().open`): the sign-in page
+   * links to the sign-up page instead of only sending people to ask for an invitation. Absent from an older API.
+   */
+  selfServeSignup?: boolean
   /** Sentry for the web app's own errors (error-reporting.ts); null or absent: off. */
   errorReporting?: { dsn: string; environment: string } | null
 }

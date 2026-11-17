@@ -3,8 +3,10 @@
 // - Mail scanners (Outlook Safe Links, Mimecast) open every link. The link only opens the app's own page; the token is
 //   in the address's fragment (#sign-in=…), which no server and no Referer ever sees, and nothing signs in until the
 //   person clicks Continue on that page (a POST from the app's origin, csrf.ts).
-// - It works only in the browser that asked for the code: asking sets a random cookie (`sign_in_browser`), and the
-//   link is stored with that cookie's SHA-256. Anywhere else the page says to enter the code, and tells nothing else.
+// - It works in any browser, like the code: mail apps often open links in another browser or their own in-app one.
+//   Continue signs in the browser that clicks it, with a new session there; it never signs in or approves the browser
+//   that asked for the code (no cross-device approval). The page shows the address before Continue, so a link someone
+//   forwards from their own email cannot slip another account in unnoticed.
 // - The token is 32 random bytes. Stored: its SHA-256 (the row's identifier) and the code, encrypted with a key derived
 //   from the token, so the link row adds no new way to read the code (Better Auth's own row already holds an unsalted
 //   SHA-256 of it, which a reader of the database can brute-force within its 10 minutes). Using the link signs in
@@ -25,48 +27,6 @@ const PREFIX = 'sign-in-link-'
 const KEY_INFO = 'linedesk sign-in link'
 /** The full GCM tag: a shorter one is refused. */
 const TAG_BYTES = 16
-
-/**
- * The browser cookie: `__Host-` on https (Secure, Path=/, no Domain, so no subdomain can set it), a plain name on
- * http, where a sibling host or the network can plant a value: the binding is strong only on https. Continue gives the
- * browser a new value (sign-in-link-routes.ts), so a planted one works at most once. One day: long enough for any code, and the same browser keeps its value across several codes.
- */
-export function browserCookie(secure: boolean) {
-  return {
-    name: secure ? '__Host-sign_in_browser' : 'sign_in_browser',
-    attributes: { secure, httpOnly: true, sameSite: 'lax' as const, path: '/', maxAge: 24 * 60 * 60 },
-  }
-}
-
-type CookieCtx = {
-  getCookie: (name: string) => string | null | undefined
-  setCookie: (name: string, value: string, attributes?: Record<string, unknown>) => unknown
-  context: { createAuthCookie: (name: string) => { attributes: { secure?: boolean } } }
-  headers?: Headers
-  request?: Request
-}
-
-/**
- * The browser's value on the request that asks for a sign-in code (a Better Auth endpoint context): the one it has,
- * or a new one set on the answer. Set for every address alike, so the answer tells nothing about accounts. Null for
- * a server-side call (`auth.api` without a request or headers: no browser gets the cookie), so that email has no
- * button, only the code.
- */
-export function browserNonceFor(ctx: unknown): string | null {
-  const c = ctx as Partial<CookieCtx> | null | undefined
-  if (!c || typeof c.getCookie !== 'function' || typeof c.setCookie !== 'function' || !c.context?.createAuthCookie)
-    return null
-  if (!c.request && !c.headers) return null
-  const cookie = browserCookie(Boolean(c.context.createAuthCookie('sign_in_browser').attributes.secure))
-  const present = c.getCookie(cookie.name)
-  if (present && /^[A-Za-z0-9_-]{43}$/.test(present)) return present
-  const nonce = newBrowserNonce()
-  c.setCookie(cookie.name, nonce, cookie.attributes)
-  return nonce
-}
-
-/** A new browser value: 32 random bytes. */
-export const newBrowserNonce = () => randomBytes(32).toString('base64url')
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('base64url')
 const keyOf = (token: string) => Buffer.from(hkdfSync('sha256', token, '', KEY_INFO, 32))
@@ -94,7 +54,7 @@ function decrypt(token: string, sealed: string): string | null {
   }
 }
 
-type Stored = { email: string; browser: string; otp: string }
+type Stored = { email: string; otp: string }
 
 /**
  * Where the email's link and its "sign-in page at <site>" point: the origin the code was asked from when it is one
@@ -105,13 +65,17 @@ export function linkOrigin(requestOrigin: string | null | undefined, trusted: re
   return requestOrigin && trusted.includes(requestOrigin) ? requestOrigin : main
 }
 
-/** The link's address: the app's link page with the token in the fragment. */
-export const signInLinkUrl = (origin: string, token: string) => `${origin}/#${SIGN_IN_LINK_HASH}=${token}`
+/**
+ * The link's address: the app's link page with the token in the fragment. `path` is the page the flow goes on at
+ * after Continue (`/signup?…` for a code from the sign-up page, signup-gate.ts `signupPageLinkPath`), else the app.
+ */
+export const signInLinkUrl = (origin: string, token: string, path = '/') =>
+  `${origin}${path}#${SIGN_IN_LINK_HASH}=${token}`
 
-/** Stores a new link for this code and browser; returns the token (never logged). */
-export async function createSignInLink(email: string, otp: string, browserNonce: string): Promise<string> {
+/** Stores a new link for this code; returns the token (never logged). */
+export async function createSignInLink(email: string, otp: string): Promise<string> {
   const token = randomBytes(32).toString('base64url')
-  const value: Stored = { email: email.toLowerCase(), browser: sha256(browserNonce), otp: encrypt(token, otp) }
+  const value: Stored = { email: email.toLowerCase(), otp: encrypt(token, otp) }
   await db.insert(verification).values({
     id: crypto.randomUUID(),
     identifier: `${PREFIX}${sha256(token)}`,
@@ -141,22 +105,21 @@ async function codeStillValid(email: string, otp: string): Promise<boolean> {
 }
 
 /**
- * What the link page may show. `other`: unknown, expired, or another browser (one answer for all, nothing told);
- * `spent`: this browser's link, but its code was used, replaced or ran out (the link is deleted); `ready`: Continue.
+ * What the link page may show, in any browser. `spent`: unknown, expired, used, or its code was used, replaced or ran
+ * out (one answer for all; a spent link's row is deleted); `ready`: Continue, with the address it signs in.
  */
-export type SignInLinkState = { state: 'other' } | { state: 'spent' } | { state: 'ready'; email: string; otp: string }
+export type SignInLinkState = { state: 'spent' } | { state: 'ready'; email: string; otp: string }
 
-export async function readSignInLink(token: string, browserNonce: string | null | undefined): Promise<SignInLinkState> {
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !browserNonce) return { state: 'other' }
+export async function readSignInLink(token: string): Promise<SignInLinkState> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return { state: 'spent' }
   const identifier = `${PREFIX}${sha256(token)}`
   const [row] = await db
     .select({ value: verification.value })
     .from(verification)
     .where(and(eq(verification.identifier, identifier), gt(verification.expiresAt, new Date())))
     .limit(1)
-  if (!row) return { state: 'other' }
+  if (!row) return { state: 'spent' }
   const stored = JSON.parse(row.value) as Stored
-  if (!sameHash(stored.browser, sha256(browserNonce))) return { state: 'other' }
   const otp = decrypt(token, stored.otp)
   if (!otp || !(await codeStillValid(stored.email, otp))) {
     await db.delete(verification).where(eq(verification.identifier, identifier))

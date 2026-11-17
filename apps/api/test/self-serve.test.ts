@@ -273,6 +273,117 @@ describe('closed unless switched on and billing is in effect', () => {
   })
 })
 
+describe('the sign-in page: whether sign-up is open (GET /v1/auth-methods)', () => {
+  const flag = async () => {
+    const body = (await request(anonymous, 'GET', '/v1/auth-methods')).body
+    // Only the yes or no: never why it is closed, nor the rules, the plan or the bot check's key.
+    expect(body).not.toHaveProperty('closedBecause')
+    expect(body).not.toHaveProperty('rules')
+    expect(JSON.stringify(body)).not.toMatch(/turnstile|switched_off|billing_not_in_effect|terms_missing|bot_check/i)
+    return body.selfServeSignup
+  }
+
+  test('true while open: the sign-in page links to the sign-up page', async () => {
+    expect(await flag()).toBe(true)
+  })
+
+  test('false whenever the sign-up steps would refuse: switched off, billing not in effect, terms or bot check missing', async () => {
+    await setting(SELF_SERVE_KEY, null)
+    expect(await flag()).toBe(false)
+    await setting(SELF_SERVE_KEY, 'on')
+    billing.inEffect = false
+    expect(await flag()).toBe(false)
+    billing.inEffect = true
+    vi.stubEnv('TERMS_URL', '')
+    expect(await flag()).toBe(false)
+    vi.stubEnv('TERMS_URL', TERMS.TERMS_URL)
+    // The rules ask for Turnstile and no keys are set.
+    await rules({ turnstile: true })
+    expect(await flag()).toBe(false)
+    await rules({ turnstile: false })
+    expect(await flag()).toBe(true)
+  })
+})
+
+describe("the sign-up code email's button, in any browser", () => {
+  /** POST /v1/signup/code with a plan; the email's code and its button's address. */
+  async function askWithPlan(email: string, extra: Record<string, unknown>) {
+    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
+    try {
+      const res = await request(
+        anonymous,
+        'POST',
+        '/v1/signup/code',
+        { email, token: '', ...extra },
+        { ...ORIGIN, [FROM]: randomIp() },
+      )
+      expect(res.status).toBe(200)
+      await vi.waitFor(() => expect(send.mock.calls.some(([m]) => m.to === email)).toBe(true), { timeout: 5000 })
+      const mail = send.mock.calls.map(([m]) => m).findLast(m => m.to === email)!
+      const url = /(https?:\/\/\S+#sign-in=[A-Za-z0-9_-]{43})/.exec(mail.text)?.[1]
+      expect(url).toBeTruthy()
+      return { code: mail.subject.slice(0, 6), url: new URL(url!), text: mail.text }
+    } finally {
+      send.mockRestore()
+    }
+  }
+  const link = (step: 'check' | 'use', token: string) =>
+    request(anonymous, 'POST', `/v1/sign-in-link/${step}`, { token }, { ...ORIGIN, [FROM]: randomIp() })
+
+  test('the button opens the sign-up page with its plan; the email no longer says it works only in one browser', async () => {
+    const partner = await askWithPlan(address('plan'), { plan: 'partner', interval: 'month' })
+    expect(partner.url.pathname + partner.url.search).toBe('/signup?plan=partner&interval=month')
+    expect(partner.text).not.toMatch(/browser where you asked/i)
+    const plain = await askWithPlan(address('plain'), {})
+    expect(plain.url.pathname + plain.url.search).toBe('/signup')
+    // Only known values travel: anything else is the default plan.
+    const odd = await askWithPlan(address('odd'), { plan: 'https://evil.example', interval: '<x>' })
+    expect(odd.url.pathname + odd.url.search).toBe('/signup')
+  })
+
+  test('opened in another browser: opening signs nobody in; Continue makes the account there and the details step goes on', async () => {
+    const email = address('otherbrowser')
+    const { url, code } = await askWithPlan(email, { plan: 'cloud', interval: 'year' })
+    const token = url.hash.slice('#sign-in='.length)
+    // What a mail scanner does: load the page. Nothing to GET, nobody signed in, no account made.
+    expect((await appRequest('/v1/sign-in-link/check', { headers: ORIGIN })).status).not.toBe(200)
+    expect(await accountOf(email)).toBeUndefined()
+    // The other browser (no cookies from the sign-up page): the confirm page, then Continue.
+    expect((await link('check', token)).body).toEqual({ ok: true, state: 'ready', email })
+    expect(await accountOf(email)).toBeUndefined()
+    const used = await appRequest('/v1/sign-in-link/use', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...ORIGIN, [FROM]: randomIp() },
+      body: JSON.stringify({ token }),
+    })
+    expect(used.status).toBe(200)
+    const cookie = used.headers
+      .getSetCookie()
+      .map(c => c.split(';')[0])
+      .join('; ')
+    expect(await accountOf(email)).toMatchObject({ emailVerified: true })
+    // The sign-up goes on in this browser: the details step with the terms, as in the browser that asked.
+    const who = { headers: { cookie, ...ORIGIN } }
+    expect((await request(who, 'POST', '/v1/signup', { ...DETAILS, acceptedTerms: undefined })).status).toBe(422)
+    const made = await request(who, 'POST', '/v1/signup', DETAILS)
+    expect(made.status, JSON.stringify(made.body)).toBe(200)
+    // Used up: the link again, and the code in the browser that asked for it, sign nobody in.
+    expect((await link('check', token)).body).toEqual({ ok: true, state: 'spent' })
+    expect((await link('use', token)).status).toBe(400)
+    expect((await enterCode(email, code)).status).not.toBe(200)
+  })
+
+  test('closed meanwhile: Continue in another browser makes no account (the sign-up gate still decides)', async () => {
+    const email = address('closedlink')
+    const { url } = await askWithPlan(email, {})
+    await setting(SELF_SERVE_KEY, null)
+    const used = await link('use', url.hash.slice('#sign-in='.length))
+    expect(used.status).toBe(403)
+    expect(used.body).toMatchObject({ ok: false, code: 'SIGNUP_CLOSED' })
+    expect(await accountOf(email)).toBeUndefined()
+  })
+})
+
 describe('account.signUp', () => {
   test('makes the bill and its one workspace, waiting for Checkout, with the person as owner', async () => {
     const { email, who, made } = await signUpThroughPage()

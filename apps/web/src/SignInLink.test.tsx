@@ -16,6 +16,16 @@ test('the token is read once from the fragment and the address loses it at once'
   expect(replaceState).toHaveBeenCalledWith(null, '', '/')
 })
 
+test('on the sign-up page the address keeps its page and plan: Continue goes on there', () => {
+  const replaceState = vi.fn()
+  vi.stubGlobal('window', {
+    location: { hash: '#sign-in=abc_DEF-123', pathname: '/signup', search: '?plan=partner' },
+    history: { replaceState },
+  })
+  expect(takeSignInLinkToken()).toBe('abc_DEF-123')
+  expect(replaceState).toHaveBeenCalledWith(null, '', '/signup?plan=partner')
+})
+
 test('any other address is no sign-in link and stays as it is', () => {
   const replaceState = at('#calls')
   expect(takeSignInLinkToken()).toBeNull()

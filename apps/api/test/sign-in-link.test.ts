@@ -1,5 +1,6 @@
-// The sign-in email's button (sign-in-link.ts): opening the link signs nobody in, Continue does, only in the browser that
-// asked for the code, once, while the code is good; the code and the link end each other and share the code's limits.
+// The sign-in email's button (sign-in-link.ts): opening the link signs nobody in, Continue does, in whichever browser
+// clicks it (never the one that asked for the code), once, while the code is good; the code and the link end each other
+// and share the code's limits. A code from the sign-up page links back to the sign-up page with its plan.
 import { auth_events, invitation, member, user, verification } from '@linedesk/db'
 import { and, desc, eq, like } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
@@ -28,21 +29,16 @@ const cookiesOf = (res: Response) =>
     .map(c => c.split(';')[0]!)
     .join('; ')
 
-/** Asks for a code like the sign-in page; returns the browser cookie it got and the email's code and link token. */
-async function askForCode(email: string, browser?: string) {
+/** Asks for a code like the sign-in page; returns the cookies it set (none) and the email's code and link token. */
+async function askForCode(email: string) {
   const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
   const res = await appRequest('/api/auth/email-otp/send-verification-otp', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      origin: ORIGIN,
-      [FROM]: randomIp(),
-      ...(browser ? { cookie: browser } : {}),
-    },
+    headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
     body: JSON.stringify({ email, type: 'sign-in' }),
   })
   expect(res.status).toBe(200)
-  const cookie = browser ?? cookiesOf(res)
+  const cookie = cookiesOf(res)
   await vi.waitFor(() => expect(send.mock.calls.some(([m]) => m.to === email)).toBe(true))
   const mail = send.mock.calls
     .map(([m]) => m)
@@ -74,8 +70,8 @@ async function linkRequest(
   // biome-ignore lint/suspicious/noExplicitAny: response bodies are asserted on in the tests
   return { status: res.status, body: (await res.json().catch(() => null)) as any, cookies: cookiesOf(res) }
 }
-const check = (token: string, cookie: string | null) => linkRequest('check', token, cookie)
-const use = (token: string, cookie: string | null, extra?: Record<string, string>) =>
+const check = (token: string, cookie: string | null = null) => linkRequest('check', token, cookie)
+const use = (token: string, cookie: string | null = null, extra?: Record<string, string>) =>
   linkRequest('use', token, cookie, extra)
 const signInWithCode = (email: string, otp: string) =>
   request(anonymous, 'POST', '/api/auth/sign-in/email-otp', { email, otp }, { origin: ORIGIN, [FROM]: randomIp() })
@@ -99,15 +95,16 @@ async function invited(email: string) {
 }
 
 describe('the email', () => {
-  test('asking for a code sets the browser cookie, for an unknown address too (no account is told)', async () => {
-    const known = await appRequest('/api/auth/email-otp/send-verification-otp', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
-      body: JSON.stringify({ email: address('nobody'), type: 'sign-in' }),
-    })
-    expect(known.status).toBe(200)
-    expect(cookiesOf(known)).toMatch(/^sign_in_browser=[A-Za-z0-9_-]{43}$/)
-    expect(known.headers.getSetCookie()[0]).toMatch(/HttpOnly/i)
+  test('asking for a code sets no cookie, for a known and an unknown address alike (no account is told)', async () => {
+    for (const email of [await ownerEmail(), address('nobody')]) {
+      const asked = await appRequest('/api/auth/email-otp/send-verification-otp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+        body: JSON.stringify({ email, type: 'sign-in' }),
+      })
+      expect(asked.status).toBe(200)
+      expect(asked.headers.getSetCookie()).toEqual([])
+    }
   })
 
   test('the button points to this install with the token in the fragment; only hashes and the sealed code are stored', async () => {
@@ -153,39 +150,45 @@ describe('opening and continuing', () => {
     expect(event).toMatchObject({ event: 'sign_in', method: 'email_code' })
   })
 
-  test('another browser is told to enter the code and learns nothing; the link still works where it was asked for', async () => {
+  test("another browser (a mail app's own, another device) gets the same page and signs in there with Continue", async () => {
     const email = await ownerEmail()
-    const { cookie, token } = await askForCode(email)
-    const other = 'sign_in_browser=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-    for (const browser of [null, other]) {
-      expect(await check(token, browser)).toEqual({ status: 200, body: { ok: true, state: 'other' }, cookies: '' })
-      expect(await use(token, browser)).toMatchObject({ status: 400, body: { ok: false, state: 'other' }, cookies: '' })
-    }
-    // An unknown token gets the same answer as another browser.
-    expect((await check('B'.repeat(43), cookie)).body).toEqual({ ok: true, state: 'other' })
-    expect((await use(token, cookie)).status).toBe(200)
+    const asker = (await askForCode(email)).token
+    const other = 'unrelated=1'
+    expect(await check(asker, other)).toEqual({ status: 200, body: { ok: true, state: 'ready', email }, cookies: '' })
+    const done = await use(asker, other)
+    expect(done).toMatchObject({ status: 200, body: { ok: true } })
+    expect(await whoIs(done.cookies)).toBe(email)
+    // Only the clicking browser got a session cookie: nothing else is set, and the link is used up.
+    expect(done.cookies).toMatch(/session_token=/)
+    expect((await check(asker)).body).toEqual({ ok: true, state: 'spent' })
   })
 
-  test('the link works once', async () => {
-    const email = await ownerEmail()
-    const { cookie, token } = await askForCode(email)
-    const [first, second] = await Promise.all([use(token, cookie), use(token, cookie)])
-    expect([first.status, second.status].sort()).toEqual([200, 400])
-    expect((await check(token, cookie)).body.state).toBe('other')
-  })
-
-  test('Continue gives the browser a new value, so a planted one works at most once', async () => {
-    const email = await ownerEmail()
-    const { cookie, token } = await askForCode(email)
-    const done = await use(token, cookie)
+  test("the browser that asked for the code is not signed in by another browser's click (no cross-device approval)", async () => {
+    const email = address('asker')
+    await invited(email)
+    const { cookie: asker, token, code } = await askForCode(email)
+    expect(await whoIs(asker)).toBeNull()
+    const done = await use(token, 'unrelated=1')
     expect(done.status).toBe(200)
-    const fresh = /(?:^|; )(sign_in_browser=[A-Za-z0-9_-]{43})(?:;|$)/.exec(done.cookies)?.[1]
-    expect(fresh).toBeTruthy()
-    expect(fresh).not.toBe(cookie)
-    // The next code asked for in that browser is bound to the new value, not the old one.
-    const next = await askForCode(email, fresh)
-    expect((await check(next.token, cookie)).body.state).toBe('other')
-    expect((await check(next.token, fresh!)).body.state).toBe('ready')
+    // The asking browser has no session, and its pending code is used up: typing it there now fails.
+    expect(await whoIs(asker)).toBeNull()
+    expect((await signInWithCode(email, code)).status).toBe(400)
+    expect(await whoIs(done.cookies)).toBe(email)
+  })
+
+  test('an unknown token gets the same answer as a used or expired link and tells nothing', async () => {
+    expect(await check('B'.repeat(43))).toEqual({ status: 200, body: { ok: true, state: 'spent' }, cookies: '' })
+    expect(await use('B'.repeat(43))).toMatchObject({ status: 400, body: { ok: false, state: 'spent' }, cookies: '' })
+    expect((await check('not-a-token')).body).toEqual({ ok: true, state: 'spent' })
+  })
+
+  test('the link works once, also across browsers', async () => {
+    const email = await ownerEmail()
+    const { token } = await askForCode(email)
+    const [first, second] = await Promise.all([use(token, 'one=1'), use(token, 'two=2')])
+    expect([first.status, second.status].sort()).toEqual([200, 400])
+    expect((await check(token)).body.state).toBe('spent')
+    expect((await use(token, 'three=3')).status).toBe(400)
   })
 
   test('a body over 1 KB is refused before it is read', async () => {
@@ -215,12 +218,12 @@ describe('opening and continuing', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(verification.identifier, `sign-in-otp-${email}`))
     expect((await check(token, cookie)).body.state).toBe('spent')
-    const again = await askForCode(email, cookie)
+    const again = await askForCode(email)
     await db
       .update(verification)
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(like(verification.identifier, 'sign-in-link-%'))
-    expect((await check(again.token, cookie)).body.state).toBe('other')
+    expect((await check(again.token, cookie)).body.state).toBe('spent')
     expect((await use(again.token, cookie)).status).toBe(400)
   })
 })
@@ -244,7 +247,7 @@ describe('the code and the link end each other', () => {
   test('a newer code replaces the older link', async () => {
     const email = await ownerEmail()
     const first = await askForCode(email)
-    const second = await askForCode(email, first.cookie)
+    const second = await askForCode(email)
     expect((await check(first.token, first.cookie)).body.state).toBe('spent')
     expect((await use(second.token, first.cookie)).status).toBe(200)
   })

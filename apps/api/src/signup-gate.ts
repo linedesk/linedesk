@@ -76,10 +76,30 @@ export async function refuseClosedSignUp(
     throw new APIError('FORBIDDEN', { code: 'SIGNUP_CLOSED', message: NO_ACCOUNT })
 }
 
-/** Set while POST /v1/signup/code sends its code (app.ts): the one way a code reaches an address without an account. */
-const signupPageSend = new AsyncLocalStorage<true>()
-/** Runs `send` as the sign-up page's own code send (see maySendSignInCode). */
-export const fromSignupPage = <T>(send: () => Promise<T>): Promise<T> => signupPageSend.run(true, send)
+/**
+ * Set while POST /v1/signup/code sends its code (app.ts): the one way a code reaches an address without an account.
+ * Holds the sign-up page's path, where the email's button goes on (any browser lands on the same step).
+ */
+const signupPageSend = new AsyncLocalStorage<{ linkPath: string }>()
+
+/**
+ * The sign-up page's path for the email's button: `/signup` with the plan and interval it was asked from, only the
+ * known values (`?plan=cloud|partner&interval=year|month`, apps/web/src/signup.ts readSignupParams), never free text.
+ */
+export function signupLinkPath(plan: unknown, interval: unknown): string {
+  const query = new URLSearchParams()
+  if (plan === 'partner') query.set('plan', 'partner')
+  if (interval === 'month') query.set('interval', 'month')
+  const search = query.toString()
+  return search ? `/signup?${search}` : '/signup'
+}
+
+/** Runs `send` as the sign-up page's own code send (see maySendSignInCode); `linkPath` from `signupLinkPath`. */
+export const fromSignupPage = <T>(send: () => Promise<T>, linkPath = '/signup'): Promise<T> =>
+  signupPageSend.run({ linkPath }, send)
+
+/** The sign-up page's path while it sends its code (fromSignupPage), else null. */
+export const signupPageLinkPath = (): string | null => signupPageSend.getStore()?.linkPath ?? null
 
 /**
  * A sign-in code only goes out when it can sign someone in: to an account, or to an address that may create one. An
@@ -97,5 +117,5 @@ export async function maySendSignInCode(tx: Tx, email: string): Promise<boolean>
   if (existing?.disabledAt) return false
   if (existing) return true
   // A code proves the address once it is entered.
-  return mayCreateUser(tx, email, true, { selfServe: signupPageSend.getStore() === true })
+  return mayCreateUser(tx, email, true, { selfServe: signupPageSend.getStore() !== undefined })
 }

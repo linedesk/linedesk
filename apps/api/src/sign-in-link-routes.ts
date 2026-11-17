@@ -2,30 +2,21 @@
 // guard; both are POSTs with the token in a JSON body, never in an address, and from the app's own origin only.
 // Continue signs in through Better Auth's `/sign-in/email-otp` with the link's code, so every hook of a typed code
 // runs: the before-hook's lockouts, the tries of the code, the sign-up gate and invitations, the unproven-access
-// cleanup, the audit log (method `email_code`) and the admin alerts.
+// cleanup, the audit log (method `email_code`) and the admin alerts. Any browser may Continue: the session is made for
+// the browser that clicks, never for the one that asked for the code.
 import { isAPIError } from 'better-auth/api'
 import type { Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { generateCookie, getCookie } from 'hono/cookie'
 import { auth, TRUSTED_ORIGINS } from './auth.ts'
 import { addressBucket, CLIENT_IP_HEADER, clientIpOf } from './client-ip.ts'
 import type { Actor } from './context.ts'
 import { createRateLimiter } from './rate-limit.ts'
-import { browserCookie, newBrowserNonce, readSignInLink, takeSignInLink } from './sign-in-link.ts'
+import { readSignInLink, takeSignInLink } from './sign-in-link.ts'
 
 type Env = { Variables: { actor: Actor } }
 
 /** 30 requests a minute per address: a token is 32 random bytes, this only keeps the page from being hammered. */
 const allow = createRateLimiter({ max: 30, windowMs: 60_000 })
-
-/** This browser's cookie: the `__Host-` one on https, the plain one only on http (a subdomain cannot set the first). */
-async function thisBrowserCookie() {
-  return browserCookie(Boolean((await auth.$context).createAuthCookie('sign_in_browser').attributes.secure))
-}
-
-async function browserNonce(c: Context): Promise<string | undefined> {
-  return getCookie(c, (await thisBrowserCookie()).name)
-}
 
 /** A token body is under 100 bytes. */
 const MAX_BODY_BYTES = 1024
@@ -55,7 +46,7 @@ export function registerSignInLinkRoutes(app: Hono<Env>) {
     c.header('cache-control', 'no-store')
     if (!fromApp(c)) return c.json({ ok: false, code: 'cross_site_refused' }, 403)
     if (!allow(addressBucket(clientIpOf(c)))) return c.json({ ok: false, code: 'TOO_MANY_REQUESTS' }, 429)
-    const link = await readSignInLink(await tokenOf(c), await browserNonce(c))
+    const link = await readSignInLink(await tokenOf(c))
     if (link.state === 'ready') return c.json({ ok: true, state: 'ready', email: link.email })
     return c.json({ ok: true, state: link.state })
   })
@@ -65,7 +56,7 @@ export function registerSignInLinkRoutes(app: Hono<Env>) {
     if (!fromApp(c)) return c.json({ ok: false, code: 'cross_site_refused' }, 403)
     if (!allow(addressBucket(clientIpOf(c)))) return c.json({ ok: false, code: 'TOO_MANY_REQUESTS' }, 429)
     const token = await tokenOf(c)
-    const link = await readSignInLink(token, await browserNonce(c))
+    const link = await readSignInLink(token)
     if (link.state !== 'ready') return c.json({ ok: false, state: link.state }, 400)
     // Single use: only the request that deleted the link goes on.
     if (!(await takeSignInLink(token))) return c.json({ ok: false, state: 'spent' }, 400)
@@ -85,9 +76,6 @@ export function registerSignInLinkRoutes(app: Hono<Env>) {
     // Better Auth's answer with its session cookie; its body (the session token) stays on the server.
     const headers = new Headers()
     for (const cookie of signedIn.headers.getSetCookie()) headers.append('set-cookie', cookie)
-    // A new browser value once a link was used: one planted on http (another host, the network) works at most once.
-    const cookie = await thisBrowserCookie()
-    headers.append('set-cookie', generateCookie(cookie.name, newBrowserNonce(), cookie.attributes))
     headers.set('content-type', 'application/json')
     headers.set('cache-control', 'no-store')
     if (signedIn.ok) return new Response(JSON.stringify({ ok: true }), { status: 200, headers })

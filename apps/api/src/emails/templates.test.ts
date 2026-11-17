@@ -381,6 +381,8 @@ describe('sign-in code', () => {
     expect(note).toBeGreaterThan(code)
     expect(email.text).toContain(`Sign in to Linedesk:\n${LINK}`)
     expect(email.text).toContain("Don't share this code")
+    // The button works in any browser (mail apps often open links elsewhere): no same-browser rule is told.
+    expect(email.text).not.toMatch(/browser where you asked/i)
   })
 
   it("the button names the install's own product name", () => {

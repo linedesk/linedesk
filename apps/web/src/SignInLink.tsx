@@ -1,11 +1,12 @@
-// The page the sign-in email's button opens (`#sign-in=<token>`, apps/api/src/sign-in-link.ts). Nothing signs in when
-// the page opens, so a mail scanner that follows the link signs nobody in: it asks whose account this is and signs in
-// only on Continue. In another browser or device it says to enter the code instead and tells nothing else.
+// The page the sign-in email's button opens (`#sign-in=<token>`, apps/api/src/sign-in-link.ts), in any browser or
+// device: mail apps often open links in another browser or their own. Nothing signs in when the page opens, so a mail
+// scanner that follows the link signs nobody in: it shows whose account this is and signs in only on Continue, in this
+// browser. The page it opens on (the app, or the sign-up page with its plan) is where the flow goes on after Continue.
 
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { brandName } from './brand.ts'
-import { authErrorMessage, CODE_LENGTH } from './sign-in-code.ts'
+import { authErrorMessage } from './sign-in-code.ts'
 import { rememberSignInMethod } from './sign-in-methods.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
@@ -24,7 +25,7 @@ export function takeSignInLinkToken(): string | null {
   return hash.slice(PREFIX.length) || null
 }
 
-type State = { state: 'checking' } | { state: 'ready'; email: string } | { state: 'other' } | { state: 'spent' }
+type State = { state: 'checking' } | { state: 'ready'; email: string } | { state: 'spent' }
 
 const post = (path: string, token: string) =>
   fetch(path, {
@@ -62,7 +63,7 @@ export function SignInLink({
         if (!live) return
         if (!res.ok) return setLoadError(authErrorMessage({ code: body?.code, status: res.status }))
         if (body?.state === 'ready' && body.email) setLink({ state: 'ready', email: body.email })
-        else setLink({ state: body?.state === 'spent' ? 'spent' : 'other' })
+        else setLink({ state: 'spent' })
       })
       .catch(err => live && setLoadError(authErrorMessage(err)))
     return () => {
@@ -80,7 +81,7 @@ export function SignInLink({
         rememberSignInMethod('email')
         return await onDone()
       }
-      if (body?.state === 'spent' || body?.state === 'other') setLink({ state: body.state })
+      if (body?.state === 'spent') setLink({ state: 'spent' })
       else setError(authErrorMessage({ code: body?.code ?? undefined, status: res.status }))
     } catch (err) {
       setError(authErrorMessage(err))
@@ -123,17 +124,14 @@ export function SignInLink({
               </button>
             </>
           )}
-          {(link.state === 'other' || link.state === 'spent') && (
+          {link.state === 'spent' && (
             <>
-              <h1>{link.state === 'spent' ? t('auth.link.spentTitle') : t('auth.link.otherTitle')}</h1>
-              <p>
-                {link.state === 'spent' ? t('auth.link.spentText') : t('auth.link.otherText', { digits: CODE_LENGTH })}
-              </p>
+              <h1>{t('auth.link.spentTitle')}</h1>
+              <p>{t('auth.link.spentText')}</p>
               {error && <AuthError message={error} />}
               <button type="button" className="k-btn k-btn-primary" onClick={onLeave}>
                 {t('auth.link.toSignIn')}
               </button>
-              {link.state === 'other' && <p className="auth-note">{t('auth.link.notAsked')}</p>}
             </>
           )}
         </div>
