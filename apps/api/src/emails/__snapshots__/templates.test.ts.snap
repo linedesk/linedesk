@@ -1311,7 +1311,7 @@ Linedesk · desk.example.com
     "482913 es tu código de inicio de sesión de Linedesk",
     "Inicia sesión en Linedesk
 
-Haz clic en el botón para iniciar sesión en Linedesk en desk.example.com. Funciona en el navegador donde pediste el código.
+Haz clic en el botón para iniciar sesión en Linedesk en desk.example.com.
 
 Iniciar sesión en Linedesk:
 https://desk.example.com/#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
@@ -1991,25 +1991,25 @@ Linedesk · desk.example.com
   ],
   [
     "trial-started",
-    "Your Linedesk free trial has started",
+    "Tu prueba gratuita de Linedesk ya empezó",
     "Facturación
 
-Your Linedesk free trial has started
+Tu prueba gratuita de Linedesk ya empezó
 
-Nothing is charged today. Your free trial runs until 1 de diciembre de 2026, and you can cancel any time before then.
+Hoy no se cobra nada. Tu prueba gratuita dura hasta el 1 de diciembre de 2026 y puedes cancelar en cualquier momento antes.
 
-First charge: 1 de diciembre de 2026
-Amount: 11,00 US$ a month, plus tax where it applies
-Reminder emails: 7 days y 1 day before the first charge
+Primer cobro: 1 de diciembre de 2026
+Importe: 11,00 US$ al mes, más impuestos donde corresponda
+Correos de recordatorio: 7 días y 1 día antes del primer cobro
 
 La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
 
-¿No es para ti? Cancela en Configuración › Facturación antes del 1 de diciembre de 2026 y no pagas nada.
+¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
-Manage my plan:
+Administrar mi plan:
 https://desk.example.com/#workspace/billing?ws=ws_demo
 
-Cancel my trial:
+Cancelar mi prueba:
 https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
 
 --
@@ -2021,81 +2021,81 @@ Linedesk · desk.example.com
   ],
   [
     "trial-reminder-7-days",
-    "Your Linedesk free trial ends in 7 days",
+    "Tu prueba gratuita de Linedesk termina en 7 días",
     "Facturación
 
-Your Linedesk free trial ends in 7 days
+Tu prueba gratuita de Linedesk termina en 7 días
 
-Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se cobra 11,00 US$ a month a tu tarjeta (más impuestos donde corresponda).
+Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se cobra 11,00 US$ al mes a tu tarjeta (más impuestos donde corresponda).
 
-First charge: 1 de diciembre de 2026
-Amount: 11,00 US$ a month, plus tax where it applies
+Primer cobro: 1 de diciembre de 2026
+Importe: 11,00 US$ al mes, más impuestos donde corresponda
 
 La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
 
-¿No es para ti? Cancela en Configuración › Facturación antes del 1 de diciembre de 2026 y no pagas nada.
+¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
-Manage my plan:
+Administrar mi plan:
 https://desk.example.com/#workspace/billing?ws=ws_demo
 
-Cancel my trial:
+Cancelar mi prueba:
 https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
 
 --
 
-You got this email because we promised to remind you before your free trial on desk.example.com ends.
+Recibes este correo porque prometimos avisarte antes de que termine tu prueba gratuita en desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "trial-reminder-1-day",
-    "Your Linedesk free trial ends tomorrow",
+    "Tu prueba gratuita de Linedesk termina mañana",
     "Facturación
 
-Your Linedesk free trial ends tomorrow
+Tu prueba gratuita de Linedesk termina mañana
 
-Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se cobra 11,00 US$ a month a tu tarjeta (más impuestos donde corresponda).
+Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se cobra 11,00 US$ al mes a tu tarjeta (más impuestos donde corresponda).
 
-First charge: 1 de diciembre de 2026
-Amount: 11,00 US$ a month, plus tax where it applies
+Primer cobro: 1 de diciembre de 2026
+Importe: 11,00 US$ al mes, más impuestos donde corresponda
 
 La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
 
-¿No es para ti? Cancela en Configuración › Facturación antes del 1 de diciembre de 2026 y no pagas nada.
+¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
-Manage my plan:
+Administrar mi plan:
 https://desk.example.com/#workspace/billing?ws=ws_demo
 
-Cancel my trial:
+Cancelar mi prueba:
 https://desk.example.com/#workspace/billing?cancel=1&ws=ws_demo
 
 --
 
-You got this email because we promised to remind you before your free trial on desk.example.com ends.
+Recibes este correo porque prometimos avisarte antes de que termine tu prueba gratuita en desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "trial-setup-nudge",
-    "One step left: start your Linedesk free trial",
+    "Te queda un paso: empieza tu prueba gratuita de Linedesk",
     "Facturación
 
-One step left: start your Linedesk free trial
+Te queda un paso: empieza tu prueba gratuita de Linedesk
 
-Maya is almost ready to answer calls for Brightwater Plumbing & Heating. Start your 14-day free trial to get your phone number and turn on real calls.
+Falta poco para que Maya conteste las llamadas de Brightwater Plumbing & Heating. Empieza tu prueba gratuita de 14 días para obtener tu número de teléfono y activar las llamadas reales.
 
-Nothing is charged when you start. We email you before the first charge, and you can cancel any time before it.
+No se cobra nada al empezar. Te enviamos un correo antes del primer cobro y puedes cancelar en cualquier momento antes.
 
-Start my free trial:
+Empezar mi prueba gratuita:
 https://desk.example.com/#calls?ws=ws_demo
 
-If you don't start by 1 de diciembre de 2026, we delete this sign-up and what you set up.
+Si no empiezas a más tardar el 1 de diciembre de 2026, eliminamos este registro y lo que configuraste.
 
 --
 
-You got this email because you signed up on desk.example.com and have not started yet. It is the only reminder we send about it.
+Recibes este correo porque te registraste en desk.example.com y aún no has empezado. Es el único recordatorio que enviamos sobre esto.
 
 Linedesk · desk.example.com
 ",
