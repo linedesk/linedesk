@@ -668,6 +668,8 @@ function SignupRulesCard({ notify }: { notify: Notify }) {
     if (saved) setForm(saved)
   }, [saved])
   const dirty = !!form && !!saved && signupDirty(form, saved)
+  // Turning the bot check off loosens sign-up most: the confirmation says so and the button is red.
+  const botCheckOff = !!data?.rules.turnstile && form?.turnstile === false
 
   function save(e: FormEvent) {
     e.preventDefault()
@@ -720,6 +722,7 @@ function SignupRulesCard({ notify }: { notify: Notify }) {
                 label={t('admin.bills.signupRules.turnstile')}
               />
             </div>
+            {!form.turnstile && <Note tone="warning">{t('admin.bills.signupRules.turnstile.offWarning')}</Note>}
             {SIGNUP_COUNT_FIELDS.map(field => {
               const [min, max] = SIGNUP_RULE_RANGES[field]
               const [label, help] = SIGNUP_LABELS[field]
@@ -790,7 +793,10 @@ function SignupRulesCard({ notify }: { notify: Notify }) {
       {asking && (
         <ReasonDialog
           title={t('admin.bills.signupRules.confirmTitle')}
-          description={t('admin.bills.signupRules.confirmText')}
+          description={t(
+            botCheckOff ? 'admin.bills.signupRules.confirmBotCheckOff' : 'admin.bills.signupRules.confirmText',
+          )}
+          danger={botCheckOff}
           submit={t('admin.bills.signupRules.save')}
           run={async reason => {
             const next = (await runAdmin('signup.setRules', { rules: asking, reason })) as unknown as SelfServeData

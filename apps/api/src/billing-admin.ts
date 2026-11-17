@@ -75,6 +75,8 @@ import {
   SELF_SERVE_KEY,
   SIGNUP_RULES_KEY,
   selfServeState,
+  signupRuleChanges,
+  signupRules,
   signupRulesProblems,
   storedSignupRules,
   turnstileKeys,
@@ -839,6 +841,15 @@ async function moveWorkspace(
   const from = await billOrReject(tx, seen.bill)
   const to = await billOrReject(tx, input.toBillingAccountId)
   if (to.status === 'canceled') throw new Reject('A workspace cannot move to a canceled bill.')
+  // A bill in its trial (or still before Checkout) holds at most the sign-up rules' trial workspaces (security review of
+  // #1097, L-3). Moving is the one way a workspace joins a bill after sign-up, so the limit is enforced here; the
+  // balance lock above keeps two moves onto the same bill from both passing it.
+  if (to.status === 'trialing' || to.status === 'pending_payment') {
+    const rules = await signupRules(tx)
+    const cap = to.kind === 'partner' ? rules.trialWorkspacesPartner : rules.trialWorkspacesCloud
+    if ((await workspacesOnBill(tx, to.id)).length >= cap)
+      throw Reject.t('server.api.trialWorkspaceLimit', { count: cap })
+  }
   // A running call's usage posts to the bill it started on (L3); while one runs, the workspace stays.
   const [running] = await tx
     .select({ n: sql<number>`count(*)::int` })
@@ -1082,17 +1093,23 @@ export const billingAdminHandlers: Record<string, Handler> = {
     if (Array.isArray(change.blockedDomains))
       change.blockedDomains = [...new Set((change.blockedDomains as string[]).map(d => d.trim().toLowerCase()))]
     // Merged over the stored row: a field left out keeps its value, null resets it to the default.
+    const stateBefore = await selfServeState(tx)
     const before = (await storedSignupRules(tx)).stored ?? {}
     const next = mergeStoredRules(before, change)
     await writeSetting(tx, SIGNUP_RULES_KEY, JSON.stringify(next), actor, now)
     const keys = [...new Set([...Object.keys(before), ...Object.keys(next)])].sort()
     const changed = keys.filter(k => JSON.stringify(before[k]) !== JSON.stringify(next[k]))
-    if (changed.length)
+    // Old and new values in effect (security review of #1097, L-1): the command's result keeps them, so the audit log
+    // shows what each rule was before; the email names them, and says so when this change opened sign-up.
+    const stateAfter = await selfServeState(tx)
+    const ruleChanges = signupRuleChanges(stateBefore.rules, stateAfter.rules)
+    const opened = !stateBefore.open && stateAfter.open
+    if (ruleChanges.length || opened)
       onCommit?.(async () =>
         alertInstanceAdmins(
-          signupRulesAlert({ actor: await alertActor(actor), fields: changed, reason: input.reason }),
+          signupRulesAlert({ actor: await alertActor(actor), changes: ruleChanges, opened, reason: input.reason }),
         ),
       )
-    return { rows: {}, data: { ...(await selfServe(tx)), changed } }
+    return { rows: {}, data: { ...(await selfServe(tx)), changed, ruleChanges } }
   },
 }

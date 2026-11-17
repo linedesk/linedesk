@@ -507,6 +507,8 @@ export type AuditEntry = {
   emailRoutingChanges?: { added: string[]; removed: string[] }
   /** apiKey.revoke: the revoked key's name. */
   apiKeyName?: string
+  /** signup.setRules: each sign-up limit it changed, with the value before and after. */
+  ruleChanges?: { field: string; from: unknown; to: unknown }[]
   refused: boolean
   ipAddress: string | null
 }

@@ -1064,6 +1064,23 @@ describe('status, cap, concurrency, owner and review', () => {
 })
 
 describe('moving a workspace', () => {
+  test('onto a bill in its trial: refused once it holds the trial workspace limit (L-3)', async () => {
+    const from = await billWith({})
+    const to = await billWith({ status: 'trialing' })
+    setBillingAdminProvider(fakeStripe(new Map()).provider)
+    const input = () => ({ workspaceId: from.ws.id, toBillingAccountId: to.billId, reason, requestId: rid('req') })
+    // The default cloud limit is one workspace, and the trial bill holds one already.
+    const refused = await act(operator, 'billing.moveWorkspace', input())
+    expect(refused.status).toBe(409)
+    expect(JSON.stringify(refused.body)).toMatch(/trialWorkspaceLimit|in its trial/)
+    expect((await act(operator, 'signup.setRules', { rules: { trialWorkspacesCloud: 2 }, reason })).status).toBe(200)
+    try {
+      expect((await act(operator, 'billing.moveWorkspace', input())).status).toBe(200)
+    } finally {
+      await act(operator, 'signup.setRules', { rules: { trialWorkspacesCloud: null }, reason })
+    }
+  })
+
   test('refused while it has calls running; then moved, and both seat quantities follow in Stripe', async () => {
     const from = await billWith({ stripe_subscription_id: rid('sub'), interval: 'year' })
     const to = await billWith({ stripe_subscription_id: rid('sub'), interval: 'year' })
@@ -1525,7 +1542,28 @@ describe('self-serve sign-up', () => {
     // Without the bot check it is open.
     const rules = await act(operator, 'signup.setRules', { rules: { turnstile: false }, reason })
     expect(rules.status).toBe(200)
-    expect(rules.body.data).toMatchObject({ on: true, open: true, closedBecause: null, changed: ['turnstile'] })
+    expect(rules.body.data).toMatchObject({
+      on: true,
+      open: true,
+      closedBecause: null,
+      changed: ['turnstile'],
+      ruleChanges: [{ field: 'turnstile', from: true, to: false }],
+    })
+    // That opened sign-up: the email says so in its subject, and names the bot check as off (L-1).
+    await vi.waitFor(() =>
+      expect(mails.some(m => m.subject === 'Sign-up is now open: the sign-up rules were changed')).toBe(true),
+    )
+    const opened = mails.find(m => m.subject === 'Sign-up is now open: the sign-up rules were changed')!
+    expect(opened.text).toContain('Sign-up is now open')
+    expect(opened.text).toContain('The bot check is now OFF')
+    expect(opened.text).toContain('Bot check (Cloudflare Turnstile): on → off')
+    // The audit log keeps the value before, not only the input.
+    const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=admin&limit=50')).body as {
+      entries: { what: string; ruleChanges?: unknown }[]
+    }
+    expect(entries.find(e => e.what === 'signup.setRules')?.ruleChanges).toEqual([
+      { field: 'turnstile', from: true, to: false },
+    ])
     expect((await act(operator, 'signup.setRules', { rules: { turnstile: null }, reason })).status).toBe(200)
     expect((await act(operator, 'signup.setSelfServe', { on: false, reason })).body.data.on).toBe(false)
   })
@@ -1547,6 +1585,17 @@ describe('self-serve sign-up', () => {
     })
     await vi.waitFor(() => expect(mails.some(m => m.subject === 'The sign-up rules were changed')).toBe(true))
     expect((await lastCommand('signup.setRules'))?.input).toMatchObject({ reason })
+    // The email says what each field was and is now.
+    const mail = mails.find(m => m.subject === 'The sign-up rules were changed')!
+    expect(mail.text).toContain(`Days to finish Checkout: ${SIGNUP_DEFAULTS.pendingDays} → 3`)
+    expect(mail.text).toContain('Blocked email domains: 1 added, 0 removed')
+    expect(mail.text).toContain('Hold for review at Radar risk: elevated, highest → highest')
+    expect(mail.text).not.toContain('Sign-up is now open')
+    // Emptying the review levels is named as a safeguard going off.
+    mails.length = 0
+    await set({ reviewRiskLevels: [] })
+    await vi.waitFor(() => expect(mails.some(m => m.text.includes('No Radar risk level holds a trial'))).toBe(true))
+    await set({ reviewRiskLevels: null })
     // A field left out keeps its value; null resets one.
     expect((await set({ codesPerAddressHour: 5 })).body.data.rules).toMatchObject({
       pendingDays: 3,

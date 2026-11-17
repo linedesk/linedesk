@@ -117,6 +117,15 @@ test('sign-up switched on without Turnstile keys says plainly that it is closed,
   expect(html).toContain('Sign-up is switched on but closed: the bot check (Cloudflare Turnstile) has no keys.')
   expect(html).toContain('href="#admin/providers"')
   expect(html).toContain('Turnstile has no keys yet')
+  // Adding the keys is the fix; the page never points to switching the bot check off.
+  expect(html).not.toContain('turn the bot check off')
+  expect(html).not.toContain('The bot check is off.')
+})
+
+test('with the bot check off, the sign-up limits warn that only the limits protect the server', () => {
+  data['admin.billing.selfServe'] = selfServe({ rules: { ...SIGNUP_DEFAULTS, turnstile: false } })
+  const html = renderList()
+  expect(html).toContain('The bot check is off. Anyone, bots included, can ask for sign-up codes')
 })
 
 test('open sign-up says so, and its limits are editable with plain labels', () => {

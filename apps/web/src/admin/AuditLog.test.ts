@@ -321,3 +321,19 @@ describe('what setup links, support access and its API keys did', () => {
     expect(label('knowledge.update')).toBe('Ran knowledge.update')
   })
 })
+
+test('a sign-up limits change shows each value before and after', () => {
+  const entry = (ruleChanges: { field: string; from: unknown; to: unknown }[]) =>
+    auditLabel({ what: 'signup.setRules', method: null, input: { rules: {} }, subject: null, ruleChanges })
+  expect(
+    entry([
+      { field: 'pendingDays', from: 7, to: 3 },
+      { field: 'turnstile', from: true, to: false },
+      { field: 'reviewRiskLevels', from: ['elevated', 'highest'], to: [] },
+      { field: 'blockedDomains', from: ['a.com'], to: ['b.com', 'c.com'] },
+    ]),
+  ).toBe(
+    'Changed the sign-up limits (Days to finish Checkout 7 to 3, Bot check (Cloudflare Turnstile) on to off, Hold for review at Radar risk Elevated and Highest to none, Blocked email domains 2 added, 1 removed)',
+  )
+  expect(entry([])).toBe('Changed the sign-up limits')
+})

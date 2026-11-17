@@ -3,9 +3,11 @@
 // word around them comes from packages/i18n/locales/en/email.json, so each admin reads the whole alert in their own
 // language. What the browser, the provider or a person wrote (a user agent, an error message, a name) stays as it is.
 import type { ProviderFailureReason } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import type { LedgerDifference } from '../ledger.ts'
+import type { SignupRuleChange } from '../self-serve.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { type EmailLocale, WEB_ORIGIN } from './templates.ts'
 
@@ -245,20 +247,73 @@ export const selfServeAlert =
     }
   }
 
-/** The install's sign-up limits changed (Server admin › Billing, `signup.rules`): every instance admin hears which. */
+/**
+ * The install's sign-up limits changed (Server admin › Billing, `signup.rules`): every instance admin hears each rule
+ * with its old and new value, in plain words when a safeguard was loosened (the bot check off, no Radar level held for
+ * review), and that sign-up is now open when this change opened it (security review of #1097, L-1).
+ */
 export const signupRulesAlert =
-  ({ actor, fields, reason }: { actor: AlertActor; fields: string[]; reason: string }): AdminAlertText =>
+  ({
+    actor,
+    changes,
+    opened,
+    reason,
+  }: {
+    actor: AlertActor
+    changes: SignupRuleChange[]
+    opened: boolean
+    reason: string
+  }): AdminAlertText =>
   locale => {
-    const { t } = getT(locale)
-    const values = { actor: actorLabel(actor, locale), fields: fields.join(', '), reason }
+    const { t, format } = getT(locale)
+    const value = (v: number | boolean | string[]) =>
+      typeof v === 'boolean'
+        ? t(v ? 'email.adminAlert.signupRules.on' : 'email.adminAlert.signupRules.off')
+        : typeof v === 'number'
+          ? format.number(v)
+          : v.length
+            ? format.list(v, { type: 'unit', style: 'short' })
+            : t('email.adminAlert.signupRules.none')
+    const row = (c: SignupRuleChange): [string, string] => {
+      const label = t(SIGNUP_RULE_LABELS[c.field])
+      if (c.field === 'blockedDomains') {
+        const added = c.to.filter(d => !c.from.includes(d)).length
+        const removed = c.from.filter(d => !c.to.includes(d)).length
+        return [label, t('email.adminAlert.signupRules.domains', { added, removed })]
+      }
+      return [label, t('email.adminAlert.signupRules.fromTo', { from: value(c.from), to: value(c.to) })]
+    }
+    const botCheckOff = changes.some(c => c.field === 'turnstile' && c.from && !c.to)
+    const noReview = changes.some(c => c.field === 'reviewRiskLevels' && c.from.length > 0 && c.to.length === 0)
+    const text = (key: MessageKey): Block => ({ kind: 'text', text: t(key) })
     return {
-      subject: t('email.adminAlert.signupRules.subject'),
+      subject: t(opened ? 'email.adminAlert.signupRules.subjectOpened' : 'email.adminAlert.signupRules.subject'),
       blocks: [
-        { kind: 'text', text: t('email.adminAlert.signupRules.text', values) },
-        { kind: 'text', text: t('email.adminAlert.checkBilling') },
+        { kind: 'text', text: t('email.adminAlert.signupRules.text', { actor: actorLabel(actor, locale), reason }) },
+        ...(opened ? [text(msg('email.adminAlert.signupRules.opened'))] : []),
+        ...(botCheckOff ? [text(msg('email.adminAlert.signupRules.botCheckOff'))] : []),
+        ...(noReview ? [text(msg('email.adminAlert.signupRules.noReview'))] : []),
+        ...(changes.length ? [{ kind: 'facts', rows: changes.map(row) } as const satisfies Block] : []),
+        text(msg('email.adminAlert.checkBilling')),
       ],
     }
   }
+
+/** How the email names each sign-up rule. */
+const SIGNUP_RULE_LABELS: Record<SignupRuleChange['field'], MessageKey> = {
+  codesPerAddressHour: msg('email.adminAlert.signupRules.field.codesPerAddressHour'),
+  codesPerAddressDay: msg('email.adminAlert.signupRules.field.codesPerAddressDay'),
+  signupsPerIpHour: msg('email.adminAlert.signupRules.field.signupsPerIpHour'),
+  signupsPerIpDay: msg('email.adminAlert.signupRules.field.signupsPerIpDay'),
+  codesPerInstallHour: msg('email.adminAlert.signupRules.field.codesPerInstallHour'),
+  pendingDays: msg('email.adminAlert.signupRules.field.pendingDays'),
+  turnstile: msg('email.adminAlert.signupRules.field.turnstile'),
+  blockedDomains: msg('email.adminAlert.signupRules.field.blockedDomains'),
+  trialWorkspacesCloud: msg('email.adminAlert.signupRules.field.trialWorkspacesCloud'),
+  trialWorkspacesPartner: msg('email.adminAlert.signupRules.field.trialWorkspacesPartner'),
+  trialNumbersPerWorkspace: msg('email.adminAlert.signupRules.field.trialNumbersPerWorkspace'),
+  reviewRiskLevels: msg('email.adminAlert.signupRules.field.reviewRiskLevels'),
+}
 
 /** The nightly billing check found ledger guards missing or sums that do not add up (ledger.ts `checkLedger`). */
 export const ledgerCheckAlert =

@@ -81,7 +81,7 @@ export function signupRulesProblems(change: Record<string, unknown>): string[] {
   const problems: string[] = []
   for (const [key, value] of Object.entries(change)) {
     if (value === null) {
-      if (!(key in SIGNUP_DEFAULTS)) problems.push(key)
+      if (!Object.hasOwn(SIGNUP_DEFAULTS, key)) problems.push(key)
       continue
     }
     if (mergeSignupRules({ [key]: value }).problems.length) problems.push(key)
@@ -94,6 +94,18 @@ export function signupRulesProblems(change: Record<string, unknown>): string[] {
       problems.push(key)
   }
   return problems
+}
+
+/** One sign-up rule an admin changed, as in effect before and after (`signup.setRules`: the email and the audit log). */
+export type SignupRuleChange = {
+  [F in keyof SignupRules]: { field: F; from: SignupRules[F]; to: SignupRules[F] }
+}[keyof SignupRules]
+
+/** The rules in effect that differ between `before` and `after`, in the order of SIGNUP_DEFAULTS. */
+export function signupRuleChanges(before: SignupRules, after: SignupRules): SignupRuleChange[] {
+  return (Object.keys(SIGNUP_DEFAULTS) as (keyof SignupRules)[])
+    .filter(field => JSON.stringify(before[field]) !== JSON.stringify(after[field]))
+    .map(field => ({ field, from: before[field], to: after[field] }) as SignupRuleChange)
 }
 
 /** What `signup.rules` stores (null: nothing, or not a JSON object) and the rules in effect over the defaults. */

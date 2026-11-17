@@ -139,6 +139,7 @@
   "api.providerTest.twilio.unknownSid": "Twilio does not know this account SID (HTTP 404). Copy it from the Twilio Console.",
   "api.providerTest.twilio.usedUp": "Twilio balance is used up ({amount}). Add funds in the Twilio Console.",
   "api.signupRules.invalid": "These sign-up rules are out of range or unknown: {fields}. Nothing was changed.",
+  "api.trialWorkspaceLimit": "This bill is in its trial and has its {count, plural, one {# workspace} other {# workspaces}} already (Sign-up limits, Workspaces in the trial). Raise the limit, or move the workspace once the plan has started.",
   "api.typeNumberToConfirm": "type the number {number} to confirm",
   "api.versionLanguagesGone": "Version {number}'s languages can't be used any more ({error}): pick the languages and save instead",
   "api.versionVoiceGone": "Version {number}'s voice can't be used any more ({error}): pick a voice and save instead",

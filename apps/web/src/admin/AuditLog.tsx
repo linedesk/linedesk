@@ -87,6 +87,7 @@ export function auditLabel(
     | 'usageLevelChange'
     | 'emailRoutingChanges'
     | 'apiKeyName'
+    | 'ruleChanges'
   >,
 ): string {
   const input = (e.input ?? {}) as Record<string, unknown>
@@ -291,7 +292,9 @@ export function auditLabel(
     case 'signup.setSelfServe':
       return t('admin.audit.selfServeSet', { on: input.on === true ? 'yes' : 'no' })
     case 'signup.setRules':
-      return t('admin.audit.signupRulesSet')
+      return e.ruleChanges?.length
+        ? t('admin.audit.signupRulesChanged', { changes: signupRuleChangeList(e.ruleChanges) })
+        : t('admin.audit.signupRulesSet')
     case 'billing.startTopUp':
       return t('admin.audit.billing.startTopUp', { amount: usd(Number(input.amountCents) / 100) })
     case 'calendar.connectFinish': {
@@ -445,6 +448,54 @@ const levelChangeList = ({ before, after }: NonNullable<AuditEntry['usageLevelCh
   )
     .filter(([field]) => (before[field] ?? null) !== (after[field] ?? null))
     .map(([field, key]) => t(key, { before: shown(before[field] ?? null), after: shown(after[field] ?? null) }))
+  return fmt().list(parts, { type: 'unit', style: 'short' })
+}
+
+const SIGNUP_RULE_FIELDS: Record<string, MessageKey> = {
+  codesPerAddressHour: msg('admin.bills.signupRules.field.codesPerAddressHour'),
+  codesPerAddressDay: msg('admin.bills.signupRules.field.codesPerAddressDay'),
+  signupsPerIpHour: msg('admin.bills.signupRules.field.signupsPerIpHour'),
+  signupsPerIpDay: msg('admin.bills.signupRules.field.signupsPerIpDay'),
+  codesPerInstallHour: msg('admin.bills.signupRules.field.codesPerInstallHour'),
+  pendingDays: msg('admin.bills.signupRules.field.pendingDays'),
+  trialWorkspacesCloud: msg('admin.bills.signupRules.field.trialWorkspacesCloud'),
+  trialWorkspacesPartner: msg('admin.bills.signupRules.field.trialWorkspacesPartner'),
+  trialNumbersPerWorkspace: msg('admin.bills.signupRules.field.trialNumbersPerWorkspace'),
+  turnstile: msg('admin.bills.signupRules.turnstile'),
+  blockedDomains: msg('admin.bills.signupRules.blockedDomains'),
+  reviewRiskLevels: msg('admin.bills.signupRules.reviewRiskLevels'),
+}
+const RISK_NAMES: Record<string, MessageKey> = {
+  normal: msg('admin.bills.risk.normal'),
+  elevated: msg('admin.bills.risk.elevated'),
+  highest: msg('admin.bills.risk.highest'),
+  not_assessed: msg('admin.bills.risk.notAssessed'),
+  unknown: msg('admin.bills.risk.unknown'),
+}
+
+/** What a sign-up limits change changed: "Days to finish Checkout 7 to 3; Bot check on to off". */
+const signupRuleChangeList = (changes: NonNullable<AuditEntry['ruleChanges']>) => {
+  const value = (field: string, v: unknown): string => {
+    if (typeof v === 'boolean') return t(v ? 'admin.audit.signupRule.on' : 'admin.audit.signupRule.off')
+    if (typeof v === 'number') return fmt().number(v)
+    if (Array.isArray(v)) {
+      if (!v.length) return t('admin.audit.signupRule.none')
+      const names =
+        field === 'reviewRiskLevels' ? v.map(l => (RISK_NAMES[l] ? t(RISK_NAMES[l]) : String(l))) : v.map(String)
+      return fmt().list(names, { type: 'conjunction' })
+    }
+    return String(v ?? '')
+  }
+  const parts = changes.map(({ field, from, to }) => {
+    const key = SIGNUP_RULE_FIELDS[field]
+    const name = key ? t(key) : field
+    if (field === 'blockedDomains' && Array.isArray(from) && Array.isArray(to)) {
+      const added = to.filter(d => !from.includes(d)).length
+      const removed = from.filter(d => !to.includes(d)).length
+      return t('admin.audit.signupRule.domains', { field: name, added, removed })
+    }
+    return t('admin.audit.signupRule.change', { field: name, from: value(field, from), to: value(field, to) })
+  })
   return fmt().list(parts, { type: 'unit', style: 'short' })
 }
 
