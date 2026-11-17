@@ -158,7 +158,7 @@
 .k-select-btn .k-icon {
   color: var(--ink-muted);
 }
-/* A label longer than the room ends in an ellipsis ("Português (Brasil) · Portugiesisch (Bras…" at 390 px). */
+/* A label longer than the room ends in an ellipsis instead of widening the control (a language picker on a phone). */
 .k-select-btn > span:first-child {
   min-width: 0;
   overflow: hidden;

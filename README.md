@@ -31,7 +31,7 @@ calls and their summaries, find contacts, see and change bookings, and change yo
 
 ## Languages
 
-Linedesk speaks English, Español, Português (Brasil), Français, Deutsch and 日本語. Translations are made by AI and improved by people. See a bad translation? Fix it in a pull request or open a [Translation improvement](https://github.com/linedesk/linedesk/issues/new?template=translation_improvement.yml) issue. Missing your language? [Ask for it](https://github.com/linedesk/linedesk/issues/new?template=language_request.yml). How it works: [docs/translations.md](docs/translations.md).
+Linedesk speaks English, Español, Português, Français, Deutsch and 日本語. Translations are made by AI and improved by people. See a bad translation? Fix it in a pull request or open a [Translation improvement](https://github.com/linedesk/linedesk/issues/new?template=translation_improvement.yml) issue. Missing your language? [Ask for it](https://github.com/linedesk/linedesk/issues/new?template=language_request.yml). How it works: [docs/translations.md](docs/translations.md).
 
 ## Development quickstart
 

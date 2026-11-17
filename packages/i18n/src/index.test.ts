@@ -121,8 +121,10 @@ describe('languageLabel', () => {
     expect(languageLabel('ja', 'ja')).toBe('日本語')
     expect(languageLabel('en', 'en-XA')).toBe('English')
   })
-  it('keeps Brazil for the UI language and plain Portuguese for the voice language', () => {
-    expect(languageLabel('pt-BR', 'en')).toBe('Português (Brasil) · Brazilian Portuguese')
+  it('names Portuguese without the region, for the UI language (pt-BR) as for the voice language (pt)', () => {
+    expect(languageLabel('pt-BR', 'en')).toBe('Português · Portuguese')
+    expect(languageLabel('pt-BR', 'de')).toBe('Português · Portugiesisch')
+    expect(languageLabel('pt-BR', 'pt-BR')).toBe('Português')
     expect(languageLabel('pt', 'en')).toBe('Português · Portuguese')
     expect(languageLabel('pt', 'de')).toBe('Português · Portugiesisch')
   })

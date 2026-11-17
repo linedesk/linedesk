@@ -1,6 +1,6 @@
 # Translations
 
-Linedesk's web app and emails speak English, Español, Português (Brasil), Français, Deutsch and 日本語. English is
+Linedesk's web app and emails speak English, Español, Português, Français, Deutsch and 日本語. English is
 the source and the fallback; every other language is translated by AI before each release, screen by screen, and
 improved by people.
 

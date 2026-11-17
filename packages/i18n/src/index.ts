@@ -90,14 +90,25 @@ function displayName(code: string, inLocale: string): string | null {
   }
 }
 
+/** A language tag without its region: "pt-BR" → "pt"; a script stays ("zh-Hant-TW" → "zh-Hant"). */
+function withoutRegion(code: string): string {
+  try {
+    const { language, script } = new Intl.Locale(code)
+    return script ? `${language}-${script}` : language
+  } catch {
+    return code
+  }
+}
+
 /**
  * How a language list names a language (every language picker): its own name, then its name in the UI language,
  * "Español · Spanish" in English, "Español · Spanisch" in German; once when both are the same ("English" in English).
- * A UI language uses its name from LOCALE_INFO ("Português (Brasil)"), a voice language Intl's ("Português" for pt).
+ * A UI language uses its name from LOCALE_INFO and drops the region in the UI language too ("Português · Portuguese"
+ * for pt-BR, not "Brazilian Portuguese"); a voice language uses Intl's names ("Português · Portuguese" for pt).
  */
 export function languageLabel(code: string, uiLocale: ActiveLocale): string {
   const own = (isUiLocale(code) ? LOCALE_INFO[code].name : null) ?? displayName(code, code) ?? code
-  const inUi = displayName(code, intlLocaleOf(uiLocale))
+  const inUi = displayName(isUiLocale(code) ? withoutRegion(code) : code, intlLocaleOf(uiLocale))
   return !inUi || inUi === own ? own : `${own} · ${inUi}`
 }
 
