@@ -29,15 +29,34 @@ const PRERENDER_MAX_MS = 8000
 function prerenderConsultLines(tts: Parameters<typeof synthesize>[0], briefing: string): Promise<ConsultLines> {
   const render = (text: string) =>
     synthesize(tts, text).catch(e => {
-      console.warn(`could not pre-render a transfer line, saying it live: ${e instanceof Error ? e.message : String(e)}`)
+      console.warn(
+        `could not pre-render a transfer line, saying it live: ${e instanceof Error ? e.message : String(e)}`,
+      )
       return null
     })
   return Promise.all([render(briefing), render(CONNECTING_NOW)]).then(([b, c]) => ({ briefing: b, connecting: c }))
 }
 
 /** Says `text` from its pre-rendered audio when there is some, else live. */
-const sayLine = (session: voice.AgentSession, text: string, audio: GreetingAudio | null, options: { allowInterruptions?: boolean } = {}) =>
-  session.say(text, { ...options, ...(audio ? { audio: audioStream(audio) } : {}) })
+const sayLine = (
+  session: voice.AgentSession,
+  text: string,
+  audio: GreetingAudio | null,
+  options: { allowInterruptions?: boolean } = {},
+) => session.say(text, { ...options, ...(audio ? { audio: audioStream(audio) } : {}) })
+/**
+ * Says a line to its end: its playout, or (pre-rendered) its length after the session started speaking, whichever
+ * comes first. On a phone leg the playout can resolve many seconds late (LIN-263).
+ */
+async function sayToEnd(session: voice.AgentSession, text: string, audio: GreetingAudio | null) {
+  const byLength = audio ? playedByLength(session, audio) : null
+  try {
+    const speech = sayLine(session, text, audio, { allowInterruptions: false })
+    await Promise.race([speech.waitForPlayout(), ...(byLength ? [byLength.played] : [])])
+  } finally {
+    byLength?.stop()
+  }
+}
 const TRANSFER_AGENT_IDENTITY = 'linedesk-transfer'
 
 export type Livekit = { url: string; apiKey: string; apiSecret: string }
@@ -90,7 +109,8 @@ async function joinConsultRoom({ url, apiKey, apiSecret }: Livekit, name: string
  * key pressed before the question, is no answer. The briefing cannot be interrupted.
  */
 /** How long a pre-rendered line plays, in ms. */
-export const audioMs = ({ sampleRate, channels, samples }: GreetingAudio) => (samples.length / channels / sampleRate) * 1000
+export const audioMs = ({ sampleRate, channels, samples }: GreetingAudio) =>
+  (samples.length / channels / sampleRate) * 1000
 
 /** Margin after a pre-rendered briefing's own length before answers count: the last words reach the phone. */
 const PLAYED_MARGIN_MS = 500
@@ -99,7 +119,10 @@ const PLAYED_MARGIN_MS = 500
  * Resolves once `audio` has played since the session started speaking (its length plus PLAYED_MARGIN_MS). On a phone
  * leg waitForPlayout can resolve many seconds after the audio ended (LIN-263: 15 s), and a yes in that gap would not count.
  */
-function playedByLength(session: voice.AgentSession, audio: GreetingAudio): { played: Promise<void>; stop: () => void } {
+function playedByLength(
+  session: voice.AgentSession,
+  audio: GreetingAudio,
+): { played: Promise<void>; stop: () => void } {
   let timer: ReturnType<typeof setTimeout> | undefined
   let onState: (event: { newState: string }) => void = () => {}
   const played = new Promise<void>(resolve => {
@@ -134,12 +157,16 @@ async function decide(
   const at = () => `${((Date.now() - start) / 1000).toFixed(1)} s`
   agent.heard = text => {
     const answer = asked ? answerOf(text) : null
-    console.log(`transfer ${room.name}: heard ${text.trim().split(/\s+/).length} words, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`)
+    console.log(
+      `transfer ${room.name}: heard ${text.trim().split(/\s+/).length} words, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`,
+    )
     if (answer) settle(answer)
   }
   const onDigit = (_code: number, digit: string, participant: RemoteParticipant) => {
     const answer = asked && participant.identity === ON_CALL_IDENTITY ? answerOfDigit(digit) : null
-    console.log(`transfer ${room.name}: key ${digit}, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`)
+    console.log(
+      `transfer ${room.name}: key ${digit}, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`,
+    )
     if (answer) settle(answer)
   }
   const onLeft = (participant: RemoteParticipant) => {
@@ -270,9 +297,14 @@ export async function warmTransfer(
         closeOnDisconnect: false,
       },
     })
-    const tooSlow = new Promise<ConsultLines>(resolve => setTimeout(() => resolve({ briefing: null, connecting: null }), PRERENDER_MAX_MS).unref?.())
+    const tooSlow = new Promise<ConsultLines>(resolve =>
+      setTimeout(() => resolve({ briefing: null, connecting: null }), PRERENDER_MAX_MS).unref?.(),
+    )
     const { briefing: briefingAudio, connecting } = await Promise.race([lines, tooSlow])
     const answer = await decide(session, agent, consult, briefing, signal, briefingAudio)
+    // Timings only: why a yes did not end in a bridge (LIN-263).
+    const decidedAt = Date.now()
+    const at = () => `${((Date.now() - decidedAt) / 1000).toFixed(1)} s after the answer`
     if (answer !== 'yes' || signal.aborted) {
       if (answer === 'no') farewell = "Okay, I'll take a message."
       return { result: answer === 'no' ? 'declined' : 'not_answered' }
@@ -288,7 +320,9 @@ export async function warmTransfer(
       return { result: 'failed' }
     }
 
-    await sayLine(session, CONNECTING_NOW, connecting).waitForPlayout()
+    console.log(`transfer ${consultName}: recording stopped (${at()})`)
+    await sayToEnd(session, CONNECTING_NOW, connecting)
+    console.log(`transfer ${consultName}: connecting line played (${at()})`)
     await session.close()
     session = null
     await stopRingback()
@@ -306,6 +340,7 @@ export async function warmTransfer(
       if (participant.identity === ON_CALL_IDENTITY) hooks.onBridgeEnded()
     })
     hooks.addCleanup(end)
+    console.log(`transfer ${consultName}: put through (${at()})`)
     connected = true
     return { result: 'connected' }
   } catch (e) {
