@@ -16,10 +16,13 @@ import {
   instance_settings,
   usage_counters,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { sendBillingAlert } from '../src/billing-recharge.ts'
+import { DEFAULT_TIME_ZONE } from '../src/bookings.ts'
+import { todayIn } from '../src/public-holidays.ts'
 import { BILLING_UNUSABLE_KEY, gateCall, postFinishedCall } from '../src/call-billing.ts'
 import { db } from '../src/db.ts'
 import type { EmailSender } from '../src/email.ts'
@@ -1001,5 +1004,144 @@ describe('the trial prompt, its grace and the trial recharge (docs/billing.md §
       await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider }),
     ).toEqual({ sent: 'nobody' })
     expect(sent).toHaveLength(3)
+  })
+})
+
+describe('the busy-line notice (LIN-450)', () => {
+  const busyRows = (billId: string) =>
+    db
+      .select()
+      .from(billing_alerts)
+      .where(and(eq(billing_alerts.billing_account_id, billId), eq(billing_alerts.kind, 'busy_line')))
+  /** The workspace's own day (its time zone; a new workspace has one), as the notice counts it. */
+  const today = async (ws: Workspace) => {
+    const [row] = await db
+      .select({ zone: workspace_settings.timezone })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, ws.id))
+    return todayIn(row?.zone ?? DEFAULT_TIME_ZONE)
+  }
+  /** Fills the workspace's 5 lines (a new workspace has one live sample call), then one busy caller. */
+  async function fillAndBusy(b: Billed) {
+    for (let i = 0; i < 4; i++) expect((await start(b.ws)).blocked).toBe(false)
+    expect(await start(b.ws)).toMatchObject({ blocked: true, busy: true })
+  }
+
+  test('all lines busy: one row a workspace and day counts the callers; only the first queues the email', async () => {
+    const b = await billed('active', { creditMicros: 10_000_000 })
+    await fillAndBusy(b)
+    const ref = `${b.ws.id}:${await today(b.ws)}`
+    expect(await busyRows(b.billId)).toMatchObject([{ ref, count: 1 }])
+    expect(jobs('billing.alert')).toEqual([{ kind: 'busy_line', bill: b.billId, ref }])
+    expect(await start(b.ws)).toMatchObject({ blocked: true, busy: true })
+    expect(await start(b.ws)).toMatchObject({ blocked: true, busy: true })
+    expect(await busyRows(b.billId)).toMatchObject([{ ref, count: 3 }])
+    expect(jobs('billing.alert').filter(j => j.kind === 'busy_line')).toHaveLength(1)
+  })
+
+  test("another day of the workspace is a new notice; yesterday's row stays as it was", async () => {
+    const b = await billed('active', { creditMicros: 10_000_000 })
+    const yesterday = `${b.ws.id}:2026-01-01`
+    await db
+      .insert(billing_alerts)
+      .values({ billing_account_id: b.billId, kind: 'busy_line', ref: yesterday, count: 4 })
+    await fillAndBusy(b)
+    expect((await busyRows(b.billId)).map(r => [r.ref, r.count]).sort()).toEqual(
+      [
+        [yesterday, 4],
+        [`${b.ws.id}:${await today(b.ws)}`, 1],
+      ].sort(),
+    )
+    expect(jobs('billing.alert').filter(j => j.kind === 'busy_line')).toHaveLength(1)
+  })
+
+  test("the bill's cap refuses a call as too_many_calls: the same notice, for the workspace the caller called", async () => {
+    const b = await billed('trialing', { creditMicros: 10_000_000 })
+    const second = await createWorkspace('Second')
+    await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, second.id))
+    for (const ws of [b.ws, b.ws, b.ws, second, second]) expect((await start(ws)).blocked).toBe(false)
+    expect(await start(second)).toMatchObject({ blocked: true, refused: 'too_many_calls' })
+    expect(await busyRows(b.billId)).toMatchObject([{ ref: `${second.id}:${await today(second)}`, count: 1 }])
+  })
+
+  test('billing not in effect, or a workspace on no bill: no notice (nothing to add)', async () => {
+    cloud.on = false
+    const b = await billed('active', { creditMicros: 10_000_000 })
+    await fillAndBusy(b)
+    expect(await busyRows(b.billId)).toEqual([])
+    cloud.on = true
+    const unbilled = await createWorkspace('Self-hosted')
+    for (let i = 0; i < 4; i++) await start(unbilled)
+    expect(await start(unbilled)).toMatchObject({ blocked: true, busy: true })
+    expect(jobs('billing.alert')).toEqual([])
+  })
+
+  test('other refusals (no balance) are no busy line', async () => {
+    const b = await billed('active', { allowanceUsed: true, creditMicros: -5_000_000 })
+    expect(await start(b.ws)).toMatchObject({ blocked: true, refused: 'no_balance' })
+    expect(await busyRows(b.billId)).toEqual([])
+  })
+
+  describe('the email', () => {
+    const sent: { to: string; subject: string; text: string; html: string }[] = []
+    const sender = {
+      kind: 'smtp',
+      send: async (e: (typeof sent)[number]) => void sent.push(e),
+    } as unknown as EmailSender
+    beforeEach(() => {
+      sent.length = 0
+    })
+    async function notice(status: 'active' | 'trialing' | 'canceled', count = 3) {
+      const b = await billed(status === 'canceled' ? 'active' : status)
+      const ref = `${b.ws.id}:2026-11-17`
+      await db.insert(billing_alerts).values({ billing_account_id: b.billId, kind: 'busy_line', ref, count })
+      if (status === 'canceled')
+        await db.update(billing_accounts).set({ status: 'canceled' }).where(eq(billing_accounts.id, b.billId))
+      return { b, send: () => sendBillingAlert(db, sender, { kind: 'busy_line', bill: b.billId, ref }) }
+    }
+
+    test('a paid plan: how many callers, the day, the limit, and one button to add 5 more for $5 a month', async () => {
+      const { b, send } = await notice('active')
+      await db
+        .update(billing_accounts)
+        .set({ stripe_subscription_id: rid('sub') })
+        .where(eq(billing_accounts.id, b.billId))
+      expect(await send()).toEqual({ sent: 'owner' })
+      const [owner] = await db.select({ email: user.email }).from(user).where(eq(user.id, b.ws.owner.userId))
+      expect(sent[0]!.to).toBe(owner!.email)
+      expect(sent[0]!.subject).toBe('3 callers got a busy line at Brightwater Plumbing & Heating')
+      expect(sent[0]!.text).toContain(
+        'On November 17, 2026, Brightwater Plumbing & Heating was already on 5 calls at the same time, so 3 callers heard',
+      )
+      expect(sent[0]!.text).toContain('Add 5 more lines for $5 a month')
+      expect(sent[0]!.text).toContain(`#workspace/billing?addCalls=1&ws=${b.ws.id}`)
+      expect(sent[0]!.text).toContain('We send this at most once a day per workspace.')
+    })
+
+    test('the trial: more once the plan is paid, no button; an instance admin cap: no offer at all', async () => {
+      const { send } = await notice('trialing', 1)
+      await send()
+      expect(sent[0]!.subject).toBe('A caller got a busy line at Brightwater Plumbing & Heating')
+      expect(sent[0]!.text).toContain('once your plan is paid, after the trial')
+      expect(sent[0]!.text).not.toContain('addCalls')
+      const capped = await notice('active')
+      await db
+        .update(billing_accounts)
+        .set({ stripe_subscription_id: rid('sub'), concurrent_calls_cap: 8 })
+        .where(eq(billing_accounts.id, capped.b.billId))
+      await capped.send()
+      expect(sent[1]!.text).toContain('was already on 8 calls at the same time')
+      expect(sent[1]!.text).not.toContain('Add 5 more lines')
+      expect(sent[1]!.text).not.toContain('after the trial')
+    })
+
+    test('nothing for a canceled bill, or a workspace that left the bill', async () => {
+      const { send } = await notice('canceled')
+      expect(await send()).toEqual({ sent: 'nobody' })
+      const moved = await notice('active')
+      await db.update(organization).set({ billingAccountId: null }).where(eq(organization.id, moved.b.ws.id))
+      expect(await moved.send()).toEqual({ sent: 'nobody' })
+      expect(sent).toEqual([])
+    })
   })
 })

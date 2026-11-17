@@ -49,3 +49,12 @@ test('a Premium-priced plan says 10¢; a sub-cent price stays in dollars', () =>
   expect(text({ ...activation, standardMicrosPerMinute: 100_000 })).toContain('then 10¢ a minute')
   expect(text({ ...activation, standardMicrosPerMinute: 8_500 })).toContain('then $0.0085 a minute')
 })
+
+test('calls at the same time (LIN-450): 5 included, one quiet picker; none without the facts or room for more', () => {
+  const calls = { included: 5, step: 5, maxExtra: 45, extraCallCents: 100 }
+  const page = text({ ...activation, calls })
+  expect(page).toContain('5 calls at the same time included; 5 more are $5 a month.')
+  expect(page).toContain('First charge: $11')
+  expect(text(activation)).not.toContain('calls at the same time')
+  expect(text({ ...activation, calls: { ...calls, maxExtra: 0 } })).not.toContain('calls at the same time')
+})

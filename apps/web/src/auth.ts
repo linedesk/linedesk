@@ -66,6 +66,11 @@ export type Activation = {
   recharge: { amountCents: number; thresholdCents: number; capCents: number } | null
   includedMinutes: number
   standardMicrosPerMinute: number
+  /**
+   * Calls at the same time (LIN-450): included per workspace, and the add-on the step offers (more in steps of `step`,
+   * up to `maxExtra`, at `extraCallCents` a month each). Absent from an older server: no add-on on the step.
+   */
+  calls?: { included: number; step: number; maxExtra: number; extraCallCents: number }
   terms: { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string } | null
 }
 

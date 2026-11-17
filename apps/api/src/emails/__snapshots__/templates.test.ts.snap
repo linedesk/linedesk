@@ -1039,6 +1039,29 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "busy-line",
+    "3 callers got a busy line at Brightwater Plumbing & Heating",
+    "Billing
+
+3 callers got a busy line at Brightwater Plumbing & Heating
+
+On November 17, 2026, Brightwater Plumbing & Heating was already on 5 calls at the same time, so 3 callers heard that you'll call back. They are in your inbox as missed calls, with their numbers.
+
+Each 5 more calls at the same time cost $5 a month. You can pick another amount in Settings › Billing.
+
+Add 5 more lines for $5 a month:
+https://desk.example.com/#workspace/billing?addCalls=1&ws=ws_demo
+
+We send this at most once a day per workspace.
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "booking-confirmation",
     "Confirmed: your repair visit with Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
     "Booking confirmed
@@ -2096,6 +2119,29 @@ Si no empiezas a más tardar el 1 de diciembre de 2026, eliminamos este registro
 --
 
 Recibes este correo porque te registraste en desk.example.com y aún no has empezado. Es el único recordatorio que enviamos sobre esto.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "busy-line",
+    "3 callers got a busy line at Brightwater Plumbing & Heating",
+    "Facturación
+
+3 callers got a busy line at Brightwater Plumbing & Heating
+
+On 17 de noviembre de 2026, Brightwater Plumbing & Heating was already on 5 calls at the same time, so 3 callers heard that you'll call back. They are in your inbox as missed calls, with their numbers.
+
+Each 5 more calls at the same time cost 5 US$ a month. You can pick another amount in Settings › Billing.
+
+Add 5 more lines for 5 US$ a month:
+https://desk.example.com/#workspace/billing?addCalls=1&ws=ws_demo
+
+We send this at most once a day per workspace.
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
 
 Linedesk · desk.example.com
 ",

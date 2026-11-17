@@ -484,6 +484,27 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         locale,
       ),
     },
+    // A caller heard a busy line (LIN-450): all 5 calls at the same time were in use; more can be added.
+    {
+      name: 'busy-line',
+      email: billingOwnerEmail(
+        {
+          kind: 'busy_line',
+          bufferMicros: trial.bufferMicros,
+          workspaceId: trial.workspaceId,
+          workspace: 'Brightwater Plumbing & Heating',
+          day: '2026-11-17',
+          callers: 3,
+          limit: 5,
+          next: 'add',
+          step: 5,
+          stepCents: 500,
+          partnerBill: false,
+        },
+        origin,
+        locale,
+      ),
+    },
     {
       name: 'booking-confirmation',
       email: bookingConfirmationEmail(

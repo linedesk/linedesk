@@ -36,6 +36,7 @@ import {
   type ActionItem,
   type ActivationDisclosure,
   type TrialRechargeDisclosure,
+  type ExtraCallsDisclosure,
   type AssistantLanguages,
   type AssistantVoice,
   type BookingField,
@@ -1929,6 +1930,9 @@ const ALERT_KINDS = [
   // (docs/billing.md §3.2 step 7): one email each per trial, until the owner turns on the trial recharge.
   'trial_minutes_low',
   'trial_minutes_used',
+  // A caller of one of the bill's workspaces heard a busy line because all its calls at the same time were in use
+  // (LIN-450, docs/billing.md §2.1c): once per workspace and day (`ref`: `<workspace id>:<YYYY-MM-DD>`, its time zone).
+  'busy_line',
 ] as const
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 
@@ -2431,7 +2435,8 @@ export const signup_attempts = pgTable(
  * Where terms were accepted: the sign-up page, the activation step before Checkout, and "Keep calls answered" in the
  * trial (the trial recharge: auto-recharge before the trial ends, docs/billing.md §3.2 step 7).
  */
-const TERMS_SOURCES = ['signup', 'activation', 'trial_recharge'] as const
+// `extra_calls`: the owner added calls at the same time in Settings › Billing or from the busy-line banner (LIN-450).
+const TERMS_SOURCES = ['signup', 'activation', 'trial_recharge', 'extra_calls'] as const
 
 export const terms_acceptances = pgTable(
   'terms_acceptances',
@@ -2446,7 +2451,7 @@ export const terms_acceptances = pgTable(
     privacy_version: text('privacy_version').notNull(),
     ip_address: text('ip_address'),
     user_agent: text('user_agent'),
-    disclosure: jsonb('disclosure').$type<ActivationDisclosure | TrialRechargeDisclosure>(),
+    disclosure: jsonb('disclosure').$type<ActivationDisclosure | TrialRechargeDisclosure | ExtraCallsDisclosure>(),
     accepted_at: ts('accepted_at').notNull().defaultNow(),
   },
   t => [
@@ -2496,6 +2501,8 @@ export const billing_alerts = pgTable(
       .references(() => billing_accounts.id),
     kind: text('kind', { enum: ALERT_KINDS }).notNull(),
     ref: text('ref').notNull(),
+    /** How often the occasion happened (`busy_line`: the callers that heard a busy line that day); 1 for the others. */
+    count: integer('count').notNull().default(1),
     created_at: createdAt(),
   },
   t => [

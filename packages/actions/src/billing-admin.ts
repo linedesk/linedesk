@@ -232,8 +232,11 @@ export type AdminBillRow = {
   status: AdminBillStatus
   interval: 'month' | 'year'
   owner: { id: string; email: string | null; name: string | null }
-  /** `extraCalls`: the extra calls at the same time the bill owner bought for the workspace (LIN-450). */
-  workspaces: { id: string; name: string; extraCalls: number }[]
+  /**
+   * `extraCalls`: the extra calls at the same time the bill owner bought for the workspace (LIN-450); `busyCallers`: the
+   * callers who heard a busy line there in the last 30 days.
+   */
+  workspaces: { id: string; name: string; extraCalls: number; busyCallers: number }[]
   balanceMicros: number
   reservedMicros: number
   heldForReviewAt: string | null

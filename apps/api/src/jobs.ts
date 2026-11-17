@@ -565,8 +565,11 @@ export async function queueRecharge(tx: Tx, rechargeId: string) {
 }
 
 /** Queues a billing email in the transaction that made its occasion (a `billing_alerts` row, a posted entry). */
-export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob) {
-  await boss?.send(BILLING_ALERT, alert, { db: fromDrizzle(tx, sql) })
+export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob, options: { startAfterSeconds?: number } = {}) {
+  await boss?.send(BILLING_ALERT, alert, {
+    db: fromDrizzle(tx, sql),
+    ...(options.startAfterSeconds ? { startAfter: options.startAfterSeconds } : {}),
+  })
 }
 
 /** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */

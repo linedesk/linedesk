@@ -748,6 +748,8 @@
   "bills.unit.minutes": "min",
   "bills.unit.perMinute": "/ min",
   "bills.unit.seconds": "sec",
+  "bills.usage.busyCallers": "Busy callers",
+  "bills.usage.busyCallersHelp": "Callers in the last 30 days who got a busy line because all calls at the same time were in use",
   "bills.usage.description": "Paid is what the ledger charged: a comped call shows its minutes at $0.",
   "bills.usage.extraCalls": "Extra calls at once",
   "bills.usage.extraCallsValue": "+{count}",

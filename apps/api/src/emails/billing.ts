@@ -44,6 +44,24 @@ export type BillingOwnerEmail =
      */
     | (TrialMinutesFacts & { kind: 'trial_minutes_low' })
     | (TrialMinutesFacts & { kind: 'trial_minutes_used' })
+    /**
+     * `callers` of `workspace` heard a busy line on `day` (YYYY-MM-DD, the workspace's day) because its `limit` calls
+     * at the same time were in use (LIN-450). `next`: what the owner can do: add `step` more for `stepCents` a month
+     * (`add`), once the plan is paid (`after_trial`), or nothing (`none`). `partnerBill`: the button opens
+     * Partner › Billing instead of the workspace's Settings › Billing.
+     */
+    | {
+        kind: 'busy_line'
+        workspaceId: string
+        workspace: string
+        day: string
+        callers: number
+        limit: number
+        next: 'add' | 'after_trial' | 'none'
+        step: number
+        stepCents: number
+        partnerBill: boolean
+      }
   ) & {
     /** How far below zero calls go on (the install's rules). */
     bufferMicros: number
@@ -75,8 +93,12 @@ export function billingOwnerEmail(email: BillingOwnerEmail, origin = WEB_ORIGIN,
   if (email.kind === 'activation_nudge') return activationNudgeEmail(email, origin, locale)
   if (email.kind === 'trial_minutes_low' || email.kind === 'trial_minutes_used')
     return trialMinutesEmail(email, origin, locale)
+  if (email.kind === 'busy_line') return busyLineEmail(email, origin, locale)
   return balanceEmail(email, origin, locale)
 }
+
+/** Settings › Billing opens the "add calls at the same time" dialog for the workspace (`?addCalls=1`, the busy-line email). */
+export const ADD_CALLS_PARAM = 'addCalls'
 
 /** Settings › Billing with the cancel dialog open: the reminders' one direct way to cancel (after signing in). */
 export const CANCEL_PATH = `${BILLING_PATH}?cancel=1`
@@ -84,7 +106,15 @@ export const CANCEL_PATH = `${BILLING_PATH}?cancel=1`
 function balanceEmail(
   email: Exclude<
     BillingOwnerEmail,
-    { kind: 'trial_will_end' | 'trial_started' | 'activation_nudge' | 'trial_minutes_low' | 'trial_minutes_used' }
+    {
+      kind:
+        | 'trial_will_end'
+        | 'trial_started'
+        | 'activation_nudge'
+        | 'trial_minutes_low'
+        | 'trial_minutes_used'
+        | 'busy_line'
+    }
   >,
   origin: string,
   locale?: EmailLocale,
@@ -304,6 +334,57 @@ function trialMinutesEmail(
       // The app's inbox, under the banner that has the button (the banner is not shown in the settings).
       url: appLink(origin, email.workspaceId, 'calls'),
     })
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: lead,
+    eyebrow: t('email.billing.eyebrow'),
+    heading: subject,
+    blocks,
+    reason: t('email.billing.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
+/**
+ * The busy-line notice (LIN-450), at most once per workspace and day: all its calls at the same time were in use, so a
+ * caller heard that the business will call back, and the call is in the inbox as missed. Says how to add more when the
+ * owner can (the button opens Settings › Billing), or that it can be done once the plan is paid.
+ */
+function busyLineEmail(
+  email: Extract<BillingOwnerEmail, { kind: 'busy_line' }>,
+  origin: string,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, format, locale: lang } = getT(locale)
+  const values = {
+    workspace: emailSafeName(email.workspace, t('email.fallback.yourBusiness')),
+    count: email.limit,
+    callers: email.callers,
+    step: email.step,
+    price: format.currency(
+      email.stepCents / 100,
+      'USD',
+      email.stepCents % 100 === 0 ? { minimumFractionDigits: 0 } : {},
+    ),
+    // The workspace's own day, written as a date (noon UTC never crosses a day boundary).
+    date: format.dateTime(new Date(`${email.day}T12:00:00Z`), { dateStyle: 'long', timeZone: 'UTC' }),
+  }
+  const subject = t('email.billing.busyLine.subject', values)
+  const lead = t('email.billing.busyLine.text', values)
+  const blocks: Block[] = [{ kind: 'text', text: lead }]
+  if (email.next === 'add') blocks.push({ kind: 'text', text: t('email.billing.busyLine.add', values) })
+  if (email.next === 'after_trial') blocks.push({ kind: 'text', text: t('email.billing.busyLine.afterTrial', values) })
+  if (email.next === 'add')
+    blocks.push({
+      kind: 'button',
+      label: t('email.billing.busyLine.button', values),
+      // Settings › Billing with the "add calls" dialog open for this workspace (a partner bill: Partner › Billing).
+      url: email.partnerBill
+        ? `${origin}/#partner/billing`
+        : appLink(origin, email.workspaceId, `${BILLING_PATH}?${ADD_CALLS_PARAM}=1`),
+    })
+  blocks.push({ kind: 'text', text: t('email.billing.busyLine.once'), tone: 'muted' })
   return renderEmail({
     locale: lang,
     subject,

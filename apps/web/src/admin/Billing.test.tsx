@@ -21,7 +21,7 @@ const bill: AdminBillDetail = {
   status: 'comped',
   interval: 'month',
   owner: { id: 'u1', email: 'mike@brightwater.example', name: 'Mike Brennan' },
-  workspaces: [{ id: 'ws1', name: 'Brightwater Plumbing & Heating', extraCalls: 10 }],
+  workspaces: [{ id: 'ws1', name: 'Brightwater Plumbing & Heating', extraCalls: 10, busyCallers: 0 }],
   balanceMicros: 12_500_000,
   reservedMicros: 0,
   heldForReviewAt: null,

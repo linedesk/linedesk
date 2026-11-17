@@ -7,13 +7,18 @@
 // In the trial, once most of its minutes are used (docs/billing.md §3.2 step 7), the line offers one button instead:
 // "Keep calls answered" buys the auto-recharge amount with the saved card it names (Buy minutes' path: the owner
 // confirms it is them first) and turns auto-recharge on for the rest of the trial. Its tooltip has the full terms.
-import type { TopUpData, TrialMinutesPrompt } from '@linedesk/actions'
+//
+// When callers of the workspace got a busy line today (LIN-450), the least pressing line says how many and offers one
+// button: 5 more calls at the same time for the price a month (Settings › Billing's path, with the owner step-up),
+// and a link to Settings › Billing for other amounts.
+import type { BusyLinePrompt, ExtraCallsData, TopUpData, TrialMinutesPrompt } from '@linedesk/actions'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { PASSKEY_STEP_UP_REQUIRED, StepUpRequired, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
 import { auth } from '../auth.ts'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import {
+  ADD_CALLS_PARAM,
   billingBanner,
   centsToDollars,
   purchaseKeys,
@@ -38,6 +43,8 @@ export function BillingBanner({ toast }: { toast: (text: string) => void }) {
       <Icon name={banner.tone === 'danger' ? 'alert' : 'warning'} size={15} />
       {banner.trial ? (
         <TrialPrompt prompt={banner.trial} lineKey={banner.key} toast={toast} />
+      ) : banner.busy ? (
+        <BusyLine prompt={banner.busy} lineKey={banner.key} toast={toast} />
       ) : (
         <span>
           <b>{t(banner.key)}</b>
@@ -172,6 +179,95 @@ function TrialPrompt({
       >
         {t('settings.billing.banner.keepAnswered')}
       </Button>
+    </>
+  )
+}
+
+/** "Add 5 more lines": the workspace's extra calls one step up; a passkey refusal becomes StepUpRequired. */
+async function addLines(prompt: BusyLinePrompt): Promise<ExtraCallsData> {
+  try {
+    return await callAction<ExtraCallsData>('billing.setExtraCalls', {
+      workspaceId: prompt.workspaceId,
+      extraCalls: prompt.extraCalls + prompt.step,
+      from: 'busy_line',
+    })
+  } catch (err) {
+    if ((err as { code?: string }).code === PASSKEY_STEP_UP_REQUIRED)
+      throw Object.assign(new StepUpRequired((err as Error).message, 'confirm'), {
+        status: (err as { status?: number }).status,
+      })
+    throw err
+  }
+}
+
+/**
+ * The busy-line line (LIN-450): how many callers got a busy line today, and one button that adds a step of calls at
+ * the same time at the price it names (charged now, prorated, with the plan's card), or the way to Settings › Billing
+ * when the button cannot (the trial, an instance admin's cap, the most reached). Other amounts are in Settings › Billing.
+ */
+function BusyLine({
+  prompt,
+  lineKey,
+  toast,
+}: {
+  prompt: BusyLinePrompt
+  lineKey: Parameters<ReturnType<typeof useT>>[0]
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const format = useFormat()
+  const [busy, setBusy] = useState(false)
+  const price = format.currency(
+    centsToDollars(prompt.stepCents),
+    'USD',
+    prompt.stepCents % 100 === 0 ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {},
+  )
+  const values = { callers: prompt.callers, count: prompt.limit, step: prompt.step, price }
+
+  async function add() {
+    setBusy(true)
+    const workspaceId = tabWorkspace()
+    let attempt = 0
+    try {
+      const done = await withPasskeyStepUp(async () => {
+        // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
+        if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
+        return addLines(prompt)
+      }, t('settings.billing.calls.stepUpWhat'))
+      toast(t('settings.billing.calls.saved', { count: done.limit }))
+      await Promise.all([refreshQuery(STATE), refreshQuery(OVERVIEW)])
+    } catch (err) {
+      setBusy(false)
+      // A sign-in from the last few minutes is needed: Settings › Billing asks for it, with the same dialog open.
+      if ((err as { code?: string }).code === 'SIGN_IN_AGAIN') {
+        window.location.hash = `${BILLING_HASH}?${ADD_CALLS_PARAM}=1`
+        return
+      }
+      const key = refusalKey((err as { code?: string }).code)
+      toast(key ? t(key) : err instanceof Error && err.message ? err.message : t('settings.billing.error.generic'))
+    }
+  }
+
+  return (
+    <>
+      <span>
+        <b>{t(lineKey, values)}</b>
+        {' · '}
+        <AppLink to={BILLING_HASH} title={t('settings.billing.banner.openTip')}>
+          {prompt.canAdd ? t('settings.billing.banner.busyOther') : t('settings.billing.banner.open')}
+        </AppLink>
+      </span>
+      {prompt.canAdd && (
+        <Button
+          size="sm"
+          variant="primary"
+          busy={busy}
+          title={t('settings.billing.banner.busyAddTip', values)}
+          onClick={() => void add()}
+        >
+          {t('settings.billing.banner.busyAdd', values)}
+        </Button>
+      )}
     </>
   )
 }

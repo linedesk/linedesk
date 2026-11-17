@@ -7,6 +7,8 @@
   "api.callNotRecorded": "the call's assistant does not record calls",
   "api.checkout.alreadyFinished": "This bill has finished Checkout.",
   "api.checkout.billingOff": "Billing is not on for this server.",
+  "api.checkout.extraCallsAboveMax": "A workspace can answer at most {max} calls at the same time.",
+  "api.checkout.extraCallsBusinessOnly": "Extra calls at the same time are added per workspace, after the partner plan has started.",
   "api.checkout.minutesAfterStart": "Minutes can be bought once the plan has started.",
   "api.checkout.noBill": "this workspace is not on a bill",
   "api.checkout.noCard": "Checkout saved no card.",

@@ -29,6 +29,7 @@ import {
 import type { Assistant } from '@linedesk/db/types'
 import { and, desc, eq, gt, isNotNull, sql } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
+import { busyLineRef } from './billing-recharge.ts'
 import { billingState } from './billing-settings.ts'
 import { queueBillingAlert, queueRecharge } from './jobs.ts'
 import {
@@ -40,6 +41,7 @@ import {
   trialSecondsUsed,
 } from './ledger.ts'
 import { outboundLimits } from './outbound-policy.ts'
+import { todayIn } from './public-holidays.ts'
 import { queueUsageLimitAlerts } from './usage-limit.ts'
 
 /**
@@ -300,4 +302,48 @@ export async function trialMinutesAlert(
     .onConflictDoNothing()
     .returning()
   if (added.some(a => a.kind === kind)) await queueBillingAlert(tx, { kind, bill: billId, ref: period.id })
+}
+
+/** How long after the first busy caller of the day the notice goes out (it counts the callers until then). */
+export const BUSY_LINE_NOTICE_DELAY_SECONDS = 15 * 60
+
+/**
+ * The busy-line notice (LIN-450, docs/billing.md §2.1c): a caller of a billed workspace heard a busy line because all
+ * its calls at the same time were in use (the workspace's limit, or the bill's cap). One `billing_alerts` row per
+ * workspace and day (the workspace's own day, `timeZone`) counts that day's busy callers; the first queues the bill
+ * owner's one email of the day, and the banner shows the count. A workspace on no bill (self-host), or an install
+ * where billing is not in effect, has nothing to buy, so it gets no notice.
+ */
+
+export async function busyLineAlert(tx: Tx, workspaceId: string, now: string, timeZone: string) {
+  try {
+    // A savepoint: the notice never undoes the busy call it is about.
+    await tx.transaction(async sp => {
+      const [workspace] = await sp
+        .select({ bill: organization.billingAccountId })
+        .from(organization)
+        .where(eq(organization.id, workspaceId))
+      // Only where billing is in effect: there is something to add, and an owner who pays.
+      if (!workspace?.bill || (await billingState(sp)).inEffect !== 'stripe') return
+      const ref = busyLineRef(workspaceId, todayIn(timeZone, Date.parse(now)))
+      // One row a workspace and day, counting the callers; the first one queues the day's one notice.
+      const [row] = await sp
+        .insert(billing_alerts)
+        .values({ billing_account_id: workspace.bill, kind: 'busy_line', ref })
+        .onConflictDoUpdate({
+          target: [billing_alerts.billing_account_id, billing_alerts.kind, billing_alerts.ref],
+          set: { count: sql`${billing_alerts.count} + 1` },
+        })
+        .returning({ count: billing_alerts.count })
+      // Sent a little later, so it says how many callers got the busy line in that busy stretch, not just the first.
+      if (row?.count === 1)
+        await queueBillingAlert(
+          sp,
+          { kind: 'busy_line', bill: workspace.bill, ref },
+          { startAfterSeconds: BUSY_LINE_NOTICE_DELAY_SECONDS },
+        )
+    })
+  } catch (error) {
+    console.error(`billing: the busy-line notice of workspace ${workspaceId} could not be queued:`, error)
+  }
 }

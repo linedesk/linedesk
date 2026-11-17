@@ -19,12 +19,15 @@ import type {
   BillingPortOutData,
   BillingRecordPortOutData,
   BillingStateData,
+  BusyLinePrompt,
   TrialMinutesPrompt,
 } from '@linedesk/actions'
 import {
   billing_accounts,
+  billing_alerts,
   billing_balances,
   billing_numbers,
+  EXTRA_CALLS_STEP,
   member,
   organization,
   phone_numbers,
@@ -33,10 +36,16 @@ import {
   trialGraceMicros,
   type Tx,
   user,
+  workspace_settings,
+  workspaceCallLimit,
 } from '@linedesk/db'
 import { and, count, eq, inArray, isNotNull } from 'drizzle-orm'
 import { lifecycleDates } from './billing-lifecycle.ts'
 import { balanceFlags } from './billing-page.ts'
+import { canAddCallsStep } from './extra-calls.ts'
+import { busyLineRef } from './billing-recharge.ts'
+import { DEFAULT_TIME_ZONE } from './bookings.ts'
+import { todayIn } from './public-holidays.ts'
 import { queueLifecycleEmail, UNPAID_RELEASE_DAYS } from './billing-periods.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -163,8 +172,47 @@ async function billingState(
           releaseAt: new Date(Date.parse(n.since!) + UNPAID_RELEASE_DAYS * DAY_MS).toISOString(),
         })),
         trialMinutes: await trialMinutesPrompt(tx, bill, now),
+        // The open workspace's own line; a partner's bill page has none.
+        busyLine: input.partnerId || !actor.workspaceId ? null : await busyLinePrompt(tx, bill, actor.workspaceId, now),
       },
     },
+  }
+}
+
+/**
+ * The busy-line line of `billing.state` (LIN-450): the callers of this workspace who heard a busy line today (its own
+ * day, as the notice counts them), and whether the one button can add a step of calls at the same time.
+ */
+async function busyLinePrompt(tx: Tx, bill: Bill, workspaceId: string, now: string): Promise<BusyLinePrompt | null> {
+  if (bill.status === 'canceled') return null
+  const [workspace] = await tx
+    .select({ extraCalls: organization.extraCalls, timeZone: workspace_settings.timezone })
+    .from(organization)
+    .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, organization.id))
+    .where(and(eq(organization.id, workspaceId), eq(organization.billingAccountId, bill.id)))
+  if (!workspace) return null
+  const ref = busyLineRef(workspaceId, todayIn(workspace.timeZone ?? DEFAULT_TIME_ZONE, Date.parse(now)))
+  const [alert] = await tx
+    .select({ count: billing_alerts.count })
+    .from(billing_alerts)
+    .where(
+      and(
+        eq(billing_alerts.billing_account_id, bill.id),
+        eq(billing_alerts.kind, 'busy_line'),
+        eq(billing_alerts.ref, ref),
+      ),
+    )
+  if (!alert) return null
+  const rules = await billingRules(tx)
+  const own = workspaceCallLimit(workspace.extraCalls, rules)
+  return {
+    workspaceId,
+    callers: alert.count,
+    limit: bill.concurrent_calls_cap ?? (bill.status === 'trialing' ? Math.min(own, rules.trialConcurrentCalls) : own),
+    extraCalls: workspace.extraCalls,
+    step: EXTRA_CALLS_STEP,
+    stepCents: EXTRA_CALLS_STEP * rules.extraCallCents,
+    canAdd: canAddCallsStep(bill, workspace.extraCalls, rules),
   }
 }
 

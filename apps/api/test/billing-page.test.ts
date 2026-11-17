@@ -8,13 +8,16 @@
 import type { BillingProvider } from '@linedesk/billing'
 import {
   billing_accounts,
+  billing_alerts,
   billing_invoices,
   billing_periods,
   billing_recharges,
   organization,
   passkey,
   session,
+  terms_acceptances,
   usage_counters,
+  workspace_settings,
 } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
@@ -25,7 +28,9 @@ import {
   EXTRA_CALLS_CHANGES_PER_HOUR,
   resetExtraCallsLimit,
 } from '../src/billing-page.ts'
+import { DEFAULT_TIME_ZONE } from '../src/bookings.ts'
 import { liveCallLimit } from '../src/handlers.ts'
+import { todayIn } from '../src/public-holidays.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import type { HandlerCtx } from '../src/handler-context.ts'
@@ -1069,5 +1074,109 @@ describe('billing.setExtraCalls (LIN-450)', () => {
     const b = await billed({ concurrent_calls_cap: 12 })
     expect(await limitOf(b.ws.id)).toBe(12)
     expect((await overview(b.owner)).bill.calls.workspaces[0].limit).toBe(12)
+  })
+})
+
+describe('busy lines and the add-on offer (LIN-450)', () => {
+  /** The workspace's own day, as the busy-line notice counts it. */
+  const today = async (ws: Workspace) => {
+    const [row] = await db
+      .select({ zone: workspace_settings.timezone })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, ws.id))
+    return todayIn(row?.zone ?? DEFAULT_TIME_ZONE)
+  }
+  const busy = async (b: Billed, ref: string, count: number, createdAt = new Date()) =>
+    db
+      .insert(billing_alerts)
+      .values({ billing_account_id: b.billId, kind: 'busy_line', ref, count, created_at: createdAt.toISOString() })
+  const stateOf = async (who: Caller) => (await act(who, 'billing.state', {})).body.data.bill
+
+  test("the banner: today's busy callers of this workspace, and one step more at its price", async () => {
+    const b = await billed()
+    expect((await stateOf(b.owner)).busyLine).toBeNull()
+    await busy(b, `${b.ws.id}:${await today(b.ws)}`, 3)
+    expect((await stateOf(b.owner)).busyLine).toEqual({
+      workspaceId: b.ws.id,
+      callers: 3,
+      limit: 5,
+      extraCalls: 0,
+      step: 5,
+      stepCents: 500,
+      canAdd: true,
+    })
+    // Yesterday's busy line is no line today.
+    const other = await billed()
+    await busy(other, `${other.ws.id}:2026-01-01`, 9)
+    expect((await stateOf(other.owner)).busyLine).toBeNull()
+  })
+
+  test('the trial, the most reached or an instance admin cap: the line without the button', async () => {
+    const trial = await billed({ status: 'trialing' })
+    await busy(trial, `${trial.ws.id}:${await today(trial.ws)}`, 1)
+    expect((await stateOf(trial.owner)).busyLine).toMatchObject({ callers: 1, canAdd: false })
+    const full = await billed()
+    await db.update(organization).set({ extraCalls: 45 }).where(eq(organization.id, full.ws.id))
+    await busy(full, `${full.ws.id}:${await today(full.ws)}`, 2)
+    expect((await stateOf(full.owner)).busyLine).toMatchObject({ limit: 50, canAdd: false })
+    const capped = await billed({ concurrent_calls_cap: 8 })
+    await busy(capped, `${capped.ws.id}:${await today(capped.ws)}`, 2)
+    expect((await stateOf(capped.owner)).busyLine).toMatchObject({ limit: 8, canAdd: false })
+  })
+
+  test('the line and its button for the owners and admins of the only workspace; members never (decision of 2026-11-17)', async () => {
+    const b = await billed()
+    await busy(b, `${b.ws.id}:${await today(b.ws)}`, 2)
+    const admin = await addMember(b.ws.id, 'admin')
+    expect((await stateOf(admin)).busyLine).toMatchObject({ callers: 2, canAdd: true })
+    expect(
+      (await act(admin, 'billing.setExtraCalls', { workspaceId: b.ws.id, extraCalls: 5, from: 'busy_line' })).status,
+    ).toBe(200)
+    const member = await addMember(b.ws.id, 'member')
+    expect((await act(member, 'billing.state', {})).status).toBe(403)
+    expect((await act(member, 'billing.setExtraCalls', { workspaceId: b.ws.id, extraCalls: 10 })).status).toBe(403)
+  })
+
+  test('Settings › Billing: the busy callers of the last 30 days per workspace', async () => {
+    const b = await billed()
+    await busy(b, `${b.ws.id}:2026-11-16`, 3, new Date(Date.now() - DAY))
+    await busy(b, `${b.ws.id}:2026-11-15`, 4, new Date(Date.now() - 2 * DAY))
+    await busy(b, `${b.ws.id}:2026-10-01`, 40, new Date(Date.now() - 40 * DAY))
+    expect((await overview(b.owner)).bill.calls.workspaces).toMatchObject([{ workspaceId: b.ws.id, busyCallers: 7 }])
+  })
+
+  test('adding from the banner is recorded with what it said, like the other purchases; lowering is not', async () => {
+    vi.stubEnv('TERMS_URL', 'https://desk.example.com/terms')
+    vi.stubEnv('TERMS_VERSION', '2026-11-17')
+    vi.stubEnv('PRIVACY_URL', 'https://desk.example.com/privacy')
+    vi.stubEnv('PRIVACY_VERSION', '2026-11-10')
+    try {
+      const b = await billed()
+      const res = await act(b.owner, 'billing.setExtraCalls', {
+        workspaceId: b.ws.id,
+        extraCalls: 5,
+        from: 'busy_line',
+      })
+      expect(res.status).toBe(200)
+      expect((await act(b.owner, 'billing.setExtraCalls', { workspaceId: b.ws.id, extraCalls: 0 })).status).toBe(200)
+      const rows = await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, b.billId))
+      expect(rows).toMatchObject([
+        {
+          source: 'extra_calls',
+          terms_version: '2026-11-17',
+          disclosure: {
+            kind: 'extra_calls',
+            workspaceId: b.ws.id,
+            before: 0,
+            after: 5,
+            monthlyCents: 500,
+            chargedNow: true,
+            from: 'busy_line',
+          },
+        },
+      ])
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

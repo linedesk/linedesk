@@ -7,9 +7,13 @@ import type {
   BillingStateBill,
   BillingUsageRow,
   TrialMinutesPrompt,
+  BusyLinePrompt,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import type { Me } from '../auth.ts'
+
+/** Settings › Billing opens the add-calls dialog (`?addCalls=1`; the busy-line email and banner link there, LIN-450). */
+export const ADD_CALLS_PARAM = 'addCalls'
 
 export const centsToDollars = (cents: number) => cents / 100
 export const microsToDollars = (micros: number) => micros / 1_000_000
@@ -296,6 +300,8 @@ export type BillingBanner = {
   tone: 'warning' | 'danger'
   /** The trial prompt (docs/billing.md §3.2 step 7): the banner has "Keep calls answered" instead of the link. */
   trial?: TrialMinutesPrompt
+  /** Callers got a busy line today (LIN-450): the banner offers one step more calls at the same time. */
+  busy?: BusyLinePrompt
 }
 
 /** The trial prompt's line by its stage: minutes nearly used, used up (calls on the grace), the grace used too. */
@@ -329,6 +335,8 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
   if (state.lowBalance === 'auto_recharge_off')
     return { key: msg('settings.billing.banner.lowBalance'), tone: 'warning' }
   if (state.lowBalance === 'cap_reached') return { key: msg('settings.billing.banner.capReached'), tone: 'warning' }
+  // The least pressing: callers got a busy line today because all calls at the same time were in use.
+  if (state.busyLine) return { key: msg('settings.billing.banner.busyLine'), tone: 'warning', busy: state.busyLine }
   return null
 }
 

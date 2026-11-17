@@ -30,6 +30,9 @@ import {
   billing_periods,
   billing_recharges,
   card_fingerprints,
+  EXTRA_CALLS_LOOKUP_PREFIX,
+  EXTRA_CALLS_STEP,
+  maxExtraCalls,
   organization,
   partners,
   rechargeCapCents,
@@ -42,7 +45,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { createHash } from 'node:crypto'
-import { and, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { managesBill } from './bill-manager.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
@@ -303,7 +306,12 @@ type Started = {
   accepted: { terms: LegalTerms; disclosure: ActivationDisclosure } | null
 }
 
-type StartInput = { partnerId?: string; acceptedTerms?: { termsVersion: string; privacyVersion: string } }
+type StartInput = {
+  partnerId?: string
+  acceptedTerms?: { termsVersion: string; privacyVersion: string }
+  /** Extra calls at the same time added on the activation step (LIN-450); a business's bill only. */
+  extraCalls?: number
+}
 
 /**
  * The terms a business's owner accepts by starting the trial or the plan (A9, docs/billing.md §3.1): the ones the
@@ -325,12 +333,20 @@ function termsToAccept(bill: Bill, input: StartInput): LegalTerms | null {
  * reminder days and the auto-recharge. The step reads the same through /v1/me (`activationFacts`).
  */
 export function activationDisclosure(
-  o: { planCents: number; interval: 'month' | 'year'; trial: boolean; recharge: CheckoutRecharge },
+  o: {
+    planCents: number
+    interval: 'month' | 'year'
+    trial: boolean
+    recharge: CheckoutRecharge
+    /** Extra calls at the same time added on the step (LIN-450), already in `planCents`. */
+    extraCalls?: number
+  },
   rules: BillingRules,
   now: string,
 ): ActivationDisclosure {
   const trialDays = o.trial ? rules.trialDays : null
   return {
+    ...(o.extraCalls ? { extraCalls: { count: o.extraCalls, monthlyCents: o.extraCalls * rules.extraCallCents } } : {}),
     planCents: o.planCents,
     interval: o.interval,
     trialDays,
@@ -365,7 +381,31 @@ export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, n
     ),
     includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
     standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
+    calls: {
+      included: rules.concurrentCallsPerWorkspace,
+      step: EXTRA_CALLS_STEP,
+      maxExtra: bill.kind === 'cloud' ? maxExtraCalls(rules) : 0,
+      extraCallCents: rules.extraCallCents,
+    },
   }
+}
+
+/**
+ * The plan items with the extra calls at the same time the owner added on the activation step (LIN-450): one more
+ * line of the subscription at the bill's interval, sold like Settings › Billing sells it. Only a business's bill, and
+ * at most the install's most per workspace (a bill in activation has one workspace).
+ */
+function withExtraCalls(
+  bill: Bill,
+  items: { lookupKey: string; quantity: number }[],
+  extraCalls: number | undefined,
+  rules: BillingRules,
+) {
+  if (!extraCalls) return items
+  if (bill.kind !== 'cloud') throw Reject.t('server.api.checkout.extraCallsBusinessOnly')
+  if (extraCalls % EXTRA_CALLS_STEP || extraCalls > maxExtraCalls(rules))
+    throw Reject.t('server.api.checkout.extraCallsAboveMax', { max: rules.concurrentCallsMaxPerWorkspace })
+  return [...items, { lookupKey: `${EXTRA_CALLS_LOOKUP_PREFIX}${bill.interval}ly`, quantity: extraCalls }]
 }
 
 /** What the plan items cost before tax at the install's prices. */
@@ -397,6 +437,8 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
     bill,
     items.reduce((n, i) => n + i.quantity, 0),
   )
+  // The seats first (the recharge cap counts them), then the extra calls the step added.
+  const sold = withExtraCalls(bill, items, input.extraCalls, rules)
   const started = await provider
     .startCheckout({
       kind: trial ? 'trial' : 'plan',
@@ -405,7 +447,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
       paymentMethodConfiguration: configuration,
       catalog: planCatalog(rules, brandName()),
       prices,
-      items,
+      items: sold,
       ...(trial ? { trialDays: rules.trialDays } : {}),
       submitText: checkoutText(trial ? 'trial' : 'plan', wordsOf(actor), {
         brand: brandName(),
@@ -426,7 +468,13 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
     ? {
         terms,
         disclosure: activationDisclosure(
-          { planCents: itemsCents(items, rules), interval: bill.interval, trial, recharge },
+          {
+            planCents: itemsCents(sold, rules),
+            interval: bill.interval,
+            trial,
+            recharge,
+            extraCalls: input.extraCalls ?? 0,
+          },
           rules,
           now,
         ),
@@ -650,6 +698,8 @@ export async function confirmSession(
       .set({ billingState: workspaceState('trialing') })
       .where(eq(organization.billingAccountId, bill.id))
     await openFirstPeriod(tx, bill, now, sub.trialEnd, 'trial')
+    // Extra calls added at activation: stored now, charged with the plan at the trial's end (the trial stays free).
+    await applyCheckoutExtraCalls(tx, bill.id, sub, null)
     await activated(tx, bill.id)
     // The trial's confirmation (the card networks' rule for trials: what was agreed, the first charge and how to
     // cancel), once: only this transition out of pending_payment queues it.
@@ -685,8 +735,45 @@ export async function confirmSession(
     .where(eq(organization.billingAccountId, bill.id))
   const monthEnd = addMonth(start)
   await openFirstPeriod(tx, bill, start, Date.parse(end) < Date.parse(monthEnd) ? end : monthEnd, 'month')
+  // Extra calls added at activation: the first invoice paid them for this period.
+  await applyCheckoutExtraCalls(tx, bill.id, sub, end)
   await activated(tx, bill.id)
   return { status: 'active', heldForReview: held }
+}
+
+/**
+ * The extra calls at the same time the activation step added (LIN-450): the quantity of the subscription's extra-calls
+ * line, given to the bill's workspace (a bill in activation has one), in whole steps and at most the most a workspace
+ * may have. `paidUntil`: a plan paid now, whose first invoice paid them until this period end (going back up to them
+ * this period is free, as in Settings › Billing); null in a trial, which charges them with the plan at its end.
+ */
+async function applyCheckoutExtraCalls(
+  tx: Tx,
+  billId: string,
+  sub: NonNullable<CheckoutSession['subscription']>,
+  paidUntil: string | null,
+) {
+  const quantity = sub.items
+    .filter(i => i.lookupKey?.startsWith(EXTRA_CALLS_LOOKUP_PREFIX))
+    .reduce((n, i) => n + i.quantity, 0)
+  if (!quantity) return
+  const rules = await billingRules(tx)
+  const extra = Math.min(quantity - (quantity % EXTRA_CALLS_STEP), maxExtraCalls(rules))
+  if (extra !== quantity)
+    console.error(`billing: Checkout of bill ${billId} sold ${quantity} extra calls; ${extra} given (steps, the most)`)
+  const [workspace] = await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.billingAccountId, billId))
+    .orderBy(asc(organization.createdAt))
+    .limit(1)
+  if (!workspace) return
+  await tx.update(organization).set({ extraCalls: extra }).where(eq(organization.id, workspace.id))
+  if (paidUntil)
+    await tx
+      .update(billing_accounts)
+      .set({ extra_calls_paid: extra, extra_calls_paid_until: paidUntil })
+      .where(eq(billing_accounts.id, billId))
 }
 
 /**

@@ -1,5 +1,6 @@
 // Trial Checkout on an install that bills its workspaces (docs/billing.md §3.2, §2.2; billing PR 8). Only the owner of the bill runs these,
 // signed in to the app (no API key, no impersonation): they start payments and change what the bill pays.
+import { EXTRA_CALLS_STEP } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -16,7 +17,7 @@ export const TOPUP_CENTS = { min: 500, max: 50_000 } as const
 export const billingStartCheckout = defineAction({
   name: 'billing.startCheckout',
   description:
-    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial). Answers the Checkout link to open. A business's bill (not a partner's) takes the versions of the terms and privacy policy the activation step showed next to its button (`acceptedTerms`): starting accepts them, and they are recorded before Checkout opens.",
+    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial), with any extra calls at the same time added (`extraCalls`). Answers the Checkout link to open. A business's bill (not a partner's) takes the versions of the terms and privacy policy the activation step showed next to its button (`acceptedTerms`): starting accepts them, and they are recorded before Checkout opens.",
   input: z.object({
     ...billTarget,
     acceptedTerms: z
@@ -25,6 +26,12 @@ export const billingStartCheckout = defineAction({
         privacyVersion: z.string().trim().min(1).max(40),
       })
       .optional(),
+    /**
+     * A business's bill (LIN-450): extra calls at the same time added on the activation step, a multiple of 5 up to the
+     * install's most per workspace. They are a line of the plan's subscription, so in a trial they are charged with the
+     * plan at its end.
+     */
+    extraCalls: z.number().int().min(0).max(1000).multipleOf(EXTRA_CALLS_STEP).optional(),
   }),
   permission: 'billing:manage',
   // The Checkout link pays this bill: in the answer only, never in the command log.

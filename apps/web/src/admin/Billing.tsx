@@ -1743,6 +1743,9 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
                   <th scope="col" className="adm-num">
                     {t('admin.bills.usage.extraCalls')}
                   </th>
+                  <th scope="col" className="adm-num">
+                    {t('admin.bills.usage.busyCallers')} <HelpTip text={t('admin.bills.usage.busyCallersHelp')} />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1761,6 +1764,9 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
                       </td>
                       <td className="adm-num" data-label={t('admin.bills.usage.extraCalls')}>
                         {w.extraCalls ? t('admin.bills.usage.extraCallsValue', { count: w.extraCalls }) : EMPTY}
+                      </td>
+                      <td className="adm-num" data-label={t('admin.bills.usage.busyCallers')}>
+                        {w.busyCallers ? fmt().number(w.busyCallers) : EMPTY}
                       </td>
                     </tr>
                   )

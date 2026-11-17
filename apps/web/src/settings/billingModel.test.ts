@@ -82,7 +82,9 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
     maxExtra: 45,
     canAdd: true,
     paidExtra: 0,
-    workspaces: [{ workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 }],
+    workspaces: [
+      { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5, busyCallers: 0 },
+    ],
   },
   cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 0, ownerMaxBaseCents: 100_000 },
   rechargeFailure: null,
@@ -113,6 +115,7 @@ const state = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   lowBalance: null,
   unpaidNumbers: [],
   trialMinutes: null,
+  busyLine: null,
   ...over,
 })
 
@@ -230,8 +233,8 @@ test('a raise up to what this period already paid for costs nothing now (review 
   const calls = {
     paidExtra: 20,
     workspaces: [
-      { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 },
-      { workspaceId: 'ws_2', name: 'Brightwater North', extraCalls: 10, limit: 15 },
+      { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5, busyCallers: 0 },
+      { workspaceId: 'ws_2', name: 'Brightwater North', extraCalls: 10, limit: 15, busyCallers: 0 },
     ],
   }
   expect(freeExtraCalls(calls, { workspaceId: 'ws_1', to: 10 })).toBe(true)
@@ -332,4 +335,25 @@ test('Workspace settings › Billing: owners and admins with or without a bill o
   expect(on({ billingState: null, billingOn: false }, owner)).toBeNull()
   expect(on({ billingState: null }, owner)).toBeNull()
   expect(workspaceBillingView({ permissions: owner, workspace: null })).toBeNull()
+})
+
+test('banner: busy callers today (LIN-450) is the least pressing line, in the warning tone', () => {
+  const busyLine = {
+    workspaceId: 'ws_1',
+    callers: 2,
+    limit: 5,
+    extraCalls: 0,
+    step: 5,
+    stepCents: 500,
+    canAdd: true,
+  }
+  expect(billingBanner(state({ busyLine }))).toEqual({
+    key: 'settings.billing.banner.busyLine',
+    tone: 'warning',
+    busy: busyLine,
+  })
+  expect(billingBanner(state({ busyLine, rechargeFailed: true }))?.key).toBe('settings.billing.banner.rechargeFailed')
+  expect(billingBanner(state({ busyLine, lowBalance: 'auto_recharge_off' }))?.key).toBe(
+    'settings.billing.banner.lowBalance',
+  )
 })

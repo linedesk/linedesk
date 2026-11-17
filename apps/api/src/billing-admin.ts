@@ -71,6 +71,7 @@ import type { Actor } from './context.ts'
 import { db, ownCommitDb } from './db.ts'
 import { type AlertActor, billingRulesAlert, selfServeAlert, signupRulesAlert } from './emails/alerts.ts'
 import { syncExtraCallsItem } from './extra-calls.ts'
+import { busyCallersByWorkspace } from './billing-recharge.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
@@ -172,6 +173,11 @@ async function billRows(tx: Tx, ids?: string[]): Promise<AdminBillRow[]> {
           ),
         )
     : []
+  const busy = await busyCallersByWorkspace(
+    tx,
+    bills.map(b => b.bill.id),
+    new Date().toISOString(),
+  )
   return bills.map(({ bill, balance, reserved, email, name }) => ({
     id: bill.id,
     kind: bill.kind,
@@ -180,7 +186,7 @@ async function billRows(tx: Tx, ids?: string[]): Promise<AdminBillRow[]> {
     owner: { id: bill.owner_user_id, email, name },
     workspaces: workspaces
       .filter(w => w.bill === bill.id)
-      .map(w => ({ id: w.id, name: w.name, extraCalls: w.extraCalls })),
+      .map(w => ({ id: w.id, name: w.name, extraCalls: w.extraCalls, busyCallers: busy.get(w.id) ?? 0 })),
     balanceMicros: exact(balance),
     reservedMicros: exact(reserved),
     heldForReviewAt: bill.held_for_review_at,

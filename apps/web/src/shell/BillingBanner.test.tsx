@@ -1,6 +1,6 @@
 // The billing line above every page (BillingBanner.tsx): the trial prompt is one line with its one button, "Keep calls
 // answered", whose tooltip has the full terms; every other state is the plain line leading to Billing.
-import type { BillingStateBill, TrialMinutesPrompt } from '@linedesk/actions'
+import type { BillingStateBill, BusyLinePrompt, TrialMinutesPrompt } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 
@@ -41,6 +41,7 @@ const bill = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   lowBalance: null,
   unpaidNumbers: [],
   trialMinutes: null,
+  busyLine: null,
   ...over,
 })
 const render = (state: BillingStateBill | null) => {
@@ -77,4 +78,31 @@ test('other states keep the plain line to Billing; nothing without a bill or a p
   expect(failed).not.toContain('Keep calls answered')
   expect(render(bill())).toBe('')
   expect(render(null)).toBe('')
+})
+
+const busyLine = (over: Partial<BusyLinePrompt> = {}): BusyLinePrompt => ({
+  workspaceId: 'ws_1',
+  callers: 3,
+  limit: 5,
+  extraCalls: 0,
+  step: 5,
+  stepCents: 500,
+  canAdd: true,
+  ...over,
+})
+
+test('busy callers today (LIN-450): one line, one button for 5 more lines at their price, Billing for other amounts', () => {
+  const html = render(bill({ status: 'active', busyLine: busyLine() }))
+  expect(html).toContain('is-warning')
+  expect(html).toContain('3 callers got a busy line today: all 5 calls at the same time were in use.')
+  expect(html).toContain('>Add 5 more lines for $5 a month<')
+  expect(html).toContain('#workspace/billing')
+  expect(html).toContain('>Other amounts<')
+})
+
+test('busy callers without the button: the trial, an instance cap or the most reached lead to Billing only', () => {
+  const html = render(bill({ busyLine: busyLine({ callers: 1, canAdd: false }) }))
+  expect(html).toContain('A caller got a busy line today')
+  expect(html).not.toContain('more lines for')
+  expect(html).toContain('#workspace/billing')
 })

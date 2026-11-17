@@ -21,7 +21,7 @@ import type {
   RetryRechargeData,
   TopUpData,
 } from '@linedesk/actions'
-import { TOPUP_CENTS } from '@linedesk/actions'
+import { BUSY_WINDOW_DAYS, TOPUP_CENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { createContext, useContext, useMemo, useState } from 'react'
@@ -46,6 +46,7 @@ import {
   centsToDollars,
   changesRecharge,
   dollarsToCents,
+  ADD_CALLS_PARAM,
   extraCallChoices,
   freeExtraCalls,
   microsToDollars,
@@ -318,14 +319,26 @@ function PayLinks({ invoices, primary }: { invoices: BillingInvoiceRow[]; primar
  * trial"); the flag is taken out of the address, so a reload or Back does not open it again.
  */
 export function takeCancelRequest(): boolean {
+  return takeHashFlag('cancel')
+}
+
+/**
+ * Whether the address asks for the "add calls at the same time" dialog (`#workspace/billing?addCalls=1&ws=…`, the
+ * busy-line email and banner, LIN-450); taken out of the address like the cancel request.
+ */
+export function takeAddCallsRequest(): boolean {
+  return takeHashFlag(ADD_CALLS_PARAM)
+}
+
+function takeHashFlag(name: string): boolean {
   // Rendered without a browser (tests, server render): no link to take.
   if (typeof window === 'undefined') return false
   const hash = window.location.hash
   const at = hash.indexOf('?')
   if (at < 0) return false
   const params = new URLSearchParams(hash.slice(at + 1))
-  if (params.get('cancel') !== '1') return false
-  params.delete('cancel')
+  if (params.get(name) !== '1') return false
+  params.delete(name)
   const rest = params.toString()
   window.history.replaceState(null, '', `${hash.slice(0, at)}${rest ? `?${rest}` : ''}`)
   return true
@@ -522,8 +535,14 @@ type CallsChange = { workspaceId: string; name: string; from: number; to: number
 function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
   const t = useT()
   const format = useFormat()
-  const [asking, setAsking] = useState<CallsChange | null>(null)
   const calls = bill.calls
+  // From the busy-line email or banner: the dialog opens one step up for this workspace, when the owner can add.
+  const [asking, setAsking] = useState<CallsChange | null>(() => {
+    if (!takeAddCallsRequest() || !calls.canAdd) return null
+    const w = calls.workspaces.find(x => x.workspaceId === tabWorkspace()) ?? calls.workspaces[0]
+    if (!w || w.extraCalls + calls.step > calls.maxExtra) return null
+    return { workspaceId: w.workspaceId, name: w.name, from: w.extraCalls, to: w.extraCalls + calls.step }
+  })
   const price = (extra: number) => format.currency(centsToDollars(extra * calls.extraCallCents), 'USD')
   const editable = changesRecharge(bill)
   const several = calls.workspaces.length > 1
@@ -544,9 +563,20 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
             <b>{several ? w.name : t('settings.billing.calls.rowTitle')}</b>
             <span className="help">
               {w.extraCalls
-                ? t('settings.billing.calls.rowExtra', { count: w.limit, price: price(w.extraCalls) })
+                ? t(
+                    // Added at activation in a trial: charged with the plan, and in use, from the trial's end.
+                    bill.status === 'trialing'
+                      ? 'settings.billing.calls.rowExtraTrial'
+                      : 'settings.billing.calls.rowExtra',
+                    { count: w.limit, price: price(w.extraCalls) },
+                  )
                 : t('settings.billing.calls.rowIncluded', { count: w.limit })}
             </span>
+            {w.busyCallers > 0 && (
+              <span className="help">
+                {t('settings.billing.calls.busyCallers', { count: w.busyCallers, days: BUSY_WINDOW_DAYS })}
+              </span>
+            )}
           </div>
           <Select
             id={`billing-calls-${w.workspaceId}`}

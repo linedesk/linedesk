@@ -125,6 +125,24 @@ export type BillingStateBill = {
   unpaidNumbers: { e164: string; releaseAt: string }[]
   /** "Keep calls answered" in the trial (docs/billing.md §3.2 step 7); null when it is not offered. */
   trialMinutes: TrialMinutesPrompt | null
+  /** Callers of this workspace heard a busy line today (LIN-450); null when none did. */
+  busyLine: BusyLinePrompt | null
+}
+
+/**
+ * The busy-line line of the banner (LIN-450): `callers` of the open workspace heard a busy line today (its own day)
+ * because its `limit` calls at the same time were in use. `canAdd`: the one button adds `step` more for `stepCents` a
+ * month (a paid plan, below the most a workspace may have, no instance admin's cap); else the line only leads to
+ * Settings › Billing. `extraCalls`: what the workspace has now, so the button asks for `extraCalls + step`.
+ */
+export type BusyLinePrompt = {
+  workspaceId: string
+  callers: number
+  limit: number
+  extraCalls: number
+  step: number
+  stepCents: number
+  canAdd: boolean
 }
 
 /**

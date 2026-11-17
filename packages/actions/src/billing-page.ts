@@ -127,6 +127,9 @@ export type BillingWorkspaceUsageData = {
  * 12 times it a year). `canAdd`: more can be bought now (a paid plan, not the trial or an unpaid one); fewer can be
  * set whenever the plan runs.
  */
+/** The days `busyCallers` (Settings › Billing, Server admin › Billing) looks back on. */
+export const BUSY_WINDOW_DAYS = 30
+
 export type BillingCalls = {
   includedPerWorkspace: number
   extraCallCents: number
@@ -138,7 +141,8 @@ export type BillingCalls = {
    * charged again (lowering is never refunded).
    */
   paidExtra: number
-  workspaces: { workspaceId: string; name: string; extraCalls: number; limit: number }[]
+  /** `busyCallers`: the callers who heard a busy line in the last `BUSY_WINDOW_DAYS` days (all calls at once in use). */
+  workspaces: { workspaceId: string; name: string; extraCalls: number; limit: number; busyCallers: number }[]
 }
 
 /** Auto-recharge as the owner sets it (docs/billing.md §2.2, §4.3): the amount lifts the balance clear of the threshold. */
@@ -183,10 +187,12 @@ export const billingSetExtraCalls = defineAction({
   name: 'billing.setExtraCalls',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Set how many extra calls at the same time a workspace on the bill has, on top of the included ones: a multiple of 5, up to the install's most per workspace. Billed on the plan's subscription: more is charged at once (prorated), fewer takes effect at once with no refund. More needs a paid plan (not the trial). Only the bill owner.",
+    "Set how many extra calls at the same time a workspace on the bill has, on top of the included ones: a multiple of 5, up to the install's most per workspace. Billed on the plan's subscription: more is charged at once (prorated), fewer takes effect at once with no refund. More needs a paid plan (not the trial); what the owner confirmed is recorded with the terms in effect. Only the bill owner.",
   input: z.object({
     workspaceId: z.string().min(1),
     extraCalls: z.number().int().min(0).max(1000).multipleOf(EXTRA_CALLS_STEP),
+    /** Where the owner confirmed it, kept with the consent record: Settings › Billing (default) or the busy-line banner. */
+    from: z.enum(['settings', 'busy_line']).optional(),
     ...billTarget,
   }),
   permission: 'billing:manage',

@@ -218,6 +218,26 @@ export type ActivationDisclosure = {
   firstChargeAt: string | null
   reminderDays: number[]
   recharge: { amountCents: number; thresholdCents: number; capCents: number } | null
+  /**
+   * Extra calls at the same time the owner added on the activation step (LIN-450), in `planCents` already: how many,
+   * and what they cost a month. Absent: none (and on activations before this existed).
+   */
+  extraCalls?: { count: number; monthlyCents: number }
+}
+
+/**
+ * What the owner confirmed when adding calls at the same time (`terms_acceptances.disclosure`, source `extra_calls`;
+ * LIN-450): the workspace, its extra calls before and after, what they cost a month after, and whether the difference
+ * was charged now (prorated) or was already paid this period. `from`: Settings › Billing or the busy-line banner.
+ */
+export type ExtraCallsDisclosure = {
+  kind: 'extra_calls'
+  workspaceId: string
+  before: number
+  after: number
+  monthlyCents: number
+  chargedNow: boolean
+  from: 'settings' | 'busy_line'
 }
 
 /**
@@ -260,7 +280,15 @@ export const trialGraceMicros = (rules: BillingRules = BILLING_DEFAULTS) =>
  * What the activation step shows (/v1/me while the trial waits): the disclosure the owner agrees to, and what the plan
  * includes (the included minutes per workspace and period, the Standard price of a minute after them, in micros).
  */
-export type ActivationFacts = ActivationDisclosure & { includedMinutes: number; standardMicrosPerMinute: number }
+export type ActivationFacts = ActivationDisclosure & {
+  includedMinutes: number
+  standardMicrosPerMinute: number
+  /**
+   * Calls at the same time on the activation step (LIN-450): included per workspace, and the add-on the owner may pick
+   * there (more in steps of `step`, up to `maxExtra`, at `extraCallCents` a month per extra call).
+   */
+  calls: { included: number; step: number; maxExtra: number; extraCallCents: number }
+}
 
 /**
  * How long a card's fingerprint (`card_fingerprints`, one free trial per card) is kept after its bill was canceled,

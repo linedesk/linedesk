@@ -187,7 +187,7 @@ import { recordingStoreCache } from './recording-store.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { numberUnpaid } from './billing-periods.ts'
-import { billOfCall, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
+import { billOfCall, busyLineAlert, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
 import { evaluationHandlers } from './evaluations.ts'
 import { businessHandlers } from './business-import.ts'
 import { knowledgeHandlers } from './knowledge.ts'
@@ -576,6 +576,8 @@ async function openCall(
   if (!again && !unanswered && !refused) await queueCallStarted(tx, call!)
   // A busy call is filed as missed right away: the team hears of it like of any other finished call.
   if (busy || overCap || refused) await queueCallPush(tx, id, 'finished')
+  // All calls at the same time were in use: the bill owner hears it once a day (Settings › Billing has more).
+  if (busy || refused === 'too_many_calls') await busyLineAlert(tx, workspace_id, now, timeZone)
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
   // Likewise a usage limit lowered below this period's use: the partner team's 100 % email goes out now then.

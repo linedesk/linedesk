@@ -67,7 +67,9 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
     maxExtra: 45,
     canAdd: true,
     paidExtra: 0,
-    workspaces: [{ workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 }],
+    workspaces: [
+      { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5, busyCallers: 0 },
+    ],
   },
   cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 2000, ownerMaxBaseCents: 100_000 },
   rechargeFailure: null,
@@ -121,6 +123,7 @@ const state = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   lowBalance: null,
   unpaidNumbers: [],
   trialMinutes: null,
+  busyLine: null,
   ...over,
 })
 const render = (overview: BillingOverviewData, s: BillingStateBill | null = state()) => {
@@ -458,12 +461,36 @@ test('calls at the same time: 5 included per workspace, 5 more for $5 a month, n
   const bought = bill({
     calls: {
       ...bill().calls,
-      workspaces: [{ workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 10, limit: 15 }],
+      workspaces: [
+        { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 10, limit: 15, busyCallers: 0 },
+      ],
     },
   })
   expect(render({ billingOn: true, bill: bought })).toContain(
     'Up to 15 calls at the same time, $10.00 a month for the extra ones',
   )
+})
+
+test('calls at the same time: callers who got a busy line show next to the workspace, none when there were none', () => {
+  expect(render({ billingOn: true, bill: bill() })).not.toContain('busy line')
+  const busy = bill({
+    calls: {
+      ...bill().calls,
+      workspaces: [
+        { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5, busyCallers: 3 },
+      ],
+    },
+  })
+  expect(render({ billingOn: true, bill: busy })).toContain('3 callers got a busy line in the last 30 days')
+  const once = bill({
+    calls: {
+      ...bill().calls,
+      workspaces: [
+        { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5, busyCallers: 1 },
+      ],
+    },
+  })
+  expect(render({ billingOn: true, bill: once })).toContain('1 caller got a busy line in the last 30 days')
 })
 
 test('calls at the same time in the trial: more only once the plan is paid; several workspaces by name', () => {
@@ -473,8 +500,8 @@ test('calls at the same time in the trial: more only once the plan is paid; seve
       ...bill().calls,
       canAdd: false,
       workspaces: [
-        { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5 },
-        { workspaceId: 'ws_2', name: 'Brightwater North', extraCalls: 0, limit: 5 },
+        { workspaceId: 'ws_1', name: 'Brightwater Plumbing & Heating', extraCalls: 0, limit: 5, busyCallers: 0 },
+        { workspaceId: 'ws_2', name: 'Brightwater North', extraCalls: 0, limit: 5, busyCallers: 0 },
       ],
     },
   })

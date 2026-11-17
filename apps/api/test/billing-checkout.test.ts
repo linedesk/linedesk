@@ -2263,3 +2263,86 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     expect(await billRow(t.bill.id)).toMatchObject({ status: 'trialing' })
   })
 })
+
+describe('extra calls at the same time on the activation step (LIN-450)', () => {
+  /** The subscription Checkout made with `extra` extra calls: the seat and the extra-calls line. */
+  function withExtraItem(sub: Json, extra: number) {
+    const items = (sub.items as { data: Json[] }).data
+    const seat = items[0]!
+    items.push({
+      ...seat,
+      id: rid('si'),
+      quantity: extra,
+      price: {
+        ...(seat.price as Json),
+        id: 'price_extra_calls_monthly',
+        product: 'linedesk_extra_calls',
+        lookup_key: 'extra_calls_monthly',
+      },
+    })
+    return sub
+  }
+
+  test('sold as a second line of the plan, with what the step showed recorded; the plan price includes them', async () => {
+    const { bill, owner } = await pendingSignUp()
+    expect((await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 10 })).status).toBe(200)
+    const made = checkoutsMade().at(-1)!
+    // The synced prices (another test may have moved a lookup key to a new amount's price meanwhile).
+    expect(made.body.get('line_items[0][price]')).toMatch(/^price_ws_monthly/)
+    expect(made.body.get('line_items[1][price]')).toMatch(/^price_extra_calls_monthly/)
+    expect(Object.fromEntries(made.body)).toMatchObject({
+      'line_items[0][quantity]': '1',
+      'line_items[1][quantity]': '10',
+      // In a trial the whole subscription is free until its end, the extra calls too.
+      'subscription_data[trial_period_days]': '14',
+    })
+    const [row] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, bill.id), eq(terms_acceptances.source, 'activation')))
+    expect(row!.disclosure).toMatchObject({ planCents: 2100, extraCalls: { count: 10, monthlyCents: 1000 } })
+  })
+
+  test('none by default: one line, no extra calls in the record', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    expect(checkoutsMade().at(-1)!.body.get('line_items[1][price]')).toBeNull()
+    const [row] = await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, bill.id))
+    expect(row!.disclosure).not.toHaveProperty('extraCalls')
+  })
+
+  test('only in steps of 5, and at most 45 more (50 at the same time): no Checkout otherwise', async () => {
+    const { owner } = await pendingSignUp()
+    expect((await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 7 })).status).toBe(422)
+    const above = await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 50 })
+    expect(above.status).toBe(409)
+    expect(above.body.error).toContain('at most 50 calls at the same time')
+    expect(checkoutsMade()).toEqual([])
+  })
+
+  test('a trial: the workspace has them from the confirmation; nothing counts as paid until the trial ends', async () => {
+    const { ws, bill, owner } = await pendingSignUp()
+    await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 10 })
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    complete(sessionId, withExtraItem(subscription(customer, { card: card(rid('fp')) }), 10))
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data.status).toBe('trialing')
+    const [org] = await db.select().from(organization).where(eq(organization.id, ws.id))
+    expect(org!.extraCalls).toBe(10)
+    expect(await billRow(bill.id)).toMatchObject({ extra_calls_paid: 0 })
+  })
+
+  test('a plan paid now: the first invoice paid them for this period (going back up to them is free)', async () => {
+    const { ws, bill, owner } = await pendingSignUp({ trial_refused: 'card_used' })
+    await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 5 })
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    complete(sessionId, withExtraItem(subscription(customer, { status: 'active', card: card(rid('fp')) }), 5))
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId })).body.data.status).toBe('active')
+    const [org] = await db.select().from(organization).where(eq(organization.id, ws.id))
+    expect(org!.extraCalls).toBe(5)
+    const row = await billRow(bill.id)
+    expect(row.extra_calls_paid).toBe(5)
+    expect(row.extra_calls_paid_until).toBe(row.current_period_end)
+  })
+})

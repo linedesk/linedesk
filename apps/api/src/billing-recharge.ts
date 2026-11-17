@@ -5,6 +5,7 @@
 //
 // No transaction stays open while Stripe is asked. The result is written under the bill's lock order (balance row,
 // then the recharge row), and only onto an attempt that is still pending, so a webhook that settled it meanwhile wins.
+import { BUSY_WINDOW_DAYS } from '@linedesk/actions'
 import type { BillingProvider, BillingSetupError, RechargeCharge } from '@linedesk/billing'
 import {
   assistants,
@@ -13,6 +14,7 @@ import {
   billing_balances,
   billing_recharges,
   type Db,
+  EXTRA_CALLS_STEP,
   instance_settings,
   organization,
   planPrice,
@@ -22,6 +24,7 @@ import {
   rechargesIn,
   type Tx,
   user,
+  workspaceCallLimit,
 } from '@linedesk/db'
 import { and, asc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
@@ -36,6 +39,7 @@ import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
 import { extraNumbersOnBill, lockBalance, trialSecondsUsed } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { canAddCallsStep } from './extra-calls.ts'
 import { signupRules } from './self-serve.ts'
 
 type RechargeTax = (typeof RECHARGE_TAX)[number]
@@ -390,6 +394,8 @@ export type BillingAlertJob =
    * used, or used up with calls on the trial grace. `ref`: the trial's period.
    */
   | { kind: 'trial_minutes_low' | 'trial_minutes_used'; bill: string; ref: string }
+  /** A caller heard a busy line (call-billing.ts busyLineAlert). `ref`: the workspace and its day. */
+  | { kind: 'busy_line'; bill: string; ref: string }
 
 /**
  * Sends one billing email. The facts are read when it is sent (the cap, the balance, the amount); an owner without an
@@ -437,6 +443,7 @@ export async function sendBillingAlert(
   if (job.kind === 'activation_nudge') return sendActivationNudge(db, sender, bill.bill, bill.email)
   if (job.kind === 'trial_minutes_low' || job.kind === 'trial_minutes_used')
     return sendTrialMinutes(db, sender, job, bill.bill, bill.email, options.provider)
+  if (job.kind === 'busy_line') return sendBusyLine(db, sender, job.ref, bill.bill, bill.email)
   const rules = await billingRules(db)
   const base = { bufferMicros: rules.balanceBufferMicros }
   let content: Parameters<typeof billingOwnerEmail>[0]
@@ -571,6 +578,69 @@ async function sendTrialMinutes(
   return { sent: 'owner' as const }
 }
 
+/**
+ * The busy-line notice (LIN-450), read when it is sent: the workspace's name and how many calls it answers at the same
+ * time, and what the owner can do about it: add more in Settings › Billing (a paid plan below the most a workspace may
+ * have), once the plan is paid (the trial), or nothing (an instance admin set the bill's cap, the most is reached, the
+ * plan ends). Nothing for a workspace that left the bill or is gone or disabled, nor a bill that is canceled.
+ */
+async function sendBusyLine(
+  db: Db,
+  sender: EmailSender,
+  ref: string,
+  bill: typeof billing_accounts.$inferSelect,
+  email: string,
+) {
+  const at = parseBusyLineRef(ref)
+  if (!at || bill.status === 'canceled') return { sent: 'nobody' as const }
+  const [workspace] = await db
+    .select({ name: organization.name, extraCalls: organization.extraCalls })
+    .from(organization)
+    .where(
+      and(
+        eq(organization.id, at.workspaceId),
+        eq(organization.billingAccountId, bill.id),
+        isNull(organization.disabledAt),
+      ),
+    )
+  if (!workspace) return { sent: 'nobody' as const }
+  const [alert] = await db
+    .select({ count: billing_alerts.count })
+    .from(billing_alerts)
+    .where(
+      and(
+        eq(billing_alerts.billing_account_id, bill.id),
+        eq(billing_alerts.kind, 'busy_line'),
+        eq(billing_alerts.ref, ref),
+      ),
+    )
+  const rules = await billingRules(db)
+  const own = workspaceCallLimit(workspace.extraCalls, rules)
+  const trial = bill.status === 'trialing'
+  const limit = bill.concurrent_calls_cap ?? (trial ? Math.min(own, rules.trialConcurrentCalls) : own)
+  const canAdd = canAddCallsStep(bill, workspace.extraCalls, rules)
+  const locale = await localeForEmail(db, email)
+  const content = billingOwnerEmail(
+    {
+      kind: 'busy_line',
+      bufferMicros: rules.balanceBufferMicros,
+      workspaceId: at.workspaceId,
+      workspace: workspace.name,
+      day: at.day,
+      callers: alert?.count ?? 1,
+      limit,
+      next: canAdd ? 'add' : trial && bill.concurrent_calls_cap == null ? 'after_trial' : 'none',
+      stepCents: EXTRA_CALLS_STEP * rules.extraCallCents,
+      step: EXTRA_CALLS_STEP,
+      partnerBill: bill.kind === 'partner',
+    },
+    undefined,
+    locale,
+  )
+  await sender.send({ to: email, ...content })
+  return { sent: 'owner' as const }
+}
+
 /** The card a recharge of the bill charges (brand and last four), or null when it cannot be read. */
 export async function savedCard(
   db: Db | Tx,
@@ -658,4 +728,41 @@ async function workspacesOf(db: Db, billId: string) {
     .from(organization)
     .where(eq(organization.billingAccountId, billId))
   return rows.length
+}
+
+/** A busy-line notice's `ref`: the workspace and its day (YYYY-MM-DD). */
+export const busyLineRef = (workspaceId: string, day: string) => `${workspaceId}:${day}`
+
+/** The workspace and day of a busy-line notice's `ref`, or null for one that is not. */
+export function parseBusyLineRef(ref: string): { workspaceId: string; day: string } | null {
+  const match = /^(.+):(\d{4}-\d{2}-\d{2})$/.exec(ref)
+  return match ? { workspaceId: match[1]!, day: match[2]! } : null
+}
+
+/**
+ * Per workspace of the bills: how many callers heard a busy line in the last `BUSY_WINDOW_DAYS` days (the busy-line
+ * notices' counts, call-billing.ts busyLineAlert). Settings › Billing and Server admin › Billing.
+ */
+export async function busyCallersByWorkspace(
+  tx: Db | Tx,
+  billIds: readonly string[],
+  now: string,
+): Promise<Map<string, number>> {
+  const callers = new Map<string, number>()
+  if (!billIds.length) return callers
+  const rows = await tx
+    .select({ ref: billing_alerts.ref, count: billing_alerts.count })
+    .from(billing_alerts)
+    .where(
+      and(
+        inArray(billing_alerts.billing_account_id, [...billIds]),
+        eq(billing_alerts.kind, 'busy_line'),
+        gte(billing_alerts.created_at, new Date(Date.parse(now) - BUSY_WINDOW_DAYS * 86_400_000).toISOString()),
+      ),
+    )
+  for (const row of rows) {
+    const at = parseBusyLineRef(row.ref)
+    if (at) callers.set(at.workspaceId, (callers.get(at.workspaceId) ?? 0) + row.count)
+  }
+  return callers
 }

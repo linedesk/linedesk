@@ -56,6 +56,7 @@ import { activationFacts, BUYS_MINUTES, ownBill, setupFailed } from './billing-c
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
+import { busyCallersByWorkspace } from './billing-recharge.ts'
 import { afterDebit } from './call-billing.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -71,7 +72,7 @@ import {
 } from './extra-calls.ts'
 import { Forbidden, type Handler, type HandlerCtx, type Preparer, Reject } from './handler-context.ts'
 import { decideRecharge, periodAt } from './ledger.ts'
-import { type LegalTerms, legalTerms } from './legal-terms.ts'
+import { type LegalTerms, legalTerms, recordAcceptance } from './legal-terms.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { refuseBillingActor } from './usage-levels.ts'
@@ -435,7 +436,7 @@ async function overview(
     taxAddressMissing:
       rules.automaticTax && bill.status !== 'comped' && (await lastAttemptTax(tx, bill.id)) === 'no_address',
     period: period ? { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind } : null,
-    calls: callsOf(bill, workspaces, rules, now),
+    calls: callsOf(bill, workspaces, rules, now, await busyCallersByWorkspace(tx, [bill.id], now)),
     usage: period ? await periodUsage(tx, bill.id, period.id, workspaces, rules.includedStandardSeconds) : [],
     invoices: invoices.map(
       (i): BillingInvoiceRow => ({
@@ -582,6 +583,7 @@ function callsOf(
   workspaces: { id: string; name: string; extraCalls: number }[],
   rules: BillingRules,
   now: string,
+  busyCallers: Map<string, number>,
 ): BillingCalls {
   return {
     includedPerWorkspace: rules.concurrentCallsPerWorkspace,
@@ -599,6 +601,7 @@ function callsOf(
       name: w.name,
       extraCalls: w.extraCalls,
       limit: bill.concurrent_calls_cap ?? workspaceCallLimit(w.extraCalls, rules),
+      busyCallers: busyCallers.get(w.id) ?? 0,
     })),
   }
 }
@@ -641,7 +644,12 @@ async function extraCallsPrice(tx: Tx, interval: 'month' | 'year') {
  */
 async function setExtraCalls(
   { tx, actor, now, onCommit }: HandlerCtx,
-  input: { workspaceId: string; extraCalls: number; partnerId?: string | undefined },
+  input: {
+    workspaceId: string
+    extraCalls: number
+    from?: 'settings' | 'busy_line' | undefined
+    partnerId?: string | undefined
+  },
 ): Promise<{ rows: Record<string, never>; data: ExtraCallsData }> {
   const owned = await ownBill(tx, actor, { partnerId: input.partnerId })
   await lockExtraCalls(tx, owned.id)
@@ -694,6 +702,26 @@ async function setExtraCalls(
       .update(billing_accounts)
       .set({ ...paidAfter(bill, paid, total), updated_at: now })
       .where(eq(billing_accounts.id, bill.id))
+    // The consent is kept, like the other purchases: the terms in effect, the session's IP and browser, what was said.
+    const { terms } = legalTerms()
+    if (terms && actor.sessionId)
+      await recordAcceptance(tx, {
+        userId: actor.actorId,
+        billId: bill.id,
+        sessionId: actor.sessionId,
+        terms,
+        now,
+        source: 'extra_calls',
+        disclosure: {
+          kind: 'extra_calls',
+          workspaceId: workspace.id,
+          before: workspace.extraCalls,
+          after: input.extraCalls,
+          monthlyCents: input.extraCalls * rules.extraCallCents,
+          chargedNow: total > paid,
+          from: input.from ?? 'settings',
+        },
+      })
   } else {
     // What was paid stays paid for the rest of the period: going back up to it is free (M-1).
     await tx

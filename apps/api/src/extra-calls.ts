@@ -5,7 +5,14 @@
 // #1103, L-2): Stripe answers slowly, calls must not wait for it.
 
 import type { BillingProvider } from '@linedesk/billing'
-import { billing_accounts, organization, type Tx } from '@linedesk/db'
+import {
+  billing_accounts,
+  type BillingRules,
+  EXTRA_CALLS_STEP,
+  maxExtraCalls,
+  organization,
+  type Tx,
+} from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { syncedPrices } from './billing-catalog.ts'
@@ -104,3 +111,15 @@ export async function syncExtraCallsItem(
     )
   }
 }
+
+/**
+ * Whether the owner can add `EXTRA_CALLS_STEP` more calls at the same time to a workspace that has `extraCalls` now: a
+ * paid plan (not the trial) that does not end at the period end, no instance admin's cap for the bill, and below the
+ * most a workspace may have. The busy-line banner's and email's one button (LIN-450).
+ */
+export const canAddCallsStep = (bill: Bill, extraCalls: number, rules: BillingRules) =>
+  bill.status === 'active' &&
+  !!bill.stripe_subscription_id &&
+  !bill.cancel_at_period_end &&
+  bill.concurrent_calls_cap == null &&
+  extraCalls + EXTRA_CALLS_STEP <= maxExtraCalls(rules)

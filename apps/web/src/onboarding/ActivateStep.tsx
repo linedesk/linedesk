@@ -8,6 +8,7 @@ import type { Activation, Me } from '../auth.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useAssistantName } from '../store.tsx'
 import { ExternalLink } from '../ui/AppLink.tsx'
+import { Select } from '../ui/controls.tsx'
 import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
@@ -38,6 +39,8 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now] = useState(() => new Date())
+  // Extra calls at the same time (LIN-450): one quiet picker in the plan card, none by default.
+  const [extraCalls, setExtraCalls] = useState(0)
   const trial = a.trialDays !== null
   const usd = (cents: number) =>
     format.currency(cents / 100, 'USD', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })
@@ -45,6 +48,9 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
     a.interval === 'year'
       ? t('onboarding.activate.planYearly', { price: usd(a.planCents), monthly: usd(Math.round(a.planCents / 12)) })
       : t('onboarding.activate.planMonthly', { price: usd(a.planCents) })
+  // What the first charge is with the extra calls: they are billed at the plan's interval (a year is 12 months).
+  const extraCents = extraCalls * (a.calls?.extraCallCents ?? 0) * (a.interval === 'year' ? 12 : 1)
+  const totalCents = a.planCents + extraCents
   // "5¢", as the plan is priced (format.centRate).
   const perMinute = format.centRate(a.standardMicrosPerMinute / 1_000_000, 'USD')
   const timeline = activationTimeline(a, now)
@@ -58,7 +64,7 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
     // Back from Checkout the onboarding goes on to the number, not to the agent setup page: set up by hand here.
     rememberOwnerByHand(me.workspace!.id, true)
     try {
-      await goToCheckout(null, { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion })
+      await goToCheckout(null, { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion }, extraCalls)
     } catch (e) {
       setBusy(false)
       // Changed while the step was open: the new links load, and the owner reads them and starts again.
@@ -96,10 +102,13 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
             {t('onboarding.activate.includes', { minutes: a.includedMinutes, perMinute })}
             {trial ? ` ${t('onboarding.activate.trialFree', { days: a.trialDays })}` : ''}
           </span>
+          {a.calls && a.calls.maxExtra > 0 && (
+            <CallsPicker calls={a.calls} extra={extraCalls} onChange={setExtraCalls} usd={usd} trial={trial} />
+          )}
         </div>
         <ol className="ob-timeline" aria-label={t('onboarding.activate.timelineLabel')}>
           {timeline.map(entry => (
-            <TimelineRow key={`${entry.kind}-${entry.day}`} entry={entry} plan={usd(a.planCents)} />
+            <TimelineRow key={`${entry.kind}-${entry.day}`} entry={entry} plan={usd(totalCents)} />
           ))}
         </ol>
         {trial && (
@@ -146,6 +155,59 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
         hint={t('onboarding.activate.cardHint')}
       />
     </>
+  )
+}
+
+/**
+ * Calls at the same time on the activation step (LIN-450): the included ones, and more in steps at a price a month,
+ * picked from the same list as in Settings › Billing. In a trial they are charged with the plan when it ends.
+ */
+function CallsPicker({
+  calls,
+  extra,
+  onChange,
+  usd,
+  trial,
+}: {
+  calls: NonNullable<Activation['calls']>
+  extra: number
+  onChange: (extra: number) => void
+  usd: (cents: number) => string
+  trial: boolean
+}) {
+  const t = useT()
+  const choices: number[] = []
+  for (let n = 0; n <= calls.maxExtra; n += calls.step) choices.push(n)
+  return (
+    <div className="ob-activate-calls">
+      <span>
+        {extra
+          ? t(trial ? 'onboarding.activate.callsExtraTrial' : 'onboarding.activate.callsExtra', {
+              price: usd(extra * calls.extraCallCents),
+            })
+          : t('onboarding.activate.callsIncluded', {
+              count: calls.included,
+              step: calls.step,
+              price: usd(calls.step * calls.extraCallCents),
+            })}
+      </span>
+      <Select
+        id="activate-calls"
+        size="sm"
+        align="end"
+        value={String(extra)}
+        label={t('onboarding.activate.callsLabel')}
+        options={choices.map(n => ({
+          value: String(n),
+          label: t('settings.billing.calls.option', { count: calls.included + n }),
+          description:
+            n === 0
+              ? t('settings.billing.calls.optionIncluded')
+              : t('settings.billing.calls.optionPrice', { price: usd(n * calls.extraCallCents) }),
+        }))}
+        onChange={v => onChange(Number(v))}
+      />
+    </div>
   )
 }
 

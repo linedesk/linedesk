@@ -273,6 +273,16 @@
   font-size: 12.5px;
   color: var(--ink-muted);
 }
+/* Calls at the same time (LIN-450): one quiet row under the plan, its picker at the right. */
+.ob-activate-calls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
 .ob-timeline {
   list-style: none;
   margin: 0;
