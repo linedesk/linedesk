@@ -1161,7 +1161,6 @@
   "voice.language.nonNative": "{language}, nicht muttersprachlich",
   "voice.language.withAccent": "{language}, Akzent: {accent}{article, select, an {} other {}}",
   "voice.level.allowHint": "Premium-Stimmen und -Modelle sind für diesen Workspace aus. Der Inhaber kann sie unter <link>Workspace-Einstellungen › Allgemein</link> erlauben.",
-  "voice.level.cents": "{cents, number}¢",
   "voice.level.default": "Voreinstellung",
   "voice.level.defaultNamed": "Voreinstellung ({name})",
   "voice.level.help": "Anrufe kosten {standard} pro Minute mit Standard-Auswahl und {premium} pro Minute, wenn das Stimmmodell oder das Sprachmodell Premium ist.",

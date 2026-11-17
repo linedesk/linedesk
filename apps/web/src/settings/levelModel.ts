@@ -8,10 +8,10 @@ import { i18n } from '../i18n/index.tsx'
 /** The value of the "Default" option (the install's model). */
 export const DEFAULT_CHOICE = ''
 
-/** A price a minute, in cents as the prices are decided ("10¢"). */
-export const pricePerMinute = (cents: number) => i18n().t('settings.voice.level.cents', { cents })
+/** A price a minute, given in cents as the prices are decided, shown in dollars ("$0.10"), never with the cent sign. */
+export const pricePerMinute = (cents: number) => i18n().format.rate(cents / 100, 'USD')
 
-/** The level's tag next to a choice: "Standard" or "Premium, 10¢/min"; nothing without billing. */
+/** The level's tag next to a choice: "Standard" or "Premium, $0.10/min"; nothing without billing. */
 export function levelTag(level: UsageTier | null, levels: UsageLevelOptions): string | undefined {
   if (!levels.billed || !level) return undefined
   const t = i18n().t

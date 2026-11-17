@@ -253,7 +253,7 @@ export const americasGuides: readonly ForwardingGuide[] = [
       },
     },
     pitfalls: [
-      'Call forwarding must be on your plan (Call Forwarding North America: 3,000 minutes a month, 75¢ per extra minute); otherwise minutes are billed pay-per-use.',
+      'Call forwarding must be on your plan (Call Forwarding North America: 3,000 minutes a month, $0.75 per extra minute); otherwise minutes are billed pay-per-use.',
       'Not available on TELUS Prepaid.',
       'TELUS says only every-call forwarding works on every phone; the missed-call codes depend on the phone. Check it: let a call ring out and see that it reaches your assistant.',
       'To choose the ring time instead, dial *004*, your assistant’s number, *20# (10, 20 or 30 seconds). #004# turns it off.',

@@ -1161,7 +1161,6 @@
   "voice.language.nonNative": "{language}, no nativo",
   "voice.language.withAccent": "{language} con acento {accent}{article, select, an {} other {}}",
   "voice.level.allowHint": "Las voces y los modelos Premium están desactivados en este espacio de trabajo. El propietario puede permitirlos en <link>Configuración del espacio de trabajo › General</link>.",
-  "voice.level.cents": "{cents, number}¢",
   "voice.level.default": "Predeterminado",
   "voice.level.defaultNamed": "Predeterminado ({name})",
   "voice.level.help": "Las llamadas cuestan {standard} por minuto con opciones Estándar y {premium} por minuto cuando el modelo de voz o el modelo de lenguaje es Premium.",

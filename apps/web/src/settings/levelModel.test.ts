@@ -13,9 +13,12 @@ const cloud: UsageLevelOptions = {
 }
 
 describe('level labels', () => {
-  it('shows prices in cents, as decided', () => {
-    expect(pricePerMinute(10)).toBe('10¢')
-    expect(levelTag('premium', cloud)).toBe('Premium, 10¢/min')
+  it('shows prices a minute in dollars with decimals, never the cent sign', () => {
+    expect(pricePerMinute(5)).toBe('$0.05')
+    expect(pricePerMinute(10)).toBe('$0.10')
+    expect(pricePerMinute(20)).toBe('$0.20')
+    expect(pricePerMinute(0.85)).toBe('$0.0085')
+    expect(levelTag('premium', cloud)).toBe('Premium, $0.10/min')
     expect(levelTag('standard', cloud)).toBe('Standard')
   })
 
@@ -29,9 +32,9 @@ describe('levelOptions', () => {
     const options = levelOptions([flash, v3], cloud.defaultVoiceModels.elevenlabs, cloud, DEFAULT_CHOICE)
     expect(options.map(o => o.value)).toEqual([DEFAULT_CHOICE, 'eleven_flash_v2_5', 'eleven_v3'])
     expect(options[0]).toMatchObject({ label: 'Default (ElevenLabs Flash v2.5)', description: 'Standard' })
-    expect(options[2]).toMatchObject({ disabled: true, description: 'Premium, 10¢/min. Needs Allow Premium' })
+    expect(options[2]).toMatchObject({ disabled: true, description: 'Premium, $0.10/min. Needs Allow Premium' })
     const allowed = levelOptions([flash, { ...v3, allowed: true }], null, cloud, '')
-    expect(allowed[2]).toMatchObject({ description: 'Premium, 10¢/min' })
+    expect(allowed[2]).toMatchObject({ description: 'Premium, $0.10/min' })
     expect(allowed[2]).not.toHaveProperty('disabled')
   })
 
@@ -66,7 +69,7 @@ describe('Ultra', () => {
   const ultra: UsageLevelOptions = { ...cloud, realtimeModels: [realtime], realtimeAllowed: false }
 
   it('is labelled with its price, and greyed out until Allow Ultra', () => {
-    expect(levelTag('ultra', cloud)).toBe('Ultra, 20¢/min, natural realtime voice')
+    expect(levelTag('ultra', cloud)).toBe('Ultra, $0.20/min, natural realtime voice')
     const [, off] = levelOptions([realtime], null, ultra, DEFAULT_CHOICE)
     expect(off).toMatchObject({ disabled: true, description: 'Needs Allow Ultra' })
     expect(ultraLocked(ultra)).toBe(true)

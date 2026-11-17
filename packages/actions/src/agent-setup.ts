@@ -579,7 +579,7 @@ Ending your access: when you are done, give the admin a short summary first, the
 
 Choices that work well (US):
 - AI: one OpenAI key (simplest: one account, about $0.05 per call minute) or Deepgram + OpenRouter + ElevenLabs (best voice and features, about $0.03 per minute, three accounts).
-- Phone: Telnyx (about $1 a month per number plus about half a cent a minute). Twilio works too.
+- Phone: Telnyx (about $1 a month per number plus about $0.005 a minute). Twilio works too.
 - Email: Resend (free to start; needs DNS records on a domain the admin owns).
 - Pick-up: "when I can't answer" (no_answer) is the usual choice: the business phone rings first, unanswered calls forward to Linedesk.
 

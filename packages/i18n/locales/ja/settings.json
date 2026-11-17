@@ -1161,7 +1161,6 @@
   "voice.language.nonNative": "{language}（ネイティブ以外）",
   "voice.language.withAccent": "{language}（{accent}アクセント）{article, select, an {} other {}}",
   "voice.level.allowHint": "このワークスペースではPremiumの音声とモデルがオフです。オーナーが<link>「ワークスペースの設定 › 一般」</link>で許可できます。",
-  "voice.level.cents": "{cents, number}¢",
   "voice.level.default": "デフォルト",
   "voice.level.defaultNamed": "デフォルト（{name}）",
   "voice.level.help": "通話料金は、スタンダードの選択で1分あたり{standard}、音声モデルか言語モデルがPremiumの場合は1分あたり{premium}です。",

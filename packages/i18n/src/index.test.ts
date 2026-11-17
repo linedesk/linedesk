@@ -83,6 +83,19 @@ describe('formatters', () => {
     expect(createFormatters('de').duration(181, 'digital')).toBe('03:01')
     expect(createFormatters('en').duration(3781, 'digital')).toBe('1:03:01')
   })
+
+  it('rates are dollar amounts with decimals, never the cent sign', () => {
+    const en = createFormatters('en')
+    expect(en.rate(0.05, 'USD')).toBe('$0.05')
+    expect(en.rate(0.1, 'USD')).toBe('$0.10')
+    expect(en.rate(0.2, 'USD')).toBe('$0.20')
+    expect(en.rate(0.75, 'USD')).toBe('$0.75')
+    expect(en.rate(0.0085, 'USD')).toBe('$0.0085')
+    expect(en.rate(0.005, 'USD')).toBe('$0.005')
+    expect(en.rate(1, 'USD')).toBe('$1.00')
+    expect(en.rate(0.05, 'USD')).not.toContain('¢')
+    expect(createFormatters('de').rate(0.05, 'USD')).toMatch(/^0,05\s\$$/)
+  })
 })
 
 describe('pseudo-locale', () => {

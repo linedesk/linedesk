@@ -122,6 +122,11 @@ export interface Formatters {
   number(value: number, options?: Intl.NumberFormatOptions): string
   /** An amount in a currency ("$1,234.50" in en, "1.234,50 US$" in de). */
   currency(value: number, currency: string, options?: Intl.NumberFormatOptions): string
+  /**
+   * A rate, such as a price a minute: an amount in a currency with at least two decimals and up to four for sub-cent
+   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decisions.md 2026-11-16).
+   */
+  rate(value: number, currency: string): string
   /** "A, B and C" in the active language. */
   list(items: readonly string[], options?: Intl.ListFormatOptions): string
   /**
@@ -149,6 +154,9 @@ type DurationFormatCtor = new (
   options: { style: string; hoursDisplay?: 'auto' | 'always' },
 ) => { format(duration: { hours?: number; minutes?: number; seconds?: number }): string }
 
+/** The decimals of a rate: cents always shown, sub-cent digits only when the price has them ($0.0085). */
+export const RATE_DIGITS = { minimumFractionDigits: 2, maximumFractionDigits: 4 } as const
+
 /** Locale-aware formatting; every formatter is built once per locale and options (they are costly to build). */
 export function createFormatters(active: ActiveLocale): Formatters {
   const locale = intlLocaleOf(active)
@@ -164,6 +172,10 @@ export function createFormatters(active: ActiveLocale): Formatters {
       cached('nf', locale, options, () => new Intl.NumberFormat(locale, options)).format(value),
     currency: (value, currency, options) => {
       const all = { style: 'currency', currency, ...options } as const
+      return cached('cur', locale, all, () => new Intl.NumberFormat(locale, all)).format(value)
+    },
+    rate: (value, currency) => {
+      const all = { style: 'currency', currency, ...RATE_DIGITS } as const
       return cached('cur', locale, all, () => new Intl.NumberFormat(locale, all)).format(value)
     },
     list: (items, options = { type: 'conjunction' }) =>

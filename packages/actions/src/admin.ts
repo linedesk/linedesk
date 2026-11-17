@@ -128,7 +128,7 @@ const guides = {
       'Same page, Public Key: copy it. Linedesk checks the signature of Telnyx’s webhooks with it.',
       'Paste both here. The number itself is bought or connected later, in the business onboarding.',
     ],
-    cost: 'About $1 a month per US number, plus about half a cent per call minute.',
+    cost: 'About $1 a month per US number, plus about $0.005 per call minute.',
   },
   twilio: {
     url: 'https://console.twilio.com/',
@@ -137,7 +137,7 @@ const guides = {
       'Console → Account Info: copy the Account SID and the Auth token.',
       'Paste both here. The number itself is bought or connected later, in the business onboarding.',
     ],
-    cost: 'About $1.15 a month per US number, plus about one cent per call minute.',
+    cost: 'About $1.15 a month per US number, plus about $0.01 per call minute.',
   },
   deepgram: {
     url: 'https://console.deepgram.com/',
