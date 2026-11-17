@@ -76,6 +76,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label={t('shell.nav.closeMenu')} title={t('common.action.closeWithKey', { key: 'esc' })} onClick={onClose} />}
       </div>
       <NavItem label={t('shell.nav.inbox')} icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
+        title={unreadCount ? t('shell.nav.inboxUnreadTip', { count: unreadCount }) : undefined}
         badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
       <NavItem sub label={t('shell.nav.reminders')} icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />

@@ -141,6 +141,7 @@
   "nav.closeMenu": "Close menu",
   "nav.done": "Done",
   "nav.inbox": "Inbox",
+  "nav.inboxUnreadTip": "{count, plural, one {# unread call} other {# unread calls}} in Needs you",
   "nav.label": "Main",
   "nav.menuTip": "Menu ({key})",
   "nav.mine": "Assigned to me",
