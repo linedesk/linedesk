@@ -26,7 +26,7 @@ import {
   postEntry,
   reserveCall,
 } from '../src/ledger.ts'
-import { createWorkspace } from './helpers.ts'
+import { createWorkspace, randomNumber } from './helpers.ts'
 
 const rid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const NOW = '2026-11-16T12:00:00.000Z'
@@ -364,17 +364,19 @@ describe('the recharge decision', () => {
 
   test('extra numbers on our carrier account count beyond one per workspace', async () => {
     const b = await billFor('active')
-    const numbers = (n: number) =>
-      Array.from({ length: n }, () => ({
-        id: rid('pn'),
-        workspace_id: b.ws.id,
-        e164: `+1503555${String(Math.floor(Math.random() * 10_000)).padStart(4, '0')}`,
-        provider: 'dev' as const,
-        purchased: true,
-      }))
+    // e164 is unique across the install: draw three distinct numbers up front so no insert can repeat one.
+    const drawn = new Set<string>()
+    while (drawn.size < 3) drawn.add(randomNumber())
+    const [first, second, own] = [...drawn].map(e164 => ({
+      id: rid('pn'),
+      workspace_id: b.ws.id,
+      e164,
+      provider: 'dev' as const,
+      purchased: true,
+    }))
     await db.update(phone_numbers).set({ purchased: true }).where(eq(phone_numbers.workspace_id, b.ws.id))
-    await db.insert(phone_numbers).values(numbers(2))
-    await db.insert(phone_numbers).values({ ...numbers(1)[0]!, carrier_account: 'workspace' })
+    await db.insert(phone_numbers).values([first!, second!])
+    await db.insert(phone_numbers).values({ ...own!, carrier_account: 'workspace' })
     expect(await db.transaction(tx => extraNumbersOnBill(tx, b.bill.id))).toBe(2)
   })
 })

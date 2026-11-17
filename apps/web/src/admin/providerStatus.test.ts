@@ -145,7 +145,9 @@ test('"tested 4 min ago"', () => {
   expect(testedAgo('2026-11-14T10:04:00.000Z', now)).toBe('tested just now')
   expect(testedAgo('2026-11-14T10:00:00.000Z', now)).toBe('tested 4 min ago')
   expect(testedAgo('2026-11-14T07:00:00.000Z', now)).toBe('tested 3 h ago')
-  expect(testedAgo('2026-11-12T07:00:00.000Z', now)).toBe('tested Nov 12')
+  // Older than a day: the calendar day where the viewer is (Nov 11 in US time zones, Nov 12 in UTC and east of it).
+  const older = '2026-11-12T07:00:00.000Z'
+  expect(testedAgo(older, now)).toBe(`tested Nov ${new Date(older).getDate()}`)
 })
 
 test('why a group is there is help on demand, and not again inside the walkthrough step, whose lede says it', () => {
