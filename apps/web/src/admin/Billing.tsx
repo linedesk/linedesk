@@ -12,6 +12,7 @@ import type {
   BillingRulesData,
   RadarRiskLevel,
   SelfServeData,
+  TaxAddressMissingData,
 } from '@linedesk/actions'
 import { PLAN_PRICE_FLOOR, RADAR_RISK_LEVELS } from '@linedesk/actions'
 import { SIGNUP_RULE_RANGES, type SignupCountRule } from '@linedesk/db/types'
@@ -61,6 +62,7 @@ type Translate = ReturnType<typeof useT>
 const BILLS = 'admin.billing.bills'
 const REVIEW = 'admin.billing.review'
 const RULES = 'admin.billing.rules'
+const TAX_ADDRESS = 'admin.billing.taxAddressMissing'
 const SELF_SERVE = 'admin.billing.selfServe'
 const billKey = (id: string) => `admin.billing.bill.${id}`
 const eventsKey = (filter: BillingEventFilter) => `admin.billing.events.${filter}`
@@ -71,6 +73,8 @@ const loadBill = (id: string) => async () =>
 const loadReview = async () =>
   (await runAdmin('billing.adminReview', {})) as unknown as { held: AdminReviewRow[]; newTrials: AdminReviewRow[] }
 const loadRules = async () => (await runAdmin('billingRules.get', {})) as unknown as BillingRulesData
+const loadTaxAddress = async () =>
+  ((await runAdmin('billing.adminTaxAddressMissing', {})) as unknown as TaxAddressMissingData).taxAddressMissing
 const loadSelfServe = async () => (await runAdmin('signup.getSelfServe', {})) as unknown as SelfServeData
 type EventsPage = { events: AdminStripeEvent[]; next: string | null }
 const loadEvents = (filter: BillingEventFilter, before?: string) => async () =>
@@ -906,6 +910,9 @@ function RulesCard({ notify }: { notify: Notify }) {
     if (saved) setForm(saved)
   }, [saved])
   const dirty = !!saved && changedFields(form, saved).length > 0
+  // Asked of Stripe only while the confirm dialog turns tax on, never with the rules (security review of #1105, N-1).
+  const turningTaxOn = !!asking && !!saved && saved[TAX_FIELD] !== 'on' && form[TAX_FIELD] === 'on'
+  const taxAddress = useQuery(turningTaxOn ? TAX_ADDRESS : null, loadTaxAddress)
 
   function save(e: FormEvent) {
     e.preventDefault()
@@ -1012,21 +1019,30 @@ function RulesCard({ notify }: { notify: Notify }) {
           onClose={() => setAsking(null)}
         >
           {/* The switch reaches running subscriptions: what that means, before the admin confirms (review #1105, M-1). */}
-          {taxChange(form, saved, data?.taxAddressMissing ?? null, t)}
+          {taxChange(form, saved, taxAddress.error ? null : taxAddress.data, t)}
         </ReasonDialog>
       )}
     </Card>
   )
 }
 
-/** The confirm dialog's note when the Stripe Tax switch changes; null when it does not. */
-function taxChange(form: RulesForm, saved: RulesForm | null, missing: number | null, t: ReturnType<typeof useT>) {
+/**
+ * The confirm dialog's note when the Stripe Tax switch changes; null when it does not. `missing`: the count of paying
+ * customers without a billing address (undefined while it is asked for, null when it is not known).
+ */
+export function taxChange(
+  form: RulesForm,
+  saved: RulesForm | null,
+  missing: number | null | undefined,
+  t: ReturnType<typeof useT>,
+) {
   if (!saved || form[TAX_FIELD] === saved[TAX_FIELD]) return null
   if (form[TAX_FIELD] !== 'on') return <Note>{t('admin.bills.rules.automaticTax.offConfirm')}</Note>
   return (
     <Note>
       {t('admin.bills.rules.automaticTax.onConfirm')}
-      {missing !== null && <> {t('admin.bills.rules.automaticTax.onConfirmMissing', { count: missing })}</>}
+      {missing === undefined && <> {t('admin.bills.rules.automaticTax.onConfirmCounting')}</>}
+      {typeof missing === 'number' && <> {t('admin.bills.rules.automaticTax.onConfirmMissing', { count: missing })}</>}
     </Note>
   )
 }

@@ -292,6 +292,7 @@ const all = [
   billingAdmin.billingAdminEvents,
   billingAdmin.billingAdminReview,
   billingAdmin.billingRulesGet,
+  billingAdmin.billingAdminTaxAddressMissing,
   billingAdmin.signupGetSelfServe,
   billingAdmin.billingCredit,
   billingAdmin.billingAdminSetStatus,

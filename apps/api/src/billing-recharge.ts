@@ -104,6 +104,9 @@ export async function chargeRecharge(
     subscriptionId: bill.stripe_subscription_id,
     // Stripe Tax as decided for this attempt: tax is added on top; the balance gets the pre-tax amount only (§2.2).
     tax: { ...invoiceTax(await billingRules(db)), automatic: (await attemptTax(db, provider, attempt, bill)) === 'on' },
+    // The invoice's id is kept on the attempt as soon as it exists, before its item, finalize or pay can be refused:
+    // a give-up after a refusal then stops that invoice instead of leaving it for Stripe to charge (review #1110, R-1).
+    onInvoice: id => settle(db, rechargeId, { stripe_invoice_id: id }, now()),
   })
   if (charge.status !== 'failed') {
     await settle(db, rechargeId, { stripe_invoice_id: charge.invoiceId }, now())
@@ -222,9 +225,9 @@ export const RECHARGE_SETUP_ALERT_MS = 24 * 60 * 60_000
 export const rechargeSetupAlertKey = (code: string) => `billing.rechargeSetupAlerted:${code}`
 
 /**
- * The last try failed on our own setup (recheck of #864, L2: a 401, 403 or 404 from Stripe): not the owner's card, so no
- * `recharge_failed_at` and no owner email. The attempt is canceled (a later decision may try again once the setup is
- * fixed), its invoice is stopped when that still works, and the instance admins are emailed: once per install and
+ * The last try failed on our own setup (recheck of #864, L2: a 401, 403 or 404 from Stripe, or an account-side 400):
+ * not the owner's card, so no `recharge_failed_at` and no owner email. The attempt is canceled (a later decision may try
+ * again once the setup is fixed), its invoice (stored, else looked up) is voided or deleted when that still works, and the instance admins are emailed: once per install and
  * error code in 24 hours, not once per bill (a broken key fails every bill's recharge the same way).
  */
 async function setupGaveUp(
@@ -234,10 +237,22 @@ async function setupGaveUp(
   code: string,
   now: string,
 ) {
-  if (attempt.stripe_invoice_id && provider.name !== 'none')
-    await provider
-      .stopRechargeInvoice(attempt.stripe_invoice_id, { void: true })
-      .catch(e => console.error(`billing: invoice ${attempt.stripe_invoice_id} could not be stopped:`, e))
+  // The attempt's invoice, also one Stripe has but the attempt does not name yet (refused before its id was stored):
+  // voided, or deleted as a draft, so Stripe never charges it later behind a canceled attempt while a new attempt
+  // charges again (security review of #1110, R-1). Not found or not stoppable: logged; the stuck and not-credited
+  // alerts still name it.
+  let invoiceId = attempt.stripe_invoice_id
+  if (provider.name !== 'none') {
+    if (!invoiceId)
+      invoiceId = await provider.findRechargeInvoice(attempt.id).catch(e => {
+        console.error(`billing: the invoice of recharge ${attempt.id} could not be looked up:`, e)
+        return null
+      })
+    if (invoiceId)
+      await provider
+        .stopRechargeInvoice(invoiceId, { void: true })
+        .catch(e => console.error(`billing: invoice ${invoiceId} could not be stopped:`, e))
+  }
   await settle(db, attempt.id, { status: 'canceled', failure_code: code }, now, async (tx, billId) => {
     const before = new Date(Date.parse(now) - RECHARGE_SETUP_ALERT_MS).toISOString()
     const due = await tx

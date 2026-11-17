@@ -303,7 +303,13 @@ const reason = 'Customer asked on support ticket 4411'
 describe('who may', () => {
   test('a workspace owner who is not an instance admin runs none of it', async () => {
     const { billId, ws } = await billWith()
-    const reads = ['billing.adminBills', 'billing.adminReview', 'billingRules.get', 'signup.getSelfServe']
+    const reads = [
+      'billing.adminBills',
+      'billing.adminReview',
+      'billingRules.get',
+      'billing.adminTaxAddressMissing',
+      'signup.getSelfServe',
+    ]
     for (const name of reads) expect((await act(ws.owner, name, {})).status).toBe(403)
     expect((await act(ws.owner, 'billing.adminBill', { billingAccountId: billId })).status).toBe(403)
     const writes: [string, unknown][] = [
@@ -1513,6 +1519,15 @@ describe('the billing rules editor', () => {
     expect(refused.status).toBe(409)
     expect(JSON.stringify(refused.body)).toMatch(/levels.standard.microsPerMinute/)
     expect((await act(operator, 'billingRules.get', {})).body.data.minMicrosPerMinute).toBe(10_000)
+  })
+
+  test('a read of the rules never asks Stripe; the confirm dialog asks for the tax-address count on its own (review #1105, N-1)', async () => {
+    expect((await act(operator, 'billingRules.get', {})).body.data).not.toHaveProperty('taxAddressMissing')
+    // Billing through Stripe is not in effect here: not known.
+    expect((await act(operator, 'billing.adminTaxAddressMissing', {})).body).toMatchObject({
+      ok: true,
+      data: { taxAddressMissing: null },
+    })
   })
   test('a save merges over the stored rules: a field left out keeps its value, null resets it (review of #1040, I-6)', async () => {
     const set = (rules: Record<string, unknown>) => act(operator, 'billingRules.set', { rules, reason })

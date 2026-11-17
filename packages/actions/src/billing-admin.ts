@@ -68,6 +68,16 @@ export const billingRulesGet = defineAction({
   readOnly: true,
 })
 
+export const billingAdminTaxAddressMissing = defineAction({
+  name: 'billing.adminTaxAddressMissing',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "How many paying customers have no billing address Stripe Tax can use: asked of Stripe for this install's customers only, kept for 5 minutes. Null when billing is off or Stripe did not answer.",
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+
 export const signupGetSelfServe = defineAction({
   name: 'signup.getSelfServe',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
@@ -330,13 +340,14 @@ export type BillingRulesData = {
   minMicrosPerMinute: number
   /** The lowest monthly plan fee for the rules in effect (BILLING_MIN_PLAN_CENTS); a yearly fee is at least 12 times it. */
   minPlanCents: number
-  /**
-   * While Stripe Tax is off: how many paying customers have no address Stripe can tax, shown before the admin turns it
-   * on (their recharges are then charged without tax until they add one). Null: not known (billing off, Stripe not
-   * answering). Left out while tax is on, and in billingRules.set's answer.
-   */
-  taxAddressMissing?: number | null
 }
+
+/**
+ * billing.adminTaxAddressMissing: how many paying customers have no address Stripe can tax, shown before the admin
+ * turns Stripe Tax on (their recharges are then charged without tax until they add one). Null: not known (billing off,
+ * Stripe not answering).
+ */
+export type TaxAddressMissingData = { taxAddressMissing: number | null }
 
 /** billingRules.set's refusal code when a plan fee is below the floor or a yearly fee above 12 monthly ones. */
 export const PLAN_PRICE_FLOOR = 'plan_price_floor'

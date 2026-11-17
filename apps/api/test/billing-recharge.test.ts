@@ -8,6 +8,12 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { chargeRecharge, rechargeGaveUp, rechargeSetupAlertKey, sendBillingAlert } from '../src/billing-recharge.ts'
 import { BILLING_RULES_KEY } from '../src/billing-rules.ts'
+import {
+  customersWithoutTaxAddress,
+  resetTaxAddressCount,
+  TAX_ADDRESS_COUNT_MS,
+  TAX_ADDRESS_FAILED_MS,
+} from '../src/billing-tax.ts'
 import { db } from '../src/db.ts'
 import type { Email, EmailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -156,6 +162,8 @@ describe('the recharge job', () => {
           subscriptionId: null,
           // Stripe Tax on by default (a self-hoster turns it off): tax on top, the item carries our code.
           tax: { automatic: true, code: 'txcd_10103001' },
+          // Stores the invoice's id on the attempt as soon as it exists (review #1110, R-1).
+          onInvoice: expect.any(Function),
         },
       ],
     })
@@ -332,6 +340,157 @@ describe('the recharge job', () => {
     })
     await expect(chargeRecharge(db, r.attempt.id, { provider })).rejects.toThrow('ECONNRESET')
     expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'pending', stripe_invoice_id: null })
+  })
+
+  test('Stripe Tax not set up on our account: the admins hear of it once, the owner is neither emailed nor stopped (review #1105, N-2)', async () => {
+    // The adapter turns an account-side 400 (stripe_tax_inactive) into a setup error (billing.test.ts); every bill's
+    // recharge would fail alike, so none of them takes the owner's failed-recharge path.
+    const code = `stripe_stripe_tax_inactive_${rid('t')}`
+    const { provider } = fakeProvider(() => {
+      throw new BillingSetupError(code)
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const bills: string[] = []
+    for (let i = 0; i < 2; i++) {
+      const r = await pendingRecharge()
+      bills.push(r.billId)
+      // Each try throws, so the job tries again; the attempt stays pending meanwhile (no new attempt per call).
+      await expect(chargeRecharge(db, r.attempt.id, { provider })).rejects.toBeInstanceOf(BillingSetupError)
+      expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'pending' })
+      // The job's last retry (jobs.ts): given up as a setup error.
+      await rechargeGaveUp(db, r.attempt.id, { provider, setupError: new BillingSetupError(code) })
+      expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'canceled', failure_code: code })
+    }
+    error.mockRestore()
+    for (const bill of bills) {
+      // Not stopped at the buffer waiting for a Retry, and no owner email: a later decision makes a new attempt.
+      expect((await billOf(bill)).recharge_failed_at).toBeNull()
+      expect(await db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, bill))).toEqual([])
+    }
+    expect(queued.map(q => q.data.kind)).toEqual(['recharge_setup'])
+    const sent: Email[] = []
+    const sender: EmailSender = { send: async e => void sent.push(e) } as EmailSender
+    expect(await sendBillingAlert(db, sender, queued[0]!.data as never)).toEqual({ sent: 'admins' })
+  })
+})
+
+describe('an account refusal after the invoice exists (review #1110, R-1)', () => {
+  test('the invoice id is kept as soon as it exists; the give-up voids that invoice, never leaves it for Stripe to charge', async () => {
+    const r = await pendingRecharge()
+    const invoiceId = rid('in')
+    const code = `stripe_stripe_tax_inactive_${rid('t')}`
+    // Like the adapter: the invoice is made (and reported), then finalize or pay is refused for our own account.
+    const { provider, calls } = fakeProvider(() => {
+      throw new Error('not used')
+    })
+    provider.chargeRecharge = async input => {
+      calls.push({ method: 'chargeRecharge', args: [input] })
+      await input.onInvoice?.(invoiceId)
+      throw new BillingSetupError(code)
+    }
+    await expect(chargeRecharge(db, r.attempt.id, { provider })).rejects.toBeInstanceOf(BillingSetupError)
+    expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'pending', stripe_invoice_id: invoiceId })
+    // The job's next try charges that invoice again instead of making a new one.
+    await expect(chargeRecharge(db, r.attempt.id, { provider })).rejects.toBeInstanceOf(BillingSetupError)
+    expect((calls[1]!.args[0] as RechargeInvoiceInput).invoiceId).toBe(invoiceId)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await rechargeGaveUp(db, r.attempt.id, { provider, setupError: new BillingSetupError(code) })
+    error.mockRestore()
+    expect(calls.filter(c => c.method === 'stopRechargeInvoice').map(c => c.args)).toEqual([
+      [invoiceId, { void: true }],
+    ])
+    expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'canceled', failure_code: code })
+    expect((await billOf(r.billId)).recharge_failed_at).toBeNull()
+  })
+
+  test('an invoice the attempt does not name yet is looked up in Stripe and voided too', async () => {
+    const r = await pendingRecharge()
+    const { provider, calls } = fakeProvider(() => ({ status: 'paid', invoiceId: 'x' }))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await rechargeGaveUp(db, r.attempt.id, { provider, setupError: new BillingSetupError(`stripe_x_${rid('t')}`) })
+    // Stripe not answering the lookup: the attempt is still given up (the stuck and not-credited alerts remain).
+    const r2 = await pendingRecharge()
+    const down: BillingProvider = {
+      ...provider,
+      findRechargeInvoice: async () => {
+        throw new Error('ECONNRESET')
+      },
+    }
+    await rechargeGaveUp(db, r2.attempt.id, { provider: down, setupError: new BillingSetupError('stripe_y') })
+    error.mockRestore()
+    expect(calls.map(c => [c.method, ...c.args])).toEqual([
+      ['findRechargeInvoice', r.attempt.id],
+      ['stopRechargeInvoice', 'in_found', { void: true }],
+    ])
+    expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'canceled' })
+    expect(await attemptOf(r2.attempt.id)).toMatchObject({ status: 'canceled', failure_code: 'stripe_y' })
+  })
+})
+
+describe('the count of paying customers without a tax address (review #1105, N-1)', () => {
+  beforeEach(() => resetTaxAddressCount())
+
+  test('asks Stripe for the running bills’ customers only, keeps the answer for some minutes, and says null when Stripe fails', async () => {
+    const running = await pendingRecharge({ stripe_customer_id: rid('cus') })
+    const ended = await pendingRecharge({ status: 'canceled', stripe_customer_id: rid('cus') })
+    const asked: string[][] = []
+    const { provider } = fakeProvider(() => ({ status: 'paid', invoiceId: 'x' }))
+    provider.customersWithoutTaxAddress = async ids => {
+      asked.push(ids)
+      return 3
+    }
+    const now = Date.parse('2026-11-17T12:00:00.000Z')
+    expect(await customersWithoutTaxAddress(db, { provider, now })).toBe(3)
+    const runningCustomer = (await billOf(running.billId)).stripe_customer_id!
+    const endedCustomer = (await billOf(ended.billId)).stripe_customer_id!
+    expect(asked[0]).toContain(runningCustomer)
+    expect(asked[0]).not.toContain(endedCustomer)
+    // Opened again within the 5 minutes: the same answer, Stripe not asked again.
+    expect(await customersWithoutTaxAddress(db, { provider, now: now + TAX_ADDRESS_COUNT_MS - 1 })).toBe(3)
+    expect(asked).toHaveLength(1)
+    // Later, or once the paying customers changed: asked again.
+    expect(await customersWithoutTaxAddress(db, { provider, now: now + TAX_ADDRESS_COUNT_MS })).toBe(3)
+    expect(asked).toHaveLength(2)
+    await pendingRecharge({ stripe_customer_id: rid('cus') })
+    expect(await customersWithoutTaxAddress(db, { provider, now: now + TAX_ADDRESS_COUNT_MS })).toBe(3)
+    expect(asked).toHaveLength(3)
+    // Stripe not answering: not known (null). Kept for a minute too, so an admin key asking in a loop does not send a
+    // read per customer on every call (review #1110, R-3); asked again after that.
+    let failures = 0
+    provider.customersWithoutTaxAddress = async () => {
+      failures++
+      throw new Error('ECONNRESET')
+    }
+    resetTaxAddressCount()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(await customersWithoutTaxAddress(db, { provider, now })).toBeNull()
+    expect(await customersWithoutTaxAddress(db, { provider, now: now + TAX_ADDRESS_FAILED_MS - 1 })).toBeNull()
+    expect(failures).toBe(1)
+    expect(await customersWithoutTaxAddress(db, { provider, now: now + TAX_ADDRESS_FAILED_MS })).toBeNull()
+    expect(failures).toBe(2)
+    error.mockRestore()
+  })
+
+  test('calls at the same time share one count: Stripe is asked once (review #1110, R-3)', async () => {
+    await pendingRecharge({ stripe_customer_id: rid('cus') })
+    const { provider } = fakeProvider(() => ({ status: 'paid', invoiceId: 'x' }))
+    let asked = 0
+    let answer!: (n: number) => void
+    provider.customersWithoutTaxAddress = () => {
+      asked++
+      return new Promise<number>(resolve => {
+        answer = resolve
+      })
+    }
+    const now = Date.parse('2026-11-17T12:00:00.000Z')
+    const first = customersWithoutTaxAddress(db, { provider, now })
+    await vi.waitFor(() => expect(asked).toBe(1))
+    // A second call while the first is still asking Stripe: given time to reach the shared count, then answered.
+    const second = customersWithoutTaxAddress(db, { provider, now })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    answer(4)
+    expect(await Promise.all([first, second])).toEqual([4, 4])
+    expect(asked).toBe(1)
   })
 })
 

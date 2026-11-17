@@ -5,7 +5,7 @@
 // address Stripe can tax stays untaxed (its next invoice would fail to finalize otherwise); the nightly reconciliation
 // runs this again, so it is taxed once the customer adds an address. Each run logs what it did.
 import type { BillingProvider, SubscriptionTaxSync } from '@linedesk/billing'
-import { billing_accounts, type Db, type Tx } from '@linedesk/db'
+import { billing_accounts, type Db } from '@linedesk/db'
 import { and, inArray, isNotNull } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -56,22 +56,65 @@ export function syncSubscriptionTaxAfterCommit(db: Db, onCommit: ((work: () => P
   else void run()
 }
 
+/** How long a count of customers without a tax address is reused (security review of #1105, N-1). */
+export const TAX_ADDRESS_COUNT_MS = 5 * 60_000
 /**
- * How many paying customers Stripe Tax cannot tax (no billing address), for the admin before turning tax on. Null:
- * billing is off, or Stripe could not be asked.
+ * How long a count Stripe failed to answer is reused (null): an admin key asking in a loop while Stripe is slow or down
+ * does not send a read per customer on every call (security review of #1110, R-3). Short, so the dialog recovers soon.
  */
-export async function customersWithoutTaxAddress(tx: Tx | Db): Promise<number | null> {
-  if ((await billingState(tx)).inEffect === 'none') return null
-  const provider = await billingProvider(tx)
+export const TAX_ADDRESS_FAILED_MS = 60_000
+
+let counted: { customers: string; at: number; count: number | null } | null = null
+/** The count being asked of Stripe now: a second call for the same customers waits for it instead of asking again. */
+let asking: { customers: string; count: Promise<number | null> } | null = null
+
+/** Forgets the last count (tests). */
+export function resetTaxAddressCount() {
+  counted = null
+  asking = null
+}
+
+/**
+ * How many paying customers Stripe Tax cannot tax (no billing address), for the admin before turning tax on. Asked
+ * only when the confirm dialog needs it (`billing.adminTaxAddressMissing`), never on a read of the rules, and never
+ * inside a transaction: the customer ids are read first, then Stripe is asked for exactly those (security review of
+ * #1105, N-1). The answer is kept for TAX_ADDRESS_COUNT_MS for the same customers, so opening the dialog again, or a
+ * read-scoped key asking in a loop, does not use up the Stripe rate limit recharges share; a failure (null) is kept
+ * for TAX_ADDRESS_FAILED_MS. Null: billing is off, or Stripe could not be asked.
+ */
+export async function customersWithoutTaxAddress(
+  db: Db,
+  options: { provider?: BillingProvider; now?: number } = {},
+): Promise<number | null> {
+  if (!options.provider && (await billingState(db)).inEffect === 'none') return null
+  const provider = options.provider ?? (await billingProvider(db))
   if (provider.name === 'none') return null
-  const rows = await tx
+  const rows = await db
     .select({ customer: billing_accounts.stripe_customer_id })
     .from(billing_accounts)
     .where(and(inArray(billing_accounts.status, [...RUNNING]), isNotNull(billing_accounts.stripe_customer_id)))
+  const ids = [...new Set(rows.map(r => r.customer!))].sort()
+  const customers = ids.join(',')
+  const now = options.now ?? Date.now()
+  if (counted && counted.customers === customers) {
+    const kept = counted.count === null ? TAX_ADDRESS_FAILED_MS : TAX_ADDRESS_COUNT_MS
+    if (now - counted.at < kept) return counted.count
+  }
+  if (asking?.customers === customers) return asking.count
+  const count = (async () => {
+    try {
+      return ids.length ? await provider.customersWithoutTaxAddress(ids) : 0
+    } catch (error) {
+      console.error('billing: customers without a tax address could not be counted:', error)
+      return null
+    }
+  })()
+  asking = { customers, count }
   try {
-    return await provider.customersWithoutTaxAddress(rows.map(r => r.customer!))
-  } catch (error) {
-    console.error('billing: customers without a tax address could not be counted:', error)
-    return null
+    const answer = await count
+    counted = { customers, at: now, count: answer }
+    return answer
+  } finally {
+    if (asking?.count === count) asking = null
   }
 }

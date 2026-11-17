@@ -342,6 +342,7 @@ type AdminInputs = {
   'billing.adminEvents': { filter?: BillingEventFilter; before?: string }
   'billing.adminReview': Record<string, never>
   'billingRules.get': Record<string, never>
+  'billing.adminTaxAddressMissing': Record<string, never>
   'signup.getSelfServe': Record<string, never>
   'billing.reprocessEvent': { eventId: string; reason: string }
   'billing.credit': {

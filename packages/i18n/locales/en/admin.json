@@ -540,6 +540,7 @@
   "bills.rules.automaticTax.help": "Stripe computes sales tax and VAT on every Checkout, subscription and invoice, adds it on top of the prices, and asks for the billing address and tax ID at Checkout. It needs Stripe Tax set up in your Stripe account (head office address and registrations); the provider test checks it. Turn it off if you do not use Stripe Tax. The balance always gets the amount before tax.",
   "bills.rules.automaticTax.offConfirm": "Running subscriptions stop collecting tax from their next invoice, and recharges are charged without tax.",
   "bills.rules.automaticTax.onConfirm": "Running subscriptions are taxed from their next invoice.",
+  "bills.rules.automaticTax.onConfirmCounting": "Counting paying customers without a billing address…",
   "bills.rules.automaticTax.onConfirmMissing": "{count, plural, =0 {Every paying customer has a billing address.} one {# paying customer has no billing address: their recharges and plan are charged without tax until they add one.} other {# paying customers have no billing address: their recharges and plans are charged without tax until they add one.}}",
   "bills.rules.confirmText": "New plan prices and trial length apply to new Checkouts; running subscriptions keep the price they started on. Call prices and limits apply to calls from now on. Every server admin is emailed.",
   "bills.rules.confirmTitle": "Change the billing rules",

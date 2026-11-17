@@ -44,6 +44,12 @@ export type RechargeInvoiceInput = {
    * item's pre-tax amount only; the tax is the tax authority's, never balance.
    */
   tax: InvoiceTax
+  /**
+   * Called with the invoice's id as soon as it exists (made, or found again), before its item, finalize and pay: the
+   * caller stores it on the attempt, so a later give-up can stop that invoice whatever refused after it (security review
+   * of #1110, R-1). A failure here is thrown, and the job tries again with the same idempotency keys.
+   */
+  onInvoice?: (invoiceId: string) => Promise<void>
 }
 
 /**

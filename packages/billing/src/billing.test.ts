@@ -453,14 +453,122 @@ describe('stripe recharges', () => {
       failureCode: 'stripe_customer_tax_location_invalid',
     })
     expect(atItem.calls.some(c => c.route.endsWith('/finalize'))).toBe(false)
-    // A reused key with other parameters: an earlier try made the invoice, so the job retries and finds it.
+  })
+
+  test('a reused key at create finds the invoice an earlier try made and goes on with it, at this attempt’s tax (review #1105, N-3)', async () => {
+    const refusal = { error: { type: 'idempotency_error', message: 'Keys for idempotent requests.' } }
+    // The earlier try (before the attempt's tax was kept) sent automatic tax on; this attempt is charged without.
+    const earlier = invoice('draft', 0, { automatic_tax: { enabled: true }, description: 'Linedesk balance recharge' })
     const reused = stripeRoutes({
-      'POST /v1/invoices': () => [
+      'POST /v1/invoices': () => [400, refusal],
+      'GET /v1/invoices/search': () => [200, { object: 'search_result', data: [earlier], has_more: false }],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
+      'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
+    })
+    const untaxed = { ...recharge, tax: { automatic: false, code: 'txcd_10103001' } }
+    expect(await (await stripeWith(reused.doFetch)).chargeRecharge(untaxed)).toEqual({
+      status: 'paid',
+      invoiceId: 'in_1Rc',
+    })
+    expect(reused.calls.map(c => c.route)).toEqual([
+      'POST /v1/invoices',
+      'GET /v1/invoices/search',
+      'POST /v1/invoices/in_1Rc',
+      'POST /v1/invoiceitems',
+      'POST /v1/invoiceitems/ii_1',
+      'POST /v1/invoices/in_1Rc/finalize',
+      'GET /v1/customers/cus_1',
+      'POST /v1/invoices/in_1Rc/pay',
+    ])
+    expect(reused.calls[1]!.url.searchParams.get('query')).toBe("metadata['billing_recharge_id']:'rc_abc'")
+    // The draft is set to this attempt's tax with a plain update (no idempotency key), before it is finalized.
+    expect(reused.calls[2]!.key).toBeNull()
+    expect(Object.fromEntries(reused.calls[2]!.body)).toEqual({ 'automatic_tax[enabled]': 'false' })
+    // Not found yet (Stripe's search can lag a moment): the refusal is thrown, the job tries again; never a failed
+    // recharge.
+    const notYet = stripeRoutes({
+      'POST /v1/invoices': () => [400, refusal],
+      'GET /v1/invoices/search': () => [200, { object: 'search_result', data: [], has_more: false }],
+    })
+    const thrown = await (await stripeWith(notYet.doFetch)).chargeRecharge(recharge).catch(e => e)
+    expect(thrown).toMatchObject({ type: 'StripeIdempotencyError' })
+    expect(thrown).not.toBeInstanceOf(BillingSetupError)
+  })
+
+  test.each([
+    ['POST /v1/invoices', 'stripe_tax_inactive'],
+    ['POST /v1/invoiceitems', 'parameter_unknown'],
+    ['POST /v1/invoices/in_1Rc/finalize', 'stripe_tax_inactive'],
+    ['POST /v1/invoices/in_1Rc/pay', 'livemode_mismatch'],
+  ])(
+    'a 400 about our own account at %s (%s) is a setup error for the admins, not the owner’s failed recharge (review #1105, N-2)',
+    async (route, code) => {
+      const refusal = { error: { type: 'invalid_request_error', code, message: 'Refused.' } }
+      const { doFetch } = stripeRoutes({
+        'POST /v1/invoices': () => [200, invoice('draft', 0)],
+        'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+        'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+        'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+        'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+        'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
+        [route]: () => [400, refusal],
+      })
+      const reported: string[] = []
+      const refused = await (await stripeWith(doFetch))
+        .chargeRecharge({ ...recharge, onInvoice: async id => void reported.push(id) })
+        .catch(e => e)
+      expect(refused).toBeInstanceOf(BillingSetupError)
+      expect(refused).toMatchObject({ code: `stripe_${code}` })
+      // Refused after the invoice was made: its id was handed to the caller first, so the give-up can stop it
+      // (review #1110, R-1). Refused at create: there is none.
+      expect(reported).toEqual(route === 'POST /v1/invoices' ? [] : ['in_1Rc'])
+    },
+  )
+
+  test('a tax calculation Stripe could not make stays the owner’s failed recharge: it can be one customer’s address (review #1110, R-2)', async () => {
+    const { doFetch } = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [
         400,
-        { error: { type: 'idempotency_error', message: 'Keys for idempotent requests.' } },
+        { error: { type: 'invalid_request_error', code: 'taxes_calculation_failed', message: 'Tax failed.' } },
       ],
     })
-    await expect((await stripeWith(reused.doFetch)).chargeRecharge(recharge)).rejects.toThrow()
+    expect(await (await stripeWith(doFetch)).chargeRecharge(recharge)).toEqual({
+      status: 'failed',
+      invoiceId: 'in_1Rc',
+      failureCode: 'stripe_taxes_calculation_failed',
+    })
+  })
+
+  test('the invoice id is reported once it exists, before item and finalize; a known invoice is not reported again (R-1)', async () => {
+    const order: string[] = []
+    const { doFetch } = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => {
+        order.push('item')
+        return [200, { id: 'ii_1', object: 'invoiceitem' }]
+      },
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+      'GET /v1/invoices/in_1Rc': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
+      'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
+    })
+    const stripe = await stripeWith(doFetch)
+    const onInvoice = async (id: string) => void order.push(`stored ${id}`)
+    expect(await stripe.chargeRecharge({ ...recharge, onInvoice })).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
+    expect(order).toEqual(['stored in_1Rc', 'item'])
+    order.length = 0
+    await stripe.chargeRecharge({ ...recharge, invoiceId: 'in_1Rc', onInvoice })
+    expect(order).toEqual([])
   })
 
   test('a request Stripe refuses for good (a 4xx that is no card error, conflict or rate limit) fails the recharge (review L3)', async () => {
@@ -1593,21 +1701,38 @@ describe('stripe customer portal (Settings › Billing, docs/billing.md §2.4)',
     expect(await provider.customerTaxReady('cus_1')).toBe(true)
     expect(await provider.customerTaxReady('cus_2')).toBe(false)
     expect(Object.fromEntries(ready.calls[0]!.url.searchParams)).toMatchObject({ 'expand[0]': 'tax' })
-    const listed = stripeRoutes({
-      'GET /v1/customers': () => [
-        200,
-        {
-          object: 'list',
-          has_more: false,
-          data: [
-            located('cus_1', 'unrecognized_location'),
-            located('cus_2', 'supported'),
-            located('cus_other', 'unrecognized_location'),
-          ],
-        },
-      ],
+    // Only this install's customers, each read by id, never a list of the whole account (review #1105, N-1); one that
+    // is gone counts as nothing, and an id given twice is read once.
+    const counted = stripeRoutes({
+      'GET /v1/customers/cus_1': () => [200, located('cus_1', 'unrecognized_location')],
+      'GET /v1/customers/cus_2': () => [200, located('cus_2', 'supported')],
+      'GET /v1/customers/cus_3': () => [200, { id: 'cus_3', object: 'customer', deleted: true }],
+      'GET /v1/customers/cus_4': () => [200, located('cus_4', 'unrecognized_location')],
     })
-    expect(await (await stripeWith(listed.doFetch)).customersWithoutTaxAddress(['cus_1', 'cus_2'])).toBe(1)
+    expect(
+      await (await stripeWith(counted.doFetch)).customersWithoutTaxAddress([
+        'cus_1',
+        'cus_2',
+        'cus_3',
+        'cus_4',
+        'cus_gone',
+        'cus_1',
+      ]),
+    ).toBe(2)
+    expect(counted.calls.map(c => c.route).sort()).toEqual([
+      'GET /v1/customers/cus_1',
+      'GET /v1/customers/cus_2',
+      'GET /v1/customers/cus_3',
+      'GET /v1/customers/cus_4',
+      'GET /v1/customers/cus_gone',
+    ])
+    expect(counted.calls.every(c => c.url.searchParams.get('expand[0]') === 'tax')).toBe(true)
+    expect(await (await stripeWith(counted.doFetch)).customersWithoutTaxAddress([])).toBe(0)
+    // Stripe not answering: thrown, so the caller says "not known" rather than a wrong count.
+    const down = stripeRoutes({
+      'GET /v1/customers/cus_1': () => [500, { error: { type: 'api_error', message: 'x' } }],
+    })
+    await expect((await stripeWith(down.doFetch)).customersWithoutTaxAddress(['cus_1'])).rejects.toBeTruthy()
 
     const updates: URLSearchParams[] = []
     const subscription = (found: object) =>

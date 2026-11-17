@@ -966,12 +966,13 @@ export const billingAdminHandlers: Record<string, Handler> = {
     data: await events(tx, input.filter ?? 'all', input.before),
   }),
   'billing.adminReview': async ({ tx }) => ({ rows: {}, data: await reviewList(tx) }),
-  'billingRules.get': async ({ tx }) => {
-    const data = await rulesData(tx)
-    // Asked of Stripe only while tax is off: what turning it on would mean for paying customers (review #1105, M-1).
-    if (data.effective.automaticTax) return { rows: {}, data }
-    return { rows: {}, data: { ...data, taxAddressMissing: await customersWithoutTaxAddress(tx) } }
-  },
+  'billingRules.get': async ({ tx }) => ({ rows: {}, data: await rulesData(tx) }),
+  // What turning Stripe Tax on would mean for paying customers (review #1105, M-1), asked by the confirm dialog only.
+  // Through the pool, never the caller's connection: Stripe is asked with no transaction open (N-1).
+  'billing.adminTaxAddressMissing': async () => ({
+    rows: {},
+    data: { taxAddressMissing: await customersWithoutTaxAddress(db) },
+  }),
   'signup.getSelfServe': async ({ tx }) => ({ rows: {}, data: await selfServe(tx) }),
 
   'billing.credit': async ({ tx, actor, now }, input: CreditInput) => {

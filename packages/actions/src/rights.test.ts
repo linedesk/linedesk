@@ -243,6 +243,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.adminEvents',
     'billing.adminReview',
     'billingRules.get',
+    'billing.adminTaxAddressMissing',
     'billingRules.set',
     'signup.getSelfServe',
     'signup.setSelfServe',

@@ -238,11 +238,26 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       return !untaxable(customer as Stripe.Customer)
     },
     async customersWithoutTaxAddress(customerIds) {
-      const wanted = new Set(customerIds)
+      // Only these customers, each asked for by id (a few at a time), never a list of the whole account: one Stripe
+      // account may serve other installs and integrations (security review of #1105, N-1). One that is gone counts as
+      // nothing.
+      const ids = [...new Set(customerIds)]
       let count = 0
-      if (!wanted.size) return 0
-      for await (const customer of stripe.customers.list({ limit: 100, expand: ['data.tax'] }))
-        if (wanted.has(customer.id) && untaxable(customer)) count++
+      let next = 0
+      const worker = async () => {
+        while (next < ids.length) {
+          const id = ids[next++]!
+          let customer: Stripe.Customer | Stripe.DeletedCustomer
+          try {
+            customer = await stripe.customers.retrieve(id, { expand: ['tax'] })
+          } catch (error) {
+            if (missing(error)) continue
+            throw error
+          }
+          if (!('deleted' in customer && customer.deleted) && untaxable(customer as Stripe.Customer)) count++
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(TAX_ADDRESS_READS, ids.length) }, worker))
       return count
     },
     async syncSubscriptionTax(subscriptionId, enabled) {
@@ -386,13 +401,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       await describeItem(stripe, item, input.description)
     },
     async findRechargeInvoice(rechargeId) {
-      // The recharge id is ours (letters, digits and _), so it is safe inside the search query.
-      if (!/^[a-z0-9_]+$/i.test(rechargeId)) throw new Error('not a recharge id')
-      const found = await stripe.invoices.search({
-        query: `metadata['${RECHARGE_METADATA}']:'${rechargeId}'`,
-        limit: 1,
-      })
-      return found.data[0]?.id ?? null
+      return (await searchRechargeInvoice(stripe, rechargeId))?.id ?? null
     },
     async stopRechargeInvoice(invoiceId, options) {
       const invoice = await stripe.invoices.retrieve(invoiceId)
@@ -1028,11 +1037,75 @@ function refusedForGood(error: unknown): string | null {
   return e.statusCode === 400 ? `stripe_${e.code ?? e.statusCode}` : null
 }
 
+/**
+ * 400 codes that are about our Stripe account or the app's request, never about one customer: Stripe Tax not active,
+ * a closed or invalid account, a key of the other mode, a parameter Stripe does not take. Every bill's recharge would
+ * fail the same way, so they go to the instance admins as a setup error (the recharge job gives up through
+ * `setupGaveUp`: one alert per code a day), not to each owner as a failed recharge (security review of #1105, N-2). Customer refusals (`customer_tax_location_invalid`, `tax_id_invalid`, a
+ * card) stay the owner's, and so does `taxes_calculation_failed`: it can come from one customer's address (security
+ * review of #1110, R-2).
+ */
+const ACCOUNT_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'stripe_tax_inactive',
+  'account_closed',
+  'account_invalid',
+  'account_country_invalid_address',
+  'account_information_mismatch',
+  'api_key_expired',
+  'platform_api_key_expired',
+  'platform_account_required',
+  'secret_key_required',
+  'livemode_mismatch',
+  'testmode_charges_only',
+  'no_account',
+  'not_allowed_on_standard_account',
+  'request_blocked',
+  'tls_version_unsupported',
+  'product_inactive',
+  'parameter_unknown',
+  'parameter_missing',
+  'parameter_invalid_empty',
+  'parameter_invalid_integer',
+  'parameter_invalid_string_blank',
+  'parameter_invalid_string_empty',
+  'parameters_exclusive',
+])
+
+/** A 400 caused by our own account or request (ACCOUNT_REFUSAL_CODES): a setup error for the admins. */
+function accountRefusal(error: unknown): BillingSetupError | null {
+  const e = error as { statusCode?: number; code?: string }
+  return e.statusCode === 400 && e.code && ACCOUNT_REFUSAL_CODES.has(e.code)
+    ? new BillingSetupError(`stripe_${e.code}`)
+    : null
+}
+
+/**
+ * The invoice an earlier try of this recharge made, after Stripe refused its reused idempotency key (N-3): found by
+ * the attempt id in its metadata. Stripe's search can lag a new invoice by a moment: not found yet, the refusal is
+ * thrown and the job tries again (its retries run for about an hour).
+ */
+async function earlierRechargeInvoice(stripe: Stripe, rechargeId: string, refusal: unknown): Promise<Stripe.Invoice> {
+  const found = await searchRechargeInvoice(stripe, rechargeId)
+  if (!found) throw refusal
+  return found
+}
+
+/** The invoice whose `metadata.billing_recharge_id` is this attempt's, or null. */
+async function searchRechargeInvoice(stripe: Stripe, rechargeId: string): Promise<Stripe.Invoice | null> {
+  // The recharge id is ours (letters, digits and _), so it is safe inside the search query.
+  if (!/^[a-z0-9_]+$/i.test(rechargeId)) throw new Error('not a recharge id')
+  const found = await stripe.invoices.search({ query: `metadata['${RECHARGE_METADATA}']:'${rechargeId}'`, limit: 1 })
+  return found.data[0] ?? null
+}
+
 /** Stripe refused a reused idempotency key with other parameters: the earlier request did happen. */
 function idempotencyRefusal(error: unknown): boolean {
   const e = error as { type?: string; rawType?: string }
   return e.type === 'StripeIdempotencyError' || e.rawType === 'idempotency_error'
 }
+
+/** How many customers `customersWithoutTaxAddress` reads at once (Stripe's rate limit is shared with recharges). */
+const TAX_ADDRESS_READS = 4
 
 /** Stripe Tax does not know where this customer is (no billing address): it cannot tax them. */
 function untaxable(customer: Stripe.Customer): boolean {
@@ -1143,21 +1216,37 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
         key('invoice'),
       )
     } catch (error) {
-      // A 400 here (a tax location Stripe refuses, a customer it cannot invoice) is an answer, like at finalize: the
-      // owner's failed-recharge path, not a retried job that ends quietly (security review of #1105, L-3). Not an
-      // idempotency refusal: an invoice was made by an earlier try, and the retry finds it (findRechargeInvoice).
-      const failureCode = idempotencyRefusal(error) ? null : refusedForGood(error)
-      if (!failureCode) throw setupError(error) ?? error
-      return { status: 'failed', invoiceId: null, failureCode }
+      // A reused key with other parameters: an earlier try of this attempt made the invoice (it was sent with other
+      // tax, before the attempt's tax was kept). It is looked up by the attempt in its metadata and carried on with;
+      // the draft's tax is set to this attempt's below (security review of #1105, N-3).
+      if (idempotencyRefusal(error)) invoice = await earlierRechargeInvoice(stripe, input.rechargeId, error)
+      else {
+        // A refusal caused by our own account (Stripe Tax not active, a key of the other mode): for the admins, never
+        // the owner's failed recharge (N-2).
+        const account = accountRefusal(error)
+        if (account) throw account
+        // Any other 400 (a tax location Stripe refuses, a customer it cannot invoice) is an answer about this
+        // customer, like at finalize: the owner's failed-recharge path, not a retried job that ends quietly (L-3).
+        const failureCode = refusedForGood(error)
+        if (!failureCode) throw setupError(error) ?? error
+        return { status: 'failed', invoiceId: null, failureCode }
+      }
     }
   if (invoice.metadata?.[RECHARGE_METADATA] !== input.rechargeId)
     throw new Error(`invoice ${invoice.id} is not the one of recharge ${input.rechargeId}`)
+  // Stored on the attempt before anything else can be refused (R-1): every give-up path then finds it to stop.
+  if (!input.invoiceId && input.onInvoice) await input.onInvoice(invoice.id!)
   if (invoice.status === 'draft') {
     // The texts carry the install's name, which an admin may change between two tries of one attempt: they are set
     // by plain updates, never in a request with an idempotency key, so a retry after a rename is not refused as an
     // `idempotency_error` (security review of #1040, L-5).
-    if (invoice.description !== input.description)
-      await stripe.invoices.update(invoice.id!, { description: input.description })
+    // The draft's tax is this attempt's too: a draft made by an earlier try with other tax (N-3) is set right before
+    // it is finalized. Also a plain update, for the same reason.
+    const changes: Stripe.InvoiceUpdateParams = {}
+    if (invoice.description !== input.description) changes.description = input.description
+    if (invoice.automatic_tax && invoice.automatic_tax.enabled !== input.tax.automatic)
+      changes.automatic_tax = { enabled: input.tax.automatic }
+    if (Object.keys(changes).length) await stripe.invoices.update(invoice.id!, changes)
     if (!invoice.total) {
       let item: Stripe.InvoiceItem
       try {
@@ -1174,7 +1263,10 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
           key('item'),
         )
       } catch (error) {
-        // As at create: the draft is handed back as failed, and the failed-recharge path deletes it (L-3).
+        // As at create: our account's refusal is the admins' (N-2); otherwise the draft is handed back as failed, and
+        // the failed-recharge path deletes it (L-3).
+        const account = accountRefusal(error)
+        if (account) throw account
         const failureCode = refusedForGood(error)
         if (!failureCode) throw setupError(error) ?? error
         return { status: 'failed', invoiceId: invoice.id!, failureCode }
@@ -1184,6 +1276,8 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
     try {
       invoice = await stripe.invoices.finalizeInvoice(invoice.id!, { auto_advance: true }, key('finalize'))
     } catch (error) {
+      const account = accountRefusal(error)
+      if (account) throw account
       const failureCode = refusedForGood(error)
       if (!failureCode) throw setupError(error) ?? error
       return { status: 'failed', invoiceId: invoice.id!, failureCode }
@@ -1205,6 +1299,8 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
     // 3DS first, whatever the status: the invoice stays open for the owner to confirm (recheck of #864, L1).
     if (e.code && NEEDS_CUSTOMER.has(e.code))
       return { status: 'failed', invoiceId: id, failureCode: 'authentication_required' }
+    const account = accountRefusal(error)
+    if (account) throw account
     const refused = refusedForGood(error)
     if (refused) return { status: 'failed', invoiceId: id, failureCode: refused }
     const setup = setupError(error)
