@@ -2,9 +2,14 @@ import { expect, test } from 'vitest'
 import {
   anyModeLanguages,
   FLUX_LANGUAGES,
+  HIDDEN_LANGUAGES,
+  isPickable,
   LANGUAGE_SUPPORT,
   LANGUAGES,
   languageCodes,
+  mainLanguageOf,
+  otherLanguagesOf,
+  pickableLanguages,
   providerLanguageCode,
   spokenLanguages,
   unspokenLanguages,
@@ -48,12 +53,30 @@ test('saving names the languages the install cannot answer calls in', () => {
   expect(unspokenLanguages({ main: 'ko', mode: 'any', allowed: [] }, spoken)).toEqual([])
 })
 
-test('"any language" covers Flux\'s 10 with a Flux model, everything spoken otherwise', () => {
+test('"any language" covers Flux\'s 10 with a Flux model, everything spoken and not hidden otherwise', () => {
   const spoken = spokenLanguages([{ provider: 'elevenlabs' }])
   expect(anyModeLanguages(spoken, { provider: 'deepgram', model: 'flux-general-en' })).toEqual(FLUX_LANGUAGES)
   // Deepgram without a model set: the agent's default, Flux.
   expect(anyModeLanguages(spoken, { provider: 'deepgram' })).toEqual(FLUX_LANGUAGES)
-  expect(anyModeLanguages(spoken, { provider: 'deepgram', model: 'nova-3' })).toEqual(spoken)
-  expect(anyModeLanguages(spoken, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' })).toEqual(spoken)
-  expect(anyModeLanguages(spoken, null)).toEqual(spoken)
+  expect(anyModeLanguages(spoken, { provider: 'deepgram', model: 'nova-3' })).toEqual(pickableLanguages(spoken))
+  expect(anyModeLanguages(spoken, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' })).toEqual(pickableLanguages(spoken))
+  expect(anyModeLanguages(spoken, null)).toEqual(pickableLanguages(spoken))
+})
+
+test('hidden languages (their test calls failed) are not offered as new choices; stored ones keep working', () => {
+  expect(HIDDEN_LANGUAGES).toEqual(['zh', 'ko'])
+  expect(isPickable('zh')).toBe(false)
+  expect(isPickable('pl')).toBe(true)
+  const spoken = spokenLanguages([{ provider: 'elevenlabs' }])
+  // Still in the table and spoken: a call of an assistant that has one goes on as before.
+  expect(spoken).toContain('zh')
+  expect(pickableLanguages(spoken)).toEqual(languageCodes.filter(code => code !== 'zh' && code !== 'ko'))
+  // "Any language" never covers a hidden one, with any speech model.
+  expect(anyModeLanguages(spoken, { provider: 'deepgram', model: 'nova-3' })).not.toContain('ko')
+  expect(anyModeLanguages(spoken, null)).not.toContain('zh')
+  // A stored main or allowed language stays; only the workspace language as a default skips a hidden one.
+  expect(mainLanguageOf({ main: 'ko', mode: 'english', allowed: [] })).toBe('ko')
+  expect(otherLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['zh'] })).toEqual(['zh'])
+  expect(mainLanguageOf(null, 'ko')).toBe('en')
+  expect(mainLanguageOf(null, 'pl')).toBe('pl')
 })

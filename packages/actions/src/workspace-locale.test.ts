@@ -159,7 +159,9 @@ describe('resolveWorkspaceLanguage', () => {
 
   test('an assistant without a main language follows the workspace language', () => {
     expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'de')).toBe('de')
-    expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'ko')).toBe('ko')
+    expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'pl')).toBe('pl')
+    // Korean is hidden (HIDDEN_LANGUAGES): never a default until its test calls pass.
+    expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'ko')).toBe('en')
     expect(mainLanguageOf({ mode: 'english', allowed: [] }, 'he')).toBe('en')
     expect(mainLanguageOf({ main: 'en', mode: 'english', allowed: [] }, 'de')).toBe('en')
     expect(mainLanguageOf({ mode: 'english', allowed: [] })).toBe('en')

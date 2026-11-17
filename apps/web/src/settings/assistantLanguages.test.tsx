@@ -12,7 +12,7 @@ vi.mock('./settings-api.ts', () => ({ readAction: vi.fn(), useWriteAction: () =>
 const { Languages } = await import('./AssistantSettings.tsx')
 
 const FLUX = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja']
-const installed = [...FLUX, 'zh', 'ko', 'pl']
+const installed = [...FLUX, 'pl', 'sv', 'tr']
 const NOTE = 'Covers the 10 core languages'
 
 function render(languages: { main: 'en'; mode: 'any' | 'allowed'; allowed: string[] }, anyCovers?: string[]) {
@@ -35,5 +35,5 @@ test('"any" that covers every offered language has no note; the list is what the
   expect(html).not.toContain(NOTE)
   expect(checked(html)).toBe(installed.length - 1)
   expect(html).not.toContain('Hungarian')
-  expect(render({ main: 'en', mode: 'allowed', allowed: ['ko'] }, FLUX)).not.toContain(NOTE)
+  expect(render({ main: 'en', mode: 'allowed', allowed: ['pl'] }, FLUX)).not.toContain(NOTE)
 })

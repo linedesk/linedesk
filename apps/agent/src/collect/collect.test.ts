@@ -245,8 +245,9 @@ test('after a step, a quiet assistant is asked once to go on; not while it repli
   vi.useRealTimers()
 })
 
-test('a step knows today, but no list of days', () => {
-  expect(todayFact('2026-11-12')).toBe('Today is Thursday, November 12, 2026.')
+test('a step knows today, but no list of days, and as a fact to answer from, not a line to say', () => {
+  expect(todayFact('2026-11-12')).toBe("Today's date, only for when the caller asks: Thursday, November 12, 2026.")
+  expect(todayFact('2026-11-12')).not.toMatch(/^Today is/)
 })
 
 describe('a question during a step (LIN-103)', () => {
@@ -287,7 +288,7 @@ describe('a question during a step (LIN-103)', () => {
       hours: 'Open now, until 6 PM.',
       address: ' 1200 SE Morrison St, Portland ',
     })
-    expect(facts).toContain('Today is Thursday, November 12, 2026.')
+    expect(facts).toContain("Today's date, only for when the caller asks: Thursday, November 12, 2026.")
     expect(facts).not.toContain('2026-11-18')
     expect(facts).toContain('Opening hours: Open now, until 6 PM.')
     expect(facts).toContain('Business address: 1200 SE Morrison St, Portland')

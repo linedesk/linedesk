@@ -312,7 +312,7 @@ export const PROMPT_TEXTS = {
   'call.clock': {
     section: 'call',
     when: 'timeZone',
-    text: "It is now {now} (time zone {timeZone}). Use this for today's date, the day of the week and the time; never guess them.",
+    text: "It is now {now} (time zone {timeZone}). If the caller asks the date, the day or the time, answer from this; never guess them. Do not mention the date or the time otherwise.",
   },
   'call.noHours': {
     section: 'call',

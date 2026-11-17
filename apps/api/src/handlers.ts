@@ -10,6 +10,7 @@ import {
   callerRecognized,
   type CallerAttestation,
   english,
+  isPickable,
   spokenLanguages,
   unspokenLanguages,
   pipelineChoiceUnder,
@@ -858,7 +859,9 @@ async function checkOnCallNotLinedesk(tx: HandlerCtx['tx'], workspaceId: string,
  * the call uses (assistantVoiceOf), else (a realtime model answers) any voice provider of the install (installLanguages);
  * the main one and the picked ones. Those the assistant already has stay saveable while its voice stays (the voice
  * providers may have changed since; a call then leaves out what its voice can't speak), and `any` stays allowed: a call
- * then speaks every language the voice does. A save that changes the voice checks them all again.
+ * then speaks every language the voice does. A save that changes the voice checks them all again. A hidden language
+ * (HIDDEN_LANGUAGES, its test calls failed) is refused as a new choice, whatever the voice; one the assistant already
+ * has stays saveable.
  */
 async function checkAssistantLanguages(
   tx: Tx,
@@ -874,7 +877,13 @@ async function checkAssistantLanguages(
     voice.provider !== stored.voice.provider ||
     voice.voice_id !== stored.voice.voice_id ||
     (voice.model ?? '') !== (stored.voice.model ?? '')
-  const kept = voiceChanged ? [] : unspokenLanguages(stored.languages, [])
+  const had = unspokenLanguages(stored.languages, [])
+  const hidden = unspokenLanguages(languages, []).filter(code => !isPickable(code) && !had.includes(code))
+  if (hidden.length)
+    throw Reject.t('server.api.languageHidden', {
+      languages: (reader: Reader) => reader.format.list(hidden.map(code => languageInSentence(code, reader.locale))),
+    })
+  const kept = voiceChanged ? [] : had
   const callVoice = await assistantVoiceOf(tx, {
     voice,
     llm_model: stored.llm_model,

@@ -2,9 +2,11 @@
 import { DEFAULT_AI_DISCLOSURE, greetingFor, type OnboardingStep, resumeStep, stepFor } from '@linedesk/actions'
 import { assistants, organization, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import type { TransferContact } from '@linedesk/db/types'
 import { businessLookupOn, type WebsiteImport, websiteImportFor } from './business-import.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
+import { newAssistantTransfers } from './default-transfers.ts'
 import { phoneSetupStatus, type PhoneSetupStatus } from './handlers.ts'
 import { telephonyForWorkspace } from './workspace-carrier.ts'
 
@@ -76,12 +78,13 @@ export const newWorkspaceSettings = (workspaceId: string, timeZone: unknown) => 
   onboarding_step: 'business' as const,
 })
 
-/** The default assistant of a new workspace. */
-export const newAssistant = (workspaceId: string, businessName: string) => ({
+/** The default assistant of a new workspace; `transfers`: its first contact named in the workspace's language (newAssistantTransfers). */
+export const newAssistant = (workspaceId: string, businessName: string, transfers: TransferContact[]) => ({
   id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
   workspace_id: workspaceId,
   greeting: greetingFor(businessName, 'Maya'),
   ai_disclosure: DEFAULT_AI_DISCLOSURE,
+  transfers,
 })
 
 /** The rows every workspace needs besides the organization: its assistant and its settings. Missing ones are added. */
@@ -97,12 +100,16 @@ export async function ensureWorkspaceRows(
     .from(assistants)
     .where(eq(assistants.workspace_id, workspaceId))
     .limit(1)
-  if (!any) await db.insert(assistants).values(newAssistant(workspaceId, businessName))
   const settings = {
     ...newWorkspaceSettings(workspaceId, timeZone),
     ...(onboardingStep ? { onboarding_step: onboardingStep } : {}),
   }
+  // The settings first: the assistant's first contact is named in the workspace's language, which they decide.
   await db.insert(workspace_settings).values(settings).onConflictDoNothing({ target: workspace_settings.workspace_id })
+  if (!any)
+    await db
+      .insert(assistants)
+      .values(newAssistant(workspaceId, businessName, await newAssistantTransfers(db, workspaceId)))
   if (onboardingStep)
     await db
       .update(workspace_settings)

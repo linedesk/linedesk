@@ -203,10 +203,18 @@ describe('a keypad menu saved by an older release', () => {
 describe('offeredLanguages', () => {
   it('offers the languages the install can answer calls in, and keeps the ones already picked', () => {
     const d = { languages: { main: 'en' as const, mode: 'allowed' as const, allowed: ['vi' as const] } }
-    expect(offeredLanguages(['en', 'es', 'ko'], d)).toEqual(['en', 'es', 'ko', 'vi'])
-    expect(offeredLanguages(['en', 'es', 'ko'], { languages: { main: 'hu', mode: 'english', allowed: [] } })).toEqual(['en', 'es', 'ko', 'hu'])
+    expect(offeredLanguages(['en', 'es', 'pl'], d)).toEqual(['en', 'es', 'pl', 'vi'])
+    expect(offeredLanguages(['en', 'es', 'pl'], { languages: { main: 'hu', mode: 'english', allowed: [] } })).toEqual(['en', 'es', 'pl', 'hu'])
   })
   it('offers every language when an older API does not say', () => {
     expect(offeredLanguages(undefined, { languages: { main: 'en', mode: 'english', allowed: [] } })).toContain('pl')
+  })
+  it('never offers a hidden language as a new choice, but keeps one the assistant already has', () => {
+    const english = { languages: { main: 'en' as const, mode: 'english' as const, allowed: [] } }
+    expect(offeredLanguages(['en', 'zh', 'ko', 'pl'], english)).toEqual(['en', 'pl'])
+    expect(offeredLanguages(undefined, english)).not.toContain('zh')
+    expect(offeredLanguages(undefined, english)).not.toContain('ko')
+    const korean = { languages: { main: 'ko' as const, mode: 'allowed' as const, allowed: ['zh' as const] } }
+    expect(offeredLanguages(['en', 'zh', 'ko'], korean)).toEqual(['en', 'zh', 'ko'])
   })
 })

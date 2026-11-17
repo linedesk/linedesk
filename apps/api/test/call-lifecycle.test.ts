@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs'
 import { isBriefed } from '@linedesk/actions'
 import { assistants, calls, contacts, phone_numbers, transcript_segments } from '@linedesk/db'
-import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
+import { DEFAULT_TRANSFERS, defaultTransfers } from '@linedesk/db/types'
+import { getT } from '@linedesk/i18n/server'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { afterEach, beforeAll, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -304,6 +305,18 @@ test('a new assistant starts with one inactive contact for callers who ask for a
   const [copy] = await db.select().from(assistants).where(eq(assistants.id, created.body.data.assistantId))
   expect(copy?.transfers).toEqual(DEFAULT_TRANSFERS)
   expect(DEFAULT_TRANSFERS).toMatchObject([{ condition: 'The caller asks to speak to a person', number: null, enabled: true }])
+})
+
+test("a new assistant's first contact is named in the workspace's language, not always in English", async () => {
+  const german = await createWorkspace('Klempnerei Becker')
+  expect((await act(german.owner, 'workspace.updateSettings', { country: 'DE' })).status).toBe(200)
+  const created = await act(german.owner, 'assistant.create', {})
+  const [made] = await db.select().from(assistants).where(eq(assistants.id, created.body.data.assistantId))
+  expect(made?.transfers).toEqual(defaultTransfers(getT('de').t('server.assistant.defaultTransferName')))
+  // A copy too: it starts with the default contact, in the same language.
+  const copied = await act(german.owner, 'assistant.create', { copyOf: made!.id })
+  const [copy] = await db.select().from(assistants).where(eq(assistants.id, copied.body.data.assistantId))
+  expect(copy?.transfers).toEqual(made?.transfers)
 })
 
 test('migration 0070: a contact whose fallback was an urgent message takes a plain message, the rest unchanged', async () => {

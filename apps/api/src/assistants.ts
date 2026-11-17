@@ -3,8 +3,9 @@
 // an assistant id from another workspace is refused, never used.
 import { assistant_calendars, assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
 import { recordVersion } from './assistant-versions.ts'
+import { newAssistantTransfers } from './default-transfers.ts'
 import { releaseUnusedClones } from './voices.ts'
-import { type Assistant, DEFAULT_TRANSFERS } from '@linedesk/db/types'
+import type { Assistant } from '@linedesk/db/types'
 import { DEFAULT_AI_DISCLOSURE, forwardsCalls, greetingFor } from '@linedesk/actions'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
@@ -73,13 +74,15 @@ export const assistantHandlers: Record<string, Handler> = {
       .from(organization)
       .where(eq(organization.id, workspaceId))
     const source = input.copyOf ? await assistantIn(tx, workspaceId, input.copyOf) : null
+    // The first contact named in the workspace's language (else the member's).
+    const transfers = await newAssistantTransfers(tx, workspaceId, actor.locale)
     const values = source
       ? {
           ...source,
           id: newId(),
           name: input.name ?? `${source.name} copy`,
           // Transfer numbers are set on purpose per assistant (they need a confirmed email): a copy starts with the default.
-          transfers: DEFAULT_TRANSFERS,
+          transfers,
           created_at: undefined,
           version: undefined,
         }
@@ -89,6 +92,7 @@ export const assistantHandlers: Record<string, Handler> = {
           name,
           greeting: greetingFor(org?.name ?? 'us', name),
           ai_disclosure: DEFAULT_AI_DISCLOSURE,
+          transfers,
         }
     const rows = await tx.insert(assistants).values(values).returning()
     await recordVersion(tx, workspaceId, rows[0]!.id, { by: actor.actorId, created: true })

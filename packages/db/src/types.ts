@@ -107,11 +107,15 @@ export type TransferContact = {
    */
   briefing?: boolean
 }
-/** A new assistant's list: one inactive contact for callers who ask for a person, until a number is set. */
-export const DEFAULT_TRANSFERS: TransferContact[] = [
+/**
+ * A new assistant's list: one inactive contact for callers who ask for a person, until a number is set. `name`: the
+ * contact's name, in the workspace's UI language when the API makes the assistant (default-transfers.ts in apps/api);
+ * the condition is for the assistant and stays English, like the system prompt.
+ */
+export const defaultTransfers = (name = 'Owner'): TransferContact[] => [
   {
     id: 'person',
-    name: 'Owner',
+    name,
     number: null,
     condition: 'The caller asks to speak to a person',
     hours_only: true,
@@ -120,6 +124,8 @@ export const DEFAULT_TRANSFERS: TransferContact[] = [
     enabled: true,
   },
 ]
+/** The list with the English name: the column's default, and a reset where no language is known. */
+export const DEFAULT_TRANSFERS: TransferContact[] = defaultTransfers()
 /**
  * Vacation or closure mode: from `from` to `until` (dates in the workspace time zone, both closed) the business
  * is closed whatever its hours say. `greeting` replaces the greeting (empty: the outside-hours one, else the

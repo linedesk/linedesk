@@ -66,6 +66,19 @@ export const languageCodes = Object.keys(LANGUAGES) as Language[]
 const languageCode = z.enum(languageCodes as [Language, ...Language[]])
 
 /**
+ * Languages the pickers do not offer for now, because their test calls failed: the Mandarin and Korean test calls on
+ * LIN-268 (2026-11-15) mis-detected short turns, spelled "王" letter by letter, asked for an area code and lost the
+ * callback number. Hidden until a language test passes for them (LIN-461); turning one back on is
+ * removing it here. Hidden is only about new choices: an assistant that already has one keeps it, on calls and in its
+ * settings (offeredLanguages in the web app, checkAssistantLanguages in the API), and the spoken lines stay.
+ */
+export const HIDDEN_LANGUAGES: readonly Language[] = ['zh', 'ko']
+/** Whether a language may be picked as a new choice (not in HIDDEN_LANGUAGES). */
+export const isPickable = (code: string): boolean => !(HIDDEN_LANGUAGES as readonly string[]).includes(code)
+/** The languages of `codes` that may be picked as a new choice, in the same order. */
+export const pickableLanguages = <T extends string>(codes: readonly T[]): T[] => codes.filter(isPickable)
+
+/**
  * `main`: the language the assistant greets and speaks in (missing: English). `mode`: the languages besides it:
  * `english` none (the name is from before the main language could be picked), `allowed` the `allowed` ones,
  * `any` every supported language.
@@ -82,11 +95,13 @@ export const ENGLISH_ONLY: AssistantLanguages = { main: 'en', mode: 'english', a
 type StoredLanguages = { main?: string; mode?: string; allowed?: readonly string[] } | null | undefined
 
 /**
- * The main language: the one stored; when none (or an unknown one) is, `fallback` (the workspace language) when calls
- * can be answered in it, else English.
+ * The main language: the one stored (a hidden one too, HIDDEN_LANGUAGES); when none (or an unknown one) is, `fallback`
+ * (the workspace language) when calls can be answered in it and it is not hidden, else English.
  */
 export const mainLanguageOf = (languages: StoredLanguages, fallback?: string | null): Language =>
-  languageCodes.find(code => code === languages?.main) ?? languageCodes.find(code => code === fallback) ?? 'en'
+  languageCodes.find(code => code === languages?.main) ??
+  languageCodes.find(code => code === fallback && isPickable(code)) ??
+  'en'
 
 /** The languages besides the main one a call may switch to (none: the main language only). Unknown codes are dropped. */
 export function otherLanguagesOf(languages: StoredLanguages, fallback?: string | null): Language[] {
@@ -170,11 +185,12 @@ export type HearingModel = { provider: string; model?: string | null }
 /**
  * What "any language" (`mode: 'any'`) covers: every language the install speaks (`spoken`), but with a Deepgram Flux
  * model only Flux's 10, so those assistants stay on Flux (coordinator decision on LIN-268). A language outside them is
- * used only when picked as the main language or in the allowed list.
+ * used only when picked as the main language or in the allowed list. A hidden language (HIDDEN_LANGUAGES) never.
  */
 export function anyModeLanguages(spoken: readonly Language[], stt?: HearingModel | null): Language[] {
   const flux = stt?.provider === 'deepgram' && (stt.model?.trim() || 'flux').startsWith('flux')
-  return spoken.filter(code => !flux || fluxRecognizes(code))
+  // A hidden language (HIDDEN_LANGUAGES) is never part of "any": only an assistant that picked it speaks it.
+  return spoken.filter(code => isPickable(code) && (!flux || fluxRecognizes(code)))
 }
 
 /** The codes of `languages` (as stored) that the install can't answer calls in (spokenLanguages); none: it can save them. */

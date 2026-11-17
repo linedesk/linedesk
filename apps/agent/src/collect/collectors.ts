@@ -338,9 +338,10 @@ export function parseDate(said: string, today: string): string | null {
 }
 
 /**
- * Today, for a step's facts: "Today is Thursday, November 12, 2026." No list of the days after it: a step takes days in
- * the caller's words and code works out the date (resolveDay), like the booking tools.
+ * Today, for a step's facts: "Today's date, only for when the caller asks: Thursday, November 12, 2026." Worded as a
+ * fact to answer from, not a line to say: "Today is …" made the assistant tell callers the date unasked. No list of the
+ * days after it: a step takes days in the caller's words and code works out the date (resolveDay), like the booking tools.
  */
 export function todayFact(today: string): string {
-  return `Today is ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.`
+  return `Today's date, only for when the caller asks: ${new Date(`${today}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}.`
 }

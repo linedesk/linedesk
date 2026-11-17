@@ -4,6 +4,7 @@
 import {
   categoryEnv,
   anyModeLanguages,
+  pickableLanguages,
   categoryNames,
   moneyCategories,
   type Language,
@@ -283,9 +284,12 @@ export async function installLanguages(tx: Tx, env: Env = serverEnv()): Promise<
   return spokenLanguages(voices.map(v => ({ provider: v.provider, model: v.config.model?.value ?? null })))
 }
 
-/** voice.options' languages: those calls can be answered in, and what "any language" covers (anyModeLanguages). */
+/**
+ * voice.options' languages: those calls can be answered in that may be picked (not HIDDEN_LANGUAGES), and what "any
+ * language" covers (anyModeLanguages).
+ */
 export async function installLanguageOptions(tx: Tx, env: Env = serverEnv()) {
-  const languages = await installLanguages(tx, env)
+  const languages = pickableLanguages(await installLanguages(tx, env))
   const stt = await activeProvider(tx, 'stt', env).catch(() => null)
   const hearing = stt && { provider: stt.provider, model: stt.config.model?.value ?? null }
   return { languages, anyLanguages: anyModeLanguages(languages, hearing) }

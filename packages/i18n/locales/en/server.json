@@ -71,6 +71,7 @@
   "api.forwardingCheck.tooManyLookupsToday": "Too many lookups today. Pick your carrier from the list instead.",
   "api.forwardingCheck.tryAgain": "{hours, plural, one {Try again in about an hour.} other {Try again in about # hours.}}",
   "api.forwardingCheck.twoNumbers": "You checked two different numbers today. {tryAgain}",
+  "api.languageHidden": "{languages} can't be picked for now: calls in it did not pass our language tests yet",
   "api.memberDisabled": "that member's account is disabled",
   "api.noNumberInAreaCode": "no number available in area code {areaCode}",
   "api.noSuchAssistant": "no such assistant",
@@ -160,5 +161,6 @@
   "api.voiceCantSpeak": "The assistant's voice ({voice}) can't speak {languages}: pick another language or voice",
   "api.voicesCantSpeak": "The voice providers set up can't speak {languages}: pick another language",
   "api.workspaceDisabled": "this workspace is disabled",
-  "api.workspaceOfDisabled": "the workspace of {label} is disabled"
+  "api.workspaceOfDisabled": "the workspace of {label} is disabled",
+  "assistant.defaultTransferName": "Owner"
 }

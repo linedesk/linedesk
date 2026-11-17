@@ -475,10 +475,13 @@ test('a contact that takes calls only during business hours: while closed the as
   )
 })
 
-test('the date and time go into the prompt; none without a time zone', () => {
+test('the date and time go into the prompt, to answer from, never to say unasked; none without a time zone', () => {
   const at = Date.parse('2026-11-12T21:31:00Z')
+  // "Use this for today's date" made the assistant tell callers the date with no reason (Janik, 2026-11-17).
+  expect(clockInstructions('America/Los_Angeles', at)).toContain('Do not mention the date or the time otherwise.')
+  expect(clockInstructions('America/Los_Angeles', at)).not.toContain("Use this for today's date")
   expect(clockInstructions('America/Los_Angeles', at)).toBe(
-    "It is now Thursday, November 12, 2026 at 1:31 PM (time zone America/Los_Angeles). Use this for today's date, the day of the week and the time; never guess them.",
+    "It is now Thursday, November 12, 2026 at 1:31 PM (time zone America/Los_Angeles). If the caller asks the date, the day or the time, answer from this; never guess them. Do not mention the date or the time otherwise.",
   )
   expect(clockInstructions('Europe/Berlin', at)).toContain('Thursday, November 12, 2026 at 10:31 PM')
   // No list of days: the tools take the day as the caller says it and code works out the date (spoken-day.ts).

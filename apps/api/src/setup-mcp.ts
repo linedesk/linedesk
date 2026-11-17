@@ -807,7 +807,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const businessDone = hasProfile || past(step, 'business')
   const phoneDone = numbers.length > 0
   const pickupDone = Boolean(settings?.pickup_mode)
-  const fresh = newAssistant(workspaceId, ws?.name ?? '')
+  const fresh = newAssistant(workspaceId, ws?.name ?? '', [])
   const assistantChanged =
     !!assistant && (assistant.name !== DEFAULT_ASSISTANT_NAME || assistant.greeting !== fresh.greeting)
   const assistantDone = assistantChanged || past(step, 'assistant')

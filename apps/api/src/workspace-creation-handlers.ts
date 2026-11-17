@@ -9,6 +9,7 @@ import { adminHandlers } from './admin-handlers.ts'
 import type { Handler, HandlerCtx } from './handler-context.ts'
 import { Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { newAssistantTransfers } from './default-transfers.ts'
 import { addToWorkspace } from './memberships.ts'
 import { newAssistant, newWorkspaceSettings } from './onboarding.ts'
 import {
@@ -50,14 +51,13 @@ export function creationHint(input: Pick<CreateInput, 'timeZone' | 'countryHint'
  * so a number connected later still decides it), and the country hint (creationHint): only a code and its source.
  * The time zone follows the country.
  */
-export async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInput, forOther = false) {
+export async function insertWorkspace({ tx, now, actor }: HandlerCtx, input: CreateInput, forOther = false) {
   const { name } = input
   const id = crypto.randomUUID().replaceAll('-', '')
   const [org] = await tx
     .insert(organization)
     .values({ id, name, slug: slugOf(name), createdAt: new Date(now) })
     .returning({ id: organization.id, name: organization.name })
-  await tx.insert(assistants).values(newAssistant(org!.id, name))
   const hint = creationHint(input, forOther)
   // The time zone sent (the browser's) when it is in the country (as picked, else as hinted), else that country's main
   // zone (decisions.md 2026-11-17, LIN-433: a US business set up from a browser in Berlin gets US Eastern).
@@ -69,6 +69,10 @@ export async function insertWorkspace({ tx, now }: HandlerCtx, input: CreateInpu
     country_hint: hint?.country ?? null,
     country_hint_source: hint?.source ?? null,
   })
+  // After the settings: the assistant's first contact is named in the workspace's language, which they decide. For
+  // another owner, never the admin's own language.
+  const transfers = await newAssistantTransfers(tx, org!.id, forOther ? null : actor.locale)
+  await tx.insert(assistants).values(newAssistant(org!.id, name, transfers))
   return org!
 }
 
