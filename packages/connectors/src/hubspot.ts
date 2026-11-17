@@ -5,6 +5,7 @@ import {
   AppError,
   type AppErrorKind,
   type AppOAuth,
+  GrantRevoked,
   type Json,
   type OAuthClient,
   type OAuthTokens,
@@ -19,6 +20,9 @@ import {
 export const HUBSPOT_SCOPES = ['oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write'] as const
 
 const AUTHORIZE_URL = 'https://app.hubspot.com/oauth/authorize'
+const REVOKE_PATH = '/oauth/2026-03/token/revoke'
+/** Platform version 2026.03, as the project (integrations/hubspot/hsproject.json). */
+const UNINSTALL_PATH = '/appinstalls/2026-03/external-install'
 export const HUBSPOT_API = 'https://api.hubapi.com'
 /** HubSpot-defined association type: call → contact. */
 const CALL_TO_CONTACT = 194
@@ -37,6 +41,13 @@ const reasonOf = (body: Json): string | undefined => {
   const text = body.message ?? body.error_description ?? body.error
   return typeof text === 'string' && text.trim() ? text.trim().slice(0, 300) : undefined
 }
+
+/** HubSpot's answer to a wrong client ID or secret: the install's app is refused, not one portal's grant. */
+const CLIENT_REFUSED = /^(BAD_CLIENT_ID|BAD_CLIENT_SECRET|invalid_client|unauthorized_client)$/i
+/** HubSpot's answer to a refresh token it does not know (any more): the app was uninstalled or the grant revoked. */
+const GRANT_GONE = /^(BAD_REFRESH_TOKEN|invalid_grant)$/i
+/** The codes in a HubSpot OAuth error: `status` (BAD_REFRESH_TOKEN) and `error` (invalid_grant). */
+const errorCodes = (body: Json) => [body.status, body.error].filter((v): v is string => typeof v === 'string')
 
 async function readJson(res: Response): Promise<Json> {
   if (res.status === 204) return {}
@@ -61,9 +72,15 @@ export function createHubSpotOAuth(
     }
     const body = await readJson(res)
     if (!res.ok) {
-      // invalid_grant / BAD_REFRESH_TOKEN: the app was uninstalled or the grant expired.
-      const kind = res.status >= 500 ? 'unavailable' : res.status === 429 ? 'rate_limited' : 'auth'
-      throw new AppError('hubspot', kind, `${what} failed${reasonOf(body) ? `: ${reasonOf(body)}` : ''}`, res.status)
+      const message = `${what} failed${reasonOf(body) ? `: ${reasonOf(body)}` : ''}`
+      if (res.status >= 500) throw new AppError('hubspot', 'unavailable', message, res.status)
+      if (res.status === 429) throw new AppError('hubspot', 'rate_limited', message, res.status)
+      const codes = errorCodes(body)
+      if (codes.some(code => CLIENT_REFUSED.test(code))) throw new AppError('hubspot', 'client', message, res.status)
+      // Only a refresh proves the grant is gone: the token it sent is the grant itself.
+      if (fields.grant_type === 'refresh_token' && res.status === 400 && codes.some(code => GRANT_GONE.test(code)))
+        throw new GrantRevoked('hubspot', message, res.status)
+      throw new AppError('hubspot', 'auth', message, res.status)
     }
     return body
   }
@@ -78,6 +95,19 @@ export function createHubSpotOAuth(
       expiresAt:
         Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
       scope: Array.isArray(body.scopes) ? body.scopes.join(' ') : typeof body.scope === 'string' ? body.scope : null,
+    }
+  }
+  // HubSpot's date-versioned revoke (its v1 DELETE /oauth/v1/refresh-tokens ends 2027-02).
+  async function revoke(refreshToken: string) {
+    try {
+      await form(
+        REVOKE_PATH,
+        { client_id: clientId, client_secret: clientSecret, token: refreshToken, token_type_hint: 'refresh_token' },
+        'revoking access',
+      )
+      return true
+    } catch {
+      return false
     }
   }
   return {
@@ -96,17 +126,30 @@ export function createHubSpotOAuth(
     exchangeCode: ({ code, redirectUri }) =>
       tokens({ grant_type: 'authorization_code', code, redirect_uri: redirectUri }, 'connect'),
     refresh: refreshToken => tokens({ grant_type: 'refresh_token', refresh_token: refreshToken }, 'refresh access'),
-    // v1 until HubSpot's date-versioned revoke (/oauth/2026-03/token/revoke) has documented fields; v1 works until 2027-02.
-    async revoke(refreshToken) {
+    revoke,
+    // The uninstall HubSpot asks of a certified app (DELETE /appinstalls/.../external-install): the app leaves the
+    // portal's Connected apps and every grant of the portal ends. It needs a live access token, so the grant is
+    // refreshed first; one HubSpot no longer knows was uninstalled already. The refresh token is revoked after, in
+    // case the uninstall did not take.
+    async uninstall(refreshToken) {
+      let uninstalled: boolean
       try {
-        const res = await doFetch(`${api}/oauth/v1/refresh-tokens/${encodeURIComponent(refreshToken)}`, {
+        const { accessToken } = await tokens(
+          { grant_type: 'refresh_token', refresh_token: refreshToken },
+          'refresh access',
+        )
+        const res = await doFetch(`${api}${UNINSTALL_PATH}`, {
           method: 'DELETE',
+          headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
           signal: AbortSignal.timeout(timeoutMs),
         })
-        return res.ok
-      } catch {
-        return false
+        uninstalled = res.ok
+      } catch (e) {
+        if (e instanceof GrantRevoked) return true
+        uninstalled = false
       }
+      const revoked = await revoke(refreshToken)
+      return uninstalled || revoked
     },
     async account(accessToken) {
       const body = await form(

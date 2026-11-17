@@ -23,6 +23,7 @@ import {
   type AppOAuth,
   appConnector,
   appOAuth,
+  GrantRevoked,
   type OAuthTokens,
   type TokenSource,
 } from '@linedesk/connectors'
@@ -32,9 +33,10 @@ import {
   app_credentials,
   app_oauth_states,
   crm_links,
+  provider_settings,
   type Tx,
 } from '@linedesk/db'
-import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
@@ -194,7 +196,14 @@ export function appTokenSource(database: Tx, services: AppServices, connection: 
     const oauth = await appServicesOf({ apps: services }).oauth(database, connection.provider)
     if (!oauth) throw new AppError(connection.provider, 'unavailable', 'the app is no longer set up on this server')
     const refreshToken = decryptSecret(credentials.refresh_token_encrypted, appSlot(connection, 'refresh'))
-    const tokens = await oauth.refresh(refreshToken)
+    let tokens: OAuthTokens
+    try {
+      tokens = await oauth.refresh(refreshToken)
+    } catch (e) {
+      if (e instanceof GrantRevoked)
+        await dropRevokedConnection(database, connection, credentials.refresh_token_encrypted)
+      throw e
+    }
     const saved = await database.transaction(async tx => {
       await lockConnection(tx, connection.id)
       return tx
@@ -214,6 +223,84 @@ export function appTokenSource(database: Tx, services: AppServices, connection: 
     if (now && good(now.expires_at)) return decryptSecret(now.access_token_encrypted, appSlot(connection, 'access'))
     throw new AppError(connection.provider, 'auth', 'the access changed while it was refreshed: connect it again')
   }
+}
+
+/** How long after a change of an app's client ID or secret a refused grant is not taken as an uninstall. */
+export const KEYS_SETTLE_MS = 24 * 60 * 60_000
+
+/** Whether the install's keys of an app (Server admin › Providers) were changed after `since`. */
+async function appKeysChangedSince(database: Tx, app: AppId, since: number) {
+  const [changed] = await database
+    .select({ field: provider_settings.field })
+    .from(provider_settings)
+    .where(
+      and(
+        isNull(provider_settings.workspace_id),
+        eq(provider_settings.provider, app),
+        gt(provider_settings.updated_at, new Date(since).toISOString()),
+      ),
+    )
+    .limit(1)
+  return Boolean(changed)
+}
+
+/**
+ * Whether another connection of the app holds this very grant. An app may hand the same refresh token to the same
+ * person connecting the same account again from another workspace (HubSpot ties it to user, portal and app);
+ * revoking it would cut that connection too. `accountId` narrows the search when it is known.
+ */
+async function grantHeldElsewhere(
+  tx: Tx,
+  app: AppId,
+  grant: string,
+  exceptId: string | null,
+  accountId: string | null = null,
+) {
+  const rows = await tx
+    .select({
+      id: app_connections.id,
+      provider: app_connections.provider,
+      refresh: app_credentials.refresh_token_encrypted,
+    })
+    .from(app_connections)
+    .innerJoin(app_credentials, eq(app_credentials.connection_id, app_connections.id))
+    .where(
+      and(
+        eq(app_connections.provider, app),
+        accountId === null ? undefined : eq(app_connections.account_id, accountId),
+      ),
+    )
+  return rows.some(row => row.id !== exceptId && tryDecrypt(row.refresh, appSlot(row, 'refresh')) === grant)
+}
+
+/**
+ * The app no longer knows the connection's grant (HubSpot: the app was uninstalled in the portal; GrantRevoked): the
+ * connection goes, with its tokens, links and pushes (foreign key cascade), as when the business disconnects. Nothing
+ * is withdrawn at the app: the grant is gone there already. Only this connection, and only while its stored grant is
+ * still the one that was refused: a connect again meanwhile wins. Same locks and order as app.disconnect.
+ */
+export async function dropRevokedConnection(database: Tx, connection: AppConnection, refusedRefresh: string) {
+  // Another app's valid keys entered under Server admin › Providers would have every grant refused like this: right
+  // after a key change nothing is removed; the refusal marks the connection as any refused grant does.
+  if (await appKeysChangedSince(database, connection.provider, Date.now() - KEYS_SETTLE_MS)) return false
+  const deleted = await database.transaction(async tx => {
+    await lockAccount(tx, connection.provider, connection.account_id)
+    await lockConnection(tx, connection.id)
+    return tx
+      .delete(app_connections)
+      .where(
+        and(
+          eq(app_connections.id, connection.id),
+          sql`exists (select 1 from ${app_credentials} where ${app_credentials.connection_id} = ${app_connections.id} and ${app_credentials.refresh_token_encrypted} = ${refusedRefresh})`,
+        ),
+      )
+      .returning({ id: app_connections.id })
+  })
+  if (deleted.length)
+    console.log(
+      `app connections: ${APP_LABEL[connection.provider]} no longer knows a grant, its connection was removed`,
+    )
+  return deleted.length > 0
 }
 
 /**
@@ -373,7 +460,9 @@ export const appConnectionHandlers: Record<string, Handler> = {
       oauth.grantPerAccount && tokens.account ? await accountShared(tx, input.app, tokens.account.id, null) : false
     // Whatever goes wrong from here, the grant just made is withdrawn again. A grant one per account whose account
     // is not known yet (the account read failed) stays: withdrawing it could cut another workspace on that account.
-    if (grant && !shared && (tokens.account || !oauth.grantPerAccount))
+    // A grant the same person already gave another workspace (the app handed out the same refresh token) stays too.
+    const heldElsewhere = grant && !oauth.grantPerAccount ? await grantHeldElsewhere(tx, input.app, grant, null) : false
+    if (grant && !shared && !heldElsewhere && (tokens.account || !oauth.grantPerAccount))
       onRollback?.(async () =>
         (await oauth.revoke(grant).catch(() => false))
           ? 'the new access was revoked'
@@ -385,6 +474,9 @@ export const appConnectionHandlers: Record<string, Handler> = {
     if (REQUIRED_SCOPES[input.app].includes('incoming-webhook') && !tokens.webhook)
       throw rejectApp('scope', `${label} did not give a channel to post to. Start again and pick a channel.`)
     const account = tokens.account ?? (await oauth.account(tokens.accessToken).catch(rejectAppError))
+    // An app a disconnect uninstalls from the whole account (HubSpot): not while a disconnect of another workspace
+    // decides whether the account is still used. The account first, then the connection, as everywhere.
+    if (oauth.uninstall && !oauth.grantPerAccount) await lockAccount(tx, input.app, account.id)
 
     const existing = await connectionOf(tx, workspace_id, input.app)
     let connection: AppConnection
@@ -400,8 +492,11 @@ export const appConnectionHandlers: Record<string, Handler> = {
           .from(app_credentials)
           .where(eq(app_credentials.connection_id, existing.id))
         const oldGrant = old ? decryptSecret(old.refresh, appSlot(existing, 'refresh')) : null
-        const oldShared =
-          oauth.grantPerAccount && (await accountShared(tx, input.app, existing.account_id, existing.id))
+        const oldShared = oldGrant
+          ? oauth.grantPerAccount
+            ? await accountShared(tx, input.app, existing.account_id, existing.id)
+            : await grantHeldElsewhere(tx, input.app, oldGrant, existing.id, existing.account_id)
+          : false
         if (oldGrant && !oldShared) onCommit?.(async () => void (await oauth.revoke(oldGrant).catch(() => false)))
       }
       ;[connection] = (await tx
@@ -479,16 +574,32 @@ export const appConnectionHandlers: Record<string, Handler> = {
       .where(eq(app_credentials.connection_id, existing.id))
     await tx.delete(app_connections).where(eq(app_connections.id, existing.id))
     const oauth = credentials ? await appServicesOf(ctx).oauth(tx, input.app) : null
-    // A grant one per account that another workspace's connection still uses stays (Slack: uninstalling the app
-    // would stop that workspace's posts too).
-    const shared = oauth?.grantPerAccount ? await accountShared(tx, input.app, existing.account_id, existing.id) : false
+    // An account another workspace's connection still uses keeps the app: a grant one per account stays (Slack:
+    // uninstalling the app would stop that workspace's posts too), and an app that can be uninstalled from the whole
+    // account (HubSpot) only has this connection's own grant revoked.
+    const shared =
+      oauth?.grantPerAccount || oauth?.uninstall
+        ? await accountShared(tx, input.app, existing.account_id, existing.id)
+        : false
     // A grant that no longer decrypts (SECRETS_KEY changed) cannot be withdrawn; the connection still goes.
-    const grant = credentials && oauth && !shared ? tryDecrypt(credentials.refresh, appSlot(existing, 'refresh')) : null
+    const decrypted =
+      credentials && oauth && !(shared && oauth.grantPerAccount)
+        ? tryDecrypt(credentials.refresh, appSlot(existing, 'refresh'))
+        : null
+    // The very grant another connection on the account holds (the same person connected it from two workspaces):
+    // withdrawing it would cut that connection too, so it stays.
+    const grant =
+      decrypted && shared && !oauth?.grantPerAccount
+        ? (await grantHeldElsewhere(tx, input.app, decrypted, existing.id, existing.account_id))
+          ? null
+          : decrypted
+        : decrypted
     // Filled in after the commit, before the answer goes out (run-action.ts); the command log keeps `revoked: false`.
     const data: AppDisconnectData = { revoked: false }
     if (oauth && grant) {
       onCommit?.(async () => {
-        data.revoked = await oauth.revoke(grant).catch(() => false)
+        const withdraw = oauth.uninstall && !shared ? oauth.uninstall(grant) : oauth.revoke(grant)
+        data.revoked = await withdraw.catch(() => false)
       })
     }
     return { rows: {}, deleted: { app_connections: [existing.id] }, data }

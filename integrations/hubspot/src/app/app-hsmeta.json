@@ -9,7 +9,6 @@
     "auth": {
       "type": "oauth",
       "redirectUrls": [
-        "https://staging.example.com/v1/apps/callback/hubspot",
         "https://app.linedesk.ai/v1/apps/callback/hubspot"
       ],
       "requiredScopes": [

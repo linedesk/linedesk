@@ -7,10 +7,20 @@ import {
   AppError,
   type AppOAuth,
   type FinishedCall,
+  GrantRevoked,
   type OAuthTokens,
   PushSkipped,
 } from '@linedesk/connectors'
-import { app_connections, app_credentials, app_oauth_states, app_pushes, calls, crm_links, type Tx } from '@linedesk/db'
+import {
+  app_connections,
+  app_credentials,
+  app_oauth_states,
+  app_pushes,
+  calls,
+  crm_links,
+  provider_settings,
+  type Tx,
+} from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { appCallback } from '../src/app-callback.ts'
@@ -46,7 +56,7 @@ async function inRollback(body: (tx: Tx) => Promise<void>) {
 const SCOPE = 'oauth crm.objects.contacts.read crm.objects.contacts.write'
 
 /** A HubSpot portal in memory: OAuth that hands out numbered tokens, and a connector that records what it got. */
-function fakeHubSpot({ scope = SCOPE, portal = '42', refreshFails = false } = {}) {
+function fakeHubSpot({ scope = SCOPE, portal = '42', refreshFails = false, grant = 'refresh-1' } = {}) {
   let issued = 0
   const issue = (refreshToken: string | null): OAuthTokens => ({
     accessToken: `access-${++issued}`,
@@ -63,13 +73,14 @@ function fakeHubSpot({ scope = SCOPE, portal = '42', refreshFails = false } = {}
     ),
     exchangeCode: vi.fn(async ({ code }: { code: string; redirectUri: string }) => {
       if (code !== 'good-code') throw new AppError('hubspot', 'auth', 'connect failed: BAD_AUTH_CODE')
-      return issue('refresh-1')
+      return issue(grant)
     }),
     refresh: vi.fn(async () => {
       if (refreshFails) throw new AppError('hubspot', 'auth', 'refresh access failed: BAD_REFRESH_TOKEN')
       return issue('refresh-2')
     }),
     revoke: vi.fn(async () => true),
+    uninstall: vi.fn(async () => true),
     account: vi.fn(async () => ({ id: portal, name: `portal-${portal}.example` })),
   } satisfies AppOAuth
   const pushed: { call: FinishedCall; token: string }[] = []
@@ -91,6 +102,13 @@ beforeAll(async () => {
   other = await createWorkspace('Other Business')
   member = await addMember(ws.id, 'member')
   owner = { actorId: ws.owner.userId, role: 'owner', workspaceId: ws.id, permissions: rolePermissions.owner }
+})
+
+const otherOwner = (): Actor => ({
+  actorId: other.owner.userId,
+  role: 'owner',
+  workspaceId: other.id,
+  permissions: rolePermissions.owner,
 })
 
 const run = (
@@ -238,15 +256,13 @@ describe('connecting HubSpot', () => {
     await inRollback(async tx => {
       const id = await connect(tx, first.services)
       expect(await connect(tx, first.services)).toBe(id)
-      await tx
-        .insert(crm_links)
-        .values({
-          id: 'crml_test',
-          workspace_id: ws.id,
-          connection_id: id,
-          contact_id: ws.contact.id,
-          external_id: 'hs-1',
-        })
+      await tx.insert(crm_links).values({
+        id: 'crml_test',
+        workspace_id: ws.id,
+        connection_id: id,
+        contact_id: ws.contact.id,
+        external_id: 'hs-1',
+      })
       const second = fakeHubSpot({ portal: '77' })
       const commits: (() => Promise<void>)[] = []
       expect(await connect(tx, second.services, owner, commits)).toBe(id)
@@ -309,23 +325,23 @@ describe('disconnecting', () => {
     const { services, oauth } = fakeHubSpot()
     await inRollback(async tx => {
       const id = await connect(tx, services)
-      await tx
-        .insert(crm_links)
-        .values({
-          id: 'crml_test2',
-          workspace_id: ws.id,
-          connection_id: id,
-          contact_id: ws.contact.id,
-          external_id: 'hs-1',
-        })
+      await tx.insert(crm_links).values({
+        id: 'crml_test2',
+        workspace_id: ws.id,
+        connection_id: id,
+        contact_id: ws.contact.id,
+        external_id: 'hs-1',
+      })
       const commits: (() => Promise<void>)[] = []
       const { data, deleted } = await run(tx, owner, services, 'app.disconnect', { app: 'hubspot' }, [], commits)
       // Not before the commit: a rollback would leave a connection whose grant is gone.
-      expect(oauth.revoke).not.toHaveBeenCalled()
+      expect(oauth.uninstall).not.toHaveBeenCalled()
       await Promise.all(commits.map(w => w()))
       expect(data).toEqual({ revoked: true })
       expect(deleted).toEqual({ app_connections: [id] })
-      expect(oauth.revoke).toHaveBeenCalledWith('refresh-1')
+      // No other connection uses the portal: the app is uninstalled from it (HubSpot certification), not only revoked.
+      expect(oauth.uninstall).toHaveBeenCalledWith('refresh-1')
+      expect(oauth.revoke).not.toHaveBeenCalled()
       expect(await tx.select().from(app_credentials).where(eq(app_credentials.connection_id, id))).toEqual([])
       expect(await tx.select().from(crm_links).where(eq(crm_links.connection_id, id))).toEqual([])
     })
@@ -333,7 +349,7 @@ describe('disconnecting', () => {
 
   test('an app that cannot be reached does not keep the connection', async () => {
     const { services, oauth } = fakeHubSpot()
-    oauth.revoke.mockRejectedValueOnce(new Error('network down'))
+    oauth.uninstall.mockRejectedValueOnce(new Error('network down'))
     await inRollback(async tx => {
       const id = await connect(tx, services)
       const commits: (() => Promise<void>)[] = []
@@ -341,6 +357,54 @@ describe('disconnecting', () => {
       await Promise.all(commits.map(w => w()))
       expect(data).toEqual({ revoked: false })
       expect(await tx.select().from(app_connections).where(eq(app_connections.id, id))).toEqual([])
+    })
+  })
+
+  test('a portal another workspace still uses keeps the app: only this grant is revoked', async () => {
+    const { services, oauth } = fakeHubSpot()
+    const elsewhere = fakeHubSpot({ grant: 'refresh-b' })
+    await inRollback(async tx => {
+      await connect(tx, services)
+      await connect(tx, elsewhere.services, otherOwner())
+      const commits: (() => Promise<void>)[] = []
+      const { data } = await run(tx, owner, services, 'app.disconnect', { app: 'hubspot' }, [], commits)
+      await Promise.all(commits.map(w => w()))
+      expect(data).toEqual({ revoked: true })
+      expect(oauth.uninstall).not.toHaveBeenCalled()
+      expect(oauth.revoke).toHaveBeenCalledWith('refresh-1')
+      const left = await tx.select().from(app_connections).where(eq(app_connections.workspace_id, other.id))
+      expect(left).toHaveLength(1)
+    })
+  })
+
+  test('a grant another workspace holds too (same person, same portal) is not withdrawn', async () => {
+    const { services, oauth } = fakeHubSpot()
+    await inRollback(async tx => {
+      await connect(tx, services)
+      await connect(tx, services, otherOwner())
+      const commits: (() => Promise<void>)[] = []
+      const { data } = await run(tx, owner, services, 'app.disconnect', { app: 'hubspot' }, [], commits)
+      await Promise.all(commits.map(w => w()))
+      expect(data).toEqual({ revoked: false })
+      expect(oauth.uninstall).not.toHaveBeenCalled()
+      expect(oauth.revoke).not.toHaveBeenCalled()
+    })
+  })
+
+  test('a refused connect does not withdraw a grant another workspace holds', async () => {
+    const { services, oauth } = fakeHubSpot()
+    const narrow = fakeHubSpot({ scope: 'oauth' })
+    await inRollback(async tx => {
+      await connect(tx, services, otherOwner())
+      const undos: Undo[] = []
+      const started = await run(tx, owner, narrow.services, 'app.connectStart', { app: 'hubspot' })
+      const state = new URL(started.data!.url as string).searchParams.get('state')!
+      await expect(
+        run(tx, owner, narrow.services, 'app.connectFinish', { app: 'hubspot', state, code: 'good-code' }, undos),
+      ).rejects.toThrow(/contacts/)
+      expect(undos).toEqual([])
+      expect(narrow.oauth.revoke).not.toHaveBeenCalled()
+      expect(oauth.revoke).not.toHaveBeenCalled()
     })
   })
 
@@ -850,6 +914,77 @@ describe('the grant changing while a push uses it', () => {
     expect(decryptSecret(credentials!.refresh_token_encrypted, appSlot(connection, 'refresh'))).toBe(
       'refresh-reconnected',
     )
+    await db.delete(app_connections).where(eq(app_connections.id, connection.id))
+  })
+
+  test('a grant the app no longer knows (uninstalled in HubSpot) removes the connection and its tokens', async () => {
+    const connection = await committedConnection(space)
+    await db
+      .update(app_credentials)
+      .set({ expires_at: new Date(Date.now() + 10_000).toISOString() })
+      .where(eq(app_credentials.connection_id, connection.id))
+    const { services, oauth } = fakeHubSpot()
+    oauth.refresh.mockRejectedValueOnce(new GrantRevoked('hubspot', 'refresh access failed: BAD_REFRESH_TOKEN', 400))
+    await expect(appTokenSource(db, services, connection)()).rejects.toMatchObject({ kind: 'auth' })
+    expect(await db.select().from(app_connections).where(eq(app_connections.id, connection.id))).toEqual([])
+    expect(await db.select().from(app_credentials).where(eq(app_credentials.connection_id, connection.id))).toEqual([])
+    // Nothing is withdrawn at the app: the grant is gone there already.
+    expect(oauth.revoke).not.toHaveBeenCalled()
+    expect(oauth.uninstall).not.toHaveBeenCalled()
+  })
+
+  test('right after the app keys changed, a refused grant keeps the connection', async () => {
+    const { services, oauth } = fakeHubSpot()
+    await inRollback(async tx => {
+      const id = await connect(tx, services)
+      await tx
+        .update(app_credentials)
+        .set({ expires_at: new Date(Date.now() + 10_000).toISOString() })
+        .where(eq(app_credentials.connection_id, id))
+      // Another app's valid keys pasted under Server admin › Providers: every grant would be refused.
+      await tx.insert(provider_settings).values({
+        id: 'ps_test_hubspot',
+        workspace_id: null,
+        provider: 'hubspot',
+        field: 'client_secret',
+        value_encrypted: 'x',
+      })
+      const [connection] = await tx.select().from(app_connections).where(eq(app_connections.id, id))
+      oauth.refresh.mockRejectedValueOnce(new GrantRevoked('hubspot', 'refresh access failed: BAD_REFRESH_TOKEN', 400))
+      await expect(appTokenSource(tx, services, connection!)()).rejects.toBeInstanceOf(GrantRevoked)
+      expect(await tx.select().from(app_connections).where(eq(app_connections.id, id))).toHaveLength(1)
+    })
+  })
+
+  test('any other refused refresh keeps the connection for someone to look at', async () => {
+    const connection = await committedConnection(space)
+    await db
+      .update(app_credentials)
+      .set({ expires_at: new Date(Date.now() + 10_000).toISOString() })
+      .where(eq(app_credentials.connection_id, connection.id))
+    const { services, oauth } = fakeHubSpot()
+    oauth.refresh.mockRejectedValueOnce(new AppError('hubspot', 'client', 'refresh access failed: BAD_CLIENT_ID', 400))
+    await expect(appTokenSource(db, services, connection)()).rejects.toMatchObject({ kind: 'client' })
+    expect(await db.select().from(app_connections).where(eq(app_connections.id, connection.id))).toHaveLength(1)
+    await db.delete(app_connections).where(eq(app_connections.id, connection.id))
+  })
+
+  test('a refused grant does not remove a connection that was connected again meanwhile', async () => {
+    const connection = await committedConnection(space)
+    await db
+      .update(app_credentials)
+      .set({ expires_at: new Date(Date.now() + 10_000).toISOString() })
+      .where(eq(app_credentials.connection_id, connection.id))
+    const { services, oauth } = fakeHubSpot()
+    oauth.refresh.mockImplementationOnce(async () => {
+      await db
+        .update(app_credentials)
+        .set({ refresh_token_encrypted: encryptSecret('refresh-reconnected', appSlot(connection, 'refresh')) })
+        .where(eq(app_credentials.connection_id, connection.id))
+      throw new GrantRevoked('hubspot', 'refresh access failed: BAD_REFRESH_TOKEN', 400)
+    })
+    await expect(appTokenSource(db, services, connection)()).rejects.toBeInstanceOf(GrantRevoked)
+    expect(await db.select().from(app_connections).where(eq(app_connections.id, connection.id))).toHaveLength(1)
     await db.delete(app_connections).where(eq(app_connections.id, connection.id))
   })
 

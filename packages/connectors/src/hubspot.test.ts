@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fillOnly, splitName } from './crm.ts'
 import { createHubSpotConnector, createHubSpotOAuth, phoneFilterGroups } from './hubspot.ts'
-import { AppError, type FinishedCall, PushSkipped, type TokenSource } from './types.ts'
+import { AppError, type FinishedCall, GrantRevoked, PushSkipped, type TokenSource } from './types.ts'
 
 type Seen = { method: string; url: string; headers: Record<string, string>; body: any }
 type Reply = { status?: number; body?: unknown }
@@ -102,24 +102,98 @@ describe('HubSpot OAuth', () => {
     expect(await oauth.account('at')).toEqual({ id: '42', name: 'brightwater.example' })
   })
 
-  it('a refused refresh is an auth error', async () => {
+  it('a refresh token HubSpot no longer knows is a revoked grant', async () => {
     const { doFetch } = fakeHubSpot({
       'POST /oauth/v3/token': () => ({
         status: 400,
-        body: { error: 'invalid_grant', status: 'BAD_REFRESH_TOKEN', message: 'missing or unknown refresh token' },
+        body: { status: 'BAD_REFRESH_TOKEN', message: 'missing or unknown refresh token' },
       }),
     })
     const err = await createHubSpotOAuth(client, { fetch: doFetch })
       .refresh('rt')
       .catch(e => e)
-    expect(err).toBeInstanceOf(AppError)
+    expect(err).toBeInstanceOf(GrantRevoked)
     expect(err.kind).toBe('auth')
   })
 
-  it('revokes the refresh token', async () => {
-    const { doFetch, seen } = fakeHubSpot({ 'DELETE /oauth/v1/refresh-tokens/rt': () => ({ status: 204 }) })
+  it("a refused client is the install's problem, not a revoked grant", async () => {
+    const { doFetch } = fakeHubSpot({
+      'POST /oauth/v3/token': () => ({ status: 400, body: { status: 'BAD_CLIENT_ID', message: 'unknown client' } }),
+    })
+    const err = await createHubSpotOAuth(client, { fetch: doFetch })
+      .refresh('rt')
+      .catch(e => e)
+    expect(err).not.toBeInstanceOf(GrantRevoked)
+    expect(err.kind).toBe('client')
+  })
+
+  it('a code HubSpot refuses at connect is an auth error, never a revoked grant', async () => {
+    const { doFetch } = fakeHubSpot({
+      'POST /oauth/v3/token': () => ({ status: 400, body: { error: 'invalid_grant', message: 'bad code' } }),
+    })
+    const err = await createHubSpotOAuth(client, { fetch: doFetch })
+      .exchangeCode({ code: 'c', redirectUri: 'https://x.example/cb' })
+      .catch(e => e)
+    expect(err).toBeInstanceOf(AppError)
+    expect(err).not.toBeInstanceOf(GrantRevoked)
+    expect(err.kind).toBe('auth')
+  })
+
+  it('revokes the refresh token with the date-versioned endpoint', async () => {
+    const { doFetch, seen } = fakeHubSpot({ 'POST /oauth/2026-03/token/revoke': () => ({ status: 204 }) })
     expect(await createHubSpotOAuth(client, { fetch: doFetch }).revoke('rt')).toBe(true)
     expect(seen).toHaveLength(1)
+    expect(seen[0]!.body).toEqual({
+      client_id: 'cid',
+      client_secret: 'secret',
+      token: 'rt',
+      token_type_hint: 'refresh_token',
+    })
+  })
+
+  it('a refused revoke is false', async () => {
+    const { doFetch } = fakeHubSpot({ 'POST /oauth/2026-03/token/revoke': () => ({ status: 400, body: {} }) })
+    expect(await createHubSpotOAuth(client, { fetch: doFetch }).revoke('rt')).toBe(false)
+  })
+
+  it('uninstalls the app from the portal with a fresh access token, then revokes the grant', async () => {
+    const { doFetch, seen } = fakeHubSpot({
+      'POST /oauth/v3/token': () => ({ body: { access_token: 'fresh', refresh_token: 'rt', expires_in: 1800 } }),
+      'DELETE /appinstalls/2026-03/external-install': () => ({ status: 204 }),
+      'POST /oauth/2026-03/token/revoke': () => ({ status: 400, body: { message: 'already gone' } }),
+    })
+    expect(await createHubSpotOAuth(client, { fetch: doFetch }).uninstall!('rt')).toBe(true)
+    expect(seen.map(r => `${r.method} ${new URL(r.url).pathname}`)).toEqual([
+      'POST /oauth/v3/token',
+      'DELETE /appinstalls/2026-03/external-install',
+      'POST /oauth/2026-03/token/revoke',
+    ])
+    expect(seen[0]!.body).toMatchObject({ grant_type: 'refresh_token', refresh_token: 'rt' })
+    expect(seen[1]!.headers.authorization).toBe('Bearer fresh')
+  })
+
+  it('an uninstall HubSpot refuses falls back to the revoke', async () => {
+    const { doFetch } = fakeHubSpot({
+      'POST /oauth/v3/token': () => ({ body: { access_token: 'fresh', expires_in: 1800 } }),
+      'DELETE /appinstalls/2026-03/external-install': () => ({ status: 403, body: { message: 'no' } }),
+      'POST /oauth/2026-03/token/revoke': () => ({ status: 204 }),
+    })
+    expect(await createHubSpotOAuth(client, { fetch: doFetch }).uninstall!('rt')).toBe(true)
+  })
+
+  it('a grant HubSpot no longer knows was uninstalled already', async () => {
+    const { doFetch, seen } = fakeHubSpot({
+      'POST /oauth/v3/token': () => ({ status: 400, body: { status: 'BAD_REFRESH_TOKEN' } }),
+    })
+    expect(await createHubSpotOAuth(client, { fetch: doFetch }).uninstall!('rt')).toBe(true)
+    expect(seen).toHaveLength(1)
+  })
+
+  it('an uninstall that reaches nothing is false', async () => {
+    const doFetch = (async () => {
+      throw new TypeError('fetch failed')
+    }) as typeof fetch
+    expect(await createHubSpotOAuth(client, { fetch: doFetch }).uninstall!('rt')).toBe(false)
   })
 })
 

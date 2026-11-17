@@ -44,6 +44,12 @@ export interface AppOAuth {
   refresh(refreshToken: string): Promise<OAuthTokens>
   /** Withdraws the grant at the app. Returns false when that did not work. */
   revoke(refreshToken: string): Promise<boolean>
+  /**
+   * Removes the app from the whole account at the app (HubSpot: the app leaves the portal's Connected apps), then
+   * withdraws the grant. Only for a disconnect, and only when no other connection uses the account: every grant of
+   * the account ends with it. Returns false when that did not work. Apps without it are only revoked.
+   */
+  uninstall?(refreshToken: string): Promise<boolean>
   account(accessToken: string): Promise<AppAccount>
 }
 
@@ -76,6 +82,18 @@ export class AppError extends Error {
     this.kind = kind
     this.status = status
     this.retryAfterSec = retryAfterSec
+  }
+}
+
+/**
+ * The app refused a refresh because the grant no longer exists (HubSpot: the app was uninstalled in the portal). An
+ * `auth` error like any refused grant, but certain: not the install's client being refused (`client`), not a passing
+ * failure. The stored tokens are worthless; the caller removes the connection.
+ */
+export class GrantRevoked extends AppError {
+  constructor(app: AppId, message: string, status?: number) {
+    super(app, 'auth', message, status)
+    this.name = 'GrantRevoked'
   }
 }
 
