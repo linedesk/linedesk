@@ -2,7 +2,7 @@ import { initializeLogger } from '@livekit/agents'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
-import { callLanguagesOf, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { assemblyAiChoice, callLanguagesOf, createStt, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -198,6 +198,29 @@ test('an assistant with a voice of another provider that has a key gets that pro
   expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed_pct: 93 } })).toMatchObject({ speed: 93 })
   // An assistant row of an older API has only the old speed.
   expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed: 'fast' } })).toMatchObject({ speed: 110 })
+})
+
+test('AssemblyAI: its own turn detection in balanced mode, steered to the call\'s languages', () => {
+  const aai = { provider: 'assemblyai_stt', apiKey: 'aa', model: 'universal-3-6-pro' } as const
+  expect(sttDetectsTurns(aai)).toBe(true)
+  expect(assemblyAiChoice(aai.model)).toEqual({ speechModel: 'universal-3-6-pro', mode: 'balanced', languageDetection: false, languageCodes: ['en'] })
+  expect(assemblyAiChoice(aai.model, { main: 'de', others: ['en', 'fr'] })).toMatchObject({ languageDetection: true, languageCodes: ['de', 'en', 'fr'] })
+  // Every language: steered to the main one only, the language of each turn still reported.
+  expect(assemblyAiChoice(aai.model, { main: 'es', others: ['en', 'ko', 'pl'], everyLanguage: true })).toMatchObject({ languageDetection: true, languageCodes: ['es'] })
+  // More than AssemblyAI's 10: not steered.
+  const eleven = { main: 'en', others: ['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja', 'ko'] } as const
+  expect(assemblyAiChoice(aai.model, eleven)).not.toHaveProperty('languageCodes')
+  // Only languages AssemblyAI takes; none of them: not steered.
+  expect(assemblyAiChoice(aai.model, { main: 'de', others: ['pl', 'en'] })).toMatchObject({ languageCodes: ['de', 'en'] })
+  expect(assemblyAiChoice(aai.model, { main: 'pl', others: [] })).not.toHaveProperty('languageCodes')
+  // A model outside Universal-3 Pro: no mode or languages, so the plugin starts.
+  const newer = assemblyAiChoice('assemblyai-stt-3-7-realtime-agent', { main: 'de', others: ['en'] })
+  expect(newer).toEqual({ speechModel: 'assemblyai-stt-3-7-realtime-agent', languageDetection: true })
+  expect(createStt({ ...aai, model: 'assemblyai-stt-3-7-realtime-agent' }, { main: 'de', others: ['en'] }).model).toBe('assemblyai-stt-3-7-realtime-agent')
+  // The adapter builds LiveKit's AssemblyAI plugin with the key and model, streaming with its own turn ends.
+  const stt = createStt(aai)
+  expect(stt).toMatchObject({ provider: 'AssemblyAI', model: 'universal-3-6-pro' })
+  expect(stt.capabilities.streaming).toBe(true)
 })
 
 test('ElevenLabs Scribe and OpenAI transcription detect the end of a turn, like Flux', () => {

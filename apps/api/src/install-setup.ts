@@ -34,6 +34,7 @@ import { problemOfError, problemOfResponse, problemOfStatus } from './provider-e
 import { activeProvider, type ProviderConfig, telephonyProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { rememberTest } from './setup-checklist.ts'
+import { assemblyAiTranscriber, TranscriberError } from './transcriber.ts'
 import { BUNDLED_PREVIEWS_DIR, installDefaultVoice, PREVIEW_TEXT, voiceProviderInUse } from './voices.ts'
 
 const SETTING = 'setup.install'
@@ -236,19 +237,49 @@ async function transcribe(provider: ProviderName, v: Record<string, string>, cli
   })
 }
 
+/**
+ * What the speech provider heard in the clip, or why it could not say. AssemblyAI streams on calls; the same key
+ * transcribes the clip as a file (the after-call transcriber, which deletes the transcript there once read).
+ */
+async function heardIn(
+  provider: ProviderName,
+  v: Record<string, string>,
+  clip: Buffer,
+): Promise<{ heard: string } | { problem: string }> {
+  if (provider === 'assemblyai_stt') {
+    try {
+      const { text } = await assemblyAiTranscriber(v.api_key!).transcribe(
+        new Blob([new Uint8Array(clip)], { type: 'audio/mpeg' }),
+        { contentType: 'audio/mpeg', name: 'caller.mp3' },
+      )
+      return { heard: text.trim() }
+    } catch (e) {
+      return {
+        problem: (e instanceof TranscriberError
+          ? problemOfStatus(provider, e.status, e.message, 'transcribing')
+          : problemOfError(provider, e, 'transcribing')
+        ).message,
+      }
+    }
+  }
+  const res = await transcribe(provider, v, clip)
+  if (!res.ok) return { problem: (await problemOfResponse(provider, res, 'transcribing')).message }
+  // biome-ignore lint/suspicious/noExplicitAny: the three providers' JSON, read field by field
+  const body = (await res.json()) as any
+  return { heard: (body.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? body.text ?? '').trim() }
+}
+
 async function trySpeech(tx: Tx): Promise<Tried> {
   const active = await inUse(tx, 'stt')
   if (!active) return failed(null, 'No speech to text is set up yet.')
   const { provider, config } = active
-  if (!['deepgram', 'elevenlabs_stt', 'openai_stt', 'openai_realtime'].includes(provider))
+  if (!['deepgram', 'elevenlabs_stt', 'openai_stt', 'assemblyai_stt', 'openai_realtime'].includes(provider))
     return failed(labelOf(provider), `${labelOf(provider)} can't be tested here.`)
   const start = performance.now()
-  const res = await transcribe(provider, values(config), await readFile(TEST_CLIP))
+  const result = await heardIn(provider, values(config), await readFile(TEST_CLIP))
   const took = seconds(start)
-  if (!res.ok) return failed(labelOf(provider), (await problemOfResponse(provider, res, 'transcribing')).message)
-  // biome-ignore lint/suspicious/noExplicitAny: the three providers' JSON, read field by field
-  const body = (await res.json()) as any
-  const heard: string = (body.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? body.text ?? '').trim()
+  if ('problem' in result) return failed(labelOf(provider), result.problem)
+  const { heard } = result
   const match = wordMatch(PREVIEW_TEXT, heard)
   const ok = match >= 0.6
   return {

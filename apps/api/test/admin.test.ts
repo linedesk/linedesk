@@ -748,6 +748,7 @@ describe('provider keys', () => {
       'deepgram',
       'elevenlabs_stt',
       'openai_stt',
+      'assemblyai_stt',
       'openai_transcript',
       'deepgram_transcript',
       'assemblyai',

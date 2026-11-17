@@ -199,6 +199,12 @@ test('a key saved for an active provider is selected with one click; an inactive
   expect(await optionOf('deepgram_transcript')).toMatchObject({ state: 'reusable', reuseFrom: 'deepgram' })
   expect(await transcriberInEffect(db, noEnv)).toBeNull()
 
+  // The same for AssemblyAI's streaming key, once it is the active speech to text.
+  await storeKey('assemblyai_stt')
+  await db.insert(instance_settings).values({ key: 'active_provider.stt', value: 'assemblyai_stt' })
+  expect(await optionOf('assemblyai')).toMatchObject({ state: 'reusable', reuseFrom: 'assemblyai_stt' })
+  await db.delete(instance_settings).where(eq(instance_settings.key, 'active_provider.stt'))
+
   // An OpenAI key stored for a language model that is not the active one: not offered, and refused.
   await storeKey('openai')
   await db.insert(instance_settings).values({ key: 'active_provider.llm', value: 'anthropic' })

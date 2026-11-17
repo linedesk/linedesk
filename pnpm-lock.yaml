@@ -47,6 +47,9 @@ importers:
       '@livekit/agents':
         specifier: ^1.10.0
         version: 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/agents-plugin-assemblyai':
+        specifier: ^1.10.0
+        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
       '@livekit/agents-plugin-cartesia':
         specifier: ^1.10.0
         version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)
@@ -1153,6 +1156,12 @@ packages:
 
   '@levischuck/tiny-cbor@0.2.11':
     resolution: {integrity: sha512-llBRm4dT4Z89aRsm6u2oEZ8tfwL/2l6BwpZ7JcyieouniDECM5AqNgr/y08zalEIvW3RSK4upYyybDcmjXqAow==}
+
+  '@livekit/agents-plugin-assemblyai@1.10.0':
+    resolution: {integrity: sha512-Zm0dspk/MYDfvzr0IoXn5nJpsSEvHAV/w37VqtyoRzZ7c/ppKlhmL/jsQUhdDnPGIVWCYxoGdtSA+NLAdVpu2Q==}
+    peerDependencies:
+      '@livekit/agents': 1.10.0
+      '@livekit/rtc-node': ^1.2.2
 
   '@livekit/agents-plugin-cartesia@1.10.0':
     resolution: {integrity: sha512-456oXoQkhWrPFx1iSyxbVUJThzXGRZL1eZmKYy1obUYJSMG9k6yQZ/lOQQ2yHG6z0yuXst8s0uyJKqKGoitFTg==}
@@ -4011,6 +4020,15 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.6.0
 
   '@levischuck/tiny-cbor@0.2.11': {}
+
+  '@livekit/agents-plugin-assemblyai@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
+    dependencies:
+      '@livekit/agents': 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/rtc-node': 1.2.2
+      ws: 8.23.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@livekit/agents-plugin-cartesia@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)':
     dependencies:

@@ -168,6 +168,16 @@ const guides = {
     steps: openAiSteps('Paste it here. Leave the model empty for the default.'),
     cost: 'About $0.003 per call minute with gpt-4o-mini-transcribe.',
   },
+  assemblyai_stt: {
+    privacyKey: msg('admin.provider.guide.privacy.assemblyai'),
+    url: 'https://www.assemblyai.com/dashboard/api-keys',
+    stepKeys: [
+      msg('admin.provider.guide.assemblyai_stt.step1'),
+      msg('admin.provider.guide.assemblyai_stt.step2'),
+      msg('admin.provider.guide.assemblyai_stt.step3'),
+    ],
+    costKey: msg('admin.provider.guide.assemblyai_stt.cost'),
+  },
   // After-call transcription (apps/api/src/after-call-transcript.ts): the recording file goes to the provider.
   openai_transcript: {
     url: 'https://platform.openai.com/api-keys',
@@ -681,6 +691,12 @@ export const providers = {
     category: 'stt',
     guide: guides.openai_stt,
     fields: { api_key: apiKey('OPENAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'gpt-4o-mini-transcribe' } },
+  },
+  assemblyai_stt: {
+    label: 'AssemblyAI',
+    category: 'stt',
+    guide: guides.assemblyai_stt,
+    fields: { api_key: apiKey('ASSEMBLYAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'universal-3-6-pro' } },
   },
   // After-call transcription: the recording is uploaded after the call and the caller's lines are corrected. Never
   // picked on its own: only an instance admin's choice turns it on (no first-set-up fallback, like recording storage).

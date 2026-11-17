@@ -549,6 +549,7 @@ const checks: Record<HttpProvider, Check> = {
   deepgram,
   elevenlabs_stt: elevenLabsStt,
   openai_stt: openaiStt,
+  assemblyai_stt: assemblyai,
   openrouter,
   openai: llm('openai'),
   anthropic: llm('anthropic'),

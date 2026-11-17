@@ -27,6 +27,7 @@ export const pricePerMinute: Record<ProviderName, number> = {
   deepgram: 0.0077,
   elevenlabs_stt: 0.0067,
   openai_stt: 0.003,
+  assemblyai_stt: 0.0075,
   openrouter: 0.003,
   openai: 0.003,
   anthropic: 0.006,

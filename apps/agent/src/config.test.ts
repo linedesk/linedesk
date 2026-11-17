@@ -352,6 +352,14 @@ test('ElevenLabs Scribe and OpenAI transcription as speech recognition, with the
   expect(() => resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'openai_stt', OPENAI_API_KEY: 'oa' })).toThrow(/no API key for openai_stt/)
 })
 
+test('AssemblyAI as speech recognition: Universal-3.6 Pro by default, its own key', () => {
+  expect(resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'assemblyai_stt', ASSEMBLYAI_STT_API_KEY: 'aa' }).stt).toEqual({ provider: 'assemblyai_stt', apiKey: 'aa', model: 'universal-3-6-pro' })
+  const stored = resolveAgentConfig({ stt: { provider: 'assemblyai_stt', api_key: 'aa-app', model: 'assemblyai-stt-3-7-realtime-agent' }, llm: null, tts: null, recording: null }, keys).stt
+  expect(stored).toEqual({ provider: 'assemblyai_stt', apiKey: 'aa-app', model: 'assemblyai-stt-3-7-realtime-agent' })
+  // The after-call transcriber's key in the environment does not switch speech recognition on.
+  expect(() => resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'assemblyai_stt', ASSEMBLYAI_API_KEY: 'aa' })).toThrow(/no API key for assemblyai_stt/)
+})
+
 test('a call test may use another realtime model; the three stages and other calls are left alone', () => {
   const both = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt-app' } }, {})
   const picked = withRealtimeModel(both, 'gpt-realtime')

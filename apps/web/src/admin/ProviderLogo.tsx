@@ -65,6 +65,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.openai_stt'),
     keysUrl: 'https://platform.openai.com/api-keys',
   },
+  assemblyai_stt: {
+    mark: { icon: 'waveform' },
+    blurb: msg('admin.provider.blurb.assemblyai_stt'),
+    keysUrl: 'https://www.assemblyai.com/dashboard/api-keys',
+  },
   openai_transcript: {
     mark: { brand: 'openai' },
     blurb: msg('admin.provider.blurb.openai_transcript'),

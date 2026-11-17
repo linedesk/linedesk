@@ -85,7 +85,7 @@ test('provider.setKeys accepts only fields of that provider and never repeats a 
 test('every provider has a category, and the first of each category is the default', () => {
   expect(categoryNames.map(category => [category, providersIn(category)])).toEqual([
     ['telephony', ['telnyx', 'twilio']],
-    ['stt', ['deepgram', 'elevenlabs_stt', 'openai_stt']],
+    ['stt', ['deepgram', 'elevenlabs_stt', 'openai_stt', 'assemblyai_stt']],
     ['llm', ['openai', 'openrouter', 'anthropic', 'gemini', 'groq', 'mistral']],
     ['tts', ['elevenlabs', 'cartesia']],
     ['realtime', ['openai_realtime']],
@@ -171,6 +171,7 @@ test('where only the account can stop training on calls, the guide says how, bef
     'elevenlabs_stt',
     'elevenlabs_transcript',
     'assemblyai',
+    'assemblyai_stt',
   ] as const) {
     const { steps } = providerGuide(name)
     expect(steps.at(-1), name).toMatch(/^Paste/)

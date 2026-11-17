@@ -45,7 +45,7 @@ export const REUSE_FROM: Record<TranscriptProviderName, readonly [ProviderCatego
     ['llm', 'openai'],
   ],
   deepgram_transcript: [['stt', 'deepgram']],
-  assemblyai: [],
+  assemblyai: [['stt', 'assemblyai_stt']],
   elevenlabs_transcript: [
     ['stt', 'elevenlabs_stt'],
     ['tts', 'elevenlabs'],

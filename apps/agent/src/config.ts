@@ -146,6 +146,7 @@ const stages = {
       deepgram: 'DEEPGRAM_API_KEY',
       elevenlabs_stt: 'ELEVENLABS_STT_API_KEY',
       openai_stt: 'OPENAI_STT_API_KEY',
+      assemblyai_stt: 'ASSEMBLYAI_STT_API_KEY',
     },
   },
   llm: {
@@ -196,11 +197,12 @@ export const stageEnvVars = [
 /** Each language-model provider's API and default models (lists, first one first: "primary, fallback, ..."). */
 export const llmDefaults = llmEndpoints
 
-/** The speech model when none is set: Deepgram's English Flux, ElevenLabs' and OpenAI's streaming models. */
+/** The speech model when none is set: Deepgram's English Flux, ElevenLabs', OpenAI's and AssemblyAI's streaming models. */
 const sttDefaultModels: Record<SttProvider, string> = {
   deepgram: 'flux-general-en',
   elevenlabs_stt: 'scribe_v2_realtime',
   openai_stt: 'gpt-4o-mini-transcribe',
+  assemblyai_stt: 'universal-3-6-pro',
 }
 
 /** "a, b , c" → ['a', 'b', 'c']; an empty or missing value is the default list. */

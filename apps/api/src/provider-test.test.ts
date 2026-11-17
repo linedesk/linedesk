@@ -116,6 +116,23 @@ describe('voice: ElevenLabs', () => {
   })
 })
 
+describe('speech to text: AssemblyAI', () => {
+  test('the streaming key is checked like the after-call one: a free list of transcripts', async () => {
+    const fake = provider({ 'GET /v2/transcript': [200, { transcripts: [] }] })
+    expect(await testProvider('assemblyai_stt', config({ api_key: KEY }), fake.doFetch)).toMatchObject({ ok: true })
+    expect(fake.calls).toEqual(['GET https://api.assemblyai.com/v2/transcript?limit=1'])
+    expect(fake.requests[0]!.init.headers).toMatchObject({ authorization: KEY })
+  })
+
+  test('a rejected key', async () => {
+    const fake = provider({ 'GET /v2/transcript': [401, { error: 'Invalid API key' }] })
+    expect(await testProvider('assemblyai_stt', config({ api_key: KEY }), fake.doFetch)).toMatchObject({
+      ok: false,
+      reason: 'auth',
+    })
+  })
+})
+
 describe('voice: Cartesia', () => {
   test('out of credit shows on one character of speech (402)', async () => {
     const fake = provider({ 'POST /tts/bytes': [402, { error: 'payment required' }] })
